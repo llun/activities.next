@@ -36,6 +36,32 @@ export interface TileDelta {
 /** Longitude jump treated as a recording discontinuity rather than travel. */
 const ANTIMERIDIAN_JUMP_DEGREES = 180
 
+/**
+ * How many tiles one pair of consecutive points may cross before it is treated
+ * as a glitch rather than travel.
+ *
+ * A runaway guard, not a fidelity knob. A single bad GPS fix inside the legal
+ * coordinate range — a "null island" `{0, 0}` dropout is the common one, and
+ * the parser has no reason to reject it — draws a straight line from the route
+ * to that point and back. Geometrically that is one wrong stripe, which is what
+ * the untiled heatmap used to cost; here every tile the stripe crosses is a
+ * STORED ROW, so one bad fix took a measured ride from 84 tiles to 16,563, and
+ * a legal-longitude glitch under the antimeridian threshold to 44,918. That is
+ * a permanent 200-500x write amplification for the whole pyramid.
+ *
+ * 1,024 is measured, not guessed. The longest genuinely straight road on earth
+ * (~150 km of the Eyre Highway) simplifies to a single pair and stores 395
+ * tiles across the ladder — identical at this cap and with the cap four times
+ * higher, so nothing real is being clipped — while the null-island ride above
+ * drops from 16,563 tiles to 1,090. Tightening to 256 would start eating that
+ * road (103 tiles, a quarter of it gone).
+ *
+ * Deliberately a tile count rather than a distance: a meters threshold would
+ * have to guess how sparse a legitimate recording may be, and would silently
+ * cut real gaps in one.
+ */
+const MAX_TILE_CROSSINGS_PER_PAIR = 1_024
+
 const isFinitePoint = (point: { lat: number; lng: number }) =>
   Number.isFinite(point.lat) && Number.isFinite(point.lng)
 
@@ -174,11 +200,9 @@ const foldSubEdge = (
     deltas.set(mapKey, delta)
   }
 
-  const existing = delta.edges.get(key)
-  if (existing) {
-    existing.count += 1
-    return
-  }
+  // Always 1, never accumulated: the dedup above means this edge has not been
+  // seen for this activity, and one activity contributes one visit. Counts add
+  // up across activities, in the merge, not here.
   delta.edges.set(key, {
     a: Math.min(a, b),
     b: Math.max(a, b),
@@ -208,10 +232,12 @@ export interface BuildTileDeltasParams {
  *
  * The tolerance is a distance in METERS because that is what `simplifyPoints`
  * takes: it projects into a local meters plane internally and cannot be run in
- * pixel space. Anchoring that plane at the run's first latitude leaves a long
- * north-south activity slightly over-detailed at its far end, which errs
- * towards keeping shape; it never affects where a point LANDS, since placement
- * projects each point exactly.
+ * pixel space. That plane is anchored at the run's FIRST latitude, so a long
+ * north-south activity is simplified against its start's pixel size rather than
+ * its far end's — over-detailed running poleward, under-detailed running
+ * equatorward, and so not invariant to reversing the run. The error is a
+ * cos(latitude) ratio and stays small over any real activity; it never affects
+ * where a point LANDS, because placement projects each point exactly.
  */
 export const buildTileDeltasForActivity = ({
   segments,
@@ -252,6 +278,14 @@ export const buildTileDeltasForActivity = ({
           ) {
             continue
           }
+
+          // A pair spanning absurdly many tiles is a glitch, not travel. Left
+          // out entirely rather than ending the run, so the geometry either
+          // side of a bad fix still contributes.
+          const spannedTiles =
+            Math.abs(Math.floor(to.x) - Math.floor(from.x)) +
+            Math.abs(Math.floor(to.y) - Math.floor(from.y))
+          if (spannedTiles > MAX_TILE_CROSSINGS_PER_PAIR) continue
 
           // Solved once here, in the continuous frame, then localized per tile.
           const crossings = boundaryCrossings(from, to)

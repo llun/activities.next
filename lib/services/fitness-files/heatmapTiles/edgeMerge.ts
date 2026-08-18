@@ -98,17 +98,24 @@ interface AdjacencyEntry {
  *    twice and an edge visited once cannot share a run — putting them together
  *    would have to pick a count, and whichever it picked would be wrong for the
  *    other.
- * 2. **Sweep for cycles after the odd-degree starts.** Walking only from
- *    odd-degree vertices is the compact choice, but a closed loop — a
- *    roundabout, a lap, a criterium circuit — has no odd-degree vertex at all,
- *    so a walk that only starts at one never enters it and every edge in it is
- *    silently dropped.
+ * 2. **Sweep every edge afterwards.** Walking only from odd-degree vertices
+ *    would silently drop every closed loop — a roundabout, a lap, a criterium
+ *    circuit has no odd-degree vertex at all, so a walk that only starts at one
+ *    never enters it.
  *
- * Correctness needs completeness (every edge consumed exactly once), not
- * minimality: a walk that dead-ends at a junction just ends that run, and the
- * sweep picks up the rest. Consumption is by flag with per-vertex adjacency, so
- * the whole pass is linear in the number of edges — a dense downtown tile is
- * not capped, so an O(E^2) assembler would be a real cliff.
+ * The sweep is what carries correctness, and it would be complete even on its
+ * own: adjacency lists are built in ascending edge order, so once every edge
+ * before `i` is consumed, edge `i` is necessarily the first unconsumed entry at
+ * its own endpoint, and walking from there consumes it. The odd-degree pass
+ * ahead of it is a STORAGE optimisation, not a second half of the correctness
+ * argument — starting at an endpoint rather than mid-run yields fewer, longer
+ * polylines for the same edges.
+ *
+ * Completeness is what matters, not minimality: a walk that dead-ends at a
+ * junction just ends that run and the sweep picks up the rest. Consumption is
+ * by flag through per-vertex adjacency with a forward-only cursor, so the pass
+ * is linear in the number of edges — tile size is deliberately uncapped, so an
+ * O(E^2) assembler would be a real cliff on a downtown tile.
  */
 export const assembleEdgesToSegments = (edges: TileEdgeMap): TileSegment[] => {
   const partitions = new Map<string, TileEdge[]>()
@@ -173,13 +180,16 @@ export const assembleEdgesToSegments = (edges: TileEdgeMap): TileSegment[] => {
       segments.push({ count, ...(hidden ? { hidden: true } : {}), points })
     }
 
-    // Odd-degree vertices first: starting there produces fewer, longer runs.
+    // Odd-degree vertices first. Purely for compactness — a run started at an
+    // endpoint covers the whole chain, where one started in the middle splits
+    // it in two — so this changes how many polylines are stored, never which
+    // edges survive.
     for (const [vertex, entries] of adjacency) {
       if (entries.length % 2 === 1) walkFrom(vertex)
     }
 
-    // Then whatever is left, which is exactly the closed loops the pass above
-    // cannot reach. Without this they would be dropped outright.
+    // Everything still unconsumed, which is where correctness actually lives:
+    // closed loops are all-even-degree and the pass above cannot reach them.
     for (let edgeIndex = 0; edgeIndex < partition.length; edgeIndex += 1) {
       if (!consumed[edgeIndex]) walkFrom(partition[edgeIndex].a)
     }

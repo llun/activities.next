@@ -4,7 +4,7 @@ import {
   projectWebMercator
 } from '@/lib/utils/webMercator'
 
-import { TILE_EXTENT } from './constants'
+import { TILE_EXTENT, TILE_MAX_ZOOM, TILE_MIN_ZOOM } from './constants'
 
 /**
  * The tile payload format, and the projection helpers that produce it.
@@ -45,17 +45,26 @@ export interface TileCoordinate {
 /** `"z:x:y"`, matching the `tileKey` column the pyramid is keyed by. */
 export const tileKey = (z: number, x: number, y: number) => `${z}:${x}:${y}`
 
+const TILE_KEY_PART = /^\d+$/
+
 /**
- * The inverse of `tileKey`, or null for anything that is not one. Tolerant
- * because a key can arrive from a query string.
+ * The inverse of `tileKey`, or null for anything that is not one. A key can
+ * arrive from a query string, so this rejects rather than coerces.
+ *
+ * Each part is matched against digits before `Number` sees it, because
+ * `Number('')` is 0 — so a truncated `"12:2103:"` would otherwise resolve to a
+ * real but entirely different tile instead of being turned away, as would
+ * `"0x4:1:1"` and `" 4 :1:1"`. The zoom is bounded by the ladder for the same
+ * reason: above zoom 1023 `2 ** z` is `Infinity`, which makes the index checks
+ * below vacuous.
  */
 export const parseTileKey = (key: string): TileCoordinate | null => {
   const parts = key.split(':')
   if (parts.length !== 3) return null
+  if (!parts.every((part) => TILE_KEY_PART.test(part))) return null
 
   const [z, x, y] = parts.map((part) => Number(part))
-  if (![z, x, y].every((value) => Number.isInteger(value))) return null
-  if (z < 0 || x < 0 || y < 0) return null
+  if (z < TILE_MIN_ZOOM || z > TILE_MAX_ZOOM) return null
   if (x >= 2 ** z || y >= 2 ** z) return null
 
   return { z, x, y }
@@ -88,11 +97,17 @@ export const lngLatToTileLocal = (
   const x = clampIndex(Math.floor(continuousX))
   const y = clampIndex(Math.floor(continuousY))
 
+  // Clamped for the same reason the index is: at the projection's own edges the
+  // local coordinate lands a hair outside the space (the north Mercator limit
+  // gives about -4e-7), and the space is what callers are promised.
+  const clampLocal = (local: number) =>
+    Math.min(Math.max(local, 0), TILE_EXTENT)
+
   return {
     x,
     y,
-    u: (continuousX - x) * TILE_EXTENT,
-    v: (continuousY - y) * TILE_EXTENT,
+    u: clampLocal((continuousX - x) * TILE_EXTENT),
+    v: clampLocal((continuousY - y) * TILE_EXTENT),
     continuousX,
     continuousY
   }
@@ -127,7 +142,9 @@ export const tileLocalToLngLat = (
  * answered with the edge tiles rather than nothing. A box that wraps the
  * antimeridian is the CALLER's to split: this returns `minX > maxX` for one,
  * and the range read it feeds uses `whereBetween`, which matches no rows in
- * that state rather than wrapping around.
+ * that state rather than wrapping around. An inverted box — `minLat` above
+ * `maxLat` — comes back the same way on the other axis, and reads as empty for
+ * the same reason.
  */
 export const tilesForBounds = (
   bounds: { minLat: number; maxLat: number; minLng: number; maxLng: number },

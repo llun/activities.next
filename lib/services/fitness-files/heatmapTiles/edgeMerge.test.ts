@@ -111,14 +111,53 @@ describe('explodeTileToEdges', () => {
 })
 
 describe('assembleEdgesToSegments', () => {
-  it('joins a chain into one polyline', () => {
-    const segments = assembleEdgesToSegments(
-      buildEdges([
-        { a: [0, 0], b: [1, 1], count: 1 },
-        { a: [1, 1], b: [2, 2], count: 1 },
-        { a: [2, 2], b: [3, 3], count: 1 }
-      ])
-    )
+  it.each([
+    {
+      description: 'an end edge inserted first',
+      entries: [
+        {
+          a: [0, 0] as [number, number],
+          b: [1, 1] as [number, number],
+          count: 1
+        },
+        {
+          a: [1, 1] as [number, number],
+          b: [2, 2] as [number, number],
+          count: 1
+        },
+        {
+          a: [2, 2] as [number, number],
+          b: [3, 3] as [number, number],
+          count: 1
+        }
+      ]
+    },
+    {
+      description: 'a middle edge inserted first',
+      // Insertion order is what separates the two passes. Sweeping alone would
+      // start mid-chain here and store two runs; only beginning at an endpoint
+      // — what the odd-degree pass is for — keeps it whole, and fewer, longer
+      // runs is the storage win that pass exists for.
+      entries: [
+        {
+          a: [1, 1] as [number, number],
+          b: [2, 2] as [number, number],
+          count: 1
+        },
+        {
+          a: [0, 0] as [number, number],
+          b: [1, 1] as [number, number],
+          count: 1
+        },
+        {
+          a: [2, 2] as [number, number],
+          b: [3, 3] as [number, number],
+          count: 1
+        }
+      ]
+    }
+  ])('joins a chain into one polyline, given $description', ({ entries }) => {
+    const segments = assembleEdgesToSegments(buildEdges(entries))
     expect(segments).toHaveLength(1)
     expect(segments[0].points).toHaveLength(8)
     expect(segments[0].count).toBe(1)
@@ -295,26 +334,57 @@ describe('assembleEdgesToSegments', () => {
     expect(assembleEdgesToSegments(new Map())).toEqual([])
   })
 
-  it('assembles a dense tile whole, with no cap and no quadratic blowup', () => {
-    // There is deliberately no per-tile maximum, so the assembler has to stay
-    // linear: a downtown tile crossed by thousands of activities is the
-    // ordinary case, not the adversarial one.
-    const entries = Array.from({ length: 4_000 }, (_value, index) => ({
-      a: [index % 200, Math.floor(index / 200)] as [number, number],
-      b: [(index % 200) + 1, Math.floor(index / 200)] as [number, number],
-      count: (index % 3) + 1
-    }))
+  it('assembles a dense tile of long connected runs whole, with no cap', () => {
+    // There is deliberately no per-tile maximum, so this has to hold at the
+    // size a downtown tile really reaches. One count class and shared vertices
+    // on purpose: spreading the fixture across counts leaves isolated single
+    // edges, where the walker never takes a second step and the forward-only
+    // cursor is never consulted at all.
+    const rowLength = 200
+    const rows = 20
+    const entries = Array.from(
+      { length: rowLength * rows },
+      (_value, index) => {
+        const column = index % rowLength
+        const row = Math.floor(index / rowLength)
+        return {
+          a: [column, row] as [number, number],
+          b: [column + 1, row] as [number, number],
+          count: 1
+        }
+      }
+    )
     const edges = buildEdges(entries)
-
-    const startedAt = process.hrtime.bigint()
     const segments = assembleEdgesToSegments(edges)
-    const elapsedMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000
 
     expect(edgeMultiset(segments)).toEqual(
       [...edges.entries()].map(([key, edge]) => `${key}=${edge.count}`).sort()
     )
-    // Generous, but a quadratic assembler over 4,000 edges does not finish here.
-    expect(elapsedMs).toBeLessThan(2_000)
+    // Structural rather than timed: each row is one connected chain, so a
+    // correct assembler emits exactly one full-length run per row. A wall-clock
+    // budget would be flaky on a loaded CI box and would not say this.
+    expect(segments).toHaveLength(rows)
+    for (const segment of segments) {
+      expect(segment.points).toHaveLength((rowLength + 1) * 2)
+    }
+  })
+
+  it('walks a high-degree hub without losing an edge', () => {
+    // Every trail through the hub reuses its adjacency list, so a cursor that
+    // moved past an unconsumed entry would drop edges here.
+    const spokes = 2_000
+    const entries = Array.from({ length: spokes }, (_value, index) => ({
+      a: [128, 128] as [number, number],
+      b: [index % 250, 1 + Math.floor(index / 250)] as [number, number],
+      count: 1
+    }))
+    const edges = buildEdges(entries)
+    const segments = assembleEdgesToSegments(edges)
+
+    expect(edges.size).toBe(spokes)
+    expect(edgeMultiset(segments)).toEqual(
+      [...edges.entries()].map(([key, edge]) => `${key}=${edge.count}`).sort()
+    )
   })
 })
 
@@ -322,7 +392,8 @@ describe('explode and assemble round trip', () => {
   it.each([
     {
       description: 'a single run',
-      segments: [{ count: 1, points: [0, 0, 1, 1, 2, 2] }]
+      segments: [{ count: 1, points: [0, 0, 1, 1, 2, 2] }],
+      expectedEdges: 2
     },
     {
       description: 'mixed counts and privacy classes',
@@ -330,17 +401,23 @@ describe('explode and assemble round trip', () => {
         { count: 2, points: [0, 0, 1, 1] },
         { count: 5, points: [1, 1, 2, 2] },
         { count: 1, hidden: true, points: [2, 2, 3, 3] }
-      ]
+      ],
+      expectedEdges: 3
     },
     {
       description: 'coordinates at both ends of the space',
       segments: [
         { count: 1, points: [0, 0, TILE_EXTENT, TILE_EXTENT] },
         { count: 1, points: [0, TILE_EXTENT, TILE_EXTENT, 0] }
-      ]
+      ],
+      expectedEdges: 2
     }
-  ])('preserves $description exactly', ({ segments }) => {
+  ])('preserves $description exactly', ({ segments, expectedEdges }) => {
     const before = edgeMultiset(segments)
+    // Anchored, so the comparison cannot be satisfied by both sides collapsing
+    // to nothing — `edgeMultiset` runs through one of the functions under test.
+    expect(before).toHaveLength(expectedEdges)
+
     const after = edgeMultiset(
       assembleEdgesToSegments(explodeTileToEdges(segments))
     )

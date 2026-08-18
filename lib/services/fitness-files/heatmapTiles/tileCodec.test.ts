@@ -35,7 +35,30 @@ describe('tileKey and parseTileKey', () => {
   })
 
   it('accepts the last valid index at a zoom', () => {
-    expect(parseTileKey('2:3:3')).toEqual({ z: 2, x: 3, y: 3 })
+    expect(parseTileKey('4:15:15')).toEqual({ z: 4, x: 15, y: 15 })
+  })
+
+  it.each([
+    { description: 'an empty zoom part', key: ':1:1' },
+    { description: 'an empty x part', key: '12::1' },
+    {
+      description: 'a truncated key with a trailing separator',
+      key: '12:2103:'
+    },
+    { description: 'nothing but separators', key: '::' },
+    { description: 'hex notation', key: '0x4:1:1' },
+    { description: 'exponent notation', key: '1e1:5:5' },
+    { description: 'padded whitespace', key: '4: 1 :1' },
+    { description: 'a zoom below the ladder', key: '2:1:1' },
+    { description: 'a zoom above the ladder', key: '18:1:1' },
+    {
+      description: 'a zoom so large the index bound goes infinite',
+      key: '1024:1:1'
+    }
+  ])('rejects $description rather than coercing it', ({ key }) => {
+    // `Number('')` is 0, so a truncated key would otherwise resolve to a real
+    // but entirely different tile instead of being turned away.
+    expect(parseTileKey(key)).toBeNull()
   })
 })
 
@@ -223,7 +246,17 @@ describe('encodeTile and decodeTile', () => {
   })
 
   it.each([
-    { description: 'an odd-length point list', segment: '{"c":1,"p":[0,0,8]}' },
+    // Long enough to clear the minimum-length guard, so this really does test
+    // the parity check: without it the tile decodes with a dangling coordinate
+    // and `countTilePoints` answers a fraction.
+    {
+      description: 'an odd-length point list',
+      segment: '{"c":1,"p":[0,0,8,8,4]}'
+    },
+    {
+      description: 'a point list too short to be a line',
+      segment: '{"c":1,"p":[0,0,8]}'
+    },
     {
       description: 'a point list too short to be a line',
       segment: '{"c":1,"p":[0,0]}'
@@ -242,10 +275,17 @@ describe('encodeTile and decodeTile', () => {
       segment: '{"c":1,"p":[0,0,"x",8]}'
     },
     { description: 'a missing count', segment: '{"p":[0,0,8,8]}' },
-    { description: 'a zero count', segment: '{"c":0,"p":[0,0,8,8]}' }
+    { description: 'a zero count', segment: '{"c":0,"p":[0,0,8,8]}' },
+    { description: 'a non-finite count', segment: '{"c":null,"p":[0,0,8,8]}' }
   ])('drops $description without taking the tile with it', ({ segment }) => {
     const encoded = `{"e":256,"s":[${segment},{"c":2,"p":[1,1,2,2]}]}`
     expect(decodeTile(encoded)).toEqual([{ count: 2, points: [1, 1, 2, 2] }])
+  })
+
+  it('rounds a fractional count to a whole number of visits', () => {
+    expect(decodeTile('{"e":256,"s":[{"c":2.6,"p":[0,0,8,8]}]}')).toEqual([
+      { count: 3, points: [0, 0, 8, 8] }
+    ])
   })
 
   it('never throws, whatever it is handed', () => {

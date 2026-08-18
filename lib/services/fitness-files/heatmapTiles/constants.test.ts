@@ -129,6 +129,48 @@ describe('heatOpacityForCount', () => {
     }
   })
 
+  it('pins the saturation point itself, not just its own consequences', () => {
+    // Every other assertion here derives from the constant, so they hold for
+    // any value it takes. Six is the point where the ramp reaches 0.99 and
+    // further visits stop being visible.
+    expect(HEAT_COUNT_SATURATION).toBe(6)
+    expect(heatOpacityForCount(7, HEAT_VISIBLE_BASE_OPACITY)).toBeCloseTo(
+      1 - 0.45 ** 6,
+      10
+    )
+    expect(heatOpacityForCount(5, HEAT_VISIBLE_BASE_OPACITY)).toBeCloseTo(
+      1 - 0.45 ** 5,
+      10
+    )
+  })
+
+  it('starts the privacy-trimmed class at the opacity the untiled map draws', () => {
+    // Its whole reason for existing is matching what the map already renders.
+    expect(HEAT_HIDDEN_BASE_OPACITY).toBe(0.4)
+    expect(heatOpacityForCount(1, HEAT_HIDDEN_BASE_OPACITY)).toBeCloseTo(
+      0.4,
+      10
+    )
+    expect(heatOpacityForCount(2, HEAT_HIDDEN_BASE_OPACITY)).toBeCloseTo(
+      0.64,
+      10
+    )
+  })
+
+  it('rounds a fractional count rather than raising to a fractional power', () => {
+    // Counts are whole visits; a fraction can only arrive from corrupt data,
+    // and the ramp should answer the nearest real count rather than something
+    // between two of them.
+    expect(heatOpacityForCount(2.6, HEAT_VISIBLE_BASE_OPACITY)).toBeCloseTo(
+      heatOpacityForCount(3, HEAT_VISIBLE_BASE_OPACITY),
+      10
+    )
+    expect(heatOpacityForCount(2.4, HEAT_VISIBLE_BASE_OPACITY)).toBeCloseTo(
+      heatOpacityForCount(2, HEAT_VISIBLE_BASE_OPACITY),
+      10
+    )
+  })
+
   it('saturates past the clamp instead of climbing forever', () => {
     const saturated = heatOpacityForCount(
       HEAT_COUNT_SATURATION,

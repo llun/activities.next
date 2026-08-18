@@ -66,6 +66,7 @@ describe('buildTileDeltasForActivity', () => {
     const first = build([visible(shortTrack)], [12, 16])
     const second = build([visible(shortTrack)], [12, 16])
 
+    expect(totalEdges(first)).toBeGreaterThan(0)
     expect([...second.keys()].sort()).toEqual([...first.keys()].sort())
     for (const [key, delta] of first) {
       expect([...second.get(key)!.edges.keys()].sort()).toEqual(
@@ -112,17 +113,23 @@ describe('buildTileDeltasForActivity', () => {
   })
 
   it('skips non-finite coordinates instead of emitting a corrupt tile', () => {
+    // Two valid points EITHER SIDE of the bad one, so both runs survive and
+    // there is real output to inspect — with one point per side the whole
+    // fixture yields nothing and the assertions below run over an empty map.
     const deltas = build([
       {
         isHiddenByPrivacy: false,
         points: [
           { lat: 52.37, lng: 4.89 },
-          { lat: Number.NaN, lng: 4.8902 },
-          { lat: 52.3705, lng: 4.891 }
+          { lat: 52.3702, lng: 4.8904 },
+          { lat: Number.NaN, lng: 4.8906 },
+          { lat: 52.3706, lng: 4.891 },
+          { lat: 52.3709, lng: 4.8914 }
         ]
       }
     ])
 
+    expect(totalEdges(deltas)).toBeGreaterThan(0)
     for (const key of deltas.keys()) {
       expect(key).not.toContain('NaN')
     }
@@ -143,6 +150,7 @@ describe('buildTileDeltasForActivity', () => {
     const there = build([visible(out)])
     const andBack = build([visible([...out, ...[...out].reverse().slice(1)])])
 
+    expect(totalEdges(there)).toBeGreaterThan(0)
     expect(totalEdges(andBack)).toBe(totalEdges(there))
     for (const [key, delta] of andBack) {
       for (const edge of delta.edges.values()) {
@@ -158,6 +166,7 @@ describe('buildTileDeltasForActivity', () => {
       { isHiddenByPrivacy: true, points: visible(shortTrack).points }
     ])
 
+    expect(totalEdges(deltas)).toBeGreaterThan(0)
     for (const delta of deltas.values()) {
       const hiddenFlags = [...delta.edges.values()].map((edge) => edge.hidden)
       expect(hiddenFlags).toContain(true)
@@ -277,9 +286,11 @@ describe('buildTileDeltasForActivity', () => {
         [
           {
             isHiddenByPrivacy: false,
+            // Deliberately under the antimeridian threshold: a wider span is
+            // split as a discontinuity and yields nothing to inspect.
             points: [
-              { lat: -80, lng: -179.9 },
-              { lat: 80, lng: 179.9 }
+              { lat: -80, lng: -80 },
+              { lat: 80, lng: 80 }
             ]
           }
         ],
@@ -287,6 +298,7 @@ describe('buildTileDeltasForActivity', () => {
       )
 
       const lastTile = tileCountAtZoom(zoom) - 1
+      expect(totalEdges(deltas)).toBeGreaterThan(0)
       for (const delta of deltas.values()) {
         expect(delta.x).toBeGreaterThanOrEqual(0)
         expect(delta.y).toBeGreaterThanOrEqual(0)
@@ -328,25 +340,96 @@ describe('buildTileDeltasForActivity', () => {
     })
   })
 
-  describe('discontinuities', () => {
-    it('does not draw across the antimeridian', () => {
-      // Without the split, the pair projects to opposite edges of the world and
-      // lays edges through every tile column between them.
-      const zoom = 6
-      const wrapped = build(
+  describe('the glitch guard', () => {
+    const pairAt = (zoom: number, fromLng: number, toLng: number) =>
+      build(
         [
           {
             isHiddenByPrivacy: false,
             points: [
-              { lat: 0, lng: 179.9 },
-              { lat: 0, lng: -179.9 }
+              { lat: 0, lng: fromLng },
+              { lat: 0, lng: toLng }
             ]
           }
         ],
         [zoom]
       )
 
-      expect(wrapped.size).toBeLessThanOrEqual(2)
+    it('drops a pair that crosses absurdly many tiles', () => {
+      // 90 degrees at z16 is a quarter of the world, about 16,000 tiles — no
+      // activity has two consecutive points that far apart, so this is a bad
+      // GPS fix and every tile it crosses would be a stored row.
+      expect(pairAt(16, 0, 90).size).toBe(0)
+    })
+
+    it('keeps a long straight pair that is merely unusual', () => {
+      // Two degrees is roughly 360 tiles at z16 — longer than any real
+      // straight road, and it must still be stored whole.
+      const deltas = pairAt(16, 0, 2)
+      expect(deltas.size).toBeGreaterThan(300)
+    })
+
+    it('keeps the geometry either side of a bad fix', () => {
+      // The pair is dropped, not the run: a single dropout must not cost an
+      // activity everything recorded after it.
+      const ride = Array.from({ length: 40 }, (_value, index) => ({
+        lat: 52.37 + index * 0.0004,
+        lng: 4.89 + index * 0.0006
+      }))
+      const clean = build([{ isHiddenByPrivacy: false, points: ride }], [16])
+      const glitched = build(
+        [
+          {
+            isHiddenByPrivacy: false,
+            // "Null island" — the most common dropout, and entirely in range,
+            // so nothing upstream rejects it.
+            points: [
+              ...ride.slice(0, 20),
+              { lat: 0, lng: 0 },
+              ...ride.slice(20)
+            ]
+          }
+        ],
+        [16]
+      )
+
+      expect(clean.size).toBeGreaterThan(0)
+      // Every clean tile survives, and the glitch adds only a bounded number.
+      for (const key of clean.keys()) {
+        expect(glitched.has(key)).toBe(true)
+      }
+      expect(glitched.size).toBeLessThan(clean.size + 8)
+    })
+  })
+
+  describe('discontinuities', () => {
+    it('does not draw across the antimeridian', () => {
+      // Without the split, the pair projects to opposite edges of the world and
+      // lays edges through every tile column between them.
+      // Two points either side, so both runs survive and there is something to
+      // count: with one point each the whole fixture yields nothing and any
+      // upper bound is satisfied by zero.
+      const zoom = 6
+      const wrapped = build(
+        [
+          {
+            isHiddenByPrivacy: false,
+            points: [
+              { lat: 0, lng: 179.7 },
+              { lat: 0, lng: 179.9 },
+              { lat: 0, lng: -179.9 },
+              { lat: 0, lng: -179.7 }
+            ]
+          }
+        ],
+        [zoom]
+      )
+
+      // Exactly the two end tiles — not a stripe across every column between.
+      expect(wrapped.size).toBe(2)
+      expect(new Set([...wrapped.values()].map((delta) => delta.x))).toEqual(
+        new Set([0, tileCountAtZoom(zoom) - 1])
+      )
     })
 
     it('keeps the runs either side of a discontinuity', () => {
@@ -366,14 +449,88 @@ describe('buildTileDeltasForActivity', () => {
         [zoom]
       )
 
-      const xs = new Set([...deltas.values()].map((delta) => delta.x))
-      // Both ends present, and nothing spanning the whole map between them.
-      expect(xs.size).toBeGreaterThan(0)
+      // Both ends must actually survive: the run after the jump starts at the
+      // point that caused it, so dropping that point would silently delete the
+      // whole far side.
+      const xs = [
+        ...new Set([...deltas.values()].map((delta) => delta.x))
+      ].sort((a, b) => a - b)
+      const lastTile = tileCountAtZoom(zoom) - 1
+      expect(xs[0]).toBe(0)
+      expect(xs[xs.length - 1]).toBe(lastTile)
+      // And nothing spanning the map between them.
       expect(deltas.size).toBeLessThan(tileCountAtZoom(zoom) / 2)
+    })
+
+    it.each([
+      {
+        description: 'a large but legitimate gap in a sparse recording',
+        lngs: [0, 179] as [number, number],
+        split: false
+      },
+      {
+        description: 'an exact antimeridian jump',
+        lngs: [179.9, -179.9] as [number, number],
+        split: true
+      }
+    ])('treats $description correctly', ({ lngs, split }) => {
+      // The threshold itself. Anything from about 50 degrees upward passes the
+      // other fixtures here, so without this a far tighter threshold — which
+      // would cut real gaps in sparse recordings — would look fine.
+      const zoom = 6
+      const deltas = build(
+        [
+          {
+            isHiddenByPrivacy: false,
+            points: [
+              { lat: 0, lng: lngs[0] },
+              { lat: 0, lng: lngs[1] }
+            ]
+          }
+        ],
+        [zoom]
+      )
+
+      // A split run of two single points yields nothing; an unsplit pair draws.
+      expect(deltas.size === 0).toBe(split)
     })
   })
 
   describe('the zoom cascade', () => {
+    /**
+     * Structure at several scales at once: broad sweeps a coarse zoom keeps,
+     * and fine wiggles only the finest zoom can resolve. A straight or gently
+     * curving fixture cannot tell the cascade's direction apart, because every
+     * level simplifies it to the same two endpoints.
+     */
+    const multiScaleTrack: Array<[number, number]> = Array.from(
+      { length: 1_200 },
+      (_value, index) => [
+        52.37 + Math.sin(index / 90) * 0.05 + Math.sin(index / 3) * 0.00004,
+        4.89 + index * 0.0004
+      ]
+    )
+
+    it('builds fine zooms from the original, not from a coarse simplification', () => {
+      // The direction of the cascade. Ascending, z16 would be built from the
+      // 611m z8 simplification and lose almost everything — and because the
+      // levels then agree, a test comparing them to each other cannot see it.
+      const cascaded = build([visible(multiScaleTrack)], [8, 12, 16])
+      const directAt16 = build([visible(multiScaleTrack)], [16])
+
+      const edgesAt = (deltas: Map<string, TileDelta>, zoom: number) =>
+        [...deltas.values()]
+          .filter((delta) => delta.z === zoom)
+          .reduce((sum, delta) => sum + delta.edges.size, 0)
+
+      const cascadedAt16 = edgesAt(cascaded, 16)
+      expect(cascadedAt16).toBeGreaterThan(0)
+      // Building the ladder together must not cost the finest level its detail.
+      expect(cascadedAt16).toBe(edgesAt(directAt16, 16))
+      // And the finest level must hold strictly more than the coarsest.
+      expect(cascadedAt16).toBeGreaterThan(edgesAt(cascaded, 8) * 2)
+    })
+
     it('keeps a coarse level within its own tolerance of building it directly', () => {
       const track: Array<[number, number]> = Array.from(
         { length: 400 },
@@ -398,22 +555,17 @@ describe('buildTileDeltasForActivity', () => {
     })
 
     it('stores strictly less at coarser zooms than at finer ones', () => {
-      const track: Array<[number, number]> = Array.from(
-        { length: 300 },
-        (_value, index) => [
-          52.37 + index * 0.0003 + (index % 7) * 0.00004,
-          4.89 + index * 0.0005
-        ]
-      )
-      const deltas = build([visible(track)], [8, 12, 16])
+      const deltas = build([visible(multiScaleTrack)], [8, 12, 16])
 
       const edgesAt = (zoom: number) =>
         [...deltas.values()]
           .filter((delta) => delta.z === zoom)
           .reduce((sum, delta) => sum + delta.edges.size, 0)
 
-      expect(edgesAt(16)).toBeGreaterThanOrEqual(edgesAt(12))
-      expect(edgesAt(12)).toBeGreaterThanOrEqual(edgesAt(8))
+      // Strict, not `>=`: three identical levels would satisfy `>=` while
+      // meaning the per-zoom tolerance had stopped doing anything at all.
+      expect(edgesAt(16)).toBeGreaterThan(edgesAt(12))
+      expect(edgesAt(12)).toBeGreaterThan(edgesAt(8))
     })
   })
 })
