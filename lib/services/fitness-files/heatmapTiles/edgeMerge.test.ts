@@ -316,7 +316,7 @@ describe('assembleEdgesToSegments', () => {
         },
         {
           a: [0, 0] as [number, number],
-          b: [-0 + 8, 8] as [number, number],
+          b: [8, 8] as [number, number],
           count: 2
         }
       ]

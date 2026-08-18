@@ -65,9 +65,15 @@ export interface TileDelta {
  * 1,024 is measured. The longest genuinely straight road on earth (~150 km of
  * the Eyre Highway) spans 335 tiles and is kept whole. A gap left by a recorder
  * running through a 400 km train journey at 52°N spans 1,116 and is split,
- * which is correct — that is a discontinuity, not travel — though at 370 km it
- * is marginal and direction-dependent (1,029 north, 983 east), so the boundary
- * is a judgement about write amplification rather than a natural edge.
+ * which is correct — that is a discontinuity, not travel.
+ *
+ * The boundary between those falls somewhere around 370-390 km at that
+ * latitude, depending on direction and on which earth model the distance is
+ * measured with — a 370 km northward gap reads as 1,022 tiles against a WGS84
+ * meridian degree and 1,029 against an equatorial one, either side of the cap.
+ * That a plausible gap sits inside the measurement noise is the point: this
+ * boundary is a judgement about write amplification, not a natural edge, so no
+ * single distance near it should be quoted as decisive.
  */
 const MAX_TILE_SPAN_AT_FINEST_ZOOM = 1_024
 
