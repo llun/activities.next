@@ -33,8 +33,23 @@ export interface ClaimFitnessRouteHeatmapPyramidBuildParams {
    */
   staleBefore: number
   /**
-   * The token a continuation was handed when its own earlier pass claimed this
-   * build, proving it is that build's rightful successor rather than a rival.
+   * Whether this caller will carry on from where the build it is claiming left
+   * off. Only then may the claim RESUME — keep the build's `version` so its
+   * existing tiles are added to rather than replaced.
+   *
+   * It has to be the caller's answer, not the row's. Tile counts accumulate,
+   * so keeping the version is only safe for someone who will scan from the
+   * build's own cursor; a caller starting from the beginning that inherited a
+   * `generating` row would fold every activity a second time into that same
+   * version, and because the version never moved, completion's stale sweep
+   * could never clear the inflated tiles. Defaults to false so a caller that
+   * has not thought about it gets the answer that is merely wasteful — a fresh
+   * version, rebuilt from scratch, sweeping the old one away.
+   */
+  allowResume?: boolean
+  /**
+   * The build a continuation was handed when its own earlier pass claimed it,
+   * proving this pass is that build's rightful successor rather than a rival.
    *
    * Without it a build could never survive its own checkpoint: flushing is the
    * heartbeat, so the pass that just checkpointed leaves a `generating` row
@@ -43,12 +58,22 @@ export interface ClaimFitnessRouteHeatmapPyramidBuildParams {
    * than one pass would build a single flush of tiles and then orphan the
    * pyramid until the staleness window expired.
    *
+   * It names the ROW as well as the token, because `claimSeq` counts from zero
+   * per row and clearing an actor's heatmaps deletes the row — so `claimSeq: 1`
+   * before a clear and `claimSeq: 1` after it are different builds, and the
+   * collision lands on the likeliest value of all. Matching on the token alone
+   * let a continuation stranded across a clear evict the live build that had
+   * replaced it.
+   *
    * It is not a bypass of the fence. The compare-and-swap still guards on
    * `claimSeq`, and this claim still moves it, so a continuation delivered
    * twice has exactly one winner — the duplicate presents a token that has
-   * already advanced and is told it lost the race.
+   * already advanced, finds the winner heartbeating, and is refused.
    */
-  resumeClaimSeq?: number
+  resumeBuild?: {
+    pyramidId: string
+    claimSeq: number
+  }
 }
 
 export interface UpdateFitnessRouteHeatmapPyramidParams {
@@ -95,6 +120,23 @@ export interface UpsertFitnessRouteHeatmapTilesParams {
     segments: string
     pointCount: number
   }>
+  /**
+   * How far the build has scanned, written by the SAME guarded statement that
+   * writes the tiles rather than by a second call after it.
+   *
+   * Atomicity here is the whole point. Tile counts accumulate, so a build that
+   * writes tiles and then dies before recording that it did will fold those
+   * same activities again when it resumes — and nothing downstream can tell an
+   * inflated count from an honest one. Landing both in one transaction leaves
+   * only the window between this and the caller's own checkpoint, where the
+   * progress is AHEAD and a resume can see the gap and decline.
+   */
+  progress?: {
+    scannedCount: number
+    activityCount?: number
+    totalCount?: number
+    cursor?: FitnessRouteHeatmapPyramidCursor
+  }
 }
 
 export interface FitnessRouteHeatmapTileRangeParams {
@@ -171,6 +213,20 @@ export interface FitnessRouteHeatmapTileDatabase {
   sumFitnessRouteHeatmapTilePoints(
     params: FitnessRouteHeatmapTileRangeParams
   ): Promise<number>
+  /**
+   * What one build has on disk, for the counters a completing build stamps on
+   * its pyramid row.
+   *
+   * Counted from the tiles rather than tallied as they are written, because a
+   * tile touched by several flushes is one row and would be counted once per
+   * flush — and a build spanning continuations has no single process to tally
+   * in. Reads the `(actorId, version)` index, so it is one aggregate per build
+   * rather than a scan.
+   */
+  getFitnessRouteHeatmapTileTotals(params: {
+    actorId: string
+    version: number
+  }): Promise<{ tileCount: number; pointCount: number }>
   /**
    * Drops tiles left behind by an earlier build. Running this when a build
    * completes is how activities deleted since the last one disappear, with no
@@ -279,7 +335,7 @@ const classifyPyramidForClaim = (
   pyramid: FitnessRouteHeatmapPyramid,
   requestedAt: number,
   staleBefore: number,
-  resumeClaimSeq?: number
+  resumeBuild?: { pyramidId: string; claimSeq: number }
 ): 'already-fresh' | 'build-in-progress' | 'claimable' => {
   if (
     pyramid.status === 'completed' &&
@@ -289,12 +345,17 @@ const classifyPyramidForClaim = (
     return 'already-fresh'
   }
 
-  // A continuation carrying the live token is this build's own next pass, not
-  // a competitor for it, so the liveness test does not apply to it.
+  // A continuation carrying this very build's live token is its own next pass,
+  // not a competitor for it, so the liveness test does not apply to it.
+  const isOwnContinuation =
+    resumeBuild !== undefined &&
+    resumeBuild.pyramidId === pyramid.id &&
+    resumeBuild.claimSeq === pyramid.claimSeq
+
   if (
     pyramid.status === 'generating' &&
     pyramid.updatedAt >= staleBefore &&
-    pyramid.claimSeq !== resumeClaimSeq
+    !isOwnContinuation
   ) {
     return 'build-in-progress'
   }
@@ -317,7 +378,7 @@ const applyClaimableFilter = (
   query: Knex.QueryBuilder,
   requestedAt: number,
   staleBefore: number,
-  resumeClaimSeq?: number
+  resumeBuild?: { pyramidId: string; claimSeq: number }
 ) =>
   query
     .where((notFresh) =>
@@ -331,8 +392,12 @@ const applyClaimableFilter = (
         .whereNot('status', 'generating')
         .orWhere('updatedAt', '<', new Date(staleBefore))
         .modify((builder) => {
-          if (resumeClaimSeq === undefined) return
-          builder.orWhere('claimSeq', resumeClaimSeq)
+          if (!resumeBuild) return
+          builder.orWhere((ownContinuation) =>
+            ownContinuation
+              .where('id', resumeBuild.pyramidId)
+              .where('claimSeq', resumeBuild.claimSeq)
+          )
         })
     )
 
@@ -366,19 +431,30 @@ const applyClaimableFilter = (
  */
 const applyResumePremiseFilter = (
   query: Knex.QueryBuilder,
-  resumed: boolean
-) =>
-  resumed
-    ? query
-        .where('status', 'generating')
-        .whereNotNull('cursorCreatedAt')
-        .whereNotNull('cursorId')
-    : query.where((notResumable) =>
-        notResumable
-          .whereNot('status', 'generating')
-          .orWhereNull('cursorCreatedAt')
-          .orWhereNull('cursorId')
-      )
+  resumed: boolean,
+  allowResume: boolean
+) => {
+  if (resumed) {
+    return query
+      .where('status', 'generating')
+      .whereNotNull('cursorCreatedAt')
+      .whereNotNull('cursorId')
+  }
+
+  // A caller that never offered to resume decided nothing from the cursor, so
+  // there is no premise about it to re-assert — and asserting one anyway would
+  // make the compare-and-swap miss exactly the abandoned `generating` row with
+  // a cursor that a fresh build has to be able to take over, leaving that
+  // actor's claim to fail forever with no way to clear the cursor.
+  if (!allowResume) return query
+
+  return query.where((notResumable) =>
+    notResumable
+      .whereNot('status', 'generating')
+      .orWhereNull('cursorCreatedAt')
+      .orWhereNull('cursorId')
+  )
+}
 
 const applyTileRange = (
   database: Knex,
@@ -402,7 +478,8 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
     actorId,
     requestedAt,
     staleBefore,
-    resumeClaimSeq
+    allowResume = false,
+    resumeBuild
   }: ClaimFitnessRouteHeatmapPyramidBuildParams) {
     const currentTime = new Date()
 
@@ -467,7 +544,7 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
       pyramid,
       requestedAt,
       staleBefore,
-      resumeClaimSeq
+      resumeBuild
     )
 
     if (verdict !== 'claimable') {
@@ -478,7 +555,9 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
     // resuming; anything else starts a fresh version so its tiles replace the
     // previous build's rather than adding to them.
     const resumed =
-      pyramid.status === 'generating' && pyramid.cursor !== undefined
+      allowResume &&
+      pyramid.status === 'generating' &&
+      pyramid.cursor !== undefined
     const nextVersion = resumed ? pyramid.version : pyramid.version + 1
     const nextClaimSeq = pyramid.claimSeq + 1
 
@@ -487,9 +566,10 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
         database('fitness_route_heatmap_pyramids').where('actorId', actorId),
         requestedAt,
         staleBefore,
-        resumeClaimSeq
+        resumeBuild
       ),
-      resumed
+      resumed,
+      allowResume
     )
       // The compare-and-swap. Guarded on the ownership token, which BOTH
       // branches below move — guarding on `version` would be vacuous for a
@@ -547,7 +627,7 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
             currentPyramid,
             requestedAt,
             staleBefore,
-            resumeClaimSeq
+            resumeBuild
           )
         : 'claimable'
 
@@ -655,9 +735,10 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
     actorId,
     claimSeq,
     version,
-    tiles
+    tiles,
+    progress
   }: UpsertFitnessRouteHeatmapTilesParams) {
-    if (tiles.length === 0) return true
+    if (tiles.length === 0 && !progress) return true
 
     const currentTime = new Date()
     const rows = tiles.map((tile) => ({
@@ -681,9 +762,29 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
       const stillOwned = await trx('fitness_route_heatmap_pyramids')
         .where('actorId', actorId)
         .where('claimSeq', claimSeq)
-        .update({ updatedAt: currentTime })
+        .update({
+          updatedAt: currentTime,
+          ...(progress
+            ? {
+                scannedCount: progress.scannedCount,
+                ...(progress.activityCount !== undefined
+                  ? { activityCount: progress.activityCount }
+                  : {}),
+                ...(progress.totalCount !== undefined
+                  ? { totalCount: progress.totalCount }
+                  : {}),
+                ...(progress.cursor
+                  ? {
+                      cursorCreatedAt: new Date(progress.cursor.createdAt),
+                      cursorId: progress.cursor.id
+                    }
+                  : {})
+              }
+            : {})
+        })
 
       if (stillOwned === 0) return false
+      if (rows.length === 0) return true
 
       for (const chunk of chunkArray(rows, getInsertBatchSize(trx, rows[0]))) {
         await trx('fitness_route_heatmap_tiles')
@@ -704,6 +805,27 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
     >({ total: 'pointCount' })
 
     return Number(row?.total ?? 0)
+  },
+
+  async getFitnessRouteHeatmapTileTotals({
+    actorId,
+    version
+  }: {
+    actorId: string
+    version: number
+  }) {
+    const [row] = await database('fitness_route_heatmap_tiles')
+      .where('actorId', actorId)
+      .where('version', version)
+      .count<{ tiles: string | number | null }[]>({ tiles: '*' })
+      .sum<{ tiles: string | number | null; points: string | number | null }[]>(
+        { points: 'pointCount' }
+      )
+
+    return {
+      tileCount: Number(row?.tiles ?? 0),
+      pointCount: Number(row?.points ?? 0)
+    }
   },
 
   async deleteStaleFitnessRouteHeatmapTiles({

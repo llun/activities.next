@@ -389,19 +389,26 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
             }
           })
 
+          const whereOfLastUpdate = () => {
+            expect(updates).toHaveLength(1)
+            const [cas] = updates
+            const where = cas.slice(cas.toLowerCase().indexOf(' where '))
+            updates.length = 0
+            return where
+          }
+
           const claim = await isolated.claimFitnessRouteHeatmapPyramidBuild({
             actorId,
             requestedAt: Date.now(),
-            staleBefore: Date.now() - 120_000
+            staleBefore: Date.now() - 120_000,
+            allowResume: true
           })
           expect(claim.claimed).toBe(true)
 
-          expect(updates).toHaveLength(1)
           // Only the WHERE half. The SET half writes `status`, `updatedAt` and
           // `completedAt` on every fresh claim, so asserting against the whole
           // statement would pass with no guard at all.
-          const [cas] = updates
-          const whereClause = cas.slice(cas.toLowerCase().indexOf(' where '))
+          const whereClause = whereOfLastUpdate()
 
           expect(whereClause).toContain('claimSeq')
           // The two halves of "not already fresh, and not still running".
@@ -415,7 +422,6 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
 
           // Same for a claim that decided to RESUME, where the premise is the
           // mirror image: still generating, still holding a cursor.
-          updates.length = 0
           await isolated.updateFitnessRouteHeatmapPyramid({
             actorId,
             claimSeq: claim.pyramid.claimSeq,
@@ -427,16 +433,62 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
             await isolated.claimFitnessRouteHeatmapPyramidBuild({
               actorId,
               requestedAt: Date.now(),
-              staleBefore: Date.now() + 60_000
+              staleBefore: Date.now() + 60_000,
+              allowResume: true
             })
           expect(resumedClaim.resumed).toBe(true)
 
-          expect(updates).toHaveLength(1)
-          const resumedWhere = updates[0].slice(
-            updates[0].toLowerCase().indexOf(' where ')
-          )
+          const resumedWhere = whereOfLastUpdate()
           expect(resumedWhere).toContain('cursorId')
           expect(resumedWhere).toContain('status')
+
+          // A claimer that never offered to resume is the one case where the
+          // cursor premise must be ABSENT. It decided nothing from the cursor,
+          // and asserting one anyway would make the statement miss the very row
+          // it is taking over — an abandoned `generating` build that still holds
+          // a cursor — leaving the claim to fail on every attempt forever, with
+          // no way to clear the cursor because nobody can own the row.
+          const freshOnly = await isolated.claimFitnessRouteHeatmapPyramidBuild(
+            {
+              actorId,
+              requestedAt: Date.now(),
+              staleBefore: Date.now() + 60_000
+            }
+          )
+          expect(freshOnly.claimed).toBe(true)
+          expect(freshOnly.resumed).toBe(false)
+
+          const freshOnlyWhere = whereOfLastUpdate()
+          expect(freshOnlyWhere).toContain('claimSeq')
+          expect(freshOnlyWhere).not.toContain('cursorId')
+
+          // A continuation's exemption from the liveness test names the ROW as
+          // well as the token, on both sides. Asserted on the statement because
+          // the JS verdict returns before the compare-and-swap whenever they
+          // agree, so a SQL clause that is merely looser than the decision has
+          // no observable effect until the exact read-then-CAS interleaving it
+          // exists to catch — which is not stageable from one thread. Looser
+          // here means the write matching a row the decision would have
+          // refused: a build that a clear removed and replaced.
+          const current = await isolated.getFitnessRouteHeatmapPyramid({
+            actorId
+          })
+          updates.length = 0
+          const continuation =
+            await isolated.claimFitnessRouteHeatmapPyramidBuild({
+              actorId,
+              requestedAt: Date.now(),
+              staleBefore: Date.now() - 120_000,
+              allowResume: true,
+              resumeBuild: {
+                pyramidId: current!.id,
+                claimSeq: current!.claimSeq
+              }
+            })
+          expect(continuation.claimed).toBe(true)
+
+          const continuationWhere = whereOfLastUpdate()
+          expect(continuationWhere).toContain('`id`')
         } finally {
           await isolated.destroy()
         }
@@ -456,11 +508,13 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           scannedCount: 17
         })
 
-        // The worker dies; a later pass finds the heartbeat long expired.
+        // The worker dies; a later pass that IS continuing the same scan finds
+        // the heartbeat long expired.
         const resumed = await database.claimFitnessRouteHeatmapPyramidBuild({
           actorId,
           requestedAt: Date.now(),
-          staleBefore: Date.now() + 60_000
+          staleBefore: Date.now() + 60_000,
+          allowResume: true
         })
 
         expect(resumed.claimed).toBe(true)
@@ -501,7 +555,11 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
             // Heartbeat well inside the window: without the token this is
             // exactly the `build-in-progress` case.
             staleBefore: Date.now() - 120_000,
-            resumeClaimSeq: first.pyramid.claimSeq
+            allowResume: true,
+            resumeBuild: {
+              pyramidId: first.pyramid.id,
+              claimSeq: first.pyramid.claimSeq
+            }
           })
 
         expect(continuation.claimed).toBe(true)
@@ -531,7 +589,11 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
             actorId,
             requestedAt: Date.now(),
             staleBefore: Date.now() - 120_000,
-            resumeClaimSeq: first.pyramid.claimSeq
+            allowResume: true,
+            resumeBuild: {
+              pyramidId: first.pyramid.id,
+              claimSeq: first.pyramid.claimSeq
+            }
           })
 
         const winner = await claimOnce()
@@ -541,6 +603,65 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         // The redelivery presents a token that has already advanced, so it is
         // refused rather than folding the same activities in a second time.
         expect(duplicate.claimed).toBe(false)
+        // Refused because the winner is now heartbeating on an advanced token,
+        // which reclassifies as a live build rather than a bare lost race.
+        expect(duplicate.reason).toBe('build-in-progress')
+      })
+
+      it('refuses a token minted for a build that a clear has since removed', async () => {
+        // `claimSeq` counts from zero per ROW, and clearing an actor's heatmaps
+        // deletes the row — so the first claim before a clear and the first
+        // claim after it both hold token 1. Matching on the token alone let a
+        // continuation stranded across a clear evict the live build that had
+        // replaced it, and the collision lands on the likeliest value there is.
+        const actorId = await createActor(database)
+        const stranded = await database.claimFitnessRouteHeatmapPyramidBuild({
+          actorId,
+          requestedAt: Date.now(),
+          staleBefore: Date.now() - 120_000
+        })
+        await database.updateFitnessRouteHeatmapPyramid({
+          actorId,
+          claimSeq: stranded.pyramid.claimSeq,
+          cursor: { createdAt: 1_700_000_000_000, id: 'activity-42' },
+          scannedCount: 17
+        })
+
+        await database.deleteFitnessRouteHeatmapPyramidAndTilesForActor({
+          actorId
+        })
+
+        // The replacement build starts its own sequence from zero and is live.
+        const live = await database.claimFitnessRouteHeatmapPyramidBuild({
+          actorId,
+          requestedAt: Date.now(),
+          staleBefore: Date.now() - 120_000
+        })
+        expect(live.claimed).toBe(true)
+        expect(live.pyramid.claimSeq).toBe(stranded.pyramid.claimSeq)
+        expect(live.pyramid.id).not.toBe(stranded.pyramid.id)
+
+        const late = await database.claimFitnessRouteHeatmapPyramidBuild({
+          actorId,
+          requestedAt: Date.now(),
+          staleBefore: Date.now() - 120_000,
+          allowResume: true,
+          resumeBuild: {
+            pyramidId: stranded.pyramid.id,
+            claimSeq: stranded.pyramid.claimSeq
+          }
+        })
+
+        expect(late.claimed).toBe(false)
+        expect(late.reason).toBe('build-in-progress')
+        // And the live build still owns itself, so its next flush lands.
+        expect(
+          await database.updateFitnessRouteHeatmapPyramid({
+            actorId,
+            claimSeq: live.pyramid.claimSeq,
+            scannedCount: 1
+          })
+        ).toBe(true)
       })
 
       it('does not let a stale token reopen a build another worker has taken', async () => {
@@ -568,7 +689,11 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           actorId,
           requestedAt: Date.now(),
           staleBefore: Date.now() - 120_000,
-          resumeClaimSeq: first.pyramid.claimSeq
+          allowResume: true,
+          resumeBuild: {
+            pyramidId: first.pyramid.id,
+            claimSeq: first.pyramid.claimSeq
+          }
         })
 
         expect(late.claimed).toBe(false)
@@ -845,7 +970,8 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         const reclaimer = await database.claimFitnessRouteHeatmapPyramidBuild({
           actorId,
           requestedAt: Date.now(),
-          staleBefore: Date.now() + 60_000
+          staleBefore: Date.now() + 60_000,
+          allowResume: true
         })
         expect(reclaimer.resumed).toBe(true)
         // Same tile generation, so the interrupted pass's tiles survive...
