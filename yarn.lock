@@ -5288,7 +5288,7 @@ __metadata:
     husky: "npm:^9.1.7"
     jest-extended: "npm:^7.0.0"
     jest-fetch-mock: "npm:^4.2.0"
-    jose: "npm:^6.2.8"
+    jose: "npm:^6.2.9"
     jsdom: "npm:^30.0.1"
     jsonld: "npm:^9.0.0"
     knex: "npm:^3.3.0"
@@ -7399,10 +7399,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"jose@npm:^6.1.0, jose@npm:^6.1.3, jose@npm:^6.2.8":
+"jose@npm:^6.1.0, jose@npm:^6.1.3":
   version: 6.2.8
   resolution: "jose@npm:6.2.8"
   checksum: 10c0/fe4c6a7197a1adab2251b000c1eaaa8b40b6cb7cfbef43dbc9e959dacd43bf2532827b2d5e0f4069731da79d26e4d9e4368ccb26559a42a884b3fe036927e6e1
+  languageName: node
+  linkType: hard
+
+"jose@npm:^6.2.9":
+  version: 6.2.9
+  resolution: "jose@npm:6.2.9"
+  checksum: 10c0/fc6d79b11fdd5cc1393bccd644533b3e2445fd8eb2468066eb23c01ed7f6b41deca710e8aabe9379a382cca7920740900c7f610bdf0be4ff5e7ee44412730d4c
   languageName: node
   linkType: hard
 
