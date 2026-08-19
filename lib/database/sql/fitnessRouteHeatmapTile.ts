@@ -32,6 +32,23 @@ export interface ClaimFitnessRouteHeatmapPyramidBuildParams {
    * a worker that really died is reclaimed.
    */
   staleBefore: number
+  /**
+   * The token a continuation was handed when its own earlier pass claimed this
+   * build, proving it is that build's rightful successor rather than a rival.
+   *
+   * Without it a build could never survive its own checkpoint: flushing is the
+   * heartbeat, so the pass that just checkpointed leaves a `generating` row
+   * with a fresh `updatedAt`, and the continuation it published a moment later
+   * reads that as a live build and declines. Every actor whose scan needs more
+   * than one pass would build a single flush of tiles and then orphan the
+   * pyramid until the staleness window expired.
+   *
+   * It is not a bypass of the fence. The compare-and-swap still guards on
+   * `claimSeq`, and this claim still moves it, so a continuation delivered
+   * twice has exactly one winner — the duplicate presents a token that has
+   * already advanced and is told it lost the race.
+   */
+  resumeClaimSeq?: number
 }
 
 export interface UpdateFitnessRouteHeatmapPyramidParams {
@@ -261,7 +278,8 @@ const readPyramidRow = async (database: Knex, actorId: string) => {
 const classifyPyramidForClaim = (
   pyramid: FitnessRouteHeatmapPyramid,
   requestedAt: number,
-  staleBefore: number
+  staleBefore: number,
+  resumeClaimSeq?: number
 ): 'already-fresh' | 'build-in-progress' | 'claimable' => {
   if (
     pyramid.status === 'completed' &&
@@ -271,7 +289,13 @@ const classifyPyramidForClaim = (
     return 'already-fresh'
   }
 
-  if (pyramid.status === 'generating' && pyramid.updatedAt >= staleBefore) {
+  // A continuation carrying the live token is this build's own next pass, not
+  // a competitor for it, so the liveness test does not apply to it.
+  if (
+    pyramid.status === 'generating' &&
+    pyramid.updatedAt >= staleBefore &&
+    pyramid.claimSeq !== resumeClaimSeq
+  ) {
     return 'build-in-progress'
   }
 
@@ -292,7 +316,8 @@ const classifyPyramidForClaim = (
 const applyClaimableFilter = (
   query: Knex.QueryBuilder,
   requestedAt: number,
-  staleBefore: number
+  staleBefore: number,
+  resumeClaimSeq?: number
 ) =>
   query
     .where((notFresh) =>
@@ -305,6 +330,10 @@ const applyClaimableFilter = (
       notRunning
         .whereNot('status', 'generating')
         .orWhere('updatedAt', '<', new Date(staleBefore))
+        .modify((builder) => {
+          if (resumeClaimSeq === undefined) return
+          builder.orWhere('claimSeq', resumeClaimSeq)
+        })
     )
 
 /**
@@ -372,7 +401,8 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
   async claimFitnessRouteHeatmapPyramidBuild({
     actorId,
     requestedAt,
-    staleBefore
+    staleBefore,
+    resumeClaimSeq
   }: ClaimFitnessRouteHeatmapPyramidBuildParams) {
     const currentTime = new Date()
 
@@ -433,7 +463,12 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
     }
 
     const pyramid = parseSQLFitnessRouteHeatmapPyramid(existing)
-    const verdict = classifyPyramidForClaim(pyramid, requestedAt, staleBefore)
+    const verdict = classifyPyramidForClaim(
+      pyramid,
+      requestedAt,
+      staleBefore,
+      resumeClaimSeq
+    )
 
     if (verdict !== 'claimable') {
       return { claimed: false, resumed: false, reason: verdict, pyramid }
@@ -451,7 +486,8 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
       applyClaimableFilter(
         database('fitness_route_heatmap_pyramids').where('actorId', actorId),
         requestedAt,
-        staleBefore
+        staleBefore,
+        resumeClaimSeq
       ),
       resumed
     )
@@ -507,7 +543,12 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
       // reads as claimable means the state was fine and only the token moved —
       // which is what `lost-race` has always meant.
       const verdictNow = currentPyramid
-        ? classifyPyramidForClaim(currentPyramid, requestedAt, staleBefore)
+        ? classifyPyramidForClaim(
+            currentPyramid,
+            requestedAt,
+            staleBefore,
+            resumeClaimSeq
+          )
         : 'claimable'
 
       return {

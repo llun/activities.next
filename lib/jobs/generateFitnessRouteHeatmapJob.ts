@@ -104,7 +104,19 @@ const JobData = z.object({
   resume: z.boolean().optional(),
   cursorOffset: z.number().int().nonnegative().optional(),
   maxCursorOffset: z.number().int().positive().optional(),
-  requestedAt: z.number().int().nonnegative().optional()
+  requestedAt: z.number().int().nonnegative().optional(),
+  /**
+   * The tile build's ownership token, carried forward by a continuation this
+   * job published for itself. It is what lets the next pass re-adopt the build
+   * its predecessor was mid-way through: flushing is the heartbeat, so a pass
+   * that has just checkpointed leaves a `generating` pyramid that its own
+   * continuation would otherwise read as somebody else's live build.
+   *
+   * Absent on a request that came from the API, which is exactly right — an
+   * operator-triggered generate is a competitor for the build and has to win
+   * the claim on the usual terms.
+   */
+  pyramidClaimSeq: z.number().int().nonnegative().optional()
 })
 
 const getPeriodRange = (
@@ -327,7 +339,8 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
       resume,
       cursorOffset: requestedCursorOffset,
       maxCursorOffset: requestedMaxCursorOffset,
-      requestedAt
+      requestedAt,
+      pyramidClaimSeq
     } = JobData.parse(message.data)
 
     const startedAt = Date.now()
@@ -538,7 +551,12 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
         ? await database.claimFitnessRouteHeatmapPyramidBuild({
             actorId,
             requestedAt: requestedAt ?? startedAt,
-            staleBefore: startedAt - PYRAMID_HEARTBEAT_STALE_MS
+            staleBefore: startedAt - PYRAMID_HEARTBEAT_STALE_MS,
+            // Only a continuation carries one, and only then is this pass the
+            // build's own successor rather than a rival for it.
+            ...(isResume && pyramidClaimSeq !== undefined
+              ? { resumeClaimSeq: pyramidClaimSeq }
+              : {})
           })
         : null
 
@@ -745,7 +763,8 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
             resume: true,
             cursorOffset: nextCursorOffset,
             maxCursorOffset: maxCursorOffsetForRun,
-            ...(requestedAt !== undefined ? { requestedAt } : {})
+            ...(requestedAt !== undefined ? { requestedAt } : {}),
+            ...(pyramidBuild ? { pyramidClaimSeq: pyramidBuild.claimSeq } : {})
           }
         })
 

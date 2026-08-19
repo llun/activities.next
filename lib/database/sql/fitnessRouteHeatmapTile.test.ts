@@ -476,6 +476,105 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         expect(resumed.pyramid.scannedCount).toBe(17)
       })
 
+      it('lets a continuation carrying the live token re-adopt its own build', async () => {
+        // Flushing IS the heartbeat, so the pass that just checkpointed leaves
+        // a `generating` row with a fresh `updatedAt`. Without the token its
+        // own continuation reads that as somebody else's live build and backs
+        // off, and no build could ever outlive one checkpoint.
+        const actorId = await createActor(database)
+        const first = await database.claimFitnessRouteHeatmapPyramidBuild({
+          actorId,
+          requestedAt: Date.now(),
+          staleBefore: Date.now() - 120_000
+        })
+        await database.updateFitnessRouteHeatmapPyramid({
+          actorId,
+          claimSeq: first.pyramid.claimSeq,
+          cursor: { createdAt: 1_700_000_000_000, id: 'activity-42' },
+          scannedCount: 17
+        })
+
+        const continuation =
+          await database.claimFitnessRouteHeatmapPyramidBuild({
+            actorId,
+            requestedAt: Date.now(),
+            // Heartbeat well inside the window: without the token this is
+            // exactly the `build-in-progress` case.
+            staleBefore: Date.now() - 120_000,
+            resumeClaimSeq: first.pyramid.claimSeq
+          })
+
+        expect(continuation.claimed).toBe(true)
+        expect(continuation.resumed).toBe(true)
+        expect(continuation.pyramid.version).toBe(first.pyramid.version)
+        expect(continuation.pyramid.scannedCount).toBe(17)
+        // The token still moves, which is what fences the pass it replaces.
+        expect(continuation.pyramid.claimSeq).toBe(first.pyramid.claimSeq + 1)
+      })
+
+      it('gives a continuation delivered twice exactly one winner', async () => {
+        const actorId = await createActor(database)
+        const first = await database.claimFitnessRouteHeatmapPyramidBuild({
+          actorId,
+          requestedAt: Date.now(),
+          staleBefore: Date.now() - 120_000
+        })
+        await database.updateFitnessRouteHeatmapPyramid({
+          actorId,
+          claimSeq: first.pyramid.claimSeq,
+          cursor: { createdAt: 1_700_000_000_000, id: 'activity-42' },
+          scannedCount: 17
+        })
+
+        const claimOnce = () =>
+          database.claimFitnessRouteHeatmapPyramidBuild({
+            actorId,
+            requestedAt: Date.now(),
+            staleBefore: Date.now() - 120_000,
+            resumeClaimSeq: first.pyramid.claimSeq
+          })
+
+        const winner = await claimOnce()
+        const duplicate = await claimOnce()
+
+        expect(winner.claimed).toBe(true)
+        // The redelivery presents a token that has already advanced, so it is
+        // refused rather than folding the same activities in a second time.
+        expect(duplicate.claimed).toBe(false)
+      })
+
+      it('does not let a stale token reopen a build another worker has taken', async () => {
+        const actorId = await createActor(database)
+        const first = await database.claimFitnessRouteHeatmapPyramidBuild({
+          actorId,
+          requestedAt: Date.now(),
+          staleBefore: Date.now() - 120_000
+        })
+        await database.updateFitnessRouteHeatmapPyramid({
+          actorId,
+          claimSeq: first.pyramid.claimSeq,
+          cursor: { createdAt: 1_700_000_000_000, id: 'activity-42' },
+          scannedCount: 17
+        })
+        // Somebody else reclaims it as abandoned and is now heartbeating.
+        const takeover = await database.claimFitnessRouteHeatmapPyramidBuild({
+          actorId,
+          requestedAt: Date.now(),
+          staleBefore: Date.now() + 60_000
+        })
+        expect(takeover.claimed).toBe(true)
+
+        const late = await database.claimFitnessRouteHeatmapPyramidBuild({
+          actorId,
+          requestedAt: Date.now(),
+          staleBefore: Date.now() - 120_000,
+          resumeClaimSeq: first.pyramid.claimSeq
+        })
+
+        expect(late.claimed).toBe(false)
+        expect(late.reason).toBe('build-in-progress')
+      })
+
       it('starts a fresh version when an abandoned build never checkpointed', async () => {
         const actorId = await createActor(database)
         await database.claimFitnessRouteHeatmapPyramidBuild({
