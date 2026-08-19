@@ -540,18 +540,40 @@ export const processFitnessFileJob = createJobHandle(
           const sportKey = normalizeActivityTypeToSportKey(
             activityData.activityType
           )
-          if (sportKey) {
-            const defaultGear = await database.findFitnessGearByDefaultSport({
-              actorId,
-              sportKey
-            })
-            if (defaultGear) {
-              await database.assignFitnessFileGearIfUnset({
-                fitnessFileId,
+          const defaultGear = sportKey
+            ? await database.findFitnessGearByDefaultSport({
                 actorId,
-                gearId: defaultGear.id
+                sportKey
               })
-            }
+            : null
+          const assigned =
+            defaultGear &&
+            (await database.assignFitnessFileGearIfUnset({
+              fitnessFileId,
+              actorId,
+              gearId: defaultGear.id
+            }))
+
+          // Every way this silently does nothing ends up here. Gear totals are
+          // derived from the attributed files alone, so an activity that lands
+          // without gear is a kilometre missing from a gear page for good — and
+          // with nothing logged, the only symptom is a number that reads as
+          // stuck weeks later. The guarded UPDATE returning false is worth the
+          // same line: it means the row or the gear moved mid-job.
+          if (!assigned) {
+            logger.info({
+              message: 'Fitness file completed with no gear attributed',
+              actorId,
+              statusId,
+              fitnessFileId,
+              activityType: activityData.activityType ?? null,
+              sportKey: sportKey ?? null,
+              reason: !sportKey
+                ? 'activity type maps to no sport'
+                : !defaultGear
+                  ? 'no active gear claims this sport'
+                  : 'the guarded update matched no row'
+            })
           }
         } catch (error) {
           logger.warn({

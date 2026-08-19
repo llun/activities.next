@@ -409,8 +409,9 @@ export const FitnessFileSQLDatabaseMixin = (
         activityType: null,
         activityStartTime: null,
         sourceUrl: params.sourceUrl ?? null,
-        // Attribution happens after parsing (auto-assign by default sport) or
-        // on import from Strava's own gear id — never at upload time.
+        // Attribution happens after parsing, from the gear whose default sports
+        // claim the parsed one — never at upload time, and never from an
+        // import's own record of the gear (see AGENTS.md → Fitness Gear).
         gearId: null,
         createdAt: currentTime,
         updatedAt: currentTime

@@ -3,6 +3,7 @@ import {
   MatchableFitnessFile,
   applyWindows,
   diffGearComponents,
+  findUnattributedActivities,
   matchAssignmentsToFiles,
   parseGearImportFile
 } from './gearImportPlan'
@@ -305,6 +306,277 @@ describe('matchAssignmentsToFiles', () => {
   it('reports a matched file that already carries gear', () => {
     const result = match({ files: [file({ gearId: 'gear-1' })] })
     expect(result.matches[0].outcome).toMatchObject({ alreadyAssigned: true })
+  })
+
+  describe('identity matching', () => {
+    const identityMatch = ({
+      files,
+      time = baseTime,
+      stravaActivityId = null,
+      filename = null
+    }: {
+      files: MatchableFitnessFile[]
+      time?: number
+      stravaActivityId?: string | null
+      filename?: string | null
+    }) =>
+      matchAssignmentsToFiles({
+        assignments: [{ time, gear: 'Moots', stravaActivityId, filename }],
+        files,
+        toleranceMilliseconds: 60_000,
+        gearKindByName
+      })
+
+    it.each([
+      {
+        description: 'the source URL',
+        overrides: {
+          sourceUrl: 'https://www.strava.com/activities/19812110930'
+        }
+      },
+      {
+        description: 'the webhook file name',
+        overrides: { fileName: 'strava-19812110930.tcx' }
+      }
+    ])(
+      'matches on the Strava activity id in $description, past the time tolerance',
+      ({ overrides }) => {
+        const result = identityMatch({
+          // A day away: unreachable by time, so only the id can have matched it.
+          files: [
+            file({ activityStartTime: baseTime + 86_400_000, ...overrides })
+          ],
+          stravaActivityId: '19812110930'
+        })
+        expect(result.matches[0].outcome).toMatchObject({
+          kind: 'matched',
+          fileId: 'file-1',
+          matchedBy: 'strava-id'
+        })
+      }
+    )
+
+    it('matches on the archive file name when there is no Strava id', () => {
+      const result = identityMatch({
+        files: [
+          file({
+            fileName: 'activities/12345.gpx',
+            activityStartTime: baseTime + 86_400_000
+          })
+        ],
+        filename: '12345.gpx'
+      })
+      expect(result.matches[0].outcome).toMatchObject({
+        kind: 'matched',
+        matchedBy: 'filename'
+      })
+    })
+
+    it('matches a file that has no start time at all', () => {
+      const result = identityMatch({
+        files: [
+          file({
+            activityStartTime: undefined,
+            sourceUrl: 'https://www.strava.com/activities/777'
+          })
+        ],
+        stravaActivityId: '777'
+      })
+      expect(result.matches[0].outcome).toMatchObject({
+        kind: 'matched',
+        matchedBy: 'strava-id'
+      })
+    })
+
+    it('prefers the identity match over a nearer file in time', () => {
+      const result = identityMatch({
+        files: [
+          file({ id: 'nearer', activityStartTime: baseTime }),
+          file({
+            id: 'by-id',
+            activityStartTime: baseTime + 30_000,
+            sourceUrl: 'https://www.strava.com/activities/42'
+          })
+        ],
+        stravaActivityId: '42'
+      })
+      expect(result.matches[0].outcome).toMatchObject({
+        kind: 'matched',
+        fileId: 'by-id',
+        matchedBy: 'strava-id'
+      })
+    })
+
+    it('leaves a file an identity match claimed out of a later time match', () => {
+      const result = matchAssignmentsToFiles({
+        assignments: [
+          // Ordered so the time-matching entry comes first: identity resolves in
+          // its own pass, so claim order must not depend on assignment order.
+          { time: baseTime, gear: 'Moots', stravaActivityId: null },
+          { time: baseTime, gear: 'Moots', stravaActivityId: '42' }
+        ],
+        files: [
+          file({
+            id: 'by-id',
+            sourceUrl: 'https://www.strava.com/activities/42'
+          })
+        ],
+        toleranceMilliseconds: 60_000,
+        gearKindByName
+      })
+      expect(result.matches[1].outcome).toMatchObject({
+        kind: 'matched',
+        matchedBy: 'strava-id'
+      })
+      expect(result.matches[0].outcome).toMatchObject({
+        kind: 'conflict',
+        fileId: 'by-id',
+        claimedByAssignmentIndex: 1
+      })
+    })
+
+    it('reports two files carrying the same Strava id rather than guessing', () => {
+      const result = identityMatch({
+        files: [
+          file({
+            id: 'twin-a',
+            sourceUrl: 'https://www.strava.com/activities/42'
+          }),
+          file({
+            id: 'twin-b',
+            fileName: 'strava-42.gpx',
+            activityStartTime: baseTime + 1_000
+          })
+        ],
+        stravaActivityId: '42'
+      })
+      expect(result.matches[0].outcome).toMatchObject({ kind: 'ambiguous' })
+      expect([...result.reservedFileIds].sort()).toEqual(['twin-a', 'twin-b'])
+    })
+
+    it('falls back to time when the id names no file', () => {
+      const result = identityMatch({
+        files: [file()],
+        stravaActivityId: '19812110930'
+      })
+      expect(result.matches[0].outcome).toMatchObject({
+        kind: 'matched',
+        matchedBy: 'time'
+      })
+    })
+
+    it('falls back to time when a file name is not unique', () => {
+      const result = identityMatch({
+        files: [
+          file({ id: 'near', fileName: 'activity.gpx' }),
+          file({
+            id: 'far',
+            fileName: 'activity.gpx',
+            activityStartTime: baseTime + 30_000
+          })
+        ],
+        filename: 'activity.gpx'
+      })
+      expect(result.matches[0].outcome).toMatchObject({
+        kind: 'matched',
+        fileId: 'near',
+        matchedBy: 'time'
+      })
+    })
+
+    it('ignores the file name once the Strava id has named a file', () => {
+      const result = identityMatch({
+        files: [
+          file({
+            id: 'by-id',
+            fileName: 'from-strava.tcx',
+            sourceUrl: 'https://www.strava.com/activities/42'
+          }),
+          file({
+            id: 'by-name',
+            fileName: 'ride.gpx',
+            activityStartTime: baseTime + 30_000
+          })
+        ],
+        stravaActivityId: '42',
+        filename: 'ride.gpx'
+      })
+      expect(result.matches[0].outcome).toMatchObject({
+        kind: 'matched',
+        fileId: 'by-id',
+        matchedBy: 'strava-id'
+      })
+    })
+  })
+})
+
+describe('findUnattributedActivities', () => {
+  const activity = (
+    overrides: Partial<MatchableFitnessFile> = {}
+  ): MatchableFitnessFile => ({
+    id: 'file-1',
+    fileName: 'ride.tcx',
+    activityStartTime: Date.UTC(2023, 5, 1),
+    activityType: 'Ride',
+    processingStatus: 'completed',
+    totalDistanceMeters: 42_000,
+    ...overrides
+  })
+
+  const find = (
+    files: MatchableFitnessFile[],
+    reserved: string[] = [],
+    windowed: string[] = []
+  ) =>
+    findUnattributedActivities({
+      files,
+      reservedFileIds: new Set(reserved),
+      windowAssignedFileIds: new Set(windowed)
+    })
+
+  it('reports an activity no assignment or window reached', () => {
+    expect(find([activity()])).toMatchObject([
+      { fileId: 'file-1', sportKey: 'ride', totalDistanceMeters: 42_000 }
+    ])
+  })
+
+  it.each([
+    { description: 'already carries gear', overrides: { gearId: 'gear-1' } },
+    {
+      description: 'is not completed',
+      overrides: { processingStatus: 'processing' }
+    },
+    {
+      description: 'has no distance to contribute',
+      overrides: { totalDistanceMeters: 0 }
+    }
+  ])('skips an activity that $description', ({ overrides }) => {
+    expect(find([activity(overrides)])).toEqual([])
+  })
+
+  it.each([
+    {
+      description: 'an assignment reserved',
+      reserved: ['file-1'],
+      windowed: []
+    },
+    { description: 'a window took', reserved: [], windowed: ['file-1'] }
+  ])('skips an activity $description', ({ reserved, windowed }) => {
+    expect(find([activity()], reserved, windowed)).toEqual([])
+  })
+
+  it('reports an unrecognised sport with a null key, since nothing can attribute it', () => {
+    expect(find([activity({ activityType: 'Kayaking' })])).toMatchObject([
+      { fileId: 'file-1', sportKey: null }
+    ])
+  })
+
+  it('orders the report oldest first', () => {
+    const result = find([
+      activity({ id: 'newer', activityStartTime: Date.UTC(2024, 0, 1) }),
+      activity({ id: 'older', activityStartTime: Date.UTC(2022, 0, 1) })
+    ])
+    expect(result.map((entry) => entry.fileId)).toEqual(['older', 'newer'])
   })
 })
 

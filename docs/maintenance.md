@@ -401,18 +401,33 @@ Gear tracking arrived after most activities did, so anything imported earlier ha
 no gear at all. Re-importing would duplicate the posts, and automatic attribution
 only runs while a file is being processed, which a healthy stored activity never
 is again — so `scripts/fitness/importFitnessGear.ts` fills the gap: it creates the gear and its
-component history from a JSON file, then attributes existing activities by
-matching each entry's timestamp against `activityStartTime`.
+component history from a JSON file, then attributes existing activities to it.
 
-Assignments are matched to the nearest activity within `--tolerance-seconds`
-(default 60). An entry that matches nothing, ties between two activities, or
-lands on an activity another entry already claimed is reported and skipped —
-never guessed at, and a skipped entry still reserves the activities it named so a
-date window cannot quietly attribute them to a different gear. Activities that
-already carry gear are left alone unless `--overwrite` is given, so re-running is
-free and never undoes a manual correction. Always `--dry-run` first: the report
-lists how far the nearest activity was for every unmatched entry, so a systematic
-clock problem shows up as a uniform offset before anything is written.
+Each entry is matched by identity first: its `stravaActivityId` against the
+activity's `sourceUrl` (or the `strava-<id>.tcx` name the webhook importer
+writes), then its `filename` against the stored file name, compared as basenames
+with any `.gz` stripped. That names the very row, so it holds however far the two
+clocks have drifted — and it reaches an activity carrying no start time at all,
+which nothing else can. Only when neither side names the row does the timestamp
+decide, matching the nearest activity within `--tolerance-seconds` (default 60).
+
+An entry that matches nothing, ties between two activities, or lands on an
+activity another entry already claimed is reported and skipped — never guessed
+at, and a skipped entry still reserves the activities it named so a date window
+cannot quietly attribute them to a different gear. Two activities sharing one
+Strava id tie the same way; a repeated _file name_ does not, since it is weaker
+evidence than the timestamp and falls through to it. Activities that already
+carry gear are left alone unless `--overwrite` is given, so re-running is free
+and never undoes a manual correction.
+
+Always `--dry-run` first. The report lists how far the nearest activity was for
+every unmatched entry, so a systematic clock problem shows up as a uniform offset
+before anything is written — and it ends with the **unattributed activities**:
+the completed, distance-carrying activities the whole plan leaves with no gear,
+totalled and broken down by year. Gear totals are derived from exactly those
+rows, so that list is what a gear page short against Strava is short by; an
+activity whose type maps to no sport key is called out, because nothing can
+attribute it automatically.
 
 The script refuses to write at all when the actor has no activities but the file
 has assignments (almost always the wrong `--actor-id`, and creating the gear

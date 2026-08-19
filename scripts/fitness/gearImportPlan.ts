@@ -277,14 +277,27 @@ export interface MatchableFitnessFile {
   activityType?: string
   gearId?: string
   processingStatus?: string
+  /** Strava's own activity URL, for files this instance imported from Strava. */
+  sourceUrl?: string
+  totalDistanceMeters?: number
 }
+
+/**
+ * How an assignment reached its activity.
+ *
+ * `strava-id` and `filename` name the very row; `time` infers it. Reported so an
+ * operator can tell a certainty from an inference at a glance.
+ */
+export type AssignmentMatchedBy = 'strava-id' | 'filename' | 'time'
 
 export type AssignmentOutcome =
   | {
       kind: 'matched'
       fileId: string
       fileName: string
-      deltaMilliseconds: number
+      matchedBy: AssignmentMatchedBy
+      /** Absent when the file carries no start time to compare against. */
+      deltaMilliseconds?: number
       kindMismatch: boolean
       alreadyAssigned: boolean
     }
@@ -326,6 +339,46 @@ const getFileSportKind = (
   return sportKey ? SPORT_KIND[sportKey] : null
 }
 
+/** `https://www.strava.com/activities/19812110930` → `19812110930`. */
+const STRAVA_ACTIVITY_URL = /\/activities\/(\d+)(?:[/?#]|$)/
+/** What the webhook importer names the file it builds: `strava-<id>.tcx`. */
+const STRAVA_IMPORT_FILE_NAME = /^strava-(\d+)\.[a-z0-9]+$/i
+
+/**
+ * The Strava activity this file came from, if it says so.
+ *
+ * `sourceUrl` is the authoritative record and is read first; the file name is
+ * the fallback for rows imported before that column was backfilled.
+ */
+const getStravaActivityId = (file: MatchableFitnessFile): string | null => {
+  const fromUrl = file.sourceUrl
+    ? STRAVA_ACTIVITY_URL.exec(file.sourceUrl)
+    : null
+  if (fromUrl) return fromUrl[1]
+  const fromFileName = STRAVA_IMPORT_FILE_NAME.exec(file.fileName.trim())
+  return fromFileName ? fromFileName[1] : null
+}
+
+/**
+ * Both sides of a file-name comparison, reduced to the same shape.
+ *
+ * The export's `Filename` column is a path into the archive (`activities/1.gpx`)
+ * and may carry the `.gz` the archive importer strips before storing, so a raw
+ * comparison against `fitness_files.fileName` never matches.
+ */
+const normalizeFileName = (name: string): string =>
+  (name.trim().split('/').pop() ?? '').replace(/\.gz$/i, '').toLowerCase()
+
+const addToIndex = (
+  index: Map<string, MatchableFitnessFile[]>,
+  key: string,
+  file: MatchableFitnessFile
+): void => {
+  const existing = index.get(key)
+  if (existing) existing.push(file)
+  else index.set(key, [file])
+}
+
 /** Index of the first entry whose start time is >= `target`. */
 const lowerBound = (
   files: MatchableFitnessFile[],
@@ -343,11 +396,17 @@ const lowerBound = (
 }
 
 /**
- * Matches each assignment to the activity closest to its timestamp, within
+ * Matches each assignment to the activity it names, by identity where the file
+ * states one and by nearest timestamp otherwise.
+ *
+ * Identity goes first and ignores the tolerance entirely: a `sourceUrl` or a
+ * `strava-<id>.tcx` name IS the activity, so a clock that drifted — or a file
+ * with no start time at all — no longer costs the attribution. Only when
+ * neither side names the row does the timestamp decide, within
  * `toleranceMilliseconds`.
  *
- * Two activities are never both plausible in practice — the closest gap in a
- * decade of real data is minutes, not seconds — so a tie means something is
+ * Two activities are never both plausible in time in practice — the closest gap
+ * in a decade of real data is minutes, not seconds — so a tie means something is
  * genuinely duplicated (a repaired import twin, say) and the entry is skipped
  * rather than guessed at. Likewise a second assignment landing on an
  * already-claimed file is reported instead of cascading to its second choice,
@@ -359,7 +418,10 @@ export const matchAssignmentsToFiles = ({
   toleranceMilliseconds,
   gearKindByName
 }: {
-  assignments: Pick<ImportAssignment, 'time' | 'gear' | 'stravaActivityId'>[]
+  assignments: Pick<
+    ImportAssignment,
+    'time' | 'gear' | 'stravaActivityId' | 'filename'
+  >[]
   files: MatchableFitnessFile[]
   toleranceMilliseconds: number
   gearKindByName: Map<string, FitnessGearKind>
@@ -371,14 +433,112 @@ export const matchAssignmentsToFiles = ({
     .filter((file) => typeof file.activityStartTime === 'number')
     .sort((left, right) => startTimeOf(left) - startTimeOf(right))
 
+  const filesByStravaId = new Map<string, MatchableFitnessFile[]>()
+  const filesByName = new Map<string, MatchableFitnessFile[]>()
+  for (const file of files) {
+    const stravaId = getStravaActivityId(file)
+    if (stravaId) addToIndex(filesByStravaId, stravaId, file)
+    addToIndex(filesByName, normalizeFileName(file.fileName), file)
+  }
+
   const claimedBy = new Map<string, number>()
   const reservedFileIds = new Set<string>()
-  const matches: AssignmentMatch[] = []
+  const outcomes = new Array<AssignmentOutcome | undefined>(assignments.length)
 
-  assignments.forEach((assignment, index) => {
-    const target = assignment.time
+  const describe = (
+    assignment: Pick<ImportAssignment, 'time' | 'gear' | 'stravaActivityId'>,
+    index: number
+  ) => ({
+    index,
+    timeMilliseconds: assignment.time,
+    gearName: assignment.gear,
+    stravaActivityId: assignment.stravaActivityId
+  })
+
+  const toMatched = (
+    file: MatchableFitnessFile,
+    assignment: Pick<ImportAssignment, 'time' | 'gear'>,
+    matchedBy: AssignmentMatchedBy
+  ): AssignmentOutcome => {
     const gearKind = gearKindByName.get(normalizeGearName(assignment.gear))
+    const fileKind = getFileSportKind(file)
+    return {
+      kind: 'matched',
+      fileId: file.id,
+      fileName: file.fileName,
+      matchedBy,
+      ...(typeof file.activityStartTime === 'number'
+        ? {
+            deltaMilliseconds: Math.abs(
+              file.activityStartTime - assignment.time
+            )
+          }
+        : {}),
+      kindMismatch: Boolean(gearKind && fileKind && fileKind !== gearKind),
+      alreadyAssigned: Boolean(file.gearId)
+    }
+  }
 
+  /** Claims `file` for this assignment, or reports whoever holds it already. */
+  const claim = (
+    file: MatchableFitnessFile,
+    assignment: Pick<ImportAssignment, 'time' | 'gear'>,
+    index: number,
+    matchedBy: AssignmentMatchedBy
+  ): AssignmentOutcome => {
+    reservedFileIds.add(file.id)
+    const claimingIndex = claimedBy.get(file.id)
+    if (claimingIndex !== undefined) {
+      return {
+        kind: 'conflict',
+        fileId: file.id,
+        claimedByAssignmentIndex: claimingIndex
+      }
+    }
+    claimedBy.set(file.id, index)
+    return toMatched(file, assignment, matchedBy)
+  }
+
+  // --- Pass 1: the file itself names the activity ------------------------
+  // Runs to completion before any timestamp is considered, so a certain match
+  // always beats an inferred one no matter what order the entries are in.
+  assignments.forEach((assignment, index) => {
+    const byId = assignment.stravaActivityId
+      ? filesByStravaId.get(assignment.stravaActivityId.trim())
+      : undefined
+
+    if (byId?.length) {
+      // Two rows claiming one Strava activity is a real duplicate — a repaired
+      // import twin — and picking either would attribute half a ride.
+      if (byId.length > 1) {
+        for (const file of byId) reservedFileIds.add(file.id)
+        outcomes[index] = {
+          kind: 'ambiguous',
+          fileIds: byId.map((file) => file.id)
+        }
+        return
+      }
+      outcomes[index] = claim(byId[0], assignment, index, 'strava-id')
+      return
+    }
+
+    const byName = assignment.filename
+      ? filesByName.get(normalizeFileName(assignment.filename))
+      : undefined
+    // A name is only evidence while it is unique. Unlike a duplicated activity
+    // id, a repeated file name says nothing the timestamp cannot settle better
+    // (two hand-uploaded `activity.gpx` are different rides), so it falls
+    // through to the time pass rather than blocking the entry.
+    if (byName?.length === 1) {
+      outcomes[index] = claim(byName[0], assignment, index, 'filename')
+    }
+  })
+
+  // --- Pass 2: nothing named it, so the clock decides --------------------
+  assignments.forEach((assignment, index) => {
+    if (outcomes[index]) return
+
+    const target = assignment.time
     const withinTolerance: MatchableFitnessFile[] = []
     let nearestDelta = Number.POSITIVE_INFINITY
 
@@ -396,23 +556,13 @@ export const matchAssignmentsToFiles = ({
       withinTolerance.push(candidates[cursor])
     }
 
-    const base = {
-      index,
-      timeMilliseconds: target,
-      gearName: assignment.gear,
-      stravaActivityId: assignment.stravaActivityId
-    }
-
     if (withinTolerance.length === 0) {
-      matches.push({
-        ...base,
-        outcome: {
-          kind: 'unmatched',
-          nearestDeltaMilliseconds: Number.isFinite(nearestDelta)
-            ? nearestDelta
-            : undefined
-        }
-      })
+      outcomes[index] = {
+        kind: 'unmatched',
+        nearestDeltaMilliseconds: Number.isFinite(nearestDelta)
+          ? nearestDelta
+          : undefined
+      }
       return
     }
 
@@ -425,55 +575,86 @@ export const matchAssignmentsToFiles = ({
 
     if (nearest.length > 1) {
       for (const file of nearest) reservedFileIds.add(file.id)
-      matches.push({
-        ...base,
-        outcome: {
-          kind: 'ambiguous',
-          fileIds: nearest.map((file) => file.id)
-        }
-      })
-      return
-    }
-
-    const file = nearest[0]
-    const claimingIndex = claimedBy.get(file.id)
-    if (claimingIndex !== undefined) {
-      reservedFileIds.add(file.id)
-      matches.push({
-        ...base,
-        outcome: {
-          kind: 'conflict',
-          fileId: file.id,
-          claimedByAssignmentIndex: claimingIndex
-        }
-      })
-      return
-    }
-
-    claimedBy.set(file.id, index)
-    reservedFileIds.add(file.id)
-    const fileKind = getFileSportKind(file)
-    matches.push({
-      ...base,
-      outcome: {
-        kind: 'matched',
-        fileId: file.id,
-        fileName: file.fileName,
-        deltaMilliseconds: minimumDelta,
-        kindMismatch: Boolean(gearKind && fileKind && fileKind !== gearKind),
-        alreadyAssigned: Boolean(file.gearId)
+      outcomes[index] = {
+        kind: 'ambiguous',
+        fileIds: nearest.map((file) => file.id)
       }
-    })
+      return
+    }
+
+    outcomes[index] = claim(nearest[0], assignment, index, 'time')
   })
 
   return {
-    matches,
+    matches: assignments.map((assignment, index) => ({
+      ...describe(assignment, index),
+      // Every index is written by one of the two passes above; the fallback is
+      // only here so the type does not have to admit `undefined`.
+      outcome: outcomes[index] ?? { kind: 'unmatched' }
+    })),
     reservedFileIds,
     timestamplessFileCount: files.filter(
       (file) => typeof file.activityStartTime !== 'number'
     ).length
   }
 }
+
+/**
+ * A countable activity the whole plan left with no gear.
+ *
+ * Gear totals are derived from exactly these rows, so a leftover here is a
+ * missing kilometre on the gear page — and the only reason an operator
+ * comparing against Strava would come up short. The script reports assignments
+ * that found no activity; this is the other direction, activities no assignment
+ * (or window, or the app's own auto-assign) ever reached, which is what the
+ * numbers are actually made of.
+ */
+export interface UnattributedActivity {
+  fileId: string
+  fileName: string
+  activityStartTime?: number
+  activityType?: string
+  sourceUrl?: string
+  totalDistanceMeters: number
+  /** `null` when the type maps to no sport, so nothing could auto-attribute it. */
+  sportKey: SportKey | null
+}
+
+export const findUnattributedActivities = ({
+  files,
+  reservedFileIds,
+  windowAssignedFileIds
+}: {
+  files: MatchableFitnessFile[]
+  reservedFileIds: Set<string>
+  windowAssignedFileIds: Set<string>
+}): UnattributedActivity[] =>
+  files
+    .filter(
+      (file) =>
+        !file.gearId &&
+        !reservedFileIds.has(file.id) &&
+        !windowAssignedFileIds.has(file.id) &&
+        // Only 'completed' activities count toward a gear total, and only ones
+        // carrying distance move it. Anything else would pad the report without
+        // changing the number the operator is chasing — and the gym sessions
+        // that record no distance would bury the rides that do.
+        file.processingStatus === 'completed' &&
+        (file.totalDistanceMeters ?? 0) > 0
+    )
+    .map((file) => ({
+      fileId: file.id,
+      fileName: file.fileName,
+      activityStartTime: file.activityStartTime,
+      activityType: file.activityType,
+      sourceUrl: file.sourceUrl,
+      totalDistanceMeters: file.totalDistanceMeters ?? 0,
+      sportKey: normalizeActivityTypeToSportKey(file.activityType)
+    }))
+    .sort(
+      (left, right) =>
+        (left.activityStartTime ?? 0) - (right.activityStartTime ?? 0)
+    )
 
 export interface WindowAssignment {
   fileId: string

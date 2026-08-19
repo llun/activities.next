@@ -43,8 +43,10 @@ import {
   AssignmentMatch,
   ImportGear,
   MatchableFitnessFile,
+  UnattributedActivity,
   applyWindows,
   diffGearComponents,
+  findUnattributedActivities,
   matchAssignmentsToFiles,
   parseGearImportFile
 } from './gearImportPlan'
@@ -168,7 +170,9 @@ const loadActorFitnessFiles = async (
         activityStartTime: file.activityStartTime,
         activityType: file.activityType,
         gearId: file.gearId,
-        processingStatus: file.processingStatus
+        processingStatus: file.processingStatus,
+        sourceUrl: file.sourceUrl,
+        totalDistanceMeters: file.totalDistanceMeters
       })
     }
 
@@ -186,6 +190,71 @@ const describeAssignmentSource = (match: AssignmentMatch): string =>
   match.stravaActivityId
     ? `${formatTime(match.timeMilliseconds)} (strava ${match.stravaActivityId})`
     : formatTime(match.timeMilliseconds)
+
+const KILOMETRE = 1000
+const REPORT_SAMPLE_SIZE = 20
+
+const formatKm = (meters: number): string =>
+  `${(meters / KILOMETRE).toFixed(1)} km`
+
+/**
+ * Prints the activities the plan leaves with no gear.
+ *
+ * The counterpart to the unmatched-assignment list: that one says which entries
+ * found no activity, this one says which activities no entry found. Only the
+ * second answers "why is the gear page short against Strava", because a gear
+ * total is a sum over exactly these rows — so it leads with the total those
+ * kilometres add up to, and breaks it down by year to point at the period that
+ * went wrong.
+ */
+const reportUnattributed = (unattributed: UnattributedActivity[]): void => {
+  if (unattributed.length === 0) return
+
+  const totalMeters = unattributed.reduce(
+    (sum, activity) => sum + activity.totalDistanceMeters,
+    0
+  )
+  console.log(
+    `\nUnattributed activities (${unattributed.length}, ${formatKm(totalMeters)}):` +
+      '\n  These count toward no gear. A gear page short against Strava is short by these.'
+  )
+
+  const byYear = new Map<string, { count: number; meters: number }>()
+  for (const activity of unattributed) {
+    const year =
+      activity.activityStartTime === undefined
+        ? '(no date)'
+        : String(new Date(activity.activityStartTime).getUTCFullYear())
+    const total = byYear.get(year) ?? { count: 0, meters: 0 }
+    total.count += 1
+    total.meters += activity.totalDistanceMeters
+    byYear.set(year, total)
+  }
+  for (const [year, total] of [...byYear.entries()].sort()) {
+    console.log(
+      `    ${year}: ${total.count} activities, ${formatKm(total.meters)}`
+    )
+  }
+
+  for (const activity of unattributed.slice(0, REPORT_SAMPLE_SIZE)) {
+    const when =
+      activity.activityStartTime === undefined
+        ? 'no start time'
+        : formatTime(activity.activityStartTime)
+    // The sport key is what auto-assign matches on, so `null` is the whole
+    // reason a file can never be attributed without naming it explicitly.
+    const sport =
+      activity.sportKey ??
+      `sport not recognised from "${activity.activityType ?? 'none'}"`
+    console.log(
+      `  ${when}  ${formatKm(activity.totalDistanceMeters).padStart(9)}  ${sport}  ` +
+        `${activity.sourceUrl ?? activity.fileName}`
+    )
+  }
+  if (unattributed.length > REPORT_SAMPLE_SIZE) {
+    console.log(`  ... and ${unattributed.length - REPORT_SAMPLE_SIZE} more`)
+  }
+}
 
 async function importFitnessGearScript(args = process.argv.slice(2)) {
   if (args.includes('--help') || args.includes('-h')) {
@@ -485,6 +554,19 @@ async function importFitnessGearScript(args = process.argv.slice(2)) {
         )
       }
     }
+
+    // Computed from the pre-write snapshot, so this is what the run will leave
+    // behind — the same list either way, since it only ever assigns the files
+    // the matches and windows above already named.
+    reportUnattributed(
+      findUnattributedActivities({
+        files,
+        reservedFileIds,
+        windowAssignedFileIds: new Set(
+          windowAssignments.map((assignment) => assignment.fileId)
+        )
+      })
+    )
 
     if (input.dryRun) {
       console.log('\nDry run: nothing was written.')
