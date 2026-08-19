@@ -2047,9 +2047,13 @@ describe('generateFitnessRouteHeatmapJob', () => {
       // every few activities; the floor is what keeps that from becoming the
       // cost.
       //
-      // The ceiling is the order the rationale claims, not a token bound: at
-      // `budget / 4` this guard admitted a constant fifteen times larger, which
-      // is a quarter of the whole budget held in one map between flushes.
+      // The ceiling is expressed in the units the rationale is measured in —
+      // bytes per DENSE tile — rather than in a nominal per-tile figure. Stated
+      // the old way (1080 bytes a tile, against a quarter of the budget) it
+      // admitted 124,275, fifteen times the constant, because the two halves of
+      // that comparison used different densities. In these units it admits
+      // 15,230, so the guard fails before the map can hold more than the run's
+      // whole budget at real urban density.
       const bytesPerDenseTile = 150 * 235
       expect(TILE_FLUSH_PENDING_LIMIT * bytesPerDenseTile).toBeLessThan(
         getFitnessRouteHeatmapConfig().memoryBudgetBytes
@@ -3007,6 +3011,178 @@ describe('generateFitnessRouteHeatmapJob', () => {
       }
     })
 
+    it('folds each activity once when a bulk import shares one createdAt', async () => {
+      // A Strava archive import writes its rows in one go, so the scan's
+      // `(createdAt, id)` order comes down entirely to the id tie-break — and
+      // the gate compares those ids in JS while the page is ordered by SQL. If
+      // the two disagreed, a chain would re-fold or skip an activity on every
+      // hop, which is a permanently wrong number rather than a missing one.
+      const ids: string[] = []
+      const routes = [AMSTERDAM, SINGAPORE, TOKYO]
+
+      try {
+        for (const route of routes) {
+          const id = await createCompletedFitnessFile(
+            'running',
+            new Date('2026-04-15T07:00:00.000Z')
+          )
+          ids.push(id)
+          await seedRoute(id, route)
+        }
+        // Every row in the same millisecond, which is what the import produces
+        // and what the fixture helper otherwise deliberately avoids.
+        await instance('fitness_files')
+          .whereIn('id', ids)
+          .update({ createdAt: new Date(Date.UTC(2026, 5, 1, 12, 0, 0, 123)) })
+
+        // A checkpoint after every file, so the tie-break is re-decided from a
+        // stored cursor on each hop rather than once in memory.
+        let requestedAt = Date.now()
+        const timeoutSpy = vi.spyOn(Date, 'now')
+        timeoutSpy.mockReturnValueOnce(0).mockReturnValue(25_000)
+        try {
+          await runAllTime('job-pyramid-tie-first', {}, requestedAt)
+        } finally {
+          timeoutSpy.mockRestore()
+        }
+
+        let passes = 1
+        while (mockPublish.mock.calls.length > 0) {
+          const continuation = mockPublish.mock.calls[0][0] as {
+            data: Record<string, unknown>
+          }
+          mockPublish.mockClear()
+          const spy = vi.spyOn(Date, 'now')
+          spy.mockReturnValueOnce(0).mockReturnValue(25_000)
+          try {
+            await generateFitnessRouteHeatmapJob(database, {
+              id: `job-pyramid-tie-${passes}`,
+              name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+              data: continuation.data
+            })
+          } finally {
+            spy.mockRestore()
+          }
+          passes += 1
+          expect(passes).toBeLessThan(10)
+        }
+        void requestedAt
+
+        const pyramid = await database.getFitnessRouteHeatmapPyramid({
+          actorId: actor.id
+        })
+        expect(pyramid).toMatchObject({
+          status: 'completed',
+          version: 1,
+          scannedCount: 3,
+          activityCount: 3,
+          totalCount: 3
+        })
+        const counts = (await readTiles()).flatMap((tile) =>
+          decodeTile(tile.segments).map((segment) => segment.count)
+        )
+        expect(counts.length).toBeGreaterThan(0)
+        // Nothing folded twice, and all three continents present.
+        expect(new Set(counts)).toEqual(new Set([1]))
+      } finally {
+        for (const id of ids) await database.deleteFitnessFile({ id })
+      }
+    }, 30_000)
+
+    it('merges a second ride into a tile the same pass already has pending', async () => {
+      // Two rides through the same city inside one pass meet in the in-memory
+      // delta map rather than against a stored tile, and an edge only the
+      // second one touches has to be ADDED to what is already pending. Dropping
+      // that arm silently discards a whole ride's geometry from every tile the
+      // two share — and no fixture reached it, because the routes are all far
+      // enough apart to share nothing.
+      const firstId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+      const secondId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-16T07:00:00.000Z')
+      )
+
+      try {
+        // Two parallel lanes ~1.4km apart: the same tile from z12 down, but
+        // distinct pixels, so they share tiles without sharing edges.
+        await seedRoute(firstId, [
+          { lat: 52.0, lng: 4.88 },
+          { lat: 52.45, lng: 4.88 }
+        ])
+        await seedRoute(secondId, [
+          { lat: 52.0, lng: 4.9 },
+          { lat: 52.45, lng: 4.9 }
+        ])
+
+        await runAllTime('job-pyramid-shared-tile')
+
+        const tiles = await readTiles()
+        expect(tiles.length).toBeGreaterThan(0)
+        // A tile the two lanes share while staying distinct pixels has to carry
+        // BOTH of them — which is only true if the second ride's edges were
+        // added to what the first had already left pending, rather than
+        // replacing it. 1.4km apart at this latitude, that is the coarse half
+        // of the ladder.
+        const shared = tiles.filter(
+          (tile) => decodeTile(tile.segments).length > 1
+        )
+        expect(shared.length).toBeGreaterThan(0)
+        // Coarser zooms quantize the two lanes onto the same pixel, where a
+        // count of 2 is the correct answer — two activities on one stretch of
+        // road. Nothing anywhere reads more than that.
+        const counts = tiles.flatMap((tile) =>
+          decodeTile(tile.segments).map((segment) => segment.count)
+        )
+        expect(Math.max(...counts)).toBe(2)
+        expect(
+          await database.getFitnessRouteHeatmapPyramid({ actorId: actor.id })
+        ).toMatchObject({ status: 'completed', activityCount: 2 })
+      } finally {
+        await database.deleteFitnessFile({ id: firstId })
+        await database.deleteFitnessFile({ id: secondId })
+      }
+    })
+
+    it('does not fail the run when the pyramid claim throws', async () => {
+      // Tile work is a second, invisible output: losing it costs a rebuild,
+      // failing the run costs the user the heatmap they can actually see. The
+      // claim is the one tile-path failure with no build to record the reason
+      // on, so it is logged and the legacy path finishes alone.
+      const fitnessFileId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+      const claimSpy = vi
+        .spyOn(database, 'claimFitnessRouteHeatmapPyramidBuild')
+        .mockRejectedValue(new Error('claim unavailable'))
+
+      try {
+        await seedRoute(fitnessFileId, AMSTERDAM)
+
+        await expect(
+          runAllTime('job-pyramid-claim-throws')
+        ).resolves.not.toThrow()
+
+        expect(claimSpy).toHaveBeenCalled()
+        expect(await readTiles()).toEqual([])
+        // The heatmap the user can actually see is unaffected.
+        const heatmap = await database.getFitnessRouteHeatmapByKey({
+          actorId: actor.id,
+          activityType: null,
+          periodType: 'all_time',
+          periodKey: 'all',
+          region: ''
+        })
+        expect(heatmap).toMatchObject({ status: 'completed', activityCount: 1 })
+      } finally {
+        claimSpy.mockRestore()
+        await database.deleteFitnessFile({ id: fitnessFileId })
+      }
+    })
+
     it('does not write the build again when a pass scanned nothing new', async () => {
       // A flush with nothing folded and nothing scanned since the last one has
       // no progress to record and is owed no heartbeat, so it must not write.
@@ -3178,17 +3354,34 @@ describe('generateFitnessRouteHeatmapJob', () => {
         expect(new Set(counts)).toEqual(new Set([1]))
         // The COUNTER half of the same invariant, which the tiles cannot show:
         // the re-presented activity must not be counted either. Counting it
-        // would make `activityCount` equal `totalCount` — a build reporting
-        // that it covered the whole history precisely when it did not, since
-        // Tokyo sits at offset 0 which the resumed scan never reaches.
-        expect(
-          await database.getFitnessRouteHeatmapPyramid({ actorId: actor.id })
-        ).toMatchObject({
-          status: 'completed',
-          activityCount: 2,
-          scannedCount: 2,
-          totalCount: 3
+        // would make `activityCount` equal `totalCount` — a build claiming to
+        // have covered the whole history precisely when it did not.
+        //
+        // And because it did not, it must NOT certify itself complete. Tokyo
+        // was uploaded between the two passes, so it sorts first and sits at an
+        // offset the resumed scan never reaches: the build is handed back to be
+        // rebuilt instead. Stamping `completed` here would be worse than the
+        // missing tiles, because `completedAt` is what makes the next claim
+        // answer `already-fresh` — the regenerate that would pick Tokyo up
+        // would be refused, and the hole would be permanent.
+        const pyramid = await database.getFitnessRouteHeatmapPyramid({
+          actorId: actor.id
         })
+        expect(pyramid).toMatchObject({
+          status: 'failed',
+          error: 'Scan did not cover the whole history',
+          activityCount: 2,
+          scannedCount: 2
+        })
+        expect(pyramid?.completedAt).toBeUndefined()
+        // So the rebuild is available immediately, rather than refused.
+        expect(
+          await database.claimFitnessRouteHeatmapPyramidBuild({
+            actorId: actor.id,
+            requestedAt: Date.now(),
+            staleBefore: Date.now() - PYRAMID_HEARTBEAT_STALE_MS
+          })
+        ).toMatchObject({ claimed: true, reason: 'claimed' })
       } finally {
         await database.deleteFitnessFile({ id: amsterdamId })
         await database.deleteFitnessFile({ id: singaporeId })

@@ -468,17 +468,27 @@ it; there is no legacy shape left to copy.
   can actually see. Every tile-path error — the claim, the tiler, a flush, the
   completion — abandons the build, records why on the pyramid row, and lets the
   legacy path finish. Failing the CLAIM is the one case with nothing to record
-  on — there is no build yet — so it is logged and the run carries on.
-- **A build a pass stops holding is released from ONE place, the handler's
-  `finally`, never at each exit.** Four separate guards drop a continuation, and
-  a per-guard release was missed on one of them twice; no per-guard release
+  on — the claim's compare-and-swap and the read confirming it share one
+  transaction, so a claim either happens and is reported or does not happen, and
+  a failure leaves no build behind to record on.
+- **A build this pass was CARRYING rather than holding is released from one
+  place, the handler's `finally`.** Four separate guards drop a continuation,
+  and a per-guard release was missed on one of them twice; no per-guard release
   covers a throw between reading the token and making the claim either. The
-  release is unconditional because it is fenced on the CARRIED token and every
+  release is unconditional because it is fenced on the carried token and every
   claim moves the token: once this pass adopted the build, or anyone else took
-  it over, it matches nothing. A dropped continuation is the case that matters
-  most — it holds the only copy of its build's token, so walking away strands
-  the build AND refuses the Generate that displaced it, for the whole staleness
-  window.
+  it over, it matches nothing. (A build the pass went on to CLAIM is a different
+  thing, and is released at each of the exits that can abandon one.) A dropped
+  continuation is the case that matters most — it holds the only copy of its
+  build's token, so walking away strands the build AND refuses the Generate that
+  displaced it, for the whole staleness window.
+- **A build only completes over a history it actually scanned.** `completedAt`
+  is what makes the next claim answer `already-fresh`, so certifying a scan that
+  fell short does not merely lose tiles — it refuses the regenerate that would
+  have picked them up, turning a transient hole permanent. An activity uploaded
+  between two passes sorts first and lands before the offset the continuation
+  resumes at, so it is never presented to the fold gate at all; the pass hands
+  the build back rather than stamping it.
 - **Completing a build and sweeping the previous one's tiles are separate
   steps.** The sweep runs after the guarded completion write has already stamped
   the row, and the release that a completion failure triggers is fenced on a
@@ -1097,6 +1107,17 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   `SELECT pg_catalog.set_config('search_path', '', false)` is session-scoped and
   would otherwise leave that pooled connection unable to resolve any unqualified
   table name for the rest of its life.
+- **`getTestSQLDatabase` and `getTestSQLDatabaseWithInstance` are SQLite-ONLY
+  and ignore `TEST_DATABASE_TYPE` entirely.** A suite built on either reports a
+  clean pass under the pg environment variables having never opened a PostgreSQL
+  connection — which is a trap, not a nuisance: three review rounds of one PR
+  reported its job suite "verified on PostgreSQL 17" on exactly that basis.
+  `getTestDatabaseTable()` (for a `describe.each` over backends) and
+  `getTestDatabaseWithInstance()` (for a suite that is not shaped that way, or
+  that needs the raw Knex instance) do honour it. When a claim about
+  cross-backend behaviour matters, verify it by pointing `TEST_DATABASE_HOST` at
+  an unreachable address first: a suite that still passes is not running where
+  you think it is.
 - **To grab a mocked module and configure it, use `vi.importMock<T>('@/path')`,
   not `(await import('@/path')) as unknown as T`.** `vi.importMock` is the
   Vitest equivalent of the old `jest.requireMock`: it is purpose-built, always

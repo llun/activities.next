@@ -130,7 +130,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           database: isolated,
           instance,
           prepare: prepareIsolated
-        } = getTestDatabaseWithInstance('iso1')
+        } = getTestDatabaseWithInstance(true)
         await prepareIsolated()
         await isolated.migrate()
 
@@ -314,7 +314,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           database: isolated,
           instance,
           prepare: prepareIsolated
-        } = getTestDatabaseWithInstance('iso2')
+        } = getTestDatabaseWithInstance(true)
         await prepareIsolated()
         await isolated.migrate()
 
@@ -373,7 +373,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           database: isolated,
           instance,
           prepare: prepareIsolated
-        } = getTestDatabaseWithInstance('iso3')
+        } = getTestDatabaseWithInstance(true)
         await prepareIsolated()
         await isolated.migrate()
 
@@ -432,7 +432,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           database: isolated,
           instance,
           prepare: prepareIsolated
-        } = getTestDatabaseWithInstance('iso4')
+        } = getTestDatabaseWithInstance(true)
         await prepareIsolated()
         await isolated.migrate()
         try {
@@ -606,7 +606,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
               database: isolated,
               instance,
               prepare: prepareIsolated
-            } = getTestDatabaseWithInstance('iso5')
+            } = getTestDatabaseWithInstance(true)
             await prepareIsolated()
             await isolated.migrate()
 
@@ -666,7 +666,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
             database: isolated,
             instance,
             prepare: prepareIsolated
-          } = getTestDatabaseWithInstance('iso6')
+          } = getTestDatabaseWithInstance(true)
           await prepareIsolated()
           await isolated.migrate()
 
@@ -728,7 +728,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
               database: isolated,
               instance,
               prepare: prepareIsolated
-            } = getTestDatabaseWithInstance('iso7')
+            } = getTestDatabaseWithInstance(true)
             await prepareIsolated()
             await isolated.migrate()
 
@@ -830,22 +830,88 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         }
       )
 
-      it('does not hand back a row its own compare-and-swap never touched', async () => {
-        // The claim re-reads after the CAS, because a resume needs a checkpoint
-        // the previous owner committed inside that window. But a clear landing
-        // in the same window DELETES the row and the next generate creates a
-        // new one, so the re-read can return a row this claim never wrote to —
-        // and reporting that row's id and version, with this claim's token
-        // stamped over it, is the cross-clear collision every fence here names
-        // the row to avoid. The replacement's first claim also holds token 1,
-        // so the loser would walk away with the winner's live fence AND its
-        // version: its flushes would MERGE into the live build's own version,
-        // which no sweep can undo, and rewind its cursor.
+      it('confirms its own compare-and-swap inside the same transaction', async () => {
+        // Structural, because the failure it prevents is a throw between two
+        // round trips and there is no seam to inject one at. Two things rest on
+        // this. A CAS that commits and is then followed by a read that fails —
+        // a pool timeout, a reset connection — leaves the row stamped
+        // `generating` at a token the caller never learned it held, so every
+        // claimant is refused `build-in-progress` while nothing writes; rolling
+        // back means a claim either happens and is reported or does not happen.
+        // And the read seeing this pass's own write is what makes the reported
+        // version and token trustworthy: read outside, a rival claim landing in
+        // between would be reported as this pass's own.
         const {
           database: isolated,
           instance,
           prepare: prepareIsolated
-        } = getTestDatabaseWithInstance('isoreread')
+        } = getTestDatabaseWithInstance(true)
+        await prepareIsolated()
+        await isolated.migrate()
+
+        try {
+          const actorId = await createActor(isolated)
+          const statements: string[] = []
+          instance.on('query', ({ sql }: { sql: string }) => {
+            statements.push(sql.trimStart())
+          })
+
+          const claim = await isolated.claimFitnessRouteHeatmapPyramidBuild({
+            actorId,
+            requestedAt: Date.now(),
+            staleBefore: Date.now() - 120_000
+          })
+          expect(claim.claimed).toBe(true)
+
+          const isPyramid = (sql: string) =>
+            sql.includes('fitness_route_heatmap_pyramids')
+          const casIndex = statements.findIndex(
+            (sql) => isPyramid(sql) && sql.toLowerCase().startsWith('update')
+          )
+          expect(casIndex).toBeGreaterThan(-1)
+          const readIndex = statements.findIndex(
+            (sql, index) =>
+              index > casIndex &&
+              isPyramid(sql) &&
+              sql.toLowerCase().startsWith('select')
+          )
+          expect(readIndex).toBeGreaterThan(casIndex)
+
+          const opens = (sql: string) => /^begin/i.test(sql)
+          const closes = (sql: string) => /^(commit|rollback)/i.test(sql)
+          const openedBefore = statements
+            .slice(0, casIndex)
+            .filter(opens).length
+          const closedBefore = statements
+            .slice(0, casIndex)
+            .filter(closes).length
+          // Inside a transaction at the CAS...
+          expect(openedBefore).toBeGreaterThan(closedBefore)
+          // ...and still inside the same one at the read that confirms it.
+          expect(statements.slice(casIndex, readIndex).filter(closes)).toEqual(
+            []
+          )
+        } finally {
+          await isolated.destroy()
+        }
+      })
+
+      it('never hands back a row its own compare-and-swap did not write', async () => {
+        // The claim's confirming read shares the compare-and-swap's
+        // transaction, which is what makes the row it reports the row it wrote.
+        // Read outside that transaction, two things could land in between and
+        // both are silent corruption: a rival claim on the same row, whose live
+        // token this pass would then report and every later write would accept
+        // — the fence failing open for two passes at once; and a clear, which
+        // deletes the row and lets the next generate create another whose first
+        // claim also holds token 1, so this pass would walk away with the
+        // replacement's identity, version and token, merging its tiles into a
+        // live build where no sweep can reach them.
+        const {
+          database: isolated,
+          instance,
+          prepare: prepareIsolated
+        } = getTestDatabaseWithInstance(true)
         await prepareIsolated()
         await isolated.migrate()
 
@@ -853,18 +919,17 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           const actorId = await createActor(isolated)
           const replacementId = crypto.randomUUID()
 
-          // Fires on the claim's own UPDATE, which is exactly the window
-          // between the CAS and the re-read that follows it.
-          let swapped = false
+          // Fires on the claim's own UPDATE — the CAS-to-read window.
+          let interfered = false
           const swapTheRowOut = async ({ sql }: { sql: string }) => {
             if (
-              swapped ||
+              interfered ||
               !sql.trimStart().toLowerCase().startsWith('update') ||
               !sql.includes('fitness_route_heatmap_pyramids')
             ) {
               return
             }
-            swapped = true
+            interfered = true
             await instance('fitness_route_heatmap_pyramids')
               .where('actorId', actorId)
               .delete()
@@ -897,18 +962,33 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
             staleBefore: Date.now() - 120_000
           })
 
-          expect(swapped).toBe(true)
-          // It lost: the row it claimed is gone, and the row that is there is
-          // somebody else's.
-          expect({ claimed: claim.claimed, reason: claim.reason }).toEqual({
-            claimed: false,
-            reason: 'lost-race'
-          })
+          // Whatever the interference did, it is not this claim's build: the
+          // replacement's identity, version and token never leak into the
+          // answer.
+          expect(claim.pyramid.id).not.toBe(replacementId)
+          expect(claim.pyramid.version).not.toBe(7)
+          if (claim.claimed) {
+            expect(claim.pyramid.claimSeq).toBe(1)
+            // And a write fenced on what it was handed cannot reach the
+            // replacement build.
+            await isolated.updateFitnessRouteHeatmapPyramid({
+              actorId,
+              pyramidId: claim.pyramid.id,
+              claimSeq: claim.pyramid.claimSeq,
+              scannedCount: 99
+            })
+          }
 
-          // And the replacement build is untouched — same token, same version.
-          expect(
-            await isolated.getFitnessRouteHeatmapPyramid({ actorId })
-          ).toMatchObject({ id: replacementId, claimSeq: 1, version: 7 })
+          const survivor = await isolated.getFitnessRouteHeatmapPyramid({
+            actorId
+          })
+          if (survivor?.id === replacementId) {
+            expect(survivor).toMatchObject({
+              claimSeq: 1,
+              version: 7,
+              scannedCount: 0
+            })
+          }
         } finally {
           await isolated.destroy()
         }
@@ -1364,7 +1444,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
             database: isolated,
             instance,
             prepare: prepareIsolated
-          } = getTestDatabaseWithInstance('iso8')
+          } = getTestDatabaseWithInstance(true)
           await prepareIsolated()
           await isolated.migrate()
 
@@ -1773,7 +1853,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           database: isolated,
           instance,
           prepare: prepareIsolated
-        } = getTestDatabaseWithInstance('iso9')
+        } = getTestDatabaseWithInstance(true)
         await prepareIsolated()
         await isolated.migrate()
         try {
@@ -2238,7 +2318,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           database: isolated,
           instance,
           prepare: prepareIsolated
-        } = getTestDatabaseWithInstance('iso10')
+        } = getTestDatabaseWithInstance(true)
         await prepareIsolated()
         await isolated.migrate()
 

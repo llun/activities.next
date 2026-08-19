@@ -181,7 +181,7 @@ export const databaseBeforeAll = async (table: TestDatabaseTable) => {
  * pg environment variables without ever opening a PostgreSQL connection. Use
  * this instead wherever the SQL under test has to agree across backends.
  */
-export const getTestDatabaseWithInstance = (isolationSuffix?: string) => {
+export const getTestDatabaseWithInstance = (isolated = false) => {
   const type = process.env.TEST_DATABASE_TYPE
   if (type !== 'pg') {
     const { database, instance } = getTestSQLDatabaseWithInstance()
@@ -190,11 +190,13 @@ export const getTestDatabaseWithInstance = (isolationSuffix?: string) => {
 
   // An isolated caller needs its OWN database, not the suite's: `prepare` drops
   // and recreates, so sharing the per-worker name would destroy the database
-  // the surrounding suite is running against. Stripped to word characters for
-  // the same reason the worker id is — it is interpolated into `CREATE`/`DROP
-  // DATABASE`, which cannot be parameterised.
-  const databaseName = isolationSuffix
-    ? `${TEST_PG_DATABASE}_${isolationSuffix.replace(/\W/g, '').toLowerCase()}`
+  // the surrounding suite is running against. ONE extra name per worker rather
+  // than one per caller — Vitest runs a file's tests sequentially and each
+  // isolated caller destroys its instance before the next begins, so reusing
+  // the name keeps the server's database count bounded by the worker count
+  // instead of growing with the number of such tests.
+  const databaseName = isolated
+    ? `${TEST_PG_DATABASE}_isolated`
     : TEST_PG_DATABASE
 
   const instance = knex({

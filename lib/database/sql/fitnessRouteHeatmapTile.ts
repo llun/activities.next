@@ -605,60 +605,75 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
     const nextVersion = resumed ? pyramid.version : pyramid.version + 1
     const nextClaimSeq = pyramid.claimSeq + 1
 
-    const claimedRows = await applyResumePremiseFilter(
-      applyClaimableFilter(
-        database('fitness_route_heatmap_pyramids').where('actorId', actorId),
-        requestedAt,
-        staleBefore,
-        resumeBuild
-      ),
-      resumed
-    )
-      // The compare-and-swap. Guarded on the ownership token, which BOTH
-      // branches below move — guarding on `version` would be vacuous for a
-      // resume, which leaves the version where it is, so two workers reclaiming
-      // the same abandoned build would both be told they own it.
-      //
-      // The token alone is NOT enough, which is why the same predicate the
-      // decision above used is repeated as a WHERE clause. A live owner
-      // heartbeats by writing `updatedAt`, and finishes by writing `status` and
-      // `completedAt` — none of which move `claimSeq`. So between the read and
-      // this statement the owner can invalidate every input to the decision
-      // while leaving the token exactly where this CAS expects it: a heartbeat
-      // that lands there would let this claim steal a demonstrably live build,
-      // and a completion that lands there would let it throw away the very
-      // pyramid the request was asking for.
-      .where('id', pyramid.id)
-      .where('claimSeq', pyramid.claimSeq)
-      .update({
-        status: 'generating',
-        error: null,
-        claimSeq: nextClaimSeq,
-        updatedAt: currentTime,
-        // A fresh build restarts the tile generation and this run's progress.
-        // `totalCount`, `tileCount` and `pointCount` are deliberately left:
-        // they describe the tiles still on disk, which stay readable until this
-        // build's own numbers replace them at completion.
-        ...(resumed
-          ? {}
-          : {
-              version: nextVersion,
-              scannedCount: 0,
-              activityCount: 0,
-              cursorCreatedAt: null,
-              cursorId: null,
-              completedAt: null
-            })
-      })
+    // The compare-and-swap and the read that confirms it share one transaction.
+    // Separately, a failure after the CAS committed — a pool timeout, a reset
+    // connection, a statement timeout on the read — left the row stamped
+    // `generating` at a token nobody was holding: the caller saw only a throw,
+    // so it never learned it had a build, and every claimant for the next
+    // staleness window was refused `build-in-progress` while nothing wrote.
+    // Rolling the CAS back means a claim either happens and is reported, or
+    // does not happen at all.
+    const { claimedRows, currentPyramid } = await database.transaction(
+      async (trx) => {
+        const rows = await applyResumePremiseFilter(
+          applyClaimableFilter(
+            trx('fitness_route_heatmap_pyramids').where('actorId', actorId),
+            requestedAt,
+            staleBefore,
+            resumeBuild
+          ),
+          resumed
+        )
+          // The compare-and-swap. Guarded on the ownership token, which BOTH
+          // branches below move — guarding on `version` would be vacuous for a
+          // resume, which leaves the version where it is, so two workers reclaiming
+          // the same abandoned build would both be told they own it.
+          //
+          // The token alone is NOT enough, which is why the same predicate the
+          // decision above used is repeated as a WHERE clause. A live owner
+          // heartbeats by writing `updatedAt`, and finishes by writing `status` and
+          // `completedAt` — none of which move `claimSeq`. So between the read and
+          // this statement the owner can invalidate every input to the decision
+          // while leaving the token exactly where this CAS expects it: a heartbeat
+          // that lands there would let this claim steal a demonstrably live build,
+          // and a completion that lands there would let it throw away the very
+          // pyramid the request was asking for.
+          .where('id', pyramid.id)
+          .where('claimSeq', pyramid.claimSeq)
+          .update({
+            status: 'generating',
+            error: null,
+            claimSeq: nextClaimSeq,
+            updatedAt: currentTime,
+            // A fresh build restarts the tile generation and this run's progress.
+            // `totalCount`, `tileCount` and `pointCount` are deliberately left:
+            // they describe the tiles still on disk, which stay readable until this
+            // build's own numbers replace them at completion.
+            ...(resumed
+              ? {}
+              : {
+                  version: nextVersion,
+                  scannedCount: 0,
+                  activityCount: 0,
+                  cursorCreatedAt: null,
+                  cursorId: null,
+                  completedAt: null
+                })
+          })
 
-    // Re-read either way. On success it picks up a checkpoint the previous
-    // owner committed between this claim's read and its CAS, which a resume
-    // needs; on failure it is what says WHY, since the row now holds whatever
-    // the winner wrote.
-    const current = await readPyramidRow(database, actorId)
-    const currentPyramid = current
-      ? parseSQLFitnessRouteHeatmapPyramid(current)
-      : null
+        // Re-read either way. On success it picks up a checkpoint the previous
+        // owner committed between this claim's read and its CAS, which a resume
+        // needs; on failure it is what says WHY, since the row now holds
+        // whatever the winner wrote.
+        const current = await readPyramidRow(trx, actorId)
+        return {
+          claimedRows: rows,
+          currentPyramid: current
+            ? parseSQLFitnessRouteHeatmapPyramid(current)
+            : null
+        }
+      }
+    )
 
     if (claimedRows === 0) {
       // Re-classify rather than always reporting `lost-race`: losing to a build
@@ -684,21 +699,17 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
       }
     }
 
-    // The row this claim actually won is the one its CAS named, and clearing an
-    // actor's heatmaps between the CAS and the re-read replaces it with a
-    // different row entirely. Handing that row back would be the very
-    // cross-clear collision every fence here names the row to avoid: the
-    // replacement's first claim also holds `claimSeq: 1`, so this pass would
-    // walk away with the replacement's live token AND its version — flushing
-    // tiles that MERGE into the live build's own version, which no sweep can
-    // ever undo, and rewinding its cursor. Nothing about that row is this
-    // pass's to report, so it lost.
-    if (!currentPyramid || currentPyramid.id !== pyramid.id) {
+    // A successful CAS holds the row's write lock for the rest of the
+    // transaction, so the read above is this pass's own write and the row it
+    // names cannot have been deleted or replaced underneath it. `currentPyramid`
+    // is therefore never null here; the check is what makes that fact explicit
+    // rather than an unchecked spread.
+    if (!currentPyramid) {
       return {
         claimed: false,
         resumed: false,
         reason: 'lost-race' as const,
-        pyramid: currentPyramid ?? pyramid
+        pyramid
       }
     }
 
@@ -706,17 +717,15 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
       claimed: true,
       resumed,
       reason: 'claimed' as const,
-      // Identity and the token come from THIS CAS, never from the re-read.
-      // Another worker can claim the same row in the gap before that read, and
-      // adopting its token would hand this pass a `claimSeq` the fence accepts
-      // — both passes writing freely, the fence failing open, which is worse
-      // than not having one. Reporting our own instead means a superseded pass
-      // is rejected by the first write it attempts. The re-read is still what
-      // supplies the cursor and counters, because a resume needs a checkpoint
-      // the previous owner committed inside that same gap.
+      // The token and version reported are the ones THIS compare-and-swap
+      // wrote. They agree with the read above only because that read shares the
+      // CAS's transaction: taken from a read outside it, a rival claim landing
+      // in between would hand this pass the rival's live token, and the fence
+      // every later write is checked against would accept both passes — worse
+      // than having no fence at all. The read is still what supplies the cursor
+      // and the counters, which a resume needs.
       pyramid: {
         ...currentPyramid,
-        id: pyramid.id,
         version: nextVersion,
         claimSeq: nextClaimSeq
       }

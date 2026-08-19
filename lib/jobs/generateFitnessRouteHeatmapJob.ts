@@ -399,11 +399,15 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
         : undefined
 
     /**
-     * Why this pass walked away from the build it was carrying, for the row's
-     * own error column. Only ever read when the release below actually matches.
+     * Why this pass walked away from the build it was carrying, and as what,
+     * for the row's own columns. Only ever read when the release below actually
+     * matches. `cancelled` for a user stopping the work — the row has a status
+     * that says nothing is wrong with their data, and recording `failed` there
+     * throws that away.
      */
     let carriedBuildDropReason =
       'Continuation ended without taking over the build it carried'
+    let carriedBuildDropStatus: 'failed' | 'cancelled' = 'failed'
 
     /**
      * Hands a build back rather than sitting on it.
@@ -467,8 +471,12 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
        * fenced on the carried token, which a claim always moves: once this pass
        * (or anyone else) has taken the build over, the release matches nothing.
        */
-      const dropCarriedPyramidBuild = (reason: string) => {
+      const dropCarriedPyramidBuild = (
+        reason: string,
+        status: 'failed' | 'cancelled' = 'failed'
+      ) => {
         carriedBuildDropReason = reason
+        carriedBuildDropStatus = status
       }
 
       if (existing?.deletedAt) {
@@ -487,7 +495,8 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
             status: existing.status
           })
           dropCarriedPyramidBuild(
-            'Continuation dropped; its region row was deleted'
+            'Continuation dropped; its region row was deleted',
+            'cancelled'
           )
           return
         }
@@ -515,7 +524,8 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
             cancelledAt: existing.updatedAt
           })
           dropCarriedPyramidBuild(
-            'Continuation dropped; generation was cancelled'
+            'Continuation dropped; generation was cancelled',
+            'cancelled'
           )
           return
         }
@@ -1287,42 +1297,67 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
         const build = pyramidBuild
         let completedTheBuild = false
         try {
-          // Claim the finish FIRST, because it is the guarded write: a pass
-          // that has been superseded learns so here and stops, instead of
-          // sweeping on behalf of a build it no longer owns.
-          // Counted from what is actually on disk. A tile touched by several
-          // flushes is still one row, and a build spanning continuations has no
-          // single process that saw them all.
-          const totals = await database.getFitnessRouteHeatmapTileTotals({
-            actorId,
-            version: build.version
-          })
-
-          const finished = await database.updateFitnessRouteHeatmapPyramid({
-            actorId,
-            pyramidId: build.pyramidId,
-            claimSeq: build.claimSeq,
-            status: 'completed',
-            error: null,
-            tileCount: totals.tileCount,
-            pointCount: totals.pointCount,
-            // The pyramid's own count, not the legacy run's: tiles are stored
-            // unclipped, so a run that happened to carry a region filter must
-            // not stamp the actor-wide build with a region-clipped total.
-            activityCount: pyramidActivityCount,
-            totalCount,
-            scannedCount: pyramidScannedCount,
-            completedAt: Date.now()
-          })
-
-          if (!finished) {
+          // A build only completes over a history it actually scanned. An
+          // activity uploaded between two passes sorts FIRST, so it lands
+          // before the offset the continuation resumes at and is never
+          // presented to the fold gate at all — and stamping `completed` anyway
+          // is worse than the missing tiles, because `completedAt` is what
+          // makes the next claim answer `already-fresh`: the very regenerate
+          // that would pick the activity up is then refused, so the hole is
+          // permanent rather than healed by the next full generate. The
+          // counters that show it are already in hand. Handing the build back
+          // costs a rebuild, which is the trade this path makes everywhere
+          // else.
+          if (pyramidScannedCount < totalCount) {
             logger.info({
               message:
-                'Route heatmap tile build was taken over before it completed',
-              actorId
+                'Route heatmap tile build did not cover the whole history; handing it back to be rebuilt',
+              actorId,
+              scannedCount: pyramidScannedCount,
+              totalCount
             })
+            await releasePyramidBuild(
+              build,
+              'Scan did not cover the whole history'
+            )
           } else {
-            completedTheBuild = true
+            // Counted from what is actually on disk. A tile touched by several
+            // flushes is still one row, and a build spanning continuations has
+            // no single process that saw them all.
+            const totals = await database.getFitnessRouteHeatmapTileTotals({
+              actorId,
+              version: build.version
+            })
+
+            // Claim the finish FIRST, because it is the guarded write: a pass
+            // that has been superseded learns so here and stops, instead of
+            // sweeping on behalf of a build it no longer owns.
+            const finished = await database.updateFitnessRouteHeatmapPyramid({
+              actorId,
+              pyramidId: build.pyramidId,
+              claimSeq: build.claimSeq,
+              status: 'completed',
+              error: null,
+              tileCount: totals.tileCount,
+              pointCount: totals.pointCount,
+              // The pyramid's own count, not the legacy run's: tiles are stored
+              // unclipped, so a run that happened to carry a region filter must
+              // not stamp the actor-wide build with a region-clipped total.
+              activityCount: pyramidActivityCount,
+              totalCount,
+              scannedCount: pyramidScannedCount,
+              completedAt: Date.now()
+            })
+
+            if (!finished) {
+              logger.info({
+                message:
+                  'Route heatmap tile build was taken over before it completed',
+                actorId
+              })
+            } else {
+              completedTheBuild = true
+            }
           }
         } catch (completionError) {
           logger.error({
@@ -1422,6 +1457,11 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
         err: toLoggableError(error)
       })
 
+      // If this pass was still carrying a build it never claimed, the release
+      // in the `finally` should say what actually went wrong rather than the
+      // generic "ended without taking over" default.
+      carriedBuildDropReason = `Continuation failed before it could claim: ${nodeError.message}`
+
       // Best-effort, and deliberately before the region row: a build left
       // `generating` would block every later claim until its heartbeat went
       // stale. A failure here must never mask the original error, which is
@@ -1479,7 +1519,11 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
       // nothing. It only ever fires for a build that is still sitting where its
       // predecessor left it with nobody coming back for it.
       if (carriedPyramidBuild) {
-        await releasePyramidBuild(carriedPyramidBuild, carriedBuildDropReason)
+        await releasePyramidBuild(
+          carriedPyramidBuild,
+          carriedBuildDropReason,
+          carriedBuildDropStatus
+        )
       }
     }
   }
