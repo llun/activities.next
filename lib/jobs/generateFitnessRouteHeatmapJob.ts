@@ -13,6 +13,20 @@ import {
   FITNESS_FILE_ROUTE_SOURCE_VERSION,
   buildFitnessFileRoutePoints
 } from '@/lib/services/fitness-files/fileRouteCache'
+import {
+  type TileEdgeMap,
+  mergeTileDelta
+} from '@/lib/services/fitness-files/heatmapTiles/edgeMerge'
+import {
+  countTilePoints,
+  decodeTile,
+  encodeTile,
+  parseTileKey
+} from '@/lib/services/fitness-files/heatmapTiles/tileCodec'
+import {
+  type TileDelta,
+  buildTileDeltasForActivity
+} from '@/lib/services/fitness-files/heatmapTiles/tiler'
 import type {
   FitnessCoordinate,
   ParseableFitnessFileType
@@ -58,6 +72,28 @@ const ROUTE_HEATMAP_PAGE_SIZE = 100
 export const ROUTE_CACHE_PREFETCH_SIZE = 10
 const ROUTE_HEATMAP_MAX_FILES = 1_000_000
 const QUEUE_PUBLISH_MAX_ATTEMPTS = 3
+
+/**
+ * How long a pyramid build may go without a heartbeat before another pass may
+ * take it over. Six times the job's own 20s budget, so a pass that is simply
+ * working — every tile flush heartbeats — is never reclaimed, while one whose
+ * worker died is picked up on the next request rather than blocking the actor
+ * forever.
+ */
+const PYRAMID_HEARTBEAT_STALE_MS = 120_000
+
+/**
+ * How many tiles may sit unflushed in the delta map before it is written out,
+ * regardless of the time budget.
+ *
+ * The map holds an edge set per touched tile, and a build sweeping a dense city
+ * touches tiles far faster than the 20s checkpoint arrives. This is the bound
+ * on that growth between flushes; the existing heap guard is the backstop for
+ * everything else the run is holding. Measured against the 512MB budget: a
+ * flush of this many tiles carries on the order of a few tens of MB of edges,
+ * an order below the budget, and costs one read plus one chunked upsert.
+ */
+const TILE_FLUSH_PENDING_LIMIT = 8_000
 
 const JobData = z.object({
   actorId: z.string(),
@@ -301,6 +337,9 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
     const { periodStart, periodEnd } = getPeriodRange(periodType, periodKey)
 
     let heatmapId: string | undefined
+    // Hoisted for the same reason `heatmapId` is: the failure path below has to
+    // release a build it may have claimed.
+    let pyramidBuild: { claimSeq: number; version: number } | null = null
 
     try {
       const actor = await database.getActorFromId({ id: actorId })
@@ -485,7 +524,175 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
 
       let reachedPageLimit = false
 
+      // The pyramid is per-actor and covers the all-activities/all-time
+      // dataset, so only that variant builds it. Region is orthogonal: tiles
+      // are stored unclipped and a region is applied when they are served, so
+      // whichever region row wins the claim builds the same pyramid.
+      const isPyramidVariant =
+        activityType === null && periodType === 'all_time'
+
+      // `startedAt`, never a fresh `Date.now()` — the checkpoint tests stub the
+      // clock with `mockReturnValueOnce(0)` and assume the first call in a run
+      // is the one at the top of this handler.
+      const pyramidClaim = isPyramidVariant
+        ? await database.claimFitnessRouteHeatmapPyramidBuild({
+            actorId,
+            requestedAt: requestedAt ?? startedAt,
+            staleBefore: startedAt - PYRAMID_HEARTBEAT_STALE_MS
+          })
+        : null
+
+      // Tile work runs beside the legacy blob and is allowed to stop at any
+      // point without touching it. Anything other than owning the build — a
+      // fresher pyramid already answers this request, another pass holds it, or
+      // the claim lost its race — simply leaves the legacy path running alone.
+      pyramidBuild =
+        pyramidClaim?.claimed && pyramidClaim.reason === 'claimed'
+          ? {
+              claimSeq: pyramidClaim.pyramid.claimSeq,
+              version: pyramidClaim.pyramid.version
+            }
+          : null
+
+      // A resume may only keep folding when the pyramid is exactly in step with
+      // the page cursor the legacy path is resuming from. Tile counts
+      // ACCUMULATE, so re-folding an activity inflates it permanently — a
+      // wrong heat value rather than a missing one. The flush below writes
+      // tiles first and `scannedCount` second, so a crash between them leaves
+      // the pyramid behind, this check sees the gap, and the run declines to
+      // add to a build it cannot place itself in. The next full generate
+      // rebuilds under a bumped version and the stale sweep clears the rest.
+      if (pyramidBuild && isResume) {
+        const scanned = pyramidClaim?.pyramid.scannedCount ?? 0
+        if (scanned !== (requestedCursorOffset ?? 0)) {
+          logger.info({
+            message:
+              'Skipping route heatmap tile build; pyramid is out of step with the resumed cursor',
+            actorId,
+            pyramidScannedCount: scanned,
+            resumedCursorOffset: requestedCursorOffset ?? 0
+          })
+          pyramidBuild = null
+        }
+      }
+
+      // tileKey -> the edges this run has folded in but not yet written.
+      const pendingTiles = new Map<string, TileEdgeMap>()
+      // The pyramid's resume marker. It records how far this build got, but it
+      // does NOT drive paging during the transition — the region row's integer
+      // `cursorOffset` still does that. Its job is to make the next claim
+      // report `resumed`, which is what preserves the build's version.
+      let lastFoldedFile: { createdAt: number; id: string } | null = null
+
+      const foldActivityIntoPyramid = (
+        privacySegments: Array<PrivacySegment<RouteHeatmapPoint>>
+      ) => {
+        if (!pyramidBuild) return
+
+        // Pre-region on purpose: a tile is region-independent, and clipping
+        // happens when it is served.
+        const deltas: Map<string, TileDelta> = buildTileDeltasForActivity({
+          segments: privacySegments,
+          toleranceFloorMeters: routeHeatmapConfig.simplifyToleranceMeters
+        })
+
+        for (const [key, delta] of deltas) {
+          const pending = pendingTiles.get(key)
+          if (!pending) {
+            pendingTiles.set(key, delta.edges)
+            continue
+          }
+          for (const [edgeId, edge] of delta.edges) {
+            const existingEdge = pending.get(edgeId)
+            if (existingEdge) existingEdge.count += edge.count
+            else pending.set(edgeId, { ...edge })
+          }
+        }
+      }
+
+      /**
+       * Writes the pending tiles and advances the pyramid's own progress.
+       *
+       * Ordered tiles first, then the pyramid row, then (by the caller) the
+       * region checkpoint — see the resume guard above for why that order is
+       * the correctness argument rather than an arbitrary sequence.
+       */
+      const flushPendingTiles = async (nextCursorOffset: number) => {
+        if (!pyramidBuild || pendingTiles.size === 0) return
+
+        const build = pyramidBuild
+        const keys = [...pendingTiles.keys()]
+        const stored = await database.getFitnessRouteHeatmapTilesByKeys({
+          actorId,
+          tileKeys: keys
+        })
+        const storedByKey = new Map(stored.map((row) => [row.tileKey, row]))
+
+        const tiles = keys.flatMap((tileKey) => {
+          const coordinate = parseTileKey(tileKey)
+          const delta = pendingTiles.get(tileKey)
+          if (!coordinate || !delta) return []
+
+          const existing = storedByKey.get(tileKey)
+          const segments = mergeTileDelta({
+            existingSegments: existing ? decodeTile(existing.segments) : [],
+            existingVersion: existing?.version ?? -1,
+            buildVersion: build.version,
+            delta
+          })
+
+          return [
+            {
+              tileKey,
+              z: coordinate.z,
+              x: coordinate.x,
+              y: coordinate.y,
+              segments: encodeTile(segments),
+              pointCount: countTilePoints(segments)
+            }
+          ]
+        })
+
+        // Returns false when the build has been taken over. The same statement
+        // is the heartbeat, so flushing is what keeps a working pass alive.
+        const owned = await database.upsertFitnessRouteHeatmapTiles({
+          actorId,
+          claimSeq: build.claimSeq,
+          version: build.version,
+          tiles
+        })
+        pendingTiles.clear()
+
+        if (!owned) {
+          logger.info({
+            message: 'Route heatmap tile build was taken over; leaving it',
+            actorId
+          })
+          pyramidBuild = null
+          return
+        }
+
+        const lastFile = lastFoldedFile
+        await database.updateFitnessRouteHeatmapPyramid({
+          actorId,
+          claimSeq: build.claimSeq,
+          status: 'generating',
+          scannedCount: nextCursorOffset,
+          activityCount,
+          totalCount,
+          ...(lastFile
+            ? { cursor: { createdAt: lastFile.createdAt, id: lastFile.id } }
+            : {})
+        })
+      }
+
       const checkpointAndContinue = async (nextCursorOffset: number) => {
+        // Tiles before the region row, always. The resume guard reads the gap
+        // between the pyramid's `scannedCount` and this cursor to decide
+        // whether it may keep folding, so a crash must leave the pyramid
+        // BEHIND the region row rather than ahead of it.
+        await flushPendingTiles(nextCursorOffset)
+
         const payload = buildRouteHeatmapPayload({
           privacySegments: allSegments,
           // Checkpoints are resume state, not final render payloads. Preserve
@@ -623,6 +830,14 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
                   privacyLocations
                 )
                 const privacySegments = buildPrivacySegments(privacyAwarePoints)
+
+                // Before the region filter: the pyramid stores tiles
+                // unclipped, and a region is applied when they are served.
+                foldActivityIntoPyramid(privacySegments)
+                if (pyramidBuild) {
+                  lastFoldedFile = { createdAt: file.createdAt, id: file.id }
+                }
+
                 const filteredSegments = applyRegionFilter(
                   privacySegments,
                   regionBounds
@@ -642,12 +857,21 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
                   allSegmentPointCount += countSegmentPoints(boundedSegments)
                 }
 
+                // Bound the delta map between checkpoints: a build sweeping a
+                // dense city touches tiles far faster than 20s of wall clock.
+                if (pendingTiles.size >= TILE_FLUSH_PENDING_LIMIT) {
+                  await flushPendingTiles(nextCursorOffset)
+                }
+
                 if (
                   shouldReduceAccumulation(
                     allSegmentPointCount,
                     routeHeatmapConfig
                   )
                 ) {
+                  // The heap guard fires for the whole run, not just the
+                  // accumulated segments, so hand back the tile edges too.
+                  await flushPendingTiles(nextCursorOffset)
                   // This is a memory guard, not a statistically uniform sampler.
                   // It keeps the QStash worker well below a 1 GB container budget;
                   // the final/checkpoint payload remains capped for browser rendering.
@@ -698,6 +922,35 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
           periodKey,
           pageSize: ROUTE_HEATMAP_PAGE_SIZE,
           maxFiles: ROUTE_HEATMAP_MAX_FILES
+        })
+      }
+
+      // Everything folded since the last checkpoint. `cursorOffset` is where
+      // the scan actually finished, so the pyramid's own progress lands in step
+      // with it.
+      await flushPendingTiles(cursorOffset)
+
+      // A run that stopped at the file page limit has not seen the whole
+      // history, so its tiles are not a complete pyramid — leave the build
+      // generating and let a later pass finish it, rather than sweeping the
+      // previous version's tiles out from under a partial one.
+      if (pyramidBuild && !reachedPageLimit) {
+        const build = pyramidBuild
+        // Activities deleted since the last build disappear here: their tiles
+        // still carry the older version and nothing rewrote them.
+        await database.deleteStaleFitnessRouteHeatmapTiles({
+          actorId,
+          beforeVersion: build.version
+        })
+        await database.updateFitnessRouteHeatmapPyramid({
+          actorId,
+          claimSeq: build.claimSeq,
+          status: 'completed',
+          error: null,
+          activityCount,
+          totalCount,
+          scannedCount: cursorOffset,
+          completedAt: Date.now()
         })
       }
 
@@ -753,6 +1006,27 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
         periodKey,
         error: nodeError.message
       })
+
+      // Best-effort, and deliberately before the region row: a build left
+      // `generating` would block every later claim until its heartbeat went
+      // stale. A failure here must never mask the original error, which is
+      // rethrown below whatever happens.
+      if (pyramidBuild) {
+        try {
+          await database.updateFitnessRouteHeatmapPyramid({
+            actorId,
+            claimSeq: pyramidBuild.claimSeq,
+            status: 'failed',
+            error: nodeError.message
+          })
+        } catch (pyramidError) {
+          logger.error({
+            message: 'Failed to mark the route heatmap pyramid as failed',
+            actorId,
+            err: toLoggableError(pyramidError)
+          })
+        }
+      }
 
       if (heatmapId) {
         try {
