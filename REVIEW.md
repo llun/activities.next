@@ -463,5 +463,11 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
 - For a `minor`/`major` bump the **PR title** carries the prefix (PRs squash-merge,
   so the title is the commit subject). `.github/`-only changes are no-bump unless
   explicitly `minor:`/`major:`.
+- **Route heatmap pyramid:** an activity is folded into a build exactly once —
+  the gate is positional (`(createdAt, id)` against the build's cursor), never a
+  counter; resuming requires the build's own token, not a `resume: true` flag;
+  every fence names the pyramid row as well as `claimSeq`; and any tile-path
+  failure abandons the build rather than failing the legacy heatmap. See
+  AGENTS.md → Fitness Route Heatmap Pyramid.
 - Pre-commit gate is green in order: `yarn run prettier --write .`, `yarn lint`,
   `yarn build`, `yarn test`.

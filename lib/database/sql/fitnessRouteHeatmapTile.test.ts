@@ -49,8 +49,15 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         staleBefore: Date.now() - 120_000
       })
       expect(claim.claimed).toBe(true)
-      return claim.pyramid.claimSeq
+      return claim.pyramid
     }
+
+    // Every guarded write names the build ROW as well as the token, because
+    // `claimSeq` restarts at zero when a clear deletes the row.
+    const fence = (pyramid: { id: string; claimSeq: number }) => ({
+      pyramidId: pyramid.id,
+      claimSeq: pyramid.claimSeq
+    })
 
     const tile = (tileKey: string, pointCount = 4) => {
       const [z, x, y] = tileKey.split(':').map(Number)
@@ -123,7 +130,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         // read time, and the checkpoint below is what happens next.
         await database.updateFitnessRouteHeatmapPyramid({
           actorId,
-          claimSeq: owner.pyramid.claimSeq,
+          ...fence(owner.pyramid),
           scannedCount: 5
         })
 
@@ -140,7 +147,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         expect(
           await database.updateFitnessRouteHeatmapPyramid({
             actorId,
-            claimSeq: owner.pyramid.claimSeq,
+            ...fence(owner.pyramid),
             scannedCount: 6
           })
         ).toBe(true)
@@ -156,7 +163,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         const completedAt = Date.now()
         await database.updateFitnessRouteHeatmapPyramid({
           actorId,
-          claimSeq: owner.pyramid.claimSeq,
+          ...fence(owner.pyramid),
           status: 'completed',
           completedAt,
           tileCount: 42
@@ -199,7 +206,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         })
         await database.updateFitnessRouteHeatmapPyramid({
           actorId,
-          claimSeq: owner.pyramid.claimSeq,
+          ...fence(owner.pyramid),
           status: 'completed',
           completedAt: null
         })
@@ -233,7 +240,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         })
         await database.updateFitnessRouteHeatmapPyramid({
           actorId,
-          claimSeq: owner.pyramid.claimSeq,
+          ...fence(owner.pyramid),
           cursor: { createdAt: 1_700_000_000_000, id: 'activity-42' },
           scannedCount: 500
         })
@@ -242,7 +249,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         // doing the work.
         await database.updateFitnessRouteHeatmapPyramid({
           actorId,
-          claimSeq: owner.pyramid.claimSeq,
+          ...fence(owner.pyramid),
           status: 'failed',
           error: 'worker died'
         })
@@ -400,8 +407,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           const claim = await isolated.claimFitnessRouteHeatmapPyramidBuild({
             actorId,
             requestedAt: Date.now(),
-            staleBefore: Date.now() - 120_000,
-            allowResume: true
+            staleBefore: Date.now() - 120_000
           })
           expect(claim.claimed).toBe(true)
 
@@ -410,21 +416,29 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           // statement would pass with no guard at all.
           const whereClause = whereOfLastUpdate()
 
+          // The row and the token together — the token alone repeats across a
+          // clear, which deletes the row and restarts the sequence.
           expect(whereClause).toContain('claimSeq')
+          expect(whereClause).toContain('`id`')
           // The two halves of "not already fresh, and not still running".
           expect(whereClause).toContain('completedAt')
           expect(whereClause).toContain('updatedAt')
           expect(whereClause).toContain('status')
-          // And the resume premise. A verdict of "claimable" is satisfied by
-          // every terminal status alike, so re-asserting it says nothing about
-          // whether this claim's `resumed`/`version` decision still holds.
-          expect(whereClause).toContain('cursorId')
+          // A fresh claim decided nothing from the cursor — it is about to
+          // clear it — so there is no premise about it here. Asserting one
+          // would make the statement miss the abandoned `generating` row that
+          // still holds a cursor, which is exactly the row a fresh build has to
+          // take over, and the claim would then fail forever with nobody able
+          // to own the row and clear it.
+          expect(whereClause).not.toContain('cursorId')
 
-          // Same for a claim that decided to RESUME, where the premise is the
-          // mirror image: still generating, still holding a cursor.
+          // A claim that decided to RESUME is the mirror image: it keeps the
+          // version and adds to the build's tiles, so it needs the row to still
+          // BE that build — still generating, still holding the cursor it will
+          // carry on from.
           await isolated.updateFitnessRouteHeatmapPyramid({
             actorId,
-            claimSeq: claim.pyramid.claimSeq,
+            ...fence(claim.pyramid),
             cursor: { createdAt: 1_700_000_000_000, id: 'activity-42' }
           })
           updates.length = 0
@@ -434,7 +448,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
               actorId,
               requestedAt: Date.now(),
               staleBefore: Date.now() + 60_000,
-              allowResume: true
+              resumeBuild: fence(claim.pyramid)
             })
           expect(resumedClaim.resumed).toBe(true)
 
@@ -442,12 +456,14 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           expect(resumedWhere).toContain('cursorId')
           expect(resumedWhere).toContain('status')
 
-          // A claimer that never offered to resume is the one case where the
-          // cursor premise must be ABSENT. It decided nothing from the cursor,
-          // and asserting one anyway would make the statement miss the very row
-          // it is taking over — an abandoned `generating` build that still holds
-          // a cursor — leaving the claim to fail on every attempt forever, with
-          // no way to clear the cursor because nobody can own the row.
+          // A claimer presenting no token cannot resume, however abandoned the
+          // build looks — it can offer no evidence about which activities it
+          // will re-present, so it takes a fresh version instead and its
+          // statement carries no cursor premise.
+          const current = await isolated.getFitnessRouteHeatmapPyramid({
+            actorId
+          })
+          updates.length = 0
           const freshOnly = await isolated.claimFitnessRouteHeatmapPyramidBuild(
             {
               actorId,
@@ -461,34 +477,9 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           const freshOnlyWhere = whereOfLastUpdate()
           expect(freshOnlyWhere).toContain('claimSeq')
           expect(freshOnlyWhere).not.toContain('cursorId')
-
-          // A continuation's exemption from the liveness test names the ROW as
-          // well as the token, on both sides. Asserted on the statement because
-          // the JS verdict returns before the compare-and-swap whenever they
-          // agree, so a SQL clause that is merely looser than the decision has
-          // no observable effect until the exact read-then-CAS interleaving it
-          // exists to catch — which is not stageable from one thread. Looser
-          // here means the write matching a row the decision would have
-          // refused: a build that a clear removed and replaced.
-          const current = await isolated.getFitnessRouteHeatmapPyramid({
-            actorId
-          })
-          updates.length = 0
-          const continuation =
-            await isolated.claimFitnessRouteHeatmapPyramidBuild({
-              actorId,
-              requestedAt: Date.now(),
-              staleBefore: Date.now() - 120_000,
-              allowResume: true,
-              resumeBuild: {
-                pyramidId: current!.id,
-                claimSeq: current!.claimSeq
-              }
-            })
-          expect(continuation.claimed).toBe(true)
-
-          const continuationWhere = whereOfLastUpdate()
-          expect(continuationWhere).toContain('`id`')
+          // The row it read is still the row it writes, even here.
+          expect(freshOnlyWhere).toContain('`id`')
+          expect(current).toBeDefined()
         } finally {
           await isolated.destroy()
         }
@@ -503,7 +494,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         })
         await database.updateFitnessRouteHeatmapPyramid({
           actorId,
-          claimSeq: first.pyramid.claimSeq,
+          ...fence(first.pyramid),
           cursor: { createdAt: 1_700_000_000_000, id: 'activity-42' },
           scannedCount: 17
         })
@@ -514,7 +505,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           actorId,
           requestedAt: Date.now(),
           staleBefore: Date.now() + 60_000,
-          allowResume: true
+          resumeBuild: fence(first.pyramid)
         })
 
         expect(resumed.claimed).toBe(true)
@@ -543,7 +534,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         })
         await database.updateFitnessRouteHeatmapPyramid({
           actorId,
-          claimSeq: first.pyramid.claimSeq,
+          ...fence(first.pyramid),
           cursor: { createdAt: 1_700_000_000_000, id: 'activity-42' },
           scannedCount: 17
         })
@@ -555,11 +546,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
             // Heartbeat well inside the window: without the token this is
             // exactly the `build-in-progress` case.
             staleBefore: Date.now() - 120_000,
-            allowResume: true,
-            resumeBuild: {
-              pyramidId: first.pyramid.id,
-              claimSeq: first.pyramid.claimSeq
-            }
+            resumeBuild: fence(first.pyramid)
           })
 
         expect(continuation.claimed).toBe(true)
@@ -579,7 +566,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         })
         await database.updateFitnessRouteHeatmapPyramid({
           actorId,
-          claimSeq: first.pyramid.claimSeq,
+          ...fence(first.pyramid),
           cursor: { createdAt: 1_700_000_000_000, id: 'activity-42' },
           scannedCount: 17
         })
@@ -589,11 +576,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
             actorId,
             requestedAt: Date.now(),
             staleBefore: Date.now() - 120_000,
-            allowResume: true,
-            resumeBuild: {
-              pyramidId: first.pyramid.id,
-              claimSeq: first.pyramid.claimSeq
-            }
+            resumeBuild: fence(first.pyramid)
           })
 
         const winner = await claimOnce()
@@ -606,6 +589,162 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         // Refused because the winner is now heartbeating on an advanced token,
         // which reclassifies as a live build rather than a bare lost race.
         expect(duplicate.reason).toBe('build-in-progress')
+      })
+
+      it('refuses a tile flush from a pass stranded across a clear', async () => {
+        // The claim names the row to survive a clear; the WRITE has to as well.
+        // `claimSeq` restarts at zero with the new row, so a pass still holding
+        // the old build's token would otherwise flush its tiles and its cursor
+        // straight into the replacement build — landing on the likeliest value
+        // of all, since both builds' first claim is token 1.
+        const actorId = await createActor(database)
+        const stranded = await claimBuild(database, actorId)
+
+        await database.deleteFitnessRouteHeatmapPyramidAndTilesForActor({
+          actorId
+        })
+        const live = await claimBuild(database, actorId)
+        expect(live.claimSeq).toBe(stranded.claimSeq)
+        expect(live.id).not.toBe(stranded.id)
+
+        await database.updateFitnessRouteHeatmapPyramid({
+          actorId,
+          ...fence(live),
+          cursor: { createdAt: 2_000_000, id: 'live-file' },
+          scannedCount: 3
+        })
+
+        const strandedWrite = await database.upsertFitnessRouteHeatmapTiles({
+          actorId,
+          ...fence(stranded),
+          version: 1,
+          tiles: [tile('16:1:1')],
+          progress: {
+            scannedCount: 999,
+            cursor: { createdAt: 1_000_000, id: 'stranded-file' }
+          }
+        })
+
+        expect(strandedWrite).toBe(false)
+
+        // The progress/terminal-status write is fenced the same way, or the
+        // stranded pass simply marks the replacement build failed instead.
+        expect(
+          await database.updateFitnessRouteHeatmapPyramid({
+            actorId,
+            ...fence(stranded),
+            status: 'failed',
+            error: 'stranded pass giving up',
+            scannedCount: 999,
+            cursor: { createdAt: 1_000_000, id: 'stranded-file' }
+          })
+        ).toBe(false)
+
+        const pyramid = await database.getFitnessRouteHeatmapPyramid({
+          actorId
+        })
+        expect(pyramid?.status).toBe('generating')
+        expect(pyramid?.scannedCount).toBe(3)
+        expect(pyramid?.cursor).toEqual({
+          createdAt: 2_000_000,
+          id: 'live-file'
+        })
+        expect(
+          await database.getFitnessRouteHeatmapTilesByKeys({
+            actorId,
+            tileKeys: ['16:1:1']
+          })
+        ).toEqual([])
+      })
+
+      it('writes progress inside the same fence as the tiles', async () => {
+        // The progress payload rides the guarded statement, so a superseded
+        // pass must not be able to rewind its successor's cursor with it.
+        const actorId = await createActor(database)
+        const owner = await claimBuild(database, actorId)
+        expect(
+          await database.upsertFitnessRouteHeatmapTiles({
+            actorId,
+            ...fence(owner),
+            version: 1,
+            tiles: [tile('16:5:5')],
+            progress: {
+              scannedCount: 7,
+              activityCount: 6,
+              cursor: { createdAt: 1_500_000, id: 'owned-file' }
+            }
+          })
+        ).toBe(true)
+        expect(
+          await database.getFitnessRouteHeatmapPyramid({ actorId })
+        ).toMatchObject({ scannedCount: 7, activityCount: 6 })
+
+        const successor = await database.claimFitnessRouteHeatmapPyramidBuild({
+          actorId,
+          requestedAt: Date.now(),
+          staleBefore: Date.now() + 60_000,
+          resumeBuild: fence(owner)
+        })
+        expect(successor.claimed).toBe(true)
+
+        const zombieWrite = await database.upsertFitnessRouteHeatmapTiles({
+          actorId,
+          ...fence(owner),
+          version: 1,
+          tiles: [],
+          progress: {
+            scannedCount: 1,
+            cursor: { createdAt: 1_000, id: 'stale-file' }
+          }
+        })
+
+        expect(zombieWrite).toBe(false)
+        expect(
+          await database.getFitnessRouteHeatmapPyramid({ actorId })
+        ).toMatchObject({
+          scannedCount: 7,
+          cursor: { createdAt: 1_500_000, id: 'owned-file' }
+        })
+      })
+
+      it('totals only the tiles belonging to the version asked for', async () => {
+        // A completing build stamps these on its own row, and the tiles it is
+        // about to sweep are still on disk at that moment — counting them would
+        // make every pyramid report the previous build's size on top of its own.
+        const actorId = await createActor(database)
+        const build = await claimBuild(database, actorId)
+
+        await database.upsertFitnessRouteHeatmapTiles({
+          actorId,
+          ...fence(build),
+          version: 1,
+          tiles: [tile('16:1:1', 4), tile('16:2:2', 6)]
+        })
+        await database.upsertFitnessRouteHeatmapTiles({
+          actorId,
+          ...fence(build),
+          version: 2,
+          tiles: [tile('14:3:3', 10)]
+        })
+
+        expect(
+          await database.getFitnessRouteHeatmapTileTotals({
+            actorId,
+            version: 1
+          })
+        ).toEqual({ tileCount: 2, pointCount: 10 })
+        expect(
+          await database.getFitnessRouteHeatmapTileTotals({
+            actorId,
+            version: 2
+          })
+        ).toEqual({ tileCount: 1, pointCount: 10 })
+        expect(
+          await database.getFitnessRouteHeatmapTileTotals({
+            actorId,
+            version: 9
+          })
+        ).toEqual({ tileCount: 0, pointCount: 0 })
       })
 
       it('refuses a token minted for a build that a clear has since removed', async () => {
@@ -622,7 +761,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         })
         await database.updateFitnessRouteHeatmapPyramid({
           actorId,
-          claimSeq: stranded.pyramid.claimSeq,
+          ...fence(stranded.pyramid),
           cursor: { createdAt: 1_700_000_000_000, id: 'activity-42' },
           scannedCount: 17
         })
@@ -645,11 +784,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           actorId,
           requestedAt: Date.now(),
           staleBefore: Date.now() - 120_000,
-          allowResume: true,
-          resumeBuild: {
-            pyramidId: stranded.pyramid.id,
-            claimSeq: stranded.pyramid.claimSeq
-          }
+          resumeBuild: fence(stranded.pyramid)
         })
 
         expect(late.claimed).toBe(false)
@@ -658,7 +793,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         expect(
           await database.updateFitnessRouteHeatmapPyramid({
             actorId,
-            claimSeq: live.pyramid.claimSeq,
+            ...fence(live.pyramid),
             scannedCount: 1
           })
         ).toBe(true)
@@ -673,7 +808,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         })
         await database.updateFitnessRouteHeatmapPyramid({
           actorId,
-          claimSeq: first.pyramid.claimSeq,
+          ...fence(first.pyramid),
           cursor: { createdAt: 1_700_000_000_000, id: 'activity-42' },
           scannedCount: 17
         })
@@ -689,11 +824,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           actorId,
           requestedAt: Date.now(),
           staleBefore: Date.now() - 120_000,
-          allowResume: true,
-          resumeBuild: {
-            pyramidId: first.pyramid.id,
-            claimSeq: first.pyramid.claimSeq
-          }
+          resumeBuild: fence(first.pyramid)
         })
 
         expect(late.claimed).toBe(false)
@@ -729,7 +860,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         const completedAt = Date.now()
         await database.updateFitnessRouteHeatmapPyramid({
           actorId,
-          claimSeq: claim.pyramid.claimSeq,
+          ...fence(claim.pyramid),
           status: 'completed',
           completedAt
         })
@@ -756,7 +887,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         const completedAt = Date.now()
         await database.updateFitnessRouteHeatmapPyramid({
           actorId,
-          claimSeq: claim.pyramid.claimSeq,
+          ...fence(claim.pyramid),
           status: 'completed',
           completedAt
         })
@@ -815,7 +946,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
                 })
               await isolated.updateFitnessRouteHeatmapPyramid({
                 actorId,
-                claimSeq: seeding.pyramid.claimSeq,
+                ...fence(seeding.pyramid),
                 cursor: { createdAt: 1_700_000_000_000, id: 'activity-9' }
               })
             }
@@ -871,7 +1002,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         })
         await database.updateFitnessRouteHeatmapPyramid({
           actorId,
-          claimSeq: claim.pyramid.claimSeq,
+          ...fence(claim.pyramid),
           status
         })
 
@@ -897,7 +1028,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
 
         const applied = await database.updateFitnessRouteHeatmapPyramid({
           actorId,
-          claimSeq: claim.pyramid.claimSeq,
+          ...fence(claim.pyramid),
           totalCount: 200,
           scannedCount: 100,
           activityCount: 90,
@@ -937,7 +1068,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
 
         const applied = await database.updateFitnessRouteHeatmapPyramid({
           actorId,
-          claimSeq: first.pyramid.claimSeq,
+          ...fence(first.pyramid),
           scannedCount: 999
         })
 
@@ -962,7 +1093,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         })
         await database.updateFitnessRouteHeatmapPyramid({
           actorId,
-          claimSeq: dying.pyramid.claimSeq,
+          ...fence(dying.pyramid),
           cursor: { createdAt: 1_700_000_000_000, id: 'activity-50' },
           scannedCount: 50
         })
@@ -971,7 +1102,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           actorId,
           requestedAt: Date.now(),
           staleBefore: Date.now() + 60_000,
-          allowResume: true
+          resumeBuild: fence(dying.pyramid)
         })
         expect(reclaimer.resumed).toBe(true)
         // Same tile generation, so the interrupted pass's tiles survive...
@@ -981,7 +1112,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
 
         const zombieWrite = await database.updateFitnessRouteHeatmapPyramid({
           actorId,
-          claimSeq: dying.pyramid.claimSeq,
+          ...fence(dying.pyramid),
           status: 'completed',
           completedAt: Date.now(),
           cursor: { createdAt: 1_600_000_000_000, id: 'activity-10' }
@@ -1008,13 +1139,13 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         })
         await database.updateFitnessRouteHeatmapPyramid({
           actorId,
-          claimSeq: claim.pyramid.claimSeq,
+          ...fence(claim.pyramid),
           cursor: { createdAt: 1_700_000_000_000, id: 'activity-7' }
         })
 
         await database.updateFitnessRouteHeatmapPyramid({
           actorId,
-          claimSeq: claim.pyramid.claimSeq,
+          ...fence(claim.pyramid),
           cursor: null
         })
 
@@ -1037,10 +1168,10 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
     describe('upsertFitnessRouteHeatmapTiles and reads', () => {
       it('writes tiles and reads them back by key', async () => {
         const actorId = await createActor(database)
-        const claimSeq = await claimBuild(database, actorId)
+        const build = await claimBuild(database, actorId)
         await database.upsertFitnessRouteHeatmapTiles({
           actorId,
-          claimSeq,
+          ...fence(build),
           version: 1,
           tiles: [tile('16:100:200', 6), tile('16:101:200', 4)]
         })
@@ -1079,7 +1210,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         const zombie = await claimBuild(database, actorId)
         await database.upsertFitnessRouteHeatmapTiles({
           actorId,
-          claimSeq: zombie,
+          ...fence(zombie),
           version: 1,
           tiles: [tile('16:1:1', 3)]
         })
@@ -1093,7 +1224,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
 
         const written = await database.upsertFitnessRouteHeatmapTiles({
           actorId,
-          claimSeq: zombie,
+          ...fence(zombie),
           version: 1,
           tiles: [tile('16:1:1', 99), tile('16:2:2', 99)]
         })
@@ -1110,7 +1241,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
 
       it('heartbeats the build as it flushes, so a working pass is not reclaimed', async () => {
         const actorId = await createActor(database)
-        const claimSeq = await claimBuild(database, actorId)
+        const build = await claimBuild(database, actorId)
 
         const before = await database.getFitnessRouteHeatmapPyramid({ actorId })
         // Real elapsed time, so the heartbeat has somewhere to move to.
@@ -1121,7 +1252,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         expect(
           await database.upsertFitnessRouteHeatmapTiles({
             actorId,
-            claimSeq,
+            ...fence(build),
             version: 1,
             tiles: [tile('16:8:8')]
           })
@@ -1144,16 +1275,16 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
 
       it('replaces a tile in place on re-flush', async () => {
         const actorId = await createActor(database)
-        const claimSeq = await claimBuild(database, actorId)
+        const build = await claimBuild(database, actorId)
         await database.upsertFitnessRouteHeatmapTiles({
           actorId,
-          claimSeq,
+          ...fence(build),
           version: 1,
           tiles: [tile('12:5:5', 2)]
         })
         await database.upsertFitnessRouteHeatmapTiles({
           actorId,
-          claimSeq,
+          ...fence(build),
           version: 2,
           tiles: [
             {
@@ -1174,7 +1305,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
 
       it('writes a flush larger than SQLite allows bound variables in one statement', async () => {
         const actorId = await createActor(database)
-        const claimSeq = await claimBuild(database, actorId)
+        const build = await claimBuild(database, actorId)
         // Ten columns per row against SQLite's 999-variable ceiling means the
         // insert has to chunk at ~99 rows; 250 forces three statements.
         const tiles = Array.from({ length: 250 }, (_unused, index) =>
@@ -1183,7 +1314,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
 
         await database.upsertFitnessRouteHeatmapTiles({
           actorId,
-          claimSeq,
+          ...fence(build),
           version: 1,
           tiles
         })
@@ -1237,11 +1368,11 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         // every chunk's rows are collected.
         const chunkSize = 998
         const actorId = await createActor(database)
-        const claimSeq = await claimBuild(database, actorId)
+        const build = await claimBuild(database, actorId)
         const keys = ['10:1:1', '10:2:2', '10:3:3']
         await database.upsertFitnessRouteHeatmapTiles({
           actorId,
-          claimSeq,
+          ...fence(build),
           version: 1,
           tiles: keys.map((key) => tile(key, 3))
         })
@@ -1269,10 +1400,10 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
 
       it('does nothing for an empty flush or an empty key list', async () => {
         const actorId = await createActor(database)
-        const claimSeq = await claimBuild(database, actorId)
+        const build = await claimBuild(database, actorId)
         await database.upsertFitnessRouteHeatmapTiles({
           actorId,
-          claimSeq,
+          ...fence(build),
           version: 1,
           tiles: []
         })
@@ -1287,10 +1418,10 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
       it('never returns another actor tiles', async () => {
         const owner = await createActor(database)
         const other = await createActor(database)
-        const ownerClaimSeq = await claimBuild(database, owner)
+        const ownerBuild = await claimBuild(database, owner)
         await database.upsertFitnessRouteHeatmapTiles({
           actorId: owner,
-          claimSeq: ownerClaimSeq,
+          ...fence(ownerBuild),
           version: 1,
           tiles: [tile('16:7:7')]
         })
@@ -1317,10 +1448,10 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
     describe('getFitnessRouteHeatmapTilesInRange', () => {
       it('returns only the tiles inside the viewport at that zoom', async () => {
         const actorId = await createActor(database)
-        const claimSeq = await claimBuild(database, actorId)
+        const build = await claimBuild(database, actorId)
         await database.upsertFitnessRouteHeatmapTiles({
           actorId,
-          claimSeq,
+          ...fence(build),
           version: 1,
           tiles: [
             tile('12:10:10'),
@@ -1349,10 +1480,10 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
 
       it('sums the points over a range and reports zero for an empty one', async () => {
         const actorId = await createActor(database)
-        const claimSeq = await claimBuild(database, actorId)
+        const build = await claimBuild(database, actorId)
         await database.upsertFitnessRouteHeatmapTiles({
           actorId,
-          claimSeq,
+          ...fence(build),
           version: 1,
           tiles: [tile('8:1:1', 10), tile('8:2:2', 15)]
         })
@@ -1383,10 +1514,10 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
     describe('deleteStaleFitnessRouteHeatmapTiles', () => {
       it('drops only the tiles an earlier build left behind', async () => {
         const actorId = await createActor(database)
-        const claimSeq = await claimBuild(database, actorId)
+        const build = await claimBuild(database, actorId)
         await database.upsertFitnessRouteHeatmapTiles({
           actorId,
-          claimSeq,
+          ...fence(build),
           version: 1,
           tiles: [tile('16:1:1'), tile('16:2:2')]
         })
@@ -1394,7 +1525,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         // the old build knew about is the activity that has since been deleted.
         await database.upsertFitnessRouteHeatmapTiles({
           actorId,
-          claimSeq,
+          ...fence(build),
           version: 2,
           tiles: [tile('16:1:1'), tile('16:3:3')]
         })
@@ -1422,17 +1553,17 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
       it('leaves another actor stale tiles alone', async () => {
         const owner = await createActor(database)
         const other = await createActor(database)
-        const ownerClaimSeq = await claimBuild(database, owner)
-        const otherClaimSeq = await claimBuild(database, other)
+        const ownerBuild = await claimBuild(database, owner)
+        const otherBuild = await claimBuild(database, other)
         await database.upsertFitnessRouteHeatmapTiles({
           actorId: owner,
-          claimSeq: ownerClaimSeq,
+          ...fence(ownerBuild),
           version: 1,
           tiles: [tile('16:4:4')]
         })
         await database.upsertFitnessRouteHeatmapTiles({
           actorId: other,
-          claimSeq: otherClaimSeq,
+          ...fence(otherBuild),
           version: 1,
           tiles: [tile('16:4:4')]
         })
@@ -1458,10 +1589,10 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         // sweep can reach, or a build whose freshly-flushed tiles the second
         // statement deletes out from under it.
         const actorId = await createActor(database)
-        const claimSeq = await claimBuild(database, actorId)
+        const build = await claimBuild(database, actorId)
         await database.upsertFitnessRouteHeatmapTiles({
           actorId,
-          claimSeq,
+          ...fence(build),
           version: 1,
           tiles: [tile('16:1:1'), tile('16:2:2')]
         })
@@ -1487,7 +1618,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         expect(
           await database.upsertFitnessRouteHeatmapTiles({
             actorId,
-            claimSeq,
+            ...fence(build),
             version: 1,
             tiles: [tile('16:3:3')]
           })
@@ -1497,17 +1628,17 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
       it('leaves another actor pyramid and tiles alone', async () => {
         const owner = await createActor(database)
         const other = await createActor(database)
-        const ownerClaimSeq = await claimBuild(database, owner)
-        const otherClaimSeq = await claimBuild(database, other)
+        const ownerBuild = await claimBuild(database, owner)
+        const otherBuild = await claimBuild(database, other)
         await database.upsertFitnessRouteHeatmapTiles({
           actorId: owner,
-          claimSeq: ownerClaimSeq,
+          ...fence(ownerBuild),
           version: 1,
           tiles: [tile('16:8:8')]
         })
         await database.upsertFitnessRouteHeatmapTiles({
           actorId: other,
-          claimSeq: otherClaimSeq,
+          ...fence(otherBuild),
           version: 1,
           tiles: [tile('16:8:8')]
         })

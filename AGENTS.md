@@ -412,6 +412,45 @@ it; there is no legacy shape left to copy.
   both establish the container and read it. Guarded by
   `lib/components/fitness/FitnessStatGrid.test.tsx`.
 
+## Fitness Route Heatmap Pyramid
+
+- **Tile visit counts ACCUMULATE, so an activity must be folded into a build
+  exactly once.** Folding one twice inflates its heat permanently, and unlike a
+  missing tile nothing downstream can detect it — the number is wrong, not
+  absent, and if the build's `version` never moved then completion's stale sweep
+  can never clear it either. Every rule below exists for that one hazard.
+- **The fold gate is POSITIONAL, never a counter.** A build folds an activity
+  only when its own `(createdAt, id)` cursor says it has not already, with the
+  scan running descending. Counting scanned files cannot tell honest progress
+  from a page already seen — a redelivered page after a crash, an offset shifted
+  because an activity was uploaded between two passes, a lost progress write all
+  look identical to a counter. The cursor advances for every file scanned, GPS
+  or not, and it advances **with** the fold rather than after it, because a
+  flush can fire part-way through an activity and writes its tiles and cursor in
+  one statement.
+- **Resuming a build requires presenting its token, not declaring an intent.**
+  Keeping a build's `version` means adding to its tiles, which is safe only for
+  a pass carrying on from where that build left off. `resume: true` on a job is
+  NOT that: the heatmap API sets it for any retry of a failed or partial region
+  row, carrying that row's offset and no pyramid token. A claimer without a
+  matching token gets a fresh version — a full rebuild that sweeps the old build
+  away, which is merely wasteful where the alternative is silently wrong.
+- **Every fence names the pyramid ROW as well as `claimSeq`.** The sequence
+  counts from zero per row and clearing an actor's heatmaps deletes the row, so
+  token 1 before a clear and token 1 after it are different builds — the
+  likeliest collision there is. This applies to the claim, the tile flush and
+  the progress/status write alike.
+- **Tile work never fails the run.** Nothing reads the pyramid yet, so losing a
+  build costs a rebuild while failing the run costs the user the heatmap they
+  can actually see. Every tile-path error — the claim, the tiler, a flush, the
+  completion — abandons the build, records why on the pyramid row, and lets the
+  legacy path finish. A pass that stops holding a build always releases it, on
+  every exit including cancellation, or a `generating` row with a fresh
+  heartbeat and no writer blocks every claimant until the staleness window
+  lapses.
+- Full design and rationale: `docs/fitness-file-storage.md` → Route heatmap tile
+  pyramid.
+
 ## Fitness Gear
 
 - **A gear total is derived, never stored.** `fitness_gears` and

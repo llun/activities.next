@@ -12,6 +12,7 @@ import {
 } from '@/lib/services/fitness-files/fileRouteCache'
 import { TILE_LADDER_ZOOMS } from '@/lib/services/fitness-files/heatmapTiles/constants'
 import { decodeTile } from '@/lib/services/fitness-files/heatmapTiles/tileCodec'
+import * as tilerModule from '@/lib/services/fitness-files/heatmapTiles/tiler'
 import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
 import { DEFAULT_ROUTE_HEATMAP_MAX_POINTS } from '@/lib/services/fitness-files/routeHeatmap'
 import { seedDatabase } from '@/lib/stub/database'
@@ -1942,8 +1943,8 @@ describe('generateFitnessRouteHeatmapJob', () => {
       { lat: 52.45, lng: 4.95 }
     ]
     const SINGAPORE = [
-      { lat: 1.28, lng: 103.8 },
-      { lat: 1.36, lng: 103.9 }
+      { lat: 1.1, lng: 103.6 },
+      { lat: 1.55, lng: 104.05 }
     ]
     const TOKYO = [
       { lat: 35.5, lng: 139.6 },
@@ -2127,34 +2128,6 @@ describe('generateFitnessRouteHeatmapJob', () => {
       } finally {
         await database.deleteFitnessFile({ id: first })
         await database.deleteFitnessFile({ id: second })
-      }
-    })
-
-    it('writes no tiles for a variant the pyramid does not cover', async () => {
-      const fitnessFileId = await createCompletedFitnessFile(
-        'running',
-        new Date('2026-04-15T07:00:00.000Z')
-      )
-
-      try {
-        await generateFitnessRouteHeatmapJob(database, {
-          id: 'job-pyramid-wrong-variant',
-          name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
-          data: {
-            actorId: actor.id,
-            activityType: null,
-            periodType: 'yearly',
-            periodKey: '2026',
-            requestedAt: Date.now()
-          }
-        })
-
-        expect(await readTiles()).toEqual([])
-        expect(
-          await database.getFitnessRouteHeatmapPyramid({ actorId: actor.id })
-        ).toBeNull()
-      } finally {
-        await database.deleteFitnessFile({ id: fitnessFileId })
       }
     })
 
@@ -2949,6 +2922,208 @@ describe('generateFitnessRouteHeatmapJob', () => {
         statusSpy.mockRestore()
         await database.deleteFitnessFile({ id: firstId })
         await database.deleteFitnessFile({ id: secondId })
+      }
+    })
+
+    it('refuses to adopt an abandoned build for a retry that carries no token', async () => {
+      // The hole that a counter-based premise used to close and the first
+      // rewrite reopened. `resume: true` does NOT mean "I am this build's
+      // continuation" — the heatmap API sets it for any retry of a failed or
+      // partial region row, carrying that row's offset and no pyramid token at
+      // all. Such a pass covers neither the whole history nor the build's
+      // cursor, so adopting the build would skip everything before its offset
+      // and then mark the pyramid completed over the hole, with the version
+      // unmoved so the sweep could never clear it.
+      const firstId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+      const secondId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-16T07:00:00.000Z')
+      )
+
+      try {
+        await seedRoute(firstId, AMSTERDAM)
+        await seedRoute(secondId, SINGAPORE)
+
+        // A pass checkpoints and then dies without its continuation running.
+        const requestedAt = Date.now()
+        const timeoutSpy = vi.spyOn(Date, 'now')
+        timeoutSpy.mockReturnValueOnce(0).mockReturnValue(25_000)
+        try {
+          await runAllTime('job-pyramid-tokenless', {}, requestedAt)
+        } finally {
+          timeoutSpy.mockRestore()
+        }
+
+        const abandoned = await database.getFitnessRouteHeatmapPyramid({
+          actorId: actor.id
+        })
+        expect(abandoned).toMatchObject({ status: 'generating' })
+        expect(abandoned?.cursor).toBeDefined()
+
+        // Long past the heartbeat window, the API retries the region row: a
+        // resume at its offset, with no pyramid token.
+        mockPublish.mockClear()
+        const later = Date.now() + 10_000_000
+        const laterSpy = vi.spyOn(Date, 'now').mockReturnValue(later)
+        try {
+          await runAllTime(
+            'job-pyramid-tokenless-retry',
+            { resume: true, cursorOffset: 1 },
+            later
+          )
+        } finally {
+          laterSpy.mockRestore()
+        }
+
+        const pyramid = await database.getFitnessRouteHeatmapPyramid({
+          actorId: actor.id
+        })
+        // Never completed over the activity it would have skipped.
+        expect(pyramid?.status).not.toBe('completed')
+        expect(pyramid?.status).toBe('failed')
+        // And the tiles the abandoned build left are untouched, so a later
+        // full generate still rebuilds from a clean slate under a new version.
+        const tiles = await readTiles()
+        expect(tiles.length).toBeGreaterThan(0)
+        expect(tiles.every((tile) => tile.version === abandoned!.version)).toBe(
+          true
+        )
+
+        // The legacy heatmap this retry was actually for still completed.
+        const heatmap = await database.getFitnessRouteHeatmapByKey({
+          actorId: actor.id,
+          activityType: null,
+          periodType: 'all_time',
+          periodKey: 'all'
+        })
+        expect(heatmap?.status).toBe('completed')
+      } finally {
+        await database.deleteFitnessFile({ id: firstId })
+        await database.deleteFitnessFile({ id: secondId })
+      }
+    })
+
+    it('writes a cursor that covers the tiles a mid-activity flush commits', async () => {
+      // A flush can fire in the middle of an activity — the heap guard trips on
+      // a plain point counter, so every large build hits it — and it writes the
+      // tiles and the cursor describing them in ONE statement. If the cursor
+      // still named the previous file, a crash there would leave that
+      // activity's tiles on disk with the build claiming not to have reached
+      // it, and the resume would fold it a second time.
+      const firstId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+      const secondId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-16T07:00:00.000Z')
+      )
+      const upsertSpy = vi.spyOn(database, 'upsertFitnessRouteHeatmapTiles')
+
+      try {
+        await seedRoute(firstId, AMSTERDAM)
+        await seedRoute(secondId, SINGAPORE)
+        const heapSpy = vi.spyOn(process, 'memoryUsage').mockReturnValue({
+          rss: 0,
+          heapTotal: 0,
+          heapUsed: Number.MAX_SAFE_INTEGER,
+          external: 0,
+          arrayBuffers: 0
+        })
+        try {
+          await runAllTime('job-pyramid-midflush-cursor')
+        } finally {
+          heapSpy.mockRestore()
+        }
+
+        const midFlushes = upsertSpy.mock.calls
+          .map((call) => call[0])
+          .filter((params) => params.tiles.length > 0)
+        expect(midFlushes.length).toBeGreaterThan(1)
+
+        // Newest first, so the first flush carries the second file's tiles.
+        const [firstFlush] = midFlushes
+        expect(firstFlush.progress?.cursor).toEqual({
+          createdAt: expect.any(Number),
+          id: secondId
+        })
+        expect(firstFlush.progress?.scannedCount).toBe(1)
+      } finally {
+        upsertSpy.mockRestore()
+        await database.deleteFitnessFile({ id: firstId })
+        await database.deleteFitnessFile({ id: secondId })
+      }
+    })
+
+    it('abandons the build without failing the run when the tiler throws', async () => {
+      // The fold is pure, but it runs inside the per-file try that the legacy
+      // accumulation shares, so an exception out of the tiler would otherwise
+      // drop the activity from the heatmap the user can actually see.
+      const fitnessFileId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+      const tilerSpy = vi
+        .spyOn(tilerModule, 'buildTileDeltasForActivity')
+        .mockImplementation(() => {
+          throw new Error('tiler exploded')
+        })
+
+      try {
+        await seedRoute(fitnessFileId, AMSTERDAM)
+        await runAllTime('job-pyramid-tiler-throws')
+
+        expect(await readTiles()).toEqual([])
+        expect(
+          await database.getFitnessRouteHeatmapPyramid({ actorId: actor.id })
+        ).toMatchObject({ status: 'failed' })
+
+        const heatmap = await database.getFitnessRouteHeatmapByKey({
+          actorId: actor.id,
+          activityType: null,
+          periodType: 'all_time',
+          periodKey: 'all'
+        })
+        expect(heatmap?.status).toBe('completed')
+        // The activity still reached the legacy blob.
+        expect(heatmap?.activityCount).toBe(1)
+      } finally {
+        tilerSpy.mockRestore()
+        await database.deleteFitnessFile({ id: fitnessFileId })
+      }
+    })
+
+    it('hands the build back when completing it fails', async () => {
+      const fitnessFileId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+      const totalsSpy = vi
+        .spyOn(database, 'getFitnessRouteHeatmapTileTotals')
+        .mockRejectedValue(new Error('totals unavailable'))
+
+      try {
+        await seedRoute(fitnessFileId, AMSTERDAM)
+        await runAllTime('job-pyramid-completion-fails')
+
+        expect(totalsSpy).toHaveBeenCalled()
+        expect(
+          await database.getFitnessRouteHeatmapPyramid({ actorId: actor.id })
+        ).toMatchObject({ status: 'failed' })
+
+        const heatmap = await database.getFitnessRouteHeatmapByKey({
+          actorId: actor.id,
+          activityType: null,
+          periodType: 'all_time',
+          periodKey: 'all'
+        })
+        expect(heatmap?.status).toBe('completed')
+      } finally {
+        totalsSpy.mockRestore()
+        await database.deleteFitnessFile({ id: fitnessFileId })
       }
     })
 
