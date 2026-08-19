@@ -455,6 +455,21 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
 - **Internal API CORS:** Next.js API routes exclusively consumed by the internal web client (e.g., via `lib/client.ts`) do not require `OPTIONS` handlers or CORS preflight configurations, even if they use `apiResponse` with `allowedMethods`.
 - **Conditional Object Spreading:** Spreading `null` in object literals (e.g., `...(cond ? { ... } : null)`) is a deliberate, consistent no-op pattern used to cleanly omit keys and should not be flagged as confusing or replaced with `{}`.
 
+## Fitness route heatmap pyramid
+
+- An activity is folded into a build **exactly once** — the gate is positional
+  (`(createdAt, id)` against the build's own cursor), never a counter, and the
+  cursor advances for every file the pass finished with, including one whose
+  parse threw.
+- Resuming requires the build's **own token** (row id + `claimSeq`), not a
+  `resume: true` flag; a pass that can present neither a token nor an offset of
+  zero must not claim at all, because the claim itself is destructive.
+- Every fence — claim, tile flush, progress/status write, completion sweep —
+  names the pyramid **row** as well as `claimSeq`.
+- Any tile-path failure abandons the build rather than failing the legacy
+  heatmap, and every exit that stops holding a build releases it.
+- See AGENTS.md → Fitness Route Heatmap Pyramid.
+
 ## Commits & versioning
 
 - Every commit subject starts with a conventional prefix (`fix:`, `feat:`,
@@ -463,11 +478,5 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
 - For a `minor`/`major` bump the **PR title** carries the prefix (PRs squash-merge,
   so the title is the commit subject). `.github/`-only changes are no-bump unless
   explicitly `minor:`/`major:`.
-- **Route heatmap pyramid:** an activity is folded into a build exactly once —
-  the gate is positional (`(createdAt, id)` against the build's cursor), never a
-  counter; resuming requires the build's own token, not a `resume: true` flag;
-  every fence names the pyramid row as well as `claimSeq`; and any tile-path
-  failure abandons the build rather than failing the legacy heatmap. See
-  AGENTS.md → Fitness Route Heatmap Pyramid.
 - Pre-commit gate is green in order: `yarn run prettier --write .`, `yarn lint`,
   `yarn build`, `yarn test`.

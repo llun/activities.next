@@ -424,30 +424,55 @@ it; there is no legacy shape left to copy.
   scan running descending. Counting scanned files cannot tell honest progress
   from a page already seen — a redelivered page after a crash, an offset shifted
   because an activity was uploaded between two passes, a lost progress write all
-  look identical to a counter. The cursor advances for every file scanned, GPS
-  or not, and it advances **with** the fold rather than after it, because a
-  flush can fire part-way through an activity and writes its tiles and cursor in
-  one statement.
+  look identical to a counter. It guards the double-fold direction only: the
+  scan is still the legacy integer paging, so an activity DELETED from the part
+  already scanned shifts every later row up an offset and the file between is
+  never presented to the gate at all. That hole is inherited (the legacy blob
+  skips the same activity in the same run) and heals on the next full generate;
+  closing it means resuming on the build's own keyset cursor.
+- **The cursor advances for every file the pass finished with, GPS or not, and
+  it advances WITH the fold.** With, rather than after, because a flush can fire
+  part-way through an activity and writes its tiles and cursor in one statement.
+  For every file, including one whose download or parse threw, because a build
+  with no cursor cannot be resumed — so a pass whose files all threw would hand
+  its own continuation a token the claim then refuses, releasing the build, and
+  every later pass in the chain carries a non-zero offset and can start nothing
+  either. That is why the advance lives in a `finally`, not at the end of the
+  `try`.
 - **Resuming a build requires presenting its token, not declaring an intent.**
   Keeping a build's `version` means adding to its tiles, which is safe only for
   a pass carrying on from where that build left off. `resume: true` on a job is
   NOT that: the heatmap API sets it for any retry of a failed or partial region
-  row, carrying that row's offset and no pyramid token. A claimer without a
-  matching token gets a fresh version — a full rebuild that sweeps the old build
-  away, which is merely wasteful where the alternative is silently wrong.
+  row, carrying that row's offset and no pyramid token.
+- **A pass that provably cannot own a build must not CLAIM one.** Only a pass
+  scanning from the beginning or carrying the build's token can cover what a
+  build promises, and both are knowable from the job data before the claim —
+  which matters because the claim is destructive: its compare-and-swap bumps
+  `version`, stamps `generating`, and clears the counters, the cursor and
+  `completedAt`. Deciding afterwards is too late; a routine region-row retry
+  took a healthy completed pyramid to a failed, empty one over tiles it no
+  longer described, and rebuilt nothing. A claimer at offset zero with no token
+  still gets a fresh version — a full rebuild that sweeps the old build away,
+  which is merely wasteful where the alternative is silently wrong.
 - **Every fence names the pyramid ROW as well as `claimSeq`.** The sequence
   counts from zero per row and clearing an actor's heatmaps deletes the row, so
   token 1 before a clear and token 1 after it are different builds — the
-  likeliest collision there is. This applies to the claim, the tile flush and
-  the progress/status write alike.
+  likeliest collision there is. This applies to the claim, the tile flush, the
+  progress/status write and the completion sweep alike — the sweep especially,
+  since it is the write that DELETES: unfenced, a build sweeping at version 2
+  whose call landed after a clear deleted the replacement build's version-1
+  tiles, and that build then stamped itself `completed` over tiles that were
+  gone.
 - **Tile work never fails the run.** Nothing reads the pyramid yet, so losing a
   build costs a rebuild while failing the run costs the user the heatmap they
   can actually see. Every tile-path error — the claim, the tiler, a flush, the
   completion — abandons the build, records why on the pyramid row, and lets the
   legacy path finish. A pass that stops holding a build always releases it, on
-  every exit including cancellation, or a `generating` row with a fresh
-  heartbeat and no writer blocks every claimant until the staleness window
-  lapses.
+  every exit — cancellation, a dropped continuation, and the file-page limit
+  included — or a `generating` row with a fresh heartbeat and no writer blocks
+  every claimant until the staleness window lapses. A dropped continuation
+  matters most: it holds the only copy of its build's token, so walking away
+  strands the build AND refuses the Generate that displaced it.
 - Full design and rationale: `docs/fitness-file-storage.md` → Route heatmap tile
   pyramid.
 

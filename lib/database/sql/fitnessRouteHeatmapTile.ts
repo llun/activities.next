@@ -218,6 +218,11 @@ export interface FitnessRouteHeatmapTileDatabase {
    * lock: a claim cannot slip in between them. That heartbeat also doubles as
    * proof of life, so flushing tiles is itself what keeps a working pass from
    * being reclaimed as stale.
+   *
+   * A call with nothing to write is still answered from the guard, never
+   * short-circuited to `true`: the return means "you still own this build",
+   * and a caller told that without anyone having looked would carry on folding
+   * into a build somebody else now owns.
    */
   upsertFitnessRouteHeatmapTiles(
     params: UpsertFitnessRouteHeatmapTilesParams
@@ -243,9 +248,18 @@ export interface FitnessRouteHeatmapTileDatabase {
    * Drops tiles left behind by an earlier build. Running this when a build
    * completes is how activities deleted since the last one disappear, with no
    * per-activity bookkeeping and no decrementing of visit counts.
+   *
+   * Fenced on the build row and its token like every other pyramid write, and
+   * for the same collision: `claimSeq` counts from zero per row and clearing an
+   * actor's heatmaps deletes the row, so a build sweeping at version 2 whose
+   * call lands after a clear would delete the REPLACEMENT build's version-1
+   * tiles — and that build then stamps itself `completed` over tiles that are
+   * gone. Returns 0, having deleted nothing, when the guard rejects.
    */
   deleteStaleFitnessRouteHeatmapTiles(params: {
     actorId: string
+    pyramidId: string
+    claimSeq: number
     beforeVersion: number
   }): Promise<number>
   /**
@@ -337,13 +351,6 @@ const readPyramidRow = async (database: Knex, actorId: string) => {
 }
 
 /**
- * Whether a claim may take this pyramid, and if not, why. Shared by the claim's
- * read (which needs the reason) and mirrored in SQL by `applyClaimableFilter`
- * (which needs the same test to hold at the moment of the write). Keeping one
- * function for the JS side means a rule can only drift from the SQL, not from
- * itself.
- */
-/**
  * Whether the caller is presenting this exact build's current token — the row
  * it was handed AND the sequence value it held. Both halves matter: `claimSeq`
  * counts from zero per row and clearing an actor's heatmaps deletes the row, so
@@ -359,6 +366,13 @@ const isOwnContinuation = (
   resumeBuild.pyramidId === pyramid.id &&
   resumeBuild.claimSeq === pyramid.claimSeq
 
+/**
+ * Whether a claim may take this pyramid, and if not, why. Shared by the claim's
+ * read (which needs the reason) and mirrored in SQL by `applyClaimableFilter`
+ * (which needs the same test to hold at the moment of the write). Keeping one
+ * function for the JS side means a rule can only drift from the SQL, not from
+ * itself.
+ */
 const classifyPyramidForClaim = (
   pyramid: FitnessRouteHeatmapPyramid,
   requestedAt: number,
@@ -425,12 +439,6 @@ const applyClaimableFilter = (
     )
 
 /**
- * A rectangular window of one zoom level. `whereBetween` means the caller owns
- * splitting a viewport that wraps the antimeridian: at `minX > maxX` this
- * matches nothing rather than wrapping around, so a Pacific-straddling map
- * would silently come back empty.
- */
-/**
  * Re-asserts the premise the claim's `resumed` and `version` decision rests on:
  * a resume needs the row to still be a `generating` build with a cursor to pick
  * up from, and a fresh claim needs it to still NOT be one.
@@ -480,6 +488,12 @@ const applyResumePremiseFilter = (
     .whereNotNull('cursorId')
 }
 
+/**
+ * A rectangular window of one zoom level. `whereBetween` means the caller owns
+ * splitting a viewport that wraps the antimeridian: at `minX > maxX` this
+ * matches nothing rather than wrapping around, so a Pacific-straddling map
+ * would silently come back empty.
+ */
 const applyTileRange = (
   database: Knex,
   { actorId, z, minX, maxX, minY, maxY }: FitnessRouteHeatmapTileRangeParams
@@ -771,8 +785,6 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
     tiles,
     progress
   }: UpsertFitnessRouteHeatmapTilesParams) {
-    if (tiles.length === 0 && !progress) return true
-
     const currentTime = new Date()
     const rows = tiles.map((tile) => ({
       actorId,
@@ -864,15 +876,34 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
 
   async deleteStaleFitnessRouteHeatmapTiles({
     actorId,
+    pyramidId,
+    claimSeq,
     beforeVersion
   }: {
     actorId: string
+    pyramidId: string
+    claimSeq: number
     beforeVersion: number
   }) {
-    return database('fitness_route_heatmap_tiles')
-      .where('actorId', actorId)
-      .where('version', '<', beforeVersion)
-      .delete()
+    return database.transaction<number>(async (trx) => {
+      // The guarded UPDATE first, exactly as the tile upsert does it: it is
+      // both the ownership check and the row lock that serialises this sweep
+      // against a concurrent claim or clear, instead of leaving a window
+      // between checking and deleting.
+      const stillOwned = await trx('fitness_route_heatmap_pyramids')
+        .where('actorId', actorId)
+        .where('id', pyramidId)
+        .where('claimSeq', claimSeq)
+        .update({ updatedAt: new Date() })
+
+      if (stillOwned === 0) return 0
+
+      const deletedTiles: number = await trx('fitness_route_heatmap_tiles')
+        .where('actorId', actorId)
+        .where('version', '<', beforeVersion)
+        .delete()
+      return deletedTiles
+    })
   },
 
   async deleteFitnessRouteHeatmapPyramidAndTilesForActor({

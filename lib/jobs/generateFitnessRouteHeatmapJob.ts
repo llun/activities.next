@@ -92,10 +92,17 @@ export const PYRAMID_HEARTBEAT_STALE_MS = 120_000
  *
  * The map holds an edge set per touched tile, and a build sweeping a dense city
  * touches tiles far faster than the 20s checkpoint arrives. This is the bound
- * on that growth between flushes; the existing heap guard is the backstop for
- * everything else the run is holding. Measured against the 512MB budget: a
- * flush of this many tiles carries on the order of a few tens of MB of edges,
- * an order below the budget, and costs one read plus one chunked upsert.
+ * on that growth between flushes, and it costs one read plus one chunked
+ * upsert.
+ *
+ * It bounds TILES, not edges, and nothing bounds the edges within a tile — so
+ * what the map actually costs varies by two orders of magnitude with route
+ * density. Measured by folding synthetic rides through the real tiler and
+ * reading `heapUsed` around a forced GC: ~150 bytes per edge, which is 5 MB for
+ * 8,000 sparse tiles (3.4 edges each) and extrapolates to ~265 MB for 8,000
+ * tiles at the 235-edges-each density of a repeatedly-ridden city. The 512 MB
+ * heap guard is what keeps the dense end safe, not this constant; raising it
+ * moves the dense end, not the sparse one.
  */
 export const TILE_FLUSH_PENDING_LIMIT = 8_000
 
@@ -118,9 +125,14 @@ const JobData = z.object({
    *
    * Absent on a request that came from the API, which is exactly right — an
    * operator-triggered generate is a competitor for the build and has to win
-   * the claim on the usual terms.
+   * the claim on the usual terms. `resume: true` on its own is NOT this token:
+   * the heatmap API sets it for any retry of a failed or partial region row,
+   * carrying that row's offset and no pyramid token at all.
+   *
+   * Positive, never zero: a claim writes `pyramid.claimSeq + 1` onto a row that
+   * starts at zero, so every token a build was ever handed is at least 1.
    */
-  pyramidClaimSeq: z.number().int().nonnegative().optional(),
+  pyramidClaimSeq: z.number().int().positive().optional(),
   /**
    * The pyramid ROW the token belongs to. Clearing an actor's heatmaps deletes
    * that row and the next one starts its sequence from zero, so the token alone
@@ -387,6 +399,70 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
       })
 
       const isResume = resume === true
+
+      /**
+       * The tile build this pass was handed by its own predecessor, if any.
+       *
+       * Presenting it is the ONLY way to resume a build rather than start a
+       * fresh one — `resume: true` on its own is not this, because the heatmap
+       * API sets that for any retry of a failed or partial region row, carrying
+       * that row's offset and no pyramid token at all.
+       */
+      const carriedPyramidBuild =
+        isResume && pyramidBuildId && pyramidClaimSeq !== undefined
+          ? { pyramidId: pyramidBuildId, claimSeq: pyramidClaimSeq }
+          : undefined
+
+      /**
+       * Hands a build back rather than sitting on it.
+       *
+       * A claim has already stamped the row `generating` with a fresh
+       * heartbeat, so a pass that then decides it must not fold would otherwise
+       * leave a live-looking build with no writer, and every other claimant is
+       * refused until the staleness window lapses. Recording why on the row is
+       * also the only signal scoped to what actually broke — the region row
+       * says nothing about the pyramid.
+       *
+       * Fenced on the token, so a build that has already been taken over is
+       * untouched by a late release.
+       */
+      const releasePyramidBuild = async (
+        build: { pyramidId: string; claimSeq: number },
+        reason: string
+      ) => {
+        try {
+          await database.updateFitnessRouteHeatmapPyramid({
+            actorId,
+            pyramidId: build.pyramidId,
+            claimSeq: build.claimSeq,
+            status: 'failed',
+            error: reason
+          })
+        } catch (releaseError) {
+          logger.warn({
+            message: 'Failed to release the route heatmap pyramid build',
+            actorId,
+            err: toLoggableError(releaseError)
+          })
+        }
+      }
+
+      /**
+       * Releases a build this pass was carrying but will never claim.
+       *
+       * The guards below drop a continuation whose region row has moved on, and
+       * that continuation holds the only copy of its build's token — the build
+       * itself is `generating` with a fresh heartbeat and nobody coming to write
+       * to it. Walking away leaves it blocking every claimant for the whole
+       * staleness window, including the Generate that displaced this job in the
+       * first place, which is refused `build-in-progress` and does no tile work
+       * at all.
+       */
+      const releaseCarriedPyramidBuild = async (reason: string) => {
+        if (!carriedPyramidBuild) return
+        await releasePyramidBuild(carriedPyramidBuild, reason)
+      }
+
       if (existing?.deletedAt) {
         const canRestoreDeleted =
           !isResume &&
@@ -402,6 +478,9 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
             deletedAt: existing.deletedAt,
             status: existing.status
           })
+          await releaseCarriedPyramidBuild(
+            'Continuation dropped; its region row was deleted'
+          )
           return
         }
       }
@@ -427,6 +506,9 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
             requestedAt,
             cancelledAt: existing.updatedAt
           })
+          await releaseCarriedPyramidBuild(
+            'Continuation dropped; generation was cancelled'
+          )
           return
         }
       }
@@ -451,6 +533,9 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
           currentCursorOffset: existing?.cursorOffset,
           status: existing?.status ?? 'missing'
         })
+        await releaseCarriedPyramidBuild(
+          'Continuation dropped; its region row had moved on'
+        )
         return
       }
 
@@ -561,37 +646,6 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
       const isPyramidVariant =
         activityType === null && periodType === 'all_time'
 
-      /**
-       * Hands the build back rather than sitting on it.
-       *
-       * A claim has already stamped the row `generating` with a fresh
-       * heartbeat, so a pass that then decides it must not fold would otherwise
-       * leave a live-looking build with no writer, and every other claimant is
-       * refused until the staleness window lapses. Recording why on the row is
-       * also the only signal scoped to what actually broke — the region row
-       * says nothing about the pyramid.
-       */
-      const releasePyramidBuild = async (
-        build: { pyramidId: string; claimSeq: number },
-        reason: string
-      ) => {
-        try {
-          await database.updateFitnessRouteHeatmapPyramid({
-            actorId,
-            pyramidId: build.pyramidId,
-            claimSeq: build.claimSeq,
-            status: 'failed',
-            error: reason
-          })
-        } catch (releaseError) {
-          logger.warn({
-            message: 'Failed to release the route heatmap pyramid build',
-            actorId,
-            err: toLoggableError(releaseError)
-          })
-        }
-      }
-
       // `startedAt`, never a fresh `Date.now()` — the checkpoint tests stub the
       // clock with `mockReturnValueOnce(0)` and assume the first call in a run
       // is the one at the top of this handler.
@@ -599,8 +653,30 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
       // The claim can throw when a clear keeps deleting the row underneath it.
       // That is a pyramid-only problem, and the legacy blob this run also owes
       // the user does not deserve to fail with it.
+      // A build covers either the whole history or exactly the part its cursor
+      // says it has reached, and only two kinds of pass can supply that: one
+      // scanning from the beginning, and one carrying the build's own token.
+      // Anything else — the heatmap API's retry of a failed or partial region
+      // row, which sets `resume: true` with that row's offset and no pyramid
+      // token — must not claim AT ALL, because the claim is destructive: its
+      // compare-and-swap bumps `version`, stamps `generating`, and clears the
+      // counters, the cursor and `completedAt`. Deciding afterwards that the
+      // pass cannot use what it took is too late; it has already demoted a
+      // perfectly good completed pyramid to a failed, empty one over tiles it
+      // no longer describes, and rebuilt nothing.
+      const canOwnPyramidBuild =
+        carriedPyramidBuild !== undefined || (requestedCursorOffset ?? 0) === 0
+
       let pyramidClaim: FitnessRouteHeatmapPyramidClaim | null = null
-      if (isPyramidVariant) {
+      if (isPyramidVariant && !canOwnPyramidBuild) {
+        logger.info({
+          message:
+            'Skipping the route heatmap tile build; this pass could not own one',
+          actorId,
+          requestedCursorOffset: requestedCursorOffset ?? 0
+        })
+      }
+      if (isPyramidVariant && canOwnPyramidBuild) {
         try {
           pyramidClaim = await database.claimFitnessRouteHeatmapPyramidBuild({
             actorId,
@@ -613,18 +689,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
             // again — `claimSeq` alone would let a continuation from before the
             // clear match a different build after it and evict the live pass
             // that owned it.
-            //
-            // `resume: true` on its own is NOT this. The heatmap API sets it
-            // for any retry of a failed or partial region row, carrying that
-            // row's offset and no pyramid token at all.
-            ...(isResume && pyramidBuildId && pyramidClaimSeq !== undefined
-              ? {
-                  resumeBuild: {
-                    pyramidId: pyramidBuildId,
-                    claimSeq: pyramidClaimSeq
-                  }
-                }
-              : {})
+            ...(carriedPyramidBuild ? { resumeBuild: carriedPyramidBuild } : {})
           })
         } catch (claimError) {
           logger.warn({
@@ -700,6 +765,18 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
        * them re-presents files this build has seen, and each is a no-op instead
        * of a second `+1` on every edge those files touch. Counting could not tell
        * any of them apart, and an inflated count is invisible forever after.
+       *
+       * It guards the DOUBLE-fold direction only, and can do nothing about the
+       * other one, because the scan is still the legacy `LIMIT/OFFSET` paging:
+       * an activity DELETED from the part already scanned shifts every later
+       * row up one offset, so the file at the resumed offset is not the one
+       * after the cursor and the file between them is never presented to this
+       * gate at all. That hole is inherited — the legacy blob skips the same
+       * activity in the same run — and it heals on the next full generate,
+       * which scans from offset 0 under a fresh version and sweeps. Closing it
+       * properly means resuming on the build's own keyset cursor rather than
+       * the region row's integer offset, which is what retires the legacy
+       * paging.
        */
       const isUnfoldedByPyramid = (file: { createdAt: number; id: string }) => {
         const cursor = pyramidBuild?.cursor
@@ -756,9 +833,12 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
       /**
        * Writes the pending tiles and advances the pyramid's own progress.
        *
-       * Ordered tiles first, then the pyramid row, then (by the caller) the
-       * region checkpoint — see the resume guard above for why that order is
-       * the correctness argument rather than an arbitrary sequence.
+       * Both land in ONE guarded transaction, which is the correctness argument
+       * — ordering them was not enough, because any order leaves a window where
+       * one is on disk and the other is not, and a resume that lands there
+       * folds activities the tiles already hold. The region checkpoint follows
+       * (by the caller), so the pyramid ends up at or ahead of the region
+       * cursor and never behind it.
        */
       const flushPendingTiles = async () => {
         if (!pyramidBuild) return
@@ -865,6 +945,15 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
         // ahead is the harmless direction: the build's own cursor already names
         // the last file it took, so the pages the region row hands back a
         // second time are recognised and skipped.
+        //
+        // Whatever is still held here is safe to hand to the continuation
+        // below: the checkpoint is only reached after a file has been through
+        // the per-file block, and that block's `finally` advances the cursor
+        // for every file it finished with. A build with no cursor cannot be
+        // resumed — the claim reports `resumed` only for one that has it — so
+        // a token published from a cursorless build would be presented, told
+        // it is not that build's successor, and, arriving at a non-zero
+        // offset, release the build it was sent to finish.
         await flushPendingTiles()
 
         const payload = buildRouteHeatmapPayload({
@@ -1097,14 +1186,6 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
                 }
               }
             }
-
-            // Every scanned file moves the build's cursor, GPS or not. A
-            // treadmill session folds nothing, but a cursor left short of it is
-            // a build the next pass cannot place itself in, so the pyramid
-            // would never get built for a history that starts with GPS-less
-            // activities. A file that folded geometry was already passed above;
-            // this call covers the rest.
-            advancePyramidPast(file)
           } catch (error) {
             logger.warn({
               message:
@@ -1113,6 +1194,26 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
               fitnessFileId: file.id,
               err: toLoggableError(error)
             })
+          } finally {
+            // Every file this pass is finished with moves the build's cursor —
+            // one that folded geometry, one that held none, and one that could
+            // not be read at all. A `finally` rather than the end of the `try`
+            // for that last case: a file whose download or parse throws is
+            // still a file this build has dealt with, and leaving the cursor
+            // short of it is what the claim reads as a build that never
+            // reached an activity.
+            //
+            // That is not merely untidy. The claim only reports `resumed` for
+            // a build that HAS a cursor, so a first pass whose every file threw
+            // — a storage outage, which is also how the time budget gets
+            // consumed — would hand its own continuation a token the claim then
+            // refuses, and the coverage guard below would release the build.
+            // Every later pass in the chain carries a non-zero offset and can
+            // start nothing either, so the actor's pyramid never gets built.
+            //
+            // A file that folded geometry was already passed above; the
+            // `isUnfoldedByPyramid` guard inside makes this a no-op for it.
+            advancePyramidPast(file)
           }
 
           const isLastKnownFile =
@@ -1154,10 +1255,23 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
       await flushPendingTiles()
 
       // A run that stopped at the file page limit has not seen the whole
-      // history, so its tiles are not a complete pyramid — leave the build
-      // generating and let a later pass finish it, rather than sweeping the
-      // previous version's tiles out from under a partial one.
-      if (pyramidBuild && !reachedPageLimit) {
+      // history, so its tiles are not a complete pyramid: completing here would
+      // sweep the previous version's tiles out from under a partial one. It
+      // publishes no continuation either, so no later pass can hold this
+      // build's token — hand it back rather than leaving a `generating` row
+      // with a fresh heartbeat and nobody writing to it, which refuses every
+      // claimant until the staleness window lapses. The next generation starts
+      // a fresh version and rebuilds, which is merely wasteful.
+      if (pyramidBuild && reachedPageLimit) {
+        const stopped = pyramidBuild
+        pyramidBuild = null
+        await releasePyramidBuild(
+          stopped,
+          'Run stopped at the fitness file page limit'
+        )
+      }
+
+      if (pyramidBuild) {
         const build = pyramidBuild
         try {
           // Claim the finish FIRST, because it is the guarded write: a pass
@@ -1199,6 +1313,8 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
             // tiles still carry the older version and nothing rewrote them.
             await database.deleteStaleFitnessRouteHeatmapTiles({
               actorId,
+              pyramidId: build.pyramidId,
+              claimSeq: build.claimSeq,
               beforeVersion: build.version
             })
           }
