@@ -465,7 +465,17 @@ pass for a clean run in a script.
       ]
     }
   ],
-  "assignments": [{ "time": "2015-10-06T09:44:23Z", "gear": "Brompton S6R" }]
+  // Written by the converter below, not by hand. "stravaActivityId" and
+  // "filename" are the identity keys the matcher prefers; an entry carrying
+  // neither has only "time" and the tolerance window to find its activity.
+  "assignments": [
+    {
+      "time": "2015-10-06T09:44:23Z",
+      "gear": "Brompton S6R",
+      "stravaActivityId": "404639743",
+      "filename": "activities/404639743.gpx.gz"
+    }
+  ]
 }
 ```
 
