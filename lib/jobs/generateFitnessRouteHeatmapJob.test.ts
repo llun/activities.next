@@ -1,5 +1,5 @@
 import { getFitnessRouteHeatmapConfig } from '@/lib/config/fitnessRouteHeatmap'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
 import {
   GENERATE_FITNESS_HEATMAP_JOB_NAME,
@@ -13,7 +13,10 @@ import {
 import { TILE_LADDER_ZOOMS } from '@/lib/services/fitness-files/heatmapTiles/constants'
 import { decodeTile } from '@/lib/services/fitness-files/heatmapTiles/tileCodec'
 import * as tilerModule from '@/lib/services/fitness-files/heatmapTiles/tiler'
-import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
+import {
+  isParseableFitnessFileType,
+  parseFitnessFile
+} from '@/lib/services/fitness-files/parseFitnessFile'
 import { DEFAULT_ROUTE_HEATMAP_MAX_POINTS } from '@/lib/services/fitness-files/routeHeatmap'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
@@ -53,12 +56,36 @@ const mockGetFitnessFile = getFitnessFile as jest.MockedFunction<
 const mockParseFitnessFile = parseFitnessFile as jest.MockedFunction<
   typeof parseFitnessFile
 >
+const mockIsParseableFitnessFileType =
+  isParseableFitnessFileType as jest.MockedFunction<
+    typeof isParseableFitnessFileType
+  >
 
 describe('generateFitnessRouteHeatmapJob', () => {
-  const database = getTestSQLDatabase()
+  // Not `getTestSQLDatabase`: that one is SQLite-only and ignores
+  // `TEST_DATABASE_TYPE`, so this suite reported a clean run under the pg
+  // environment variables for three review rounds without ever opening a
+  // PostgreSQL connection. Everything here drives real SQL — the claim's
+  // compare-and-swap, the tiles-and-progress transaction, the fenced sweep —
+  // and all of it has to agree on both backends.
+  const {
+    database,
+    instance,
+    prepare: prepareDatabase
+  } = getTestDatabaseWithInstance()
+
+  // The scan pages `ORDER BY createdAt DESC, id DESC`, and several tests here
+  // depend on which fixture is scanned first. Two `createCompletedFitnessFile`
+  // calls routinely land in the same millisecond on an in-memory database, and
+  // the tie then breaks on a random UUID — a coin flip that was failing runs.
+  // Stamping a distinct `createdAt` per fixture makes the order the tests
+  // assume an actual property of the rows rather than a race they usually win.
+  const FIXTURE_CREATED_AT_BASE = Date.UTC(2026, 0, 1)
+  let fixtureSequence = 0
   let actor: Actor
 
   beforeAll(async () => {
+    await prepareDatabase()
     await database.migrate()
     await seedDatabase(database)
     actor = (await database.getActorFromUsername({
@@ -74,6 +101,7 @@ describe('generateFitnessRouteHeatmapJob', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockPublish.mockResolvedValue(undefined)
+    mockIsParseableFitnessFileType.mockReturnValue(true)
     mockGetFitnessFile.mockResolvedValue({
       type: 'buffer',
       buffer: Buffer.from('fitness-file-bytes'),
@@ -138,6 +166,13 @@ describe('generateFitnessRouteHeatmapJob', () => {
       hasMapData: true,
       mapImagePath: 'medias/test-map.webp'
     })
+
+    fixtureSequence += 1
+    await instance('fitness_files')
+      .where('id', fitnessFile!.id)
+      .update({
+        createdAt: new Date(FIXTURE_CREATED_AT_BASE + fixtureSequence * 1_000)
+      })
 
     return fitnessFile!.id
   }
@@ -2218,18 +2253,22 @@ describe('generateFitnessRouteHeatmapJob', () => {
         await database.deleteFitnessRouteHeatmapsForActor({ actorId: actor.id })
 
         mockParseFitnessFile.mockResolvedValue(shortRoute)
-        // Strictly after the first build's completion, never `Date.now()`. Two
-        // job runs in one process land in the same millisecond often enough to
-        // matter (a quarter of runs here): the claim would then answer
-        // `already-fresh`, the second build would never run, and the assertion
-        // below would fail on a code change that never happened.
+        // Strictly after BOTH clocks the second run is checked against, never
+        // a bare `Date.now()`. Two job runs in one process land in the same
+        // millisecond often enough to matter (a quarter of runs locally), and
+        // the claim then answers `already-fresh` so the second build never
+        // runs; but the region row was also just soft-deleted, and a run whose
+        // `requestedAt` predates that deletion is dropped as stale before it
+        // reaches the claim at all — which is the same failure a millisecond
+        // later. Either way the assertion below fails on a code change that
+        // never happened.
         const firstPyramid = await database.getFitnessRouteHeatmapPyramid({
           actorId: actor.id
         })
         await runAllTime(
           'job-pyramid-sweep-second',
           {},
-          firstPyramid!.completedAt! + 1
+          Math.max(Date.now(), firstPyramid!.completedAt! + 1)
         )
 
         const secondKeys = new Set((await readTiles()).map((t) => t.tileKey))
@@ -2501,6 +2540,473 @@ describe('generateFitnessRouteHeatmapJob', () => {
       }
     })
 
+    describe('when a continuation is dropped before it can claim', () => {
+      // Every one of these guards drops a continuation that holds the ONLY copy
+      // of its build's token. Walking away leaves the build `generating` with a
+      // fresh heartbeat and nobody coming back for it, so every claimant — the
+      // Generate that displaced this job included — is refused for the whole
+      // staleness window. The release is unconditional in the handler's
+      // `finally` rather than at each guard, because a per-guard release was
+      // missed on one of the four twice; these cases are what prove each guard
+      // actually reaches it.
+      const startAChainAndCaptureItsContinuation = async (id: string) => {
+        const firstId = await createCompletedFitnessFile(
+          'running',
+          new Date('2026-04-15T07:00:00.000Z')
+        )
+        const secondId = await createCompletedFitnessFile(
+          'running',
+          new Date('2026-04-16T07:00:00.000Z')
+        )
+        await seedRoute(firstId, AMSTERDAM)
+        await seedRoute(secondId, SINGAPORE)
+
+        // Read the clock BEFORE scripting it: `runAllTime`'s third argument is
+        // evaluated inside the spy's window, so `Date.now()` here would eat the
+        // scripted `startedAt` the checkpoint depends on.
+        const requestedAt = Date.now()
+        const timeoutSpy = vi.spyOn(Date, 'now')
+        timeoutSpy.mockReturnValueOnce(0).mockReturnValue(25_000)
+        try {
+          await runAllTime(id, {}, requestedAt)
+        } finally {
+          timeoutSpy.mockRestore()
+        }
+
+        const held = await database.getFitnessRouteHeatmapPyramid({
+          actorId: actor.id
+        })
+        expect(held).toMatchObject({ status: 'generating' })
+
+        const continuation = mockPublish.mock.calls[0][0] as {
+          data: Record<string, unknown>
+        }
+        expect(continuation.data.pyramidBuildId).toBe(held?.id)
+        mockPublish.mockClear()
+
+        return {
+          fileIds: [firstId, secondId],
+          runContinuation: () =>
+            generateFitnessRouteHeatmapJob(database, {
+              id: `${id}-continuation`,
+              name: GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
+              data: continuation.data
+            })
+        }
+      }
+
+      const expectBuildHandedBack = async () => {
+        expect(mockPublish).not.toHaveBeenCalled()
+        const pyramid = await database.getFitnessRouteHeatmapPyramid({
+          actorId: actor.id
+        })
+        expect(pyramid?.status).not.toBe('generating')
+        expect(pyramid?.error).toBeTruthy()
+        // Claimable straight away, rather than after the staleness window.
+        expect(
+          await database.claimFitnessRouteHeatmapPyramidBuild({
+            actorId: actor.id,
+            requestedAt: Date.now(),
+            staleBefore: Date.now() - PYRAMID_HEARTBEAT_STALE_MS
+          })
+        ).toMatchObject({ claimed: true, reason: 'claimed' })
+      }
+
+      it('hands the build back when its region row was deleted', async () => {
+        const { fileIds, runContinuation } =
+          await startAChainAndCaptureItsContinuation('job-pyramid-drop-deleted')
+        try {
+          await database.deleteFitnessRouteHeatmapsForActor({
+            actorId: actor.id
+          })
+          await runContinuation()
+          await expectBuildHandedBack()
+        } finally {
+          for (const id of fileIds) await database.deleteFitnessFile({ id })
+        }
+      })
+
+      it('hands the build back when generation was cancelled', async () => {
+        const { fileIds, runContinuation } =
+          await startAChainAndCaptureItsContinuation(
+            'job-pyramid-drop-cancelled'
+          )
+        try {
+          const regionRow = await database.getFitnessRouteHeatmapByKey({
+            actorId: actor.id,
+            activityType: null,
+            periodType: 'all_time',
+            periodKey: 'all',
+            region: ''
+          })
+          await database.updateFitnessRouteHeatmapStatus({
+            id: regionRow!.id,
+            status: 'cancelled'
+          })
+          await runContinuation()
+          await expectBuildHandedBack()
+        } finally {
+          for (const id of fileIds) await database.deleteFitnessFile({ id })
+        }
+      })
+
+      it('hands the build back when its region row was cleared under it', async () => {
+        // The fourth guard, and the one a per-guard release missed: the region
+        // row is still readable when the guards above decide, and the guarded
+        // `updateFitnessRouteHeatmapStatus` is what refuses — the clear landed
+        // in between.
+        const { fileIds, runContinuation } =
+          await startAChainAndCaptureItsContinuation('job-pyramid-drop-cleared')
+        const statusSpy = vi
+          .spyOn(database, 'updateFitnessRouteHeatmapStatus')
+          .mockResolvedValueOnce(false)
+        try {
+          await runContinuation()
+          await expectBuildHandedBack()
+        } finally {
+          statusSpy.mockRestore()
+          for (const id of fileIds) await database.deleteFitnessFile({ id })
+        }
+      })
+
+      it('hands the build back when the pass throws before it can claim', async () => {
+        // No guard at all — the release has to survive an exception thrown
+        // anywhere between the token being read and the claim being made, which
+        // is why it lives in the handler's `finally` rather than at a return.
+        const { fileIds, runContinuation } =
+          await startAChainAndCaptureItsContinuation('job-pyramid-drop-threw')
+        const countSpy = vi
+          .spyOn(database, 'countFitnessFilesByActor')
+          .mockRejectedValueOnce(new Error('count failed'))
+        try {
+          await expect(runContinuation()).rejects.toThrow('count failed')
+          await expectBuildHandedBack()
+        } finally {
+          countSpy.mockRestore()
+          for (const id of fileIds) await database.deleteFitnessFile({ id })
+        }
+      })
+    })
+
+    it('keeps a completed build completed when only the stale sweep fails', async () => {
+      // The sweep runs after the guarded completion write has already stamped
+      // the row `completed` with its final counters, and the release that a
+      // completion failure triggers is fenced on a token the completion does
+      // NOT move — so a sweep that threw rewrote a finished, correct pyramid to
+      // `failed` over the very tiles it had just certified. What a failed sweep
+      // actually costs is some tiles at an older version, which the next
+      // build's own sweep removes.
+      const fitnessFileId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+      const sweepSpy = vi
+        .spyOn(database, 'deleteStaleFitnessRouteHeatmapTiles')
+        .mockRejectedValue(new Error('sweep unavailable'))
+
+      try {
+        await seedRoute(fitnessFileId, AMSTERDAM)
+        await runAllTime('job-pyramid-sweep-fails')
+
+        expect(sweepSpy).toHaveBeenCalled()
+        expect(
+          await database.getFitnessRouteHeatmapPyramid({ actorId: actor.id })
+        ).toMatchObject({
+          status: 'completed',
+          activityCount: 1,
+          scannedCount: 1
+        })
+        expect((await readTiles()).length).toBeGreaterThan(0)
+      } finally {
+        sweepSpy.mockRestore()
+        await database.deleteFitnessFile({ id: fitnessFileId })
+      }
+    })
+
+    it('does not sweep on behalf of a build it no longer owns', async () => {
+      // Completion is claimed FIRST because it is the guarded write: a pass
+      // that has been superseded learns so there and must stop, rather than
+      // deleting its successor's tiles. The sweep's own fence would refuse it
+      // too, but that is the second line, not the argument.
+      const fitnessFileId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+      const sweepSpy = vi.spyOn(database, 'deleteStaleFitnessRouteHeatmapTiles')
+      const realUpdate =
+        database.updateFitnessRouteHeatmapPyramid.bind(database)
+      const updateSpy = vi
+        .spyOn(database, 'updateFitnessRouteHeatmapPyramid')
+        // Only the completion write is refused — as it would be for a pass that
+        // had been taken over. Every other pyramid write in the run is real.
+        .mockImplementation(async (params) =>
+          params.status === 'completed' ? false : realUpdate(params)
+        )
+
+      try {
+        await seedRoute(fitnessFileId, AMSTERDAM)
+        await runAllTime('job-pyramid-superseded-completion')
+
+        expect(
+          updateSpy.mock.calls.some(([params]) => params.status === 'completed')
+        ).toBe(true)
+        expect(sweepSpy).not.toHaveBeenCalled()
+      } finally {
+        updateSpy.mockRestore()
+        sweepSpy.mockRestore()
+        await database.deleteFitnessFile({ id: fitnessFileId })
+      }
+    })
+
+    it('flushes mid-page once the delta map reaches its tile bound', async () => {
+      // The bound on delta-map growth between checkpoints, and the reason the
+      // constant exists at all: a build sweeping a dense city touches tiles far
+      // faster than the 20s checkpoint arrives, and the map costs ~150 bytes
+      // per edge against a 512MB budget the whole run shares. Asserting
+      // arithmetic on the number does not execute the branch that reads it —
+      // the guard could be deleted outright and nothing would notice.
+      const firstId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+      const secondId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-16T07:00:00.000Z')
+      )
+      const upsertSpy = vi.spyOn(database, 'upsertFitnessRouteHeatmapTiles')
+      // One activity that lands on exactly the bound, so the flush is owed
+      // straight after it and before anything else can trigger one.
+      const tilerSpy = vi
+        .spyOn(tilerModule, 'buildTileDeltasForActivity')
+        .mockReturnValueOnce(
+          new Map(
+            Array.from({ length: TILE_FLUSH_PENDING_LIMIT }, (_, index) => [
+              `16:${index}:0`,
+              {
+                edges: new Map([
+                  [
+                    'e',
+                    {
+                      a: 0,
+                      b: 257,
+                      count: 1,
+                      hidden: false,
+                      points: [0, 0, 1, 1]
+                    }
+                  ]
+                ])
+              }
+            ])
+          ) as ReturnType<typeof tilerModule.buildTileDeltasForActivity>
+        )
+
+      try {
+        await seedRoute(firstId, AMSTERDAM)
+        await seedRoute(secondId, SINGAPORE)
+
+        await runAllTime('job-pyramid-midpage-flush')
+
+        // The first flush carries the whole bound's worth of tiles and happens
+        // while the scan is still mid-page — before the run's final flush,
+        // which would otherwise be the only one.
+        expect(upsertSpy.mock.calls.length).toBeGreaterThan(1)
+        expect(upsertSpy.mock.calls[0][0].tiles).toHaveLength(
+          TILE_FLUSH_PENDING_LIMIT
+        )
+        expect(
+          await database.getFitnessRouteHeatmapPyramid({ actorId: actor.id })
+        ).toMatchObject({ status: 'completed' })
+      } finally {
+        tilerSpy.mockRestore()
+        upsertSpy.mockRestore()
+        await database.deleteFitnessFile({ id: firstId })
+        await database.deleteFitnessFile({ id: secondId })
+      }
+    }, 30_000)
+
+    it('does not rebuild for a sibling variant of the same request', async () => {
+      // `recreateFitnessRouteHeatmapJobs` fans out one job per variant sharing a
+      // single `requestedAt`, and region is deliberately not part of
+      // `isPyramidVariant` — so an actor with N saved regions gets N+1 jobs that
+      // are all pyramid variants. Handing the claim the REQUEST's time rather
+      // than this pass's start time is the whole of what makes the siblings
+      // cheap: the first completes the pyramid and the rest answer
+      // `already-fresh`. With the run's own clock instead, each sibling claims,
+      // bumps the version and rebuilds the entire pyramid from scratch.
+      const fitnessFileId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+
+      try {
+        await seedRoute(fitnessFileId, AMSTERDAM)
+        // Not a time in the past: the previous test's cleanup soft-deletes the
+        // region row, and a run whose `requestedAt` predates that deletion is
+        // dropped as stale before it reaches the claim at all.
+        const requestedAt = Date.now()
+
+        await runAllTime('job-pyramid-fanout-first', {}, requestedAt)
+        const first = await database.getFitnessRouteHeatmapPyramid({
+          actorId: actor.id
+        })
+        expect(first).toMatchObject({ status: 'completed', version: 1 })
+
+        const claimSpy = vi.spyOn(
+          database,
+          'claimFitnessRouteHeatmapPyramidBuild'
+        )
+        try {
+          await runAllTime('job-pyramid-fanout-sibling', {}, requestedAt)
+
+          // The claim is asked about the REQUEST, not about this pass. Asserted
+          // on the argument as well as the outcome because the outcome alone is
+          // decided by a `>=` on two timestamps that can land in the same
+          // millisecond — which makes it agree with the wrong wiring roughly
+          // whenever the two runs are fast enough.
+          expect(claimSpy).toHaveBeenCalledWith(
+            expect.objectContaining({ requestedAt })
+          )
+          expect(await claimSpy.mock.results[0].value).toMatchObject({
+            claimed: false,
+            reason: 'already-fresh'
+          })
+        } finally {
+          claimSpy.mockRestore()
+        }
+
+        expect(
+          await database.getFitnessRouteHeatmapPyramid({ actorId: actor.id })
+        ).toMatchObject({
+          status: 'completed',
+          version: first!.version,
+          completedAt: first!.completedAt
+        })
+      } finally {
+        await database.deleteFitnessFile({ id: fitnessFileId })
+      }
+    })
+
+    it('carries the build past a file whose type it cannot parse', async () => {
+      // The GPS-less case has a second shape the suite could not reach: a file
+      // type this job does not parse at all skips the whole block that folds
+      // and advances inside it, and only the trailing advance covers it. The
+      // module mock forces `isParseableFitnessFileType` true for every other
+      // test, so without turning it off once this path is never executed.
+      const unparseableId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+      const routedId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-16T07:00:00.000Z')
+      )
+
+      try {
+        await seedRoute(routedId, AMSTERDAM)
+        // Newest first, so the routed file is scanned first and the
+        // unparseable one is what the cursor has to end on.
+        mockIsParseableFitnessFileType.mockReturnValueOnce(true)
+        mockIsParseableFitnessFileType.mockReturnValueOnce(false)
+
+        await runAllTime('job-pyramid-unparseable-type')
+
+        const pyramid = await database.getFitnessRouteHeatmapPyramid({
+          actorId: actor.id
+        })
+        // Both files scanned, one folded, and the cursor ends past the file
+        // that folded nothing.
+        expect(pyramid).toMatchObject({
+          status: 'completed',
+          scannedCount: 2,
+          activityCount: 1
+        })
+        expect(pyramid?.cursor?.id).toBe(unparseableId)
+      } finally {
+        mockIsParseableFitnessFileType.mockReturnValue(true)
+        await database.deleteFitnessFile({ id: unparseableId })
+        await database.deleteFitnessFile({ id: routedId })
+      }
+    })
+
+    it('does not treat a job carrying a token but no resume flag as a continuation', async () => {
+      // Only a continuation this job published for itself carries the token,
+      // and it always sets `resume: true`. A payload with the ids but no flag
+      // is not one — it scans from the beginning — so adopting the build would
+      // keep a version and fold every activity it re-presents straight into
+      // that build's own tiles, which is the doubling this design exists to
+      // prevent. It has to take a fresh version instead.
+      const firstId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+      const secondId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-16T07:00:00.000Z')
+      )
+
+      try {
+        await seedRoute(firstId, AMSTERDAM)
+        await seedRoute(secondId, SINGAPORE)
+
+        // A pass that checkpointed and then died, so the build is left
+        // `generating` WITH a cursor — the only state where honouring the flag
+        // makes any difference.
+        const requestedAt = Date.now()
+        const timeoutSpy = vi.spyOn(Date, 'now')
+        timeoutSpy.mockReturnValueOnce(0).mockReturnValue(25_000)
+        try {
+          await runAllTime('job-pyramid-token-no-flag-first', {}, requestedAt)
+        } finally {
+          timeoutSpy.mockRestore()
+        }
+
+        const abandoned = await database.getFitnessRouteHeatmapPyramid({
+          actorId: actor.id
+        })
+        expect(abandoned).toMatchObject({ status: 'generating', version: 1 })
+        expect(abandoned?.cursor).toBeDefined()
+        mockPublish.mockClear()
+
+        // Long past the heartbeat window, so the build reads as abandoned and
+        // the claim turns entirely on whether the token is honoured. Without
+        // this the row still looks live and every tokenless claimant is refused
+        // whatever the flag says.
+        const later = Date.now() + 10_000_000
+        const laterSpy = vi.spyOn(Date, 'now').mockReturnValue(later)
+        try {
+          // The build's own token, on a job that is not its continuation.
+          await runAllTime(
+            'job-pyramid-token-no-flag',
+            {
+              pyramidBuildId: abandoned!.id,
+              pyramidClaimSeq: abandoned!.claimSeq
+            },
+            later
+          )
+        } finally {
+          laterSpy.mockRestore()
+        }
+
+        const pyramid = await database.getFitnessRouteHeatmapPyramid({
+          actorId: actor.id
+        })
+        // A fresh version, so its tiles replace the abandoned build's rather
+        // than adding to them — and nothing anywhere reads 2.
+        expect(pyramid).toMatchObject({
+          status: 'completed',
+          version: abandoned!.version + 1
+        })
+        const counts = (await readTiles()).flatMap((tile) =>
+          decodeTile(tile.segments).map((segment) => segment.count)
+        )
+        expect(counts.length).toBeGreaterThan(0)
+        expect(new Set(counts)).toEqual(new Set([1]))
+      } finally {
+        await database.deleteFitnessFile({ id: firstId })
+        await database.deleteFitnessFile({ id: secondId })
+      }
+    })
+
     it('does not write the build again when a pass scanned nothing new', async () => {
       // A flush with nothing folded and nothing scanned since the last one has
       // no progress to record and is owed no heartbeat, so it must not write.
@@ -2670,6 +3176,19 @@ describe('generateFitnessRouteHeatmapJob', () => {
         expect(counts.length).toBeGreaterThan(0)
         // Singapore was handed back and skipped, not folded a second time.
         expect(new Set(counts)).toEqual(new Set([1]))
+        // The COUNTER half of the same invariant, which the tiles cannot show:
+        // the re-presented activity must not be counted either. Counting it
+        // would make `activityCount` equal `totalCount` — a build reporting
+        // that it covered the whole history precisely when it did not, since
+        // Tokyo sits at offset 0 which the resumed scan never reaches.
+        expect(
+          await database.getFitnessRouteHeatmapPyramid({ actorId: actor.id })
+        ).toMatchObject({
+          status: 'completed',
+          activityCount: 2,
+          scannedCount: 2,
+          totalCount: 3
+        })
       } finally {
         await database.deleteFitnessFile({ id: amsterdamId })
         await database.deleteFitnessFile({ id: singaporeId })
@@ -3163,8 +3682,19 @@ describe('generateFitnessRouteHeatmapJob', () => {
         const pyramid = await database.getFitnessRouteHeatmapPyramid({
           actorId: actor.id
         })
-        expect(pyramid?.status).toBe('failed')
+        // `cancelled`, not `failed`: nothing went wrong with the build or the
+        // data, the user stopped it. The row is claimable either way, but only
+        // one of the two tells an operator that.
+        expect(pyramid?.status).toBe('cancelled')
         expect(pyramid?.error).toBeTruthy()
+        // And it is handed back, not sat on.
+        expect(
+          await database.claimFitnessRouteHeatmapPyramidBuild({
+            actorId: actor.id,
+            requestedAt: Date.now(),
+            staleBefore: Date.now() - PYRAMID_HEARTBEAT_STALE_MS
+          })
+        ).toMatchObject({ claimed: true, reason: 'claimed' })
       } finally {
         statusSpy.mockRestore()
         await database.deleteFitnessFile({ id: firstId })

@@ -383,6 +383,67 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
       cursor: FitnessRouteHeatmapPyramidCursor | null
     } | null = null
 
+    const isResume = resume === true
+
+    /**
+     * The tile build this pass was handed by its own predecessor, if any.
+     *
+     * Presenting it is the ONLY way to resume a build rather than start a fresh
+     * one — `resume: true` on its own is not this, because the heatmap API sets
+     * that for any retry of a failed or partial region row, carrying that row's
+     * offset and no pyramid token at all.
+     */
+    const carriedPyramidBuild =
+      isResume && pyramidBuildId && pyramidClaimSeq !== undefined
+        ? { pyramidId: pyramidBuildId, claimSeq: pyramidClaimSeq }
+        : undefined
+
+    /**
+     * Why this pass walked away from the build it was carrying, for the row's
+     * own error column. Only ever read when the release below actually matches.
+     */
+    let carriedBuildDropReason =
+      'Continuation ended without taking over the build it carried'
+
+    /**
+     * Hands a build back rather than sitting on it.
+     *
+     * A claim has already stamped the row `generating` with a fresh heartbeat,
+     * so a pass that then decides it must not fold would otherwise leave a
+     * live-looking build with no writer, and every other claimant is refused
+     * until the staleness window lapses. Recording why on the row is also the
+     * only signal scoped to what actually broke — the region row says nothing
+     * about the pyramid.
+     *
+     * Fenced on the token, so a build that has already been taken over is
+     * untouched by a late release.
+     */
+    const releasePyramidBuild = async (
+      build: { pyramidId: string; claimSeq: number },
+      reason: string,
+      // `failed` for anything that went wrong, but a user cancellation is not a
+      // failure and the row has a status that says so. Without this the
+      // `cancelled` state is unreachable and the row cannot tell an operator
+      // that nothing is wrong with their data.
+      status: 'failed' | 'cancelled' = 'failed'
+    ) => {
+      try {
+        await database.updateFitnessRouteHeatmapPyramid({
+          actorId,
+          pyramidId: build.pyramidId,
+          claimSeq: build.claimSeq,
+          status,
+          error: reason
+        })
+      } catch (releaseError) {
+        logger.warn({
+          message: 'Failed to release the route heatmap pyramid build',
+          actorId,
+          err: toLoggableError(releaseError)
+        })
+      }
+    }
+
     try {
       const actor = await database.getActorFromId({ id: actorId })
       if (!actor) {
@@ -398,69 +459,16 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
         includeDeleted: true
       })
 
-      const isResume = resume === true
-
       /**
-       * The tile build this pass was handed by its own predecessor, if any.
-       *
-       * Presenting it is the ONLY way to resume a build rather than start a
-       * fresh one — `resume: true` on its own is not this, because the heatmap
-       * API sets that for any retry of a failed or partial region row, carrying
-       * that row's offset and no pyramid token at all.
+       * Records why this pass is walking away from the build it carried. The
+       * release itself happens in the `finally` below, on EVERY exit — four
+       * separate guards drop a continuation, and a per-guard release was missed
+       * on one of them twice. It is safe to run unconditionally because it is
+       * fenced on the carried token, which a claim always moves: once this pass
+       * (or anyone else) has taken the build over, the release matches nothing.
        */
-      const carriedPyramidBuild =
-        isResume && pyramidBuildId && pyramidClaimSeq !== undefined
-          ? { pyramidId: pyramidBuildId, claimSeq: pyramidClaimSeq }
-          : undefined
-
-      /**
-       * Hands a build back rather than sitting on it.
-       *
-       * A claim has already stamped the row `generating` with a fresh
-       * heartbeat, so a pass that then decides it must not fold would otherwise
-       * leave a live-looking build with no writer, and every other claimant is
-       * refused until the staleness window lapses. Recording why on the row is
-       * also the only signal scoped to what actually broke — the region row
-       * says nothing about the pyramid.
-       *
-       * Fenced on the token, so a build that has already been taken over is
-       * untouched by a late release.
-       */
-      const releasePyramidBuild = async (
-        build: { pyramidId: string; claimSeq: number },
-        reason: string
-      ) => {
-        try {
-          await database.updateFitnessRouteHeatmapPyramid({
-            actorId,
-            pyramidId: build.pyramidId,
-            claimSeq: build.claimSeq,
-            status: 'failed',
-            error: reason
-          })
-        } catch (releaseError) {
-          logger.warn({
-            message: 'Failed to release the route heatmap pyramid build',
-            actorId,
-            err: toLoggableError(releaseError)
-          })
-        }
-      }
-
-      /**
-       * Releases a build this pass was carrying but will never claim.
-       *
-       * The guards below drop a continuation whose region row has moved on, and
-       * that continuation holds the only copy of its build's token — the build
-       * itself is `generating` with a fresh heartbeat and nobody coming to write
-       * to it. Walking away leaves it blocking every claimant for the whole
-       * staleness window, including the Generate that displaced this job in the
-       * first place, which is refused `build-in-progress` and does no tile work
-       * at all.
-       */
-      const releaseCarriedPyramidBuild = async (reason: string) => {
-        if (!carriedPyramidBuild) return
-        await releasePyramidBuild(carriedPyramidBuild, reason)
+      const dropCarriedPyramidBuild = (reason: string) => {
+        carriedBuildDropReason = reason
       }
 
       if (existing?.deletedAt) {
@@ -478,7 +486,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
             deletedAt: existing.deletedAt,
             status: existing.status
           })
-          await releaseCarriedPyramidBuild(
+          dropCarriedPyramidBuild(
             'Continuation dropped; its region row was deleted'
           )
           return
@@ -506,7 +514,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
             requestedAt,
             cancelledAt: existing.updatedAt
           })
-          await releaseCarriedPyramidBuild(
+          dropCarriedPyramidBuild(
             'Continuation dropped; generation was cancelled'
           )
           return
@@ -533,7 +541,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
           currentCursorOffset: existing?.cursorOffset,
           status: existing?.status ?? 'missing'
         })
-        await releaseCarriedPyramidBuild(
+        dropCarriedPyramidBuild(
           'Continuation dropped; its region row had moved on'
         )
         return
@@ -603,6 +611,9 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
             requestedAt,
             status: existing.status
           })
+          dropCarriedPyramidBuild(
+            'Continuation dropped; its region row was cleared'
+          )
           return
         }
       } else {
@@ -998,7 +1009,8 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
             pyramidBuild = null
             await releasePyramidBuild(
               abandoned,
-              'Generation was cancelled before the build finished'
+              'Generation was cancelled before the build finished',
+              'cancelled'
             )
           }
           return
@@ -1273,6 +1285,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
 
       if (pyramidBuild) {
         const build = pyramidBuild
+        let completedTheBuild = false
         try {
           // Claim the finish FIRST, because it is the guarded write: a pass
           // that has been superseded learns so here and stops, instead of
@@ -1309,14 +1322,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
               actorId
             })
           } else {
-            // Activities deleted since the last build disappear here: their
-            // tiles still carry the older version and nothing rewrote them.
-            await database.deleteStaleFitnessRouteHeatmapTiles({
-              actorId,
-              pyramidId: build.pyramidId,
-              claimSeq: build.claimSeq,
-              beforeVersion: build.version
-            })
+            completedTheBuild = true
           }
         } catch (completionError) {
           logger.error({
@@ -1329,6 +1335,34 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
             'Failed to complete the route heatmap tile build'
           )
         }
+
+        // The sweep is cleanup, NOT part of completing the build, so it gets
+        // its own guard. Inside the completion's `try` a sweep that threw
+        // rewrote a finished, correct pyramid — right counters, right
+        // `completedAt`, tiles on disk — to `failed`, because the release is
+        // fenced on a token the completion write does not move. What a failed
+        // sweep actually costs is some tiles at an older version, which the
+        // next build's own sweep removes.
+        if (completedTheBuild) {
+          try {
+            // Activities deleted since the last build disappear here: their
+            // tiles still carry the older version and nothing rewrote them.
+            await database.deleteStaleFitnessRouteHeatmapTiles({
+              actorId,
+              pyramidId: build.pyramidId,
+              claimSeq: build.claimSeq,
+              beforeVersion: build.version
+            })
+          } catch (sweepError) {
+            logger.error({
+              message:
+                'Failed to sweep the tiles an earlier route heatmap build left behind',
+              actorId,
+              err: toLoggableError(sweepError)
+            })
+          }
+        }
+
         pyramidBuild = null
       }
 
@@ -1432,6 +1466,21 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
       }
 
       throw nodeError
+    } finally {
+      // The carried build is released on EVERY exit, not at each guard that
+      // drops a continuation. Four separate guards do that, and a per-guard
+      // release was missed on one of them twice — and none of them covers a
+      // throw between the token being read and the claim being made, which
+      // strands the build just as thoroughly.
+      //
+      // Unconditional because it is fenced on the CARRIED token, and every
+      // claim moves the token: once this pass adopted the build, or anyone else
+      // took it over, or it was completed, this matches no row and writes
+      // nothing. It only ever fires for a build that is still sitting where its
+      // predecessor left it with nobody coming back for it.
+      if (carriedPyramidBuild) {
+        await releasePyramidBuild(carriedPyramidBuild, carriedBuildDropReason)
+      }
     }
   }
 )

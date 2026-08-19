@@ -467,12 +467,25 @@ it; there is no legacy shape left to copy.
   build costs a rebuild while failing the run costs the user the heatmap they
   can actually see. Every tile-path error — the claim, the tiler, a flush, the
   completion — abandons the build, records why on the pyramid row, and lets the
-  legacy path finish. A pass that stops holding a build always releases it, on
-  every exit — cancellation, a dropped continuation, and the file-page limit
-  included — or a `generating` row with a fresh heartbeat and no writer blocks
-  every claimant until the staleness window lapses. A dropped continuation
-  matters most: it holds the only copy of its build's token, so walking away
-  strands the build AND refuses the Generate that displaced it.
+  legacy path finish. Failing the CLAIM is the one case with nothing to record
+  on — there is no build yet — so it is logged and the run carries on.
+- **A build a pass stops holding is released from ONE place, the handler's
+  `finally`, never at each exit.** Four separate guards drop a continuation, and
+  a per-guard release was missed on one of them twice; no per-guard release
+  covers a throw between reading the token and making the claim either. The
+  release is unconditional because it is fenced on the CARRIED token and every
+  claim moves the token: once this pass adopted the build, or anyone else took
+  it over, it matches nothing. A dropped continuation is the case that matters
+  most — it holds the only copy of its build's token, so walking away strands
+  the build AND refuses the Generate that displaced it, for the whole staleness
+  window.
+- **Completing a build and sweeping the previous one's tiles are separate
+  steps.** The sweep runs after the guarded completion write has already stamped
+  the row, and the release that a completion failure triggers is fenced on a
+  token completion does not move — so a sweep inside the same `try` rewrote a
+  finished, correct pyramid to `failed` over the very tiles it had just
+  certified. A failed sweep costs some tiles at an older version, which the next
+  build's own sweep removes.
 - Full design and rationale: `docs/fitness-file-storage.md` → Route heatmap tile
   pyramid.
 

@@ -3,7 +3,7 @@ import type { Knex } from 'knex'
 import {
   databaseBeforeAll,
   getTestDatabaseTable,
-  getTestSQLDatabaseWithInstance
+  getTestDatabaseWithInstance
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
 
@@ -126,8 +126,12 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         // Without it the row is fresh at read time, the JS classifier answers
         // `build-in-progress` and returns before issuing any statement — so
         // the guard this test is named for would never run.
-        const { database: isolated, instance } =
-          getTestSQLDatabaseWithInstance()
+        const {
+          database: isolated,
+          instance,
+          prepare: prepareIsolated
+        } = getTestDatabaseWithInstance('iso1')
+        await prepareIsolated()
         await isolated.migrate()
 
         try {
@@ -306,8 +310,12 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         // The insert that precedes the claim's read holds no lock on the row it
         // conflicts with, so clearing an actor's heatmaps can delete it in
         // between. Staged by clearing on the read itself, which is that window.
-        const { database: isolated, instance } =
-          getTestSQLDatabaseWithInstance()
+        const {
+          database: isolated,
+          instance,
+          prepare: prepareIsolated
+        } = getTestDatabaseWithInstance('iso2')
+        await prepareIsolated()
         await isolated.migrate()
 
         try {
@@ -361,8 +369,12 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         // can only ever set both or neither. That a half cursor is unreachable
         // through the mixin is not the point: nothing stops one existing, and a
         // permanent wedge is not an acceptable response to one.
-        const { database: isolated, instance } =
-          getTestSQLDatabaseWithInstance()
+        const {
+          database: isolated,
+          instance,
+          prepare: prepareIsolated
+        } = getTestDatabaseWithInstance('iso3')
+        await prepareIsolated()
         await isolated.migrate()
 
         try {
@@ -416,8 +428,12 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         // pinned is that the UPDATE re-tests the state the decision was made
         // on instead of trusting the token alone; without that clause the
         // read's verdict is a snapshot the write never rechecks.
-        const { database: isolated, instance } =
-          getTestSQLDatabaseWithInstance()
+        const {
+          database: isolated,
+          instance,
+          prepare: prepareIsolated
+        } = getTestDatabaseWithInstance('iso4')
+        await prepareIsolated()
         await isolated.migrate()
         try {
           const actorId = await createActor(isolated)
@@ -431,10 +447,16 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
             }
           })
 
+          // Identifier quoting is dialect-specific — backticks on SQLite,
+          // double quotes on PostgreSQL — so normalise before matching, or the
+          // assertions below silently mean nothing on one of the two backends
+          // this SQL has to be correct on.
           const whereOfLastUpdate = () => {
             expect(updates).toHaveLength(1)
             const [cas] = updates
-            const where = cas.slice(cas.toLowerCase().indexOf(' where '))
+            const where = cas
+              .slice(cas.toLowerCase().indexOf(' where '))
+              .replace(/[`"]/g, '"')
             updates.length = 0
             return where
           }
@@ -453,19 +475,19 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
 
           // The row and the token together — the token alone repeats across a
           // clear, which deletes the row and restarts the sequence.
-          expect(whereClause).toContain('claimSeq')
-          expect(whereClause).toContain('`id`')
+          expect(whereClause).toContain('"claimSeq"')
+          expect(whereClause).toContain('"id"')
           // The two halves of "not already fresh, and not still running".
-          expect(whereClause).toContain('completedAt')
-          expect(whereClause).toContain('updatedAt')
-          expect(whereClause).toContain('status')
+          expect(whereClause).toContain('"completedAt"')
+          expect(whereClause).toContain('"updatedAt"')
+          expect(whereClause).toContain('"status"')
           // A fresh claim decided nothing from the cursor — it is about to
           // clear it — so there is no premise about it here. Asserting one
           // would make the statement miss the abandoned `generating` row that
           // still holds a cursor, which is exactly the row a fresh build has to
           // take over, and the claim would then fail forever with nobody able
           // to own the row and clear it.
-          expect(whereClause).not.toContain('cursorId')
+          expect(whereClause).not.toContain('"cursorId"')
 
           // A claim that decided to RESUME is the mirror image: it keeps the
           // version and adds to the build's tiles, so it needs the row to still
@@ -488,8 +510,13 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           expect(resumedClaim.resumed).toBe(true)
 
           const resumedWhere = whereOfLastUpdate()
-          expect(resumedWhere).toContain('cursorId')
-          expect(resumedWhere).toContain('status')
+          // BOTH cursor columns, exactly as `parseSQLFitnessRouteHeatmapPyramid`
+          // reads them: a premise that tested one would call a half-written
+          // cursor resumable on one side and not the other, and that row's
+          // claim can then never match its own decision.
+          expect(resumedWhere).toContain('"cursorCreatedAt"')
+          expect(resumedWhere).toContain('"cursorId"')
+          expect(resumedWhere).toContain('"status"')
 
           // A claimer presenting no token cannot resume, however abandoned the
           // build looks — it can offer no evidence about which activities it
@@ -510,10 +537,11 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           expect(freshOnly.resumed).toBe(false)
 
           const freshOnlyWhere = whereOfLastUpdate()
-          expect(freshOnlyWhere).toContain('claimSeq')
-          expect(freshOnlyWhere).not.toContain('cursorId')
+          expect(freshOnlyWhere).toContain('"claimSeq"')
+          expect(freshOnlyWhere).not.toContain('"cursorId"')
+          expect(freshOnlyWhere).not.toContain('"cursorCreatedAt"')
           // The row it read is still the row it writes, even here.
-          expect(freshOnlyWhere).toContain('`id`')
+          expect(freshOnlyWhere).toContain('"id"')
           expect(current).toBeDefined()
         } finally {
           await isolated.destroy()
@@ -574,8 +602,12 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
             // restarts the sequence — and the sequence alone is what a stale
             // token from an earlier pass still holds; either half on its own
             // hands a demonstrably live build to a stranger.
-            const { database: isolated, instance } =
-              getTestSQLDatabaseWithInstance()
+            const {
+              database: isolated,
+              instance,
+              prepare: prepareIsolated
+            } = getTestDatabaseWithInstance('iso5')
+            await prepareIsolated()
             await isolated.migrate()
 
             try {
@@ -630,8 +662,12 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           // nor the version, so without the premise re-asserted the winner is
           // told it resumed, and folds into tiles no version change will ever
           // sweep.
-          const { database: isolated, instance } =
-            getTestSQLDatabaseWithInstance()
+          const {
+            database: isolated,
+            instance,
+            prepare: prepareIsolated
+          } = getTestDatabaseWithInstance('iso6')
+          await prepareIsolated()
           await isolated.migrate()
 
           try {
@@ -688,8 +724,12 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
             // The half-cleared rows are the same states `never treats a
             // half-written cursor as resumable on one side only` pins at the
             // read — a column left behind is not a cursor, at the write either.
-            const { database: isolated, instance } =
-              getTestSQLDatabaseWithInstance()
+            const {
+              database: isolated,
+              instance,
+              prepare: prepareIsolated
+            } = getTestDatabaseWithInstance('iso7')
+            await prepareIsolated()
             await isolated.migrate()
 
             try {
@@ -789,6 +829,90 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           expect(continuation.pyramid.cursor).toBeUndefined()
         }
       )
+
+      it('does not hand back a row its own compare-and-swap never touched', async () => {
+        // The claim re-reads after the CAS, because a resume needs a checkpoint
+        // the previous owner committed inside that window. But a clear landing
+        // in the same window DELETES the row and the next generate creates a
+        // new one, so the re-read can return a row this claim never wrote to —
+        // and reporting that row's id and version, with this claim's token
+        // stamped over it, is the cross-clear collision every fence here names
+        // the row to avoid. The replacement's first claim also holds token 1,
+        // so the loser would walk away with the winner's live fence AND its
+        // version: its flushes would MERGE into the live build's own version,
+        // which no sweep can undo, and rewind its cursor.
+        const {
+          database: isolated,
+          instance,
+          prepare: prepareIsolated
+        } = getTestDatabaseWithInstance('isoreread')
+        await prepareIsolated()
+        await isolated.migrate()
+
+        try {
+          const actorId = await createActor(isolated)
+          const replacementId = crypto.randomUUID()
+
+          // Fires on the claim's own UPDATE, which is exactly the window
+          // between the CAS and the re-read that follows it.
+          let swapped = false
+          const swapTheRowOut = async ({ sql }: { sql: string }) => {
+            if (
+              swapped ||
+              !sql.trimStart().toLowerCase().startsWith('update') ||
+              !sql.includes('fitness_route_heatmap_pyramids')
+            ) {
+              return
+            }
+            swapped = true
+            await instance('fitness_route_heatmap_pyramids')
+              .where('actorId', actorId)
+              .delete()
+            await instance('fitness_route_heatmap_pyramids').insert({
+              id: replacementId,
+              actorId,
+              status: 'generating',
+              error: null,
+              version: 7,
+              claimSeq: 1,
+              totalCount: 0,
+              scannedCount: 0,
+              activityCount: 0,
+              tileCount: 0,
+              pointCount: 0,
+              cursorCreatedAt: null,
+              cursorId: null,
+              completedAt: null,
+              createdAt: new Date(),
+              updatedAt: new Date()
+            })
+          }
+          instance.on('query-response', (_response, query) => {
+            void swapTheRowOut(query)
+          })
+
+          const claim = await isolated.claimFitnessRouteHeatmapPyramidBuild({
+            actorId,
+            requestedAt: Date.now(),
+            staleBefore: Date.now() - 120_000
+          })
+
+          expect(swapped).toBe(true)
+          // It lost: the row it claimed is gone, and the row that is there is
+          // somebody else's.
+          expect({ claimed: claim.claimed, reason: claim.reason }).toEqual({
+            claimed: false,
+            reason: 'lost-race'
+          })
+
+          // And the replacement build is untouched — same token, same version.
+          expect(
+            await isolated.getFitnessRouteHeatmapPyramid({ actorId })
+          ).toMatchObject({ id: replacementId, claimSeq: 1, version: 7 })
+        } finally {
+          await isolated.destroy()
+        }
+      })
 
       it('resumes an abandoned build without losing its version or cursor', async () => {
         const actorId = await createActor(database)
@@ -1236,8 +1360,12 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           // The resumable row is the case that used to hand BOTH workers the
           // build, because a resume leaves `version` untouched — which is why
           // the fence is `claimSeq` and why it is worth pinning per shape.
-          const { database: isolated, instance } =
-            getTestSQLDatabaseWithInstance()
+          const {
+            database: isolated,
+            instance,
+            prepare: prepareIsolated
+          } = getTestDatabaseWithInstance('iso8')
+          await prepareIsolated()
           await isolated.migrate()
 
           try {
@@ -1641,8 +1769,12 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         // conservative 999 floor, so an unchunked query of this size still
         // succeeds here and would only fail on another backend. Uses its own
         // database for the raw knex query event.
-        const { database: isolated, instance } =
-          getTestSQLDatabaseWithInstance()
+        const {
+          database: isolated,
+          instance,
+          prepare: prepareIsolated
+        } = getTestDatabaseWithInstance('iso9')
+        await prepareIsolated()
         await isolated.migrate()
         try {
           const statements: string[] = []
@@ -1945,6 +2077,44 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         ).toHaveLength(2)
       })
 
+      it('refuses a sweep from a pass whose build was taken over', async () => {
+        // The row half of the fence is not enough on its own: a pass presumed
+        // dead and superseded IN PLACE holds the right row id and a stale
+        // token, and its sweep would delete the tiles its successor wrote at
+        // the older version it is still resuming from.
+        const actorId = await createActor(database)
+        const superseded = await claimBuild(database, actorId)
+        await database.upsertFitnessRouteHeatmapTiles({
+          actorId,
+          ...fence(superseded),
+          version: superseded.version,
+          tiles: [tile('16:11:11')]
+        })
+
+        // Taken over in place — same row, new token.
+        const successor = await database.claimFitnessRouteHeatmapPyramidBuild({
+          actorId,
+          requestedAt: Date.now(),
+          staleBefore: Date.now() + 60_000
+        })
+        expect(successor.claimed).toBe(true)
+        expect(successor.pyramid.id).toBe(superseded.id)
+
+        const deleted = await database.deleteStaleFitnessRouteHeatmapTiles({
+          actorId,
+          ...fence(superseded),
+          beforeVersion: successor.pyramid.version
+        })
+
+        expect(deleted).toBe(0)
+        expect(
+          await database.getFitnessRouteHeatmapTilesByKeys({
+            actorId,
+            tileKeys: ['16:11:11']
+          })
+        ).toHaveLength(1)
+      })
+
       it('leaves another actor stale tiles alone', async () => {
         const owner = await createActor(database)
         const other = await createActor(database)
@@ -2064,8 +2234,12 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         // against: that claim flushes tiles into the window and the delete
         // below removes them, leaving a build that completes over tiles which
         // no longer exist.
-        const { database: isolated, instance } =
-          getTestSQLDatabaseWithInstance()
+        const {
+          database: isolated,
+          instance,
+          prepare: prepareIsolated
+        } = getTestDatabaseWithInstance('iso10')
+        await prepareIsolated()
         await isolated.migrate()
 
         try {

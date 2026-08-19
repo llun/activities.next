@@ -684,17 +684,42 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
       }
     }
 
+    // The row this claim actually won is the one its CAS named, and clearing an
+    // actor's heatmaps between the CAS and the re-read replaces it with a
+    // different row entirely. Handing that row back would be the very
+    // cross-clear collision every fence here names the row to avoid: the
+    // replacement's first claim also holds `claimSeq: 1`, so this pass would
+    // walk away with the replacement's live token AND its version — flushing
+    // tiles that MERGE into the live build's own version, which no sweep can
+    // ever undo, and rewinding its cursor. Nothing about that row is this
+    // pass's to report, so it lost.
+    if (!currentPyramid || currentPyramid.id !== pyramid.id) {
+      return {
+        claimed: false,
+        resumed: false,
+        reason: 'lost-race' as const,
+        pyramid: currentPyramid ?? pyramid
+      }
+    }
+
     return {
       claimed: true,
       resumed,
       reason: 'claimed' as const,
-      // The token reported is the one this CAS wrote, NOT whatever the re-read
-      // found. Another worker can claim in the gap before that read, and
+      // Identity and the token come from THIS CAS, never from the re-read.
+      // Another worker can claim the same row in the gap before that read, and
       // adopting its token would hand this pass a `claimSeq` the fence accepts
       // — both passes writing freely, the fence failing open, which is worse
-      // than not having one. Reporting our own token instead means a
-      // superseded pass is rejected by the first write it attempts.
-      pyramid: { ...(currentPyramid ?? pyramid), claimSeq: nextClaimSeq }
+      // than not having one. Reporting our own instead means a superseded pass
+      // is rejected by the first write it attempts. The re-read is still what
+      // supplies the cursor and counters, because a resume needs a checkpoint
+      // the previous owner committed inside that same gap.
+      pyramid: {
+        ...currentPyramid,
+        id: pyramid.id,
+        version: nextVersion,
+        claimSeq: nextClaimSeq
+      }
     }
   },
 

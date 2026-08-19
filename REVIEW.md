@@ -467,7 +467,10 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
 - Every fence — claim, tile flush, progress/status write, completion sweep —
   names the pyramid **row** as well as `claimSeq`.
 - Any tile-path failure abandons the build rather than failing the legacy
-  heatmap, and every exit that stops holding a build releases it.
+  heatmap, and a build the pass stops holding is released from ONE place — the
+  handler's `finally` — never at each exit that drops a continuation.
+- Completion and the stale-tile sweep are separate steps: a failing sweep must
+  not demote a build that already wrote `completed`.
 - See AGENTS.md → Fitness Route Heatmap Pyramid.
 
 ## Commits & versioning

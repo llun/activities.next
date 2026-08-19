@@ -169,10 +169,67 @@ export const databaseBeforeAll = async (table: TestDatabaseTable) => {
   )
 }
 
+/**
+ * A database honouring `TEST_DATABASE_TYPE`, plus its raw Knex instance and the
+ * `prepare` step PostgreSQL needs, for a suite that is not shaped as a
+ * `describe.each` over `getTestDatabaseTable()` but still has to run on both
+ * backends.
+ *
+ * `getTestSQLDatabase` and `getTestSQLDatabaseWithInstance` below are
+ * SQLite-ONLY and ignore `TEST_DATABASE_TYPE` entirely — which is a trap worth
+ * knowing about, because a suite built on them reports a clean run under the
+ * pg environment variables without ever opening a PostgreSQL connection. Use
+ * this instead wherever the SQL under test has to agree across backends.
+ */
+export const getTestDatabaseWithInstance = (isolationSuffix?: string) => {
+  const type = process.env.TEST_DATABASE_TYPE
+  if (type !== 'pg') {
+    const { database, instance } = getTestSQLDatabaseWithInstance()
+    return { database, instance, prepare: noop as PrepareFunction }
+  }
+
+  // An isolated caller needs its OWN database, not the suite's: `prepare` drops
+  // and recreates, so sharing the per-worker name would destroy the database
+  // the surrounding suite is running against. Stripped to word characters for
+  // the same reason the worker id is — it is interpolated into `CREATE`/`DROP
+  // DATABASE`, which cannot be parameterised.
+  const databaseName = isolationSuffix
+    ? `${TEST_PG_DATABASE}_${isolationSuffix.replace(/\W/g, '').toLowerCase()}`
+    : TEST_PG_DATABASE
+
+  const instance = knex({
+    client: 'pg',
+    connection: { ...TEST_PG_CONNECTION, database: databaseName }
+  })
+  return {
+    database: withSchemaDumpMigrate(
+      getSQLDatabase(instance),
+      instance,
+      applyPostgresSchema
+    ),
+    instance,
+    prepare: async () => {
+      const client = new PostgresClient({
+        ...TEST_PG_CONNECTION,
+        database: 'postgres'
+      })
+      await client.connect()
+      await client.query(`DROP DATABASE IF EXISTS ${databaseName} WITH (FORCE)`)
+      await client.query(`CREATE DATABASE ${databaseName}`)
+      await client.end()
+    }
+  }
+}
+
 // Build a fresh in-memory SQLite database and also hand back the raw Knex
 // instance, for the rare test that needs to seed a state the public Database
 // interface cannot construct (e.g. a registration-pending account row with a
-// null approvedAt). Prefer getTestSQLDatabase for everything else.
+// null approvedAt).
+//
+// SQLite ONLY: this ignores `TEST_DATABASE_TYPE`, so a suite built on it passes
+// under the pg environment variables having never talked to PostgreSQL. Reach
+// for `getTestDatabaseWithInstance` when the SQL under test must agree on both
+// backends.
 export const getTestSQLDatabaseWithInstance = () => {
   const instance = knex({
     client: 'better-sqlite3',
@@ -189,5 +246,6 @@ export const getTestSQLDatabaseWithInstance = () => {
   return { database, instance }
 }
 
+// SQLite ONLY — see the note on `getTestSQLDatabaseWithInstance`.
 export const getTestSQLDatabase = () =>
   getTestSQLDatabaseWithInstance().database
