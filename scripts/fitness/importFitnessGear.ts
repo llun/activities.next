@@ -445,7 +445,8 @@ async function importFitnessGearScript(args = process.argv.slice(2)) {
     )
     if (timestamplessFileCount > 0) {
       console.log(
-        `  ${timestamplessFileCount} activities have no start time and cannot be matched.`
+        `  ${timestamplessFileCount} activities have no start time, so only an entry naming ` +
+          'their Strava id or file name can reach them.'
       )
     }
 

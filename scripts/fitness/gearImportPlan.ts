@@ -124,8 +124,11 @@ const ImportAssignmentSchema = z.object({
       'unparseable date'
     ),
   gear: z.string().trim().min(1).max(VARCHAR_MAX),
-  // Diagnostics only — carried through to the reports so an unmatched entry can
-  // be traced back to its Strava activity without re-deriving it from the time.
+  // The identity keys the matcher tries before it falls back to `time`: the
+  // activity id against a file's `sourceUrl`, the name against its stored one.
+  // Either names the very row, so an entry carrying one survives however far
+  // the two clocks have drifted; an entry carrying neither has only the 60s
+  // window to find its activity through.
   stravaActivityId: optionalText(VARCHAR_MAX),
   filename: optionalText(VARCHAR_MAX)
 })
@@ -326,7 +329,10 @@ export interface MatchAssignmentsResult {
    * precisely because the right one was too uncertain to use.
    */
   reservedFileIds: Set<string>
-  /** Files with no `activityStartTime` — unplaceable in time, reported instead. */
+  /**
+   * Files with no `activityStartTime`: out of the time pass entirely, and so
+   * reachable only by an entry that names them. Reported, not hidden.
+   */
   timestamplessFileCount: number
 }
 
@@ -522,9 +528,13 @@ export const matchAssignmentsToFiles = ({
       return
     }
 
-    const byName = assignment.filename
-      ? filesByName.get(normalizeFileName(assignment.filename))
-      : undefined
+    // Normalizing can empty a name out (`.gz`, a bare directory), and an empty
+    // key would match whatever else normalized to nothing rather than matching
+    // nothing at all.
+    const wantedName = assignment.filename
+      ? normalizeFileName(assignment.filename)
+      : ''
+    const byName = wantedName ? filesByName.get(wantedName) : undefined
     // A name is only evidence while it is unique. Unlike a duplicated activity
     // id, a repeated file name says nothing the timestamp cannot settle better
     // (two hand-uploaded `activity.gpx` are different rides), so it falls
