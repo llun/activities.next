@@ -1,0 +1,47 @@
+lib/database/sql/fitnessFile.ts
+  s_6eb7d5ba8a7c2e::t_28c225f873a5f8 412-414
+docs/fitness-file-storage.md
+  s_6eb7d5ba8a7c2e::t_a38e4793e0ce64 203
+scripts/fitness/gearImportPlan.test.ts
+  s_6eb7d5ba8a7c2e::t_6eff8b5cbd947a 467-491,493-509
+  s_6eb7d5ba8a7c2e::t_5b4ad53169fe9b 310-323,325-332,336-466,510-557,563-580
+  s_6eb7d5ba8a7c2e::t_9f76025429902b 6
+  s_6eb7d5ba8a7c2e::t_07bb972e4cab77 492
+  s_6eb7d5ba8a7c2e::t_0d1aa36e3adc39 324,333-335,558-562
+lib/jobs/processFitnessFileJob.ts
+  s_6eb7d5ba8a7c2e::t_4528f68c1e2227 543,548-575
+  s_6eb7d5ba8a7c2e::t_0d1aa36e3adc39 544,546
+  s_6eb7d5ba8a7c2e::t_0beeac858f3377 576
+docs/maintenance.md
+  s_6eb7d5ba8a7c2e::t_ffa51f3826e65f 404-417,419-430
+  s_6eb7d5ba8a7c2e::t_6463f6b917b864 418
+scripts/fitness/importFitnessGear.ts
+  s_6eb7d5ba8a7c2e::t_0d1aa36e3adc39 234-236
+  s_6eb7d5ba8a7c2e::t_990ac6cb076f98 173-175
+  s_6eb7d5ba8a7c2e::t_bc1848264e4f44 194-233,237-258
+  s_6eb7d5ba8a7c2e::t_d825d22e1166cc 46,49
+  s_6eb7d5ba8a7c2e::t_68dc845efe3246 558-570
+scripts/fitness/gearImportPlan.ts
+  s_6eb7d5ba8a7c2e::t_0d1aa36e3adc39 472-474
+  s_6eb7d5ba8a7c2e::t_5811a79e211e3f 510-519,521,525-534
+  s_6eb7d5ba8a7c2e::t_424e1f22b093e8 280-282,285-292,298-300
+  s_6eb7d5ba8a7c2e::t_3311b502cb329c 399-405,408-409,421-424,436-443,446-456,458-462,464-471,475-509,520,522-524,535-539,541,560-565,578-581,585,589-594,602-657
+  s_6eb7d5ba8a7c2e::t_b4113f558355ca 342-381
+  s_6eb7d5ba8a7c2e::t_3f55cbf11e96ba 658
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "696110e08a36d21d611d7c7021d6f5301cee8f59",
+  "prompts": {},
+  "sessions": {
+    "s_6eb7d5ba8a7c2e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "69e015f8-24f1-43c7-8a90-27be9c94a0f8",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
