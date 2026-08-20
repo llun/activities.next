@@ -851,10 +851,19 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
 
         try {
           const actorId = await createActor(isolated)
-          const statements: string[] = []
-          instance.on('query', ({ sql }: { sql: string }) => {
-            statements.push(sql.trimStart())
-          })
+          // The CONNECTION each statement ran on, not just the order they were
+          // emitted in. Keeping the `database.transaction(...)` wrapper while
+          // building the queries on `database` instead of `trx` — the likeliest
+          // refactoring slip there is — leaves the order untouched while the
+          // CAS autocommits on a pooled connection, which is the state this
+          // transaction exists to remove.
+          const statements: Array<{ sql: string; connection: string }> = []
+          instance.on(
+            'query',
+            ({ sql, __knexUid }: { sql: string; __knexUid: string }) => {
+              statements.push({ sql: sql.trimStart(), connection: __knexUid })
+            }
+          )
 
           const claim = await isolated.claimFitnessRouteHeatmapPyramidBuild({
             actorId,
@@ -866,31 +875,48 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           const isPyramid = (sql: string) =>
             sql.includes('fitness_route_heatmap_pyramids')
           const casIndex = statements.findIndex(
-            (sql) => isPyramid(sql) && sql.toLowerCase().startsWith('update')
+            ({ sql }) =>
+              isPyramid(sql) && sql.toLowerCase().startsWith('update')
           )
           expect(casIndex).toBeGreaterThan(-1)
           const readIndex = statements.findIndex(
-            (sql, index) =>
+            ({ sql }, index) =>
               index > casIndex &&
               isPyramid(sql) &&
               sql.toLowerCase().startsWith('select')
           )
           expect(readIndex).toBeGreaterThan(casIndex)
 
-          const opens = (sql: string) => /^begin/i.test(sql)
-          const closes = (sql: string) => /^(commit|rollback)/i.test(sql)
-          const openedBefore = statements
-            .slice(0, casIndex)
-            .filter(opens).length
-          const closedBefore = statements
-            .slice(0, casIndex)
-            .filter(closes).length
-          // Inside a transaction at the CAS...
-          expect(openedBefore).toBeGreaterThan(closedBefore)
-          // ...and still inside the same one at the read that confirms it.
-          expect(statements.slice(casIndex, readIndex).filter(closes)).toEqual(
-            []
-          )
+          const casConnection = statements[casIndex].connection
+          expect(statements[readIndex].connection).toBe(casConnection)
+
+          // A transaction open ON THAT CONNECTION at the CAS, and still open at
+          // the read. Not merely "a BEGIN appeared earlier": the pool hands the
+          // same connection to unrelated transactions, so one that has since
+          // committed satisfies a looser check while the CAS itself
+          // autocommits.
+          const onCasConnection = (index: number) =>
+            statements[index].connection === casConnection
+          const opens = (index: number) =>
+            onCasConnection(index) && /^begin/i.test(statements[index].sql)
+          const closes = (index: number) =>
+            onCasConnection(index) &&
+            /^(commit|rollback)/i.test(statements[index].sql)
+
+          let openAtCas = false
+          for (let index = 0; index < casIndex; index += 1) {
+            if (opens(index)) openAtCas = true
+            else if (closes(index)) openAtCas = false
+          }
+          expect(openAtCas).toBe(true)
+
+          for (let index = casIndex; index < readIndex; index += 1) {
+            expect(closes(index)).toBe(false)
+          }
+          // NOTE: on SQLite the pool is one connection, so the specific slip of
+          // building on `database` while keeping the wrapper deadlocks rather
+          // than reaching these assertions. It fails cleanly on PostgreSQL,
+          // which is why this is worth running there as well as in CI.
         } finally {
           await isolated.destroy()
         }
@@ -961,6 +987,11 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
             requestedAt: Date.now(),
             staleBefore: Date.now() - 120_000
           })
+
+          // Without this the test passes with the interference removed
+          // entirely — a proxy assertion where the invariant was wanted, which
+          // is the shape that has to be checked rather than assumed.
+          expect(interfered).toBe(true)
 
           // Whatever the interference did, it is not this claim's build: the
           // replacement's identity, version and token never leak into the
@@ -1213,6 +1244,56 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         ).toMatchObject({
           scannedCount: 7,
           cursor: { createdAt: 1_500_000, id: 'owned-file' }
+        })
+      })
+
+      it('writes every progress field the caller supplies, and only those', async () => {
+        // `scannedCount` is unconditional; the rest are spread only when
+        // supplied, and a `progress` with no cursor must LEAVE the stored one
+        // alone rather than clearing it — a flush that folded nothing still
+        // records how far the scan reached, and wiping the cursor there would
+        // make the build unresumable.
+        const actorId = await createActor(database)
+        const build = await claimBuild(database, actorId)
+
+        await database.upsertFitnessRouteHeatmapTiles({
+          actorId,
+          ...fence(build),
+          version: build.version,
+          tiles: [tile('16:5:5')],
+          progress: {
+            scannedCount: 3,
+            activityCount: 2,
+            totalCount: 9,
+            cursor: { createdAt: 1_700_000_000_000, id: 'activity-7' }
+          }
+        })
+
+        expect(
+          await database.getFitnessRouteHeatmapPyramid({ actorId })
+        ).toMatchObject({
+          scannedCount: 3,
+          activityCount: 2,
+          totalCount: 9,
+          cursor: { createdAt: 1_700_000_000_000, id: 'activity-7' }
+        })
+
+        await database.upsertFitnessRouteHeatmapTiles({
+          actorId,
+          ...fence(build),
+          version: build.version,
+          tiles: [],
+          progress: { scannedCount: 4 }
+        })
+
+        expect(
+          await database.getFitnessRouteHeatmapPyramid({ actorId })
+        ).toMatchObject({
+          scannedCount: 4,
+          // Untouched, because they were not supplied.
+          activityCount: 2,
+          totalCount: 9,
+          cursor: { createdAt: 1_700_000_000_000, id: 'activity-7' }
         })
       })
 

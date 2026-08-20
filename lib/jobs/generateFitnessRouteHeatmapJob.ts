@@ -770,6 +770,10 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
         ? (pyramidClaim?.pyramid.activityCount ?? 0)
         : 0
       let flushedScannedCount = pyramidScannedCount
+      // Files this pass walked past without being able to read. Distinct from
+      // an activity that legitimately folds nothing (a treadmill session, a
+      // file type this job does not parse): those ARE covered by the build.
+      let pyramidUnreadableCount = 0
 
       // tileKey -> the edges this run has folded in but not yet written.
       const pendingTiles = new Map<string, TileEdgeMap>()
@@ -1209,6 +1213,11 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
               }
             }
           } catch (error) {
+            // Walked past, but NOT read. The cursor still advances in the
+            // `finally` below — a file this pass is finished with must not
+            // leave the build unresumable — but the two are different facts and
+            // the completion below needs the second one.
+            pyramidUnreadableCount += 1
             logger.warn({
               message:
                 'Failed to parse fitness file for route heatmap; skipping',
@@ -1308,13 +1317,21 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
           // counters that show it are already in hand. Handing the build back
           // costs a rebuild, which is the trade this path makes everywhere
           // else.
-          if (pyramidScannedCount < totalCount) {
+          // Counted again HERE, not trusted from the start of the pass. An
+          // activity that finished processing after that count is invisible to
+          // both sides of the comparison, so a stale denominator agrees with a
+          // scan that missed it — which is the same hole for a single-pass
+          // build that the guard closes for a multi-pass one.
+          const coveredTotalCount =
+            await database.countFitnessFilesByActor(queryFilters)
+
+          if (pyramidScannedCount < coveredTotalCount) {
             logger.info({
               message:
                 'Route heatmap tile build did not cover the whole history; handing it back to be rebuilt',
               actorId,
               scannedCount: pyramidScannedCount,
-              totalCount
+              totalCount: coveredTotalCount
             })
             await releasePyramidBuild(
               build,
@@ -1344,7 +1361,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
               // unclipped, so a run that happened to carry a region filter must
               // not stamp the actor-wide build with a region-clipped total.
               activityCount: pyramidActivityCount,
-              totalCount,
+              totalCount: coveredTotalCount,
               scannedCount: pyramidScannedCount,
               completedAt: Date.now()
             })
@@ -1378,7 +1395,16 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
         // fenced on a token the completion write does not move. What a failed
         // sweep actually costs is some tiles at an older version, which the
         // next build's own sweep removes.
-        if (completedTheBuild) {
+        // Gated on the pass having READ every file it walked past, not merely
+        // on having reached the end. A file whose download or parse threw is
+        // skipped and folds nothing, exactly as it is for the legacy blob — but
+        // the PREVIOUS version's tiles may hold that activity's geometry from
+        // when it was readable, and this is the one irreversible step in the
+        // whole path. A transient storage outage otherwise took a healthy
+        // pyramid to `completed` with zero tiles and deleted the 426 good ones
+        // behind it. Leaving them costs some rows at an older version until a
+        // build that read everything sweeps them.
+        if (completedTheBuild && pyramidUnreadableCount === 0) {
           try {
             // Activities deleted since the last build disappear here: their
             // tiles still carry the older version and nothing rewrote them.

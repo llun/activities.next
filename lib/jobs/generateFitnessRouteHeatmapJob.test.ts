@@ -2599,13 +2599,19 @@ describe('generateFitnessRouteHeatmapJob', () => {
         }
       }
 
-      const expectBuildHandedBack = async () => {
+      const expectBuildHandedBack = async (expected: {
+        status: 'failed' | 'cancelled'
+        error: RegExp
+      }) => {
         expect(mockPublish).not.toHaveBeenCalled()
         const pyramid = await database.getFitnessRouteHeatmapPyramid({
           actorId: actor.id
         })
-        expect(pyramid?.status).not.toBe('generating')
-        expect(pyramid?.error).toBeTruthy()
+        // The VALUE, not `not.toBe('generating')`: the column has three legal
+        // values here and a cancellation recorded as a failure tells an
+        // operator something went wrong with the actor's data when nothing did.
+        expect(pyramid?.status).toBe(expected.status)
+        expect(pyramid?.error).toMatch(expected.error)
         // Claimable straight away, rather than after the staleness window.
         expect(
           await database.claimFitnessRouteHeatmapPyramidBuild({
@@ -2624,7 +2630,10 @@ describe('generateFitnessRouteHeatmapJob', () => {
             actorId: actor.id
           })
           await runContinuation()
-          await expectBuildHandedBack()
+          await expectBuildHandedBack({
+            status: 'cancelled',
+            error: /region row was deleted/
+          })
         } finally {
           for (const id of fileIds) await database.deleteFitnessFile({ id })
         }
@@ -2648,7 +2657,10 @@ describe('generateFitnessRouteHeatmapJob', () => {
             status: 'cancelled'
           })
           await runContinuation()
-          await expectBuildHandedBack()
+          await expectBuildHandedBack({
+            status: 'cancelled',
+            error: /generation was cancelled/
+          })
         } finally {
           for (const id of fileIds) await database.deleteFitnessFile({ id })
         }
@@ -2666,7 +2678,11 @@ describe('generateFitnessRouteHeatmapJob', () => {
           .mockResolvedValueOnce(false)
         try {
           await runContinuation()
-          await expectBuildHandedBack()
+          // A cache clear is not a user cancellation.
+          await expectBuildHandedBack({
+            status: 'failed',
+            error: /region row was cleared/
+          })
         } finally {
           statusSpy.mockRestore()
           for (const id of fileIds) await database.deleteFitnessFile({ id })
@@ -2684,7 +2700,11 @@ describe('generateFitnessRouteHeatmapJob', () => {
           .mockRejectedValueOnce(new Error('count failed'))
         try {
           await expect(runContinuation()).rejects.toThrow('count failed')
-          await expectBuildHandedBack()
+          // The real cause, not the generic "ended without taking over".
+          await expectBuildHandedBack({
+            status: 'failed',
+            error: /count failed/
+          })
         } finally {
           countSpy.mockRestore()
           for (const id of fileIds) await database.deleteFitnessFile({ id })
@@ -3037,7 +3057,7 @@ describe('generateFitnessRouteHeatmapJob', () => {
 
         // A checkpoint after every file, so the tie-break is re-decided from a
         // stored cursor on each hop rather than once in memory.
-        let requestedAt = Date.now()
+        const requestedAt = Date.now()
         const timeoutSpy = vi.spyOn(Date, 'now')
         timeoutSpy.mockReturnValueOnce(0).mockReturnValue(25_000)
         try {
@@ -3066,7 +3086,9 @@ describe('generateFitnessRouteHeatmapJob', () => {
           passes += 1
           expect(passes).toBeLessThan(10)
         }
-        void requestedAt
+        // The point of the fixture is the CHAIN: the tie-break has to be
+        // re-decided from a stored cursor on each hop, not once in memory.
+        expect(passes).toBeGreaterThan(1)
 
         const pyramid = await database.getFitnessRouteHeatmapPyramid({
           actorId: actor.id
@@ -3180,6 +3202,124 @@ describe('generateFitnessRouteHeatmapJob', () => {
       } finally {
         claimSpy.mockRestore()
         await database.deleteFitnessFile({ id: fitnessFileId })
+      }
+    })
+
+    it('does not sweep the previous build when it could not read every file', async () => {
+      // The sweep is the one irreversible step in the whole path, and a file
+      // that threw folds nothing — so a storage outage produced a build with no
+      // tiles at all which then DELETED the complete version behind it. The
+      // cursor still advances past such a file (a build with a short cursor
+      // cannot be resumed), so "reached the end" is not the same fact as "read
+      // what it reached", and only the second one licenses a delete.
+      const firstId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+      const secondId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-16T07:00:00.000Z')
+      )
+
+      try {
+        await seedRoute(firstId, AMSTERDAM)
+        await seedRoute(secondId, SINGAPORE)
+        await runAllTime('job-pyramid-outage-first')
+
+        const healthy = await database.getFitnessRouteHeatmapPyramid({
+          actorId: actor.id
+        })
+        expect(healthy).toMatchObject({ status: 'completed', activityCount: 2 })
+        const healthyTiles = await readTiles()
+        expect(healthyTiles.length).toBeGreaterThan(0)
+
+        // The route cache goes cold and object storage is unavailable, so the
+        // rebuild can read nothing at all.
+        await database.deleteFitnessFileRoute({ fitnessFileId: firstId })
+        await database.deleteFitnessFileRoute({ fitnessFileId: secondId })
+        mockGetFitnessFile.mockRejectedValue(new Error('storage unavailable'))
+
+        await runAllTime(
+          'job-pyramid-outage-second',
+          {},
+          Math.max(Date.now(), healthy!.completedAt! + 1)
+        )
+
+        // The build folded nothing, and the tiles it would have replaced are
+        // still there for the next generate to sweep once it can read them.
+        const tiles = await readTiles()
+        expect(tiles.map((tile) => tile.tileKey).sort()).toEqual(
+          healthyTiles.map((tile) => tile.tileKey).sort()
+        )
+        expect(tiles.every((tile) => tile.version === healthy!.version)).toBe(
+          true
+        )
+      } finally {
+        mockGetFitnessFile.mockResolvedValue({
+          type: 'buffer',
+          buffer: Buffer.from('fitness-file-bytes'),
+          contentType: 'application/vnd.ant.fit'
+        })
+        await database.deleteFitnessFile({ id: firstId })
+        await database.deleteFitnessFile({ id: secondId })
+      }
+    })
+
+    it('does not complete over an activity that arrived while it was running', async () => {
+      // `totalCount` is counted before the scan, so an activity that finishes
+      // processing after it is invisible to the count AND to the page query.
+      // Trusting that snapshot at completion lets the build certify a history
+      // it never saw — and `completedAt` then refuses the regenerate the upload
+      // itself enqueued, so the hole is permanent rather than healed.
+      const firstId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+      let secondId: string | undefined
+
+      try {
+        // Deliberately NOT route-cached: the upload has to be staged from
+        // inside the parse, which a cache hit would skip — leaving the queued
+        // implementation to fire in whatever test called parse next.
+        mockParseFitnessFile.mockImplementationOnce(async () => {
+          secondId = await createCompletedFitnessFile(
+            'running',
+            new Date('2026-04-16T07:00:00.000Z')
+          )
+          await seedRoute(secondId, SINGAPORE)
+          return {
+            coordinates: AMSTERDAM,
+            trackPoints: [],
+            totalDistanceMeters: 50_000,
+            totalDurationSeconds: 7_200,
+            elevationGainMeters: 42,
+            activityType: 'running',
+            startTime: new Date('2026-04-15T07:00:00.000Z')
+          }
+        })
+
+        const requestedAt = Date.now()
+        await runAllTime('job-pyramid-midpass-upload', {}, requestedAt)
+
+        const pyramid = await database.getFitnessRouteHeatmapPyramid({
+          actorId: actor.id
+        })
+        expect(pyramid).toMatchObject({
+          status: 'failed',
+          error: 'Scan did not cover the whole history'
+        })
+        expect(pyramid?.completedAt).toBeUndefined()
+        // So the regenerate the upload enqueued is not refused.
+        expect(
+          await database.claimFitnessRouteHeatmapPyramidBuild({
+            actorId: actor.id,
+            requestedAt,
+            staleBefore: Date.now() - PYRAMID_HEARTBEAT_STALE_MS
+          })
+        ).toMatchObject({ claimed: true, reason: 'claimed' })
+      } finally {
+        await database.deleteFitnessFile({ id: firstId })
+        if (secondId) await database.deleteFitnessFile({ id: secondId })
       }
     })
 

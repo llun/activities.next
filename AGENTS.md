@@ -482,13 +482,22 @@ it; there is no legacy shape left to copy.
   continuation is the case that matters most — it holds the only copy of its
   build's token, so walking away strands the build AND refuses the Generate that
   displaced it, for the whole staleness window.
-- **A build only completes over a history it actually scanned.** `completedAt`
-  is what makes the next claim answer `already-fresh`, so certifying a scan that
-  fell short does not merely lose tiles — it refuses the regenerate that would
-  have picked them up, turning a transient hole permanent. An activity uploaded
-  between two passes sorts first and lands before the offset the continuation
-  resumes at, so it is never presented to the fold gate at all; the pass hands
-  the build back rather than stamping it.
+- **A build only completes over a history it actually scanned, counted again at
+  the moment of the decision.** `completedAt` is what makes the next claim
+  answer `already-fresh`, so certifying a scan that fell short does not merely
+  lose tiles — it refuses the regenerate that would have picked them up, turning
+  a transient hole permanent. An activity uploaded while the build runs sorts
+  first and lands before the offset a continuation resumes at, so it is never
+  presented to the fold gate at all; the pass hands the build back rather than
+  stamping it. The count comes from a fresh `countFitnessFilesByActor`, because
+  the snapshot taken before the scan is blind to exactly the upload in question.
+- **The sweep additionally requires that the pass could READ every file it
+  walked past.** The cursor advances for a file whose download or parse threw —
+  it must, or the build is unresumable — so "reached the end" and "read what it
+  reached" are different facts, and only the second one licenses a delete. A
+  transient storage outage otherwise completed a build with zero tiles and
+  deleted the previous, complete version behind it. Skipping the sweep leaves
+  rows at an older version for the next build that read everything.
 - **Completing a build and sweeping the previous one's tiles are separate
   steps.** The sweep runs after the guarded completion write has already stamped
   the row, and the release that a completion failure triggers is fenced on a
