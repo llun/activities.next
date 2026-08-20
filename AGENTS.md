@@ -588,9 +588,9 @@ it; there is no legacy shape left to copy.
   one shared `normalizeRegionParam`; the region-names route keeps its own
   variant, which answers null rather than `''` for the world sentinel because a
   world scope is not a nameable region.
-- **The tile routes read the share row WITHOUT its geometry**
-  (`getFitnessRouteHeatmapSummaryByShareToken`). They answer from the pyramid
-  and need the row only for its actor, status, scope and variant, while
+- **The public tile route reads the share row WITHOUT its geometry**
+  (`getFitnessRouteHeatmapSummaryByShareToken`). It answers from the pyramid
+  and needs the row only for its actor, status, scope and variant, while
   `segments` holds the entire untiled heatmap — which a panning viewport would
   otherwise drag off disk and through `JSON.parse` once per tile batch, and
   before the conditional-request short-circuit at that.
@@ -607,6 +607,12 @@ it; there is no legacy shape left to copy.
   build that completes after the sweep throws leaves exactly those leftovers.
   The response reports the version it actually served (0 for none) and its keys
   are the ones the REQUEST named, never the ones the read returned.
+- **Every read of the pyramid from a surface that is not about tiles is
+  best-effort.** The owner's heatmap GET and both public pages read it only to
+  publish a `tileSource`, so each wraps the call in `.catch(() => null)`:
+  letting it throw would trade the whole untiled response — the map the user can
+  actually see — for a table nothing renders yet, which is the trade the rule
+  above exists to forbid.
 - **The `v` request parameter is a cache-buster, never a tile filter.** A
   well-formed version that has since moved is answered with the current tiles
   and the current version; refusing it would blank a map the instant a rebuild

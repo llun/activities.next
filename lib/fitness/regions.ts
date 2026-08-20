@@ -69,28 +69,35 @@ const isValidLng = (value: number): boolean =>
  * `nw.lng < se.lng` cannot express a wrapping range, matching the consumer's
  * plain `minLng..maxLng` containment test.
  */
-export const isValidRect = (rect: RectRegion): boolean =>
+/**
+ * Whether both corners are real coordinates.
+ *
+ * Separate from orientation because a map can hand back a box that is neither:
+ * panning past the antimeridian gives unwrapped longitudes (a drag at 2°E on
+ * the next copy of the world arrives as 362), which is a perfectly well-drawn
+ * box at an impossible coordinate. A surface reporting that as a direction
+ * mistake tells the user to reverse corners they did not reverse.
+ */
+export const isRectInRange = (rect: RectRegion): boolean =>
   isValidLat(rect.nw.lat) &&
   isValidLat(rect.se.lat) &&
   isValidLng(rect.nw.lng) &&
-  isValidLng(rect.se.lng) &&
-  rect.nw.lat > rect.se.lat &&
-  rect.nw.lng < rect.se.lng
+  isValidLng(rect.se.lng)
+
+export const isValidRect = (rect: RectRegion): boolean =>
+  isRectInRange(rect) && rect.nw.lat > rect.se.lat && rect.nw.lng < rect.se.lng
 
 /**
  * The same, but allowing a box with no extent — corners the right way round,
  * even if they meet.
  *
- * `isValidRect` folds two different mistakes into one answer: dragging from
- * bottom-right to top-left, and dragging a box too small to survive rounding. A
- * surface that has to TELL A USER what went wrong asks this first, because
- * those two need different sentences and only one of them is about direction.
+ * `isValidRect` folds three different mistakes into one answer: a corner off
+ * the globe, dragging from bottom-right to top-left, and dragging a box too
+ * small to survive rounding. A surface that has to TELL A USER what went wrong
+ * asks the narrower questions instead, because each needs its own sentence.
  */
 export const isOrientedRect = (rect: RectRegion): boolean =>
-  isValidLat(rect.nw.lat) &&
-  isValidLat(rect.se.lat) &&
-  isValidLng(rect.nw.lng) &&
-  isValidLng(rect.se.lng) &&
+  isRectInRange(rect) &&
   rect.nw.lat >= rect.se.lat &&
   rect.nw.lng <= rect.se.lng
 

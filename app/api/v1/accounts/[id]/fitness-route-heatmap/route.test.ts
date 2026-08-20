@@ -227,6 +227,25 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
       expect((await response.json()).heatmap.tileSource).toBeNull()
     })
 
+    it('still answers the heatmap when the pyramid read fails', async () => {
+      // Tile work must never cost the user the heatmap they can actually see.
+      // Both public pages already degrade this read; the owner's must too.
+      mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue(allTimeHeatmap)
+      mockDb.getFitnessRouteHeatmapPyramid.mockRejectedValue(
+        new Error('pyramid table unavailable')
+      )
+
+      const response = await GET(
+        new NextRequest(`${baseUrl}?period_type=all_time&period_key=all`),
+        { params: Promise.resolve({ id: encodedId }) }
+      )
+
+      expect(response.status).toBe(200)
+      const { heatmap } = await response.json()
+      expect(heatmap.id).toBe(allTimeHeatmap.id)
+      expect(heatmap.tileSource).toBeNull()
+    })
+
     it('does not even look for a pyramid the heatmap could not use', async () => {
       mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue({
         ...allTimeHeatmap,

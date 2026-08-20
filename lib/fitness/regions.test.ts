@@ -5,6 +5,9 @@ import {
   deserializeRegions,
   formatRectRegion,
   getRegionBounds,
+  isOrientedRect,
+  isRectInRange,
+  isSerializableRect,
   isValidRect,
   serializeRegion,
   serializeRegions
@@ -244,6 +247,128 @@ describe('getRegionBounds', () => {
 
   it('returns no bounds when a world region is present among rectangles', () => {
     expect(getRegionBounds([rect(52, 5, 51, 6), { type: 'world' }])).toEqual([])
+  })
+})
+
+describe('isRectInRange', () => {
+  it.each([
+    { description: 'an ordinary box', region: [52, 5, 51, 6], expected: true },
+    {
+      description: 'the whole globe',
+      region: [90, -180, -90, 180],
+      expected: true
+    },
+    // What a map panned onto the next copy of the world hands back.
+    {
+      description: 'an unwrapped longitude',
+      region: [52.5, 362, 52, 363],
+      expected: false
+    },
+    {
+      description: 'a latitude past the pole',
+      region: [90.01, 5, 51, 6],
+      expected: false
+    },
+    {
+      description: 'a longitude past +180',
+      region: [52, 5, 51, 180.01],
+      expected: false
+    },
+    {
+      description: 'a NaN corner',
+      region: [52, Number.NaN, 51, 6],
+      expected: false
+    }
+  ])('answers $expected for $description', ({ region, expected }) => {
+    const [nwLat, nwLng, seLat, seLng] = region
+    expect(isRectInRange(rect(nwLat, nwLng, seLat, seLng))).toBe(expected)
+  })
+})
+
+describe('isOrientedRect', () => {
+  it.each([
+    { description: 'a normal box', region: [52, 5, 51, 6], expected: true },
+    // The whole point: a collapsed box is ORIENTED but not valid, which is what
+    // lets a surface tell "too small" apart from "wrong way round".
+    {
+      description: 'a fully collapsed box',
+      region: [52, 5, 52, 5],
+      expected: true
+    },
+    {
+      description: 'a box collapsed in latitude',
+      region: [52, 5, 52, 6],
+      expected: true
+    },
+    {
+      description: 'a box collapsed in longitude',
+      region: [52, 5, 51, 5],
+      expected: true
+    },
+    { description: 'an inverted box', region: [51, 6, 52, 5], expected: false },
+    {
+      description: 'a box inverted in latitude only',
+      region: [51, 5, 52, 6],
+      expected: false
+    },
+    {
+      description: 'a box inverted in longitude only',
+      region: [52, 6, 51, 5],
+      expected: false
+    },
+    {
+      description: 'an out-of-range box',
+      region: [52.5, 362, 52, 363],
+      expected: false
+    }
+  ])('answers $expected for $description', ({ region, expected }) => {
+    const [nwLat, nwLng, seLat, seLng] = region
+    expect(isOrientedRect(rect(nwLat, nwLng, seLat, seLng))).toBe(expected)
+  })
+})
+
+describe('isSerializableRect', () => {
+  it.each([
+    {
+      description: 'a box a full step wide',
+      region: [52.01, 5, 52, 5.01],
+      expected: true
+    },
+    {
+      description: 'a box thinner than the step',
+      region: [52.002, 5, 52.001, 6],
+      expected: false
+    },
+    {
+      description: 'a box collapsed across a midpoint',
+      region: [52.004, 5, 51.996, 6],
+      expected: false
+    },
+    {
+      description: 'an out-of-range box rounding would rescue',
+      region: [90.004, 5, 51, 6],
+      expected: false
+    },
+    { description: 'an inverted box', region: [51, 6, 52, 5], expected: false }
+  ])('answers $expected for $description', ({ region, expected }) => {
+    const [nwLat, nwLng, seLat, seLng] = region
+    expect(isSerializableRect(rect(nwLat, nwLng, seLat, seLng))).toBe(expected)
+  })
+
+  it('agrees with what serializeRegions actually emits', () => {
+    // The invariant the composer relies on: a rect the gate accepts serializes
+    // to a token, and one it rejects serializes to the world sentinel.
+    const cases: RectRegion[] = [
+      rect(52, 5, 51, 6),
+      rect(52.01, 5, 52, 5.01),
+      rect(52.002, 5, 52.001, 6),
+      rect(52.004, 5, 51.996, 6),
+      rect(90.004, 5, 51, 6),
+      rect(51, 6, 52, 5)
+    ]
+    for (const region of cases) {
+      expect(serializeRegions([region]) !== '').toBe(isSerializableRect(region))
+    }
   })
 })
 

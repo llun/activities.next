@@ -159,6 +159,46 @@ describe('classifyTileAgainstRegion', () => {
     ).toBe('outside')
   })
 
+  it.each([
+    { description: 'first', order: 'first' as const },
+    { description: 'second', order: 'second' as const }
+  ])(
+    'reads a scope by UNION, not intersection, with the far rect $description',
+    ({ order }) => {
+      // A scope may hold up to MAX_HEATMAP_REGIONS rectangles and a tile need
+      // only meet ONE of them. Testing intersection with `every` instead of
+      // `some` would answer 'outside' here, and `serveHeatmapTiles` settles an
+      // 'outside' tile as empty without reading it — so the whole map would go
+      // blank at tiled zooms for any multi-rect scope. Both orders, because a
+      // short-circuit could pass on one and not the other.
+      const straddling = {
+        minLat: (tile.minLat + tile.maxLat) / 2,
+        maxLat: tile.maxLat + pad,
+        minLng: tile.minLng - pad,
+        maxLng: tile.maxLng + pad
+      }
+      const faraway = { minLat: -40, maxLat: -39, minLng: 170, maxLng: 171 }
+      const bounds =
+        order === 'first' ? [faraway, straddling] : [straddling, faraway]
+
+      expect(classifyTileAgainstRegion(Z, X, Y, bounds)).toBe('partial')
+    }
+  )
+
+  it('reports inside when one rect of a multi-rect scope contains the tile', () => {
+    expect(
+      classifyTileAgainstRegion(Z, X, Y, [
+        { minLat: -40, maxLat: -39, minLng: 170, maxLng: 171 },
+        {
+          minLat: tile.minLat - pad,
+          maxLat: tile.maxLat + pad,
+          minLng: tile.minLng - pad,
+          maxLng: tile.maxLng + pad
+        }
+      ])
+    ).toBe('inside')
+  })
+
   it('reaches nothing through an inverted rect, rather than wrapping', () => {
     expect(
       classifyTileAgainstRegion(Z, X, Y, [

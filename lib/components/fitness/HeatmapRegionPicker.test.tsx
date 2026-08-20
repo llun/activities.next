@@ -445,6 +445,34 @@ describe('HeatmapRegionPicker', () => {
     expect(onRegionSaved).not.toHaveBeenCalled()
   })
 
+  it('tells a user who drew past the antimeridian that the box is off the globe', () => {
+    // A map panned onto the next copy of the world reports unwrapped
+    // longitudes — a drag at 2°E arrives as 362 — so the box is well drawn at
+    // an impossible coordinate. Reporting that as a direction mistake tells the
+    // user to reverse corners they did not reverse.
+    render(
+      <HeatmapRegionPicker
+        value={[
+          {
+            id: 'rect-1',
+            type: 'rect',
+            nw: { lat: 52.5, lng: 362 },
+            se: { lat: 52, lng: 363 }
+          }
+        ]}
+        onChange={vi.fn()}
+        mapProvider={{ type: 'osm' }}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Edit area/i }))
+
+    expect(screen.getByRole('button', { name: /Save area/i })).toBeDisabled()
+    expect(screen.getByText(/within ±90° latitude/i)).toBeInTheDocument()
+    expect(
+      screen.queryByText(/north-west of bottom-right/i)
+    ).not.toBeInTheDocument()
+  })
+
   it('keeps the north-west message for a box that is merely inverted', () => {
     render(
       <HeatmapRegionPicker

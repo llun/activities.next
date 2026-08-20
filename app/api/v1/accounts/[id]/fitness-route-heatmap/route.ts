@@ -185,8 +185,15 @@ export const GET = traceApiRoute(
     // Only the all-activities/all-time row can be tile-backed, so the pyramid
     // is read only for that one — every other row would pay an extra query to
     // be told null.
+    //
+    // Best-effort, like the same read on both public pages: tile work must
+    // never cost the user the heatmap they can actually see. Letting this throw
+    // would trade the whole untiled response for a table nothing renders yet,
+    // which is the one trade the pyramid's own rules forbid.
     const pyramid = isPyramidVariantHeatmap(heatmap)
-      ? await database.getFitnessRouteHeatmapPyramid({ actorId: id })
+      ? await database
+          .getFitnessRouteHeatmapPyramid({ actorId: id })
+          .catch(() => null)
       : null
 
     return apiResponse({

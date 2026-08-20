@@ -25,6 +25,7 @@ import {
   RectRegion,
   formatRectRegion,
   isOrientedRect,
+  isRectInRange,
   isSerializableRect,
   serializeRegion
 } from '@/lib/fitness/regions'
@@ -208,6 +209,7 @@ const RectComposer: FC<RectComposerProps> = ({
   // box too small to survive rounding arrives here COLLAPSED: oriented, with no
   // extent. Branching on `isValidRect` instead would tell that user their
   // corners are the wrong way round, which is not what they did.
+  const inRange = isRectInRange(drawn)
   const oriented = isOrientedRect(drawn)
   // Gated on what SERIALIZATION accepts, not merely on a well-formed box. A
   // rectangle thinner than the 0.01 degree step rounds onto a single coordinate
@@ -325,9 +327,11 @@ const RectComposer: FC<RectComposerProps> = ({
 
       {!valid && (
         <p className="mt-2 text-[11px] text-destructive">
-          {oriented
-            ? 'Area is too small — each side must span at least 0.01°.'
-            : 'Top-left must be north-west of bottom-right.'}
+          {!inRange
+            ? 'Area must lie within ±90° latitude and ±180° longitude.'
+            : oriented
+              ? 'Area is too small — each side must span at least 0.01°.'
+              : 'Top-left must be north-west of bottom-right.'}
         </p>
       )}
 
