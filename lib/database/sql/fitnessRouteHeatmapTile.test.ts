@@ -231,6 +231,50 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         expect(pyramid?.completedAt).toBe(completedAt)
       })
 
+      it('reads an epoch-0 completion the same way on both backends', async () => {
+        // The same per-backend truthiness trap the cursor columns carry, on the
+        // field that decides `already-fresh`: an epoch-0 timestamp comes back a
+        // falsy integer on SQLite and a truthy Date on PostgreSQL, so read with
+        // truthiness the same row answers differently depending on where it is
+        // stored. Reachable or not, a JS/SQL split here is the wedge class this
+        // whole mixin is written around.
+        const { database: isolated, prepare: prepareIsolated } =
+          getTestDatabaseWithInstance(true)
+        await prepareIsolated()
+        await isolated.migrate()
+
+        try {
+          const actorId = await createActor(isolated)
+          const claim = await isolated.claimFitnessRouteHeatmapPyramidBuild({
+            actorId,
+            requestedAt: Date.now(),
+            staleBefore: Date.now() - 120_000
+          })
+          await isolated.updateFitnessRouteHeatmapPyramid({
+            actorId,
+            ...fence(claim.pyramid),
+            status: 'completed',
+            completedAt: 0
+          })
+
+          expect(
+            await isolated.getFitnessRouteHeatmapPyramid({ actorId })
+          ).toMatchObject({ status: 'completed', completedAt: 0 })
+
+          // And the claim treats it as the ancient completion it is, rather
+          // than as one that never happened.
+          expect(
+            await isolated.claimFitnessRouteHeatmapPyramidBuild({
+              actorId,
+              requestedAt: Date.now(),
+              staleBefore: Date.now() - 120_000
+            })
+          ).toMatchObject({ claimed: true, reason: 'claimed' })
+        } finally {
+          await isolated.destroy()
+        }
+      })
+
       it('claims a build whose owner completed it without stamping a time', async () => {
         // `completedAt` is nullable, and the claimable predicate is written as
         // a De Morgan expansion precisely so this row stays takeable: the
@@ -577,6 +621,73 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           )
           return state
         }
+
+        it('refuses a claim whose build completed inside the window', async () => {
+          // The interleaving the CAS's own comment names — "a completion that
+          // lands there would let it throw away the very pyramid the request
+          // was asking for" — and the one no staged test reached: every other
+          // one stages a heartbeat or a resume-premise change. Staged at the
+          // BOUNDARY, `completedAt === requestedAt`, because that is where a
+          // `<` relaxed to `<=` stops refusing, and two operations landing in
+          // the same millisecond is not hypothetical here: an earlier flake in
+          // this very suite was two job runs sharing one `Date.now()`.
+          const {
+            database: isolated,
+            instance,
+            prepare: prepareIsolated
+          } = getTestDatabaseWithInstance(true)
+          await prepareIsolated()
+          await isolated.migrate()
+
+          try {
+            const actorId = await createActor(isolated)
+            const owner = await isolated.claimFitnessRouteHeatmapPyramidBuild({
+              actorId,
+              requestedAt: Date.now(),
+              staleBefore: Date.now() - 120_000
+            })
+            expect(owner.claimed).toBe(true)
+
+            // Abandoned-looking at read time...
+            await instance('fitness_route_heatmap_pyramids')
+              .where('actorId', actorId)
+              .update({ updatedAt: new Date(Date.now() - 600_000) })
+
+            const requestedAt = Date.now()
+            // ...and finished by its owner before the write lands.
+            const staged = stageOnClaimRead(instance, () =>
+              instance('fitness_route_heatmap_pyramids')
+                .where('actorId', actorId)
+                .update({
+                  status: 'completed',
+                  completedAt: new Date(requestedAt),
+                  tileCount: 99,
+                  updatedAt: new Date()
+                })
+            )
+
+            const thief = await isolated.claimFitnessRouteHeatmapPyramidBuild({
+              actorId,
+              requestedAt,
+              staleBefore: Date.now() - 120_000
+            })
+
+            expect(staged.fired).toBe(true)
+            expect(thief.claimed).toBe(false)
+            // The finished pyramid is untouched — not reset to `generating`
+            // with its counters cleared over tiles it still describes.
+            expect(
+              await isolated.getFitnessRouteHeatmapPyramid({ actorId })
+            ).toMatchObject({
+              status: 'completed',
+              version: owner.pyramid.version,
+              completedAt: requestedAt,
+              tileCount: 99
+            })
+          } finally {
+            await isolated.destroy()
+          }
+        })
 
         it.each([
           {

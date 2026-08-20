@@ -495,7 +495,10 @@ it; there is no legacy shape left to copy.
   says so on the row.** The cursor advances for a file whose download or parse
   threw — it must, or the build is unresumable — so "reached the end" and "read
   what it reached" are different facts, and the second one is a degradation the
-  row records in `error` rather than a reason to withhold the build. Refusing to
+  row records in `error` rather than a reason to withhold the build. That count
+  is carried across continuations with the build's token, because the pass that
+  finishes a long history is rarely the one that hit the outage and a per-pass
+  count reads `error: null` over a build that lost activities. Refusing to
   complete would wedge any actor with one permanently unreadable object, which
   the legacy blob simply skips.
   Withholding the SWEEP does not protect the missing geometry, which was tried

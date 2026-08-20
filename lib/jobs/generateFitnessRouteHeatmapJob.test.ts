@@ -3328,13 +3328,16 @@ describe('generateFitnessRouteHeatmapJob', () => {
         expect(degraded).toMatchObject({
           status: 'completed',
           activityCount: 1,
-          error: 'Completed without 1 activities that could not be read'
+          error: 'Completed without 1 activity that could not be read'
         })
-        // Geometry really was lost — this is what the record exists for.
+        // Geometry really was lost, and the readable ride really was kept —
+        // `< healthy` alone would also hold if the build had lost everything,
+        // which is a different failure with a different fix.
         const degradedPoints = (await readTiles()).reduce(
           (sum, tile) => sum + tile.pointCount,
           0
         )
+        expect(degradedPoints).toBeGreaterThan(0)
         expect(degradedPoints).toBeLessThan(healthyPoints)
         // And the row still describes the tiles on disk.
         expect(degraded?.tileCount).toBe((await readTiles()).length)
@@ -3395,6 +3398,73 @@ describe('generateFitnessRouteHeatmapJob', () => {
       } finally {
         await database.deleteFitnessFile({ id: firstId })
         await database.deleteFitnessFile({ id: secondId })
+      }
+    })
+
+    it('carries what it could not read across a continuation', async () => {
+      // The record has to be about the BUILD, not the pass that happens to
+      // finish it. A long history is exactly where an outage is likeliest and
+      // exactly where the completing pass is not the one that hit it, so a
+      // per-pass count reads `error: null` over a build that lost activities —
+      // the silence the record exists to break.
+      const readableId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+      const unreadableId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-16T07:00:00.000Z')
+      )
+
+      try {
+        // Newest first, so the unreadable one is scanned first: the outage
+        // lands on the FIRST pass and the pass that completes reads fine.
+        await seedRoute(readableId, AMSTERDAM)
+        // Keyed on the id rather than queued, so it cannot fire in whatever
+        // test calls storage next.
+        mockGetFitnessFile.mockImplementation(async (_database, id) =>
+          id === unreadableId
+            ? Promise.reject(new Error('storage unavailable'))
+            : {
+                type: 'buffer' as const,
+                buffer: Buffer.from('fitness-file-bytes'),
+                contentType: 'application/vnd.ant.fit'
+              }
+        )
+
+        const requestedAt = Date.now()
+        const timeoutSpy = vi.spyOn(Date, 'now')
+        timeoutSpy.mockReturnValueOnce(0).mockReturnValue(25_000)
+        try {
+          await runAllTime('job-pyramid-carry-unreadable', {}, requestedAt)
+        } finally {
+          timeoutSpy.mockRestore()
+        }
+
+        const continuation = mockPublish.mock.calls[0][0] as {
+          data: Record<string, unknown>
+        }
+        // The count travels with the token, so a redelivered continuation
+        // recomputes the same total rather than adding to it.
+        expect(continuation.data.pyramidUnreadableCount).toBe(1)
+
+        await runPublishedContinuation('job-pyramid-carry-unreadable-cont')
+
+        expect(
+          await database.getFitnessRouteHeatmapPyramid({ actorId: actor.id })
+        ).toMatchObject({
+          status: 'completed',
+          error: 'Completed without 1 activity that could not be read'
+        })
+      } finally {
+        mockGetFitnessFile.mockReset()
+        mockGetFitnessFile.mockResolvedValue({
+          type: 'buffer',
+          buffer: Buffer.from('fitness-file-bytes'),
+          contentType: 'application/vnd.ant.fit'
+        })
+        await database.deleteFitnessFile({ id: unreadableId })
+        await database.deleteFitnessFile({ id: readableId })
       }
     })
 

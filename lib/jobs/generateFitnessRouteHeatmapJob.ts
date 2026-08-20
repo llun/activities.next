@@ -139,7 +139,18 @@ const JobData = z.object({
    * would let a continuation from before the clear match an unrelated build
    * after it — and evict the live pass that owned it.
    */
-  pyramidBuildId: z.string().optional()
+  pyramidBuildId: z.string().optional(),
+  /**
+   * How many files the build could not read BEFORE this pass. Carried rather
+   * than accumulated on the row, so a redelivered continuation recomputes the
+   * same total instead of adding to it — the count a pass publishes is
+   * `carried + its own`, which is idempotent in the payload and would not be in
+   * a read-modify-write.
+   *
+   * Only meaningful alongside the token: a claim that does not resume starts a
+   * fresh build, which has read nothing and lost nothing.
+   */
+  pyramidUnreadableCount: z.number().int().nonnegative().optional()
 })
 
 const getPeriodRange = (
@@ -364,7 +375,8 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
       maxCursorOffset: requestedMaxCursorOffset,
       requestedAt,
       pyramidClaimSeq,
-      pyramidBuildId
+      pyramidBuildId,
+      pyramidUnreadableCount: carriedUnreadableCount
     } = JobData.parse(message.data)
 
     const startedAt = Date.now()
@@ -770,14 +782,19 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
         ? (pyramidClaim?.pyramid.activityCount ?? 0)
         : 0
       let flushedScannedCount = pyramidScannedCount
-      // Files this pass could not finish — a download that threw, a parse that
-      // threw. Distinct from an activity that legitimately folds nothing (a
-      // treadmill session, a file type this job does not parse): those ARE
-      // covered by the build. Per PASS, not per build, which is all the
-      // completing pass can see; a continuation that read everything reports
-      // only its own share, so the count is a floor on what a build missed
-      // rather than a total.
-      let pyramidUnreadableCount = 0
+      // Files the BUILD could not finish — a download that threw, a parse that
+      // threw — carried across continuations, because the pass that completes
+      // is rarely the pass that hit the outage. Per-pass it read `error: null`
+      // over a multi-pass build that had lost activities, which is the silence
+      // the record exists to break. Distinct from an activity that legitimately
+      // folds nothing (a treadmill session, a file type this job does not
+      // parse): those ARE covered by the build.
+      //
+      // Seeded only for a genuine resume: a claim that took a fresh version is
+      // a new build, which has read nothing and so has lost nothing.
+      let pyramidUnreadableCount = pyramidClaim?.resumed
+        ? (carriedUnreadableCount ?? 0)
+        : 0
 
       // tileKey -> the edges this run has folded in but not yet written.
       const pendingTiles = new Map<string, TileEdgeMap>()
@@ -1054,7 +1071,8 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
             ...(pyramidBuild
               ? {
                   pyramidClaimSeq: pyramidBuild.claimSeq,
-                  pyramidBuildId: pyramidBuild.pyramidId
+                  pyramidBuildId: pyramidBuild.pyramidId,
+                  pyramidUnreadableCount
                 }
               : {})
           }
@@ -1380,7 +1398,9 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
               status: 'completed',
               error:
                 pyramidUnreadableCount > 0
-                  ? `Completed without ${pyramidUnreadableCount} activities that could not be read`
+                  ? `Completed without ${pyramidUnreadableCount} ${
+                      pyramidUnreadableCount === 1 ? 'activity' : 'activities'
+                    } that could not be read`
                   : null,
               tileCount: totals.tileCount,
               pointCount: totals.pointCount,
