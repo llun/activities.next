@@ -5,7 +5,14 @@ import { FC } from 'react'
 import { getBaseURL } from '@/lib/config'
 import { getPublicMapProvider } from '@/lib/config/mapProvider'
 import { getDatabase } from '@/lib/database'
-import { toPublicHeatmap } from '@/lib/services/fitness-files/publicHeatmap'
+import {
+  buildHeatmapTileSource,
+  isPyramidVariantHeatmap
+} from '@/lib/services/fitness-files/heatmapTiles/tileSource'
+import {
+  resolveSharedHeatmapRegionBounds,
+  toPublicHeatmap
+} from '@/lib/services/fitness-files/publicHeatmap'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 
 import { SharedHeatmapPage } from './SharedHeatmapPage'
@@ -36,6 +43,9 @@ const Page: FC<PageProps> = async ({ params }) => {
   // keeps its token but transitions back to pending/generating; 404 during that
   // window rather than publish a partial/in-progress page.
   if (!heatmap || heatmap.status !== 'completed') notFound()
+  // See resolveSharedHeatmapRegionBounds: an unresolvable region means the
+  // stored geometry was never clipped, so rendering it publishes the world.
+  if (!resolveSharedHeatmapRegionBounds(heatmap)) notFound()
 
   // Flatten the privacy distinction so the public page shows no hole and no
   // highlight around private locations (see toPublicHeatmap).
@@ -70,8 +80,19 @@ const Page: FC<PageProps> = async ({ params }) => {
     origin = getBaseURL()
   }
 
+  // Lets the page zoom into the pyramid through the embed tiles route. Read
+  // only for the one row the pyramid can answer, and best-effort: the page's
+  // untiled geometry renders either way, so a failure costs detail on zoom
+  // rather than the whole map.
+  const pyramid = isPyramidVariantHeatmap(heatmap)
+    ? await database
+        .getFitnessRouteHeatmapPyramid({ actorId: heatmap.actorId })
+        .catch(() => null)
+    : null
+
   const view = buildSharedHeatmapView({
     heatmap: publicHeatmap,
+    tileSource: buildHeatmapTileSource(publicHeatmap, pyramid),
     owner: owner
       ? { name: owner.name, username: owner.username, domain: owner.domain }
       : null,

@@ -114,6 +114,33 @@ describe('/embed/heatmap/[token]/image', () => {
     expect(response.status).toBe(404)
   })
 
+  it.each([
+    {
+      description: 'a rectangle rounding had collapsed',
+      region: 'rect:52.00,5.00,52.00,5.00'
+    },
+    { description: 'an unparseable token', region: 'rect:not-a-number,5,4,6' }
+  ])(
+    'returns 404 for a share whose region is $description',
+    async ({ region }) => {
+      // The stored geometry for such a row was built with NO clipping — the job
+      // reads the same unresolvable region as world scope — so what this image
+      // would render is the actor's whole history under a rectangle's label.
+      // There is nothing left to clip; refusing is the only remedy short of
+      // regenerating the row.
+      mockGetFitnessRouteHeatmapByShareToken.mockResolvedValue({
+        ...sharedHeatmap,
+        region
+      })
+
+      const response = await GET(imageRequest(), {
+        params: Promise.resolve({ token: 'token-1' })
+      })
+
+      expect(response.status).toBe(404)
+    }
+  )
+
   it('pins the response content-type to an image even if upstream lies', async () => {
     mockGetMapProviderConfig.mockReturnValue({
       type: 'mapbox',

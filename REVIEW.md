@@ -482,6 +482,33 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
 - A build that could not read every file still completes, and records the loss
   on the row — withholding the sweep does not preserve the missing geometry,
   because a merge replaces any tile a readable activity also touched.
+- Tiles are stored unclipped; a region is applied when they are served. Only
+  the all-activities/all-time heatmap can be tile-backed.
+- The public token route refuses any share the pyramid cannot answer, through
+  the same `buildHeatmapTileSource` that decides whether a heatmap advertises
+  tiles — a share scoped to one sport or one year would otherwise be served the
+  actor's whole history, which region clipping cannot catch. The owner route
+  names no variant and needs no such gate.
+- On the public token route the region comes from the **shared row**, never from
+  the caller, and the resolver **fails closed**: a non-empty region that yields
+  no bounds is refused, because no bounds means no clipping. It runs before the
+  conditional-request check. Out-of-region tiles are answered before any read.
+- **All four PUBLIC surfaces** — the share page, the embed page, the embed image
+  and the embed tiles route — refuse through the one
+  `resolveSharedHeatmapRegionBounds`, because for such a row the untiled
+  geometry was built unclipped too. The OWNER tile route is not one of them: it
+  clips to the region its own authenticated caller sent.
+- Anything that PRODUCES a rectangle gates on `isSerializableRect`, the same rule
+  `serializeRegions` applies. A box thinner than the 0.01° step is well formed
+  and has no canonical key of its own; saved, it takes the WORLD's key.
+- Both tile routes share one query parser, and read the share row without its
+  geometry.
+- The public route strips the privacy flag and keeps the geometry
+  (`flattenTilePrivacyForPublic`, beside the untiled doctrine), and re-encodes
+  every byte it returns rather than forwarding a stored payload.
+- Only a `completed` pyramid serves tiles, only at its own `version`, and the
+  response's keys are the ones the request named. A well-formed `v` busts caches
+  and never filters tiles; a malformed one is a 400 on both routes.
 - See AGENTS.md → Fitness Route Heatmap Pyramid.
 
 ## Commits & versioning

@@ -84,6 +84,36 @@ describe('buildSharedHeatmapView', () => {
     expect(view.heatmap.bounds).toEqual(baseHeatmap.bounds)
   })
 
+  it('carries the tile source through so the public map can zoom into it', () => {
+    const tileSource = {
+      version: 4,
+      minZoom: 4,
+      maxZoom: 16,
+      ladder: [4, 6, 8, 10, 12, 14, 16],
+      extent: 256
+    }
+    const view = buildSharedHeatmapView({
+      heatmap: baseHeatmap,
+      owner,
+      origin: 'https://llun.test',
+      token: 'tok123',
+      tileSource
+    })
+
+    expect(view.heatmap.tileSource).toEqual(tileSource)
+  })
+
+  it('reports no tile source when the caller resolved none', () => {
+    const view = buildSharedHeatmapView({
+      heatmap: baseHeatmap,
+      owner,
+      origin: 'https://llun.test',
+      token: 'tok123'
+    })
+
+    expect(view.heatmap.tileSource).toBeNull()
+  })
+
   it('uses the owner-assigned region name and a bbox caption for a single rect', () => {
     const region = serializeRegion({
       type: 'rect',
