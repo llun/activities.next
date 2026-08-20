@@ -465,7 +465,7 @@ it; there is no legacy shape left to copy.
   gone.
 - **Tile work never fails the run.** Nothing reads the pyramid yet, so losing a
   build costs a rebuild while failing the run costs the user the heatmap they
-  can actually see. Every tile-path error — the claim, the tiler, a flush, the
+  can actually see. Every tile-path error — the tiler, a flush, the
   completion — abandons the build, records why on the pyramid row, and lets the
   legacy path finish. Failing the CLAIM is the one case with nothing to record
   on — the claim's compare-and-swap and the read confirming it share one

@@ -361,6 +361,52 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         expect(pyramid?.completedAt).toBe(completedAt)
       })
 
+      it('reads an epoch-0 cursor the same way on both backends', async () => {
+        // The same trap as `completedAt`, on the columns the resume premise is
+        // built from: an epoch-0 `cursorCreatedAt` is a falsy integer on SQLite
+        // and a truthy Date on PostgreSQL, so read with truthiness the same row
+        // would be resumable on one backend and not the other — and a row whose
+        // JS verdict and SQL predicate disagree can never be claimed at all.
+        const {
+          database: isolated,
+          instance,
+          prepare: prepareIsolated
+        } = getTestDatabaseWithInstance(true)
+        await prepareIsolated()
+        await isolated.migrate()
+
+        try {
+          const actorId = await createActor(isolated)
+          const claim = await isolated.claimFitnessRouteHeatmapPyramidBuild({
+            actorId,
+            requestedAt: Date.now(),
+            staleBefore: Date.now() - 120_000
+          })
+          // Written straight to the columns: the mixin's own writer would take
+          // an epoch-0 cursor as a legitimate value either way, and the point
+          // is what the READER makes of the stored row.
+          await instance('fitness_route_heatmap_pyramids')
+            .where('actorId', actorId)
+            .update({ cursorCreatedAt: new Date(0), cursorId: 'activity-0' })
+
+          expect(
+            await isolated.getFitnessRouteHeatmapPyramid({ actorId })
+          ).toMatchObject({ cursor: { createdAt: 0, id: 'activity-0' } })
+
+          // And it is a real cursor, so this build's own continuation resumes.
+          expect(
+            await isolated.claimFitnessRouteHeatmapPyramidBuild({
+              actorId,
+              requestedAt: Date.now(),
+              staleBefore: Date.now() - 120_000,
+              resumeBuild: fence(claim.pyramid)
+            })
+          ).toMatchObject({ claimed: true, resumed: true })
+        } finally {
+          await isolated.destroy()
+        }
+      })
+
       it('reads an epoch-0 completion the same way on both backends', async () => {
         // The same per-backend truthiness trap the cursor columns carry, on the
         // field that decides `already-fresh`: an epoch-0 timestamp comes back a
@@ -795,7 +841,10 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
             })
 
             expect(staged.fired).toBe(true)
-            expect(thief.claimed).toBe(false)
+            expect({ claimed: thief.claimed, reason: thief.reason }).toEqual({
+              claimed: false,
+              reason: 'build-in-progress'
+            })
             expect(
               await isolated.getFitnessRouteHeatmapPyramid({ actorId })
             ).toMatchObject({
@@ -859,7 +908,13 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
             })
 
             expect(staged.fired).toBe(true)
-            expect(thief.claimed).toBe(false)
+            // The REASON, not just the refusal: the post-CAS re-classification
+            // is what tells the caller it can serve this request from a
+            // finished pyramid instead of giving up and rebuilding.
+            expect({ claimed: thief.claimed, reason: thief.reason }).toEqual({
+              claimed: false,
+              reason: 'already-fresh'
+            })
             // The finished pyramid is untouched — not reset to `generating`
             // with its counters cleared over tiles it still describes.
             expect(

@@ -2689,6 +2689,37 @@ describe('generateFitnessRouteHeatmapJob', () => {
         }
       })
 
+      it('survives its own release failing', async () => {
+        // The release is how a dropped continuation hands its build back, and
+        // it is the last write on a path that has already decided not to fail
+        // the run. Without its own catch that rejection escapes the handler —
+        // and on the top-level path it would replace the error the run is
+        // rethrowing. Round 10's test for this reached only the top-level
+        // catch, because it threw on a FRESH run that never called the release
+        // at all.
+        const { fileIds, runContinuation } =
+          await startAChainAndCaptureItsContinuation(
+            'job-pyramid-release-fails'
+          )
+        const releaseSpy = vi
+          .spyOn(database, 'updateFitnessRouteHeatmapPyramid')
+          .mockRejectedValue(new Error('pyramid row unavailable'))
+
+        try {
+          await database.deleteFitnessRouteHeatmapsForActor({
+            actorId: actor.id
+          })
+
+          // The continuation is dropped, the release is attempted, and it
+          // fails — and the run still returns rather than rejecting.
+          await expect(runContinuation()).resolves.not.toThrow()
+          expect(releaseSpy).toHaveBeenCalled()
+        } finally {
+          releaseSpy.mockRestore()
+          for (const id of fileIds) await database.deleteFitnessFile({ id })
+        }
+      })
+
       it('hands the build back when the pass throws before it can claim', async () => {
         // No guard at all — the release has to survive an exception thrown
         // anywhere between the token being read and the claim being made, which
@@ -2806,7 +2837,14 @@ describe('generateFitnessRouteHeatmapJob', () => {
           new Map(
             Array.from({ length: TILE_FLUSH_PENDING_LIMIT }, (_, index) => [
               `16:${index}:0`,
+              // A whole `TileDelta`, not just its edges: the flush reads `z`,
+              // `x` and `y` off it, and a cast that let them be omitted would
+              // have hidden the difference between this fixture and what the
+              // tiler really returns.
               {
+                z: 16,
+                x: index,
+                y: 0,
                 edges: new Map([
                   [
                     'e',
@@ -2821,7 +2859,7 @@ describe('generateFitnessRouteHeatmapJob', () => {
                 ])
               }
             ])
-          ) as ReturnType<typeof tilerModule.buildTileDeltasForActivity>
+          )
         )
 
       try {
@@ -3565,6 +3603,76 @@ describe('generateFitnessRouteHeatmapJob', () => {
         })
         await database.deleteFitnessFile({ id: readableId })
         await database.deleteFitnessFile({ id: unreadableId })
+      }
+    })
+
+    it('does not report an activity an earlier pass folded as one it could not read', async () => {
+      // A re-presented file the build already holds is not a loss, and the
+      // decision has to be made before the storage read — a storage failure is
+      // the dominant throw the counter exists for, and it happens there. The
+      // record is the scoped, persisted degradation signal an operator reads;
+      // it must not be false about a build that lost nothing.
+      const amsterdamId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+      const singaporeId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-16T07:00:00.000Z')
+      )
+      let shifterId: string | undefined
+
+      try {
+        await seedRoute(amsterdamId, AMSTERDAM)
+        await seedRoute(singaporeId, SINGAPORE)
+
+        // Pass 1 folds Singapore and checkpoints.
+        const requestedAt = Date.now()
+        const timeoutSpy = vi.spyOn(Date, 'now')
+        timeoutSpy.mockReturnValueOnce(0).mockReturnValue(25_000)
+        try {
+          await runAllTime('job-pyramid-refold-unreadable', {}, requestedAt)
+        } finally {
+          timeoutSpy.mockRestore()
+        }
+
+        // An upload shifts every offset down one, so the continuation is handed
+        // Singapore a second time — and its route cache is now gone and storage
+        // is unavailable, so reading it throws.
+        shifterId = await createCompletedFitnessFile(
+          'running',
+          new Date('2026-04-17T07:00:00.000Z')
+        )
+        await seedRoute(shifterId, TOKYO)
+        await database.deleteFitnessFileRoute({ fitnessFileId: singaporeId })
+        mockGetFitnessFile.mockImplementation(async (_database, id) =>
+          id === singaporeId
+            ? Promise.reject(new Error('storage unavailable'))
+            : {
+                type: 'buffer' as const,
+                buffer: Buffer.from('fitness-file-bytes'),
+                contentType: 'application/vnd.ant.fit'
+              }
+        )
+
+        await runPublishedContinuation('job-pyramid-refold-unreadable-cont')
+
+        const pyramid = await database.getFitnessRouteHeatmapPyramid({
+          actorId: actor.id
+        })
+        // Whatever else this pass decides, it must not claim to have lost the
+        // activity whose tiles it is sitting on.
+        expect(pyramid?.error).not.toMatch(/could not be read/)
+      } finally {
+        mockGetFitnessFile.mockReset()
+        mockGetFitnessFile.mockResolvedValue({
+          type: 'buffer',
+          buffer: Buffer.from('fitness-file-bytes'),
+          contentType: 'application/vnd.ant.fit'
+        })
+        await database.deleteFitnessFile({ id: amsterdamId })
+        await database.deleteFitnessFile({ id: singaporeId })
+        if (shifterId) await database.deleteFitnessFile({ id: shifterId })
       }
     })
 

@@ -1137,7 +1137,14 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
             )
           }
 
-          let foldedThisFile = false
+          // Whether the BUILD already holds this file's geometry, decided
+          // before anything that can throw. An earlier pass of this build may
+          // have folded it and the paging then re-presented it; a storage
+          // failure on that file is not a loss, and storage failure is the
+          // dominant throw this counter exists for — so deciding it after the
+          // read is deciding it too late.
+          let foldedThisFile =
+            Boolean(pyramidBuild) && !isUnfoldedByPyramid(file)
           try {
             if (isParseableFitnessFileType(file.fileType)) {
               const routeCoordinates = await resolveRouteCoordinates(database, {
@@ -1160,13 +1167,6 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
                   privacyLocations
                 )
                 const privacySegments = buildPrivacySegments(privacyAwarePoints)
-
-                // Already folded by an earlier pass of this build, so the
-                // build HAS its geometry: a throw later in this block is not a
-                // loss to record.
-                if (pyramidBuild && !isUnfoldedByPyramid(file)) {
-                  foldedThisFile = true
-                }
 
                 // Before the region filter: the pyramid stores tiles
                 // unclipped, and a region is applied when they are served.
@@ -1592,10 +1592,13 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
       // strands the build just as thoroughly.
       //
       // Unconditional because it is fenced on the CARRIED token, and every
-      // claim moves the token: once this pass adopted the build, or anyone else
-      // took it over, or it was completed, this matches no row and writes
-      // nothing. It only ever fires for a build that is still sitting where its
-      // predecessor left it with nobody coming back for it.
+      // CLAIM moves the token: once this pass adopted the build, or anyone else
+      // took it over, this matches no row and writes nothing. Completion does
+      // not move the token — but a pass that completes a build must have
+      // claimed it first, and `checkpointAndContinue` returns the moment it has
+      // published, so no completed row can ever sit at the very token an
+      // outstanding continuation still carries. It only fires for a build left
+      // where its predecessor put it with nobody coming back for it.
       if (carriedPyramidBuild) {
         await releasePyramidBuild(
           carriedPyramidBuild,
