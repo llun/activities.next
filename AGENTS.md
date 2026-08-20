@@ -569,7 +569,9 @@ it; there is no legacy shape left to copy.
   and `[]` means "clip nothing" everywhere downstream — so a rect share whose
   stored token failed to parse would serve the world. Only the empty string, the
   world sentinel `serializeRegions` emits, reaches the unclipped path; anything
-  else that resolves to no bounds is a 404. It runs before the conditional-request
+  else that resolves to no bounds is a 404 — a case a writer really could
+  produce, since `serializeRegions` used to emit a rectangle that rounding had
+  collapsed, and rows written then still hold one. It runs before the conditional-request
   check, so no response — 200 or 304 — is produced without it. The three
   route-heatmap surfaces that take a region from a client normalize it with the
   one shared `normalizeRegionParam`; the region-names route keeps its own

@@ -64,6 +64,57 @@ describe('serializeRegions', () => {
     expect(serializeRegions([rect(50, 6, 52, 4)])).toBe('')
   })
 
+  it.each([
+    {
+      description: 'thinner than the precision in latitude',
+      region: [52.002, 5.0, 52.001, 6.0]
+    },
+    {
+      description: 'thinner than the precision in longitude',
+      region: [53.0, 5.001, 52.0, 5.002]
+    },
+    {
+      description: 'thinner than the precision in both',
+      region: [52.002, 5.001, 52.001, 5.002]
+    }
+  ])('drops a rectangle $description', ({ region }) => {
+    // Such a box is valid before rounding and degenerate after it. Emitting the
+    // rounded token anyway produced a region string that reads as a small
+    // rectangle and deserializes to nothing — which every consumer takes as
+    // WORLD scope, so the generation job built the actor's whole unclipped
+    // history under it and the share page captioned that with the rectangle's
+    // own bounding box. The honest answer is the world sentinel.
+    const [nwLat, nwLng, seLat, seLng] = region
+    const serialized = serializeRegions([rect(nwLat, nwLng, seLat, seLng)])
+    expect(serialized).toBe('')
+    expect(getRegionBounds(deserializeRegions(serialized))).toEqual([])
+  })
+
+  it('keeps a rectangle exactly one precision step wide', () => {
+    // The boundary of the rule above: 0.01° survives rounding on both axes.
+    expect(serializeRegions([rect(52.01, 5.0, 52.0, 5.01)])).toBe(
+      'rect:52.01,5.00,52.00,5.01'
+    )
+  })
+
+  it('never emits a token that deserializes to nothing', () => {
+    // The invariant the two cases above are instances of: whatever comes out of
+    // serializeRegions must read back as the same scope. A non-empty string
+    // that resolves to no bounds is indistinguishable from the world.
+    const candidates: RectRegion[][] = [
+      [rect(52.002, 5.001, 52.001, 5.002)],
+      [rect(52.6, 5.6, 52.0, 6.2)],
+      [rect(52.004, 5.0, 52.0, 5.004)],
+      [rect(0.001, 0.001, -0.001, 0.002)],
+      [rect(52.002, 5.001, 52.001, 5.002), rect(53, 3, 52, 4)]
+    ]
+    for (const regions of candidates) {
+      const serialized = serializeRegions(regions)
+      if (serialized === '') continue
+      expect(getRegionBounds(deserializeRegions(serialized))).not.toEqual([])
+    }
+  })
+
   it('ignores the optional name when serializing', () => {
     expect(serializeRegions([rect(52, 5, 51, 6, 'Veluwe loop')])).toBe(
       serializeRegions([rect(52, 5, 51, 6)])

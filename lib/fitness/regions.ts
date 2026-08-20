@@ -83,9 +83,38 @@ const rectToken = (rect: RectRegion): string =>
   )},${formatCoord(rect.se.lng)}`
 
 /**
+ * The rectangle as it will be READ BACK after serialization, which is not
+ * always the one handed in: `formatCoord` rounds to `COORD_PRECISION`, so a box
+ * thinner than 0.01° in either axis collapses onto a single coordinate.
+ *
+ * Serialization validates THIS rather than the input for that reason. A
+ * collapsed box passes `isValidRect` before rounding and fails it after, so it
+ * used to be written out as a `rect:` token that `deserializeRegions` then
+ * dropped — leaving a region string that reads as a small rectangle and
+ * resolves to no bounds, which every consumer takes as WORLD scope. The
+ * generation job then built the actor's entire unclipped history under it, and
+ * the share page captioned that with the rectangle's own bounding box. Dropping
+ * it here instead makes the scope honestly empty, so the same input serializes
+ * to the world sentinel and is labelled "Whole world" wherever it is shown.
+ */
+const roundTripRect = (rect: RectRegion): RectRegion => ({
+  type: 'rect',
+  nw: {
+    lat: Number(formatCoord(rect.nw.lat)),
+    lng: Number(formatCoord(rect.nw.lng))
+  },
+  se: {
+    lat: Number(formatCoord(rect.se.lat)),
+    lng: Number(formatCoord(rect.se.lng))
+  }
+})
+
+/**
  * Serializes a region list into the canonical cache-key string. The whole world
  * (or an empty/all-invalid list) serializes to '' — the world-wide sentinel —
- * because a world region subsumes any drawn rectangles. Rectangle-only lists
+ * because a world region subsumes any drawn rectangles. A rectangle too thin to
+ * survive rounding counts as invalid and so lands there too, deliberately: see
+ * `roundTripRect`. Rectangle-only lists
  * serialize to a sorted, deduplicated, semicolon-joined list of `rect:` tokens,
  * capped at `MAX_HEATMAP_REGIONS` so the output always fits the varchar(255)
  * cache-key column regardless of the (possibly shorter) input token widths.
@@ -93,10 +122,11 @@ const rectToken = (rect: RectRegion): string =>
 export const serializeRegions = (regions: HeatmapRegion[]): string => {
   if (regions.some((region) => region.type === 'world')) return ''
   const tokens = regions
-    .filter(
-      (region): region is RectRegion =>
-        region.type === 'rect' && isValidRect(region)
-    )
+    .filter((region): region is RectRegion => region.type === 'rect')
+    .map(roundTripRect)
+    // Validated AFTER rounding — see `roundTripRect` for what a box that only
+    // survives the check beforehand used to become.
+    .filter(isValidRect)
     .map(rectToken)
   return Array.from(new Set(tokens))
     .sort()

@@ -7,6 +7,7 @@ import {
   serveHeatmapTiles
 } from '@/lib/services/fitness-files/heatmapTiles/serveTiles'
 import { buildHeatmapTileSource } from '@/lib/services/fitness-files/heatmapTiles/tileSource'
+import { logger } from '@/lib/utils/logger'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -84,7 +85,21 @@ export const GET = traceApiRoute(
     // rather than served unclipped. It runs ahead of the conditional-request
     // check so no response, 200 or 304, can be produced without it.
     const regionBounds = resolveShareRegionBounds(heatmap.region)
-    if (!regionBounds) return apiErrorResponse(404)
+    if (!regionBounds) {
+      // The one 404 here that means "this server cannot read its own stored
+      // data", rather than "the caller asked for something that is not there".
+      // It is a permanent, silent degradation for that share — the owner sees a
+      // page that never gains detail and has nothing to report — so it is
+      // recorded rather than merely returned.
+      logger.warn({
+        message:
+          'Refused route heatmap tiles: the share region could not be resolved',
+        heatmapId: heatmap.id,
+        actorId: heatmap.actorId,
+        region: heatmap.region
+      })
+      return apiErrorResponse(404)
+    }
 
     const etag = `W/"${tileSource.version}"`
     // Same URL and same version means the same bytes: a completed build's tiles

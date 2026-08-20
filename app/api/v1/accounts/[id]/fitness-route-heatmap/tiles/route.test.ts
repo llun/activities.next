@@ -145,6 +145,23 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap/tiles', () => {
     })
   })
 
+  it('canonicalizes the requested region the way the stored heatmap was', async () => {
+    // A rectangle thinner than the 0.01 degree serialization step is not a
+    // rectangle once rounded, and `serializeRegions` resolves it to the world
+    // sentinel. Reading the raw parameter instead would clip to a tiny box the
+    // stored heatmap for this scope was never generated for — here, one that
+    // excludes the requested tile entirely.
+    const response = await request(
+      `z=${Z}&tiles=${IN_X}:${IN_Y}&region=${encodeURIComponent('rect:52.002,5.001,52.001,5.002')}`
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      version: 7,
+      tiles: { [`${IN_X}:${IN_Y}`]: storedTile }
+    })
+  })
+
   it('reports no tiles when the pyramid has not completed a build', async () => {
     mockDb.getFitnessRouteHeatmapPyramid.mockResolvedValue(
       pyramid({ status: 'generating' })

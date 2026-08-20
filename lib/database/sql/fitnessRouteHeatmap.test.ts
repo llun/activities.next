@@ -650,6 +650,91 @@ describe('FitnessRouteHeatmapDatabase', () => {
         ).resolves.toBeNull()
       })
 
+      it('resolves a token to the share scope without reading its geometry', async () => {
+        // What the tile routes read. They answer from the pyramid and need only
+        // the share's identity and scope, so a full-row read would drag the
+        // entire untiled heatmap off disk once per tile batch — and a column
+        // missing from the summary select is invisible to a mocked route test.
+        const created = await database.createFitnessRouteHeatmap({
+          actorId: actors.primary.id,
+          activityType: 'running',
+          periodType: 'yearly',
+          periodKey: '2029',
+          region: 'rect:63.00,5.00,62.00,6.00'
+        })
+        await database.updateFitnessRouteHeatmapStatus({
+          id: created.id,
+          status: 'completed',
+          bounds: { minLat: 62, maxLat: 63, minLng: 5, maxLng: 6 },
+          segments: [
+            {
+              points: [
+                { lat: 62.1, lng: 5.2 },
+                { lat: 62.2, lng: 5.3 }
+              ]
+            }
+          ],
+          activityCount: 1,
+          pointCount: 2,
+          isPartial: false
+        })
+
+        const token = 'share-token-summary-abc'
+        await expect(
+          database.setFitnessRouteHeatmapShareToken({
+            actorId: actors.primary.id,
+            id: created.id,
+            shareToken: token
+          })
+        ).resolves.toBe(true)
+
+        const summary =
+          await database.getFitnessRouteHeatmapSummaryByShareToken({
+            shareToken: token
+          })
+
+        // Every field the tile routes decide on, named individually: the gate
+        // that refuses a scoped share reads activityType and periodType, the
+        // clipping boundary reads region, and both are useless if the select
+        // silently drops one.
+        expect(summary).toMatchObject({
+          id: created.id,
+          actorId: actors.primary.id,
+          activityType: 'running',
+          periodType: 'yearly',
+          periodKey: '2029',
+          region: 'rect:63.00,5.00,62.00,6.00',
+          status: 'completed',
+          shareToken: token
+        })
+        expect('bounds' in (summary ?? {})).toBe(false)
+        expect('segments' in (summary ?? {})).toBe(false)
+
+        await expect(
+          database.getFitnessRouteHeatmapSummaryByShareToken({
+            shareToken: 'no-such-token'
+          })
+        ).resolves.toBeNull()
+        await expect(
+          database.getFitnessRouteHeatmapSummaryByShareToken({ shareToken: '' })
+        ).resolves.toBeNull()
+
+        // A soft-deleted heatmap's token stops resolving. This route is
+        // unauthenticated, so the guard is what actually revokes a share when
+        // the owner deletes the heatmap rather than un-sharing it.
+        await expect(
+          database.deleteFitnessRouteHeatmap({
+            actorId: actors.primary.id,
+            id: created.id
+          })
+        ).resolves.toBe(true)
+        await expect(
+          database.getFitnessRouteHeatmapSummaryByShareToken({
+            shareToken: token
+          })
+        ).resolves.toBeNull()
+      })
+
       it('does not overwrite an existing share token (concurrent-share guard)', async () => {
         const created = await database.createFitnessRouteHeatmap({
           actorId: actors.primary.id,

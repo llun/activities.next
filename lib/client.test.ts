@@ -24,8 +24,10 @@ import {
   getCollectionFeed,
   getCollectionTimeline,
   getFitnessRouteHeatmap,
+  getFitnessRouteHeatmapTiles,
   getFitnessRouteHeatmaps,
   getFollowStatus,
+  getPublicHeatmapTiles,
   getTrendingLinks,
   getTrendingStatuses,
   getTrendingTags,
@@ -712,6 +714,117 @@ describe('fitness route heatmap client calls', () => {
 
   afterEach(() => {
     Reflect.deleteProperty(globalThis, 'window')
+  })
+
+  const lastUrl = () =>
+    new URL(fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0] as string)
+
+  const TILE_BATCH = {
+    z: 8,
+    tiles: [
+      { x: 132, y: 85 },
+      { x: 133, y: 85 }
+    ],
+    version: 4
+  }
+
+  it('asks the owner route for a tile batch at one zoom', async () => {
+    fetchMock.mockResponseOnce(
+      JSON.stringify({ version: 4, tiles: { '132:85': '{}', '133:85': null } }),
+      { status: 200 }
+    )
+
+    await expect(
+      getFitnessRouteHeatmapTiles({
+        actorId: 'https://llun.test/users/test1',
+        region: 'rect:52.00,5.00,51.00,6.00',
+        ...TILE_BATCH
+      })
+    ).resolves.toEqual({
+      version: 4,
+      tiles: { '132:85': '{}', '133:85': null }
+    })
+
+    const url = lastUrl()
+    expect(url.pathname).toBe(
+      '/api/v1/accounts/llun.test:users:test1/fitness-route-heatmap/tiles'
+    )
+    expect(url.searchParams.get('z')).toBe('8')
+    expect(url.searchParams.get('tiles')).toBe('132:85,133:85')
+    expect(url.searchParams.get('v')).toBe('4')
+    expect(url.searchParams.get('region')).toBe('rect:52.00,5.00,51.00,6.00')
+  })
+
+  it('omits the region from an owner tile request that has none', async () => {
+    fetchMock.mockResponseOnce(JSON.stringify({ version: 4, tiles: {} }), {
+      status: 200
+    })
+
+    await getFitnessRouteHeatmapTiles({
+      actorId: 'https://llun.test/users/test1',
+      ...TILE_BATCH
+    })
+    expect(lastUrl().searchParams.has('region')).toBe(false)
+  })
+
+  it('asks the public route by token, sending no region at all', async () => {
+    fetchMock.mockResponseOnce(
+      JSON.stringify({ version: 4, tiles: { '132:85': '{}' } }),
+      { status: 200 }
+    )
+
+    await getPublicHeatmapTiles({ token: 'tok 123', ...TILE_BATCH })
+
+    const url = lastUrl()
+    expect(url.pathname).toBe('/embed/heatmap/tok%20123/tiles')
+    expect(url.searchParams.get('tiles')).toBe('132:85,133:85')
+    // The server clips to the shared row's own scope; a region from the caller
+    // would be exactly the wrong thing to honour.
+    expect(url.searchParams.has('region')).toBe(false)
+  })
+
+  it('reads a public 404 as the empty batch its own type documents', async () => {
+    // The public route REFUSES rather than describing — a share the pyramid
+    // cannot answer is a 404 — so the fetcher translates it into the version 0
+    // the owner route returns for the same situation, and a caller gets one
+    // "no tiles, draw the untiled geometry" branch instead of two.
+    fetchMock.mockResponseOnce('', { status: 404 })
+
+    await expect(
+      getPublicHeatmapTiles({ token: 'tok123', ...TILE_BATCH })
+    ).resolves.toEqual({
+      version: 0,
+      tiles: { '132:85': null, '133:85': null }
+    })
+  })
+
+  it.each([
+    { description: 'a server error', status: 500 },
+    { description: 'a bad request', status: 400 }
+  ])(
+    'still throws on $description from the public route',
+    async ({ status }) => {
+      fetchMock.mockResponseOnce(JSON.stringify({ message: 'nope' }), {
+        status
+      })
+
+      await expect(
+        getPublicHeatmapTiles({ token: 'tok123', ...TILE_BATCH })
+      ).rejects.toThrow(`Failed to load route heatmap tiles (${status}): nope`)
+    }
+  )
+
+  it('throws when an owner tile request fails', async () => {
+    fetchMock.mockResponseOnce(JSON.stringify({ message: 'owner only' }), {
+      status: 403
+    })
+
+    await expect(
+      getFitnessRouteHeatmapTiles({
+        actorId: 'https://llun.test/users/test1',
+        ...TILE_BATCH
+      })
+    ).rejects.toThrow('Failed to load route heatmap tiles (403): owner only')
   })
 
   it('preserves JSON error details when the focused route heatmap request fails', async () => {

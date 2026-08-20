@@ -72,11 +72,13 @@ export const parseTileIndexList = (
  * route exists to prevent. Only the empty string, the explicit world sentinel
  * `serializeRegions` emits, reaches the unclipped path.
  *
- * A stored region can only ever be that sentinel or a `rect:` list, so the
- * refusal is for a value no writer produces. It stays because the cost of being
- * wrong is asymmetric: a false refusal drops the share back to the untiled
- * geometry the page already carries, while a false pass publishes the actor's
- * entire history.
+ * A writer CAN produce one: `serializeRegions` used to emit a rectangle rounded
+ * to nothing — valid before rounding, degenerate after — and rows written then
+ * still hold such a token. That is the case this refusal was written for
+ * without knowing it, and the reason it is not merely defensive. Even once no
+ * writer can, it stays: the cost of being wrong is asymmetric, since a false
+ * refusal drops the share back to the untiled geometry the page already
+ * carries, while a false pass publishes the actor's entire history.
  */
 export const resolveShareRegionBounds = (
   region: string
