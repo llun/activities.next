@@ -8,6 +8,7 @@ import {
   getFilteredStatusPage,
   getFilteredTimelinePage
 } from '@/lib/services/timelines/getFilteredTimelinePage'
+import { getCachedLocalPublicStatusesCount } from '@/lib/services/timelines/localPublicCount'
 import { Timeline } from '@/lib/services/timelines/types'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
@@ -54,8 +55,10 @@ const Page = async () => {
     try {
       // Bounded check: only need to know whether the threshold is reached, so
       // the count stops at LANDING_FEED_MIN_POSTS rather than scanning every
-      // public post on each anonymous request.
-      const publicCount = await database.getLocalPublicStatusesCount(
+      // public post on each anonymous request. Cached on top of that, because
+      // this is the unauthenticated front door and the answer barely moves.
+      const publicCount = await getCachedLocalPublicStatusesCount(
+        database,
         LANDING_FEED_MIN_POSTS
       )
       if (publicCount >= LANDING_FEED_MIN_POSTS) {
