@@ -157,6 +157,28 @@ describe('syncStatusLinkPreview', () => {
       expect(publish).not.toHaveBeenCalled()
     })
 
+    // The stored card's `url` is where the content came from AFTER redirects,
+    // while `urlHash` keys the url the post actually links. Comparing the
+    // former would drop a good card on every edit for any shortened or
+    // redirecting link — this pins that the comparison uses the hash.
+    it('keeps the card of a redirecting link, whose stored url differs', async () => {
+      getStatusLinkPreviews.mockResolvedValue(
+        new Map([
+          [
+            'https://llun.test/users/me/statuses/1',
+            {
+              urlHash: getHashFromString('https://example.com/article'),
+              url: 'https://final-destination.example/the-real-article'
+            }
+          ]
+        ])
+      )
+
+      await syncStatusLinkPreview({ database, status: makeStatus() })
+
+      expect(deleteStatusLinkPreview).not.toHaveBeenCalled()
+    })
+
     it('keeps a card whose url the edit did not change', async () => {
       getStatusLinkPreviews.mockResolvedValue(
         new Map([
