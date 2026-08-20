@@ -13,8 +13,12 @@
 // Only `actors_local_idx` is partial, and only because its predicate is a bare
 // `IS NOT NULL` that carries no bound parameter — see the note on the statuses
 // index for why a parameterised predicate is the wrong tool here. Knex emits
-// the `where` clause on PostgreSQL and SQLite; MySQL-compatible clients ignore
-// it and get the equivalent full index, which is larger but still correct.
+// the `where` clause on PostgreSQL and SQLite. MySQL-compatible clients drop
+// the predicate: nothing breaks there, but the index degrades to a plain one
+// over `actors.id`, which the existing `actors_id_unique` already covers — so
+// on MySQL it is redundant rather than merely larger, and buys no local-actor
+// selectivity. PostgreSQL and SQLite are the supported backends and both get
+// the real thing.
 
 /**
  * @param { import("knex").Knex } knex
@@ -52,12 +56,14 @@ export const up = async function (knex) {
   })
 
   await knex.schema.alterTable('statuses', function (table) {
-    // Nothing indexed `statuses.createdAt` at all, so the public feed's
-    // `ORDER BY createdAt DESC, id DESC` sorted every candidate status on every
-    // page. Led by `reply` — which both public surfaces pin to '' for top-level
-    // posts — the remaining columns are in the feed's exact sort order, so a
-    // backward scan of the `reply = ''` prefix produces the page directly and
-    // the LIMIT stops it after a page's worth of rows.
+    // No index LED with `statuses.createdAt` — `statuses_actorId_idx` carries
+    // it, but behind `actorId`, so it cannot serve the public feed's global
+    // `ORDER BY createdAt DESC, id DESC`, which therefore sorted every
+    // candidate status on every page. Led by `reply` — which both public
+    // surfaces pin to '' for top-level posts — the remaining columns are in the
+    // feed's exact sort order, so a backward scan of the `reply = ''` prefix
+    // produces the page directly and the LIMIT stops it after a page's worth
+    // of rows.
     //
     // Deliberately a plain index over (reply, createdAt, id) rather than a
     // partial index on (createdAt, id) WHERE reply = ''. The two describe the

@@ -1,12 +1,12 @@
 import { Database } from '@/lib/database/types'
 import {
   BELOW_THRESHOLD_CACHE_TTL_MS,
-  clearLocalPublicStatusesCountCache,
   getCachedLocalPublicStatusesCount
 } from '@/lib/services/timelines/localPublicCount'
 
 // Only getLocalPublicStatusesCount is exercised; the cache never touches the
-// rest of the Database surface.
+// rest of the Database surface. Each call returns a fresh object, so every case
+// gets its own key in the cache's WeakMap and cannot see another's entry.
 const mockDatabase = (count: number | number[]) => {
   const counts = Array.isArray(count) ? [...count] : null
   const getLocalPublicStatusesCount = vi.fn(async () =>
@@ -101,16 +101,6 @@ describe('getCachedLocalPublicStatusesCount', () => {
       getCachedLocalPublicStatusesCount(database, 100)
     ).rejects.toThrow('database is down')
     expect(await getCachedLocalPublicStatusesCount(database, 100)).toBe(100)
-    expect(getLocalPublicStatusesCount).toHaveBeenCalledTimes(2)
-  })
-
-  it('re-queries after the cached entry is cleared', async () => {
-    const { database, getLocalPublicStatusesCount } = mockDatabase(100)
-
-    await getCachedLocalPublicStatusesCount(database, 100)
-    clearLocalPublicStatusesCountCache(database)
-    await getCachedLocalPublicStatusesCount(database, 100)
-
     expect(getLocalPublicStatusesCount).toHaveBeenCalledTimes(2)
   })
 })

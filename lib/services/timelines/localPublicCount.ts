@@ -60,8 +60,3 @@ export const getCachedLocalPublicStatusesCount = async (
   })
   return count
 }
-
-/** Test-only: drop a database's cached entry so cases do not leak into each other. */
-export const clearLocalPublicStatusesCountCache = (database: Database) => {
-  cacheByDatabase.delete(database)
-}

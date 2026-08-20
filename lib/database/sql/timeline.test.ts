@@ -862,6 +862,15 @@ describe('TimelineDatabase', () => {
 
         expect((await database.getLocalPublicStatusesCount()) - before).toBe(1)
 
+        // The bounded branch is the one the landing page actually calls, and it
+        // is a separate code path. A limit that cannot be reached makes the two
+        // branches directly comparable — where `limit: 1` above cannot tell a
+        // correct count from a duplicate-inflated one, since `rows.length` caps
+        // at 1 either way.
+        expect(await database.getLocalPublicStatusesCount(1000)).toBe(
+          await database.getLocalPublicStatusesCount()
+        )
+
         // The feed it gates must agree — it has no DISTINCT of its own.
         const statuses = await database.getTimeline({
           timeline: Timeline.LOCAL_PUBLIC,

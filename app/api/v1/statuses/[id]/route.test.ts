@@ -657,14 +657,15 @@ describe('GET /api/v1/statuses/[id]', () => {
       })
       expect(announce).not.toBeNull()
       expect(announce?.to).toEqual([`${ACTOR2_ID}/followers`])
-      // Compared as a set: `cc` is an ActivityPub audience, which is unordered
-      // by definition, and the recipients are read back without an ORDER BY —
-      // so which index the backend picks decides the array order. Every
-      // consumer treats these as sets (see lib/services/federation/
-      // statusDelivery.ts); asserting a sequence here only pinned an
-      // implementation detail.
-      expect(new Set(announce?.cc)).toEqual(
-        new Set([ACTIVITY_STREAM_PUBLIC, ACTOR2_ID])
+      // Sorted before comparing: `cc` is an ActivityPub audience, which is
+      // unordered by definition, and the recipients are read back without an
+      // ORDER BY — so which index the backend picks decides the array order.
+      // Every consumer treats these as sets (see lib/services/federation/
+      // statusDelivery.ts), so asserting a sequence only pinned an
+      // implementation detail. Sorted arrays rather than Sets, because a Set
+      // would also stop this catching a duplicated recipient.
+      expect([...(announce?.cc ?? [])].sort()).toEqual(
+        [ACTIVITY_STREAM_PUBLIC, ACTOR2_ID].sort()
       )
     })
 
@@ -701,7 +702,12 @@ describe('GET /api/v1/statuses/[id]', () => {
       })
       expect(announce).not.toBeNull()
       expect(announce?.to).toEqual([ACTIVITY_STREAM_PUBLIC])
-      expect(announce?.cc).toEqual([ACTOR2_ID, `${ACTOR2_ID}/followers`])
+      // Sorted for the same reason as the unlisted-boost case above: the
+      // recipients read has no ORDER BY. This one happened to keep passing only
+      // because `ACTOR2_ID` sorts before its own `/followers` suffix.
+      expect([...(announce?.cc ?? [])].sort()).toEqual(
+        [ACTOR2_ID, `${ACTOR2_ID}/followers`].sort()
+      )
     })
 
     it('rejects an invalid reblog visibility with 422', async () => {
