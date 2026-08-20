@@ -3138,16 +3138,31 @@ export type UpsertLinkPreviewParams = {
   error?: string | null
 }
 
+export type RecordLinkPreviewFailureParams = {
+  urlHash: string
+  url: string
+  error: string
+}
+
 export type GetLinkPreviewParams = { urlHash: string }
 export type LinkStatusLinkPreviewParams = { statusId: string; urlHash: string }
 export type GetStatusLinkPreviewsParams = { statusIds: string[] }
 export type DeleteStatusLinkPreviewParams = { statusId: string }
 
 export interface LinkPreviewDatabase {
-  // Upsert on `urlHash`. A re-fetch of the same URL replaces the stored card,
-  // so a page that changed its metadata (or started failing) is not stuck on a
-  // stale row.
+  // Upsert on `urlHash` for a SUCCESSFUL fetch: a page that changed its
+  // metadata is not stuck on a stale row.
   upsertLinkPreview(params: UpsertLinkPreviewParams): Promise<LinkPreviewRecord>
+  // Record that a fetch failed, WITHOUT destroying a card that already works.
+  // The row is shared by every status linking that URL, so writing a failure as
+  // a full-row replace made one transient 502 on a weekly refresh blank the
+  // card for every one of those posts — and the negative cache then suppressed
+  // the retry that would have repaired it. A row that is already `completed`
+  // keeps its content and its status and only records the error; anything else
+  // becomes the `failed` negative-cache entry.
+  recordLinkPreviewFailure(
+    params: RecordLinkPreviewFailureParams
+  ): Promise<void>
   getLinkPreview(
     params: GetLinkPreviewParams
   ): Promise<LinkPreviewRecord | null>

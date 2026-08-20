@@ -197,6 +197,79 @@ describe('extractPreviewUrl', () => {
       ).toBe('https://example.com/other')
     })
 
+    // Remote status text is stored RAW and only sanitized at render, so an
+    // extractor that walks the stored HTML sees markup the reader never will.
+    // A card is a full-width clickable block with an attacker-controlled title,
+    // description and thumbnail — so picking a link that is invisible in the
+    // rendered post is a ready-made phishing surface.
+    describe('links the reader cannot see', () => {
+      it('ignores an anchor with no visible text', () => {
+        expect(
+          fromHtml(
+            '<p>Great read, thoughts?</p><a href="https://evil.example/phish"></a>'
+          )
+        ).toBeNull()
+      })
+
+      it('ignores an anchor whose only content is whitespace', () => {
+        expect(
+          fromHtml('<p>hi</p><a href="https://evil.example/phish">   </a>')
+        ).toBeNull()
+      })
+
+      it('ignores an anchor the app renders as hidden', () => {
+        expect(
+          fromHtml(
+            '<p><a href="https://evil.example/phish" class="hidden">x</a></p>'
+          )
+        ).toBeNull()
+      })
+
+      it('ignores an anchor marked invisible', () => {
+        expect(
+          fromHtml(
+            '<p><a href="https://evil.example/phish" class="invisible">x</a></p>'
+          )
+        ).toBeNull()
+      })
+
+      // <template> is NOT a hiding place once the text is sanitized: the tag is
+      // dropped and its anchor is unwrapped into the rendered post as an
+      // ordinary visible link. Extracting it is therefore correct — the reader
+      // sees that link, and the card names its real domain. Pinned so nobody
+      // "fixes" this into skipping a link that is genuinely on screen.
+      it('takes an unwrapped template anchor, which the reader does see', () => {
+        expect(
+          fromHtml(
+            '<template><a href="https://evil.example/phish">x</a></template>' +
+              '<p>see <a href="https://real.example/">real.example</a></p>'
+          )
+        ).toBe('https://evil.example/phish')
+      })
+
+      it('ignores an anchor inside a script element', () => {
+        expect(
+          fromHtml(
+            '<script><a href="https://evil.example/phish">x</a></script>' +
+              '<p>see <a href="https://real.example/">real.example</a></p>'
+          )
+        ).toBe('https://real.example/')
+      })
+
+      // Mastodon splits a link's display text into invisible/ellipsis spans on
+      // the anchor's CHILDREN. The anchor itself is visible and must still win.
+      it('keeps a Mastodon-style truncated link whose spans are invisible', () => {
+        expect(
+          fromHtml(
+            '<p><a href="https://example.com/very/long/path">' +
+              '<span class="invisible">https://</span>' +
+              '<span class="ellipsis">example.com/very</span>' +
+              '<span class="invisible">/long/path</span></a></p>'
+          )
+        ).toBe('https://example.com/very/long/path')
+      })
+    })
+
     it('matches an excluded url regardless of fragment or case', () => {
       expect(
         fromHtml('<p><a href="https://Example.com/quoted#top">q</a></p>', [

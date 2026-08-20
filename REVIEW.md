@@ -455,6 +455,38 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
 - **Internal API CORS:** Next.js API routes exclusively consumed by the internal web client (e.g., via `lib/client.ts`) do not require `OPTIONS` handlers or CORS preflight configurations, even if they use `apiResponse` with `allowedMethods`.
 - **Conditional Object Spreading:** Spreading `null` in object literals (e.g., `...(cond ? { ... } : null)`) is a deliberate, consistent no-op pattern used to cleanly omit keys and should not be flagged as confusing or replaced with `{}`.
 
+## Link preview cards
+
+- A card is cached **per URL** in `link_previews` and mapped to a status by
+  `status_link_previews`. A change that moves card data onto `statuses`, or
+  keys the cache per status, loses the whole point: a widely-shared link is
+  fetched once per refresh window, not once per post.
+- **A failure must go through `recordLinkPreviewFailure`, never
+  `upsertLinkPreview`.** The latter writes the whole row, so recording a failure
+  through it blanks a card that every status linking that URL is still showing —
+  and the negative cache then suppresses the retry that would repair it. A row
+  that is already `completed` keeps its content and its status.
+- `fetchLinkPreviewJob` must re-resolve the status's URL before attaching
+  (`resolveStatusPreviewUrl`). An edit leaves the pre-edit job queued; without
+  the re-check it re-attaches the old card, or resurrects one an edit removed.
+  The scheduler and the job must keep using that single resolver.
+- Remote HTML is **sanitized before extraction**, and anchors with no visible
+  text (or carrying `hidden`/`invisible`) are skipped. Remote text is stored raw
+  and sanitized only at render, so extracting from the stored HTML would give a
+  full-width clickable card to a link the reader cannot see — a phishing
+  surface. `<template>` is not an exception: the sanitizer unwraps it, so that
+  anchor is genuinely visible.
+- Every optional Mastodon `PreviewCard` field needs an `''`/`0` default. That
+  schema is non-nullable and `Status.parse` runs per status inside a handler
+  that **skips** what it cannot serialize, so one missing key drops the whole
+  status from the timeline rather than just losing the card.
+- `html`/`embed_url` stay empty (no oEmbed consumption, so no remote markup is
+  handed to clients), thumbnails are `https`-only and hotlinked with
+  `referrerPolicy="no-referrer"`, and the href goes through `safeExternalHref`.
+- The kill switch is `network.linkPreviews`, checked both when scheduling and
+  inside the job (a delayed job must not drain after an operator turns it off).
+  It is not a `features.*` flag: that namespace is navigation-only.
+
 ## Fitness route heatmap pyramid
 
 - An activity is folded into a build **exactly once** — the gate is positional

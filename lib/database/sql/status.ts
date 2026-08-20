@@ -2486,6 +2486,17 @@ export const StatusSQLDatabaseMixin = (
       'statusId',
       statusIdsToDelete
     )
+    // Only the status→card link goes; `link_previews` is a per-URL cache shared
+    // with every other status that links the same page. Without this the rows
+    // accumulate one per deleted status forever (there is no FK by design), and
+    // a deleted-then-refetched remote status could come back wearing its old
+    // card.
+    await deleteRowsByColumnChunks(
+      trx,
+      'status_link_previews',
+      'statusId',
+      statusIdsToDelete
+    )
     for (const statusIdChunk of chunkArray(
       statusIdsToDelete,
       getWhereInBatchSize(trx)

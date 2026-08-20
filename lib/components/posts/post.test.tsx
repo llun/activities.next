@@ -2172,6 +2172,59 @@ describe('Post', () => {
       expect(screen.queryByText('A linked article')).not.toBeInTheDocument()
     })
 
+    // The comment on the suppression names three things the card yields to.
+    // Media and quotes were covered; a fitness activity renders a bordered chip
+    // directly above where the card would go, so stacking both is exactly the
+    // double-card this avoids.
+    it('yields to a fitness activity', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{
+            ...status,
+            summary: null,
+            linkPreview,
+            fitness: {
+              id: 'fitness-file-1',
+              fileName: 'ride.fit',
+              fileType: 'fit' as const,
+              processingStatus: 'completed' as const
+            }
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(screen.queryByText('A linked article')).not.toBeInTheDocument()
+      // The chip really is on screen, so the card yielded to something.
+      expect(screen.getByText('ride.fit')).toBeInTheDocument()
+    })
+
+    it('still yields while a fitness file is only processing', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{
+            ...status,
+            summary: null,
+            linkPreview,
+            fitness: {
+              id: 'fitness-file-2',
+              fileName: 'ride.gpx',
+              fileType: 'gpx' as const,
+              processingStatus: 'processing' as const
+            }
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(screen.queryByText('A linked article')).not.toBeInTheDocument()
+      expect(screen.getByText('ride.gpx')).toBeInTheDocument()
+    })
+
     it('renders the card of the boosted status, not of the boost', () => {
       render(
         <Post

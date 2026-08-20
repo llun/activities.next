@@ -1001,6 +1001,34 @@ it; there is no legacy shape left to copy.
   row is never linked to a status, so it can only ever suppress a fetch, never
   render an empty card. Completed cards refresh after 7 days, failures after 1
   hour.
+- **A failure goes through `recordLinkPreviewFailure`, NEVER through
+  `upsertLinkPreview`.** The row is shared by every status linking that URL, and
+  `upsertLinkPreview` writes the whole row — so recording a failure through it
+  nulled `title`/`description`/`imageUrl`, and because `getStatusLinkPreviews`
+  filters on `completed`, one transient 502 on a weekly refresh blanked the card
+  for **every** post linking that page. There was no repair path either: the
+  negative cache then suppressed the retry, and nothing sweeps existing rows, so
+  an older link lost its card permanently. A row that is already `completed`
+  therefore keeps its content AND its status and records only the error; the
+  refresh is deferred to the next window rather than retried against a host that
+  just failed.
+- **The job re-resolves the URL before attaching a card.** An edit enqueues a
+  job for the new URL under a different id, so the pre-edit job is still queued —
+  and a remote fetch is delayed, which makes "old job lands last" the likely
+  ordering rather than the unlucky one. Without the re-check it re-attaches the
+  pre-edit card permanently, and it also resurrects a card an edit had just
+  removed. `resolveStatusPreviewUrl` is the single implementation both the
+  scheduler and the job use, precisely so the two cannot disagree about what a
+  status's URL is.
+- **Extraction runs on SANITIZED remote HTML, and skips anchors the reader
+  cannot see.** Remote text is stored raw and only sanitized at render, so
+  parsing the stored HTML directly sees markup the reader never will. A card is
+  a full-width clickable block with an attacker-chosen title, description and
+  thumbnail, so a link that is invisible in the rendered post is a ready-made
+  phishing surface. An anchor with no visible text, or carrying the
+  `hidden`/`invisible` classes this app's own renderer uses to hide content, is
+  skipped. Note `<template>` is NOT such a case: the sanitizer unwraps it, so
+  that anchor really is on screen and really should get the card.
 - **`syncStatusLinkPreview` never throws.** It is called from local create, local
   edit, and the inbound `CreateNoteJob`/`UpdateNoteJob`, and every one of those
   has already written the status by the time it runs. A preview card is

@@ -9,6 +9,7 @@ import {
   LinkPreviewFetchStatus,
   LinkPreviewRecord,
   LinkStatusLinkPreviewParams,
+  RecordLinkPreviewFailureParams,
   UpsertLinkPreviewParams
 } from '@/lib/types/database/operations'
 
@@ -117,30 +118,75 @@ export const LinkPreviewSQLDatabaseMixin = (
         error
       }
       return database.transaction(async (trx) => {
+        // A successful re-fetch always replaces the stored card: a page that
+        // changed its metadata must not keep serving the old one. `merge` (not
+        // `ignore`) so that when two jobs fetch the same new URL at once, the
+        // freshly-parsed metadata wins rather than being silently dropped in
+        // favour of whichever transaction happened to insert first.
+        await trx('link_previews')
+          .insert({
+            urlHash,
+            ...values,
+            createdAt: currentTime,
+            updatedAt: currentTime
+          })
+          .onConflict('urlHash')
+          .merge({ ...values, updatedAt: currentTime })
+
+        const row = await getLinkPreviewRow(trx, urlHash)
+        if (!row) {
+          // Unreachable in practice — the row was just written in this
+          // transaction — but throwing beats casting `undefined` into a
+          // record and returning a half-built card to a caller.
+          throw new Error(
+            `link_previews row missing immediately after upsert: ${urlHash}`
+          )
+        }
+        return fixLinkPreviewRow(row)
+      })
+    },
+
+    async recordLinkPreviewFailure({
+      urlHash,
+      url,
+      error
+    }: RecordLinkPreviewFailureParams): Promise<void> {
+      const currentTime = new Date()
+      await database.transaction(async (trx) => {
         const existing = await getLinkPreviewRow(trx, urlHash)
-        if (existing) {
-          // A re-fetch always replaces the stored card: a page that changed its
-          // metadata — or started failing — must not keep serving the old one.
+
+        if (existing?.fetchStatus === 'completed') {
+          // Keep the working card. Only the error and the timestamp move, so
+          // every status linking this page keeps rendering while the refresh is
+          // simply deferred to the next refresh window rather than retried
+          // against a host that just failed.
           await trx('link_previews')
             .where('urlHash', urlHash)
-            .update({ ...values, updatedAt: currentTime })
-        } else {
-          await trx('link_previews')
-            .insert({
-              urlHash,
-              ...values,
-              createdAt: currentTime,
-              updatedAt: currentTime
-            })
-            // Two jobs can fetch the same new URL concurrently; the loser's
-            // insert is dropped rather than raising, and the read below returns
-            // whichever row landed.
-            .onConflict('urlHash')
-            .ignore()
+            .update({ error, updatedAt: currentTime })
+          return
         }
-        const row = await getLinkPreviewRow(trx, urlHash)
-        // The row was written in this transaction, so it always exists.
-        return fixLinkPreviewRow(row as LinkPreviewRow)
+
+        if (existing) {
+          await trx('link_previews')
+            .where('urlHash', urlHash)
+            .update({ fetchStatus: 'failed', error, updatedAt: currentTime })
+          return
+        }
+
+        await trx('link_previews')
+          .insert({
+            urlHash,
+            url,
+            type: 'link',
+            fetchStatus: 'failed',
+            error,
+            createdAt: currentTime,
+            updatedAt: currentTime
+          })
+          // A concurrent fetch of the same new URL may have inserted first; a
+          // failure must never overwrite whatever it stored.
+          .onConflict('urlHash')
+          .ignore()
       })
     },
 

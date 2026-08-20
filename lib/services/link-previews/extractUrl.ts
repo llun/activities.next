@@ -2,6 +2,7 @@ import { htmlToDOM } from 'html-react-parser'
 import { Token, Tokens } from 'marked'
 
 import { createStatusMarked } from '@/lib/utils/text/convertMarkdownText'
+import { sanitizeText } from '@/lib/utils/text/sanitizeText'
 
 // `link_previews.url` is a text column, but a URL long enough to be worth
 // capping is never a real article link — it is a tracking blob or an attempt to
@@ -69,20 +70,40 @@ const extractFromMarkdown = (text: string, host: string): string[] => {
   return hrefs
 }
 
+// Classes this app's own renderer uses to hide content (`cleanClassName` maps
+// Mastodon's `invisible` onto Tailwind's `hidden`, and passes an anchor's class
+// straight through to the DOM). An anchor carrying one of these is not
+// something the reader can see or click.
+const HIDDEN_ANCHOR_CLASSES = ['hidden', 'invisible']
+
 type DomNode = {
   type?: string
   name?: string
   attribs?: Record<string, string>
   children?: DomNode[]
+  data?: string
 }
 
 const isNonContentAnchor = (attribs: Record<string, string>): boolean => {
   const rel = (attribs.rel ?? '').toLowerCase().split(/\s+/)
   if (rel.includes('tag')) return true
   const classNames = (attribs.class ?? '').toLowerCase().split(/\s+/)
+  if (HIDDEN_ANCHOR_CLASSES.some((marker) => classNames.includes(marker))) {
+    return true
+  }
   return NON_CONTENT_ANCHOR_CLASSES.some((marker) =>
     classNames.includes(marker)
   )
+}
+
+// The anchor's own rendered text. Mastodon splits a long URL across
+// `invisible`/`ellipsis` spans INSIDE the anchor, so this deliberately counts
+// all descendant text rather than inspecting those spans — the anchor as a
+// whole is still visible and clickable.
+const getNodeText = (node: DomNode): string => {
+  if (node.type === 'text') return node.data ?? ''
+  if (!node.children) return ''
+  return node.children.map(getNodeText).join('')
 }
 
 const collectHtmlLinks = (nodes: DomNode[], hrefs: string[]) => {
@@ -90,7 +111,12 @@ const collectHtmlLinks = (nodes: DomNode[], hrefs: string[]) => {
     if (node.type === 'tag' && node.name === 'a') {
       const attribs = node.attribs ?? {}
       const href = attribs.href
-      if (href && !isNonContentAnchor(attribs)) hrefs.push(href)
+      // An anchor with no visible text renders as nothing at all. Giving it a
+      // card would put a full-width clickable block, with an attacker-chosen
+      // title and image, under a post whose text shows no such link.
+      if (href && !isNonContentAnchor(attribs) && getNodeText(node).trim()) {
+        hrefs.push(href)
+      }
     }
     if (node.children) collectHtmlLinks(node.children, hrefs)
   }
@@ -99,7 +125,14 @@ const collectHtmlLinks = (nodes: DomNode[], hrefs: string[]) => {
 const extractFromHtml = (html: string): string[] => {
   const hrefs: string[] = []
   try {
-    collectHtmlLinks(htmlToDOM(html) as DomNode[], hrefs)
+    // Sanitize FIRST. Remote status text is stored raw and only sanitized at
+    // render, so parsing the stored HTML directly sees markup the reader never
+    // will — a `<template>`-wrapped anchor is hoisted ahead of the real link,
+    // and `<script>`/`<style>` content is walked as markup. Extracting from the
+    // sanitized text is what makes "the card is for a link the reader can see"
+    // true for remote posts, the way reusing the renderer's tokenizer makes it
+    // true for local ones.
+    collectHtmlLinks(htmlToDOM(sanitizeText(html)) as DomNode[], hrefs)
   } catch {
     return []
   }

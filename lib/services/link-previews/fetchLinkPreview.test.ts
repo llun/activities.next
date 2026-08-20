@@ -1,7 +1,10 @@
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
 import {
   LINK_PREVIEW_FAILURE_TTL_MS,
+  LINK_PREVIEW_MAX_BODY_BYTES,
+  LINK_PREVIEW_MAX_REDIRECTS,
   LINK_PREVIEW_REFRESH_TTL_MS,
+  LINK_PREVIEW_TIMEOUT_MS,
   fetchLinkPreview
 } from '@/lib/services/link-previews/fetchLinkPreview'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -300,7 +303,7 @@ describe('fetchLinkPreview', () => {
     expect(mockedFetch).not.toHaveBeenCalled()
   })
 
-  it('caps the fetch size and timeout', async () => {
+  it('passes its own size, timeout and redirect budget to the fetcher', async () => {
     mockedFetch.mockResolvedValue(
       htmlResponse(PAGE, 'https://example.com/limits')
     )
@@ -308,7 +311,35 @@ describe('fetchLinkPreview', () => {
     await fetchLinkPreview({ database, url: 'https://example.com/limits' })
 
     const options = mockedFetch.mock.calls[0][0]
-    expect(options.maxBodyBytes).toBeLessThanOrEqual(2 * 1024 * 1024)
-    expect(options.timeoutInMilliseconds).toBeLessThanOrEqual(10_000)
+    expect(options.maxBodyBytes).toBe(LINK_PREVIEW_MAX_BODY_BYTES)
+    expect(options.timeoutInMilliseconds).toBe(LINK_PREVIEW_TIMEOUT_MS)
+    expect(options.maxRedirects).toBe(LINK_PREVIEW_MAX_REDIRECTS)
+  })
+
+  // safeRemoteFetch applies the timeout PER HOP, so the worst case a link
+  // preview can add to an inline request is roughly timeout x (redirects + 1).
+  // These bounds are what keep a slow third-party host from holding one of this
+  // server's request handlers open for a minute on a NoQueue deployment.
+  it('keeps the worst-case inline cost bounded', () => {
+    expect(
+      LINK_PREVIEW_TIMEOUT_MS * (LINK_PREVIEW_MAX_REDIRECTS + 1)
+    ).toBeLessThanOrEqual(15_000)
+    expect(LINK_PREVIEW_MAX_BODY_BYTES).toBeLessThan(2 * 1024 * 1024)
+  })
+
+  // A card is shared by every status linking the URL, so a failed refresh must
+  // leave the working one in place rather than blanking it for all of them.
+  it('keeps serving a cached card when a later refresh fails', async () => {
+    const url = 'https://example.com/refresh-fails'
+    mockedFetch.mockResolvedValue(htmlResponse(PAGE, url))
+    await fetchLinkPreview({ database, url })
+
+    await ageRow(url, new Date(Date.now() - LINK_PREVIEW_REFRESH_TTL_MS - 1000))
+    mockedFetch.mockRejectedValue(new Error('ERR_HTTP_502'))
+
+    const card = await fetchLinkPreview({ database, url })
+
+    expect(card?.title).toBe('A good article')
+    expect(card?.fetchStatus).toBe('completed')
   })
 })

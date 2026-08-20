@@ -373,10 +373,14 @@ export const Post: FC<PostProps> = (props) => {
           about — media, a quoted post, or a fitness activity — rather than
           stacking a second block under it. This is the display rule Mastodon
           applies; the card is still stored and still served over the API, so a
-          client is free to decide otherwise. */}
+          client is free to decide otherwise.
+          The fitness clause reads `fitnessFile`, the same value the chip above
+          is gated on, rather than `actualStatus.fitness` — so it yields only
+          when a chip is actually on screen to yield to, instead of to the mere
+          presence of a fitness row. */}
       {actualStatus.linkPreview &&
       !actualStatus.quote &&
-      !actualStatus.fitness &&
+      !fitnessFile &&
       actualStatus.attachments.length === 0 ? (
         <LinkPreviewCard linkPreview={actualStatus.linkPreview} />
       ) : null}

@@ -24,8 +24,20 @@ export const LINK_PREVIEW_FAILURE_TTL_MS = 60 * 60 * 1000
 // inline in a request on a NoQueue deployment.
 export const LINK_PREVIEW_MAX_BODY_BYTES = 1024 * 1024
 
-// Bounds the worst case a NoQueue deployment adds to a post request.
-export const LINK_PREVIEW_TIMEOUT_MS = 7_500
+// Per-hop budget. `safeRemoteFetch` splits this across its connect and read
+// timeouts and applies it to EVERY hop, so the real worst case is roughly
+// `timeout × (maxRedirects + 1)` — which is why the redirect allowance below is
+// spent deliberately rather than left at the default.
+export const LINK_PREVIEW_TIMEOUT_MS = 5_000
+
+// One redirect, not the default three. Link shorteners and `example.com` →
+// `www.example.com` need a hop; chains beyond that are rare enough that losing
+// their card is a better trade than the latency. On a NoQueue deployment this
+// whole fetch runs inline inside the POST that created the status (and inside
+// the inbox request for a federated one), so the ceiling here is the ceiling on
+// how long a third-party host can hold one of this server's request handlers:
+// ~2 hops × 5s ≈ 10s, rather than the ~60s that 3 redirects at 7.5s allowed.
+export const LINK_PREVIEW_MAX_REDIRECTS = 1
 
 const ACCEPTED_CONTENT_TYPES = ['text/html', 'application/xhtml+xml']
 
@@ -114,6 +126,7 @@ export const fetchLinkPreview = async ({
       url: normalizedUrl,
       headers: REQUEST_HEADERS,
       maxBodyBytes: LINK_PREVIEW_MAX_BODY_BYTES,
+      maxRedirects: LINK_PREVIEW_MAX_REDIRECTS,
       timeoutInMilliseconds: LINK_PREVIEW_TIMEOUT_MS
     })
 
@@ -161,13 +174,16 @@ export const fetchLinkPreview = async ({
     })
     // Recorded rather than merely logged: this row is the negative cache that
     // keeps the next post mentioning this URL from re-contacting a host that
-    // just failed.
-    await database.upsertLinkPreview({
+    // just failed. It deliberately does NOT go through `upsertLinkPreview` —
+    // that would blank a card this URL already has, which is shared by every
+    // status linking the page.
+    await database.recordLinkPreviewFailure({
       urlHash,
       url: normalizedUrl,
-      fetchStatus: 'failed',
       error: code
     })
-    return null
+    // A refresh that failed over a card that still works keeps serving it.
+    const preserved = await database.getLinkPreview({ urlHash })
+    return preserved?.fetchStatus === 'completed' ? preserved : null
   }
 }

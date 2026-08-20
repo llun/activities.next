@@ -1,7 +1,6 @@
-import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { FETCH_LINK_PREVIEW_JOB_NAME } from '@/lib/jobs/names'
-import { extractPreviewUrl } from '@/lib/services/link-previews/extractUrl'
+import { resolveStatusPreviewUrl } from '@/lib/services/link-previews/resolveStatusPreviewUrl'
 import { getQueue } from '@/lib/services/queue'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { Status, StatusType } from '@/lib/types/domain/status'
@@ -41,16 +40,7 @@ export const syncStatusLinkPreview = async ({
     const { network } = await getResolvedServerSettings(database)
     if (!network.linkPreviews) return
 
-    const url = extractPreviewUrl({
-      text: status.text,
-      isLocalActor: status.isLocalActor,
-      host: getConfig().host,
-      // The quoted post already has its own card on this status; a link card
-      // for the same page would render the same thing twice.
-      excludeUrls: status.quote?.quotedStatusId
-        ? [status.quote.quotedStatusId]
-        : []
-    })
+    const url = await resolveStatusPreviewUrl({ database, status })
 
     if (!url) {
       // An edit can remove the last link, and the card has to go with it.

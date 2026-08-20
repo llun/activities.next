@@ -2229,4 +2229,102 @@ describe('getMastodonStatus', () => {
       }
     })
   })
+  describe('link preview card', () => {
+    const linkedUrl = 'https://example.com/mastodon-card'
+
+    const seedCard = async (statusId: string) => {
+      const urlHash = `hash-${urlToId(statusId)}`
+      await database.upsertLinkPreview({
+        urlHash,
+        url: linkedUrl,
+        title: 'A serialized article',
+        description: 'Card body',
+        siteName: 'Example',
+        imageUrl: 'https://cdn.example.com/a.png',
+        imageWidth: 1200,
+        imageHeight: 630,
+        fetchStatus: 'completed'
+      })
+      await database.linkStatusLinkPreview({ statusId, urlHash })
+    }
+
+    it('serializes the stored card into the Mastodon card field', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/card-1`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: `Read ${linkedUrl}`,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await seedCard(statusId)
+
+      const status = await database.getStatus({ statusId })
+      const mastodonStatus = await getMastodonStatus(database, status as Status)
+
+      expect(mastodonStatus?.card).toMatchObject({
+        url: linkedUrl,
+        title: 'A serialized article',
+        description: 'Card body',
+        provider_name: 'Example',
+        image: 'https://cdn.example.com/a.png',
+        width: 1200,
+        height: 630,
+        type: 'link'
+      })
+      // Never remote markup for a client to inject.
+      expect(mastodonStatus?.card?.html).toBe('')
+      expect(mastodonStatus?.card?.embed_url).toBe('')
+    })
+
+    it('serializes null for a status with no card', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/card-none`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'No links here',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const status = await database.getStatus({ statusId })
+      const mastodonStatus = await getMastodonStatus(database, status as Status)
+
+      expect(mastodonStatus?.card).toBeNull()
+    })
+
+    // The boost wrapper is not the thing with the link; the card belongs to the
+    // status it wraps, matching how media_attachments is handled.
+    it('keeps the boost wrapper cardless and carries the card on the reblog', async () => {
+      const originalId = `${ACTOR1_ID}/statuses/card-boosted`
+      await database.createNote({
+        id: originalId,
+        url: originalId,
+        actorId: ACTOR1_ID,
+        text: `Read ${linkedUrl}`,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await seedCard(originalId)
+
+      const announceId = `${ACTOR2_ID}/statuses/card-announce`
+      await database.createAnnounce({
+        id: announceId,
+        actorId: ACTOR2_ID,
+        originalStatusId: originalId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const status = await database.getStatus({ statusId: announceId })
+      const mastodonStatus = await getMastodonStatus(database, status as Status)
+
+      expect(mastodonStatus?.card).toBeNull()
+      expect(mastodonStatus?.reblog?.card).toMatchObject({
+        title: 'A serialized article'
+      })
+    })
+  })
 })

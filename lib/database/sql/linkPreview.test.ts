@@ -114,6 +114,101 @@ describe('LinkPreviewDatabase', () => {
       })
     })
 
+    describe('recordLinkPreviewFailure', () => {
+      // A card is cached per URL and shared by every status linking that page.
+      // Writing a failure as a full-row replace nulled the title/description/
+      // image, and getStatusLinkPreviews filters on `completed`, so ONE
+      // transient 502 on a weekly refresh made the card vanish from every post
+      // that linked it — with no repair path, because the negative cache then
+      // suppressed the retry.
+      it('keeps a completed card when a later refresh fails', async () => {
+        const urlHash = uniqueHash()
+        await database.upsertLinkPreview({
+          urlHash,
+          url: 'https://example.com/popular',
+          title: 'A good title',
+          description: 'A good description',
+          imageUrl: 'https://cdn.example.com/a.png',
+          siteName: 'Example',
+          fetchStatus: 'completed'
+        })
+
+        await database.recordLinkPreviewFailure({
+          urlHash,
+          url: 'https://example.com/popular',
+          error: 'ERR_HTTP_502'
+        })
+
+        const stored = await database.getLinkPreview({ urlHash })
+        expect(stored).toMatchObject({
+          title: 'A good title',
+          description: 'A good description',
+          imageUrl: 'https://cdn.example.com/a.png',
+          // Still completed, so the card keeps rendering everywhere.
+          fetchStatus: 'completed',
+          // ...but the failure is recorded for operators.
+          error: 'ERR_HTTP_502'
+        })
+      })
+
+      it('keeps serving the card to every status after a failed refresh', async () => {
+        const urlHash = uniqueHash()
+        const statusId = uniqueStatusId('survives')
+        await database.upsertLinkPreview({
+          urlHash,
+          url: 'https://example.com/survives',
+          title: 'Survivor',
+          fetchStatus: 'completed'
+        })
+        await database.linkStatusLinkPreview({ statusId, urlHash })
+
+        await database.recordLinkPreviewFailure({
+          urlHash,
+          url: 'https://example.com/survives',
+          error: 'ERR_HTTP_502'
+        })
+
+        const previews = await database.getStatusLinkPreviews({
+          statusIds: [statusId]
+        })
+        expect(previews.get(statusId)?.title).toBe('Survivor')
+      })
+
+      it('records a failure for a url that was never fetched', async () => {
+        const urlHash = uniqueHash()
+        await database.recordLinkPreviewFailure({
+          urlHash,
+          url: 'https://unreachable.example.com/',
+          error: 'ERR_UNSAFE_REMOTE_URL'
+        })
+
+        expect(await database.getLinkPreview({ urlHash })).toMatchObject({
+          fetchStatus: 'failed',
+          error: 'ERR_UNSAFE_REMOTE_URL',
+          title: null
+        })
+      })
+
+      it('keeps a previously failed row failed', async () => {
+        const urlHash = uniqueHash()
+        await database.recordLinkPreviewFailure({
+          urlHash,
+          url: 'https://still-broken.example.com/',
+          error: 'ERR_HTTP_500'
+        })
+        await database.recordLinkPreviewFailure({
+          urlHash,
+          url: 'https://still-broken.example.com/',
+          error: 'ERR_HTTP_503'
+        })
+
+        expect(await database.getLinkPreview({ urlHash })).toMatchObject({
+          fetchStatus: 'failed',
+          error: 'ERR_HTTP_503'
+        })
+      })
+    })
+
     describe('getStatusLinkPreviews', () => {
       it('returns cards for the requested statuses keyed by status id', async () => {
         const urlHash = uniqueHash()

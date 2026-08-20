@@ -1,5 +1,7 @@
 import { htmlToDOM } from 'html-react-parser'
 
+import { MAX_PREVIEW_URL_LENGTH } from '@/lib/services/link-previews/extractUrl'
+
 // Column caps. `title`/`description` are text columns, but a card is a preview:
 // a page that puts its whole first paragraph in og:description should not push
 // that through federation and into every timeline row.
@@ -30,11 +32,12 @@ type DomNode = {
   data?: string
 }
 
-// Control characters, C1, bidi overrides and invisible spacing — the same class
-// `sanitizeStoredFileName` removes, and for the same reason: this text is
-// author-controlled and gets rendered back to readers, where a bidi override is
-// a display-spoofing vector. U+200C/U+200D are kept because Persian, Indic
-// spelling and emoji sequences need them.
+// Control characters, C1, bidi controls and invisible spacing. This text is
+// author-controlled and is rendered back to readers, where a bidi override is a
+// display-spoofing vector. U+200C/U+200D are kept because Persian, Indic
+// spelling and emoji sequences need them. (`sanitizeStoredFileName` solves the
+// same problem for file names, but with an allowlist — it is stricter than this
+// and not the same rule.)
 // Written as escapes rather than literals: every character this removes is by
 // definition invisible in source, so a literal class is unreviewable (and trips
 // no-irregular-whitespace).
@@ -44,8 +47,10 @@ const UNSAFE_TEXT_PATTERN = new RegExp(
     // C0 controls and DEL. Tab/newline/CR are left for the \s collapse below.
     '\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F',
     '\\u0080-\\u009F', // C1 controls
+    '\\u061C', // arabic letter mark (a bidi control)
     '\\u200B', // zero-width space (U+200C/U+200D are deliberately kept)
     '\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069', // bidi marks/overrides
+    '\\uFFF9-\\uFFFB', // interlinear annotation
     '\\uFEFF', // zero-width no-break space / BOM
     ']'
   ].join(''),
@@ -110,7 +115,13 @@ const parseAbsoluteImageUrl = (
     // resolves to https anyway, and an absolute http one is mixed content the
     // browser would block after we had already stored it.
     if (resolved.protocol !== 'https:') return null
-    return resolved.toString()
+    const absolute = resolved.toString()
+    // Capped like every other stored field. `imageUrl` is a text column, so a
+    // hostile page could otherwise put a megabyte in og:image and have it
+    // embedded in every API response and every `<img src>` that renders the
+    // card.
+    if (absolute.length > MAX_PREVIEW_URL_LENGTH) return null
+    return absolute
   } catch {
     return null
   }
@@ -170,9 +181,12 @@ export const parseOpenGraphMetadata = (
     parseAbsoluteImageUrl(meta.get('twitter:image'), baseUrl)
 
   const articleAuthor = meta.get('article:author')
+  const trimmedAuthor = articleAuthor?.trim()
   const authorUrl =
-    articleAuthor && isHttpUrl(articleAuthor.trim())
-      ? articleAuthor.trim()
+    trimmedAuthor &&
+    isHttpUrl(trimmedAuthor) &&
+    trimmedAuthor.length <= MAX_PREVIEW_URL_LENGTH
+      ? trimmedAuthor
       : null
 
   const authorName =
