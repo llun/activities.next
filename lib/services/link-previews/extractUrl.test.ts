@@ -348,6 +348,34 @@ describe('extractPreviewUrl', () => {
         ).toBeNull()
       })
 
+      // The emptiness test strips zero-width characters, which includes ZWJ
+      // (U+200D) — the joiner inside emoji sequences and Persian/Indic
+      // spelling. Stripping it must not make a legitimate anchor look empty:
+      // only the joiners go, never the characters they join.
+      it.each([
+        {
+          description: 'keeps an emoji-only anchor',
+          text: '\uD83D\uDC4D'
+        },
+        {
+          description: 'keeps a ZWJ emoji sequence anchor',
+          text: '\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67'
+        },
+        {
+          description: 'keeps a Persian anchor written with ZWNJ',
+          text: '\u0645\u06CC\u200C\u062E\u0648\u0627\u0647\u0645'
+        },
+        {
+          description: 'keeps a Thai anchor',
+          text: '\u0e2a\u0e27\u0e31\u0e2a\u0e14\u0e35'
+        },
+        { description: 'keeps a CJK anchor', text: '\u4e2d\u6587' }
+      ])('$description', ({ text }) => {
+        expect(
+          fromHtml(`<p><a href="https://example.com/ok">${text}</a></p>`)
+        ).toBe('https://example.com/ok')
+      })
+
       it('ignores an anchor whose children are all hidden', () => {
         expect(
           fromHtml(
