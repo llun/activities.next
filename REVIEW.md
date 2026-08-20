@@ -112,6 +112,17 @@ change doesn't touch.
   in the same PR, against fresh local DBs — never hand-edited. Commit a
   schema-only regeneration as `none:`. (CI's Schema Dump Sync job catches
   SQLite-dump drift; the PostgreSQL dump is not CI-checked.)
+- A caller-supplied id compared against a **numeric** column is coerced first.
+  `medias.id` and `attachments.mediaId` are `integer` on PostgreSQL, so passing a
+  non-numeric client string raises `invalid input syntax for type integer` — a
+  500 where a 404 was intended. SQLite's dynamic typing just misses, so only
+  `TEST_DATABASE_TYPE=pg` catches it. `lib/database/sql/media.ts` routes every
+  `mediaId` through `toMediaRowId`; new numeric-column lookups do the same, and
+  fixtures use values the column can hold.
+- A per-column type difference between the two schema dumps is not automatically
+  drift — a backend-conditional migration (e.g.
+  `20260207223000_fix_attachments_media_id_type.js`, PostgreSQL-only) makes them
+  legitimately differ. Read the migration before asking for a regeneration.
 - Better-auth plugins are only registered once their required tables exist in a
   migration; admin/dashboard plugins are gated with explicit access control.
 - Cursor-based pagination: pass the raw cursor row (with its stored representations,
