@@ -1,0 +1,75 @@
+app/u/heatmaps/[token]/SharedHeatmapPage.tsx
+  s_0e2fd6be727054::t_cc3eba7e43da0c 5,21-22,121,123
+  s_0e2fd6be727054::t_fbd5a816386a29 37-38
+app/(timeline)/fitness/heatmap/FitnessHeatmapView.tsx
+  s_0e2fd6be727054::t_bad57ad67a93ba 9,14
+  s_0e2fd6be727054::t_ae35d513ac95f0 706
+  s_0e2fd6be727054::t_0529a89c68dc53 241-254
+lib/components/fitness/RouteHeatmapMapKit.tsx
+  s_0e2fd6be727054::t_df1b7ed2aa1f34 237-276,289-293,312-321,330
+  s_0e2fd6be727054::t_0cdac8c064ff05 17,124-128,334-373,377-398
+  s_0e2fd6be727054::t_ef855039c76f31 7,22-31,34,77-97,100-101,117
+  s_0e2fd6be727054::t_13a1f2c6ba44b5 374-376,399
+  s_0e2fd6be727054::t_09f17dd19aa02a 400
+app/embed/heatmap/[token]/page.tsx
+  s_0e2fd6be727054::t_305167f2de860c 118
+lib/components/fitness/HeatmapShareEmbed.tsx
+  s_0e2fd6be727054::t_b8c8151c0163a6 17,336,339
+scripts/mock/.buildHeatmap.local.ts
+  s_0e2fd6be727054::t_66b16dc96937dd 18-25,29-33,40-49,54-57
+  s_0e2fd6be727054::t_934994bcf3f524 1-17,26-28,34-39,50-53
+lib/components/fitness/heatmapTileGeometry.ts
+  s_0e2fd6be727054::t_290370b13f8cef 1-79
+app/(timeline)/fitness/heatmap/FitnessHeatmapView.test.tsx
+  s_0e2fd6be727054::t_0996952406af95 1672-1674
+  s_0e2fd6be727054::t_abb10bbe108f34 1329-1331,1618-1620
+lib/components/fitness/useHeatmapTiles.test.ts
+  s_0e2fd6be727054::t_2730c661f7c31c 14,167,221,267-274,277,285,287-302,304-306,308-309,311-318,320-325
+  s_0e2fd6be727054::t_5006e2d1ca3c54 1-13,15-103,113-166,169-220,222-266,275-276,278-284,303,307,310,319,326-327
+  s_0e2fd6be727054::t_d0806a36034e58 168,286
+  s_0e2fd6be727054::t_8dce2788de2758 104-112
+lib/components/fitness/RouteHeatmapMap.tsx
+  s_0e2fd6be727054::t_e76995e56002db 198-203,226,231-235,243,252,259,265,319-328,340-346
+  s_0e2fd6be727054::t_437bb469d374e1 178-179,367,435-472,490-493,514-517,533-540
+  s_0e2fd6be727054::t_0994f9f27ea431 8,15-16,18-25,37-46,107-155
+  s_0e2fd6be727054::t_a42cef4cf3bf13 17,266-269
+  s_0e2fd6be727054::t_348fd0747333f6 197,347
+lib/components/fitness/RegionHeatmapDetail.tsx
+  s_0e2fd6be727054::t_ae35d513ac95f0 378
+  s_0e2fd6be727054::t_bad57ad67a93ba 548-551
+  s_0e2fd6be727054::t_3d92b752190ea5 24,339-340,547
+lib/components/fitness/heatmapTileGeometry.test.ts
+  s_0e2fd6be727054::t_cd44393985c62d 1-107
+lib/components/fitness/PublicRouteHeatmapMap.tsx
+  s_0e2fd6be727054::t_cc3eba7e43da0c 1-2,4-15,22-42,49-60
+  s_0e2fd6be727054::t_b8c8151c0163a6 3,16-21,43-48
+lib/components/fitness/useHeatmapTiles.ts
+  s_0e2fd6be727054::t_13a1f2c6ba44b5 97-102,114-124,168,170,181,266,275,277,280,295-301
+  s_0e2fd6be727054::t_e7b69bc27dbfac 1-50,69,71-96,103-113,125-167,169,171-180,182-218,254,261-265,267-274,276,278-279,281-294,302-304
+  s_0e2fd6be727054::t_8dce2788de2758 229-234
+  s_0e2fd6be727054::t_2eaaf98aaeaff3 51-68,70,219-228,235-253,255-260
+app/u/heatmaps/[token]/page.tsx
+  s_0e2fd6be727054::t_fbd5a816386a29 124
+app/embed/heatmap/[token]/PublicHeatmapEmbed.tsx
+  s_0e2fd6be727054::t_cc3eba7e43da0c 6,32,35
+  s_0e2fd6be727054::t_305167f2de860c 15-16,25-26
+scripts/mock/.seedRoutes.local.ts
+  s_0e2fd6be727054::t_a0079eb57bde33 1-65,67-107
+  s_0e2fd6be727054::t_66b16dc96937dd 66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "2aa624366c2ffe9c16798cafe9861c3475892627",
+  "prompts": {},
+  "sessions": {
+    "s_0e2fd6be727054": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8b4fe7c-fd3e-48ba-9e1d-ef3b99484c21",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
