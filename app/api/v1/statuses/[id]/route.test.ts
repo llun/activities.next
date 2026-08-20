@@ -657,7 +657,15 @@ describe('GET /api/v1/statuses/[id]', () => {
       })
       expect(announce).not.toBeNull()
       expect(announce?.to).toEqual([`${ACTOR2_ID}/followers`])
-      expect(announce?.cc).toEqual([ACTIVITY_STREAM_PUBLIC, ACTOR2_ID])
+      // Compared as a set: `cc` is an ActivityPub audience, which is unordered
+      // by definition, and the recipients are read back without an ORDER BY —
+      // so which index the backend picks decides the array order. Every
+      // consumer treats these as sets (see lib/services/federation/
+      // statusDelivery.ts); asserting a sequence here only pinned an
+      // implementation detail.
+      expect(new Set(announce?.cc)).toEqual(
+        new Set([ACTIVITY_STREAM_PUBLIC, ACTOR2_ID])
+      )
     })
 
     it('defaults to a public boost when no visibility is sent', async () => {
