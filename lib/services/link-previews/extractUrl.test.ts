@@ -217,6 +217,38 @@ describe('extractPreviewUrl', () => {
       )
     })
 
+    // A URL in backticks is not a link the reader can click, and the renderer
+    // does not make one — extraction follows the renderer, so it agrees.
+    it('ignores a url inside a code span', () => {
+      expect(fromMarkdown('Run `https://example.com/in-code` now')).toBeNull()
+    })
+
+    it('ignores a url inside a fenced code block', () => {
+      expect(fromMarkdown('```\nhttps://example.com/in-fence\n```')).toBeNull()
+    })
+
+    it('takes the real link over one that is only shown as code', () => {
+      expect(
+        fromMarkdown(
+          'Run `https://code.example/x` then see https://real.example/y'
+        )
+      ).toBe('https://real.example/y')
+    })
+
+    // The renderer HTML-encodes `&` in an href and the parser decodes it back.
+    // Getting that round trip wrong would silently corrupt every query string.
+    it('preserves a query string through the render and parse round trip', () => {
+      expect(fromMarkdown('See https://example.com/a?b=c&d=e here')).toBe(
+        'https://example.com/a?b=c&d=e'
+      )
+    })
+
+    it('excludes trailing sentence punctuation from a bare url', () => {
+      expect(fromMarkdown('See https://example.com/a. Next.')).toBe(
+        'https://example.com/a'
+      )
+    })
+
     it('finds a url inside a blockquote', () => {
       expect(fromMarkdown('> quoting https://example.com/deep')).toBe(
         'https://example.com/deep'
