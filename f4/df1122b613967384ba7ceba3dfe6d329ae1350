@@ -1,0 +1,19 @@
+lib/services/link-previews/syncStatusLinkPreview.test.ts
+  s_8fbc352edaf843::t_1045dfe71b156a 160-181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "f4df1122b613967384ba7ceba3dfe6d329ae1350",
+  "prompts": {},
+  "sessions": {
+    "s_8fbc352edaf843": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f5805ef5-0c89-425f-91b8-cc86a0704bc4",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
