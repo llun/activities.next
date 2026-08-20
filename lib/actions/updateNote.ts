@@ -76,11 +76,6 @@ export const updateNoteFromUserInput = async ({
     await persistDetectedLanguage({ database, statusId, text })
 
     updatedStatus = (await database.getStatus({ statusId })) ?? updatedStatus
-
-    // The edit may have added, changed or removed the link the card was for.
-    // Only re-run when the text actually changed: an attachment-only or
-    // visibility-only edit cannot move the card.
-    await syncStatusLinkPreview({ database, status: updatedStatus })
   }
 
   await addStatusToTimelines(database, updatedStatus)
@@ -103,6 +98,19 @@ export const updateNoteFromUserInput = async ({
       sourceActorId: currentActor.id,
       sourceActor: currentActor
     })
+  }
+
+  // The edit may have added, changed or removed the link the card was for.
+  // Only when the text actually changed: an attachment-only or visibility-only
+  // edit cannot move the card.
+  //
+  // Scheduled AFTER the edit has federated, for the same reason
+  // createNoteFromUserInput schedules after its send job: on the default
+  // in-process queue `publish` runs the handler inline, so doing this first made
+  // an edit to a post containing a link wait on a third-party fetch before the
+  // edit reached timelines or went out to other servers.
+  if (text !== undefined) {
+    await syncStatusLinkPreview({ database, status: updatedStatus })
   }
 
   span.end()

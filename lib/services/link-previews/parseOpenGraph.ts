@@ -46,6 +46,35 @@ const CHARSET_DECLARATION_WINDOW = 1024
 // string is short and bounded, so this regex cannot run away on it.
 const META_ATTRIBUTE = /([\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g
 
+// The index of the `>` that closes a tag, ignoring any inside a quoted value.
+// Taking the first `>` anywhere truncated the tag mid-attribute, which put
+// `charset=` from an ordinary sentence back in scope — so an article that merely
+// described an encoding lost its card.
+const findTagEnd = (source: string, tagStart: number): number => {
+  let quote: string | null = null
+  for (let index = tagStart; index < source.length; index += 1) {
+    const character = source[index]
+    if (quote) {
+      if (character === quote) quote = null
+      continue
+    }
+    if (character === '"' || character === "'") {
+      quote = character
+      continue
+    }
+    if (character === '>') return index
+  }
+  return -1
+}
+
+// An unquoted attribute value runs to the next delimiter, so a self-closing
+// `<meta charset=utf-8/>` yields `utf-8/` — a label matching no known encoding,
+// which cost the page its card even though it declares UTF-8.
+const normalizeCharsetLabel = (value: string | undefined): string | null => {
+  const label = value?.trim().replace(/\/+$/, '').toLowerCase()
+  return label ? label : null
+}
+
 const getTagAttributes = (tag: string): Map<string, string> => {
   const attributes = new Map<string, string>()
   META_ATTRIBUTE.lastIndex = 0
@@ -66,28 +95,40 @@ const getTagAttributes = (tag: string): Map<string, string> => {
  * the header check alone misses.
  */
 export const getDeclaredCharset = (html: string): string | null => {
-  const window = html.slice(0, CHARSET_DECLARATION_WINDOW)
+  // Comments are stripped first, because the HTML prescan skips them: a page
+  // that leaves an old declaration commented out above its real one must be
+  // read as declaring the real one.
+  const searchWindow = html
+    .slice(0, CHARSET_DECLARATION_WINDOW)
+    .replace(/<!--[\s\S]*?(?:-->|$)/g, '')
+  // Lowercased once, not per iteration — the loop can run a few hundred times
+  // over the window.
+  const lowered = searchWindow.toLowerCase()
 
   // Walked tag by tag with indexOf rather than one big regex: each tag string
   // is short, so the regexes above can never run away on it.
   let cursor = 0
-  while (cursor < window.length) {
-    const tagStart = window.toLowerCase().indexOf('<meta', cursor)
+  while (cursor < searchWindow.length) {
+    const tagStart = lowered.indexOf('<meta', cursor)
     if (tagStart === -1) return null
-    const tagEnd = window.indexOf('>', tagStart)
-    const tag = window.slice(tagStart, tagEnd === -1 ? window.length : tagEnd)
+    const tagEnd = findTagEnd(searchWindow, tagStart)
+    const tag = searchWindow.slice(
+      tagStart,
+      tagEnd === -1 ? searchWindow.length : tagEnd
+    )
 
     const attributes = getTagAttributes(tag)
 
     // `<meta charset=…>` directly...
-    const charset = attributes.get('charset')
-    if (charset?.trim()) return charset.trim().toLowerCase()
+    const charset = normalizeCharsetLabel(attributes.get('charset'))
+    if (charset) return charset
 
     // ...or the legacy `<meta http-equiv="Content-Type" content="…; charset=…">`,
     // where the encoding genuinely does live inside an attribute value.
     if (attributes.get('http-equiv')?.toLowerCase().trim() === 'content-type') {
       const legacy = attributes.get('content')?.match(/charset\s*=\s*([\w-]+)/i)
-      if (legacy) return legacy[1].toLowerCase()
+      const normalized = normalizeCharsetLabel(legacy?.[1])
+      if (normalized) return normalized
     }
 
     if (tagEnd === -1) return null

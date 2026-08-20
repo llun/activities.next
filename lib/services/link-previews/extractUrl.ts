@@ -1,8 +1,10 @@
 import { htmlToDOM } from 'html-react-parser'
 import { Token, Tokens } from 'marked'
 
+import { logger } from '@/lib/utils/logger'
 import { createStatusMarked } from '@/lib/utils/text/convertMarkdownText'
 import { sanitizeText } from '@/lib/utils/text/sanitizeText'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 // `link_previews.url` is a text column, but a URL long enough to be worth
 // capping is never a real article link — it is a tracking blob or an attempt to
@@ -91,8 +93,16 @@ const extractFromMarkdown = (text: string, host: string): string[] => {
   const hrefs: string[] = []
   try {
     collectMarkdownLinks(createStatusMarked(host).lexer(text), hrefs)
-  } catch {
-    // A malformed status must not break posting; it simply gets no card.
+  } catch (error) {
+    // A malformed status must not break posting; it simply gets no card. But it
+    // must not be SILENT either: swallowing the throw is how a crash on any
+    // post containing a table read as "this post has no links" and survived
+    // three review rounds.
+    logger.warn({
+      message: 'linkPreview: failed to read links from markdown',
+      error: error instanceof Error ? error.message : String(error),
+      err: toLoggableError(error)
+    })
     return []
   }
   return hrefs
@@ -149,10 +159,17 @@ const getVisibleText = (node: DomNode): string => {
 // `trim()` removes ECMAScript whitespace, which does NOT include the zero-width
 // format characters — so an anchor whose only content is U+200B rendered as
 // nothing while still counting as "has visible text".
-const ZERO_WIDTH_PATTERN = /[\u200B-\u200D\u2060\uFEFF]/g
+//
+// Unicode's own property rather than a hand-written list: a denylist of the
+// obvious few left SOFT HYPHEN, the Hangul fillers and others one character
+// away from the same phishing surface. This covers every default-ignorable
+// code point at once, and joiners are all it removes from real text — an emoji
+// ZWJ sequence, Persian written with ZWNJ, Thai and CJK all keep their
+// characters and therefore their cards.
+const INVISIBLE_TEXT_PATTERN = /\p{Default_Ignorable_Code_Point}/gu
 
 const hasVisibleText = (node: DomNode): boolean =>
-  getVisibleText(node).replace(ZERO_WIDTH_PATTERN, '').trim().length > 0
+  getVisibleText(node).replace(INVISIBLE_TEXT_PATTERN, '').trim().length > 0
 
 const collectHtmlLinks = (
   nodes: DomNode[],
@@ -195,7 +212,12 @@ const extractFromHtml = (html: string): string[] => {
     // true for remote posts, the way reusing the renderer's tokenizer makes it
     // true for local ones.
     collectHtmlLinks(htmlToDOM(sanitizeText(html)) as DomNode[], hrefs)
-  } catch {
+  } catch (error) {
+    logger.warn({
+      message: 'linkPreview: failed to read links from html',
+      error: error instanceof Error ? error.message : String(error),
+      err: toLoggableError(error)
+    })
     return []
   }
   return hrefs

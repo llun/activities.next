@@ -348,6 +348,20 @@ describe('extractPreviewUrl', () => {
         ).toBeNull()
       })
 
+      // A hand-written list of the obvious few left these one character away
+      // from the same phishing surface; the check uses Unicode's own
+      // default-ignorable property so the whole class is covered at once.
+      it.each([
+        { description: 'a soft hyphen', text: '\u00AD' },
+        { description: 'a Hangul filler', text: '\u3164' },
+        { description: 'a Hangul choseong filler', text: '\u115F' },
+        { description: 'a halfwidth Hangul filler', text: '\uFFA0' }
+      ])('ignores an anchor whose only text is $description', ({ text }) => {
+        expect(
+          fromHtml(`<p><a href="https://evil.example/phish">${text}</a></p>`)
+        ).toBeNull()
+      })
+
       // The emptiness test strips zero-width characters, which includes ZWJ
       // (U+200D) — the joiner inside emoji sequences and Persian/Indic
       // spelling. Stripping it must not make a legitimate anchor look empty:

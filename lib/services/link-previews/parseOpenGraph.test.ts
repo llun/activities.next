@@ -358,6 +358,33 @@ describe('parseOpenGraphMetadata', () => {
         expected: null
       },
       {
+        // The tag was cut at the first `>` anywhere, so a `>` inside an
+        // attribute value truncated it mid-attribute and put `charset=` from an
+        // ordinary sentence back in scope.
+        description: 'ignores charset in prose containing an angle bracket',
+        html: '<html><head><meta property="og:description" content="set charset=windows-1252 -> done"></head></html>',
+        expected: null
+      },
+      {
+        description: 'ignores charset in prose quoting a meta tag',
+        html: '<html><head><meta property="og:description" content="write <meta charset=windows-1252> at the top"></head></html>',
+        expected: null
+      },
+      {
+        // An unquoted value runs to the delimiter, so the slash came along and
+        // matched no known encoding — costing a page that declares UTF-8 its card.
+        description: 'reads a self-closing unquoted declaration',
+        html: '<html><head><meta charset=utf-8/></head></html>',
+        expected: 'utf-8'
+      },
+      {
+        // The HTML prescan skips comments, so a commented-out declaration is
+        // not what the page declares.
+        description: 'ignores a commented-out declaration',
+        html: '<html><head><!-- <meta charset="windows-1252"> --><meta charset="utf-8"></head></html>',
+        expected: 'utf-8'
+      },
+      {
         description: 'ignores a declaration past the spec window',
         html: `<html><head>${'<meta name="x" content="y">'.repeat(200)}<meta charset="windows-1251"></head></html>`,
         expected: null
