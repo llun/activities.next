@@ -1,0 +1,19 @@
+migrations/20260820120000_drop_recipients_type_actorId_index.js
+  s_b0737fcab7cc4e::t_fbd1fbaddf9c95 1-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "0ed056fcc05b94f8e7a67010b64244302fa7c0e1",
+  "prompts": {},
+  "sessions": {
+    "s_b0737fcab7cc4e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd4b8af9-72a1-4c58-b734-c8c65c9f1076",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
