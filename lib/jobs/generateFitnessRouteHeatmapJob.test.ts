@@ -3560,23 +3560,22 @@ describe('generateFitnessRouteHeatmapJob', () => {
       // Declared once for the page rather than per file, one successful fold
       // would silence every later failure in the same page — and a degraded
       // build would complete claiming it read everything.
-      const readableId = await createCompletedFitnessFile(
+      const throwsId = await createCompletedFitnessFile(
         'running',
         new Date('2026-04-15T07:00:00.000Z')
       )
-      const unreadableId = await createCompletedFitnessFile(
+      const foldsId = await createCompletedFitnessFile(
         'running',
         new Date('2026-04-16T07:00:00.000Z')
       )
 
       try {
-        // Both in one page, the readable one scanned second: a page-scoped flag
-        // set by the unreadable file's neighbour would still be false here, so
-        // the discriminating order is readable-first — which is newest-first,
-        // i.e. created last.
-        await seedRoute(unreadableId, SINGAPORE)
+        // Both in one page, and the one that FOLDS is scanned first (newest
+        // first, i.e. created last). A page-scoped flag would be left true by
+        // it and would then silence the failure on its neighbour.
+        await seedRoute(foldsId, SINGAPORE)
         mockGetFitnessFile.mockImplementation(async (_database, id) =>
-          id === readableId
+          id === throwsId
             ? Promise.reject(new Error('storage unavailable'))
             : {
                 type: 'buffer' as const,
@@ -3601,8 +3600,8 @@ describe('generateFitnessRouteHeatmapJob', () => {
           buffer: Buffer.from('fitness-file-bytes'),
           contentType: 'application/vnd.ant.fit'
         })
-        await database.deleteFitnessFile({ id: readableId })
-        await database.deleteFitnessFile({ id: unreadableId })
+        await database.deleteFitnessFile({ id: throwsId })
+        await database.deleteFitnessFile({ id: foldsId })
       }
     })
 
@@ -3668,6 +3667,13 @@ describe('generateFitnessRouteHeatmapJob', () => {
         // Whatever else this pass decides, it must not claim to have lost the
         // activity whose tiles it is sitting on.
         expect(pyramid?.error).not.toMatch(/could not be read/)
+        // And the state it actually reaches, so this cannot pass with the
+        // staged shift removed: the upload raised the count the coverage guard
+        // compares against, so the build is handed back rather than completed.
+        expect(pyramid).toMatchObject({
+          status: 'failed',
+          error: 'Scan did not cover the whole history'
+        })
       } finally {
         mockGetFitnessFile.mockReset()
         mockGetFitnessFile.mockResolvedValue({
@@ -3710,6 +3716,94 @@ describe('generateFitnessRouteHeatmapJob', () => {
         pageSpy.mockRestore()
         pyramidWriteSpy.mockRestore()
         await database.deleteFitnessFile({ id: fitnessFileId })
+      }
+    })
+
+    it('does not report a re-presented activity as lost when the count catches up', async () => {
+      // The window the "this arm is inert" argument missed, reproduced. The
+      // coverage guard normally catches a re-presented file, because the upload
+      // that shifted the offsets also raises the count — but that count is
+      // taken AGAIN after the scan, so a deletion landing between the final page
+      // read and the recount lowers it by exactly the shortfall, and the build
+      // completes. Without the already-folded arm it then reports a loss for
+      // tiles it is sitting on, in the one column an operator reads.
+      const amsterdamId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+      const singaporeId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-16T07:00:00.000Z')
+      )
+      let shifterId: string | undefined
+
+      try {
+        await seedRoute(amsterdamId, AMSTERDAM)
+        await seedRoute(singaporeId, SINGAPORE)
+
+        const requestedAt = Date.now()
+        const timeoutSpy = vi.spyOn(Date, 'now')
+        timeoutSpy.mockReturnValueOnce(0).mockReturnValue(25_000)
+        try {
+          await runAllTime('job-pyramid-represent-recount', {}, requestedAt)
+        } finally {
+          timeoutSpy.mockRestore()
+        }
+
+        // The upload shifts the offsets so the continuation is handed Singapore
+        // a second time, and it is unreadable when it is.
+        shifterId = await createCompletedFitnessFile(
+          'running',
+          new Date('2026-04-17T07:00:00.000Z')
+        )
+        await seedRoute(shifterId, TOKYO)
+        await database.deleteFitnessFileRoute({ fitnessFileId: singaporeId })
+        mockGetFitnessFile.mockImplementation(async (_database, id) =>
+          id === singaporeId
+            ? Promise.reject(new Error('storage unavailable'))
+            : {
+                type: 'buffer' as const,
+                buffer: Buffer.from('fitness-file-bytes'),
+                contentType: 'application/vnd.ant.fit'
+              }
+        )
+
+        // Deleted AFTER the continuation's page has been read, which is the
+        // window: the recount at the decision no longer sees it.
+        const realPage = database.getFitnessFilesByActor.bind(database)
+        const pageSpy = vi
+          .spyOn(database, 'getFitnessFilesByActor')
+          .mockImplementationOnce(async (params) => {
+            const page = await realPage(params)
+            await database.deleteFitnessFile({ id: shifterId! })
+            return page
+          })
+
+        try {
+          await runPublishedContinuation('job-pyramid-represent-recount-cont')
+        } finally {
+          pageSpy.mockRestore()
+        }
+
+        const pyramid = await database.getFitnessRouteHeatmapPyramid({
+          actorId: actor.id
+        })
+        // It completed — the recount caught up — and it holds both rides, so it
+        // must not report a loss at all.
+        expect(pyramid).toMatchObject({
+          status: 'completed',
+          error: undefined
+        })
+        expect((await readTiles()).length).toBeGreaterThan(0)
+      } finally {
+        mockGetFitnessFile.mockReset()
+        mockGetFitnessFile.mockResolvedValue({
+          type: 'buffer',
+          buffer: Buffer.from('fitness-file-bytes'),
+          contentType: 'application/vnd.ant.fit'
+        })
+        await database.deleteFitnessFile({ id: amsterdamId })
+        await database.deleteFitnessFile({ id: singaporeId })
       }
     })
 

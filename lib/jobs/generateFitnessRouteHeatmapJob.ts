@@ -1137,21 +1137,28 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
             )
           }
 
-          // Whether THIS pass folded the file, which is what says a later throw
-          // in this block is not a loss to record — the block also covers the
-          // legacy accumulation, which runs after the fold.
+          // Whether the BUILD already holds this file's geometry, decided
+          // before anything that can throw — a storage failure is the dominant
+          // throw this counter exists for, and it happens at the read below.
+          // Either this pass is about to fold it, or an earlier pass of this
+          // build already did and the paging re-presented it; both mean a later
+          // throw in this block is not a loss to record. The block also covers
+          // the legacy accumulation, which runs after the fold, which is why
+          // the flag exists at all.
           //
-          // Deliberately NOT "or an earlier pass of this build folded it". That
-          // arm was tried and removed as inert: it differs from `false` only for
-          // a re-presented file, and a build that ever re-presented one cannot
-          // reach the completion write that reads this counter. With `k` the
-          // region offset at the final pass, `S` the build's `scannedCount`
-          // there and `n` the recount, completing needs `S >= k + R`, while the
-          // no-op advance for a re-presented file forces `S <= k` — so `R` is
-          // zero for every build that completes. Re-presentation needs an upload
-          // to have shifted the offsets, and that upload is exactly what the
-          // coverage guard catches.
-          let foldedThisFile = false
+          // The second half was once removed on the argument that it is inert:
+          // re-presentation needs an upload to have shifted the offsets, and
+          // that upload raises the count the coverage guard compares against,
+          // so the build is handed back before any completion write reads this.
+          // That argument has a hole, reproduced on both backends. The count is
+          // taken AGAIN at the decision, after the scan — so a deletion landing
+          // between the final page read and that recount lowers the denominator
+          // by exactly the shortfall the re-presentation created, the guard
+          // passes, and the build completes reporting a loss for tiles it is
+          // sitting on. The window is not a millisecond: it spans the whole of
+          // the last page's per-file work and the final flush.
+          let foldedThisFile =
+            Boolean(pyramidBuild) && !isUnfoldedByPyramid(file)
           try {
             if (isParseableFitnessFileType(file.fileType)) {
               const routeCoordinates = await resolveRouteCoordinates(database, {
