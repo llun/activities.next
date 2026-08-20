@@ -32,10 +32,54 @@ export interface ClaimFitnessRouteHeatmapPyramidBuildParams {
    * a worker that really died is reclaimed.
    */
   staleBefore: number
+  /**
+   * The build a continuation was handed when its own earlier pass claimed it,
+   * proving this pass is that build's rightful successor rather than a rival.
+   *
+   * Without it a build could never survive its own checkpoint: flushing is the
+   * heartbeat, so the pass that just checkpointed leaves a `generating` row
+   * with a fresh `updatedAt`, and the continuation it published a moment later
+   * reads that as a live build and declines. Every actor whose scan needs more
+   * than one pass would build a single flush of tiles and then orphan the
+   * pyramid until the staleness window expired.
+   *
+   * It names the ROW as well as the token, because `claimSeq` counts from zero
+   * per row and clearing an actor's heatmaps deletes the row — so `claimSeq: 1`
+   * before a clear and `claimSeq: 1` after it are different builds, and the
+   * collision lands on the likeliest value of all. Matching on the token alone
+   * let a continuation stranded across a clear evict the live build that had
+   * replaced it.
+   *
+   * It is not a bypass of the fence. The compare-and-swap still guards on
+   * `claimSeq`, and this claim still moves it, so a continuation delivered
+   * twice has exactly one winner — the duplicate presents a token that has
+   * already advanced, finds the winner heartbeating, and is refused.
+   *
+   * **Presenting a matching token is the ONLY way to resume a build**, because
+   * it is the only evidence a caller can offer that it will carry on from where
+   * that build left off. Keeping a build's version means adding to its tiles,
+   * and a claimer who cannot prove that would fold activities the build already
+   * holds — or, worse, complete it over the ones it skipped. A caller without
+   * one gets a fresh version instead: a full rebuild that sweeps the old build
+   * away, which is merely wasteful where the alternative is silently wrong.
+   */
+  resumeBuild?: {
+    pyramidId: string
+    claimSeq: number
+  }
 }
 
 export interface UpdateFitnessRouteHeatmapPyramidParams {
   actorId: string
+  /**
+   * The pyramid ROW this pass claimed. Fenced on alongside the token because
+   * `claimSeq` counts from zero per row and clearing an actor's heatmaps
+   * deletes the row: token 1 before a clear and token 1 after it are different
+   * builds, so a pass stranded across a clear would otherwise write its tiles
+   * and its progress straight into the replacement build — the same collision
+   * `resumeBuild` names the row to avoid on the claim.
+   */
+  pyramidId: string
   /**
    * The ownership token this pass was handed by its claim
    * (`pyramid.claimSeq`). Every write is guarded on it, so a pass that was
@@ -61,6 +105,15 @@ export interface UpdateFitnessRouteHeatmapPyramidParams {
 export interface UpsertFitnessRouteHeatmapTilesParams {
   actorId: string
   /**
+   * The pyramid ROW this pass claimed. Fenced on alongside the token because
+   * `claimSeq` counts from zero per row and clearing an actor's heatmaps
+   * deletes the row: token 1 before a clear and token 1 after it are different
+   * builds, so a pass stranded across a clear would otherwise write its tiles
+   * and its progress straight into the replacement build — the same collision
+   * `resumeBuild` names the row to avoid on the claim.
+   */
+  pyramidId: string
+  /**
    * The ownership token this pass claimed with. The write is rejected outright
    * if the build has since been taken over — without it, a pass that was
    * presumed dead and superseded could still overwrite the tiles its successor
@@ -78,6 +131,24 @@ export interface UpsertFitnessRouteHeatmapTilesParams {
     segments: string
     pointCount: number
   }>
+  /**
+   * How far the build has scanned, written by the SAME guarded statement that
+   * writes the tiles rather than by a second call after it.
+   *
+   * Atomicity here is the whole point. Tile counts accumulate, so a build that
+   * writes tiles and then dies before recording that it did will fold those
+   * same activities again when it resumes — and nothing downstream can tell an
+   * inflated count from an honest one. Landing both in one transaction means
+   * the cursor stored here always covers exactly the tiles stored with it, so
+   * the resume that reads it back skips precisely the activities already folded
+   * and no others.
+   */
+  progress?: {
+    scannedCount: number
+    activityCount?: number
+    totalCount?: number
+    cursor?: FitnessRouteHeatmapPyramidCursor
+  }
 }
 
 export interface FitnessRouteHeatmapTileRangeParams {
@@ -111,9 +182,9 @@ export interface FitnessRouteHeatmapTileDatabase {
     params: ClaimFitnessRouteHeatmapPyramidBuildParams
   ): Promise<FitnessRouteHeatmapPyramidClaim>
   /**
-   * Applies a progress, cursor or terminal-status write, guarded on the
-   * claim token. Returns false when the guard rejected it, which is the signal
-   * that this pass no longer owns the build and should stop.
+   * Applies a progress, cursor or terminal-status write, guarded on the build
+   * row and the claim token. Returns false when the guard rejected it, which is
+   * the signal that this pass no longer owns the build and should stop.
    *
    * Every call also refreshes `updatedAt`, so a running build heartbeats simply
    * by checkpointing — there is no separate keepalive to forget.
@@ -147,6 +218,11 @@ export interface FitnessRouteHeatmapTileDatabase {
    * lock: a claim cannot slip in between them. That heartbeat also doubles as
    * proof of life, so flushing tiles is itself what keeps a working pass from
    * being reclaimed as stale.
+   *
+   * A call with nothing to write is still answered from the guard, never
+   * short-circuited to `true`: the return means "you still own this build",
+   * and a caller told that without anyone having looked would carry on folding
+   * into a build somebody else now owns.
    */
   upsertFitnessRouteHeatmapTiles(
     params: UpsertFitnessRouteHeatmapTilesParams
@@ -155,12 +231,35 @@ export interface FitnessRouteHeatmapTileDatabase {
     params: FitnessRouteHeatmapTileRangeParams
   ): Promise<number>
   /**
+   * What one build has on disk, for the counters a completing build stamps on
+   * its pyramid row.
+   *
+   * Counted from the tiles rather than tallied as they are written, because a
+   * tile touched by several flushes is one row and would be counted once per
+   * flush — and a build spanning continuations has no single process to tally
+   * in. Reads the `(actorId, version)` index, so it is one aggregate per build
+   * rather than a scan.
+   */
+  getFitnessRouteHeatmapTileTotals(params: {
+    actorId: string
+    version: number
+  }): Promise<{ tileCount: number; pointCount: number }>
+  /**
    * Drops tiles left behind by an earlier build. Running this when a build
    * completes is how activities deleted since the last one disappear, with no
    * per-activity bookkeeping and no decrementing of visit counts.
+   *
+   * Fenced on the build row and its token like every other pyramid write, and
+   * for the same collision: `claimSeq` counts from zero per row and clearing an
+   * actor's heatmaps deletes the row, so a build sweeping at version 2 whose
+   * call lands after a clear would delete the REPLACEMENT build's version-1
+   * tiles — and that build then stamps itself `completed` over tiles that are
+   * gone. Returns 0, having deleted nothing, when the guard rejects.
    */
   deleteStaleFitnessRouteHeatmapTiles(params: {
     actorId: string
+    pyramidId: string
+    claimSeq: number
     beforeVersion: number
   }): Promise<number>
   /**
@@ -216,7 +315,16 @@ const parseSQLFitnessRouteHeatmapPyramid = (
           id: row.cursorId
         }
       : undefined,
-  completedAt: row.completedAt ? getCompatibleTime(row.completedAt) : undefined,
+  // Null-tested, not truthiness-tested, for the reason spelled out above the
+  // cursor: an epoch-0 timestamp is a falsy integer on SQLite and a truthy Date
+  // on PostgreSQL, so the same row would answer `already-fresh` differently per
+  // backend. `completedAt` reaches `classifyPyramidForClaim`, which is the
+  // decision that either serves a request from a finished pyramid or rebuilds
+  // it.
+  completedAt:
+    row.completedAt !== null && row.completedAt !== undefined
+      ? getCompatibleTime(row.completedAt)
+      : undefined,
   createdAt: getCompatibleTime(row.createdAt),
   updatedAt: getCompatibleTime(row.updatedAt)
 })
@@ -252,6 +360,22 @@ const readPyramidRow = async (database: Knex, actorId: string) => {
 }
 
 /**
+ * Whether the caller is presenting this exact build's current token — the row
+ * it was handed AND the sequence value it held. Both halves matter: `claimSeq`
+ * counts from zero per row and clearing an actor's heatmaps deletes the row, so
+ * the first claim before a clear and the first claim after it both hold token
+ * 1, and matching on the sequence alone lets a stranded pass evict the live
+ * build that replaced it.
+ */
+const isOwnContinuation = (
+  pyramid: FitnessRouteHeatmapPyramid,
+  resumeBuild?: { pyramidId: string; claimSeq: number }
+) =>
+  resumeBuild !== undefined &&
+  resumeBuild.pyramidId === pyramid.id &&
+  resumeBuild.claimSeq === pyramid.claimSeq
+
+/**
  * Whether a claim may take this pyramid, and if not, why. Shared by the claim's
  * read (which needs the reason) and mirrored in SQL by `applyClaimableFilter`
  * (which needs the same test to hold at the moment of the write). Keeping one
@@ -261,7 +385,8 @@ const readPyramidRow = async (database: Knex, actorId: string) => {
 const classifyPyramidForClaim = (
   pyramid: FitnessRouteHeatmapPyramid,
   requestedAt: number,
-  staleBefore: number
+  staleBefore: number,
+  resumeBuild?: { pyramidId: string; claimSeq: number }
 ): 'already-fresh' | 'build-in-progress' | 'claimable' => {
   if (
     pyramid.status === 'completed' &&
@@ -271,7 +396,13 @@ const classifyPyramidForClaim = (
     return 'already-fresh'
   }
 
-  if (pyramid.status === 'generating' && pyramid.updatedAt >= staleBefore) {
+  // A continuation carrying this very build's live token is its own next pass,
+  // not a competitor for it, so the liveness test does not apply to it.
+  if (
+    pyramid.status === 'generating' &&
+    pyramid.updatedAt >= staleBefore &&
+    !isOwnContinuation(pyramid, resumeBuild)
+  ) {
     return 'build-in-progress'
   }
 
@@ -292,7 +423,8 @@ const classifyPyramidForClaim = (
 const applyClaimableFilter = (
   query: Knex.QueryBuilder,
   requestedAt: number,
-  staleBefore: number
+  staleBefore: number,
+  resumeBuild?: { pyramidId: string; claimSeq: number }
 ) =>
   query
     .where((notFresh) =>
@@ -305,14 +437,16 @@ const applyClaimableFilter = (
       notRunning
         .whereNot('status', 'generating')
         .orWhere('updatedAt', '<', new Date(staleBefore))
+        .modify((builder) => {
+          if (!resumeBuild) return
+          builder.orWhere((ownContinuation) =>
+            ownContinuation
+              .where('id', resumeBuild.pyramidId)
+              .where('claimSeq', resumeBuild.claimSeq)
+          )
+        })
     )
 
-/**
- * A rectangular window of one zoom level. `whereBetween` means the caller owns
- * splitting a viewport that wraps the antimeridian: at `minX > maxX` this
- * matches nothing rather than wrapping around, so a Pacific-straddling map
- * would silently come back empty.
- */
 /**
  * Re-asserts the premise the claim's `resumed` and `version` decision rests on:
  * a resume needs the row to still be a `generating` build with a cursor to pick
@@ -338,19 +472,37 @@ const applyClaimableFilter = (
 const applyResumePremiseFilter = (
   query: Knex.QueryBuilder,
   resumed: boolean
-) =>
-  resumed
-    ? query
-        .where('status', 'generating')
-        .whereNotNull('cursorCreatedAt')
-        .whereNotNull('cursorId')
-    : query.where((notResumable) =>
-        notResumable
-          .whereNot('status', 'generating')
-          .orWhereNull('cursorCreatedAt')
-          .orWhereNull('cursorId')
-      )
+) => {
+  if (!resumed) {
+    // A fresh claim bumps the version and clears the cursor, which is a valid
+    // start from ANY state `applyClaimableFilter` already allowed — so there is
+    // no premise here to re-assert. Asserting "not resumable" anyway is what
+    // made the statement miss the abandoned `generating` row that still holds a
+    // cursor, which is precisely the row a fresh build has to be able to take
+    // over: the claim then failed on every attempt forever, with no way to
+    // clear the cursor because nobody could own the row.
+    return query
+  }
 
+  // A resume keeps the build's version and adds to its tiles, so it needs the
+  // row to still BE that build: still generating, still holding the cursor it
+  // will carry on from. An incumbent that wakes in the claim's window and
+  // writes its terminal state moves neither the token nor the version, so
+  // without this the winner is told it resumed, finds no cursor, and rescans
+  // from the beginning into that build's own tiles — doubling every count it
+  // revisits, with no version change for the sweep to catch.
+  return query
+    .where('status', 'generating')
+    .whereNotNull('cursorCreatedAt')
+    .whereNotNull('cursorId')
+}
+
+/**
+ * A rectangular window of one zoom level. `whereBetween` means the caller owns
+ * splitting a viewport that wraps the antimeridian: at `minX > maxX` this
+ * matches nothing rather than wrapping around, so a Pacific-straddling map
+ * would silently come back empty.
+ */
 const applyTileRange = (
   database: Knex,
   { actorId, z, minX, maxX, minY, maxY }: FitnessRouteHeatmapTileRangeParams
@@ -372,7 +524,8 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
   async claimFitnessRouteHeatmapPyramidBuild({
     actorId,
     requestedAt,
-    staleBefore
+    staleBefore,
+    resumeBuild
   }: ClaimFitnessRouteHeatmapPyramidBuildParams) {
     const currentTime = new Date()
 
@@ -433,72 +586,103 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
     }
 
     const pyramid = parseSQLFitnessRouteHeatmapPyramid(existing)
-    const verdict = classifyPyramidForClaim(pyramid, requestedAt, staleBefore)
+    const verdict = classifyPyramidForClaim(
+      pyramid,
+      requestedAt,
+      staleBefore,
+      resumeBuild
+    )
 
     if (verdict !== 'claimable') {
       return { claimed: false, resumed: false, reason: verdict, pyramid }
     }
 
-    // Only an abandoned build that got far enough to checkpoint is worth
-    // resuming; anything else starts a fresh version so its tiles replace the
-    // previous build's rather than adding to them.
+    // Only this build's own continuation may resume it, and only when it got
+    // far enough to checkpoint; anything else starts a fresh version so its
+    // tiles replace the previous build's rather than adding to them.
+    //
+    // The token is what makes the difference, not the caller's say-so. A pass
+    // that merely declares itself a resume — which every retry of a failed
+    // region row does, carrying that row's offset and no pyramid token — can
+    // offer no evidence about which activities it will re-present, so letting
+    // it keep the version lets it complete a build over the ones it never
+    // folded.
     const resumed =
-      pyramid.status === 'generating' && pyramid.cursor !== undefined
+      isOwnContinuation(pyramid, resumeBuild) &&
+      pyramid.status === 'generating' &&
+      pyramid.cursor !== undefined
     const nextVersion = resumed ? pyramid.version : pyramid.version + 1
     const nextClaimSeq = pyramid.claimSeq + 1
 
-    const claimedRows = await applyResumePremiseFilter(
-      applyClaimableFilter(
-        database('fitness_route_heatmap_pyramids').where('actorId', actorId),
-        requestedAt,
-        staleBefore
-      ),
-      resumed
-    )
-      // The compare-and-swap. Guarded on the ownership token, which BOTH
-      // branches below move — guarding on `version` would be vacuous for a
-      // resume, which leaves the version where it is, so two workers reclaiming
-      // the same abandoned build would both be told they own it.
-      //
-      // The token alone is NOT enough, which is why the same predicate the
-      // decision above used is repeated as a WHERE clause. A live owner
-      // heartbeats by writing `updatedAt`, and finishes by writing `status` and
-      // `completedAt` — none of which move `claimSeq`. So between the read and
-      // this statement the owner can invalidate every input to the decision
-      // while leaving the token exactly where this CAS expects it: a heartbeat
-      // that lands there would let this claim steal a demonstrably live build,
-      // and a completion that lands there would let it throw away the very
-      // pyramid the request was asking for.
-      .where('claimSeq', pyramid.claimSeq)
-      .update({
-        status: 'generating',
-        error: null,
-        claimSeq: nextClaimSeq,
-        updatedAt: currentTime,
-        // A fresh build restarts the tile generation and this run's progress.
-        // `totalCount`, `tileCount` and `pointCount` are deliberately left:
-        // they describe the tiles still on disk, which stay readable until this
-        // build's own numbers replace them at completion.
-        ...(resumed
-          ? {}
-          : {
-              version: nextVersion,
-              scannedCount: 0,
-              activityCount: 0,
-              cursorCreatedAt: null,
-              cursorId: null,
-              completedAt: null
-            })
-      })
+    // The compare-and-swap and the read that confirms it share one transaction.
+    // Separately, a failure after the CAS committed — a pool timeout, a reset
+    // connection, a statement timeout on the read — left the row stamped
+    // `generating` at a token nobody was holding: the caller saw only a throw,
+    // so it never learned it had a build, and every claimant for the next
+    // staleness window was refused `build-in-progress` while nothing wrote.
+    // Rolling the CAS back means a claim either happens and is reported, or
+    // does not happen at all.
+    const { claimedRows, currentPyramid } = await database.transaction(
+      async (trx) => {
+        const rows = await applyResumePremiseFilter(
+          applyClaimableFilter(
+            trx('fitness_route_heatmap_pyramids').where('actorId', actorId),
+            requestedAt,
+            staleBefore,
+            resumeBuild
+          ),
+          resumed
+        )
+          // The compare-and-swap. Guarded on the ownership token, which BOTH
+          // branches below move — guarding on `version` would be vacuous for a
+          // resume, which leaves the version where it is, so two workers reclaiming
+          // the same abandoned build would both be told they own it.
+          //
+          // The token alone is NOT enough, which is why the same predicate the
+          // decision above used is repeated as a WHERE clause. A live owner
+          // heartbeats by writing `updatedAt`, and finishes by writing `status` and
+          // `completedAt` — none of which move `claimSeq`. So between the read and
+          // this statement the owner can invalidate every input to the decision
+          // while leaving the token exactly where this CAS expects it: a heartbeat
+          // that lands there would let this claim steal a demonstrably live build,
+          // and a completion that lands there would let it throw away the very
+          // pyramid the request was asking for.
+          .where('id', pyramid.id)
+          .where('claimSeq', pyramid.claimSeq)
+          .update({
+            status: 'generating',
+            error: null,
+            claimSeq: nextClaimSeq,
+            updatedAt: currentTime,
+            // A fresh build restarts the tile generation and this run's progress.
+            // `totalCount`, `tileCount` and `pointCount` are deliberately left:
+            // they describe the tiles still on disk, which stay readable until this
+            // build's own numbers replace them at completion.
+            ...(resumed
+              ? {}
+              : {
+                  version: nextVersion,
+                  scannedCount: 0,
+                  activityCount: 0,
+                  cursorCreatedAt: null,
+                  cursorId: null,
+                  completedAt: null
+                })
+          })
 
-    // Re-read either way. On success it picks up a checkpoint the previous
-    // owner committed between this claim's read and its CAS, which a resume
-    // needs; on failure it is what says WHY, since the row now holds whatever
-    // the winner wrote.
-    const current = await readPyramidRow(database, actorId)
-    const currentPyramid = current
-      ? parseSQLFitnessRouteHeatmapPyramid(current)
-      : null
+        // Re-read either way. On success it picks up a checkpoint the previous
+        // owner committed between this claim's read and its CAS, which a resume
+        // needs; on failure it is what says WHY, since the row now holds
+        // whatever the winner wrote.
+        const current = await readPyramidRow(trx, actorId)
+        return {
+          claimedRows: rows,
+          currentPyramid: current
+            ? parseSQLFitnessRouteHeatmapPyramid(current)
+            : null
+        }
+      }
+    )
 
     if (claimedRows === 0) {
       // Re-classify rather than always reporting `lost-race`: losing to a build
@@ -507,7 +691,12 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
       // reads as claimable means the state was fine and only the token moved —
       // which is what `lost-race` has always meant.
       const verdictNow = currentPyramid
-        ? classifyPyramidForClaim(currentPyramid, requestedAt, staleBefore)
+        ? classifyPyramidForClaim(
+            currentPyramid,
+            requestedAt,
+            staleBefore,
+            resumeBuild
+          )
         : 'claimable'
 
       return {
@@ -519,22 +708,42 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
       }
     }
 
+    // A successful CAS holds the row's write lock for the rest of the
+    // transaction, so the read above is this pass's own write and the row it
+    // names cannot have been deleted or replaced underneath it. `currentPyramid`
+    // is therefore never null here; the check is what makes that fact explicit
+    // rather than an unchecked spread.
+    if (!currentPyramid) {
+      return {
+        claimed: false,
+        resumed: false,
+        reason: 'lost-race' as const,
+        pyramid
+      }
+    }
+
     return {
       claimed: true,
       resumed,
       reason: 'claimed' as const,
-      // The token reported is the one this CAS wrote, NOT whatever the re-read
-      // found. Another worker can claim in the gap before that read, and
-      // adopting its token would hand this pass a `claimSeq` the fence accepts
-      // — both passes writing freely, the fence failing open, which is worse
-      // than not having one. Reporting our own token instead means a
-      // superseded pass is rejected by the first write it attempts.
-      pyramid: { ...(currentPyramid ?? pyramid), claimSeq: nextClaimSeq }
+      // The token and version reported are the ones THIS compare-and-swap
+      // wrote. They agree with the read above only because that read shares the
+      // CAS's transaction: taken from a read outside it, a rival claim landing
+      // in between would hand this pass the rival's live token, and the fence
+      // every later write is checked against would accept both passes — worse
+      // than having no fence at all. The read is still what supplies the cursor
+      // and the counters, which a resume needs.
+      pyramid: {
+        ...currentPyramid,
+        version: nextVersion,
+        claimSeq: nextClaimSeq
+      }
     }
   },
 
   async updateFitnessRouteHeatmapPyramid({
     actorId,
+    pyramidId,
     claimSeq,
     status,
     error,
@@ -567,6 +776,7 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
 
     const updated = await database('fitness_route_heatmap_pyramids')
       .where('actorId', actorId)
+      .where('id', pyramidId)
       .where('claimSeq', claimSeq)
       .update(updateData)
 
@@ -612,12 +822,12 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
 
   async upsertFitnessRouteHeatmapTiles({
     actorId,
+    pyramidId,
     claimSeq,
     version,
-    tiles
+    tiles,
+    progress
   }: UpsertFitnessRouteHeatmapTilesParams) {
-    if (tiles.length === 0) return true
-
     const currentTime = new Date()
     const rows = tiles.map((tile) => ({
       actorId,
@@ -639,10 +849,31 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
       // instead of landing between the ownership check and the tile writes.
       const stillOwned = await trx('fitness_route_heatmap_pyramids')
         .where('actorId', actorId)
+        .where('id', pyramidId)
         .where('claimSeq', claimSeq)
-        .update({ updatedAt: currentTime })
+        .update({
+          updatedAt: currentTime,
+          ...(progress
+            ? {
+                scannedCount: progress.scannedCount,
+                ...(progress.activityCount !== undefined
+                  ? { activityCount: progress.activityCount }
+                  : {}),
+                ...(progress.totalCount !== undefined
+                  ? { totalCount: progress.totalCount }
+                  : {}),
+                ...(progress.cursor
+                  ? {
+                      cursorCreatedAt: new Date(progress.cursor.createdAt),
+                      cursorId: progress.cursor.id
+                    }
+                  : {})
+              }
+            : {})
+        })
 
       if (stillOwned === 0) return false
+      if (rows.length === 0) return true
 
       for (const chunk of chunkArray(rows, getInsertBatchSize(trx, rows[0]))) {
         await trx('fitness_route_heatmap_tiles')
@@ -665,17 +896,57 @@ export const FitnessRouteHeatmapTileSQLDatabaseMixin = (
     return Number(row?.total ?? 0)
   },
 
+  async getFitnessRouteHeatmapTileTotals({
+    actorId,
+    version
+  }: {
+    actorId: string
+    version: number
+  }) {
+    const [row] = await database('fitness_route_heatmap_tiles')
+      .where('actorId', actorId)
+      .where('version', version)
+      .count<{ tiles: string | number | null }[]>({ tiles: '*' })
+      .sum<{ tiles: string | number | null; points: string | number | null }[]>(
+        { points: 'pointCount' }
+      )
+
+    return {
+      tileCount: Number(row?.tiles ?? 0),
+      pointCount: Number(row?.points ?? 0)
+    }
+  },
+
   async deleteStaleFitnessRouteHeatmapTiles({
     actorId,
+    pyramidId,
+    claimSeq,
     beforeVersion
   }: {
     actorId: string
+    pyramidId: string
+    claimSeq: number
     beforeVersion: number
   }) {
-    return database('fitness_route_heatmap_tiles')
-      .where('actorId', actorId)
-      .where('version', '<', beforeVersion)
-      .delete()
+    return database.transaction<number>(async (trx) => {
+      // The guarded UPDATE first, exactly as the tile upsert does it: it is
+      // both the ownership check and the row lock that serialises this sweep
+      // against a concurrent claim or clear, instead of leaving a window
+      // between checking and deleting.
+      const stillOwned = await trx('fitness_route_heatmap_pyramids')
+        .where('actorId', actorId)
+        .where('id', pyramidId)
+        .where('claimSeq', claimSeq)
+        .update({ updatedAt: new Date() })
+
+      if (stillOwned === 0) return 0
+
+      const deletedTiles: number = await trx('fitness_route_heatmap_tiles')
+        .where('actorId', actorId)
+        .where('version', '<', beforeVersion)
+        .delete()
+      return deletedTiles
+    })
   },
 
   async deleteFitnessRouteHeatmapPyramidAndTilesForActor({

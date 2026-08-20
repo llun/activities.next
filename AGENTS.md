@@ -412,6 +412,129 @@ it; there is no legacy shape left to copy.
   both establish the container and read it. Guarded by
   `lib/components/fitness/FitnessStatGrid.test.tsx`.
 
+## Fitness Route Heatmap Pyramid
+
+- **Tile visit counts ACCUMULATE, so an activity must be folded into a build
+  exactly once.** Folding one twice inflates its heat permanently, and unlike a
+  missing tile nothing downstream can detect it — the number is wrong, not
+  absent, and if the build's `version` never moved then completion's stale sweep
+  can never clear it either. Every rule below exists for that one hazard.
+- **The fold gate is POSITIONAL, never a counter.** A build folds an activity
+  only when its own `(createdAt, id)` cursor says it has not already, with the
+  scan running descending. Counting scanned files cannot tell honest progress
+  from a page already seen — a redelivered page after a crash, an offset shifted
+  because an activity was uploaded between two passes, a lost progress write all
+  look identical to a counter. It guards the double-fold direction only: the
+  scan is still the legacy integer paging, so an activity DELETED from the part
+  already scanned shifts every later row up an offset and the file between is
+  never presented to the gate at all. That hole is inherited (the legacy blob
+  skips the same activity in the same run) and heals on the next full generate;
+  closing it means resuming on the build's own keyset cursor.
+- **The cursor advances for every file the pass finished with, GPS or not, and
+  it advances WITH the fold.** With, rather than after, because a flush can fire
+  part-way through an activity and writes its tiles and cursor in one statement.
+  For every file, including one whose download or parse threw, because a build
+  with no cursor cannot be resumed — so a pass whose files all threw would hand
+  its own continuation a token the claim then refuses, releasing the build, and
+  every later pass in the chain carries a non-zero offset and can start nothing
+  either. That is why the advance lives in a `finally`, not at the end of the
+  `try`.
+- **Resuming a build requires presenting its token, not declaring an intent.**
+  Keeping a build's `version` means adding to its tiles, which is safe only for
+  a pass carrying on from where that build left off. `resume: true` on a job is
+  NOT that: the heatmap API sets it for any retry of a failed or partial region
+  row, carrying that row's offset and no pyramid token.
+- **A pass that provably cannot own a build must not CLAIM one.** Only a pass
+  scanning from the beginning or carrying the build's token can cover what a
+  build promises, and both are knowable from the job data before the claim —
+  which matters because the claim is destructive: its compare-and-swap bumps
+  `version`, stamps `generating`, and clears the counters, the cursor and
+  `completedAt`. Deciding afterwards is too late; a routine region-row retry
+  took a healthy completed pyramid to a failed, empty one over tiles it no
+  longer described, and rebuilt nothing. A claimer at offset zero with no token
+  still gets a fresh version — a full rebuild that sweeps the old build away,
+  which is merely wasteful where the alternative is silently wrong.
+- **Every fence names the pyramid ROW as well as `claimSeq`.** The sequence
+  counts from zero per row and clearing an actor's heatmaps deletes the row, so
+  token 1 before a clear and token 1 after it are different builds — the
+  likeliest collision there is. This applies to the claim, the tile flush, the
+  progress/status write and the completion sweep alike — the sweep especially,
+  since it is the write that DELETES: unfenced, a build sweeping at version 2
+  whose call landed after a clear deleted the replacement build's version-1
+  tiles, and that build then stamped itself `completed` over tiles that were
+  gone.
+- **Tile work never fails the run.** Nothing reads the pyramid yet, so losing a
+  build costs a rebuild while failing the run costs the user the heatmap they
+  can actually see. Every tile-path error — the tiler, a flush, the
+  completion — abandons the build, records why on the pyramid row, and lets the
+  legacy path finish. Two writes have nothing to record on and are only logged:
+  the CLAIM, because its compare-and-swap and the read confirming it share one
+  transaction, so it either happens and is reported or does not happen; and the
+  completion SWEEP, which runs after the build is already `completed`, so its
+  failure leaves stale tiles for the next build's sweep and nothing else. The
+  claim's exception is a transaction that commits and loses its
+  acknowledgement, where the row is claimed and the caller never learns it: that
+  build waits out the staleness window like any other whose worker died. The
+  same shape applies to the completion write, whose caller treats a lost
+  response as a failure and releases a build that is in fact finished; both are
+  what an at-least-once queue and a non-idempotent write cost, not something a
+  guard here removes.
+- **A build this pass was CARRYING rather than holding is released from one
+  place, the handler's `finally`.** Four separate guards drop a continuation,
+  and a per-guard release was missed on one of them twice; no per-guard release
+  covers a throw between reading the token and making the claim either. The
+  release is unconditional because it is fenced on the carried token and every
+  claim moves the token: once this pass adopted the build, or anyone else took
+  it over, it matches nothing. (A build the pass went on to CLAIM is a different
+  thing, and is released at each of the exits that can abandon one.) A dropped
+  continuation is the case that matters most — it holds the only copy of its
+  build's token, so walking away strands the build AND refuses the Generate that
+  displaced it, for the whole staleness window.
+- **A build only completes over a history it actually scanned, counted again at
+  the moment of the decision.** It catches an activity ADDED during the build,
+  where the recount rises above what the scan reached — but only while that rise
+  survives to the decision: the recount runs AFTER the scan, so a deletion
+  landing between the final page read and it cancels the shortfall exactly, and
+  the build completes having re-presented a file. That window is why the fold's
+  `foldedThisFile` guard is not redundant with this check. It does NOT catch an
+  activity DELETED from the already-scanned part either: that shift skips a file
+  AND lowers the recount by the same one, so the pass looks exactly as covered
+  as it would have been, and the build completes missing an activity until the
+  next full generate. `completedAt` is what makes the next claim
+  answer `already-fresh`, so certifying a scan that fell short does not merely
+  lose tiles — it refuses the regenerate that would have picked them up, turning
+  a transient hole permanent. An activity uploaded while the build runs sorts
+  first and lands before the offset a continuation resumes at, so it is never
+  presented to the fold gate at all; the pass hands the build back rather than
+  stamping it. The count comes from a fresh `countFitnessFilesByActor`, because
+  the snapshot taken before the scan is blind to exactly the upload in question.
+- **A build that could not READ every file it walked past still completes, and
+  says so on the row.** The cursor advances for a file whose download or parse
+  threw — it must, or the build is unresumable — so "reached the end" and "read
+  what it reached" are different facts, and the second one is a degradation the
+  row records in `error` rather than a reason to withhold the build. That count
+  is carried across continuations with the build's token, because the pass that
+  finishes a long history is rarely the one that hit the outage and a per-pass
+  count reads `error: null` over a build that lost activities. Refusing to
+  complete would wedge any actor with one permanently unreadable object, which
+  the legacy blob simply skips.
+  Withholding the SWEEP does not protect the missing geometry, which was tried
+  first and reverted: tiles are one row per `(actorId, tileKey)` and
+  `mergeTileDelta` REPLACES a tile whose stored version is older, so a readable
+  activity destroys an unreadable one's contribution to every tile they share —
+  measured, a partial outage kept 66 of 224 tiles and still lost 37% of the
+  points, while a permanently unreadable file blocked the sweep forever so
+  deleted activities never left the pyramid.
+- **Completing a build and sweeping the previous one's tiles are separate
+  steps.** The sweep runs after the guarded completion write has already stamped
+  the row, and the release that a completion failure triggers is fenced on a
+  token completion does not move — so a sweep inside the same `try` rewrote a
+  finished, correct pyramid to `failed` over the very tiles it had just
+  certified. A failed sweep costs some tiles at an older version, which the next
+  build's own sweep removes.
+- Full design and rationale: `docs/fitness-file-storage.md` → Route heatmap tile
+  pyramid.
+
 ## Fitness Gear
 
 - **A gear total is derived, never stored.** `fitness_gears` and
@@ -1020,6 +1143,17 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   `SELECT pg_catalog.set_config('search_path', '', false)` is session-scoped and
   would otherwise leave that pooled connection unable to resolve any unqualified
   table name for the rest of its life.
+- **`getTestSQLDatabase` and `getTestSQLDatabaseWithInstance` are SQLite-ONLY
+  and ignore `TEST_DATABASE_TYPE` entirely.** A suite built on either reports a
+  clean pass under the pg environment variables having never opened a PostgreSQL
+  connection — which is a trap, not a nuisance: three review rounds of one PR
+  reported its job suite "verified on PostgreSQL 17" on exactly that basis.
+  `getTestDatabaseTable()` (for a `describe.each` over backends) and
+  `getTestDatabaseWithInstance()` (for a suite that is not shaped that way, or
+  that needs the raw Knex instance) do honour it. When a claim about
+  cross-backend behaviour matters, verify it by pointing `TEST_DATABASE_HOST` at
+  an unreachable address first: a suite that still passes is not running where
+  you think it is.
 - **To grab a mocked module and configure it, use `vi.importMock<T>('@/path')`,
   not `(await import('@/path')) as unknown as T`.** `vi.importMock` is the
   Vitest equivalent of the old `jest.requireMock`: it is purpose-built, always

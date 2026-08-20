@@ -455,6 +455,35 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
 - **Internal API CORS:** Next.js API routes exclusively consumed by the internal web client (e.g., via `lib/client.ts`) do not require `OPTIONS` handlers or CORS preflight configurations, even if they use `apiResponse` with `allowedMethods`.
 - **Conditional Object Spreading:** Spreading `null` in object literals (e.g., `...(cond ? { ... } : null)`) is a deliberate, consistent no-op pattern used to cleanly omit keys and should not be flagged as confusing or replaced with `{}`.
 
+## Fitness route heatmap pyramid
+
+- An activity is folded into a build **exactly once** — the gate is positional
+  (`(createdAt, id)` against the build's own cursor), never a counter, and the
+  cursor advances for every file the pass finished with, including one whose
+  parse threw.
+- Resuming requires the build's **own token** (row id + `claimSeq`), not a
+  `resume: true` flag; a pass that can present neither a token nor an offset of
+  zero must not claim at all, because the claim itself is destructive.
+- Every fence — claim, tile flush, progress/status write, completion sweep —
+  names the pyramid **row** as well as `claimSeq`.
+- Any tile-path failure abandons the build rather than failing the legacy
+  heatmap. A build the pass was CARRYING is released from one place — the
+  handler's `finally` — rather than at each of the four exits that drop a
+  continuation; a build it went on to CLAIM is released at each exit that can
+  abandon one.
+- A build only stamps `completed` over a history it actually scanned, recounted
+  at the decision: `completedAt` is what makes the next claim answer
+  `already-fresh`, so certifying short refuses the rebuild that would heal it.
+  The recount runs after the scan, so it catches an addition only while nothing
+  cancels the shortfall — which is why the fold keeps its own already-folded
+  guard — and it cannot catch a deletion from the scanned part at all.
+- Completion and the stale-tile sweep are separate steps: a failing sweep must
+  not demote a build that already wrote `completed`.
+- A build that could not read every file still completes, and records the loss
+  on the row — withholding the sweep does not preserve the missing geometry,
+  because a merge replaces any tile a readable activity also touched.
+- See AGENTS.md → Fitness Route Heatmap Pyramid.
+
 ## Commits & versioning
 
 - Every commit subject starts with a conventional prefix (`fix:`, `feat:`,
