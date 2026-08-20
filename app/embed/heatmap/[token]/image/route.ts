@@ -7,7 +7,10 @@ import {
   APPLE_SNAPSHOT_MIN_DIMENSION,
   fetchAppleSnapshot
 } from '@/lib/services/fitness-files/appleMapsSnapshot'
-import { toPublicHeatmap } from '@/lib/services/fitness-files/publicHeatmap'
+import {
+  resolveSharedHeatmapRegionBounds,
+  toPublicHeatmap
+} from '@/lib/services/fitness-files/publicHeatmap'
 import {
   buildHeatmapSvg,
   buildMapboxStaticUrl
@@ -103,6 +106,9 @@ export const GET = traceApiRoute(
     // keeping its token; 404 during that window rather than publish a partial
     // or empty embed the owner did not intend.
     if (!heatmap || heatmap.status !== 'completed') return apiErrorResponse(404)
+    // See resolveSharedHeatmapRegionBounds: an unresolvable region means the
+    // stored geometry was never clipped, so rendering it publishes the world.
+    if (!resolveSharedHeatmapRegionBounds(heatmap)) return apiErrorResponse(404)
 
     const publicHeatmap = toPublicHeatmap(heatmap)
     const url = new URL(req.url)

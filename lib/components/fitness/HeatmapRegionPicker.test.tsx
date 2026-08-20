@@ -377,6 +377,123 @@ describe('HeatmapRegionPicker', () => {
     })
   })
 
+  it('tells a user who dragged a box too small the actual reason', () => {
+    // What a sub-0.01 degree drag ROUNDS TO: `boxFromPoints` snaps both corners
+    // to the serialization step, so the box arrives collapsed — oriented, with
+    // no extent. This is the only shape the app can actually produce, and
+    // before this it was told its corners were the wrong way round.
+    render(
+      <HeatmapRegionPicker
+        value={[
+          {
+            id: 'rect-1',
+            type: 'rect',
+            name: 'Neighbourhood',
+            nw: { lat: 52.37, lng: 4.89 },
+            se: { lat: 52.37, lng: 4.89 }
+          }
+        ]}
+        onChange={vi.fn()}
+        mapProvider={{ type: 'osm' }}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Edit area/i }))
+
+    expect(screen.getByRole('button', { name: /Save area/i })).toBeDisabled()
+    expect(
+      screen.getByText(/each side must span at least 0.01/i)
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(/north-west of bottom-right/i)
+    ).not.toBeInTheDocument()
+  })
+
+  it('refuses to save an area too small to have a canonical key of its own', () => {
+    // A rectangle thinner than the 0.01 degree serialization step rounds onto a
+    // single coordinate, so `serializeRegion` resolves it to the WORLD
+    // sentinel. Saved, it would take the world's key — generating, displaying
+    // and (through Share) publishing the actor's entire history under a label
+    // saying it is a small area. The composer must refuse it, and say why.
+    const onChange = vi.fn()
+    const onRegionSaved = vi.fn()
+    render(
+      <HeatmapRegionPicker
+        value={[
+          {
+            id: 'rect-1',
+            type: 'rect',
+            name: 'Neighbourhood',
+            // Higher precision than the composer itself can produce — the
+            // shape the API's `region` parameter accepts by design, and the one
+            // this gate exists for.
+            nw: { lat: 52.3749, lng: 4.9 },
+            se: { lat: 52.3651, lng: 4.92 }
+          }
+        ]}
+        onChange={onChange}
+        mapProvider={{ type: 'osm' }}
+        onRegionSaved={onRegionSaved}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Edit area/i }))
+
+    expect(screen.getByRole('button', { name: /Save area/i })).toBeDisabled()
+    expect(
+      screen.getByText(/each side must span at least 0.01/i)
+    ).toBeInTheDocument()
+    expect(onChange).not.toHaveBeenCalled()
+    expect(onRegionSaved).not.toHaveBeenCalled()
+  })
+
+  it('tells a user who drew past the antimeridian that the box is off the globe', () => {
+    // A map panned onto the next copy of the world reports unwrapped
+    // longitudes — a drag at 2°E arrives as 362 — so the box is well drawn at
+    // an impossible coordinate. Reporting that as a direction mistake tells the
+    // user to reverse corners they did not reverse.
+    render(
+      <HeatmapRegionPicker
+        value={[
+          {
+            id: 'rect-1',
+            type: 'rect',
+            nw: { lat: 52.5, lng: 362 },
+            se: { lat: 52, lng: 363 }
+          }
+        ]}
+        onChange={vi.fn()}
+        mapProvider={{ type: 'osm' }}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Edit area/i }))
+
+    expect(screen.getByRole('button', { name: /Save area/i })).toBeDisabled()
+    expect(screen.getByText(/within ±90° latitude/i)).toBeInTheDocument()
+    expect(
+      screen.queryByText(/north-west of bottom-right/i)
+    ).not.toBeInTheDocument()
+  })
+
+  it('keeps the north-west message for a box that is merely inverted', () => {
+    render(
+      <HeatmapRegionPicker
+        value={[
+          {
+            id: 'rect-1',
+            type: 'rect',
+            nw: { lat: 51, lng: 6 },
+            se: { lat: 52, lng: 5 }
+          }
+        ]}
+        onChange={vi.fn()}
+        mapProvider={{ type: 'osm' }}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Edit area/i }))
+
+    expect(screen.getByRole('button', { name: /Save area/i })).toBeDisabled()
+    expect(screen.getByText(/north-west of bottom-right/i)).toBeInTheDocument()
+  })
+
   it('labels the remove control per region kind (area vs region)', () => {
     render(
       <HeatmapRegionPicker

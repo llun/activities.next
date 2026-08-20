@@ -1,6 +1,7 @@
 import {
   databaseBeforeAll,
-  getTestDatabaseTable
+  getTestDatabaseTable,
+  getTestDatabaseWithInstance
 } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
@@ -650,6 +651,96 @@ describe('FitnessRouteHeatmapDatabase', () => {
         ).resolves.toBeNull()
       })
 
+      it('resolves a token to the share scope without reading its geometry', async () => {
+        // What the tile routes read. They answer from the pyramid and need only
+        // the share's identity and scope, so a full-row read would drag the
+        // entire untiled heatmap off disk once per tile batch — and a column
+        // missing from the summary select is invisible to a mocked route test.
+        const created = await database.createFitnessRouteHeatmap({
+          actorId: actors.primary.id,
+          activityType: 'running',
+          periodType: 'yearly',
+          periodKey: '2029',
+          region: 'rect:63.00,5.00,62.00,6.00'
+        })
+        await database.updateFitnessRouteHeatmapStatus({
+          id: created.id,
+          status: 'completed',
+          bounds: { minLat: 62, maxLat: 63, minLng: 5, maxLng: 6 },
+          segments: [
+            {
+              points: [
+                { lat: 62.1, lng: 5.2 },
+                { lat: 62.2, lng: 5.3 }
+              ]
+            }
+          ],
+          activityCount: 1,
+          pointCount: 2,
+          isPartial: false
+        })
+
+        const token = 'share-token-summary-abc'
+        await expect(
+          database.setFitnessRouteHeatmapShareToken({
+            actorId: actors.primary.id,
+            id: created.id,
+            shareToken: token
+          })
+        ).resolves.toBe(true)
+
+        const summary =
+          await database.getFitnessRouteHeatmapSummaryByShareToken({
+            shareToken: token
+          })
+
+        // Every field the tile routes decide on, named individually: the gate
+        // that refuses a scoped share reads activityType and periodType, the
+        // clipping boundary reads region, and both are useless if the select
+        // silently drops one.
+        expect(summary).toMatchObject({
+          id: created.id,
+          actorId: actors.primary.id,
+          activityType: 'running',
+          periodType: 'yearly',
+          periodKey: '2029',
+          region: 'rect:63.00,5.00,62.00,6.00',
+          status: 'completed',
+          shareToken: token
+        })
+        // `parseSQLFitnessRouteHeatmapSummary` builds from an explicit field
+        // list, so asserting the parsed object has no `segments` would hold for
+        // ANY query shape — including `select('*')`. The half of this that the
+        // tile routes actually depend on is the SQL, and it is pinned in its
+        // own test below.
+        expect('bounds' in (summary ?? {})).toBe(false)
+        expect('segments' in (summary ?? {})).toBe(false)
+
+        await expect(
+          database.getFitnessRouteHeatmapSummaryByShareToken({
+            shareToken: 'no-such-token'
+          })
+        ).resolves.toBeNull()
+        await expect(
+          database.getFitnessRouteHeatmapSummaryByShareToken({ shareToken: '' })
+        ).resolves.toBeNull()
+
+        // A soft-deleted heatmap's token stops resolving. This route is
+        // unauthenticated, so the guard is what actually revokes a share when
+        // the owner deletes the heatmap rather than un-sharing it.
+        await expect(
+          database.deleteFitnessRouteHeatmap({
+            actorId: actors.primary.id,
+            id: created.id
+          })
+        ).resolves.toBe(true)
+        await expect(
+          database.getFitnessRouteHeatmapSummaryByShareToken({
+            shareToken: token
+          })
+        ).resolves.toBeNull()
+      })
+
       it('does not overwrite an existing share token (concurrent-share guard)', async () => {
         const created = await database.createFitnessRouteHeatmap({
           actorId: actors.primary.id,
@@ -987,6 +1078,44 @@ describe('FitnessRouteHeatmapDatabase', () => {
         expect(row?.status).toBe('cancelled')
         expect(row?.cursorOffset).toBe(0)
       })
+    })
+  })
+
+  describe('share-token summary read SQL', () => {
+    it('does not select the geometry columns', async () => {
+      // The assertion the routes actually depend on. Checking the PARSED object
+      // for a `segments` key proves nothing — the summary parser builds from an
+      // explicit field list, so it would hold for `select('*')` too, and the
+      // whole point of this read is that the query leaves the untiled heatmap
+      // on disk rather than dragging it through JSON.parse once per tile batch.
+      const { database, instance, prepare } = getTestDatabaseWithInstance(true)
+      await prepare()
+      await database.migrate()
+
+      const statements: string[] = []
+      const record = ({ sql }: { sql: string }) => {
+        statements.push(sql)
+      }
+      instance.on('query', record)
+      try {
+        await database.getFitnessRouteHeatmapSummaryByShareToken({
+          shareToken: 'no-such-token'
+        })
+      } finally {
+        instance.removeListener('query', record)
+      }
+
+      expect(statements).toHaveLength(1)
+      // Identifier quoting differs per backend (backticks on SQLite, double
+      // quotes on PostgreSQL), so compare the bare names.
+      const sql = statements[0].replaceAll('`', '').replaceAll('"', '')
+      expect(sql).toContain('region')
+      expect(sql).toContain('activityType')
+      expect(sql).not.toContain('segments')
+      expect(sql).not.toContain('bounds')
+      expect(sql).not.toContain('*')
+
+      await database.destroy()
     })
   })
 })

@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
-import { deserializeRegions, serializeRegions } from '@/lib/fitness/regions'
+import { normalizeRegionParam } from '@/lib/fitness/regions'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { hasSameOriginProof } from '@/lib/services/guards/sameOriginProof'
 import { AppRouterParams } from '@/lib/services/guards/types'
@@ -44,12 +44,9 @@ const FitnessRouteHeatmapShareBody = z.object({
   period_type: z.enum(['all_time', 'yearly', 'monthly']),
   period_key: z.string(),
   // See the sibling fitness-route-heatmap route: a looser raw cap that
-  // normalizeRegion rounds + caps under the 255-char cache-key column.
+  // normalizeRegionParam rounds + caps under the 255-char cache-key column.
   region: z.string().max(1024).optional()
 })
-
-const normalizeRegion = (rawRegion?: string) =>
-  rawRegion ? serializeRegions(deserializeRegions(rawRegion)) : ''
 
 // 16 random bytes → 22-char URL-safe token. Unguessable so the capability is the
 // token itself, and revocable by clearing it.
@@ -153,7 +150,7 @@ export const POST = traceApiRoute(
       activityType: activityType ?? null,
       periodType,
       periodKey,
-      region: normalizeRegion(rawRegion)
+      region: normalizeRegionParam(rawRegion)
     })
 
     if (!existing) {
@@ -309,7 +306,7 @@ export const DELETE = traceApiRoute(
       activityType: activityType ?? null,
       periodType,
       periodKey,
-      region: normalizeRegion(rawRegion)
+      region: normalizeRegionParam(rawRegion)
     })
 
     if (existing) {

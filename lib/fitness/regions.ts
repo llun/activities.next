@@ -69,13 +69,37 @@ const isValidLng = (value: number): boolean =>
  * `nw.lng < se.lng` cannot express a wrapping range, matching the consumer's
  * plain `minLng..maxLng` containment test.
  */
-export const isValidRect = (rect: RectRegion): boolean =>
+/**
+ * Whether both corners are real coordinates.
+ *
+ * Separate from orientation because a map can hand back a box that is neither:
+ * panning past the antimeridian gives unwrapped longitudes (a drag at 2°E on
+ * the next copy of the world arrives as 362), which is a perfectly well-drawn
+ * box at an impossible coordinate. A surface reporting that as a direction
+ * mistake tells the user to reverse corners they did not reverse.
+ */
+export const isRectInRange = (rect: RectRegion): boolean =>
   isValidLat(rect.nw.lat) &&
   isValidLat(rect.se.lat) &&
   isValidLng(rect.nw.lng) &&
-  isValidLng(rect.se.lng) &&
-  rect.nw.lat > rect.se.lat &&
-  rect.nw.lng < rect.se.lng
+  isValidLng(rect.se.lng)
+
+export const isValidRect = (rect: RectRegion): boolean =>
+  isRectInRange(rect) && rect.nw.lat > rect.se.lat && rect.nw.lng < rect.se.lng
+
+/**
+ * The same, but allowing a box with no extent — corners the right way round,
+ * even if they meet.
+ *
+ * `isValidRect` folds three different mistakes into one answer: a corner off
+ * the globe, dragging from bottom-right to top-left, and dragging a box too
+ * small to survive rounding. A surface that has to TELL A USER what went wrong
+ * asks the narrower questions instead, because each needs its own sentence.
+ */
+export const isOrientedRect = (rect: RectRegion): boolean =>
+  isRectInRange(rect) &&
+  rect.nw.lat >= rect.se.lat &&
+  rect.nw.lng <= rect.se.lng
 
 const rectToken = (rect: RectRegion): string =>
   `rect:${formatCoord(rect.nw.lat)},${formatCoord(rect.nw.lng)},${formatCoord(
@@ -83,9 +107,67 @@ const rectToken = (rect: RectRegion): string =>
   )},${formatCoord(rect.se.lng)}`
 
 /**
+ * The rectangle as it will be READ BACK after serialization, which is not
+ * always the one handed in: `formatCoord` rounds to `COORD_PRECISION`, so a box
+ * thinner than 0.01° in either axis collapses onto a single coordinate.
+ *
+ * Serialization validates THIS rather than the input for that reason. A
+ * collapsed box passes `isValidRect` before rounding and fails it after, so it
+ * used to be written out as a `rect:` token that `deserializeRegions` then
+ * dropped — leaving a region string that reads as a small rectangle and
+ * resolves to no bounds, which every consumer takes as WORLD scope. The
+ * generation job then built the actor's entire unclipped history under it, and
+ * the share page titled that "Map area" (or the owner's saved label): a
+ * collapsed token is not the world sentinel, so the page did not call it the
+ * world, and it deserializes to no rectangles, so there was no bounding-box
+ * caption to contradict that either. Nothing a viewer could see said world.
+ * Dropping it here instead makes the scope honestly empty, so the same input
+ * serializes to the world sentinel and is labelled "Whole world" wherever it is
+ * shown.
+ */
+const roundTripRect = (rect: RectRegion): RectRegion => ({
+  type: 'rect',
+  nw: {
+    lat: Number(formatCoord(rect.nw.lat)),
+    lng: Number(formatCoord(rect.nw.lng))
+  },
+  se: {
+    lat: Number(formatCoord(rect.se.lat)),
+    lng: Number(formatCoord(rect.se.lng))
+  }
+})
+
+/**
+ * Whether a rectangle survives serialization AS a rectangle — that is, whether
+ * `serializeRegions` will emit a token for it rather than resolving it to the
+ * world sentinel.
+ *
+ * **Anything that PRODUCES a rectangle must gate on this, not on
+ * `isValidRect`.** The two answer different questions: `isValidRect` asks
+ * whether the box as drawn is well formed, and a box thinner than the
+ * serialization step is perfectly well formed while having no canonical key of
+ * its own. Saved anyway, it takes the world's key — so every action addressed
+ * by that key, including Share, operates on the actor's whole-world heatmap
+ * while the row is labelled as a small rectangle.
+ *
+ * It is also the rule `serializeRegions` itself applies, so a producer and the
+ * serializer cannot drift: they are the same function.
+ */
+export const isSerializableRect = (rect: RectRegion): boolean =>
+  // Both before and after rounding. After, for the reason `roundTripRect`
+  // gives. Before as well, so the rule can only ever drop a rectangle and never
+  // admit one: rounding pulls an out-of-range coordinate back into range (a
+  // latitude of 90.004 becomes 90.00), and checking only the rounded box would
+  // turn scopes that serialize to the world sentinel today into rect-scoped
+  // ones — moving their cache key, and orphaning the heatmap stored under it.
+  isValidRect(rect) && isValidRect(roundTripRect(rect))
+
+/**
  * Serializes a region list into the canonical cache-key string. The whole world
  * (or an empty/all-invalid list) serializes to '' — the world-wide sentinel —
- * because a world region subsumes any drawn rectangles. Rectangle-only lists
+ * because a world region subsumes any drawn rectangles. A rectangle too thin to
+ * survive rounding counts as invalid and so lands there too, deliberately: see
+ * `roundTripRect`. Rectangle-only lists
  * serialize to a sorted, deduplicated, semicolon-joined list of `rect:` tokens,
  * capped at `MAX_HEATMAP_REGIONS` so the output always fits the varchar(255)
  * cache-key column regardless of the (possibly shorter) input token widths.
@@ -95,7 +177,7 @@ export const serializeRegions = (regions: HeatmapRegion[]): string => {
   const tokens = regions
     .filter(
       (region): region is RectRegion =>
-        region.type === 'rect' && isValidRect(region)
+        region.type === 'rect' && isSerializableRect(region)
     )
     .map(rectToken)
   return Array.from(new Set(tokens))
@@ -182,6 +264,20 @@ export const getRegionBounds = (regions: HeatmapRegion[]): RegionBounds[] => {
       maxLng: region.se.lng
     }))
 }
+
+/**
+ * Canonicalizes a raw `region` request parameter into the exact string the
+ * heatmap cache is keyed by: rounded, sorted, and capped to
+ * `MAX_HEATMAP_REGIONS`. An absent or empty parameter is world scope, whose
+ * canonical form is the empty string.
+ *
+ * Every surface that accepts a region from a client normalizes with this, so
+ * two spellings of one scope cannot address two different cache rows — and, on
+ * the tiled path, so the rectangle tiles are clipped to is the same rectangle
+ * the stored heatmap was generated for.
+ */
+export const normalizeRegionParam = (rawRegion?: string | null): string =>
+  rawRegion ? serializeRegions(deserializeRegions(rawRegion)) : ''
 
 export const formatLatitude = (lat: number): string =>
   `${Math.abs(lat).toFixed(COORD_PRECISION)}°${lat >= 0 ? 'N' : 'S'}`

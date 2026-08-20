@@ -1,5 +1,6 @@
 import type { ResolvedServerSettings } from '@/lib/config/serverSettings'
 import type { AdminAnnouncement } from '@/lib/services/announcements/adminAnnouncement'
+import type { HeatmapTileSource } from '@/lib/services/fitness-files/heatmapTiles/tileSource'
 import type { UserCreatableGearKind } from '@/lib/services/fitness-files/sportTypes'
 import type {
   GearComponentEntity,
@@ -3059,6 +3060,25 @@ export interface FitnessRouteHeatmapBounds {
   maxLng: number
 }
 
+/**
+ * How to fetch the tiled version of a heatmap, or absent/null when the heatmap
+ * has none and its own `segments` are all there is. Structurally the server's
+ * `HeatmapTileSource`, aliased here so client code names it alongside the rest
+ * of the heatmap payload.
+ */
+export type FitnessRouteHeatmapTileSource = HeatmapTileSource
+
+/** One batch of tiles: the payload string per `"x:y"`, `null` where empty. */
+export interface FitnessRouteHeatmapTileBatch {
+  /**
+   * The version the tiles were actually built at, which is 0 when none were
+   * served. A client holding a different version has been overtaken by a
+   * rebuild and should drop what it cached rather than mix the two.
+   */
+  version: number
+  tiles: Record<string, string | null>
+}
+
 export interface FitnessRouteHeatmapData {
   id: string
   activityType?: string
@@ -3077,6 +3097,7 @@ export interface FitnessRouteHeatmapData {
   /** Opt-in public embed token; null/undefined when the heatmap is private. */
   shareToken?: string | null
   error?: string | null
+  tileSource?: FitnessRouteHeatmapTileSource | null
   createdAt: number
   updatedAt: number
 }
@@ -3169,6 +3190,110 @@ export const getFitnessRouteHeatmap = async ({
   } catch {
     return null
   }
+}
+
+export interface FitnessRouteHeatmapTileRequest {
+  /** A ladder zoom (see `TILE_LADDER_ZOOMS`); anything else is a 400. */
+  z: number
+  /** Up to `MAX_TILES_PER_REQUEST` tile indices at that zoom. */
+  tiles: Array<{ x: number; y: number }>
+  /**
+   * The `tileSource` version these tiles are being fetched for. It makes the
+   * URL change when the pyramid is rebuilt — which is all it does: the server
+   * answers with whatever it currently has and reports that version back, so a
+   * stale value never turns into a refused request.
+   */
+  version: number
+  /** Aborts the request when the viewport moves on. */
+  signal?: AbortSignal
+}
+
+const toTilesParam = (tiles: Array<{ x: number; y: number }>) =>
+  tiles.map(({ x, y }) => `${x}:${y}`).join(',')
+
+const readTileBatch = async (
+  response: Response
+): Promise<FitnessRouteHeatmapTileBatch> => {
+  if (!response.ok) {
+    throw new Error(
+      await getRouteHeatmapResponseErrorMessage(response, 'route heatmap tiles')
+    )
+  }
+  return (await response.json()) as FitnessRouteHeatmapTileBatch
+}
+
+/** Loads a batch of the signed-in actor's own route heatmap tiles. */
+export const getFitnessRouteHeatmapTiles = async ({
+  actorId,
+  region,
+  z,
+  tiles,
+  version,
+  signal
+}: FitnessRouteHeatmapTileRequest & {
+  actorId: string
+  /** Serialized region scope to clip to. Omit/empty for world-wide. */
+  region?: string | null
+}): Promise<FitnessRouteHeatmapTileBatch> => {
+  const encodedId = toIdPathSegment(actorId)
+  const url = new URL(
+    `${window.origin}/api/v1/accounts/${encodedId}/fitness-route-heatmap/tiles`
+  )
+  url.searchParams.append('z', String(z))
+  url.searchParams.append('tiles', toTilesParam(tiles))
+  url.searchParams.append('v', String(version))
+  if (region) {
+    url.searchParams.append('region', region)
+  }
+  return readTileBatch(
+    await fetch(url.toString(), {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      signal
+    })
+  )
+}
+
+/**
+ * The same for a public share, addressed by its token. The region is NOT a
+ * parameter here: the server clips to the shared row's own scope, which is what
+ * keeps a rect share from reaching the rest of the pyramid.
+ *
+ * Where the owner route answers `version: 0` for a share with no usable
+ * pyramid, this one 404s — it refuses rather than describes, because a share
+ * scoped to one sport or one year must not be answered from the whole-history
+ * pyramid at all. That 404 is translated here into the same `version: 0` the
+ * shared type documents, so both fetchers honour one contract and a caller has
+ * a single "no tiles, draw the untiled geometry" branch. Every other non-OK
+ * response still throws.
+ */
+export const getPublicHeatmapTiles = async ({
+  token,
+  z,
+  tiles,
+  version,
+  signal
+}: FitnessRouteHeatmapTileRequest & {
+  token: string
+}): Promise<FitnessRouteHeatmapTileBatch> => {
+  const url = new URL(
+    `${window.origin}/embed/heatmap/${encodeURIComponent(token)}/tiles`
+  )
+  url.searchParams.append('z', String(z))
+  url.searchParams.append('tiles', toTilesParam(tiles))
+  url.searchParams.append('v', String(version))
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+    signal
+  })
+  if (response.status === 404) {
+    return {
+      version: 0,
+      tiles: Object.fromEntries(tiles.map(({ x, y }) => [`${x}:${y}`, null]))
+    }
+  }
+  return readTileBatch(response)
 }
 
 export const triggerFitnessRouteHeatmap = async ({

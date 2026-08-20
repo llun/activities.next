@@ -463,9 +463,10 @@ it; there is no legacy shape left to copy.
   whose call landed after a clear deleted the replacement build's version-1
   tiles, and that build then stamped itself `completed` over tiles that were
   gone.
-- **Tile work never fails the run.** Nothing reads the pyramid yet, so losing a
-  build costs a rebuild while failing the run costs the user the heatmap they
-  can actually see. Every tile-path error — the tiler, a flush, the
+- **Tile work never fails the run.** No map RENDERS the pyramid yet — the two
+  routes that serve it fall back to the untiled blob — so losing a build costs a
+  rebuild while failing the run costs the user the heatmap they can actually
+  see. Every tile-path error — the tiler, a flush, the
   completion — abandons the build, records why on the pyramid row, and lets the
   legacy path finish. Two writes have nothing to record on and are only logged:
   the CLAIM, because its compare-and-swap and the read confirming it share one
@@ -532,6 +533,99 @@ it; there is no legacy shape left to copy.
   finished, correct pyramid to `failed` over the very tiles it had just
   certified. A failed sweep costs some tiles at an older version, which the next
   build's own sweep removes.
+- **Tiles are stored UNCLIPPED and a region is applied when they are served.**
+  The pyramid is per-ACTOR and covers every activity over all time, so whichever
+  region row wins the claim builds the same tiles — which is also why only the
+  all-activities/all-time heatmap gets a `tileSource`. A row filtered to one
+  sport or one year is not something the pyramid can answer however complete it
+  is, and `isPyramidVariantHeatmap` is the single place that decides it (it
+  mirrors `isPyramidVariant` in the job, which decides whether a run builds
+  tiles at all).
+- **The public token route refuses any share the pyramid cannot answer, using
+  the SAME predicate that decides whether a heatmap advertises a `tileSource`.**
+  A share scoped to one sport or one year is not something a per-actor,
+  all-time pyramid can answer, and serving it from there publishes every sport
+  and every year — a leak that region clipping cannot catch, because such a
+  share is usually world-wide. Deriving the route's go/no-go from
+  `buildHeatmapTileSource` rather than re-deriving the conditions is what stops
+  the serving path and the advertising path drifting apart, which is exactly
+  how the gate came to be on the pages and missing on the route. The predicate
+  therefore tests `activityType` for null rather than for falsiness: the job's
+  own gate is `activityType === null`, and reading an empty string as "no
+  filter" here while the job read it as a filter matching nothing would serve a
+  whole history behind a row showing none of it.
+  The OWNER route has no such gate and needs none: its request names a region
+  and nothing else, so there is no variant to disagree with.
+- **On the public token route, clipping to the SHARED ROW's region is the
+  security boundary — not a view option.** The caller sends tile indices and
+  nothing else; the region comes from the row the token resolved to. Without
+  that, a share cut to one rectangle is a lookup oracle for the actor's whole
+  history. Out-of-region tiles are settled from their coordinates BEFORE any
+  read, boundary tiles are clipped vertex by vertex through the untiled
+  heatmap's own `splitSegmentByBounds`, and the classification is allowed to be
+  pessimistic (a union covering a tile reads `partial` and clips to the same
+  geometry) but never optimistic.
+- **The region resolver FAILS CLOSED.** `getRegionBounds` answers `[]` both for
+  the whole world and for a region string it could not parse a rectangle out of,
+  and `[]` means "clip nothing" everywhere downstream — so a rect share whose
+  stored token failed to parse would serve the world. Only the empty string, the
+  world sentinel `serializeRegions` emits, reaches the unclipped path; anything
+  else that resolves to no bounds is refused — a case a writer really could
+  produce, since `serializeRegions` used to emit a rectangle that rounding had
+  collapsed, and rows written then still hold one. **All four PUBLIC surfaces
+  apply that rule**, through the one `resolveSharedHeatmapRegionBounds`: for
+  such a row the generation job baked the whole world into the untiled
+  `segments` too, so the share page, the embed page and the embed image refuse
+  it exactly as the embed tile route does. The OWNER tile route is deliberately
+  not among them — it clips to the region its own authenticated caller sent.
+  Over-refusing now costs the whole share, not just its zoom detail. Anything that PRODUCES a rectangle gates on
+  `isSerializableRect`, the same predicate `serializeRegions` applies, so a
+  producer and the serializer cannot drift — a box thinner than the 0.01°
+  serialization step is well formed and still has no canonical key of its own,
+  and saving one takes the WORLD's key. It runs before the conditional-request
+  check, so no response — 200 or 304 — is produced without it. The three
+  route-heatmap surfaces that take a region from a client normalize it with the
+  one shared `normalizeRegionParam`; the region-names route keeps its own
+  variant, which answers null rather than `''` for the world sentinel because a
+  world scope is not a nameable region.
+- **The public tile route reads the share row WITHOUT its geometry**
+  (`getFitnessRouteHeatmapSummaryByShareToken`). It answers from the pyramid
+  and needs the row only for its actor, status, scope and variant, while
+  `segments` holds the entire untiled heatmap — which a panning viewport would
+  otherwise drag off disk and through `JSON.parse` once per tile batch, and
+  before the conditional-request short-circuit at that.
+- **The public route re-encodes every byte it returns.** The owner path may
+  forward a stored payload verbatim for a tile that needed neither clipping nor
+  stripping; the public one always goes through `decodeTile` (which validates
+  ranges) and back out through `encodeTile`. `flattenTilePrivacyForPublic` lives
+  beside `flattenPrivacySegmentsForPublic` so both public surfaces answer to one
+  doctrine — the privacy FLAG goes, the geometry stays.
+- **Only a `completed` pyramid serves tiles, and only at its own `version`.** A
+  build in flight has two versions in the table at once, and drawing them
+  together shows heat no build ever produced. The version filter is not
+  belt-and-braces: completion's stale sweep runs in its own `try/catch`, so a
+  build that completes after the sweep throws leaves exactly those leftovers.
+  The response reports the version it actually served (0 for none) and its keys
+  are the ones the REQUEST named, never the ones the read returned.
+- **Every read of the pyramid from a surface that is not about tiles is
+  best-effort.** The owner's heatmap GET and both public pages read it only to
+  publish a `tileSource`, so each wraps the call in `.catch(() => null)`:
+  letting it throw would trade the whole untiled response — the map the user can
+  actually see — for a table nothing renders yet, which is the trade the rule
+  above exists to forbid.
+- **The `v` request parameter is a cache-buster, never a tile filter.** A
+  well-formed version that has since moved is answered with the current tiles
+  and the current version; refusing it would blank a map the instant a rebuild
+  finished underneath a client still holding the previous `tileSource`. A
+  MALFORMED one is a 400 on both routes — a client that thinks it is busting a
+  cache with a value the server cannot read should be told, not quietly served
+  from the entry it meant to bypass.
+- **Both tile routes parse their query through one `parseTileBatchQuery`.** Two
+  parsers had already drifted: `?z=4&z=16` resolved to 16 through
+  `Object.fromEntries` and to 4 through `searchParams.get`, and a malformed `v`
+  was a 400 on one route and ignored on the other. Neither was a leak, but a
+  divergence between two routes that must agree is how one becomes a leak the
+  next time either grows a scope-bearing parameter.
 - Full design and rationale: `docs/fitness-file-storage.md` → Route heatmap tile
   pyramid.
 

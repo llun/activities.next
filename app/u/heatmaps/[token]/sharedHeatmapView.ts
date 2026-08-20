@@ -1,5 +1,6 @@
 import { FitnessRouteHeatmapData } from '@/lib/client'
 import { deserializeRegions, formatRectRegion } from '@/lib/fitness/regions'
+import { HeatmapTileSource } from '@/lib/services/fitness-files/heatmapTiles/tileSource'
 import { FitnessRouteHeatmap } from '@/lib/types/database/fitnessRouteHeatmap'
 import { getMentionFromActorID } from '@/lib/types/domain/actor'
 
@@ -64,6 +65,11 @@ interface BuildSharedHeatmapViewParams {
   /** Canonical origin for the public URL (the actor's own domain). */
   origin: string
   token: string
+  /**
+   * Tile pyramid to zoom into, or null when there is none. Resolved by the
+   * caller, which is the half of this that needs a database.
+   */
+  tileSource?: HeatmapTileSource | null
 }
 
 /**
@@ -76,7 +82,8 @@ export const buildSharedHeatmapView = ({
   owner,
   regionName,
   origin,
-  token
+  token,
+  tileSource = null
 }: BuildSharedHeatmapViewParams): SharedHeatmapView => {
   const isWorld = heatmap.region === ''
   const title = isWorld ? 'Whole world' : regionName?.trim() || 'Map area'
@@ -118,6 +125,7 @@ export const buildSharedHeatmapView = ({
       totalCount: 0,
       cursorOffset: 0,
       isPartial: false,
+      tileSource,
       createdAt: heatmap.createdAt,
       updatedAt: heatmap.updatedAt
     }
