@@ -68,6 +68,13 @@ export interface ResolvedServerSettings {
     requestTimeoutMs: number
     requestRetries: number
     maxResponseSizeBytes: number
+    // Whether the server fetches link preview cards for links in statuses.
+    // This lives here rather than under `features` because it is not a
+    // navigation switch: it gates outbound requests to third-party sites, which
+    // is what an operator who does not want their instance crawling links is
+    // actually turning off. Off stops new fetches; cards already stored keep
+    // rendering.
+    linkPreviews: boolean
   }
   federation: {
     mode: 'open' | 'allowlist'
@@ -80,12 +87,6 @@ export interface ResolvedServerSettings {
     fitness: boolean
     explore: boolean
     messages: boolean
-    // Whether the server fetches link preview cards for statuses. Unlike the
-    // navigation switches above this one gates outbound requests to third-party
-    // sites, so it is the kill switch an operator reaches for when they do not
-    // want their instance crawling links at all. Turning it off stops new
-    // fetches; cards already stored keep rendering.
-    linkPreviews: boolean
   }
 }
 
@@ -119,7 +120,8 @@ export const DEFAULT_SERVER_SETTINGS: ResolvedServerSettings = {
   network: {
     requestTimeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
     requestRetries: DEFAULT_REQUEST_RETRIES,
-    maxResponseSizeBytes: DEFAULT_MAX_RESPONSE_SIZE_BYTES
+    maxResponseSizeBytes: DEFAULT_MAX_RESPONSE_SIZE_BYTES,
+    linkPreviews: true
   },
   federation: {
     mode: 'open',
@@ -128,8 +130,7 @@ export const DEFAULT_SERVER_SETTINGS: ResolvedServerSettings = {
   features: {
     fitness: true,
     explore: true,
-    messages: true,
-    linkPreviews: true
+    messages: true
   }
 }
 
@@ -323,16 +324,6 @@ export const SERVER_SETTING_FIELDS: ServerSettingField[] = [
       s.features.messages = v
     }
   }),
-  field<boolean>({
-    key: 'features.linkPreviews',
-    group: 'instance',
-    schema: z.boolean(),
-    readEnv: () => undefined,
-    get: (s) => s.features.linkPreviews,
-    set: (s, v) => {
-      s.features.linkPreviews = v
-    }
-  }),
 
   // Posts & media
   field<number>({
@@ -450,6 +441,18 @@ export const SERVER_SETTING_FIELDS: ServerSettingField[] = [
     get: (s) => s.network.maxResponseSizeBytes,
     set: (s, v) => {
       s.network.maxResponseSizeBytes = v
+    }
+  }),
+  // No env var: this is meant to be flipped from the admin UI, and an env pin
+  // would lock the kill switch shut at exactly the moment an operator wants it.
+  field<boolean>({
+    key: 'network.linkPreviews',
+    group: 'network',
+    schema: z.boolean(),
+    readEnv: () => undefined,
+    get: (s) => s.network.linkPreviews,
+    set: (s, v) => {
+      s.network.linkPreviews = v
     }
   }),
 

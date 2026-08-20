@@ -38,8 +38,8 @@ export const syncStatusLinkPreview = async ({
     // wraps, which was synced when that status was stored.
     if (status.type === StatusType.enum.Announce) return
 
-    const { features } = await getResolvedServerSettings(database)
-    if (!features.linkPreviews) return
+    const { network } = await getResolvedServerSettings(database)
+    if (!network.linkPreviews) return
 
     const url = extractPreviewUrl({
       text: status.text,

@@ -17,7 +17,7 @@ vi.mock('@/lib/services/queue', () => ({
 }))
 
 const resolvedSettings = {
-  features: { linkPreviews: true }
+  network: { linkPreviews: true }
 }
 
 vi.mock('@/lib/services/serverSettings', () => ({
@@ -42,7 +42,7 @@ describe('syncStatusLinkPreview', () => {
     publish.mockReset()
     deleteStatusLinkPreview.mockReset()
     runsInline.value = false
-    resolvedSettings.features.linkPreviews = true
+    resolvedSettings.network.linkPreviews = true
   })
 
   it('enqueues a fetch for the first link in a local status', async () => {
@@ -82,7 +82,7 @@ describe('syncStatusLinkPreview', () => {
   })
 
   it('does not enqueue when the instance has link previews turned off', async () => {
-    resolvedSettings.features.linkPreviews = false
+    resolvedSettings.network.linkPreviews = false
 
     await syncStatusLinkPreview({ database, status: makeStatus() })
 

@@ -987,6 +987,68 @@ it; there is no legacy shape left to copy.
   the affected-row count, so "already in that state" stays distinguishable from
   "no such gear of yours" — the latter is the route's 404.
 
+## Link Preview Cards
+
+- **A card is cached per URL, never per status.** `link_previews` is keyed by
+  `urlHash` (sha256 of the normalized URL) and `status_link_previews` maps a
+  status to the card it shows. That split is the whole point: a link doing the
+  rounds is fetched once per refresh window rather than once per post that
+  mentions it. Do not "simplify" this into a column on `statuses`.
+- **A failed fetch is stored, not just logged.** `fetchStatus: 'failed'` with an
+  `error` code IS the negative cache — it is what stops an unreachable or
+  hostile host from being re-contacted for every post that links it, the same
+  trap the remote-actor refresh path avoids by stamping its failures. A failed
+  row is never linked to a status, so it can only ever suppress a fetch, never
+  render an empty card. Completed cards refresh after 7 days, failures after 1
+  hour.
+- **`syncStatusLinkPreview` never throws.** It is called from local create, local
+  edit, and the inbound `CreateNoteJob`/`UpdateNoteJob`, and every one of those
+  has already written the status by the time it runs. A preview card is
+  decoration; losing one must never fail posting or the ingest of someone
+  else's post. The whole body is inside one try/catch for that reason.
+- **The delay is conditional on the queue, because NoQueue drops delayed
+  messages.** Remote fetches carry a random 0–60s `delaySeconds` so this
+  instance is not part of a thundering herd on a widely-shared link (the
+  "link preview stampede" Mastodon has repeatedly been blamed for). But the
+  in-process queue has no scheduler and silently DROPS any message with a
+  positive delay, so the delay is only attached when `getQueue().runsInline` is
+  false. Attaching it unconditionally does not delay the fetch — it loses it.
+- **URL extraction reuses the renderer's own tokenizer for local posts.**
+  `createStatusMarked` (`@/lib/utils/text/convertMarkdownText`) is exported
+  precisely so the extractor lexes a status exactly the way the renderer does; a
+  second, separately-written URL regex would eventually disagree and pick a link
+  the reader never sees. Remote posts store HTML instead, so those are walked for
+  anchors that are not mentions or hashtags (`rel="tag"`, and the
+  `mention`/`hashtag`/`u-url` class markers the Mastodon family emits).
+- **Every optional field of the Mastodon `PreviewCard` gets an `''`/`0`
+  default.** That schema declares every string field non-nullable and
+  `Mastodon.Status.parse` runs once per status inside a handler that catches and
+  SKIPS a status it cannot serialize — so a card missing one key does not lose
+  the card, it drops the whole status out of the timeline. `getMastodonPreviewCard`
+  owns those defaults and `getMastodonPreviewCard.test.ts` pins them.
+- **`html` and `embed_url` are always empty.** This server does not consume
+  oEmbed, and emitting remote-authored markup for clients to inject is a hazard
+  with no upside. If oEmbed is ever added, that is a deliberate decision with its
+  own sanitization story — not a side effect.
+- **Card text is remote, author-controlled input.** It is stripped of control,
+  C1 and bidi characters and truncated at parse time (`siteName`/`authorName`
+  are `varchar(255)`, so that cap is a PostgreSQL insert requirement, not a
+  preference), rendered as React text nodes and never as markup, its href goes
+  through `safeExternalHref`, and its thumbnail is `https`-only and loaded with
+  `referrerPolicy="no-referrer"`. The displayed domain is always derived from
+  the URL, never from the page's own `og:site_name`, which the page controls.
+- **The card yields to media, a quote or a fitness activity in the UI** — but it
+  is still fetched and still served over the API in all three cases, so a client
+  is free to decide otherwise. Display policy lives in `post.tsx`, not in the
+  fetcher.
+- **The kill switch is `network.linkPreviews`, not a `features.*` flag.** The
+  `features.*` namespace is navigation-only (its switches are keyed off the nav
+  registry and only remove items from navigation); this one gates outbound
+  requests to third-party sites, which is what an operator turning it off
+  actually cares about. It lives on Admin → Network with the other
+  outbound-request settings and has no env var, so the kill switch can never be
+  locked shut by the environment.
+
 ## Status Posts & Actions
 
 Every surface that renders a status post — the home timeline, profiles, lists,
