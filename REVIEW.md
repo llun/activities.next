@@ -471,9 +471,12 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   handler's `finally` — rather than at each of the four exits that drop a
   continuation; a build it went on to CLAIM is released at each exit that can
   abandon one.
-- A build only stamps `completed` over a history it actually scanned:
-  `completedAt` is what makes the next claim answer `already-fresh`, so
-  certifying short refuses the rebuild that would heal it.
+- A build only stamps `completed` over a history it actually scanned, recounted
+  at the decision: `completedAt` is what makes the next claim answer
+  `already-fresh`, so certifying short refuses the rebuild that would heal it.
+  The recount runs after the scan, so it catches an addition only while nothing
+  cancels the shortfall — which is why the fold keeps its own already-folded
+  guard — and it cannot catch a deletion from the scanned part at all.
 - Completion and the stale-tile sweep are separate steps: a failing sweep must
   not demote a build that already wrote `completed`.
 - A build that could not read every file still completes, and records the loss
