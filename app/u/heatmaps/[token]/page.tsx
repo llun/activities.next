@@ -14,6 +14,8 @@ import {
   toPublicHeatmap
 } from '@/lib/services/fitness-files/publicHeatmap'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
+import { logger } from '@/lib/utils/logger'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { SharedHeatmapPage } from './SharedHeatmapPage'
 import { buildSharedHeatmapView } from './sharedHeatmapView'
@@ -87,7 +89,15 @@ const Page: FC<PageProps> = async ({ params }) => {
   const pyramid = isPyramidVariantHeatmap(heatmap)
     ? await database
         .getFitnessRouteHeatmapPyramid({ actorId: heatmap.actorId })
-        .catch(() => null)
+        .catch((error) => {
+          logger.warn({
+            message: 'Failed to read the route heatmap pyramid for a share',
+            heatmapId: heatmap.id,
+            actorId: heatmap.actorId,
+            err: toLoggableError(error)
+          })
+          return null
+        })
     : null
 
   const view = buildSharedHeatmapView({

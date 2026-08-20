@@ -18,6 +18,7 @@ import { FitnessRouteHeatmap } from '@/lib/types/database/fitnessRouteHeatmap'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { logger } from '@/lib/utils/logger'
 import {
   ERROR_400,
   ERROR_401,
@@ -26,6 +27,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [
@@ -193,7 +195,14 @@ export const GET = traceApiRoute(
     const pyramid = isPyramidVariantHeatmap(heatmap)
       ? await database
           .getFitnessRouteHeatmapPyramid({ actorId: id })
-          .catch(() => null)
+          .catch((error) => {
+            logger.warn({
+              message: 'Failed to read the route heatmap pyramid for a heatmap',
+              actorId: id,
+              err: toLoggableError(error)
+            })
+            return null
+          })
       : null
 
     return apiResponse({
