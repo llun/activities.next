@@ -470,12 +470,15 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   (`resolveStatusPreviewUrl`). An edit leaves the pre-edit job queued; without
   the re-check it re-attaches the old card, or resurrects one an edit removed.
   The scheduler and the job must keep using that single resolver.
-- Remote HTML is **sanitized before extraction**, and anchors with no visible
-  text (or carrying `hidden`/`invisible`) are skipped. Remote text is stored raw
-  and sanitized only at render, so extracting from the stored HTML would give a
-  full-width clickable card to a link the reader cannot see — a phishing
-  surface. `<template>` is not an exception: the sanitizer unwraps it, so that
-  anchor is genuinely visible.
+- A card is only for a link the reader can SEE, on **both** paths. Remote HTML
+  is sanitized before extraction (it is stored raw and sanitized only at
+  render); then on either path a link whose text renders to nothing — empty, or
+  hidden by `hidden`/`invisible`, including via an ANCESTOR — is skipped.
+  Visibility is measured on rendered output, never the source string: a markdown
+  link's text can be HTML that renders to an empty anchor. Otherwise a link the
+  reader cannot see gets a full-width clickable card — a phishing surface.
+  `<template>` is not an exception: the sanitizer unwraps it, so that anchor is
+  genuinely visible and keeps its card.
 - Every optional Mastodon `PreviewCard` field needs an `''`/`0` default. That
   schema is non-nullable and `Status.parse` runs per status inside a handler
   that **skips** what it cannot serialize, so one missing key drops the whole

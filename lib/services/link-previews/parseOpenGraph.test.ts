@@ -159,6 +159,39 @@ describe('parseOpenGraphMetadata', () => {
     expect(result?.imageUrl).toBeNull()
   })
 
+  // `imageWidth`/`imageHeight` are `integer` columns. SQLite stores a 64-bit
+  // value happily, but PostgreSQL rejects anything over 2147483647 — and the
+  // whole test suite runs on SQLite, so an unbounded value passes here and then
+  // throws on the INSERT in production. The throw is caught and recorded as a
+  // failed fetch, and since nothing ever re-runs the job, every post linking
+  // that page loses its card permanently on PG while rendering fine on SQLite.
+  it.each([
+    { description: 'a width past the 32-bit column', value: '99999999999999' },
+    { description: 'a width just over the maximum', value: '2147483648' }
+  ])('ignores $description', ({ value }) => {
+    const result = parseOpenGraphMetadata(
+      page(
+        `<meta property="og:title" content="T">
+         <meta property="og:image" content="https://cdn.example.com/a.png">
+         <meta property="og:image:width" content="${value}">`
+      ),
+      BASE_URL
+    )
+    expect(result?.imageWidth).toBeNull()
+  })
+
+  it('keeps a width at the column maximum', () => {
+    const result = parseOpenGraphMetadata(
+      page(
+        `<meta property="og:title" content="T">
+         <meta property="og:image" content="https://cdn.example.com/a.png">
+         <meta property="og:image:width" content="2147483647">`
+      ),
+      BASE_URL
+    )
+    expect(result?.imageWidth).toBe(2147483647)
+  })
+
   it('ignores non-numeric image dimensions', () => {
     const result = parseOpenGraphMetadata(
       page(

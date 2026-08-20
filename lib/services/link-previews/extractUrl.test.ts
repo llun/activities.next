@@ -134,6 +134,29 @@ describe('extractPreviewUrl', () => {
       ).toBeNull()
     })
 
+    // The check reads the markdown SOURCE, but that source can itself be HTML
+    // that renders to nothing — so these produce exactly the empty anchor the
+    // rule exists to catch, and the HTML path already catches their equivalent.
+    it.each([
+      { description: 'an html comment', text: '<!-- hi -->' },
+      { description: 'an empty span', text: '<span></span>' },
+      { description: 'a hidden span', text: '<span class="hidden">x</span>' },
+      {
+        description: 'an invisible span',
+        text: '<span class="invisible">x</span>'
+      }
+    ])('ignores a markdown link whose text is $description', ({ text }) => {
+      expect(
+        fromMarkdown(`Look ${'['}${text}](https://evil.example/phish)`)
+      ).toBeNull()
+    })
+
+    it('keeps a markdown link whose text is emphasised', () => {
+      expect(fromMarkdown('Look [**bold**](https://example.com/b)')).toBe(
+        'https://example.com/b'
+      )
+    })
+
     it('keeps a markdown link that has visible text', () => {
       expect(fromMarkdown('Look at [the article](https://example.com/a)')).toBe(
         'https://example.com/a'

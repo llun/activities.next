@@ -83,7 +83,24 @@ describe('LinkPreviewCard', () => {
   it('pairs the publisher with the domain when they differ', () => {
     render(<LinkPreviewCard linkPreview={card()} />)
 
-    expect(screen.getByText('The Verge · theverge.com')).toBeInTheDocument()
+    expect(screen.getByText('The Verge')).toBeInTheDocument()
+    expect(screen.getByText('theverge.com')).toBeInTheDocument()
+  })
+
+  // The domain is the only part of the card the page cannot choose, so it is
+  // the part that must survive truncation. Rendering the line as one truncated
+  // string clipped the domain and kept the author's site name — a long enough
+  // og:site_name pushed the real host off the end entirely.
+  it('keeps the domain intact when the publisher name is very long', () => {
+    render(
+      <LinkPreviewCard linkPreview={card({ siteName: 'A'.repeat(255) })} />
+    )
+
+    const domain = screen.getByText('theverge.com')
+    expect(domain).toBeInTheDocument()
+    // The name truncates, the domain does not.
+    expect(domain).toHaveClass('shrink-0')
+    expect(screen.getByText('A'.repeat(255))).toHaveClass('truncate')
   })
 
   it('shows the domain alone when there is no publisher name', () => {

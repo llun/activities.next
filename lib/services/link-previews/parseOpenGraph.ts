@@ -32,7 +32,13 @@ const asciiLower = (value: string): string =>
   value.replace(/[A-Z]/g, (character) => character.toLowerCase())
 
 const getHeadMarkup = (html: string): string => {
-  const headEnd = asciiLower(html).indexOf(HEAD_END)
+  // Lowercase only as far as the search can reach: a `</head>` at or past
+  // MAX_HEAD_LENGTH truncates to the same slice either way, so this is
+  // identical output for a fraction of the work — the whole-document version
+  // cost ~30ms on a hostile 1 MiB page, against a file whose own rationale is
+  // that the byte cap must not become a CPU cost.
+  const searchable = html.slice(0, MAX_HEAD_LENGTH + HEAD_END.length)
+  const headEnd = asciiLower(searchable).indexOf(HEAD_END)
   const head = headEnd === -1 ? html : html.slice(0, headEnd)
   // A page with no </head> at all (or a pathologically long one) still gets a
   // bounded slice rather than the whole document.
@@ -263,10 +269,20 @@ const parseAbsoluteImageUrl = (
   }
 }
 
+// `imageWidth`/`imageHeight` are `integer` columns. SQLite stores a 64-bit
+// value happily; PostgreSQL rejects anything larger and fails the INSERT — and
+// because that throw is caught and recorded as a failed fetch, and nothing ever
+// re-runs the job, a page serving an absurd `og:image:width` would cost itself
+// its card permanently on PG while working fine on SQLite (which is what the
+// whole test suite runs on). Same treatment as the varchar and timestamp caps
+// above: bound the value rather than let the backend reject the row.
+const MAX_INT4 = 2147483647
+
 const parseDimension = (value: string | undefined): number | null => {
   if (!value?.trim()) return null
   const parsed = Number.parseInt(value.trim(), 10)
   if (!Number.isFinite(parsed) || parsed <= 0) return null
+  if (parsed > MAX_INT4) return null
   return parsed
 }
 

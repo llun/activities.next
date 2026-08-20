@@ -48,10 +48,11 @@ export const LinkPreviewCard: FC<LinkPreviewCardProps> = ({
   useEffect(() => setImageFailed(false), [linkPreview.imageUrl])
 
   const domain = getDomain(linkPreview)
-  const publisher =
+  // Only shown when it adds something the domain does not already say.
+  const siteName =
     linkPreview.siteName && linkPreview.siteName !== domain
-      ? `${linkPreview.siteName} · ${domain}`
-      : domain
+      ? linkPreview.siteName
+      : null
 
   return (
     <a
@@ -84,8 +85,19 @@ export const LinkPreviewCard: FC<LinkPreviewCardProps> = ({
         />
       ) : null}
       <div className="min-w-0 space-y-0.5">
-        <div className="truncate text-xs text-muted-foreground">
-          {publisher}
+        {/* The DOMAIN must survive truncation, because it is the one part of
+            this card the page cannot choose. Truncating the whole line clipped
+            it and kept the author-supplied site name — so a long enough
+            `og:site_name` pushed the real host off the end entirely. The name
+            truncates; the domain does not. */}
+        <div className="flex min-w-0 gap-1 text-xs text-muted-foreground">
+          {siteName ? (
+            <>
+              <span className="truncate">{siteName}</span>
+              <span aria-hidden="true">·</span>
+            </>
+          ) : null}
+          <span className="shrink-0">{domain}</span>
         </div>
         <div className="line-clamp-2 wrap-anywhere text-sm font-semibold leading-snug">
           {linkPreview.title}

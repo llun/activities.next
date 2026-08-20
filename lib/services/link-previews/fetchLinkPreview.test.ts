@@ -367,6 +367,35 @@ describe('fetchLinkPreview', () => {
     expect(stored?.fetchStatus).toBe('failed')
   })
 
+  // `imageWidth`/`imageHeight` are `integer` columns: SQLite takes a 64-bit
+  // value, PostgreSQL rejects it and fails the INSERT — which the catch turns
+  // into a negative-cache row, costing that URL its card permanently on PG
+  // while it renders fine on SQLite. Run this file with TEST_DATABASE_TYPE=pg
+  // to exercise the backend that actually enforces the column.
+  it('stores a card whose declared image dimensions overflow the column', async () => {
+    const url = 'https://example.com/huge-dimensions'
+    mockedFetch.mockResolvedValue({
+      body: `<html><head>
+        <meta property="og:title" content="Huge">
+        <meta property="og:image" content="https://cdn.example.com/a.png">
+        <meta property="og:image:width" content="99999999999999">
+        <meta property="og:image:height" content="99999999999999">
+      </head><body></body></html>`,
+      headers: { 'content-type': 'text/html' },
+      statusCode: 200,
+      url
+    })
+
+    const card = await fetchLinkPreview({ database, url })
+
+    expect(card?.fetchStatus).toBe('completed')
+    expect(card?.title).toBe('Huge')
+    // The dimensions are dropped, not the card.
+    expect(card?.imageWidth).toBeNull()
+    expect(card?.imageHeight).toBeNull()
+    expect(card?.imageUrl).toBe('https://cdn.example.com/a.png')
+  })
+
   it('rejects a page that declares a non-utf8 charset in markup only', async () => {
     const url = 'https://example.com/meta-charset'
     mockedFetch.mockResolvedValue({

@@ -61,7 +61,7 @@ const collectMarkdownLinks = (tokens: Token[], hrefs: string[]) => {
       // Same rule the HTML path applies: a link the reader cannot see must not
       // get a card. `[](url)` renders as an empty anchor — nothing on screen —
       // yet would otherwise put a full-width clickable block under the post.
-      if (hasVisibleContent(link.text)) hrefs.push(link.href)
+      if (hasVisibleMarkdownText(link.text)) hrefs.push(link.href)
     }
     const nested = (token as { tokens?: Token[] }).tokens
     if (nested) collectMarkdownLinks(nested, hrefs)
@@ -177,6 +177,30 @@ const hasVisibleContent = (text: string): boolean =>
 
 const hasVisibleText = (node: DomNode): boolean =>
   hasVisibleContent(getVisibleText(node))
+
+/**
+ * Whether a markdown link's text renders to anything the reader can see.
+ *
+ * The token carries markdown SOURCE, and that source may itself be HTML which
+ * renders to nothing — `[<!-- hi -->](url)` and `[<span class="hidden">x</span>](url)`
+ * both come out as an anchor with no visible content, exactly the shape this
+ * rule exists to reject. So the source is put through the same sanitize-then-
+ * measure-visible-text path the HTML side uses, rather than being tested as a
+ * plain string.
+ */
+const hasVisibleMarkdownText = (text: string): boolean => {
+  // Cheap reject first: plain empty or zero-width text never needs a parse.
+  if (!hasVisibleContent(text)) return false
+  // No markup, nothing for the parse to change.
+  if (!text.includes('<')) return true
+  try {
+    const nodes = htmlToDOM(sanitizeText(text)) as DomNode[]
+    return hasVisibleContent(nodes.map(getVisibleText).join(''))
+  } catch {
+    // A parse failure must not silently drop a link that is probably fine.
+    return true
+  }
+}
 
 const collectHtmlLinks = (
   nodes: DomNode[],

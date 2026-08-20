@@ -1020,15 +1020,21 @@ it; there is no legacy shape left to copy.
   removed. `resolveStatusPreviewUrl` is the single implementation both the
   scheduler and the job use, precisely so the two cannot disagree about what a
   status's URL is.
-- **Extraction runs on SANITIZED remote HTML, and skips anchors the reader
-  cannot see.** Remote text is stored raw and only sanitized at render, so
-  parsing the stored HTML directly sees markup the reader never will. A card is
-  a full-width clickable block with an attacker-chosen title, description and
-  thumbnail, so a link that is invisible in the rendered post is a ready-made
-  phishing surface. An anchor with no visible text, or carrying the
-  `hidden`/`invisible` classes this app's own renderer uses to hide content, is
-  skipped. Note `<template>` is NOT such a case: the sanitizer unwraps it, so
-  that anchor really is on screen and really should get the card.
+- **A card is only ever for a link the reader can SEE — on both paths.** A card
+  is a full-width clickable block carrying an attacker-chosen title, description
+  and thumbnail, so a link that renders as nothing is a ready-made phishing
+  surface. Remote text is stored raw and sanitized only at render, so extraction
+  sanitizes first — parsing the stored HTML directly sees markup the reader
+  never will. Then, on BOTH the remote and the local path, a link whose text
+  renders to nothing is skipped: no visible text, or hidden by the
+  `hidden`/`invisible` classes this app's own renderer uses. Visibility is
+  measured on the RENDERED output, never the source string — a markdown link's
+  text can itself be HTML (`[<!-- hi -->](url)`) that renders to an empty
+  anchor. Hidden-ness is inherited, so an anchor inside a hidden ancestor counts
+  as hidden too; without that it came first in document order and BEAT the
+  genuinely visible link below it. `<template>` is NOT such a case: the
+  sanitizer unwraps it, so that anchor really is on screen and really should get
+  the card.
 - **`syncStatusLinkPreview` never throws.** It is called from local create, local
   edit, and the inbound `CreateNoteJob`/`UpdateNoteJob`, and every one of those
   has already written the status by the time it runs. A preview card is
