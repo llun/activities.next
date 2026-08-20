@@ -1760,8 +1760,6 @@ CREATE INDEX push_subscriptions_actor_idx ON public.push_subscriptions USING btr
 
 CREATE INDEX "recipiences_statusId_type_idx" ON public.recipients USING btree ("statusId", type, "createdAt", "updatedAt");
 
-CREATE INDEX "recipientsTypeActorIdIndex" ON public.recipients USING btree (type, "actorId");
-
 CREATE INDEX "recipients_actorId_statusId_idx" ON public.recipients USING btree ("actorId", "statusId");
 
 CREATE INDEX recipients_status_type_actor_idx ON public.recipients USING btree ("statusId", type, "actorId");
