@@ -315,7 +315,16 @@ const parseSQLFitnessRouteHeatmapPyramid = (
           id: row.cursorId
         }
       : undefined,
-  completedAt: row.completedAt ? getCompatibleTime(row.completedAt) : undefined,
+  // Null-tested, not truthiness-tested, for the reason spelled out above the
+  // cursor: an epoch-0 timestamp is a falsy integer on SQLite and a truthy Date
+  // on PostgreSQL, so the same row would answer `already-fresh` differently per
+  // backend. `completedAt` reaches `classifyPyramidForClaim`, which is the
+  // decision that either serves a request from a finished pyramid or rebuilds
+  // it.
+  completedAt:
+    row.completedAt !== null && row.completedAt !== undefined
+      ? getCompatibleTime(row.completedAt)
+      : undefined,
   createdAt: getCompatibleTime(row.createdAt),
   updatedAt: getCompatibleTime(row.updatedAt)
 })

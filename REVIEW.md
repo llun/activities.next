@@ -476,6 +476,9 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   certifying short refuses the rebuild that would heal it.
 - Completion and the stale-tile sweep are separate steps: a failing sweep must
   not demote a build that already wrote `completed`.
+- A build that could not read every file still completes, and records the loss
+  on the row — withholding the sweep does not preserve the missing geometry,
+  because a merge replaces any tile a readable activity also touched.
 - See AGENTS.md → Fitness Route Heatmap Pyramid.
 
 ## Commits & versioning

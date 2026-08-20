@@ -770,9 +770,13 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
         ? (pyramidClaim?.pyramid.activityCount ?? 0)
         : 0
       let flushedScannedCount = pyramidScannedCount
-      // Files this pass walked past without being able to read. Distinct from
-      // an activity that legitimately folds nothing (a treadmill session, a
-      // file type this job does not parse): those ARE covered by the build.
+      // Files this pass could not finish — a download that threw, a parse that
+      // threw. Distinct from an activity that legitimately folds nothing (a
+      // treadmill session, a file type this job does not parse): those ARE
+      // covered by the build. Per PASS, not per build, which is all the
+      // completing pass can see; a continuation that read everything reports
+      // only its own share, so the count is a floor on what a build missed
+      // rather than a total.
       let pyramidUnreadableCount = 0
 
       // tileKey -> the edges this run has folded in but not yet written.
@@ -1349,12 +1353,35 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
             // Claim the finish FIRST, because it is the guarded write: a pass
             // that has been superseded learns so here and stops, instead of
             // sweeping on behalf of a build it no longer owns.
+            // A build that could not read every file is still the best pyramid
+            // available — an unreadable activity is skipped by the legacy blob
+            // too — but it is NOT the same artifact as one built from the whole
+            // history, and nothing downstream could otherwise tell.
+            //
+            // Withholding the SWEEP does not protect the missing geometry, which
+            // was the first thing tried: tiles are one row per
+            // `(actorId, tileKey)` and `mergeTileDelta` REPLACES a tile whose
+            // stored version is older, so the moment a readable activity folds
+            // into a tile the unreadable one's contribution to that tile is
+            // gone. The only tiles a skipped sweep preserves are the ones no
+            // readable activity touched, which at the ladder's coarse zooms is
+            // almost none — measured, a partial outage kept 66 of 224 tiles and
+            // still lost 37% of the points. It also blocked the sweep forever
+            // for an actor with one permanently unreadable file, so deleted
+            // activities never left the pyramid.
+            //
+            // So sweep as normal, keeping the row's counters and the tiles on
+            // disk describing the same build, and persist WHAT WAS LOST instead
+            // of implying nothing was.
             const finished = await database.updateFitnessRouteHeatmapPyramid({
               actorId,
               pyramidId: build.pyramidId,
               claimSeq: build.claimSeq,
               status: 'completed',
-              error: null,
+              error:
+                pyramidUnreadableCount > 0
+                  ? `Completed without ${pyramidUnreadableCount} activities that could not be read`
+                  : null,
               tileCount: totals.tileCount,
               pointCount: totals.pointCount,
               // The pyramid's own count, not the legacy run's: tiles are stored
@@ -1395,16 +1422,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
         // fenced on a token the completion write does not move. What a failed
         // sweep actually costs is some tiles at an older version, which the
         // next build's own sweep removes.
-        // Gated on the pass having READ every file it walked past, not merely
-        // on having reached the end. A file whose download or parse threw is
-        // skipped and folds nothing, exactly as it is for the legacy blob — but
-        // the PREVIOUS version's tiles may hold that activity's geometry from
-        // when it was readable, and this is the one irreversible step in the
-        // whole path. A transient storage outage otherwise took a healthy
-        // pyramid to `completed` with zero tiles and deleted the 426 good ones
-        // behind it. Leaving them costs some rows at an older version until a
-        // build that read everything sweeps them.
-        if (completedTheBuild && pyramidUnreadableCount === 0) {
+        if (completedTheBuild) {
           try {
             // Activities deleted since the last build disappear here: their
             // tiles still carry the older version and nothing rewrote them.

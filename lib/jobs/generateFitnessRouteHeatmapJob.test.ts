@@ -2938,11 +2938,15 @@ describe('generateFitnessRouteHeatmapJob', () => {
           actorId: actor.id
         })
         // Both files scanned, one folded, and the cursor ends past the file
-        // that folded nothing.
+        // that folded nothing. `error: undefined` is the load-bearing half: a
+        // file type this job does not parse is legitimately unfoldable, NOT
+        // unreadable, so the build covered the whole history and must not
+        // report a loss.
         expect(pyramid).toMatchObject({
           status: 'completed',
           scannedCount: 2,
-          activityCount: 1
+          activityCount: 1,
+          error: undefined
         })
         expect(pyramid?.cursor?.id).toBe(unparseableId)
       } finally {
@@ -3098,6 +3102,8 @@ describe('generateFitnessRouteHeatmapJob', () => {
           version: 1,
           scannedCount: 3,
           activityCount: 3,
+          // Recounted at the decision, and it is that value the row records —
+          // not the snapshot each pass took before its own scan.
           totalCount: 3
         })
         const counts = (await readTiles()).flatMap((tile) =>
@@ -3205,13 +3211,17 @@ describe('generateFitnessRouteHeatmapJob', () => {
       }
     })
 
-    it('does not sweep the previous build when it could not read every file', async () => {
-      // The sweep is the one irreversible step in the whole path, and a file
-      // that threw folds nothing — so a storage outage produced a build with no
-      // tiles at all which then DELETED the complete version behind it. The
-      // cursor still advances past such a file (a build with a short cursor
-      // cannot be resumed), so "reached the end" is not the same fact as "read
-      // what it reached", and only the second one licenses a delete.
+    it('records what it could not read rather than implying it read everything', async () => {
+      // An unreadable activity is skipped by the legacy blob too, so the build
+      // is still the best pyramid available and still completes — but it is not
+      // the same artifact as one built from the whole history, and the row is
+      // the only place that can say so.
+      //
+      // Withholding the sweep does NOT protect the missing geometry: tiles are
+      // one row per `(actorId, tileKey)` and a merge replaces a tile whose
+      // stored version is older, so a readable activity destroys the unreadable
+      // one's contribution to every tile they share. The partial case below is
+      // the one that shows it.
       const firstId = await createCompletedFitnessFile(
         'running',
         new Date('2026-04-15T07:00:00.000Z')
@@ -3229,12 +3239,13 @@ describe('generateFitnessRouteHeatmapJob', () => {
         const healthy = await database.getFitnessRouteHeatmapPyramid({
           actorId: actor.id
         })
-        expect(healthy).toMatchObject({ status: 'completed', activityCount: 2 })
-        const healthyTiles = await readTiles()
-        expect(healthyTiles.length).toBeGreaterThan(0)
+        expect(healthy).toMatchObject({
+          status: 'completed',
+          activityCount: 2,
+          error: undefined
+        })
 
-        // The route cache goes cold and object storage is unavailable, so the
-        // rebuild can read nothing at all.
+        // The route cache goes cold and object storage is unavailable.
         await database.deleteFitnessFileRoute({ fitnessFileId: firstId })
         await database.deleteFitnessFileRoute({ fitnessFileId: secondId })
         mockGetFitnessFile.mockRejectedValue(new Error('storage unavailable'))
@@ -3245,21 +3256,143 @@ describe('generateFitnessRouteHeatmapJob', () => {
           Math.max(Date.now(), healthy!.completedAt! + 1)
         )
 
-        // The build folded nothing, and the tiles it would have replaced are
-        // still there for the next generate to sweep once it can read them.
-        const tiles = await readTiles()
-        expect(tiles.map((tile) => tile.tileKey).sort()).toEqual(
-          healthyTiles.map((tile) => tile.tileKey).sort()
-        )
-        expect(tiles.every((tile) => tile.version === healthy!.version)).toBe(
-          true
-        )
+        const degraded = await database.getFitnessRouteHeatmapPyramid({
+          actorId: actor.id
+        })
+        // Completed — the alternative is never completing for an actor with one
+        // permanently unreadable file — but not silently.
+        expect(degraded).toMatchObject({
+          status: 'completed',
+          activityCount: 0,
+          error: 'Completed without 2 activities that could not be read'
+        })
+        // And the row's counters describe what is actually on disk.
+        expect(degraded?.tileCount).toBe((await readTiles()).length)
       } finally {
         mockGetFitnessFile.mockResolvedValue({
           type: 'buffer',
           buffer: Buffer.from('fitness-file-bytes'),
           contentType: 'application/vnd.ant.fit'
         })
+        await database.deleteFitnessFile({ id: firstId })
+        await database.deleteFitnessFile({ id: secondId })
+      }
+    })
+
+    it('records the loss when only some activities could not be read', async () => {
+      // The case the sweep gate could not cover, and the one a fixture of two
+      // far-apart routes hides: two rides in the same region SHARE tiles at
+      // every coarse zoom, so folding the readable one rewrites those tiles at
+      // the new version with only its own edges. No decision about the sweep
+      // can bring the other ride's geometry back — only the record on the row
+      // can say it is missing.
+      const readableId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+      const unreadableId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-16T07:00:00.000Z')
+      )
+
+      try {
+        await seedRoute(readableId, AMSTERDAM)
+        await seedRoute(unreadableId, [
+          { lat: 52.02, lng: 4.9 },
+          { lat: 52.43, lng: 4.97 }
+        ])
+        await runAllTime('job-pyramid-partial-first')
+
+        const healthy = await database.getFitnessRouteHeatmapPyramid({
+          actorId: actor.id
+        })
+        expect(healthy).toMatchObject({ status: 'completed', activityCount: 2 })
+        const healthyPoints = (await readTiles()).reduce(
+          (sum, tile) => sum + tile.pointCount,
+          0
+        )
+
+        // Only one of the two becomes unreadable.
+        await database.deleteFitnessFileRoute({ fitnessFileId: unreadableId })
+        mockGetFitnessFile.mockRejectedValue(new Error('storage unavailable'))
+
+        await runAllTime(
+          'job-pyramid-partial-second',
+          {},
+          Math.max(Date.now(), healthy!.completedAt! + 1)
+        )
+
+        const degraded = await database.getFitnessRouteHeatmapPyramid({
+          actorId: actor.id
+        })
+        expect(degraded).toMatchObject({
+          status: 'completed',
+          activityCount: 1,
+          error: 'Completed without 1 activities that could not be read'
+        })
+        // Geometry really was lost — this is what the record exists for.
+        const degradedPoints = (await readTiles()).reduce(
+          (sum, tile) => sum + tile.pointCount,
+          0
+        )
+        expect(degradedPoints).toBeLessThan(healthyPoints)
+        // And the row still describes the tiles on disk.
+        expect(degraded?.tileCount).toBe((await readTiles()).length)
+      } finally {
+        mockGetFitnessFile.mockResolvedValue({
+          type: 'buffer',
+          buffer: Buffer.from('fitness-file-bytes'),
+          contentType: 'application/vnd.ant.fit'
+        })
+        await database.deleteFitnessFile({ id: readableId })
+        await database.deleteFitnessFile({ id: unreadableId })
+      }
+    })
+
+    it('records the count it was measured against, not the one it started with', async () => {
+      // The coverage decision recounts, and the row has to record THAT number —
+      // otherwise a completed build reports a history size it was never
+      // compared against, and the two counters on the row disagree about
+      // whether it covered anything. A deletion mid-pass is the case where the
+      // two differ while the build still completes: the scan walked past both
+      // files, so it covered everything that is left.
+      const firstId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+      const secondId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-16T07:00:00.000Z')
+      )
+
+      try {
+        await seedRoute(firstId, AMSTERDAM)
+        // Deleted from inside the scan, i.e. after the start-of-pass count and
+        // the page query have both already run.
+        mockParseFitnessFile.mockImplementationOnce(async () => {
+          await database.deleteFitnessFile({ id: firstId })
+          return {
+            coordinates: SINGAPORE,
+            trackPoints: [],
+            totalDistanceMeters: 50_000,
+            totalDurationSeconds: 7_200,
+            elevationGainMeters: 42,
+            activityType: 'running',
+            startTime: new Date('2026-04-16T07:00:00.000Z')
+          }
+        })
+
+        await runAllTime('job-pyramid-recount-records')
+
+        expect(
+          await database.getFitnessRouteHeatmapPyramid({ actorId: actor.id })
+        ).toMatchObject({
+          status: 'completed',
+          scannedCount: 2,
+          // One left, and one is what the decision used.
+          totalCount: 1
+        })
+      } finally {
         await database.deleteFitnessFile({ id: firstId })
         await database.deleteFitnessFile({ id: secondId })
       }
