@@ -11,8 +11,10 @@
  * `actorId` alone (covered by recipients_actorId_statusId_idx), which a
  * type-led index cannot serve at all.
  *
- * Migrations run with `disableTransactions: true`, so this stays a single
- * statement.
+ * The app runs its migrations with `disableTransactions: true`
+ * (`lib/database/sql/index.ts`), so this stays a single statement — the CLI and
+ * the archive script do wrap migrations in a transaction, but a lone
+ * `dropIndex` is safe either way.
  *
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
