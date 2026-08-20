@@ -1,0 +1,23 @@
+docs/fitness-file-storage.md
+  s_0e2fd6be727054::t_2eda992dbe2b31 73
+lib/database/sql/fitnessRouteHeatmapTile.test.ts
+  s_0e2fd6be727054::t_aba8022fd59b19 1235,1246-1252
+lib/jobs/generateFitnessRouteHeatmapJob.test.ts
+  s_0e2fd6be727054::t_d471eb6228184d 3613-3618,3788-3796,3800-3801,3804-3806,3818-3821
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "eaa5fac0db8d22cc58e4baacb9954ac256ea3102",
+  "prompts": {},
+  "sessions": {
+    "s_0e2fd6be727054": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8b4fe7c-fd3e-48ba-9e1d-ef3b99484c21",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
