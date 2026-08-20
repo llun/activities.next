@@ -2837,6 +2837,16 @@ describe('generateFitnessRouteHeatmapJob', () => {
         expect(upsertSpy.mock.calls[0][0].tiles).toHaveLength(
           TILE_FLUSH_PENDING_LIMIT
         )
+        // And it commits a cursor that COVERS those tiles. This is the second
+        // of the two flush sites that fire inside a single activity, and the
+        // one the suite did not reach: a cursor still naming the previous file
+        // would let a resume fold this activity again, which is a permanently
+        // wrong count rather than a missing one.
+        expect(upsertSpy.mock.calls[0][0].progress?.cursor).toEqual({
+          createdAt: expect.any(Number),
+          id: secondId
+        })
+        expect(upsertSpy.mock.calls[0][0].progress?.scannedCount).toBe(1)
         expect(
           await database.getFitnessRouteHeatmapPyramid({ actorId: actor.id })
         ).toMatchObject({ status: 'completed' })
@@ -3503,6 +3513,89 @@ describe('generateFitnessRouteHeatmapJob', () => {
         expect((await readTiles()).length).toBeGreaterThan(0)
       } finally {
         heapSpy.mockRestore()
+        await database.deleteFitnessFile({ id: fitnessFileId })
+      }
+    })
+
+    it('tracks what it folded per file, not per page', async () => {
+      // `foldedThisFile` decides whether a throw is recorded as lost geometry.
+      // Declared once for the page rather than per file, one successful fold
+      // would silence every later failure in the same page — and a degraded
+      // build would complete claiming it read everything.
+      const readableId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+      const unreadableId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-16T07:00:00.000Z')
+      )
+
+      try {
+        // Both in one page, the readable one scanned second: a page-scoped flag
+        // set by the unreadable file's neighbour would still be false here, so
+        // the discriminating order is readable-first — which is newest-first,
+        // i.e. created last.
+        await seedRoute(unreadableId, SINGAPORE)
+        mockGetFitnessFile.mockImplementation(async (_database, id) =>
+          id === readableId
+            ? Promise.reject(new Error('storage unavailable'))
+            : {
+                type: 'buffer' as const,
+                buffer: Buffer.from('fitness-file-bytes'),
+                contentType: 'application/vnd.ant.fit'
+              }
+        )
+
+        await runAllTime('job-pyramid-folded-per-file')
+
+        expect(
+          await database.getFitnessRouteHeatmapPyramid({ actorId: actor.id })
+        ).toMatchObject({
+          status: 'completed',
+          activityCount: 1,
+          error: 'Completed without 1 activity that could not be read'
+        })
+      } finally {
+        mockGetFitnessFile.mockReset()
+        mockGetFitnessFile.mockResolvedValue({
+          type: 'buffer',
+          buffer: Buffer.from('fitness-file-bytes'),
+          contentType: 'application/vnd.ant.fit'
+        })
+        await database.deleteFitnessFile({ id: readableId })
+        await database.deleteFitnessFile({ id: unreadableId })
+      }
+    })
+
+    it('does not let a failing release or pyramid write break the run', async () => {
+      // "Tile work never fails the run" has to hold for the writes that RECORD
+      // a tile-path failure too. The release's own catch and the top-level
+      // catch's pyramid write are the last two places a pyramid error could
+      // escape into the legacy path — and the top-level one must not mask the
+      // original error either, which is what the run is rethrowing.
+      const fitnessFileId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+      const pyramidWriteSpy = vi
+        .spyOn(database, 'updateFitnessRouteHeatmapPyramid')
+        .mockRejectedValue(new Error('pyramid row unavailable'))
+      const pageSpy = vi
+        .spyOn(database, 'getFitnessFilesByActor')
+        .mockRejectedValueOnce(new Error('page read failed'))
+
+      try {
+        await seedRoute(fitnessFileId, AMSTERDAM)
+
+        // The original error, not the pyramid one.
+        await expect(runAllTime('job-pyramid-release-throws')).rejects.toThrow(
+          'page read failed'
+        )
+        expect(pyramidWriteSpy).toHaveBeenCalled()
+      } finally {
+        pageSpy.mockRestore()
+        pyramidWriteSpy.mockRestore()
         await database.deleteFitnessFile({ id: fitnessFileId })
       }
     })

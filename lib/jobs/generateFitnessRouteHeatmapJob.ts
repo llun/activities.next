@@ -1161,6 +1161,13 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
                 )
                 const privacySegments = buildPrivacySegments(privacyAwarePoints)
 
+                // Already folded by an earlier pass of this build, so the
+                // build HAS its geometry: a throw later in this block is not a
+                // loss to record.
+                if (pyramidBuild && !isUnfoldedByPyramid(file)) {
+                  foldedThisFile = true
+                }
+
                 // Before the region filter: the pyramid stores tiles
                 // unclipped, and a region is applied when they are served.
                 if (pyramidBuild && isUnfoldedByPyramid(file)) {

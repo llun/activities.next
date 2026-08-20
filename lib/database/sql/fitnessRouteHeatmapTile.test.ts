@@ -80,6 +80,13 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
       firstMatches: (sql: string) => boolean,
       secondMatches: (sql: string) => boolean
     ) => {
+      // Without this the whole helper degrades to an order-only check the
+      // moment knex stops carrying `__knexUid`, which is exactly the weaker
+      // assertion it was written to replace.
+      for (const statement of statements) {
+        expect(typeof statement.connection).toBe('string')
+      }
+
       const firstIndex = statements.findIndex(({ sql }) => firstMatches(sql))
       expect(firstIndex).toBeGreaterThan(-1)
       const secondIndex = statements.findIndex(
@@ -744,6 +751,62 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
           )
           return state
         }
+
+        it('refuses a claim whose build heartbeats exactly onto the boundary', async () => {
+          // The SQL half of `updatedAt >= staleBefore`. The JS classifier
+          // short-circuits on a row that already looks live, so the only way to
+          // reach `applyClaimableFilter`'s own comparison is to make the row
+          // look stale at read time and live at write time — and the boundary
+          // is where a `<` relaxed to `<=` stops refusing. Both clocks here are
+          // `Date.now()`, so landing exactly on it is ordinary.
+          const {
+            database: isolated,
+            instance,
+            prepare: prepareIsolated
+          } = getTestDatabaseWithInstance(true)
+          await prepareIsolated()
+          await isolated.migrate()
+
+          try {
+            const actorId = await createActor(isolated)
+            const owner = await isolated.claimFitnessRouteHeatmapPyramidBuild({
+              actorId,
+              requestedAt: Date.now(),
+              staleBefore: Date.now() - 120_000
+            })
+            expect(owner.claimed).toBe(true)
+
+            const staleBefore = Date.now()
+            await instance('fitness_route_heatmap_pyramids')
+              .where('actorId', actorId)
+              .update({ updatedAt: new Date(staleBefore - 60_000) })
+
+            // The owner heartbeats onto the boundary itself.
+            const staged = stageOnClaimRead(instance, () =>
+              instance('fitness_route_heatmap_pyramids')
+                .where('actorId', actorId)
+                .update({ updatedAt: new Date(staleBefore) })
+            )
+
+            const thief = await isolated.claimFitnessRouteHeatmapPyramidBuild({
+              actorId,
+              requestedAt: Date.now(),
+              staleBefore
+            })
+
+            expect(staged.fired).toBe(true)
+            expect(thief.claimed).toBe(false)
+            expect(
+              await isolated.getFitnessRouteHeatmapPyramid({ actorId })
+            ).toMatchObject({
+              claimSeq: owner.pyramid.claimSeq,
+              version: owner.pyramid.version,
+              status: 'generating'
+            })
+          } finally {
+            await isolated.destroy()
+          }
+        })
 
         it('refuses a claim whose build completed inside the window', async () => {
           // The interleaving the CAS's own comment names — "a completion that

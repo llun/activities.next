@@ -20,9 +20,9 @@
 //   (actor, z, x, y), so a viewport reads only the tiles it draws and a build
 //   flushes bounded batches instead of rewriting one ever-growing blob.
 //
-// Nothing reads these tables yet: the tiler, the generation job and the serving
-// API land in later changes. `fitness_route_heatmaps` is untouched and keeps
-// serving every existing heatmap.
+// Nothing READS these tables yet. The generation job writes them, but the
+// serving API and the client's zoom-aware fetching land in later changes, so
+// `fitness_route_heatmaps` is untouched and keeps serving every heatmap.
 
 const usesMysqlTextTypes = (knex) => {
   const client = String(knex.client.config.client)
