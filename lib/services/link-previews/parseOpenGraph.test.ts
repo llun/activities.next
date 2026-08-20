@@ -1,4 +1,7 @@
-import { parseOpenGraphMetadata } from '@/lib/services/link-previews/parseOpenGraph'
+import {
+  getDeclaredCharset,
+  parseOpenGraphMetadata
+} from '@/lib/services/link-previews/parseOpenGraph'
 
 const BASE_URL = 'https://example.com/article'
 
@@ -278,5 +281,63 @@ describe('parseOpenGraphMetadata', () => {
         BASE_URL
       )
     ).toBeNull()
+  })
+  // htmlToDOM is quadratic in nesting depth, so the fetch's byte cap bounds
+  // transfer but not CPU: a 1 MiB page of nested divs was measured blocking the
+  // event loop for ~9 SECONDS of synchronous, non-cancellable work — which on
+  // the default in-process queue happens inside the request that created the
+  // status. Parsing only <head> removes the entire class of hostile <body>
+  // payloads; the same page now parses in single-digit milliseconds.
+  it('is not slowed down by a deeply nested body', () => {
+    const depth = 95_000
+    const html =
+      '<html><head><meta property="og:title" content="Deep"></head><body>' +
+      '<div>'.repeat(depth) +
+      '</div>'.repeat(depth) +
+      '</body></html>'
+
+    const start = Date.now()
+    const result = parseOpenGraphMetadata(html, BASE_URL)
+    const elapsed = Date.now() - start
+
+    expect(result?.title).toBe('Deep')
+    // Generous against CI jitter and still three orders of magnitude under the
+    // unbounded parse.
+    expect(elapsed).toBeLessThan(1_000)
+  })
+
+  it('reads metadata from a page with no head element', () => {
+    const result = parseOpenGraphMetadata(
+      '<html><meta property="og:title" content="Headless"></html>',
+      BASE_URL
+    )
+    expect(result?.title).toBe('Headless')
+  })
+
+  describe('getDeclaredCharset', () => {
+    it.each([
+      {
+        description: 'reads an html5 meta charset',
+        html: '<html><head><meta charset="windows-1251"></head></html>',
+        expected: 'windows-1251'
+      },
+      {
+        description: 'reads a charset from a legacy http-equiv',
+        html: '<html><head><meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1"></head></html>',
+        expected: 'iso-8859-1'
+      },
+      {
+        description: 'lowercases the charset',
+        html: '<html><head><meta charset="UTF-8"></head></html>',
+        expected: 'utf-8'
+      },
+      {
+        description: 'answers null when none is declared',
+        html: '<html><head><title>x</title></head></html>',
+        expected: null
+      }
+    ])('$description', ({ html, expected }) => {
+      expect(getDeclaredCharset(html)).toBe(expected)
+    })
   })
 })

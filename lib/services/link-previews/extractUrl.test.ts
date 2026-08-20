@@ -256,6 +256,40 @@ describe('extractPreviewUrl', () => {
         ).toBe('https://real.example/')
       })
 
+      // The dangerous shape: the anchor HAS descendant text, but every one of
+      // those descendants is hidden, so `cleanClassName` renders the whole
+      // anchor as nothing. Counting all descendant text cannot tell this apart
+      // from Mastodon's split below — the visible text has to be computed with
+      // hidden descendants removed.
+      it('ignores an anchor whose every child is invisible', () => {
+        expect(
+          fromHtml(
+            '<p>Nothing to see here <a href="https://evil.example/phish">' +
+              '<span class="invisible">https://evil.example/phish</span>' +
+              '</a></p>'
+          )
+        ).toBeNull()
+      })
+
+      it('ignores an anchor split across two invisible spans', () => {
+        expect(
+          fromHtml(
+            '<p>text <a href="https://evil.example/phish">' +
+              '<span class="invisible">https://evil.example</span>' +
+              '<span class="invisible">/phish</span></a></p>'
+          )
+        ).toBeNull()
+      })
+
+      it('ignores an anchor whose children are all hidden', () => {
+        expect(
+          fromHtml(
+            '<p>text <a href="https://evil.example/phish">' +
+              '<span class="hidden">click</span></a></p>'
+          )
+        ).toBeNull()
+      })
+
       // Mastodon splits a link's display text into invisible/ellipsis spans on
       // the anchor's CHILDREN. The anchor itself is visible and must still win.
       it('keeps a Mastodon-style truncated link whose spans are invisible', () => {

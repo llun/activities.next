@@ -169,6 +169,13 @@ export const LinkPreviewSQLDatabaseMixin = (
         if (existing) {
           await trx('link_previews')
             .where('urlHash', urlHash)
+            // The read above and this write are not atomic on either backend, so
+            // a concurrent successful fetch can land in between. Without this
+            // predicate that success is flipped straight back to `failed` and
+            // the just-repaired card disappears from every status linking the
+            // URL — the failure this whole method exists to prevent, through a
+            // narrower window.
+            .whereNot('fetchStatus', 'completed')
             .update({ fetchStatus: 'failed', error, updatedAt: currentTime })
           return
         }

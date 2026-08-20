@@ -11,6 +11,36 @@ export const MAX_DESCRIPTION_LENGTH = 1000
 // PostgreSQL, not a preference.
 export const MAX_SHORT_TEXT_LENGTH = 255
 
+// Only the document head is parsed. The byte cap on the fetch bounds transfer,
+// not CPU: `htmlToDOM` is quadratic in nesting depth, and a page of deeply
+// nested divs that still fits under 1 MiB was measured blocking the event loop
+// for ~9s (and overflowing the stack past ~15k deep, silently yielding no
+// card). That is synchronous, non-cancellable work which on the default
+// in-process queue runs inside the request that created the status. Every tag
+// this reads is defined to live in <head>, so slicing there removes the entire
+// class of hostile <body> payloads rather than trying to time-bound them.
+export const MAX_HEAD_LENGTH = 128 * 1024
+
+const HEAD_END = '</head>'
+
+const getHeadMarkup = (html: string): string => {
+  const headEnd = html.toLowerCase().indexOf(HEAD_END)
+  const head = headEnd === -1 ? html : html.slice(0, headEnd)
+  // A page with no </head> at all (or a pathologically long one) still gets a
+  // bounded slice rather than the whole document.
+  return head.length > MAX_HEAD_LENGTH ? head.slice(0, MAX_HEAD_LENGTH) : head
+}
+
+// The encoding a page declares in markup rather than in its Content-Type
+// header. `safeRemoteFetch` always decodes as UTF-8, so anything else would be
+// stored as mojibake — and the HTML5 `<meta charset>` form is the common case
+// the header check alone misses.
+export const getDeclaredCharset = (html: string): string | null => {
+  const head = getHeadMarkup(html)
+  const charsetMeta = head.match(/<meta[^>]+charset\s*=\s*["']?([\w-]+)/i)
+  return charsetMeta ? charsetMeta[1].toLowerCase() : null
+}
+
 export type LinkPreviewMetadata = {
   type: string
   title: string
@@ -134,10 +164,18 @@ const parseDimension = (value: string | undefined): number | null => {
   return parsed
 }
 
+// Years either side of this are not real publication dates, and a value outside
+// the backend's timestamp domain fails the INSERT — which would cost the whole
+// card, not just its date.
+const MIN_PUBLISHED_AT = Date.UTC(1900, 0, 1)
+const MAX_PUBLISHED_AT = Date.UTC(2200, 0, 1)
+
 const parsePublishedAt = (value: string | undefined): number | null => {
   if (!value?.trim()) return null
   const parsed = Date.parse(value.trim())
-  return Number.isNaN(parsed) ? null : parsed
+  if (Number.isNaN(parsed)) return null
+  if (parsed < MIN_PUBLISHED_AT || parsed > MAX_PUBLISHED_AT) return null
+  return parsed
 }
 
 const isHttpUrl = (value: string): boolean => {
@@ -164,7 +202,7 @@ export const parseOpenGraphMetadata = (
 
   const meta = new Map<string, string>()
   try {
-    collectMeta(htmlToDOM(html) as DomNode[], meta)
+    collectMeta(htmlToDOM(getHeadMarkup(html)) as DomNode[], meta)
   } catch {
     return null
   }
@@ -181,13 +219,12 @@ export const parseOpenGraphMetadata = (
     parseAbsoluteImageUrl(meta.get('twitter:image'), baseUrl)
 
   const articleAuthor = meta.get('article:author')
-  const trimmedAuthor = articleAuthor?.trim()
+  // Cleaned like every other stored string: this is served as the API's
+  // `author_url`, so a bidi override or a newline in it is the same display
+  // hazard it would be anywhere else.
+  const cleanedAuthor = cleanText(articleAuthor, MAX_PREVIEW_URL_LENGTH)
   const authorUrl =
-    trimmedAuthor &&
-    isHttpUrl(trimmedAuthor) &&
-    trimmedAuthor.length <= MAX_PREVIEW_URL_LENGTH
-      ? trimmedAuthor
-      : null
+    cleanedAuthor && isHttpUrl(cleanedAuthor) ? cleanedAuthor : null
 
   const authorName =
     cleanText(meta.get('author'), MAX_SHORT_TEXT_LENGTH) ??

@@ -19,8 +19,8 @@ const NON_CONTENT_ANCHOR_CLASSES = ['mention', 'hashtag', 'u-url']
 
 /**
  * Canonical form of a URL for cache keying and comparison: protocol-checked,
- * host lowercased, default port and fragment dropped. The path and query keep
- * their case because they are case-sensitive on most servers.
+ * host lowercased, default port, fragment and userinfo dropped. The path and
+ * query keep their case because they are case-sensitive on most servers.
  *
  * Returns null for anything that is not a usable http(s) URL — that null is
  * what keeps a `javascript:` or `data:` URL out of the fetcher and out of an
@@ -35,6 +35,12 @@ export const normalizePreviewUrl = (input: string): string | null => {
     if (!ALLOWED_PROTOCOLS.has(url.protocol)) return null
     if (!url.hostname) return null
     url.hash = ''
+    // `safeRemoteFetch` strips credentials before fetching, so keeping them
+    // here would hash two spellings of one page to different cache keys — and
+    // would put the credentials in `link_previews.url`, which is served to
+    // every viewer as the card's href and its Mastodon `card.url`.
+    url.username = ''
+    url.password = ''
     const normalized = url.toString()
     if (normalized.length > MAX_PREVIEW_URL_LENGTH) return null
     return normalized
@@ -53,9 +59,14 @@ const collectMarkdownLinks = (tokens: Token[], hrefs: string[]) => {
     }
     const nested = (token as { tokens?: Token[] }).tokens
     if (nested) collectMarkdownLinks(nested, hrefs)
-    // Tables and lists carry their children on other keys.
+    // Lists keep their children on `items`; a GFM table keeps its cells on
+    // `header` and `rows`, and each cell has its own `tokens`.
     const items = (token as { items?: Token[] }).items
     if (items) collectMarkdownLinks(items, hrefs)
+    const header = (token as { header?: Token[] }).header
+    if (header) collectMarkdownLinks(header, hrefs)
+    const rows = (token as { rows?: Token[][] }).rows
+    if (rows) for (const row of rows) collectMarkdownLinks(row, hrefs)
   }
 }
 
@@ -96,14 +107,26 @@ const isNonContentAnchor = (attribs: Record<string, string>): boolean => {
   )
 }
 
-// The anchor's own rendered text. Mastodon splits a long URL across
-// `invisible`/`ellipsis` spans INSIDE the anchor, so this deliberately counts
-// all descendant text rather than inspecting those spans — the anchor as a
-// whole is still visible and clickable.
-const getNodeText = (node: DomNode): string => {
+const isHiddenNode = (node: DomNode): boolean => {
+  const classNames = (node.attribs?.class ?? '').toLowerCase().split(/\s+/)
+  return HIDDEN_ANCHOR_CLASSES.some((marker) => classNames.includes(marker))
+}
+
+/**
+ * The text of a node as the reader actually sees it — descendants the renderer
+ * hides contribute nothing.
+ *
+ * Counting ALL descendant text is not enough. Mastodon splits a long URL across
+ * `invisible`/`ellipsis` spans inside the anchor, so some hidden children are
+ * normal; but an anchor whose children are *all* hidden renders as literally
+ * nothing (`cleanClassName` maps `invisible` onto Tailwind's `hidden`) while
+ * still carrying text. Only excluding the hidden ones tells those two apart.
+ */
+const getVisibleText = (node: DomNode): string => {
   if (node.type === 'text') return node.data ?? ''
+  if (isHiddenNode(node)) return ''
   if (!node.children) return ''
-  return node.children.map(getNodeText).join('')
+  return node.children.map(getVisibleText).join('')
 }
 
 const collectHtmlLinks = (nodes: DomNode[], hrefs: string[]) => {
@@ -114,7 +137,7 @@ const collectHtmlLinks = (nodes: DomNode[], hrefs: string[]) => {
       // An anchor with no visible text renders as nothing at all. Giving it a
       // card would put a full-width clickable block, with an attacker-chosen
       // title and image, under a post whose text shows no such link.
-      if (href && !isNonContentAnchor(attribs) && getNodeText(node).trim()) {
+      if (href && !isNonContentAnchor(attribs) && getVisibleText(node).trim()) {
         hrefs.push(href)
       }
     }

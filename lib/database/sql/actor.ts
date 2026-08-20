@@ -1615,6 +1615,17 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
           'statusId',
           statusIds
         )
+        // Same rule as the status-deletion path: only the status→card link
+        // goes, never the shared per-url cache. Without it a purged actor
+        // leaves one orphan row per status forever, and because `statusId` is
+        // the deterministic ActivityPub id, a re-ingested remote status would
+        // come back wearing its old card with no fetch at all.
+        await deleteRowsByColumnChunks(
+          trx,
+          'status_link_previews',
+          'statusId',
+          statusIds
+        )
         await deleteRowsByColumnChunks(
           trx,
           'poll_answers',

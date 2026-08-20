@@ -1,8 +1,10 @@
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
 import {
+  LINK_PREVIEW_CONNECT_TIMEOUT_MS,
   LINK_PREVIEW_FAILURE_TTL_MS,
   LINK_PREVIEW_MAX_BODY_BYTES,
   LINK_PREVIEW_MAX_REDIRECTS,
+  LINK_PREVIEW_READ_TIMEOUT_MS,
   LINK_PREVIEW_REFRESH_TTL_MS,
   LINK_PREVIEW_TIMEOUT_MS,
   fetchLinkPreview
@@ -282,17 +284,6 @@ describe('fetchLinkPreview', () => {
     expect(card?.imageUrl).toBe('https://final.example.com/img/a.png')
   })
 
-  it('keeps the requested url as the card url after a redirect', async () => {
-    const requestedUrl = 'https://short.example.com/abc'
-    mockedFetch.mockResolvedValue(
-      htmlResponse(PAGE, 'https://example.com/full-article')
-    )
-
-    const card = await fetchLinkPreview({ database, url: requestedUrl })
-
-    expect(card?.url).toBe(requestedUrl)
-  })
-
   it('returns null without fetching for a url that cannot be normalized', async () => {
     const card = await fetchLinkPreview({
       database,
@@ -312,19 +303,59 @@ describe('fetchLinkPreview', () => {
 
     const options = mockedFetch.mock.calls[0][0]
     expect(options.maxBodyBytes).toBe(LINK_PREVIEW_MAX_BODY_BYTES)
-    expect(options.timeoutInMilliseconds).toBe(LINK_PREVIEW_TIMEOUT_MS)
     expect(options.maxRedirects).toBe(LINK_PREVIEW_MAX_REDIRECTS)
+    // Set explicitly, never via the single `timeoutInMilliseconds` knob: that
+    // one is used for BOTH connect and read, so a lone value silently buys a
+    // hop of double the intended budget.
+    expect(options.connectTimeoutInMilliseconds).toBe(
+      LINK_PREVIEW_CONNECT_TIMEOUT_MS
+    )
+    expect(options.readTimeoutInMilliseconds).toBe(LINK_PREVIEW_READ_TIMEOUT_MS)
+    expect(options.timeoutInMilliseconds).toBeUndefined()
   })
 
-  // safeRemoteFetch applies the timeout PER HOP, so the worst case a link
-  // preview can add to an inline request is roughly timeout x (redirects + 1).
-  // These bounds are what keep a slow third-party host from holding one of this
-  // server's request handlers open for a minute on a NoQueue deployment.
+  // A hop costs connect + read, and every hop pays it, so the worst case a link
+  // preview adds to an inline request is (connect + read) x (redirects + 1).
+  // That ceiling is what stops a slow third-party host from holding one of this
+  // server's request handlers open on a NoQueue deployment.
   it('keeps the worst-case inline cost bounded', () => {
+    expect(LINK_PREVIEW_TIMEOUT_MS).toBe(
+      LINK_PREVIEW_CONNECT_TIMEOUT_MS + LINK_PREVIEW_READ_TIMEOUT_MS
+    )
     expect(
       LINK_PREVIEW_TIMEOUT_MS * (LINK_PREVIEW_MAX_REDIRECTS + 1)
-    ).toBeLessThanOrEqual(15_000)
+    ).toBeLessThanOrEqual(10_000)
     expect(LINK_PREVIEW_MAX_BODY_BYTES).toBeLessThan(2 * 1024 * 1024)
+  })
+
+  // The card's domain is presented to the reader as "where this link goes", so
+  // it has to describe where the content actually came from. Keeping the
+  // requested url would let an open redirector on a trusted host badge an
+  // attacker's title and image with that trusted domain.
+  it('stores the url the content actually came from after a redirect', async () => {
+    mockedFetch.mockResolvedValue(
+      htmlResponse(PAGE, 'https://real-destination.example/article')
+    )
+
+    const card = await fetchLinkPreview({
+      database,
+      url: 'https://trusted.example.com/redirect?to=elsewhere'
+    })
+
+    expect(card?.url).toBe('https://real-destination.example/article')
+  })
+
+  it('rejects a page that declares a non-utf8 charset in markup only', async () => {
+    const url = 'https://example.com/meta-charset'
+    mockedFetch.mockResolvedValue({
+      body: '<html><head><meta charset="windows-1251"><meta property="og:title" content="T"></head><body></body></html>',
+      // A bare text/html header: the encoding is declared only in the markup.
+      headers: { 'content-type': 'text/html' },
+      statusCode: 200,
+      url
+    })
+
+    expect(await fetchLinkPreview({ database, url })).toBeNull()
   })
 
   // A card is shared by every status linking the URL, so a failed refresh must

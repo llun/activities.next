@@ -754,11 +754,6 @@ export const createNoteFromUserInput = async ({
     }
   }
 
-  // Schedule the link preview card for whatever link the author included. This
-  // never throws (see syncStatusLinkPreview), so a preview failure cannot fail
-  // the post that was already written.
-  await syncStatusLinkPreview({ database, status })
-
   if (fitnessFile) {
     await getQueue().publish({
       id: getHashFromString(status.id),
@@ -779,6 +774,13 @@ export const createNoteFromUserInput = async ({
       }
     })
   }
+
+  // Scheduled AFTER the send/process job is published, because on the default
+  // in-process queue `publish` runs the handler inline — so doing this first
+  // made a link post wait on a third-party fetch before it federated. It never
+  // throws (see syncStatusLinkPreview), so a preview failure cannot fail a post
+  // that is already written and already on its way out.
+  await syncStatusLinkPreview({ database, status })
 
   span.end()
   return status

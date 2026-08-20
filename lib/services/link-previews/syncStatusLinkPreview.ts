@@ -37,16 +37,19 @@ export const syncStatusLinkPreview = async ({
     // wraps, which was synced when that status was stored.
     if (status.type === StatusType.enum.Announce) return
 
-    const { network } = await getResolvedServerSettings(database)
-    if (!network.linkPreviews) return
-
     const url = await resolveStatusPreviewUrl({ database, status })
 
     if (!url) {
-      // An edit can remove the last link, and the card has to go with it.
+      // An edit can remove the last link, and the card has to go with it. This
+      // runs regardless of the switch: turning link previews off stops new
+      // FETCHES, and must not also strand a card on a post that no longer
+      // links anything.
       await database.deleteStatusLinkPreview({ statusId: status.id })
       return
     }
+
+    const { network } = await getResolvedServerSettings(database)
+    if (!network.linkPreviews) return
 
     // A remote post reaches many servers at once; a local one has an author
     // waiting to see the card, and is a single request either way.

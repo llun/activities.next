@@ -18,7 +18,9 @@ const getDomain = (linkPreview: StatusLinkPreview) => {
   try {
     return new URL(linkPreview.url).hostname.replace(/^www\./, '')
   } catch {
-    return linkPreview.siteName ?? linkPreview.url
+    // Never fall back to `siteName`: that is the page's own claim about itself,
+    // and this line exists precisely to be the part it cannot choose.
+    return linkPreview.url
   }
 }
 
@@ -56,12 +58,13 @@ export const LinkPreviewCard: FC<LinkPreviewCardProps> = ({
       href={safeExternalHref(linkPreview.url)}
       target="_blank"
       rel="noopener noreferrer nofollow"
-      // The card sits inside a post that is itself clickable on some surfaces;
-      // without this the browser opens the link and the row navigates to the
-      // status behind it.
+      // Defensive: no surface makes the post row itself clickable today, but
+      // the card is a link inside a post body and every sibling block that
+      // navigates (the quote card, the attachments) stops propagation for the
+      // same reason.
       onClick={(event: MouseEvent) => event.stopPropagation()}
       className={cn(
-        'mt-3 flex gap-3 overflow-hidden rounded-xl border bg-card p-3 shadow-sm transition-colors hover:bg-muted',
+        'mt-2 flex gap-3 overflow-hidden rounded-xl border border-border/60 bg-muted/20 p-3 transition-colors hover:bg-muted/40',
         className
       )}
     >
@@ -84,11 +87,11 @@ export const LinkPreviewCard: FC<LinkPreviewCardProps> = ({
         <div className="truncate text-xs text-muted-foreground">
           {publisher}
         </div>
-        <div className="line-clamp-2 text-sm font-semibold leading-snug">
+        <div className="line-clamp-2 wrap-anywhere text-sm font-semibold leading-snug">
           {linkPreview.title}
         </div>
         {linkPreview.description ? (
-          <div className="line-clamp-2 text-[13px] leading-snug text-muted-foreground">
+          <div className="line-clamp-2 wrap-anywhere text-[13px] leading-snug text-muted-foreground">
             {linkPreview.description}
           </div>
         ) : null}

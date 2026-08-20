@@ -21,8 +21,13 @@ const STATUS_ID = 'https://llun.test/users/me/statuses/1'
 const LINKED_URL = 'https://example.com/a'
 
 const linkStatusLinkPreview = vi.fn()
+const deleteStatusLinkPreview = vi.fn()
 const getStatus = vi.fn()
-const database = { linkStatusLinkPreview, getStatus } as unknown as Database
+const database = {
+  linkStatusLinkPreview,
+  deleteStatusLinkPreview,
+  getStatus
+} as unknown as Database
 
 const message = (data: unknown) => ({
   id: 'job-1',
@@ -46,6 +51,7 @@ describe('fetchLinkPreviewJob', () => {
   beforeEach(() => {
     vi.mocked(fetchLinkPreview).mockReset()
     linkStatusLinkPreview.mockReset()
+    deleteStatusLinkPreview.mockReset()
     getStatus.mockReset()
     getStatus.mockResolvedValue(statusWithText(`Read ${LINKED_URL} today`))
     resolvedSettings.network.linkPreviews = true
@@ -69,7 +75,11 @@ describe('fetchLinkPreviewJob', () => {
     })
   })
 
-  it('links nothing when the page could not be fetched', async () => {
+  // Any card still attached belongs to the PREVIOUS link, so leaving it would
+  // render a card for a page the post no longer mentions — permanently, since
+  // nothing retries. (An edit from an article to a PDF hits this on the first
+  // try.)
+  it('drops any existing card when the page could not be fetched', async () => {
     vi.mocked(fetchLinkPreview).mockResolvedValue(null)
 
     await fetchLinkPreviewJob(
@@ -78,24 +88,36 @@ describe('fetchLinkPreviewJob', () => {
     )
 
     expect(linkStatusLinkPreview).not.toHaveBeenCalled()
+    expect(deleteStatusLinkPreview).toHaveBeenCalledWith({
+      statusId: STATUS_ID
+    })
   })
 
   // An edit enqueues a job for the NEW url under a different id, so the
-  // pre-edit job is still queued. Landing afterwards, it would re-attach the
-  // old card permanently — the delay on a remote fetch makes that ordering the
-  // likely one, not the unlucky one.
-  it('does not attach a card for a url the status no longer links', async () => {
+  // pre-edit job is still queued. Landing afterwards it must not re-attach the
+  // old card — the delay on a remote fetch makes that ordering the likely one,
+  // not the unlucky one. The job works from the status as it is NOW rather than
+  // from the url in its message, so a stale job simply re-confirms the current
+  // card instead of being wasted.
+  it('uses the url the status links now, not the one it was scheduled with', async () => {
     getStatus.mockResolvedValue(
       statusWithText('Now pointing at https://example.com/other')
     )
+    vi.mocked(fetchLinkPreview).mockResolvedValue(card('hash-current'))
 
     await fetchLinkPreviewJob(
       database,
       message({ statusId: STATUS_ID, url: LINKED_URL })
     )
 
-    expect(fetchLinkPreview).not.toHaveBeenCalled()
-    expect(linkStatusLinkPreview).not.toHaveBeenCalled()
+    expect(fetchLinkPreview).toHaveBeenCalledWith({
+      database,
+      url: 'https://example.com/other'
+    })
+    expect(linkStatusLinkPreview).toHaveBeenCalledWith({
+      statusId: STATUS_ID,
+      urlHash: 'hash-current'
+    })
   })
 
   it('does not resurrect a card an edit removed', async () => {
@@ -106,6 +128,7 @@ describe('fetchLinkPreviewJob', () => {
       message({ statusId: STATUS_ID, url: LINKED_URL })
     )
 
+    expect(fetchLinkPreview).not.toHaveBeenCalled()
     expect(linkStatusLinkPreview).not.toHaveBeenCalled()
   })
 

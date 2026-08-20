@@ -67,6 +67,6 @@ export const up = async (knex) => {
  * @returns { Promise<void> }
  */
 export const down = async (knex) => {
-  await knex.schema.dropTable('status_link_previews')
-  await knex.schema.dropTable('link_previews')
+  await knex.schema.dropTableIfExists('status_link_previews')
+  await knex.schema.dropTableIfExists('link_previews')
 }

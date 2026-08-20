@@ -25,7 +25,12 @@ vi.mock('@/lib/services/serverSettings', () => ({
 }))
 
 const deleteStatusLinkPreview = vi.fn()
-const database = { deleteStatusLinkPreview } as unknown as Database
+// `resolveStatusPreviewUrl` looks the quoted status up to exclude its web URL
+// as well as its ActivityPub id. Without this the quote test below throws,
+// syncStatusLinkPreview swallows it, and "publish was not called" passes for
+// entirely the wrong reason.
+const getStatus = vi.fn().mockResolvedValue(null)
+const database = { deleteStatusLinkPreview, getStatus } as unknown as Database
 
 const makeStatus = (overrides: Partial<Status> = {}): Status =>
   ({
@@ -41,6 +46,8 @@ describe('syncStatusLinkPreview', () => {
   beforeEach(() => {
     publish.mockReset()
     deleteStatusLinkPreview.mockReset()
+    getStatus.mockReset()
+    getStatus.mockResolvedValue(null)
     runsInline.value = false
     resolvedSettings.network.linkPreviews = true
   })

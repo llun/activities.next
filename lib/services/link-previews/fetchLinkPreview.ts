@@ -1,6 +1,9 @@
 import { Database } from '@/lib/database/types'
 import { normalizePreviewUrl } from '@/lib/services/link-previews/extractUrl'
-import { parseOpenGraphMetadata } from '@/lib/services/link-previews/parseOpenGraph'
+import {
+  getDeclaredCharset,
+  parseOpenGraphMetadata
+} from '@/lib/services/link-previews/parseOpenGraph'
 import { LinkPreviewRecord } from '@/lib/types/database/operations'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getHeaderValue } from '@/lib/utils/getHeaderValue'
@@ -24,19 +27,23 @@ export const LINK_PREVIEW_FAILURE_TTL_MS = 60 * 60 * 1000
 // inline in a request on a NoQueue deployment.
 export const LINK_PREVIEW_MAX_BODY_BYTES = 1024 * 1024
 
-// Per-hop budget. `safeRemoteFetch` splits this across its connect and read
-// timeouts and applies it to EVERY hop, so the real worst case is roughly
-// `timeout × (maxRedirects + 1)` — which is why the redirect allowance below is
-// spent deliberately rather than left at the default.
-export const LINK_PREVIEW_TIMEOUT_MS = 5_000
+// Connect and read budgets are set SEPARATELY on purpose. `safeRemoteFetch`
+// falls back to using `timeoutInMilliseconds` for both, and got's own request
+// timeout is `connect + read` — so passing one 5s value silently bought a 10s
+// hop, and the arithmetic below would have been wrong by 2x for the second time.
+// These two are what a hop actually costs: 2.5 + 2.5 = 5s.
+export const LINK_PREVIEW_CONNECT_TIMEOUT_MS = 2_500
+export const LINK_PREVIEW_READ_TIMEOUT_MS = 2_500
+export const LINK_PREVIEW_TIMEOUT_MS =
+  LINK_PREVIEW_CONNECT_TIMEOUT_MS + LINK_PREVIEW_READ_TIMEOUT_MS
 
 // One redirect, not the default three. Link shorteners and `example.com` →
 // `www.example.com` need a hop; chains beyond that are rare enough that losing
 // their card is a better trade than the latency. On a NoQueue deployment this
 // whole fetch runs inline inside the POST that created the status (and inside
-// the inbox request for a federated one), so the ceiling here is the ceiling on
-// how long a third-party host can hold one of this server's request handlers:
-// ~2 hops × 5s ≈ 10s, rather than the ~60s that 3 redirects at 7.5s allowed.
+// the inbox request for a federated one), so this is the ceiling on how long a
+// third-party host can hold one of this server's request handlers: 2 hops x 5s
+// = 10s, against the ~60s that 3 redirects at a doubled 7.5s allowed.
 export const LINK_PREVIEW_MAX_REDIRECTS = 1
 
 const ACCEPTED_CONTENT_TYPES = ['text/html', 'application/xhtml+xml']
@@ -104,9 +111,11 @@ export type FetchLinkPreviewParams = {
 /**
  * Fetch (or serve from cache) the preview card for one URL.
  *
- * Returns the card only when there is one to show: a failure is recorded as a
- * negative-cache row and reported as null, so a caller never links a status to
- * a card that would render as an empty box.
+ * Returns a card only when there is one to show, so a caller never links a
+ * status to something that would render as an empty box. A failure is recorded
+ * as a negative-cache row and answered with null — EXCEPT when the URL already
+ * had a working card, which is preserved and returned, because a failed refresh
+ * should not take a good card away from every status linking that page.
  */
 export const fetchLinkPreview = async ({
   database,
@@ -127,7 +136,8 @@ export const fetchLinkPreview = async ({
       headers: REQUEST_HEADERS,
       maxBodyBytes: LINK_PREVIEW_MAX_BODY_BYTES,
       maxRedirects: LINK_PREVIEW_MAX_REDIRECTS,
-      timeoutInMilliseconds: LINK_PREVIEW_TIMEOUT_MS
+      connectTimeoutInMilliseconds: LINK_PREVIEW_CONNECT_TIMEOUT_MS,
+      readTimeoutInMilliseconds: LINK_PREVIEW_READ_TIMEOUT_MS
     })
 
     if (response.statusCode !== 200) {
@@ -144,7 +154,15 @@ export const fetchLinkPreview = async ({
     // another encoding would be parsed into mojibake and stored that way.
     // Storing a broken title is worse than storing no card; decoding these
     // properly needs a bytes-level fetch and is deliberately left out of v1.
-    if (charset && charset !== 'utf-8' && charset !== 'utf8') {
+    // The header is only half of it: HTML5 pages routinely send a bare
+    // `text/html` and declare the encoding in `<meta charset>` instead, which
+    // is the common non-UTF-8 case the header check alone waves through.
+    const declaredCharset = charset ?? getDeclaredCharset(response.body)
+    if (
+      declaredCharset &&
+      declaredCharset !== 'utf-8' &&
+      declaredCharset !== 'utf8'
+    ) {
       throw new LinkPreviewFetchError('ERR_UNSUPPORTED_CHARSET')
     }
 
@@ -155,11 +173,17 @@ export const fetchLinkPreview = async ({
       throw new LinkPreviewFetchError('ERR_NO_METADATA')
     }
 
+    // The card carries the url the content actually came from, not the one the
+    // post linked. Those differ across a redirect, and the card displays its
+    // domain as "where this link goes" — so keeping the requested url would let
+    // any open redirector on a trusted host badge an attacker's title, image
+    // and description with that trusted domain. The cache stays keyed on the
+    // requested url, so a shortener still resolves without a second fetch.
+    const resolvedUrl = normalizePreviewUrl(response.url) ?? normalizedUrl
+
     return await database.upsertLinkPreview({
       urlHash,
-      // The card keeps the URL as it appeared in the post, so the anchor a
-      // reader clicks is the link the author actually shared.
-      url: normalizedUrl,
+      url: resolvedUrl,
       ...metadata,
       fetchStatus: 'completed',
       error: null
