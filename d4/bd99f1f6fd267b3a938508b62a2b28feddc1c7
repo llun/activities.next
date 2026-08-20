@@ -1,0 +1,37 @@
+lib/services/link-previews/extractUrl.test.ts
+  s_8fbc352edaf843::t_ddae7a6f318118 128-156,313-349
+  s_8fbc352edaf843::t_b3a7172a5f8142 350
+AGENTS.md
+  s_8fbc352edaf843::t_e38dae4d94bdcf 984-990,992-999
+  s_8fbc352edaf843::t_6766c3ce18e2db 991
+lib/services/link-previews/extractUrl.ts
+  s_8fbc352edaf843::t_6800ad17dd04f3 62,64-75,78-86,149-165,167,183
+  s_8fbc352edaf843::t_e9a46974ef2587 76-77,174-179
+lib/services/link-previews/parseOpenGraph.test.ts
+  s_8fbc352edaf843::t_1906b5e7ced264 309-322,352-363
+REVIEW.md
+  s_8fbc352edaf843::t_020053cf0e996b 488-495
+lib/services/link-previews/parseOpenGraph.ts
+  s_8fbc352edaf843::t_3e11e2c65e2ea5 34-41,44,48,62-67,69-78,85,90-96
+  s_8fbc352edaf843::t_8039731330749b 42-43,45-47,49-61,79-84,86-89
+lib/services/link-previews/fetchLinkPreview.test.ts
+  s_8fbc352edaf843::t_1c62b2ed3e1975 348-369
+lib/services/link-previews/fetchLinkPreview.ts
+  s_8fbc352edaf843::t_1c62b2ed3e1975 182-191
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "d4bd99f1f6fd267b3a938508b62a2b28feddc1c7",
+  "prompts": {},
+  "sessions": {
+    "s_8fbc352edaf843": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f5805ef5-0c89-425f-91b8-cc86a0704bc4",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
