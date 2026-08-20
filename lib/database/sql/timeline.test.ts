@@ -842,6 +842,46 @@ describe('TimelineDatabase', () => {
         const limited = await database.getLocalPublicStatusesCount(1)
         expect(limited).toBe(1)
       }, 10000)
+
+      it('counts a status addressed to the public collection twice only once', async () => {
+        // `to` is taken from the inbound activity and is not de-duplicated on
+        // insert, so a peer repeating the public collection writes two
+        // recipient rows for one status. Joining `recipients` would then
+        // produce that status twice; the semi-join must not.
+        const before = await database.getLocalPublicStatusesCount()
+        await database.createNote({
+          actorId: COUNT_ACTOR,
+          cc: [],
+          to: [ACTIVITY_STREAM_PUBLIC, ACTIVITY_STREAM_PUBLIC],
+          id: `${COUNT_ACTOR}/statuses/count-duplicate-recipient`,
+          text: 'Addressed to the public collection twice',
+          url: `${COUNT_ACTOR}/statuses/count-duplicate-recipient`,
+          reply: '',
+          createdAt: Date.now()
+        })
+
+        expect((await database.getLocalPublicStatusesCount()) - before).toBe(1)
+
+        // The bounded branch is the one the landing page actually calls, and it
+        // is a separate code path. A limit that cannot be reached makes the two
+        // branches directly comparable — where `limit: 1` above cannot tell a
+        // correct count from a duplicate-inflated one, since `rows.length` caps
+        // at 1 either way.
+        expect(await database.getLocalPublicStatusesCount(1000)).toBe(
+          await database.getLocalPublicStatusesCount()
+        )
+
+        // The feed it gates must agree — it has no DISTINCT of its own.
+        const statuses = await database.getTimeline({
+          timeline: Timeline.LOCAL_PUBLIC,
+          limit: 30
+        })
+        const appearances = statuses.filter(
+          (status) =>
+            status.id === `${COUNT_ACTOR}/statuses/count-duplicate-recipient`
+        )
+        expect(appearances).toHaveLength(1)
+      }, 10000)
     })
   })
 })

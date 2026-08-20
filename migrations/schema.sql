@@ -1612,6 +1612,8 @@ CREATE INDEX "actors_accountId_idx" ON public.actors USING btree ("accountId");
 
 CREATE INDEX actors_domain_last_status_at_idx ON public.actors USING btree (domain, "lastStatusAt");
 
+CREATE INDEX actors_local_idx ON public.actors USING btree (id) WHERE ("privateKey" IS NOT NULL);
+
 CREATE INDEX "attachmentsIndex" ON public.attachments USING btree ("statusId", "createdAt", "updatedAt");
 
 CREATE INDEX "attachments_actorId_idx" ON public.attachments USING btree ("actorId");
@@ -1762,6 +1764,8 @@ CREATE INDEX "recipientsTypeActorIdIndex" ON public.recipients USING btree (type
 
 CREATE INDEX "recipients_actorId_statusId_idx" ON public.recipients USING btree ("actorId", "statusId");
 
+CREATE INDEX recipients_status_type_actor_idx ON public.recipients USING btree ("statusId", type, "actorId");
+
 CREATE INDEX recipients_type_actor_created_status_idx ON public.recipients USING btree (type, "actorId", "createdAt", "statusId");
 
 CREATE INDEX relays_actor_id ON public.relays USING btree ("actorId");
@@ -1823,6 +1827,8 @@ CREATE INDEX "statusesUrlHashIndex" ON public.statuses USING btree ("urlHash");
 CREATE INDEX "statuses_actorId_idx" ON public.statuses USING btree ("actorId", "createdAt", "updatedAt");
 
 CREATE INDEX statuses_announce_actor_original_idx ON public.statuses USING btree (type, "actorId", "originalStatusId");
+
+CREATE INDEX statuses_reply_created_idx ON public.statuses USING btree (reply, "createdAt", id);
 
 CREATE INDEX statuses_reply_type_idx ON public.statuses USING btree (reply, type);
 

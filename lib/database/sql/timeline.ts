@@ -11,6 +11,38 @@ import {
 } from '@/lib/types/database/operations'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
+// Top-level (non-reply) statuses addressed to the public collection and
+// authored by a local actor (one with a private key). The LOCAL_PUBLIC feed and
+// the landing page's threshold count select exactly this set, so they share one
+// builder rather than restating the predicates.
+//
+// `recipients` is a SEMI-join here, not a join: a status qualifies when it has
+// at least one matching recipient row, and must be produced once however many
+// it has. Expressing that with `whereExists` instead of `innerJoin` is what
+// lets a LIMIT actually bound the scan. The `innerJoin` form multiplied rows
+// and needed DISTINCT to collapse them again, and a sort feeding DISTINCT has
+// to consume the *entire* join before LIMIT sees a single row — so
+// `SELECT DISTINCT … LIMIT n` never stopped early, and the planner, with no
+// limit to push down, optimised for total cost and drove from the least
+// selective side (every local actor, then all of their statuses). That is what
+// put this query at ~27s on the logged-out landing page.
+//
+// It also removes a latent duplicate: the feed had no DISTINCT at all, so a
+// status carrying the public collection twice in `to` (remote input is not
+// de-duplicated on insert) appeared twice in the timeline.
+const localPublicStatusesQuery = (database: Knex) =>
+  database('statuses')
+    .innerJoin('actors', 'statuses.actorId', 'actors.id')
+    .whereNotNull('actors.privateKey')
+    .where('statuses.reply', '')
+    .whereExists(function () {
+      this.select(database.raw('1'))
+        .from('recipients')
+        .whereRaw('?? = ??', ['recipients.statusId', 'statuses.id'])
+        .where('recipients.type', 'to')
+        .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
+    })
+
 export const TimelineSQLDatabaseMixin = (
   database: Knex,
   statusDatabase: StatusDatabase
@@ -44,14 +76,8 @@ export const TimelineSQLDatabaseMixin = (
         if (maxStatusId && !maxRow) return []
         if (minStatusId && !minRow) return []
 
-        let query = database('recipients')
-          .where('recipients.type', 'to')
-          .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
+        let query = localPublicStatusesQuery(database)
           .select('statuses.id as statusId')
-          .innerJoin('statuses', 'recipients.statusId', 'statuses.id')
-          .innerJoin('actors', 'statuses.actorId', 'actors.id')
-          .whereNotNull('actors.privateKey')
-          .where('statuses.reply', '')
           .limit(limit)
 
         if (onlyMedia) {
@@ -279,28 +305,26 @@ export const TimelineSQLDatabaseMixin = (
   },
 
   async getLocalPublicStatusesCount(limit?: number): Promise<number> {
-    // Mirror the LOCAL_PUBLIC selection in getTimeline: top-level (non-reply)
-    // statuses addressed to the public collection and authored by a local actor
-    // (one with a private key).
-    const query = database('recipients')
-      .where('recipients.type', 'to')
-      .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
-      .innerJoin('statuses', 'recipients.statusId', 'statuses.id')
-      .innerJoin('actors', 'statuses.actorId', 'actors.id')
-      .whereNotNull('actors.privateKey')
-      .where('statuses.reply', '')
+    // Shares localPublicStatusesQuery with the LOCAL_PUBLIC branch of
+    // getTimeline, so the threshold can never disagree with the feed it gates.
+    const query = localPublicStatusesQuery(database)
 
     // The landing only needs to know whether the count reaches a threshold, not
-    // the exact total. When `limit` is given, fetch at most `limit` distinct ids
-    // and return how many came back, so the scan stops early instead of counting
+    // the exact total. When `limit` is given, fetch at most `limit` ids and
+    // return how many came back, so the scan stops early instead of counting
     // every public post on every unauthenticated request (a DoS risk at scale).
+    // The semi-join is what makes that bound real — see the note on
+    // localPublicStatusesQuery for why the DISTINCT form it replaced could not
+    // stop early despite carrying the same LIMIT.
     if (limit !== undefined) {
-      const rows = await query.distinct('statuses.id').limit(limit)
+      const rows = await query.select('statuses.id').limit(limit)
       return rows.length
     }
 
+    // No DISTINCT needed: the semi-join yields each status once, and the actors
+    // join is on a unique key.
     const row = await query
-      .countDistinct<{ count: string | number }>({ count: 'statuses.id' })
+      .count<{ count: string | number }>({ count: 'statuses.id' })
       .first()
     // count() returns a string on PostgreSQL and a number on SQLite.
     return row ? Number(row.count) : 0
