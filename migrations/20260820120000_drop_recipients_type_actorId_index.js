@@ -11,10 +11,10 @@
  * `actorId` alone (covered by recipients_actorId_statusId_idx), which a
  * type-led index cannot serve at all.
  *
- * The app runs its migrations with `disableTransactions: true`
- * (`lib/database/sql/index.ts`), so this stays a single statement — the CLI and
- * the archive script do wrap migrations in a transaction, but a lone
- * `dropIndex` is safe either way.
+ * Some paths run migrations with no transaction — `disableTransactions: true`
+ * in `lib/database/sql/index.ts`, and `--disable-transactions` on the
+ * Dockerfile's build-time `knex migrate:latest` — so this stays a single
+ * statement, leaving nothing half-applied to roll back.
  *
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
