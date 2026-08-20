@@ -24,6 +24,7 @@ import {
   LatLng,
   RectRegion,
   formatRectRegion,
+  isSerializableRect,
   isValidRect,
   serializeRegion
 } from '@/lib/fitness/regions'
@@ -199,7 +200,14 @@ const RectComposer: FC<RectComposerProps> = ({
       ...current,
       [corner]: { ...current[corner], [key]: value }
     }))
-  const valid = isValidRect({ type: 'rect', nw: box.nw, se: box.se })
+  const drawn: RectRegion = { type: 'rect', nw: box.nw, se: box.se }
+  const wellFormed = isValidRect(drawn)
+  // Gated on what SERIALIZATION accepts, not merely on a well-formed box. A
+  // rectangle thinner than the 0.01 degree step rounds onto a single coordinate
+  // and has no canonical key of its own, so saving one takes the WORLD's key:
+  // the row would be labelled as a small area while generating, displaying and
+  // — through Share — publishing the actor's entire history.
+  const valid = isSerializableRect(drawn)
 
   // Apple renders through MapKit JS (a separate draw surface); Mapbox when a
   // token is configured; otherwise the keyless MapLibre + OpenFreeMap provider.
@@ -310,7 +318,9 @@ const RectComposer: FC<RectComposerProps> = ({
 
       {!valid && (
         <p className="mt-2 text-[11px] text-destructive">
-          Top-left must be north-west of bottom-right.
+          {wellFormed
+            ? 'Area is too small — each side must span at least 0.01°.'
+            : 'Top-left must be north-west of bottom-right.'}
         </p>
       )}
 

@@ -3,12 +3,10 @@ import { NextRequest } from 'next/server'
 import { getDatabase } from '@/lib/database'
 import {
   parseTileBatchQuery,
-  resolveShareRegionBounds,
   serveHeatmapTiles
 } from '@/lib/services/fitness-files/heatmapTiles/serveTiles'
 import { buildHeatmapTileSource } from '@/lib/services/fitness-files/heatmapTiles/tileSource'
-import { logger } from '@/lib/utils/logger'
-import { apiErrorResponse } from '@/lib/utils/response'
+import { resolveSharedHeatmapRegionBounds } from '@/lib/services/fitness-files/publicHeatmap'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 export const dynamic = 'force-dynamic'
@@ -38,13 +36,32 @@ const publicHeaders = (etag: string) =>
     ['Access-Control-Allow-Origin', '*']
   ])
 
+/**
+ * Refusals carry the same allow-origin as the answers, and are never cached.
+ *
+ * `apiErrorResponse` sets no CORS headers, so a cross-origin caller's fetch
+ * rejects before it can read the status — which would make the whole contract
+ * one-sided: `getPublicHeatmapTiles` reads a 404 as "no tiles, draw the untiled
+ * geometry", and off-origin it would instead see a network error. The sibling
+ * image route has the same asymmetry harmlessly, because an `<img>` load never
+ * reads a status.
+ */
+const refusal = (status: number) =>
+  new Response(null, {
+    status,
+    headers: new Headers([
+      ['Cache-Control', 'no-store'],
+      ['Access-Control-Allow-Origin', '*']
+    ])
+  })
+
 export const GET = traceApiRoute(
   'getFitnessRouteHeatmapEmbedTiles',
   async (req: NextRequest, context: { params: Promise<Params> }) => {
     const { token } = await context.params
 
     const database = getDatabase()
-    if (!database) return apiErrorResponse(500)
+    if (!database) return refusal(500)
 
     // Summary-shaped: this route answers from the pyramid and needs the share
     // row only for its actor, status, scope and variant. The full row carries
@@ -56,11 +73,11 @@ export const GET = traceApiRoute(
     // Only serve a completed heatmap, for the reason the image route gives: a
     // re-queued share keeps its token while it regenerates, and this window is
     // not something the owner chose to publish.
-    if (!heatmap || heatmap.status !== 'completed') return apiErrorResponse(404)
+    if (!heatmap || heatmap.status !== 'completed') return refusal(404)
 
     const url = new URL(req.url)
     const query = parseTileBatchQuery(url.searchParams)
-    if (!query) return apiErrorResponse(400)
+    if (!query) return refusal(400)
 
     const pyramid = await database.getFitnessRouteHeatmapPyramid({
       actorId: heatmap.actorId
@@ -74,7 +91,7 @@ export const GET = traceApiRoute(
     // covers a pyramid that has not completed a build — the client falls back
     // to the untiled geometry the page already carries.
     const tileSource = buildHeatmapTileSource(heatmap, pyramid)
-    if (!tileSource) return apiErrorResponse(404)
+    if (!tileSource) return refusal(404)
 
     // THE security boundary of this route, resolved before anything can answer.
     // The pyramid covers the actor's whole history; the share covers one
@@ -84,22 +101,8 @@ export const GET = traceApiRoute(
     // is served whole, which is what it is; an unresolvable one is refused
     // rather than served unclipped. It runs ahead of the conditional-request
     // check so no response, 200 or 304, can be produced without it.
-    const regionBounds = resolveShareRegionBounds(heatmap.region)
-    if (!regionBounds) {
-      // The one 404 here that means "this server cannot read its own stored
-      // data", rather than "the caller asked for something that is not there".
-      // It is a permanent, silent degradation for that share — the owner sees a
-      // page that never gains detail and has nothing to report — so it is
-      // recorded rather than merely returned.
-      logger.warn({
-        message:
-          'Refused route heatmap tiles: the share region could not be resolved',
-        heatmapId: heatmap.id,
-        actorId: heatmap.actorId,
-        region: heatmap.region
-      })
-      return apiErrorResponse(404)
-    }
+    const regionBounds = resolveSharedHeatmapRegionBounds(heatmap)
+    if (!regionBounds) return refusal(404)
 
     const etag = `W/"${tileSource.version}"`
     // Same URL and same version means the same bytes: a completed build's tiles

@@ -93,9 +93,13 @@ const rectToken = (rect: RectRegion): string =>
  * dropped — leaving a region string that reads as a small rectangle and
  * resolves to no bounds, which every consumer takes as WORLD scope. The
  * generation job then built the actor's entire unclipped history under it, and
- * the share page captioned that with the rectangle's own bounding box. Dropping
- * it here instead makes the scope honestly empty, so the same input serializes
- * to the world sentinel and is labelled "Whole world" wherever it is shown.
+ * the share page titled that "Map area" (or the owner's saved label): a
+ * collapsed token is not the world sentinel, so the page did not call it the
+ * world, and it deserializes to no rectangles, so there was no bounding-box
+ * caption to contradict that either. Nothing a viewer could see said world.
+ * Dropping it here instead makes the scope honestly empty, so the same input
+ * serializes to the world sentinel and is labelled "Whole world" wherever it is
+ * shown.
  */
 const roundTripRect = (rect: RectRegion): RectRegion => ({
   type: 'rect',
@@ -110,6 +114,31 @@ const roundTripRect = (rect: RectRegion): RectRegion => ({
 })
 
 /**
+ * Whether a rectangle survives serialization AS a rectangle — that is, whether
+ * `serializeRegions` will emit a token for it rather than resolving it to the
+ * world sentinel.
+ *
+ * **Anything that PRODUCES a rectangle must gate on this, not on
+ * `isValidRect`.** The two answer different questions: `isValidRect` asks
+ * whether the box as drawn is well formed, and a box thinner than the
+ * serialization step is perfectly well formed while having no canonical key of
+ * its own. Saved anyway, it takes the world's key — so every action addressed
+ * by that key, including Share, operates on the actor's whole-world heatmap
+ * while the row is labelled as a small rectangle.
+ *
+ * It is also the rule `serializeRegions` itself applies, so a producer and the
+ * serializer cannot drift: they are the same function.
+ */
+export const isSerializableRect = (rect: RectRegion): boolean =>
+  // Both before and after rounding. After, for the reason `roundTripRect`
+  // gives. Before as well, so the rule can only ever drop a rectangle and never
+  // admit one: rounding pulls an out-of-range coordinate back into range (a
+  // latitude of 90.004 becomes 90.00), and checking only the rounded box would
+  // turn scopes that serialize to the world sentinel today into rect-scoped
+  // ones — moving their cache key, and orphaning the heatmap stored under it.
+  isValidRect(rect) && isValidRect(roundTripRect(rect))
+
+/**
  * Serializes a region list into the canonical cache-key string. The whole world
  * (or an empty/all-invalid list) serializes to '' — the world-wide sentinel —
  * because a world region subsumes any drawn rectangles. A rectangle too thin to
@@ -122,11 +151,10 @@ const roundTripRect = (rect: RectRegion): RectRegion => ({
 export const serializeRegions = (regions: HeatmapRegion[]): string => {
   if (regions.some((region) => region.type === 'world')) return ''
   const tokens = regions
-    .filter((region): region is RectRegion => region.type === 'rect')
-    .map(roundTripRect)
-    // Validated AFTER rounding — see `roundTripRect` for what a box that only
-    // survives the check beforehand used to become.
-    .filter(isValidRect)
+    .filter(
+      (region): region is RectRegion =>
+        region.type === 'rect' && isSerializableRect(region)
+    )
     .map(rectToken)
   return Array.from(new Set(tokens))
     .sort()

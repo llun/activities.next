@@ -8,7 +8,10 @@ import {
   buildHeatmapTileSource,
   isPyramidVariantHeatmap
 } from '@/lib/services/fitness-files/heatmapTiles/tileSource'
-import { toPublicHeatmap } from '@/lib/services/fitness-files/publicHeatmap'
+import {
+  resolveSharedHeatmapRegionBounds,
+  toPublicHeatmap
+} from '@/lib/services/fitness-files/publicHeatmap'
 
 import { PublicHeatmapEmbed } from './PublicHeatmapEmbed'
 
@@ -36,6 +39,11 @@ const Page: FC<PageProps> = async ({ params }) => {
   // generation keeps its token but transitions back to pending/generating; 404
   // during that window rather than publish a partial/in-progress embed.
   if (!heatmap || heatmap.status !== 'completed') notFound()
+  // A share whose stored region cannot be resolved is refused rather than
+  // rendered: the geometry behind it was built with no clipping at all, so what
+  // it would publish is the whole world under a rectangle's label. See
+  // resolveSharedHeatmapRegionBounds.
+  if (!resolveSharedHeatmapRegionBounds(heatmap)) notFound()
 
   // Flatten the privacy distinction so the public embed shows no hole and no
   // highlight around private locations (see toPublicHeatmap).

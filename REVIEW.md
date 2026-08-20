@@ -491,8 +491,14 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   names no variant and needs no such gate.
 - On the public token route the region comes from the **shared row**, never from
   the caller, and the resolver **fails closed**: a non-empty region that yields
-  no bounds is a 404, because no bounds means no clipping. It runs before the
+  no bounds is refused, because no bounds means no clipping. It runs before the
   conditional-request check. Out-of-region tiles are answered before any read.
+- **All four public surfaces** — both tile routes, the share page, the embed page
+  and the embed image — refuse through the one `resolveSharedHeatmapRegionBounds`,
+  because for such a row the untiled geometry was built unclipped too.
+- Anything that PRODUCES a rectangle gates on `isSerializableRect`, the same rule
+  `serializeRegions` applies. A box thinner than the 0.01° step is well formed
+  and has no canonical key of its own; saved, it takes the WORLD's key.
 - Both tile routes share one query parser, and read the share row without its
   geometry.
 - The public route strips the privacy flag and keeps the geometry

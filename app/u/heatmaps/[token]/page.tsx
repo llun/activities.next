@@ -9,7 +9,10 @@ import {
   buildHeatmapTileSource,
   isPyramidVariantHeatmap
 } from '@/lib/services/fitness-files/heatmapTiles/tileSource'
-import { toPublicHeatmap } from '@/lib/services/fitness-files/publicHeatmap'
+import {
+  resolveSharedHeatmapRegionBounds,
+  toPublicHeatmap
+} from '@/lib/services/fitness-files/publicHeatmap'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 
 import { SharedHeatmapPage } from './SharedHeatmapPage'
@@ -40,6 +43,9 @@ const Page: FC<PageProps> = async ({ params }) => {
   // keeps its token but transitions back to pending/generating; 404 during that
   // window rather than publish a partial/in-progress page.
   if (!heatmap || heatmap.status !== 'completed') notFound()
+  // See resolveSharedHeatmapRegionBounds: an unresolvable region means the
+  // stored geometry was never clipped, so rendering it publishes the world.
+  if (!resolveSharedHeatmapRegionBounds(heatmap)) notFound()
 
   // Flatten the privacy distinction so the public page shows no hole and no
   // highlight around private locations (see toPublicHeatmap).

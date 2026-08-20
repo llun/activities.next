@@ -5,7 +5,6 @@ import { MAX_TILES_PER_REQUEST } from './constants'
 import {
   parseTileBatchQuery,
   parseTileIndexList,
-  resolveShareRegionBounds,
   serveHeatmapTiles
 } from './serveTiles'
 import { decodeTile, encodeTile, tileKey } from './tileCodec'
@@ -109,28 +108,6 @@ describe('parseTileBatchQuery', () => {
     expect(query(`z=16&tiles=${tiles}`)?.tiles).toHaveLength(
       MAX_TILES_PER_REQUEST
     )
-  })
-})
-
-describe('resolveShareRegionBounds', () => {
-  it('resolves the world sentinel to no clipping', () => {
-    expect(resolveShareRegionBounds('')).toEqual([])
-    expect(resolveShareRegionBounds('   ')).toEqual([])
-  })
-
-  it('resolves a rect scope to its bounds', () => {
-    expect(resolveShareRegionBounds('rect:52.00,5.00,51.00,6.00')).toEqual([
-      { minLat: 51, maxLat: 52, minLng: 5, maxLng: 6 }
-    ])
-  })
-
-  it('refuses a non-empty region it cannot resolve rather than serving the world', () => {
-    expect(resolveShareRegionBounds('rect:not-a-number,5,4,6')).toBeNull()
-    expect(resolveShareRegionBounds('rect:52.00,5.00')).toBeNull()
-    expect(resolveShareRegionBounds('nonsense')).toBeNull()
-    // The world token cannot be stored — `serializeRegions` emits '' for it —
-    // so this refuses a value no writer produces, on purpose.
-    expect(resolveShareRegionBounds('world')).toBeNull()
   })
 })
 

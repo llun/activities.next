@@ -1,8 +1,14 @@
+import {
+  RegionBounds,
+  deserializeRegions,
+  getRegionBounds
+} from '@/lib/fitness/regions'
 import { TileSegment } from '@/lib/services/fitness-files/heatmapTiles/tileCodec'
 import {
   FitnessRouteHeatmap,
   FitnessRouteHeatmapSegment
 } from '@/lib/types/database/fitnessRouteHeatmap'
+import { logger } from '@/lib/utils/logger'
 
 /**
  * Drops the `isHiddenByPrivacy` flag from every segment so the public embed
@@ -55,3 +61,50 @@ export const toPublicHeatmap = (
   ...heatmap,
   segments: flattenPrivacySegmentsForPublic(heatmap.segments)
 })
+
+/**
+ * The bounds a SHARED heatmap may be shown within, or null when the share names
+ * a region this server cannot resolve — in which case NO public surface may
+ * render it.
+ *
+ * Fails closed, and that is the whole point. `getRegionBounds` answers `[]` for
+ * the whole world and for a region string it could not parse a rectangle out
+ * of, and `[]` means "clip nothing" everywhere downstream. Only the empty
+ * string, the world sentinel `serializeRegions` emits, reaches the unclipped
+ * path.
+ *
+ * A writer really could produce an unresolvable one, which is why this is not
+ * merely defensive: `serializeRegions` validated a rectangle BEFORE rounding it
+ * to two decimal places, so a box thinner than 0.01° passed and then collapsed,
+ * and the token it emitted parses to nothing. The API's `region` parameter
+ * accepts higher-precision coordinates by design — its own schema comment says
+ * so — so any client sending one stored such a row. Serialization now rejects
+ * those, but rows written before it are still out there, and for them the
+ * generation job already baked the WHOLE WORLD into `segments`. There is
+ * nothing left to clip at that point; refusing to render is the only remedy
+ * short of regenerating the row.
+ *
+ * The refusal would stay regardless. The cost of being wrong is asymmetric: a
+ * false refusal costs a share that renders nothing, while a false pass
+ * publishes everywhere its owner has ever been.
+ */
+export const resolveSharedHeatmapRegionBounds = (heatmap: {
+  id: string
+  actorId: string
+  region: string
+}): RegionBounds[] | null => {
+  const bounds = getRegionBounds(deserializeRegions(heatmap.region))
+  if (bounds.length > 0) return bounds
+  if (heatmap.region.trim() === '') return []
+
+  // Recorded rather than merely refused: it means "this server cannot read its
+  // own stored data", it is permanent for that share, and the owner otherwise
+  // sees only a page that will not load with nothing to report.
+  logger.warn({
+    message: 'Refused a shared route heatmap: its region could not be resolved',
+    heatmapId: heatmap.id,
+    actorId: heatmap.actorId,
+    region: heatmap.region
+  })
+  return null
+}

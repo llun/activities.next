@@ -38,12 +38,13 @@ interface Params {
  * Only the region is validated here. The zoom, the tile list and `v` go through
  * `parseTileBatchQuery`, which the public tiles route shares — see its docblock
  * for why one parser rather than two.
+ *
+ * It is read with `searchParams.get`, not through `Object.fromEntries`, so a
+ * repeated parameter resolves the same way everything else on this route does.
+ * Region is the one SCOPE-BEARING parameter here, which is exactly the case the
+ * shared parser exists to keep the two routes from disagreeing about.
  */
-const FitnessRouteHeatmapTilesQueryParams = z.object({
-  // See the sibling fitness-route-heatmap route: a looser raw cap that
-  // normalizeRegionParam rounds + caps under the 255-char cache-key column.
-  region: z.string().max(1024).optional()
-})
+const FitnessRouteHeatmapTilesRegion = z.string().max(1024).nullable()
 
 export const GET = traceApiRoute(
   'getAccountFitnessRouteHeatmapTiles',
@@ -99,8 +100,8 @@ export const GET = traceApiRoute(
     }
 
     const url = new URL(req.url)
-    const parsed = FitnessRouteHeatmapTilesQueryParams.safeParse(
-      Object.fromEntries(url.searchParams.entries())
+    const parsed = FitnessRouteHeatmapTilesRegion.safeParse(
+      url.searchParams.get('region')
     )
     const query = parseTileBatchQuery(url.searchParams)
     if (!parsed.success || !query) {
@@ -131,7 +132,7 @@ export const GET = traceApiRoute(
       z: query.z,
       tiles: query.tiles,
       regionBounds: getRegionBounds(
-        deserializeRegions(normalizeRegionParam(parsed.data.region))
+        deserializeRegions(normalizeRegionParam(parsed.data))
       ),
       stripPrivacy: false
     })

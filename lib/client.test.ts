@@ -777,7 +777,9 @@ describe('fitness route heatmap client calls', () => {
 
     const url = lastUrl()
     expect(url.pathname).toBe('/embed/heatmap/tok%20123/tiles')
+    expect(url.searchParams.get('z')).toBe('8')
     expect(url.searchParams.get('tiles')).toBe('132:85,133:85')
+    expect(url.searchParams.get('v')).toBe('4')
     // The server clips to the shared row's own scope; a region from the caller
     // would be exactly the wrong thing to honour.
     expect(url.searchParams.has('region')).toBe(false)

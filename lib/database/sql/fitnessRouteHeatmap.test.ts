@@ -1,6 +1,7 @@
 import {
   databaseBeforeAll,
-  getTestDatabaseTable
+  getTestDatabaseTable,
+  getTestDatabaseWithInstance
 } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
@@ -707,6 +708,11 @@ describe('FitnessRouteHeatmapDatabase', () => {
           status: 'completed',
           shareToken: token
         })
+        // `parseSQLFitnessRouteHeatmapSummary` builds from an explicit field
+        // list, so asserting the parsed object has no `segments` would hold for
+        // ANY query shape — including `select('*')`. The half of this that the
+        // tile routes actually depend on is the SQL, and it is pinned in its
+        // own test below.
         expect('bounds' in (summary ?? {})).toBe(false)
         expect('segments' in (summary ?? {})).toBe(false)
 
@@ -1072,6 +1078,44 @@ describe('FitnessRouteHeatmapDatabase', () => {
         expect(row?.status).toBe('cancelled')
         expect(row?.cursorOffset).toBe(0)
       })
+    })
+  })
+
+  describe('share-token summary read SQL', () => {
+    it('does not select the geometry columns', async () => {
+      // The assertion the routes actually depend on. Checking the PARSED object
+      // for a `segments` key proves nothing — the summary parser builds from an
+      // explicit field list, so it would hold for `select('*')` too, and the
+      // whole point of this read is that the query leaves the untiled heatmap
+      // on disk rather than dragging it through JSON.parse once per tile batch.
+      const { database, instance, prepare } = getTestDatabaseWithInstance(true)
+      await prepare()
+      await database.migrate()
+
+      const statements: string[] = []
+      const record = ({ sql }: { sql: string }) => {
+        statements.push(sql)
+      }
+      instance.on('query', record)
+      try {
+        await database.getFitnessRouteHeatmapSummaryByShareToken({
+          shareToken: 'no-such-token'
+        })
+      } finally {
+        instance.removeListener('query', record)
+      }
+
+      expect(statements).toHaveLength(1)
+      // Identifier quoting differs per backend (backticks on SQLite, double
+      // quotes on PostgreSQL), so compare the bare names.
+      const sql = statements[0].replaceAll('`', '').replaceAll('"', '')
+      expect(sql).toContain('region')
+      expect(sql).toContain('activityType')
+      expect(sql).not.toContain('segments')
+      expect(sql).not.toContain('bounds')
+      expect(sql).not.toContain('*')
+
+      await database.destroy()
     })
   })
 })

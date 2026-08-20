@@ -377,6 +377,61 @@ describe('HeatmapRegionPicker', () => {
     })
   })
 
+  it('refuses to save an area too small to have a canonical key of its own', () => {
+    // A rectangle thinner than the 0.01 degree serialization step rounds onto a
+    // single coordinate, so `serializeRegion` resolves it to the WORLD
+    // sentinel. Saved, it would take the world's key — generating, displaying
+    // and (through Share) publishing the actor's entire history under a label
+    // saying it is a small area. The composer must refuse it, and say why.
+    const onChange = vi.fn()
+    const onRegionSaved = vi.fn()
+    render(
+      <HeatmapRegionPicker
+        value={[
+          {
+            id: 'rect-1',
+            type: 'rect',
+            name: 'Neighbourhood',
+            nw: { lat: 52.3749, lng: 4.9 },
+            se: { lat: 52.3651, lng: 4.92 }
+          }
+        ]}
+        onChange={onChange}
+        mapProvider={{ type: 'osm' }}
+        onRegionSaved={onRegionSaved}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Edit area/i }))
+
+    expect(screen.getByRole('button', { name: /Save area/i })).toBeDisabled()
+    expect(
+      screen.getByText(/each side must span at least 0.01/i)
+    ).toBeInTheDocument()
+    expect(onChange).not.toHaveBeenCalled()
+    expect(onRegionSaved).not.toHaveBeenCalled()
+  })
+
+  it('keeps the north-west message for a box that is merely inverted', () => {
+    render(
+      <HeatmapRegionPicker
+        value={[
+          {
+            id: 'rect-1',
+            type: 'rect',
+            nw: { lat: 51, lng: 6 },
+            se: { lat: 52, lng: 5 }
+          }
+        ]}
+        onChange={vi.fn()}
+        mapProvider={{ type: 'osm' }}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Edit area/i }))
+
+    expect(screen.getByRole('button', { name: /Save area/i })).toBeDisabled()
+    expect(screen.getByText(/north-west of bottom-right/i)).toBeInTheDocument()
+  })
+
   it('labels the remove control per region kind (area vs region)', () => {
     render(
       <HeatmapRegionPicker

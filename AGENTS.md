@@ -463,9 +463,10 @@ it; there is no legacy shape left to copy.
   whose call landed after a clear deleted the replacement build's version-1
   tiles, and that build then stamped itself `completed` over tiles that were
   gone.
-- **Tile work never fails the run.** Nothing reads the pyramid yet, so losing a
-  build costs a rebuild while failing the run costs the user the heatmap they
-  can actually see. Every tile-path error — the tiler, a flush, the
+- **Tile work never fails the run.** No map RENDERS the pyramid yet — the two
+  routes that serve it fall back to the untiled blob — so losing a build costs a
+  rebuild while failing the run costs the user the heatmap they can actually
+  see. Every tile-path error — the tiler, a flush, the
   completion — abandons the build, records why on the pyramid row, and lets the
   legacy path finish. Two writes have nothing to record on and are only logged:
   the CLAIM, because its compare-and-swap and the read confirming it share one
@@ -569,9 +570,17 @@ it; there is no legacy shape left to copy.
   and `[]` means "clip nothing" everywhere downstream — so a rect share whose
   stored token failed to parse would serve the world. Only the empty string, the
   world sentinel `serializeRegions` emits, reaches the unclipped path; anything
-  else that resolves to no bounds is a 404 — a case a writer really could
+  else that resolves to no bounds is refused — a case a writer really could
   produce, since `serializeRegions` used to emit a rectangle that rounding had
-  collapsed, and rows written then still hold one. It runs before the conditional-request
+  collapsed, and rows written then still hold one. **All four public surfaces
+  apply that rule**, through the one `resolveSharedHeatmapRegionBounds`: for
+  such a row the generation job baked the whole world into the untiled
+  `segments` too, so the share page, the embed page and the embed image refuse
+  it exactly as the tile routes do. Anything that PRODUCES a rectangle gates on
+  `isSerializableRect`, the same predicate `serializeRegions` applies, so a
+  producer and the serializer cannot drift — a box thinner than the 0.01°
+  serialization step is well formed and still has no canonical key of its own,
+  and saving one takes the WORLD's key. It runs before the conditional-request
   check, so no response — 200 or 304 — is produced without it. The three
   route-heatmap surfaces that take a region from a client normalize it with the
   one shared `normalizeRegionParam`; the region-names route keeps its own

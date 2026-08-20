@@ -1,9 +1,5 @@
 import type { Database } from '@/lib/database/types'
-import {
-  RegionBounds,
-  deserializeRegions,
-  getRegionBounds
-} from '@/lib/fitness/regions'
+import type { RegionBounds } from '@/lib/fitness/regions'
 import { flattenTilePrivacyForPublic } from '@/lib/services/fitness-files/publicHeatmap'
 import { FitnessRouteHeatmapPyramid } from '@/lib/types/database/fitnessRouteHeatmapTile'
 
@@ -58,34 +54,6 @@ export const parseTileIndexList = (
   }
 
   return tiles
-}
-
-/**
- * The bounds a SHARED heatmap's tiles must be clipped to, or null when the
- * share names a region this server cannot resolve.
- *
- * Fails closed, and that is the whole point. `getRegionBounds` answers `[]` for
- * the whole world and for a region string it could not parse a single rectangle
- * out of, and `[]` means "clip nothing" everywhere downstream — so serving a
- * rect share whose stored token failed to parse would hand back the world
- * pyramid the share was cut from, which is the one outcome the public tile
- * route exists to prevent. Only the empty string, the explicit world sentinel
- * `serializeRegions` emits, reaches the unclipped path.
- *
- * A writer CAN produce one: `serializeRegions` used to emit a rectangle rounded
- * to nothing — valid before rounding, degenerate after — and rows written then
- * still hold such a token. That is the case this refusal was written for
- * without knowing it, and the reason it is not merely defensive. Even once no
- * writer can, it stays: the cost of being wrong is asymmetric, since a false
- * refusal drops the share back to the untiled geometry the page already
- * carries, while a false pass publishes the actor's entire history.
- */
-export const resolveShareRegionBounds = (
-  region: string
-): RegionBounds[] | null => {
-  const bounds = getRegionBounds(deserializeRegions(region))
-  if (bounds.length > 0) return bounds
-  return region.trim() === '' ? [] : null
 }
 
 const isLadderZoom = (z: number): boolean =>

@@ -8,8 +8,13 @@ import {
 } from '@/lib/services/fitness-files/heatmapTiles/tileCodec'
 import { tileBounds } from '@/lib/services/fitness-files/heatmapTiles/tileRegion'
 import { FitnessRouteHeatmapPyramid } from '@/lib/types/database/fitnessRouteHeatmapTile'
+import { logger } from '@/lib/utils/logger'
 
 import { GET } from './route'
+
+vi.mock('@/lib/utils/logger', () => ({
+  logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() }
+}))
 
 type MockDatabase = Pick<
   Database,
@@ -167,6 +172,34 @@ describe('/embed/heatmap/[token]/tiles', () => {
       ])
     })
 
+    it.each([
+      { description: 'the world sentinel', region: '' },
+      {
+        description: 'a rectangle covering the planet',
+        region: 'rect:90.00,-180.00,-90.00,180.00'
+      },
+      {
+        description: 'a rectangle around the excluded tile',
+        region: 'rect:80.00,90.00,70.00,110.00'
+      }
+    ])(
+      'ignores a caller-supplied region of $description',
+      async ({ region }) => {
+        // The scope comes from the SHARED ROW and never from the request. If a
+        // `region` parameter could widen it, the token would stop being a
+        // capability for one rectangle and become one for the whole pyramid.
+        const withParam = await request(
+          `z=${Z}&tiles=${IN_X}:${IN_Y},${OUT_X}:${OUT_Y}&v=5&region=${encodeURIComponent(region)}`
+        )
+        const withoutParam = await request(
+          `z=${Z}&tiles=${IN_X}:${IN_Y},${OUT_X}:${OUT_Y}&v=5`
+        )
+
+        expect(withParam.status).toBe(200)
+        expect(await withParam.json()).toEqual(await withoutParam.json())
+      }
+    )
+
     it('refuses a share whose stored region cannot be resolved, rather than serving the world', async () => {
       mockDb.getFitnessRouteHeatmapSummaryByShareToken.mockResolvedValue(
         heatmap({ region: 'rect:not-a-number,5,4,6' }) as never
@@ -175,6 +208,9 @@ describe('/embed/heatmap/[token]/tiles', () => {
       const response = await request(`z=${Z}&tiles=${OUT_X}:${OUT_Y}&v=5`)
       expect(response.status).toBe(404)
       expect(mockDb.getFitnessRouteHeatmapTilesByKeys).not.toHaveBeenCalled()
+      // The recording of this refusal belongs to the shared resolver every
+      // public surface uses, and is pinned in publicHeatmap.test.ts.
+      expect(logger.warn).toHaveBeenCalled()
     })
   })
 
@@ -317,6 +353,25 @@ describe('/embed/heatmap/[token]/tiles', () => {
       )
       expect(response.headers.get('ETag')).toBe('W/"5"')
       expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
+    })
+
+    it.each([
+      { description: 'an unknown token', status: 404 },
+      { description: 'a bad request', status: 400 }
+    ])('lets a cross-origin caller read $description', async ({ status }) => {
+      // Without this the client's documented "404 means no tiles" branch is
+      // unreachable off-origin: the fetch rejects on CORS before it can see
+      // the status.
+      if (status === 404) {
+        mockDb.getFitnessRouteHeatmapSummaryByShareToken.mockResolvedValue(null)
+      }
+      const response = await request(
+        status === 404 ? `z=${Z}&tiles=${IN_X}:${IN_Y}` : 'z=9&tiles=1:1'
+      )
+
+      expect(response.status).toBe(status)
+      expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
+      expect(response.headers.get('Cache-Control')).toBe('no-store')
     })
 
     it('answers 304 for a matching validator without reading any tile', async () => {
