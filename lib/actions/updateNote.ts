@@ -2,6 +2,7 @@ import { persistEmojiTagsForStatus } from '@/lib/actions/createNote'
 import { Database } from '@/lib/database/types'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
+import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLinkPreview'
 import { notifyQuotedStatusUpdate } from '@/lib/services/notifications/notifyQuotedStatusUpdate'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
@@ -75,6 +76,11 @@ export const updateNoteFromUserInput = async ({
     await persistDetectedLanguage({ database, statusId, text })
 
     updatedStatus = (await database.getStatus({ statusId })) ?? updatedStatus
+
+    // The edit may have added, changed or removed the link the card was for.
+    // Only re-run when the text actually changed: an attachment-only or
+    // visibility-only edit cannot move the card.
+    await syncStatusLinkPreview({ database, status: updatedStatus })
   }
 
   await addStatusToTimelines(database, updatedStatus)

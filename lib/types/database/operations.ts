@@ -3091,6 +3091,80 @@ export interface StatusQuoteDatabase {
 }
 
 // ============================================================================
+// Link Preview Database (Mastodon PreviewCard)
+// ============================================================================
+
+// A cached preview card, keyed per URL rather than per status so the same link
+// shared by many posts is fetched once. `fetchStatus: 'failed'` is a negative
+// cache entry, not a card — it keeps an unreachable host from being re-fetched
+// on every mention, and is never linked to a status.
+export type LinkPreviewRecord = {
+  urlHash: string
+  url: string
+  type: string
+  title: string | null
+  description: string | null
+  siteName: string | null
+  authorName: string | null
+  authorUrl: string | null
+  imageUrl: string | null
+  imageWidth: number | null
+  imageHeight: number | null
+  publishedAt: number | null
+  fetchStatus: LinkPreviewFetchStatus
+  error: string | null
+  createdAt: number
+  updatedAt: number
+}
+
+export type LinkPreviewFetchStatus = 'pending' | 'completed' | 'failed'
+
+// Everything except the identity (`urlHash`/`url`) and the timestamps, which
+// the mixin owns.
+export type UpsertLinkPreviewParams = {
+  urlHash: string
+  url: string
+  type?: string
+  title?: string | null
+  description?: string | null
+  siteName?: string | null
+  authorName?: string | null
+  authorUrl?: string | null
+  imageUrl?: string | null
+  imageWidth?: number | null
+  imageHeight?: number | null
+  publishedAt?: number | null
+  fetchStatus: LinkPreviewFetchStatus
+  error?: string | null
+}
+
+export type GetLinkPreviewParams = { urlHash: string }
+export type LinkStatusLinkPreviewParams = { statusId: string; urlHash: string }
+export type GetStatusLinkPreviewsParams = { statusIds: string[] }
+export type DeleteStatusLinkPreviewParams = { statusId: string }
+
+export interface LinkPreviewDatabase {
+  // Upsert on `urlHash`. A re-fetch of the same URL replaces the stored card,
+  // so a page that changed its metadata (or started failing) is not stuck on a
+  // stale row.
+  upsertLinkPreview(params: UpsertLinkPreviewParams): Promise<LinkPreviewRecord>
+  getLinkPreview(
+    params: GetLinkPreviewParams
+  ): Promise<LinkPreviewRecord | null>
+  // Point a status at a card. Upsert on `statusId`: an edit can move a status
+  // from one card to another.
+  linkStatusLinkPreview(params: LinkStatusLinkPreviewParams): Promise<void>
+  // Batched hydration for a whole timeline page — one query, keyed by statusId.
+  // Only `completed` cards are returned; a pending or failed row renders
+  // nothing.
+  getStatusLinkPreviews(
+    params: GetStatusLinkPreviewsParams
+  ): Promise<Map<string, LinkPreviewRecord>>
+  // Drop a status→card link (the status no longer has an eligible URL).
+  deleteStatusLinkPreview(params: DeleteStatusLinkPreviewParams): Promise<void>
+}
+
+// ============================================================================
 // Media Database
 // ============================================================================
 

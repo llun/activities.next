@@ -123,14 +123,20 @@ const SHARED_TOKENIZER: TokenizerObject = {
   }
 }
 
+// The one Marked configuration used to read local status text. Exported so
+// anything that needs to find the links in a status (the link-preview URL
+// extractor) tokenizes it exactly the way the renderer does — a second,
+// separately-written URL regex would inevitably disagree about some edge case
+// and pick a link the reader never sees.
+export const createStatusMarked = (host: string) =>
+  new Marked({
+    gfm: true,
+    breaks: true,
+    async: false,
+    extensions: [mention(host), hashtag],
+    renderer: SHARED_RENDERER,
+    tokenizer: SHARED_TOKENIZER
+  })
+
 export const convertMarkdownText = (host: string) => (text: string) =>
-  (
-    new Marked({
-      gfm: true,
-      breaks: true,
-      async: false,
-      extensions: [mention(host), hashtag],
-      renderer: SHARED_RENDERER,
-      tokenizer: SHARED_TOKENIZER
-    }).parse(text) as string
-  ).trim()
+  (createStatusMarked(host).parse(text) as string).trim()

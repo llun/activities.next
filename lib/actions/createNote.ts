@@ -7,6 +7,7 @@ import {
 import { buildMentionEmail } from '@/lib/services/email/templates/mention'
 import { buildReplyEmail } from '@/lib/services/email/templates/reply'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
+import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLinkPreview'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
@@ -752,6 +753,11 @@ export const createNoteFromUserInput = async ({
         .catch(() => undefined)
     }
   }
+
+  // Schedule the link preview card for whatever link the author included. This
+  // never throws (see syncStatusLinkPreview), so a preview failure cannot fail
+  // the post that was already written.
+  await syncStatusLinkPreview({ database, status })
 
   if (fitnessFile) {
     await getQueue().publish({

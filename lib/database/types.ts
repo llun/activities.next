@@ -29,6 +29,7 @@ import {
   InstanceActivityDatabase,
   InstanceRuleDatabase,
   LikeDatabase,
+  LinkPreviewDatabase,
   ListDatabase,
   MarkerDatabase,
   MediaDatabase,
@@ -85,6 +86,7 @@ export type Database = AccountDatabase &
   DirectConversationDatabase &
   FollowDatabase &
   LikeDatabase &
+  LinkPreviewDatabase &
   MarkerDatabase &
   MediaDatabase &
   NotificationDatabase &

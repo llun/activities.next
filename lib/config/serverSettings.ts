@@ -80,6 +80,12 @@ export interface ResolvedServerSettings {
     fitness: boolean
     explore: boolean
     messages: boolean
+    // Whether the server fetches link preview cards for statuses. Unlike the
+    // navigation switches above this one gates outbound requests to third-party
+    // sites, so it is the kill switch an operator reaches for when they do not
+    // want their instance crawling links at all. Turning it off stops new
+    // fetches; cards already stored keep rendering.
+    linkPreviews: boolean
   }
 }
 
@@ -122,7 +128,8 @@ export const DEFAULT_SERVER_SETTINGS: ResolvedServerSettings = {
   features: {
     fitness: true,
     explore: true,
-    messages: true
+    messages: true,
+    linkPreviews: true
   }
 }
 
@@ -314,6 +321,16 @@ export const SERVER_SETTING_FIELDS: ServerSettingField[] = [
     get: (s) => s.features.messages,
     set: (s, v) => {
       s.features.messages = v
+    }
+  }),
+  field<boolean>({
+    key: 'features.linkPreviews',
+    group: 'instance',
+    schema: z.boolean(),
+    readEnv: () => undefined,
+    get: (s) => s.features.linkPreviews,
+    set: (s, v) => {
+      s.features.linkPreviews = v
     }
   }),
 

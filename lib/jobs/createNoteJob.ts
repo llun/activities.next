@@ -17,6 +17,7 @@ import {
 } from '@/lib/activities/note'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
+import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLinkPreview'
 import { verifyRemoteQuote } from '@/lib/services/quotes/verifyRemoteQuote'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import {
@@ -276,6 +277,12 @@ export const createNoteJob = createJobHandle(
         hashtags: affectedHashtags
       })
     }
+
+    // A remote status gets a card too — most of a timeline is remote, so
+    // without this the feature barely exists. The fetch is delayed by a random
+    // interval under a real queue so this instance is not part of a thundering
+    // herd on a widely-shared link.
+    await syncStatusLinkPreview({ database, status })
 
     await Promise.all([
       addStatusToTimelines(database, status),

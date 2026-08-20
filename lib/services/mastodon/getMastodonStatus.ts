@@ -1,6 +1,7 @@
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { isConversationMutedForActor } from '@/lib/services/mastodon/conversationMute'
+import { getMastodonPreviewCard } from '@/lib/services/mastodon/getMastodonPreviewCard'
 import { getEffectiveQuoteApprovalPolicy } from '@/lib/services/quotes/quotePolicy'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Mastodon } from '@/lib/types/activitypub'
@@ -670,6 +671,11 @@ export const getMastodonStatus = async (
     text: status.text,
 
     reblog: null,
+
+    // The link preview card. Only the unwrapped status carries one — an
+    // Announce keeps the `card: null` from baseData, the same way
+    // media_attachments is forced empty on that branch.
+    card: getMastodonPreviewCard(status.linkPreview),
 
     mentions,
     emojis,
