@@ -50,28 +50,38 @@ const MAX_MEDIA_ROW_ID = 2147483647
 // on PostgreSQL. Returns null for anything that is not a plain decimal row id
 // so the caller can report "not found" without touching the database.
 //
-// The shape test matters as much as the range check. `Number()` alone also
-// accepts '0x10' (16), '0b101' (5), '1e3' (1000), '+12' and ' 12 ', each of
-// which resolves a DIFFERENT row than the id names — `GET /api/v1/media/0x10`
-// would answer with media 16 where every backend previously answered 404. And
-// '1e21' round-trips back to PostgreSQL as the string '1e+21' (the driver
-// stringifies with `toString()`), reproducing the exact `invalid input syntax
-// for type integer` this guard exists to prevent.
+// Accepted is exactly: optional leading zeros, one or more digits, an optional
+// all-zero fraction, and a value in 1..2147483647. Everything else is a miss.
 //
-// What IS accepted, beyond a bare decimal, is any spelling that still names the
-// same row unambiguously: leading zeros ('0012') and a trailing all-zero
-// fraction ('12.0'). Both already resolved before this guard existed —
-// PostgreSQL casts them and SQLite's numeric affinity converts them — so
-// rejecting them would be a behaviour change, not a fix.
+// That is deliberately TIGHTER than what the backends themselves accept, so on
+// PostgreSQL this is a behaviour change and not only a bug fix. Measured
+// against PostgreSQL 17 and SQLite through the drivers this app uses:
 //
-// '12.0' is worth a word because it is reachable on SQLite specifically:
-// `attachments.mediaId` is `varchar` there, and a media id bound as a JS number
-// reaches it as '1.0' through REAL->TEXT conversion, then gets read back and
-// re-resolved on every status edit. No production writer does that today (they
+//   spelling       PostgreSQL 17           SQLite       here
+//   '0012'         row 12                  row 12       row 12   unchanged
+//   '12.0'         invalid input syntax    row 12       row 12   500 -> hit
+//   '+12', ' 12 '  row 12                  row 12       404      TIGHTENED
+//   '0x10'         row 16                  no match     404      TIGHTENED
+//   '1e3'          invalid input syntax    row 1000     404      500 -> 404
+//   '2147483648'   value out of range      no match     404      500 -> 404
+//   'abc'          invalid input syntax    no match     404      500 -> 404
+//
+// The tightening is intended: a media id is a row id, and Mastodon answers 404
+// for anything that is not one. PostgreSQL resolving '0x10' to media 16 is an
+// accident of it accepting non-decimal integer literals since 16 — a client
+// asking for '0x10' did not ask for media 16. Note '1e21' additionally
+// round-trips back as the string '1e+21' (the driver stringifies with
+// `toString()`), so a bare `Number()` guard reproduces the very error this
+// exists to prevent.
+//
+// '12.0' is the one spelling kept for compatibility rather than tightened away,
+// and it is a SQLite concern: `attachments.mediaId` is `varchar` there, so an id
+// bound as a JS number lands as '1.0' through REAL->TEXT conversion and is then
+// re-resolved on every status edit. No production writer does that today — they
 // all stringify, and the #307 backfill copies an INTEGER, which TEXT affinity
-// renders as '1' — both verified), and `createMedia` no longer returns a raw
-// number, so this is defence in depth for a form nothing is known to have
-// written rather than a compatibility shim for observed data.
+// renders as '1' (both verified) — and `createMedia` no longer returns a raw
+// number. So it is defence in depth for a form nothing is known to have
+// written, not a shim for observed data. On PostgreSQL it was a 500 before.
 const toMediaRowId = (mediaId: string): number | null => {
   if (!/^\d+(\.0+)?$/.test(mediaId)) return null
   const id = Number(mediaId)

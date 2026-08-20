@@ -118,12 +118,14 @@ change doesn't touch.
   500 where a 404 was intended. SQLite's dynamic typing just misses, so only
   `TEST_DATABASE_TYPE=pg` catches it. `lib/database/sql/media.ts` routes every
   `mediaId` it **compares** against `medias.id` through `toMediaRowId`.
-  Coercion is shape-checked and capped at 2147483647 — a bare `Number()`
-  accepts `'0x10'` (resolving row 16) and lets an out-of-range id raise `value
-out of range for type integer`. Spellings that still name the same row
-  (leading zeros, a trailing all-zero fraction) stay accepted, since they
-  resolved before the guard existed. New numeric-column lookups do the same,
-  and fixtures use values the column can hold.
+  It accepts only optional leading zeros, digits, an optional all-zero
+  fraction, and 1..2147483647. That is deliberately tighter than the backends:
+  on PostgreSQL `'0x10'`/`'0b101'` resolved rows 16/5 (it takes non-decimal
+  integer literals since 16), and on both backends `'+12'`/`' 12 '` resolved
+  row 12 — all now 404, which is intended, since a media id is a row id.
+  `'12.0'` is kept only because SQLite's `varchar` `attachments.mediaId` can
+  hold that form. New numeric-column lookups do the same, and fixtures use
+  values the column can hold.
 - `createAttachment` **writes** `mediaId` rather than comparing it and is
   deliberately unguarded — coercing would drop the link instead of surfacing a
   bad id. Its callers must therefore hand it an id already resolved against
