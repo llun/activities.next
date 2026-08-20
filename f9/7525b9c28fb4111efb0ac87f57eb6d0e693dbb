@@ -1,0 +1,38 @@
+lib/utils/request.test.ts
+  s_8fbc352edaf843::t_a59f0c44cb218e 513-514
+lib/components/admin/settings/FederationPolicyForm.test.tsx
+  s_8fbc352edaf843::t_a59f0c44cb218e 40-41
+lib/jobs/fetchLinkPreviewJob.ts
+  s_8fbc352edaf843::t_32573ba7ae21c3 46-53
+lib/services/link-previews/extractUrl.ts
+  s_8fbc352edaf843::t_d7c7ecee2b68ac 60-64,175-177,179
+lib/components/posts/post.test.tsx
+  s_8fbc352edaf843::t_e70592a5da553f 2192-2194,2220-2222,2242
+lib/components/admin/settings/InstanceSettingsForm.test.tsx
+  s_8fbc352edaf843::t_a59f0c44cb218e 44-45
+lib/services/link-previews/parseOpenGraph.test.ts
+  s_8fbc352edaf843::t_2b994f191fdf37 323-335
+lib/services/link-previews/extractUrl.test.ts
+  s_8fbc352edaf843::t_2b994f191fdf37 122-125,129-142
+  s_8fbc352edaf843::t_52abc0bd733b0f 126-128
+lib/services/link-previews/parseOpenGraph.ts
+  s_8fbc352edaf843::t_32573ba7ae21c3 26-33,35,116
+lib/components/admin/settings/PostsMediaSettingsForm.test.tsx
+  s_8fbc352edaf843::t_a59f0c44cb218e 44-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "f97525b9c28fb4111efb0ac87f57eb6d0e693dbb",
+  "prompts": {},
+  "sessions": {
+    "s_8fbc352edaf843": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f5805ef5-0c89-425f-91b8-cc86a0704bc4",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
