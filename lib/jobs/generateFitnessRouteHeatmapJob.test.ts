@@ -3610,12 +3610,12 @@ describe('generateFitnessRouteHeatmapJob', () => {
       // persist a loss for geometry it is sitting on, because that record is
       // the scoped, persisted degradation signal an operator reads.
       //
-      // Here it is the COVERAGE guard that delivers it, not the unreadable
-      // counter: re-presenting a file requires an upload to have shifted the
-      // offsets, and that upload raises the recount, so the build is handed
-      // back rather than completed. That is why the "an earlier pass folded it"
-      // arm of `foldedThisFile` was removed as inert — this test is what
-      // demonstrates the outcome survives without it.
+      // Here it is the COVERAGE guard that delivers it: re-presenting a file
+      // requires an upload to have shifted the offsets, and that upload raises
+      // the recount, so the build is handed back rather than completed. That
+      // covers the ordinary case — but not the window where a deletion lands
+      // after the final page read and cancels the shortfall, which is what the
+      // `foldedThisFile` arm is for and what the sibling test drives.
       const amsterdamId = await createCompletedFitnessFile(
         'running',
         new Date('2026-04-15T07:00:00.000Z')
@@ -3785,14 +3785,25 @@ describe('generateFitnessRouteHeatmapJob', () => {
           pageSpy.mockRestore()
         }
 
+        // The window really opened: Singapore was handed back a second time,
+        // which is the only reason storage was asked for it at all. Without
+        // this the staged upload could be deleted and the test would still
+        // pass, having driven nothing.
+        expect(mockGetFitnessFile).toHaveBeenCalledWith(
+          expect.anything(),
+          singaporeId
+        )
+
         const pyramid = await database.getFitnessRouteHeatmapPyramid({
           actorId: actor.id
         })
-        // It completed — the recount caught up — and it holds both rides, so it
-        // must not report a loss at all.
+        // It completed — the recount caught up with the shortfall — and it
+        // holds both rides, so it must not report a loss at all.
         expect(pyramid).toMatchObject({
           status: 'completed',
-          error: undefined
+          error: undefined,
+          scannedCount: 2,
+          totalCount: 2
         })
         expect((await readTiles()).length).toBeGreaterThan(0)
       } finally {
@@ -3804,6 +3815,10 @@ describe('generateFitnessRouteHeatmapJob', () => {
         })
         await database.deleteFitnessFile({ id: amsterdamId })
         await database.deleteFitnessFile({ id: singaporeId })
+        // The happy path deletes this from inside the page spy; deleting it
+        // again here is what stops one failure before that from leaking a
+        // third activity into every later test in the file.
+        if (shifterId) await database.deleteFitnessFile({ id: shifterId })
       }
     })
 

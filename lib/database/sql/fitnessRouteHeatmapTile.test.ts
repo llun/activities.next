@@ -1232,19 +1232,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
 
         try {
           const actorId = await createActor(isolated)
-          // The CONNECTION each statement ran on, not just the order they were
-          // emitted in. Keeping the `database.transaction(...)` wrapper while
-          // building the queries on `database` instead of `trx` — the likeliest
-          // refactoring slip there is — leaves the order untouched while the
-          // CAS autocommits on a pooled connection, which is the state this
-          // transaction exists to remove.
-          const statements: Array<{ sql: string; connection: string }> = []
-          instance.on(
-            'query',
-            ({ sql, __knexUid }: { sql: string; __knexUid: string }) => {
-              statements.push({ sql: sql.trimStart(), connection: __knexUid })
-            }
-          )
+          const statements = recordStatements(instance)
 
           const claim = await isolated.claimFitnessRouteHeatmapPyramidBuild({
             actorId,
@@ -1255,45 +1243,15 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
 
           const isPyramid = (sql: string) =>
             sql.includes('fitness_route_heatmap_pyramids')
-          const casIndex = statements.findIndex(
-            ({ sql }) =>
-              isPyramid(sql) && sql.toLowerCase().startsWith('update')
+          // The compare-and-swap and the read that confirms it, on one
+          // connection inside one open transaction — the shared helper, rather
+          // than a second copy of it that could drift from the guard it carries.
+          expectOneTransaction(
+            statements,
+            (sql) => isPyramid(sql) && /^update/i.test(sql),
+            (sql) => isPyramid(sql) && /^select/i.test(sql)
           )
-          expect(casIndex).toBeGreaterThan(-1)
-          const readIndex = statements.findIndex(
-            ({ sql }, index) =>
-              index > casIndex &&
-              isPyramid(sql) &&
-              sql.toLowerCase().startsWith('select')
-          )
-          expect(readIndex).toBeGreaterThan(casIndex)
 
-          const casConnection = statements[casIndex].connection
-          expect(statements[readIndex].connection).toBe(casConnection)
-
-          // A transaction open ON THAT CONNECTION at the CAS, and still open at
-          // the read. Not merely "a BEGIN appeared earlier": the pool hands the
-          // same connection to unrelated transactions, so one that has since
-          // committed satisfies a looser check while the CAS itself
-          // autocommits.
-          const onCasConnection = (index: number) =>
-            statements[index].connection === casConnection
-          const opens = (index: number) =>
-            onCasConnection(index) && /^begin/i.test(statements[index].sql)
-          const closes = (index: number) =>
-            onCasConnection(index) &&
-            /^(commit|rollback)/i.test(statements[index].sql)
-
-          let openAtCas = false
-          for (let index = 0; index < casIndex; index += 1) {
-            if (opens(index)) openAtCas = true
-            else if (closes(index)) openAtCas = false
-          }
-          expect(openAtCas).toBe(true)
-
-          for (let index = casIndex; index < readIndex; index += 1) {
-            expect(closes(index)).toBe(false)
-          }
           // NOTE: on SQLite the pool is one connection, so the specific slip of
           // building on `database` while keeping the wrapper deadlocks rather
           // than reaching these assertions. It fails cleanly on PostgreSQL,
