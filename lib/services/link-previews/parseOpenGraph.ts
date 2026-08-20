@@ -23,8 +23,16 @@ export const MAX_HEAD_LENGTH = 128 * 1024
 
 const HEAD_END = '</head>'
 
+// ASCII-only lowercasing, for the same reason `getDeclaredCharset` needs it:
+// `toLowerCase()` maps U+0130 to TWO code units, so an index taken from the
+// lowercased copy no longer lines up with the original. Enough of them in the
+// head and the slice reaches past `</head>`, pulling <body> markup into the
+// parse — which is exactly what slicing at the head is supposed to prevent.
+const asciiLower = (value: string): string =>
+  value.replace(/[A-Z]/g, (character) => character.toLowerCase())
+
 const getHeadMarkup = (html: string): string => {
-  const headEnd = html.toLowerCase().indexOf(HEAD_END)
+  const headEnd = asciiLower(html).indexOf(HEAD_END)
   const head = headEnd === -1 ? html : html.slice(0, headEnd)
   // A page with no </head> at all (or a pathologically long one) still gets a
   // bounded slice rather than the whole document.
@@ -105,9 +113,7 @@ export const getDeclaredCharset = (html: string): string | null => {
   // over the window. ASCII-only on purpose: `toLowerCase()` maps U+0130 to TWO
   // code units, which shifts every later index and would slide the slice past a
   // real `charset` attribute. Tag and attribute names are ASCII anyway.
-  const lowered = searchWindow.replace(/[A-Z]/g, (character) =>
-    character.toLowerCase()
-  )
+  const lowered = asciiLower(searchWindow)
 
   // Walked tag by tag with indexOf rather than one big regex: each tag string
   // is short, so the regexes above can never run away on it.

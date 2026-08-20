@@ -320,6 +320,19 @@ describe('parseOpenGraphMetadata', () => {
     expect(elapsed).toBeLessThan(200)
   })
 
+  // `toLowerCase()` maps U+0130 to two code units, so indices from a lowercased
+  // copy drift from the original — enough of them and the head slice reaches
+  // past </head>, pulling <body> markup into the parse and letting a body tag
+  // win the card.
+  it('does not read body metadata when the head contains dotted capital I', () => {
+    const html =
+      `<html><head><title>${'\u0130'.repeat(200)}</title>` +
+      '<meta property="og:title" content="From the head"></head>' +
+      '<body><meta property="og:title" content="From the body"></body></html>'
+
+    expect(parseOpenGraphMetadata(html, BASE_URL)?.title).toBe('From the head')
+  })
+
   it('reads metadata from a page with no head element', () => {
     const result = parseOpenGraphMetadata(
       '<html><meta property="og:title" content="Headless"></html>',

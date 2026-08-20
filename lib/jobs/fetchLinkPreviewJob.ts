@@ -43,11 +43,14 @@ export const fetchLinkPreviewJob: JobHandle = createJobHandle(
     // the unlucky one.
     //
     // Re-resolving (rather than requiring the message's URL to still match) is
-    // what keeps the legitimate cases working too: `createNoteJob` schedules
-    // before it writes the quote edge, so for an inbound quote post the
-    // scheduler and the job can legitimately disagree, and demanding equality
-    // there left the post with no card at all. Fetching the current URL is
-    // idempotent, so a duplicate job simply re-confirms the same card.
+    // what keeps the legitimate cases working too. The scheduler and the job
+    // can legitimately disagree on an inbound quote post: the scheduler is
+    // handed the in-memory status `database.createNote` returned, which carries
+    // no `quote` field at all, while this re-read does — so the two compute
+    // different exclusion sets and demanding equality left the post with no
+    // card. (It is NOT an ordering problem: the quote edge is written before
+    // the scheduler runs. Do not "fix" that ordering.) Fetching the current URL
+    // is idempotent, so a duplicate job simply re-confirms the same card.
     const status = await database.getStatus({ statusId, withReplies: false })
     if (!status) return
 

@@ -2189,6 +2189,9 @@ describe('Post', () => {
               id: 'fitness-file-1',
               fileName: 'ride.fit',
               fileType: 'fit' as const,
+              mimeType: 'application/octet-stream',
+              bytes: 1024,
+              url: 'https://activities.local/api/v1/files/ride.fit',
               processingStatus: 'completed' as const
             }
           }}
@@ -2214,6 +2217,9 @@ describe('Post', () => {
               id: 'fitness-file-2',
               fileName: 'ride.gpx',
               fileType: 'gpx' as const,
+              mimeType: 'application/gpx+xml',
+              bytes: 2048,
+              url: 'https://activities.local/api/v1/files/ride.gpx',
               processingStatus: 'processing' as const
             }
           }}
@@ -2233,7 +2239,7 @@ describe('Post', () => {
           status={{
             ...boostedStatus,
             originalStatus: {
-              ...boostedStatus.originalStatus,
+              ...(boostedStatus.originalStatus as StatusNote),
               summary: null,
               linkPreview
             }

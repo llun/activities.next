@@ -57,7 +57,11 @@ export const normalizePreviewUrl = (input: string): string | null => {
 const collectMarkdownLinks = (tokens: Token[], hrefs: string[]) => {
   for (const token of tokens) {
     if (token.type === 'link') {
-      hrefs.push((token as Tokens.Link).href)
+      const link = token as Tokens.Link
+      // Same rule the HTML path applies: a link the reader cannot see must not
+      // get a card. `[](url)` renders as an empty anchor — nothing on screen —
+      // yet would otherwise put a full-width clickable block under the post.
+      if (hasVisibleContent(link.text)) hrefs.push(link.href)
     }
     const nested = (token as { tokens?: Token[] }).tokens
     if (nested) collectMarkdownLinks(nested, hrefs)
@@ -168,8 +172,11 @@ const getVisibleText = (node: DomNode): string => {
 // characters and therefore their cards.
 const INVISIBLE_TEXT_PATTERN = /\p{Default_Ignorable_Code_Point}/gu
 
+const hasVisibleContent = (text: string): boolean =>
+  text.replace(INVISIBLE_TEXT_PATTERN, '').trim().length > 0
+
 const hasVisibleText = (node: DomNode): boolean =>
-  getVisibleText(node).replace(INVISIBLE_TEXT_PATTERN, '').trim().length > 0
+  hasVisibleContent(getVisibleText(node))
 
 const collectHtmlLinks = (
   nodes: DomNode[],

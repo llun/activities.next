@@ -119,6 +119,27 @@ describe('extractPreviewUrl', () => {
       )
     })
 
+    // The "a card is only for a link the reader can see" rule applied only to
+    // remote HTML, so a local author could get a full-width card from a link
+    // whose text renders as nothing. Same rule, both paths.
+    it('ignores a markdown link with no visible text', () => {
+      expect(
+        fromMarkdown('Look at this [](https://evil.example/phish)')
+      ).toBeNull()
+    })
+
+    it('ignores a markdown link whose text is zero-width', () => {
+      expect(
+        fromMarkdown('Look [\u200b](https://evil.example/phish)')
+      ).toBeNull()
+    })
+
+    it('keeps a markdown link that has visible text', () => {
+      expect(fromMarkdown('Look at [the article](https://example.com/a)')).toBe(
+        'https://example.com/a'
+      )
+    })
+
     it('finds a url inside a blockquote', () => {
       expect(fromMarkdown('> quoting https://example.com/deep')).toBe(
         'https://example.com/deep'

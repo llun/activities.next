@@ -37,7 +37,8 @@ const settingsWith = (
   network: {
     requestTimeoutMs: 4000,
     requestRetries: 1,
-    maxResponseSizeBytes: 2097152
+    maxResponseSizeBytes: 2097152,
+    linkPreviews: true
   },
   federation,
   features: { fitness: true, explore: true, messages: true }
