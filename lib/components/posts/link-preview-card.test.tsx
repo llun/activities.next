@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 
 import { LinkPreviewCard } from '@/lib/components/posts/link-preview-card'
 import { StatusLinkPreview } from '@/lib/types/domain/status'
@@ -101,5 +101,20 @@ describe('LinkPreviewCard', () => {
 
     expect(screen.getByText('<img src=x onerror=alert(1)>')).toBeInTheDocument()
     expect(document.querySelector('img[onerror]')).toBeNull()
+  })
+  // A thumbnail is hotlinked from whatever host the page author chose, so it
+  // can fail for reasons this server cannot see or fix (hotlink protection, a
+  // dead CDN, an expired signed URL). Leaving the broken image in place holds
+  // an 88px hole open in the card; dropping it degrades to the text-only card,
+  // which is a card that still reads correctly.
+  it('drops the thumbnail when it fails to load', () => {
+    render(<LinkPreviewCard linkPreview={card()} />)
+
+    fireEvent.error(screen.getByRole('presentation'))
+
+    expect(screen.queryByRole('presentation')).not.toBeInTheDocument()
+    expect(
+      screen.getByText('The best bike computers you can buy')
+    ).toBeInTheDocument()
   })
 })

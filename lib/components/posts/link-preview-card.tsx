@@ -1,4 +1,6 @@
-import { FC, MouseEvent } from 'react'
+'use client'
+
+import { FC, MouseEvent, useEffect, useState } from 'react'
 
 import { safeExternalHref } from '@/lib/components/trends/safeHref'
 import { StatusLinkPreview } from '@/lib/types/domain/status'
@@ -33,6 +35,16 @@ export const LinkPreviewCard: FC<LinkPreviewCardProps> = ({
   linkPreview,
   className
 }) => {
+  // A thumbnail is hotlinked from whatever host the page author chose, so it
+  // can fail for reasons this server cannot see or fix — hotlink protection, a
+  // dead CDN, an expired signed URL. Keeping a broken image holds an 88px hole
+  // open in the card, so a failure degrades to the text-only card instead.
+  const [imageFailed, setImageFailed] = useState(false)
+  // A status can be replaced in place (an edit, or a feed row being reused for
+  // a different post), and the previous card's failure must not suppress the
+  // new one's thumbnail.
+  useEffect(() => setImageFailed(false), [linkPreview.imageUrl])
+
   const domain = getDomain(linkPreview)
   const publisher =
     linkPreview.siteName && linkPreview.siteName !== domain
@@ -53,7 +65,7 @@ export const LinkPreviewCard: FC<LinkPreviewCardProps> = ({
         className
       )}
     >
-      {linkPreview.imageUrl ? (
+      {linkPreview.imageUrl && !imageFailed ? (
         // A plain <img>, not next/image: the host is whatever the page author
         // chose, so it can never be in `images.remotePatterns`, and routing it
         // through the optimizer would put this server in front of every
@@ -64,6 +76,7 @@ export const LinkPreviewCard: FC<LinkPreviewCardProps> = ({
           role="presentation"
           loading="lazy"
           referrerPolicy="no-referrer"
+          onError={() => setImageFailed(true)}
           className="size-[88px] shrink-0 rounded-lg object-cover"
         />
       ) : null}
