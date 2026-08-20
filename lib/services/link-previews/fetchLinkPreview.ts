@@ -179,7 +179,16 @@ export const fetchLinkPreview = async ({
     // any open redirector on a trusted host badge an attacker's title, image
     // and description with that trusted domain. The cache stays keyed on the
     // requested url, so a shortener still resolves without a second fetch.
-    const resolvedUrl = normalizePreviewUrl(response.url) ?? normalizedUrl
+    // Falling back to the requested url here would re-open the very hole this
+    // closes: `normalizePreviewUrl` refuses anything over the length cap, and
+    // nothing bounds a `Location` header — so an open redirector whose target
+    // is padded past the cap would get the attacker's title, image and
+    // description badged with the redirector's trusted domain. If we cannot
+    // establish where the content came from, we do not claim to know.
+    const resolvedUrl = normalizePreviewUrl(response.url)
+    if (!resolvedUrl) {
+      throw new LinkPreviewFetchError('ERR_UNRESOLVABLE_FINAL_URL')
+    }
 
     return await database.upsertLinkPreview({
       urlHash,

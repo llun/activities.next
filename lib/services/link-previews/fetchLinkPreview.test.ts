@@ -345,6 +345,28 @@ describe('fetchLinkPreview', () => {
     expect(card?.url).toBe('https://real-destination.example/article')
   })
 
+  // The redirect fix fell back to the requested url when the final one could
+  // not be normalized — and nothing bounds a Location header, so padding the
+  // target past the length cap put the attacker's content back under the
+  // trusted domain.
+  it('refuses a card when the final url cannot be established', async () => {
+    const url = 'https://trusted.example.com/redirect?to=evil'
+    mockedFetch.mockResolvedValue({
+      body: PAGE,
+      headers: { 'content-type': 'text/html' },
+      statusCode: 200,
+      url: `https://evil.example/${'a'.repeat(3000)}`
+    })
+
+    const card = await fetchLinkPreview({ database, url })
+
+    expect(card).toBeNull()
+    const stored = await database.getLinkPreview({
+      urlHash: getHashFromString(url)
+    })
+    expect(stored?.fetchStatus).toBe('failed')
+  })
+
   it('rejects a page that declares a non-utf8 charset in markup only', async () => {
     const url = 'https://example.com/meta-charset'
     mockedFetch.mockResolvedValue({

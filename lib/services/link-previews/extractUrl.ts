@@ -59,14 +59,31 @@ const collectMarkdownLinks = (tokens: Token[], hrefs: string[]) => {
     }
     const nested = (token as { tokens?: Token[] }).tokens
     if (nested) collectMarkdownLinks(nested, hrefs)
-    // Lists keep their children on `items`; a GFM table keeps its cells on
-    // `header` and `rows`, and each cell has its own `tokens`.
+    // Lists keep their children on `items`, which are ordinary tokens.
     const items = (token as { items?: Token[] }).items
-    if (items) collectMarkdownLinks(items, hrefs)
-    const header = (token as { header?: Token[] }).header
-    if (header) collectMarkdownLinks(header, hrefs)
-    const rows = (token as { rows?: Token[][] }).rows
-    if (rows) for (const row of rows) collectMarkdownLinks(row, hrefs)
+    if (Array.isArray(items)) collectMarkdownLinks(items, hrefs)
+    // A GFM table keeps its cells on `header`/`rows`. Those cells are NOT
+    // ordinary tokens: each carries its own `header` BOOLEAN, so handing them
+    // back to this walker made it try to iterate `true` — which threw, and the
+    // caller's catch turned any post containing a table into "no links at all".
+    // Walk each cell's `tokens` explicitly instead.
+    if (token.type === 'table') {
+      const table = token as unknown as {
+        header?: { tokens?: Token[] }[]
+        rows?: { tokens?: Token[] }[][]
+      }
+      for (const cell of table.header ?? []) {
+        if (Array.isArray(cell?.tokens))
+          collectMarkdownLinks(cell.tokens, hrefs)
+      }
+      for (const row of table.rows ?? []) {
+        for (const cell of row ?? []) {
+          if (Array.isArray(cell?.tokens)) {
+            collectMarkdownLinks(cell.tokens, hrefs)
+          }
+        }
+      }
+    }
   }
 }
 
@@ -129,19 +146,41 @@ const getVisibleText = (node: DomNode): string => {
   return node.children.map(getVisibleText).join('')
 }
 
-const collectHtmlLinks = (nodes: DomNode[], hrefs: string[]) => {
+// `trim()` removes ECMAScript whitespace, which does NOT include the zero-width
+// format characters — so an anchor whose only content is U+200B rendered as
+// nothing while still counting as "has visible text".
+const ZERO_WIDTH_PATTERN = /[\u200B-\u200D\u2060\uFEFF]/g
+
+const hasVisibleText = (node: DomNode): boolean =>
+  getVisibleText(node).replace(ZERO_WIDTH_PATTERN, '').trim().length > 0
+
+const collectHtmlLinks = (
+  nodes: DomNode[],
+  hrefs: string[],
+  // Hidden-ness is inherited. Checking only the anchor and its descendants left
+  // an anchor wrapped in a hidden span fully extractable — and because it comes
+  // first in document order it BEAT the genuinely visible link below it, so the
+  // reader saw one link and got a card for another.
+  insideHidden = false
+) => {
   for (const node of nodes) {
+    const hidden = insideHidden || isHiddenNode(node)
     if (node.type === 'tag' && node.name === 'a') {
       const attribs = node.attribs ?? {}
       const href = attribs.href
       // An anchor with no visible text renders as nothing at all. Giving it a
       // card would put a full-width clickable block, with an attacker-chosen
       // title and image, under a post whose text shows no such link.
-      if (href && !isNonContentAnchor(attribs) && getVisibleText(node).trim()) {
+      if (
+        href &&
+        !hidden &&
+        !isNonContentAnchor(attribs) &&
+        hasVisibleText(node)
+      ) {
         hrefs.push(href)
       }
     }
-    if (node.children) collectHtmlLinks(node.children, hrefs)
+    if (node.children) collectHtmlLinks(node.children, hrefs, hidden)
   }
 }
 

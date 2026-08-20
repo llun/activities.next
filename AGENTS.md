@@ -1075,7 +1075,22 @@ it; there is no legacy shape left to copy.
   requests to third-party sites, which is what an operator turning it off
   actually cares about. It lives on Admin → Network with the other
   outbound-request settings and has no env var, so the kill switch can never be
-  locked shut by the environment.
+  locked shut by the environment. It gates FETCHING only: the cleanup that drops
+  a card when an edit removes its link runs either way, so turning previews off
+  cannot strand a card on a post that no longer links anything.
+- **Known gaps, all deliberate — none of them is an oversight to "fix" by
+  bolting on a sweep.** `FetchLinkPreviewJob` is enqueued from exactly one place
+  (`syncStatusLinkPreview`, on create and edit), which has three consequences.
+  A status whose first fetch failed never acquires a card, because nothing
+  re-runs for it — the hour-long negative cache only helps a _later_ status
+  linking the same URL. An attached card is never re-read on its own, so the
+  7-day refresh only happens when someone posts that link again. And nothing
+  ever deletes a `link_previews` row, so the per-URL cache grows without bound.
+  These are the shape of a server with no recurring-job infrastructure (the
+  queue can delay a message but not repeat one — the same constraint that makes
+  fitness service reminders evaluate on write). `link_previews_status_updated_idx`
+  exists for the staleness sweep that would close them; until such a sweep is
+  written, expect it to be unused.
 
 ## Status Posts & Actions
 

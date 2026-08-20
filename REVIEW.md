@@ -485,7 +485,14 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   `referrerPolicy="no-referrer"`, and the href goes through `safeExternalHref`.
 - The kill switch is `network.linkPreviews`, checked both when scheduling and
   inside the job (a delayed job must not drain after an operator turns it off).
-  It is not a `features.*` flag: that namespace is navigation-only.
+  It is not a `features.*` flag: that namespace is navigation-only. It gates
+  fetching only — the cleanup that drops a card when an edit removes its link
+  runs regardless.
+- Known and deliberate: a first-fetch failure is never retried, an attached card
+  is only refreshed if someone posts the link again, and `link_previews` rows are
+  never collected. There is no recurring-job infrastructure to hang a sweep on.
+  Don't flag these as bugs, and don't "fix" them with a sweep that has nothing to
+  run it.
 
 ## Fitness route heatmap pyramid
 

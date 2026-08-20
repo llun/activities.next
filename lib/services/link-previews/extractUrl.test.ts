@@ -125,6 +125,35 @@ describe('extractPreviewUrl', () => {
       )
     })
 
+    // Regression: walking a table's `header` with the generic token walker
+    // recursed into TableCell objects, whose own `header` is a BOOLEAN — the
+    // walker then tried to iterate `true`, threw, and the catch turned the
+    // whole status into "no links". A table anywhere in the post killed the
+    // card, including for links nowhere near it.
+    it('finds a url in a table cell', () => {
+      expect(
+        fromMarkdown(
+          '| a | b |\n| --- | --- |\n| [cell](https://cell.example/one) | plain |'
+        )
+      ).toBe('https://cell.example/one')
+    })
+
+    it('finds a url in a table header cell', () => {
+      expect(
+        fromMarkdown(
+          '| [head](https://head.example/one) | b |\n| --- | --- |\n| x | y |'
+        )
+      ).toBe('https://head.example/one')
+    })
+
+    it('still finds a url in a post that also contains a table', () => {
+      expect(
+        fromMarkdown(
+          'See https://outside.example/page\n\n| a | b |\n| --- | --- |\n| x | y |'
+        )
+      ).toBe('https://outside.example/page')
+    })
+
     it('finds a url inside a list item', () => {
       expect(fromMarkdown('- one\n- https://example.com/list')).toBe(
         'https://example.com/list'
@@ -278,6 +307,44 @@ describe('extractPreviewUrl', () => {
               '<span class="invisible">https://evil.example</span>' +
               '<span class="invisible">/phish</span></a></p>'
           )
+        ).toBeNull()
+      })
+
+      // getVisibleText starts AT the anchor, so it never saw a hidden
+      // ANCESTOR. Worse than a false negative: the hidden anchor comes first in
+      // document order, so it won over the genuinely visible link below it and
+      // the reader got the attacker's card while seeing only the real link.
+      it('ignores an anchor inside a hidden ancestor', () => {
+        expect(
+          fromHtml(
+            '<p>Nothing to see here <span class="invisible">' +
+              '<a href="https://evil.example/phish">click here</a>' +
+              '</span></p>'
+          )
+        ).toBeNull()
+      })
+
+      it('prefers the visible link over one hidden by an ancestor', () => {
+        expect(
+          fromHtml(
+            '<p><span class="hidden"><a href="https://evil.example/phish">x</a></span>' +
+              ' real: <a href="https://good.example/post">good.example/post</a></p>'
+          )
+        ).toBe('https://good.example/post')
+      })
+
+      // trim() does not remove U+200B and friends — they are format characters,
+      // not ECMAScript whitespace — so a zero-width-only anchor passed the
+      // "has visible text" check while rendering as nothing.
+      it('ignores an anchor whose only text is zero-width', () => {
+        expect(
+          fromHtml('<p><a href="https://evil.example/phish">\u200b</a></p>')
+        ).toBeNull()
+      })
+
+      it('ignores an anchor whose only text is a word joiner', () => {
+        expect(
+          fromHtml('<p><a href="https://evil.example/phish">\u2060</a></p>')
         ).toBeNull()
       })
 

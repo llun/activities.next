@@ -306,6 +306,20 @@ describe('parseOpenGraphMetadata', () => {
     expect(elapsed).toBeLessThan(1_000)
   })
 
+  // The first DoS fix (parse only <head>) was undone by the charset regex added
+  // beside it: `<meta[^>]+charset` backtracks quadratically, and a body of bare
+  // `<meta` with no `>` blocked the event loop for 3.3 seconds.
+  it('does not stall on markup crafted to make the charset scan backtrack', () => {
+    const hostile = `<html><head>${'<meta'.repeat(30_000)}`
+
+    const start = Date.now()
+    const charset = getDeclaredCharset(hostile)
+    const elapsed = Date.now() - start
+
+    expect(charset).toBeNull()
+    expect(elapsed).toBeLessThan(200)
+  })
+
   it('reads metadata from a page with no head element', () => {
     const result = parseOpenGraphMetadata(
       '<html><meta property="og:title" content="Headless"></html>',
@@ -334,6 +348,18 @@ describe('parseOpenGraphMetadata', () => {
       {
         description: 'answers null when none is declared',
         html: '<html><head><title>x</title></head></html>',
+        expected: null
+      },
+      {
+        // A loose match made an article that merely TALKS about encodings look
+        // like a windows-1252 page, which cost it its card.
+        description: 'ignores charset mentioned inside another attribute',
+        html: '<html><head><meta property="og:description" content="how to set charset=windows-1252 in html"></head></html>',
+        expected: null
+      },
+      {
+        description: 'ignores a declaration past the spec window',
+        html: `<html><head>${'<meta name="x" content="y">'.repeat(200)}<meta charset="windows-1251"></head></html>`,
         expected: null
       }
     ])('$description', ({ html, expected }) => {

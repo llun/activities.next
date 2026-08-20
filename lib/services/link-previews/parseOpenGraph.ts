@@ -31,14 +31,69 @@ const getHeadMarkup = (html: string): string => {
   return head.length > MAX_HEAD_LENGTH ? head.slice(0, MAX_HEAD_LENGTH) : head
 }
 
-// The encoding a page declares in markup rather than in its Content-Type
-// header. `safeRemoteFetch` always decodes as UTF-8, so anything else would be
-// stored as mojibake — and the HTML5 `<meta charset>` form is the common case
-// the header check alone misses.
+// The HTML spec requires a page's encoding declaration to appear within the
+// first 1024 bytes, so the search never needs to look further — and must not:
+// scanning the whole head with a `<meta[^>]+charset` regex backtracks
+// quadratically, and a 128 KB body of bare `<meta` with no `>` was measured
+// blocking the event loop for 3.3 SECONDS. That would have replaced the
+// deep-nesting DoS this file was hardened against with a cheaper one.
+const CHARSET_DECLARATION_WINDOW = 1024
+
+// Attribute-level parsing, because `charset` must be read as an ATTRIBUTE of a
+// meta tag and never as a substring inside one's VALUE: a loose match made
+// `<meta property="og:description" content="how to set charset=windows-1252">`
+// look like a windows-1252 page, which cost that article its card. The tag
+// string is short and bounded, so this regex cannot run away on it.
+const META_ATTRIBUTE = /([\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g
+
+const getTagAttributes = (tag: string): Map<string, string> => {
+  const attributes = new Map<string, string>()
+  META_ATTRIBUTE.lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = META_ATTRIBUTE.exec(tag)) !== null) {
+    const name = match[1].toLowerCase()
+    if (!attributes.has(name)) {
+      attributes.set(name, match[2] ?? match[3] ?? match[4] ?? '')
+    }
+  }
+  return attributes
+}
+
+/**
+ * The encoding a page declares in markup rather than in its Content-Type
+ * header. `safeRemoteFetch` always decodes as UTF-8, so anything else would be
+ * stored as mojibake — and the HTML5 `<meta charset>` form is the common case
+ * the header check alone misses.
+ */
 export const getDeclaredCharset = (html: string): string | null => {
-  const head = getHeadMarkup(html)
-  const charsetMeta = head.match(/<meta[^>]+charset\s*=\s*["']?([\w-]+)/i)
-  return charsetMeta ? charsetMeta[1].toLowerCase() : null
+  const window = html.slice(0, CHARSET_DECLARATION_WINDOW)
+
+  // Walked tag by tag with indexOf rather than one big regex: each tag string
+  // is short, so the regexes above can never run away on it.
+  let cursor = 0
+  while (cursor < window.length) {
+    const tagStart = window.toLowerCase().indexOf('<meta', cursor)
+    if (tagStart === -1) return null
+    const tagEnd = window.indexOf('>', tagStart)
+    const tag = window.slice(tagStart, tagEnd === -1 ? window.length : tagEnd)
+
+    const attributes = getTagAttributes(tag)
+
+    // `<meta charset=…>` directly...
+    const charset = attributes.get('charset')
+    if (charset?.trim()) return charset.trim().toLowerCase()
+
+    // ...or the legacy `<meta http-equiv="Content-Type" content="…; charset=…">`,
+    // where the encoding genuinely does live inside an attribute value.
+    if (attributes.get('http-equiv')?.toLowerCase().trim() === 'content-type') {
+      const legacy = attributes.get('content')?.match(/charset\s*=\s*([\w-]+)/i)
+      if (legacy) return legacy[1].toLowerCase()
+    }
+
+    if (tagEnd === -1) return null
+    cursor = tagEnd + 1
+  }
+  return null
 }
 
 export type LinkPreviewMetadata = {
