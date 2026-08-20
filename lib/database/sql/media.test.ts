@@ -334,6 +334,27 @@ describe('MediaDatabase', () => {
         expect(media).toBeNull()
       })
 
+      // `medias.id` is an integer column on PostgreSQL, which rejects a
+      // non-numeric comparison with `invalid input syntax for type integer`
+      // instead of simply matching nothing. Mastodon clients put whatever they
+      // like in the id path segment, so a bad id has to read as a miss (404),
+      // not an error (500).
+      it.each([
+        { description: 'an empty id', mediaId: '' },
+        { description: 'a non-numeric id', mediaId: 'abc' },
+        { description: 'a fractional id', mediaId: '1.5' },
+        { description: 'a negative id', mediaId: '-1' }
+      ])('returns null for $description', async ({ mediaId }) => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+
+        const media = await database.getMediaByIdForAccount({
+          mediaId,
+          accountId: actor!.account!.id
+        })
+
+        expect(media).toBeNull()
+      })
+
       it('returns null when media belongs to different account', async () => {
         // Create media for primary actor
         await database.getActorFromId({
@@ -482,6 +503,18 @@ describe('MediaDatabase', () => {
       })
     })
 
+    describe('markMediaUploadVerified', () => {
+      it('returns null for an id that is not a positive integer', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const verified = await database.markMediaUploadVerified({
+          mediaId: 'abc',
+          accountId: actor!.account!.id,
+          verifiedAt: Date.now()
+        })
+        expect(verified).toBeNull()
+      })
+    })
+
     describe('getStorageUsageForAccount', () => {
       it('returns 0 when no media exists', async () => {
         const actor = await database.getActorFromId({
@@ -620,6 +653,10 @@ describe('MediaDatabase', () => {
       it('returns false when media does not exist', async () => {
         const deleted = await database.deleteMedia({ mediaId: '999999' })
         expect(deleted).toBe(false)
+      })
+
+      it('returns false for an id that is not a positive integer', async () => {
+        expect(await database.deleteMedia({ mediaId: 'abc' })).toBe(false)
       })
 
       it('deletes media by actor and original path', async () => {
@@ -838,6 +875,16 @@ describe('MediaDatabase', () => {
         expect(updated).toBeNull()
       })
 
+      it('returns null for an id that is not a positive integer', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const updated = await database.updateMedia({
+          mediaId: 'abc',
+          accountId: actor!.account!.id,
+          description: 'nope'
+        })
+        expect(updated).toBeNull()
+      })
+
       it('persists a focal point and round-trips it exactly', async () => {
         const actor = await database.getActorFromId({ id: actors.primary.id })
         const accountId = actor!.account!.id
@@ -1041,6 +1088,15 @@ describe('MediaDatabase', () => {
         const actor = await database.getActorFromId({ id: actors.primary.id })
         const result = await database.deleteMediaForAccount({
           mediaId: '99999999',
+          accountId: actor!.account!.id
+        })
+        expect(result.status).toBe('not-found')
+      })
+
+      it('returns not-found for an id that is not a positive integer', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const result = await database.deleteMediaForAccount({
+          mediaId: 'abc',
           accountId: actor!.account!.id
         })
         expect(result.status).toBe('not-found')

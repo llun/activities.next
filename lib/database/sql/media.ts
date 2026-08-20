@@ -36,9 +36,21 @@ import { Attachment } from '@/lib/types/domain/attachment'
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
 import { getCompatibleTime } from './utils/getCompatibleTime'
 
+// `medias.id` is an integer column. Mastodon clients send ids as strings and
+// put whatever they like in them, so coerce before comparing: PostgreSQL
+// rejects an integer column compared against text with `invalid input syntax
+// for type integer`, which turns a miss into a 500 rather than a 404. SQLite's
+// dynamic typing merely matches nothing, which is why this only ever showed up
+// on PostgreSQL. Returns null for anything that is not a positive integer so
+// the caller can report "not found" without touching the database.
+const toMediaRowId = (mediaId: string): number | null => {
+  const id = Number(mediaId)
+  return Number.isInteger(id) && id > 0 ? id : null
+}
+
 const deleteMediaByConditions = async (
   database: Knex,
-  conditions: Record<string, string>
+  conditions: Record<string, string | number>
 ): Promise<boolean> => {
   return database.transaction(async (trx) => {
     const media = await trx('medias')
@@ -83,7 +95,11 @@ const deleteMediaByConditions = async (
 const deleteMediaById = async (
   database: Knex,
   mediaId: string
-): Promise<boolean> => deleteMediaByConditions(database, { id: mediaId })
+): Promise<boolean> => {
+  const id = toMediaRowId(mediaId)
+  if (id === null) return false
+  return deleteMediaByConditions(database, { id })
+}
 
 type MediaRow = {
   id: string | number
@@ -229,9 +245,12 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     accountId,
     verifiedAt
   }: MarkMediaUploadVerifiedParams): Promise<Media | null> {
+    const id = toMediaRowId(mediaId)
+    if (id === null) return null
+
     const data = await database('medias')
       .join('actors', 'medias.actorId', 'actors.id')
-      .where('medias.id', mediaId)
+      .where('medias.id', id)
       .where('actors.accountId', accountId)
       .select(
         'medias.id',
@@ -505,9 +524,12 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     mediaId,
     accountId
   }: GetMediaByIdParams): Promise<Media | null> {
+    const id = toMediaRowId(mediaId)
+    if (id === null) return null
+
     const data = await database('medias')
       .join('actors', 'medias.actorId', 'actors.id')
-      .where('medias.id', mediaId)
+      .where('medias.id', id)
       .where('actors.accountId', accountId)
       .select(MEDIA_COLUMNS.map((column) => `medias.${column}`))
       .first()
@@ -521,13 +543,11 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     mediaIds,
     accountId
   }: GetMediaByIdsForAccountParams): Promise<Media[]> {
-    // medias.id is an integer column. Mastodon clients send ids as strings, so
-    // coerce numeric ids to numbers before the IN query — Postgres rejects
-    // comparing an integer column against text. Drop empty/invalid ids.
+    // Drop empty/invalid ids rather than letting them reach the IN query; see
+    // toMediaRowId.
     const numericIds = mediaIds
-      .filter(Boolean)
-      .map((id) => Number(id))
-      .filter((id) => Number.isInteger(id) && id > 0)
+      .map(toMediaRowId)
+      .filter((id): id is number => id !== null)
     if (numericIds.length === 0) return []
     const rows = await database('medias')
       .join('actors', 'medias.actorId', 'actors.id')
@@ -544,10 +564,13 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     focus,
     thumbnail
   }: UpdateMediaParams): Promise<UpdateMediaResult | null> {
+    const id = toMediaRowId(mediaId)
+    if (id === null) return null
+
     return database.transaction(async (trx) => {
       const owned = await trx('medias')
         .join('actors', 'medias.actorId', 'actors.id')
-        .where('medias.id', mediaId)
+        .where('medias.id', id)
         .where('actors.accountId', accountId)
         .select('medias.id', 'medias.thumbnail', 'medias.thumbnailBytes')
         .first<{
@@ -595,7 +618,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
           thumbnail.bytes - parseCounterValue(owned.thumbnailBytes)
       }
 
-      await trx('medias').where('id', mediaId).update(updates)
+      await trx('medias').where('id', id).update(updates)
 
       // Replacing a thumbnail changes stored bytes; keep the per-account usage
       // counter (read by getStorageUsageForAccount / quota checks) in sync.
@@ -614,7 +637,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       }
 
       const data = await trx('medias')
-        .where('id', mediaId)
+        .where('id', id)
         .select([...MEDIA_COLUMNS])
         .first()
 
@@ -648,12 +671,15 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     mediaId,
     accountId
   }: DeleteMediaForAccountParams): Promise<DeleteMediaForAccountResult> {
+    const mediaRowId = toMediaRowId(mediaId)
+    if (mediaRowId === null) return { status: 'not-found' }
+
     return database.transaction(async (trx) => {
       // Owner scope: only the account that owns the media (via its actors) can
       // delete it. Mastodon scopes destroy to `current_account.media_attachments`.
       const media = await trx('medias')
         .join('actors', 'medias.actorId', 'actors.id')
-        .where('medias.id', mediaId)
+        .where('medias.id', mediaRowId)
         .where('actors.accountId', accountId)
         .select(
           'medias.id',
