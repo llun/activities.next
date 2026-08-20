@@ -3606,12 +3606,17 @@ describe('generateFitnessRouteHeatmapJob', () => {
       }
     })
 
-    it('does not report an activity an earlier pass folded as one it could not read', async () => {
-      // A re-presented file the build already holds is not a loss, and the
-      // decision has to be made before the storage read — a storage failure is
-      // the dominant throw the counter exists for, and it happens there. The
-      // record is the scoped, persisted degradation signal an operator reads;
-      // it must not be false about a build that lost nothing.
+    it('never reports an activity it holds as one it could not read', async () => {
+      // The end-to-end property, whichever guard delivers it: a build must not
+      // persist a loss for geometry it is sitting on, because that record is
+      // the scoped, persisted degradation signal an operator reads.
+      //
+      // Here it is the COVERAGE guard that delivers it, not the unreadable
+      // counter: re-presenting a file requires an upload to have shifted the
+      // offsets, and that upload raises the recount, so the build is handed
+      // back rather than completed. That is why the "an earlier pass folded it"
+      // arm of `foldedThisFile` was removed as inert — this test is what
+      // demonstrates the outcome survives without it.
       const amsterdamId = await createCompletedFitnessFile(
         'running',
         new Date('2026-04-15T07:00:00.000Z')

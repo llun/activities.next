@@ -467,15 +467,18 @@ it; there is no legacy shape left to copy.
   build costs a rebuild while failing the run costs the user the heatmap they
   can actually see. Every tile-path error — the tiler, a flush, the
   completion — abandons the build, records why on the pyramid row, and lets the
-  legacy path finish. Failing the CLAIM is the one case with nothing to record
-  on — the claim's compare-and-swap and the read confirming it share one
-  transaction, so a claim either happens and is reported or does not happen. The
-  exception is a transaction that commits and loses its acknowledgement, where
-  the row is claimed and the caller never learns it: that build waits out the
-  staleness window like any other whose worker died. The same shape applies to
-  the completion write, whose caller treats a lost response as a failure and
-  releases a build that is in fact finished; both are what an at-least-once
-  queue and a non-idempotent write cost, not something a guard here removes.
+  legacy path finish. Two writes have nothing to record on and are only logged:
+  the CLAIM, because its compare-and-swap and the read confirming it share one
+  transaction, so it either happens and is reported or does not happen; and the
+  completion SWEEP, which runs after the build is already `completed`, so its
+  failure leaves stale tiles for the next build's sweep and nothing else. The
+  claim's exception is a transaction that commits and loses its
+  acknowledgement, where the row is claimed and the caller never learns it: that
+  build waits out the staleness window like any other whose worker died. The
+  same shape applies to the completion write, whose caller treats a lost
+  response as a failure and releases a build that is in fact finished; both are
+  what an at-least-once queue and a non-idempotent write cost, not something a
+  guard here removes.
 - **A build this pass was CARRYING rather than holding is released from one
   place, the handler's `finally`.** Four separate guards drop a continuation,
   and a per-guard release was missed on one of them twice; no per-guard release

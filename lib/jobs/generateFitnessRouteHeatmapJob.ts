@@ -1137,14 +1137,21 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
             )
           }
 
-          // Whether the BUILD already holds this file's geometry, decided
-          // before anything that can throw. An earlier pass of this build may
-          // have folded it and the paging then re-presented it; a storage
-          // failure on that file is not a loss, and storage failure is the
-          // dominant throw this counter exists for — so deciding it after the
-          // read is deciding it too late.
-          let foldedThisFile =
-            Boolean(pyramidBuild) && !isUnfoldedByPyramid(file)
+          // Whether THIS pass folded the file, which is what says a later throw
+          // in this block is not a loss to record — the block also covers the
+          // legacy accumulation, which runs after the fold.
+          //
+          // Deliberately NOT "or an earlier pass of this build folded it". That
+          // arm was tried and removed as inert: it differs from `false` only for
+          // a re-presented file, and a build that ever re-presented one cannot
+          // reach the completion write that reads this counter. With `k` the
+          // region offset at the final pass, `S` the build's `scannedCount`
+          // there and `n` the recount, completing needs `S >= k + R`, while the
+          // no-op advance for a re-presented file forces `S <= k` — so `R` is
+          // zero for every build that completes. Re-presentation needs an upload
+          // to have shifted the offsets, and that upload is exactly what the
+          // coverage guard catches.
+          let foldedThisFile = false
           try {
             if (isParseableFitnessFileType(file.fileType)) {
               const routeCoordinates = await resolveRouteCoordinates(database, {

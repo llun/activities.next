@@ -407,6 +407,35 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         }
       })
 
+      it('clears the previous completion when it starts a fresh build', async () => {
+        // A fresh claim nulls `completedAt` in the same statement that stamps
+        // `generating`. Left behind, the row would carry a completion time from
+        // a build whose tiles the new version is about to replace — and that
+        // column is what `already-fresh` reads, so the next request would be
+        // served from a pyramid that no longer exists.
+        const actorId = await createActor(database)
+        const first = await claimBuild(database, actorId)
+        await database.updateFitnessRouteHeatmapPyramid({
+          actorId,
+          ...fence(first),
+          status: 'completed',
+          completedAt: Date.now() - 10_000,
+          tileCount: 12
+        })
+
+        const rebuild = await database.claimFitnessRouteHeatmapPyramidBuild({
+          actorId,
+          requestedAt: Date.now(),
+          staleBefore: Date.now() - 120_000
+        })
+
+        expect(rebuild).toMatchObject({ claimed: true, resumed: false })
+        expect(rebuild.pyramid.completedAt).toBeUndefined()
+        expect(
+          await database.getFitnessRouteHeatmapPyramid({ actorId })
+        ).toMatchObject({ status: 'generating', completedAt: undefined })
+      })
+
       it('reads an epoch-0 completion the same way on both backends', async () => {
         // The same per-backend truthiness trap the cursor columns carry, on the
         // field that decides `already-fresh`: an epoch-0 timestamp comes back a
