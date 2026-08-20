@@ -480,6 +480,20 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   visible and keeps its card. Reject any change that walks marked's token tree
   for local posts — it cannot see ancestors, cannot decode entities, and its
   table cells crashed the walker into "no links at all".
+- **That two-entry hidden-class list is only sufficient because
+  `sanitizeText` allowlists the `class` attribute** (`ALLOWED_CONTENT_CLASSES`,
+  applied to `a` and `span`). The class reaches the real DOM — `cleanClassName`
+  hands an anchor's straight to `className` — and this app compiles Tailwind, so
+  before the allowlist a remote post could hide a link with `sr-only`,
+  `opacity-0` or any other utility in the bundle and take the card while the
+  reader saw nothing. Treat the two lists as one mechanism: adding a class to
+  the allowlist without deciding whether it hides content reopens this, and the
+  coupling test in `extractUrl.test.ts` is what fails when someone tries. Reject
+  prefix globs (`h-*`, `p-*`) however much Mastodon's own config uses them —
+  here they would admit `h-screen` and `p-0`. Also reject a
+  `SANITIZED_TRUSTED_STATUS_OPTION` that REPLACES `allowedClasses` instead of
+  spreading it: a tag with no entry keeps its class untouched, so listing only
+  `img` hands `span`/`a` back an unrestricted class attribute.
 - Every optional Mastodon `PreviewCard` field needs an `''`/`0` default. That
   schema is non-nullable and `Status.parse` runs per status inside a handler
   that **skips** what it cannot serialize, so one missing key drops the whole
