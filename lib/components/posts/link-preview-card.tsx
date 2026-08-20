@@ -92,9 +92,16 @@ export const LinkPreviewCard: FC<LinkPreviewCardProps> = ({
             truncates; the domain does not. */}
         <div className="flex min-w-0 gap-1 text-xs text-muted-foreground">
           {siteName ? (
-            // The separator rides WITH the name, so a name squeezed to nothing
-            // on a narrow card cannot leave an orphan "·" opening the line.
-            <span className="min-w-0 truncate">{siteName} ·</span>
+            // The separator rides WITH the name — inside the truncating box,
+            // as an inline child rather than its own flex item — so a name
+            // squeezed to nothing on a narrow card clips the "·" along with it
+            // instead of leaving it orphaned at the head of the line. Being a
+            // nested element rather than bare text is what lets it stay
+            // decoration to a screen reader.
+            <span className="min-w-0 truncate">
+              {siteName}
+              <span aria-hidden="true"> ·</span>
+            </span>
           ) : null}
           {/* `shrink-0` keeps the domain out of the squeeze, but it still needs
               `truncate` for the case where the domain alone overflows: hard

@@ -2,6 +2,62 @@ import {
   extractPreviewUrl,
   normalizePreviewUrl
 } from '@/lib/services/link-previews/extractUrl'
+import {
+  ALLOWED_CONTENT_CLASSES,
+  sanitizeText
+} from '@/lib/utils/text/sanitizeText'
+
+// The extractor decides whether a link is visible from a two-entry list of
+// hiding classes. That is only safe because `sanitizeText` runs first and
+// reduces the class attribute to the fixed set below — so the two lists are one
+// mechanism, and this pins them together.
+//
+// Adding a class to the sanitizer's allowlist fails this test until it is
+// sorted into one of these two buckets, which is the point: the question "can a
+// reader still see a link wearing this?" has to be answered deliberately rather
+// than defaulted to "yes".
+describe('the extractor and the sanitizer agree about hiding', () => {
+  // Renders to nothing. The walk must skip anchors wearing these.
+  const HIDES_CONTENT = ['invisible']
+  // Microformat and presentation markers that leave content on screen.
+  const LEAVES_CONTENT_VISIBLE = [
+    'h-card',
+    'p-author',
+    'u-url',
+    'mention',
+    'hashtag',
+    'ellipsis'
+  ]
+
+  it('classifies every class the sanitizer lets through', () => {
+    expect([...ALLOWED_CONTENT_CLASSES].sort()).toEqual(
+      [...HIDES_CONTENT, ...LEAVES_CONTENT_VISIBLE].sort()
+    )
+  })
+
+  it.each(HIDES_CONTENT)('hides an anchor wearing %s', (className) => {
+    expect(
+      extractPreviewUrl({
+        text: `<p><a href="https://evil.example/x" class="${className}">x</a></p>`,
+        isLocalActor: false,
+        host: 'llun.test'
+      })
+    ).toBeNull()
+  })
+
+  it.each(LEAVES_CONTENT_VISIBLE)(
+    'still extracts an anchor wearing %s',
+    (className) => {
+      // `mention`, `hashtag` and `u-url` mark social-graph links, which are
+      // skipped for a different reason entirely — they are not content, rather
+      // than not visible — so those are asserted through a plain span instead.
+      const text = `<p><span class="${className}">see <a href="https://example.com/ok">example.com/ok</a></span></p>`
+      expect(
+        extractPreviewUrl({ text, isLocalActor: false, host: 'llun.test' })
+      ).toBe('https://example.com/ok')
+    }
+  )
+})
 
 describe('normalizePreviewUrl', () => {
   it.each([
@@ -140,7 +196,6 @@ describe('extractPreviewUrl', () => {
     it.each([
       { description: 'an html comment', text: '<!-- hi -->' },
       { description: 'an empty span', text: '<span></span>' },
-      { description: 'a hidden span', text: '<span class="hidden">x</span>' },
       {
         description: 'an invisible span',
         text: '<span class="invisible">x</span>'
@@ -155,15 +210,6 @@ describe('extractPreviewUrl', () => {
     // marked flattens raw inline HTML into flat sibling tokens, so a per-link
     // text check cannot see that the link sits inside a hidden span — and the
     // hidden one comes FIRST, so it beat the genuinely visible link below it.
-    it('ignores a markdown link wrapped in a hidden span', () => {
-      expect(
-        fromMarkdown(
-          'Look <span class="hidden">[phish](https://evil.example/phish)</span>' +
-            ' and [real](https://good.example/real)'
-        )
-      ).toBe('https://good.example/real')
-    })
-
     it('ignores a markdown link wrapped in an invisible span', () => {
       expect(
         fromMarkdown(
@@ -376,14 +422,6 @@ describe('extractPreviewUrl', () => {
         ).toBeNull()
       })
 
-      it('ignores an anchor the app renders as hidden', () => {
-        expect(
-          fromHtml(
-            '<p><a href="https://evil.example/phish" class="hidden">x</a></p>'
-          )
-        ).toBeNull()
-      })
-
       it('ignores an anchor marked invisible', () => {
         expect(
           fromHtml(
@@ -454,10 +492,13 @@ describe('extractPreviewUrl', () => {
         ).toBeNull()
       })
 
+      // Document order is the tiebreak, so the hidden link comes FIRST here on
+      // purpose: it is the position from which it would win if the ancestor
+      // rule ever stopped applying.
       it('prefers the visible link over one hidden by an ancestor', () => {
         expect(
           fromHtml(
-            '<p><span class="hidden"><a href="https://evil.example/phish">x</a></span>' +
+            '<p><span class="invisible"><a href="https://evil.example/phish">x</a></span>' +
               ' real: <a href="https://good.example/post">good.example/post</a></p>'
           )
         ).toBe('https://good.example/post')
@@ -492,6 +533,84 @@ describe('extractPreviewUrl', () => {
         ).toBeNull()
       })
 
+      // The walker knows only two hiding classes, which would be hopeless as a
+      // denylist: the app compiles Tailwind, so an unfiltered class attribute
+      // offers `sr-only`, `opacity-0` and every other utility in the bundle.
+      //
+      // What makes the short list sufficient is that `sanitizeText` runs first
+      // and reduces the class attribute to a fixed set of fediverse markers. So
+      // the property to assert is not that these lose to the visible link — it
+      // is that they do not MATTER. The class is gone before the walk, so the
+      // same markup with and without it extracts the same link, and an attacker
+      // who cannot hide anything has nothing to phish with.
+      it.each([
+        { description: 'sr-only', className: 'sr-only' },
+        { description: 'zero opacity', className: 'opacity-0' },
+        { description: 'transparent text', className: 'text-transparent' },
+        { description: 'a zero size', className: 'size-0' },
+        {
+          description: 'an off-canvas position',
+          className: 'absolute -left-96'
+        },
+        // `hidden` is Tailwind's display:none and used to be handled by the
+        // walker instead. It belongs here now: no fediverse server sends it,
+        // it is not in the allowlist, and a remote server able to
+        // `display: none` part of its own post is exactly what that list is
+        // for. The marker that does survive is Mastodon's `invisible`.
+        { description: 'display none', className: 'hidden' }
+      ])('cannot hide a link with $description', ({ className }) => {
+        const body =
+          '<a href="https://first.example/a">Free money</a></span>' +
+          ' then <a href="https://second.example/b">second.example/b</a></p>'
+        const html = `<p><span class="${className}">${body}`
+
+        // This is the assertion with teeth. Comparing the two extractions
+        // alone would pass either way: a class the walker does not know is
+        // one it does not act on, so removing the allowlist changes neither
+        // side. What has to be true is that the class never reaches the DOM,
+        // because that is what stops the READER's view and the walker's view
+        // from diverging.
+        expect(sanitizeText(html)).not.toContain(className)
+        expect(fromHtml(html)).toBe(fromHtml(`<p><span>${body}`))
+      })
+
+      // `\p{Default_Ignorable_Code_Point}` is not the whole invisible set. A
+      // braille blank is an ordinary printing character in category So that
+      // draws nothing; the C0 controls and the interlinear annotation marks are
+      // not default-ignorable either.
+      it.each([
+        { description: 'a braille blank', text: '\u2800' },
+        { description: 'a run of braille blanks', text: '\u2800\u2800\u2800' },
+        { description: 'a NUL', text: '\u0000' },
+        { description: 'a record separator', text: '\u001E' },
+        { description: 'an interlinear annotation anchor', text: '\uFFF9' }
+      ])('ignores an anchor whose only text is $description', ({ text }) => {
+        expect(
+          fromHtml(`<p><a href="https://evil.example/phish">${text}</a></p>`)
+        ).toBeNull()
+      })
+
+      it('prefers the visible link over one labelled with a braille blank', () => {
+        expect(
+          fromHtml(
+            '<p><a href="https://evil.example/phish">\u2800</a>' +
+              ' real: <a href="https://good.example/post">good.example/post</a></p>'
+          )
+        ).toBe('https://good.example/post')
+      })
+
+      // Braille is a real script with real readers, and U+2800 is one cell in
+      // it. Naming that single code point must not spill onto the cells that
+      // carry dots — which is exactly why the rule cannot widen to `\p{So}`.
+      it.each([
+        { description: 'real braille', text: '⠃⠁' },
+        { description: 'braille containing a blank', text: '⠃\u2800⠁' }
+      ])('keeps an anchor whose text is $description', ({ text }) => {
+        expect(
+          fromHtml(`<p><a href="https://example.com/ok">${text}</a></p>`)
+        ).toBe('https://example.com/ok')
+      })
+
       // The emptiness test strips zero-width characters, which includes ZWJ
       // (U+200D) — the joiner inside emoji sequences and Persian/Indic
       // spelling. Stripping it must not make a legitimate anchor look empty:
@@ -518,15 +637,6 @@ describe('extractPreviewUrl', () => {
         expect(
           fromHtml(`<p><a href="https://example.com/ok">${text}</a></p>`)
         ).toBe('https://example.com/ok')
-      })
-
-      it('ignores an anchor whose children are all hidden', () => {
-        expect(
-          fromHtml(
-            '<p>text <a href="https://evil.example/phish">' +
-              '<span class="hidden">click</span></a></p>'
-          )
-        ).toBeNull()
       })
 
       // Mastodon splits a link's display text into invisible/ellipsis spans on

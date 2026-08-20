@@ -83,8 +83,20 @@ describe('LinkPreviewCard', () => {
   it('pairs the publisher with the domain when they differ', () => {
     render(<LinkPreviewCard linkPreview={card()} />)
 
-    expect(screen.getByText('The Verge ·')).toBeInTheDocument()
+    expect(screen.getByText('The Verge')).toBeInTheDocument()
     expect(screen.getByText('theverge.com')).toBeInTheDocument()
+  })
+
+  // The dot separates two things that are already separate elements, so it says
+  // nothing a screen reader needs and is marked as decoration. It still has to
+  // live INSIDE the name's truncating box — see the orphan case below.
+  it('renders the separator as decoration inside the truncating name', () => {
+    render(<LinkPreviewCard linkPreview={card()} />)
+
+    const separator = screen.getByText('·')
+    expect(separator).toHaveAttribute('aria-hidden', 'true')
+    expect(separator.parentElement).toHaveTextContent('The Verge')
+    expect(separator.parentElement).toHaveClass('truncate')
   })
 
   // The domain is the only part of the card the page cannot choose, so it is
@@ -100,7 +112,7 @@ describe('LinkPreviewCard', () => {
     expect(domain).toBeInTheDocument()
     // The name is what gives way; the domain is kept out of the squeeze.
     expect(domain).toHaveClass('shrink-0')
-    expect(screen.getByText(`${'A'.repeat(255)} ·`)).toHaveClass('truncate')
+    expect(screen.getByText('A'.repeat(255))).toHaveClass('truncate')
   })
 
   // The separator belongs to the name, so a name squeezed to nothing cannot

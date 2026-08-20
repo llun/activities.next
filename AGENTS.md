@@ -1035,6 +1035,30 @@ it; there is no legacy shape left to copy.
   genuinely visible link below it. `<template>` is NOT such a case: the
   sanitizer unwraps it, so that anchor really is on screen and really should get
   the card.
+  The two-entry hidden-class list only works because `sanitizeText` runs first —
+  see the sanitizer rule below. As a denylist it would be hopeless.
+- **`sanitizeText` allowlists the CLASS attribute, and everything above depends
+  on it.** `SANITIZED_OPTION.allowedClasses` reduces `class` on `a` and `span`
+  to `ALLOWED_CONTENT_CLASSES` — `h-card`, `p-author`, `u-url`, `mention`,
+  `hashtag`, `invisible`, `ellipsis`. That attribute reaches the real DOM:
+  `cleanClassName` hands an anchor's class straight to `className` and leaves
+  any span class it does not itself rewrite alone. This app compiles Tailwind,
+  so without the allowlist every utility in the bundle is a class a remote
+  server can spend on our page — `sr-only` is
+  `position:absolute;width:1px;height:1px;clip-path:inset(50%)`, enough to
+  publish a link into a post that no reader can see, which then wins the
+  preview card on document order.
+  Three things to keep right when touching it. It is an explicit list, **not**
+  Mastodon's `h-*`/`p-*`/`u-*` prefix globs — those are unsafe here because
+  `h-*` would admit `h-screen` and `p-*` would admit `p-0`. `hidden` is
+  deliberately absent: no fediverse server sends Tailwind's `display:none`, and
+  `invisible` is the marker that actually arrives. And
+  `SANITIZED_TRUSTED_STATUS_OPTION` must SPREAD this map rather than replace it
+  — a tag with no `allowedClasses` entry keeps its class untouched, so
+  declaring only `img` there quietly hands `span` and `a` back an unrestricted
+  class attribute. `extractUrl.test.ts` pins the allowlist against the
+  extractor's hidden-class list, so adding a class fails the suite until it is
+  classified as hiding or benign.
 - **`syncStatusLinkPreview` never throws.** It is called from local create, local
   edit, and the inbound `CreateNoteJob`/`UpdateNoteJob`, and every one of those
   has already written the status by the time it runs. A preview card is
@@ -1107,15 +1131,22 @@ it; there is no legacy shape left to copy.
   fitness service reminders evaluate on write). `link_previews_status_updated_idx`
   exists for the staleness sweep that would close them; until such a sweep is
   written, expect it to be unused.
-- **Polls get no card, and wiring one up is not a one-line change.** Neither
-  `createPoll`, `updatePoll` nor `createPollJob` calls `syncStatusLinkPreview`.
-  Everything downstream is already type-agnostic — `StatusPoll` extends
-  `StatusNote` so it carries `linkPreview`, and both the hydration and `post.tsx`
-  handle any status — but `createPoll` stores `convertMarkdownText(...)`'s
-  RENDERED HTML where `createNote` stores raw markdown, while
-  `extractPreviewUrl` picks its parser from `isLocalActor`. Adding the call
-  alone would run the markdown lexer over HTML on a local poll and quietly find
-  nothing. Fix the storage asymmetry first, or leave it.
+- **Polls get no card, but only because nothing asks for one.** Neither
+  `createPoll`, `updatePoll` nor `createPollJob` calls `syncStatusLinkPreview`;
+  everything below that call is already type-agnostic. `StatusPoll` extends
+  `StatusNote` so it carries `linkPreview`, and the hydration and `post.tsx`
+  both handle any status.
+  There IS a storage asymmetry — `createPoll` stores `convertMarkdownText(...)`'s
+  rendered HTML where `createNote` stores raw markdown, and `extractPreviewUrl`
+  still picks its branch from `isLocalActor` — but it stopped mattering when
+  extraction moved to rendering the text and walking the result: marked leaves
+  already-rendered HTML untouched, so a poll body run through the local branch
+  renders to itself and yields the same URL the remote branch would. Verified
+  both ways round. So this is now a one-line change, and the thing to check
+  before making it is not the parser but the ordering rule the note actions
+  follow — schedule the sync AFTER the poll has published, or on the default
+  in-process queue the author waits on a third-party fetch before their poll
+  goes anywhere.
 
 ## Status Posts & Actions
 

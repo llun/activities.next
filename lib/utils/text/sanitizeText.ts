@@ -1,5 +1,35 @@
 import sanitizeHtml from 'sanitize-html'
 
+// The microformat and presentation classes fediverse servers put inside status
+// text: the mention wrapper and its anchor, hashtag anchors, and the
+// `invisible`/`ellipsis` spans Mastodon splits a long link's display text into.
+//
+// An ALLOWLIST rather than Mastodon's own `h-*`/`p-*`/`u-*` prefix globs,
+// because those globs are unsafe in a Tailwind app: `h-*` would admit `h-screen`
+// and `p-*` would admit `p-0`. The list is short and the fediverse's is not
+// growing, so enumerating is both safer and clearer here.
+//
+// Without it the class attribute is a hole. `cleanClassName` hands an anchor's
+// class straight to `className` and leaves any span class it does not itself
+// rewrite alone, so a class named here reaches the real DOM — and this app
+// compiles Tailwind, which means every utility in the bundle is a class a
+// remote server can spend on our page. `sr-only` is
+// `position:absolute;width:1px;height:1px;clip-path:inset(50%)`: enough to
+// publish text, including a link, that no reader can see.
+//
+// Exported because the link-preview extractor's own hidden-class list is only
+// sufficient while this one is: see the coupling test in
+// `lib/services/link-previews/extractUrl.test.ts`.
+export const ALLOWED_CONTENT_CLASSES = [
+  'h-card',
+  'p-author',
+  'u-url',
+  'mention',
+  'hashtag',
+  'invisible',
+  'ellipsis'
+]
+
 export const SANITIZED_OPTION = {
   allowedTags: [
     'p',
@@ -24,6 +54,10 @@ export const SANITIZED_OPTION = {
     span: ['class', 'translate'],
     ol: ['start', 'reversed'],
     li: ['value']
+  },
+  allowedClasses: {
+    a: ALLOWED_CONTENT_CLASSES,
+    span: ALLOWED_CONTENT_CLASSES
   },
   allowedSchemes: ['http', 'https', 'mailto'],
   allowedSchemesByTag: {
@@ -59,7 +93,12 @@ const SANITIZED_TRUSTED_STATUS_OPTION = {
     ...SANITIZED_OPTION.allowedAttributes,
     img: ['class', 'src', 'alt']
   },
+  // Spread, never replace. A tag with no entry here keeps its class attribute
+  // untouched, so declaring `img` alone would hand span and a back their
+  // unrestricted class and undo the first pass — which is the pass that sees
+  // the untrusted input.
   allowedClasses: {
+    ...SANITIZED_OPTION.allowedClasses,
     img: ['emoji']
   },
   allowedSchemesByTag: {
