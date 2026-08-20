@@ -1,8 +1,7 @@
 import { htmlToDOM } from 'html-react-parser'
-import { Token, Tokens } from 'marked'
 
 import { logger } from '@/lib/utils/logger'
-import { createStatusMarked } from '@/lib/utils/text/convertMarkdownText'
+import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 import { sanitizeText } from '@/lib/utils/text/sanitizeText'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
@@ -51,52 +50,30 @@ export const normalizePreviewUrl = (input: string): string | null => {
   }
 }
 
-// Walk the marked token tree depth-first and yield every link href in document
-// order. `mention` and `hashtag` are their own token types, so they never
-// appear here.
-const collectMarkdownLinks = (tokens: Token[], hrefs: string[]) => {
-  for (const token of tokens) {
-    if (token.type === 'link') {
-      const link = token as Tokens.Link
-      // Same rule the HTML path applies: a link the reader cannot see must not
-      // get a card. `[](url)` renders as an empty anchor — nothing on screen —
-      // yet would otherwise put a full-width clickable block under the post.
-      if (hasVisibleMarkdownText(link.text)) hrefs.push(link.href)
-    }
-    const nested = (token as { tokens?: Token[] }).tokens
-    if (nested) collectMarkdownLinks(nested, hrefs)
-    // Lists keep their children on `items`, which are ordinary tokens.
-    const items = (token as { items?: Token[] }).items
-    if (Array.isArray(items)) collectMarkdownLinks(items, hrefs)
-    // A GFM table keeps its cells on `header`/`rows`. Those cells are NOT
-    // ordinary tokens: each carries its own `header` BOOLEAN, so handing them
-    // back to this walker made it try to iterate `true` — which threw, and the
-    // caller's catch turned any post containing a table into "no links at all".
-    // Walk each cell's `tokens` explicitly instead.
-    if (token.type === 'table') {
-      const table = token as unknown as {
-        header?: { tokens?: Token[] }[]
-        rows?: { tokens?: Token[] }[][]
-      }
-      for (const cell of table.header ?? []) {
-        if (Array.isArray(cell?.tokens))
-          collectMarkdownLinks(cell.tokens, hrefs)
-      }
-      for (const row of table.rows ?? []) {
-        for (const cell of row ?? []) {
-          if (Array.isArray(cell?.tokens)) {
-            collectMarkdownLinks(cell.tokens, hrefs)
-          }
-        }
-      }
-    }
-  }
-}
-
+/**
+ * Links in a LOCAL status, as the reader will see them.
+ *
+ * Local statuses store the author's markdown, so this renders it with the very
+ * same `convertMarkdownText` the page uses and then walks the result with the
+ * HTML collector below — the extractor therefore sees exactly the DOM the
+ * reader gets.
+ *
+ * Walking marked's token tree instead looks simpler and is not: marked
+ * flattens raw inline HTML into flat sibling tokens, so a link inside
+ * `<span class="hidden">…</span>` has no ancestor to inherit hidden-ness from,
+ * and a per-token text check cannot tell it apart from a visible one. That gap
+ * let an invisible link beat the visible one below it — and separately, link
+ * text written as an entity (`[&#8203;](url)`) reads as non-empty in source
+ * while rendering to nothing. Rendering first makes both disappear, because the
+ * HTML walker already inherits hidden-ness and the parser already decodes
+ * entities.
+ *
+ * Mentions and hashtags come out of the renderer carrying `u-url mention` and
+ * `rel="tag"`, which `isNonContentAnchor` already rejects.
+ */
 const extractFromMarkdown = (text: string, host: string): string[] => {
-  const hrefs: string[] = []
   try {
-    collectMarkdownLinks(createStatusMarked(host).lexer(text), hrefs)
+    return extractFromHtml(convertMarkdownText(host)(text))
   } catch (error) {
     // A malformed status must not break posting; it simply gets no card. But it
     // must not be SILENT either: swallowing the throw is how a crash on any
@@ -109,7 +86,6 @@ const extractFromMarkdown = (text: string, host: string): string[] => {
     })
     return []
   }
-  return hrefs
 }
 
 // Classes this app's own renderer uses to hide content (`cleanClassName` maps
@@ -177,30 +153,6 @@ const hasVisibleContent = (text: string): boolean =>
 
 const hasVisibleText = (node: DomNode): boolean =>
   hasVisibleContent(getVisibleText(node))
-
-/**
- * Whether a markdown link's text renders to anything the reader can see.
- *
- * The token carries markdown SOURCE, and that source may itself be HTML which
- * renders to nothing — `[<!-- hi -->](url)` and `[<span class="hidden">x</span>](url)`
- * both come out as an anchor with no visible content, exactly the shape this
- * rule exists to reject. So the source is put through the same sanitize-then-
- * measure-visible-text path the HTML side uses, rather than being tested as a
- * plain string.
- */
-const hasVisibleMarkdownText = (text: string): boolean => {
-  // Cheap reject first: plain empty or zero-width text never needs a parse.
-  if (!hasVisibleContent(text)) return false
-  // No markup, nothing for the parse to change.
-  if (!text.includes('<')) return true
-  try {
-    const nodes = htmlToDOM(sanitizeText(text)) as DomNode[]
-    return hasVisibleContent(nodes.map(getVisibleText).join(''))
-  } catch {
-    // A parse failure must not silently drop a link that is probably fine.
-    return true
-  }
-}
 
 const collectHtmlLinks = (
   nodes: DomNode[],

@@ -1047,13 +1047,23 @@ it; there is no legacy shape left to copy.
   in-process queue has no scheduler and silently DROPS any message with a
   positive delay, so the delay is only attached when `getQueue().runsInline` is
   false. Attaching it unconditionally does not delay the fetch — it loses it.
-- **URL extraction reuses the renderer's own tokenizer for local posts.**
-  `createStatusMarked` (`@/lib/utils/text/convertMarkdownText`) is exported
-  precisely so the extractor lexes a status exactly the way the renderer does; a
-  second, separately-written URL regex would eventually disagree and pick a link
-  the reader never sees. Remote posts store HTML instead, so those are walked for
-  anchors that are not mentions or hashtags (`rel="tag"`, and the
-  `mention`/`hashtag`/`u-url` class markers the Mastodon family emits).
+- **Extraction walks RENDERED HTML on both paths — there is one walker.** A
+  remote post already stores HTML, so it is sanitized and walked. A local post
+  stores markdown, so it is rendered with the very same `convertMarkdownText`
+  the page uses and then walked by that same code. The extractor therefore sees
+  exactly the DOM the reader gets, on either path, and anchors that are mentions
+  or hashtags are rejected by the markers the renderer itself emits (`rel="tag"`
+  and the `mention`/`hashtag`/`u-url` classes).
+  Do not "simplify" the local path back to walking marked's token tree. It was
+  written that way and the tokens are the wrong shape for this job three times
+  over: marked flattens raw inline HTML into flat SIBLING tokens, so a link
+  inside `<span class="hidden">…</span>` has no ancestor to inherit hidden-ness
+  from and beat the visible link below it; link text written as an entity
+  (`[&#8203;](url)`) reads as non-empty in source while rendering to nothing;
+  and a table cell carries its own `header` BOOLEAN, which crashed the walker
+  and silently turned every post containing a table into "no links". Rendering
+  first removes all three, because the HTML walker inherits hidden-ness and the
+  parser decodes entities.
 - **Every optional field of the Mastodon `PreviewCard` gets an `''`/`0`
   default.** That schema declares every string field non-nullable and
   `Mastodon.Status.parse` runs once per status inside a handler that catches and

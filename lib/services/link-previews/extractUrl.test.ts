@@ -151,6 +151,60 @@ describe('extractPreviewUrl', () => {
       ).toBeNull()
     })
 
+    // The hidden-ancestor rule was only ever applied to the remote path.
+    // marked flattens raw inline HTML into flat sibling tokens, so a per-link
+    // text check cannot see that the link sits inside a hidden span — and the
+    // hidden one comes FIRST, so it beat the genuinely visible link below it.
+    it('ignores a markdown link wrapped in a hidden span', () => {
+      expect(
+        fromMarkdown(
+          'Look <span class="hidden">[phish](https://evil.example/phish)</span>' +
+            ' and [real](https://good.example/real)'
+        )
+      ).toBe('https://good.example/real')
+    })
+
+    it('ignores a markdown link wrapped in an invisible span', () => {
+      expect(
+        fromMarkdown(
+          'Look <span class="invisible">[phish](https://evil.example/phish)</span>' +
+            ' and [real](https://good.example/real)'
+        )
+      ).toBe('https://good.example/real')
+    })
+
+    it('ignores a markdown link inside a script element', () => {
+      expect(
+        fromMarkdown(
+          'Look <script>[phish](https://evil.example/phish)</script>'
+        )
+      ).toBeNull()
+    })
+
+    // An entity is exactly the case where source text differs from rendered
+    // text without containing a '<', so a fast path keyed on '<' skipped the
+    // measurement entirely.
+    it.each([
+      { description: 'a zero-width space entity', text: '&#8203;' },
+      { description: 'a hex zero-width entity', text: '&#x200b;' },
+      { description: 'a soft hyphen entity', text: '&shy;' },
+      { description: 'a non-breaking space entity', text: '&nbsp;' }
+    ])('ignores a markdown link whose text is $description', ({ text }) => {
+      expect(
+        fromMarkdown(`Look [${text}](https://evil.example/phish)`)
+      ).toBeNull()
+    })
+
+    it.each([
+      { description: 'an ampersand entity', text: 'Search &amp; Rescue' },
+      { description: 'a bare ampersand', text: 'AT&T' },
+      { description: 'an escaped angle bracket', text: '&lt;tag&gt;' }
+    ])('keeps a markdown link whose text is $description', ({ text }) => {
+      expect(fromMarkdown(`Look [${text}](https://example.com/ok)`)).toBe(
+        'https://example.com/ok'
+      )
+    })
+
     it('keeps a markdown link whose text is emphasised', () => {
       expect(fromMarkdown('Look [**bold**](https://example.com/b)')).toBe(
         'https://example.com/b'

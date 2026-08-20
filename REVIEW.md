@@ -470,15 +470,16 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   (`resolveStatusPreviewUrl`). An edit leaves the pre-edit job queued; without
   the re-check it re-attaches the old card, or resurrects one an edit removed.
   The scheduler and the job must keep using that single resolver.
-- A card is only for a link the reader can SEE, on **both** paths. Remote HTML
-  is sanitized before extraction (it is stored raw and sanitized only at
-  render); then on either path a link whose text renders to nothing — empty, or
-  hidden by `hidden`/`invisible`, including via an ANCESTOR — is skipped.
-  Visibility is measured on rendered output, never the source string: a markdown
-  link's text can be HTML that renders to an empty anchor. Otherwise a link the
-  reader cannot see gets a full-width clickable card — a phishing surface.
-  `<template>` is not an exception: the sanitizer unwraps it, so that anchor is
-  genuinely visible and keeps its card.
+- Extraction walks RENDERED, sanitized HTML on **both** paths (a local post is
+  rendered with `convertMarkdownText` first), so there is one walker and the
+  extractor sees the reader's DOM. A link whose text renders to nothing — empty,
+  entity-only, or hidden by `hidden`/`invisible` including via an ANCESTOR — is
+  skipped, because otherwise a link the reader cannot see gets a full-width
+  clickable card carrying an attacker-chosen title and image. `<template>` is
+  not an exception: the sanitizer unwraps it, so that anchor is genuinely
+  visible and keeps its card. Reject any change that walks marked's token tree
+  for local posts — it cannot see ancestors, cannot decode entities, and its
+  table cells crashed the walker into "no links at all".
 - Every optional Mastodon `PreviewCard` field needs an `''`/`0` default. That
   schema is non-nullable and `Status.parse` runs per status inside a handler
   that **skips** what it cannot serialize, so one missing key drops the whole

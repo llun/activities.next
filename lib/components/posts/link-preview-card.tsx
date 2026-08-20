@@ -92,12 +92,15 @@ export const LinkPreviewCard: FC<LinkPreviewCardProps> = ({
             truncates; the domain does not. */}
         <div className="flex min-w-0 gap-1 text-xs text-muted-foreground">
           {siteName ? (
-            <>
-              <span className="truncate">{siteName}</span>
-              <span aria-hidden="true">·</span>
-            </>
+            // The separator rides WITH the name, so a name squeezed to nothing
+            // on a narrow card cannot leave an orphan "·" opening the line.
+            <span className="min-w-0 truncate">{siteName} ·</span>
           ) : null}
-          <span className="shrink-0">{domain}</span>
+          {/* `shrink-0` keeps the domain out of the squeeze, but it still needs
+              `truncate` for the case where the domain alone overflows: hard
+              clipping would cut it flush, and the ellipsis is the only signal
+              that the host a reader is checking is not the whole host. */}
+          <span className="max-w-full shrink-0 truncate">{domain}</span>
         </div>
         <div className="line-clamp-2 wrap-anywhere text-sm font-semibold leading-snug">
           {linkPreview.title}
