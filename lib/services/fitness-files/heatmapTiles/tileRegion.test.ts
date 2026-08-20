@@ -119,6 +119,46 @@ describe('classifyTileAgainstRegion', () => {
     ).toBe('partial')
   })
 
+  it('reports a rect exactly equal to the tile as inside', () => {
+    expect(classifyTileAgainstRegion(Z, X, Y, [{ ...tile }])).toBe('inside')
+  })
+
+  it.each([
+    { description: 'the south edge', edge: 'minLat' as const },
+    { description: 'the north edge', edge: 'maxLat' as const },
+    { description: 'the west edge', edge: 'minLng' as const },
+    { description: 'the east edge', edge: 'maxLng' as const }
+  ])('reports partial for a rect a hair short of $description', ({ edge }) => {
+    // A tolerance anywhere in `contains` would read these as inside and serve
+    // the whole tile, which at this zoom is kilometres outside the region.
+    const shrink = edge === 'minLat' || edge === 'minLng' ? 1e-9 : -1e-9
+    expect(
+      classifyTileAgainstRegion(Z, X, Y, [
+        { ...tile, [edge]: tile[edge] + shrink }
+      ])
+    ).toBe('partial')
+  })
+
+  it('discriminates on LONGITUDE, not only latitude', () => {
+    const midLng = (tile.minLng + tile.maxLng) / 2
+    const westHalf = {
+      minLat: tile.minLat - pad,
+      maxLat: tile.maxLat + pad,
+      minLng: tile.minLng - pad,
+      maxLng: midLng
+    }
+    expect(classifyTileAgainstRegion(Z, X, Y, [westHalf])).toBe('partial')
+    expect(
+      classifyTileAgainstRegion(Z, X, Y, [
+        {
+          ...westHalf,
+          minLng: tile.maxLng + pad,
+          maxLng: tile.maxLng + pad * 2
+        }
+      ])
+    ).toBe('outside')
+  })
+
   it('reaches nothing through an inverted rect, rather than wrapping', () => {
     expect(
       classifyTileAgainstRegion(Z, X, Y, [
@@ -213,6 +253,67 @@ describe('clipTileSegmentsToRegion', () => {
         northHalf
       )
     ).toEqual([{ count: 3, hidden: true, points: [0, 0, 10, 20] }])
+  })
+
+  // The latitude cases above pad longitude on both sides, so they cannot tell a
+  // longitude-blind clipper from a correct one. This half is the mirror.
+  const westHalf = [
+    {
+      minLat: tile.minLat - 1,
+      maxLat: tile.maxLat + 1,
+      minLng: tile.minLng - 1,
+      maxLng: (tile.minLng + tile.maxLng) / 2
+    }
+  ]
+
+  it('drops the points east of the region', () => {
+    const result = clipTileSegmentsToRegion(
+      Z,
+      X,
+      Y,
+      [segment([0, 0, 20, 10, 250, 20, 255, 30])],
+      westHalf
+    )
+    expect(result).toEqual([{ count: 3, points: [0, 0, 20, 10] }])
+  })
+
+  it('splits a run that leaves the region to the east and comes back', () => {
+    const result = clipTileSegmentsToRegion(
+      Z,
+      X,
+      Y,
+      [segment([0, 0, 10, 10, 250, 20, 251, 30, 20, 40, 30, 50])],
+      westHalf
+    )
+    expect(result).toEqual([
+      { count: 3, points: [0, 0, 10, 10] },
+      { count: 3, points: [20, 40, 30, 50] }
+    ])
+  })
+
+  it('never returns a point east of a longitude-bounded region', () => {
+    const result = clipTileSegmentsToRegion(
+      Z,
+      X,
+      Y,
+      [segment(Array.from({ length: 64 }, (_, index) => index * 4))],
+      westHalf
+    )
+
+    for (const run of result) {
+      for (let index = 0; index < run.points.length; index += 2) {
+        const point = tileLocalToLngLat(
+          Z,
+          X,
+          Y,
+          run.points[index],
+          run.points[index + 1]
+        )
+        expect(point.lng).toBeGreaterThanOrEqual(westHalf[0].minLng)
+        expect(point.lng).toBeLessThanOrEqual(westHalf[0].maxLng)
+      }
+    }
+    expect(result.length).toBeGreaterThan(0)
   })
 
   it('never returns a point the region does not contain', () => {

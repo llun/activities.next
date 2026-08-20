@@ -8,10 +8,8 @@ import {
   normalizeRegionParam
 } from '@/lib/fitness/regions'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
-import { MAX_TILES_PER_REQUEST } from '@/lib/services/fitness-files/heatmapTiles/constants'
 import {
-  isLadderZoom,
-  parseTileIndexList,
+  parseTileBatchQuery,
   serveHeatmapTiles
 } from '@/lib/services/fitness-files/heatmapTiles/serveTiles'
 import { AppRouterParams } from '@/lib/services/guards/types'
@@ -37,28 +35,14 @@ interface Params {
 }
 
 /**
- * `MAX_TILES_PER_REQUEST` keys of `"x:y"` plus separators. The widest key at
- * the deepest stored zoom is `65535:65535` (11 chars), so 12 per tile is the
- * bound; the parser rejects anything over the tile count regardless, and this
- * only stops an oversized string from being split at all.
+ * Only the region is validated here. The zoom, the tile list and `v` go through
+ * `parseTileBatchQuery`, which the public tiles route shares — see its docblock
+ * for why one parser rather than two.
  */
-const MAX_TILES_PARAM_LENGTH = MAX_TILES_PER_REQUEST * 12
-
 const FitnessRouteHeatmapTilesQueryParams = z.object({
-  z: z.coerce.number().int(),
-  tiles: z.string().min(1).max(MAX_TILES_PARAM_LENGTH),
   // See the sibling fitness-route-heatmap route: a looser raw cap that
   // normalizeRegionParam rounds + caps under the 255-char cache-key column.
-  region: z.string().max(1024).optional(),
-  /**
-   * The pyramid version the client believes it is reading. Accepted so a client
-   * can make its URLs change when the pyramid is rebuilt, and deliberately NOT
-   * used to select tiles: a request naming a version that has since moved is
-   * answered with the CURRENT tiles and the current version, never refused.
-   * Refusing it would blank a map the moment a rebuild finished underneath a
-   * client still holding the previous version.
-   */
-  v: z.coerce.number().int().nonnegative().optional()
+  region: z.string().max(1024).optional()
 })
 
 export const GET = traceApiRoute(
@@ -118,18 +102,8 @@ export const GET = traceApiRoute(
     const parsed = FitnessRouteHeatmapTilesQueryParams.safeParse(
       Object.fromEntries(url.searchParams.entries())
     )
-    if (!parsed.success || !isLadderZoom(parsed.data.z)) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: 400
-      })
-    }
-
-    const { z: zoom, tiles: rawTiles, region: rawRegion } = parsed.data
-    const tiles = parseTileIndexList(rawTiles, zoom)
-    if (!tiles) {
+    const query = parseTileBatchQuery(url.searchParams)
+    if (!parsed.success || !query) {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
@@ -145,14 +119,19 @@ export const GET = traceApiRoute(
     // The owner may see every tile, so clipping here is not a privacy boundary
     // — it is what makes a region-scoped view show the same extent the stored
     // heatmap for that region does, rather than the whole world behind it.
+    //
+    // There is deliberately no `isPyramidVariantHeatmap` gate to match the
+    // public route's: this request names no heatmap row, only a region, and the
+    // pyramid IS the all-activities/all-time dataset. A filtered row advertises
+    // no `tileSource`, so nothing points a client here for one.
     const served = await serveHeatmapTiles({
       database,
       actorId: id,
       pyramid,
-      z: zoom,
-      tiles,
+      z: query.z,
+      tiles: query.tiles,
       regionBounds: getRegionBounds(
-        deserializeRegions(normalizeRegionParam(rawRegion))
+        deserializeRegions(normalizeRegionParam(parsed.data.region))
       ),
       stripPrivacy: false
     })

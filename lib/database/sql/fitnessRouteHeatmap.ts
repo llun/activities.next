@@ -88,6 +88,19 @@ export interface FitnessRouteHeatmapDatabase {
     shareToken: string
   }): Promise<FitnessRouteHeatmap | null>
   /**
+   * The same lookup without the payload blobs, for a caller that needs only the
+   * share's identity and scope.
+   *
+   * The tile routes are exactly that caller: they answer from the pyramid and
+   * read this row only for its actor, status, region and variant. Reading the
+   * full row there would drag the entire untiled heatmap off disk and through
+   * `JSON.parse` on every tile batch — megabytes to use none of them, on a
+   * public route a viewport hits many times per pan.
+   */
+  getFitnessRouteHeatmapSummaryByShareToken(params: {
+    shareToken: string
+  }): Promise<FitnessRouteHeatmapSummary | null>
+  /**
    * Sets the public share token on a heatmap owned by `actorId` (scoped to the
    * actor so a caller can only share their own heatmaps). Returns true when a
    * matching, not-already-deleted row was updated.
@@ -435,6 +448,32 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
 
     if (!row) return null
     return parseSQLFitnessRouteHeatmap(row)
+  },
+
+  async getFitnessRouteHeatmapSummaryByShareToken({
+    shareToken
+  }: {
+    shareToken: string
+  }) {
+    if (!shareToken) return null
+
+    // Annotated, and taken as a one-row list, because knex infers a positional
+    // TUPLE of column types from `.select(SUMMARY_COLUMNS)` rather than a row —
+    // the other summary reads here only avoid it by passing through a helper
+    // with this same signature.
+    const query: Knex.QueryBuilder<
+      SQLFitnessRouteHeatmap,
+      SQLFitnessRouteHeatmap[]
+    > = database<SQLFitnessRouteHeatmap>('fitness_route_heatmaps')
+      .where('shareToken', shareToken)
+      .whereNull('deletedAt')
+      // Summary columns only — see the interface docblock: the tile routes need
+      // the share's scope, never its geometry.
+      .select(SUMMARY_COLUMNS)
+
+    const [row] = await query.limit(1)
+    if (!row) return null
+    return parseSQLFitnessRouteHeatmapSummary(row)
   },
 
   async setFitnessRouteHeatmapShareToken({

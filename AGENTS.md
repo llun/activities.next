@@ -540,6 +540,21 @@ it; there is no legacy shape left to copy.
   is, and `isPyramidVariantHeatmap` is the single place that decides it (it
   mirrors `isPyramidVariant` in the job, which decides whether a run builds
   tiles at all).
+- **The public token route refuses any share the pyramid cannot answer, using
+  the SAME predicate that decides whether a heatmap advertises a `tileSource`.**
+  A share scoped to one sport or one year is not something a per-actor,
+  all-time pyramid can answer, and serving it from there publishes every sport
+  and every year — a leak that region clipping cannot catch, because such a
+  share is usually world-wide. Deriving the route's go/no-go from
+  `buildHeatmapTileSource` rather than re-deriving the conditions is what stops
+  the serving path and the advertising path drifting apart, which is exactly
+  how the gate came to be on the pages and missing on the route. The predicate
+  therefore tests `activityType` for null rather than for falsiness: the job's
+  own gate is `activityType === null`, and reading an empty string as "no
+  filter" here while the job read it as a filter matching nothing would serve a
+  whole history behind a row showing none of it.
+  The OWNER route has no such gate and needs none: its request names a region
+  and nothing else, so there is no variant to disagree with.
 - **On the public token route, clipping to the SHARED ROW's region is the
   security boundary — not a view option.** The caller sends tile indices and
   nothing else; the region comes from the row the token resolved to. Without
@@ -554,8 +569,18 @@ it; there is no legacy shape left to copy.
   and `[]` means "clip nothing" everywhere downstream — so a rect share whose
   stored token failed to parse would serve the world. Only the empty string, the
   world sentinel `serializeRegions` emits, reaches the unclipped path; anything
-  else that resolves to no bounds is a 404. Every surface taking a region from a
-  client normalizes it with the one shared `normalizeRegionParam`.
+  else that resolves to no bounds is a 404. It runs before the conditional-request
+  check, so no response — 200 or 304 — is produced without it. The three
+  route-heatmap surfaces that take a region from a client normalize it with the
+  one shared `normalizeRegionParam`; the region-names route keeps its own
+  variant, which answers null rather than `''` for the world sentinel because a
+  world scope is not a nameable region.
+- **The tile routes read the share row WITHOUT its geometry**
+  (`getFitnessRouteHeatmapSummaryByShareToken`). They answer from the pyramid
+  and need the row only for its actor, status, scope and variant, while
+  `segments` holds the entire untiled heatmap — which a panning viewport would
+  otherwise drag off disk and through `JSON.parse` once per tile batch, and
+  before the conditional-request short-circuit at that.
 - **The public route re-encodes every byte it returns.** The owner path may
   forward a stored payload verbatim for a tile that needed neither clipping nor
   stripping; the public one always goes through `decodeTile` (which validates
@@ -569,10 +594,19 @@ it; there is no legacy shape left to copy.
   build that completes after the sweep throws leaves exactly those leftovers.
   The response reports the version it actually served (0 for none) and its keys
   are the ones the REQUEST named, never the ones the read returned.
-- **The `v` request parameter is a cache-buster, never a filter.** A request
-  naming a version that has since moved is answered with the current tiles and
-  the current version. Refusing it would blank a map the instant a rebuild
-  finished underneath a client still holding the previous `tileSource`.
+- **The `v` request parameter is a cache-buster, never a tile filter.** A
+  well-formed version that has since moved is answered with the current tiles
+  and the current version; refusing it would blank a map the instant a rebuild
+  finished underneath a client still holding the previous `tileSource`. A
+  MALFORMED one is a 400 on both routes — a client that thinks it is busting a
+  cache with a value the server cannot read should be told, not quietly served
+  from the entry it meant to bypass.
+- **Both tile routes parse their query through one `parseTileBatchQuery`.** Two
+  parsers had already drifted: `?z=4&z=16` resolved to 16 through
+  `Object.fromEntries` and to 4 through `searchParams.get`, and a malformed `v`
+  was a 400 on one route and ignored on the other. Neither was a leak, but a
+  divergence between two routes that must agree is how one becomes a leak the
+  next time either grows a scope-bearing parameter.
 - Full design and rationale: `docs/fitness-file-storage.md` → Route heatmap tile
   pyramid.
 

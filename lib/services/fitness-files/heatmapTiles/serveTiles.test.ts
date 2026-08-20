@@ -3,7 +3,7 @@ import { FitnessRouteHeatmapPyramid } from '@/lib/types/database/fitnessRouteHea
 
 import { MAX_TILES_PER_REQUEST } from './constants'
 import {
-  isLadderZoom,
+  parseTileBatchQuery,
   parseTileIndexList,
   resolveShareRegionBounds,
   serveHeatmapTiles
@@ -49,13 +49,66 @@ describe('parseTileIndexList', () => {
   })
 })
 
-describe('isLadderZoom', () => {
-  it('accepts a stored zoom and rejects one between or beyond', () => {
-    expect(isLadderZoom(4)).toBe(true)
-    expect(isLadderZoom(16)).toBe(true)
-    expect(isLadderZoom(5)).toBe(false)
-    expect(isLadderZoom(18)).toBe(false)
-    expect(isLadderZoom(0)).toBe(false)
+describe('parseTileBatchQuery', () => {
+  const query = (search: string) =>
+    parseTileBatchQuery(new URL(`http://x/tiles?${search}`).searchParams)
+
+  it('parses a zoom, a tile list and a version', () => {
+    expect(query('z=8&tiles=1:2,3:4&v=7')).toEqual({
+      z: 8,
+      tiles: [
+        { x: 1, y: 2 },
+        { x: 3, y: 4 }
+      ],
+      version: 7
+    })
+  })
+
+  it('omits the version when none was sent', () => {
+    expect(query('z=8&tiles=1:2')).toEqual({ z: 8, tiles: [{ x: 1, y: 2 }] })
+  })
+
+  it('takes the FIRST of a repeated parameter, the same on every route', () => {
+    // Both routes share this parser precisely so they cannot disagree here;
+    // reading the query through `Object.fromEntries` would take the last.
+    expect(query('z=4&z=16&tiles=1:1')?.z).toBe(4)
+  })
+
+  it.each([
+    { description: 'a zoom off the ladder', search: 'z=9&tiles=1:1' },
+    { description: 'a zoom past the ladder', search: 'z=18&tiles=1:1' },
+    { description: 'no zoom', search: 'tiles=1:1' },
+    { description: 'a blank zoom', search: 'z=&tiles=1:1' },
+    { description: 'a non-numeric zoom', search: 'z=eight&tiles=1:1' },
+    { description: 'a decimal-spelled zoom', search: 'z=4.0&tiles=1:1' },
+    { description: 'a hex-spelled zoom', search: 'z=0x8&tiles=1:1' },
+    { description: 'a padded zoom', search: 'z=%208&tiles=1:1' },
+    { description: 'a signed zoom', search: 'z=%2B8&tiles=1:1' },
+    { description: 'no tiles', search: 'z=8' },
+    { description: 'a blank tile list', search: 'z=8&tiles=' },
+    { description: 'a malformed tile', search: 'z=8&tiles=1:' },
+    { description: 'a tile past the zoom', search: 'z=4&tiles=16:0' },
+    { description: 'a negative version', search: 'z=8&tiles=1:1&v=-1' },
+    { description: 'a non-numeric version', search: 'z=8&tiles=1:1&v=latest' },
+    { description: 'a fractional version', search: 'z=8&tiles=1:1&v=1.5' }
+  ])('refuses $description', ({ search }) => {
+    expect(query(search)).toBeNull()
+  })
+
+  it('refuses a tiles parameter too long to be a legitimate batch', () => {
+    expect(query(`z=8&tiles=${'1'.repeat(2000)}`)).toBeNull()
+  })
+
+  it('accepts the widest legitimate batch at the deepest zoom', () => {
+    // 128 keys of "65535:65535" plus 127 commas is 1535 characters, one under
+    // the cap — if that arithmetic ever slips, a full viewport stops loading.
+    const tiles = Array.from(
+      { length: MAX_TILES_PER_REQUEST },
+      () => '65535:65535'
+    ).join(',')
+    expect(query(`z=16&tiles=${tiles}`)?.tiles).toHaveLength(
+      MAX_TILES_PER_REQUEST
+    )
   })
 })
 
@@ -86,8 +139,15 @@ describe('serveHeatmapTiles', () => {
   const Z = 8
   const IN_X = 132
   const IN_Y = 85
-  const OUT_X = 4
-  const OUT_Y = 4
+  // Two out-of-region tiles that differ from the in-region one on ONE axis
+  // each. A single fixture differing on both would hide a break in either half
+  // of the intersection test, which is the whole of the pre-read guard.
+  const EAST_X = 200
+  const EAST_Y = 85
+  const NORTH_X = 132
+  const NORTH_Y = 20
+  const OUT_X = EAST_X
+  const OUT_Y = EAST_Y
 
   const inTile = tileBounds(Z, IN_X, IN_Y)
   const REGION_BOUNDS = [
@@ -215,11 +275,18 @@ describe('serveHeatmapTiles', () => {
     })
   })
 
-  it('never reads a tile the region cannot contain', async () => {
+  it.each([
+    { description: 'east of it, at the same latitude', x: EAST_X, y: EAST_Y },
+    {
+      description: 'north of it, at the same longitude',
+      x: NORTH_X,
+      y: NORTH_Y
+    }
+  ])('never reads a tile $description', async ({ x, y }) => {
     const result = await serve({
       tiles: [
         { x: IN_X, y: IN_Y },
-        { x: OUT_X, y: OUT_Y }
+        { x, y }
       ],
       regionBounds: REGION_BOUNDS
     })
@@ -228,19 +295,25 @@ describe('serveHeatmapTiles', () => {
       actorId: ACTOR_ID,
       tileKeys: [tileKey(Z, IN_X, IN_Y)]
     })
-    expect(result.tiles[`${OUT_X}:${OUT_Y}`]).toBeNull()
+    expect(result.tiles[`${x}:${y}`]).toBeNull()
   })
 
   it('reads nothing at all when every requested tile is out of region', async () => {
     const result = await serve({
-      tiles: [{ x: OUT_X, y: OUT_Y }],
+      tiles: [
+        { x: EAST_X, y: EAST_Y },
+        { x: NORTH_X, y: NORTH_Y }
+      ],
       regionBounds: REGION_BOUNDS
     })
 
     expect(mockDb.getFitnessRouteHeatmapTilesByKeys).not.toHaveBeenCalled()
     expect(result).toEqual({
       version: 4,
-      tiles: { [`${OUT_X}:${OUT_Y}`]: null }
+      tiles: {
+        [`${EAST_X}:${EAST_Y}`]: null,
+        [`${NORTH_X}:${NORTH_Y}`]: null
+      }
     })
   })
 

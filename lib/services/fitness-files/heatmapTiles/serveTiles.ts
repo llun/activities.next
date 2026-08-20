@@ -86,8 +86,61 @@ export const resolveShareRegionBounds = (
   return region.trim() === '' ? [] : null
 }
 
-export const isLadderZoom = (z: number): boolean =>
+const isLadderZoom = (z: number): boolean =>
   (TILE_LADDER_ZOOMS as readonly number[]).includes(z)
+
+/**
+ * `MAX_TILES_PER_REQUEST` keys of `"x:y"` plus their separators. The widest
+ * legitimate key at the deepest stored zoom is `65535:65535` — 11 characters —
+ * so 128 of them with 127 commas is 1535, one under this bound. It only stops
+ * an oversized string from being split at all; the parser rejects an over-long
+ * list regardless of how it was spelled.
+ */
+const MAX_TILES_PARAM_LENGTH = MAX_TILES_PER_REQUEST * 12
+
+export interface TileBatchQuery {
+  z: number
+  tiles: TileIndex[]
+  version?: number
+}
+
+const NON_NEGATIVE_INTEGER = /^\d+$/
+
+/**
+ * Parses the query both tile routes take, or null for anything they must
+ * refuse. One implementation because they must agree: two parsers drifted on
+ * repeated parameters (`?z=4&z=16` resolved to 16 through `Object.fromEntries`
+ * and to 4 through `searchParams.get`) and on a malformed `v`, which is exactly
+ * the sort of gap that becomes a leak the next time one of them grows a
+ * scope-bearing parameter.
+ *
+ * `v` is read but never used to select tiles — see `serveHeatmapTiles`. It is
+ * still validated rather than ignored: a client that thinks it is busting a
+ * cache with a value the server cannot read should be told, not quietly served
+ * from the entry it meant to bypass.
+ */
+export const parseTileBatchQuery = (
+  searchParams: URLSearchParams
+): TileBatchQuery | null => {
+  const rawZoom = searchParams.get('z')
+  if (!rawZoom || !NON_NEGATIVE_INTEGER.test(rawZoom)) return null
+  const z = Number(rawZoom)
+  if (!isLadderZoom(z)) return null
+
+  const rawTiles = searchParams.get('tiles')
+  if (!rawTiles || rawTiles.length > MAX_TILES_PARAM_LENGTH) return null
+  const tiles = parseTileIndexList(rawTiles, z)
+  if (!tiles) return null
+
+  const rawVersion = searchParams.get('v')
+  if (rawVersion !== null && !NON_NEGATIVE_INTEGER.test(rawVersion)) return null
+
+  return {
+    z,
+    tiles,
+    ...(rawVersion !== null ? { version: Number(rawVersion) } : {})
+  }
+}
 
 interface ServeHeatmapTilesParams {
   database: Database

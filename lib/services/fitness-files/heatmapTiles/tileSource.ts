@@ -31,6 +31,15 @@ export interface HeatmapTileSource {
  * to one sport or one year is not something the pyramid can answer, however
  * complete that pyramid is — mirroring `isPyramidVariant` in the generation
  * job, which is what decides whether a run builds tiles at all.
+ *
+ * This is a SECURITY predicate, not only a presentation one: the public tile
+ * route refuses a share it answers false for, because serving the pyramid to a
+ * share scoped to one sport or one year publishes every sport and every year.
+ * That is why it tests `activityType` for null rather than for falsiness — the
+ * job's own gate is `activityType === null`, and an empty string, which the API
+ * cannot currently store, would otherwise be read here as "no filter" while the
+ * job read it as a filter that matches nothing. Disagreeing in that direction
+ * would serve a whole history behind a row showing none of it.
  */
 export const isPyramidVariantHeatmap = ({
   activityType,
@@ -38,7 +47,7 @@ export const isPyramidVariantHeatmap = ({
 }: {
   activityType?: string | null
   periodType: string
-}): boolean => !activityType && periodType === 'all_time'
+}): boolean => activityType == null && periodType === 'all_time'
 
 export const buildHeatmapTileSource = (
   heatmap: { activityType?: string | null; periodType: string },

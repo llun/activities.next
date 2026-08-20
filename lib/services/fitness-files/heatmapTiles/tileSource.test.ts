@@ -32,12 +32,23 @@ describe('isPyramidVariantHeatmap', () => {
       description: 'an explicitly null sport',
       heatmap: { periodType: 'all_time', activityType: null },
       expected: true
+    },
+    {
+      description: 'a blank sport, which the job would read as a filter',
+      heatmap: { periodType: 'all_time', activityType: '' },
+      expected: false
     }
   ])('answers $expected for $description', ({ heatmap, expected }) => {
     expect(isPyramidVariantHeatmap(heatmap)).toBe(expected)
   })
 })
 
+// The predicate is a privacy gate on the public tile route, so a value the job
+// and this side would read differently must fail CLOSED. The job builds only for
+// `activityType === null`; a stored empty string would filter to nothing there
+// while reading as "no filter" here, which would serve a whole history behind a
+// row showing none of it. The API cannot store one today — this pins that the
+// disagreement stays impossible rather than merely unlikely.
 describe('buildHeatmapTileSource', () => {
   const allTime = { periodType: 'all_time' }
   const completed = { status: 'completed', version: 3 }
@@ -66,6 +77,11 @@ describe('buildHeatmapTileSource', () => {
     {
       description: 'a heatmap filtered to one year',
       heatmap: { periodType: 'yearly' },
+      pyramid: completed
+    },
+    {
+      description: 'a heatmap filtered to a blank sport',
+      heatmap: { periodType: 'all_time', activityType: '' },
       pyramid: completed
     },
     { description: 'no pyramid', heatmap: allTime, pyramid: null },

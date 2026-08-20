@@ -3258,6 +3258,14 @@ export const getFitnessRouteHeatmapTiles = async ({
  * The same for a public share, addressed by its token. The region is NOT a
  * parameter here: the server clips to the shared row's own scope, which is what
  * keeps a rect share from reaching the rest of the pyramid.
+ *
+ * Where the owner route answers `version: 0` for a share with no usable
+ * pyramid, this one 404s — it refuses rather than describes, because a share
+ * scoped to one sport or one year must not be answered from the whole-history
+ * pyramid at all. That 404 is translated here into the same `version: 0` the
+ * shared type documents, so both fetchers honour one contract and a caller has
+ * a single "no tiles, draw the untiled geometry" branch. Every other non-OK
+ * response still throws.
  */
 export const getPublicHeatmapTiles = async ({
   token,
@@ -3274,13 +3282,18 @@ export const getPublicHeatmapTiles = async ({
   url.searchParams.append('z', String(z))
   url.searchParams.append('tiles', toTilesParam(tiles))
   url.searchParams.append('v', String(version))
-  return readTileBatch(
-    await fetch(url.toString(), {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
-      signal
-    })
-  )
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+    signal
+  })
+  if (response.status === 404) {
+    return {
+      version: 0,
+      tiles: Object.fromEntries(tiles.map(({ x, y }) => [`${x}:${y}`, null]))
+    }
+  }
+  return readTileBatch(response)
 }
 
 export const triggerFitnessRouteHeatmap = async ({

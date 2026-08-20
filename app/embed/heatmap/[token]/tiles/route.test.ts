@@ -14,12 +14,14 @@ import { GET } from './route'
 type MockDatabase = Pick<
   Database,
   | 'getFitnessRouteHeatmapByShareToken'
+  | 'getFitnessRouteHeatmapSummaryByShareToken'
   | 'getFitnessRouteHeatmapPyramid'
   | 'getFitnessRouteHeatmapTilesByKeys'
 >
 
 const mockDb: jest.Mocked<MockDatabase> = {
   getFitnessRouteHeatmapByShareToken: vi.fn(),
+  getFitnessRouteHeatmapSummaryByShareToken: vi.fn(),
   getFitnessRouteHeatmapPyramid: vi.fn(),
   getFitnessRouteHeatmapTilesByKeys: vi.fn()
 }
@@ -45,6 +47,7 @@ describe('/embed/heatmap/[token]/tiles', () => {
     `${((inTile.minLat + inTile.maxLat) / 2).toFixed(2)},` +
     `${(inTile.maxLng + 1).toFixed(2)}`
 
+  // Summary-shaped: no `bounds`, no `segments`. The route must never need them.
   const heatmap = (overrides: Record<string, unknown> = {}) => ({
     id: 'heatmap-1',
     actorId: ACTOR_ID,
@@ -52,8 +55,6 @@ describe('/embed/heatmap/[token]/tiles', () => {
     periodKey: 'all',
     region: HALF_TILE_REGION,
     status: 'completed',
-    bounds: null,
-    segments: [],
     activityCount: 3,
     pointCount: 4,
     totalCount: 3,
@@ -111,7 +112,7 @@ describe('/embed/heatmap/[token]/tiles', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockDatabase = mockDb
-    mockDb.getFitnessRouteHeatmapByShareToken.mockResolvedValue(
+    mockDb.getFitnessRouteHeatmapSummaryByShareToken.mockResolvedValue(
       heatmap() as never
     )
     mockDb.getFitnessRouteHeatmapPyramid.mockResolvedValue(pyramid())
@@ -152,7 +153,7 @@ describe('/embed/heatmap/[token]/tiles', () => {
 
     it('serves a world-scoped share unclipped, which is what it is', async () => {
       const stored = encodeTile([{ count: 4, points: [0, 250, 8, 255] }])
-      mockDb.getFitnessRouteHeatmapByShareToken.mockResolvedValue(
+      mockDb.getFitnessRouteHeatmapSummaryByShareToken.mockResolvedValue(
         heatmap({ region: '' }) as never
       )
       mockDb.getFitnessRouteHeatmapTilesByKeys.mockResolvedValue([
@@ -167,7 +168,7 @@ describe('/embed/heatmap/[token]/tiles', () => {
     })
 
     it('refuses a share whose stored region cannot be resolved, rather than serving the world', async () => {
-      mockDb.getFitnessRouteHeatmapByShareToken.mockResolvedValue(
+      mockDb.getFitnessRouteHeatmapSummaryByShareToken.mockResolvedValue(
         heatmap({ region: 'rect:not-a-number,5,4,6' }) as never
       )
 
@@ -177,9 +178,50 @@ describe('/embed/heatmap/[token]/tiles', () => {
     })
   })
 
+  describe("the share's own scope", () => {
+    it.each([
+      {
+        description: 'one sport',
+        overrides: { activityType: 'Run' }
+      },
+      {
+        description: 'one year',
+        overrides: { periodType: 'yearly', periodKey: '2019' }
+      },
+      {
+        description: 'one month',
+        overrides: { periodType: 'monthly', periodKey: '2019-04' }
+      }
+    ])(
+      'refuses a share scoped to $description rather than answering it from the whole history',
+      async ({ overrides }) => {
+        // The pyramid is per-ACTOR over every sport and all time. Serving it to
+        // a share the owner cut down to one of those publishes all of them —
+        // and the share's world-wide region means no clipping would catch it.
+        mockDb.getFitnessRouteHeatmapSummaryByShareToken.mockResolvedValue(
+          heatmap({ region: '', ...overrides }) as never
+        )
+
+        const response = await request(`z=${Z}&tiles=${OUT_X}:${OUT_Y}&v=5`)
+        expect(response.status).toBe(404)
+        expect(mockDb.getFitnessRouteHeatmapTilesByKeys).not.toHaveBeenCalled()
+      }
+    )
+
+    it('reads the share without its geometry', async () => {
+      // The full row carries the entire untiled heatmap; a panning viewport
+      // would drag it off disk and through JSON.parse once per tile batch.
+      await request(`z=${Z}&tiles=${IN_X}:${IN_Y}&v=5`)
+      expect(
+        mockDb.getFitnessRouteHeatmapSummaryByShareToken
+      ).toHaveBeenCalledWith({ shareToken: TOKEN })
+      expect(mockDb.getFitnessRouteHeatmapByShareToken).not.toHaveBeenCalled()
+    })
+  })
+
   describe('privacy', () => {
     it('strips the privacy class while keeping the geometry', async () => {
-      mockDb.getFitnessRouteHeatmapByShareToken.mockResolvedValue(
+      mockDb.getFitnessRouteHeatmapSummaryByShareToken.mockResolvedValue(
         heatmap({ region: '' }) as never
       )
       mockDb.getFitnessRouteHeatmapTilesByKeys.mockResolvedValue([
@@ -205,7 +247,7 @@ describe('/embed/heatmap/[token]/tiles', () => {
 
   describe('what it will not serve', () => {
     it('404s an unknown token', async () => {
-      mockDb.getFitnessRouteHeatmapByShareToken.mockResolvedValue(null)
+      mockDb.getFitnessRouteHeatmapSummaryByShareToken.mockResolvedValue(null)
       expect((await request(`z=${Z}&tiles=${IN_X}:${IN_Y}`)).status).toBe(404)
       expect(mockDb.getFitnessRouteHeatmapPyramid).not.toHaveBeenCalled()
     })
@@ -215,7 +257,7 @@ describe('/embed/heatmap/[token]/tiles', () => {
       { description: 'a pending share', status: 'pending' },
       { description: 'a failed share', status: 'failed' }
     ])('404s $description', async ({ status }) => {
-      mockDb.getFitnessRouteHeatmapByShareToken.mockResolvedValue(
+      mockDb.getFitnessRouteHeatmapSummaryByShareToken.mockResolvedValue(
         heatmap({ status }) as never
       )
       expect((await request(`z=${Z}&tiles=${IN_X}:${IN_Y}`)).status).toBe(404)
@@ -284,6 +326,20 @@ describe('/embed/heatmap/[token]/tiles', () => {
       expect(response.status).toBe(304)
       expect(response.headers.get('ETag')).toBe('W/"5"')
       expect(mockDb.getFitnessRouteHeatmapTilesByKeys).not.toHaveBeenCalled()
+    })
+
+    it('still refuses an unresolvable region when the validator matches', async () => {
+      // The region resolver is the security boundary, so it must run ahead of
+      // the conditional-request short-circuit: no response, 200 or 304, may be
+      // produced without it having succeeded.
+      mockDb.getFitnessRouteHeatmapSummaryByShareToken.mockResolvedValue(
+        heatmap({ region: 'rect:not-a-number,5,4,6' }) as never
+      )
+
+      const response = await request(`z=${Z}&tiles=${IN_X}:${IN_Y}&v=5`, {
+        'if-none-match': 'W/"5"'
+      })
+      expect(response.status).toBe(404)
     })
 
     it('serves a fresh body once the pyramid has been rebuilt under the validator', async () => {

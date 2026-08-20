@@ -484,16 +484,23 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   because a merge replaces any tile a readable activity also touched.
 - Tiles are stored unclipped; a region is applied when they are served. Only
   the all-activities/all-time heatmap can be tile-backed.
+- The public token route refuses any share the pyramid cannot answer, through
+  the same `buildHeatmapTileSource` that decides whether a heatmap advertises
+  tiles — a share scoped to one sport or one year would otherwise be served the
+  actor's whole history, which region clipping cannot catch. The owner route
+  names no variant and needs no such gate.
 - On the public token route the region comes from the **shared row**, never from
   the caller, and the resolver **fails closed**: a non-empty region that yields
-  no bounds is a 404, because no bounds means no clipping. Out-of-region tiles
-  are answered before any read.
+  no bounds is a 404, because no bounds means no clipping. It runs before the
+  conditional-request check. Out-of-region tiles are answered before any read.
+- Both tile routes share one query parser, and read the share row without its
+  geometry.
 - The public route strips the privacy flag and keeps the geometry
   (`flattenTilePrivacyForPublic`, beside the untiled doctrine), and re-encodes
   every byte it returns rather than forwarding a stored payload.
 - Only a `completed` pyramid serves tiles, only at its own `version`, and the
-  response's keys are the ones the request named. The `v` parameter busts caches
-  and never refuses a request.
+  response's keys are the ones the request named. A well-formed `v` busts caches
+  and never filters tiles; a malformed one is a 400 on both routes.
 - See AGENTS.md → Fitness Route Heatmap Pyramid.
 
 ## Commits & versioning
