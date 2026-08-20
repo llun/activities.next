@@ -5,6 +5,10 @@ import { FC } from 'react'
 import { getBaseURL } from '@/lib/config'
 import { getPublicMapProvider } from '@/lib/config/mapProvider'
 import { getDatabase } from '@/lib/database'
+import {
+  buildHeatmapTileSource,
+  isPyramidVariantHeatmap
+} from '@/lib/services/fitness-files/heatmapTiles/tileSource'
 import { toPublicHeatmap } from '@/lib/services/fitness-files/publicHeatmap'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 
@@ -70,8 +74,19 @@ const Page: FC<PageProps> = async ({ params }) => {
     origin = getBaseURL()
   }
 
+  // Lets the page zoom into the pyramid through the embed tiles route. Read
+  // only for the one row the pyramid can answer, and best-effort: the page's
+  // untiled geometry renders either way, so a failure costs detail on zoom
+  // rather than the whole map.
+  const pyramid = isPyramidVariantHeatmap(heatmap)
+    ? await database
+        .getFitnessRouteHeatmapPyramid({ actorId: heatmap.actorId })
+        .catch(() => null)
+    : null
+
   const view = buildSharedHeatmapView({
     heatmap: publicHeatmap,
+    tileSource: buildHeatmapTileSource(publicHeatmap, pyramid),
     owner: owner
       ? { name: owner.name, username: owner.username, domain: owner.domain }
       : null,

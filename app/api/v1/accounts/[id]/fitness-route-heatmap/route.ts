@@ -2,9 +2,14 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
-import { deserializeRegions, serializeRegions } from '@/lib/fitness/regions'
+import { normalizeRegionParam } from '@/lib/fitness/regions'
 import { GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME } from '@/lib/jobs/names'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import {
+  HeatmapTileSource,
+  buildHeatmapTileSource,
+  isPyramidVariantHeatmap
+} from '@/lib/services/fitness-files/heatmapTiles/tileSource'
 import { hasSameOriginProof } from '@/lib/services/guards/sameOriginProof'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
@@ -47,7 +52,7 @@ const FitnessRouteHeatmapQueryParams = z.object({
   period_key: z.string(),
   // Bound the raw input to guard against unbounded payloads, but allow more than
   // the 255-char cache-key column: clients may send high-precision coordinates
-  // that normalizeRegion rounds (to 2 dp) and caps (to MAX_HEATMAP_REGIONS) well
+  // that normalizeRegionParam rounds (to 2 dp) and caps (to MAX_HEATMAP_REGIONS) well
   // under 255 before anything is stored.
   region: z.string().max(1024).optional()
 })
@@ -56,7 +61,7 @@ const FitnessRouteHeatmapTriggerBody = z.object({
   activity_type: OptionalActivityType,
   period_type: z.enum(['all_time', 'yearly', 'monthly']),
   period_key: z.string(),
-  // See FitnessRouteHeatmapQueryParams.region: looser raw cap; normalizeRegion
+  // See FitnessRouteHeatmapQueryParams.region: looser raw cap; normalizeRegionParam
   // rounds + caps the stored value under the 255-char column.
   region: z.string().max(1024).optional(),
   retry: z.boolean().optional(),
@@ -64,7 +69,10 @@ const FitnessRouteHeatmapTriggerBody = z.object({
   cancel: z.boolean().optional()
 })
 
-const serializeRouteHeatmap = (heatmap: FitnessRouteHeatmap) => ({
+const serializeRouteHeatmap = (
+  heatmap: FitnessRouteHeatmap,
+  tileSource: HeatmapTileSource | null
+) => ({
   id: heatmap.id,
   activityType: heatmap.activityType,
   periodType: heatmap.periodType,
@@ -80,12 +88,10 @@ const serializeRouteHeatmap = (heatmap: FitnessRouteHeatmap) => ({
   isPartial: heatmap.isPartial,
   shareToken: heatmap.shareToken ?? null,
   error: heatmap.error ?? null,
+  tileSource,
   createdAt: heatmap.createdAt,
   updatedAt: heatmap.updatedAt
 })
-
-const normalizeRegion = (rawRegion?: string) =>
-  rawRegion ? serializeRegions(deserializeRegions(rawRegion)) : ''
 
 export const GET = traceApiRoute(
   'getAccountFitnessRouteHeatmap',
@@ -165,7 +171,7 @@ export const GET = traceApiRoute(
       activityType: activityType ?? null,
       periodType,
       periodKey,
-      region: normalizeRegion(rawRegion)
+      region: normalizeRegionParam(rawRegion)
     })
 
     if (!heatmap) {
@@ -176,10 +182,22 @@ export const GET = traceApiRoute(
       })
     }
 
+    // Only the all-activities/all-time row can be tile-backed, so the pyramid
+    // is read only for that one — every other row would pay an extra query to
+    // be told null.
+    const pyramid = isPyramidVariantHeatmap(heatmap)
+      ? await database.getFitnessRouteHeatmapPyramid({ actorId: id })
+      : null
+
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: { heatmap: serializeRouteHeatmap(heatmap) }
+      data: {
+        heatmap: serializeRouteHeatmap(
+          heatmap,
+          buildHeatmapTileSource(heatmap, pyramid)
+        )
+      }
     })
   },
   {
@@ -285,7 +303,7 @@ export const POST = traceApiRoute(
       retry,
       cancel
     } = parsed.data
-    const region = normalizeRegion(rawRegion)
+    const region = normalizeRegionParam(rawRegion)
     const existing = await database.getFitnessRouteHeatmapByKey({
       actorId: id,
       activityType: activityType ?? null,
@@ -475,7 +493,7 @@ export const DELETE = traceApiRoute(
       activityType: activityType ?? null,
       periodType,
       periodKey,
-      region: normalizeRegion(rawRegion)
+      region: normalizeRegionParam(rawRegion)
     })
 
     if (!existing) {

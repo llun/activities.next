@@ -4,6 +4,10 @@ import { FC } from 'react'
 
 import { getPublicMapProvider } from '@/lib/config/mapProvider'
 import { getDatabase } from '@/lib/database'
+import {
+  buildHeatmapTileSource,
+  isPyramidVariantHeatmap
+} from '@/lib/services/fitness-files/heatmapTiles/tileSource'
 import { toPublicHeatmap } from '@/lib/services/fitness-files/publicHeatmap'
 
 import { PublicHeatmapEmbed } from './PublicHeatmapEmbed'
@@ -37,6 +41,16 @@ const Page: FC<PageProps> = async ({ params }) => {
   // highlight around private locations (see toPublicHeatmap).
   const publicHeatmap = toPublicHeatmap(heatmap)
   const mapProvider = getPublicMapProvider()
+
+  // Tells the embed it may zoom into the pyramid through the sibling tiles
+  // route. Read only for the one row the pyramid can answer, and best-effort:
+  // the embed's untiled geometry renders with or without it, so a lookup
+  // failure costs detail on zoom rather than the whole map.
+  const pyramid = isPyramidVariantHeatmap(heatmap)
+    ? await database
+        .getFitnessRouteHeatmapPyramid({ actorId: heatmap.actorId })
+        .catch(() => null)
+    : null
 
   // The owner-assigned region label (persisted per (actor, region) — see the
   // region-names store). Shown as a caption so the embed is self-labelled, e.g.
@@ -77,6 +91,7 @@ const Page: FC<PageProps> = async ({ params }) => {
         totalCount: 0,
         cursorOffset: 0,
         isPartial: false,
+        tileSource: buildHeatmapTileSource(publicHeatmap, pyramid),
         createdAt: publicHeatmap.createdAt,
         updatedAt: publicHeatmap.updatedAt
       }}

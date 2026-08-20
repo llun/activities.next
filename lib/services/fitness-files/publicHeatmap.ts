@@ -1,3 +1,4 @@
+import { TileSegment } from '@/lib/services/fitness-files/heatmapTiles/tileCodec'
 import {
   FitnessRouteHeatmap,
   FitnessRouteHeatmapSegment
@@ -27,6 +28,21 @@ export const flattenPrivacySegmentsForPublic = (
   segments: FitnessRouteHeatmapSegment[]
 ): FitnessRouteHeatmapSegment[] =>
   segments.map((segment) => ({ points: segment.points }))
+
+/**
+ * The same flattening for the tile pyramid's segments, which carry the flag as
+ * `hidden` and their geometry as flat tile-local integers.
+ *
+ * It exists beside `flattenPrivacySegmentsForPublic` rather than inside the
+ * serving route so the two public surfaces answer to one doctrine: read the
+ * comment above for why the geometry stays and only the flag goes. The visit
+ * count is not a privacy signal on its own — it says a road was ridden often,
+ * not where anyone lives — and dropping it would flatten the map's whole
+ * dynamic range, so it rides through.
+ */
+export const flattenTilePrivacyForPublic = (
+  segments: TileSegment[]
+): TileSegment[] => segments.map(({ count, points }) => ({ count, points }))
 
 /**
  * Produces the public-safe view of a heatmap for the unauthenticated embed

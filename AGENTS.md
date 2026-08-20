@@ -532,6 +532,47 @@ it; there is no legacy shape left to copy.
   finished, correct pyramid to `failed` over the very tiles it had just
   certified. A failed sweep costs some tiles at an older version, which the next
   build's own sweep removes.
+- **Tiles are stored UNCLIPPED and a region is applied when they are served.**
+  The pyramid is per-ACTOR and covers every activity over all time, so whichever
+  region row wins the claim builds the same tiles — which is also why only the
+  all-activities/all-time heatmap gets a `tileSource`. A row filtered to one
+  sport or one year is not something the pyramid can answer however complete it
+  is, and `isPyramidVariantHeatmap` is the single place that decides it (it
+  mirrors `isPyramidVariant` in the job, which decides whether a run builds
+  tiles at all).
+- **On the public token route, clipping to the SHARED ROW's region is the
+  security boundary — not a view option.** The caller sends tile indices and
+  nothing else; the region comes from the row the token resolved to. Without
+  that, a share cut to one rectangle is a lookup oracle for the actor's whole
+  history. Out-of-region tiles are settled from their coordinates BEFORE any
+  read, boundary tiles are clipped vertex by vertex through the untiled
+  heatmap's own `splitSegmentByBounds`, and the classification is allowed to be
+  pessimistic (a union covering a tile reads `partial` and clips to the same
+  geometry) but never optimistic.
+- **The region resolver FAILS CLOSED.** `getRegionBounds` answers `[]` both for
+  the whole world and for a region string it could not parse a rectangle out of,
+  and `[]` means "clip nothing" everywhere downstream — so a rect share whose
+  stored token failed to parse would serve the world. Only the empty string, the
+  world sentinel `serializeRegions` emits, reaches the unclipped path; anything
+  else that resolves to no bounds is a 404. Every surface taking a region from a
+  client normalizes it with the one shared `normalizeRegionParam`.
+- **The public route re-encodes every byte it returns.** The owner path may
+  forward a stored payload verbatim for a tile that needed neither clipping nor
+  stripping; the public one always goes through `decodeTile` (which validates
+  ranges) and back out through `encodeTile`. `flattenTilePrivacyForPublic` lives
+  beside `flattenPrivacySegmentsForPublic` so both public surfaces answer to one
+  doctrine — the privacy FLAG goes, the geometry stays.
+- **Only a `completed` pyramid serves tiles, and only at its own `version`.** A
+  build in flight has two versions in the table at once, and drawing them
+  together shows heat no build ever produced. The version filter is not
+  belt-and-braces: completion's stale sweep runs in its own `try/catch`, so a
+  build that completes after the sweep throws leaves exactly those leftovers.
+  The response reports the version it actually served (0 for none) and its keys
+  are the ones the REQUEST named, never the ones the read returned.
+- **The `v` request parameter is a cache-buster, never a filter.** A request
+  naming a version that has since moved is answered with the current tiles and
+  the current version. Refusing it would blank a map the instant a rebuild
+  finished underneath a client still holding the previous `tileSource`.
 - Full design and rationale: `docs/fitness-file-storage.md` → Route heatmap tile
   pyramid.
 

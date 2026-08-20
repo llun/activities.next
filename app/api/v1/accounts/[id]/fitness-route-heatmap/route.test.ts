@@ -27,6 +27,7 @@ type MockDatabase = Pick<
   | 'getFitnessRouteHeatmapByKey'
   | 'deleteFitnessRouteHeatmap'
   | 'cancelFitnessRouteHeatmapGeneration'
+  | 'getFitnessRouteHeatmapPyramid'
 >
 
 let mockDatabase: MockDatabase | null = null
@@ -38,7 +39,8 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
     getFitnessRouteHeatmapByKey: vi.fn(),
     deleteFitnessRouteHeatmap: vi.fn(),
-    cancelFitnessRouteHeatmapGeneration: vi.fn()
+    cancelFitnessRouteHeatmapGeneration: vi.fn(),
+    getFitnessRouteHeatmapPyramid: vi.fn()
   }
 
   const encodedId = ACTOR1_ID.replace('https://', '').replaceAll('/', ':')
@@ -69,6 +71,7 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
     mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue(null)
     mockDb.deleteFitnessRouteHeatmap.mockResolvedValue(true)
     mockDb.cancelFitnessRouteHeatmapGeneration.mockResolvedValue(true)
+    mockDb.getFitnessRouteHeatmapPyramid.mockResolvedValue(null)
   })
 
   it('returns route payload for an owner request', async () => {
@@ -142,9 +145,103 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
         isPartial: false,
         shareToken: null,
         error: null,
+        tileSource: null,
         createdAt: createdTime,
         updatedAt: updatedTime
       }
+    })
+  })
+
+  describe('tile source', () => {
+    const allTimeHeatmap = {
+      id: 'route-heatmap-all',
+      actorId: ACTOR1_ID,
+      periodType: 'all_time' as const,
+      periodKey: 'all',
+      region: '',
+      status: 'completed' as const,
+      segments: [],
+      activityCount: 1,
+      pointCount: 2,
+      totalCount: 3,
+      cursorOffset: 0,
+      isPartial: false,
+      createdAt: 1,
+      updatedAt: 2
+    }
+
+    it('reports the ladder once the pyramid has completed a build', async () => {
+      mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue(allTimeHeatmap)
+      mockDb.getFitnessRouteHeatmapPyramid.mockResolvedValue({
+        id: 'pyramid-1',
+        actorId: ACTOR1_ID,
+        status: 'completed',
+        version: 3,
+        claimSeq: 1,
+        totalCount: 3,
+        scannedCount: 3,
+        activityCount: 3,
+        tileCount: 2,
+        pointCount: 8,
+        createdAt: 1,
+        updatedAt: 2
+      })
+
+      const response = await GET(
+        new NextRequest(`${baseUrl}?period_type=all_time&period_key=all`),
+        { params: Promise.resolve({ id: encodedId }) }
+      )
+
+      const { heatmap } = await response.json()
+      expect(heatmap.tileSource).toEqual({
+        version: 3,
+        minZoom: 4,
+        maxZoom: 16,
+        ladder: [4, 6, 8, 10, 12, 14, 16],
+        extent: 256
+      })
+    })
+
+    it('reports none while the pyramid is still building', async () => {
+      mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue(allTimeHeatmap)
+      mockDb.getFitnessRouteHeatmapPyramid.mockResolvedValue({
+        id: 'pyramid-1',
+        actorId: ACTOR1_ID,
+        status: 'generating',
+        version: 3,
+        claimSeq: 1,
+        totalCount: 3,
+        scannedCount: 1,
+        activityCount: 1,
+        tileCount: 1,
+        pointCount: 4,
+        createdAt: 1,
+        updatedAt: 2
+      })
+
+      const response = await GET(
+        new NextRequest(`${baseUrl}?period_type=all_time&period_key=all`),
+        { params: Promise.resolve({ id: encodedId }) }
+      )
+
+      expect((await response.json()).heatmap.tileSource).toBeNull()
+    })
+
+    it('does not even look for a pyramid the heatmap could not use', async () => {
+      mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue({
+        ...allTimeHeatmap,
+        activityType: 'running'
+      })
+
+      const response = await GET(
+        new NextRequest(
+          `${baseUrl}?period_type=all_time&period_key=all&activity_type=running`
+        ),
+        { params: Promise.resolve({ id: encodedId }) }
+      )
+
+      expect((await response.json()).heatmap.tileSource).toBeNull()
+      expect(mockDb.getFitnessRouteHeatmapPyramid).not.toHaveBeenCalled()
     })
   })
 

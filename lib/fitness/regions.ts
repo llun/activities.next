@@ -183,6 +183,20 @@ export const getRegionBounds = (regions: HeatmapRegion[]): RegionBounds[] => {
     }))
 }
 
+/**
+ * Canonicalizes a raw `region` request parameter into the exact string the
+ * heatmap cache is keyed by: rounded, sorted, and capped to
+ * `MAX_HEATMAP_REGIONS`. An absent or empty parameter is world scope, whose
+ * canonical form is the empty string.
+ *
+ * Every surface that accepts a region from a client normalizes with this, so
+ * two spellings of one scope cannot address two different cache rows — and, on
+ * the tiled path, so the rectangle tiles are clipped to is the same rectangle
+ * the stored heatmap was generated for.
+ */
+export const normalizeRegionParam = (rawRegion?: string | null): string =>
+  rawRegion ? serializeRegions(deserializeRegions(rawRegion)) : ''
+
 export const formatLatitude = (lat: number): string =>
   `${Math.abs(lat).toFixed(COORD_PRECISION)}°${lat >= 0 ? 'N' : 'S'}`
 

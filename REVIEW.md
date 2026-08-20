@@ -482,6 +482,18 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
 - A build that could not read every file still completes, and records the loss
   on the row — withholding the sweep does not preserve the missing geometry,
   because a merge replaces any tile a readable activity also touched.
+- Tiles are stored unclipped; a region is applied when they are served. Only
+  the all-activities/all-time heatmap can be tile-backed.
+- On the public token route the region comes from the **shared row**, never from
+  the caller, and the resolver **fails closed**: a non-empty region that yields
+  no bounds is a 404, because no bounds means no clipping. Out-of-region tiles
+  are answered before any read.
+- The public route strips the privacy flag and keeps the geometry
+  (`flattenTilePrivacyForPublic`, beside the untiled doctrine), and re-encodes
+  every byte it returns rather than forwarding a stored payload.
+- Only a `completed` pyramid serves tiles, only at its own `version`, and the
+  response's keys are the ones the request named. The `v` parameter busts caches
+  and never refuses a request.
 - See AGENTS.md → Fitness Route Heatmap Pyramid.
 
 ## Commits & versioning
