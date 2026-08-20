@@ -36,16 +36,39 @@ import { Attachment } from '@/lib/types/domain/attachment'
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
 import { getCompatibleTime } from './utils/getCompatibleTime'
 
+// PostgreSQL `integer` upper bound. An id above it does not merely miss: the
+// driver sends it as a parameter to an integer column and PostgreSQL answers
+// `value out of range for type integer` — the same 500 a non-numeric id caused.
+// The repo's own attachments.mediaId migration bounds at this exact value.
+const MAX_MEDIA_ROW_ID = 2147483647
+
 // `medias.id` is an integer column. Mastodon clients send ids as strings and
 // put whatever they like in them, so coerce before comparing: PostgreSQL
 // rejects an integer column compared against text with `invalid input syntax
 // for type integer`, which turns a miss into a 500 rather than a 404. SQLite's
 // dynamic typing merely matches nothing, which is why this only ever showed up
-// on PostgreSQL. Returns null for anything that is not a positive integer so
-// the caller can report "not found" without touching the database.
+// on PostgreSQL. Returns null for anything that is not a plain decimal row id
+// so the caller can report "not found" without touching the database.
+//
+// The shape test matters as much as the range check. `Number()` alone also
+// accepts '0x10' (16), '0b101' (5), '1e3' (1000), '+12' and ' 12 ', each of
+// which resolves a DIFFERENT row than the id names — `GET /api/v1/media/0x10`
+// would answer with media 16 where every backend previously answered 404. And
+// '1e21' round-trips back to PostgreSQL as the string '1e+21' (the driver
+// stringifies with `toString()`), reproducing the exact `invalid input syntax
+// for type integer` this guard exists to prevent.
+//
+// A trailing all-zero fraction ('12.0') IS accepted, deliberately: it names row
+// 12 unambiguously, and it is the form existing SQLite deployments already hold
+// in `attachments.mediaId`. That column is `varchar` on SQLite, and a media id
+// bound as a JS number lands in it through SQLite's REAL->TEXT conversion as
+// '1.0'. Those rows resolve today, so rejecting the form would turn editing an
+// affected status into a 422. `createMedia` no longer produces such ids, but
+// the ones already written have to keep working.
 const toMediaRowId = (mediaId: string): number | null => {
+  if (!/^\d+(\.0+)?$/.test(mediaId)) return null
   const id = Number(mediaId)
-  return Number.isInteger(id) && id > 0 ? id : null
+  return id > 0 && id <= MAX_MEDIA_ROW_ID ? id : null
 }
 
 const deleteMediaByConditions = async (
@@ -231,7 +254,12 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       }
 
       return {
-        id: ids[0].id,
+        // `Media.id` is a string everywhere else (`parseMediaRow` stringifies
+        // it), and callers hand this straight to `createAttachment`. Returning
+        // the driver's raw number wrote it into SQLite's `varchar`
+        // `attachments.mediaId` as '1.0' via REAL->TEXT conversion, where
+        // PostgreSQL's integer column stored a plain 1.
+        id: String(ids[0].id),
         actorId,
         original,
         ...(thumbnail ? { thumbnail } : null),

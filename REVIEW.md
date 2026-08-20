@@ -117,8 +117,12 @@ change doesn't touch.
   non-numeric client string raises `invalid input syntax for type integer` — a
   500 where a 404 was intended. SQLite's dynamic typing just misses, so only
   `TEST_DATABASE_TYPE=pg` catches it. `lib/database/sql/media.ts` routes every
-  `mediaId` through `toMediaRowId`; new numeric-column lookups do the same, and
-  fixtures use values the column can hold.
+  `mediaId` it **compares** against `medias.id` through `toMediaRowId`
+  (`createAttachment` writes rather than compares, and is unguarded by design).
+  Coercion is digits-only and capped at 2147483647 — a bare `Number()` accepts
+  `'0x10'` (resolving row 16) and lets an out-of-range id raise `value out of
+range for type integer`. New numeric-column lookups do the same, and fixtures
+  use values the column can hold.
 - A per-column type difference between the two schema dumps is not automatically
   drift — a backend-conditional migration (e.g.
   `20260207223000_fix_attachments_media_id_type.js`, PostgreSQL-only) makes them

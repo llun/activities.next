@@ -3035,6 +3035,13 @@ describe('StatusDatabase', () => {
     })
 
     describe('updateNote', () => {
+      // The media ids below are realistic auto-increment `medias.id` values
+      // rather than descriptive strings: `attachments.mediaId` is an `integer`
+      // column on PostgreSQL (migration
+      // 20260207223000_fix_attachments_media_id_type.js is PostgreSQL-only, so
+      // it stays `varchar` on SQLite). A non-numeric id inserts happily under
+      // SQLite's dynamic typing but fails on PostgreSQL with `invalid input
+      // syntax for type integer`.
       it('updates note content and records edit history', async () => {
         const statusId = `${emptyActorId}/statuses/update-note`
         await database.createNote({
@@ -3068,13 +3075,6 @@ describe('StatusDatabase', () => {
         })
       })
 
-      // The media ids below are realistic auto-increment `medias.id` values
-      // rather than descriptive strings: `attachments.mediaId` is an `integer`
-      // column on PostgreSQL (migration
-      // 20260207223000_fix_attachments_media_id_type.js is PostgreSQL-only, so
-      // it stays `varchar` on SQLite). A non-numeric id inserts happily under
-      // SQLite's dynamic typing but fails on PostgreSQL with `invalid input
-      // syntax for type integer`.
       it('replaces note media attachments without changing note text', async () => {
         const statusId = `${emptyActorId}/statuses/update-note-media`
         const oldMediaId = '9101'

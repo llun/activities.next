@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
 import { MediaValidationError } from '@/lib/services/medias/errors'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedDatabase } from '@/lib/stub/database'
@@ -21,7 +21,8 @@ vi.mock('@/lib/services/medias', () => ({
   deleteMediaFile: (...args: unknown[]) => mockDeleteMediaFile(...args)
 }))
 
-let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+let mockDatabase:
+  ReturnType<typeof getTestDatabaseWithInstance>['database'] | null = null
 const mockStoredToken = vi.fn()
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase,
@@ -52,9 +53,16 @@ vi.mock('@/lib/config', () => ({
 }))
 
 describe('/api/v1/media/[id]', () => {
-  const database = getTestSQLDatabase()
+  // `getTestDatabaseWithInstance` honours TEST_DATABASE_TYPE; the SQLite-only
+  // `getTestSQLDatabase` does not, so under `TEST_DATABASE_TYPE=pg` this suite
+  // used to report a clean pass having never opened a PostgreSQL connection.
+  // It has to run on PostgreSQL for the malformed-id cases below to mean
+  // anything: `medias.id` is an integer column there, so a bad id is an error
+  // rather than a miss unless the query layer rejects it first.
+  const { database, prepare } = getTestDatabaseWithInstance()
 
   beforeAll(async () => {
+    await prepare()
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database
@@ -157,6 +165,39 @@ describe('/api/v1/media/[id]', () => {
     })
 
     expect(response.status).toBe(404)
+  })
+
+  // The user-visible half of the integer-column bug: `medias.id` is an
+  // `integer` on PostgreSQL, so before the query layer coerced these each verb
+  // raised `invalid input syntax for type integer` and the route answered 500
+  // instead of 404. These only exercise that under `TEST_DATABASE_TYPE=pg` —
+  // on SQLite a malformed id has always simply missed.
+  describe.each([
+    { description: 'a non-numeric id', id: 'abc' },
+    { description: 'a fractional id', id: '1.5' },
+    { description: 'an exponential id', id: '1e21' },
+    { description: 'an id past the integer max', id: '2147483648' }
+  ])('$description', ({ id }) => {
+    it('GET returns 404', async () => {
+      const response = await GET(getRequest(id), {
+        params: Promise.resolve({ id })
+      })
+      expect(response.status).toBe(404)
+    })
+
+    it('PUT returns 404', async () => {
+      const response = await PUT(putRequest(id, { description: 'nope' }), {
+        params: Promise.resolve({ id })
+      })
+      expect(response.status).toBe(404)
+    })
+
+    it('DELETE returns 404', async () => {
+      const response = await DELETE(deleteRequest(id), {
+        params: Promise.resolve({ id })
+      })
+      expect(response.status).toBe(404)
+    })
   })
 
   it('GET accepts a bearer token with write:media scope', async () => {
