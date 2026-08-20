@@ -1137,6 +1137,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
             )
           }
 
+          let foldedThisFile = false
           try {
             if (isParseableFitnessFileType(file.fileType)) {
               const routeCoordinates = await resolveRouteCoordinates(database, {
@@ -1171,6 +1172,7 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
                   // see.
                   try {
                     foldActivityIntoPyramid(privacySegments)
+                    foldedThisFile = true
                     pyramidActivityCount += 1
                     // Before the flushes below, never after them.
                     advancePyramidPast(file)
@@ -1239,7 +1241,12 @@ export const generateFitnessRouteHeatmapJob = createJobHandle(
             // `finally` below — a file this pass is finished with must not
             // leave the build unresumable — but the two are different facts and
             // the completion below needs the second one.
-            pyramidUnreadableCount += 1
+            //
+            // Only when the pyramid did not already have it: this `try` also
+            // covers the legacy accumulation, which runs AFTER the fold, so a
+            // throw down there would otherwise make a completed build report
+            // "could not be read" for an activity whose geometry it holds.
+            if (!foldedThisFile) pyramidUnreadableCount += 1
             logger.warn({
               message:
                 'Failed to parse fitness file for route heatmap; skipping',

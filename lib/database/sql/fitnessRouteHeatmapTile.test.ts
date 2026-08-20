@@ -61,6 +61,65 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
       claimSeq: pyramid.claimSeq
     })
 
+    /**
+     * Asserts that two statements ran inside ONE open transaction on ONE
+     * connection.
+     *
+     * Structural, because what these transactions prevent is a failure between
+     * two round trips and there is no seam to inject one at. Order alone is not
+     * enough: keeping the `database.transaction(...)` wrapper while building a
+     * query on `database` instead of `trx` — the likeliest refactoring slip
+     * there is — leaves the order untouched while that statement autocommits on
+     * a pooled connection, which is the state these transactions exist to
+     * remove. The pool also hands the same connection to unrelated
+     * transactions, so "a BEGIN appeared earlier" is not enough either; the one
+     * that matters must still be open.
+     */
+    const expectOneTransaction = (
+      statements: Array<{ sql: string; connection: string }>,
+      firstMatches: (sql: string) => boolean,
+      secondMatches: (sql: string) => boolean
+    ) => {
+      const firstIndex = statements.findIndex(({ sql }) => firstMatches(sql))
+      expect(firstIndex).toBeGreaterThan(-1)
+      const secondIndex = statements.findIndex(
+        ({ sql }, index) => index > firstIndex && secondMatches(sql)
+      )
+      expect(secondIndex).toBeGreaterThan(firstIndex)
+
+      const connection = statements[firstIndex].connection
+      expect(statements[secondIndex].connection).toBe(connection)
+
+      const onConnection = (index: number) =>
+        statements[index].connection === connection
+      const opens = (index: number) =>
+        onConnection(index) && /^begin/i.test(statements[index].sql)
+      const closes = (index: number) =>
+        onConnection(index) && /^(commit|rollback)/i.test(statements[index].sql)
+
+      let open = false
+      for (let index = 0; index < firstIndex; index += 1) {
+        if (opens(index)) open = true
+        else if (closes(index)) open = false
+      }
+      expect(open).toBe(true)
+
+      for (let index = firstIndex; index < secondIndex; index += 1) {
+        expect(closes(index)).toBe(false)
+      }
+    }
+
+    const recordStatements = (instance: Knex) => {
+      const statements: Array<{ sql: string; connection: string }> = []
+      instance.on(
+        'query',
+        ({ sql, __knexUid }: { sql: string; __knexUid: string }) => {
+          statements.push({ sql: sql.trimStart(), connection: __knexUid })
+        }
+      )
+      return statements
+    }
+
     const tile = (tileKey: string, pointCount = 4) => {
       const [z, x, y] = tileKey.split(':').map(Number)
       return {
@@ -190,6 +249,70 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         } finally {
           await isolated.destroy()
         }
+      })
+
+      it.each([
+        { description: 'exactly at the staleness boundary', offset: 0 },
+        { description: 'one millisecond inside it', offset: 1 }
+      ])(
+        'refuses a build whose heartbeat is $description',
+        async ({ offset }) => {
+          // `updatedAt >= staleBefore` is live. The boundary itself is the case
+          // a `>=` relaxed to `>` gets wrong, and it is not exotic: the
+          // heartbeat and the claim's own clock are both `Date.now()`, and two
+          // operations in one millisecond is what an earlier flake in this
+          // suite was made of. Both sides of the module have to agree on it or
+          // the claim answers `lost-race` forever.
+          const actorId = await createActor(database)
+          const owner = await database.claimFitnessRouteHeatmapPyramidBuild({
+            actorId,
+            requestedAt: Date.now(),
+            staleBefore: Date.now() - 120_000
+          })
+          expect(owner.claimed).toBe(true)
+
+          const heartbeat = (
+            await database.getFitnessRouteHeatmapPyramid({ actorId })
+          )?.updatedAt
+          expect(heartbeat).toBeDefined()
+
+          const thief = await database.claimFitnessRouteHeatmapPyramidBuild({
+            actorId,
+            requestedAt: Date.now(),
+            staleBefore: heartbeat! - offset
+          })
+
+          expect({ claimed: thief.claimed, reason: thief.reason }).toEqual({
+            claimed: false,
+            reason: 'build-in-progress'
+          })
+        }
+      )
+
+      it('reclaims a build whose heartbeat is one millisecond past the boundary', async () => {
+        // The other side of the same boundary — without this the pair pins
+        // nothing, because "always refuse" satisfies the two cases above.
+        const actorId = await createActor(database)
+        const owner = await database.claimFitnessRouteHeatmapPyramidBuild({
+          actorId,
+          requestedAt: Date.now(),
+          staleBefore: Date.now() - 120_000
+        })
+        const heartbeat = (
+          await database.getFitnessRouteHeatmapPyramid({ actorId })
+        )?.updatedAt
+
+        expect(
+          await database.claimFitnessRouteHeatmapPyramidBuild({
+            actorId,
+            requestedAt: Date.now(),
+            staleBefore: heartbeat! + 1
+          })
+        ).toMatchObject({
+          claimed: true,
+          reason: 'claimed',
+          pyramid: { claimSeq: owner.pyramid.claimSeq + 1 }
+        })
       })
 
       it('does not discard a build that completed while the claim was being decided', async () => {
@@ -2175,6 +2298,49 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         ).toBe(false)
       })
 
+      it('writes the tiles and the progress inside one transaction', async () => {
+        // The fence, the progress and the tile rows must commit or roll back
+        // together: a cursor that advanced past tiles which were rolled back is
+        // a build that skips them on resume and completes over the hole. Pinned
+        // by connection rather than by order — see `expectOneTransaction`.
+        const {
+          database: isolated,
+          instance,
+          prepare: prepareIsolated
+        } = getTestDatabaseWithInstance(true)
+        await prepareIsolated()
+        await isolated.migrate()
+
+        try {
+          const actorId = await createActor(isolated)
+          const build = await claimBuild(isolated, actorId)
+          const statements = recordStatements(instance)
+
+          await isolated.upsertFitnessRouteHeatmapTiles({
+            actorId,
+            ...fence(build),
+            version: build.version,
+            tiles: [tile('16:3:3')],
+            progress: {
+              scannedCount: 1,
+              cursor: { createdAt: 1_700_000_000_000, id: 'activity-1' }
+            }
+          })
+
+          expectOneTransaction(
+            statements,
+            (sql) =>
+              /^update/i.test(sql) &&
+              sql.includes('fitness_route_heatmap_pyramids'),
+            (sql) =>
+              /^insert/i.test(sql) &&
+              sql.includes('fitness_route_heatmap_tiles')
+          )
+        } finally {
+          await isolated.destroy()
+        }
+      })
+
       it('never returns another actor tiles', async () => {
         const owner = await createActor(database)
         const other = await createActor(database)
@@ -2349,6 +2515,50 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         ).toHaveLength(2)
       })
 
+      it('takes the row lock and deletes inside one transaction', async () => {
+        // The guarded UPDATE is both the ownership check and the row lock that
+        // serialises this delete against a concurrent claim or clear. On the
+        // pool it is neither — the lock is released before the DELETE runs, and
+        // the window it exists to close reopens.
+        const {
+          database: isolated,
+          instance,
+          prepare: prepareIsolated
+        } = getTestDatabaseWithInstance(true)
+        await prepareIsolated()
+        await isolated.migrate()
+
+        try {
+          const actorId = await createActor(isolated)
+          const build = await claimBuild(isolated, actorId)
+          await isolated.upsertFitnessRouteHeatmapTiles({
+            actorId,
+            ...fence(build),
+            version: build.version,
+            tiles: [tile('16:1:1')]
+          })
+          const statements = recordStatements(instance)
+
+          await isolated.deleteStaleFitnessRouteHeatmapTiles({
+            actorId,
+            ...fence(build),
+            beforeVersion: build.version + 1
+          })
+
+          expectOneTransaction(
+            statements,
+            (sql) =>
+              /^update/i.test(sql) &&
+              sql.includes('fitness_route_heatmap_pyramids'),
+            (sql) =>
+              /^delete/i.test(sql) &&
+              sql.includes('fitness_route_heatmap_tiles')
+          )
+        } finally {
+          await isolated.destroy()
+        }
+      })
+
       it('refuses a sweep from a pass whose build was taken over', async () => {
         // The row half of the fence is not enough on its own: a pass presumed
         // dead and superseded IN PLACE holds the right row id and a stale
@@ -2461,6 +2671,47 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
             tiles: [tile('16:3:3')]
           })
         ).toBe(false)
+      })
+
+      it('removes the row and the tiles inside one transaction', async () => {
+        // Either order as two separate statements leaves a window a concurrent
+        // build writes into; holding the row's lock for both is what closes it,
+        // and only a real transaction holds it.
+        const {
+          database: isolated,
+          instance,
+          prepare: prepareIsolated
+        } = getTestDatabaseWithInstance(true)
+        await prepareIsolated()
+        await isolated.migrate()
+
+        try {
+          const actorId = await createActor(isolated)
+          const build = await claimBuild(isolated, actorId)
+          await isolated.upsertFitnessRouteHeatmapTiles({
+            actorId,
+            ...fence(build),
+            version: build.version,
+            tiles: [tile('16:2:2')]
+          })
+          const statements = recordStatements(instance)
+
+          await isolated.deleteFitnessRouteHeatmapPyramidAndTilesForActor({
+            actorId
+          })
+
+          expectOneTransaction(
+            statements,
+            (sql) =>
+              /^delete/i.test(sql) &&
+              sql.includes('fitness_route_heatmap_pyramids'),
+            (sql) =>
+              /^delete/i.test(sql) &&
+              sql.includes('fitness_route_heatmap_tiles')
+          )
+        } finally {
+          await isolated.destroy()
+        }
       })
 
       it('leaves another actor pyramid and tiles alone', async () => {

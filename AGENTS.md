@@ -469,8 +469,13 @@ it; there is no legacy shape left to copy.
   completion — abandons the build, records why on the pyramid row, and lets the
   legacy path finish. Failing the CLAIM is the one case with nothing to record
   on — the claim's compare-and-swap and the read confirming it share one
-  transaction, so a claim either happens and is reported or does not happen, and
-  a failure leaves no build behind to record on.
+  transaction, so a claim either happens and is reported or does not happen. The
+  exception is a transaction that commits and loses its acknowledgement, where
+  the row is claimed and the caller never learns it: that build waits out the
+  staleness window like any other whose worker died. The same shape applies to
+  the completion write, whose caller treats a lost response as a failure and
+  releases a build that is in fact finished; both are what an at-least-once
+  queue and a non-idempotent write cost, not something a guard here removes.
 - **A build this pass was CARRYING rather than holding is released from one
   place, the handler's `finally`.** Four separate guards drop a continuation,
   and a per-guard release was missed on one of them twice; no per-guard release
@@ -483,7 +488,12 @@ it; there is no legacy shape left to copy.
   build's token, so walking away strands the build AND refuses the Generate that
   displaced it, for the whole staleness window.
 - **A build only completes over a history it actually scanned, counted again at
-  the moment of the decision.** `completedAt` is what makes the next claim
+  the moment of the decision.** It catches an activity ADDED during the build,
+  where the recount rises above what the scan reached. It does NOT catch one
+  DELETED from the already-scanned part: that shift skips a file AND lowers the
+  recount by the same one, so the pass looks exactly as covered as it would have
+  been, and the build completes missing an activity until the next full
+  generate. `completedAt` is what makes the next claim
   answer `already-fresh`, so certifying a scan that fell short does not merely
   lose tiles — it refuses the regenerate that would have picked them up, turning
   a transient hole permanent. An activity uploaded while the build runs sorts

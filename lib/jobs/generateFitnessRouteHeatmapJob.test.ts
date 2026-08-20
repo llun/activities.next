@@ -3468,6 +3468,45 @@ describe('generateFitnessRouteHeatmapJob', () => {
       }
     })
 
+    it('does not report an activity it folded as one it could not read', async () => {
+      // The per-file `try` covers the legacy accumulation too, which runs AFTER
+      // the fold — so a throw down there would make a completed build claim it
+      // lost geometry it is actually holding, which is worse than saying
+      // nothing: the record is the only signal Phase 5 will have.
+      const fitnessFileId = await createCompletedFitnessFile(
+        'running',
+        new Date('2026-04-15T07:00:00.000Z')
+      )
+      // The memory guard runs inside the same per-file `try`, after the fold —
+      // one of the few seams on that side of it.
+      const heapSpy = vi
+        .spyOn(process, 'memoryUsage')
+        .mockImplementationOnce(() => {
+          throw new Error('memoryUsage exploded')
+        })
+
+      try {
+        await seedRoute(fitnessFileId, AMSTERDAM)
+        await runAllTime('job-pyramid-post-fold-throw')
+
+        expect(heapSpy).toHaveBeenCalled()
+        const pyramid = await database.getFitnessRouteHeatmapPyramid({
+          actorId: actor.id
+        })
+        // The pyramid folded it — tiles are stored unclipped, before the region
+        // filter that threw — so there is nothing to report as lost.
+        expect(pyramid).toMatchObject({
+          status: 'completed',
+          activityCount: 1,
+          error: undefined
+        })
+        expect((await readTiles()).length).toBeGreaterThan(0)
+      } finally {
+        heapSpy.mockRestore()
+        await database.deleteFitnessFile({ id: fitnessFileId })
+      }
+    })
+
     it('does not complete over an activity that arrived while it was running', async () => {
       // `totalCount` is counted before the scan, so an activity that finishes
       // processing after it is invisible to the count AND to the page query.
