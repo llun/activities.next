@@ -48,6 +48,24 @@ export const syncStatusLinkPreview = async ({
       return
     }
 
+    // An edit can also SWAP one link for another, which the check above does
+    // not cover. Drop a card belonging to the previous link before doing
+    // anything else, so the post is never showing a card for a page it no
+    // longer mentions — and so this still happens when fetching is turned off,
+    // where nothing would otherwise replace it.
+    //
+    // Compared on `urlHash`, which is the cache key derived from the REQUESTED
+    // url. The card's own `url` is where the content came from after redirects,
+    // so comparing that would drop a perfectly good card for any shortened or
+    // redirecting link.
+    const attached = await database.getStatusLinkPreviews({
+      statusIds: [status.id]
+    })
+    const attachedHash = attached.get(status.id)?.urlHash
+    if (attachedHash && attachedHash !== getHashFromString(url)) {
+      await database.deleteStatusLinkPreview({ statusId: status.id })
+    }
+
     const { network } = await getResolvedServerSettings(database)
     if (!network.linkPreviews) return
 

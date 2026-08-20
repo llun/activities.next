@@ -102,8 +102,12 @@ export const getDeclaredCharset = (html: string): string | null => {
     .slice(0, CHARSET_DECLARATION_WINDOW)
     .replace(/<!--[\s\S]*?(?:-->|$)/g, '')
   // Lowercased once, not per iteration — the loop can run a few hundred times
-  // over the window.
-  const lowered = searchWindow.toLowerCase()
+  // over the window. ASCII-only on purpose: `toLowerCase()` maps U+0130 to TWO
+  // code units, which shifts every later index and would slide the slice past a
+  // real `charset` attribute. Tag and attribute names are ASCII anyway.
+  const lowered = searchWindow.replace(/[A-Z]/g, (character) =>
+    character.toLowerCase()
+  )
 
   // Walked tag by tag with indexOf rather than one big regex: each tag string
   // is short, so the regexes above can never run away on it.

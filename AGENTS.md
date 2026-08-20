@@ -1035,7 +1035,7 @@ it; there is no legacy shape left to copy.
   decoration; losing one must never fail posting or the ingest of someone
   else's post. The whole body is inside one try/catch for that reason.
 - **The delay is conditional on the queue, because NoQueue drops delayed
-  messages.** Remote fetches carry a random 0–60s `delaySeconds` so this
+  messages.** Remote fetches carry a random 1–59s `delaySeconds` so this
   instance is not part of a thundering herd on a widely-shared link (the
   "link preview stampede" Mastodon has repeatedly been blamed for). But the
   in-process queue has no scheduler and silently DROPS any message with a
@@ -1091,6 +1091,15 @@ it; there is no legacy shape left to copy.
   fitness service reminders evaluate on write). `link_previews_status_updated_idx`
   exists for the staleness sweep that would close them; until such a sweep is
   written, expect it to be unused.
+- **Polls get no card, and wiring one up is not a one-line change.** Neither
+  `createPoll`, `updatePoll` nor `createPollJob` calls `syncStatusLinkPreview`.
+  Everything downstream is already type-agnostic — `StatusPoll` extends
+  `StatusNote` so it carries `linkPreview`, and both the hydration and `post.tsx`
+  handle any status — but `createPoll` stores `convertMarkdownText(...)`'s
+  RENDERED HTML where `createNote` stores raw markdown, while
+  `extractPreviewUrl` picks its parser from `isLocalActor`. Adding the call
+  alone would run the markdown lexer over HTML on a local poll and quietly find
+  nothing. Fix the storage asymmetry first, or leave it.
 
 ## Status Posts & Actions
 

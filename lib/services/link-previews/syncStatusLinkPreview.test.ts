@@ -2,6 +2,7 @@ import { Database } from '@/lib/database/types'
 import { FETCH_LINK_PREVIEW_JOB_NAME } from '@/lib/jobs/names'
 import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLinkPreview'
 import { Status } from '@/lib/types/domain/status'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 const publish = vi.fn()
 const runsInline = { value: false }
@@ -30,7 +31,12 @@ const deleteStatusLinkPreview = vi.fn()
 // syncStatusLinkPreview swallows it, and "publish was not called" passes for
 // entirely the wrong reason.
 const getStatus = vi.fn().mockResolvedValue(null)
-const database = { deleteStatusLinkPreview, getStatus } as unknown as Database
+const getStatusLinkPreviews = vi.fn().mockResolvedValue(new Map())
+const database = {
+  deleteStatusLinkPreview,
+  getStatus,
+  getStatusLinkPreviews
+} as unknown as Database
 
 const makeStatus = (overrides: Partial<Status> = {}): Status =>
   ({
@@ -48,6 +54,8 @@ describe('syncStatusLinkPreview', () => {
     deleteStatusLinkPreview.mockReset()
     getStatus.mockReset()
     getStatus.mockResolvedValue(null)
+    getStatusLinkPreviews.mockReset()
+    getStatusLinkPreviews.mockResolvedValue(new Map())
     runsInline.value = false
     resolvedSettings.network.linkPreviews = true
   })
@@ -119,6 +127,49 @@ describe('syncStatusLinkPreview', () => {
 
     expect(deleteStatusLinkPreview).toHaveBeenCalledWith({
       statusId: 'https://llun.test/users/me/statuses/1'
+    })
+  })
+
+  describe('a card that no longer matches the post', () => {
+    // The `!url` cleanup only covered an edit that removed the LAST link. An
+    // edit that swapped one link for another left the old card attached, and
+    // with fetching turned off nothing ever replaced it — so the post rendered
+    // a full-width card for a page it no longer mentions, permanently.
+    it('drops a card whose url the edit replaced, even with fetching off', async () => {
+      resolvedSettings.network.linkPreviews = false
+      getStatusLinkPreviews.mockResolvedValue(
+        new Map([
+          [
+            'https://llun.test/users/me/statuses/1',
+            { urlHash: getHashFromString('https://example.com/old') }
+          ]
+        ])
+      )
+
+      await syncStatusLinkPreview({
+        database,
+        status: makeStatus({ text: 'Now https://example.com/new' })
+      })
+
+      expect(deleteStatusLinkPreview).toHaveBeenCalledWith({
+        statusId: 'https://llun.test/users/me/statuses/1'
+      })
+      expect(publish).not.toHaveBeenCalled()
+    })
+
+    it('keeps a card whose url the edit did not change', async () => {
+      getStatusLinkPreviews.mockResolvedValue(
+        new Map([
+          [
+            'https://llun.test/users/me/statuses/1',
+            { urlHash: getHashFromString('https://example.com/article') }
+          ]
+        ])
+      )
+
+      await syncStatusLinkPreview({ database, status: makeStatus() })
+
+      expect(deleteStatusLinkPreview).not.toHaveBeenCalled()
     })
   })
 

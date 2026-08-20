@@ -489,10 +489,12 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   fetching only — the cleanup that drops a card when an edit removes its link
   runs regardless.
 - Known and deliberate: a first-fetch failure is never retried, an attached card
-  is only refreshed if someone posts the link again, and `link_previews` rows are
-  never collected. There is no recurring-job infrastructure to hang a sweep on.
-  Don't flag these as bugs, and don't "fix" them with a sweep that has nothing to
-  run it.
+  is only refreshed if someone posts the link again, `link_previews` rows are
+  never collected, and polls get no card at all. There is no recurring-job
+  infrastructure to hang a sweep on, and polls store rendered HTML where notes
+  store markdown (so wiring them up needs that asymmetry fixed first, not just
+  the call added). Don't flag these as bugs, and don't "fix" them with a sweep
+  that has nothing to run it.
 
 ## Fitness route heatmap pyramid
 

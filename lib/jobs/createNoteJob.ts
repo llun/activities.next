@@ -278,12 +278,6 @@ export const createNoteJob = createJobHandle(
       })
     }
 
-    // A remote status gets a card too — most of a timeline is remote, so
-    // without this the feature barely exists. The fetch is delayed by a random
-    // interval under a real queue so this instance is not part of a thundering
-    // herd on a widely-shared link.
-    await syncStatusLinkPreview({ database, status })
-
     await Promise.all([
       addStatusToTimelines(database, status),
       ...attachments.map(async (attachment, index) => {
@@ -300,5 +294,16 @@ export const createNoteJob = createJobHandle(
         })
       })
     ])
+
+    // A remote status gets a card too — most of a timeline is remote, so
+    // without this the feature barely exists. The fetch is delayed by a random
+    // interval under a real queue so this instance is not part of a thundering
+    // herd on a widely-shared link.
+    //
+    // Scheduled last, after the status is on timelines, for the same reason the
+    // local create and edit paths schedule after their publish: on the default
+    // in-process queue this runs the third-party fetch inline, and an inbound
+    // post should not wait on someone else's server to become visible here.
+    await syncStatusLinkPreview({ database, status })
   }
 )
