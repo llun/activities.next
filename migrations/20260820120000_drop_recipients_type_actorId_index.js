@@ -1,0 +1,37 @@
+/**
+ * Drops `recipientsTypeActorIdIndex` ON recipients (type, "actorId"), added by
+ * `20250216112921_add_recipients_type_actorId_index.js`.
+ *
+ * `20260207220000_add_recipients_timeline_local_public_index.js` added
+ * `recipients_type_actor_created_status_idx` ON (type, "actorId", "createdAt",
+ * "statusId") — a strict prefix-superset, so every access path the two-column
+ * index could serve is also served by the four-column one. No query drives
+ * from (type, "actorId"): reads of `recipients` are either correlated on
+ * `statusId` (covered by recipients_status_type_actor_idx) or filter on
+ * `actorId` alone (covered by recipients_actorId_statusId_idx), which a
+ * type-led index cannot serve at all. The two that do constrain `type` and
+ * `actorId` together pin `statusId` in the same predicate.
+ *
+ * Some paths run migrations with no transaction — `disableTransactions: true`
+ * in `lib/database/sql/index.ts`, and `--disable-transactions` on the
+ * Dockerfile's build-time `knex migrate:latest` — so this stays a single
+ * statement, leaving nothing half-applied to roll back.
+ *
+ * @param { import("knex").Knex } knex
+ * @returns { Promise<void> }
+ */
+export const up = function (knex) {
+  return knex.schema.alterTable('recipients', function (table) {
+    table.dropIndex(['type', 'actorId'], 'recipientsTypeActorIdIndex')
+  })
+}
+
+/**
+ * @param { import("knex").Knex } knex
+ * @returns { Promise<void> }
+ */
+export const down = function (knex) {
+  return knex.schema.alterTable('recipients', function (table) {
+    table.index(['type', 'actorId'], 'recipientsTypeActorIdIndex')
+  })
+}

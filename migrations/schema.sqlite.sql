@@ -35,7 +35,6 @@ CREATE TABLE IF NOT EXISTS "actors" (`id` varchar(255), `username` varchar(255),
 CREATE UNIQUE INDEX `actors_id_unique` on `actors` (`id`);
 CREATE INDEX `actorsIndex` on `actors` (`username`, `createdAt`, `updatedAt`);
 CREATE UNIQUE INDEX `actors_username_domain_unique` on `actors` (`username`, `domain`);
-CREATE INDEX `recipientsTypeActorIdIndex` on `recipients` (`type`, `actorId`);
 CREATE INDEX `timelinesActorIdTimelineCreatedAtIndex` on `timelines` (`actorId`, `timeline`, `createdAt`);
 CREATE INDEX `timelinesStatusIdIndex` on `timelines` (`statusId`);
 CREATE TABLE `notifications` (`id` varchar(255), `actorId` varchar(255) not null, `type` varchar(255) not null, `sourceActorId` varchar(255) not null, `statusId` varchar(255), `followId` varchar(255), `isRead` boolean default '0', `readAt` datetime, `groupKey` varchar(255), `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, `filtered` boolean not null default '0', `reactionName` varchar(255) null, primary key (`id`));
