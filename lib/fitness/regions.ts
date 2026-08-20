@@ -77,6 +77,23 @@ export const isValidRect = (rect: RectRegion): boolean =>
   rect.nw.lat > rect.se.lat &&
   rect.nw.lng < rect.se.lng
 
+/**
+ * The same, but allowing a box with no extent — corners the right way round,
+ * even if they meet.
+ *
+ * `isValidRect` folds two different mistakes into one answer: dragging from
+ * bottom-right to top-left, and dragging a box too small to survive rounding. A
+ * surface that has to TELL A USER what went wrong asks this first, because
+ * those two need different sentences and only one of them is about direction.
+ */
+export const isOrientedRect = (rect: RectRegion): boolean =>
+  isValidLat(rect.nw.lat) &&
+  isValidLat(rect.se.lat) &&
+  isValidLng(rect.nw.lng) &&
+  isValidLng(rect.se.lng) &&
+  rect.nw.lat >= rect.se.lat &&
+  rect.nw.lng <= rect.se.lng
+
 const rectToken = (rect: RectRegion): string =>
   `rect:${formatCoord(rect.nw.lat)},${formatCoord(rect.nw.lng)},${formatCoord(
     rect.se.lat

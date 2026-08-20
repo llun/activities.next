@@ -356,23 +356,51 @@ describe('/embed/heatmap/[token]/tiles', () => {
     })
 
     it.each([
-      { description: 'an unknown token', status: 404 },
-      { description: 'a bad request', status: 400 }
-    ])('lets a cross-origin caller read $description', async ({ status }) => {
-      // Without this the client's documented "404 means no tiles" branch is
-      // unreachable off-origin: the fetch rejects on CORS before it can see
-      // the status.
-      if (status === 404) {
-        mockDb.getFitnessRouteHeatmapSummaryByShareToken.mockResolvedValue(null)
+      {
+        description: 'an unknown token',
+        status: 404,
+        arrange: () =>
+          mockDb.getFitnessRouteHeatmapSummaryByShareToken.mockResolvedValue(
+            null
+          ),
+        query: `z=${Z}&tiles=${IN_X}:${IN_Y}`
+      },
+      {
+        description: 'a bad request',
+        status: 400,
+        arrange: () => undefined,
+        query: 'z=9&tiles=1:1'
+      },
+      {
+        description: 'a share the pyramid cannot answer',
+        status: 404,
+        arrange: () =>
+          mockDb.getFitnessRouteHeatmapPyramid.mockResolvedValue(null),
+        query: `z=${Z}&tiles=${IN_X}:${IN_Y}`
+      },
+      {
+        description: 'a share whose region cannot be resolved',
+        status: 404,
+        arrange: () =>
+          mockDb.getFitnessRouteHeatmapSummaryByShareToken.mockResolvedValue(
+            heatmap({ region: 'rect:not-a-number,5,4,6' }) as never
+          ),
+        query: `z=${Z}&tiles=${IN_X}:${IN_Y}`
       }
-      const response = await request(
-        status === 404 ? `z=${Z}&tiles=${IN_X}:${IN_Y}` : 'z=9&tiles=1:1'
-      )
+    ])(
+      'lets a cross-origin caller read the refusal for $description',
+      async ({ status, arrange, query }) => {
+        // Without this the client's documented "404 means no tiles" branch is
+        // unreachable off-origin: the fetch rejects on CORS before it can see
+        // the status. Every refusal the route can emit, not just the first two.
+        arrange()
+        const response = await request(query)
 
-      expect(response.status).toBe(status)
-      expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
-      expect(response.headers.get('Cache-Control')).toBe('no-store')
-    })
+        expect(response.status).toBe(status)
+        expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
+        expect(response.headers.get('Cache-Control')).toBe('no-store')
+      }
+    )
 
     it('answers 304 for a matching validator without reading any tile', async () => {
       const response = await request(`z=${Z}&tiles=${IN_X}:${IN_Y}&v=5`, {

@@ -572,11 +572,13 @@ it; there is no legacy shape left to copy.
   world sentinel `serializeRegions` emits, reaches the unclipped path; anything
   else that resolves to no bounds is refused — a case a writer really could
   produce, since `serializeRegions` used to emit a rectangle that rounding had
-  collapsed, and rows written then still hold one. **All four public surfaces
+  collapsed, and rows written then still hold one. **All four PUBLIC surfaces
   apply that rule**, through the one `resolveSharedHeatmapRegionBounds`: for
   such a row the generation job baked the whole world into the untiled
   `segments` too, so the share page, the embed page and the embed image refuse
-  it exactly as the tile routes do. Anything that PRODUCES a rectangle gates on
+  it exactly as the embed tile route does. The OWNER tile route is deliberately
+  not among them — it clips to the region its own authenticated caller sent.
+  Over-refusing now costs the whole share, not just its zoom detail. Anything that PRODUCES a rectangle gates on
   `isSerializableRect`, the same predicate `serializeRegions` applies, so a
   producer and the serializer cannot drift — a box thinner than the 0.01°
   serialization step is well formed and still has no canonical key of its own,

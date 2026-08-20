@@ -63,9 +63,11 @@
   the region comes from the shared row, never the caller; out-of-region tiles
   are settled before any read; and the resolver FAILS CLOSED, because
   `getRegionBounds` answers `[]` for an unparseable region as well as for the
-  world, and `[]` means "clip nothing". **All four public surfaces** refuse such
-  a row through the one `resolveSharedHeatmapRegionBounds` — the untiled
-  geometry was built unclipped too — and anything PRODUCING a rectangle gates on
+  world, and `[]` means "clip nothing". **All four PUBLIC surfaces** (share page,
+  embed page, embed image, embed tiles — NOT the owner tile route, which clips
+  to its own authenticated caller's region) refuse such a row through the one
+  `resolveSharedHeatmapRegionBounds` — the untiled geometry was built unclipped
+  too — and anything PRODUCING a rectangle gates on
   `isSerializableRect`, the rule `serializeRegions` itself applies, since a box
   thinner than the 0.01° step is well formed yet has no canonical key of its own
   and would take the WORLD's key. Only a `completed` pyramid serves tiles

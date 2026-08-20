@@ -493,9 +493,11 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   the caller, and the resolver **fails closed**: a non-empty region that yields
   no bounds is refused, because no bounds means no clipping. It runs before the
   conditional-request check. Out-of-region tiles are answered before any read.
-- **All four public surfaces** — both tile routes, the share page, the embed page
-  and the embed image — refuse through the one `resolveSharedHeatmapRegionBounds`,
-  because for such a row the untiled geometry was built unclipped too.
+- **All four PUBLIC surfaces** — the share page, the embed page, the embed image
+  and the embed tiles route — refuse through the one
+  `resolveSharedHeatmapRegionBounds`, because for such a row the untiled
+  geometry was built unclipped too. The OWNER tile route is not one of them: it
+  clips to the region its own authenticated caller sent.
 - Anything that PRODUCES a rectangle gates on `isSerializableRect`, the same rule
   `serializeRegions` applies. A box thinner than the 0.01° step is well formed
   and has no canonical key of its own; saved, it takes the WORLD's key.

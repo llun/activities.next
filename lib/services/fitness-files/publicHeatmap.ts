@@ -84,9 +84,10 @@ export const toPublicHeatmap = (
  * nothing left to clip at that point; refusing to render is the only remedy
  * short of regenerating the row.
  *
- * The refusal would stay regardless. The cost of being wrong is asymmetric: a
- * false refusal costs a share that renders nothing, while a false pass
- * publishes everywhere its owner has ever been.
+ * The refusal would stay regardless. The cost of being wrong is asymmetric —
+ * and note it is the WHOLE share, not merely its zoom detail, since every
+ * public surface asks this: a false refusal costs a share that renders nothing,
+ * while a false pass publishes everywhere its owner has ever been.
  */
 export const resolveSharedHeatmapRegionBounds = (heatmap: {
   id: string

@@ -24,8 +24,8 @@ import {
   LatLng,
   RectRegion,
   formatRectRegion,
+  isOrientedRect,
   isSerializableRect,
-  isValidRect,
   serializeRegion
 } from '@/lib/fitness/regions'
 import { cn } from '@/lib/utils'
@@ -201,7 +201,14 @@ const RectComposer: FC<RectComposerProps> = ({
       [corner]: { ...current[corner], [key]: value }
     }))
   const drawn: RectRegion = { type: 'rect', nw: box.nw, se: box.se }
-  const wellFormed = isValidRect(drawn)
+  // Corners the right way round, even if they meet — which is what separates
+  // "you dragged it backwards" from "you dragged it too small". Every box this
+  // composer can hold is already rounded to the serialization step (the map
+  // hands back `boxFromPoints`, the fields commit through `toFixed(2)`), so a
+  // box too small to survive rounding arrives here COLLAPSED: oriented, with no
+  // extent. Branching on `isValidRect` instead would tell that user their
+  // corners are the wrong way round, which is not what they did.
+  const oriented = isOrientedRect(drawn)
   // Gated on what SERIALIZATION accepts, not merely on a well-formed box. A
   // rectangle thinner than the 0.01 degree step rounds onto a single coordinate
   // and has no canonical key of its own, so saving one takes the WORLD's key:
@@ -318,7 +325,7 @@ const RectComposer: FC<RectComposerProps> = ({
 
       {!valid && (
         <p className="mt-2 text-[11px] text-destructive">
-          {wellFormed
+          {oriented
             ? 'Area is too small — each side must span at least 0.01°.'
             : 'Top-left must be north-west of bottom-right.'}
         </p>
