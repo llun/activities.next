@@ -343,7 +343,6 @@ describe('MediaDatabase', () => {
       // with `value out of range for type integer`. Mastodon clients put
       // whatever they like in the id path segment, so every one of these has to
       // read as a miss (404), not an error (500).
-      //
       it.each([
         { description: 'an empty id', mediaId: '' },
         { description: 'a non-numeric id', mediaId: 'abc' },
@@ -403,16 +402,23 @@ describe('MediaDatabase', () => {
         }
       })
 
-      // The one alias that is NOT rejected. SQLite's `attachments.mediaId` is a
-      // `varchar`, so a media id bound as a JS number was stored as '1.0';
-      // those rows are read back and re-resolved on every edit, so the form has
-      // to keep working. It names the same row either way.
-      it('resolves a media id written with an all-zero fraction', async () => {
+      // The spellings that are NOT rejected, because each still names the same
+      // row unambiguously and each resolved before this guard existed (both
+      // backends convert them). '12.0' in particular is reachable on SQLite,
+      // where `attachments.mediaId` is a `varchar` and an id bound as a JS
+      // number lands as '1.0', then gets re-resolved on every status edit.
+      it.each([
+        {
+          description: 'an all-zero fraction',
+          spell: (id: string) => `${id}.0`
+        },
+        { description: 'leading zeros', spell: (id: string) => `00${id}` }
+      ])('resolves a media id written with $description', async ({ spell }) => {
         const actor = await database.getActorFromId({ id: actors.primary.id })
         const media = await database.createMedia({
           actorId: actors.primary.id,
           original: {
-            path: '/test/media-zero-fraction.jpg',
+            path: `/test/media-tolerated-${spell('1')}.jpg`,
             bytes: 1000,
             mimeType: 'image/jpeg',
             metaData: { width: 100, height: 100 }
@@ -420,7 +426,7 @@ describe('MediaDatabase', () => {
         })
 
         const resolved = await database.getMediaByIdForAccount({
-          mediaId: `${media!.id}.0`,
+          mediaId: spell(media!.id),
           accountId: actor!.account!.id
         })
 

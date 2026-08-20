@@ -58,13 +58,20 @@ const MAX_MEDIA_ROW_ID = 2147483647
 // stringifies with `toString()`), reproducing the exact `invalid input syntax
 // for type integer` this guard exists to prevent.
 //
-// A trailing all-zero fraction ('12.0') IS accepted, deliberately: it names row
-// 12 unambiguously, and it is the form existing SQLite deployments already hold
-// in `attachments.mediaId`. That column is `varchar` on SQLite, and a media id
-// bound as a JS number lands in it through SQLite's REAL->TEXT conversion as
-// '1.0'. Those rows resolve today, so rejecting the form would turn editing an
-// affected status into a 422. `createMedia` no longer produces such ids, but
-// the ones already written have to keep working.
+// What IS accepted, beyond a bare decimal, is any spelling that still names the
+// same row unambiguously: leading zeros ('0012') and a trailing all-zero
+// fraction ('12.0'). Both already resolved before this guard existed —
+// PostgreSQL casts them and SQLite's numeric affinity converts them — so
+// rejecting them would be a behaviour change, not a fix.
+//
+// '12.0' is worth a word because it is reachable on SQLite specifically:
+// `attachments.mediaId` is `varchar` there, and a media id bound as a JS number
+// reaches it as '1.0' through REAL->TEXT conversion, then gets read back and
+// re-resolved on every status edit. No production writer does that today (they
+// all stringify, and the #307 backfill copies an INTEGER, which TEXT affinity
+// renders as '1' — both verified), and `createMedia` no longer returns a raw
+// number, so this is defence in depth for a form nothing is known to have
+// written rather than a compatibility shim for observed data.
 const toMediaRowId = (mediaId: string): number | null => {
   if (!/^\d+(\.0+)?$/.test(mediaId)) return null
   const id = Number(mediaId)
@@ -322,6 +329,15 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       }
     }
   },
+  // NOTE: `mediaId` is WRITTEN here, not compared, so it does not go through
+  // `toMediaRowId` — coercing would silently drop the link rather than surface
+  // the caller's bad id. Almost every caller hands over an id read back out of
+  // `medias`, but `POST /api/v1/accounts/outbox` does not: its
+  // `PostBoxAttachment.id` is a bare `z.string()` that reaches
+  // `lib/actions/createNote.ts` unvalidated, so a malformed id fails this
+  // insert on PostgreSQL (`attachments.mediaId` is `integer` there) AFTER the
+  // status row is already committed. That endpoint needs its own validation —
+  // it is a separate bug from the lookup guard above, tracked separately.
   async createAttachment({
     actorId,
     statusId,

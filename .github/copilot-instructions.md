@@ -44,6 +44,7 @@ Always refer to and follow the guidelines in [AGENTS.md](../AGENTS.md) for all c
 - All database operations must work with SQLite and PostgreSQL, and should avoid assumptions that break MySQL-compatible Knex clients where possible.
 - Use Knex query builder; avoid raw SQL unless necessary.
 - Avoid database-specific features unless they include backend-specific fallback logic.
+- Coerce a client-supplied id before comparing it against a numeric column. `medias.id` is `integer` on PostgreSQL, so a malformed id raises `invalid input syntax for type integer` (or `value out of range`) instead of simply missing — a 500 where a 404 was intended. SQLite's dynamic typing hides this, and CI pins `TEST_DATABASE_TYPE=sqlite`, so only a `TEST_DATABASE_TYPE=pg` run catches it. See `toMediaRowId` in `lib/database/sql/media.ts`, and give test fixtures values the column can actually hold.
 
 ### Code Style
 

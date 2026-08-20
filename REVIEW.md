@@ -117,14 +117,20 @@ change doesn't touch.
   non-numeric client string raises `invalid input syntax for type integer` — a
   500 where a 404 was intended. SQLite's dynamic typing just misses, so only
   `TEST_DATABASE_TYPE=pg` catches it. `lib/database/sql/media.ts` routes every
-  `mediaId` it **compares** against `medias.id` through `toMediaRowId`
-  (`createAttachment` writes rather than compares, and is unguarded by design).
+  `mediaId` it **compares** against `medias.id` through `toMediaRowId`.
   Coercion is shape-checked and capped at 2147483647 — a bare `Number()`
   accepts `'0x10'` (resolving row 16) and lets an out-of-range id raise `value
-out of range for type integer`. A trailing all-zero fraction (`'12.0'`) is
-  accepted on purpose: SQLite's `varchar` `attachments.mediaId` already holds
-  ids in that form. New numeric-column lookups do the same, and fixtures use
-  values the column can hold.
+out of range for type integer`. Spellings that still name the same row
+  (leading zeros, a trailing all-zero fraction) stay accepted, since they
+  resolved before the guard existed. New numeric-column lookups do the same,
+  and fixtures use values the column can hold.
+- `createAttachment` **writes** `mediaId` rather than comparing it and is
+  deliberately unguarded — coercing would drop the link instead of surfacing a
+  bad id. Its callers must therefore hand it an id already resolved against
+  `medias`. `POST /api/v1/accounts/outbox` does not (its `PostBoxAttachment.id`
+  is a bare `z.string()`), so a malformed id there fails the insert on
+  PostgreSQL after the status row is committed — a known open bug, separate
+  from the lookup guard.
 - A per-column type difference between the two schema dumps is not automatically
   drift — a backend-conditional migration (e.g.
   `20260207223000_fix_attachments_media_id_type.js`, PostgreSQL-only) makes them
