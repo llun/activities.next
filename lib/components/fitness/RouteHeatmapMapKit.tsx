@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import { FitnessRouteHeatmapData } from '@/lib/client'
+import type { HeatmapTileRun } from '@/lib/components/fitness/heatmapTileGeometry'
 import {
   computeFocusBounds,
   downsampleSegments
@@ -13,12 +14,24 @@ import {
   MAPKIT_LOAD_TIMEOUT_MS,
   type MapKitMapSurface,
   type MapKitOverlay,
+  type MapKitStyle,
   type MapKitSurfaceModule,
   boundsToRegion,
   loadMapKitSurface
 } from '@/lib/components/fitness/mapkitSurface'
+import {
+  HeatmapTileFetcher,
+  useHeatmapTiles
+} from '@/lib/components/fitness/useHeatmapTiles'
+import {
+  HEAT_COUNT_SATURATION,
+  HEAT_HIDDEN_BASE_OPACITY,
+  HEAT_VISIBLE_BASE_OPACITY,
+  heatOpacityForCount
+} from '@/lib/services/fitness-files/heatmapTiles/constants'
 import { simplifySegmentsToBudget } from '@/lib/services/fitness-files/simplifyRoute'
 import { cn } from '@/lib/utils'
+import { getZoomLevelForBounds } from '@/lib/utils/webMercator'
 
 // Mirrors RouteHeatmapMap's GL budget: the geometry is fit to this vertex target
 // by adaptively coarsening the Douglas–Peucker tolerance (shape-preserving) and
@@ -61,8 +74,31 @@ const getMapFallbackError = (error: unknown): MapFallbackError => {
   }
 }
 
+/**
+ * The count ramp, as the handful of styles MapKit can express.
+ *
+ * The GL map interpolates colour, width and opacity over the visit count in a
+ * data-driven paint; MapKit has no such thing, so the same ramp is sampled at
+ * each count the ramp can distinguish. `heatOpacityForCount` clamps at
+ * `HEAT_COUNT_SATURATION`, so that is a SMALL fixed number of styles — built
+ * once and shared by every overlay, never one per polyline.
+ */
+const TILE_COLOR_FOR_COUNT = (count: number): string => {
+  if (count >= 12) return '#facc15'
+  if (count >= 4) return '#f97316'
+  return '#ef4444'
+}
+
+const TILE_WIDTH_FOR_COUNT = (count: number): number => {
+  if (count >= 12) return 4.2
+  if (count >= 4) return 3.4
+  return 2.8
+}
+
 export interface RouteHeatmapMapKitProps {
   heatmap: FitnessRouteHeatmapData | null
+  /** See RouteHeatmapMapProps.fetchTiles. */
+  fetchTiles?: HeatmapTileFetcher
   /**
    * Tailwind height class for the map surface (and its empty/fallback states).
    * Defaults to the in-app fixed height; the full-bleed embed passes a
@@ -78,12 +114,18 @@ export interface RouteHeatmapMapKitProps {
  */
 export const RouteHeatmapMapKit: FC<RouteHeatmapMapKitProps> = ({
   heatmap,
+  fetchTiles,
   heightClassName = ROUTE_HEATMAP_MAP_HEIGHT_CLASS
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapKitMapSurface | null>(null)
   const mapkitRef = useRef<MapKitSurfaceModule | null>(null)
   const overlaysRef = useRef<MapKitOverlay[]>([])
+  // Keyed by tile so a pan adds and removes only what moved. MapKit gives an
+  // overlay no identity of its own — no id, no lookup, no `map.overlays` — so
+  // the keying is ours and lives here.
+  const tileOverlaysRef = useRef(new Map<string, MapKitOverlay[]>())
+  const hasFramedRef = useRef(false)
   const [mapFallbackReason, setMapFallbackReason] =
     useState<MapFallbackReason | null>(null)
   const [mapFallbackError, setMapFallbackError] =
@@ -192,6 +234,46 @@ export const RouteHeatmapMapKit: FC<RouteHeatmapMapKitProps> = ({
   ])
 
   // The GL sibling repaints an in-place cache update through `source.setData`;
+  const tiles = useHeatmapTiles({
+    tileSource: heatmap?.tileSource,
+    fetchTiles
+  })
+  const hasTiles = tiles.runs.length > 0
+
+  // Report the settled viewport. MapKit's `region-change-end` carries nothing
+  // — no region, no zoom — so both are read back off the map, and the zoom has
+  // to be DERIVED: MapKit has no zoom at all, only a region and an element
+  // size.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!isMapLoaded || !map || !tiles.enabled) return
+
+    const report = () => {
+      const { center, span } = map.region
+      const rect = map.element.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0) return
+      const viewBounds = {
+        minLat: center.latitude - span.latitudeDelta / 2,
+        maxLat: center.latitude + span.latitudeDelta / 2,
+        minLng: center.longitude - span.longitudeDelta / 2,
+        maxLng: center.longitude + span.longitudeDelta / 2
+      }
+      tiles.onViewChange({
+        zoom: getZoomLevelForBounds({
+          bounds: viewBounds,
+          width: rect.width,
+          height: rect.height,
+          padding: 0
+        }),
+        bounds: viewBounds
+      })
+    }
+
+    map.addEventListener('region-change-end', report)
+    report()
+    return () => map.removeEventListener('region-change-end', report)
+  }, [isMapLoaded, tiles.enabled, tiles.onViewChange])
+
   // MapKit has no data source, so the polyline overlays are rebuilt (and the
   // region re-framed) whenever the rendered geometry changes.
   useEffect(() => {
@@ -203,6 +285,11 @@ export const RouteHeatmapMapKit: FC<RouteHeatmapMapKitProps> = ({
       map.removeOverlays(overlaysRef.current)
       overlaysRef.current = []
     }
+
+    // Tiles replace this geometry rather than drawing over it — see the GL
+    // sibling: the two describe the same roads and together every line renders
+    // at twice its opacity.
+    if (hasTiles) return
 
     const visibleStyle = new mapkit.Style(VISIBLE_LINE_STYLE)
     const hiddenStyle = new mapkit.Style(HIDDEN_LINE_STYLE)
@@ -222,9 +309,16 @@ export const RouteHeatmapMapKit: FC<RouteHeatmapMapKitProps> = ({
       overlaysRef.current = overlays
     }
 
-    const framing = focus?.bounds ?? bounds
-    if (framing) {
-      map.region = boundsToRegion(mapkit, framing)
+    // Frame ONCE per map, not on every geometry change. Assigning `region`
+    // animates the map and fires `region-change-end`, which now drives a tile
+    // fetch — so re-framing whenever geometry changes would be a loop: pan,
+    // fetch, tiles arrive, snap back to the original framing, fetch again.
+    if (!hasFramedRef.current) {
+      const framing = focus?.bounds ?? bounds
+      if (framing) {
+        map.region = boundsToRegion(mapkit, framing)
+        hasFramedRef.current = true
+      }
     }
   }, [
     bounds?.maxLat,
@@ -233,8 +327,76 @@ export const RouteHeatmapMapKit: FC<RouteHeatmapMapKitProps> = ({
     bounds?.minLng,
     downsampledSegments,
     focus,
+    hasTiles,
     isMapLoaded
   ])
+
+  // The tiled overlays, diffed per tile. Rebuilding all of them on every pan
+  // would drop and recreate thousands of polylines for a few tiles' worth of
+  // change.
+  useEffect(() => {
+    const map = mapRef.current
+    const mapkit = mapkitRef.current
+    if (!isMapLoaded || !map || !mapkit) return
+
+    const styles = new Map<string, MapKitStyle>()
+    const styleFor = (run: HeatmapTileRun) => {
+      const count = Math.min(
+        Math.max(Math.round(run.count), 1),
+        HEAT_COUNT_SATURATION
+      )
+      const key = `${run.hidden ? 'h' : 'v'}:${count}`
+      const existing = styles.get(key)
+      if (existing) return existing
+      const style = new mapkit.Style(
+        run.hidden
+          ? {
+              strokeColor: HIDDEN_LINE_STYLE.strokeColor,
+              lineWidth: HIDDEN_LINE_STYLE.lineWidth,
+              strokeOpacity: heatOpacityForCount(
+                count,
+                HEAT_HIDDEN_BASE_OPACITY
+              )
+            }
+          : {
+              strokeColor: TILE_COLOR_FOR_COUNT(count),
+              lineWidth: TILE_WIDTH_FOR_COUNT(count),
+              strokeOpacity: heatOpacityForCount(
+                count,
+                HEAT_VISIBLE_BASE_OPACITY
+              )
+            }
+      )
+      styles.set(key, style)
+      return style
+    }
+
+    const desired = new Map(
+      tiles.groups.map((group) => [group.key, group.runs])
+    )
+    const held = tileOverlaysRef.current
+    for (const [key, overlays] of held) {
+      if (desired.has(key)) continue
+      map.removeOverlays(overlays)
+      held.delete(key)
+    }
+
+    for (const [key, runs] of desired) {
+      if (held.has(key)) continue
+      const overlays = runs.map(
+        (run) =>
+          new mapkit.PolylineOverlay(
+            run.points.map(
+              (point) => new mapkit.Coordinate(point.lat, point.lng)
+            ),
+            { style: styleFor(run) }
+          )
+      )
+      if (overlays.length === 0) continue
+      map.addOverlays(overlays)
+      held.set(key, overlays)
+    }
+  }, [isMapLoaded, tiles.groups])
 
   if (!hasRoutes || !heatmap) {
     return (

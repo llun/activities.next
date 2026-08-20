@@ -121,6 +121,7 @@ const Page: FC<PageProps> = async ({ params }) => {
       view={view}
       mapProvider={mapProvider}
       signupOpen={registrationOpen}
+      token={token}
       signinUrl="/auth/signin"
       signupUrl="/auth/signup"
     />

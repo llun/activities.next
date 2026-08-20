@@ -115,6 +115,7 @@ const Page: FC<PageProps> = async ({ params }) => {
       }}
       mapProvider={mapProvider}
       regionName={regionName}
+      token={token}
     />
   )
 }

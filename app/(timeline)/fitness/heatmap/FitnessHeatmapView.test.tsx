@@ -1326,7 +1326,9 @@ describe('RouteHeatmapMap', () => {
         resize: vi.fn(),
         addSource: vi.fn(),
         addLayer: vi.fn(),
-        getSource: vi.fn(() => ({ setData })),
+        getSource: vi.fn((id: string) =>
+          id === 'route-heatmap' ? { setData } : { setData: vi.fn() }
+        ),
         fitBounds: vi.fn()
       }
     })
@@ -1613,7 +1615,9 @@ describe('RouteHeatmapMap', () => {
     const largeHeatmap = buildLargeHeatmap()
     let renderedFeatureCount = 0
     let renderedVertexCount = 0
-    const mapConstructor = createGlMapConstructor((_id, source) => {
+    const mapConstructor = createGlMapConstructor((id, source) => {
+      // Two sources exist now; this is about the untiled geometry's budget.
+      if (id !== 'route-heatmap') return
       const features =
         (
           source as {
@@ -1665,7 +1669,9 @@ describe('RouteHeatmapMap', () => {
     })
 
     let renderedCoordinates: Array<[number, number]> = []
-    const mapConstructor = createGlMapConstructor((_id, source) => {
+    const mapConstructor = createGlMapConstructor((id, source) => {
+      // Two sources exist now; this is about the untiled geometry's shape.
+      if (id !== 'route-heatmap') return
       const features =
         (
           source as {
