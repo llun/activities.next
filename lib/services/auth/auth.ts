@@ -51,7 +51,11 @@ const buildAuth = (baseURL: string) => {
         joins: true
       },
       ipAddress: {
-        ipAddressHeaders: ['x-forwarded-for', 'x-real-ip']
+        ipAddressHeaders: [
+          'x-activity-next-host',
+          'x-forwarded-for',
+          'x-real-ip'
+        ]
       }
     },
     secret: config.secretPhase,
