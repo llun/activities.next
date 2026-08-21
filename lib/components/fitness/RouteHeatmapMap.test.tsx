@@ -2,9 +2,11 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 
 import type { FitnessRouteHeatmapData } from '@/lib/client'
+import { TILE_EXTENT } from '@/lib/services/fitness-files/heatmapTiles/constants'
+import { encodeTile } from '@/lib/services/fitness-files/heatmapTiles/tileCodec'
 import { loadMapboxModule } from '@/lib/utils/mapbox'
 
 import { RouteHeatmapMap } from './RouteHeatmapMap'
@@ -25,25 +27,44 @@ type Handlers = Record<string, () => void>
 
 // A fake Mapbox/MapLibre GL map: it fires its async 'load' once the component
 // has subscribed (mirroring RegionMap.test's fake), so the load handler runs.
-const createFakeGl = () => {
+const createFakeGl = (
+  view: { zoom: number; bounds: [number, number, number, number] } = {
+    zoom: 12,
+    bounds: [5.6, 52, 6.2, 52.6]
+  }
+) => {
   const handlers: Handlers = {}
   const source = { setData: vi.fn() }
+  // Two sources now: the untiled blob and the tiled geometry. Keyed, because a
+  // shared double would let the last write win and hide which one was fed.
+  const sources: Record<string, { setData: ReturnType<typeof vi.fn> }> = {
+    'route-heatmap': source,
+    'route-heatmap-tiles': { setData: vi.fn() }
+  }
   const map = {
     on: vi.fn((event: string, callback: () => void) => {
       handlers[event] = callback
     }),
+    off: vi.fn(),
+    getZoom: vi.fn(() => view.zoom),
+    getBounds: vi.fn(() => ({
+      getWest: () => view.bounds[0],
+      getSouth: () => view.bounds[1],
+      getEast: () => view.bounds[2],
+      getNorth: () => view.bounds[3]
+    })),
     remove: vi.fn(),
     resize: vi.fn(),
     addSource: vi.fn(),
     addLayer: vi.fn(),
-    getSource: vi.fn(() => source),
+    getSource: vi.fn((id: string) => sources[id] ?? source),
     fitBounds: vi.fn()
   }
   const Map = vi.fn(function MapCtor() {
     Promise.resolve().then(() => handlers.load?.())
     return map
   })
-  return { gl: { Map }, map, handlers }
+  return { gl: { Map }, map, handlers, sources }
 }
 
 // Local stand-in for the lib.dom ResizeObserverCallback type — eslint's
@@ -176,5 +197,144 @@ describe('RouteHeatmapMap', () => {
     await screen.findByText('Mapbox')
     expect(map.resize).toHaveBeenCalledTimes(1)
     expect(resizeObservers).toHaveLength(0)
+  })
+})
+
+describe('RouteHeatmapMap tiled rendering', () => {
+  const tileSource = {
+    version: 2,
+    minZoom: 4,
+    maxZoom: 16,
+    ladder: [4, 6, 8, 10, 12, 14, 16],
+    extent: TILE_EXTENT
+  }
+  const tiled: FitnessRouteHeatmapData = { ...heatmap, tileSource }
+
+  const tilePayload = encodeTile([{ count: 5, points: [0, 0, 32, 32] }])
+  const fetchAll = () =>
+    vi.fn(async ({ tiles }: { tiles: Array<{ x: number; y: number }> }) => ({
+      version: 2,
+      tiles: Object.fromEntries(
+        tiles.map(({ x, y }) => [`${x}:${y}`, tilePayload])
+      )
+    }))
+
+  const lastData = (setData: ReturnType<typeof vi.fn>) =>
+    setData.mock.calls[setData.mock.calls.length - 1]?.[0] as {
+      features: Array<{ properties: { count: number } }>
+    }
+
+  it('asks for the tiles its opening view covers, without waiting for a pan', async () => {
+    // fitBounds is what first gives the map a viewport; without reporting it
+    // the map would sit on untiled geometry until the reader happened to pan.
+    const { gl } = createFakeGl()
+    vi.mocked(loadMapboxModule).mockResolvedValue(gl as never)
+    const fetchTiles = fetchAll()
+
+    render(
+      <RouteHeatmapMap
+        heatmap={tiled}
+        mapProvider={{ type: 'mapbox', accessToken: 'pk.test' }}
+        fetchTiles={fetchTiles}
+      />
+    )
+
+    await waitFor(() => expect(fetchTiles).toHaveBeenCalled())
+    expect(fetchTiles.mock.calls[0][0].z).toBe(12)
+    expect(fetchTiles.mock.calls[0][0].version).toBe(2)
+  })
+
+  it('draws the tiles and empties the untiled source, never both', async () => {
+    // The two describe the same roads at different fidelities, so drawing both
+    // renders every line at twice its opacity.
+    const { gl, sources } = createFakeGl()
+    vi.mocked(loadMapboxModule).mockResolvedValue(gl as never)
+
+    render(
+      <RouteHeatmapMap
+        heatmap={tiled}
+        mapProvider={{ type: 'mapbox', accessToken: 'pk.test' }}
+        fetchTiles={fetchAll()}
+      />
+    )
+
+    await waitFor(() =>
+      expect(
+        lastData(sources['route-heatmap-tiles'].setData).features.length
+      ).toBeGreaterThan(0)
+    )
+    expect(lastData(sources['route-heatmap'].setData).features).toEqual([])
+  })
+
+  it('carries the visit count into the geometry the paint reads', async () => {
+    const { gl, sources } = createFakeGl()
+    vi.mocked(loadMapboxModule).mockResolvedValue(gl as never)
+
+    render(
+      <RouteHeatmapMap
+        heatmap={tiled}
+        mapProvider={{ type: 'mapbox', accessToken: 'pk.test' }}
+        fetchTiles={fetchAll()}
+      />
+    )
+
+    await waitFor(() =>
+      expect(
+        lastData(sources['route-heatmap-tiles'].setData).features.length
+      ).toBeGreaterThan(0)
+    )
+    const [feature] = lastData(sources['route-heatmap-tiles'].setData).features
+    expect(feature.properties.count).toBe(5)
+  })
+
+  it('stays entirely on the untiled path for a heatmap with no pyramid', async () => {
+    // Every heatmap generated before the pyramid existed, and every variant it
+    // cannot answer, still renders exactly as it did.
+    const { gl, sources } = createFakeGl()
+    vi.mocked(loadMapboxModule).mockResolvedValue(gl as never)
+    const fetchTiles = fetchAll()
+
+    render(
+      <RouteHeatmapMap
+        heatmap={heatmap}
+        mapProvider={{ type: 'mapbox', accessToken: 'pk.test' }}
+        fetchTiles={fetchTiles}
+      />
+    )
+
+    await waitFor(() =>
+      expect(sources['route-heatmap'].setData).toHaveBeenCalled()
+    )
+    expect(fetchTiles).not.toHaveBeenCalled()
+    expect(lastData(sources['route-heatmap'].setData).features.length).toBe(1)
+  })
+
+  it('reports a settled pan so the next view is fetched', async () => {
+    const view = {
+      zoom: 12,
+      bounds: [5.6, 52, 6.2, 52.6] as [number, number, number, number]
+    }
+    const { gl, handlers } = createFakeGl(view)
+    vi.mocked(loadMapboxModule).mockResolvedValue(gl as never)
+    const fetchTiles = fetchAll()
+
+    render(
+      <RouteHeatmapMap
+        heatmap={tiled}
+        mapProvider={{ type: 'mapbox', accessToken: 'pk.test' }}
+        fetchTiles={fetchTiles}
+      />
+    )
+    await waitFor(() => expect(fetchTiles).toHaveBeenCalled())
+
+    // Somewhere else entirely, at a zoom that lands on a different rung: 13
+    // rounds UP to 14, where 12 rounded to itself.
+    view.zoom = 13
+    view.bounds = [4.0, 51.0, 4.1, 51.1]
+    handlers.moveend?.()
+
+    await waitFor(() =>
+      expect(fetchTiles.mock.calls.map(([request]) => request.z)).toContain(14)
+    )
   })
 })
