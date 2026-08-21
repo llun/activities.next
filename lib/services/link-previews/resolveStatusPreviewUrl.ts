@@ -50,6 +50,11 @@ export const resolveStatusPreviewUrl = async ({
     text: status.text,
     isLocalActor: status.isLocalActor,
     host: getConfig().host,
+    // Not optional in practice. The custom-emoji substitution happens between
+    // the two sanitize passes and can EMPTY an anchor the extractor would
+    // otherwise have counted as visible, so an extractor that cannot see the
+    // tags is measuring text the renderer is about to rewrite.
+    tags: status.tags,
     excludeUrls
   })
 }

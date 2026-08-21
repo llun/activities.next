@@ -1,11 +1,16 @@
 import { Tag } from '@/lib/types/domain/tag'
 import { escapeHtml } from '@/lib/utils/text/escapeHtml'
-import { isEmojiShortcodeName } from '@/lib/utils/text/getEmojiTags'
+import { toEmojiShortcodeToken } from '@/lib/utils/text/getEmojiTags'
 
-// A `:shortcode:` token as it appears in text. The same shape
-// `isEmojiShortcodeName` accepts, so every stored name that survives the filter
-// below is findable by this and nothing else is.
-const SHORTCODE_TOKEN_REGEX = /:[a-zA-Z0-9_]{2,}:/g
+// A `:shortcode:` token as it appears in text: a colon, then anything that is
+// not a colon or whitespace, then a colon. Matches the shape
+// `toEmojiShortcodeToken` produces, so every stored name it can normalize is
+// findable by this and nothing else is.
+//
+// Deliberately not Mastodon's `[a-zA-Z0-9_]{2,}` — see the note there. A token
+// this finds but no tag resolves is simply left alone, so being generous here
+// costs nothing.
+const SHORTCODE_TOKEN_REGEX = /:[^\s:]{1,64}:/g
 
 // Splits already-sanitized HTML into alternating text and tag pieces, keeping
 // the tags (the capture group). Sound because the input has been through
@@ -59,10 +64,11 @@ export const convertEmojisToImages = (text: string, tags: Tag[]) => {
   const urlByShortcode = new Map<string, string>()
   for (const tag of tags) {
     if (tag.type !== 'emoji') continue
-    if (!isEmojiShortcodeName(tag.name)) continue
+    const token = toEmojiShortcodeToken(tag.name)
+    if (!token) continue
     // First one wins, so a repeated shortcode resolves the same way wherever it
     // appears rather than depending on which occurrence is being replaced.
-    if (!urlByShortcode.has(tag.name)) urlByShortcode.set(tag.name, tag.value)
+    if (!urlByShortcode.has(token)) urlByShortcode.set(token, tag.value)
   }
   if (urlByShortcode.size === 0) return text
 

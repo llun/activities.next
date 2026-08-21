@@ -2,6 +2,7 @@ import {
   extractPreviewUrl,
   normalizePreviewUrl
 } from '@/lib/services/link-previews/extractUrl'
+import { Tag } from '@/lib/types/domain/tag'
 import {
   ALLOWED_CONTENT_CLASSES,
   sanitizeText
@@ -109,6 +110,94 @@ describe('normalizePreviewUrl', () => {
 
 describe('extractPreviewUrl', () => {
   const host = 'test.llun.dev'
+
+  // The reader does not see the status text — they see it after the emoji
+  // substitution and the second sanitize pass. Those can DELETE what the
+  // extractor measured, which no amount of care about the text alone can catch:
+  // the extractor has to walk the same output.
+  describe('custom emoji change what is visible', () => {
+    const emoji = (name: string, value: string): Tag => ({
+      type: 'emoji',
+      createdAt: 0,
+      updatedAt: 0,
+      id: 'tag-1',
+      statusId: 'https://llun.test/users/user1/statuses/1',
+      name,
+      value
+    })
+
+    // `sanitizeTrustedStatusText` allows an emoji img on `https` only, and its
+    // `exclusiveFilter` drops an img with no `src` — so a non-https emoji is
+    // removed outright, leaving an anchor whose only child is gone. An
+    // `Emoji` tag's `icon.url` is a bare `z.string()` stored verbatim, so a
+    // remote server chooses that scheme freely.
+    it('ignores an anchor emptied by an emoji the renderer drops', () => {
+      expect(
+        extractPreviewUrl({
+          text:
+            '<p><a href="https://evil.example/phish">:blob:</a>' +
+            ' Read more at <a href="https://good.example/article">good.example/article</a></p>',
+          isLocalActor: false,
+          host,
+          tags: [emoji(':blob:', 'http://cdn.evil.example/e.png')]
+        })
+      ).toBe('https://good.example/article')
+    })
+
+    // The same shape the hidden-descendant rule already rejects, except the
+    // anchor only becomes all-hidden once the emoji is substituted away.
+    it('ignores an anchor left with only hidden children after substitution', () => {
+      expect(
+        extractPreviewUrl({
+          text:
+            '<p><a href="https://evil.example/phish">' +
+            '<span class="invisible">Read the full article</span>:blob:</a></p>',
+          isLocalActor: false,
+          host,
+          tags: [emoji(':blob:', 'http://cdn.evil.example/e.png')]
+        })
+      ).toBeNull()
+    })
+
+    // Even a perfectly good emoji leaves an anchor with no TEXT, and an emoji
+    // image is whatever the remote server serves — a transparent PNG included.
+    // There is nothing here a reader can be relied on to see, so it gets no
+    // card. Erring toward no card is the safe direction.
+    it('ignores an anchor whose only content is an emoji image', () => {
+      expect(
+        extractPreviewUrl({
+          text:
+            '<p><a href="https://evil.example/phish">:blob:</a>' +
+            ' and <a href="https://good.example/a">good.example/a</a></p>',
+          isLocalActor: false,
+          host,
+          tags: [emoji(':blob:', 'https://cdn.example/e.png')]
+        })
+      ).toBe('https://good.example/a')
+    })
+
+    it('still takes an anchor that keeps real text beside the emoji', () => {
+      expect(
+        extractPreviewUrl({
+          text: '<p><a href="https://good.example/a">:blob: the article</a></p>',
+          isLocalActor: false,
+          host,
+          tags: [emoji(':blob:', 'https://cdn.example/e.png')]
+        })
+      ).toBe('https://good.example/a')
+    })
+
+    it('is unaffected when the status carries no tags', () => {
+      expect(
+        extractPreviewUrl({
+          text: '<p><a href="https://good.example/a">:blob:</a></p>',
+          isLocalActor: false,
+          host,
+          tags: []
+        })
+      ).toBe('https://good.example/a')
+    })
+  })
 
   describe('local statuses (markdown)', () => {
     const fromMarkdown = (text: string, excludeUrls: string[] = []) =>

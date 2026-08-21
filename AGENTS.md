@@ -1091,9 +1091,20 @@ it; there is no legacy shape left to copy.
      a link in `<span class="invisible">` that `cleanClassName` renders as
      `display: none` — a preview card for a link no reader could see.
      Keep this at RENDER, not at ingest: it is the one choke point that also
-     protects rows already in the database. A rejected tag renders as nothing and
-     the literal `:shortcode:` stays in the text, which is what a reader on a
-     server lacking that emoji sees anyway.
+     protects rows already in the database. A rejected tag renders as nothing
+     and the literal `:shortcode:` stays in the text.
+     **The accepted shortcode shape is deliberately NOT Mastodon's**
+     `[a-zA-Z0-9_]{2,}`. That describes what Mastodon mints, not what arrives:
+     applying it to inbound tags deleted real emoji from ~2% of a live Pleroma
+     and a live Akkoma instance's packs — `:poi-love:` (hyphens, which Sharkey
+     allows on purpose), `:c:` and `:3:` (one character, which GoToSocial and
+     Misskey permit), `:afiŝo_miaŭ:` (non-ASCII). Pleroma and Akkoma derive
+     shortcodes from pack filenames and never validate what they send.
+     `toEmojiShortcodeToken` therefore accepts anything up to 64 characters
+     that is not a colon, whitespace, or a control/format character, and makes
+     the colons optional because Friendica sends the name bare (`"like"`) while
+     its body still says `:like:`. `EMOJI_SHORTCODE_REGEX`, used to mint LOCAL
+     tags, stays on Mastodon's narrow shape — the two are different jobs.
 - **`syncStatusLinkPreview` never throws.** It is called from local create, local
   edit, and the inbound `CreateNoteJob`/`UpdateNoteJob`, and every one of those
   has already written the status by the time it runs. A preview card is
@@ -1106,13 +1117,27 @@ it; there is no legacy shape left to copy.
   in-process queue has no scheduler and silently DROPS any message with a
   positive delay, so the delay is only attached when `getQueue().runsInline` is
   false. Attaching it unconditionally does not delay the fetch — it loses it.
-- **Extraction walks RENDERED HTML on both paths — there is one walker.** A
-  remote post already stores HTML, so it is sanitized and walked. A local post
-  stores markdown, so it is rendered with the very same `convertMarkdownText`
-  the page uses and then walked by that same code. The extractor therefore sees
-  exactly the DOM the reader gets, on either path, and anchors that are mentions
-  or hashtags are rejected by the markers the renderer itself emits (`rel="tag"`
-  and the `mention`/`hashtag`/`u-url` classes).
+- **Extraction runs the WHOLE `processStatusTextContent` and walks its output.**
+  Not a rearrangement of its parts — the same function the rendered post, the
+  notifications and the Mastodon API all use, in full, for local and remote
+  statuses alike. That is the only way to know what the reader sees, and
+  every time this ran a subset of the pipeline something got through:
+  walking marked's tokens missed hidden ancestors and entity-only link text;
+  sanitizing but skipping the emoji step MEASURED TEXT THE RENDERER THEN
+  DELETED (`sanitizeTrustedStatusText` serves emoji images over https only and
+  drops an img left without a `src`, so a remote `Emoji` tag pointing at
+  `http://` emptied an anchor whose `:blob:` had just been counted as its
+  visible text — and the card went to that anchor). This is also why
+  `extractPreviewUrl` takes `tags` and `resolveStatusPreviewUrl` passes
+  `status.tags`; dropping that argument is a one-line edit that silently hands
+  back a phishing card, so it has its own test.
+  A consequence worth knowing: an anchor whose only content is an emoji image
+  gets NO card, because it has no visible text and an emoji image is whatever
+  the remote server serves — a transparent PNG included. Erring toward no card
+  is the intended direction.
+  Anchors that are mentions or hashtags are rejected by the markers the
+  renderer itself emits (`rel="tag"` and the `mention`/`hashtag`/`u-url`
+  classes).
   Do not "simplify" the local path back to walking marked's token tree. It was
   written that way and the tokens are the wrong shape for this job three times
   over: marked flattens raw inline HTML into flat SIBLING tokens, so a link

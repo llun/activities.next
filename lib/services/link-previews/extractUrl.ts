@@ -1,8 +1,8 @@
 import { htmlToDOM } from 'html-react-parser'
 
+import { Tag } from '@/lib/types/domain/tag'
 import { logger } from '@/lib/utils/logger'
-import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
-import { sanitizeText } from '@/lib/utils/text/sanitizeText'
+import { processStatusTextContent } from '@/lib/utils/text/processStatusText'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 // `link_previews.url` is a text column, but a URL long enough to be worth
@@ -51,41 +51,59 @@ export const normalizePreviewUrl = (input: string): string | null => {
 }
 
 /**
- * Links in a LOCAL status, as the reader will see them.
+ * Every link in a status, as the reader will actually see it.
  *
- * Local statuses store the author's markdown, so this renders it with the very
- * same `convertMarkdownText` the page uses and then walks the result with the
- * HTML collector below — the extractor therefore sees exactly the DOM the
- * reader gets.
+ * There is ONE path here, and it is `processStatusTextContent` — the very
+ * function the rendered post, the notifications and the Mastodon API all use.
+ * Not a rearrangement of its parts: the whole thing, in order, for both local
+ * and remote statuses. The rule this file exists to enforce is "a card is only
+ * for a link the reader can see", and the only way to know what the reader sees
+ * is to build it.
  *
- * Walking marked's token tree instead looks simpler and is not: marked
- * flattens raw inline HTML into flat sibling tokens, so a link inside
- * `<span class="hidden">…</span>` has no ancestor to inherit hidden-ness from,
- * and a per-token text check cannot tell it apart from a visible one. That gap
- * let an invisible link beat the visible one below it — and separately, link
- * text written as an entity (`[&#8203;](url)`) reads as non-empty in source
- * while rendering to nothing. Rendering first makes both disappear, because the
- * HTML walker already inherits hidden-ness and the parser already decodes
- * entities.
+ * Running just part of it kept being not quite enough, in ways that were
+ * invisible from the text alone:
  *
- * Mentions and hashtags come out of the renderer carrying `u-url mention` and
- * `rel="tag"`, which `isNonContentAnchor` already rejects.
+ *   - marked's token tree flattens raw inline HTML into flat SIBLING tokens, so
+ *     a link inside `<span class="hidden">…</span>` had no ancestor to inherit
+ *     hidden-ness from and beat the visible link below it; and link text
+ *     written as an entity (`[&#8203;](url)`) reads as non-empty in source
+ *     while rendering to nothing.
+ *   - sanitizing but skipping the emoji step measured text that the renderer
+ *     then DELETED. `sanitizeTrustedStatusText` serves emoji images over https
+ *     only and drops an img left without a `src`, so a remote `Emoji` tag
+ *     pointing at `http://` emptied an anchor completely — the extractor had
+ *     counted `:blob:` as that anchor's visible text and given it the card.
+ *
+ * Mentions and hashtags come out carrying `u-url mention` and `rel="tag"`,
+ * which `isNonContentAnchor` rejects.
  */
-const extractFromMarkdown = (text: string, host: string): string[] => {
+const extractRenderedLinks = (
+  text: string,
+  host: string,
+  tags: Tag[],
+  isLocalActor: boolean
+): string[] => {
+  const hrefs: string[] = []
   try {
-    return extractFromHtml(convertMarkdownText(host)(text))
+    collectHtmlLinks(
+      htmlToDOM(
+        processStatusTextContent(host, text, tags, isLocalActor)
+      ) as DomNode[],
+      hrefs
+    )
   } catch (error) {
     // A malformed status must not break posting; it simply gets no card. But it
     // must not be SILENT either: swallowing the throw is how a crash on any
     // post containing a table read as "this post has no links" and survived
     // three review rounds.
     logger.warn({
-      message: 'linkPreview: failed to read links from markdown',
+      message: 'linkPreview: failed to read links from status text',
       error: error instanceof Error ? error.message : String(error),
       err: toLoggableError(error)
     })
     return []
   }
+  return hrefs
 }
 
 // The classes that hide content, which here is an exhaustive list rather than a
@@ -206,34 +224,17 @@ const collectHtmlLinks = (
   }
 }
 
-const extractFromHtml = (html: string): string[] => {
-  const hrefs: string[] = []
-  try {
-    // Sanitize FIRST. Remote status text is stored raw and only sanitized at
-    // render, so parsing the stored HTML directly sees markup the reader never
-    // will — a `<template>`-wrapped anchor is hoisted ahead of the real link,
-    // and `<script>`/`<style>` content is walked as markup. Extracting from the
-    // sanitized text is what makes "the card is for a link the reader can see"
-    // true for remote posts, the way reusing the renderer's tokenizer makes it
-    // true for local ones.
-    collectHtmlLinks(htmlToDOM(sanitizeText(html)) as DomNode[], hrefs)
-  } catch (error) {
-    logger.warn({
-      message: 'linkPreview: failed to read links from html',
-      error: error instanceof Error ? error.message : String(error),
-      err: toLoggableError(error)
-    })
-    return []
-  }
-  return hrefs
-}
-
 export type ExtractPreviewUrlParams = {
   // Local statuses store the author's markdown; remote ones store the HTML the
   // origin server sent.
   text: string
   isLocalActor: boolean
   host: string
+  // The status's own tags, needed because the custom-emoji substitution can
+  // change what is visible — see `extractRenderedLinks`. Callers that genuinely
+  // have none pass nothing; a caller that HAS them and omits them silently goes
+  // back to measuring text the renderer is about to rewrite.
+  tags?: Tag[]
   // URLs that already have their own representation on the post — today the
   // quoted status, whose quote card would otherwise be shadowed by a link card
   // for the same page. Compared after normalization.
@@ -248,6 +249,7 @@ export const extractPreviewUrl = ({
   text,
   isLocalActor,
   host,
+  tags = [],
   excludeUrls = []
 }: ExtractPreviewUrlParams): string | null => {
   if (!text.trim()) return null
@@ -258,9 +260,7 @@ export const extractPreviewUrl = ({
       .filter((url): url is string => Boolean(url))
   )
 
-  const candidates = isLocalActor
-    ? extractFromMarkdown(text, host)
-    : extractFromHtml(text)
+  const candidates = extractRenderedLinks(text, host, tags, isLocalActor)
 
   for (const candidate of candidates) {
     const normalized = normalizePreviewUrl(candidate)

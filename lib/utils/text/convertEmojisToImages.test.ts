@@ -123,23 +123,67 @@ describe('convertEmojisToImages', () => {
       )
     })
 
-    // The name is the replace TARGET, so escaping it on the way out is beside
-    // the point — it has to be rejected before the replace happens. Anything
-    // that is not a shortcode is dropped, and the text keeps whatever it said.
+    // What is searched for is a shortcode-shaped token, so a name that cannot
+    // be one never matches anything and the text keeps whatever it said.
+    // Markup is the case that used to consume the post's own anchor.
     it.each([
       { description: 'markup', name: '<a href="https://evil.test/">' },
-      { description: 'a bare word', name: 'HIDE' },
-      { description: 'a single letter', name: 'e' },
       { description: 'a quote', name: '":' },
-      { description: 'an unterminated shortcode', name: ':blob' },
-      { description: 'a one-character shortcode', name: ':b:' },
-      { description: 'a shortcode with a space', name: ':bl ob:' }
-    ])('ignores an emoji tag whose name is $description', ({ name }) => {
+      { description: 'a space', name: ':bl ob:' },
+      { description: 'a zero-width space', name: ':bl​ob:' },
+      { description: 'empty', name: '::' },
+      { description: 'nothing at all', name: '' }
+    ])('ignores an emoji tag whose name contains $description', ({ name }) => {
       const text = `<p>hi ${name} there</p>`
 
       expect(
         convertEmojisToImages(text, [emojiTag(name, 'https://cdn.test/e.png')])
       ).toBe(text)
+    })
+
+    it('ignores an emoji tag whose name is longer than the cap', () => {
+      const name = `:${'a'.repeat(65)}:`
+      const text = `<p>hi ${name} there</p>`
+
+      expect(
+        convertEmojisToImages(text, [emojiTag(name, 'https://cdn.test/e.png')])
+      ).toBe(text)
+    })
+  })
+
+  // Mastodon's `[a-zA-Z0-9_]{2,}` describes what Mastodon mints, not what
+  // arrives. Every one of these was captured from a live Pleroma or Akkoma
+  // instance, or is the documented shape of a server that emits it.
+  describe('shortcodes the wider fediverse actually sends', () => {
+    it.each([
+      { description: 'a hyphen (Sharkey, Pleroma)', name: ':poi-love:' },
+      { description: 'several hyphens', name: ':aro-sparkling-heart:' },
+      { description: 'a dot (Akkoma pack filenames)', name: ':a.JPG:' },
+      { description: 'a plus (Misskey, Hubzilla)', name: ':blob+cat:' },
+      { description: 'one character (GoToSocial, Misskey)', name: ':c:' },
+      { description: 'one digit', name: ':3:' },
+      { description: 'non-ASCII (Esperanto, real)', name: ':afiŝo_miaŭ:' },
+      { description: 'plain Mastodon shape', name: ':blobcat:' }
+    ])('renders a shortcode with $description', ({ name }) => {
+      const html = convertEmojisToImages(`<p>hi ${name} there</p>`, [
+        emojiTag(name, 'https://cdn.test/e.png')
+      ])
+
+      expect(html).toBe(
+        `<p>hi <img class="emoji" src="https://cdn.test/e.png" alt="${name}"></img> there</p>`
+      )
+    })
+
+    // Friendica sends the name BARE while its post body still carries the
+    // colons, so a tag that looks nothing like the text it is for is normal.
+    it('renders a bare name against the colon-wrapped token in the text', () => {
+      expect(
+        convertEmojisToImages('<p>hi :like: there</p>', [
+          emojiTag('like', 'https://cdn.test/e.png')
+        ])
+      ).toBe(
+        '<p>hi <img class="emoji" src="https://cdn.test/e.png" alt=":like:"></img> there</p>'
+      )
     })
 
     // The end-to-end consequence, through the real pipeline the reader gets.

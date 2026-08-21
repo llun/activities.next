@@ -470,9 +470,13 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   (`resolveStatusPreviewUrl`). An edit leaves the pre-edit job queued; without
   the re-check it re-attaches the old card, or resurrects one an edit removed.
   The scheduler and the job must keep using that single resolver.
-- Extraction walks RENDERED, sanitized HTML on **both** paths (a local post is
-  rendered with `convertMarkdownText` first), so there is one walker and the
-  extractor sees the reader's DOM. A link whose text renders to nothing — empty,
+- Extraction runs the **whole** `processStatusTextContent` and walks its output,
+  on both paths — not a rearrangement of its parts, so the extractor sees the
+  reader's DOM. Check that `extractPreviewUrl` is still given `tags` and that
+  `resolveStatusPreviewUrl` still passes `status.tags`: the emoji substitution
+  can EMPTY an anchor whose text the extractor already counted (a non-https
+  `Emoji` icon url is dropped entirely by `sanitizeTrustedStatusText`), and
+  dropping that one argument silently restores a phishing card. A link whose text renders to nothing — empty,
   entity-only, or hidden by `hidden`/`invisible` including via an ANCESTOR — is
   skipped, because otherwise a link the reader cannot see gets a full-width
   clickable card carrying an attacker-chosen title and image. `<template>` is
