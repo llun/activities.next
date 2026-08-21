@@ -126,11 +126,12 @@ export const GET = traceApiRoute(
     //
     // Best-effort in both directions — an actor with no completed build, and a
     // read that fails, both keep the blob, which is an image the owner already
-    // had. Clipping to the share's region is NOT optional here: the pyramid
-    // covers the actor's whole history.
+    // had. The whole row goes in, not just its actor id: the pyramid covers the
+    // actor's whole history, so the builder has to refuse a share scoped to one
+    // sport or one year and clip what is left to the share's own region.
     const tiled = publicHeatmap.bounds
       ? await buildHeatmapSegmentsFromTiles(database, {
-          actorId: heatmap.actorId,
+          heatmap,
           bounds: publicHeatmap.bounds,
           width,
           height,

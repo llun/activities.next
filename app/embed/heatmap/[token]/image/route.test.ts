@@ -175,6 +175,36 @@ describe('/embed/heatmap/[token]/image', () => {
       expect(svg).toContain('stroke-opacity="0.85"')
     })
 
+    it.each([
+      {
+        description: 'one sport',
+        activityType: 'Ride',
+        periodType: 'all_time'
+      },
+      { description: 'one year', activityType: null, periodType: 'year' }
+    ])(
+      'keeps the stored blob for a share scoped to $description',
+      async ({ activityType, periodType }) => {
+        // The pyramid is built from the actor's whole history and carries no
+        // sport or date, so drawing a scoped share from it would publish every
+        // sport and every year. Region clipping cannot catch that -- it only
+        // bounds geography.
+        mockGetFitnessRouteHeatmapPyramid.mockResolvedValue(pyramid)
+        mockGetFitnessRouteHeatmapByShareToken.mockResolvedValue({
+          ...sharedHeatmap,
+          activityType,
+          periodType
+        })
+
+        const response = await GET(imageRequest(), {
+          params: Promise.resolve({ token: 'token-1' })
+        })
+
+        expect(await response.text()).toContain('stroke-opacity="0.85"')
+        expect(mockGetFitnessRouteHeatmapTilesInRange).not.toHaveBeenCalled()
+      }
+    )
+
     it('keeps the stored blob when the pyramid read fails', async () => {
       // An image the owner already had beats no image at all.
       mockGetFitnessRouteHeatmapPyramid.mockRejectedValue(

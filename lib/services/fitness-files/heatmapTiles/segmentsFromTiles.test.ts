@@ -114,9 +114,16 @@ describe('buildHeatmapSegmentsFromTiles', () => {
     updatedAt: 2
   })
 
+  // An all-activities, all-time share: the only scope the pyramid can answer.
+  const scope = {
+    actorId: ACTOR_ID,
+    activityType: null,
+    periodType: 'all_time'
+  }
+
   const build = (regionBounds = [] as never[]) =>
     buildHeatmapSegmentsFromTiles(database, {
-      actorId: ACTOR_ID,
+      heatmap: scope,
       bounds,
       width: 600,
       height: 400,
@@ -129,6 +136,31 @@ describe('buildHeatmapSegmentsFromTiles', () => {
     mockDb.getFitnessRouteHeatmapTilesInRange.mockResolvedValue([])
   })
 
+  it.each([
+    { description: 'one sport', activityType: 'Ride', periodType: 'all_time' },
+    { description: 'one year', activityType: null, periodType: 'year' },
+    { description: 'both', activityType: 'Run', periodType: 'year' }
+  ])(
+    'refuses a share scoped to $description without reading the pyramid',
+    async ({ activityType, periodType }) => {
+      // The filters live on the heatmap row; the tiles are built from the
+      // actor's whole history and carry no sport or date. Serving them to a
+      // scoped share publishes every sport and every year, and clipping cannot
+      // catch it because clipping only bounds geography.
+      const segments = await buildHeatmapSegmentsFromTiles(database, {
+        heatmap: { actorId: ACTOR_ID, activityType, periodType },
+        bounds,
+        width: 600,
+        height: 400,
+        regionBounds: []
+      })
+
+      expect(segments).toBeNull()
+      expect(mockDb.getFitnessRouteHeatmapPyramid).not.toHaveBeenCalled()
+      expect(mockDb.getFitnessRouteHeatmapTilesInRange).not.toHaveBeenCalled()
+    }
+  )
+
   it('reads nothing for bounds that enclose no tile row', async () => {
     // Inverted bounds resolve to an empty row range: north is a smaller y in
     // Mercator, so a swapped pair puts minY past maxY. Handing that to the
@@ -138,7 +170,7 @@ describe('buildHeatmapSegmentsFromTiles', () => {
     const inverted = { minLat: 60, maxLat: -60, minLng: 4, maxLng: 5 }
 
     const segments = await buildHeatmapSegmentsFromTiles(database, {
-      actorId: ACTOR_ID,
+      heatmap: scope,
       bounds: inverted,
       width: 600,
       height: 400,
@@ -263,7 +295,7 @@ describe('buildHeatmapSegmentsFromTiles', () => {
     // The range read is a `whereBetween`, which matches nothing when minX
     // exceeds maxX rather than wrapping around.
     await buildHeatmapSegmentsFromTiles(database, {
-      actorId: ACTOR_ID,
+      heatmap: scope,
       bounds: { minLat: -18.2, maxLat: -18.1, minLng: 179.9, maxLng: -179.9 },
       width: 600,
       height: 400,

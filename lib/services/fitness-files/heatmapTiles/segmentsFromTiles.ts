@@ -13,6 +13,7 @@ import {
   clipTileSegmentsToRegion
 } from './tileRegion'
 import { HeatmapTileRun, tileRunsToLngLat } from './tileRuns'
+import { buildHeatmapTileSource, isPyramidVariantHeatmap } from './tileSource'
 
 /**
  * A run with its visit count kept, so a renderer can shade by it.
@@ -25,8 +26,21 @@ export interface HeatmapSegmentWithCount extends FitnessRouteHeatmapSegment {
   count: number
 }
 
-interface BuildParams {
+/**
+ * The scope the share was published at, alongside whose history it is.
+ *
+ * Taken as one object rather than as an actor id plus loose filters: the two
+ * have to describe the same row, and splitting them lets a caller pair one
+ * actor's id with another row's scope.
+ */
+interface HeatmapScope {
   actorId: string
+  activityType?: string | null
+  periodType: string
+}
+
+interface BuildParams {
+  heatmap: HeatmapScope
   bounds: FitnessRouteHeatmapBounds
   width: number
   height: number
@@ -89,6 +103,16 @@ export const imageZoomForBounds = (
  * serve. The downstream point budgets in `staticHeatmapImage` apply unchanged;
  * this only changes where the geometry comes from, and at what fidelity.
  *
+ * Two boundaries are enforced here rather than assumed, because every path
+ * that reads the pyramid has to enforce them again.
+ *
+ * The share must be one the pyramid can ANSWER. Tiles are built from the
+ * actor's whole history and the filters live in the row, not in the tiles, so a
+ * share scoped to one sport or one year cannot be served from them at all --
+ * clipping bounds the geography and nothing else, so it cannot catch this.
+ * `buildHeatmapTileSource` is the same predicate the public tile route refuses
+ * on, and it carries the version the rows are then held to.
+ *
  * Clipping to the share's region happens HERE rather than being assumed: the
  * pyramid is stored unclipped and covers the actor's whole history, so an image
  * built from it without clipping would publish everywhere they have been. That
@@ -97,12 +121,16 @@ export const imageZoomForBounds = (
  */
 export const buildHeatmapSegmentsFromTiles = async (
   database: Database,
-  { actorId, bounds, width, height, regionBounds }: BuildParams
+  { heatmap, bounds, width, height, regionBounds }: BuildParams
 ): Promise<HeatmapSegmentWithCount[] | null> => {
+  const { actorId } = heatmap
+  // Before the read, because a variant is not something the pyramid can answer
+  // however complete it is.
+  if (!isPyramidVariantHeatmap(heatmap)) return null
+
   const pyramid = await database.getFitnessRouteHeatmapPyramid({ actorId })
-  if (!pyramid || pyramid.status !== 'completed' || pyramid.version < 1) {
-    return null
-  }
+  const source = buildHeatmapTileSource(heatmap, pyramid)
+  if (!source) return null
 
   const z = imageZoomForBounds(bounds, width, height)
   const range = tilesForBounds(bounds, z)
@@ -140,7 +168,7 @@ export const buildHeatmapSegmentsFromTiles = async (
     // Only the build's own version. A rebuild in flight leaves two versions in
     // the table at once, and drawing them together shows heat no build ever
     // produced — the same rule the tile routes apply.
-    if (row.version !== pyramid.version) continue
+    if (row.version !== source.version) continue
 
     // The ROW's own coordinate, not the zoom the query asked for. They agree —
     // the read is scoped to `z` — but a tile's points are only meaningful
