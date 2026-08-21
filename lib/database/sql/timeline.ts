@@ -61,28 +61,36 @@ const getLocalActorIds = (database: Knex): Promise<string[]> =>
 // de-duplicated on insert) appeared twice in the timeline.
 //
 // The local-actor test is a `whereIn` over ids fetched separately, NOT a join
-// to `actors`. Fixing the semi-join left this query still choosing between two
-// wildly different plans by `limit` alone, with the crossover at 24: a page of
-// 23 ran an index scan over `statuses_reply_created_idx` in ~1ms, while the
-// API's default page of 30 sequentially scanned `actors`, gathered every status
-// those actors had written and sorted the lot — ~88ms and 35k buffers to return
-// 30 rows. The cause is a cardinality miss the join itself creates. Joining on
-// `actors.id`, a unique key, leaves the planner no statistics correlating an
-// actor with how much it posts, so it assumes statuses are spread evenly across
-// actors and estimates 150 eligible rows where there are 7,262 — a 48x
-// under-estimate that makes filling a page look like it needs a fifth of the
-// index. Literal ids give it `statuses.actorId`'s own histogram and MCV list
-// instead, which describe exactly that skew, and the estimate lands close
-// enough for the ordered index scan to win at every page size.
+// to `actors`, because the join form is fragile in a way that shows up
+// differently on production and on a local reproduction — and is bad on both.
 //
-// The extra round trip stays on `actors_local_idx` — 2 buffers post-migration,
-// and still an index scan with the table blown up to 205,000 actors. It is NOT
-// an index-only scan: that index carries `id` alone and its partial predicate
-// covers only the `IS NOT NULL` half, so `privateKey <> ''` is a heap-fetched
-// recheck. Widening the index predicate to both halves does restore
-// `Heap Fetches: 0`, and is deliberately not done — after the migration the
-// index holds one entry per genuinely local actor, which is the difference
-// between 2 buffers and 2.
+// ON PRODUCTION (Query Insights, plus a read-only EXPLAIN session against the
+// pre-fix query): 88ms average, and a plan that changed with `limit` alone,
+// crossing over at 24. A page of 23 ran an index scan over
+// `statuses_reply_created_idx` in ~1ms / 228 buffers; the API's own default of
+// 30 switched to a parallel sequential scan of `actors`, gathered every status
+// those actors had written and sorted the lot — ~88ms and 35,108 buffers to
+// return 30 rows. The planner estimated 150 eligible rows against 7,262 actual.
+//
+// The cause is a cardinality miss the join itself creates. Joining on
+// `actors.id`, a unique key, leaves the planner no statistic correlating an
+// actor with how much it posts, so it assumes statuses are spread evenly across
+// actors. Literal ids give it `statuses.actorId`'s own histogram and MCV list
+// instead, which describe exactly that skew.
+//
+// A local seed matching production's ROW COUNTS does not reproduce its
+// STATISTICS, so it does not reproduce that crossover — there the null-only
+// join stays fast at every limit (159/163/199 buffers at 23/24/30). What it
+// does show is worse and is the reason both halves of this change ship
+// together: see the measurement below.
+//
+// The extra round trip stays on `actors_local_idx` rather than scanning
+// `actors` — 11 buffers on the seed. It is NOT an index-only scan: that index
+// carries `id` alone and its partial predicate covers only the `IS NOT NULL`
+// half, so `privateKey <> ''` is a heap-fetched recheck. Widening the index
+// predicate to both halves would restore `Heap Fetches: 0` and is deliberately
+// not done: after the migration the index holds one entry per genuinely local
+// actor, so there is almost nothing left to recheck.
 //
 // Early termination here rests on local posts being reasonably dense near the
 // head of the global (reply='', createdAt DESC) ordering, since the scan walks
@@ -102,26 +110,27 @@ const getLocalActorIds = (database: Knex): Promise<string[]> =>
 //
 // That fallback is a CORRECTNESS valve, not an equivalent plan, and it is worth
 // being precise about how much it gives up. Measured on a local PostgreSQL 17
-// loaded to the same shape as production (5 local actors, 216 legacy
-// empty-key ones, 2,971 eligible rows, 79k statuses), returning 30 rows:
+// loaded to the same shape as production (5 local actors, 216 legacy empty-key
+// ones, 2,971 eligible rows, 79k statuses), buffers at limit 23 / 24 / 30:
 //
-//     literal ids                 ~176 buffers
-//     semi-join on actors      ~16,300 buffers
-//     inner join on actors     ~16,200 buffers
+//     literal ids                    137 /    142 /    176
+//     inner join, with `<> ''`    16,866 / 16,866 / 16,866
+//     semi-join on actors                    ~16,300 (at 30)
+//     inner join, `IS NOT NULL` only 159 /    163 /    199
 //
-// Both join forms lose early termination outright — they materialize all 2,971
-// eligible rows and top-N sort them, at every page size — because once the
-// planner drives from `actors` it cannot use `statuses_reply_created_idx` to
-// satisfy the ORDER BY. Only the literal-id form keeps `statuses` as the
-// driving relation, and only it early-terminates. Widening the partial
-// `actors_local_idx` predicate to match does NOT recover that: the index is
-// then used and the sort remains.
+// Read the middle two rows against the last one. Once the correctness predicate
+// is present, BOTH join forms lose early termination outright at EVERY page
+// size — they materialize all 2,971 eligible rows and top-N sort them, because
+// the planner drives from `actors` and cannot then use
+// `statuses_reply_created_idx` to satisfy the ORDER BY. (Widening the partial
+// `actors_local_idx` predicate to match does not recover that: the index gets
+// used and the sort remains.) Only the literal-id form keeps `statuses` as the
+// driving relation, and only it early-terminates.
 //
-// The crossover is exact and it is the CORRECTNESS fix that triggers it. With
-// `<> ''` added to the inner join, limit 23 costs 155 buffers and limit 24
-// costs 16,962; the old `IS NOT NULL`-only join stays fast at every limit
-// (155/159/195/259). So the two halves of this change cannot ship apart: the
-// predicate fix alone flips the plan, and the literal ids are what hold it.
+// So the two halves of this change cannot ship apart. Adding `<> ''` to the
+// join — the correctness fix on its own — is what turns a 199-buffer query into
+// a 16,866-buffer one here, and production was already one page size away from
+// its own bad plan. The literal ids are what make the predicate affordable.
 //
 // So an instance that trips this threshold gets a correct answer and a slow
 // one. The fix at that point is per-chunk LIMIT-bounded queries merged in

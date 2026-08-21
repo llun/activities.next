@@ -123,8 +123,9 @@ change doesn't touch.
   consumed as a typed shape.
 - The local public timeline passes local actor ids in as literal values and must
   not join `actors`. Joining on that unique key collapses the planner's estimate
-  and loses `LIMIT` early termination at every page size (~176 buffers vs
-  ~16,200 measured). The id fetch carries an explicit `LIMIT` of one past what
+  and loses `LIMIT` early termination at every page size once the `<> ''`
+  predicate is present (176 buffers vs 16,866 measured at a page of 30, and the
+  join is no better at 23). The id fetch carries an explicit `LIMIT` of one past what
   the query can bind — it runs on an anonymous path, which is why the bound is
   required, not what supplies it.
 - A caller-supplied id compared against a **numeric** column is coerced first.

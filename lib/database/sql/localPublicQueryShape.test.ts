@@ -113,10 +113,12 @@ describe('local public timeline query shape', () => {
       expect(sql).not.toContain('distinct')
 
       // The local-actor test is literal ids, not a join. Joining `actors` on
-      // its unique key is what left the planner estimating 150 eligible rows
-      // against 7,262, which flipped this query onto a sequential scan of
-      // `actors` at any page bigger than 23 — the API's own default of 30
-      // included. That revert is invisible to every result-based assertion.
+      // its unique key leaves the planner no statistic for how much an actor
+      // posts: on production that under-estimated the eligible rows ~48x and
+      // the plan flipped at a page of 24, and on a seed matching production's
+      // shape the same join carrying the `<> ''` predicate costs 16,866
+      // buffers against the literal form's 176 — at every page size. That
+      // revert is invisible to every result-based assertion.
       expect(sql).not.toContain('inner join actors')
       expect(sql).toContain('statuses.actorId in (')
 
