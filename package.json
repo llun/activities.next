@@ -28,7 +28,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1111.0",
     "@aws-sdk/util-utf8-node": "^3.259.0",
     "@better-auth/core": "1.7.1",
-    "@better-auth/infra": "^0.3.7",
+    "@better-auth/infra": "^0.4.1",
     "@better-auth/oauth-provider": "^1.7.1",
     "@better-auth/passkey": "^1.7.1",
     "@better-auth/sso": "^1.7.1",
