@@ -36,8 +36,9 @@ Always refer to and follow the guidelines in [AGENTS.md](../AGENTS.md) for all c
 
 1. Run `yarn run prettier --write .` to format code.
 2. Run `yarn lint` and ensure it passes with no errors.
-3. Run `yarn build` and ensure it passes with no errors.
-4. Run `yarn test` and ensure it passes with no errors.
+3. Run `yarn typecheck` and ensure it passes with no errors.
+4. Run `yarn build` and ensure it passes with no errors.
+5. Run `yarn test` and ensure it passes with no errors.
 
 ### Database Operations
 

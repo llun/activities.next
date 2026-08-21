@@ -45,10 +45,10 @@ vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => Promise.resolve(null)
 }))
 
-// All tokens under test are opaque, so verifyAccessToken is never invoked; the
+// All tokens under test are opaque, so verifyBearerToken is never invoked; the
 // mock just keeps the better-auth ESM module out of the transform path.
 vi.mock('better-auth/oauth2', () => ({
-  verifyAccessToken: vi.fn()
+  verifyBearerToken: vi.fn()
 }))
 
 vi.mock('@/lib/config', () => ({

@@ -1,0 +1,253 @@
+{
+  // Lint configuration. ESLint and typescript-eslint were replaced by Oxlint
+  // because TypeScript 7 ships no JavaScript compiler API for typescript-eslint
+  // to load (see AGENTS.md → TypeScript). The rule set below is the migrated
+  // eslint.config.mjs (`yarn dlx @oxlint/migrate`), with the AGENTS.md
+  // conventions Oxlint cannot express natively moved into lint/agentsRules.mjs.
+  //
+  // Disable a rule on one line with `// oxlint-disable-next-line <rule>`; the
+  // `eslint-disable-next-line` spelling keeps working too.
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": [],
+  "jsPlugins": ["./lint/agentsRules.mjs"],
+  "categories": {
+    "correctness": "off"
+  },
+  "env": {
+    "builtin": true
+  },
+  "ignorePatterns": [
+    ".next/**",
+    "out/**",
+    "build/**",
+    "dist/**",
+    ".yarn/**",
+    "coverage/**",
+    "node_modules/**",
+    "migrations/**",
+    "plans/**",
+    "scripts/**",
+    "*.config.mjs",
+    "*.config.js",
+    "*.config.ts",
+    "wallaby.js",
+    "test-config.js"
+  ],
+  "rules": {
+    "constructor-super": "error",
+    "for-direction": "error",
+    "getter-return": "error",
+    "no-async-promise-executor": "error",
+    "no-case-declarations": "error",
+    "no-class-assign": "error",
+    "no-compare-neg-zero": "error",
+    "no-cond-assign": "error",
+    "no-const-assign": "error",
+    "no-constant-binary-expression": "error",
+    "no-constant-condition": "error",
+    "no-control-regex": "error",
+    "no-debugger": "error",
+    "no-delete-var": "error",
+    "no-dupe-class-members": "error",
+    "no-dupe-else-if": "error",
+    "no-dupe-keys": "error",
+    "no-duplicate-case": "error",
+    "no-empty": "error",
+    "no-empty-character-class": "error",
+    "no-empty-pattern": "error",
+    "no-empty-static-block": "error",
+    "no-ex-assign": "error",
+    "no-extra-boolean-cast": "error",
+    "no-fallthrough": "error",
+    "no-func-assign": "error",
+    "no-global-assign": "error",
+    "no-import-assign": "error",
+    "no-invalid-regexp": "error",
+    "no-irregular-whitespace": "error",
+    "no-loss-of-precision": "error",
+    "no-misleading-character-class": "error",
+    "no-new-native-nonconstructor": "error",
+    "no-nonoctal-decimal-escape": "error",
+    "no-obj-calls": "error",
+    "no-prototype-builtins": "error",
+    "no-redeclare": "error",
+    "no-regex-spaces": "error",
+    "no-self-assign": "error",
+    "no-setter-return": "error",
+    "no-shadow-restricted-names": "error",
+    "no-sparse-arrays": "error",
+    "no-this-before-super": "error",
+    // eslint:recommended has this on, and @oxlint/migrate skips it as
+    // "nursery". public/sw.js is in no tsconfig and imported by nothing, so
+    // lint is the only thing that reads it — and this is its only check for an
+    // undeclared global, which is what a typo there looks like.
+    "no-undef": "error",
+    "no-unassigned-vars": "error",
+    "no-unexpected-multiline": "error",
+    "no-unreachable": "error",
+    "no-unsafe-finally": "error",
+    "no-unsafe-negation": "error",
+    "no-unsafe-optional-chaining": "error",
+    "no-unused-labels": "error",
+    "no-unused-private-class-members": "error",
+    "no-unused-vars": "error",
+    "no-useless-backreference": "error",
+    "no-useless-assignment": "error",
+    "no-useless-catch": "error",
+    "no-useless-escape": "error",
+    "no-with": "error",
+    "preserve-caught-error": "error",
+    "require-yield": "error",
+    "use-isnan": "error",
+    "valid-typeof": "error"
+  },
+  "overrides": [
+    {
+      "files": ["**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx"],
+      "rules": {
+        "no-array-constructor": "error",
+        "no-unused-expressions": "error",
+        "no-unused-vars": [
+          "error",
+          {
+            "argsIgnorePattern": "^_",
+            "varsIgnorePattern": "^_",
+            "caughtErrorsIgnorePattern": "^_"
+          }
+        ],
+        "no-redeclare": "off",
+        // Oxlint's port also flags `(x?.y as T).z`, which ESLint's did not — 26 sites,
+        // all in test files. Kept at warn, the severity it had under ESLint.
+        "no-unsafe-optional-chaining": "warn",
+        "nextjs/no-img-element": "off",
+        "typescript/ban-ts-comment": "error",
+        "typescript/no-duplicate-enum-values": "error",
+        "typescript/no-empty-object-type": "off",
+        "typescript/no-explicit-any": "warn",
+        "typescript/no-extra-non-null-assertion": "error",
+        "typescript/no-misused-new": "error",
+        "typescript/no-namespace": "error",
+        "typescript/no-non-null-asserted-optional-chain": "error",
+        "typescript/no-require-imports": "off",
+        "typescript/no-this-alias": "error",
+        "typescript/no-unnecessary-type-constraint": "error",
+        "typescript/no-unsafe-declaration-merging": "error",
+        "typescript/no-unsafe-function-type": "error",
+        "typescript/no-wrapper-object-types": "error",
+        "typescript/prefer-as-const": "error",
+        "typescript/prefer-namespace-keyword": "error",
+        "typescript/triple-slash-reference": "error"
+      },
+      "globals": {
+        "React": "readonly",
+        "JSX": "readonly",
+        "NodeJS": "readonly",
+        "BodyInit": "readonly",
+        "FormDataEntryValue": "readonly"
+      },
+      "plugins": ["typescript", "nextjs"],
+      "env": {
+        "browser": true,
+        "es2024": true,
+        "node": true
+      }
+    },
+    {
+      "files": [
+        "app/**/*.{js,jsx,ts,tsx}",
+        "lib/**/*.{js,jsx,ts,tsx}",
+        "proxy.ts",
+        "instrumentation.ts"
+      ],
+      "rules": {
+        "no-console": "error",
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["..", "../**"],
+                "message": "Use absolute imports (@/lib/..., @/app/...) for anything outside the current directory (AGENTS.md → Coding Style & Naming Conventions)."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      // public/sw.js is a browser service worker: it is served as a static asset,
+      // registered at runtime by navigator.serviceWorker.register('/sw.js'), and
+      // included in NO tsconfig, so `no-undef` above is the only thing checking
+      // it. Its own `/* global self, clients */` comment does not help — oxlint
+      // does not honor those directives — so its globals are declared here.
+      "files": ["public/sw.js"],
+      "env": { "serviceworker": true, "browser": true },
+      "globals": { "clients": "readonly" }
+    },
+    {
+      // AGENTS.md conventions that were `no-restricted-syntax` selectors under
+      // ESLint. Oxlint has no such rule, so they live in the local JS plugin
+      // lint/agentsRules.mjs (declared as `jsPlugins` above) and are guarded by
+      // lint/agentsRules.test.ts.
+      "files": ["app/api/**/route.ts"],
+      "rules": {
+        "agents/api-response-helpers": "error",
+        "agents/zod-safe-parse": "error"
+      }
+    },
+    {
+      // Direct fetch() is banned in React component files — client→server calls go
+      // through named exported functions in lib/client.ts (AGENTS.md →
+      // Client-Side API Calls). `allowFiles` is the FROZEN set of legacy offenders
+      // from before this rule existed: migrate them to lib/client.ts when touched
+      // and remove them here. NEVER add a new file. Test files are exempted by the
+      // rule itself.
+      "files": ["app/**/*.tsx", "lib/components/**/*.tsx"],
+      "rules": {
+        "agents/no-component-fetch": [
+          "error",
+          {
+            "allowFiles": [
+              "app/(timeline)/fitness/strava/StravaSettingsForm.tsx",
+              "app/(timeline)/account/ChangeEmailForm.tsx",
+              "app/(timeline)/account/ChangeNameForm.tsx",
+              "app/(timeline)/account/security/ChangePasswordForm.tsx",
+              "app/(nosidebar)/oauth/authorize/AuthorizeCard.tsx",
+              "app/(nosidebar)/auth/forgot-password/RequestPasswordResetForm.tsx",
+              "app/(nosidebar)/auth/reset-password/ResetPasswordForm.tsx",
+              "lib/components/settings/DeleteActorDialog.tsx",
+              "lib/components/settings/MediaManagement.tsx",
+              "lib/components/settings/ActorsSection.tsx",
+              "lib/components/actor-switcher/ActorSwitcher.tsx",
+              "lib/components/actor-switcher/AddActorDialog.tsx"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "**/*.test.js",
+        "**/*.test.jsx",
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/__mocks__/**",
+        "**/stub/**"
+      ],
+      "globals": {
+        "vi": "writable",
+        "jest": "writable",
+        "describe": "writable",
+        "it": "writable",
+        "expect": "writable",
+        "beforeAll": "writable",
+        "afterAll": "writable",
+        "beforeEach": "writable",
+        "afterEach": "writable",
+        "test": "writable",
+        "fetchMock": "writable",
+        "fail": "writable"
+      }
+    }
+  ]
+}

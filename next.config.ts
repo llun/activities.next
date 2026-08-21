@@ -8,15 +8,24 @@ import { getStaticSecurityHeaders } from '@/lib/utils/http-headers/static'
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: process.env.BUILD_STANDALONE ? 'standalone' : undefined,
+  typescript: {
+    // The `tsc` CLI checks every file its config includes, so the build reads a
+    // tsconfig that drops `*.test.ts(x)` — those are `yarn typecheck`'s job and
+    // carry a pre-existing error backlog. Everything else the project includes
+    // (app, lib, scripts, root files) is checked, which is more than the old
+    // compiler-API checker covered: it only walked the app's module graph.
+    tsconfigPath: 'tsconfig.build.json'
+  },
   experimental: {
-    // Next 16.3 defaults to running the project-local `tsc` CLI for type
-    // checking, which type-checks every file `tsconfig.json` includes —
-    // `*.test.ts(x)` included. This project deliberately never type-checks
-    // test files in CI (see AGENTS.md Testing Guidelines), so the CLI
-    // checker surfaces a large backlog of pre-existing test-file type
-    // errors unrelated to any real change. Keep the previous (JS compiler
-    // API-based) checker, which only checks the app's own module graph.
-    useTypeScriptCli: false
+    // TypeScript 7 ships no JavaScript compiler API, so Next type-checks by
+    // running the project-local `tsc` CLI. This is Next 16.3's own default;
+    // it is pinned here to keep the coupling with `tsconfigPath` above
+    // explicit. Next resolves the CLI from the package named `typescript` and
+    // needs its `bin.tsc`: never alias that package (e.g. to
+    // @typescript/typescript6 for a side-by-side install) while this is on, or
+    // `next build` runs `yarn add --dev typescript` itself mid-build and
+    // rewrites package.json. See AGENTS.md -> TypeScript.
+    useTypeScriptCli: true
   },
   // sharp's native *.node binary dlopen's its libvips shared library via a
   // native RPATH, which the standalone tracer (@vercel/nft) cannot follow.

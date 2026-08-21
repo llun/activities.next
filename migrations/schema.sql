@@ -34,7 +34,8 @@ CREATE TABLE public.account_providers (
     "idToken" text,
     "accessTokenExpiresAt" timestamp with time zone,
     "refreshTokenExpiresAt" timestamp with time zone,
-    scope text
+    scope text,
+    issuer character varying(255)
 );
 
 CREATE TABLE public.accounts (
@@ -608,7 +609,9 @@ CREATE TABLE public.jwks (
     "publicKey" text NOT NULL,
     "privateKey" text NOT NULL,
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "expiresAt" timestamp with time zone
+    "expiresAt" timestamp with time zone,
+    alg character varying(255),
+    crv character varying(255)
 );
 
 CREATE TABLE public.knex_migrations (
@@ -783,7 +786,12 @@ CREATE TABLE public."oauthAccessToken" (
     "refreshId" character varying(255),
     "expiresAt" timestamp with time zone NOT NULL,
     scopes text NOT NULL,
-    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    "authorizationCodeId" character varying(255),
+    resources text,
+    "requestedUserInfoClaims" text,
+    revoked timestamp with time zone,
+    confirmation text
 );
 
 CREATE TABLE public."oauthClient" (
@@ -816,7 +824,28 @@ CREATE TABLE public."oauthClient" (
     "referenceId" character varying(255),
     metadata text,
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    "clientDiscoveryId" character varying(255),
+    "clientCredentialsScopes" text,
+    "backchannelLogoutUri" character varying(255),
+    "backchannelLogoutSessionRequired" boolean,
+    "applicationType" character varying(255),
+    jwks text,
+    "jwksUri" character varying(255),
+    "dpopBoundAccessTokens" boolean DEFAULT false
+);
+
+CREATE TABLE public."oauthClientAssertion" (
+    id character varying(255) NOT NULL,
+    "expiresAt" timestamp with time zone NOT NULL
+);
+
+CREATE TABLE public."oauthClientResource" (
+    id character varying(255) NOT NULL,
+    "clientId" character varying(255) NOT NULL,
+    "resourceId" character varying(255) NOT NULL,
+    metadata text,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE public."oauthConsent" (
@@ -826,7 +855,9 @@ CREATE TABLE public."oauthConsent" (
     "referenceId" character varying(255),
     scopes text NOT NULL,
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    resources text,
+    "requestedUserInfoClaims" text
 );
 
 CREATE TABLE public."oauthRefreshToken" (
@@ -840,7 +871,32 @@ CREATE TABLE public."oauthRefreshToken" (
     revoked timestamp with time zone,
     "authTime" timestamp with time zone,
     scopes text NOT NULL,
-    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    "authorizationCodeId" character varying(255),
+    resources text,
+    "requestedUserInfoClaims" text,
+    "rotatedAt" timestamp with time zone,
+    "rotationReplayResponse" text,
+    "rotationReplayExpiresAt" timestamp with time zone,
+    confirmation text
+);
+
+CREATE TABLE public."oauthResource" (
+    id character varying(255) NOT NULL,
+    identifier character varying(255) NOT NULL,
+    name character varying(255) NOT NULL,
+    "accessTokenTtl" integer,
+    "refreshTokenTtl" integer,
+    "signingAlgorithm" character varying(255),
+    "signingKeyId" character varying(255),
+    "allowedScopes" text,
+    "customClaims" text,
+    "dpopBoundAccessTokensRequired" boolean,
+    disabled boolean,
+    "policyVersion" integer,
+    metadata text,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE public.passkey (
@@ -1497,6 +1553,12 @@ ALTER TABLE ONLY public.notifications
 ALTER TABLE ONLY public."oauthAccessToken"
     ADD CONSTRAINT "oauthAccessToken_pkey" PRIMARY KEY (id);
 
+ALTER TABLE ONLY public."oauthClientAssertion"
+    ADD CONSTRAINT "oauthClientAssertion_pkey" PRIMARY KEY (id);
+
+ALTER TABLE ONLY public."oauthClientResource"
+    ADD CONSTRAINT "oauthClientResource_pkey" PRIMARY KEY (id);
+
 ALTER TABLE ONLY public."oauthClient"
     ADD CONSTRAINT "oauthClient_pkey" PRIMARY KEY (id);
 
@@ -1506,6 +1568,9 @@ ALTER TABLE ONLY public."oauthConsent"
 ALTER TABLE ONLY public."oauthRefreshToken"
     ADD CONSTRAINT "oauthRefreshToken_pkey" PRIMARY KEY (id);
 
+ALTER TABLE ONLY public."oauthResource"
+    ADD CONSTRAINT "oauthResource_pkey" PRIMARY KEY (id);
+
 ALTER TABLE ONLY public."oauthAccessToken"
     ADD CONSTRAINT oauthaccesstoken_token_unique UNIQUE (token);
 
@@ -1514,6 +1579,9 @@ ALTER TABLE ONLY public."oauthClient"
 
 ALTER TABLE ONLY public."oauthRefreshToken"
     ADD CONSTRAINT oauthrefreshtoken_token_unique UNIQUE (token);
+
+ALTER TABLE ONLY public."oauthResource"
+    ADD CONSTRAINT oauthresource_identifier_unique UNIQUE (identifier);
 
 ALTER TABLE ONLY public.passkey
     ADD CONSTRAINT passkey_credentialid_unique UNIQUE ("credentialID");
@@ -1941,6 +2009,12 @@ ALTER TABLE ONLY public."oauthAccessToken"
 
 ALTER TABLE ONLY public."oauthClient"
     ADD CONSTRAINT oauthclient_userid_foreign FOREIGN KEY ("userId") REFERENCES public.accounts(id);
+
+ALTER TABLE ONLY public."oauthClientResource"
+    ADD CONSTRAINT oauthclientresource_clientid_foreign FOREIGN KEY ("clientId") REFERENCES public."oauthClient"("clientId") ON DELETE CASCADE;
+
+ALTER TABLE ONLY public."oauthClientResource"
+    ADD CONSTRAINT oauthclientresource_resourceid_foreign FOREIGN KEY ("resourceId") REFERENCES public."oauthResource"(identifier) ON DELETE CASCADE;
 
 ALTER TABLE ONLY public."oauthConsent"
     ADD CONSTRAINT oauthconsent_clientid_foreign FOREIGN KEY ("clientId") REFERENCES public."oauthClient"("clientId");

@@ -35,16 +35,24 @@ const buildAuth = (baseURL: string) => {
     // this better-auth reads the `sessions` row, then reads the `accounts` row
     // it points at, on every authenticated request.
     //
-    // On better-auth 1.6.x this flag is an assertion, not a request: with it on,
-    // the adapter factory passes `join` down and then reads the related rows
-    // straight off what the adapter returned, with no capability check and no
-    // fallback. An adapter that ignored `join` would hand back a session with no
-    // user, which `findSession` reports as "no session" — every signed-in user
-    // silently logged out. It is safe here only because `knexAdapter` implements
-    // the join contract (see the join helpers there), and
-    // `sessionJoins.test.ts` covers this end to end.
-    experimental: {
-      joins: true
+    // The flag lived at `experimental.joins` until better-auth 1.7 moved it
+    // here; 1.7 dropped `experimental` entirely, so the old key is silently
+    // ignored rather than rejected — which is exactly the shape of a
+    // "performance regression nobody notices". `sessionJoins.test.ts` asserts
+    // the single statement, so the flag going stale again fails a test.
+    //
+    // 1.7 also made the flag a request rather than an assertion: the factory now
+    // falls back to separate queries for an adapter that leaves `join`
+    // unanswered, where 1.6.x read the related rows straight off whatever came
+    // back and logged every user out if they were missing. `knexAdapter`
+    // implements the join contract either way (see the join helpers there).
+    advanced: {
+      database: {
+        joins: true
+      },
+      ipAddress: {
+        ipAddressHeaders: ['x-forwarded-for', 'x-real-ip']
+      }
     },
     secret: config.secretPhase,
     baseURL,
@@ -97,17 +105,19 @@ const buildAuth = (baseURL: string) => {
       // EdDSA/Ed25519 and a strict RS256 relying party (e.g. mozilla-django-oidc
       // with OIDC_RP_SIGN_ALGO=RS256) cannot verify the id_token signature.
       //
-      // Rollout note: this `jwks` table has no per-key `alg` column (and the
-      // plugin's jwks schema declares none), so better-auth resolves the signing
-      // and JWKS `alg` from THIS config, not from each stored key. A fresh
-      // deployment generates an RSA key on the first sign / first /api/auth/jwks
-      // request and is consistent. A deployment that already signed a token (an
-      // Ed25519 key already sits in `jwks`) must have that row cleared once on
-      // rollout so a fresh RSA key is generated — otherwise the plugin loads the
-      // stale Ed25519 key and tries to sign it as RS256, which throws. This does
-      // not affect Mastodon OAuth2 clients: they use opaque access tokens
-      // verified against the database (not the JWKS), and id_tokens are
-      // short-lived, so no long-lived token depends on the retired EdDSA key.
+      // Rollout note: better-auth 1.7 added a per-key `alg` column to `jwks`
+      // (and `crv`), so from here on a key records the algorithm it was minted
+      // for and the plugin can resolve a signing key by it. Rows written before
+      // that migration have a NULL `alg` and still fall back to THIS config.
+      // Which means the pre-1.7 hazard stands for them: a deployment that
+      // already signed a token with the pre-RS256 default (an Ed25519 key sits
+      // in `jwks`) must have that row cleared once on rollout, or the plugin
+      // loads the stale Ed25519 key and tries to sign it as RS256, which throws.
+      // A fresh deployment generates an RSA key on the first sign / first
+      // /api/auth/jwks request and is consistent. Either way this does not
+      // affect Mastodon OAuth2 clients: they use opaque access tokens verified
+      // against the database (not the JWKS), and id_tokens are short-lived, so
+      // no long-lived token depends on the retired EdDSA key.
       jwt({ jwks: { keyPairConfig: { alg: 'RS256', modulusLength: 2048 } } }),
       // rpID/origin are derived from this instance's resolved host so passkey
       // ceremonies run against the domain the request actually arrived on. See
@@ -233,11 +243,6 @@ const buildAuth = (baseURL: string) => {
             }
           }
         }
-      }
-    },
-    advanced: {
-      ipAddress: {
-        ipAddressHeaders: ['x-forwarded-for', 'x-real-ip']
       }
     }
   })

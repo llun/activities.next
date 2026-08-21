@@ -78,7 +78,7 @@ vi.mock('@/lib/config', () => ({
 }))
 
 vi.mock('better-auth/oauth2', () => ({
-  verifyAccessToken: vi.fn()
+  verifyBearerToken: vi.fn()
 }))
 
 vi.mock('@/lib/services/auth/getSession', () => ({

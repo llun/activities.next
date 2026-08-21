@@ -2,6 +2,8 @@ import { Knex } from 'knex'
 
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { applyExclusiveListFilter } from '@/lib/database/sql/utils/exclusiveLists'
+import { getWhereInBatchSize } from '@/lib/database/sql/utils/knex'
+import { whereLocalActor } from '@/lib/database/sql/utils/localActor'
 import { Timeline } from '@/lib/services/timelines/types'
 import { StatusDatabase } from '@/lib/types/database/operations'
 import {
@@ -10,6 +12,33 @@ import {
   TimelineDatabase
 } from '@/lib/types/database/operations'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+
+// Bind parameters this query spends on things that are not actor ids: `reply`,
+// the recipient type and actor, three per cursor bound, and `limit`. Measured
+// at 10 by compiling the builder with every option on; 12 leaves margin.
+const LOCAL_PUBLIC_RESERVED_BINDINGS = 12
+
+// The most actor ids this query can carry as literal values — see the note on
+// localPublicStatusesQuery for what happens above it.
+const getLocalActorIdLimit = (database: Knex) =>
+  getWhereInBatchSize(database, LOCAL_PUBLIC_RESERVED_BINDINGS)
+
+// The ids of every actor this server hosts, capped one past what the query can
+// use. Read once per public-timeline request and pushed into the query below as
+// literal values — see the note there for why this is a separate query rather
+// than a join.
+//
+// The cap is what keeps this bounded on an anonymous path. Unbounded, an
+// instance too large for the literal-id form would pluck every local actor id
+// over the wire — 20,005 of them measured at 418 buffers and ~630 KB — and then
+// discard the whole list, because the branch it selects only needs the length.
+// Reading one more than the limit still distinguishes "fits" from "does not",
+// which is all either caller asks.
+const getLocalActorIds = (database: Knex): Promise<string[]> =>
+  database('actors')
+    .modify(whereLocalActor)
+    .limit(getLocalActorIdLimit(database) + 1)
+    .pluck('id')
 
 // Top-level (non-reply) statuses addressed to the public collection and
 // authored by a local actor (one with a private key). The LOCAL_PUBLIC feed and
@@ -30,10 +59,101 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 // It also removes a latent duplicate: the feed had no DISTINCT at all, so a
 // status carrying the public collection twice in `to` (remote input is not
 // de-duplicated on insert) appeared twice in the timeline.
-const localPublicStatusesQuery = (database: Knex) =>
-  database('statuses')
-    .innerJoin('actors', 'statuses.actorId', 'actors.id')
-    .whereNotNull('actors.privateKey')
+//
+// The local-actor test is a `whereIn` over ids fetched separately, NOT a join
+// to `actors`, because the join form is fragile in a way that shows up
+// differently on production and on a local reproduction — and is bad on both.
+//
+// ON PRODUCTION (Query Insights, plus a read-only EXPLAIN session against the
+// pre-fix query): 88ms average, and a plan that changed with `limit` alone,
+// crossing over at 24. A page of 23 ran an index scan over
+// `statuses_reply_created_idx` in ~1ms / 228 buffers; the API's own default of
+// 30 switched to a parallel sequential scan of `actors`, gathered every status
+// those actors had written and sorted the lot — ~88ms and 35,108 buffers to
+// return 30 rows. The planner estimated 150 eligible rows against 7,262 actual.
+//
+// The cause is a cardinality miss the join itself creates. Joining on
+// `actors.id`, a unique key, leaves the planner no statistic correlating an
+// actor with how much it posts, so it assumes statuses are spread evenly across
+// actors. Literal ids give it `statuses.actorId`'s own histogram and MCV list
+// instead, which describe exactly that skew.
+//
+// A local seed matching production's ROW COUNTS does not reproduce its
+// STATISTICS, so it does not reproduce that crossover — there the null-only
+// join stays fast at every limit (~160/~164/~200 buffers at 23/24/30). What it
+// does show is worse and is the reason both halves of this change ship
+// together: see the measurement below.
+//
+// The extra round trip stays on `actors_local_idx` rather than scanning
+// `actors` — 11 buffers on the seed. It is NOT an index-only scan: that index
+// carries `id` alone and its partial predicate covers only the `IS NOT NULL`
+// half, so `privateKey <> ''` is a heap-fetched recheck. Widening the index
+// predicate to both halves would restore `Heap Fetches: 0` and is deliberately
+// not done: after the migration the index holds one entry per genuinely local
+// actor, so there is almost nothing left to recheck.
+//
+// Early termination here rests on local posts being reasonably dense near the
+// head of the global (reply='', createdAt DESC) ordering, since the scan walks
+// that index and discards non-local rows. In the measured shape the 30th
+// eligible row sits at position 80. Pushing every local status five years back
+// made the same query walk 44,291 non-matching entries for 12,140 buffers — no
+// better than the fallback, and the planner does not switch. Bounded by table
+// size and fine at this scale, but on an instance where remote inflow far
+// outpaces local posting the first page's cost tracks remote volume.
+//
+// One bind parameter per local actor is not free forever, and on SQLite it is a
+// hard wall rather than a slope: past SQLITE_MAX_VARIABLE_NUMBER the statement
+// fails to prepare. Chunking — the usual answer, and what
+// `deleteRowsByColumnChunks` does — cannot apply to a query whose whole purpose
+// is a single LIMIT-bounded ordered scan. So above the same threshold the rest
+// of the codebase uses, this falls back to a semi-join on `actors`.
+//
+// That fallback is a CORRECTNESS valve, not an equivalent plan, and it is worth
+// being precise about how much it gives up. Measured on a local PostgreSQL 17
+// loaded to the same shape as production (5 local actors, 216 legacy empty-key
+// ones, 2,971 eligible rows, 79k statuses), buffers at limit 23 / 24 / 30:
+//
+//     literal ids                      137 /  142 /  176
+//     either join form, with `<> ''`   ~16,700, flat across all three
+//     inner join, `IS NOT NULL` only   ~160 /  ~164 /  ~200
+//
+// The two join forms share ONE row because PostgreSQL gives them one plan: it
+// rewrites the unique-key inner join into the same `Nested Loop Semi Join`,
+// down to matching cost estimates and per-node buffers. So the `whereExists`
+// fallback is not a cheaper shape than the join it replaced — do not "optimise"
+// toward it on the strength of a number that only ever differed by which
+// session measured it.
+//
+// Only the first row is exact. The rest are a band on purpose: the `<> ''`
+// plans traverse all 2,971 eligible rows and take 441 heap fetches, and heap
+// fetches move with visibility-map state, so repeated measurement on identical
+// data has read 16,202 / 16,306 / 16,658 / 16,866. The literal-id form
+// early-terminates with `Heap Fetches: 0` and has nothing to drift. That
+// difference — full materialization versus early termination — is the whole
+// finding; the digits are not.
+//
+// Read the middle row against the last. Once the correctness predicate is
+// present, the join loses early termination outright at EVERY page size,
+// because the planner drives from `actors` and cannot then use
+// `statuses_reply_created_idx` to satisfy the ORDER BY, so it materializes
+// every eligible row and top-N sorts them. (Widening the partial
+// `actors_local_idx` predicate to match does not recover that: the index gets
+// used and the sort remains.) Only the literal-id form keeps `statuses` as the
+// driving relation.
+//
+// So the two halves of this change cannot ship apart. Adding `<> ''` to the
+// join — the correctness fix on its own — is what turns a ~200-buffer query
+// into a ~16,700-buffer one here, an ~80x jump; and on production the pre-fix query was
+// already past the crossover at its own default page size. The literal ids are
+// what make the predicate affordable.
+//
+// So an instance that trips this threshold gets a correct answer and a slow
+// one. The fix at that point is per-chunk LIMIT-bounded queries merged in
+// application code, not a different predicate — deliberately not built here,
+// because no instance is near the threshold and an untested path for a
+// hypothetical scale is its own liability.
+const localPublicStatusesQuery = (database: Knex, localActorIds: string[]) => {
+  const query = database('statuses')
     .where('statuses.reply', '')
     .whereExists(function () {
       this.select(database.raw('1'))
@@ -42,6 +162,18 @@ const localPublicStatusesQuery = (database: Knex) =>
         .where('recipients.type', 'to')
         .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
     })
+
+  if (localActorIds.length <= getLocalActorIdLimit(database)) {
+    return query.whereIn('statuses.actorId', localActorIds)
+  }
+
+  return query.whereExists(function () {
+    this.select(database.raw('1'))
+      .from('actors')
+      .whereRaw('?? = ??', ['actors.id', 'statuses.actorId'])
+      .modify(whereLocalActor, 'actors.privateKey')
+  })
+}
 
 export const TimelineSQLDatabaseMixin = (
   database: Knex,
@@ -68,15 +200,20 @@ export const TimelineSQLDatabaseMixin = (
           return statusRow ?? null
         }
 
-        const [maxRow, minRow] = await Promise.all([
+        const [maxRow, minRow, localActorIds] = await Promise.all([
           maxStatusId ? lookupPublicCursor(maxStatusId) : null,
-          minStatusId ? lookupPublicCursor(minStatusId) : null
+          minStatusId ? lookupPublicCursor(minStatusId) : null,
+          getLocalActorIds(database)
         ])
 
         if (maxStatusId && !maxRow) return []
         if (minStatusId && !minRow) return []
+        // A server with no local actors has no local public timeline. Returning
+        // early keeps that case from reaching the database at all, rather than
+        // relying on knex compiling an empty `whereIn` to a false constant.
+        if (localActorIds.length === 0) return []
 
-        let query = localPublicStatusesQuery(database)
+        let query = localPublicStatusesQuery(database, localActorIds)
           .select('statuses.id as statusId')
           .limit(limit)
 
@@ -307,7 +444,10 @@ export const TimelineSQLDatabaseMixin = (
   async getLocalPublicStatusesCount(limit?: number): Promise<number> {
     // Shares localPublicStatusesQuery with the LOCAL_PUBLIC branch of
     // getTimeline, so the threshold can never disagree with the feed it gates.
-    const query = localPublicStatusesQuery(database)
+    const localActorIds = await getLocalActorIds(database)
+    if (localActorIds.length === 0) return 0
+
+    const query = localPublicStatusesQuery(database, localActorIds)
 
     // The landing only needs to know whether the count reaches a threshold, not
     // the exact total. When `limit` is given, fetch at most `limit` ids and
@@ -321,8 +461,9 @@ export const TimelineSQLDatabaseMixin = (
       return rows.length
     }
 
-    // No DISTINCT needed: the semi-join yields each status once, and the actors
-    // join is on a unique key.
+    // No DISTINCT needed: the recipients semi-join yields each status once, and
+    // the local-actor test is a filter on `statuses` rather than a join that
+    // could multiply rows.
     const row = await query
       .count<{ count: string | number }>({ count: 'statuses.id' })
       .first()

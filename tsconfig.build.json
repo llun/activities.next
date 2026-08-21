@@ -1,0 +1,18 @@
+{
+  // The tsconfig `next build` type-checks with (next.config.ts ->
+  // typescript.tsconfigPath). TypeScript 7 ships no compiler API, so Next runs
+  // the `tsc` CLI, which checks every file its config includes rather than only
+  // the app's module graph. This one inherits tsconfig.json and drops
+  // *.test.ts(x); `yarn typecheck` covers those. Editors and `yarn typecheck`
+  // keep reading tsconfig.json / tsconfig.typecheck.json.
+  "extends": "./tsconfig.json",
+  // `exclude` REPLACES the inherited list, so the base entries are repeated.
+  "exclude": [
+    "node_modules",
+    "plans",
+    "vitest.setup.ts",
+    "vitest-shims",
+    "**/*.test.ts",
+    "**/*.test.tsx"
+  ]
+}

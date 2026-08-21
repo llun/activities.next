@@ -53,7 +53,7 @@ vi.mock('@/lib/database', () => ({
   getKnex: () => mockKnex
 }))
 
-vi.mock('better-auth/oauth2', () => ({ verifyAccessToken: vi.fn() }))
+vi.mock('better-auth/oauth2', () => ({ verifyBearerToken: vi.fn() }))
 
 vi.mock('next/headers', () => ({
   cookies: vi.fn().mockResolvedValue({
