@@ -5,12 +5,24 @@ import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import { FitnessRouteHeatmapData } from '@/lib/client'
 import { RouteHeatmapMapKit } from '@/lib/components/fitness/RouteHeatmapMapKit'
+import { buildTileGeoJson } from '@/lib/components/fitness/heatmapTileGeometry'
 import {
   RouteFocusBounds,
   buildRouteGeoJson,
   computeFocusBounds,
   downsampleSegments
 } from '@/lib/components/fitness/mapGeometry'
+import {
+  HeatmapTileFetcher,
+  HeatmapViewport,
+  useHeatmapTiles
+} from '@/lib/components/fitness/useHeatmapTiles'
+import {
+  HEAT_COUNT_SATURATION,
+  HEAT_HIDDEN_BASE_OPACITY,
+  HEAT_VISIBLE_BASE_OPACITY,
+  heatOpacityForCount
+} from '@/lib/services/fitness-files/heatmapTiles/constants'
 import { simplifySegmentsToBudget } from '@/lib/services/fitness-files/simplifyRoute'
 import { cn } from '@/lib/utils'
 import {
@@ -22,6 +34,16 @@ import {
 // Both libraries share this subset, so one component can drive either provider.
 type RouteGlMap = {
   on: (event: string, callback: () => void) => void
+  // Only needed by the tiled path, which must stop listening when the heatmap
+  // it was fetching for goes away — the map itself outlives that.
+  off?: (event: string, callback: () => void) => void
+  getZoom?: () => number
+  getBounds?: () => {
+    getWest: () => number
+    getSouth: () => number
+    getEast: () => number
+    getNorth: () => number
+  }
   remove: () => void
   resize: () => void
   addSource: (id: string, source: unknown) => void
@@ -82,6 +104,55 @@ const ROUTE_LINE_STYLES = {
     opacity: 0.4
   }
 } as const
+/**
+ * The tiled layer's ramp, in visit counts.
+ *
+ * Colour and width are interpolated over the count so a street ridden fifty
+ * times reads differently from one ridden once — which is the whole reason the
+ * pyramid stores a count per stretch of road rather than one polyline per
+ * activity. Opacity is NOT hand-tuned: it is generated from
+ * `heatOpacityForCount`, the same function the server documents the ramp with,
+ * so the two cannot drift and a test can pin the formula rather than a copied
+ * table of numbers.
+ */
+const TILE_COUNT_COLOR_STOPS = [1, '#ef4444', 4, '#f97316', 12, '#facc15']
+const TILE_COUNT_WIDTH_STOPS = [1, 2.8, 4, 3.4, 16, 4.2]
+
+export const tileOpacityStops = (base: number): number[] =>
+  Array.from(
+    { length: HEAT_COUNT_SATURATION },
+    (_unused, index) => index + 1
+  ).flatMap((count) => [count, heatOpacityForCount(count, base)])
+
+const countRamp = (stops: Array<number | string>) => [
+  'interpolate',
+  ['linear'],
+  ['get', 'count'],
+  ...stops
+]
+
+const TILE_LINE_PAINT = {
+  'line-color': [
+    'case',
+    ['boolean', ['get', 'isHiddenByPrivacy'], false],
+    ROUTE_LINE_STYLES.hidden.color,
+    countRamp(TILE_COUNT_COLOR_STOPS)
+  ],
+  'line-width': [
+    'case',
+    ['boolean', ['get', 'isHiddenByPrivacy'], false],
+    ROUTE_LINE_STYLES.hidden.width,
+    countRamp(TILE_COUNT_WIDTH_STOPS)
+  ],
+  'line-opacity': [
+    'case',
+    ['boolean', ['get', 'isHiddenByPrivacy'], false],
+    countRamp(tileOpacityStops(HEAT_HIDDEN_BASE_OPACITY)),
+    countRamp(tileOpacityStops(HEAT_VISIBLE_BASE_OPACITY))
+  ],
+  'line-blur': 0.4
+} as const
+
 const ROUTE_LINE_PAINT = {
   'line-color': [
     'case',
@@ -104,6 +175,8 @@ const ROUTE_LINE_PAINT = {
   'line-blur': 0.4
 } as const
 
+const EMPTY_GEOJSON = buildRouteGeoJson([])
+
 const getMapFallbackError = (error: unknown): MapFallbackError => {
   if (error instanceof Error) {
     return {
@@ -121,6 +194,13 @@ export interface RouteHeatmapMapProps {
   heatmap: FitnessRouteHeatmapData | null
   /** Which map backend renders this heatmap (Mapbox, keyless OSM, or Apple). */
   mapProvider: PublicMapProvider
+  /**
+   * Binds a tile request to whatever credential this surface holds — the
+   * owner's actor id and region, or a share token. Omitted (or paired with a
+   * heatmap carrying no `tileSource`) leaves the map on its untiled geometry,
+   * which is what every surface drew before the pyramid existed.
+   */
+  fetchTiles?: HeatmapTileFetcher
   /**
    * Tailwind height class for the map surface (and its empty/fallback states).
    * Defaults to the in-app fixed height; the full-bleed embed passes a
@@ -143,11 +223,16 @@ interface RouteMapProvider {
 export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
   heatmap,
   mapProvider,
+  fetchTiles,
   heightClassName = ROUTE_HEATMAP_MAP_HEIGHT_CLASS
 }) => {
   if (mapProvider.type === 'apple') {
     return (
-      <RouteHeatmapMapKit heatmap={heatmap} heightClassName={heightClassName} />
+      <RouteHeatmapMapKit
+        heatmap={heatmap}
+        fetchTiles={fetchTiles}
+        heightClassName={heightClassName}
+      />
     )
   }
 
@@ -155,6 +240,7 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
     <RouteHeatmapGlMap
       heatmap={heatmap}
       mapProvider={mapProvider}
+      fetchTiles={fetchTiles}
       heightClassName={heightClassName}
     />
   )
@@ -163,17 +249,24 @@ export const RouteHeatmapMap: FC<RouteHeatmapMapProps> = ({
 interface RouteHeatmapGlMapProps {
   heatmap: FitnessRouteHeatmapData | null
   mapProvider: Exclude<PublicMapProvider, { type: 'apple' }>
+  fetchTiles?: HeatmapTileFetcher
   heightClassName: string
 }
 
 const RouteHeatmapGlMap: FC<RouteHeatmapGlMapProps> = ({
   heatmap,
   mapProvider,
+  fetchTiles,
   heightClassName
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<RouteGlMap | null>(null)
   const routeGeoJsonRef = useRef(buildRouteGeoJson([]))
+  const tileGeoJsonRef = useRef(buildTileGeoJson([]))
+  // Seeded with a no-op and assigned below: the map's event handlers are
+  // registered inside an async 'load' callback that outlives this render, so
+  // they must read the CURRENT hook callback rather than close over the first.
+  const onViewChangeRef = useRef<(viewport: HeatmapViewport) => void>(() => {})
   const focusRef = useRef<RouteFocusBounds | null>(null)
   const [mapFallbackReason, setMapFallbackReason] =
     useState<MapFallbackReason | null>(null)
@@ -223,6 +316,16 @@ const RouteHeatmapGlMap: FC<RouteHeatmapGlMapProps> = ({
     () => buildRouteGeoJson(downsampledSegments),
     [downsampledSegments]
   )
+
+  const tiles = useHeatmapTiles({
+    tileSource: heatmap?.tileSource,
+    fetchTiles
+  })
+  // Tiles REPLACE the untiled geometry once a batch has resolved, rather than
+  // drawing over it: the two describe the same roads at different fidelities,
+  // and stacking them doubles every line's opacity.
+  const hasTiles = tiles.runs.length > 0
+  const tileGeoJson = useMemo(() => buildTileGeoJson(tiles.runs), [tiles.runs])
   // The initial framing: tighten a disjoint multi-region cache to its densest
   // cluster (computeFocusBounds), or keep the full bounds for a single region.
   const focus = useMemo<RouteFocusBounds | null>(
@@ -233,6 +336,14 @@ const RouteHeatmapGlMap: FC<RouteHeatmapGlMapProps> = ({
   useEffect(() => {
     routeGeoJsonRef.current = routeGeoJson
   }, [routeGeoJson])
+
+  useEffect(() => {
+    tileGeoJsonRef.current = tileGeoJson
+  }, [tileGeoJson])
+
+  useEffect(() => {
+    onViewChangeRef.current = tiles.onViewChange
+  }, [tiles.onViewChange])
 
   useEffect(() => {
     focusRef.current = focus
@@ -253,6 +364,7 @@ const RouteHeatmapGlMap: FC<RouteHeatmapGlMapProps> = ({
     let cancelled = false
     let loadWatchdog: ReturnType<typeof setTimeout> | undefined
     let resizeObserver: ResizeObserver | undefined
+    let reportView: (() => void) | undefined
     setIsMapLoaded(false)
 
     provider
@@ -320,6 +432,51 @@ const RouteHeatmapGlMap: FC<RouteHeatmapGlMapProps> = ({
               },
               paint: ROUTE_LINE_PAINT
             })
+            map.addSource('route-heatmap-tiles', {
+              type: 'geojson',
+              data: tileGeoJsonRef.current
+            })
+            map.addLayer({
+              id: 'route-heatmap-tile-lines',
+              type: 'line',
+              source: 'route-heatmap-tiles',
+              layout: {
+                // Butt caps, unlike the untiled layer's round ones: tiled
+                // geometry is a mesh of short runs that meet end to end, and a
+                // round cap on each would stack a blob of extra opacity at
+                // every junction.
+                'line-cap': 'butt',
+                'line-join': 'round'
+              },
+              paint: TILE_LINE_PAINT
+            })
+
+            // Report the settled view so the hook can fetch for it. `moveend`
+            // covers panning and `zoomend` the ladder changes; both fire after
+            // the gesture, and the hook debounces whatever slips through.
+            reportView = () => {
+              const zoom = map.getZoom?.()
+              const viewBounds = map.getBounds?.()
+              if (typeof zoom !== 'number' || !viewBounds) return
+              onViewChangeRef.current({
+                // +1 converts GL's zoom to the pyramid's. Mapbox and MapLibre
+                // report zoom on a 512px tile grid; the pyramid — and
+                // `tilesForBounds` with it — is built on 256px tiles, and one
+                // 512px tile spans the same ground as four 256px ones, i.e.
+                // exactly one zoom level. Feeding GL's number in raw asks for a
+                // rung one level coarser than the view, which is the
+                // simplification the round-UP rule exists to avoid.
+                zoom: zoom + 1,
+                bounds: {
+                  minLat: viewBounds.getSouth(),
+                  maxLat: viewBounds.getNorth(),
+                  minLng: viewBounds.getWest(),
+                  maxLng: viewBounds.getEast()
+                }
+              })
+            }
+            map.on('moveend', reportView)
+            map.on('zoomend', reportView)
             // Frame the densest cluster (focused) or the full extent. The focus
             // is read from a ref so this asynchronous 'load' handler uses the
             // latest computed value rather than a stale closure; fitBounds runs
@@ -337,6 +494,10 @@ const RouteHeatmapGlMap: FC<RouteHeatmapGlMapProps> = ({
                 ...(framing?.focused ? { maxZoom: FOCUS_MAX_ZOOM } : {})
               }
             )
+            // fitBounds is what first gives the map a viewport; without this
+            // the map would sit on its untiled geometry until the reader
+            // happened to pan.
+            reportView()
             setIsMapLoaded(true)
           } catch (error) {
             if (!cancelled) {
@@ -357,6 +518,10 @@ const RouteHeatmapGlMap: FC<RouteHeatmapGlMapProps> = ({
       cancelled = true
       if (loadWatchdog) clearTimeout(loadWatchdog)
       resizeObserver?.disconnect()
+      if (reportView) {
+        mapRef.current?.off?.('moveend', reportView)
+        mapRef.current?.off?.('zoomend', reportView)
+      }
       mapRef.current?.remove()
       mapRef.current = null
     }
@@ -372,8 +537,14 @@ const RouteHeatmapGlMap: FC<RouteHeatmapGlMapProps> = ({
 
   useEffect(() => {
     if (!shouldRenderMap || !isMapLoaded) return
-    mapRef.current?.getSource('route-heatmap')?.setData(routeGeoJson)
-  }, [isMapLoaded, routeGeoJson, shouldRenderMap])
+    const map = mapRef.current
+    // One or the other, never both: they draw the same roads at different
+    // fidelities, so together every line renders at twice its opacity.
+    map
+      ?.getSource('route-heatmap')
+      ?.setData(hasTiles ? EMPTY_GEOJSON : routeGeoJson)
+    map?.getSource('route-heatmap-tiles')?.setData(tileGeoJson)
+  }, [hasTiles, isMapLoaded, routeGeoJson, shouldRenderMap, tileGeoJson])
 
   if (!hasRoutes || !heatmap) {
     return (

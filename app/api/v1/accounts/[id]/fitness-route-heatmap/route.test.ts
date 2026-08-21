@@ -4,6 +4,7 @@ import { Database } from '@/lib/database/types'
 import { GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME } from '@/lib/jobs/names'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { logger } from '@/lib/utils/logger'
 
 import { DELETE, GET, POST } from './route'
 
@@ -15,6 +16,10 @@ vi.mock('@/lib/services/auth/getSession', () => ({
 const mockGetActorFromSession = vi.fn()
 vi.mock('@/lib/utils/getActorFromSession', () => ({
   getActorFromSession: (...args: unknown[]) => mockGetActorFromSession(...args)
+}))
+
+vi.mock('@/lib/utils/logger', () => ({
+  logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() }
 }))
 
 const mockPublish = vi.fn()
@@ -244,6 +249,16 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
       const { heatmap } = await response.json()
       expect(heatmap.id).toBe(allTimeHeatmap.id)
       expect(heatmap.tileSource).toBeNull()
+      // Degrading silently would make a pyramid-table outage invisible: the
+      // response is indistinguishable from an actor who simply has no build.
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: ACTOR1_ID,
+          err: expect.objectContaining({
+            message: 'pyramid table unavailable'
+          })
+        })
+      )
     })
 
     it('does not even look for a pyramid the heatmap could not use', async () => {

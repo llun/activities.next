@@ -102,6 +102,11 @@ export class TestMap implements MapKitMapSurface {
   set region(region: MapKitCoordinateRegion) {
     this.currentRegion = region
     this.assignedRegions.push(region)
+    // Real MapKit animates a programmatic region change and fires
+    // `region-change-end` when it settles. Swallowing it here left anything
+    // that reads `map.region` from that event seeing only the constructor's
+    // default — a 1:1 span at null island, which no real map ever reports.
+    this.emit('region-change-end')
   }
 
   addOverlay(overlay: MapKitOverlay) {

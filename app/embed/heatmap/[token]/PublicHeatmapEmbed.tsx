@@ -3,7 +3,7 @@
 import { FC } from 'react'
 
 import { FitnessRouteHeatmapData } from '@/lib/client'
-import { RouteHeatmapMap } from '@/lib/components/fitness/RouteHeatmapMap'
+import { PublicRouteHeatmapMap } from '@/lib/components/fitness/PublicRouteHeatmapMap'
 import type { PublicMapProvider } from '@/lib/utils/mapProvider'
 
 interface PublicHeatmapEmbedProps {
@@ -12,6 +12,8 @@ interface PublicHeatmapEmbedProps {
   mapProvider: PublicMapProvider
   /** Owner-assigned region label, shown as a caption (e.g. "Netherlands"). */
   regionName?: string
+  /** The share token this embed was reached by; addresses its tiles. */
+  token: string
 }
 
 // Full-bleed interactive map for the iframe embed. Privacy segments are already
@@ -20,15 +22,17 @@ interface PublicHeatmapEmbedProps {
 export const PublicHeatmapEmbed: FC<PublicHeatmapEmbedProps> = ({
   heatmap,
   mapProvider,
-  regionName
+  regionName,
+  token
 }) => {
   const caption = regionName?.trim()
 
   return (
     <div className="relative h-dvh w-full">
-      <RouteHeatmapMap
+      <PublicRouteHeatmapMap
         heatmap={heatmap}
         mapProvider={mapProvider}
+        token={token}
         heightClassName="h-dvh"
       />
       {caption && (

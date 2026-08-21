@@ -2,7 +2,7 @@ import { ChevronRight, Eye, Flame, Globe, Maximize } from 'lucide-react'
 import Link from 'next/link'
 import { FC } from 'react'
 
-import { RouteHeatmapMap } from '@/lib/components/fitness/RouteHeatmapMap'
+import { PublicRouteHeatmapMap } from '@/lib/components/fitness/PublicRouteHeatmapMap'
 import { Logo } from '@/lib/components/layout/logo'
 import { Button } from '@/lib/components/ui/button'
 import type { PublicMapProvider } from '@/lib/utils/mapProvider'
@@ -18,6 +18,8 @@ export interface SharedHeatmapPageProps {
   signupOpen: boolean
   signinUrl: string
   signupUrl: string
+  /** The share token this page was reached by; addresses its tiles. */
+  token: string
 }
 
 /**
@@ -32,7 +34,8 @@ export const SharedHeatmapPage: FC<SharedHeatmapPageProps> = ({
   mapProvider,
   signupOpen,
   signinUrl,
-  signupUrl
+  signupUrl,
+  token
 }) => {
   const { title, isWorld, bboxLabel, owner, generatedLabel, publicUrl } = view
 
@@ -115,8 +118,9 @@ export const SharedHeatmapPage: FC<SharedHeatmapPageProps> = ({
         {/* the heat map */}
         <div className="mt-5">
           <div className="overflow-hidden rounded-xl border">
-            <RouteHeatmapMap
+            <PublicRouteHeatmapMap
               heatmap={view.heatmap}
+              token={token}
               mapProvider={mapProvider}
               heightClassName="h-[440px]"
             />

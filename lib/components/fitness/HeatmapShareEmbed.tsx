@@ -14,7 +14,7 @@ import {
 import { FC, useState } from 'react'
 
 import { FitnessRouteHeatmapData } from '@/lib/client'
-import { RouteHeatmapMap } from '@/lib/components/fitness/RouteHeatmapMap'
+import { PublicRouteHeatmapMap } from '@/lib/components/fitness/PublicRouteHeatmapMap'
 import { Button } from '@/lib/components/ui/button'
 import { useCopyToClipboard } from '@/lib/hooks/useCopyToClipboard'
 import { cn } from '@/lib/utils'
@@ -333,9 +333,10 @@ export const HeatmapShareEmbed: FC<HeatmapShareEmbedProps> = ({
                 className="w-full overflow-hidden rounded-lg border"
                 style={{ maxWidth: size.width }}
               >
-                <RouteHeatmapMap
+                <PublicRouteHeatmapMap
                   heatmap={heatmap}
                   mapProvider={mapProvider}
+                  token={shareToken}
                   heightClassName="h-[280px]"
                 />
               </div>

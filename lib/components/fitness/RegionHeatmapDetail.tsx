@@ -21,6 +21,7 @@ import { FitnessRouteHeatmapData } from '@/lib/client'
 import { PickerRegion } from '@/lib/components/fitness/HeatmapRegionPicker'
 import { HeatmapShareEmbed } from '@/lib/components/fitness/HeatmapShareEmbed'
 import { RouteHeatmapMap } from '@/lib/components/fitness/RouteHeatmapMap'
+import type { HeatmapTileFetcher } from '@/lib/components/fitness/useHeatmapTiles'
 import { Button } from '@/lib/components/ui/button'
 import { formatRectRegion } from '@/lib/fitness/regions'
 import { formatRelativeTime } from '@/lib/fitness/relativeTime'
@@ -335,6 +336,8 @@ export interface RegionHeatmapDetailProps {
   heatmap: FitnessRouteHeatmapData | null
   /** Which map backend renders the map. */
   mapProvider: PublicMapProvider
+  /** Loads this heatmap's tiles; see RouteHeatmapMapProps.fetchTiles. */
+  fetchTiles?: HeatmapTileFetcher
   /** Origin used to build embed URLs (the actor's own domain). */
   embedOrigin: string
   /** A share/unshare request is in flight for this region. */
@@ -372,6 +375,7 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
   meta,
   heatmap,
   mapProvider,
+  fetchTiles,
   embedOrigin,
   isSharing,
   onShare,
@@ -540,7 +544,11 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
             </div>
           )}
           <div className="overflow-hidden rounded-xl border">
-            <RouteHeatmapMap heatmap={heatmap} mapProvider={mapProvider} />
+            <RouteHeatmapMap
+              heatmap={heatmap}
+              mapProvider={mapProvider}
+              fetchTiles={fetchTiles}
+            />
           </div>
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
