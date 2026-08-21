@@ -1,0 +1,21 @@
+lib/services/link-previews/parserAgreement.test.ts
+  s_8fbc352edaf843::t_78f7edba562d0d 1-36,40-49,53-59,70-175
+  s_8fbc352edaf843::t_7ee0173e273b47 37-39,50-52
+  s_8fbc352edaf843::t_0a810afeb3893c 60-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "81eba5680e4b5de83b7547913218839ff86e8716",
+  "prompts": {},
+  "sessions": {
+    "s_8fbc352edaf843": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f5805ef5-0c89-425f-91b8-cc86a0704bc4",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
