@@ -31,7 +31,7 @@ vi.mock('next/headers', () => ({
 }))
 
 // Opaque tokens never reach better-auth's verifier, but the guard imports it.
-vi.mock('better-auth/oauth2', () => ({ verifyAccessToken: vi.fn() }))
+vi.mock('better-auth/oauth2', () => ({ verifyBearerToken: vi.fn() }))
 
 vi.mock('@/lib/config', () => ({
   getBaseURL: vi.fn().mockReturnValue('https://llun.test'),

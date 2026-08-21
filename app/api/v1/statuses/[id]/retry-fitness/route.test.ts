@@ -42,7 +42,7 @@ vi.mock('next/headers', () => ({
 }))
 
 vi.mock('better-auth/oauth2', () => ({
-  verifyAccessToken: vi.fn()
+  verifyBearerToken: vi.fn()
 }))
 
 vi.mock('@/lib/services/queue', () => ({

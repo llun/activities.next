@@ -203,6 +203,19 @@ const applyWhere = (
   return query
 }
 
+// AND the caller's predicate onto a statement that already carries a clause of
+// its own. `applyWhere` emits `orWhere` for `OR`-connected entries, which would
+// otherwise re-associate against the surrounding clause, so the predicate is
+// wrapped in its own parenthesised group.
+const applyGroupedWhere = (
+  query: Knex.QueryBuilder,
+  tableName: string,
+  where: CleanedWhere[]
+) =>
+  query.where((builder) => {
+    applyWhere(builder, tableName, where)
+  })
+
 // Better-auth asks for related rows through the `join` argument on `findOne`
 // and `findMany` once `experimental.joins` is on (`{ user: true }` on a session
 // lookup, and so on). The factory transforms that into a `JoinConfig` keyed by
@@ -614,6 +627,92 @@ export const knexAdapter = (db: Knex, options: KnexAdapterOptions = {}) =>
           }
           const result = await query.delete()
           return result
+        },
+        // Atomically delete one matching row and hand it back. better-auth
+        // consumes single-use credentials (verification tokens, OAuth
+        // authorization codes, device codes) through this, so the guarantee it
+        // needs is that exactly one of N concurrent callers receives the row.
+        //
+        // The DELETE, not the SELECT, is what provides that: it is scoped to
+        // the row's own primary key AND re-applies the caller's predicate, so a
+        // racing caller finds nothing left to match. PostgreSQL makes the loser
+        // block on the row lock and then re-evaluate against the committed
+        // state, and SQLite serialises writers outright; either way the loser's
+        // statement reports zero rows and this returns null.
+        async consumeOne({ model, where }) {
+          const tableName = getModelName(model)
+          // An empty predicate would consume an arbitrary credential, so it
+          // matches nothing instead. The factory does not guard this itself.
+          if (!where?.length) return null
+
+          return db.transaction(async (trx) => {
+            const row = await applyWhere(
+              trx(tableName),
+              tableName,
+              where
+            ).first()
+            if (!row) return null
+
+            const scope = (query: Knex.QueryBuilder) =>
+              applyGroupedWhere(
+                query.where(`${tableName}.id`, row.id),
+                tableName,
+                where
+              )
+
+            // Sessions carry OAuth-token foreign keys that have to be detached
+            // first; better-auth never consumes one today, but routing through
+            // the shared helper keeps that from becoming a PostgreSQL 23503 if
+            // it ever does.
+            const deleted =
+              tableName === SESSIONS_TABLE
+                ? await deleteSessionsWithTokenDetach(trx, scope)
+                : await scope(trx(tableName)).delete()
+
+            return deleted > 0 ? (hydrateDateFields(row) as any) : null
+          })
+        },
+
+        // Atomically apply signed deltas to one matching row, with `where`
+        // acting as both selector and guard: better-auth uses this to decrement
+        // a remaining-uses counter only while it is still positive, and to bump
+        // failed-attempt counters. Re-applying the predicate in the UPDATE is
+        // again what makes the guard hold under concurrency — a racing caller
+        // re-evaluates it after the winner commits and updates nothing.
+        //
+        // `RETURNING` gives the post-update row in the same statement on both
+        // supported backends (PostgreSQL natively, SQLite since 3.35), so the
+        // value reported is the one this call produced rather than whatever a
+        // later writer left behind.
+        async incrementOne({ model, where, increment, set }) {
+          const tableName = getModelName(model)
+          if (!where?.length) return null
+
+          let idQuery = db(tableName).first('id')
+          idQuery = applyWhere(idQuery, tableName, where)
+          const existing = await idQuery
+          if (!existing) return null
+
+          const update: Record<string, unknown> = {
+            ...normalizeEmailInData(
+              tableName,
+              (set ?? {}) as Record<string, unknown>
+            )
+          }
+          for (const [field, delta] of Object.entries(increment)) {
+            update[field] = db.raw('?? + ?', [field, delta])
+          }
+
+          const rows = await applyGroupedWhere(
+            db(tableName).where(`${tableName}.id`, existing.id),
+            tableName,
+            where
+          )
+            .update(update)
+            .returning('*')
+
+          const row = rows[0]
+          return row ? (hydrateDateFields(row) as any) : null
         }
       }
     }

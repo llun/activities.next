@@ -80,6 +80,9 @@ describe('session resolution with database joins', () => {
       id: 'account-provider-1',
       accountId: ACCOUNT_ID,
       provider: 'credential',
+      // better-auth 1.7's `signInEmail` matches the credential row on `issuer`
+      // too, so the literal is the contract this fixture stands in for.
+      issuer: 'local:credential',
       providerId: ACCOUNT_ID,
       password: await bcrypt.hash(PASSWORD, 10)
     })

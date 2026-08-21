@@ -71,10 +71,10 @@ vi.mock('@/lib/config', () => ({
   getBaseURL: () => 'https://llun.test'
 }))
 
-// Mock verifyAccessToken from better-auth
-const mockVerifyAccessToken = vi.fn()
+// Mock verifyBearerToken from better-auth
+const mockVerifyBearerToken = vi.fn()
 vi.mock('better-auth/oauth2', () => ({
-  verifyAccessToken: (...args: unknown[]) => mockVerifyAccessToken(...args)
+  verifyBearerToken: (...args: unknown[]) => mockVerifyBearerToken(...args)
 }))
 
 describe('getTokenFromHeader', () => {
@@ -121,7 +121,7 @@ describe('OAuthGuard', () => {
 
   beforeEach(() => {
     mockGetServerSession.mockReset()
-    mockVerifyAccessToken.mockReset()
+    mockVerifyBearerToken.mockReset()
     mockCookieValue.value = undefined
     mockStoredTokens.clear()
     mockHandler.mockClear()
@@ -167,7 +167,7 @@ describe('OAuthGuard', () => {
 
       expect(response.status).toBe(200)
       expect(mockHandler).toHaveBeenCalled()
-      expect(mockVerifyAccessToken).not.toHaveBeenCalled()
+      expect(mockVerifyBearerToken).not.toHaveBeenCalled()
     })
 
     test('rejects a cookie-session mutation without same-origin proof', async () => {
@@ -398,7 +398,7 @@ describe('OAuthGuard', () => {
       })
       const token = jwtToken('valid')
 
-      mockVerifyAccessToken.mockResolvedValue({
+      mockVerifyBearerToken.mockResolvedValue({
         sub: 'user-id',
         scope: 'read',
         actorId: primaryActor?.id
@@ -416,9 +416,8 @@ describe('OAuthGuard', () => {
 
       expect(response.status).toBe(200)
       expect(mockHandler).toHaveBeenCalled()
-      expect(mockVerifyAccessToken).toHaveBeenCalledWith(token, {
+      expect(mockVerifyBearerToken).toHaveBeenCalledWith(token, {
         jwksUrl: 'https://llun.test/api/auth/jwks',
-        scopes: [],
         verifyOptions: {
           issuer: 'https://llun.test',
           audience: 'https://llun.test'
@@ -430,7 +429,7 @@ describe('OAuthGuard', () => {
       mockGetServerSession.mockResolvedValue(null)
       const token = jwtToken('no-actor')
 
-      mockVerifyAccessToken.mockResolvedValue({
+      mockVerifyBearerToken.mockResolvedValue({
         sub: 'user-id',
         scope: 'read'
         // no actorId
@@ -472,7 +471,7 @@ describe('OAuthGuard', () => {
       mockGetServerSession.mockResolvedValue(null)
       const token = jwtToken('bad-actor')
 
-      mockVerifyAccessToken.mockResolvedValue({
+      mockVerifyBearerToken.mockResolvedValue({
         sub: 'user-id',
         scope: 'read',
         actorId: 'non-existent-actor-id'
@@ -498,7 +497,7 @@ describe('OAuthGuard', () => {
       const primaryActor = await database.getActorFromEmail({
         email: seedActor1.email
       })
-      mockVerifyAccessToken.mockResolvedValue({
+      mockVerifyBearerToken.mockResolvedValue({
         sub: 'user-id',
         scope: 'read',
         actorId: primaryActor?.id
@@ -516,7 +515,7 @@ describe('OAuthGuard', () => {
       mockGetServerSession.mockResolvedValue(null)
       const token = jwtToken('expired')
 
-      mockVerifyAccessToken.mockRejectedValue(new Error('token expired'))
+      mockVerifyBearerToken.mockRejectedValue(new Error('token expired'))
       // Even with a valid DB row, expired JWT rejects immediately
       const primaryActor = await database.getActorFromEmail({
         email: seedActor1.email
@@ -540,7 +539,7 @@ describe('OAuthGuard', () => {
       mockGetServerSession.mockResolvedValue(null)
       const token = jwtToken('tampered')
 
-      mockVerifyAccessToken.mockRejectedValue(new Error('token invalid'))
+      mockVerifyBearerToken.mockRejectedValue(new Error('token invalid'))
       // Even with a matching DB row, tampered JWT rejects immediately
       const primaryActor = await database.getActorFromEmail({
         email: seedActor1.email
@@ -567,8 +566,8 @@ describe('OAuthGuard', () => {
       const primaryActor = await database.getActorFromEmail({
         email: seedActor1.email
       })
-      // verifyAccessToken returns a read-only JWT payload
-      mockVerifyAccessToken.mockResolvedValue({
+      // verifyBearerToken returns a read-only JWT payload
+      mockVerifyBearerToken.mockResolvedValue({
         sub: 'user-id',
         scope: 'read',
         actorId: primaryActor?.id
@@ -611,7 +610,7 @@ describe('OAuthGuard', () => {
 
       expect(response.status).toBe(200)
       expect(mockHandler).toHaveBeenCalled()
-      expect(mockVerifyAccessToken).not.toHaveBeenCalled()
+      expect(mockVerifyBearerToken).not.toHaveBeenCalled()
     })
 
     test('acts as the account actor when an opaque token has a userId but no actor referenceId', async () => {
@@ -648,7 +647,7 @@ describe('OAuthGuard', () => {
           currentActor: expect.objectContaining({ id: primaryActor.id })
         })
       )
-      expect(mockVerifyAccessToken).not.toHaveBeenCalled()
+      expect(mockVerifyBearerToken).not.toHaveBeenCalled()
     })
 
     test('allows request with lowercase bearer opaque token', async () => {
@@ -672,7 +671,7 @@ describe('OAuthGuard', () => {
 
       expect(response.status).toBe(200)
       expect(mockHandler).toHaveBeenCalled()
-      expect(mockVerifyAccessToken).not.toHaveBeenCalled()
+      expect(mockVerifyBearerToken).not.toHaveBeenCalled()
     })
 
     test('returns 401 when opaque token is expired', async () => {
@@ -1117,7 +1116,7 @@ describe('OAuthGuard', () => {
       // requests a `resource`, so this divergent contract must hold.
       mockGetServerSession.mockResolvedValue(null)
       const token = 'eyJ.app.sig'
-      mockVerifyAccessToken.mockResolvedValue({ scope: 'read' })
+      mockVerifyBearerToken.mockResolvedValue({ scope: 'read' })
       mockStoredTokens.set(hashToken(token), {
         token: hashToken(token),
         referenceId: null,
@@ -1135,7 +1134,7 @@ describe('OAuthGuard', () => {
 
       expect(response.status).toBe(200)
       expect(handler).toHaveBeenCalled()
-      expect(mockVerifyAccessToken).toHaveBeenCalled()
+      expect(mockVerifyBearerToken).toHaveBeenCalled()
       expect(getCaptured()?.currentActor).toBeNull()
     })
 

@@ -38,7 +38,7 @@ vi.mock('next/headers', () => ({
 }))
 
 vi.mock('better-auth/oauth2', () => ({
-  verifyAccessToken: vi.fn()
+  verifyBearerToken: vi.fn()
 }))
 
 // Federation side effects are not under test here; stub the network-touching

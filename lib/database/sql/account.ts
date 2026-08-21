@@ -1,3 +1,7 @@
+import {
+  createLocalAccountIssuer,
+  createOAuthAccountIssuer
+} from '@better-auth/core/db'
 import { Knex } from 'knex'
 
 import { recordWeeklyLoginSafely } from '@/lib/database/sql/instanceActivity'
@@ -58,6 +62,16 @@ import {
 } from '@/lib/utils/activitypubId'
 import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 import { generatePublicId } from '@/lib/utils/publicId'
+
+// better-auth 1.7 resolves a credential row by `issuer` as well as `providerId`
+// (`signInEmail` -> `createLocalAccountIssuer('credential')`), so every
+// `account_providers` row this module writes directly — bypassing better-auth's
+// own adapter — has to carry the same value or the account cannot sign in.
+// Derived from better-auth's own helper rather than a literal so the two can
+// never drift; `20260821120000_better_auth_17_columns` backfills the rows that
+// predate the column.
+const CREDENTIAL_PROVIDER = 'credential'
+const CREDENTIAL_ISSUER = createLocalAccountIssuer(CREDENTIAL_PROVIDER)
 
 // Emails are normalized (trimmed + lowercased) inside every method that stores
 // or looks up by email so storage and lookup can never disagree on casing. This
@@ -135,7 +149,8 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       await trx('account_providers').insert({
         id: `credential_${accountId}`,
         accountId,
-        provider: 'credential',
+        provider: CREDENTIAL_PROVIDER,
+        issuer: CREDENTIAL_ISSUER,
         providerId: accountId,
         password: passwordHash,
         createdAt: currentTime,
@@ -176,7 +191,8 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       .insert({
         id: `credential_${accountId}`,
         accountId,
-        provider: 'credential',
+        provider: CREDENTIAL_PROVIDER,
+        issuer: CREDENTIAL_ISSUER,
         providerId: accountId,
         password: passwordHash,
         createdAt: currentTime,
@@ -238,6 +254,9 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     await database('account_providers').insert({
       id: crypto.randomUUID(),
       provider,
+      // An external identity, so it takes better-auth's OAuth namespace rather
+      // than the local one the credential rows use.
+      issuer: createOAuthAccountIssuer(provider),
       providerId: providerAccountId,
       accountId,
 
@@ -715,7 +734,8 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         .insert({
           id: `credential_${targetAccountId}`,
           accountId: targetAccountId,
-          provider: 'credential',
+          provider: CREDENTIAL_PROVIDER,
+          issuer: CREDENTIAL_ISSUER,
           providerId: targetAccountId,
           password: newPasswordHash,
           createdAt: now,
@@ -750,7 +770,8 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         .insert({
           id: `credential_${accountId}`,
           accountId,
-          provider: 'credential',
+          provider: CREDENTIAL_PROVIDER,
+          issuer: CREDENTIAL_ISSUER,
           providerId: accountId,
           password: newPasswordHash,
           createdAt: currentTime,

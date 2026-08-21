@@ -34,7 +34,8 @@ CREATE TABLE public.account_providers (
     "idToken" text,
     "accessTokenExpiresAt" timestamp with time zone,
     "refreshTokenExpiresAt" timestamp with time zone,
-    scope text
+    scope text,
+    issuer character varying(255)
 );
 
 CREATE TABLE public.accounts (
@@ -608,7 +609,9 @@ CREATE TABLE public.jwks (
     "publicKey" text NOT NULL,
     "privateKey" text NOT NULL,
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "expiresAt" timestamp with time zone
+    "expiresAt" timestamp with time zone,
+    alg character varying(255),
+    crv character varying(255)
 );
 
 CREATE TABLE public.knex_migrations (

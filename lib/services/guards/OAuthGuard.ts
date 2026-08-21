@@ -1,4 +1,4 @@
-import { verifyAccessToken } from 'better-auth/oauth2'
+import { verifyBearerToken } from 'better-auth/oauth2'
 import crypto from 'crypto'
 import { NextRequest } from 'next/server'
 
@@ -192,11 +192,14 @@ const resolveTokenContext = async ({
   try {
     if (isJwtFormat(token)) {
       try {
-        jwtPayload = (await verifyAccessToken(token, {
+        // Scope hierarchy (for example read satisfying read:statuses) is
+        // handled below so JWT and opaque tokens behave the same way, so no
+        // `requiredScopes` are passed here. `verifyBearerToken` is better-auth
+        // 1.7's successor to `verifyBearerToken`; it additionally rejects
+        // DPoP-bound tokens presented as plain bearer tokens, which this
+        // resource server has no way to sender-constrain.
+        jwtPayload = (await verifyBearerToken(token, {
           jwksUrl,
-          // Scope hierarchy (for example read satisfying read:statuses) is
-          // handled below so JWT and opaque tokens behave the same way.
-          scopes: [],
           verifyOptions: {
             issuer: baseURL,
             audience: baseURL

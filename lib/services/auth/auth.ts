@@ -33,16 +33,21 @@ const buildAuth = (baseURL: string) => {
     // this better-auth reads the `sessions` row, then reads the `accounts` row
     // it points at, on every authenticated request.
     //
-    // On better-auth 1.6.x this flag is an assertion, not a request: with it on,
-    // the adapter factory passes `join` down and then reads the related rows
-    // straight off what the adapter returned, with no capability check and no
-    // fallback. An adapter that ignored `join` would hand back a session with no
-    // user, which `findSession` reports as "no session" — every signed-in user
-    // silently logged out. It is safe here only because `knexAdapter` implements
-    // the join contract (see the join helpers there), and
-    // `sessionJoins.test.ts` covers this end to end.
-    experimental: {
-      joins: true
+    // The flag lived at `experimental.joins` until better-auth 1.7 moved it
+    // here; 1.7 dropped `experimental` entirely, so the old key is silently
+    // ignored rather than rejected — which is exactly the shape of a
+    // "performance regression nobody notices". `sessionJoins.test.ts` asserts
+    // the single statement, so the flag going stale again fails a test.
+    //
+    // 1.7 also made the flag a request rather than an assertion: the factory now
+    // falls back to separate queries for an adapter that leaves `join`
+    // unanswered, where 1.6.x read the related rows straight off whatever came
+    // back and logged every user out if they were missing. `knexAdapter`
+    // implements the join contract either way (see the join helpers there).
+    advanced: {
+      database: {
+        joins: true
+      }
     },
     secret: config.secretPhase,
     baseURL,

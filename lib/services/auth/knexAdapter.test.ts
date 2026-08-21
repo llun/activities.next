@@ -992,6 +992,211 @@ describe('knexAdapter', () => {
     })
   })
 
+  // better-auth 1.7 requires the adapter to implement these two atomic
+  // primitives itself — the factory throws rather than synthesising a fallback,
+  // because neither can be made race-safe from separate statements.
+  describe('consumeOne', () => {
+    beforeEach(async () => {
+      await db('users').insert([
+        { id: 'u1', display_name: 'Alice', email: 'alice@test.com' },
+        { id: 'u2', display_name: 'Bob', email: 'bob@test.com' }
+      ])
+    })
+
+    it('deletes the matching row and returns it', async () => {
+      const row = await adapter.consumeOne<{ id: string; email: string }>({
+        model: 'users',
+        where: [{ field: 'id', value: 'u1', operator: 'eq' as const }]
+      })
+
+      expect(row?.id).toBe('u1')
+      expect(row?.email).toBe('alice@test.com')
+      expect(await db('users').where('id', 'u1').first()).toBeUndefined()
+      expect(await db('users').where('id', 'u2').first()).toBeDefined()
+    })
+
+    it('returns null when nothing matches', async () => {
+      const row = await adapter.consumeOne({
+        model: 'users',
+        where: [{ field: 'id', value: 'missing', operator: 'eq' as const }]
+      })
+
+      expect(row).toBeNull()
+      expect(await db('users').select()).toHaveLength(2)
+    })
+
+    it('deletes at most one row for a predicate matching several', async () => {
+      const row = await adapter.consumeOne<{ id: string }>({
+        model: 'users',
+        where: [{ field: 'id', value: ['u1', 'u2'], operator: 'in' as const }]
+      })
+
+      expect(['u1', 'u2']).toContain(row?.id)
+      expect(await db('users').select()).toHaveLength(1)
+    })
+
+    // The single-use guarantee: better-auth consumes verification tokens and
+    // authorization codes through this, so of N callers racing for one row
+    // exactly one may come away with it.
+    it('hands the row to exactly one of several concurrent callers', async () => {
+      const results = await Promise.all(
+        Array.from({ length: 5 }, () =>
+          adapter.consumeOne<{ id: string }>({
+            model: 'users',
+            where: [{ field: 'id', value: 'u1', operator: 'eq' as const }]
+          })
+        )
+      )
+
+      expect(results.filter((result) => result !== null)).toHaveLength(1)
+      expect(await db('users').where('id', 'u1').first()).toBeUndefined()
+    })
+
+    it('returns null rather than consuming an arbitrary row for an empty predicate', async () => {
+      const row = await adapter.consumeOne({ model: 'users', where: [] })
+
+      expect(row).toBeNull()
+      expect(await db('users').select()).toHaveLength(2)
+    })
+
+    it('hydrates date columns on the returned row', async () => {
+      const createdAt = new Date('2026-02-03T04:05:06.000Z')
+      await db('users').insert({ id: 'u3', createdAt })
+
+      const row = await adapter.consumeOne<{ createdAt: Date }>({
+        model: 'users',
+        where: [{ field: 'id', value: 'u3', operator: 'eq' as const }]
+      })
+
+      expect(row?.createdAt).toBeInstanceOf(Date)
+      expect(row?.createdAt.toISOString()).toBe(createdAt.toISOString())
+    })
+  })
+
+  describe('incrementOne', () => {
+    beforeEach(async () => {
+      await db('counters').insert([
+        { id: 'c1', value: 5 },
+        { id: 'c2', value: 0 }
+      ])
+    })
+
+    it('applies the delta and returns the updated row', async () => {
+      const row = await adapter.incrementOne<{ id: string; value: number }>({
+        model: 'counters',
+        where: [{ field: 'id', value: 'c1', operator: 'eq' as const }],
+        increment: { value: 3 }
+      })
+
+      expect(row?.value).toBe(8)
+      expect((await db('counters').where('id', 'c1').first())?.value).toBe(8)
+    })
+
+    it('decrements on a negative delta', async () => {
+      const row = await adapter.incrementOne<{ value: number }>({
+        model: 'counters',
+        where: [{ field: 'id', value: 'c1', operator: 'eq' as const }],
+        increment: { value: -2 }
+      })
+
+      expect(row?.value).toBe(3)
+    })
+
+    it('assigns `set` fields in the same statement as the increment', async () => {
+      const updatedAt = new Date('2026-02-03T04:00:00.000Z')
+      const row = await adapter.incrementOne<{
+        value: number
+        updatedAt: Date
+      }>({
+        model: 'counters',
+        where: [{ field: 'id', value: 'c1', operator: 'eq' as const }],
+        increment: { value: 1 },
+        set: { updatedAt }
+      })
+
+      expect(row?.value).toBe(6)
+      expect(row?.updatedAt).toBeInstanceOf(Date)
+      expect(row?.updatedAt.toISOString()).toBe(updatedAt.toISOString())
+    })
+
+    // The `where` is the guard as well as the selector — this is what lets
+    // better-auth decrement a remaining-uses counter only while it is positive.
+    it('makes no change and returns null when the guard does not hold', async () => {
+      const row = await adapter.incrementOne({
+        model: 'counters',
+        where: [
+          { field: 'id', value: 'c2', operator: 'eq' as const },
+          { field: 'value', value: 0, operator: 'gt' as const }
+        ],
+        increment: { value: -1 }
+      })
+
+      expect(row).toBeNull()
+      expect((await db('counters').where('id', 'c2').first())?.value).toBe(0)
+    })
+
+    it('returns null when nothing matches', async () => {
+      const row = await adapter.incrementOne({
+        model: 'counters',
+        where: [{ field: 'id', value: 'missing', operator: 'eq' as const }],
+        increment: { value: 1 }
+      })
+
+      expect(row).toBeNull()
+    })
+
+    it('updates at most one row for a predicate matching several', async () => {
+      await adapter.incrementOne({
+        model: 'counters',
+        where: [{ field: 'id', value: ['c1', 'c2'], operator: 'in' as const }],
+        increment: { value: 10 }
+      })
+
+      const values = (await db('counters').orderBy('id').select('value')).map(
+        (row: { value: number }) => row.value
+      )
+      expect(values.filter((value) => value >= 10)).toHaveLength(1)
+    })
+
+    it('returns null rather than mutating an arbitrary row for an empty predicate', async () => {
+      const row = await adapter.incrementOne({
+        model: 'counters',
+        where: [],
+        increment: { value: 1 }
+      })
+
+      expect(row).toBeNull()
+      expect((await db('counters').where('id', 'c1').first())?.value).toBe(5)
+    })
+
+    // An `OR`-connected predicate is emitted as `orWhere`, which would
+    // re-associate against the primary-key clause that bounds the statement to
+    // one row and let it mutate a row the caller never selected.
+    it('keeps an OR predicate grouped away from the row it is bounded to', async () => {
+      const row = await adapter.incrementOne<{ id: string; value: number }>({
+        model: 'counters',
+        where: [
+          { field: 'id', value: 'c1', operator: 'eq' as const },
+          {
+            field: 'id',
+            value: 'c2',
+            operator: 'eq' as const,
+            connector: 'OR' as const
+          }
+        ],
+        increment: { value: 1 }
+      })
+
+      expect(row).not.toBeNull()
+      const rows = await db('counters').orderBy('id').select('id', 'value')
+      const changed = rows.filter(
+        (entry: { id: string; value: number }) =>
+          entry.value !== (entry.id === 'c1' ? 5 : 0)
+      )
+      expect(changed).toHaveLength(1)
+    })
+  })
+
   // Deleting a session that minted OAuth tokens trips the
   // oauthAccessToken/oauthRefreshToken sessionId FKs on PostgreSQL. The adapter
   // is what better-auth calls for sign-out and session cleanup, so it must
