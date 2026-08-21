@@ -1,4 +1,4 @@
-import { dash } from '@better-auth/infra'
+import { dash, sentinel } from '@better-auth/infra'
 import { oauthProvider } from '@better-auth/oauth-provider'
 import { passkey } from '@better-auth/passkey'
 import bcrypt from 'bcrypt'
@@ -167,7 +167,8 @@ const buildAuth = (baseURL: string) => {
           }
         }
       }),
-      dash()
+      dash(),
+      sentinel()
     ],
     emailAndPassword: {
       enabled: config.auth?.enableCredential !== false,
