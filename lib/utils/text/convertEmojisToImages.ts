@@ -35,10 +35,12 @@ const HTML_TAG_SPLIT_REGEX = /(<[^>]*>)/
  * name used to be the search string itself, which escaping its output could
  * never fix: a name shaped like `<a href="…">` matched the post's own anchor
  * and consumed it, and an unconstrained one like `e` would replace every `e` in
- * the post. Matching a fixed token shape and then looking the name up is what
- * closes that, and it is also why the filter below is belt rather than braces —
- * a name that is not a shortcode can no longer be found by anything. It is kept
- * so the map holds only what it claims to.
+ * the post. Matching a fixed token shape and looking the name up afterwards is
+ * what closes that, and it is why a hostile name is now harmless rather than
+ * merely rejected — nothing can find it. `toEmojiShortcodeToken` is doing more
+ * than filtering, though: it NORMALIZES, which is what lets a server that sends
+ * the name bare (Friendica sends `like` while its body says `:like:`) resolve
+ * at all.
  *
  * The substitution is a single pass over the original text, not a reduce that
  * feeds each result into the next. Every replacement writes an
