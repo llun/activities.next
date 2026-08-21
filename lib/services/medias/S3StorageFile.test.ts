@@ -66,6 +66,21 @@ const ONE_PIXEL_PNG = Buffer.from(
   'base64'
 )
 
+// Every upload body this driver sends is an in-memory Buffer — a video's own
+// bytes, an image's encoded output. Rejecting anything else is the guard for
+// that: the image path used to write its encoded output to a file under
+// `tmpdir()` and stream it back off disk, which `next build` flags as dynamic
+// filesystem access that forces the whole project into the traced server
+// bundle. Draining a stream here instead would let that come back unnoticed.
+const readUploadBody = (body: unknown): Buffer => {
+  if (!Buffer.isBuffer(body)) {
+    throw new Error(
+      `Expected an in-memory Buffer upload body, got ${typeof body}`
+    )
+  }
+  return body
+}
+
 describe('S3FileStorage presigned upload completion', () => {
   const send = vi.fn()
   const actor = {
@@ -695,9 +710,7 @@ describe('S3FileStorage saveFile with a caller-supplied thumbnail', () => {
     getFitnessStorageUsageForAccount: vi.fn()
   } as unknown as jest.Mocked<Database>
 
-  // Every PutObjectCommand with the bytes it actually uploaded. The storage
-  // deletes its temp file as soon as `send` resolves, so an image stream has to
-  // be drained inside the mock.
+  // Every PutObjectCommand with the bytes it actually uploaded.
   let uploads: { key: string; body: Buffer }[]
   let deletedKeys: string[]
 
@@ -719,17 +732,7 @@ describe('S3FileStorage saveFile with a caller-supplied thumbnail', () => {
         throw new Error('Unexpected command')
       }
       const { Key, Body } = command.input
-      const chunks: Buffer[] = []
-      // A video is uploaded as a Buffer and an image as a stream. `for await`
-      // over a Buffer walks it byte by byte, so the two need separate handling.
-      if (Buffer.isBuffer(Body)) {
-        chunks.push(Body)
-      } else {
-        for await (const chunk of Body as Readable) {
-          chunks.push(Buffer.from(chunk))
-        }
-      }
-      uploads.push({ key: String(Key), body: Buffer.concat(chunks) })
+      uploads.push({ key: String(Key), body: readUploadBody(Body) })
       return {}
     })
     database.getActorFromId.mockResolvedValue(actor)
@@ -798,6 +801,25 @@ describe('S3FileStorage saveFile with a caller-supplied thumbnail', () => {
     }
     return match
   }
+
+  // Regression: the encoded image used to be written to a file under
+  // `tmpdir()` and streamed back off disk purely to give `PutObjectCommand` a
+  // body. `next build` flagged the `tmpdir()` join and the `fs.open` on it as
+  // dynamic filesystem access, which forces every source file in the project —
+  // `public/` included — into the traced server bundle. Nothing wanted a file,
+  // so both the original and its thumbnail now go up as buffers.
+  it('uploads images as in-memory buffers, not file-backed streams', async () => {
+    await createStorage().saveFile(actor, {
+      file: await createPngFile(800, 600),
+      thumbnail: await createPngFile(400, 300)
+    })
+
+    const bodies = vi
+      .mocked(PutObjectCommand)
+      .mock.calls.map(([input]) => input.Body)
+    expect(bodies).toHaveLength(2)
+    expect(bodies.every((body) => Buffer.isBuffer(body))).toBe(true)
+  })
 
   it('uploads a caller-supplied thumbnail alongside the image', async () => {
     await createStorage().saveFile(actor, {
@@ -1227,9 +1249,7 @@ describe('S3FileStorage saveFile image sizing', () => {
     getFitnessStorageUsageForAccount: vi.fn()
   } as unknown as jest.Mocked<Database>
 
-  // The uploaded WebPs, captured off each PutObjectCommand body. The storage
-  // deletes its temp file as soon as `send` resolves, so the stream has to be
-  // drained inside the mock.
+  // The uploaded WebPs, captured off each PutObjectCommand body.
   let uploadedBodies: Buffer[]
 
   beforeEach(() => {
@@ -1242,11 +1262,7 @@ describe('S3FileStorage saveFile image sizing', () => {
     )
     send.mockImplementation(async (command) => {
       if (command instanceof PutObjectCommand) {
-        const chunks: Buffer[] = []
-        for await (const chunk of command.input.Body as Readable) {
-          chunks.push(Buffer.from(chunk))
-        }
-        uploadedBodies.push(Buffer.concat(chunks))
+        uploadedBodies.push(readUploadBody(command.input.Body))
         return {}
       }
       throw new Error('Unexpected command')

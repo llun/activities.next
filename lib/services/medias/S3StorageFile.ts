@@ -8,10 +8,7 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import crypto from 'crypto'
 import { format } from 'date-fns'
-import fs from 'fs/promises'
 import { IncomingMessage } from 'http'
-import { tmpdir } from 'os'
-import { join } from 'path'
 import sharp from 'sharp'
 
 import { MediaStorageS3Config } from '@/lib/config/mediaStorage'
@@ -615,44 +612,37 @@ export class S3FileStorage implements MediaStorage {
       imageFormat
     )
 
-    const tempFilePath = join(
-      tmpdir(),
-      `${crypto.randomBytes(8).toString('hex')}.${extension}`
-    )
-    // `metadata()` reports the INPUT image; `toFile()` resolves with the OUTPUT
-    // info (post-resize/re-encode dimensions and byte size). Read metadata from
-    // a separate sharp instance so the two operations don't run concurrently on
+    // `metadata()` reports the INPUT image; the `resolveWithObject` form of
+    // `toBuffer()` resolves with the encoded bytes AND the OUTPUT info
+    // (post-resize/re-encode dimensions and byte size). Read metadata from a
+    // separate sharp instance so the two operations don't run concurrently on
     // the same pipeline.
-    const [metaData, outputInfo] = await Promise.all([
-      sharp(buffer).metadata(),
-      resizedImage.keepExif().toFile(tempFilePath)
-    ])
+    //
+    // The encoded image is handed to S3 as a buffer rather than written to a
+    // temp file and streamed back off disk. Nothing here wanted a file: the
+    // round trip only existed to produce a stream body, and it cost a write, a
+    // read and an unlink per upload plus a temp file to leak on a crash. It
+    // also made `next build` warn that dynamic filesystem access forces the
+    // whole project to be traced into the server bundle, because `tmpdir()`
+    // and the `fs.open` on it are not statically analysable. A buffer body is
+    // what `_uploadVideoToS3` already sends, for far larger payloads.
+    const [metaData, { data: imageBody, info: outputInfo }] = await Promise.all(
+      [
+        sharp(buffer).metadata(),
+        resizedImage.keepExif().toBuffer({ resolveWithObject: true })
+      ]
+    )
 
     const timeDirectory = format(currentTime, 'yyyy-MM-dd')
     const path = `medias/${timeDirectory}/${randomPrefix}${isThumbnail ? '-thumbnail' : ''}.${extension}`
     const s3client = this._client
-
-    // Outer finally guarantees the temp file is removed even if fs.open throws;
-    // inner finally releases the fd. `createReadStream` may auto-close the fd on
-    // success, so ignore EBADF from a double close.
-    try {
-      const fd = await fs.open(tempFilePath, 'r')
-      try {
-        const stream = fd.createReadStream()
-        const command = new PutObjectCommand({
-          Bucket: bucket,
-          Key: path,
-          ContentType: contentType,
-          Body: stream
-        })
-        await s3client.send(command)
-        stream.close()
-      } finally {
-        await fd.close().catch(() => undefined)
-      }
-    } finally {
-      await fs.unlink(tempFilePath).catch(() => undefined)
-    }
+    const command = new PutObjectCommand({
+      Bucket: bucket,
+      Key: path,
+      ContentType: contentType,
+      Body: imageBody
+    })
+    await s3client.send(command)
     // `previewImage` is always null here — it only exists so an image and a
     // video upload share one result shape in `saveFile`, as they do in the
     // local driver.
