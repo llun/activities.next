@@ -20,6 +20,7 @@ import {
   deleteRowsByColumnChunks,
   getWhereInBatchSize
 } from '@/lib/database/sql/utils/knex'
+import { whereLocalActor } from '@/lib/database/sql/utils/localActor'
 import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
 import {
   resolveIdsByPublicIds,
@@ -2867,14 +2868,14 @@ export const StatusSQLDatabaseMixin = (
         this.select(database.raw('1'))
           .from('actors')
           .whereRaw('?? = ??', ['actors.id', 'statuses.actorId'])
-          .whereNotNull('actors.privateKey')
+          .modify(whereLocalActor, 'actors.privateKey')
       })
     } else if (remote && !local) {
       query = query.whereNotExists(function () {
         this.select(database.raw('1'))
           .from('actors')
           .whereRaw('?? = ??', ['actors.id', 'statuses.actorId'])
-          .whereNotNull('actors.privateKey')
+          .modify(whereLocalActor, 'actors.privateKey')
       })
     }
 

@@ -51,8 +51,14 @@ export const addStatusToTimelines = async (
           recipients.map((id) => database.getActorFromId({ id }))
         )
       ).filter(
-        (actor): actor is Actor =>
-          actor !== undefined && actor !== null && actor.privateKey !== ''
+        // Local recipients only. `actor.privateKey !== ''` looked like that
+        // test but was inert: `getActorFromRow` omits `privateKey` entirely
+        // unless it is truthy, so the field is either a real key or undefined
+        // and never the empty string the comparison looked for. Every remote
+        // recipient therefore passed, picking up home-timeline rows nobody
+        // would ever read and — through notifyRemoteReplyAndMention —
+        // notifications on accounts this server does not host.
+        (actor): actor is Actor => Boolean(actor?.privateKey)
       )
       const getLocalActorsFromFollowerUrl = (
         await Promise.all(

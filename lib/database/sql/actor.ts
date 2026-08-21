@@ -27,6 +27,7 @@ import {
   getWhereInBatchSize,
   isPostgresClient
 } from '@/lib/database/sql/utils/knex'
+import { whereLocalActor } from '@/lib/database/sql/utils/localActor'
 import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
 import {
   resolveIdsByPublicIds,
@@ -459,8 +460,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
           FEDERATION_SIGNING_ACTOR_USERNAME_LIKE_PATTERN
         ])
         .whereNull('accountId')
-        .whereNotNull('privateKey')
-        .where('privateKey', '<>', '')
+        .modify(whereLocalActor)
         .whereNull('deletionStatus')
         .orderBy('createdAt', 'asc')
         .orderBy('id', 'asc')

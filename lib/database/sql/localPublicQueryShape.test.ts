@@ -65,6 +65,23 @@ describe('local public timeline query shape', () => {
   beforeAll(async () => {
     await prepare()
     await database.migrate()
+
+    // Both surfaces resolve the local actors first and return early when there
+    // are none, so an empty database issues no timeline query at all and there
+    // would be no SQL here to assert on. One local actor is enough to make them
+    // build it.
+    const actorId = 'https://llun.test/users/query-shape'
+    await database.createActor({
+      actorId,
+      username: 'query-shape',
+      domain: 'llun.test',
+      publicKey: 'publicKey-query-shape',
+      privateKey: 'privateKey-query-shape',
+      inboxUrl: `${actorId}/inbox`,
+      sharedInboxUrl: 'https://llun.test/inbox',
+      followersUrl: `${actorId}/followers`,
+      createdAt: Date.now()
+    })
   })
 
   afterAll(async () => {
@@ -94,6 +111,14 @@ describe('local public timeline query shape', () => {
       // DISTINCT is what made the LIMIT unable to stop early. The semi-join
       // makes it unnecessary, and its return would mean the fix was undone.
       expect(sql).not.toContain('distinct')
+
+      // The local-actor test is literal ids, not a join. Joining `actors` on
+      // its unique key is what left the planner estimating 150 eligible rows
+      // against 7,262, which flipped this query onto a sequential scan of
+      // `actors` at any page bigger than 23 — the API's own default of 30
+      // included. That revert is invisible to every result-based assertion.
+      expect(sql).not.toContain('inner join actors')
+      expect(sql).toContain('statuses.actorId in (')
 
       // The bound has to reach the database, not just the result set.
       expect(sql).toContain('limit')
