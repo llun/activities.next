@@ -393,7 +393,7 @@ Other tables: sessions, notifications, medias, fitness_files,
 | **Authentication**   | better-auth                                                          |
 | **Logging**          | Pino                                                                 |
 | **Testing**          | Vitest (native ESM)                                                  |
-| **Code Quality**     | ESLint + Prettier                                                    |
+| **Code Quality**     | Oxlint + Prettier                                                    |
 | **Package Manager**  | Yarn 4 (exact version pinned via `packageManager` in `package.json`) |
 | **Containerization** | Docker (Alpine-based)                                                |
 | **Observability**    | OpenTelemetry (optional)                                             |

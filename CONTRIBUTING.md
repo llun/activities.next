@@ -111,7 +111,7 @@ Keep commits:
 The project uses:
 
 - **Prettier** for formatting — the Husky pre-commit hook formats staged files automatically via `lint-staged` (`prettier --write` on the staged files, re-staged before the commit); CI enforces formatting with `yarn prettier:check`. `yarn run prettier --write .` still formats the whole tree manually
-- **ESLint** for linting — the pre-commit hook also runs `yarn lint` and blocks the commit on errors
+- **Oxlint** for linting — the pre-commit hook also runs `yarn lint` and blocks the commit on errors. In VS Code, use the `oxc.oxc-vscode` extension (the ESLint extension no longer applies)
 - **2-space indentation**
 - **Single quotes**
 - **No semicolons**
@@ -366,7 +366,7 @@ activities.next/
 
 - `package.json` — Dependencies and scripts
 - `tsconfig.json` — TypeScript configuration
-- `eslint.config.mjs` — ESLint rules
+- `.oxlintrc.json` + `lint/agentsRules.mjs` — Oxlint rules
 - `.prettierrc.yml` — Code formatting rules
 - `vitest.config.ts` — Test configuration
 - `next.config.ts` — Next.js configuration
