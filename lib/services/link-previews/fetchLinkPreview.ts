@@ -90,8 +90,10 @@ const getErrorCode = (error: unknown): string => {
 
 // `text/html; charset=utf-8` → `text/html`, plus the charset for the guard
 // below.
-const parseContentType = (raw: string | string[] | undefined) => {
-  if (Array.isArray(raw)) raw = raw[0]
+// Takes what `getHeaderValue` returns, which is a single string: repeated
+// headers are already collapsed to the first entry there. Widening this to
+// accept `string[]` only added a branch that cannot run.
+const parseContentType = (raw: string | undefined) => {
   if (!raw) return { mimeType: null, charset: null }
   const [mimeType, ...parameters] = raw.split(';')
   const charset = parameters
