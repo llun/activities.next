@@ -648,4 +648,4 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   so the title is the commit subject). `.github/`-only changes are no-bump unless
   explicitly `minor:`/`major:`.
 - Pre-commit gate is green in order: `yarn run prettier --write .`, `yarn lint`,
-  `yarn build`, `yarn test`.
+  `yarn typecheck`, `yarn build`, `yarn test`.

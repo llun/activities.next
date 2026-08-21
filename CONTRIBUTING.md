@@ -295,6 +295,7 @@ Run all checks in order:
 ```bash
 yarn run prettier --write .       # Format code
 yarn lint                        # Lint — must pass with no errors
+yarn typecheck                   # Type check — must pass
 yarn build                       # Build — must succeed
 yarn test                        # Tests — must pass
 ```
@@ -329,7 +330,7 @@ Also:
 - [ ] No `console.log` statements (use logger for server-side code)
 - [ ] TypeScript types are proper (no `any`)
 - [ ] Commit messages follow convention
-- [ ] `yarn run prettier --write .`, `yarn lint`, `yarn build`, and `yarn test` pass
+- [ ] `yarn run prettier --write .`, `yarn lint`, `yarn typecheck`, `yarn build`, and `yarn test` pass
 
 ## Project Structure
 

@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "oxlint",
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "prettier": "prettier --write app migrations lib lint",

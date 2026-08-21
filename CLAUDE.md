@@ -14,8 +14,9 @@
 - Before committing, run in order:
   1. `yarn run prettier --write .`
   2. `yarn lint`
-  3. `yarn build`
-  4. `yarn test`
+  3. `yarn typecheck`
+  4. `yarn build`
+  5. `yarn test`
 - Start the local dev server with `yarn dev` unless a checkout-specific override says otherwise. The package script binds Next.js to `0.0.0.0`, so only run it on trusted local networks.
 - Use the browser to verify any UI changes.
 - Every top-level page in the `(timeline)` group shares **one** desktop content width: the layout wrapper and `PageHeader` both center at `max-w-content` (a single `--container-content: 940px` token in `app/globals.css`). Do **not** reintroduce the old two-tier `max-w-2xl`/`max-w-4xl` split, a `contentWidth` prop, or the `data-layout-width="wide"` opt-in — sections and Messages inherit the unified width.
