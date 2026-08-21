@@ -156,7 +156,7 @@ change doesn't touch.
 
 - React components never call `fetch()` directly — every client→server call is a
   named, typed, exported function in `lib/client.ts`, imported from there.
-  (Lint-enforced; the frozen legacy exception list in `eslint.config.mjs` must
+  (Lint-enforced; the frozen legacy exception list in `.oxlintrc.json` must
   only ever shrink.)
 - Server Components never pass `new Date()` to a Client Component. Pass
   `Date.now()` (a `number`); the client takes `currentTime: number` and builds
@@ -648,4 +648,4 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   so the title is the commit subject). `.github/`-only changes are no-bump unless
   explicitly `minor:`/`major:`.
 - Pre-commit gate is green in order: `yarn run prettier --write .`, `yarn lint`,
-  `yarn build`, `yarn test`.
+  `yarn typecheck`, `yarn build`, `yarn test`.

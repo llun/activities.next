@@ -111,7 +111,7 @@ Keep commits:
 The project uses:
 
 - **Prettier** for formatting — the Husky pre-commit hook formats staged files automatically via `lint-staged` (`prettier --write` on the staged files, re-staged before the commit); CI enforces formatting with `yarn prettier:check`. `yarn run prettier --write .` still formats the whole tree manually
-- **ESLint** for linting — the pre-commit hook also runs `yarn lint` and blocks the commit on errors
+- **Oxlint** for linting — the pre-commit hook also runs `yarn lint` and blocks the commit on errors. In VS Code, use the `oxc.oxc-vscode` extension (the ESLint extension no longer applies)
 - **2-space indentation**
 - **Single quotes**
 - **No semicolons**
@@ -295,6 +295,7 @@ Run all checks in order:
 ```bash
 yarn run prettier --write .       # Format code
 yarn lint                        # Lint — must pass with no errors
+yarn typecheck                   # Type check — must pass
 yarn build                       # Build — must succeed
 yarn test                        # Tests — must pass
 ```
@@ -329,7 +330,7 @@ Also:
 - [ ] No `console.log` statements (use logger for server-side code)
 - [ ] TypeScript types are proper (no `any`)
 - [ ] Commit messages follow convention
-- [ ] `yarn run prettier --write .`, `yarn lint`, `yarn build`, and `yarn test` pass
+- [ ] `yarn run prettier --write .`, `yarn lint`, `yarn typecheck`, `yarn build`, and `yarn test` pass
 
 ## Project Structure
 
@@ -366,7 +367,7 @@ activities.next/
 
 - `package.json` — Dependencies and scripts
 - `tsconfig.json` — TypeScript configuration
-- `eslint.config.mjs` — ESLint rules
+- `.oxlintrc.json` + `lint/agentsRules.mjs` — Oxlint rules
 - `.prettierrc.yml` — Code formatting rules
 - `vitest.config.ts` — Test configuration
 - `next.config.ts` — Next.js configuration

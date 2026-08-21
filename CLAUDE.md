@@ -14,8 +14,9 @@
 - Before committing, run in order:
   1. `yarn run prettier --write .`
   2. `yarn lint`
-  3. `yarn build`
-  4. `yarn test`
+  3. `yarn typecheck`
+  4. `yarn build`
+  5. `yarn test`
 - Start the local dev server with `yarn dev` unless a checkout-specific override says otherwise. The package script binds Next.js to `0.0.0.0`, so only run it on trusted local networks.
 - Use the browser to verify any UI changes.
 - Every top-level page in the `(timeline)` group shares **one** desktop content width: the layout wrapper and `PageHeader` both center at `max-w-content` (a single `--container-content: 940px` token in `app/globals.css`). Do **not** reintroduce the old two-tier `max-w-2xl`/`max-w-4xl` split, a `contentWidth` prop, or the `data-layout-width="wide"` opt-in — sections and Messages inherit the unified width.
@@ -23,7 +24,7 @@
 - Creating **test/mock users** for local verification is allowed, but **only against a local database** — never against a remote/shared/production database (e.g. `34.79.77.243` or any non-local `ACTIVITIES_DATABASE_PG_HOST`). For local UI/browser testing, use a throwaway **SQLite** `dev.sqlite3` on `localhost` (or the docker-compose **PostgreSQL at `activities.local`**) with the sanctioned `scripts/mock/createMockUser.ts` + `scripts/mock/createMockStatuses.ts`, as documented under **"Local Manual / Browser Testing (SQLite + mock data)"** in `AGENTS.md`. Before migrating, starting the dev server, or creating users, confirm `ACTIVITIES_DATABASE` / `ACTIVITIES_DATABASE_PG_HOST` resolves to a local target. In a git worktree, do not reuse the main checkout's `.env.local` if it points at a remote DB — write a worktree-local SQLite config instead.
 - Local browser-testing quick reference (full details + gotchas in `AGENTS.md`):
   - `.env.local` needs `ACTIVITIES_INSECURE_AUTH=true` (else local `http` sign-in returns `403 Invalid origin`), single-quoted `ACTIVITIES_ALLOW_EMAILS='["test@example.com"]'`, and `ACTIVITIES_HOST` matching the `yarn dev --port`.
-  - `yarn migrate` auto-loads `.env.local`; the `swc-node` mock scripts do not — run `set -a; . ./.env.local; set +a` before them.
+  - `yarn migrate` auto-loads `.env.local`; the mock scripts do not — run `set -a; . ./.env.local; set +a` before them.
   - Sign in at `/auth/signin` with `test@example.com` / `testpassword123`.
 - Activity logs: `fediverse_local-activitynext-dev-1` container; DB: `postgres` container.
 - **There are TWO committed reference schema dumps — use the right one per backend, and any PR that adds/edits/removes a migration MUST regenerate BOTH in the same PR.** `migrations/schema.sql` is the **PostgreSQL** dump; `migrations/schema.sqlite.sql` is the **SQLite** dump (SQLite is what local dev and the Vitest tests use). The dialects differ (`character varying`/`jsonb`/`timestamp with time zone` vs `varchar`/`json`/`datetime`), so a PG dump can't load into SQLite — read the file matching the backend. The app runs Knex migrations, but the Vitest suite builds its test databases straight from these dumps (`lib/database/testUtils.ts`), so drift breaks or falsifies tests. Regenerate by running all migrations against a **local** DB of each type: Postgres → `pg_dump --schema-only --no-owner --no-privileges` then strip pg_dump chatter (`\restrict`/`\unrestrict`, `-- …` comments, `SET default_tablespace`/`default_table_access_method`); SQLite → `sqlite3 file .schema` then strip auto-managed internal tables (`sqlite_sequence`, FTS5 `*_fts_data/idx/docsize/config` shadow tables) while keeping the `CREATE VIRTUAL TABLE … fts5` + triggers. Both files are kept tracked via `!` negations in `.gitignore` (which otherwise ignores `*.sql`). Don't hand-edit or chase old formatting; commit as `none:` if it's the only change. Full steps in the **"Keeping the reference schema dumps in sync"** subsection of `AGENTS.md`.

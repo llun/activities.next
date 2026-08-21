@@ -1,6 +1,6 @@
+import { parseSync } from '@swc/core'
 import fs from 'fs'
 import path from 'path'
-import ts from 'typescript'
 
 // A `'use client'` module imported from server code resolves to a client
 // reference, not the module itself: components still render, but a plain
@@ -72,41 +72,43 @@ const isClientModule = (filePath: string) =>
 // Every module specifier the file imports or re-exports a RUNTIME value from.
 // Side-effect imports (`import 'x'`) are excluded: they read no value.
 //
-// The ScriptKind follows the extension: parsing a `.ts` file as TSX turns a
-// generic arrow (`<T>(x: T) => x`) into JSX and drops every statement after it,
-// which would blind this check to anything declared below one.
+// Parsed with @swc/core rather than the `typescript` package: TypeScript 7's
+// npm package is a CLI with no compiler API, and this guard has to keep working
+// across that upgrade. The syntax flag follows the extension: parsing a `.ts`
+// file as TSX turns a generic arrow (`<T>(x: T) => x`) into JSX and drops every
+// statement after it, which would blind this check to anything declared below
+// one.
 const collectValueImports = (fileName: string, source: string): string[] => {
-  const sourceFile = ts.createSourceFile(
-    fileName,
-    source,
-    ts.ScriptTarget.Latest,
-    true,
-    fileName.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS
-  )
+  const module = parseSync(source, {
+    syntax: 'typescript',
+    tsx: fileName.endsWith('.tsx'),
+    decorators: true
+  })
 
-  return sourceFile.statements.flatMap((statement) => {
-    if (ts.isImportDeclaration(statement)) {
-      const { importClause, moduleSpecifier } = statement
-      if (!importClause || importClause.isTypeOnly) return []
-      const { name, namedBindings } = importClause
-      const isEveryBindingTypeOnly =
-        !name &&
-        namedBindings !== undefined &&
-        ts.isNamedImports(namedBindings) &&
-        namedBindings.elements.every((element) => element.isTypeOnly)
-      if (isEveryBindingTypeOnly) return []
-      return ts.isStringLiteral(moduleSpecifier) ? [moduleSpecifier.text] : []
+  return module.body.flatMap((statement) => {
+    if (statement.type === 'ImportDeclaration') {
+      if (statement.typeOnly || statement.specifiers.length === 0) return []
+      const isEveryBindingTypeOnly = statement.specifiers.every(
+        (specifier) =>
+          specifier.type === 'ImportSpecifier' && specifier.isTypeOnly
+      )
+      return isEveryBindingTypeOnly ? [] : [statement.source.value]
     }
 
-    if (ts.isExportDeclaration(statement) && statement.moduleSpecifier) {
-      const { exportClause, moduleSpecifier } = statement
-      if (statement.isTypeOnly) return []
-      const isEveryBindingTypeOnly =
-        exportClause !== undefined &&
-        ts.isNamedExports(exportClause) &&
-        exportClause.elements.every((element) => element.isTypeOnly)
-      if (isEveryBindingTypeOnly) return []
-      return ts.isStringLiteral(moduleSpecifier) ? [moduleSpecifier.text] : []
+    if (statement.type === 'ExportNamedDeclaration' && statement.source) {
+      if (statement.typeOnly) return []
+      const isEveryBindingTypeOnly = statement.specifiers.every(
+        (specifier) =>
+          specifier.type === 'ExportSpecifier' && specifier.isTypeOnly
+      )
+      return isEveryBindingTypeOnly ? [] : [statement.source.value]
+    }
+
+    if (statement.type === 'ExportAllDeclaration') {
+      // `export type * from` is parsed with `typeOnly: true`; @swc/types does
+      // not declare the field on this node yet, hence the `in` check.
+      const isTypeOnly = 'typeOnly' in statement && statement.typeOnly === true
+      return isTypeOnly ? [] : [statement.source.value]
     }
 
     return []
