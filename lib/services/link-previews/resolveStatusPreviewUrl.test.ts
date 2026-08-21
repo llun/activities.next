@@ -4,7 +4,8 @@ import { Status } from '@/lib/types/domain/status'
 import { Tag } from '@/lib/types/domain/tag'
 
 const getStatus = vi.fn().mockResolvedValue(null)
-const database = { getStatus } as unknown as Database
+const getTags = vi.fn().mockResolvedValue([])
+const database = { getStatus, getTags } as unknown as Database
 
 const emojiTag = (name: string, value: string): Tag => ({
   type: 'emoji',
@@ -31,6 +32,8 @@ describe('resolveStatusPreviewUrl', () => {
   beforeEach(() => {
     getStatus.mockReset()
     getStatus.mockResolvedValue(null)
+    getTags.mockReset()
+    getTags.mockResolvedValue([])
   })
 
   it('resolves the first link in a status', async () => {
@@ -48,26 +51,35 @@ describe('resolveStatusPreviewUrl', () => {
     ).toBeNull()
   })
 
-  // This is the one thing about this function that cannot be seen from reading
-  // it: the extractor needs the status's TAGS, because the custom-emoji
-  // substitution runs between the two sanitize passes and can empty an anchor
-  // that the text alone says is perfectly visible. Dropping the `tags` argument
-  // is a one-line edit that silently hands back a phishing card, so it gets a
-  // test of its own rather than relying on the extractor's.
-  it('passes the status tags to the extractor', async () => {
+  // The extractor needs the status's TAGS: the custom-emoji substitution runs
+  // between the two sanitize passes and can empty an anchor that the text alone
+  // says is perfectly visible.
+  //
+  // They are READ BACK rather than taken from the status object, and the status
+  // here carries `tags: []` on purpose to prove it. The remote ingest path —
+  // the one an attacker actually uses — hands `syncStatusLinkPreview` the
+  // object `database.createNote` returned, and that object always has `tags: []`
+  // because the tags are written to the database afterwards. Trusting the
+  // object made this whole defence a no-op on exactly the path it is for.
+  it('reads the tags back rather than trusting the status object', async () => {
+    getTags.mockResolvedValue([
+      // Not https, so `sanitizeTrustedStatusText` drops the img entirely and
+      // the first anchor renders as nothing at all.
+      emojiTag(':blob:', 'http://cdn.evil.example/e.png')
+    ])
+
     const status = makeStatus({
       isLocalActor: false,
       text:
         '<p><a href="https://evil.example/phish">:blob:</a>' +
         ' see <a href="https://good.example/article">good.example/article</a></p>',
-      // Not https, so `sanitizeTrustedStatusText` drops the img entirely and
-      // the first anchor renders as nothing at all.
-      tags: [emojiTag(':blob:', 'http://cdn.evil.example/e.png')]
+      tags: []
     } as Partial<Status>)
 
     expect(await resolveStatusPreviewUrl({ database, status })).toBe(
       'https://good.example/article'
     )
+    expect(getTags).toHaveBeenCalledWith({ statusId: status.id })
   })
 
   it('excludes a quoted status url', async () => {

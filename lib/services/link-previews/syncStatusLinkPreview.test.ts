@@ -31,10 +31,17 @@ const deleteStatusLinkPreview = vi.fn()
 // syncStatusLinkPreview swallows it, and "publish was not called" passes for
 // entirely the wrong reason.
 const getStatus = vi.fn().mockResolvedValue(null)
+// `resolveStatusPreviewUrl` reads the status's tags back from the database
+// rather than trusting the object it was handed, because the remote ingest path
+// passes one whose tags have not been written yet. Same trap as `getStatus`
+// above: leave it out and every "publish was called" assertion here fails, or
+// worse, a "was not called" one passes for the wrong reason.
+const getTags = vi.fn().mockResolvedValue([])
 const getStatusLinkPreviews = vi.fn().mockResolvedValue(new Map())
 const database = {
   deleteStatusLinkPreview,
   getStatus,
+  getTags,
   getStatusLinkPreviews
 } as unknown as Database
 

@@ -23,10 +23,15 @@ const LINKED_URL = 'https://example.com/a'
 const linkStatusLinkPreview = vi.fn()
 const deleteStatusLinkPreview = vi.fn()
 const getStatus = vi.fn()
+// The job re-resolves the status's url through `resolveStatusPreviewUrl`, which
+// reads the tags back from the database — a status's custom emoji can change
+// which of its links a reader can actually see.
+const getTags = vi.fn().mockResolvedValue([])
 const database = {
   linkStatusLinkPreview,
   deleteStatusLinkPreview,
-  getStatus
+  getStatus,
+  getTags
 } as unknown as Database
 
 const message = (data: unknown) => ({

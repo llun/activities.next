@@ -46,15 +46,25 @@ export const resolveStatusPreviewUrl = async ({
     if (quotedUrl) excludeUrls.push(quotedUrl)
   }
 
+  // Read back rather than taken from `status`. The custom-emoji substitution
+  // happens between the two sanitize passes and can EMPTY an anchor the
+  // extractor would otherwise count as visible, so the tags are not optional —
+  // and `status.tags` is not reliably them. The remote ingest path, which is
+  // the one an attacker actually uses, hands `syncStatusLinkPreview` the object
+  // `database.createNote` returned, and that object always carries `tags: []`
+  // because the tags are written to the database afterwards. Trusting it made
+  // the whole defence a no-op on exactly the path it exists for.
+  //
+  // One extra query, once per status write. Doing it here rather than in the
+  // callers is the same choice as everything else in this file: the scheduler
+  // and the job must not be able to compute this differently.
+  const tags = await database.getTags({ statusId: status.id })
+
   return extractPreviewUrl({
     text: status.text,
     isLocalActor: status.isLocalActor,
     host: getConfig().host,
-    // Not optional in practice. The custom-emoji substitution happens between
-    // the two sanitize passes and can EMPTY an anchor the extractor would
-    // otherwise have counted as visible, so an extractor that cannot see the
-    // tags is measuring text the renderer is about to rewrite.
-    tags: status.tags,
+    tags,
     excludeUrls
   })
 }
