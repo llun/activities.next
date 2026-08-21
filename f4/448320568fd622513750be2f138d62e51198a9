@@ -1,0 +1,31 @@
+lib/utils/text/getEmojiTags.ts
+  s_8fbc352edaf843::t_e4338f74a3a2af 11-21
+lib/utils/text/convertEmojisToImages.ts
+  s_8fbc352edaf843::t_7ba2ebc3d0be83 2-3,5-37,40,45
+lib/utils/text/convertEmojisToImages.test.ts
+  s_8fbc352edaf843::t_dd470e25f0d53a 75-87,91,95-96,100-101,115,119-124,128-130,133-135,137-147,149-156
+  s_8fbc352edaf843::t_ea7092ecf3a1f5 116-118,148
+  s_8fbc352edaf843::t_61330737e09930 125-127,131-132,136
+  s_8fbc352edaf843::t_4ce5c0d3c0be0a 88-90,92-94,97-99,102-114
+  s_8fbc352edaf843::t_1c9e9f4e71bf35 4-14
+AGENTS.md
+  s_8fbc352edaf843::t_13db9c3c2296bb 1062-1082
+REVIEW.md
+  s_8fbc352edaf843::t_891e43f5719612 497-506
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "f4448320568fd622513750be2f138d62e51198a9",
+  "prompts": {},
+  "sessions": {
+    "s_8fbc352edaf843": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f5805ef5-0c89-425f-91b8-cc86a0704bc4",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
