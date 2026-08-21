@@ -41,7 +41,8 @@ const baseSettings: ResolvedServerSettings = {
   network: {
     requestTimeoutMs: 4000,
     requestRetries: 1,
-    maxResponseSizeBytes: 2097152
+    maxResponseSizeBytes: 2097152,
+    linkPreviews: true
   },
   federation: { mode: 'open', allowActorDomains: [] },
   features: { fitness: true, explore: true, messages: true }

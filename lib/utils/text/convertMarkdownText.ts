@@ -123,14 +123,16 @@ const SHARED_TOKENIZER: TokenizerObject = {
   }
 }
 
+// The one Marked configuration used to render local status text.
+const createStatusMarked = (host: string) =>
+  new Marked({
+    gfm: true,
+    breaks: true,
+    async: false,
+    extensions: [mention(host), hashtag],
+    renderer: SHARED_RENDERER,
+    tokenizer: SHARED_TOKENIZER
+  })
+
 export const convertMarkdownText = (host: string) => (text: string) =>
-  (
-    new Marked({
-      gfm: true,
-      breaks: true,
-      async: false,
-      extensions: [mention(host), hashtag],
-      renderer: SHARED_RENDERER,
-      tokenizer: SHARED_TOKENIZER
-    }).parse(text) as string
-  ).trim()
+  (createStatusMarked(host).parse(text) as string).trim()

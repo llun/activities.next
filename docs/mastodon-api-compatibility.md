@@ -82,10 +82,24 @@ product or security decision, not a gap to be closed.
   first read. (An asynchronous, presigned direct-to-storage upload path exists as
   an extension; see below.)
 
-- **`GET /api/v1/trends/links` intentionally returns `[]`.** Activity.next does
-  not store link preview cards, so there is no trending-links data to surface.
-  Trending hashtags (`/api/v1/trends/tags`) and statuses (`/api/v1/trends/statuses`)
-  are fully implemented.
+- **`GET /api/v1/trends/links` intentionally returns `[]`.** Activity.next now
+  stores link preview cards (see below), but it does not compute trend rankings
+  over them — this is a personal server, where "what is trending" over one
+  account's timeline is not a meaningful number. Trending hashtags
+  (`/api/v1/trends/tags`) and statuses (`/api/v1/trends/statuses`) are fully
+  implemented.
+
+- **A status's `card` is populated.** When a status contains a link, the server
+  fetches that page once, extracts its OpenGraph/Twitter-card metadata and
+  serves it as the [PreviewCard](https://docs.joinmastodon.org/entities/PreviewCard/)
+  in `Status.card`. Two fields are always empty, deliberately: `html` and
+  `embed_url` (this server does not consume oEmbed, and emitting remote-authored
+  markup for clients to inject buys nothing), and `blurhash` is null because
+  thumbnails are served from the origin rather than stored locally. A boost
+  (`reblog`) carries `card: null` at the top level; the card is on the wrapped
+  status. Fetching can be turned off entirely by an admin under
+  Admin → Network → Link previews, in which case `card` stays null for new
+  statuses.
 
 - **`GET /api/v1/timelines/direct` is retained.** Mastodon removed this endpoint
   in 3.0 in favor of conversations, but Activity.next keeps it for legacy clients.
@@ -232,7 +246,9 @@ can be revisited on demand — file an issue if you need one.
   `/api/v1/admin/dimensions`, `/api/v1/admin/retention`
 - Admin trends moderation — `/api/v1/admin/trends/*`
 - Annual reports ("wrapped") — `/api/v1/annual_reports/*`
-- Link timeline — `/api/v1/timelines/link` (needs stored preview cards)
+- Link timeline — `/api/v1/timelines/link` (preview cards are stored now, but
+  this timeline also needs the trend ranking that `/api/v1/trends/links` does
+  not compute)
 - Async refreshes — `/api/v1_alpha/async_refreshes`
 - The out-of-band redirect flow — `urn:ietf:wg:oauth:2.0:oob`
 

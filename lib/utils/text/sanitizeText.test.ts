@@ -73,6 +73,66 @@ describe('sanitizeText', () => {
       expect(sanitizeText(input)).toEqual('<span class="mention">@user</span>')
     })
 
+    // The class attribute reaches the real DOM: cleanClassName hands an
+    // anchor's class straight to `className`, and leaves any span class it does
+    // not itself rewrite untouched. This app compiles Tailwind, so every
+    // utility in the bundle is a class a remote server can spend on our page —
+    // `sr-only` alone is `position:absolute;width:1px;height:1px`, which is
+    // enough to publish text into a post that no reader can see.
+    describe('presentational classes from remote servers', () => {
+      it.each([
+        { description: 'a screen-reader-only span', className: 'sr-only' },
+        { description: 'a zero-opacity span', className: 'opacity-0' },
+        { description: 'a zero-size span', className: 'size-0' },
+        {
+          description: 'a transparent-text span',
+          className: 'text-transparent'
+        },
+        { description: 'an off-canvas span', className: 'absolute -left-96' }
+      ])('strips $description', ({ className }) => {
+        expect(sanitizeText(`<span class="${className}">gone</span>`)).toEqual(
+          '<span>gone</span>'
+        )
+      })
+
+      it('strips a presentational class from an anchor', () => {
+        expect(
+          sanitizeText('<a href="https://example.com" class="sr-only">x</a>')
+        ).toEqual('<a href="https://example.com">x</a>')
+      })
+
+      it('keeps the allowed classes and drops the rest from one attribute', () => {
+        expect(
+          sanitizeText('<span class="h-card sr-only">@user</span>')
+        ).toEqual('<span class="h-card">@user</span>')
+      })
+    })
+
+    // The fediverse markup that has to survive: mention and hashtag anchors,
+    // and the invisible/ellipsis spans Mastodon splits a long link's text into.
+    describe('fediverse markup', () => {
+      it.each([
+        {
+          description: 'an h-card mention',
+          html: '<span class="h-card"><a href="https://example.com/@user" class="u-url mention">@<span>user</span></a></span>'
+        },
+        {
+          description: 'a hashtag anchor',
+          html: '<a href="https://example.com/tags/x" class="hashtag" rel="tag">#<span>x</span></a>'
+        },
+        {
+          description: 'a truncated link split into invisible spans',
+          html: '<a href="https://example.com/very/long"><span class="invisible">https://</span><span class="ellipsis">example.com/very</span><span class="invisible">/long</span></a>'
+        },
+        {
+          description: 'a p-author inside an h-card',
+          html: '<span class="h-card"><a href="https://example.com/@user" class="u-url mention"><span class="p-author">user</span></a></span>'
+        }
+      ])('keeps $description unchanged', ({ html }) => {
+        expect(sanitizeText(html)).toEqual(html)
+      })
+    })
+
     it('allows formatting tags', () => {
       const input = '<strong>bold</strong> <em>italic</em> <del>deleted</del>'
       expect(sanitizeText(input)).toEqual(
@@ -199,6 +259,22 @@ describe('sanitizeText', () => {
         '<img class=" not-emoji " src="https://example.com/image.jpg" alt="image">'
 
       expect(sanitizeTrustedStatusText(input)).toEqual('')
+    })
+
+    // This pass runs SECOND, over text sanitizeText has already cleaned, so it
+    // normally never sees a remote class. It still has to enforce the same
+    // allowlist: a tag with no `allowedClasses` entry keeps its classes
+    // untouched, so declaring only `img` here would quietly hand span and a
+    // back their unrestricted class attribute and undo the first pass.
+    it('applies the same class allowlist as the untrusted pass', () => {
+      expect(
+        sanitizeTrustedStatusText('<span class="sr-only">gone</span>')
+      ).toEqual('<span>gone</span>')
+    })
+
+    it('still keeps fediverse classes', () => {
+      const input = '<a href="https://example.com" class="u-url mention">@u</a>'
+      expect(sanitizeTrustedStatusText(input)).toEqual(input)
     })
   })
 })

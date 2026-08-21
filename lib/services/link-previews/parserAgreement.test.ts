@@ -1,0 +1,277 @@
+/**
+ * @vitest-environment jsdom
+ */
+import { htmlToDOM } from 'html-react-parser'
+
+import { extractPreviewUrl } from '@/lib/services/link-previews/extractUrl'
+import { processStatusTextContent } from '@/lib/utils/text/processStatusText'
+
+/**
+ * The extractor and the reader parse the SAME string with DIFFERENT parsers.
+ *
+ * `extractPreviewUrl` only ever runs server-side (server actions and jobs), so
+ * its `htmlToDOM` resolves to `html-dom-parser`'s Node build — htmlparser2,
+ * which does no HTML5 tree construction. The reader's `cleanClassName` runs in
+ * the browser bundle, where it resolves to `template.innerHTML` and gets the
+ * real algorithm. Any HTML5 rule that MOVES content between elements is
+ * therefore a place the two can disagree about which anchor owns which text,
+ * and one such disagreement is a phishing card: the extractor picks a link that
+ * renders as nothing.
+ *
+ * Nested anchors were the one that mattered — the adoption agency algorithm is
+ * unusual in that it EMPTIES an element and re-parents its content — and
+ * `getVisibleText` stops at a descendant anchor because of it. This file exists
+ * so the next such rule is caught by the suite rather than by an attacker: it
+ * checks the extractor's answer against a spec-compliant DOM rather than
+ * against hand-written expectations.
+ *
+ * jsdom is the oracle. It implements HTML5 tree construction, and unlike
+ * `parse5` (which reaches us only as jsdom's own transitive dependency) it is a
+ * declared devDependency, so this cannot break on an unrelated bump.
+ */
+const HOST = 'llun.test'
+
+// Anchors this feature deliberately skips for reasons that have nothing to do
+// with parsing: social-graph links are not content.
+const isNonContentAnchor = (anchor: HTMLAnchorElement): boolean => {
+  const rel = (anchor.getAttribute('rel') ?? '').toLowerCase().split(/\s+/)
+  if (rel.includes('tag')) return true
+  const classes = (anchor.getAttribute('class') ?? '')
+    .toLowerCase()
+    .split(/\s+/)
+  return ['mention', 'hashtag', 'u-url'].some((m) => classes.includes(m))
+}
+
+// What the reader can actually read inside `node`: `cleanClassName` maps
+// Mastodon's `invisible` onto Tailwind's `hidden` (`display: none`), and a
+// nested anchor is not this anchor's text because the two cannot coexist.
+const visibleText = (node: Node, belowAnchor = false): string => {
+  if (node.nodeType === node.TEXT_NODE) return node.textContent ?? ''
+  if (node.nodeType !== node.ELEMENT_NODE) return ''
+  const element = node as Element
+  const classes = (element.getAttribute('class') ?? '')
+    .toLowerCase()
+    .split(/\s+/)
+  if (classes.includes('invisible') || classes.includes('hidden')) return ''
+  if (belowAnchor && element.tagName === 'A') return ''
+  return Array.from(element.childNodes)
+    .map((child) => visibleText(child, true))
+    .join('')
+}
+
+/**
+ * Every href the reader can both see and click, in reading order.
+ *
+ * `innerHTML` is the POINT here, not an oversight: invoking jsdom's HTML5 tree
+ * construction is the whole reason this file exists, and it is exactly what the
+ * browser does with this same string at render time (`cleanClassName` resolves
+ * to `template.innerHTML` in the client bundle). Parsing it any other way would
+ * measure something the reader never sees. Nothing untrusted reaches it — the
+ * inputs are the fixtures below — and it runs only under Vitest.
+ */
+const readerVisibleHrefs = (html: string): string[] => {
+  const host = document.createElement('div')
+  host.innerHTML = html
+  return Array.from(host.querySelectorAll('a'))
+    .filter((anchor) => {
+      if (!anchor.getAttribute('href')) return false
+      if (isNonContentAnchor(anchor)) return false
+      // An ancestor that is hidden hides this anchor too.
+      for (let el: Element | null = anchor; el; el = el.parentElement) {
+        const c = (el.getAttribute('class') ?? '').toLowerCase().split(/\s+/)
+        if (c.includes('invisible') || c.includes('hidden')) return false
+      }
+      return visibleText(anchor).replace(/\s+/g, '') !== ''
+    })
+    .map((anchor) => anchor.getAttribute('href') as string)
+}
+
+const CASES: { description: string; text: string; noCard?: true }[] = [
+  {
+    description: 'a nested anchor',
+    text: '<p>New post: <a href="https://evil.example/login"><b><a href="https://good.example/a">good.example/a</a></b></a></p>'
+  },
+  {
+    description: 'a nested anchor around a mention',
+    noCard: true,
+    text: '<p>Hey <a href="https://evil.example/login"><b><span class="h-card"><a href="https://good.social/@alice" class="u-url mention">@alice</a></span></b></a> look</p>'
+  },
+  {
+    description: 'an outer anchor with text of its own',
+    text: '<p><a href="https://first.example/a">click <b><a href="https://second.example/b">x</a></b></a></p>'
+  },
+  // The outer anchor is popped at the inner anchor's START tag, so text after
+  // the nest lands OUTSIDE it. Only the "before" half survives — these three
+  // pin each side of that boundary.
+  {
+    description: 'an outer anchor whose only text is AFTER the nest',
+    text: '<p><a href="https://evil.example/login"><b><a href="https://good.example/a">good.example/a</a></b> — worth a read.</a></p>'
+  },
+  {
+    description: 'text after the nest with a mention inside it',
+    noCard: true,
+    text: '<p>New from the blog: <a href="https://evil.example/login"><b><a href="https://good.social/@alice" class="u-url mention">@alice</a></b> — worth a read.</a></p>'
+  },
+  {
+    description: 'an outer anchor with text on both sides of the nest',
+    text: '<p><a href="https://first.example/a">before <b><a href="https://second.example/b">x</a></b> after</a></p>'
+  },
+  {
+    description: 'text after the nest inside a block',
+    text: '<p><a href="https://evil.example/login"><p><a href="https://good.example/a">g</a> tail</p></a></p>'
+  },
+  // A parser does not read class attributes. The adoption agency fires at the
+  // inner anchor's start tag whatever it is wearing, so hiding the nest with
+  // CSS changes nothing about the restructuring — only about what the reader
+  // can read.
+  {
+    description: 'a nested anchor that is itself invisible',
+    noCard: true,
+    text: '<p>Read: <a href="https://evil.example/login"><b><a href="https://good.example/article" class="invisible">good</a></b> — worth a read.</a></p>'
+  },
+  {
+    description: 'a nested anchor inside an invisible span',
+    noCard: true,
+    text: '<p><a href="https://evil.example/login"><b><span class="invisible"><a href="https://good.example/article">good</a></span></b> — worth a read.</a></p>'
+  },
+  // An `<a>` start tag is an `<a>` start tag: the parser reparents on the TAG,
+  // regardless of what it carries or contains. These three exist because the
+  // obvious "optimizations" — only stop at a nest that has an href, or that has
+  // text, or that is not itself hidden — each look reasonable, each reintroduce
+  // a phantom card, and none of them were caught before these landed.
+  {
+    description: 'a nested anchor with no href at all',
+    noCard: true,
+    text: '<p>Read: <a href="https://evil.example/login"><b><a>good.example</a></b> — worth a read.</a></p>'
+  },
+  {
+    description: 'a nested anchor with no content',
+    noCard: true,
+    text: '<p>Read: <a href="https://evil.example/login"><b><a href="https://good.example/article"></a></b> — worth a read.</a></p>'
+  },
+  {
+    description: 'a nested anchor whose content is all invisible',
+    noCard: true,
+    text: '<p>Read: <a href="https://evil.example/login"><b><a href="https://good.example/article"><span class="invisible">x</span></a></b> — worth a read.</a></p>'
+  },
+  // Class 2, pinned deliberately: htmlparser2 keeps the blockquote inside the
+  // <p> where HTML5 closes the paragraph, which pops the hidden span too — so
+  // the reader CAN see this link and we give it no card. That is the safe
+  // direction and it is left alone on purpose; this case exists so that
+  // "fixing" it into a phantom fails loudly.
+  {
+    description: 'a block inside a hidden span inside a paragraph',
+    noCard: true,
+    text: '<p><span class="invisible">A<blockquote><a href="https://evil.example/x">x</a></blockquote></span></p>'
+  },
+  {
+    description: 'a paragraph inside a paragraph',
+    text: '<p>a <a href="https://first.example/a">x</a><p>b <a href="https://second.example/b">y</a></p></p>'
+  },
+  {
+    description: 'list items outside a list',
+    text: '<li><a href="https://first.example/a">x</a><li><a href="https://second.example/b">y</a>'
+  },
+  {
+    description: 'an unclosed anchor across a block',
+    text: '<p><a href="https://first.example/a">x<p><a href="https://second.example/b">y</a></p>'
+  },
+  {
+    description: 'a block element inside an inline one',
+    text: '<p><b><p><a href="https://first.example/a">x</a></p></b></p>'
+  },
+  {
+    description: 'a stray close tag',
+    text: '<p></b><a href="https://first.example/a">x</a></p>'
+  },
+  {
+    description: 'a blockquote inside a paragraph',
+    text: '<p>a<blockquote><a href="https://first.example/a">x</a></blockquote></p>'
+  },
+  {
+    description: 'nested lists',
+    text: '<ul><li><a href="https://first.example/a">x</a><ul><li><a href="https://second.example/b">y</a></li></ul></li></ul>'
+  },
+  {
+    description: 'an anchor inside pre',
+    text: '<pre><a href="https://first.example/a">x</a></pre>'
+  },
+  {
+    description: 'a hidden ancestor',
+    text: '<p><span class="invisible"><a href="https://evil.example/x">x</a></span> <a href="https://good.example/y">y</a></p>'
+  },
+  {
+    description: 'a Mastodon split link',
+    text: '<p><a href="https://first.example/very/long"><span class="invisible">https://</span><span class="ellipsis">first.example/very</span><span class="invisible">/long</span></a></p>'
+  }
+]
+
+describe('the extractor agrees with a spec-compliant parser', () => {
+  // Everything below compares two parsers, and this file runs under jsdom — so
+  // it is worth proving they are still two. `htmlToDOM` picks its build by
+  // export condition; if Vite ever applied the `browser` condition here (a
+  // Vitest major, or someone adding `resolve.conditions`) the extractor would
+  // quietly switch to the browser's own parser and EVERY case in this file
+  // would pass unconditionally, comparing one parser against itself. A test
+  // that can silently become vacuous is worse than no test, so it checks.
+  //
+  // htmlparser2 keeps a nested anchor; HTML5 tree construction never does.
+  it('is still comparing two different parsers', () => {
+    const nodes = htmlToDOM(
+      '<a href="https://a.test/"><b><a href="https://b.test/">t</a></b></a>'
+    ) as {
+      name?: string
+      children?: { name?: string; children?: unknown[] }[]
+    }[]
+    const nestsAnchors =
+      nodes[0]?.name === 'a' && nodes[0]?.children?.[0]?.name === 'b'
+
+    expect(nestsAnchors).toBe(true)
+
+    const host = document.createElement('div')
+    host.innerHTML =
+      '<a href="https://a.test/"><b><a href="https://b.test/">t</a></b></a>'
+    expect(host.querySelector('a > b > a')).toBeNull()
+  })
+
+  it.each(CASES)(
+    'picks a link the reader can see, given $description',
+    ({ text }) => {
+      const extracted = extractPreviewUrl({
+        text,
+        isLocalActor: false,
+        host: HOST,
+        tags: []
+      })
+      const visible = readerVisibleHrefs(
+        processStatusTextContent(HOST, text, [], false)
+      )
+
+      // The contract is not "the extractor equals the first visible link" —
+      // normalization and the exclusion rules can legitimately differ. It is the
+      // one that matters: whatever it picked, the reader can see it.
+      if (extracted === null) return
+      expect(visible).toContain(extracted)
+    }
+  )
+
+  // The assertion above skips a null extraction, so without this the whole file
+  // would pass by extracting nothing at all. `noCard` marks the inputs where no
+  // card IS the right answer — the reader has no visible link to give one to —
+  // so every other case has to produce one.
+  it('produces a card for every case not marked noCard', () => {
+    const withoutCard = CASES.filter(({ noCard }) => !noCard)
+      .filter(
+        ({ text }) =>
+          extractPreviewUrl({
+            text,
+            isLocalActor: false,
+            host: HOST,
+            tags: []
+          }) === null
+      )
+      .map(({ description }) => description)
+
+    expect(withoutCard).toEqual([])
+  })
+})

@@ -38,6 +38,7 @@ import { Attachments, OnMediaSelectedHandle } from './attachments'
 import { CollapsibleContent } from './collapsible-content'
 import { ContentWarning } from './content-warning'
 import { FitnessProcessingProgress } from './fitness-processing-progress'
+import { LinkPreviewCard } from './link-preview-card'
 import { Poll } from './poll'
 import { QuoteCard } from './quote-card'
 import { ReactionRow } from './reaction-row'
@@ -368,6 +369,21 @@ export const Post: FC<PostProps> = (props) => {
         currentActorId={props.currentActor?.id}
       />
       <Attachments status={actualStatus} onMediaSelected={onShowAttachment} />
+      {/* The link card yields to any richer representation of what the post is
+          about — media, a quoted post, or a fitness activity — rather than
+          stacking a second block under it. This is the display rule Mastodon
+          applies; the card is still stored and still served over the API, so a
+          client is free to decide otherwise.
+          The fitness clause reads `fitnessFile`, the same value the chip above
+          is gated on, rather than `actualStatus.fitness` — so it yields only
+          when a chip is actually on screen to yield to, instead of to the mere
+          presence of a fitness row. */}
+      {actualStatus.linkPreview &&
+      !actualStatus.quote &&
+      !fitnessFile &&
+      actualStatus.attachments.length === 0 ? (
+        <LinkPreviewCard linkPreview={actualStatus.linkPreview} />
+      ) : null}
       {actualStatus.quote ? (
         <QuoteCard quote={actualStatus.quote} currentTime={props.currentTime} />
       ) : null}

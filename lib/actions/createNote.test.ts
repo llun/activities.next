@@ -2,7 +2,10 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import {
+  FETCH_LINK_PREVIEW_JOB_NAME,
+  SEND_NOTE_JOB_NAME
+} from '@/lib/jobs/names'
 import { MAX_FEDERATION_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
@@ -1107,6 +1110,47 @@ How are you?
           })
         )
       })
+    })
+  })
+  describe('link preview scheduling', () => {
+    // syncStatusLinkPreview returns void and swallows every error by design, so
+    // without a test at the call site the whole feature can be deleted from
+    // this action without a single failure anywhere.
+    it('schedules a preview fetch for a link in the post', async () => {
+      const status = (await createNoteFromUserInput({
+        text: 'Reading https://example.com/link-preview-wiring today',
+        currentActor: actor1,
+        visibility: 'public',
+        database
+      })) as StatusNote
+
+      const publishedNames = vi
+        .mocked(getQueue().publish)
+        .mock.calls.map(([message]) => message.name)
+      expect(publishedNames).toContain(FETCH_LINK_PREVIEW_JOB_NAME)
+
+      const previewMessage = vi
+        .mocked(getQueue().publish)
+        .mock.calls.map(([message]) => message)
+        .find((message) => message.name === FETCH_LINK_PREVIEW_JOB_NAME)
+      expect(previewMessage?.data).toEqual({
+        statusId: status.id,
+        url: 'https://example.com/link-preview-wiring'
+      })
+    })
+
+    it('schedules nothing for a post with no link', async () => {
+      await createNoteFromUserInput({
+        text: 'Just some words, no links at all',
+        currentActor: actor1,
+        visibility: 'public',
+        database
+      })
+
+      const publishedNames = vi
+        .mocked(getQueue().publish)
+        .mock.calls.map(([message]) => message.name)
+      expect(publishedNames).not.toContain(FETCH_LINK_PREVIEW_JOB_NAME)
     })
   })
 })

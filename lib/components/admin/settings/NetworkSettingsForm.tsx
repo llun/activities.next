@@ -3,12 +3,13 @@
 import { FC } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
+import { Switch } from '@/lib/components/ui/switch'
 import type { ResolvedServerSettings } from '@/lib/config/serverSettings'
 
 import type { ServerSettingLocks } from './InstanceSettingsForm'
 import { NumberField } from './NumberField'
 import { SaveBar } from './SaveBar'
-import { SettingsField } from './SettingsField'
+import { ControlRow, SettingsField } from './SettingsField'
 import { SettingsSection } from './SettingsSection'
 import { useServerSettingsForm } from './useServerSettingsForm'
 
@@ -25,6 +26,8 @@ const NETWORK_KEYS = [
   'network.maxResponseSizeBytes'
 ]
 
+const LINK_PREVIEW_KEYS = ['network.linkPreviews']
+
 export const NetworkSettingsForm: FC<NetworkSettingsFormProps> = ({
   settings,
   locks
@@ -33,11 +36,13 @@ export const NetworkSettingsForm: FC<NetworkSettingsFormProps> = ({
     useServerSettingsForm({
       'network.requestTimeoutMs': settings.network.requestTimeoutMs,
       'network.requestRetries': settings.network.requestRetries,
-      'network.maxResponseSizeBytes': settings.network.maxResponseSizeBytes
+      'network.maxResponseSizeBytes': settings.network.maxResponseSizeBytes,
+      'network.linkPreviews': settings.network.linkPreviews
     })
 
   const lock = (key: string) => locks[key] ?? { locked: false }
   const status = statusFor('network')
+  const linkPreviewStatus = statusFor('linkPreviews')
   const responseBytes = values['network.maxResponseSizeBytes'] as number
 
   return (
@@ -46,6 +51,37 @@ export const NetworkSettingsForm: FC<NetworkSettingsFormProps> = ({
         title="Network"
         description="How this server talks to the rest of the network. Integrations like translation and maps are configured in the environment."
       />
+
+      <SettingsSection
+        title="Link previews"
+        description="Fetch a preview card for the first link in a post, so timelines show its title, description and thumbnail."
+        footer={
+          <SaveBar
+            dirty={isDirty(LINK_PREVIEW_KEYS)}
+            saving={linkPreviewStatus.saving}
+            saved={linkPreviewStatus.saved}
+            error={linkPreviewStatus.error}
+            onSave={() => saveSection('linkPreviews', LINK_PREVIEW_KEYS)}
+          />
+        }
+      >
+        <ControlRow
+          label="Fetch link previews"
+          description="Off stops this server requesting pages that people link to. Cards already stored keep showing."
+          htmlFor="network-link-previews"
+          locked={lock('network.linkPreviews').locked}
+          envVar={lock('network.linkPreviews').envVar}
+        >
+          <Switch
+            id="network-link-previews"
+            checked={values['network.linkPreviews'] as boolean}
+            disabled={lock('network.linkPreviews').locked}
+            onCheckedChange={(checked) =>
+              setValue('network.linkPreviews', checked)
+            }
+          />
+        </ControlRow>
+      </SettingsSection>
 
       <SettingsSection
         title="Advanced — outbound requests"

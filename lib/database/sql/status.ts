@@ -38,6 +38,10 @@ import { SQLFitnessFile } from '@/lib/types/database/fitnessFile'
 import { ActorDatabase } from '@/lib/types/database/operations'
 import { BookmarkDatabase } from '@/lib/types/database/operations'
 import { LikeDatabase } from '@/lib/types/database/operations'
+import {
+  LinkPreviewDatabase,
+  LinkPreviewRecord
+} from '@/lib/types/database/operations'
 import { MediaDatabase } from '@/lib/types/database/operations'
 import {
   AddStatusTagParams,
@@ -94,6 +98,7 @@ import {
   QuoteState,
   Status,
   StatusAnnounce,
+  StatusLinkPreview,
   StatusNote,
   StatusPoll,
   StatusQuote,
@@ -165,6 +170,10 @@ type StatusHydrationContext = {
   // Pre-batched quote edges, keyed by the quoting statusId. Viewer-independent;
   // the viewer-relative downgrades happen later in the Mastodon serializer.
   quoteEdges?: Map<string, StatusQuote>
+  // Pre-batched link preview cards, keyed by statusId. Viewer-independent, and
+  // populated for every fetch for the same reason quote edges are: without it
+  // each status in a page falls back to its own lookup.
+  linkPreviews?: Map<string, StatusLinkPreview>
   // Pre-batched emoji-reaction rollups, keyed by statusId. Viewer-RELATIVE (the
   // `me` flag), so it is only populated once per page and reused rather than
   // re-queried per status. An absent entry means "the batch did not cover this
@@ -279,8 +288,42 @@ export const StatusSQLDatabaseMixin = (
   bookmarkDatabase: BookmarkDatabase,
   mediaDatabase: MediaDatabase,
   statusDetectedLanguageDatabase: StatusDetectedLanguageDatabase,
-  statusReactionDatabase: StatusReactionDatabase
+  statusReactionDatabase: StatusReactionDatabase,
+  linkPreviewDatabase: LinkPreviewDatabase
 ): StatusDatabase => {
+  // The stored row carries fetch bookkeeping (status, error, hashes) the UI has
+  // no use for; the domain object gets only what a card renders. Only completed
+  // cards reach here, so a missing title would be a bug rather than a state —
+  // it is coerced rather than trusted so one bad row cannot break a timeline.
+  const toStatusLinkPreview = (
+    record: LinkPreviewRecord
+  ): StatusLinkPreview => ({
+    url: record.url,
+    title: record.title ?? '',
+    description: record.description,
+    type: record.type,
+    siteName: record.siteName,
+    authorName: record.authorName,
+    authorUrl: record.authorUrl,
+    imageUrl: record.imageUrl,
+    imageWidth: record.imageWidth,
+    imageHeight: record.imageHeight,
+    publishedAt: record.publishedAt
+  })
+
+  const getStatusLinkPreviewsForIds = async (
+    statusIds: string[]
+  ): Promise<Map<string, StatusLinkPreview>> => {
+    const records = await linkPreviewDatabase.getStatusLinkPreviews({
+      statusIds
+    })
+    return new Map(
+      [...records.entries()].map(([statusId, record]) => [
+        statusId,
+        toStatusLinkPreview(record)
+      ])
+    )
+  }
   const applyPublicReadableStatusFilter = ({
     query,
     targetStatusIds
@@ -1365,22 +1408,31 @@ export const StatusSQLDatabaseMixin = (
     // Batch detected-language and quote-edge hydration so this doesn't N+1 one
     // query per reply (mirroring getStatusesByIds).
     const hydrationStatusIds = await collectHydrationStatusIds(statuses)
-    const [detectedLanguages, quoteEdges, reactionRollups, viewerHydration] =
-      await Promise.all([
-        hydrationStatusIds.size > 0
-          ? statusDetectedLanguageDatabase.getDetectedLanguages({
-              statusIds: [...hydrationStatusIds]
-            })
-          : Promise.resolve({}),
-        hydrationStatusIds.size > 0
-          ? getStatusQuoteEdges([...hydrationStatusIds])
-          : Promise.resolve(new Map<string, StatusQuote>()),
-        buildReactionRollupContext([...hydrationStatusIds], currentActorId),
-        buildViewerHydration([...hydrationStatusIds], currentActorId)
-      ])
+    const [
+      detectedLanguages,
+      quoteEdges,
+      linkPreviews,
+      reactionRollups,
+      viewerHydration
+    ] = await Promise.all([
+      hydrationStatusIds.size > 0
+        ? statusDetectedLanguageDatabase.getDetectedLanguages({
+            statusIds: [...hydrationStatusIds]
+          })
+        : Promise.resolve({}),
+      hydrationStatusIds.size > 0
+        ? getStatusQuoteEdges([...hydrationStatusIds])
+        : Promise.resolve(new Map<string, StatusQuote>()),
+      hydrationStatusIds.size > 0
+        ? getStatusLinkPreviewsForIds([...hydrationStatusIds])
+        : Promise.resolve(new Map<string, StatusLinkPreview>()),
+      buildReactionRollupContext([...hydrationStatusIds], currentActorId),
+      buildViewerHydration([...hydrationStatusIds], currentActorId)
+    ])
     const hydrationContext: StatusHydrationContext = {
       detectedLanguages,
       quoteEdges,
+      linkPreviews,
       reactionRollups,
       ...(viewerHydration ?? {})
     }
@@ -1610,22 +1662,31 @@ export const StatusSQLDatabaseMixin = (
     // query per status (mirroring getStatusesByIds) — actor status lists back
     // profile pages and the Mastodon accounts/:id/statuses endpoint.
     const hydrationStatusIds = await collectHydrationStatusIds(statuses)
-    const [detectedLanguages, quoteEdges, reactionRollups, viewerHydration] =
-      await Promise.all([
-        hydrationStatusIds.size > 0
-          ? statusDetectedLanguageDatabase.getDetectedLanguages({
-              statusIds: [...hydrationStatusIds]
-            })
-          : Promise.resolve({}),
-        hydrationStatusIds.size > 0
-          ? getStatusQuoteEdges([...hydrationStatusIds])
-          : Promise.resolve(new Map<string, StatusQuote>()),
-        buildReactionRollupContext([...hydrationStatusIds], currentActorId),
-        buildViewerHydration([...hydrationStatusIds], currentActorId)
-      ])
+    const [
+      detectedLanguages,
+      quoteEdges,
+      linkPreviews,
+      reactionRollups,
+      viewerHydration
+    ] = await Promise.all([
+      hydrationStatusIds.size > 0
+        ? statusDetectedLanguageDatabase.getDetectedLanguages({
+            statusIds: [...hydrationStatusIds]
+          })
+        : Promise.resolve({}),
+      hydrationStatusIds.size > 0
+        ? getStatusQuoteEdges([...hydrationStatusIds])
+        : Promise.resolve(new Map<string, StatusQuote>()),
+      hydrationStatusIds.size > 0
+        ? getStatusLinkPreviewsForIds([...hydrationStatusIds])
+        : Promise.resolve(new Map<string, StatusLinkPreview>()),
+      buildReactionRollupContext([...hydrationStatusIds], currentActorId),
+      buildViewerHydration([...hydrationStatusIds], currentActorId)
+    ])
     const hydrationContext: StatusHydrationContext = {
       detectedLanguages,
       quoteEdges,
+      linkPreviews,
       reactionRollups,
       ...(viewerHydration ?? {})
     }
@@ -1751,24 +1812,35 @@ export const StatusSQLDatabaseMixin = (
     // per-status query in getStatusWithAttachmentsFromData. Run it in the
     // same Promise.all as the bookmark/like queries below rather than
     // sequentially, so all three independent batched lookups overlap.
-    const [detectedLanguages, quoteEdges, reactionRollups, viewerHydration] =
-      await Promise.all([
-        hasHydrationStatusIds
-          ? statusDetectedLanguageDatabase.getDetectedLanguages({
-              statusIds: [...hydrationStatusIds]
-            })
-          : Promise.resolve({}),
-        // Quote edges are viewer-independent, so batch them for every fetch (as
-        // with detected languages) rather than falling back to a per-status
-        // query in getStatusWithAttachmentsFromData.
-        hasHydrationStatusIds
-          ? getStatusQuoteEdges([...hydrationStatusIds])
-          : Promise.resolve(new Map<string, StatusQuote>()),
-        buildReactionRollupContext([...hydrationStatusIds], currentActorId),
-        buildViewerHydration([...hydrationStatusIds], currentActorId)
-      ])
+    const [
+      detectedLanguages,
+      quoteEdges,
+      linkPreviews,
+      reactionRollups,
+      viewerHydration
+    ] = await Promise.all([
+      hasHydrationStatusIds
+        ? statusDetectedLanguageDatabase.getDetectedLanguages({
+            statusIds: [...hydrationStatusIds]
+          })
+        : Promise.resolve({}),
+      // Quote edges are viewer-independent, so batch them for every fetch (as
+      // with detected languages) rather than falling back to a per-status
+      // query in getStatusWithAttachmentsFromData.
+      hasHydrationStatusIds
+        ? getStatusQuoteEdges([...hydrationStatusIds])
+        : Promise.resolve(new Map<string, StatusQuote>()),
+      // Link preview cards are viewer-independent too, and batched for the same
+      // reason.
+      hasHydrationStatusIds
+        ? getStatusLinkPreviewsForIds([...hydrationStatusIds])
+        : Promise.resolve(new Map<string, StatusLinkPreview>()),
+      buildReactionRollupContext([...hydrationStatusIds], currentActorId),
+      buildViewerHydration([...hydrationStatusIds], currentActorId)
+    ])
     hydrationContext.detectedLanguages = detectedLanguages
     hydrationContext.quoteEdges = quoteEdges
+    hydrationContext.linkPreviews = linkPreviews
     hydrationContext.reactionRollups = reactionRollups
     Object.assign(hydrationContext, viewerHydration ?? {})
     const statusMap = new Map(
@@ -2414,6 +2486,17 @@ export const StatusSQLDatabaseMixin = (
       'statusId',
       statusIdsToDelete
     )
+    // Only the status→card link goes; `link_previews` is a per-URL cache shared
+    // with every other status that links the same page. Without this the rows
+    // accumulate one per deleted status forever (there is no FK by design), and
+    // a deleted-then-refetched remote status could come back wearing its old
+    // card.
+    await deleteRowsByColumnChunks(
+      trx,
+      'status_link_previews',
+      'statusId',
+      statusIdsToDelete
+    )
     for (const statusIdChunk of chunkArray(
       statusIdsToDelete,
       getWhereInBatchSize(trx)
@@ -2968,6 +3051,7 @@ export const StatusSQLDatabaseMixin = (
       fitnessFile,
       detectedLanguage,
       quoteEdge,
+      linkPreview,
       reactions
     ] = await Promise.all([
       mediaDatabase.getAttachments({ statusId: data.id }),
@@ -3068,6 +3152,13 @@ export const StatusSQLDatabaseMixin = (
       hydrationContext?.quoteEdges
         ? (hydrationContext.quoteEdges.get(data.id) ?? null)
         : getStatusQuoteEdgeForData(data.id),
+      // Link preview card: the pre-batched map when the page covered this
+      // status, otherwise a single lookup (single-status routes).
+      hydrationContext?.linkPreviews
+        ? (hydrationContext.linkPreviews.get(data.id) ?? null)
+        : getStatusLinkPreviewsForIds([data.id]).then(
+            (previews) => previews.get(data.id) ?? null
+          ),
       // Reaction rollups: the pre-batched map when the page covered this status,
       // otherwise a single lookup (single-status routes). `has` rather than a
       // truthiness check, so a reaction-less status resolves from the batch.
@@ -3128,6 +3219,9 @@ export const StatusSQLDatabaseMixin = (
       // The quote edge (this status quotes another), when present. Announce rows
       // return earlier and never carry it.
       ...(quoteEdge ? { quote: quoteEdge } : {}),
+      // The link preview card, when this status has one. Announce rows return
+      // earlier; their card belongs to the status they wrap.
+      ...(linkPreview ? { linkPreview } : {}),
       // Who may quote THIS status, read back from the content blob.
       ...(content.quoteApprovalPolicy
         ? { quoteApprovalPolicy: content.quoteApprovalPolicy }

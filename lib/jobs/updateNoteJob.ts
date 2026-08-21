@@ -7,6 +7,7 @@ import {
   getSummary
 } from '@/lib/activities/note'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
+import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLinkPreview'
 import { notifyQuotedStatusUpdate } from '@/lib/services/notifications/notifyQuotedStatusUpdate'
 import {
   ArticleContent,
@@ -87,6 +88,16 @@ export const updateNoteJob = createJobHandle(
       text,
       html: true
     })
+
+    // Re-run the preview card only for a real content edit, for the same reason
+    // the quoter notification below is gated on it: a metadata-only Update
+    // carries the same text and cannot have moved the link.
+    if (contentChanged) {
+      const updatedStatus = await database.getStatus({ statusId: note.id })
+      if (updatedStatus) {
+        await syncStatusLinkPreview({ database, status: updatedStatus })
+      }
+    }
 
     // A remote status our users may have quoted was edited elsewhere; notify the
     // local authors of accepted quotes of it, but only for a real content edit

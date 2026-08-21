@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 
 import type { ResolvedServerSettings } from '@/lib/config/serverSettings'
 
@@ -39,7 +45,8 @@ const baseSettings: ResolvedServerSettings = {
   network: {
     requestTimeoutMs: 4000,
     requestRetries: 1,
-    maxResponseSizeBytes: 2097152
+    maxResponseSizeBytes: 2097152,
+    linkPreviews: true
   },
   federation: { mode: 'open', allowActorDomains: [] },
   features: { fitness: true, explore: true, messages: true }
@@ -47,6 +54,14 @@ const baseSettings: ResolvedServerSettings = {
 
 const renderForm = (locks: ServerSettingLocks = {}) =>
   render(<NetworkSettingsForm settings={baseSettings} locks={locks} />)
+
+// Each section saves independently, so every one has its own Update button.
+const updateButtonFor = (sectionTitle: string) => {
+  const heading = screen.getByRole('heading', { name: sectionTitle })
+  const section = heading.closest('section') ?? heading.parentElement
+  if (!section) throw new Error(`No section found for ${sectionTitle}`)
+  return within(section as HTMLElement).getByRole('button', { name: 'Update' })
+}
 
 describe('NetworkSettingsForm', () => {
   beforeEach(() => {
@@ -66,12 +81,22 @@ describe('NetworkSettingsForm', () => {
     fireEvent.change(screen.getByLabelText('Timeout'), {
       target: { value: '8000' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+    fireEvent.click(updateButtonFor('Advanced — outbound requests'))
 
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith(
         expect.objectContaining({ 'network.requestTimeoutMs': 8000 })
       )
+    )
+  })
+
+  it('saves the link preview switch on its own, without the request tuning', async () => {
+    renderForm()
+    fireEvent.click(screen.getByLabelText('Fetch link previews'))
+    fireEvent.click(updateButtonFor('Link previews'))
+
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith({ 'network.linkPreviews': false })
     )
   })
 

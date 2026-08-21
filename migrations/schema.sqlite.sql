@@ -269,3 +269,7 @@ CREATE INDEX `fitness_route_heatmap_tiles_actor_version_idx` on `fitness_route_h
 CREATE INDEX `actors_local_idx` on `actors` (`id`) where `privateKey` is not null;
 CREATE INDEX `recipients_status_type_actor_idx` on `recipients` (`statusId`, `type`, `actorId`);
 CREATE INDEX `statuses_reply_created_idx` on `statuses` (`reply`, `createdAt`, `id`);
+CREATE TABLE `link_previews` (`urlHash` varchar(64), `url` text not null, `type` varchar(32) not null default 'link', `title` text null, `description` text null, `siteName` varchar(255) null, `authorName` varchar(255) null, `authorUrl` text null, `imageUrl` text null, `imageWidth` integer null, `imageHeight` integer null, `publishedAt` datetime null, `fetchStatus` varchar(32) not null default 'pending', `error` text null, `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, primary key (`urlHash`));
+CREATE INDEX `link_previews_status_updated_idx` on `link_previews` (`fetchStatus`, `updatedAt`);
+CREATE TABLE `status_link_previews` (`statusId` varchar(255), `urlHash` varchar(64) not null, `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, primary key (`statusId`));
+CREATE INDEX `status_link_previews_urlhash_idx` on `status_link_previews` (`urlHash`);

@@ -4,8 +4,7 @@ import { FC, useId, useRef, useState } from 'react'
 
 import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
-import { convertEmojisToImages } from '@/lib/utils/text/convertEmojisToImages'
-import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
+import { processStatusTextContent } from '@/lib/utils/text/processStatusText'
 
 interface Props {
   host: string
@@ -105,10 +104,24 @@ export const EditHistoryButton: FC<Props> = ({
                     {formatDistance(edit.createdAt, currentTime)}
                   </div>
                   <div className="mr-auto text-left mt-2 whitespace-normal overflow-auto max-h-40">
+                    {/* The SAME pipeline the post body uses, not a local
+                        rearrangement of its parts. A revision is the status
+                        text as it was, so for a remote status it is raw HTML
+                        from the origin server — `status_history` snapshots
+                        `status.text`, which is stored unsanitized and cleaned
+                        only at render. Running markdown or the emoji step
+                        alone skipped both sanitize passes and put whatever
+                        that server sent into the DOM: React drops a string
+                        `onerror` and neutralises a `javascript:` href by
+                        itself, but it renders `<script>` and `<iframe>`
+                        quite happily. */}
                     {cleanClassName(
-                      status.isLocalActor
-                        ? convertMarkdownText(host)(edit.text)
-                        : convertEmojisToImages(edit.text, status.tags)
+                      processStatusTextContent(
+                        host,
+                        edit.text,
+                        status.tags,
+                        status.isLocalActor
+                      )
                     )}
                   </div>
                 </li>
