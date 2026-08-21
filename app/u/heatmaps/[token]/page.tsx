@@ -23,7 +23,12 @@ export const generateMetadata = async ({
   const { token } = await params
   const data = await loadSharedHeatmap(token)
   if (!data) return UNRESOLVED_SHARE_METADATA
-  return buildSharedHeatmapMetadata(data)
+  return buildSharedHeatmapMetadata({
+    view: data.view,
+    siteName: data.siteName,
+    origin: data.origin,
+    shareToken: token
+  })
 }
 
 const Page: FC<PageProps> = async ({ params }) => {

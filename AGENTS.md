@@ -682,7 +682,9 @@ it; there is no legacy shape left to copy.
   than a nicety. It is opt-in because the SVG scales and the embed snippet the
   share dialog hands out already points at that URL, and anything but the exact
   string `png` collapses onto the default, so the parameter cannot widen the
-  cache variants `DIMENSION_STEP` exists to bound. A rasterization failure
+  cache variants `DIMENSION_STEP` exists to bound. Both callers build that URL
+  through the one `buildHeatmapEmbedImageUrl` — the share dialog in the browser
+  and the card on the server — so the route's query shape has a single owner. A rasterization failure
   degrades to the SVG rather than 500ing, on the same reasoning every other
   tile-path failure follows. The declared `1200x600` is what the route will
   actually serve — 630 snaps to 600, and only the Apple path differs (1280x640,

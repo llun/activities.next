@@ -16,6 +16,7 @@ import { FC, useState } from 'react'
 import { FitnessRouteHeatmapData } from '@/lib/client'
 import { PublicRouteHeatmapMap } from '@/lib/components/fitness/PublicRouteHeatmapMap'
 import { Button } from '@/lib/components/ui/button'
+import { buildHeatmapEmbedImageUrl } from '@/lib/fitness/heatmapEmbedImageUrl'
 import { useCopyToClipboard } from '@/lib/hooks/useCopyToClipboard'
 import { cn } from '@/lib/utils'
 import type { PublicMapProvider } from '@/lib/utils/mapProvider'
@@ -199,8 +200,15 @@ export const HeatmapShareEmbed: FC<HeatmapShareEmbedProps> = ({
   const base = embedOrigin.replace(/\/+$/, '')
   const linkUrl = shareToken ? `${base}/u/heatmaps/${shareToken}` : ''
   const embedSrc = shareToken ? `${base}/embed/heatmap/${shareToken}` : ''
+  // Through the shared builder, so the route's query shape has one owner: the
+  // share page's link-preview card asks the same route for the same image.
   const imageUrl = shareToken
-    ? `${base}/embed/heatmap/${shareToken}/image?w=${size.width}&h=${size.height}`
+    ? buildHeatmapEmbedImageUrl({
+        origin: base,
+        shareToken,
+        width: size.width,
+        height: size.height
+      })
     : ''
 
   // The token (base64url) and origin (a URL.origin) can't contain attribute

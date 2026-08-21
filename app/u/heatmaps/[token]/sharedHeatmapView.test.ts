@@ -2,8 +2,6 @@ import { serializeRegion } from '@/lib/fitness/regions'
 import { FitnessRouteHeatmap } from '@/lib/types/database/fitnessRouteHeatmap'
 
 import {
-  HEATMAP_CARD_IMAGE_HEIGHT,
-  HEATMAP_CARD_IMAGE_WIDTH,
   buildSharedHeatmapView,
   computeInitials,
   formatGeneratedDate
@@ -158,27 +156,6 @@ describe('buildSharedHeatmapView', () => {
       token: 'tok123'
     })
     expect(view.publicUrl).toBe('https://llun.test/u/heatmaps/tok123')
-    expect(view.cardImageUrl).toBe(
-      'https://llun.test/embed/heatmap/tok123/image?w=1200&h=600&format=png'
-    )
-  })
-
-  it('asks the image endpoint for a raster card image', () => {
-    // format=png is the whole point of the field: the keyless renderer answers
-    // with SVG, which every card crawler refuses, so dropping the parameter
-    // would leave a well-formed og:image that yields no image at all.
-    const view = buildSharedHeatmapView({
-      heatmap: baseHeatmap,
-      owner,
-      origin: 'https://llun.test',
-      token: 'tok123'
-    })
-
-    const url = new URL(view.cardImageUrl)
-    expect(url.pathname).toBe('/embed/heatmap/tok123/image')
-    expect(url.searchParams.get('format')).toBe('png')
-    expect(url.searchParams.get('w')).toBe(String(HEATMAP_CARD_IMAGE_WIDTH))
-    expect(url.searchParams.get('h')).toBe(String(HEATMAP_CARD_IMAGE_HEIGHT))
   })
 
   it('derives the handle from the actor id when the owner is missing', () => {

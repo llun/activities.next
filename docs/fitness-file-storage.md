@@ -176,6 +176,11 @@ The same route is what the public share page's `og:image` points at.
 which would have to re-enforce the share guards for itself — the card reuses
 `GET /embed/heatmap/:token/image` with `?w=1200&h=600&format=png`.
 
+Both callers build that URL through one `buildHeatmapEmbedImageUrl`
+(`lib/fitness/heatmapEmbedImageUrl.ts`) — the share dialog in the browser and
+the card on the server — so the route's query shape has a single owner rather
+than two implementations free to drift apart.
+
 `format=png` is the part that makes a card possible at all. The two basemap
 renderers already answer with raster bytes, but an instance with neither a
 Mapbox token nor an Apple key falls through to the keyless renderer, which
@@ -193,9 +198,11 @@ and a requested 630 would come back as 600; only the Apple path differs, at
 1280x640 for the same 2:1 ratio.
 
 Everything the card says — the region title, the owner's name and handle, the
-generated date, the bounding box — comes from the same `buildSharedHeatmapView`
-the page renders, through one `cache()`-memoized `loadSharedHeatmap` shared by
-`generateMetadata` and the page body. A second lookup path would be free to
+generated date — comes from the same `buildSharedHeatmapView` the page renders,
+through one `cache()`-memoized `loadSharedHeatmap` shared by `generateMetadata`
+and the page body. The page's bounding-box caption is deliberately not among
+them: as a card subtitle `TL 52.50°N 4.80°E → BR 52.30°N 5.00°E` reads as debug
+output, and the map locates the share better than its corners do. A second lookup path would be free to
 drift from the first, and the failure that matters is a card describing a share
 the page refuses: a revoked token, a share re-queued for generation and a region
 that cannot be resolved all 404, and each returns the bare metadata with no card

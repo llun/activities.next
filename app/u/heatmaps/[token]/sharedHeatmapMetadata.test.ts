@@ -1,14 +1,12 @@
 import { FitnessRouteHeatmap } from '@/lib/types/database/fitnessRouteHeatmap'
 
 import {
+  HEATMAP_CARD_IMAGE_HEIGHT,
+  HEATMAP_CARD_IMAGE_WIDTH,
   UNRESOLVED_SHARE_METADATA,
   buildSharedHeatmapMetadata
 } from './sharedHeatmapMetadata'
-import {
-  HEATMAP_CARD_IMAGE_HEIGHT,
-  HEATMAP_CARD_IMAGE_WIDTH,
-  buildSharedHeatmapView
-} from './sharedHeatmapView'
+import { buildSharedHeatmapView } from './sharedHeatmapView'
 
 const baseHeatmap: FitnessRouteHeatmap = {
   id: 'hm-1',
@@ -48,7 +46,9 @@ const buildMetadata = ({
       origin: 'https://llun.test',
       token: 'tok123'
     }),
-    siteName
+    siteName,
+    origin: 'https://llun.test',
+    shareToken: 'tok123'
   })
 
 describe('buildSharedHeatmapMetadata', () => {
@@ -86,7 +86,9 @@ describe('buildSharedHeatmapMetadata', () => {
 
     const metadata = buildSharedHeatmapMetadata({
       view,
-      siteName: 'llun.social'
+      siteName: 'llun.social',
+      origin: 'https://llun.test',
+      shareToken: 'tok123'
     })
 
     expect(metadata.description).toBe(
@@ -96,6 +98,9 @@ describe('buildSharedHeatmapMetadata', () => {
   })
 
   it('points og:image at the raster card image with matching dimensions', () => {
+    // format=png is load-bearing: without it the route answers SVG wherever it
+    // falls through to the keyless renderer, and no card crawler renders SVG —
+    // a well-formed og:image that shows nothing.
     const metadata = buildMetadata()
 
     expect(metadata.openGraph?.images).toEqual([

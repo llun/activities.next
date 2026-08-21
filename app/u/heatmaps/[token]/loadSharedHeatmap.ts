@@ -20,6 +20,11 @@ export interface SharedHeatmapPageData {
   view: SharedHeatmapView
   /** Instance display name, for the card's `og:site_name`. */
   siteName: string
+  /**
+   * The actor's own canonical origin, which the card builds its image URL
+   * against. Resolved here because deriving it needs the heatmap row.
+   */
+  origin: string
   /** Whether the page offers a sign-up call to action. */
   signupOpen: boolean
 }
@@ -119,6 +124,7 @@ export const loadSharedHeatmap = cache(
     return {
       view,
       siteName: instance.name,
+      origin,
       signupOpen: registrations.open
     }
   }
