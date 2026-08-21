@@ -179,21 +179,30 @@ const getVisibleText = (node: DomNode): string => {
   // Document order, so this is exactly "up to the inner anchor's start tag".
   let reachedNestedAnchor = false
 
-  const walk = (current: DomNode, belowAnchor: boolean) => {
+  const walk = (current: DomNode, belowAnchor: boolean, hidden: boolean) => {
     if (reachedNestedAnchor) return
     if (current.type === 'text') {
-      text += current.data ?? ''
+      if (!hidden) text += current.data ?? ''
       return
     }
-    if (isHiddenNode(current)) return
+    // BEFORE the hidden check, and hidden subtrees are still descended into.
+    // These are two independent things and conflating them was a phishing card:
+    // hiding is CSS, which a PARSER never reads, so the adoption agency fires
+    // at the inner anchor's start tag whatever it wears. Returning early on a
+    // hidden node meant a nested anchor that was itself `invisible`, or merely
+    // sat inside an `invisible` span, never tripped the stop — so the outer
+    // anchor went on to claim the trailing text that the reader sees reparented
+    // out beside an empty clone. In the worst shape the reader's post had no
+    // clickable link at all and still carried a card.
     if (belowAnchor && current.type === 'tag' && current.name === 'a') {
       reachedNestedAnchor = true
       return
     }
-    for (const child of current.children ?? []) walk(child, true)
+    const nowHidden = hidden || isHiddenNode(current)
+    for (const child of current.children ?? []) walk(child, true, nowHidden)
   }
 
-  walk(node, false)
+  walk(node, false, false)
   return text
 }
 

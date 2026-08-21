@@ -1147,9 +1147,16 @@ it; there is no legacy shape left to copy.
   anchor: the algorithm pops the outer one at the inner one's START TAG, so the
   inner anchor AND everything after it — inline or block — is reparented
   outside. `getVisibleText` therefore stops at the first descendant anchor, in
-  document order. Both halves were separately a phishing card: counting the
-  inner anchor's text, and counting a trailing `" — worth a read."` that the
-  reader sees as ordinary prose beside an empty anchor. What it is NOT is "an
+  document order. Three separate phishing cards came out of getting this wrong:
+  counting the inner anchor's text; counting a trailing `" — worth a read."`
+  that the reader sees as prose beside an empty anchor; and checking
+  hidden-ness BEFORE the nested-anchor stop, so a nest that was itself
+  `invisible` (or sat inside an `invisible` span) never tripped it. That last
+  one is the rule to hold on to: **hiding is CSS and a parser never reads it**,
+  so the restructuring happens whatever the nest wears. `getVisibleText`
+  therefore tests for a nested anchor first, and descends into hidden subtrees
+  while suppressing their TEXT rather than returning at them — the suppression
+  is what keeps Mastodon's `invisible`/`ellipsis` split link working. What it is NOT is "an
   anchor containing an anchor is invisible" — text before the nest survives and
   stays eligible. `sanitize-html` splits a DIRECT `<a><a>` itself, so it takes
   one allowed tag in between to reach this, and all fourteen work.

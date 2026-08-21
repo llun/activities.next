@@ -718,6 +718,35 @@ describe('extractPreviewUrl', () => {
           }
         )
 
+        // Hiding is CSS; a parser never reads it. The adoption agency fires at
+        // the inner anchor's start tag whatever it wears, so hiding the nest
+        // does not put the trailing text back inside the outer anchor — it only
+        // stops the reader reading the nest. Checking hidden-ness FIRST let
+        // these skip the stop and claim the tail; the second is the worst of
+        // the pair, because the reader's post has no clickable link at all.
+        it.each([
+          {
+            description: 'the nested anchor is itself invisible',
+            inner:
+              '<a href="https://good.example/article" class="invisible">good</a>'
+          },
+          {
+            description: 'the nested anchor sits in an invisible span',
+            inner:
+              '<span class="invisible"><a href="https://good.example/article">good</a></span>'
+          }
+        ])(
+          'ignores an outer link with trailing text when $description',
+          ({ inner }) => {
+            expect(
+              fromHtml(
+                '<p>Read: <a href="https://evil.example/login">' +
+                  `<b>${inner}</b> — worth a read.</a></p>`
+              )
+            ).toBeNull()
+          }
+        )
+
         // The worst shape: the inner anchor is a mention, so it is not content
         // either. The reader's page says "New from the blog: @alice — worth a
         // read." — no external link anywhere — and it carried a card for one.

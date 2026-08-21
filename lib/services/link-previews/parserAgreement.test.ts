@@ -84,13 +84,14 @@ const readerVisibleHrefs = (html: string): string[] => {
     .map((anchor) => anchor.getAttribute('href') as string)
 }
 
-const CASES: { description: string; text: string }[] = [
+const CASES: { description: string; text: string; noCard?: true }[] = [
   {
     description: 'a nested anchor',
     text: '<p>New post: <a href="https://evil.example/login"><b><a href="https://good.example/a">good.example/a</a></b></a></p>'
   },
   {
     description: 'a nested anchor around a mention',
+    noCard: true,
     text: '<p>Hey <a href="https://evil.example/login"><b><span class="h-card"><a href="https://good.social/@alice" class="u-url mention">@alice</a></span></b></a> look</p>'
   },
   {
@@ -106,6 +107,7 @@ const CASES: { description: string; text: string }[] = [
   },
   {
     description: 'text after the nest with a mention inside it',
+    noCard: true,
     text: '<p>New from the blog: <a href="https://evil.example/login"><b><a href="https://good.social/@alice" class="u-url mention">@alice</a></b> — worth a read.</a></p>'
   },
   {
@@ -115,6 +117,20 @@ const CASES: { description: string; text: string }[] = [
   {
     description: 'text after the nest inside a block',
     text: '<p><a href="https://evil.example/login"><p><a href="https://good.example/a">g</a> tail</p></a></p>'
+  },
+  // A parser does not read class attributes. The adoption agency fires at the
+  // inner anchor's start tag whatever it is wearing, so hiding the nest with
+  // CSS changes nothing about the restructuring — only about what the reader
+  // can read.
+  {
+    description: 'a nested anchor that is itself invisible',
+    noCard: true,
+    text: '<p>Read: <a href="https://evil.example/login"><b><a href="https://good.example/article" class="invisible">good</a></b> — worth a read.</a></p>'
+  },
+  {
+    description: 'a nested anchor inside an invisible span',
+    noCard: true,
+    text: '<p><a href="https://evil.example/login"><b><span class="invisible"><a href="https://good.example/article">good</a></span></b> — worth a read.</a></p>'
   },
   {
     description: 'a paragraph inside a paragraph',
@@ -180,15 +196,23 @@ describe('the extractor agrees with a spec-compliant parser', () => {
     }
   )
 
-  // The above passes vacuously if extraction returns null everywhere, so pin
-  // that these inputs really do produce cards.
-  it('produces a card for most of these inputs', () => {
-    const extracted = CASES.map(({ text }) =>
-      extractPreviewUrl({ text, isLocalActor: false, host: HOST, tags: [] })
-    )
+  // The assertion above skips a null extraction, so without this the whole file
+  // would pass by extracting nothing at all. `noCard` marks the inputs where no
+  // card IS the right answer — the reader has no visible link to give one to —
+  // so every other case has to produce one.
+  it('produces a card for every case not marked noCard', () => {
+    const withoutCard = CASES.filter(({ noCard }) => !noCard)
+      .filter(
+        ({ text }) =>
+          extractPreviewUrl({
+            text,
+            isLocalActor: false,
+            host: HOST,
+            tags: []
+          }) === null
+      )
+      .map(({ description }) => description)
 
-    expect(extracted.filter(Boolean).length).toBeGreaterThanOrEqual(
-      CASES.length - 2
-    )
+    expect(withoutCard).toEqual([])
   })
 })
