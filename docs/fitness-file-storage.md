@@ -135,9 +135,9 @@ The pyramid tables are also wired into deletion, and it is one transaction rathe
 
 #### The static share image
 
-`GET /embed/heatmap/:token/image` renders the share and embed image, and it is
-the surface most people actually see, because it is what a link preview
-displays. It draws from the pyramid too, but it chooses its rung differently
+`GET /embed/heatmap/:token/image` renders the still image the share dialog hands
+out for embedding in another page, beside the interactive iframe. It draws from
+the pyramid too, but it chooses its rung differently
 from an interactive map: there is no viewport to read, so the rung comes from
 the image's own size, along whichever axis the renderer fits by. `buildHeatmapSvg`
 fits a projected box with `min(innerWidth / spanX, innerHeight / spanY)`, so a
@@ -145,9 +145,10 @@ tall scope in a wide frame is limited by its height — measured in projected
 units rather than degrees, because a degree of latitude is not a fixed number of
 pixels in Mercator and at 52 degrees north it is about 1.6 times a degree of
 longitude. Reading longitude alone asks for a rung finer than the image can draw
-and reads tiles nobody sees. Strokes are shaded by visit count from the same
-ramp the interactive maps paint with, so a road ridden thirty times reads darker
-than one ridden once.
+and reads tiles nobody sees. The keyless SVG renderer shades each stroke by visit
+count from the same `heatOpacityForCount` ramp the interactive maps paint with,
+so a road ridden thirty times reads darker than one ridden once; the two basemap
+renderers draw every stroke at one flat opacity and ignore the count.
 
 The image path enforces the same two boundaries the tile routes do, because
 every path that reads the pyramid has to enforce them again: it refuses a share

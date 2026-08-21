@@ -242,7 +242,9 @@ every surface that draws a heatmap reads tiles when the row has them.
   make a variant (one sport, one year) live on the heatmap row, and the tiles
   carry neither, so a scoped row is not something the pyramid can answer however
   complete it is. `buildHeatmapTileSource` is the single predicate for this, and
-  it is what every surface gates on.
+  it is what every surface that names a heatmap row gates on. The owner tile
+  route needs no equivalent: its request names a region and nothing else, so
+  there is no variant for it to contradict.
 - Tiles are stored **unclipped**, and a share's region is applied when they are
   **served**. That makes clipping a security boundary rather than a view option:
   the region comes from the shared row, never from the caller.
@@ -260,11 +262,13 @@ Four surfaces read the pyramid:
   view, coarsening down the ladder rather than refusing when a view would need
   too many, and cache them across pans.
 - `GET /embed/heatmap/:token/image` — the static share/embed image. It picks the
-  rung from the image's own size, along whichever axis the renderer fits by, and
-  shades each stroke by its visit count.
+  rung from the image's own size, along whichever axis the renderer fits by. Where
+  it falls through to the keyless SVG renderer it also shades each stroke by its
+  visit count; the Apple and Mapbox renderers draw at one flat opacity.
 
-The stored blob has not gone away. It still renders **legacy rows** — anything
-built before the pyramid, and any variant the pyramid cannot answer — and it is
+The stored blob has not gone away. It still renders every row the pyramid cannot
+answer — any variant, and anything belonging to an actor whose pyramid has not
+completed a build (which is decided when the row is read, not when it was built) — and it is
 what the static image falls back to when a basemap renderer cannot draw tile
 geometry: tile geometry is one run per way per tile where the blob is roughly
 one polyline per activity, and both Apple (a hard overlay ceiling) and Mapbox (a
