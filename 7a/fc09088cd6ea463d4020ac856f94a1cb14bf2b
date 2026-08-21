@@ -1,0 +1,42 @@
+migrations/20260821120000_normalize_empty_actor_private_key.js
+  s_b98662ca176e99::t_83daa162709076 12-21
+lib/database/sql/actor.ts
+  s_b98662ca176e99::t_ea23e879501b1a 467-470
+CLAUDE.md
+  s_b98662ca176e99::t_05aacf823112b9 31
+lib/database/sql/localPublicActorIds.test.ts
+  s_b98662ca176e99::t_cb3dd4581e6098 1-12,33-82,84-151
+  s_b98662ca176e99::t_e161b1c85e67f6 83
+  s_b98662ca176e99::t_713be607427e02 13-32
+AGENTS.md
+  s_b98662ca176e99::t_83daa162709076 1849
+lib/database/sql/timeline.ts
+  s_b98662ca176e99::t_b7317eb3a891ba 119
+  s_b98662ca176e99::t_38f627a560e41c 142,440-442
+  s_b98662ca176e99::t_489b95e7c9fe0f 78-94
+  s_b98662ca176e99::t_d57f459b2d9a72 16-36,38-41
+  s_b98662ca176e99::t_4470b35c7ff8ef 108-110,117-118,120-124
+lib/database/sql/localActorPredicate.test.ts
+  s_b98662ca176e99::t_106d907dd2f187 169-192
+  s_b98662ca176e99::t_56a5f95153df85 20-29
+lib/database/sql/normalizeEmptyActorPrivateKeyMigration.test.ts
+  s_b98662ca176e99::t_97f2e5de280ced 65-70,75-77
+REVIEW.md
+  s_b98662ca176e99::t_05aacf823112b9 115-128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "7afc09088cd6ea463d4020ac856f94a1cb14bf2b",
+  "prompts": {},
+  "sessions": {
+    "s_b98662ca176e99": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a367446e-4043-4a34-b835-158addafb3de",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
