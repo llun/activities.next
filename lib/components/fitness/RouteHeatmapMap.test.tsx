@@ -278,6 +278,36 @@ describe('RouteHeatmapMap tiled rendering', () => {
     expect(fetchTiles.mock.calls[0][0].version).toBe(2)
   })
 
+  it.each([
+    // GL zoom -> pyramid zoom (+1) -> rung. Chosen so +1 and +2 DISAGREE: an
+    // even GL zoom lands on the same rung either way, so a single even case
+    // cannot tell a correct conversion from an off-by-one.
+    { glZoom: 11, expected: 12 },
+    { glZoom: 13, expected: 14 }
+  ])(
+    'converts GL zoom $glZoom onto the pyramid grid before picking a rung',
+    async ({ glZoom, expected }) => {
+      const span = 360 / 2 ** (glZoom + 1) / 4
+      const { gl } = createFakeGl({
+        zoom: glZoom,
+        bounds: [5.6, 52, 5.6 + span, 52 + span]
+      })
+      vi.mocked(loadMapboxModule).mockResolvedValue(gl as never)
+      const fetchTiles = fetchAll()
+
+      render(
+        <RouteHeatmapMap
+          heatmap={tiled}
+          mapProvider={{ type: 'mapbox', accessToken: 'pk.test' }}
+          fetchTiles={fetchTiles}
+        />
+      )
+
+      await waitFor(() => expect(fetchTiles).toHaveBeenCalled())
+      expect(fetchTiles.mock.calls[0][0].z).toBe(expected)
+    }
+  )
+
   it('draws the tiles and empties the untiled source, never both', async () => {
     // The two describe the same roads at different fidelities, so drawing both
     // renders every line at twice its opacity.

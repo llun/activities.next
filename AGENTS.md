@@ -632,8 +632,12 @@ it; there is no legacy shape left to copy.
   at all and derives a FRACTIONAL one from its region and element width, never
   `getZoomLevelForBounds`, which returns the floor and would undo the rounding.
   A view needing more than `MAX_TILES_PER_VIEW` is COARSENED down the ladder,
-  not refused — an ordinary full-bleed embed reaches that ceiling — and the tile
-  cache must hold more than one view or a view evicts its own fetched batches.
+  not refused; the ceiling is sized ABOVE what real viewports ask for (273 tiles
+  at 1280x720, 558 at 1920x1080, 984 at 2560x1440) because coarsening costs a
+  whole rung of detail. The tile cache must hold more than one view or a view
+  evicts its own fetched batches — and it is bounded by VERTICES as well as tile
+  count, since a decoded vertex is a ~82-byte object and the format has no
+  per-tile point ceiling. Eviction never touches the current view's tiles.
 - **Tiles REPLACE the untiled geometry, never draw beside it.** The two describe
   the same roads at different fidelities, so together every line renders at
   twice its opacity. The swap waits for a batch to resolve, so a pan never

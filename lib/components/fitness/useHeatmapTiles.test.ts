@@ -288,10 +288,39 @@ describe('useHeatmapTiles', () => {
     expect(requested.length).toBeLessThanOrEqual(MAX_TILES_PER_VIEW)
   })
 
-  it('falls back to untiled geometry for a viewport that wraps the antimeridian', async () => {
-    // `tilesForBounds` reports a wrap as a negative width and leaves the split
-    // to its caller. Keeping the previous view's tiles drawn would show one
-    // area's detail over ground the map is no longer looking at.
+  it('serves a viewport that wraps the antimeridian, from both sides of it', async () => {
+    // `tilesForBounds` reports a wrap as `minX > maxX` and leaves the split to
+    // its caller. Without doing it, everyone whose home view contains 180
+    // degrees — Fiji, Chukotka, the Chathams — was stuck on the whole-history
+    // geometry forever while a neighbour 20 km west got street detail.
+    const fetchTiles = vi.fn(async ({ tiles }) => batchOf(tiles))
+    const { result } = renderHook(() =>
+      useHeatmapTiles({ tileSource, fetchTiles })
+    )
+
+    act(() =>
+      result.current.onViewChange({
+        zoom: 8,
+        bounds: { minLat: -18.2, maxLat: -18.1, minLng: 179.9, maxLng: -179.9 }
+      })
+    )
+    await settle()
+    await waitFor(() => expect(fetchTiles).toHaveBeenCalled())
+
+    const xs = fetchTiles.mock.calls
+      .flatMap(([request]) => request.tiles)
+      .map((tile: { x: number }) => tile.x)
+    const lastColumn = 2 ** fetchTiles.mock.calls[0][0].z - 1
+    // Columns from both ends of the world, which is what a wrap means.
+    expect(Math.min(...xs)).toBe(0)
+    expect(Math.max(...xs)).toBe(lastColumn)
+    await waitFor(() => expect(result.current.runs.length).toBeGreaterThan(0))
+  })
+
+  it('refuses a viewport spanning a whole world or more', async () => {
+    // `projectWebMercator` normalises each end independently, so 540 degrees of
+    // longitude collapses to a sliver that would be drawn as the entire map.
+    // The raw span has to be rejected before normalisation hides it.
     const fetchTiles = vi.fn(async ({ tiles }) => batchOf(tiles))
     const { result } = renderHook(() =>
       useHeatmapTiles({ tileSource, fetchTiles })
@@ -303,8 +332,8 @@ describe('useHeatmapTiles', () => {
 
     act(() =>
       result.current.onViewChange({
-        zoom: 4,
-        bounds: { minLat: -10, maxLat: 10, minLng: 170, maxLng: -170 }
+        zoom: 1,
+        bounds: { minLat: -80, maxLat: 80, minLng: -270, maxLng: 270 }
       })
     )
     await settle()
@@ -332,6 +361,63 @@ describe('useHeatmapTiles', () => {
 
     await waitFor(() => expect(fetchTiles).toHaveBeenCalledTimes(2))
     expect(fetchTiles.mock.calls[1][0].version).toBe(9)
+  })
+
+  it('keeps the ceiling within reach of a real viewport', () => {
+    // Pinned from ABOVE as well as below. The lower bound alone is satisfied by
+    // any huge number, so a ceiling of 100_000 — which would let a pathological
+    // view enumerate and fetch forever — would pass unnoticed.
+    expect(MAX_TILES_PER_VIEW).toBeLessThanOrEqual(2048)
+    expect(TILE_CACHE_MAX_TILES).toBeLessThanOrEqual(4096)
+  })
+
+  it('coarsens exactly one rung at a time, rather than jumping to the bottom', async () => {
+    // A view that overflows only at the finest rung must land on the NEXT rung
+    // down, not on z4. Walking the ladder is the whole point: each step trades
+    // a fixed amount of detail for a quarter of the tiles.
+    const fetchTiles = vi.fn(async ({ tiles }) => batchOf(tiles))
+    const { result } = renderHook(() =>
+      useHeatmapTiles({ tileSource, fetchTiles })
+    )
+
+    // ~0.35 degrees at view zoom 15: 16 needs >1024 tiles, 14 fits.
+    act(() =>
+      result.current.onViewChange({
+        zoom: 15,
+        bounds: { minLat: 52, maxLat: 52.35, minLng: 5.6, maxLng: 5.95 }
+      })
+    )
+    await settle()
+    await waitFor(() => expect(fetchTiles).toHaveBeenCalled())
+
+    expect(fetchTiles.mock.calls[0][0].z).toBe(14)
+  })
+
+  it('draws again after a view it had to abandon', async () => {
+    // The clear path resets the signature as well as the state. Forgetting it
+    // would make the abandoned view's signature match the next good one, and
+    // the map would stay blank for as long as the reader stayed in that area.
+    const fetchTiles = vi.fn(async ({ tiles }) => batchOf(tiles))
+    const { result } = renderHook(() =>
+      useHeatmapTiles({ tileSource, fetchTiles })
+    )
+
+    act(() => result.current.onViewChange({ zoom: 12, bounds }))
+    await settle()
+    await waitFor(() => expect(result.current.runs.length).toBeGreaterThan(0))
+
+    act(() =>
+      result.current.onViewChange({
+        zoom: 1,
+        bounds: { minLat: -80, maxLat: 80, minLng: -270, maxLng: 270 }
+      })
+    )
+    await settle()
+    await waitFor(() => expect(result.current.runs).toEqual([]))
+
+    act(() => result.current.onViewChange({ zoom: 12, bounds }))
+    await settle()
+    await waitFor(() => expect(result.current.runs.length).toBeGreaterThan(0))
   })
 
   it('does not coarsen an ordinary desktop viewport', () => {

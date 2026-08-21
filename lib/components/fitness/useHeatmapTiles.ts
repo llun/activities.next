@@ -128,6 +128,86 @@ export interface UseHeatmapTilesResult {
   zoom: number | null
 }
 
+/**
+ * Total vertices the cache may hold.
+ *
+ * The real bound, and the one that matters: a decoded vertex is a `{lat, lng}`
+ * OBJECT, measured at ~82 bytes each in V8 — so a tile COUNT is a poor proxy
+ * for memory, because the tile format deliberately has no per-tile point
+ * ceiling. 2048 dense city tiles are over 200 MB. This caps the cache near
+ * 50 MB regardless of how dense the tiles turn out to be.
+ */
+const TILE_CACHE_MAX_VERTICES = 600_000
+
+const runVertices = (runs: HeatmapTileRun[]) =>
+  runs.reduce((total, run) => total + run.points.length, 0)
+
+/**
+ * Evicts oldest-first until both bounds hold, never touching a tile the CURRENT
+ * view needs.
+ *
+ * The protection is what makes the two bounds safe together: a single dense
+ * view can exceed the vertex budget on its own, and evicting from it would
+ * assemble the map with holes it cannot detect. Those tiles are what is being
+ * drawn, so they are kept and the budget is exceeded until the view moves on.
+ */
+const evict = (
+  cache: Map<string, HeatmapTileRun[]>,
+  protectedKeys: Set<string>
+) => {
+  let vertices = 0
+  for (const runs of cache.values()) vertices += runVertices(runs)
+
+  for (const key of [...cache.keys()]) {
+    if (
+      cache.size <= TILE_CACHE_MAX_TILES &&
+      vertices <= TILE_CACHE_MAX_VERTICES
+    ) {
+      return
+    }
+    if (protectedKeys.has(key)) continue
+    vertices -= runVertices(cache.get(key) ?? [])
+    cache.delete(key)
+  }
+}
+
+interface TileColumns {
+  xs: number[]
+  minY: number
+  maxY: number
+  count: number
+}
+
+/**
+ * The tile columns and row range a view covers, SPLIT across the antimeridian.
+ *
+ * `tilesForBounds` signals a wrap by answering `minX > maxX` and says in its
+ * own docblock that splitting it is the caller's job — its previous callers
+ * were server reads whose `whereBetween` harmlessly matched nothing. Doing the
+ * split here is what lets someone in Fiji or Chukotka see street detail at all;
+ * without it every view containing 180 degrees fell back to the whole-history
+ * geometry, permanently, while a neighbour 20 km west got tiles.
+ */
+const tileColumnsForBounds = (
+  bounds: FitnessRouteHeatmapBounds,
+  z: number
+): TileColumns => {
+  const range = tilesForBounds(bounds, z)
+  const rows = range.maxY - range.minY + 1
+  if (rows <= 0) return { xs: [], minY: range.minY, maxY: range.maxY, count: 0 }
+
+  const lastColumn = 2 ** z - 1
+  const xs: number[] = []
+  if (range.minX <= range.maxX) {
+    for (let x = range.minX; x <= range.maxX; x += 1) xs.push(x)
+  } else {
+    for (let x = range.minX; x <= lastColumn; x += 1) xs.push(x)
+    for (let x = 0; x <= range.maxX; x += 1) xs.push(x)
+  }
+
+  return { xs, minY: range.minY, maxY: range.maxY, count: xs.length * rows }
+}
+
 const chunk = <T>(items: T[], size: number): T[][] => {
   const chunks: T[][] = []
   for (let index = 0; index < items.length; index += size) {
@@ -211,38 +291,48 @@ export const useHeatmapTiles = ({
     const fetcher = fetchRef.current
     if (!fetcher) return
 
+    // Give up on the whole view, and make sure the pass that WOULD have drawn
+    // it stops too. Without the abort an in-flight batch lands after this and
+    // repaints the view that was just abandoned, with tiles for somewhere the
+    // map is no longer looking.
+    const abandon = () => {
+      abortRef.current?.abort()
+      abortRef.current = null
+      signatureRef.current = null
+      setState({ runs: [], groups: [], zoom: null })
+    }
+
+    // A span of a whole world or more cannot be tiled: `projectWebMercator`
+    // normalises each end independently, so 540 degrees of longitude collapses
+    // to a sliver and would be drawn as if it were the entire map. Reject it on
+    // the RAW span, before normalisation hides it.
+    if (
+      bounds.maxLng - bounds.minLng >= 360 ||
+      bounds.maxLat <= bounds.minLat
+    ) {
+      abandon()
+      return
+    }
+
     // Coarsen until the view fits rather than abandoning it. Stepping DOWN the
     // ladder trades detail for coverage, which is the trade the ladder already
     // makes for a wider view; refusing would strand whatever was drawn before.
+    const ladder = TILE_LADDER_ZOOMS as readonly number[]
     let z = storedZoomForView(zoom)
-    let range = tilesForBounds(bounds, z)
-    let width = range.maxX - range.minX + 1
-    let height = range.maxY - range.minY + 1
-    while (
-      z > TILE_MIN_ZOOM &&
-      (width <= 0 || height <= 0 || width * height > MAX_TILES_PER_VIEW)
-    ) {
-      const ladder = TILE_LADDER_ZOOMS as readonly number[]
+    let columns = tileColumnsForBounds(bounds, z)
+    while (z > TILE_MIN_ZOOM && columns.count > MAX_TILES_PER_VIEW) {
       z = ladder[ladder.indexOf(z) - 1] ?? TILE_MIN_ZOOM
-      range = tilesForBounds(bounds, z)
-      width = range.maxX - range.minX + 1
-      height = range.maxY - range.minY + 1
+      columns = tileColumnsForBounds(bounds, z)
     }
 
-    // Nothing on the ladder fits — a bounds that wraps the antimeridian gives a
-    // negative width at every rung (`tilesForBounds` reports the wrap that way
-    // and leaves the split to its caller). Clear, so the surface falls back to
-    // its untiled geometry instead of keeping the previous view's tiles drawn
-    // over somewhere the map is no longer looking.
-    if (width <= 0 || height <= 0 || width * height > MAX_TILES_PER_VIEW) {
-      signatureRef.current = null
-      setState({ runs: [], groups: [], zoom: null })
+    if (columns.count <= 0 || columns.count > MAX_TILES_PER_VIEW) {
+      abandon()
       return
     }
 
     const wanted: Array<{ x: number; y: number }> = []
-    for (let x = range.minX; x <= range.maxX; x += 1) {
-      for (let y = range.minY; y <= range.maxY; y += 1) {
+    for (const x of columns.xs) {
+      for (let y = columns.minY; y <= columns.maxY; y += 1) {
         wanted.push({ x, y })
       }
     }
@@ -261,6 +351,7 @@ export const useHeatmapTiles = ({
       cache.delete(key)
       cache.set(key, cached)
     }
+    const protectedKeys = new Set(wanted.map(({ x, y }) => keyFor(x, y)))
     const missing = wanted.filter(({ x, y }) => !cache.has(keyFor(x, y)))
 
     abortRef.current?.abort()
@@ -292,7 +383,14 @@ export const useHeatmapTiles = ({
           void loadRef.current({ zoom, bounds })
           return
         }
-        if (response.version !== versionRef.current) return
+        // Anything else the server can answer — notably version 0, which is
+        // how a route says "no completed pyramid" while one is rebuilding —
+        // means this view cannot be drawn from tiles. Fall back rather than
+        // leaving the previous view's tiles standing over new ground.
+        if (response.version !== versionRef.current) {
+          abandon()
+          return
+        }
 
         for (const { x, y } of batch) {
           const payload = response.tiles[`${x}:${y}`]
@@ -303,11 +401,7 @@ export const useHeatmapTiles = ({
           )
         }
 
-        while (cache.size > TILE_CACHE_MAX_TILES) {
-          const oldest = cache.keys().next()
-          if (oldest.done) break
-          cache.delete(oldest.value)
-        }
+        evict(cache, protectedKeys)
       }
     } catch {
       // A tile fetch is detail on top of geometry the surface already drew, so

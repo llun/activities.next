@@ -7,7 +7,10 @@ import { render, screen, waitFor } from '@testing-library/react'
 import type { FitnessRouteHeatmapData } from '@/lib/client'
 import { createMapKitTestDouble } from '@/lib/components/fitness/mapkitTestDouble'
 import { TILE_EXTENT } from '@/lib/services/fitness-files/heatmapTiles/constants'
-import { encodeTile } from '@/lib/services/fitness-files/heatmapTiles/tileCodec'
+import {
+  encodeTile,
+  tilesForBounds
+} from '@/lib/services/fitness-files/heatmapTiles/tileCodec'
 import { loadMapKitModule } from '@/lib/utils/mapkit'
 
 import { RouteHeatmapMapKit } from './RouteHeatmapMapKit'
@@ -225,16 +228,87 @@ describe('RouteHeatmapMapKit tiled rendering', () => {
     rectSpy?.mockRestore()
   })
 
-  it('fetches tiles for the region the map settles on', async () => {
+  it('derives its zoom from the framed region, and asks for that rung', async () => {
+    // MapKit has no zoom at all. The rung has to come from the region and the
+    // element width: an 800px element over the fixture's 0.6 degrees of
+    // longitude is log2(800 * 360 / (256 * 0.6)) = 10.61 on the pyramid's grid,
+    // which rounds UP to rung 12. Asserting only "some rung on the ladder"
+    // would pass for a formula replaced by a constant.
     const double = createMapKitTestDouble()
     mockLoadMapKitModule.mockResolvedValue(double.mapkit as never)
     const fetchTiles = fetchWith(cool)
 
     render(<RouteHeatmapMapKit heatmap={tiled} fetchTiles={fetchTiles} />)
 
-    await waitFor(() => expect(fetchTiles).toHaveBeenCalled())
+    await waitFor(() =>
+      expect(fetchTiles.mock.calls.some(([request]) => request.z === 12)).toBe(
+        true
+      )
+    )
     expect(fetchTiles.mock.calls[0][0].version).toBe(2)
-    expect(tileSource.ladder).toContain(fetchTiles.mock.calls[0][0].z)
+  })
+
+  it('scales the zoom by the tile size, which coarsening would otherwise hide', async () => {
+    // A 0.07 degree scope, chosen so NEITHER effect can mask the fault. The
+    // correct formula gives rung 14. Dropping the TILE_SIZE divisor inflates
+    // the zoom by 8 and picks rung 16 — and at a wider scope the coarsening
+    // loop walks that straight back down to 14, hiding it completely (0.137
+    // degrees does exactly that). Here the view still fits at z16, so the wrong
+    // rung survives to the request where it can be seen.
+    const tight: FitnessRouteHeatmapData = {
+      ...tiled,
+      id: 'hm-tight',
+      bounds: { minLat: 52, maxLat: 52.07, minLng: 5.6, maxLng: 5.67 }
+    }
+    const double = createMapKitTestDouble()
+    mockLoadMapKitModule.mockResolvedValue(double.mapkit as never)
+    const fetchTiles = fetchWith(cool)
+
+    render(<RouteHeatmapMapKit heatmap={tight} fetchTiles={fetchTiles} />)
+
+    await waitFor(() => expect(fetchTiles).toHaveBeenCalled())
+    const rungs = fetchTiles.mock.calls.map(([request]) => request.z)
+    expect(rungs).toContain(14)
+    expect(rungs).not.toContain(16)
+  })
+
+  it('asks for the tiles the framed region actually covers', async () => {
+    // Not just the right rung — the right PLACE. Before the double emitted
+    // `region-change-end`, every request was for MapKit's default region off
+    // the coast of Africa and no test noticed.
+    const double = createMapKitTestDouble()
+    mockLoadMapKitModule.mockResolvedValue(double.mapkit as never)
+    const fetchTiles = fetchWith(cool)
+
+    render(<RouteHeatmapMapKit heatmap={tiled} fetchTiles={fetchTiles} />)
+
+    await waitFor(() =>
+      expect(fetchTiles.mock.calls.some(([request]) => request.z === 12)).toBe(
+        true
+      )
+    )
+    const framed = fetchTiles.mock.calls.find(([r]) => r.z === 12)![0]
+    // Compared against the region the map REPORTS, not the bounds handed to it:
+    // MapKit fits an assigned region to the element's aspect ratio, so a square
+    // scope in a 16:9 element comes back nearly twice as wide. The request has
+    // to match what the map is showing, which is the honest comparison.
+    const { center, span } = double.getMap()!.region
+    const expected = tilesForBounds(
+      {
+        minLat: center.latitude - span.latitudeDelta / 2,
+        maxLat: center.latitude + span.latitudeDelta / 2,
+        minLng: center.longitude - span.longitudeDelta / 2,
+        maxLng: center.longitude + span.longitudeDelta / 2
+      },
+      12
+    )
+    for (const tile of framed.tiles) {
+      expect(tile.x).toBeGreaterThanOrEqual(expected.minX)
+      expect(tile.x).toBeLessThanOrEqual(expected.maxX)
+      expect(tile.y).toBeGreaterThanOrEqual(expected.minY)
+      expect(tile.y).toBeLessThanOrEqual(expected.maxY)
+    }
+    expect(framed.tiles.length).toBeGreaterThan(0)
   })
 
   it('replaces the untiled overlays rather than drawing beside them', async () => {
@@ -272,8 +346,13 @@ describe('RouteHeatmapMapKit tiled rendering', () => {
     await waitFor(() =>
       expect(
         double.overlaysOfKind('polyline').some((overlay) => {
-          const style = overlay.styleOptions as { strokeColor?: string }
-          return style?.strokeColor === '#facc15'
+          const style = overlay.styleOptions as {
+            strokeColor?: string
+            lineWidth?: number
+          }
+          // Colour AND width: both ramps run past the opacity saturation point,
+          // so asserting one field lets the other stay clamped.
+          return style?.strokeColor === '#facc15' && style?.lineWidth === 4.2
         })
       ).toBe(true)
     )
@@ -320,6 +399,58 @@ describe('RouteHeatmapMapKit tiled rendering', () => {
     await waitFor(() =>
       expect(rebuilt.currentOverlays.length).toBeGreaterThan(0)
     )
+  })
+
+  it('adds and removes only the tiles that changed when the map pans', async () => {
+    // MapKit gives an overlay no identity, so the per-tile keying is ours.
+    // Rebuilding every overlay on each pan would drop and recreate thousands of
+    // polylines for a few tiles' worth of change, and dropping the diff's
+    // remove half leaks the ones that left the view.
+    const double = createMapKitTestDouble()
+    mockLoadMapKitModule.mockResolvedValue(double.mapkit as never)
+
+    render(<RouteHeatmapMapKit heatmap={tiled} fetchTiles={fetchWith(cool)} />)
+    await waitFor(() =>
+      expect(double.getMap()!.currentOverlays.length).toBeGreaterThan(0)
+    )
+    const map = double.getMap()!
+    const before = [...map.currentOverlays]
+
+    // Pan to a neighbouring, overlapping region.
+    map.region = {
+      center: { latitude: 52.5, longitude: 6.1 },
+      span: { latitudeDelta: 0.6, longitudeDelta: 0.6 }
+    }
+
+    await waitFor(() => expect(map.currentOverlays).not.toEqual(before))
+    // No overlay is attached twice — a diff that only added would duplicate.
+    expect(new Set(map.currentOverlays).size).toBe(map.currentOverlays.length)
+  })
+
+  it('paints a busy run and a quiet one from the same tile differently', async () => {
+    // The style cache keys on the resolved tier, not the raw count. Collapsing
+    // it to the opacity tier would paint every busy street the coolest colour.
+    const mixed = encodeTile([
+      { count: 20, points: [0, 0, 32, 32] },
+      { count: 1, points: [64, 64, 96, 96] }
+    ])
+    const double = createMapKitTestDouble()
+    mockLoadMapKitModule.mockResolvedValue(double.mapkit as never)
+
+    render(<RouteHeatmapMapKit heatmap={tiled} fetchTiles={fetchWith(mixed)} />)
+
+    await waitFor(() => {
+      const colours = new Set(
+        double
+          .overlaysOfKind('polyline')
+          .map(
+            (overlay) =>
+              (overlay.styleOptions as { strokeColor?: string })?.strokeColor
+          )
+      )
+      expect(colours.has('#facc15')).toBe(true)
+      expect(colours.has('#ef4444')).toBe(true)
+    })
   })
 
   it('locks rotation, so the region never reports a superset of the view', async () => {
