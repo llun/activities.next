@@ -626,6 +626,17 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
 - Only a `completed` pyramid serves tiles, only at its own `version`, and the
   response's keys are the ones the request named. A well-formed `v` busts caches
   and never filters tiles; a malformed one is a 400 on both routes.
+- The static share image is a pyramid reader like the tile routes: it gates on
+  `buildHeatmapTileSource` before reading, takes the heatmap row rather than a
+  bare actor id, clips each tile to the shared row's region, and places geometry
+  with the row's own `z`/`x`/`y`. Its rung comes from the image's own size along
+  the axis the renderer fits by.
+- A static renderer takes the tiles first and the stored blob second. Apple
+  refuses past `MAX_SNAPSHOT_OVERLAYS`; Mapbox truncates at its URL budget and
+  then frames on what survived, so the tiled candidate passes
+  `requireAllOverlays`. Removing that fallback, or nulling `segments` on pyramid
+  rows, costs Apple/Mapbox instances their basemap — reject it unless the raster
+  path has been made to stand alone.
 - See AGENTS.md → Fitness Route Heatmap Pyramid.
 
 ## Commits & versioning
