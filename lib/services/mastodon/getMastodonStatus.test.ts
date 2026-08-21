@@ -1764,8 +1764,80 @@ describe('getMastodonStatus', () => {
 
       const mastodonStatus = await getMastodonStatus(database, statusWithTags)
 
-      expect(mastodonStatus?.emojis).toHaveLength(1)
-      expect(mastodonStatus?.emojis[0].shortcode).toBe('emoji')
+      // Advertises nothing, because the renderer cannot render it either: a
+      // name whose inner part is itself `:emoji:` is not a shortcode, and
+      // `content` leaves the text alone. This list used to strip every colon
+      // with a local regex and report `emoji`, handing clients a shortcode that
+      // appears nowhere in the content it arrived with. No implementation sends
+      // doubled colons; what matters is that the two sides agree.
+      expect(mastodonStatus?.emojis).toHaveLength(0)
+    })
+
+    // The names that DO arrive from the wider fediverse, all of which the
+    // renderer resolves, so the API must advertise them too.
+    it.each([
+      { description: 'a hyphen', name: ':poi-love:', shortcode: 'poi-love' },
+      { description: 'one character', name: ':c:', shortcode: 'c' },
+      { description: 'non-ASCII', name: ':afiŝo:', shortcode: 'afiŝo' }
+    ])(
+      'advertises a shortcode with $description',
+      async ({ name, shortcode }) => {
+        const status = await database.createNote({
+          id: `${ACTOR1_ID}/statuses/emoji-${shortcode}`,
+          url: `${ACTOR1_ID}/statuses/emoji-${shortcode}`,
+          actorId: ACTOR1_ID,
+          text: `Status with ${name}`,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+        await database.createTag({
+          statusId: status.id,
+          type: 'emoji',
+          name,
+          value: 'https://test.host/emoji.png'
+        })
+
+        const mastodonStatus = await getMastodonStatus(
+          database,
+          (await database.getStatus({
+            statusId: status.id,
+            withReplies: false
+          })) as Status
+        )
+
+        expect(mastodonStatus?.emojis).toHaveLength(1)
+        expect(mastodonStatus?.emojis[0].shortcode).toBe(shortcode)
+      }
+    )
+
+    // A remote `Emoji` tag's name is stored verbatim, so this is a name that
+    // can really arrive. Relaying it would hand a client attacker-controlled
+    // markup in a field some clients substitute into HTML themselves.
+    it('advertises nothing for a name shaped like markup', async () => {
+      const status = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/emoji-markup`,
+        url: `${ACTOR1_ID}/statuses/emoji-markup`,
+        actorId: ACTOR1_ID,
+        text: 'Status with a hostile emoji tag',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createTag({
+        statusId: status.id,
+        type: 'emoji',
+        name: '<a href="https://evil.test/">',
+        value: 'https://test.host/emoji.png'
+      })
+
+      const mastodonStatus = await getMastodonStatus(
+        database,
+        (await database.getStatus({
+          statusId: status.id,
+          withReplies: false
+        })) as Status
+      )
+
+      expect(mastodonStatus?.emojis).toHaveLength(0)
     })
 
     it('handles emoji without colons', async () => {
