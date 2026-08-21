@@ -1,0 +1,23 @@
+next.config.ts
+  s_51fd2688de1d02::t_8e537844016a7a 11-18,20-28
+tsconfig.json
+  s_51fd2688de1d02::t_43d3384ede131b 24
+tsconfig.build.json
+  s_51fd2688de1d02::t_6b30bb377e891a 1-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "bdd8eb6f963cace27a32e7842ac0eb6307ebcd8d",
+  "prompts": {},
+  "sessions": {
+    "s_51fd2688de1d02": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "395909a7-92c9-431a-acba-c74922c99553",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
