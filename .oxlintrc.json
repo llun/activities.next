@@ -78,8 +78,9 @@
     "no-sparse-arrays": "error",
     "no-this-before-super": "error",
     // eslint:recommended has this on, and @oxlint/migrate skips it as
-    // "nursery" — dropping it silently removed the ONLY static check over
-    // public/sw.js, which no tsconfig includes and nothing imports.
+    // "nursery". public/sw.js is in no tsconfig and imported by nothing, so
+    // lint is the only thing that reads it — and this is its only check for an
+    // undeclared global, which is what a typo there looks like.
     "no-undef": "error",
     "no-unassigned-vars": "error",
     "no-unexpected-multiline": "error",
