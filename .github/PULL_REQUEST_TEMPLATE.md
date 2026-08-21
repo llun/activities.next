@@ -14,7 +14,7 @@ for changes with no visual surface. -->
 
 ## Checklist
 
-- [ ] `yarn run prettier --write .`, `yarn lint`, `yarn build`, and `yarn test` all pass locally, run in that order
+- [ ] `yarn run prettier --write .`, `yarn lint`, `yarn typecheck`, `yarn build`, and `yarn test` all pass locally, run in that order
 - [ ] Docs updated: I grepped `*.md` and `docs/` for every command, env var, route, script, or convention this PR renames, removes, or reshapes (AGENTS.md → Documentation Maintenance)
 - [ ] If migrations changed: BOTH `migrations/schema.sql` and `migrations/schema.sqlite.sql` are regenerated in this PR
 - [ ] `version` in `package.json` is untouched (CI bumps it from commit prefixes)

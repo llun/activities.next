@@ -121,4 +121,22 @@ describe('agents oxlint plugin', () => {
       'lib/components/Widget.tsx:1 agents(no-component-fetch)'
     ])
   })
+
+  it('anchors allowFiles at the repo root instead of matching any path suffix', () => {
+    // The allow-list is the frozen set of legacy fetch() callers and may only
+    // ever shrink. Matching with `endsWith` on the absolute path would also
+    // exempt a different file whose path merely *ends with* an allow-listed
+    // entry — here `lib/components/app/legacy/Legacy.tsx` ends with the
+    // allow-listed `app/legacy/Legacy.tsx` — quietly widening the list.
+    expect(
+      lint({
+        'app/legacy/Legacy.tsx':
+          "export const L = () => { fetch('/x'); return null }",
+        'lib/components/app/legacy/Legacy.tsx':
+          "export const N = () => { fetch('/x'); return null }"
+      })
+    ).toEqual([
+      'lib/components/app/legacy/Legacy.tsx:1 agents(no-component-fetch)'
+    ])
+  })
 })

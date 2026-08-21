@@ -1,3 +1,5 @@
+import { relative } from 'node:path'
+
 // Oxlint JS plugin carrying the AGENTS.md conventions that used to be
 // `no-restricted-syntax` selectors in eslint.config.mjs. Oxlint implements no
 // `no-restricted-syntax` rule, but its JS-plugin API is ESLint-v9-compatible:
@@ -83,8 +85,16 @@ export default {
         if (/\.test\.tsx?$/.test(filename)) return {}
         // The FROZEN legacy-offender list from .oxlintrc.json: migrate these to
         // lib/client.ts when touched and remove them there. Never add a file.
+        //
+        // Matched against the repo-relative path, not with `endsWith` on the
+        // absolute one: ESLint's `ignores` globs were root-anchored, and a
+        // suffix match would also exempt a *different* file that merely ends
+        // with one of these names (say a future
+        // `lib/components/admin/MediaManagement.tsx`), quietly widening a list
+        // that is only ever supposed to shrink.
         const allowFiles = context.options[0]?.allowFiles ?? []
-        if (allowFiles.some((allowed) => filename.endsWith(allowed))) return {}
+        const relativePath = relative(context.cwd, filename)
+        if (allowFiles.includes(relativePath)) return {}
 
         return {
           "CallExpression[callee.name='fetch']"(node) {
