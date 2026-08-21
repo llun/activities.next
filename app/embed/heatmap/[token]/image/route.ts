@@ -7,6 +7,7 @@ import {
   APPLE_SNAPSHOT_MIN_DIMENSION,
   fetchAppleSnapshot
 } from '@/lib/services/fitness-files/appleMapsSnapshot'
+import { buildHeatmapSegmentsFromTiles } from '@/lib/services/fitness-files/heatmapTiles/segmentsFromTiles'
 import {
   resolveSharedHeatmapRegionBounds,
   toPublicHeatmap
@@ -15,7 +16,10 @@ import {
   buildHeatmapSvg,
   buildMapboxStaticUrl
 } from '@/lib/services/fitness-files/staticHeatmapImage'
+import type { FitnessRouteHeatmapSegment } from '@/lib/types/database/fitnessRouteHeatmap'
+import { logger } from '@/lib/utils/logger'
 import { apiErrorResponse } from '@/lib/utils/response'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 export const dynamic = 'force-dynamic'
@@ -108,12 +112,56 @@ export const GET = traceApiRoute(
     if (!heatmap || heatmap.status !== 'completed') return apiErrorResponse(404)
     // See resolveSharedHeatmapRegionBounds: an unresolvable region means the
     // stored geometry was never clipped, so rendering it publishes the world.
-    if (!resolveSharedHeatmapRegionBounds(heatmap)) return apiErrorResponse(404)
+    const regionBounds = resolveSharedHeatmapRegionBounds(heatmap)
+    if (!regionBounds) return apiErrorResponse(404)
 
     const publicHeatmap = toPublicHeatmap(heatmap)
     const url = new URL(req.url)
     const width = snapDimension(url.searchParams.get('w'), DEFAULT_WIDTH)
     const height = snapDimension(url.searchParams.get('h'), DEFAULT_HEIGHT)
+
+    // Prefer the pyramid: the stored blob was simplified once to a single
+    // global budget, so a thumbnail of a city drawn from it shows the same
+    // coarse lines a whole-world view would. Tiles are simplified per rung, so
+    // the image is drawn at the fidelity its own size warrants.
+    //
+    // Best-effort in both directions — an actor with no completed build, and a
+    // read that fails, both keep the blob, which is an image the owner already
+    // had. The whole row goes in, not just its actor id: the pyramid covers the
+    // actor's whole history, so the builder has to refuse a share scoped to one
+    // sport or one year and clip what is left to the share's own region.
+    const tiled = publicHeatmap.bounds
+      ? await buildHeatmapSegmentsFromTiles(database, {
+          heatmap,
+          bounds: publicHeatmap.bounds,
+          width,
+          height,
+          regionBounds
+        }).catch((error) => {
+          logger.warn({
+            message: 'Failed to build a route heatmap image from tiles',
+            heatmapId: heatmap.id,
+            actorId: heatmap.actorId,
+            err: toLoggableError(error)
+          })
+          return null
+        })
+      : null
+    // Tiles first, the stored blob second — and the renderer decides.
+    //
+    // Tile geometry is one run per way per tile where the blob is one polyline
+    // per activity, so a street-level view is hundreds of overlays rather than
+    // tens. The two basemap renderers cannot draw that: Apple refuses outright
+    // past MAX_SNAPSHOT_OVERLAYS, and Mapbox silently drops whatever overruns
+    // its URL budget, which for tile-ordered geometry means one contiguous
+    // corner of the view that `/auto/` then frames the whole image on. Handing
+    // the blob to a renderer that cannot take the tiles keeps exactly the image
+    // such an instance serves today, instead of trading its basemap away for
+    // fidelity it cannot show.
+    const blobSegments = publicHeatmap.segments
+    const candidates: FitnessRouteHeatmapSegment[][] = tiled?.length
+      ? [tiled, blobSegments]
+      : [blobSegments]
 
     const mapProvider = getMapProviderConfig()
 
@@ -122,18 +170,30 @@ export const GET = traceApiRoute(
     // server-side and only the bytes are streamed back.
     if (mapProvider.type === 'apple') {
       const appleSize = fitAppleDimensions(width, height)
-      const snapshot = await fetchAppleSnapshot(
-        {
-          segments: publicHeatmap.segments,
-          width: appleSize.width,
-          height: appleSize.height,
-          scale: APPLE_SNAPSHOT_SCALE
-        },
-        mapProvider
-      )
-      // Apple Web Snapshots answer with PNG bytes; pin the type rather than
-      // trusting the upstream header on this anonymous, CORS-* response.
-      if (snapshot) return imageResponse(new Uint8Array(snapshot), 'image/png')
+      for (const candidate of candidates) {
+        // Trying the tiles first is free when they are over the ceiling:
+        // `buildAppleSnapshotPath` refuses that input before it signs or
+        // fetches anything, so the blob is reached without a request. When the
+        // tiles DO fit, a failed attempt costs a real fetch and the blob is
+        // then tried for real — which is the point. Apple answers 413 once the
+        // URL grows too long and `SNAPSHOT_URL_BUDGET` is this module's guess
+        // at where that is, so the candidate most likely to be refused upstream
+        // is exactly the long one.
+        const snapshot = await fetchAppleSnapshot(
+          {
+            segments: candidate,
+            width: appleSize.width,
+            height: appleSize.height,
+            scale: APPLE_SNAPSHOT_SCALE
+          },
+          mapProvider
+        )
+        // Apple Web Snapshots answer with PNG bytes; pin the type rather than
+        // trusting the upstream header on this anonymous, CORS-* response.
+        if (snapshot) {
+          return imageResponse(new Uint8Array(snapshot), 'image/png')
+        }
+      }
       // Otherwise fall through to the keyless SVG renderer below.
     }
 
@@ -142,13 +202,20 @@ export const GET = traceApiRoute(
     // token never reaches the browser. Any Mapbox token works here (including a
     // secret `sk.` one), unlike the browser-side descriptor.
     if (mapProvider.type === 'mapbox') {
-      const mapboxUrl = buildMapboxStaticUrl({
-        segments: publicHeatmap.segments,
-        bounds: publicHeatmap.bounds ?? null,
-        width,
-        height,
-        token: mapProvider.accessToken
-      })
+      const mapboxUrl = candidates.reduce<string | null>(
+        (found, candidate) =>
+          found ??
+          buildMapboxStaticUrl({
+            segments: candidate,
+            bounds: publicHeatmap.bounds ?? null,
+            width,
+            height,
+            token: mapProvider.accessToken,
+            // Only the blob may be truncated, which is what it has always done.
+            requireAllOverlays: candidate !== blobSegments
+          }),
+        null
+      )
       if (mapboxUrl) {
         try {
           const upstream = await fetch(mapboxUrl, {
@@ -172,10 +239,11 @@ export const GET = traceApiRoute(
       }
     }
 
-    // Keyless fallback: route lines on a plain background.
+    // Keyless fallback: route lines on a plain background. No overlay ceiling
+    // and no URL to overrun, so it always takes the finest candidate.
     return svgResponse(
       buildHeatmapSvg({
-        segments: publicHeatmap.segments,
+        segments: candidates[0],
         bounds: publicHeatmap.bounds ?? null,
         width,
         height
