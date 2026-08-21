@@ -642,6 +642,34 @@ it; there is no legacy shape left to copy.
   the same roads at different fidelities, so together every line renders at
   twice its opacity. The swap waits for a batch to resolve, so a pan never
   blanks the map, and a failed fetch leaves the previous view standing.
+- **The STATIC share image reads the pyramid too, and enforces the same two
+  boundaries the tile routes do.** `buildHeatmapSegmentsFromTiles` takes the
+  heatmap ROW, not a bare actor id — pairing a scope with the wrong actor's
+  history is the mistake the signature exists to prevent — gates on
+  `buildHeatmapTileSource` BEFORE the read, and clips every tile to the shared
+  row's region. Clipping cannot substitute for the variant gate: it bounds
+  geography and nothing else, so a share scoped to one sport or one year drawn
+  from the whole-history pyramid publishes every sport and every year. The rung
+  comes from the IMAGE's own size along whichever axis the renderer fits by
+  (`min(width / spanX, height / spanY)`, in projected units — a degree of
+  latitude is not a fixed number of pixels in Mercator), and geometry is placed
+  with each ROW's own `z`/`x`/`y`, never the rung the view computed.
+- **Each static renderer is offered the tiles FIRST and the stored blob SECOND,
+  and the blob is why the dual-write still exists.** Tile geometry is one run
+  per way per tile where the blob is roughly one polyline per activity, so a
+  street-level view is hundreds of overlays rather than tens — a shape neither
+  basemap renderer can draw. Apple refuses outright past
+  `MAX_SNAPSHOT_OVERLAYS` (24), which dropped those instances to the keyless SVG
+  and cost them their basemap; Mapbox silently truncates at
+  `MAPBOX_STATIC_URL_BUDGET` (7000 chars) and then frames the image with
+  `/auto/` on only the overlays that survived, which — since tile runs arrive in
+  tile order — is one contiguous corner of the view blown up to fill the frame.
+  `requireAllOverlays` makes the tiled candidate refuse rather than truncate. Do
+  NOT remove the fallback, and do NOT make pyramid rows store `segments = null`,
+  until the raster path can stand alone (coarsening down the ladder until the
+  geometry fits a renderer's ceiling is the open design). Only the keyless SVG
+  renderer has neither limit — and it is the only one that shades strokes by
+  visit count; Apple and Mapbox draw every stroke at a flat 0.9.
 - Full design and rationale: `docs/fitness-file-storage.md` → Route heatmap tile
   pyramid.
 
