@@ -317,6 +317,35 @@ describe('useHeatmapTiles', () => {
     await waitFor(() => expect(result.current.runs.length).toBeGreaterThan(0))
   })
 
+  it('covers a near-world span instead of collapsing it to one column', async () => {
+    // A raw span within one column-width of the world normalises into the SAME
+    // column at both ends. Reading coverage from that pair alone fetched one
+    // sixteenth of a world view and — because tiles then existed — blanked the
+    // untiled geometry, so the reader saw a single 22.5 degree strip and
+    // nothing else, with no error.
+    const fetchTiles = vi.fn(async ({ tiles }) => batchOf(tiles))
+    const { result } = renderHook(() =>
+      useHeatmapTiles({ tileSource, fetchTiles })
+    )
+
+    act(() =>
+      result.current.onViewChange({
+        zoom: 2.36,
+        bounds: { minLat: -60, maxLat: 60, minLng: -75, maxLng: 275 }
+      })
+    )
+    await settle()
+    await waitFor(() => expect(fetchTiles).toHaveBeenCalled())
+
+    const xs = new Set(
+      fetchTiles.mock.calls
+        .flatMap(([request]) => request.tiles)
+        .map((tile: { x: number }) => tile.x)
+    )
+    // 350 degrees at the z4 floor is essentially the whole world: 16 columns.
+    expect(xs.size).toBe(2 ** fetchTiles.mock.calls[0][0].z)
+  })
+
   it('refuses a viewport spanning a whole world or more', async () => {
     // `projectWebMercator` normalises each end independently, so 540 degrees of
     // longitude collapses to a sliver that would be drawn as the entire map.

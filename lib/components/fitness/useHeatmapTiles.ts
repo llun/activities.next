@@ -196,13 +196,32 @@ const tileColumnsForBounds = (
   const rows = range.maxY - range.minY + 1
   if (rows <= 0) return { xs: [], minY: range.minY, maxY: range.maxY, count: 0 }
 
-  const lastColumn = 2 ** z - 1
+  const columnCount = 2 ** z
+  // How many columns the RAW span needs, alongside what the normalised pair
+  // implies. The normalised pair is exact for an ordinary view, but it cannot
+  // describe a span within one column-width of a whole world: both ends
+  // normalise into the SAME column, which reads as a single column and would
+  // fetch one sixteenth of a world view — geometry assembled with holes that
+  // nothing downstream can detect, which is the failure this file exists to
+  // avoid. Taking the larger of the two keeps ordinary views exact and rescues
+  // that band.
+  const spanColumns = Math.floor(
+    (bounds.maxLng - bounds.minLng) / (360 / columnCount)
+  )
+  const normalisedColumns =
+    range.minX <= range.maxX
+      ? range.maxX - range.minX + 1
+      : columnCount - range.minX + range.maxX + 1
+  const needed = Math.min(
+    columnCount,
+    Math.max(normalisedColumns, spanColumns + 1)
+  )
+
+  // Stepping with modulo covers the antimeridian wrap and the near-world case
+  // under one rule, and the cap keeps the list free of duplicates.
   const xs: number[] = []
-  if (range.minX <= range.maxX) {
-    for (let x = range.minX; x <= range.maxX; x += 1) xs.push(x)
-  } else {
-    for (let x = range.minX; x <= lastColumn; x += 1) xs.push(x)
-    for (let x = 0; x <= range.maxX; x += 1) xs.push(x)
+  for (let index = 0; index < needed; index += 1) {
+    xs.push((range.minX + index) % columnCount)
   }
 
   return { xs, minY: range.minY, maxY: range.maxY, count: xs.length * rows }
