@@ -44,7 +44,7 @@ vi.mock('next/headers', () => ({
 
 // Mock better-auth/oauth2 (ESM-only module, not needed for session-based tests)
 vi.mock('better-auth/oauth2', () => ({
-  verifyAccessToken: vi.fn()
+  verifyBearerToken: vi.fn()
 }))
 
 // Mock config

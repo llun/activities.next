@@ -48,7 +48,7 @@ vi.mock('next/headers', () => ({
 }))
 
 // Opaque tokens never reach better-auth's verifier, but the guard imports it.
-vi.mock('better-auth/oauth2', () => ({ verifyAccessToken: vi.fn() }))
+vi.mock('better-auth/oauth2', () => ({ verifyBearerToken: vi.fn() }))
 
 // getDatabase/getKnex are read through mutable bindings so the hand-rolled mock
 // (GET + web-form tests) and the real SQLite database (Bearer API tests) can
