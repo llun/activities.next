@@ -124,8 +124,9 @@ change doesn't touch.
 - The local public timeline passes local actor ids in as literal values and must
   not join `actors`. Joining on that unique key collapses the planner's estimate
   and loses `LIMIT` early termination at every page size (~176 buffers vs
-  ~16,200 measured); the id fetch itself stays bounded because it runs on an
-  anonymous path.
+  ~16,200 measured). The id fetch carries an explicit `LIMIT` of one past what
+  the query can bind — it runs on an anonymous path, which is why the bound is
+  required, not what supplies it.
 - A caller-supplied id compared against a **numeric** column is coerced first.
   `medias.id` and `attachments.mediaId` are `integer` on PostgreSQL, so passing a
   non-numeric client string raises `invalid input syntax for type integer` — a

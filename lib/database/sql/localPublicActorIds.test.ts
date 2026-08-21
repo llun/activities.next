@@ -67,9 +67,13 @@ describe('local public timeline actor id handling', () => {
   describe('with more local actors than the query can bind', () => {
     const { database, instance, prepare } = getTestDatabaseWithInstance(true)
 
-    // One past the SQLite ceiling the literal-id form is capped at, so the
-    // fallback semi-join is the branch under test. Inserted directly: this
-    // needs a thousand rows to exist, not a thousand actors set up properly.
+    // Past the literal-id ceiling on BOTH backends, so the fallback semi-join
+    // is the branch under test wherever this runs. The ceilings differ — 987 on
+    // SQLite (999 bindings less the 12 reserved) and 1000 on PostgreSQL — so do
+    // not "tighten" this to one past SQLite's: at 988 CI would stay green on
+    // SQLite while PostgreSQL took the literal-id branch and failed the
+    // assertion below. Inserted directly: this needs a thousand rows to exist,
+    // not a thousand actors set up properly.
     const LOCAL_ACTOR_COUNT = 1001
     const AUTHOR_ID = `https://${DOMAIN}/users/bulk0`
 

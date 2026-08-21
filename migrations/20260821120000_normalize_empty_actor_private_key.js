@@ -15,9 +15,9 @@
 // requests go out unsigned — so there is no working state to preserve. Leaving
 // it as '' would instead leave one row that a future hand-written
 // `IS NOT NULL` would still read as local, which is the trap being closed.
-// Worth confirming none exists before deploying:
-//   SELECT count(*) FROM actors
-//    WHERE "accountId" IS NOT NULL AND ("privateKey" IS NULL OR "privateKey" = '');
+// Before deploying, it is worth counting the actors that have an account but
+// no usable signing key; the expected answer is zero, and anything else is an
+// account to repair rather than a reason to hold this migration back.
 //
 // The application layer never disagreed: `getActorFromRow` omits `privateKey`
 // from the domain object unless it is truthy, so an `Actor` built from one of
