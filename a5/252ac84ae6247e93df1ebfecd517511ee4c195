@@ -1,0 +1,209 @@
+app/api/v1/favourites/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 29
+AGENTS.md
+  s_ade2b59b77bd24::t_fe088663647392 1443-1444
+  s_ade2b59b77bd24::t_03e02aed9cab35 1448,1454
+app/api/v1/blocks/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 46
+app/api/v1/accounts/[id]/endorsements/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 29
+app/api/v1/endorsements/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 29
+app/api/v1/featured_tags/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 27
+app/api/v1/accounts/verify_credentials/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 43
+app/api/v1/notifications/clear/route.scopes.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 50
+package.json
+  s_ade2b59b77bd24::t_8fb537b0a3edde 71
+  s_ade2b59b77bd24::t_0750271b259d5e 30-32,52
+app/api/v1/accounts/[id]/statuses/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 48
+app/api/v1/apps/verify_credentials/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 48,51
+app/api/v1/profile/avatar/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 26
+app/api/v1/trends/statuses/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 35
+app/api/v2/suggestions/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 34
+app/api/v2/filters/[id]/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 15
+app/api/v2/filters/[id]/statuses/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 34
+app/api/v1/collections/[id]/items/[item_id]/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 31
+app/api/v1/accounts/search/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 54
+app/api/v1/timelines/[timeline]/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 47
+app/api/v1/collections/[id]/items/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 32
+app/api/v1/emails/confirmations/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 56
+app/api/v2/filters/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 27
+app/api/v1/collections/[id]/items/[item_id]/approve/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 29
+app/api/v1/scheduled_statuses/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 33
+lib/services/auth/knexAdapter.ts
+  s_ade2b59b77bd24::t_7e1c231cbb6f18 630
+  s_ade2b59b77bd24::t_bc37febb121c6e 206-218
+  s_ade2b59b77bd24::t_cc27eba1b3577e 631-715
+app/api/v1/timelines/list/[list_id]/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 32
+app/api/v1/profile/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 28
+app/api/v1/accounts/[id]/followers/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 28
+app/api/v1/accounts/[id]/follow/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 41
+app/api/v1/featured_tags/[id]/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 27
+lib/services/oauth/issueAccessToken.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 34
+app/api/v1/accounts/[id]/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 36
+app/api/v1/statuses/[id]/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 62
+lib/services/guards/OAuthGuard.ts
+  s_ade2b59b77bd24::t_01ce8c6edef7a3 1,195-197,199-201
+  s_ade2b59b77bd24::t_c73832008e154c 198
+app/api/v1/accounts/relationships/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 29
+app/api/v1/statuses/[id]/interaction_policy/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 31
+app/api/v1/accounts/lookup/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 49
+app/api/v1/markers/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 27
+app/api/v1/collections/[id]/items/[item_id]/revoke/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 30
+app/api/v1/accounts/familiar_followers/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 31
+app/api/v1/tags/[tag]/unfeature/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 26
+app/api/v1/accounts/[id]/featured_tags/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 28
+app/api/v1/collections/[id]/feed/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 31
+app/api/v1/media/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 33
+app/api/v1/accounts/[id]/endorse/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 30
+app/api/v1/collections/[id]/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 30
+app/api/v1/mutes/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 46
+app/api/v1/tags/[tag]/feature/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 28
+app/api/v1/accounts/[id]/in_collections/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 30
+app/api/v1/statuses/[id]/source/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 28
+app/api/v1/timelines/public/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 33
+app/api/v2/media/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 34
+migrations/schema.sqlite.sql
+  s_ade2b59b77bd24::t_d65fcaaaffa318 17,77
+app/api/v1/domain_blocks/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 46
+app/api/v1/follow_requests/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 49
+app/api/v2/filters/keywords/[id]/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 15
+lib/database/sql/account.ts
+  s_ade2b59b77bd24::t_05b6e84e2da13a 1-4,152-153,194-195,257-259,737-738,773-774
+  s_ade2b59b77bd24::t_7e1c231cbb6f18 66-74
+  s_ade2b59b77bd24::t_3fbd94fd1b70da 75
+app/api/v1/bookmarks/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 29
+app/api/v1/announcements/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 31
+app/api/v1/accounts/update_credentials/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 30
+app/api/v1/statuses/[id]/reblogged_by/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 31
+app/api/v1/featured_tags/suggestions/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 26
+app/api/v1/media/[id]/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 43
+app/api/v1/profile/header/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 26
+app/api/v1/statuses/[id]/quotes/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 31
+app/api/v1/accounts/[id]/collections/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 29
+app/api/v1/filters/[id]/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 29
+lib/services/guards/OAuthGuard.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 74,569
+  s_ade2b59b77bd24::t_558798384f7e7d 75,77,124,170,401,419,432,474,500,518,542,570,613,650,674,1119,1137
+app/api/v1/preferences/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 48
+app/api/v1/accounts/[id]/pin/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 30
+app/api/v1/accounts/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 51
+app/api/v1/accounts/[id]/following/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 27
+app/api/v1/accounts/[id]/unendorse/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 28
+app/api/v1/statuses/[id]/favourited_by/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 29
+app/api/v1/statuses/[id]/retry-fitness/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 45
+app/api/v1/trends/tags/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 28
+migrations/20260821120000_better_auth_17_columns.js
+  s_ade2b59b77bd24::t_c1a74b9222201b 1-72
+app/api/v2/search/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 81
+lib/services/auth/sessionJoins.test.ts
+  s_ade2b59b77bd24::t_55ac35dee668a8 83-85
+app/api/v1/statuses/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 51
+lib/services/auth/auth.ts
+  s_ade2b59b77bd24::t_402049a462888a 36-50
+app/api/v1/accounts/[id]/unpin/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 28
+lib/services/auth/knexAdapter.test.ts
+  s_ade2b59b77bd24::t_767f0b966e2098 995-1030,1032-1105,1107-1108,1110-1113,1115-1117,1120-1150,1152-1199
+  s_ade2b59b77bd24::t_7e1c231cbb6f18 1031,1151
+  s_ade2b59b77bd24::t_6521719162089b 1106,1109,1114,1118-1119
+app/api/v1/collections/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 30
+app/api/v1/accounts/[id]/remove_from_followers/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 32
+app/api/v1/filters/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 28
+app/api/v1/suggestions/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 32
+app/api/v1/accounts/[id]/note/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 37
+migrations/schema.sql
+  s_ade2b59b77bd24::t_bcd651d2c0f9d3 37-38,612-614
+app/api/v1/statuses/[id]/quotes/[quoting_status_id]/revoke/route.test.ts
+  s_ade2b59b77bd24::t_c73832008e154c 31
+yarn.lock
+  s_ade2b59b77bd24::t_314c2a6ccdacf7 483-485,487,504,508-510,512,514,518,522-524,526,532,536-538,540,542,546-548,550,556,560-562,564,567,570,572,576-578,580-581,584,587,590,594-596,598,607,611-613,615,618,1410-1413,1424-1430,1467-1470,2644,2651,3612-3614,3656,3681,3866-3876,3879-3880,3883,3885,3894-3895,3946,5262,6007-6010
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "a5252ac84ae6247e93df1ebfecd517511ee4c195",
+  "prompts": {},
+  "sessions": {
+    "s_ade2b59b77bd24": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d4ec2fbf-ffcf-400f-a2e8-69ab5f7525f6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
