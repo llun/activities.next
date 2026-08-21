@@ -1135,6 +1135,21 @@ it; there is no legacy shape left to copy.
   gets NO card, because it has no visible text and an emoji image is whatever
   the remote server serves — a transparent PNG included. Erring toward no card
   is the intended direction.
+  **Same string, different PARSERS — this is the one gap the shared pipeline
+  does not close.** The extractor runs server-side, so `htmlToDOM` resolves to
+  `html-dom-parser`'s Node build (htmlparser2, no HTML5 tree construction). The
+  reader's `cleanClassName` runs in the browser bundle, where it resolves to
+  `template.innerHTML` — full tree construction, adoption agency and all. So a
+  nested `<a>`, which htmlparser2 keeps verbatim and a browser hoists out of
+  its ancestor, made the OUTER anchor look like it owned the inner one's text;
+  first in document order, it took the card while rendering as an empty clone.
+  `getVisibleText` therefore stops at a descendant anchor. Note the rule is
+  about the TEXT, not the anchor — an outer anchor with words of its own
+  survives the algorithm and keeps them. `sanitize-html` splits a DIRECT
+  `<a><a>` itself, so it takes one allowed tag in between to reach this.
+  If a construction rule other than nested anchors ever matters here, prefer
+  giving the extractor a spec-compliant parser over adding a second special
+  case.
   Anchors that are mentions or hashtags are rejected by the markers the
   renderer itself emits (`rel="tag"` and the `mention`/`hashtag`/`u-url`
   classes).

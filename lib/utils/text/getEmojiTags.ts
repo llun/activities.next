@@ -31,7 +31,10 @@ export const EMOJI_SHORTCODE_REGEX =
 // whitespace inside the name (it could never be matched as one token), and the
 // control and format characters, which are invisible and so are a way to make
 // two different shortcodes look identical.
-const MAX_EMOJI_SHORTCODE_LENGTH = 64
+// Exported for the coupling test in `convertEmojisToImages.test.ts`: the token
+// regex that FINDS shortcodes in text has to be at least this wide, or a name
+// this accepts resolves to nothing.
+export const MAX_EMOJI_SHORTCODE_LENGTH = 64
 const UNUSABLE_SHORTCODE_CHARACTERS = /[\s:]|\p{Cc}|\p{Cf}/u
 
 /**

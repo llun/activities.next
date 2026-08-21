@@ -476,7 +476,15 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   `resolveStatusPreviewUrl` still passes `status.tags`: the emoji substitution
   can EMPTY an anchor whose text the extractor already counted (a non-https
   `Emoji` icon url is dropped entirely by `sanitizeTrustedStatusText`), and
-  dropping that one argument silently restores a phishing card. A link whose text renders to nothing — empty,
+  dropping that one argument silently restores a phishing card.
+- **The extractor and the reader parse that shared string with DIFFERENT
+  parsers** — htmlparser2 on the server, the browser's own tree construction in
+  the client bundle — so any HTML5 rule that MOVES content between elements is a
+  divergence. Nested anchors are the known one: `getVisibleText` must keep
+  stopping at a descendant `<a>`, because a browser hoists the inner anchor out
+  and leaves the outer one empty. Reject a change that counts a nested anchor's
+  text as its ancestor's, and reject "an anchor containing an anchor is
+  invisible" too — an outer anchor with text of its own keeps it. A link whose text renders to nothing — empty,
   entity-only, or hidden by `hidden`/`invisible` including via an ANCESTOR — is
   skipped, because otherwise a link the reader cannot see gets a full-width
   clickable card carrying an attacker-chosen title and image. `<template>` is

@@ -2,6 +2,10 @@ import { Tag } from '@/lib/types/domain/tag'
 
 import { convertEmojisToImages } from './convertEmojisToImages'
 import { escapeHtml } from './escapeHtml'
+import {
+  MAX_EMOJI_SHORTCODE_LENGTH,
+  toEmojiShortcodeToken
+} from './getEmojiTags'
 import { processStatusTextContent } from './processStatusText'
 
 const emojiTag = (name: string, value: string): Tag => ({
@@ -141,8 +145,26 @@ describe('convertEmojisToImages', () => {
       ).toBe(text)
     })
 
+    // The normalizer decides which names are ACCEPTED; a separate regex in
+    // convertEmojisToImages decides which tokens are FOUND in the text. Raise
+    // one without the other and a long name is accepted, stored, and then never
+    // matched — an emoji that silently stops rendering with nothing to grep for.
+    it('finds a token at the longest length the normalizer accepts', () => {
+      const inner = 'a'.repeat(MAX_EMOJI_SHORTCODE_LENGTH)
+      const name = `:${inner}:`
+
+      expect(toEmojiShortcodeToken(name)).toBe(name)
+      expect(
+        convertEmojisToImages(`<p>hi ${name}</p>`, [
+          emojiTag(name, 'https://cdn.test/e.png')
+        ])
+      ).toBe(
+        `<p>hi <img class="emoji" src="https://cdn.test/e.png" alt="${name}"></img></p>`
+      )
+    })
+
     it('ignores an emoji tag whose name is longer than the cap', () => {
-      const name = `:${'a'.repeat(65)}:`
+      const name = `:${'a'.repeat(MAX_EMOJI_SHORTCODE_LENGTH + 1)}:`
       const text = `<p>hi ${name} there</p>`
 
       expect(
@@ -186,10 +208,12 @@ describe('convertEmojisToImages', () => {
       )
     })
 
-    // The end-to-end consequence, through the real pipeline the reader gets.
-    // A hidden anchor here is a phishing card: the link preview extractor does
-    // NOT run the emoji step, so it sees a plainly visible link and picks it,
-    // while the reader is shown a post with no such link in it.
+    // The end-to-end consequence, through the real pipeline the reader gets:
+    // a hidden anchor here is a phishing card. This is the SECOND half of that
+    // defence — the extractor now runs the emoji step too, so it would see the
+    // hiding — but the injection must not happen in the first place, because
+    // then the reader is shown a post whose links are not what was published.
+    //
     // A real shortcode, so the substitution actually happens and it is the
     // ESCAPING that has to hold. Naming something the filter rejects would pass
     // this without ever exercising the interpolation.

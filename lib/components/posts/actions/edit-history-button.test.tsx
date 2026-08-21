@@ -36,9 +36,6 @@ const status = (
     {
       text: editText,
       summary: null,
-      sensitive: false,
-      attachments: [],
-      pollOptions: null,
       createdAt: currentTime - 60_000
     }
   ],

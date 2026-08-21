@@ -3,13 +3,17 @@ import { escapeHtml } from '@/lib/utils/text/escapeHtml'
 import { toEmojiShortcodeToken } from '@/lib/utils/text/getEmojiTags'
 
 // A `:shortcode:` token as it appears in text: a colon, then anything that is
-// not a colon or whitespace, then a colon. Matches the shape
-// `toEmojiShortcodeToken` produces, so every stored name it can normalize is
-// findable by this and nothing else is.
+// not a colon or whitespace, then a colon. It has to be at least as wide as
+// `toEmojiShortcodeToken` — anything that normalizer accepts must be findable
+// here, or the tag resolves to nothing. It is deliberately a little wider (it
+// will match tokens containing characters the normalizer rejects), which costs
+// nothing: resolution is a map lookup, so a token no tag resolves is left in
+// the text untouched.
 //
-// Deliberately not Mastodon's `[a-zA-Z0-9_]{2,}` — see the note there. A token
-// this finds but no tag resolves is simply left alone, so being generous here
-// costs nothing.
+// Deliberately not Mastodon's `[a-zA-Z0-9_]{2,}` either — see the note there.
+//
+// The length bound must not be lower than `MAX_EMOJI_SHORTCODE_LENGTH`; a
+// coupling test pins the two together.
 const SHORTCODE_TOKEN_REGEX = /:[^\s:]{1,64}:/g
 
 // Splits already-sanitized HTML into alternating text and tag pieces, keeping

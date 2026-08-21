@@ -146,19 +146,33 @@ const isHiddenNode = (node: DomNode): boolean => {
 
 /**
  * The text of a node as the reader actually sees it — descendants the renderer
- * hides contribute nothing.
+ * hides contribute nothing, and neither does anything inside a nested anchor.
  *
- * Counting ALL descendant text is not enough. Mastodon splits a long URL across
- * `invisible`/`ellipsis` spans inside the anchor, so some hidden children are
- * normal; but an anchor whose children are *all* hidden renders as literally
- * nothing (`cleanClassName` maps `invisible` onto Tailwind's `hidden`) while
- * still carrying text. Only excluding the hidden ones tells those two apart.
+ * Counting ALL descendant text is not enough, twice over.
+ *
+ * Mastodon splits a long URL across `invisible`/`ellipsis` spans inside the
+ * anchor, so some hidden children are normal; but an anchor whose children are
+ * *all* hidden renders as literally nothing (`cleanClassName` maps `invisible`
+ * onto Tailwind's `hidden`) while still carrying text. Only excluding the
+ * hidden ones tells those two apart.
+ *
+ * And a DESCENDANT ANCHOR's text is not this anchor's text, because the two
+ * cannot both exist. HTML forbids an anchor inside an anchor and a browser
+ * enforces it while parsing: the adoption agency algorithm hoists the inner one
+ * out and leaves the outer holding an empty clone. We walk htmlparser2's tree,
+ * which has no such rule and nests them verbatim, so without this the outer
+ * anchor appeared to own text that the reader only ever sees under the inner
+ * one — and being first in document order, it took the card while rendering as
+ * nothing. Note the rule is about the TEXT, not the anchor: an outer anchor
+ * with words of its own survives the algorithm and keeps them, so it stays
+ * eligible.
  */
-const getVisibleText = (node: DomNode): string => {
+const getVisibleText = (node: DomNode, belowAnchor = false): string => {
   if (node.type === 'text') return node.data ?? ''
   if (isHiddenNode(node)) return ''
+  if (belowAnchor && node.type === 'tag' && node.name === 'a') return ''
   if (!node.children) return ''
-  return node.children.map(getVisibleText).join('')
+  return node.children.map((child) => getVisibleText(child, true)).join('')
 }
 
 // `trim()` removes ECMAScript whitespace, which does NOT include the zero-width

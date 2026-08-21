@@ -622,6 +622,72 @@ describe('extractPreviewUrl', () => {
         ).toBeNull()
       })
 
+      // HTML forbids an anchor inside an anchor, and a browser enforces that
+      // while PARSING: the adoption agency algorithm hoists the inner anchor
+      // out and leaves the outer one holding an empty clone. The extractor
+      // walks htmlparser2's tree, which has no such rule and nests them
+      // verbatim — so the outer anchor appeared to own the inner one's text.
+      //
+      // That is a phishing shape, not a curiosity: the outer anchor comes first
+      // in document order, so it took the card while rendering as nothing.
+      // `sanitize-html` splits a DIRECT `<a><a>` by implied close, so any one
+      // allowed tag in between is enough to carry it through.
+      describe('an anchor nested inside another anchor', () => {
+        const nested = (inner: string, tag = 'b') =>
+          `<p>New post: <a href="https://evil.example/login">` +
+          `<${tag}>${inner}</${tag}></a></p>`
+
+        it.each([
+          'b',
+          'strong',
+          'i',
+          'em',
+          'u',
+          'code',
+          'span',
+          'del',
+          'p',
+          'li',
+          'blockquote',
+          'pre'
+        ])('gives the card to the inner link through <%s>', (tag) => {
+          expect(
+            fromHtml(
+              nested(
+                '<a href="https://good.example/article">good.example/article</a>',
+                tag
+              )
+            )
+          ).toBe('https://good.example/article')
+        })
+
+        // The worst version: the inner anchor is a mention, so it is not
+        // content either. The post then shows NO external link at all, and
+        // used to carry a full-width card for one.
+        it('gives no card when the inner link is a mention', () => {
+          expect(
+            fromHtml(
+              nested(
+                '<span class="h-card"><a href="https://good.social/@alice" class="u-url mention">@alice</a></span>'
+              )
+            )
+          ).toBeNull()
+        })
+
+        // The outer anchor keeps whatever text is its OWN — the algorithm only
+        // moves the nested anchor — so this one really is visible and really
+        // should win. The rule is "text inside a descendant anchor is not
+        // mine", not "an anchor containing an anchor is invisible".
+        it('keeps an outer link that has text of its own', () => {
+          expect(
+            fromHtml(
+              '<p><a href="https://evil.example/login">click ' +
+                '<b><a href="https://good.example/a">x</a></b></a></p>'
+            )
+          ).toBe('https://evil.example/login')
+        })
+      })
+
       // The walker knows only two hiding classes, which would be hopeless as a
       // denylist: the app compiles Tailwind, so an unfiltered class attribute
       // offers `sr-only`, `opacity-0` and every other utility in the bundle.
