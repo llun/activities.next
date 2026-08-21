@@ -12,6 +12,7 @@ import {
   resolveSharedHeatmapRegionBounds,
   toPublicHeatmap
 } from '@/lib/services/fitness-files/publicHeatmap'
+import { rasterizeHeatmapSvg } from '@/lib/services/fitness-files/rasterizeHeatmapSvg'
 import {
   buildHeatmapSvg,
   buildMapboxStaticUrl
@@ -57,6 +58,18 @@ const snapDimension = (raw: string | null, fallback: number): number => {
   const snapped = Math.round(value / DIMENSION_STEP) * DIMENSION_STEP
   return Math.min(MAX_DIMENSION, Math.max(MIN_DIMENSION, snapped))
 }
+
+// Opt-in raster output. The two basemap renderers already answer with raster
+// bytes; only the keyless fallback serves SVG, so `format=png` means "never
+// send SVG" and costs nothing on the other paths. It is opt-in because SVG is
+// what this endpoint has always served keyless — it scales, and the embed
+// snippet the share dialog hands out already points at this URL.
+//
+// Anything other than the exact string `png` falls back to the default, so the
+// parameter collapses onto two cache variants rather than widening the surface
+// DIMENSION_STEP exists to bound.
+const wantsRaster = (raw: string | null): boolean =>
+  raw?.trim().toLowerCase() === 'png'
 
 // Apple Web Snapshots clamp each dimension into 50..640 (before `scale`). Scale
 // both axes by a single factor so an oversized embed keeps its requested aspect
@@ -119,6 +132,7 @@ export const GET = traceApiRoute(
     const url = new URL(req.url)
     const width = snapDimension(url.searchParams.get('w'), DEFAULT_WIDTH)
     const height = snapDimension(url.searchParams.get('h'), DEFAULT_HEIGHT)
+    const raster = wantsRaster(url.searchParams.get('format'))
 
     // Prefer the pyramid: the stored blob was simplified once to a single
     // global budget, so a thumbnail of a city drawn from it shows the same
@@ -241,14 +255,30 @@ export const GET = traceApiRoute(
 
     // Keyless fallback: route lines on a plain background. No overlay ceiling
     // and no URL to overrun, so it always takes the finest candidate.
-    return svgResponse(
-      buildHeatmapSvg({
-        segments: candidates[0],
-        bounds: publicHeatmap.bounds ?? null,
-        width,
-        height
+    const svg = buildHeatmapSvg({
+      segments: candidates[0],
+      bounds: publicHeatmap.bounds ?? null,
+      width,
+      height
+    })
+    if (!raster) return svgResponse(svg)
+
+    try {
+      return imageResponse(await rasterizeHeatmapSvg(svg), 'image/png')
+    } catch (error) {
+      // Degrade to the SVG rather than 500. A caller that asked for a raster
+      // wanted it for a crawler that will ignore the SVG, so the card loses its
+      // image either way — but a browser pointed at the same URL still renders
+      // it, and the response says which it got. Same trade the tile paths make:
+      // a rendering shortfall must not cost the image entirely.
+      logger.warn({
+        message: 'Failed to rasterize a route heatmap image',
+        heatmapId: heatmap.id,
+        actorId: heatmap.actorId,
+        err: toLoggableError(error)
       })
-    )
+      return svgResponse(svg)
+    }
   },
   {
     addAttributes: async (_req, context) => {
