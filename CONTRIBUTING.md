@@ -359,6 +359,7 @@ activities.next/
 │   └── utils/                 # Utility functions
 ├── migrations/                # Database migrations (Knex)
 ├── docs/                      # Documentation
+├── lint/                      # Local Oxlint JS plugin (AGENTS.md conventions)
 ├── public/                    # Static assets
 └── scripts/                   # Development/admin scripts
 ```
@@ -366,7 +367,9 @@ activities.next/
 ### Important Files
 
 - `package.json` — Dependencies and scripts
-- `tsconfig.json` — TypeScript configuration
+- `tsconfig.json` — TypeScript configuration (editors, `yarn tsc`)
+- `tsconfig.build.json` — what `next build` type-checks (excludes tests)
+- `tsconfig.typecheck.json` — what `yarn typecheck` checks (whole project, minus the ratchet)
 - `.oxlintrc.json` + `lint/agentsRules.mjs` — Oxlint rules
 - `.prettierrc.yml` — Code formatting rules
 - `vitest.config.ts` — Test configuration

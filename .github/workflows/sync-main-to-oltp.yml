@@ -223,8 +223,8 @@ jobs:
             Requirements:
             - Resolve any merge conflicts or merge-related code issues.
             - Keep changes scoped to the merge.
-            - Run `yarn install`, `yarn lint`, `yarn run prettier --check`, and
-              `yarn build`.
+            - Run `yarn install`, `yarn lint`, `yarn run prettier --check`,
+              `yarn typecheck`, and `yarn build`.
             - Make the minimum changes needed for those commands to pass.
             - Do not create commits.
             - Do not push.
@@ -268,6 +268,11 @@ jobs:
         if: steps.synced.outputs.skip == 'false'
         shell: bash
         run: yarn run prettier --check
+
+      - name: Type check
+        if: steps.synced.outputs.skip == 'false'
+        shell: bash
+        run: yarn typecheck
 
       - name: Build
         if: steps.synced.outputs.skip == 'false'

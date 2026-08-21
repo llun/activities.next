@@ -1,7 +1,7 @@
 name: CI
 
 # Runs on every commit (push to any branch + pull requests). The lint/prettier,
-# build, test, and schema-dump-sync jobs run in parallel (no `needs:` chain
+# typecheck, build, test, and schema-dump-sync jobs run in parallel (no `needs:` chain
 # between them) so the check finishes as fast as the slowest single job instead
 # of the sum of all of them. If any one of them fails, the run is reported as failed: the
 # `CI / CI Success` job aggregates every job's result and fails unless all

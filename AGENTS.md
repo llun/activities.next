@@ -19,7 +19,7 @@ For the most common task shapes, follow the step-by-step **Task Recipes** sectio
 - `lib/` hosts core domain logic, database access, services, jobs, and shared utilities.
 - `migrations/` holds Knex migration files used for SQL backends.
 - `public/` serves static assets; `uploads/` and `data/` are used for local storage in some deployments.
-- `docs/` includes setup and database-specific guides; `scripts/` includes repo utilities.
+- `docs/` includes setup and database-specific guides; `scripts/` includes repo utilities; `lint/` holds the local Oxlint JS plugin (`agentsRules.mjs`) that carries the AGENTS.md conventions Oxlint cannot express natively, plus its guard test.
   - **`docs/` is for durable, general-purpose reference documentation only** (setup, architecture, environment variables, feature guides). **Do NOT add** implementation plans, design docs, task/PR-specific writeups, gap analyses, before/after screenshots, or any other artifact tied to a single change or pull request. Those belong in the PR description or issue tracker, not the repo. Do not create `docs/plans/`, `docs/specs/`, `docs/pr-screenshots/`, or similar scratch directories.
   - `scripts/` is organized as `mock/`, `maintenance/`, `fitness/`, and `backup/`. Every script runs through the `scripts/run.cjs` bootstrap (`node scripts/run.cjs <script>.ts`), which is also wired into each script's shebang; `yarn search:reindex` is the packaged entry point for `scripts/maintenance/rebuildSearchIndex.ts`. `scripts/` is neither linted nor prettier-checked in CI (see below) — verify scripts by running them.
 - `proxy.ts` at the repo root is the Next.js middleware entrypoint (Next 16's rename of `middleware.ts`) — do **not** add a `middleware.ts`. It runs in the Edge runtime: import helpers via direct sub-paths (e.g. `@/lib/utils/http-headers/csp`), never barrels that transitively pull Node-only dependencies such as `@/lib/config`. It owns the ActivityPub content-negotiation rewrites and CSP header injection.
@@ -1513,12 +1513,17 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   stack size exceeded" when a menu closes as a dialog opens. Real focus flows
   never nest that deep, so normal `focus()` / `document.activeElement` behavior
   is unchanged.
-- CI (`.github/workflows/ci.yml`) runs lint + prettier-check, build, four
-  parallel test shards aggregated into an `All Tests` step, and Schema Dump
-  Sync (regenerates the SQLite schema dump from the migrations and fails on
-  drift) on every push and PR. Branch protection on `main` requires exactly
-  three status checks — `Lint and Prettier`, `Build`, `All Tests` — not the
-  `CI Success` aggregate job; `Schema Dump Sync` is not a required check.
+- CI (`.github/workflows/ci.yml`) runs lint + prettier-check, **type check**,
+  build, four parallel test shards aggregated into an `All Tests` step, and
+  Schema Dump Sync (regenerates the SQLite schema dump from the migrations and
+  fails on drift) on every push and PR. Branch protection on `main` requires
+  exactly three status checks — `Lint and Prettier`, `Build`, `All Tests` — not
+  the `CI Success` aggregate job; `Schema Dump Sync` and `Type Check` are **not**
+  required checks, so a red **Type Check** currently blocks nothing at merge
+  time even though it is the only gate covering `*.test.ts(x)`. Adding
+  `Type Check` to the required list is a repo-settings change a maintainer has
+  to make; until then, treat it as advisory and check it by hand before
+  merging.
   The test job pins `TEST_DATABASE_TYPE: sqlite`; `lib/database/testUtils.ts`
   also supports `TEST_DATABASE_TYPE=pg` (with `TEST_DATABASE_HOST` /
   `TEST_DATABASE_USERNAME` / `TEST_DATABASE_PASSWORD`; the port is fixed at 5432) for running the suite against a throwaway **local** PostgreSQL. In that
@@ -1752,10 +1757,11 @@ chore: update dependencies                            ← patch
 - **Before committing**, always run:
   1. `yarn run prettier --write .` to format all files.
   2. `yarn lint` to ensure no linting errors—**must be green before commit**.
-  3. `yarn build` to ensure no build errors—**must be green before commit**.
-  4. `yarn test` to ensure no test errors—**must be green before commit**.
+  3. `yarn typecheck` to ensure no type errors—**must be green before commit**.
+  4. `yarn build` to ensure no build errors—**must be green before commit**.
+  5. `yarn test` to ensure no test errors—**must be green before commit**.
 - A husky pre-commit hook (`.husky/pre-commit`) runs on every commit: first `lint-staged` (configured in `package.json`), which runs `prettier --write` on the staged files and re-stages the formatted result, then `yarn lint`, which blocks the commit on lint errors. It does **not** run build or tests — run those yourself per the checklist above.
-- The `prettier` / `prettier:check` package scripts only cover `app migrations lib`; the trailing `.` in `yarn run prettier --write .` is what extends formatting to the whole tree. CI's format gate (`yarn prettier:check`) does not check `scripts/`, `docs/`, or `.github/`.
+- The `prettier` / `prettier:check` package scripts only cover `app migrations lib lint`; the trailing `.` in `yarn run prettier --write .` is what extends formatting to the whole tree. CI's format gate (`yarn prettier:check`) does not check `scripts/`, `docs/`, or `.github/`.
 - The **sub-agent code-review loop below is the project's review process.** The `gemini-code-assist` bot has been **removed** and no external review bot currently runs on PRs, so do **not** post `/gemini review` (or any other bot trigger) and do not wait on a bot. `REVIEW.md` at the repo root is the project's review checklist and documents recurring reviewer false-flags (e.g. claims that `vi.importMock` does not exist) — read it before acting on review feedback.
 
 ## Code Review Loop (Sub-Agents)

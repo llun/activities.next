@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE.md)
 [![Node.js](https://img.shields.io/badge/Node.js-24.x-green.svg)](https://nodejs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-6.x-blue.svg)](https://www.typescriptlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-7.x-blue.svg)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black.svg)](https://nextjs.org/)
 
 Activity.next is a self-hosted [ActivityPub](https://www.w3.org/TR/activitypub/) server built with Next.js and TypeScript. It enables you to run your own instance in the [Fediverse](https://en.wikipedia.org/wiki/Fediverse) — the decentralized social media network — and interact with Mastodon, Pleroma, Misskey, and other ActivityPub-compatible platforms.
