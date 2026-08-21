@@ -5,6 +5,7 @@ import {
   normalizeHashtagSearchName
 } from '@/lib/database/sql/search/hashtag'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { whereLocalActor } from '@/lib/database/sql/utils/localActor'
 import {
   GetTagDailyHistoryParams,
   GetTrendingStatusCandidateIdsParams,
@@ -146,7 +147,7 @@ export const TrendsSQLDatabaseMixin = (database: Knex): TrendsDatabase => ({
     const since = getTrendsWindowStart(days)
     const rows = (await database('statuses')
       .innerJoin('actors', 'statuses.actorId', 'actors.id')
-      .whereNotNull('actors.privateKey')
+      .modify(whereLocalActor, 'actors.privateKey')
       .where('statuses.reply', '')
       .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
       .where('statuses.createdAt', '>=', since)

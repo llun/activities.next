@@ -9,6 +9,7 @@ import {
 } from '@/lib/database/sql/utils/counter'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { chunkArray, getWhereInBatchSize } from '@/lib/database/sql/utils/knex'
+import { whereLocalActor } from '@/lib/database/sql/utils/localActor'
 import { listTimelineKey } from '@/lib/services/timelines/types'
 import {
   CreateFollowParams,
@@ -28,6 +29,7 @@ import {
   UpdateFollowPreferencesParams,
   UpdateFollowStatusParams
 } from '@/lib/types/database/operations'
+import { SQLActor } from '@/lib/types/database/rows'
 import { Account } from '@/lib/types/domain/account'
 import { Follow, FollowStatus } from '@/lib/types/domain/follow'
 
@@ -218,7 +220,7 @@ export const FollowerSQLDatabaseMixin = (
 
     const domains = (
       await database('actors')
-        .whereNotNull('privateKey')
+        .modify(whereLocalActor)
         .select('domain')
         .distinct()
     ).map((item) => item.domain)
@@ -264,8 +266,10 @@ export const FollowerSQLDatabaseMixin = (
         .leftJoin('follows', 'follows.actorId', 'actors.id')
         .where('follows.targetActorId', actor.id)
         .where('follows.status', FollowStatus.enum.Accepted)
-        .where('actors.privateKey', '<>', '')
-        .select('actors.*')
+        .modify(whereLocalActor, 'actors.privateKey')
+        // knex's `modify` returns QueryBuilder<any, any>, erasing the row type
+        // the rest of this block relies on, so name it explicitly here.
+        .select<SQLActor[]>('actors.*')
       return Promise.all(
         localActors.map(async (actor) => {
           const [account, counters] = await Promise.all([

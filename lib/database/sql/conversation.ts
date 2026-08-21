@@ -4,6 +4,7 @@ import { Knex } from 'knex'
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
+import { whereLocalActor } from '@/lib/database/sql/utils/localActor'
 import {
   DirectConversation,
   DirectConversationDatabase,
@@ -398,8 +399,7 @@ export const DirectConversationSQLDatabaseMixin = (
   const isLocalActorId = async (actorId: string) => {
     const row = await database('actors')
       .where({ id: actorId })
-      .whereNotNull('privateKey')
-      .whereNot('privateKey', '')
+      .modify(whereLocalActor)
       .first<{ id: string }>('id')
     return Boolean(row)
   }
@@ -524,8 +524,7 @@ export const DirectConversationSQLDatabaseMixin = (
     if (participantActorIds.length === 0) return []
     const rows = await trx('actors')
       .whereIn('id', participantActorIds)
-      .whereNotNull('privateKey')
-      .whereNot('privateKey', '')
+      .modify(whereLocalActor)
       .select<{ id: string }[]>('id')
     return rows.map((row) => row.id)
   }
