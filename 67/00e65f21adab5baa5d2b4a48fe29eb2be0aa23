@@ -1,0 +1,36 @@
+.github/workflows/sync-main-to-oltp.yml
+  s_51fd2688de1d02::t_f3c29994dbf2af 226-227,272-275
+  s_51fd2688de1d02::t_a154e8e04a8b11 276
+.github/copilot-instructions.md
+  s_51fd2688de1d02::t_f3c29994dbf2af 39-41
+.github/workflows/ci.yml
+  s_51fd2688de1d02::t_f3c29994dbf2af 4
+README.md
+  s_51fd2688de1d02::t_f3c29994dbf2af 5
+GEMINI.md
+  s_51fd2688de1d02::t_f3c29994dbf2af 9
+.github/PULL_REQUEST_TEMPLATE.md
+  s_51fd2688de1d02::t_f3c29994dbf2af 17
+CONTRIBUTING.md
+  s_51fd2688de1d02::t_f3c29994dbf2af 370-372
+  s_51fd2688de1d02::t_8994ff35564ba8 362
+AGENTS.md
+  s_51fd2688de1d02::t_8994ff35564ba8 22
+  s_51fd2688de1d02::t_a8c5efa25e4101 1516-1526,1760-1762,1764
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "6700e65f21adab5baa5d2b4a48fe29eb2be0aa23",
+  "prompts": {},
+  "sessions": {
+    "s_51fd2688de1d02": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "395909a7-92c9-431a-acba-c74922c99553",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
