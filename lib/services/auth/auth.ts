@@ -100,17 +100,19 @@ const buildAuth = (baseURL: string) => {
       // EdDSA/Ed25519 and a strict RS256 relying party (e.g. mozilla-django-oidc
       // with OIDC_RP_SIGN_ALGO=RS256) cannot verify the id_token signature.
       //
-      // Rollout note: this `jwks` table has no per-key `alg` column (and the
-      // plugin's jwks schema declares none), so better-auth resolves the signing
-      // and JWKS `alg` from THIS config, not from each stored key. A fresh
-      // deployment generates an RSA key on the first sign / first /api/auth/jwks
-      // request and is consistent. A deployment that already signed a token (an
-      // Ed25519 key already sits in `jwks`) must have that row cleared once on
-      // rollout so a fresh RSA key is generated — otherwise the plugin loads the
-      // stale Ed25519 key and tries to sign it as RS256, which throws. This does
-      // not affect Mastodon OAuth2 clients: they use opaque access tokens
-      // verified against the database (not the JWKS), and id_tokens are
-      // short-lived, so no long-lived token depends on the retired EdDSA key.
+      // Rollout note: better-auth 1.7 added a per-key `alg` column to `jwks`
+      // (and `crv`), so from here on a key records the algorithm it was minted
+      // for and the plugin can resolve a signing key by it. Rows written before
+      // that migration have a NULL `alg` and still fall back to THIS config.
+      // Which means the pre-1.7 hazard stands for them: a deployment that
+      // already signed a token with the pre-RS256 default (an Ed25519 key sits
+      // in `jwks`) must have that row cleared once on rollout, or the plugin
+      // loads the stale Ed25519 key and tries to sign it as RS256, which throws.
+      // A fresh deployment generates an RSA key on the first sign / first
+      // /api/auth/jwks request and is consistent. Either way this does not
+      // affect Mastodon OAuth2 clients: they use opaque access tokens verified
+      // against the database (not the JWKS), and id_tokens are short-lived, so
+      // no long-lived token depends on the retired EdDSA key.
       jwt({ jwks: { keyPairConfig: { alg: 'RS256', modulusLength: 2048 } } }),
       // rpID/origin are derived from this instance's resolved host so passkey
       // ceremonies run against the domain the request actually arrived on. See
