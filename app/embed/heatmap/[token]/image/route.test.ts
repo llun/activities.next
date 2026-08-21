@@ -404,19 +404,29 @@ describe('/embed/heatmap/[token]/image', () => {
     expect(body).toContain('stroke="#ef4444"')
   })
 
-  it('rasterizes the keyless fallback to PNG when format=png is asked for', async () => {
-    // A link-preview crawler (X, Facebook, Mastodon, Slack, Discord) refuses
-    // SVG outright, so an og:image pointing at the keyless renderer yields a
-    // card with no image at all. This is the parameter that fixes that.
-    const response = await GET(imageRequest('token-1', '?format=png'), {
-      params: Promise.resolve({ token: 'token-1' })
-    })
+  it.each([
+    { description: 'png', query: '?format=png' },
+    // `wantsRaster` trims and lowercases before comparing, so these are its
+    // contract, not incidental — untested, the normalization is free to rot
+    // into a bare === and nothing would notice.
+    { description: 'PNG (upper case)', query: '?format=PNG' },
+    { description: 'png with padding', query: '?format=%20png%20' }
+  ])(
+    'rasterizes the keyless fallback when format is $description',
+    async ({ query }) => {
+      // A link-preview crawler (X, Facebook, Mastodon, Slack, Discord) refuses
+      // SVG outright, so an og:image pointing at the keyless renderer yields a
+      // card with no image at all. This is the parameter that fixes that.
+      const response = await GET(imageRequest('token-1', query), {
+        params: Promise.resolve({ token: 'token-1' })
+      })
 
-    expect(response.status).toBe(200)
-    expect(response.headers.get('Content-Type')).toBe('image/png')
-    const body = Buffer.from(await response.arrayBuffer())
-    expect(body.subarray(0, 8)).toEqual(PNG_MAGIC)
-  })
+      expect(response.status).toBe(200)
+      expect(response.headers.get('Content-Type')).toBe('image/png')
+      const body = Buffer.from(await response.arrayBuffer())
+      expect(body.subarray(0, 8)).toEqual(PNG_MAGIC)
+    }
+  )
 
   it('renders the card image at the requested size', async () => {
     const response = await GET(
