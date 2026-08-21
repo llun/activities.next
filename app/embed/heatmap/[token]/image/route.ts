@@ -16,6 +16,7 @@ import {
   buildHeatmapSvg,
   buildMapboxStaticUrl
 } from '@/lib/services/fitness-files/staticHeatmapImage'
+import type { FitnessRouteHeatmapSegment } from '@/lib/types/database/fitnessRouteHeatmap'
 import { logger } from '@/lib/utils/logger'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
@@ -146,7 +147,21 @@ export const GET = traceApiRoute(
           return null
         })
       : null
-    const segments = tiled?.length ? tiled : publicHeatmap.segments
+    // Tiles first, the stored blob second — and the renderer decides.
+    //
+    // Tile geometry is one run per way per tile where the blob is one polyline
+    // per activity, so a street-level view is hundreds of overlays rather than
+    // tens. The two basemap renderers cannot draw that: Apple refuses outright
+    // past MAX_SNAPSHOT_OVERLAYS, and Mapbox silently drops whatever overruns
+    // its URL budget, which for tile-ordered geometry means one contiguous
+    // corner of the view that `/auto/` then frames the whole image on. Handing
+    // the blob to a renderer that cannot take the tiles keeps exactly the image
+    // such an instance serves today, instead of trading its basemap away for
+    // fidelity it cannot show.
+    const blobSegments = publicHeatmap.segments
+    const candidates: FitnessRouteHeatmapSegment[][] = tiled?.length
+      ? [tiled, blobSegments]
+      : [blobSegments]
 
     const mapProvider = getMapProviderConfig()
 
@@ -155,18 +170,24 @@ export const GET = traceApiRoute(
     // server-side and only the bytes are streamed back.
     if (mapProvider.type === 'apple') {
       const appleSize = fitAppleDimensions(width, height)
-      const snapshot = await fetchAppleSnapshot(
-        {
-          segments,
-          width: appleSize.width,
-          height: appleSize.height,
-          scale: APPLE_SNAPSHOT_SCALE
-        },
-        mapProvider
-      )
-      // Apple Web Snapshots answer with PNG bytes; pin the type rather than
-      // trusting the upstream header on this anonymous, CORS-* response.
-      if (snapshot) return imageResponse(new Uint8Array(snapshot), 'image/png')
+      for (const candidate of candidates) {
+        // Costs nothing to try: `buildAppleSnapshotPath` refuses an over-ceiling
+        // input before it signs or fetches anything.
+        const snapshot = await fetchAppleSnapshot(
+          {
+            segments: candidate,
+            width: appleSize.width,
+            height: appleSize.height,
+            scale: APPLE_SNAPSHOT_SCALE
+          },
+          mapProvider
+        )
+        // Apple Web Snapshots answer with PNG bytes; pin the type rather than
+        // trusting the upstream header on this anonymous, CORS-* response.
+        if (snapshot) {
+          return imageResponse(new Uint8Array(snapshot), 'image/png')
+        }
+      }
       // Otherwise fall through to the keyless SVG renderer below.
     }
 
@@ -175,13 +196,20 @@ export const GET = traceApiRoute(
     // token never reaches the browser. Any Mapbox token works here (including a
     // secret `sk.` one), unlike the browser-side descriptor.
     if (mapProvider.type === 'mapbox') {
-      const mapboxUrl = buildMapboxStaticUrl({
-        segments,
-        bounds: publicHeatmap.bounds ?? null,
-        width,
-        height,
-        token: mapProvider.accessToken
-      })
+      const mapboxUrl = candidates.reduce<string | null>(
+        (found, candidate) =>
+          found ??
+          buildMapboxStaticUrl({
+            segments: candidate,
+            bounds: publicHeatmap.bounds ?? null,
+            width,
+            height,
+            token: mapProvider.accessToken,
+            // Only the blob may be truncated, which is what it has always done.
+            requireAllOverlays: candidate !== blobSegments
+          }),
+        null
+      )
       if (mapboxUrl) {
         try {
           const upstream = await fetch(mapboxUrl, {
@@ -205,10 +233,11 @@ export const GET = traceApiRoute(
       }
     }
 
-    // Keyless fallback: route lines on a plain background.
+    // Keyless fallback: route lines on a plain background. No overlay ceiling
+    // and no URL to overrun, so it always takes the finest candidate.
     return svgResponse(
       buildHeatmapSvg({
-        segments,
+        segments: candidates[0],
         bounds: publicHeatmap.bounds ?? null,
         width,
         height

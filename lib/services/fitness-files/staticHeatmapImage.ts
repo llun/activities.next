@@ -106,10 +106,23 @@ export const buildMapboxStaticUrl = ({
   width,
   height,
   token,
-  retina = true
+  retina = true,
+  requireAllOverlays = false
 }: StaticHeatmapImageInput & {
   token: string
   retina?: boolean
+  /**
+   * Refuse rather than truncate.
+   *
+   * The packing loop below drops whatever does not fit the URL budget, which is
+   * the right trade for the stored blob: its overlays are whole activities in
+   * activity order, so the survivors are still spread across the map and
+   * `/auto/` frames the map on them. Tile geometry is ordered by tile, so the
+   * survivors would be one contiguous corner of the view and `/auto/` would
+   * frame the image on that corner. A caller holding a second, coarser source
+   * passes this to find out that the finer one does not fit.
+   */
+  requireAllOverlays?: boolean
 }): string | null => {
   const downsampled = downsampleToBudget(
     usableSegments(segments),
@@ -134,6 +147,7 @@ export const buildMapboxStaticUrl = ({
   }
 
   if (overlays.length === 0) return null
+  if (requireAllOverlays && overlays.length < chunks.length) return null
 
   const size = `${Math.round(width)}x${Math.round(height)}${retina ? '@2x' : ''}`
   return (

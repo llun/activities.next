@@ -205,6 +205,80 @@ describe('/embed/heatmap/[token]/image', () => {
       }
     )
 
+    // Enough distinct runs to overrun both basemap renderers: Apple refuses
+    // past MAX_SNAPSHOT_OVERLAYS (24) and Mapbox drops whatever overruns its
+    // URL budget.
+    const manyTiles = (count: number) =>
+      Array.from({ length: count }, (_, index) =>
+        tileRow(
+          12,
+          2100 + index,
+          1340,
+          encodeTile([
+            { count: 3, points: [10, 10, 120, 130] },
+            { count: 1, points: [130, 140, 250, 250] }
+          ])
+        )
+      )
+
+    it('keeps the Apple basemap by drawing the blob when tiles overrun its ceiling', async () => {
+      // The regression this guards: tiles would make buildAppleSnapshotPath
+      // refuse, dropping the instance all the way to the keyless SVG. Trading
+      // a basemap away for fidelity it cannot draw is a worse image.
+      mockGetMapProviderConfig.mockReturnValue(appleProvider)
+      mockGetFitnessRouteHeatmapPyramid.mockResolvedValue(pyramid)
+      mockGetFitnessRouteHeatmapTilesInRange.mockResolvedValue(manyTiles(40))
+
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response(new Uint8Array([1, 2, 3]), {
+          headers: { 'content-type': 'image/png' }
+        })
+      )
+      try {
+        const response = await GET(imageRequest(), {
+          params: Promise.resolve({ token: 'token-1' })
+        })
+
+        expect(response.headers.get('Content-Type')).toBe('image/png')
+        expect(fetchSpy.mock.calls[0]?.[0] as string).toContain(
+          'https://snapshot.apple-mapkit.com/api/v1/snapshot?'
+        )
+      } finally {
+        fetchSpy.mockRestore()
+      }
+    })
+
+    it('draws the blob on Mapbox rather than a truncated corner of the tiles', async () => {
+      // Tile runs arrive in tile order, so the overlays that survive the URL
+      // budget are one contiguous corner of the view -- and `/auto/` then
+      // frames the whole image on that corner.
+      mockGetMapProviderConfig.mockReturnValue({
+        type: 'mapbox',
+        accessToken: 'pk.test-token'
+      })
+      mockGetFitnessRouteHeatmapPyramid.mockResolvedValue(pyramid)
+      mockGetFitnessRouteHeatmapTilesInRange.mockResolvedValue(manyTiles(400))
+
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response(new Uint8Array([1, 2, 3]), {
+          headers: { 'content-type': 'image/png' }
+        })
+      )
+      try {
+        await GET(imageRequest(), {
+          params: Promise.resolve({ token: 'token-1' })
+        })
+
+        const requestedUrl = fetchSpy.mock.calls[0]?.[0] as string
+        // The blob is one segment; the tiles would have been hundreds.
+        expect(requestedUrl.match(/path-2%2B|path-2\+/g)).toHaveLength(
+          sharedHeatmap.segments.length
+        )
+      } finally {
+        fetchSpy.mockRestore()
+      }
+    })
+
     it('keeps the stored blob when the pyramid read fails', async () => {
       // An image the owner already had beats no image at all.
       mockGetFitnessRouteHeatmapPyramid.mockRejectedValue(
