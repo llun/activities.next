@@ -322,16 +322,115 @@ describe('MediaDatabase', () => {
     })
 
     describe('getMediaByIdForAccount', () => {
+      // A well-formed id that simply has no row — this must stay numeric so it
+      // exercises an actual database miss rather than short-circuiting in
+      // toMediaRowId, which is what the malformed ids below cover.
       it('returns null when media does not exist', async () => {
         const actor = await database.getActorFromId({ id: actors.primary.id })
         expect(actor).toBeDefined()
 
         const media = await database.getMediaByIdForAccount({
-          mediaId: 'non-existent-id',
+          mediaId: '99999999',
           accountId: actor!.account!.id
         })
 
         expect(media).toBeNull()
+      })
+
+      // `medias.id` is an integer column on PostgreSQL, which answers a
+      // malformed id with an error rather than by matching nothing: text with
+      // `invalid input syntax for type integer`, and an out-of-range number
+      // with `value out of range for type integer`. Mastodon clients put
+      // whatever they like in the id path segment, so every one of these has to
+      // read as a miss (404), not an error (500).
+      it.each([
+        { description: 'an empty id', mediaId: '' },
+        { description: 'a non-numeric id', mediaId: 'abc' },
+        { description: 'a fractional id', mediaId: '1.5' },
+        { description: 'a negative id', mediaId: '-1' },
+        { description: 'an exponential id', mediaId: '1e21' },
+        { description: 'an id past the integer max', mediaId: '2147483648' }
+      ])('returns null for $description', async ({ mediaId }) => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+
+        const media = await database.getMediaByIdForAccount({
+          mediaId,
+          accountId: actor!.account!.id
+        })
+
+        expect(media).toBeNull()
+      })
+
+      // Coercing with a bare `Number()` would resolve these to a real row: they
+      // are alternate spellings of an existing media's id, so the lookup would
+      // answer with media the id does not name. Built from a freshly created
+      // row so the assertion cannot pass by there being no such media.
+      it('returns null for alternate spellings of a real media id', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const media = await database.createMedia({
+          actorId: actors.primary.id,
+          original: {
+            path: '/test/media-alias-spellings.jpg',
+            bytes: 1000,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          }
+        })
+        const accountId = actor!.account!.id
+        const rowId = Number(media!.id)
+
+        // Sanity: the plain decimal spelling does resolve, so a null below is
+        // the guard rejecting the spelling and not a missing row.
+        expect(
+          await database.getMediaByIdForAccount({
+            mediaId: String(rowId),
+            accountId
+          })
+        ).not.toBeNull()
+
+        for (const alias of [
+          `0x${rowId.toString(16)}`,
+          `0b${rowId.toString(2)}`,
+          `0o${rowId.toString(8)}`,
+          `${rowId}e0`,
+          `+${rowId}`,
+          ` ${rowId} `
+        ]) {
+          expect(
+            await database.getMediaByIdForAccount({ mediaId: alias, accountId })
+          ).toBeNull()
+        }
+      })
+
+      // The spellings that are NOT rejected, because each still names the same
+      // row unambiguously and each resolved before this guard existed (both
+      // backends convert them). '12.0' in particular is reachable on SQLite,
+      // where `attachments.mediaId` is a `varchar` and an id bound as a JS
+      // number lands as '1.0', then gets re-resolved on every status edit.
+      it.each([
+        {
+          description: 'an all-zero fraction',
+          spell: (id: string) => `${id}.0`
+        },
+        { description: 'leading zeros', spell: (id: string) => `00${id}` }
+      ])('resolves a media id written with $description', async ({ spell }) => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const media = await database.createMedia({
+          actorId: actors.primary.id,
+          original: {
+            path: `/test/media-tolerated-${spell('1')}.jpg`,
+            bytes: 1000,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          }
+        })
+
+        const resolved = await database.getMediaByIdForAccount({
+          mediaId: spell(media!.id),
+          accountId: actor!.account!.id
+        })
+
+        expect(resolved?.id).toBe(media!.id)
       })
 
       it('returns null when media belongs to different account', async () => {
@@ -482,6 +581,79 @@ describe('MediaDatabase', () => {
       })
     })
 
+    describe('markMediaUploadVerified', () => {
+      const createPendingMedia = (path: string) =>
+        database.createMedia({
+          actorId: actors.primary.id,
+          original: {
+            path,
+            bytes: 1000,
+            mimeType: 'image/jpeg',
+            metaData: {
+              width: 100,
+              height: 100,
+              upload: { state: 'pending', checksumSha1: 'abc123', size: 1000 }
+            }
+          }
+        })
+
+      it('flips a pending upload to verified and persists it', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const accountId = actor!.account!.id
+        const media = await createPendingMedia('/test/verify-pending.jpg')
+        const verifiedAt = Date.now()
+
+        const verified = await database.markMediaUploadVerified({
+          mediaId: media!.id,
+          accountId,
+          verifiedAt
+        })
+
+        expect(verified?.original.metaData.upload).toMatchObject({
+          state: 'verified',
+          verifiedAt,
+          // The rest of the upload metadata survives the rewrite.
+          checksumSha1: 'abc123',
+          size: 1000
+        })
+
+        // The returned object is not enough — it must have reached the row.
+        const reread = await database.getMediaByIdForAccount({
+          mediaId: media!.id,
+          accountId
+        })
+        expect(reread?.original.metaData.upload).toMatchObject({
+          state: 'verified',
+          verifiedAt
+        })
+      })
+
+      it('returns null when the media belongs to another account', async () => {
+        const otherActor = await database.getActorFromId({
+          id: actors.replyAuthor.id
+        })
+        const media = await createPendingMedia('/test/verify-foreign.jpg')
+
+        const verified = await database.markMediaUploadVerified({
+          mediaId: media!.id,
+          accountId: otherActor!.account!.id,
+          verifiedAt: Date.now()
+        })
+
+        expect(verified).toBeNull()
+      })
+
+      it('returns null for an id that is not a positive integer', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const verified = await database.markMediaUploadVerified({
+          mediaId: 'abc',
+          accountId: actor!.account!.id,
+          verifiedAt: Date.now()
+        })
+        expect(verified).toBeNull()
+      })
+    })
+
     describe('getStorageUsageForAccount', () => {
       it('returns 0 when no media exists', async () => {
         const actor = await database.getActorFromId({
@@ -620,6 +792,10 @@ describe('MediaDatabase', () => {
       it('returns false when media does not exist', async () => {
         const deleted = await database.deleteMedia({ mediaId: '999999' })
         expect(deleted).toBe(false)
+      })
+
+      it('returns false for an id that is not a positive integer', async () => {
+        expect(await database.deleteMedia({ mediaId: 'abc' })).toBe(false)
       })
 
       it('deletes media by actor and original path', async () => {
@@ -838,6 +1014,16 @@ describe('MediaDatabase', () => {
         expect(updated).toBeNull()
       })
 
+      it('returns null for an id that is not a positive integer', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const updated = await database.updateMedia({
+          mediaId: 'abc',
+          accountId: actor!.account!.id,
+          description: 'nope'
+        })
+        expect(updated).toBeNull()
+      })
+
       it('persists a focal point and round-trips it exactly', async () => {
         const actor = await database.getActorFromId({ id: actors.primary.id })
         const accountId = actor!.account!.id
@@ -1041,6 +1227,15 @@ describe('MediaDatabase', () => {
         const actor = await database.getActorFromId({ id: actors.primary.id })
         const result = await database.deleteMediaForAccount({
           mediaId: '99999999',
+          accountId: actor!.account!.id
+        })
+        expect(result.status).toBe('not-found')
+      })
+
+      it('returns not-found for an id that is not a positive integer', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const result = await database.deleteMediaForAccount({
+          mediaId: 'abc',
           accountId: actor!.account!.id
         })
         expect(result.status).toBe('not-found')

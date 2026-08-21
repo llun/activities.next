@@ -765,6 +765,11 @@ export const StatusSQLDatabaseMixin = (
             existingMediaIds.has(attachment.id) &&
             (attachment.name ?? '') !== existingNameByMediaId.get(attachment.id)
         )
+        // `attachments.mediaId` is an `integer` column on PostgreSQL, so a
+        // malformed id here would error rather than miss. Safe without its own
+        // coercion: every `attachment.id` in `keptAttachments` has already
+        // resolved through `getMediaByIdForAccount`, which rejects anything
+        // that is not a real row id (see `toMediaRowId`).
         await Promise.all(
           keptAttachments.map((attachment) =>
             trx('attachments')

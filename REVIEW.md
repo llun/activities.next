@@ -112,6 +112,31 @@ change doesn't touch.
   in the same PR, against fresh local DBs — never hand-edited. Commit a
   schema-only regeneration as `none:`. (CI's Schema Dump Sync job catches
   SQLite-dump drift; the PostgreSQL dump is not CI-checked.)
+- A caller-supplied id compared against a **numeric** column is coerced first.
+  `medias.id` and `attachments.mediaId` are `integer` on PostgreSQL, so passing a
+  non-numeric client string raises `invalid input syntax for type integer` — a
+  500 where a 404 was intended. SQLite's dynamic typing just misses, so only
+  `TEST_DATABASE_TYPE=pg` catches it. `lib/database/sql/media.ts` routes every
+  `mediaId` it **compares** against `medias.id` through `toMediaRowId`.
+  It accepts only optional leading zeros, digits, an optional all-zero
+  fraction, and 1..2147483647. That is deliberately tighter than the backends:
+  on PostgreSQL `'0x10'`/`'0b101'` resolved rows 16/5 (it takes non-decimal
+  integer literals since 16), and on both backends `'+12'`/`' 12 '` resolved
+  row 12 — all now 404, which is intended, since a media id is a row id.
+  `'12.0'` is kept only because SQLite's `varchar` `attachments.mediaId` can
+  hold that form. New numeric-column lookups do the same, and fixtures use
+  values the column can hold.
+- `createAttachment` **writes** `mediaId` rather than comparing it and is
+  deliberately unguarded — coercing would drop the link instead of surfacing a
+  bad id. Its callers must therefore hand it an id already resolved against
+  `medias`. `POST /api/v1/accounts/outbox` does not (its `PostBoxAttachment.id`
+  is a bare `z.string()`), so a malformed id there fails the insert on
+  PostgreSQL after the status row is committed — a known open bug, separate
+  from the lookup guard.
+- A per-column type difference between the two schema dumps is not automatically
+  drift — a backend-conditional migration (e.g.
+  `20260207223000_fix_attachments_media_id_type.js`, PostgreSQL-only) makes them
+  legitimately differ. Read the migration before asking for a regeneration.
 - Better-auth plugins are only registered once their required tables exist in a
   migration; admin/dashboard plugins are gated with explicit access control.
 - Cursor-based pagination: pass the raw cursor row (with its stored representations,

@@ -36,9 +36,61 @@ import { Attachment } from '@/lib/types/domain/attachment'
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
 import { getCompatibleTime } from './utils/getCompatibleTime'
 
+// PostgreSQL `integer` upper bound. An id above it does not merely miss: the
+// driver sends it as a parameter to an integer column and PostgreSQL answers
+// `value out of range for type integer` — the same 500 a non-numeric id caused.
+// The repo's own attachments.mediaId migration bounds at this exact value.
+const MAX_MEDIA_ROW_ID = 2147483647
+
+// `medias.id` is an integer column. Mastodon clients send ids as strings and
+// put whatever they like in them, so coerce before comparing: PostgreSQL
+// rejects an integer column compared against text with `invalid input syntax
+// for type integer`, which turns a miss into a 500 rather than a 404. SQLite's
+// dynamic typing merely matches nothing, which is why this only ever showed up
+// on PostgreSQL. Returns null for anything that is not a plain decimal row id
+// so the caller can report "not found" without touching the database.
+//
+// Accepted is exactly: optional leading zeros, one or more digits, an optional
+// all-zero fraction, and a value in 1..2147483647. Everything else is a miss.
+//
+// That is deliberately TIGHTER than what the backends themselves accept, so on
+// PostgreSQL this is a behaviour change and not only a bug fix. Measured
+// against PostgreSQL 17 and SQLite through the drivers this app uses:
+//
+//   spelling       PostgreSQL 17           SQLite       here
+//   '0012'         row 12                  row 12       row 12   unchanged
+//   '12.0'         invalid input syntax    row 12       row 12   500 -> hit
+//   '+12', ' 12 '  row 12                  row 12       404      TIGHTENED
+//   '0x10'         row 16                  no match     404      TIGHTENED
+//   '1e3'          invalid input syntax    row 1000     404      500 -> 404
+//   '2147483648'   value out of range      no match     404      500 -> 404
+//   'abc'          invalid input syntax    no match     404      500 -> 404
+//
+// The tightening is intended: a media id is a row id, and Mastodon answers 404
+// for anything that is not one. PostgreSQL resolving '0x10' to media 16 is an
+// accident of it accepting non-decimal integer literals since 16 — a client
+// asking for '0x10' did not ask for media 16. Note '1e21' additionally
+// round-trips back as the string '1e+21' (the driver stringifies with
+// `toString()`), so a bare `Number()` guard reproduces the very error this
+// exists to prevent.
+//
+// '12.0' is the one spelling kept for compatibility rather than tightened away,
+// and it is a SQLite concern: `attachments.mediaId` is `varchar` there, so an id
+// bound as a JS number lands as '1.0' through REAL->TEXT conversion and is then
+// re-resolved on every status edit. No production writer does that today — they
+// all stringify, and the #307 backfill copies an INTEGER, which TEXT affinity
+// renders as '1' (both verified) — and `createMedia` no longer returns a raw
+// number. So it is defence in depth for a form nothing is known to have
+// written, not a shim for observed data. On PostgreSQL it was a 500 before.
+const toMediaRowId = (mediaId: string): number | null => {
+  if (!/^\d+(\.0+)?$/.test(mediaId)) return null
+  const id = Number(mediaId)
+  return id > 0 && id <= MAX_MEDIA_ROW_ID ? id : null
+}
+
 const deleteMediaByConditions = async (
   database: Knex,
-  conditions: Record<string, string>
+  conditions: Record<string, string | number>
 ): Promise<boolean> => {
   return database.transaction(async (trx) => {
     const media = await trx('medias')
@@ -83,7 +135,11 @@ const deleteMediaByConditions = async (
 const deleteMediaById = async (
   database: Knex,
   mediaId: string
-): Promise<boolean> => deleteMediaByConditions(database, { id: mediaId })
+): Promise<boolean> => {
+  const id = toMediaRowId(mediaId)
+  if (id === null) return false
+  return deleteMediaByConditions(database, { id })
+}
 
 type MediaRow = {
   id: string | number
@@ -215,7 +271,12 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       }
 
       return {
-        id: ids[0].id,
+        // `Media.id` is a string everywhere else (`parseMediaRow` stringifies
+        // it), and callers hand this straight to `createAttachment`. Returning
+        // the driver's raw number wrote it into SQLite's `varchar`
+        // `attachments.mediaId` as '1.0' via REAL->TEXT conversion, where
+        // PostgreSQL's integer column stored a plain 1.
+        id: String(ids[0].id),
         actorId,
         original,
         ...(thumbnail ? { thumbnail } : null),
@@ -229,9 +290,12 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     accountId,
     verifiedAt
   }: MarkMediaUploadVerifiedParams): Promise<Media | null> {
+    const id = toMediaRowId(mediaId)
+    if (id === null) return null
+
     const data = await database('medias')
       .join('actors', 'medias.actorId', 'actors.id')
-      .where('medias.id', mediaId)
+      .where('medias.id', id)
       .where('actors.accountId', accountId)
       .select(
         'medias.id',
@@ -275,6 +339,15 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       }
     }
   },
+  // NOTE: `mediaId` is WRITTEN here, not compared, so it does not go through
+  // `toMediaRowId` — coercing would silently drop the link rather than surface
+  // the caller's bad id. Almost every caller hands over an id read back out of
+  // `medias`, but `POST /api/v1/accounts/outbox` does not: its
+  // `PostBoxAttachment.id` is a bare `z.string()` that reaches
+  // `lib/actions/createNote.ts` unvalidated, so a malformed id fails this
+  // insert on PostgreSQL (`attachments.mediaId` is `integer` there) AFTER the
+  // status row is already committed. That endpoint needs its own validation —
+  // it is a separate bug from the lookup guard above, tracked separately.
   async createAttachment({
     actorId,
     statusId,
@@ -505,9 +578,12 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     mediaId,
     accountId
   }: GetMediaByIdParams): Promise<Media | null> {
+    const id = toMediaRowId(mediaId)
+    if (id === null) return null
+
     const data = await database('medias')
       .join('actors', 'medias.actorId', 'actors.id')
-      .where('medias.id', mediaId)
+      .where('medias.id', id)
       .where('actors.accountId', accountId)
       .select(MEDIA_COLUMNS.map((column) => `medias.${column}`))
       .first()
@@ -521,13 +597,11 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     mediaIds,
     accountId
   }: GetMediaByIdsForAccountParams): Promise<Media[]> {
-    // medias.id is an integer column. Mastodon clients send ids as strings, so
-    // coerce numeric ids to numbers before the IN query — Postgres rejects
-    // comparing an integer column against text. Drop empty/invalid ids.
+    // Drop empty/invalid ids rather than letting them reach the IN query; see
+    // toMediaRowId.
     const numericIds = mediaIds
-      .filter(Boolean)
-      .map((id) => Number(id))
-      .filter((id) => Number.isInteger(id) && id > 0)
+      .map(toMediaRowId)
+      .filter((id): id is number => id !== null)
     if (numericIds.length === 0) return []
     const rows = await database('medias')
       .join('actors', 'medias.actorId', 'actors.id')
@@ -544,10 +618,13 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     focus,
     thumbnail
   }: UpdateMediaParams): Promise<UpdateMediaResult | null> {
+    const id = toMediaRowId(mediaId)
+    if (id === null) return null
+
     return database.transaction(async (trx) => {
       const owned = await trx('medias')
         .join('actors', 'medias.actorId', 'actors.id')
-        .where('medias.id', mediaId)
+        .where('medias.id', id)
         .where('actors.accountId', accountId)
         .select('medias.id', 'medias.thumbnail', 'medias.thumbnailBytes')
         .first<{
@@ -595,7 +672,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
           thumbnail.bytes - parseCounterValue(owned.thumbnailBytes)
       }
 
-      await trx('medias').where('id', mediaId).update(updates)
+      await trx('medias').where('id', id).update(updates)
 
       // Replacing a thumbnail changes stored bytes; keep the per-account usage
       // counter (read by getStorageUsageForAccount / quota checks) in sync.
@@ -614,7 +691,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       }
 
       const data = await trx('medias')
-        .where('id', mediaId)
+        .where('id', id)
         .select([...MEDIA_COLUMNS])
         .first()
 
@@ -648,12 +725,15 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     mediaId,
     accountId
   }: DeleteMediaForAccountParams): Promise<DeleteMediaForAccountResult> {
+    const mediaRowId = toMediaRowId(mediaId)
+    if (mediaRowId === null) return { status: 'not-found' }
+
     return database.transaction(async (trx) => {
       // Owner scope: only the account that owns the media (via its actors) can
       // delete it. Mastodon scopes destroy to `current_account.media_attachments`.
       const media = await trx('medias')
         .join('actors', 'medias.actorId', 'actors.id')
-        .where('medias.id', mediaId)
+        .where('medias.id', mediaRowId)
         .where('actors.accountId', accountId)
         .select(
           'medias.id',

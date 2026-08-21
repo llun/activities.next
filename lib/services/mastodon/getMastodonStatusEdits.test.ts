@@ -13,6 +13,10 @@ vi.mock('@/lib/config', () => ({
 }))
 
 describe('getMastodonStatusEdits', () => {
+  // Numeric media ids: `attachments.mediaId` is an `integer` column on
+  // PostgreSQL. This suite builds its own SQLite instance below rather than
+  // going through `testUtils`, so a descriptive string would insert fine here
+  // — right up until the suite is moved to a backend-honouring harness.
   const knexInstance = knex({
     client: 'better-sqlite3',
     useNullAsDefault: true,
@@ -48,7 +52,7 @@ describe('getMastodonStatusEdits', () => {
       width: 320,
       height: 240,
       name: 'old alt',
-      mediaId: 'edits-old-media'
+      mediaId: '9701'
     })
 
     await database.updateNote({
@@ -97,7 +101,7 @@ describe('getMastodonStatusEdits', () => {
       width: 320,
       height: 240,
       name: 'legacy fallback alt',
-      mediaId: 'legacy-fallback-media'
+      mediaId: '9702'
     })
     // A history row written before snapshots existed: only text/summary.
     await knexInstance('status_history').insert({
