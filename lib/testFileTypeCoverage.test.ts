@@ -16,21 +16,20 @@ import path from 'node:path'
 // Checking basenames rather than shelling out to `tsc --listFiles` keeps this
 // test fast; the collision is the only way a test file goes missing without
 // someone editing an `exclude` list on purpose.
+// Every tracked test file, repo-root-relative. Reads the git INDEX, so an
+// untracked colliding pair passes locally until it is staged — CI always sees a
+// full checkout, so that only delays local feedback.
+const trackedTestFiles = () =>
+  execFileSync('git', ['ls-files', '*.test.ts', '*.test.tsx'], {
+    encoding: 'utf-8'
+  })
+    .split('\n')
+    .filter(Boolean)
+
 describe('test file type coverage', () => {
   it('never lets a .ts and .tsx test file share a basename', () => {
-    const tracked = execFileSync(
-      'git',
-      ['ls-files', '*.test.ts', '*.test.tsx'],
-      {
-        cwd: process.cwd(),
-        encoding: 'utf-8'
-      }
-    )
-      .split('\n')
-      .filter(Boolean)
-
     const byBasename = new Map<string, string[]>()
-    for (const file of tracked) {
+    for (const file of trackedTestFiles()) {
       const key = file.replace(/\.tsx?$/, '')
       byBasename.set(key, [...(byBasename.get(key) ?? []), file])
     }
@@ -49,18 +48,7 @@ describe('test file type coverage', () => {
     // (`**/*.ts`, `**/*.tsx`) and only narrows it through `exclude`. A test
     // file outside the repo root — or under one of the base excludes — would
     // never be type-checked, so assert every one lives at a normal path.
-    const tracked = execFileSync(
-      'git',
-      ['ls-files', '*.test.ts', '*.test.tsx'],
-      {
-        cwd: process.cwd(),
-        encoding: 'utf-8'
-      }
-    )
-      .split('\n')
-      .filter(Boolean)
-
-    const unreachable = tracked.filter(
+    const unreachable = trackedTestFiles().filter(
       (file) =>
         path.isAbsolute(file) ||
         file.startsWith('..') ||
