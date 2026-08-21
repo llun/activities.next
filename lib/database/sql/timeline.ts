@@ -113,29 +113,37 @@ const getLocalActorIds = (database: Knex): Promise<string[]> =>
 // loaded to the same shape as production (5 local actors, 216 legacy empty-key
 // ones, 2,971 eligible rows, 79k statuses), buffers at limit 23 / 24 / 30:
 //
-//     literal ids                     137 /   142 /   176
-//     inner join, with `<> ''`     16,866 / 16,866 / 16,866
-//     semi-join on actors, `<> ''`   ~16,700, flat across all three
-//     inner join, `IS NOT NULL`        ~160 /  ~164 /  ~200
+//     literal ids                      137 /  142 /  176
+//     either join form, with `<> ''`   ~16,700, flat across all three
+//     inner join, `IS NOT NULL` only   ~160 /  ~164 /  ~200
 //
-// The first two rows reproduce to the digit across sessions. The other two are
-// quoted approximately on purpose: both plans carry an `Index Only Scan` whose
-// buffer count depends on visibility-map state, and repeated measurement drifts
-// them (the semi-join has read 16,202 / 16,306 / 16,658 / 16,866 on the same
-// data). The band is the point, not the digit.
+// The two join forms share ONE row because PostgreSQL gives them one plan: it
+// rewrites the unique-key inner join into the same `Nested Loop Semi Join`,
+// down to matching cost estimates and per-node buffers. So the `whereExists`
+// fallback is not a cheaper shape than the join it replaced — do not "optimise"
+// toward it on the strength of a number that only ever differed by which
+// session measured it.
 //
-// Read the middle two rows against the last one. Once the correctness predicate
-// is present, BOTH join forms lose early termination outright at EVERY page
-// size — they land in the same ~17k band and are flat, because they materialize
-// all 2,971 eligible rows and top-N sort them: the planner drives from `actors`
-// and cannot then use `statuses_reply_created_idx` to satisfy the ORDER BY.
-// (Widening the partial `actors_local_idx` predicate to match does not recover
-// that: the index gets used and the sort remains.) Only the literal-id form
-// keeps `statuses` as the driving relation, and only it early-terminates.
+// Only the first row is exact. The rest are a band on purpose: the `<> ''`
+// plans traverse all 2,971 eligible rows and take 441 heap fetches, and heap
+// fetches move with visibility-map state, so repeated measurement on identical
+// data has read 16,202 / 16,306 / 16,658 / 16,866. The literal-id form
+// early-terminates with `Heap Fetches: 0` and has nothing to drift. That
+// difference — full materialization versus early termination — is the whole
+// finding; the digits are not.
+//
+// Read the middle row against the last. Once the correctness predicate is
+// present, the join loses early termination outright at EVERY page size,
+// because the planner drives from `actors` and cannot then use
+// `statuses_reply_created_idx` to satisfy the ORDER BY, so it materializes
+// every eligible row and top-N sorts them. (Widening the partial
+// `actors_local_idx` predicate to match does not recover that: the index gets
+// used and the sort remains.) Only the literal-id form keeps `statuses` as the
+// driving relation.
 //
 // So the two halves of this change cannot ship apart. Adding `<> ''` to the
 // join — the correctness fix on its own — is what turns a ~200-buffer query
-// into a 16,866-buffer one here; and on production the pre-fix query was
+// into a ~16,700-buffer one here, an ~80x jump; and on production the pre-fix query was
 // already past the crossover at its own default page size. The literal ids are
 // what make the predicate affordable.
 //

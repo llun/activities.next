@@ -116,7 +116,7 @@ describe('local public timeline query shape', () => {
       // its unique key leaves the planner no statistic for how much an actor
       // posts: on production that under-estimated the eligible rows ~48x and
       // the plan flipped at a page of 24, and on a seed matching production's
-      // shape the same join carrying the `<> ''` predicate costs 16,866
+      // shape the same join carrying the `<> ''` predicate costs ~16,700
       // buffers at every page size, against 137/142/176 for the literal form
       // at 23/24/30. That revert is invisible to every result-based
       // assertion.
