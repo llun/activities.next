@@ -3,7 +3,9 @@ import crypto from 'node:crypto'
 
 import { Database } from '@/lib/database/types'
 import { encodeTile } from '@/lib/services/fitness-files/heatmapTiles/tileCodec'
+import { rasterizeHeatmapSvg } from '@/lib/services/fitness-files/rasterizeHeatmapSvg'
 import { simplifySegmentsToBudget } from '@/lib/services/fitness-files/simplifyRoute'
+import { logger } from '@/lib/utils/logger'
 
 import { GET } from './route'
 
@@ -42,6 +44,15 @@ let mockDatabase: Pick<
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
+
+// Wraps the real rasterizer so the raster path is exercised for real, while the
+// degradation case can still make one call fail.
+vi.mock('@/lib/services/fitness-files/rasterizeHeatmapSvg', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/lib/services/fitness-files/rasterizeHeatmapSvg')
+  >('@/lib/services/fitness-files/rasterizeHeatmapSvg')
+  return { rasterizeHeatmapSvg: vi.fn(actual.rasterizeHeatmapSvg) }
+})
 
 const mockGetMapProviderConfig = vi.fn()
 vi.mock('@/lib/config/mapProvider', () => ({
@@ -87,8 +98,11 @@ const sharedHeatmap = {
   updatedAt: 2
 }
 
-const imageRequest = (token = 'token-1') =>
-  new NextRequest(`http://llun.test/embed/heatmap/${token}/image`)
+const imageRequest = (token = 'token-1', query = '') =>
+  new NextRequest(`http://llun.test/embed/heatmap/${token}/image${query}`)
+
+// The first eight bytes of every PNG file.
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 
 describe('/embed/heatmap/[token]/image', () => {
   beforeEach(() => {
@@ -388,6 +402,78 @@ describe('/embed/heatmap/[token]/image', () => {
     // The privacy-hidden segment is still drawn (no hole), uniformly coloured.
     expect(body).toContain('<polyline')
     expect(body).toContain('stroke="#ef4444"')
+  })
+
+  it('rasterizes the keyless fallback to PNG when format=png is asked for', async () => {
+    // A link-preview crawler (X, Facebook, Mastodon, Slack, Discord) refuses
+    // SVG outright, so an og:image pointing at the keyless renderer yields a
+    // card with no image at all. This is the parameter that fixes that.
+    const response = await GET(imageRequest('token-1', '?format=png'), {
+      params: Promise.resolve({ token: 'token-1' })
+    })
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Content-Type')).toBe('image/png')
+    const body = Buffer.from(await response.arrayBuffer())
+    expect(body.subarray(0, 8)).toEqual(PNG_MAGIC)
+  })
+
+  it('renders the card image at the requested size', async () => {
+    const response = await GET(
+      imageRequest('token-1', '?w=1200&h=600&format=png'),
+      { params: Promise.resolve({ token: 'token-1' }) }
+    )
+
+    const body = Buffer.from(await response.arrayBuffer())
+    // PNG IHDR: width and height are big-endian uint32 at offsets 16 and 20.
+    expect(body.readUInt32BE(16)).toBe(1200)
+    expect(body.readUInt32BE(20)).toBe(600)
+  })
+
+  it.each([
+    { description: 'omitted', query: '' },
+    {
+      description: 'a format this route does not serve',
+      query: '?format=webp'
+    },
+    { description: 'blank', query: '?format=' }
+  ])('keeps serving SVG when format is $description', async ({ query }) => {
+    // Opt-in on purpose: the SVG scales, and the embed snippet the share dialog
+    // hands out already points at this URL. Anything but the exact string `png`
+    // collapses onto the default, so the parameter cannot widen the cache
+    // variants DIMENSION_STEP exists to bound.
+    const response = await GET(imageRequest('token-1', query), {
+      params: Promise.resolve({ token: 'token-1' })
+    })
+
+    expect(response.headers.get('Content-Type')).toContain('image/svg+xml')
+  })
+
+  it('degrades to the SVG when rasterizing fails, and records it', async () => {
+    // A browser pointed at the same URL still renders the SVG, and the response
+    // says which it got — where a 500 costs the image on every surface.
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {})
+    vi.mocked(rasterizeHeatmapSvg).mockRejectedValueOnce(
+      new Error('no SVG support in libvips')
+    )
+    try {
+      const response = await GET(imageRequest('token-1', '?format=png'), {
+        params: Promise.resolve({ token: 'token-1' })
+      })
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('Content-Type')).toContain('image/svg+xml')
+      expect(await response.text()).toContain('<polyline')
+      expect(warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          err: expect.objectContaining({
+            message: 'no SVG support in libvips'
+          })
+        })
+      )
+    } finally {
+      warn.mockRestore()
+    }
   })
 
   it('proxies the signed Apple Maps snapshot for the Apple provider', async () => {

@@ -32,6 +32,24 @@ export const formatGeneratedDate = (ms: number): string =>
     timeZone: 'UTC'
   })
 
+/**
+ * Link-preview card image size, in the dimensions the image endpoint will
+ * actually serve.
+ *
+ * 1200x600 rather than the 1200x630 the OpenGraph guidance suggests, because
+ * that endpoint snaps each axis to its DIMENSION_STEP of 100: asking for 630
+ * yields 600 bytes-wise, and a declared height that disagrees with the image is
+ * worse than a slightly taller aspect ratio. Both are comfortably over the
+ * large-card thresholds (X wants 300x157, Facebook 600x315).
+ *
+ * The Apple snapshot path is the one renderer whose output differs — it fits
+ * into Apple's 640px ceiling and doubles the density, so those bytes are
+ * 1280x640. Same 2:1 ratio, and consumers treat these as hints, so the declared
+ * pair stays the size that was requested.
+ */
+export const HEATMAP_CARD_IMAGE_WIDTH = 1200
+export const HEATMAP_CARD_IMAGE_HEIGHT = 600
+
 export interface SharedHeatmapOwner {
   name: string
   handle: string
@@ -46,6 +64,12 @@ export interface SharedHeatmapView {
   owner: SharedHeatmapOwner
   generatedLabel: string
   publicUrl: string
+  /**
+   * Static image for the link-preview card. `format=png` is what makes it
+   * usable: the keyless renderer answers with SVG, which every card crawler
+   * refuses.
+   */
+  cardImageUrl: string
   /**
    * Map-ready heatmap with the internal generation counters zeroed: as Client
    * Component props they would otherwise be serialised into the public RSC
@@ -99,6 +123,9 @@ export const buildSharedHeatmapView = ({
     ? `@${owner.username}@${owner.domain}`
     : getMentionFromActorID(heatmap.actorId, true)
 
+  // Drop any trailing slash so a base like `https://host/` can't yield `//`.
+  const base = origin.replace(/\/+$/, '')
+
   return {
     title,
     isWorld,
@@ -109,8 +136,10 @@ export const buildSharedHeatmapView = ({
       initials: computeInitials(ownerName)
     },
     generatedLabel: formatGeneratedDate(heatmap.updatedAt),
-    // Drop any trailing slash so a base like `https://host/` can't yield `//`.
-    publicUrl: `${origin.replace(/\/+$/, '')}/u/heatmaps/${token}`,
+    publicUrl: `${base}/u/heatmaps/${token}`,
+    cardImageUrl:
+      `${base}/embed/heatmap/${token}/image` +
+      `?w=${HEATMAP_CARD_IMAGE_WIDTH}&h=${HEATMAP_CARD_IMAGE_HEIGHT}&format=png`,
     heatmap: {
       id: heatmap.id,
       activityType: heatmap.activityType,

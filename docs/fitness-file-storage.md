@@ -168,6 +168,42 @@ itself, and an instance keeps its basemap instead of trading it away for
 fidelity it cannot draw. The keyless SVG renderer has neither limit and always
 takes the tiles.
 
+##### The link-preview card
+
+The same route is what the public share page's `og:image` points at.
+`/u/heatmaps/:token` publishes OpenGraph and Twitter card tags from
+`generateMetadata`, and rather than adding a fifth public surface — each of
+which would have to re-enforce the share guards for itself — the card reuses
+`GET /embed/heatmap/:token/image` with `?w=1200&h=600&format=png`.
+
+`format=png` is the part that makes a card possible at all. The two basemap
+renderers already answer with raster bytes, but an instance with neither a
+Mapbox token nor an Apple key falls through to the keyless renderer, which
+serves SVG — and no link-preview crawler (X, Facebook, Mastodon, Slack,
+Discord) renders SVG, so an `og:image` pointing at one produces a card with no
+image rather than a broken one. The parameter is opt-in because SVG is what
+that path has always served: it scales, and the embed snippet the share dialog
+hands out already points at the same URL. Anything but the exact string `png`
+takes the default, so the parameter collapses onto two cache variants instead
+of widening the surface `DIMENSION_STEP` exists to bound, and a rasterization
+failure degrades to the SVG rather than 500ing — a browser still draws it, and
+the crawler was going to ignore the image either way. The declared `1200x600`
+is what the route will actually serve, since each axis snaps to a step of 100
+and a requested 630 would come back as 600; only the Apple path differs, at
+1280x640 for the same 2:1 ratio.
+
+Everything the card says — the region title, the owner's name and handle, the
+generated date, the bounding box — comes from the same `buildSharedHeatmapView`
+the page renders, through one `cache()`-memoized `loadSharedHeatmap` shared by
+`generateMetadata` and the page body. A second lookup path would be free to
+drift from the first, and the failure that matters is a card describing a share
+the page refuses: a revoked token, a share re-queued for generation and a region
+that cannot be resolved all 404, and each returns the bare metadata with no card
+at all. The page keeps `noindex, nofollow` — the token is the secret, and a
+shared heatmap turning up in a search index is the one outcome sharing it is not
+meant to produce — which costs the card nothing, because crawlers read
+OpenGraph without consulting robots directives.
+
 Adding an activity could extend the pyramid incrementally at upload time rather
 than requiring a full regenerate. The hook is reserved and the design allows it;
 it is deliberately not built.
