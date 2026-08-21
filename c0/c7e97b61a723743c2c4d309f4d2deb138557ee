@@ -1,0 +1,35 @@
+lib/components/fitness/HeatmapRegionPicker.tsx
+  s_0e2fd6be727054::t_c3c36e5d44ed34 28,212,330-334
+app/api/v1/accounts/[id]/fitness-route-heatmap/route.ts
+  s_0e2fd6be727054::t_e526cf954d99a3 188-192,194-196
+lib/services/fitness-files/heatmapTiles/tileRegion.test.ts
+  s_0e2fd6be727054::t_1ab90f7a892912 162-201
+lib/fitness/regions.ts
+  s_0e2fd6be727054::t_c3c36e5d44ed34 72-81,85-88,94-97,100
+lib/fitness/regions.test.ts
+  s_0e2fd6be727054::t_6917484634efd5 8-10,253-373
+  s_0e2fd6be727054::t_06292b25ebcaad 374
+app/api/v1/accounts/[id]/fitness-route-heatmap/route.test.ts
+  s_0e2fd6be727054::t_0b42f8db304a6f 230-248
+lib/components/fitness/HeatmapRegionPicker.test.tsx
+  s_0e2fd6be727054::t_19309328f8aa8f 448-475
+AGENTS.md
+  s_0e2fd6be727054::t_e526cf954d99a3 591
+  s_0e2fd6be727054::t_0b42f8db304a6f 592-593,610-615
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "c0c7e97b61a723743c2c4d309f4d2deb138557ee",
+  "prompts": {},
+  "sessions": {
+    "s_0e2fd6be727054": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8b4fe7c-fd3e-48ba-9e1d-ef3b99484c21",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
