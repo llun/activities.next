@@ -1,6 +1,7 @@
 import { Tag } from '@/lib/types/domain/tag'
 
 import { convertEmojisToImages } from './convertEmojisToImages'
+import { escapeHtml } from './escapeHtml'
 import { processStatusTextContent } from './processStatusText'
 
 const emojiTag = (name: string, value: string): Tag => ({
@@ -85,6 +86,29 @@ describe('convertEmojisToImages', () => {
   // will keep if it is on the allowlist. Unescaped, a `"` in the url closes the
   // src attribute and the rest of the value becomes live markup.
   describe('a hostile remote emoji tag', () => {
+    // Escaping the url is necessary but NOT sufficient on its own, because a
+    // string replacement re-reads `$` patterns in the replacement AFTER any
+    // escaping: `$&` is the match and "$`" is everything before it. A url
+    // carrying those spliced raw `<`, `>` and `"` from elsewhere in the post
+    // into the src attribute — escaping never saw them, because they were not
+    // in the url. Substituting through a FUNCTION is what makes `$` literal.
+    it.each([
+      { description: 'a match reference', url: 'https://cdn.test/$&x.png' },
+      { description: 'a prefix reference', url: 'https://cdn.test/$`x.png' },
+      { description: 'a suffix reference', url: "https://cdn.test/$'x.png" },
+      { description: 'an escaped dollar', url: 'https://cdn.test/$$x.png' },
+      { description: 'a group reference', url: 'https://cdn.test/$1x.png' }
+    ])('writes a url containing $description literally', ({ url }) => {
+      const html = convertEmojisToImages(
+        '<p>secret <a href="https://real.test/">L</a> :blob:</p>',
+        [emojiTag(':blob:', url)]
+      )
+
+      expect(html).toBe(
+        `<p>secret <a href="https://real.test/">L</a> <img class="emoji" src="${escapeHtml(url)}" alt=":blob:"></img></p>`
+      )
+    })
+
     // The url is only ever written INTO the markup, so escaping is the whole
     // fix for it. The tag name here is a perfectly ordinary shortcode — it is
     // the value that is hostile.
@@ -137,6 +161,54 @@ describe('convertEmojisToImages', () => {
       expect(rendered).not.toContain('class="invisible"')
       expect(rendered).not.toContain('class="hidden"')
       expect(rendered).toContain('href="https://evil.test/phish"')
+    })
+
+    // A shortcode is only a shortcode where a reader would read one. Inside
+    // markup it is just characters, and `:` survives sanitization in an href,
+    // so substituting there rewrote the very link the card was for: the reader
+    // was left with `https://good.test/&lt;img class=` while the card still
+    // named the original url. This needs no hostile emoji at all — an ordinary
+    // custom emoji plus any link with a `:word:` path segment did it.
+    it('does not substitute inside an attribute', () => {
+      const text =
+        '<p>see :blob: <a href="https://good.test/:blob:/article">good.test</a></p>'
+
+      expect(
+        convertEmojisToImages(text, [
+          emojiTag(':blob:', 'https://cdn.test/e.png')
+        ])
+      ).toBe(
+        '<p>see <img class="emoji" src="https://cdn.test/e.png" alt=":blob:"></img>' +
+          ' <a href="https://good.test/:blob:/article">good.test</a></p>'
+      )
+    })
+
+    // Every substitution writes an `alt=":shortcode:"` of its own, so feeding
+    // each result into the next replacement let one tag match another's output
+    // and nest markup inside an attribute. One pass over the original text
+    // removes the possibility rather than arguing about which orders are safe.
+    it('does not let one emoji match another emoji output', () => {
+      const html = convertEmojisToImages('<p>:aa: :bb:</p>', [
+        emojiTag(':aa:', 'https://cdn.test/a.png'),
+        // A url that itself contains the second shortcode.
+        emojiTag(':bb:', 'https://cdn.test/:aa:/b.png')
+      ])
+
+      expect(html).toBe(
+        '<p><img class="emoji" src="https://cdn.test/a.png" alt=":aa:"></img>' +
+          ' <img class="emoji" src="https://cdn.test/:aa:/b.png" alt=":bb:"></img></p>'
+      )
+    })
+
+    it('uses the first tag when a shortcode is sent twice', () => {
+      const html = convertEmojisToImages('<p>:aa:</p>', [
+        emojiTag(':aa:', 'https://cdn.test/first.png'),
+        emojiTag(':aa:', 'https://cdn.test/second.png')
+      ])
+
+      expect(html).toBe(
+        '<p><img class="emoji" src="https://cdn.test/first.png" alt=":aa:"></img></p>'
+      )
     })
 
     // The other half of the same primitive: `name` is the REPLACE TARGET, so a

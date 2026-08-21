@@ -497,13 +497,19 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
 - **Anything that rewrites status HTML between the two sanitize passes is an
   injection point, and `convertEmojisToImages` is the one that exists.** A
   remote `Emoji` tag's `name` and `icon.url` are stored verbatim, so both are
-  attacker-controlled. `escapeHtml` covers the url; the NAME additionally needs
-  `isEmojiShortcodeName`, because it is the literal replace target and escaping
-  its output cannot stop it from matching the post's own markup. Both have been
-  exploited — one to hide a link behind `<span class="invisible">` and take a
-  preview card for it, one to consume an anchor outright. Reject a change that
-  drops either, or that moves the check to ingest only: at render it also covers
-  rows already stored.
+  attacker-controlled. Four distinct bugs have come out of this one function, so
+  reject any change that simplifies it back toward
+  `tags.reduce((t, tag) => t.replaceAll(tag.name, …), text)`. It must keep all
+  of: searching for a shortcode-shaped **token** and looking the name up (never
+  using the name as the search string); a **single** pass over the original text
+  (each replacement emits an `alt=":shortcode:"` that a later one would match);
+  substituting only in **text** pieces, never inside tags (a `:` survives in an
+  href, and rewriting there corrupted the very link the card was for — no
+  hostile input needed); and a **function** replacement, which is what makes `$`
+  literal (`$&` / `` $` `` are re-read after escaping and splice raw markup
+  from elsewhere in the post into the src). `escapeHtml` on the url is required
+  on top of those. Reject moving the check to ingest only: at render it also
+  covers rows already stored.
 - Every optional Mastodon `PreviewCard` field needs an `''`/`0` default. That
   schema is non-nullable and `Status.parse` runs per status inside a handler
   that **skips** what it cannot serialize, so one missing key drops the whole

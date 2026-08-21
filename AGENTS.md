@@ -1066,20 +1066,34 @@ it; there is no legacy shape left to copy.
   the first pass has already approved and the second will keep if the allowlist
   permits it. (The local path is safe by construction: `getEmojiTags` resolves
   `:shortcode:` tokens against this instance's own emoji table.)
-  The two halves need DIFFERENT defences, and each has been exploited:
-  `value` is only written into the markup, so `escapeHtml` covers it — raw, a
-  `"` in the url closed the `src` attribute and made the remainder live markup,
-  enough to wrap a link in `<span class="invisible">` that `cleanClassName`
-  renders as `display: none`, giving a post a preview card for a link no reader
-  could see. `name` is ALSO the literal REPLACE TARGET, so escaping its `alt`
-  does nothing: a name shaped like `<a href="…">` matched the post's own anchor
-  and consumed it. Only rejecting non-shortcode names covers that, via
-  `isEmojiShortcodeName`, which is also what stops a name like `e` replacing
-  every `e` in the post.
-  Keep the check at RENDER, not at ingest: it is the one choke point that also
-  protects rows already in the database. A rejected tag renders as nothing and
-  the literal `:shortcode:` stays in the text, which is what a reader on a
-  server lacking that emoji sees anyway.
+  **Four separate things went wrong here, and the shape of the function is the
+  fix for all four.** Do not simplify it back toward
+  `tags.reduce((t, tag) => t.replaceAll(tag.name, '<img …>'), text)`.
+  1. It searches for a shortcode-shaped TOKEN and then looks the name up, rather
+     than using the stored name as the search string. A name shaped like
+     `<a href="…">` matched the post's own anchor and consumed it; escaping the
+     output can never fix a bad search term.
+  2. It is a SINGLE pass over the original text. Every replacement writes an
+     `alt=":shortcode:"` of its own, so feeding each result into the next let
+     one tag match another's output and nest markup inside an attribute.
+  3. It substitutes only in TEXT pieces, never inside tags. A `:` survives
+     sanitization in an href, so blind substitution rewrote the very link a
+     preview card was for — the reader got a corrupted url while the card named
+     the original. This one needed no hostile input: an ordinary custom emoji
+     plus any link with a `:word:` path segment did it.
+  4. The replacement is a FUNCTION, which is what makes `$` literal. A string
+     replacement re-reads `$&` and `` $` `` AFTER escaping, so a url carrying
+     those spliced raw `<`, `>` and `"` from elsewhere in the post into the src
+     attribute — characters `escapeHtml` never saw, because they were never in
+     the url.
+     `escapeHtml` on the url is still required on top of all four. Raw, a `"` in it
+     closed the `src` attribute and made the remainder live markup, enough to wrap
+     a link in `<span class="invisible">` that `cleanClassName` renders as
+     `display: none` — a preview card for a link no reader could see.
+     Keep this at RENDER, not at ingest: it is the one choke point that also
+     protects rows already in the database. A rejected tag renders as nothing and
+     the literal `:shortcode:` stays in the text, which is what a reader on a
+     server lacking that emoji sees anyway.
 - **`syncStatusLinkPreview` never throws.** It is called from local create, local
   edit, and the inbound `CreateNoteJob`/`UpdateNoteJob`, and every one of those
   has already written the status by the time it runs. A preview card is
