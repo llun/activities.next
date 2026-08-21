@@ -1,0 +1,46 @@
+.github/workflows/sync-main-to-oltp.yml
+  s_51fd2688de1d02::t_f3c29994dbf2af 226-227,272-275
+  s_51fd2688de1d02::t_a154e8e04a8b11 276
+.github/copilot-instructions.md
+  s_51fd2688de1d02::t_f3c29994dbf2af 39-41
+.github/workflows/ci.yml
+  s_51fd2688de1d02::t_f3c29994dbf2af 4
+README.md
+  s_51fd2688de1d02::t_f3c29994dbf2af 5
+GEMINI.md
+  s_51fd2688de1d02::t_f3c29994dbf2af 9
+.github/PULL_REQUEST_TEMPLATE.md
+  s_51fd2688de1d02::t_f3c29994dbf2af 17
+CONTRIBUTING.md
+  s_51fd2688de1d02::t_f3c29994dbf2af 370-372
+  s_51fd2688de1d02::t_8994ff35564ba8 362
+AGENTS.md
+  s_51fd2688de1d02::t_8994ff35564ba8 22
+  s_51fd2688de1d02::t_a8c5efa25e4101 1516-1526,1760-1762,1764
+  s_51fd2688de1d02::t_ad3154021ca957 35
+.oxlintrc.json
+  s_51fd2688de1d02::t_cb50414bf3c518 94
+  s_51fd2688de1d02::t_74a5a525a624d9 80-83,176-184
+  s_51fd2688de1d02::t_47b95759726edd 185
+lint/agentsRules.mjs
+  s_51fd2688de1d02::t_4789b86190ddc5 1-2,88-94,96-97
+lint/agentsRules.test.ts
+  s_51fd2688de1d02::t_3ec356cc1ebddd 127-130,135-136,138-140
+  s_51fd2688de1d02::t_af450720ad24f3 124-126,131-134,137,141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "4405cc6c92dbc921057b572b5c68fe0ade834839",
+  "prompts": {},
+  "sessions": {
+    "s_51fd2688de1d02": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "395909a7-92c9-431a-acba-c74922c99553",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
