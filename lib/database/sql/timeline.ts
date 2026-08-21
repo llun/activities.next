@@ -80,7 +80,7 @@ const getLocalActorIds = (database: Knex): Promise<string[]> =>
 //
 // A local seed matching production's ROW COUNTS does not reproduce its
 // STATISTICS, so it does not reproduce that crossover — there the null-only
-// join stays fast at every limit (159/163/199 buffers at 23/24/30). What it
+// join stays fast at every limit (~160/~164/~200 buffers at 23/24/30). What it
 // does show is worse and is the reason both halves of this change ship
 // together: see the measurement below.
 //
@@ -113,24 +113,31 @@ const getLocalActorIds = (database: Knex): Promise<string[]> =>
 // loaded to the same shape as production (5 local actors, 216 legacy empty-key
 // ones, 2,971 eligible rows, 79k statuses), buffers at limit 23 / 24 / 30:
 //
-//     literal ids                    137 /    142 /    176
-//     inner join, with `<> ''`    16,866 / 16,866 / 16,866
-//     semi-join on actors                    ~16,300 (at 30)
-//     inner join, `IS NOT NULL` only 159 /    163 /    199
+//     literal ids                     137 /   142 /   176
+//     inner join, with `<> ''`     16,866 / 16,866 / 16,866
+//     semi-join on actors, `<> ''`   ~16,700, flat across all three
+//     inner join, `IS NOT NULL`        ~160 /  ~164 /  ~200
+//
+// The first two rows reproduce to the digit across sessions. The other two are
+// quoted approximately on purpose: both plans carry an `Index Only Scan` whose
+// buffer count depends on visibility-map state, and repeated measurement drifts
+// them (the semi-join has read 16,202 / 16,306 / 16,658 / 16,866 on the same
+// data). The band is the point, not the digit.
 //
 // Read the middle two rows against the last one. Once the correctness predicate
 // is present, BOTH join forms lose early termination outright at EVERY page
-// size — they materialize all 2,971 eligible rows and top-N sort them, because
-// the planner drives from `actors` and cannot then use
-// `statuses_reply_created_idx` to satisfy the ORDER BY. (Widening the partial
-// `actors_local_idx` predicate to match does not recover that: the index gets
-// used and the sort remains.) Only the literal-id form keeps `statuses` as the
-// driving relation, and only it early-terminates.
+// size — they land in the same ~17k band and are flat, because they materialize
+// all 2,971 eligible rows and top-N sort them: the planner drives from `actors`
+// and cannot then use `statuses_reply_created_idx` to satisfy the ORDER BY.
+// (Widening the partial `actors_local_idx` predicate to match does not recover
+// that: the index gets used and the sort remains.) Only the literal-id form
+// keeps `statuses` as the driving relation, and only it early-terminates.
 //
 // So the two halves of this change cannot ship apart. Adding `<> ''` to the
-// join — the correctness fix on its own — is what turns a 199-buffer query into
-// a 16,866-buffer one here, and production was already one page size away from
-// its own bad plan. The literal ids are what make the predicate affordable.
+// join — the correctness fix on its own — is what turns a ~200-buffer query
+// into a 16,866-buffer one here; and on production the pre-fix query was
+// already past the crossover at its own default page size. The literal ids are
+// what make the predicate affordable.
 //
 // So an instance that trips this threshold gets a correct answer and a slow
 // one. The fix at that point is per-chunk LIMIT-bounded queries merged in

@@ -117,8 +117,9 @@ describe('local public timeline query shape', () => {
       // posts: on production that under-estimated the eligible rows ~48x and
       // the plan flipped at a page of 24, and on a seed matching production's
       // shape the same join carrying the `<> ''` predicate costs 16,866
-      // buffers against the literal form's 176 — at every page size. That
-      // revert is invisible to every result-based assertion.
+      // buffers at every page size, against 137/142/176 for the literal form
+      // at 23/24/30. That revert is invisible to every result-based
+      // assertion.
       expect(sql).not.toContain('inner join actors')
       expect(sql).toContain('statuses.actorId in (')
 
