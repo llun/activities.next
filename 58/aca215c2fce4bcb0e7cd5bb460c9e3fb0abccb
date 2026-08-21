@@ -1,0 +1,15 @@
+lib/services/auth/auth.ts
+  h_580a04e334fef4 55
+  h_580a04e334fef4 54,56-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "58aca215c2fce4bcb0e7cd5bb460c9e3fb0abccb",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
