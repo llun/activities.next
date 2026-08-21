@@ -409,6 +409,39 @@ describe('fetchLinkPreview', () => {
     expect(await fetchLinkPreview({ database, url })).toBeNull()
   })
 
+  // ASCII is a strict subset of UTF-8, so these decode byte-for-byte the same
+  // way and there is nothing to reject. Refusing them lost the card outright
+  // for pages that still declare the older label.
+  it.each([
+    { description: 'us-ascii in the header', charset: 'us-ascii' },
+    { description: 'ascii in the header', charset: 'ascii' },
+    { description: 'US-ASCII uppercased', charset: 'US-ASCII' }
+  ])('accepts a page declaring $description', async ({ charset }) => {
+    const url = `https://example.com/ascii-${charset.toLowerCase()}`
+    mockedFetch.mockResolvedValue({
+      body: PAGE,
+      headers: { 'content-type': `text/html; charset=${charset}` },
+      statusCode: 200,
+      url
+    })
+
+    expect((await fetchLinkPreview({ database, url }))?.title).toBe(
+      'A good article'
+    )
+  })
+
+  it('accepts a page declaring us-ascii in markup only', async () => {
+    const url = 'https://example.com/meta-ascii'
+    mockedFetch.mockResolvedValue({
+      body: '<html><head><meta charset="us-ascii"><meta property="og:title" content="T"></head><body></body></html>',
+      headers: { 'content-type': 'text/html' },
+      statusCode: 200,
+      url
+    })
+
+    expect((await fetchLinkPreview({ database, url }))?.title).toBe('T')
+  })
+
   // A card is shared by every status linking the URL, so a failed refresh must
   // leave the working one in place rather than blanking it for all of them.
   it('keeps serving a cached card when a later refresh fails', async () => {

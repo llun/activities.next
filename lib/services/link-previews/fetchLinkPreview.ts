@@ -48,6 +48,19 @@ export const LINK_PREVIEW_MAX_REDIRECTS = 1
 
 const ACCEPTED_CONTENT_TYPES = ['text/html', 'application/xhtml+xml']
 
+// Labels that a UTF-8 decode reads correctly. `safeRemoteFetch` decodes as
+// UTF-8 and there is no bytes-level fetch here, so anything else would be
+// parsed into mojibake and stored that way — see the check below.
+//
+// The ASCII spellings are on the list because ASCII is a strict SUBSET of
+// UTF-8: those bytes decode identically either way, so there is nothing to
+// reject, and refusing them lost the card outright for pages that still
+// declare the older label. Everything else stays off, `iso-8859-1` very much
+// included — it collides with UTF-8 above 0x7F, which is exactly the mojibake
+// case. Both sources lowercase before this is consulted: `parseContentType` for
+// the header, `normalizeCharsetLabel` for the markup.
+const UTF8_COMPATIBLE_CHARSETS = new Set(['utf-8', 'utf8', 'us-ascii', 'ascii'])
+
 // The fetcher identifies itself and points at the project, so an operator
 // seeing these requests in their logs can tell what they are and who to
 // contact — the etiquette Mastodon's own crawler UA follows.
@@ -150,19 +163,15 @@ export const fetchLinkPreview = async ({
     if (!mimeType || !ACCEPTED_CONTENT_TYPES.includes(mimeType)) {
       throw new LinkPreviewFetchError('ERR_UNSUPPORTED_CONTENT_TYPE')
     }
-    // `safeRemoteFetch` decodes the body as UTF-8, so a page that declares
-    // another encoding would be parsed into mojibake and stored that way.
+    // `safeRemoteFetch` decodes the body as UTF-8, so a page that declares an
+    // INCOMPATIBLE encoding would be parsed into mojibake and stored that way.
     // Storing a broken title is worse than storing no card; decoding these
     // properly needs a bytes-level fetch and is deliberately left out of v1.
     // The header is only half of it: HTML5 pages routinely send a bare
     // `text/html` and declare the encoding in `<meta charset>` instead, which
     // is the common non-UTF-8 case the header check alone waves through.
     const declaredCharset = charset ?? getDeclaredCharset(response.body)
-    if (
-      declaredCharset &&
-      declaredCharset !== 'utf-8' &&
-      declaredCharset !== 'utf8'
-    ) {
+    if (declaredCharset && !UTF8_COMPATIBLE_CHARSETS.has(declaredCharset)) {
       throw new LinkPreviewFetchError('ERR_UNSUPPORTED_CHARSET')
     }
 
