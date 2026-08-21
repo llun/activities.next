@@ -133,6 +133,44 @@ Sweeping is not part of completing, either, and it is the only irreversible step
 
 The pyramid tables are also wired into deletion, and it is one transaction rather than two statements. Order alone is not enough in either direction: tiles first lets a running build write more of them before the row goes, and those carry a version no later sweep can reach; the row first fences that build, but on its own lets a _new_ one claim the freshly-absent row and flush tiles that the tile delete then removes, leaving a build that completes over nothing. The transaction also creates the pyramid row when the actor has none, because a delete matching no row takes no lock and so serialises nothing.
 
+#### The static share image
+
+`GET /embed/heatmap/:token/image` renders the share and embed image, and it is
+the surface most people actually see, because it is what a link preview
+displays. It draws from the pyramid too, but it chooses its rung differently
+from an interactive map: there is no viewport to read, so the rung comes from
+the image's own size, along whichever axis the renderer fits by. `buildHeatmapSvg`
+fits a projected box with `min(innerWidth / spanX, innerHeight / spanY)`, so a
+tall scope in a wide frame is limited by its height — measured in projected
+units rather than degrees, because a degree of latitude is not a fixed number of
+pixels in Mercator and at 52 degrees north it is about 1.6 times a degree of
+longitude. Reading longitude alone asks for a rung finer than the image can draw
+and reads tiles nobody sees. Strokes are shaded by visit count from the same
+ramp the interactive maps paint with, so a road ridden thirty times reads darker
+than one ridden once.
+
+The image path enforces the same two boundaries the tile routes do, because
+every path that reads the pyramid has to enforce them again: it refuses a share
+`buildHeatmapTileSource` answers null for, and it clips each tile to the shared
+row's region. Every failure keeps the stored blob — no completed build, a read
+that throws, or a pyramid holding nothing for this view — because a stale image
+beats no image and a pyramid outage should not take out a working share link.
+
+That blob is still load-bearing for a second reason. Tile geometry is one run
+per way per tile where the blob is roughly one polyline per activity, and both
+basemap renderers are built for the latter shape: Apple refuses an input past
+its overlay ceiling outright, and Mapbox drops whatever overruns its URL-length
+budget and then frames the image on only the overlays that survived — which,
+since tile runs arrive in tile order, is one contiguous corner of the view. So
+each renderer is offered the tiles first and the blob second and decides for
+itself, and an instance keeps its basemap instead of trading it away for
+fidelity it cannot draw. The keyless SVG renderer has neither limit and always
+takes the tiles.
+
+Adding an activity could extend the pyramid incrementally at upload time rather
+than requiring a full regenerate. The hook is reserved and the design allows it;
+it is deliberately not built.
+
 ## Gear Tracking
 
 Bikes, shoes and recording devices all live in `fitness_gears`, and the parts bolted to a bike in `fitness_gear_components` (both tables added by `migrations/20260811000000_add_fitness_gear.js`; the device kind's identity and product-page columns by `migrations/20260813000000_add_fitness_device_gear.js`).
@@ -178,6 +216,8 @@ An activity with no `activityStartTime` — a GPX carrying no timestamps — cou
 - `GET /api/v1/accounts/:id/fitness-activity-types`
 - `GET` and `DELETE /api/v1/accounts/:id/fitness-route-heatmaps`
 - `GET`, `POST`, and `DELETE /api/v1/accounts/:id/fitness-route-heatmap`
+- `GET /api/v1/accounts/:id/fitness-route-heatmap/tiles` returns the owner's own pyramid tiles for a view. Owner only, bounded per request.
+- `POST` and `DELETE /api/v1/accounts/:id/fitness-route-heatmap/share` mint and revoke the share token the public views are reached by.
 
 The `POST /api/v1/accounts/:id/fitness-route-heatmap` body takes an optional `retry` flag to restart a run and a `cancel` flag to stop an in-flight (`pending`/`generating`) generation. Cancelling moves the run to a terminal `cancelled` state (resetting its progress so a later Generate/Retry starts clean) and returns `{ cancelled }`; the region detail view surfaces Cancel while generating and Retry once cancelled.
 

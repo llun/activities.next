@@ -224,6 +224,57 @@ that both the web UI and the Mastodon API's `Status.card` render.
 - Admins can turn fetching off entirely under Admin → Network → Link previews
   (`network.linkPreviews`). Cards already stored keep rendering.
 
+### Route Heatmap Tiles
+
+A fitness route heatmap used to be one pre-simplified blob of geometry per
+heatmap row. That blob is simplified once against a single global budget set by
+the actor's whole history, so it can only ever be drawn at one fidelity: zooming
+in revealed nothing the blob did not already contain. `fitness_route_heatmap_pyramids`
+and `fitness_route_heatmap_tiles` replace it with a per-actor tile pyramid, and
+every surface that draws a heatmap reads tiles when the row has them.
+
+- The pyramid is built at a fixed **zoom ladder** — 4, 6, 8, 10, 12, 14, 16 —
+  with a 256-unit tile extent, each rung simplified to about one pixel at its
+  own zoom. A build folds each activity exactly **once**: visit counts
+  accumulate, so a double fold is a permanently wrong number nothing downstream
+  can detect. The fold gate is positional, against the build's own cursor.
+- Only the **all-activities, all-time** row can be tile-backed. The filters that
+  make a variant (one sport, one year) live on the heatmap row, and the tiles
+  carry neither, so a scoped row is not something the pyramid can answer however
+  complete it is. `buildHeatmapTileSource` is the single predicate for this, and
+  it is what every surface gates on.
+- Tiles are stored **unclipped**, and a share's region is applied when they are
+  **served**. That makes clipping a security boundary rather than a view option:
+  the region comes from the shared row, never from the caller.
+
+Four surfaces read the pyramid:
+
+- `GET /api/v1/accounts/:id/fitness-route-heatmap/tiles` — the owner's own map.
+  Session-authed and owner-only, clipped to the caller's own region, at most
+  `MAX_TILES_PER_REQUEST` (128) tiles per request.
+- `GET /embed/heatmap/:token/tiles` — the public one. The capability is the
+  share token; out-of-region tiles are settled before any geometry is read, the
+  privacy flag is stripped exactly as the public flattening has always done, and
+  only a `completed` pyramid serves tiles, only at its own version.
+- The interactive maps (MapLibre GL and MapKit) fetch tiles for the current
+  view, coarsening down the ladder rather than refusing when a view would need
+  too many, and cache them across pans.
+- `GET /embed/heatmap/:token/image` — the static share/embed image. It picks the
+  rung from the image's own size, along whichever axis the renderer fits by, and
+  shades each stroke by its visit count.
+
+The stored blob has not gone away. It still renders **legacy rows** — anything
+built before the pyramid, and any variant the pyramid cannot answer — and it is
+what the static image falls back to when a basemap renderer cannot draw tile
+geometry: tile geometry is one run per way per tile where the blob is roughly
+one polyline per activity, and both Apple (a hard overlay ceiling) and Mapbox (a
+URL-length budget) are built for the latter shape. Each renderer is offered the
+tiles first and the blob second and decides for itself.
+
+Future work: adding an activity could extend the pyramid incrementally at
+upload time instead of requiring a regenerate. The hook for it is reserved and
+the design allows it, but it is deliberately not built.
+
 ### Media & File Storage
 
 Media files (images and video) and fitness files (.fit, .gpx, .tcx) support multiple storage backends:
