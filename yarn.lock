@@ -3671,7 +3671,7 @@ __metadata:
     lucide-react: "npm:^1.31.0"
     marked: "npm:^18.0.9"
     mime-types: "npm:^3.0.2"
-    nanostores: "npm:^1.4.2"
+    nanostores: "npm:^1.5.1"
     next: "npm:^16.3.1"
     nodemailer: "npm:^9.0.5"
     oxlint: "npm:^1.79.0"
@@ -6004,10 +6004,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"nanostores@npm:^1.1.1, nanostores@npm:^1.4.2":
+"nanostores@npm:^1.1.1":
   version: 1.4.2
   resolution: "nanostores@npm:1.4.2"
   checksum: 10c0/b0dad4b951c274af53659c78793487077939d52d629b48dcff9704e9152f9bd3eac4e6cbba6403d5cf973da304868049bc4b0127b92aae4ae024ea6999941cd0
+  languageName: node
+  linkType: hard
+
+"nanostores@npm:^1.5.1":
+  version: 1.5.1
+  resolution: "nanostores@npm:1.5.1"
+  checksum: 10c0/4bc10ac3a52e6d422fd7edbd64139c339db543dd03aefcda27a8a1f0c346b21834d4e8b3ea69596038f262ee242f2efdd94468ac4cb43e188be5bc0e9bbba165
   languageName: node
   linkType: hard
 
