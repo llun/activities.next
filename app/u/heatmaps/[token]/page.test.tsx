@@ -1,6 +1,6 @@
 import { logger } from '@/lib/utils/logger'
 
-import Page from './page'
+import Page, { generateMetadata } from './page'
 
 vi.mock('@/lib/utils/logger', () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() }
@@ -25,7 +25,10 @@ vi.mock('@/lib/config/mapProvider', () => ({
   getPublicMapProvider: () => ({ type: 'osm' })
 }))
 vi.mock('@/lib/services/serverSettings', () => ({
-  getResolvedServerSettings: async () => ({ registrations: { open: true } })
+  getResolvedServerSettings: async () => ({
+    instance: { name: 'llun.social' },
+    registrations: { open: true }
+  })
 }))
 vi.mock('./SharedHeatmapPage', () => ({
   SharedHeatmapPage: () => null
@@ -51,11 +54,22 @@ describe('shared heatmap page', () => {
     updatedAt: 2
   })
 
-  const render = () =>
-    Page({ params: Promise.resolve({ token: 'tok123' }) } as never)
+  // A fresh token per case: `loadSharedHeatmap` is memoized with React `cache`
+  // so one request's metadata and page share their reads, and reusing a token
+  // across cases would risk answering the next one from the previous one's row.
+  let token = 'tok123'
+
+  const render = () => Page({ params: Promise.resolve({ token }) } as never)
+
+  const metadata = () =>
+    generateMetadata({ params: Promise.resolve({ token }) } as never)
+
+  let tokenSeq = 0
 
   beforeEach(() => {
     vi.clearAllMocks()
+    tokenSeq += 1
+    token = `tok${tokenSeq}`
     mockDb.getActorFromId.mockResolvedValue(null)
     mockDb.getFitnessRouteHeatmapRegionNames.mockResolvedValue([])
     mockDb.getFitnessRouteHeatmapPyramid.mockResolvedValue(null)
@@ -108,5 +122,68 @@ describe('shared heatmap page', () => {
         err: expect.objectContaining({ message: 'pyramid table unavailable' })
       })
     )
+  })
+
+  describe('generateMetadata', () => {
+    it('builds a link preview card for a renderable share', async () => {
+      mockDb.getFitnessRouteHeatmapByShareToken.mockResolvedValue(heatmap(''))
+
+      const result = await metadata()
+
+      expect(result.openGraph?.images).toEqual([
+        expect.objectContaining({
+          url: `https://llun.test/embed/heatmap/${token}/image?w=1200&h=600&format=png`
+        })
+      ])
+      expect(result.openGraph?.url).toBe(
+        `https://llun.test/u/heatmaps/${token}`
+      )
+      expect(result.openGraph?.siteName).toBe('llun.social')
+      expect(result.robots).toEqual({ index: false, follow: false })
+    })
+
+    it.each([
+      {
+        description: 'a revoked token',
+        row: null
+      },
+      {
+        description: 'a share re-queued for generation',
+        row: { ...heatmap(''), status: 'generating', segments: null }
+      },
+      {
+        description: 'a region that cannot be resolved',
+        row: heatmap('rect:not-a-number,5,4,6')
+      }
+    ])('publishes no card for $description', async ({ row }) => {
+      // Each of these renders as a 404, so a card would describe a page that
+      // refuses to serve it — the region name, the handle and a thumbnail.
+      mockDb.getFitnessRouteHeatmapByShareToken.mockResolvedValue(row)
+
+      const result = await metadata()
+
+      expect(result.openGraph).toBeUndefined()
+      expect(result.twitter).toBeUndefined()
+      expect(result.title).toBe('Route heatmap')
+      expect(result.robots).toEqual({ index: false, follow: false })
+    })
+
+    it('describes the same share the page renders', async () => {
+      // Both surfaces go through the one loader, so the card cannot describe a
+      // share the page would refuse — the failure this replaced was a second
+      // lookup path that drifted from the first.
+      //
+      // The loader is additionally memoized with React `cache`, so Next runs
+      // those reads once per request rather than once per surface. That memo is
+      // deliberately NOT asserted here: `cache` only dedupes inside a React
+      // request scope, which Vitest has none of, so a call-count assertion
+      // would be testing the harness rather than the route.
+      mockDb.getFitnessRouteHeatmapByShareToken.mockResolvedValue(heatmap(''))
+
+      const [card] = await Promise.all([metadata(), render()])
+
+      expect(card.openGraph?.url).toBe(`https://llun.test/u/heatmaps/${token}`)
+      expect(mockNotFound).not.toHaveBeenCalled()
+    })
   })
 })

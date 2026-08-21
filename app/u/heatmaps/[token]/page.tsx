@@ -2,125 +2,48 @@ import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
-import { getBaseURL } from '@/lib/config'
 import { getPublicMapProvider } from '@/lib/config/mapProvider'
-import { getDatabase } from '@/lib/database'
-import {
-  buildHeatmapTileSource,
-  isPyramidVariantHeatmap
-} from '@/lib/services/fitness-files/heatmapTiles/tileSource'
-import {
-  resolveSharedHeatmapRegionBounds,
-  toPublicHeatmap
-} from '@/lib/services/fitness-files/publicHeatmap'
-import { getResolvedServerSettings } from '@/lib/services/serverSettings'
-import { logger } from '@/lib/utils/logger'
-import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { SharedHeatmapPage } from './SharedHeatmapPage'
-import { buildSharedHeatmapView } from './sharedHeatmapView'
+import { loadSharedHeatmap } from './loadSharedHeatmap'
+import {
+  UNRESOLVED_SHARE_METADATA,
+  buildSharedHeatmapMetadata
+} from './sharedHeatmapMetadata'
 
 export const dynamic = 'force-dynamic'
-
-// A capability URL (the token is the secret), so keep it out of search indexes.
-export const metadata: Metadata = {
-  title: 'Route heatmap',
-  robots: { index: false, follow: false }
-}
 
 interface PageProps {
   params: Promise<{ token: string }>
 }
 
+export const generateMetadata = async ({
+  params
+}: PageProps): Promise<Metadata> => {
+  const { token } = await params
+  const data = await loadSharedHeatmap(token)
+  if (!data) return UNRESOLVED_SHARE_METADATA
+  return buildSharedHeatmapMetadata({
+    view: data.view,
+    siteName: data.siteName,
+    origin: data.origin,
+    shareToken: token
+  })
+}
+
 const Page: FC<PageProps> = async ({ params }) => {
   const { token } = await params
 
-  const database = getDatabase()
-  if (!database) notFound()
+  const data = await loadSharedHeatmap(token)
+  if (!data) notFound()
 
-  const heatmap = await database.getFitnessRouteHeatmapByShareToken({
-    shareToken: token
-  })
-  // Only render a completed heatmap. A shared heatmap re-queued for generation
-  // keeps its token but transitions back to pending/generating; 404 during that
-  // window rather than publish a partial/in-progress page.
-  if (!heatmap || heatmap.status !== 'completed') notFound()
-  // See resolveSharedHeatmapRegionBounds: an unresolvable region means the
-  // stored geometry was never clipped, so rendering it publishes the world.
-  if (!resolveSharedHeatmapRegionBounds(heatmap)) notFound()
-
-  // Flatten the privacy distinction so the public page shows no hole and no
-  // highlight around private locations (see toPublicHeatmap).
-  const publicHeatmap = toPublicHeatmap(heatmap)
-
-  // Owner display fields (name/handle/initials). Non-critical chrome, so a
-  // lookup failure degrades to an actor-id-derived handle rather than 404ing.
-  const owner = await database
-    .getActorFromId({ id: heatmap.actorId })
-    .catch(() => null)
-
-  // The owner-assigned region label (e.g. "Netherlands"), shown as the title for
-  // drawn areas. Best-effort: a lookup failure degrades to the generic label.
-  let regionName: string | undefined
-  try {
-    const regionNames = await database.getFitnessRouteHeatmapRegionNames({
-      actorId: heatmap.actorId
-    })
-    regionName = regionNames?.find(
-      (entry) => entry.region === heatmap.region
-    )?.name
-  } catch {
-    regionName = undefined
-  }
-
-  // Build the public URL against the actor's own canonical domain (matches the
-  // in-app share snippet), falling back to the instance base URL.
-  let origin: string
-  try {
-    origin = new URL(heatmap.actorId).origin
-  } catch {
-    origin = getBaseURL()
-  }
-
-  // Lets the page zoom into the pyramid through the embed tiles route. Read
-  // only for the one row the pyramid can answer, and best-effort: the page's
-  // untiled geometry renders either way, so a failure costs detail on zoom
-  // rather than the whole map.
-  const pyramid = isPyramidVariantHeatmap(heatmap)
-    ? await database
-        .getFitnessRouteHeatmapPyramid({ actorId: heatmap.actorId })
-        .catch((error) => {
-          logger.warn({
-            message: 'Failed to read the route heatmap pyramid for a share',
-            heatmapId: heatmap.id,
-            actorId: heatmap.actorId,
-            err: toLoggableError(error)
-          })
-          return null
-        })
-    : null
-
-  const view = buildSharedHeatmapView({
-    heatmap: publicHeatmap,
-    tileSource: buildHeatmapTileSource(publicHeatmap, pyramid),
-    owner: owner
-      ? { name: owner.name, username: owner.username, domain: owner.domain }
-      : null,
-    regionName,
-    origin,
-    token
-  })
-
-  const {
-    registrations: { open: registrationOpen }
-  } = await getResolvedServerSettings(database)
   const mapProvider = getPublicMapProvider()
 
   return (
     <SharedHeatmapPage
-      view={view}
+      view={data.view}
       mapProvider={mapProvider}
-      signupOpen={registrationOpen}
+      signupOpen={data.signupOpen}
       token={token}
       signinUrl="/auth/signin"
       signupUrl="/auth/signup"

@@ -264,7 +264,11 @@ Four surfaces read the pyramid:
 - `GET /embed/heatmap/:token/image` — the static share/embed image. It picks the
   rung from the image's own size, along whichever axis the renderer fits by. Where
   it falls through to the keyless SVG renderer it also shades each stroke by its
-  visit count; the Apple and Mapbox renderers draw at one flat opacity.
+  visit count; the Apple and Mapbox renderers draw at one flat opacity. `?format=png`
+  rasterizes that keyless fallback instead of serving SVG — which is what the
+  public share page's `og:image` asks for, since no link-preview crawler renders
+  SVG. It is opt-in, so an existing embed keeps the scalable image; any other
+  value takes the default.
 
 The stored blob has not gone away. It still renders every row the pyramid cannot
 answer — any variant, and anything belonging to an actor whose pyramid has not

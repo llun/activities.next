@@ -45,6 +45,12 @@ export interface SharedHeatmapView {
   bboxLabel?: string
   owner: SharedHeatmapOwner
   generatedLabel: string
+  /**
+   * The share's own canonical URL, which the page shows in its Copy link
+   * affordance. Nothing card-specific lives on this view: it is the model for
+   * what the PAGE renders, and the link-preview card builds its own image URL
+   * from the origin and token (see sharedHeatmapMetadata).
+   */
   publicUrl: string
   /**
    * Map-ready heatmap with the internal generation counters zeroed: as Client

@@ -670,6 +670,36 @@ it; there is no legacy shape left to copy.
   geometry fits a renderer's ceiling is the open design). Only the keyless SVG
   renderer has neither limit — and it is the only one that shades strokes by
   visit count; Apple and Mapbox draw every stroke at a flat 0.9.
+- **The share page's link-preview card points at that same image route, and
+  `format=png` is what makes it work.** `/u/heatmaps/<token>` publishes
+  OpenGraph and Twitter tags through `generateMetadata`; its `og:image` is the
+  existing `/embed/heatmap/<token>/image`, deliberately NOT a fifth public
+  surface, so the share guards that route already enforces are the ones that
+  apply. That route answers SVG whenever it falls through to the keyless
+  renderer — which is what every instance without a Mapbox token or Apple key
+  serves, llun.social included — and no card crawler (X, Facebook, Mastodon,
+  Slack, Discord) renders SVG, so the raster parameter is load-bearing rather
+  than a nicety. It is opt-in because the SVG scales and the embed snippet the
+  share dialog hands out already points at that URL, and anything but the exact
+  string `png` collapses onto the default, so the parameter cannot widen the
+  cache variants `DIMENSION_STEP` exists to bound. Both callers build that URL
+  through the one `buildHeatmapEmbedImageUrl` — the share dialog in the browser
+  and the card on the server — so the route's query shape has a single owner. A rasterization failure
+  degrades to the SVG rather than 500ing, on the same reasoning every other
+  tile-path failure follows. The declared `1200x600` is what the route will
+  actually serve — 630 snaps to 600, and only the Apple path differs (1280x640,
+  same ratio).
+- **The card's facts come from the SAME view the page renders, and a share that
+  will not render gets NO card.** One `cache()`-memoized `loadSharedHeatmap`
+  feeds both `generateMetadata` and the page body, so a card cannot describe a
+  share the page refuses — the alternative is a second lookup path free to
+  drift from the first. A revoked token, a share re-queued for generation and
+  an unresolvable region all 404, and each returns the bare metadata: an
+  `og:title` for one publishes the region name, the owner's handle and a
+  thumbnail that the refusal exists to withhold. The page stays `noindex`
+  because the token is the secret, which costs the card nothing — crawlers read
+  OpenGraph without consulting robots, this instance's own
+  `parseOpenGraph` included.
 - Full design and rationale: `docs/fitness-file-storage.md` → Route heatmap tile
   pyramid.
 
