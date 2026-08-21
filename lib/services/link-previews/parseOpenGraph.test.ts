@@ -1,0 +1,442 @@
+import {
+  getDeclaredCharset,
+  parseOpenGraphMetadata
+} from '@/lib/services/link-previews/parseOpenGraph'
+
+const BASE_URL = 'https://example.com/article'
+
+const page = (head: string) =>
+  `<!doctype html><html><head>${head}</head><body><p>body</p></body></html>`
+
+describe('parseOpenGraphMetadata', () => {
+  it('reads a complete OpenGraph set', () => {
+    const result = parseOpenGraphMetadata(
+      page(`
+        <meta property="og:title" content="The best bike computers">
+        <meta property="og:description" content="We tested twelve head units.">
+        <meta property="og:site_name" content="The Verge">
+        <meta property="og:image" content="https://cdn.example.com/hero.jpg">
+        <meta property="og:image:width" content="1200">
+        <meta property="og:image:height" content="630">
+        <meta property="og:type" content="article">
+        <meta property="article:published_time" content="2026-03-04T10:00:00Z">
+      `),
+      BASE_URL
+    )
+
+    expect(result).toMatchObject({
+      title: 'The best bike computers',
+      description: 'We tested twelve head units.',
+      siteName: 'The Verge',
+      imageUrl: 'https://cdn.example.com/hero.jpg',
+      imageWidth: 1200,
+      imageHeight: 630,
+      type: 'link'
+    })
+    expect(result?.publishedAt).toBe(Date.parse('2026-03-04T10:00:00Z'))
+  })
+
+  it('falls back to twitter card tags when OpenGraph is absent', () => {
+    const result = parseOpenGraphMetadata(
+      page(`
+        <meta name="twitter:title" content="Twitter title">
+        <meta name="twitter:description" content="Twitter description">
+        <meta name="twitter:image" content="https://cdn.example.com/t.jpg">
+      `),
+      BASE_URL
+    )
+
+    expect(result).toMatchObject({
+      title: 'Twitter title',
+      description: 'Twitter description',
+      imageUrl: 'https://cdn.example.com/t.jpg'
+    })
+  })
+
+  it('falls back to the document title and meta description', () => {
+    const result = parseOpenGraphMetadata(
+      `<html><head><title>Plain title</title>
+       <meta name="description" content="Plain description"></head><body></body></html>`,
+      BASE_URL
+    )
+
+    expect(result).toMatchObject({
+      title: 'Plain title',
+      description: 'Plain description'
+    })
+  })
+
+  it('prefers OpenGraph over twitter and the document title', () => {
+    const result = parseOpenGraphMetadata(
+      `<html><head><title>Doc title</title>
+        <meta name="twitter:title" content="Twitter title">
+        <meta property="og:title" content="OG title">
+       </head><body></body></html>`,
+      BASE_URL
+    )
+
+    expect(result?.title).toBe('OG title')
+  })
+
+  it('returns null when the page has no usable title', () => {
+    expect(
+      parseOpenGraphMetadata(
+        page('<meta name="keywords" content="x">'),
+        BASE_URL
+      )
+    ).toBeNull()
+  })
+
+  it('returns null for html that is not a document', () => {
+    expect(parseOpenGraphMetadata('', BASE_URL)).toBeNull()
+  })
+
+  it('decodes html entities in metadata', () => {
+    const result = parseOpenGraphMetadata(
+      page(
+        '<meta property="og:title" content="Bikes &amp; Boots &lt;2026&gt;">'
+      ),
+      BASE_URL
+    )
+    expect(result?.title).toBe('Bikes & Boots <2026>')
+  })
+
+  it('collapses whitespace and newlines in metadata', () => {
+    const result = parseOpenGraphMetadata(
+      page('<meta property="og:title" content="A  title\n   over lines">'),
+      BASE_URL
+    )
+    expect(result?.title).toBe('A title over lines')
+  })
+
+  it('strips bidi override characters from metadata', () => {
+    const result = parseOpenGraphMetadata(
+      page('<meta property="og:title" content="Safe‮title">'),
+      BASE_URL
+    )
+    expect(result?.title).toBe('Safetitle')
+  })
+
+  it('truncates an overlong title and description', () => {
+    const result = parseOpenGraphMetadata(
+      page(
+        `<meta property="og:title" content="${'t'.repeat(900)}">
+         <meta property="og:description" content="${'d'.repeat(2000)}">`
+      ),
+      BASE_URL
+    )
+    expect(result?.title?.length).toBeLessThanOrEqual(500)
+    expect(result?.description?.length).toBeLessThanOrEqual(1000)
+  })
+
+  it('resolves a relative image against the page url', () => {
+    const result = parseOpenGraphMetadata(
+      page(
+        '<meta property="og:title" content="T"><meta property="og:image" content="/img/hero.png">'
+      ),
+      'https://example.com/section/article'
+    )
+    expect(result?.imageUrl).toBe('https://example.com/img/hero.png')
+  })
+
+  it('drops a non-https image', () => {
+    const result = parseOpenGraphMetadata(
+      page(
+        '<meta property="og:title" content="T"><meta property="og:image" content="http://insecure.example.com/x.png">'
+      ),
+      BASE_URL
+    )
+    expect(result?.imageUrl).toBeNull()
+  })
+
+  it('drops a javascript image url', () => {
+    const result = parseOpenGraphMetadata(
+      page(
+        '<meta property="og:title" content="T"><meta property="og:image" content="javascript:alert(1)">'
+      ),
+      BASE_URL
+    )
+    expect(result?.imageUrl).toBeNull()
+  })
+
+  // `imageWidth`/`imageHeight` are `integer` columns. SQLite stores a 64-bit
+  // value happily, but PostgreSQL rejects anything over 2147483647 — and the
+  // whole test suite runs on SQLite, so an unbounded value passes here and then
+  // throws on the INSERT in production. The throw is caught and recorded as a
+  // failed fetch, and since nothing ever re-runs the job, every post linking
+  // that page loses its card permanently on PG while rendering fine on SQLite.
+  it.each([
+    { description: 'a width past the 32-bit column', value: '99999999999999' },
+    { description: 'a width just over the maximum', value: '2147483648' }
+  ])('ignores $description', ({ value }) => {
+    const result = parseOpenGraphMetadata(
+      page(
+        `<meta property="og:title" content="T">
+         <meta property="og:image" content="https://cdn.example.com/a.png">
+         <meta property="og:image:width" content="${value}">`
+      ),
+      BASE_URL
+    )
+    expect(result?.imageWidth).toBeNull()
+  })
+
+  it('keeps a width at the column maximum', () => {
+    const result = parseOpenGraphMetadata(
+      page(
+        `<meta property="og:title" content="T">
+         <meta property="og:image" content="https://cdn.example.com/a.png">
+         <meta property="og:image:width" content="2147483647">`
+      ),
+      BASE_URL
+    )
+    expect(result?.imageWidth).toBe(2147483647)
+  })
+
+  it('ignores non-numeric image dimensions', () => {
+    const result = parseOpenGraphMetadata(
+      page(
+        `<meta property="og:title" content="T">
+         <meta property="og:image" content="https://cdn.example.com/a.png">
+         <meta property="og:image:width" content="wide">`
+      ),
+      BASE_URL
+    )
+    expect(result?.imageWidth).toBeNull()
+  })
+
+  it('ignores dimensions when there is no image', () => {
+    const result = parseOpenGraphMetadata(
+      page(
+        '<meta property="og:title" content="T"><meta property="og:image:width" content="1200">'
+      ),
+      BASE_URL
+    )
+    expect(result?.imageWidth).toBeNull()
+  })
+
+  it.each([
+    {
+      description: 'maps article to link',
+      ogType: 'article',
+      expected: 'link'
+    },
+    {
+      description: 'maps website to link',
+      ogType: 'website',
+      expected: 'link'
+    },
+    {
+      description: 'maps video.other to video',
+      ogType: 'video.other',
+      expected: 'video'
+    },
+    {
+      description: 'maps an unknown type to link',
+      ogType: 'book',
+      expected: 'link'
+    }
+  ])('$description', ({ ogType, expected }) => {
+    const result = parseOpenGraphMetadata(
+      page(
+        `<meta property="og:title" content="T"><meta property="og:type" content="${ogType}">`
+      ),
+      BASE_URL
+    )
+    expect(result?.type).toBe(expected)
+  })
+
+  it('defaults the type to link when og:type is absent', () => {
+    const result = parseOpenGraphMetadata(
+      page('<meta property="og:title" content="T">'),
+      BASE_URL
+    )
+    expect(result?.type).toBe('link')
+  })
+
+  it('reads an author name and url', () => {
+    const result = parseOpenGraphMetadata(
+      page(
+        `<meta property="og:title" content="T">
+         <meta name="author" content="Ada Lovelace">
+         <meta property="article:author" content="https://example.com/ada">`
+      ),
+      BASE_URL
+    )
+    expect(result).toMatchObject({
+      authorName: 'Ada Lovelace',
+      authorUrl: 'https://example.com/ada'
+    })
+  })
+
+  it('treats a non-url article:author as the author name', () => {
+    const result = parseOpenGraphMetadata(
+      page(
+        '<meta property="og:title" content="T"><meta property="article:author" content="Ada Lovelace">'
+      ),
+      BASE_URL
+    )
+    expect(result).toMatchObject({
+      authorName: 'Ada Lovelace',
+      authorUrl: null
+    })
+  })
+
+  it('ignores an unparsable published date', () => {
+    const result = parseOpenGraphMetadata(
+      page(
+        '<meta property="og:title" content="T"><meta property="article:published_time" content="sometime">'
+      ),
+      BASE_URL
+    )
+    expect(result?.publishedAt).toBeNull()
+  })
+
+  it('reads og tags declared with the name attribute', () => {
+    const result = parseOpenGraphMetadata(
+      page('<meta name="og:title" content="Named OG">'),
+      BASE_URL
+    )
+    expect(result?.title).toBe('Named OG')
+  })
+
+  it('ignores a meta tag with no content', () => {
+    const result = parseOpenGraphMetadata(
+      `<html><head><title>Doc</title><meta property="og:title"></head><body></body></html>`,
+      BASE_URL
+    )
+    expect(result?.title).toBe('Doc')
+  })
+
+  it('ignores a whitespace-only title', () => {
+    expect(
+      parseOpenGraphMetadata(
+        page('<meta property="og:title" content="   ">'),
+        BASE_URL
+      )
+    ).toBeNull()
+  })
+  // htmlToDOM is quadratic in nesting depth, so the fetch's byte cap bounds
+  // transfer but not CPU: a 1 MiB page of nested divs was measured blocking the
+  // event loop for ~9 SECONDS of synchronous, non-cancellable work — which on
+  // the default in-process queue happens inside the request that created the
+  // status. Parsing only <head> removes the entire class of hostile <body>
+  // payloads; the same page now parses in single-digit milliseconds.
+  it('is not slowed down by a deeply nested body', () => {
+    const depth = 95_000
+    const html =
+      '<html><head><meta property="og:title" content="Deep"></head><body>' +
+      '<div>'.repeat(depth) +
+      '</div>'.repeat(depth) +
+      '</body></html>'
+
+    const start = Date.now()
+    const result = parseOpenGraphMetadata(html, BASE_URL)
+    const elapsed = Date.now() - start
+
+    expect(result?.title).toBe('Deep')
+    // Generous against CI jitter and still three orders of magnitude under the
+    // unbounded parse.
+    expect(elapsed).toBeLessThan(1_000)
+  })
+
+  // The first DoS fix (parse only <head>) was undone by the charset regex added
+  // beside it: `<meta[^>]+charset` backtracks quadratically, and a body of bare
+  // `<meta` with no `>` blocked the event loop for 3.3 seconds.
+  it('does not stall on markup crafted to make the charset scan backtrack', () => {
+    const hostile = `<html><head>${'<meta'.repeat(30_000)}`
+
+    const start = Date.now()
+    const charset = getDeclaredCharset(hostile)
+    const elapsed = Date.now() - start
+
+    expect(charset).toBeNull()
+    expect(elapsed).toBeLessThan(200)
+  })
+
+  // `toLowerCase()` maps U+0130 to two code units, so indices from a lowercased
+  // copy drift from the original — enough of them and the head slice reaches
+  // past </head>, pulling <body> markup into the parse and letting a body tag
+  // win the card.
+  it('does not read body metadata when the head contains dotted capital I', () => {
+    const html =
+      `<html><head><title>${'\u0130'.repeat(200)}</title>` +
+      '<meta property="og:title" content="From the head"></head>' +
+      '<body><meta property="og:title" content="From the body"></body></html>'
+
+    expect(parseOpenGraphMetadata(html, BASE_URL)?.title).toBe('From the head')
+  })
+
+  it('reads metadata from a page with no head element', () => {
+    const result = parseOpenGraphMetadata(
+      '<html><meta property="og:title" content="Headless"></html>',
+      BASE_URL
+    )
+    expect(result?.title).toBe('Headless')
+  })
+
+  describe('getDeclaredCharset', () => {
+    it.each([
+      {
+        description: 'reads an html5 meta charset',
+        html: '<html><head><meta charset="windows-1251"></head></html>',
+        expected: 'windows-1251'
+      },
+      {
+        description: 'reads a charset from a legacy http-equiv',
+        html: '<html><head><meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1"></head></html>',
+        expected: 'iso-8859-1'
+      },
+      {
+        description: 'lowercases the charset',
+        html: '<html><head><meta charset="UTF-8"></head></html>',
+        expected: 'utf-8'
+      },
+      {
+        description: 'answers null when none is declared',
+        html: '<html><head><title>x</title></head></html>',
+        expected: null
+      },
+      {
+        // A loose match made an article that merely TALKS about encodings look
+        // like a windows-1252 page, which cost it its card.
+        description: 'ignores charset mentioned inside another attribute',
+        html: '<html><head><meta property="og:description" content="how to set charset=windows-1252 in html"></head></html>',
+        expected: null
+      },
+      {
+        // The tag was cut at the first `>` anywhere, so a `>` inside an
+        // attribute value truncated it mid-attribute and put `charset=` from an
+        // ordinary sentence back in scope.
+        description: 'ignores charset in prose containing an angle bracket',
+        html: '<html><head><meta property="og:description" content="set charset=windows-1252 -> done"></head></html>',
+        expected: null
+      },
+      {
+        description: 'ignores charset in prose quoting a meta tag',
+        html: '<html><head><meta property="og:description" content="write <meta charset=windows-1252> at the top"></head></html>',
+        expected: null
+      },
+      {
+        // An unquoted value runs to the delimiter, so the slash came along and
+        // matched no known encoding — costing a page that declares UTF-8 its card.
+        description: 'reads a self-closing unquoted declaration',
+        html: '<html><head><meta charset=utf-8/></head></html>',
+        expected: 'utf-8'
+      },
+      {
+        // The HTML prescan skips comments, so a commented-out declaration is
+        // not what the page declares.
+        description: 'ignores a commented-out declaration',
+        html: '<html><head><!-- <meta charset="windows-1252"> --><meta charset="utf-8"></head></html>',
+        expected: 'utf-8'
+      },
+      {
+        description: 'ignores a declaration past the spec window',
+        html: `<html><head>${'<meta name="x" content="y">'.repeat(200)}<meta charset="windows-1251"></head></html>`,
+        expected: null
+      }
+    ])('$description', ({ html, expected }) => {
+      expect(getDeclaredCharset(html)).toBe(expected)
+    })
+  })
+})

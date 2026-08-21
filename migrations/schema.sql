@@ -658,6 +658,25 @@ CREATE TABLE public.likes (
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE public.link_previews (
+    "urlHash" character varying(64) NOT NULL,
+    url text NOT NULL,
+    type character varying(32) DEFAULT 'link'::character varying NOT NULL,
+    title text,
+    description text,
+    "siteName" character varying(255),
+    "authorName" character varying(255),
+    "authorUrl" text,
+    "imageUrl" text,
+    "imageWidth" integer,
+    "imageHeight" integer,
+    "publishedAt" timestamp with time zone,
+    "fetchStatus" character varying(32) DEFAULT 'pending'::character varying NOT NULL,
+    error text,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE public.list_accounts (
     id character varying(255) NOT NULL,
     "listId" character varying(255) NOT NULL,
@@ -1034,6 +1053,13 @@ CREATE SEQUENCE public.status_history_id_seq
     CACHE 1;
 
 ALTER SEQUENCE public.status_history_id_seq OWNED BY public.status_history.id;
+
+CREATE TABLE public.status_link_previews (
+    "statusId" character varying(255) NOT NULL,
+    "urlHash" character varying(64) NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
 
 CREATE TABLE public.status_mutes (
     "actorId" character varying(255) NOT NULL,
@@ -1435,6 +1461,9 @@ ALTER TABLE ONLY public.legacy_fitness_heatmap_media_cleanup
 ALTER TABLE ONLY public.likes
     ADD CONSTRAINT likes_pkey PRIMARY KEY ("statusId", "actorId");
 
+ALTER TABLE ONLY public.link_previews
+    ADD CONSTRAINT link_previews_pkey PRIMARY KEY ("urlHash");
+
 ALTER TABLE ONLY public.list_accounts
     ADD CONSTRAINT list_accounts_list_target_unique UNIQUE ("listId", "targetActorId");
 
@@ -1548,6 +1577,9 @@ ALTER TABLE ONLY public.status_detected_languages
 
 ALTER TABLE ONLY public.status_history
     ADD CONSTRAINT status_history_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.status_link_previews
+    ADD CONSTRAINT status_link_previews_pkey PRIMARY KEY ("statusId");
 
 ALTER TABLE ONLY public.status_mutes
     ADD CONSTRAINT status_mutes_pkey PRIMARY KEY ("actorId", "statusId");
@@ -1714,6 +1746,8 @@ CREATE INDEX idempotency_keys_created ON public.idempotency_keys USING btree ("c
 
 CREATE INDEX idempotency_keys_status ON public.idempotency_keys USING btree ("statusId");
 
+CREATE INDEX link_previews_status_updated_idx ON public.link_previews USING btree ("fetchStatus", "updatedAt");
+
 CREATE INDEX list_accounts_target ON public.list_accounts USING btree ("targetActorId");
 
 CREATE INDEX lists_actor_created ON public.lists USING btree ("actorId", "createdAt");
@@ -1801,6 +1835,8 @@ CREATE INDEX "sessions_accountId_token_idx" ON public.sessions USING btree ("acc
 CREATE INDEX sessions_token_idx ON public.sessions USING btree (token);
 
 CREATE INDEX "status_history_statusId_idx" ON public.status_history USING btree ("statusId", "createdAt", "updatedAt");
+
+CREATE INDEX status_link_previews_urlhash_idx ON public.status_link_previews USING btree ("urlHash");
 
 CREATE INDEX status_mutes_status ON public.status_mutes USING btree ("statusId");
 

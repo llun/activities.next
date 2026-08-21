@@ -27,6 +27,7 @@ import { ImportLockSQLDatabaseMixin } from '@/lib/database/sql/importLock'
 import { InstanceActivitySQLDatabaseMixin } from '@/lib/database/sql/instanceActivity'
 import { InstanceRuleSQLDatabaseMixin } from '@/lib/database/sql/instanceRule'
 import { LikeSQLDatabaseMixin } from '@/lib/database/sql/like'
+import { LinkPreviewSQLDatabaseMixin } from '@/lib/database/sql/linkPreview'
 import { ListSQLDatabaseMixin } from '@/lib/database/sql/list'
 import { MarkerSQLDatabaseMixin } from '@/lib/database/sql/marker'
 import { MediaSQLDatabaseMixin } from '@/lib/database/sql/media'
@@ -91,6 +92,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   const instanceActivityDatabase = InstanceActivitySQLDatabaseMixin(database)
   const instanceRuleDatabase = InstanceRuleSQLDatabaseMixin(database)
   const likeDatabase = LikeSQLDatabaseMixin(database)
+  const linkPreviewDatabase = LinkPreviewSQLDatabaseMixin(database)
   const mediaDatabase = MediaSQLDatabaseMixin(database)
   const moderationDatabase = ModerationSQLDatabaseMixin(database)
   const notificationDatabase = NotificationSQLDatabaseMixin(database)
@@ -111,7 +113,8 @@ export const getSQLDatabase = (database: Knex): Database => {
     bookmarkDatabase,
     mediaDatabase,
     statusDetectedLanguageDatabase,
-    statusReactionDatabase
+    statusReactionDatabase,
+    linkPreviewDatabase
   )
   const listDatabase = ListSQLDatabaseMixin(
     database,
@@ -159,6 +162,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...fitnessRouteHeatmapTileDatabase,
     ...fitnessSettingsDatabase,
     ...importLockDatabase,
+    ...linkPreviewDatabase,
     ...instanceActivityDatabase,
     ...instanceRuleDatabase,
     ...bookmarkDatabase,

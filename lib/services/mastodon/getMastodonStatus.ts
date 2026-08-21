@@ -1,6 +1,7 @@
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { isConversationMutedForActor } from '@/lib/services/mastodon/conversationMute'
+import { getMastodonPreviewCard } from '@/lib/services/mastodon/getMastodonPreviewCard'
 import { getEffectiveQuoteApprovalPolicy } from '@/lib/services/quotes/quotePolicy'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Mastodon } from '@/lib/types/activitypub'
@@ -21,6 +22,7 @@ import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getVisibility } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
 import { getClientActorId, getClientStatusId } from '@/lib/utils/publicId'
+import { toEmojiShortcodeToken } from '@/lib/utils/text/getEmojiTags'
 import { processStatusText } from '@/lib/utils/text/processStatusText'
 import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
@@ -164,18 +166,35 @@ const getMentionActorPublicIds = async (
   return database.getActorPublicIds({ actorIds })
 }
 
+/**
+ * The custom emoji a client is told this status carries.
+ *
+ * Normalized through the SAME `toEmojiShortcodeToken` the renderer uses, so
+ * this list and the `content` beside it agree. Stripping colons here with a
+ * local regex instead let the two drift: a stored name the renderer refuses —
+ * one containing markup, a space, or nothing at all between its colons — was
+ * still advertised here, so a client was handed a shortcode that appears
+ * nowhere in the content it came with, and in the markup case was handed
+ * attacker-controlled markup in a field it may well substitute into HTML
+ * itself. An inbound `Emoji` tag's `name` is stored verbatim, so those are the
+ * names that actually arrive.
+ */
 const getEmojisFromTags = (tags: Tag[]): MastodonCustomEmoji[] => {
   return tags
     .filter((tag) => tag.type === TagType.enum.emoji)
-    .map((tag) => {
-      const shortcode = tag.name.replace(/^:+|:+$/g, '')
-      return {
-        shortcode,
-        url: tag.value,
-        static_url: tag.value,
-        visible_in_picker: true,
-        category: null
-      }
+    .flatMap((tag) => {
+      const token = toEmojiShortcodeToken(tag.name)
+      if (!token) return []
+      return [
+        {
+          // `token` is `:shortcode:`; the API field is the bare shortcode.
+          shortcode: token.slice(1, -1),
+          url: tag.value,
+          static_url: tag.value,
+          visible_in_picker: true,
+          category: null
+        }
+      ]
     })
 }
 
@@ -670,6 +689,11 @@ export const getMastodonStatus = async (
     text: status.text,
 
     reblog: null,
+
+    // The link preview card. Only the unwrapped status carries one — an
+    // Announce keeps the `card: null` from baseData, the same way
+    // media_attachments is forced empty on that branch.
+    card: getMastodonPreviewCard(status.linkPreview),
 
     mentions,
     emojis,

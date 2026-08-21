@@ -112,6 +112,26 @@ export const StatusQuote = z.object({
 })
 export type StatusQuote = z.infer<typeof StatusQuote>
 
+// The preview card for the first link in a status (Mastodon's PreviewCard).
+// Cached per URL and shared between every status linking the same page, so this
+// is a read-only projection of that cache rather than data owned by the status.
+// Only cards that finished fetching are ever hydrated, which is why `title` is
+// required here while it is nullable in the stored row.
+export const StatusLinkPreview = z.object({
+  url: z.string(),
+  title: z.string(),
+  description: z.string().nullable().optional(),
+  type: z.string().optional(),
+  siteName: z.string().nullable().optional(),
+  authorName: z.string().nullable().optional(),
+  authorUrl: z.string().nullable().optional(),
+  imageUrl: z.string().nullable().optional(),
+  imageWidth: z.number().nullable().optional(),
+  imageHeight: z.number().nullable().optional(),
+  publishedAt: z.number().nullable().optional()
+})
+export type StatusLinkPreview = z.infer<typeof StatusLinkPreview>
+
 const StatusBase = z.object({
   id: z.string(),
   publicId: z.string().nullable().optional(),
@@ -177,6 +197,10 @@ export const StatusNote = StatusBase.extend({
   // status literals and non-quoting statuses remain valid; StatusPoll inherits
   // it, StatusAnnounce (extends StatusBase) correctly does not.
   quote: StatusQuote.nullable().optional(),
+  // The link preview card, when this status has an eligible link that resolved.
+  // Optional/nullable for the same reason `quote` is: every existing status
+  // literal and fixture predates it.
+  linkPreview: StatusLinkPreview.nullable().optional(),
   // Who may quote THIS status. Stored in the content JSON blob, not a column;
   // defaults to `public` at consumption when absent.
   quoteApprovalPolicy: QuoteApprovalPolicy.optional()

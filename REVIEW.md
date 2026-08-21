@@ -112,6 +112,31 @@ change doesn't touch.
   in the same PR, against fresh local DBs — never hand-edited. Commit a
   schema-only regeneration as `none:`. (CI's Schema Dump Sync job catches
   SQLite-dump drift; the PostgreSQL dump is not CI-checked.)
+- A caller-supplied id compared against a **numeric** column is coerced first.
+  `medias.id` and `attachments.mediaId` are `integer` on PostgreSQL, so passing a
+  non-numeric client string raises `invalid input syntax for type integer` — a
+  500 where a 404 was intended. SQLite's dynamic typing just misses, so only
+  `TEST_DATABASE_TYPE=pg` catches it. `lib/database/sql/media.ts` routes every
+  `mediaId` it **compares** against `medias.id` through `toMediaRowId`.
+  It accepts only optional leading zeros, digits, an optional all-zero
+  fraction, and 1..2147483647. That is deliberately tighter than the backends:
+  on PostgreSQL `'0x10'`/`'0b101'` resolved rows 16/5 (it takes non-decimal
+  integer literals since 16), and on both backends `'+12'`/`' 12 '` resolved
+  row 12 — all now 404, which is intended, since a media id is a row id.
+  `'12.0'` is kept only because SQLite's `varchar` `attachments.mediaId` can
+  hold that form. New numeric-column lookups do the same, and fixtures use
+  values the column can hold.
+- `createAttachment` **writes** `mediaId` rather than comparing it and is
+  deliberately unguarded — coercing would drop the link instead of surfacing a
+  bad id. Its callers must therefore hand it an id already resolved against
+  `medias`. `POST /api/v1/accounts/outbox` does not (its `PostBoxAttachment.id`
+  is a bare `z.string()`), so a malformed id there fails the insert on
+  PostgreSQL after the status row is committed — a known open bug, separate
+  from the lookup guard.
+- A per-column type difference between the two schema dumps is not automatically
+  drift — a backend-conditional migration (e.g.
+  `20260207223000_fix_attachments_media_id_type.js`, PostgreSQL-only) makes them
+  legitimately differ. Read the migration before asking for a regeneration.
 - Better-auth plugins are only registered once their required tables exist in a
   migration; admin/dashboard plugins are gated with explicit access control.
 - Cursor-based pagination: pass the raw cursor row (with its stored representations,
@@ -454,6 +479,98 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
 - **Schema.org Namespace:** The JSON-LD `@context` must use `http://schema.org#` (not `https://schema.org#`). Mastodon strictly maps the `schema` prefix to the non-standard `http://schema.org#` base. Changing to HTTPS breaks JSON-LD compaction and silently drops profile fields like `PropertyValue`.
 - **Internal API CORS:** Next.js API routes exclusively consumed by the internal web client (e.g., via `lib/client.ts`) do not require `OPTIONS` handlers or CORS preflight configurations, even if they use `apiResponse` with `allowedMethods`.
 - **Conditional Object Spreading:** Spreading `null` in object literals (e.g., `...(cond ? { ... } : null)`) is a deliberate, consistent no-op pattern used to cleanly omit keys and should not be flagged as confusing or replaced with `{}`.
+
+## Link preview cards
+
+- A card is cached **per URL** in `link_previews` and mapped to a status by
+  `status_link_previews`. A change that moves card data onto `statuses`, or
+  keys the cache per status, loses the whole point: a widely-shared link is
+  fetched once per refresh window, not once per post.
+- **A failure must go through `recordLinkPreviewFailure`, never
+  `upsertLinkPreview`.** The latter writes the whole row, so recording a failure
+  through it blanks a card that every status linking that URL is still showing —
+  and the negative cache then suppresses the retry that would repair it. A row
+  that is already `completed` keeps its content and its status.
+- `fetchLinkPreviewJob` must re-resolve the status's URL before attaching
+  (`resolveStatusPreviewUrl`). An edit leaves the pre-edit job queued; without
+  the re-check it re-attaches the old card, or resurrects one an edit removed.
+  The scheduler and the job must keep using that single resolver.
+- Extraction runs the **whole** `processStatusTextContent` and walks its output,
+  on both paths — not a rearrangement of its parts, so the extractor sees the
+  reader's DOM. Check that `extractPreviewUrl` is still given `tags` and that
+  `resolveStatusPreviewUrl` still passes `status.tags`: the emoji substitution
+  can EMPTY an anchor whose text the extractor already counted (a non-https
+  `Emoji` icon url is dropped entirely by `sanitizeTrustedStatusText`), and
+  dropping that one argument silently restores a phishing card.
+- **The extractor and the reader parse that shared string with DIFFERENT
+  parsers** — htmlparser2 on the server, the browser's own tree construction in
+  the client bundle — so any HTML5 rule that MOVES content between elements is a
+  divergence. Nested anchors are the known one: `getVisibleText` must keep
+  stopping at the FIRST descendant `<a>`, in document order, because a browser
+  pops the outer anchor at the inner one's start tag — so the inner anchor and
+  everything after it ends up outside. Reject a change that counts a nested
+  anchor's text as its ancestor's, and equally one that counts the text AFTER
+  the nest (a trailing `" — worth a read."` reads as prose beside an empty
+  anchor). Reject "an anchor containing an anchor is invisible" too — text
+  before the nest survives and keeps the outer anchor eligible.
+  New cases belong in `parserAgreement.test.ts`, which checks the extractor
+  against a jsdom DOM rather than against hand-written expectations. A link whose text renders to nothing — empty,
+  entity-only, or hidden by `hidden`/`invisible` including via an ANCESTOR — is
+  skipped, because otherwise a link the reader cannot see gets a full-width
+  clickable card carrying an attacker-chosen title and image. `<template>` is
+  not an exception: the sanitizer unwraps it, so that anchor is genuinely
+  visible and keeps its card. Reject any change that walks marked's token tree
+  for local posts — it cannot see ancestors, cannot decode entities, and its
+  table cells crashed the walker into "no links at all".
+- **That two-entry hidden-class list is only sufficient because
+  `sanitizeText` allowlists the `class` attribute** (`ALLOWED_CONTENT_CLASSES`,
+  applied to `a` and `span`). The class reaches the real DOM — `cleanClassName`
+  hands an anchor's straight to `className` — and this app compiles Tailwind, so
+  before the allowlist a remote post could hide a link with `sr-only`,
+  `opacity-0` or any other utility in the bundle and take the card while the
+  reader saw nothing. Treat the two lists as one mechanism: adding a class to
+  the allowlist without deciding whether it hides content reopens this, and the
+  coupling test in `extractUrl.test.ts` is what fails when someone tries. Reject
+  prefix globs (`h-*`, `p-*`) however much Mastodon's own config uses them —
+  here they would admit `h-screen` and `p-0`. Also reject a
+  `SANITIZED_TRUSTED_STATUS_OPTION` that REPLACES `allowedClasses` instead of
+  spreading it: a tag with no entry keeps its class untouched, so listing only
+  `img` hands `span`/`a` back an unrestricted class attribute.
+- **Anything that rewrites status HTML between the two sanitize passes is an
+  injection point, and `convertEmojisToImages` is the one that exists.** A
+  remote `Emoji` tag's `name` and `icon.url` are stored verbatim, so both are
+  attacker-controlled. Four distinct bugs have come out of this one function, so
+  reject any change that simplifies it back toward
+  `tags.reduce((t, tag) => t.replaceAll(tag.name, …), text)`. It must keep all
+  of: searching for a shortcode-shaped **token** and looking the name up (never
+  using the name as the search string); a **single** pass over the original text
+  (each replacement emits an `alt=":shortcode:"` that a later one would match);
+  substituting only in **text** pieces, never inside tags (a `:` survives in an
+  href, and rewriting there corrupted the very link the card was for — no
+  hostile input needed); and a **function** replacement, which is what makes `$`
+  literal (`$&` / `` $` `` are re-read after escaping and splice raw markup
+  from elsewhere in the post into the src). `escapeHtml` on the url is required
+  on top of those. Reject moving the check to ingest only: at render it also
+  covers rows already stored.
+- Every optional Mastodon `PreviewCard` field needs an `''`/`0` default. That
+  schema is non-nullable and `Status.parse` runs per status inside a handler
+  that **skips** what it cannot serialize, so one missing key drops the whole
+  status from the timeline rather than just losing the card.
+- `html`/`embed_url` stay empty (no oEmbed consumption, so no remote markup is
+  handed to clients), thumbnails are `https`-only and hotlinked with
+  `referrerPolicy="no-referrer"`, and the href goes through `safeExternalHref`.
+- The kill switch is `network.linkPreviews`, checked both when scheduling and
+  inside the job (a delayed job must not drain after an operator turns it off).
+  It is not a `features.*` flag: that namespace is navigation-only. It gates
+  fetching only — the cleanup that drops a card when an edit removes its link
+  runs regardless.
+- Known and deliberate: a first-fetch failure is never retried, an attached card
+  is only refreshed if someone posts the link again, `link_previews` rows are
+  never collected, and polls get no card at all. There is no recurring-job
+  infrastructure to hang a sweep on, and polls store rendered HTML where notes
+  store markdown (so wiring them up needs that asymmetry fixed first, not just
+  the call added). Don't flag these as bugs, and don't "fix" them with a sweep
+  that has nothing to run it.
 
 ## Fitness route heatmap pyramid
 

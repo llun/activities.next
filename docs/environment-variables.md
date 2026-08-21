@@ -35,6 +35,13 @@ editor and media picker, the inline reply box, and the avatar/header picker all
 size themselves to the same resolved values rather than to fixed constants, so
 in normal use the client does not offer what the endpoint will refuse.
 
+`network.linkPreviews` is edited on **Admin → Network** under **Link previews**
+and also has no environment variable, so it is never locked. It is not a
+`features.*` switch because it does not change navigation: it controls whether
+this server makes outbound requests to the pages people link to. Turning it off
+stops new fetches immediately; cards already stored keep rendering, and the
+Mastodon `card` field simply stays null for statuses posted afterwards.
+
 The `features.*` settings (`features.fitness`, `features.explore`,
 `features.messages`) are edited on **Admin → Instance** under **Optional
 features** and have no environment variable, so they are never locked. Turning

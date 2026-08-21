@@ -3035,6 +3035,13 @@ describe('StatusDatabase', () => {
     })
 
     describe('updateNote', () => {
+      // The media ids below are realistic auto-increment `medias.id` values
+      // rather than descriptive strings: `attachments.mediaId` is an `integer`
+      // column on PostgreSQL (migration
+      // 20260207223000_fix_attachments_media_id_type.js is PostgreSQL-only, so
+      // it stays `varchar` on SQLite). A non-numeric id inserts happily under
+      // SQLite's dynamic typing but fails on PostgreSQL with `invalid input
+      // syntax for type integer`.
       it('updates note content and records edit history', async () => {
         const statusId = `${emptyActorId}/statuses/update-note`
         await database.createNote({
@@ -3070,6 +3077,8 @@ describe('StatusDatabase', () => {
 
       it('replaces note media attachments without changing note text', async () => {
         const statusId = `${emptyActorId}/statuses/update-note-media`
+        const oldMediaId = '9101'
+        const newMediaId = '9102'
         await database.createNote({
           id: statusId,
           url: statusId,
@@ -3086,7 +3095,7 @@ describe('StatusDatabase', () => {
           width: 320,
           height: 240,
           name: 'old.jpg',
-          mediaId: 'old-media'
+          mediaId: oldMediaId
         })
 
         const updated = await database.updateNote({
@@ -3096,7 +3105,7 @@ describe('StatusDatabase', () => {
           attachments: [
             {
               type: 'upload',
-              id: 'new-media',
+              id: newMediaId,
               mediaType: 'image/png',
               url: 'https://example.com/new.png',
               width: 640,
@@ -3123,7 +3132,7 @@ describe('StatusDatabase', () => {
         })
         expect(attachments).toHaveLength(1)
         expect(attachments[0]).toMatchObject({
-          mediaId: 'new-media',
+          mediaId: newMediaId,
           url: 'https://example.com/new.png'
         })
 
@@ -3135,6 +3144,8 @@ describe('StatusDatabase', () => {
 
       it('preserves legacy attachments without media ids when replacing media', async () => {
         const statusId = `${emptyActorId}/statuses/update-note-preserve-legacy`
+        const oldMediaId = '9201'
+        const newMediaId = '9202'
         await database.createNote({
           id: statusId,
           url: statusId,
@@ -3151,7 +3162,7 @@ describe('StatusDatabase', () => {
           width: 320,
           height: 240,
           name: 'old.jpg',
-          mediaId: 'old-media'
+          mediaId: oldMediaId
         })
         const legacyAttachment = await database.createAttachment({
           actorId: emptyActorId,
@@ -3170,7 +3181,7 @@ describe('StatusDatabase', () => {
           attachments: [
             {
               type: 'upload',
-              id: 'new-media',
+              id: newMediaId,
               mediaType: 'image/png',
               url: 'https://example.com/new.png',
               width: 640,
@@ -3189,7 +3200,7 @@ describe('StatusDatabase', () => {
               createdAt: legacyAttachment.createdAt
             }),
             expect.objectContaining({
-              mediaId: 'new-media',
+              mediaId: newMediaId,
               url: 'https://example.com/new.png'
             })
           ])
@@ -3200,7 +3211,7 @@ describe('StatusDatabase', () => {
         expect(attachments).not.toEqual(
           expect.arrayContaining([
             expect.objectContaining({
-              mediaId: 'old-media'
+              mediaId: oldMediaId
             })
           ])
         )
@@ -3208,6 +3219,8 @@ describe('StatusDatabase', () => {
 
       it('clears only editable media while preserving legacy and fitness attachments', async () => {
         const statusId = `${emptyActorId}/statuses/update-note-clear-editable-media`
+        const oldMediaId = '9301'
+        const fitnessMediaId = '9302'
         await database.createNote({
           id: statusId,
           url: statusId,
@@ -3224,7 +3237,7 @@ describe('StatusDatabase', () => {
           width: 320,
           height: 240,
           name: 'old.jpg',
-          mediaId: 'old-media'
+          mediaId: oldMediaId
         })
         const legacyAttachment = await database.createAttachment({
           actorId: emptyActorId,
@@ -3241,7 +3254,7 @@ describe('StatusDatabase', () => {
           mediaType: 'application/gpx+xml',
           url: 'https://example.com/api/v1/fitness-files/activity',
           name: 'activity.gpx',
-          mediaId: 'fitness-media'
+          mediaId: fitnessMediaId
         })
 
         const updated = await database.updateNote({
@@ -3259,7 +3272,7 @@ describe('StatusDatabase', () => {
             }),
             expect.objectContaining({
               id: fitnessAttachment.id,
-              mediaId: 'fitness-media'
+              mediaId: fitnessMediaId
             })
           ])
         )
@@ -3269,7 +3282,7 @@ describe('StatusDatabase', () => {
         expect(attachments).not.toEqual(
           expect.arrayContaining([
             expect.objectContaining({
-              mediaId: 'old-media'
+              mediaId: oldMediaId
             })
           ])
         )
@@ -3277,6 +3290,8 @@ describe('StatusDatabase', () => {
 
       it('preserves existing editable attachment rows when their media id remains', async () => {
         const statusId = `${emptyActorId}/statuses/update-note-keep-existing-media`
+        const existingMediaId = '9401'
+        const newMediaId = '9402'
         await database.createNote({
           id: statusId,
           url: statusId,
@@ -3293,7 +3308,7 @@ describe('StatusDatabase', () => {
           width: 320,
           height: 240,
           name: 'existing.jpg',
-          mediaId: 'existing-media',
+          mediaId: existingMediaId,
           createdAt: new Date('2026-04-26T10:00:00.000Z').getTime()
         })
 
@@ -3304,7 +3319,7 @@ describe('StatusDatabase', () => {
           attachments: [
             {
               type: 'upload',
-              id: 'existing-media',
+              id: existingMediaId,
               mediaType: 'image/jpeg',
               url: 'https://example.com/existing.jpg',
               width: 320,
@@ -3313,7 +3328,7 @@ describe('StatusDatabase', () => {
             },
             {
               type: 'upload',
-              id: 'new-media',
+              id: newMediaId,
               mediaType: 'image/png',
               url: 'https://example.com/new.png',
               width: 640,
@@ -3327,7 +3342,7 @@ describe('StatusDatabase', () => {
         expect(attachments).toHaveLength(2)
         expect(
           attachments.find(
-            (attachment) => attachment.mediaId === 'existing-media'
+            (attachment) => attachment.mediaId === existingMediaId
           )
         ).toMatchObject({
           id: existingAttachment.id,
@@ -3335,7 +3350,7 @@ describe('StatusDatabase', () => {
           updatedAt: existingAttachment.updatedAt
         })
         expect(
-          attachments.find((attachment) => attachment.mediaId === 'new-media')
+          attachments.find((attachment) => attachment.mediaId === newMediaId)
         ).toMatchObject({
           url: 'https://example.com/new.png'
         })
@@ -3343,6 +3358,7 @@ describe('StatusDatabase', () => {
 
       it('snapshots sensitive, attachments and poll options into edit history revisions', async () => {
         const statusId = `${emptyActorId}/statuses/update-note-history-snapshot`
+        const snapshotOldMediaId = '9501'
         await database.createNote({
           id: statusId,
           url: statusId,
@@ -3360,7 +3376,7 @@ describe('StatusDatabase', () => {
           width: 320,
           height: 240,
           name: 'old alt text',
-          mediaId: 'snapshot-old-media'
+          mediaId: snapshotOldMediaId
         })
 
         await database.updateNote({
@@ -3382,12 +3398,13 @@ describe('StatusDatabase', () => {
         expect(revisions[0].attachments?.[0]).toMatchObject({
           url: 'https://example.com/snapshot-old.jpg',
           name: 'old alt text',
-          mediaId: 'snapshot-old-media'
+          mediaId: snapshotOldMediaId
         })
       })
 
       it('refreshes the copied name on attachments kept across an edit', async () => {
         const statusId = `${emptyActorId}/statuses/update-note-refresh-name`
+        const keptMediaId = '9601'
         await database.createNote({
           id: statusId,
           url: statusId,
@@ -3404,7 +3421,7 @@ describe('StatusDatabase', () => {
           width: 320,
           height: 240,
           name: 'old alt',
-          mediaId: 'kept-media'
+          mediaId: keptMediaId
         })
 
         const updated = await database.updateNote({
@@ -3414,7 +3431,7 @@ describe('StatusDatabase', () => {
           attachments: [
             {
               type: 'upload',
-              id: 'kept-media',
+              id: keptMediaId,
               mediaType: 'image/jpeg',
               url: 'https://example.com/kept.jpg',
               width: 320,
@@ -3425,7 +3442,7 @@ describe('StatusDatabase', () => {
         })
 
         expect(updated?.attachments).toEqual([
-          expect.objectContaining({ mediaId: 'kept-media', name: 'new alt' })
+          expect.objectContaining({ mediaId: keptMediaId, name: 'new alt' })
         ])
       })
     })

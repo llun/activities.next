@@ -68,7 +68,9 @@ vi.mock('@/lib/client', () => ({
   translateStatus: vi.fn(),
   reactToStatus: vi.fn(),
   unreactFromStatus: vi.fn(),
-  getCustomEmojis: vi.fn().mockResolvedValue([])
+  getCustomEmojis: vi.fn().mockResolvedValue([]),
+  // QuoteCard loads the quoted status itself; a quoting status renders it.
+  getStatusById: vi.fn().mockResolvedValue(null)
 }))
 
 const currentTime = new Date('2026-04-26T10:00:00.000Z').getTime()
@@ -2077,6 +2079,176 @@ describe('Post', () => {
           name: 'Remove bookmark'
         })
       ).toBeInTheDocument()
+    })
+  })
+  describe('link preview card', () => {
+    const linkPreview = {
+      url: 'https://example.com/article',
+      title: 'A linked article',
+      description: 'What it says',
+      siteName: 'Example',
+      imageUrl: null
+    }
+
+    it('renders the card for a status that has one', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{ ...status, summary: null, linkPreview }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(screen.getByText('A linked article')).toBeInTheDocument()
+    })
+
+    it('renders nothing for a status with no card', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{ ...status, summary: null }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(screen.queryByText('A linked article')).not.toBeInTheDocument()
+    })
+
+    // Media, a quoted post and a fitness activity are all richer
+    // representations of what the post is about; the link card yields to them
+    // rather than stacking a second block underneath.
+    it('yields to media attachments', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{
+            ...status,
+            summary: null,
+            linkPreview,
+            attachments: [
+              {
+                id: 'attachment-1',
+                actorId: status.actorId,
+                statusId: status.id,
+                type: 'Document',
+                mediaType: 'image/png',
+                url: 'https://activities.local/image.png',
+                width: 100,
+                height: 100,
+                name: '',
+                createdAt: currentTime,
+                updatedAt: currentTime
+              }
+            ]
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(screen.queryByText('A linked article')).not.toBeInTheDocument()
+    })
+
+    it('yields to a quoted post', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{
+            ...status,
+            summary: null,
+            linkPreview,
+            quote: {
+              quotedStatusId: 'https://remote.example/users/a/statuses/9',
+              state: 'accepted' as const
+            }
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(screen.queryByText('A linked article')).not.toBeInTheDocument()
+    })
+
+    // The comment on the suppression names three things the card yields to.
+    // Media and quotes were covered; a fitness activity renders a bordered chip
+    // directly above where the card would go, so stacking both is exactly the
+    // double-card this avoids.
+    it('yields to a fitness activity', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{
+            ...status,
+            summary: null,
+            linkPreview,
+            fitness: {
+              id: 'fitness-file-1',
+              fileName: 'ride.fit',
+              fileType: 'fit' as const,
+              mimeType: 'application/octet-stream',
+              bytes: 1024,
+              url: 'https://activities.local/api/v1/files/ride.fit',
+              processingStatus: 'completed' as const
+            }
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(screen.queryByText('A linked article')).not.toBeInTheDocument()
+      // The chip really is on screen, so the card yielded to something.
+      expect(screen.getByText('ride.fit')).toBeInTheDocument()
+    })
+
+    it('still yields while a fitness file is only processing', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{
+            ...status,
+            summary: null,
+            linkPreview,
+            fitness: {
+              id: 'fitness-file-2',
+              fileName: 'ride.gpx',
+              fileType: 'gpx' as const,
+              mimeType: 'application/gpx+xml',
+              bytes: 2048,
+              url: 'https://activities.local/api/v1/files/ride.gpx',
+              processingStatus: 'processing' as const
+            }
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(screen.queryByText('A linked article')).not.toBeInTheDocument()
+      expect(screen.getByText('ride.gpx')).toBeInTheDocument()
+    })
+
+    it('renders the card of the boosted status, not of the boost', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{
+            ...boostedStatus,
+            originalStatus: {
+              ...(boostedStatus.originalStatus as StatusNote),
+              summary: null,
+              linkPreview
+            }
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(screen.getByText('A linked article')).toBeInTheDocument()
     })
   })
 })

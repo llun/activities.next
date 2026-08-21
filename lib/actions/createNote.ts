@@ -7,6 +7,7 @@ import {
 import { buildMentionEmail } from '@/lib/services/email/templates/mention'
 import { buildReplyEmail } from '@/lib/services/email/templates/reply'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
+import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLinkPreview'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
@@ -773,6 +774,13 @@ export const createNoteFromUserInput = async ({
       }
     })
   }
+
+  // Scheduled AFTER the send/process job is published, because on the default
+  // in-process queue `publish` runs the handler inline — so doing this first
+  // made a link post wait on a third-party fetch before it federated. It never
+  // throws (see syncStatusLinkPreview), so a preview failure cannot fail a post
+  // that is already written and already on its way out.
+  await syncStatusLinkPreview({ database, status })
 
   span.end()
   return status

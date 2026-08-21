@@ -987,6 +987,255 @@ it; there is no legacy shape left to copy.
   the affected-row count, so "already in that state" stays distinguishable from
   "no such gear of yours" — the latter is the route's 404.
 
+## Link Preview Cards
+
+- **A card is cached per URL, never per status.** `link_previews` is keyed by
+  `urlHash` (sha256 of the normalized URL) and `status_link_previews` maps a
+  status to the card it shows. That split is the whole point: a link doing the
+  rounds is fetched once per refresh window rather than once per post that
+  mentions it. Do not "simplify" this into a column on `statuses`.
+- **A failed fetch is stored, not just logged.** `fetchStatus: 'failed'` with an
+  `error` code IS the negative cache — it is what stops an unreachable or
+  hostile host from being re-contacted for every post that links it, the same
+  trap the remote-actor refresh path avoids by stamping its failures. A failed
+  row is never linked to a status, so it can only ever suppress a fetch, never
+  render an empty card. Completed cards refresh after 7 days, failures after 1
+  hour.
+- **A failure goes through `recordLinkPreviewFailure`, NEVER through
+  `upsertLinkPreview`.** The row is shared by every status linking that URL, and
+  `upsertLinkPreview` writes the whole row — so recording a failure through it
+  nulled `title`/`description`/`imageUrl`, and because `getStatusLinkPreviews`
+  filters on `completed`, one transient 502 on a weekly refresh blanked the card
+  for **every** post linking that page. There was no repair path either: the
+  negative cache then suppressed the retry, and nothing sweeps existing rows, so
+  an older link lost its card permanently. A row that is already `completed`
+  therefore keeps its content AND its status and records only the error; the
+  refresh is deferred to the next window rather than retried against a host that
+  just failed.
+- **The job re-resolves the URL before attaching a card.** An edit enqueues a
+  job for the new URL under a different id, so the pre-edit job is still queued —
+  and a remote fetch is delayed, which makes "old job lands last" the likely
+  ordering rather than the unlucky one. Without the re-check it re-attaches the
+  pre-edit card permanently, and it also resurrects a card an edit had just
+  removed. `resolveStatusPreviewUrl` is the single implementation both the
+  scheduler and the job use, precisely so the two cannot disagree about what a
+  status's URL is.
+- **A card is only ever for a link the reader can SEE — on both paths.** A card
+  is a full-width clickable block carrying an attacker-chosen title, description
+  and thumbnail, so a link that renders as nothing is a ready-made phishing
+  surface. Remote text is stored raw and sanitized only at render, so extraction
+  sanitizes first — parsing the stored HTML directly sees markup the reader
+  never will. Then, on BOTH the remote and the local path, a link whose text
+  renders to nothing is skipped: no visible text, or hidden by the
+  `hidden`/`invisible` classes this app's own renderer uses. Visibility is
+  measured on the RENDERED output, never the source string — a markdown link's
+  text can itself be HTML (`[<!-- hi -->](url)`) that renders to an empty
+  anchor. Hidden-ness is inherited, so an anchor inside a hidden ancestor counts
+  as hidden too; without that it came first in document order and BEAT the
+  genuinely visible link below it. `<template>` is NOT such a case: the
+  sanitizer unwraps it, so that anchor really is on screen and really should get
+  the card.
+  The two-entry hidden-class list only works because `sanitizeText` runs first —
+  see the sanitizer rule below. As a denylist it would be hopeless.
+- **`sanitizeText` allowlists the CLASS attribute, and everything above depends
+  on it.** `SANITIZED_OPTION.allowedClasses` reduces `class` on `a` and `span`
+  to `ALLOWED_CONTENT_CLASSES` — `h-card`, `p-author`, `u-url`, `mention`,
+  `hashtag`, `invisible`, `ellipsis`. That attribute reaches the real DOM:
+  `cleanClassName` hands an anchor's class straight to `className` and leaves
+  any span class it does not itself rewrite alone. This app compiles Tailwind,
+  so without the allowlist every utility in the bundle is a class a remote
+  server can spend on our page — `sr-only` is
+  `position:absolute;width:1px;height:1px;clip-path:inset(50%)`, enough to
+  publish a link into a post that no reader can see, which then wins the
+  preview card on document order.
+  Three things to keep right when touching it. It is an explicit list, **not**
+  Mastodon's `h-*`/`p-*`/`u-*` prefix globs — those are unsafe here because
+  `h-*` would admit `h-screen` and `p-*` would admit `p-0`. `hidden` is
+  deliberately absent: no fediverse server sends Tailwind's `display:none`, and
+  `invisible` is the marker that actually arrives. And
+  `SANITIZED_TRUSTED_STATUS_OPTION` must SPREAD this map rather than replace it
+  — a tag with no `allowedClasses` entry keeps its class untouched, so
+  declaring only `img` there quietly hands `span` and `a` back an unrestricted
+  class attribute. `extractUrl.test.ts` pins the allowlist against the
+  extractor's hidden-class list, so adding a class fails the suite until it is
+  classified as hiding or benign.
+- **`convertEmojisToImages` runs BETWEEN the two sanitize passes, so both halves
+  of an emoji tag are an injection point.** On the remote path `createNoteJob`
+  persists an inbound `Emoji` tag's `name` and `icon.url` verbatim — the AP
+  schema asks only for `z.string()` — and this step splices them into HTML that
+  the first pass has already approved and the second will keep if the allowlist
+  permits it. (The local path is safe by construction: `getEmojiTags` resolves
+  `:shortcode:` tokens against this instance's own emoji table.)
+  **Four separate things went wrong here, and the shape of the function is the
+  fix for all four.** Do not simplify it back toward
+  `tags.reduce((t, tag) => t.replaceAll(tag.name, '<img …>'), text)`.
+  1. It searches for a shortcode-shaped TOKEN and then looks the name up, rather
+     than using the stored name as the search string. A name shaped like
+     `<a href="…">` matched the post's own anchor and consumed it; escaping the
+     output can never fix a bad search term.
+  2. It is a SINGLE pass over the original text. Every replacement writes an
+     `alt=":shortcode:"` of its own, so feeding each result into the next let
+     one tag match another's output and nest markup inside an attribute.
+  3. It substitutes only in TEXT pieces, never inside tags. A `:` survives
+     sanitization in an href, so blind substitution rewrote the very link a
+     preview card was for — the reader got a corrupted url while the card named
+     the original. This one needed no hostile input: an ordinary custom emoji
+     plus any link with a `:word:` path segment did it.
+  4. The replacement is a FUNCTION, which is what makes `$` literal. A string
+     replacement re-reads `$&` and `` $` `` AFTER escaping, so a url carrying
+     those spliced raw `<`, `>` and `"` from elsewhere in the post into the src
+     attribute — characters `escapeHtml` never saw, because they were never in
+     the url.
+     `escapeHtml` on the url is still required on top of all four. Raw, a `"` in it
+     closed the `src` attribute and made the remainder live markup, enough to wrap
+     a link in `<span class="invisible">` that `cleanClassName` renders as
+     `display: none` — a preview card for a link no reader could see.
+     Keep this at RENDER, not at ingest: it is the one choke point that also
+     protects rows already in the database. A rejected tag renders as nothing
+     and the literal `:shortcode:` stays in the text.
+     **The accepted shortcode shape is deliberately NOT Mastodon's**
+     `[a-zA-Z0-9_]{2,}`. That describes what Mastodon mints, not what arrives:
+     applying it to inbound tags deleted real emoji from ~2% of a live Pleroma
+     and a live Akkoma instance's packs — `:poi-love:` (hyphens, which Sharkey
+     allows on purpose), `:c:` and `:3:` (one character, which GoToSocial and
+     Misskey permit), `:afiŝo_miaŭ:` (non-ASCII). Pleroma and Akkoma derive
+     shortcodes from pack filenames and never validate what they send.
+     `toEmojiShortcodeToken` therefore accepts anything up to 64 characters
+     that is not a colon, whitespace, or a control/format character, and makes
+     the colons optional because Friendica sends the name bare (`"like"`) while
+     its body still says `:like:`. `EMOJI_SHORTCODE_REGEX`, used to mint LOCAL
+     tags, stays on Mastodon's narrow shape — the two are different jobs.
+- **`syncStatusLinkPreview` never throws.** It is called from local create, local
+  edit, and the inbound `CreateNoteJob`/`UpdateNoteJob`, and every one of those
+  has already written the status by the time it runs. A preview card is
+  decoration; losing one must never fail posting or the ingest of someone
+  else's post. The whole body is inside one try/catch for that reason.
+- **The delay is conditional on the queue, because NoQueue drops delayed
+  messages.** Remote fetches carry a random 1–59s `delaySeconds` so this
+  instance is not part of a thundering herd on a widely-shared link (the
+  "link preview stampede" Mastodon has repeatedly been blamed for). But the
+  in-process queue has no scheduler and silently DROPS any message with a
+  positive delay, so the delay is only attached when `getQueue().runsInline` is
+  false. Attaching it unconditionally does not delay the fetch — it loses it.
+- **Extraction runs the WHOLE `processStatusTextContent` and walks its output.**
+  Not a rearrangement of its parts — the same function the rendered post, the
+  notifications and the Mastodon API all use, in full, for local and remote
+  statuses alike. That is the only way to know what the reader sees, and
+  every time this ran a subset of the pipeline something got through:
+  walking marked's tokens missed hidden ancestors and entity-only link text;
+  sanitizing but skipping the emoji step MEASURED TEXT THE RENDERER THEN
+  DELETED (`sanitizeTrustedStatusText` serves emoji images over https only and
+  drops an img left without a `src`, so a remote `Emoji` tag pointing at
+  `http://` emptied an anchor whose `:blob:` had just been counted as its
+  visible text — and the card went to that anchor). This is also why
+  `extractPreviewUrl` takes `tags` and `resolveStatusPreviewUrl` passes
+  `status.tags`; dropping that argument is a one-line edit that silently hands
+  back a phishing card, so it has its own test.
+  A consequence worth knowing: an anchor whose only content is an emoji image
+  gets NO card, because it has no visible text and an emoji image is whatever
+  the remote server serves — a transparent PNG included. Erring toward no card
+  is the intended direction.
+  **Same string, different PARSERS — this is the one gap the shared pipeline
+  does not close.** The extractor runs server-side, so `htmlToDOM` resolves to
+  `html-dom-parser`'s Node build (htmlparser2, no HTML5 tree construction). The
+  reader's `cleanClassName` runs in the browser bundle, where it resolves to
+  `template.innerHTML` — full tree construction, adoption agency and all. So a
+  nested `<a>`, which htmlparser2 keeps verbatim and a browser hoists out of
+  its ancestor, made the OUTER anchor look like it owned text it does not;
+  first in document order, it took the card while rendering as an empty clone.
+  The precise rule is that an anchor owns only the text BEFORE a descendant
+  anchor: the algorithm pops the outer one at the inner one's START TAG, so the
+  inner anchor AND everything after it — inline or block — is reparented
+  outside. `getVisibleText` therefore stops at the first descendant anchor, in
+  document order. Three separate phishing cards came out of getting this wrong:
+  counting the inner anchor's text; counting a trailing `" — worth a read."`
+  that the reader sees as prose beside an empty anchor; and checking
+  hidden-ness BEFORE the nested-anchor stop, so a nest that was itself
+  `invisible` (or sat inside an `invisible` span) never tripped it. That last
+  one is the rule to hold on to: **hiding is CSS and a parser never reads it**,
+  so the restructuring happens whatever the nest wears. `getVisibleText`
+  therefore tests for a nested anchor first, and descends into hidden subtrees
+  while suppressing their TEXT rather than returning at them — the suppression
+  is what keeps Mastodon's `invisible`/`ellipsis` split link working. What it is NOT is "an
+  anchor containing an anchor is invisible" — text before the nest survives and
+  stays eligible. `sanitize-html` splits a DIRECT `<a><a>` itself, so it takes
+  one allowed tag in between to reach this, and all fourteen work.
+  If a construction rule other than nested anchors ever matters here, prefer
+  giving the extractor a spec-compliant parser over adding a second special
+  case.
+  Anchors that are mentions or hashtags are rejected by the markers the
+  renderer itself emits (`rel="tag"` and the `mention`/`hashtag`/`u-url`
+  classes).
+  Do not "simplify" the local path back to walking marked's token tree. It was
+  written that way and the tokens are the wrong shape for this job three times
+  over: marked flattens raw inline HTML into flat SIBLING tokens, so a link
+  inside `<span class="hidden">…</span>` has no ancestor to inherit hidden-ness
+  from and beat the visible link below it; link text written as an entity
+  (`[&#8203;](url)`) reads as non-empty in source while rendering to nothing;
+  and a table cell carries its own `header` BOOLEAN, which crashed the walker
+  and silently turned every post containing a table into "no links". Rendering
+  first removes all three, because the HTML walker inherits hidden-ness and the
+  parser decodes entities.
+- **Every optional field of the Mastodon `PreviewCard` gets an `''`/`0`
+  default.** That schema declares every string field non-nullable and
+  `Mastodon.Status.parse` runs once per status inside a handler that catches and
+  SKIPS a status it cannot serialize — so a card missing one key does not lose
+  the card, it drops the whole status out of the timeline. `getMastodonPreviewCard`
+  owns those defaults and `getMastodonPreviewCard.test.ts` pins them.
+- **`html` and `embed_url` are always empty.** This server does not consume
+  oEmbed, and emitting remote-authored markup for clients to inject is a hazard
+  with no upside. If oEmbed is ever added, that is a deliberate decision with its
+  own sanitization story — not a side effect.
+- **Card text is remote, author-controlled input.** It is stripped of control,
+  C1 and bidi characters and truncated at parse time (`siteName`/`authorName`
+  are `varchar(255)`, so that cap is a PostgreSQL insert requirement, not a
+  preference), rendered as React text nodes and never as markup, its href goes
+  through `safeExternalHref`, and its thumbnail is `https`-only and loaded with
+  `referrerPolicy="no-referrer"`. The displayed domain is always derived from
+  the URL, never from the page's own `og:site_name`, which the page controls.
+- **The card yields to media, a quote or a fitness activity in the UI** — but it
+  is still fetched and still served over the API in all three cases, so a client
+  is free to decide otherwise. Display policy lives in `post.tsx`, not in the
+  fetcher.
+- **The kill switch is `network.linkPreviews`, not a `features.*` flag.** The
+  `features.*` namespace is navigation-only (its switches are keyed off the nav
+  registry and only remove items from navigation); this one gates outbound
+  requests to third-party sites, which is what an operator turning it off
+  actually cares about. It lives on Admin → Network with the other
+  outbound-request settings and has no env var, so the kill switch can never be
+  locked shut by the environment. It gates FETCHING only: the cleanup that drops
+  a card when an edit removes its link runs either way, so turning previews off
+  cannot strand a card on a post that no longer links anything.
+- **Known gaps, all deliberate — none of them is an oversight to "fix" by
+  bolting on a sweep.** `FetchLinkPreviewJob` is enqueued from exactly one place
+  (`syncStatusLinkPreview`, on create and edit), which has three consequences.
+  A status whose first fetch failed never acquires a card, because nothing
+  re-runs for it — the hour-long negative cache only helps a _later_ status
+  linking the same URL. An attached card is never re-read on its own, so the
+  7-day refresh only happens when someone posts that link again. And nothing
+  ever deletes a `link_previews` row, so the per-URL cache grows without bound.
+  These are the shape of a server with no recurring-job infrastructure (the
+  queue can delay a message but not repeat one — the same constraint that makes
+  fitness service reminders evaluate on write). `link_previews_status_updated_idx`
+  exists for the staleness sweep that would close them; until such a sweep is
+  written, expect it to be unused.
+- **Polls get no card, but only because nothing asks for one.** Neither
+  `createPoll`, `updatePoll` nor `createPollJob` calls `syncStatusLinkPreview`;
+  everything below that call is already type-agnostic. `StatusPoll` extends
+  `StatusNote` so it carries `linkPreview`, and the hydration and `post.tsx`
+  both handle any status.
+  There IS a storage asymmetry — `createPoll` stores `convertMarkdownText(...)`'s
+  rendered HTML where `createNote` stores raw markdown, and `extractPreviewUrl`
+  still picks its branch from `isLocalActor` — but it stopped mattering when
+  extraction moved to rendering the text and walking the result: marked leaves
+  already-rendered HTML untouched, so a poll body run through the local branch
+  renders to itself and yields the same URL the remote branch would. Verified
+  both ways round. So this is now a one-line change, and the thing to check
+  before making it is not the parser but the ordering rule the note actions
+  follow — schedule the sync AFTER the poll has published, or on the default
+  in-process queue the author waits on a third-party fetch before their poll
+  goes anywhere.
+
 ## Status Posts & Actions
 
 Every surface that renders a status post — the home timeline, profiles, lists,
@@ -1524,6 +1773,8 @@ Use the one that matches the database you are reasoning about:
 - **`migrations/schema.sql`** — the **PostgreSQL** schema (a `pg_dump`). Use it when inspecting the schema for PostgreSQL deployments.
 - **`migrations/schema.sqlite.sql`** — the **SQLite** schema (a `sqlite3 .schema` dump). Use it when inspecting the schema for SQLite — which is what local dev and the Vitest test suite use (tests run against in-memory SQLite). Because the two backends use different SQL dialects (e.g. `character varying`/`jsonb`/`timestamp with time zone` vs `varchar`/`json`/`datetime`), the Postgres dump cannot be loaded into SQLite and vice versa — always read the file for the right backend.
 
+"In lockstep" means they describe the same migration set, **not** that every column has the same type in both. A migration may deliberately be backend-conditional, and then the dumps legitimately disagree: `20260207223000_fix_attachments_media_id_type.js` returns early unless the client is `pg`, so `attachments.mediaId` is `integer` on PostgreSQL and stays `varchar(255)` on SQLite. That is not drift — do not "reconcile" it or regenerate the dumps over it. Check the migration before treating a per-column difference as a bug.
+
 The app (`yarn migrate`) runs Knex migrations, but the test suite does **not** — `lib/database/testUtils.ts` builds every test database directly from these dumps (see Testing Guidelines). If the dumps drift from the migrations, tests run against a stale schema, so keeping them in lockstep is load-bearing, not just hygiene. They are gitignored by the blanket `*.sql` rule and re-included by explicit `!` negations in `.gitignore`.
 
 - **Any PR that adds, edits, or removes a Knex migration in `migrations/` MUST regenerate BOTH `migrations/schema.sql` and `migrations/schema.sqlite.sql` in the same PR.** Keep them in lockstep — they must always describe the same migration set. CI's **Schema Dump Sync** job regenerates the SQLite dump from the migrations on every push/PR and fails on drift; the PostgreSQL dump has no CI gate, so regenerating it stays on you.
@@ -1557,6 +1808,7 @@ The app (`yarn migrate`) runs Knex migrations, but the test suite does **not** �
 - Avoid database-specific features unless wrapped with conditional logic or fallback behavior for each backend.
 - Test migrations and queries against SQLite (used in tests) to catch compatibility issues early.
 - Use standard SQL types and avoid vendor-specific extensions (e.g., use `text` instead of PostgreSQL's `varchar[]`).
+- **A client-supplied id compared against a numeric column must be coerced first — PostgreSQL turns a bad id into an error, not a miss.** `medias.id` (and `attachments.mediaId`) are `integer` on PostgreSQL, so `where('medias.id', 'abc')` raises `invalid input syntax for type integer` and a 404 becomes a 500. SQLite's dynamic typing just matches nothing, so the default test run never sees it: `TEST_DATABASE_TYPE=sqlite` is what CI pins, and only `TEST_DATABASE_TYPE=pg` catches this class of bug. In `lib/database/sql/media.ts` every method that **compares** a `mediaId` against `medias.id` runs it through `toMediaRowId` first, so the caller reports "not found" without touching the database. (`createAttachment` **writes** `mediaId` rather than comparing it and is deliberately unguarded, since coercing would silently drop the link instead of surfacing a bad id. Note that `POST /api/v1/accounts/outbox` reaches it with an unvalidated `PostBoxAttachment.id`, so a malformed id there still fails the insert on PostgreSQL after the status row is committed — that endpoint needs its own validation and is a separate bug from this guard.) The guard is shape-checked and range-bounded on purpose, not a bare `Number()` — it accepts optional leading zeros, digits, an optional all-zero fraction, and a value in 1..2147483647, and nothing else. Be aware this is deliberately **tighter than the backends themselves**, so on PostgreSQL it is a behaviour change, not only a bug fix: `'0x10'` and `'0b101'` used to resolve media 16 and 5 there (PostgreSQL accepts non-decimal integer literals since 16) and `'+12'`/`' 12 '` used to resolve media 12 on both backends — all now 404, which is the Mastodon answer for something that is not a row id. `'abc'`, `'1e3'`, `'12.0'` and anything above 2147483647 raised `invalid input syntax`/`value out of range` on PostgreSQL and are the 500s being fixed. `'12.0'` is the one spelling kept rather than tightened away, for **SQLite**: `attachments.mediaId` is `varchar` there, so an id bound as a JS number lands as `'1.0'` and gets re-resolved on every status edit. No production writer does that today, so treat it as defence in depth rather than a shim for observed data. Apply the same treatment to any new query that compares a caller-supplied value against a numeric column, and give test fixtures values the column can actually hold.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

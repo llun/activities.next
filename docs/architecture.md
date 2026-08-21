@@ -195,6 +195,35 @@ Long-running operations (sending activities to remote servers, processing file u
 - **Upstash QStash** — Managed HTTP-based message queue (recommended for production)
 - **Synchronous** — Jobs execute inline (default, suitable for small instances and local development)
 
+Note the difference where a job is delayed: QStash honours `delaySeconds`, while
+the synchronous backend has no scheduler and **drops** any delayed message. Code
+that wants a delay must therefore check `getQueue().runsInline` and skip the
+delay rather than losing the job (see `syncStatusLinkPreview`).
+
+### Link Preview Cards
+
+When a status contains a link, `FetchLinkPreviewJob` fetches that page once,
+extracts its OpenGraph/Twitter-card metadata, and stores it as a preview card
+that both the web UI and the Mastodon API's `Status.card` render.
+
+- Cards are cached **per URL** in `link_previews`, keyed by a sha256 of the
+  normalized URL, and `status_link_previews` maps a status to the card it shows.
+  A link shared by many posts is fetched once, not once per post.
+- Pages are fetched through `safeRemoteFetch` (HTTPS only, private-IP
+  blocklists, DNS pinning, redirect and body caps) with a 1 MiB body cap and a
+  5s-per-hop budget over at most one redirect,
+  and must answer `text/html` in UTF-8 to be parsed at all. Only the document
+  `<head>` is parsed: the byte cap bounds transfer, not CPU, and the HTML parser
+  is quadratic in nesting depth.
+- A completed card is re-read after 7 days. A failure is stored as a
+  negative-cache row for an hour, so an unreachable host is not re-contacted for
+  every post that mentions it.
+- Fetches for **remote** statuses are delayed by a random 1–59s under a real
+  queue, so a widely-shared link does not get hit by every receiving server at
+  once.
+- Admins can turn fetching off entirely under Admin → Network → Link previews
+  (`network.linkPreviews`). Cards already stored keep rendering.
+
 ### Media & File Storage
 
 Media files (images and video) and fitness files (.fit, .gpx, .tcx) support multiple storage backends:
@@ -288,6 +317,7 @@ Other tables: sessions, notifications, medias, fitness_files,
               blocks, mutes, actor_domain_blocks, filters, reports,
               markers, endorsements,
               lists, featured_tags, customEmojis, translation_cache,
+              link_previews, status_link_previews,
               domain federation rules, recipients, counters, poll_choices,
               clients, tokens, auth_codes (Mastodon API OAuth),
               oauthClient, oauthAccessToken, oauthRefreshToken,
