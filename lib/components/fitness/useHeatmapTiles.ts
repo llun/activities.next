@@ -41,33 +41,30 @@ export interface HeatmapViewport {
 }
 
 /**
- * A hard ceiling on tiles per view, independent of the request batching.
+ * The most tiles one view may ask for.
  *
- * `tilesForBounds` answers a rectangle of indices, and a caller handing in a
- * wide bounds with a deep zoom — inconsistent inputs, but nothing stops them —
- * would otherwise enumerate billions of coordinates before anything noticed.
- * A view needing more than this is not a view worth tiling, so it draws the
- * untiled geometry instead.
- *
- * The real worst case is far below it: a full-bleed embed at the least
- * favourable ladder rounding wants about 300 tiles, so this is roughly a
- * viewport's worth of headroom rather than a limit anyone meets.
+ * Not a guard against absurd input — an ordinary viewport reaches it. A
+ * full-bleed embed at 1920x1080, at a zoom just past a ladder rung, wants over
+ * 500 tiles, and a 1440p one wants near a thousand. So a view that exceeds this
+ * is COARSENED rather than refused: `load` steps down the ladder until the
+ * count fits, which is the same trade the ladder itself makes — less detail for
+ * a wider view — instead of abandoning the view and stranding whatever was
+ * drawn before it.
  */
-export const MAX_TILES_PER_VIEW = 384
+export const MAX_TILES_PER_VIEW = 512
 
 /**
  * How many decoded tiles to keep. Sized so panning back and forth across a
  * city, and stepping one zoom out and in again, are both free.
  *
  * **It must exceed `MAX_TILES_PER_VIEW`, and that is a correctness bound, not a
- * tuning one.** Tiles are inserted batch by batch while a view loads, and
+ * tuning one.** Tiles are inserted batch by batch while a view loads and
  * eviction takes the oldest first — so a cache smaller than one view would
- * evict the batches that view had already fetched before it finished
- * assembling, and the map would draw itself with holes it has no way to notice.
- * Above that floor it is a memory trade: a tile is a few KB of decoded runs, so
- * this holds a couple of viewports in a few MB.
+ * evict the batches that view had already fetched and assemble a map with holes
+ * it has no way to notice. Above that floor it is a memory trade: a tile is a
+ * few KB of decoded runs, so this holds a couple of viewports in a few MB.
  */
-export const TILE_CACHE_MAX_TILES = 1024
+export const TILE_CACHE_MAX_TILES = 1536
 
 /** Wait for the pan or pinch to settle before spending a request on it. */
 export const VIEW_SETTLE_MS = 200
@@ -163,6 +160,10 @@ export const useHeatmapTiles = ({
   const abortRef = useRef<AbortController | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fetchRef = useRef<HeatmapTileFetcher | undefined>(fetchTiles)
+  // The last viewport the map reported, so the hook can re-ask for it when its
+  // own inputs change rather than waiting for the next gesture.
+  const viewportRef = useRef<HeatmapViewport | null>(null)
+  const signatureRef = useRef<string | null>(null)
   const [state, setState] = useState<{
     runs: HeatmapTileRun[]
     groups: HeatmapTileGroup[]
@@ -174,12 +175,24 @@ export const useHeatmapTiles = ({
   }, [fetchTiles])
 
   // A different pyramid is a different set of tiles; nothing cached survives.
+  //
+  // And the map must be re-asked, not merely cleared. Every call into this hook
+  // comes from a map GESTURE, so a pyramid that finishes building — or is
+  // rebuilt — while someone is looking at the map would otherwise leave them on
+  // untiled geometry until they happened to pan.
   const sourceVersion = tileSource?.version ?? 0
   useEffect(() => {
+    abortRef.current?.abort()
+    if (timerRef.current) clearTimeout(timerRef.current)
     versionRef.current = sourceVersion
     cacheRef.current.clear()
+    signatureRef.current = null
     setState({ runs: [], groups: [], zoom: null })
-  }, [sourceVersion])
+
+    const viewport = viewportRef.current
+    if (!enabled || !viewport) return
+    void loadRef.current(viewport)
+  }, [enabled, sourceVersion])
 
   useEffect(
     () => () => {
@@ -193,12 +206,34 @@ export const useHeatmapTiles = ({
     const fetcher = fetchRef.current
     if (!fetcher) return
 
-    const z = storedZoomForView(zoom)
-    const range = tilesForBounds(bounds, z)
-    const width = range.maxX - range.minX + 1
-    const height = range.maxY - range.minY + 1
-    if (width <= 0 || height <= 0) return
-    if (width * height > MAX_TILES_PER_VIEW) return
+    // Coarsen until the view fits rather than abandoning it. Stepping DOWN the
+    // ladder trades detail for coverage, which is the trade the ladder already
+    // makes for a wider view; refusing would strand whatever was drawn before.
+    let z = storedZoomForView(zoom)
+    let range = tilesForBounds(bounds, z)
+    let width = range.maxX - range.minX + 1
+    let height = range.maxY - range.minY + 1
+    while (
+      z > TILE_MIN_ZOOM &&
+      (width <= 0 || height <= 0 || width * height > MAX_TILES_PER_VIEW)
+    ) {
+      const ladder = TILE_LADDER_ZOOMS as readonly number[]
+      z = ladder[ladder.indexOf(z) - 1] ?? TILE_MIN_ZOOM
+      range = tilesForBounds(bounds, z)
+      width = range.maxX - range.minX + 1
+      height = range.maxY - range.minY + 1
+    }
+
+    // Nothing on the ladder fits — a bounds that wraps the antimeridian gives a
+    // negative width at every rung (`tilesForBounds` reports the wrap that way
+    // and leaves the split to its caller). Clear, so the surface falls back to
+    // its untiled geometry instead of keeping the previous view's tiles drawn
+    // over somewhere the map is no longer looking.
+    if (width <= 0 || height <= 0 || width * height > MAX_TILES_PER_VIEW) {
+      signatureRef.current = null
+      setState({ runs: [], groups: [], zoom: null })
+      return
+    }
 
     const wanted: Array<{ x: number; y: number }> = []
     for (let x = range.minX; x <= range.maxX; x += 1) {
@@ -210,6 +245,17 @@ export const useHeatmapTiles = ({
     const cache = cacheRef.current
     const keyFor = (x: number, y: number) =>
       `${versionRef.current}:${z}:${x}:${y}`
+    // Touch what this view already holds BEFORE fetching, so the tiles it is
+    // about to draw are the newest entries. Otherwise eviction — which runs as
+    // each batch lands — takes the returning view's own cached tiles first,
+    // exactly the ones it is assembling from.
+    for (const { x, y } of wanted) {
+      const key = keyFor(x, y)
+      const cached = cache.get(key)
+      if (!cached) continue
+      cache.delete(key)
+      cache.set(key, cached)
+    }
     const missing = wanted.filter(({ x, y }) => !cache.has(keyFor(x, y)))
 
     abortRef.current?.abort()
@@ -226,16 +272,22 @@ export const useHeatmapTiles = ({
         })
         if (controller.signal.aborted) return
 
-        // The pyramid was rebuilt underneath us. What prevents the two builds
-        // being MIXED is the version in every cache key, not this line —
-        // advancing the version alone would already make the old entries
-        // unreachable. Clearing is about memory: unreachable entries would
-        // otherwise sit in the cache counting toward its cap until eviction
-        // pushed them out, crowding out live tiles for a while after a rebuild.
-        if (response.version !== versionRef.current) {
+        // The pyramid was rebuilt underneath us. Restart the whole view rather
+        // than carrying on: `missing` was computed against the OLD version, so
+        // the batches already cached are now unreachable under the new key
+        // prefix, and continuing would assemble a view out of whatever happened
+        // to arrive after the switch — a map with holes it cannot detect.
+        //
+        // Only ever forward. A response answering an OLDER version is a reply
+        // to a request this pass has already superseded; adopting it would
+        // rewind the version and re-show the previous build's tiles.
+        if (response.version > versionRef.current) {
           cache.clear()
           versionRef.current = response.version
+          void loadRef.current({ zoom, bounds })
+          return
         }
+        if (response.version !== versionRef.current) return
 
         for (const { x, y } of batch) {
           const payload = response.tiles[`${x}:${y}`]
@@ -277,12 +329,24 @@ export const useHeatmapTiles = ({
       groups.push({ key, runs: cached })
     }
 
+    // Bail when nothing changed. Every settled gesture lands here, and a new
+    // array identity would rebuild the GeoJSON and push it to the map even for
+    // a pan that moved within tiles already drawn.
+    const signature = `${z}|${groups.map((group) => group.key).join(',')}`
+    if (signature === signatureRef.current) return
+    signatureRef.current = signature
     setState({ runs, groups, zoom: z })
   }, [])
+
+  const loadRef = useRef(load)
+  useEffect(() => {
+    loadRef.current = load
+  }, [load])
 
   const onViewChange = useCallback(
     (viewport: HeatmapViewport) => {
       if (!enabled) return
+      viewportRef.current = viewport
       if (timerRef.current) clearTimeout(timerRef.current)
       timerRef.current = setTimeout(() => {
         void load(viewport)

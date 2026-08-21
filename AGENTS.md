@@ -463,10 +463,10 @@ it; there is no legacy shape left to copy.
   whose call landed after a clear deleted the replacement build's version-1
   tiles, and that build then stamped itself `completed` over tiles that were
   gone.
-- **Tile work never fails the run.** No map RENDERS the pyramid yet — the two
-  routes that serve it fall back to the untiled blob — so losing a build costs a
-  rebuild while failing the run costs the user the heatmap they can actually
-  see. Every tile-path error — the tiler, a flush, the
+- **Tile work never fails the run.** Every map now renders the pyramid, but only
+  after its first batch of tiles resolves — until then, and whenever a fetch
+  fails, it draws the untiled blob. So losing a build costs zoom detail while
+  failing the run costs the user the heatmap they can actually see. Every tile-path error — the tiler, a flush, the
   completion — abandons the build, records why on the pyramid row, and lets the
   legacy path finish. Two writes have nothing to record on and are only logged:
   the CLAIM, because its compare-and-swap and the read confirming it share one
@@ -626,6 +626,18 @@ it; there is no legacy shape left to copy.
   was a 400 on one route and ignored on the other. Neither was a leak, but a
   divergence between two routes that must agree is how one becomes a leak the
   next time either grows a scope-bearing parameter.
+- **The client picks its rung by rounding UP, and two unit conversions guard
+  that.** GL reports zoom on a 512px tile grid while the pyramid is built on
+  256px tiles, so `map.getZoom() + 1` is the pyramid's zoom; MapKit has no zoom
+  at all and derives a FRACTIONAL one from its region and element width, never
+  `getZoomLevelForBounds`, which returns the floor and would undo the rounding.
+  A view needing more than `MAX_TILES_PER_VIEW` is COARSENED down the ladder,
+  not refused — an ordinary full-bleed embed reaches that ceiling — and the tile
+  cache must hold more than one view or a view evicts its own fetched batches.
+- **Tiles REPLACE the untiled geometry, never draw beside it.** The two describe
+  the same roads at different fidelities, so together every line renders at
+  twice its opacity. The swap waits for a batch to resolve, so a pan never
+  blanks the map, and a failed fetch leaves the previous view standing.
 - Full design and rationale: `docs/fitness-file-storage.md` → Route heatmap tile
   pyramid.
 

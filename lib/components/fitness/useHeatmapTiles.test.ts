@@ -79,7 +79,7 @@ describe('useHeatmapTiles', () => {
       source: { ...tileSource, extent: TILE_EXTENT + 1 },
       fetcher: true
     }
-  ])('is disabled with $description', ({ source, fetcher }) => {
+  ])('is disabled with $description', async ({ source, fetcher }) => {
     const fetchTiles = vi.fn()
     const { result } = renderHook(() =>
       useHeatmapTiles({
@@ -90,6 +90,9 @@ describe('useHeatmapTiles', () => {
 
     expect(result.current.enabled).toBe(false)
     act(() => result.current.onViewChange({ zoom: 12, bounds }))
+    // Settle first: asserting before the window closes would pass even for a
+    // hook that had merely deferred the request rather than refused it.
+    await settle()
     expect(fetchTiles).not.toHaveBeenCalled()
   })
 
@@ -216,11 +219,80 @@ describe('useHeatmapTiles', () => {
     act(() => release({ version: 3, tiles: {} }))
   })
 
-  it('drops everything cached when the pyramid was rebuilt underneath it', async () => {
+  it('restarts the view when the pyramid is rebuilt mid-load, rather than assembling half of it', async () => {
+    // `missing` was computed against the OLD version, so the batches already
+    // cached are unreachable under the new key prefix. Carrying on would draw a
+    // view made of whatever happened to arrive after the switch.
     const fetchTiles = vi
       .fn(async ({ tiles }) => batchOf(tiles, 4))
       .mockImplementationOnce(async ({ tiles }) => batchOf(tiles, 3))
       .mockImplementationOnce(async ({ tiles }) => batchOf(tiles, 4))
+    const { result } = renderHook(() =>
+      useHeatmapTiles({ tileSource, fetchTiles })
+    )
+
+    act(() =>
+      result.current.onViewChange({
+        zoom: 6.01,
+        bounds: { minLat: 45, maxLat: 55, minLng: 0, maxLng: 20 }
+      })
+    )
+    await settle()
+    await waitFor(() => expect(result.current.runs.length).toBeGreaterThan(0))
+
+    // Every tile of the view is present, all at the new version — not just the
+    // batches that happened to land after the switch.
+    const finalRequests = fetchTiles.mock.calls
+      .filter(([request]) => request.version === 4)
+      .flatMap(([request]) => request.tiles)
+    expect(result.current.runs).toHaveLength(finalRequests.length)
+  })
+
+  it('ignores a response answering an older version than it now holds', async () => {
+    // A reply to a request this pass already superseded. Adopting it would
+    // rewind the version and re-show the previous build's tiles.
+    const fetchTiles = vi.fn(async ({ tiles }) => batchOf(tiles, 1))
+    const { result } = renderHook(() =>
+      useHeatmapTiles({ tileSource, fetchTiles })
+    )
+
+    act(() => result.current.onViewChange({ zoom: 12, bounds }))
+    await settle()
+    await waitFor(() => expect(fetchTiles).toHaveBeenCalled())
+
+    expect(result.current.runs).toEqual([])
+    expect(result.current.zoom).toBeNull()
+  })
+
+  it('coarsens a view too large for one request set instead of abandoning it', async () => {
+    // An ordinary full-bleed embed reaches the ceiling, so refusing would strand
+    // whatever was drawn before. Stepping DOWN the ladder trades detail for
+    // coverage — the same trade the ladder itself makes for a wider view.
+    const fetchTiles = vi.fn(async ({ tiles }) => batchOf(tiles))
+    const { result } = renderHook(() =>
+      useHeatmapTiles({ tileSource, fetchTiles })
+    )
+
+    act(() =>
+      result.current.onViewChange({
+        zoom: 16,
+        bounds: { minLat: -60, maxLat: 70, minLng: -170, maxLng: 170 }
+      })
+    )
+    await settle()
+    await waitFor(() => expect(fetchTiles).toHaveBeenCalled())
+
+    // Not the rung the view asked for, and small enough to be worth drawing.
+    expect(result.current.zoom).toBeLessThan(16)
+    const requested = fetchTiles.mock.calls.flatMap(([r]) => r.tiles)
+    expect(requested.length).toBeLessThanOrEqual(MAX_TILES_PER_VIEW)
+  })
+
+  it('falls back to untiled geometry for a viewport that wraps the antimeridian', async () => {
+    // `tilesForBounds` reports a wrap as a negative width and leaves the split
+    // to its caller. Keeping the previous view's tiles drawn would show one
+    // area's detail over ground the map is no longer looking at.
+    const fetchTiles = vi.fn(async ({ tiles }) => batchOf(tiles))
     const { result } = renderHook(() =>
       useHeatmapTiles({ tileSource, fetchTiles })
     )
@@ -231,39 +303,35 @@ describe('useHeatmapTiles', () => {
 
     act(() =>
       result.current.onViewChange({
-        zoom: 14,
-        bounds: { minLat: 51, maxLat: 51.02, minLng: 4, maxLng: 4.03 }
+        zoom: 4,
+        bounds: { minLat: -10, maxLat: 10, minLng: 170, maxLng: -170 }
       })
     )
     await settle()
-    await waitFor(() => expect(fetchTiles).toHaveBeenCalledTimes(2))
 
-    // Back to the first viewport: its tiles were keyed to version 3 and must
-    // have been discarded, so it has to be fetched again.
-    act(() => result.current.onViewChange({ zoom: 12, bounds }))
-    await settle()
-    await waitFor(() => expect(fetchTiles).toHaveBeenCalledTimes(3))
-    expect(fetchTiles.mock.calls[2][0].version).toBe(4)
+    await waitFor(() => expect(result.current.runs).toEqual([]))
+    expect(result.current.zoom).toBeNull()
   })
 
-  it('draws nothing rather than enumerating an impossible view', async () => {
-    // Inconsistent inputs — the whole world at a deep zoom — would otherwise
-    // enumerate billions of coordinates before anything noticed.
-    const fetchTiles = vi.fn(async ({ tiles }) => batchOf(tiles))
-    const { result } = renderHook(() =>
-      useHeatmapTiles({ tileSource, fetchTiles })
+  it('re-asks for the current view when the pyramid version changes', async () => {
+    // Every call into the hook comes from a map GESTURE. A pyramid that
+    // finishes building while someone is looking at the map would otherwise
+    // leave them on untiled geometry until they happened to pan.
+    const fetchTiles = vi.fn(async ({ tiles }) => batchOf(tiles, 3))
+    const { rerender, result } = renderHook(
+      ({ source }) => useHeatmapTiles({ tileSource: source, fetchTiles }),
+      { initialProps: { source: tileSource } }
     )
 
-    act(() =>
-      result.current.onViewChange({
-        zoom: 16,
-        bounds: { minLat: -80, maxLat: 80, minLng: -179, maxLng: 179 }
-      })
-    )
+    act(() => result.current.onViewChange({ zoom: 12, bounds }))
     await settle()
+    await waitFor(() => expect(fetchTiles).toHaveBeenCalledTimes(1))
 
-    expect(fetchTiles).not.toHaveBeenCalled()
-    expect(result.current.runs).toEqual([])
+    fetchTiles.mockImplementation(async ({ tiles }) => batchOf(tiles, 9))
+    rerender({ source: { ...tileSource, version: 9 } })
+
+    await waitFor(() => expect(fetchTiles).toHaveBeenCalledTimes(2))
+    expect(fetchTiles.mock.calls[1][0].version).toBe(9)
   })
 
   it('holds at least a whole view, so a big view cannot evict itself', () => {

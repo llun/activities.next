@@ -5,11 +5,16 @@ import '@testing-library/jest-dom'
 import { render, screen, waitFor } from '@testing-library/react'
 
 import type { FitnessRouteHeatmapData } from '@/lib/client'
-import { TILE_EXTENT } from '@/lib/services/fitness-files/heatmapTiles/constants'
+import {
+  HEAT_COUNT_SATURATION,
+  HEAT_VISIBLE_BASE_OPACITY,
+  TILE_EXTENT,
+  heatOpacityForCount
+} from '@/lib/services/fitness-files/heatmapTiles/constants'
 import { encodeTile } from '@/lib/services/fitness-files/heatmapTiles/tileCodec'
 import { loadMapboxModule } from '@/lib/utils/mapbox'
 
-import { RouteHeatmapMap } from './RouteHeatmapMap'
+import { RouteHeatmapMap, tileOpacityStops } from './RouteHeatmapMap'
 
 // Drive the map through a fake GL module so the test never touches a real CDN /
 // Mapbox script (none load in jsdom). MapLibre is stubbed to a never-resolving
@@ -30,7 +35,7 @@ type Handlers = Record<string, () => void>
 const createFakeGl = (
   view: { zoom: number; bounds: [number, number, number, number] } = {
     zoom: 12,
-    bounds: [5.6, 52, 6.2, 52.6]
+    bounds: [5.6, 52, 5.73, 52.13]
   }
 ) => {
   const handlers: Handlers = {}
@@ -200,6 +205,33 @@ describe('RouteHeatmapMap', () => {
   })
 })
 
+describe('tileOpacityStops', () => {
+  it('is generated from heatOpacityForCount, not copied out of it', () => {
+    // The server documents the ramp with that function. Copying its numbers
+    // here would let the two drift silently.
+    expect(tileOpacityStops(HEAT_VISIBLE_BASE_OPACITY)).toEqual(
+      Array.from(
+        { length: HEAT_COUNT_SATURATION },
+        (_unused, i) => i + 1
+      ).flatMap((count) => [
+        count,
+        heatOpacityForCount(count, HEAT_VISIBLE_BASE_OPACITY)
+      ])
+    )
+  })
+
+  it('rises strictly with the count, which a GL interpolate requires', () => {
+    const stops = tileOpacityStops(HEAT_VISIBLE_BASE_OPACITY)
+    const inputs = stops.filter((_unused, index) => index % 2 === 0)
+    const outputs = stops.filter((_unused, index) => index % 2 === 1)
+    for (let i = 1; i < inputs.length; i += 1) {
+      // GL rejects a stop list whose inputs are not ascending.
+      expect(inputs[i]).toBeGreaterThan(inputs[i - 1])
+      expect(outputs[i]).toBeGreaterThan(outputs[i - 1])
+    }
+  })
+})
+
 describe('RouteHeatmapMap tiled rendering', () => {
   const tileSource = {
     version: 2,
@@ -240,7 +272,9 @@ describe('RouteHeatmapMap tiled rendering', () => {
     )
 
     await waitFor(() => expect(fetchTiles).toHaveBeenCalled())
-    expect(fetchTiles.mock.calls[0][0].z).toBe(12)
+    // The double reports GL zoom 12, which is 13 on the pyramid's 256px grid,
+    // and 13 rounds up to the z14 rung.
+    expect(fetchTiles.mock.calls[0][0].z).toBe(14)
     expect(fetchTiles.mock.calls[0][0].version).toBe(2)
   })
 
@@ -287,6 +321,27 @@ describe('RouteHeatmapMap tiled rendering', () => {
     expect(feature.properties.count).toBe(5)
   })
 
+  it('paints the tile layer off the count property', async () => {
+    // Renaming the property the paint reads would silently flatten the ramp to
+    // its fallback, with every street the same colour.
+    const { gl, map } = createFakeGl()
+    vi.mocked(loadMapboxModule).mockResolvedValue(gl as never)
+
+    render(
+      <RouteHeatmapMap
+        heatmap={tiled}
+        mapProvider={{ type: 'mapbox', accessToken: 'pk.test' }}
+        fetchTiles={fetchAll()}
+      />
+    )
+
+    await waitFor(() => expect(map.addLayer).toHaveBeenCalled())
+    const layer = map.addLayer.mock.calls
+      .map(([definition]) => definition as { id: string; paint: unknown })
+      .find((definition) => definition.id === 'route-heatmap-tile-lines')
+    expect(JSON.stringify(layer?.paint)).toContain('"count"')
+  })
+
   it('stays entirely on the untiled path for a heatmap with no pyramid', async () => {
     // Every heatmap generated before the pyramid existed, and every variant it
     // cannot answer, still renders exactly as it did.
@@ -312,7 +367,7 @@ describe('RouteHeatmapMap tiled rendering', () => {
   it('reports a settled pan so the next view is fetched', async () => {
     const view = {
       zoom: 12,
-      bounds: [5.6, 52, 6.2, 52.6] as [number, number, number, number]
+      bounds: [5.6, 52, 5.73, 52.13] as [number, number, number, number]
     }
     const { gl, handlers } = createFakeGl(view)
     vi.mocked(loadMapboxModule).mockResolvedValue(gl as never)
@@ -327,14 +382,14 @@ describe('RouteHeatmapMap tiled rendering', () => {
     )
     await waitFor(() => expect(fetchTiles).toHaveBeenCalled())
 
-    // Somewhere else entirely, at a zoom that lands on a different rung: 13
-    // rounds UP to 14, where 12 rounded to itself.
-    view.zoom = 13
-    view.bounds = [4.0, 51.0, 4.1, 51.1]
+    // Somewhere else entirely, at a zoom that lands on a different rung: GL 15
+    // is 16 on the pyramid's grid, where GL 12 was 13 -> rung 14.
+    view.zoom = 15
+    view.bounds = [4.0, 51.0, 4.017, 51.017]
     handlers.moveend?.()
 
     await waitFor(() =>
-      expect(fetchTiles.mock.calls.map(([request]) => request.z)).toContain(14)
+      expect(fetchTiles.mock.calls.map(([request]) => request.z)).toContain(16)
     )
   })
 })

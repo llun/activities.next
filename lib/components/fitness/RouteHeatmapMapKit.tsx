@@ -27,11 +27,12 @@ import {
   HEAT_COUNT_SATURATION,
   HEAT_HIDDEN_BASE_OPACITY,
   HEAT_VISIBLE_BASE_OPACITY,
+  TILE_MIN_ZOOM,
   heatOpacityForCount
 } from '@/lib/services/fitness-files/heatmapTiles/constants'
 import { simplifySegmentsToBudget } from '@/lib/services/fitness-files/simplifyRoute'
 import { cn } from '@/lib/utils'
-import { getZoomLevelForBounds } from '@/lib/utils/webMercator'
+import { TILE_SIZE } from '@/lib/utils/webMercator'
 
 // Mirrors RouteHeatmapMap's GL budget: the geometry is fit to this vertex target
 // by adaptively coarsening the Douglas–Peucker tolerance (shape-preserving) and
@@ -93,6 +94,22 @@ const TILE_WIDTH_FOR_COUNT = (count: number): number => {
   if (count >= 12) return 4.2
   if (count >= 4) return 3.4
   return 2.8
+}
+
+/**
+ * The view's zoom on the pyramid's 256px tile grid, as a fraction.
+ *
+ * MapKit has no zoom of its own — only a region and an element size — so it is
+ * computed the same way the projection defines it: how many 256px tiles the
+ * whole world would need for this many pixels to span this many degrees.
+ */
+const fractionalZoomForView = (
+  bounds: { minLng: number; maxLng: number },
+  widthPx: number
+): number => {
+  const span = bounds.maxLng - bounds.minLng
+  if (span <= 0 || widthPx <= 0) return TILE_MIN_ZOOM
+  return Math.log2((widthPx * 360) / (TILE_SIZE * span))
 }
 
 export interface RouteHeatmapMapKitProps {
@@ -196,6 +213,10 @@ export const RouteHeatmapMapKit: FC<RouteHeatmapMapKitProps> = ({
           const map = new mapkit.Map(container, {
             showsMapTypeControl: false
           })
+          // The heatmap has no reason to rotate, and a rotated viewport's region
+          // is the bounding box of the rotated rectangle — a superset that asks
+          // for tiles the reader cannot see, by up to a factor of two.
+          map.isRotationEnabled = false
           mapkitRef.current = mapkit
           mapRef.current = map
 
@@ -219,6 +240,12 @@ export const RouteHeatmapMapKit: FC<RouteHeatmapMapKitProps> = ({
       cancelled = true
       clearTimeout(loadWatchdog)
       overlaysRef.current = []
+      // Per-MAP state, not per-component. The overlays belong to the map being
+      // destroyed, so nothing needs removing from it — but leaving the keys
+      // behind would make the diff on the next map believe those tiles were
+      // already attached, and it would add nothing at all.
+      tileOverlaysRef.current.clear()
+      hasFramedRef.current = false
       mapRef.current?.destroy()
       mapRef.current = null
       mapkitRef.current = null
@@ -259,12 +286,12 @@ export const RouteHeatmapMapKit: FC<RouteHeatmapMapKitProps> = ({
         maxLng: center.longitude + span.longitudeDelta / 2
       }
       tiles.onViewChange({
-        zoom: getZoomLevelForBounds({
-          bounds: viewBounds,
-          width: rect.width,
-          height: rect.height,
-          padding: 0
-        }),
+        // Derived, and deliberately NOT `getZoomLevelForBounds`: that walks
+        // integer zooms and returns the first that fits, i.e. the FLOOR of the
+        // true zoom. Feeding a floored value into a rule whose whole job is to
+        // round UP gives back a rung up to two levels coarser than the view —
+        // the simplification this phase exists to stop showing.
+        zoom: fractionalZoomForView(viewBounds, rect.width),
         bounds: viewBounds
       })
     }
@@ -273,6 +300,19 @@ export const RouteHeatmapMapKit: FC<RouteHeatmapMapKitProps> = ({
     report()
     return () => map.removeEventListener('region-change-end', report)
   }, [isMapLoaded, tiles.enabled, tiles.onViewChange])
+
+  // Frame ONCE per map, not on every geometry change. Assigning `region`
+  // animates the map and fires `region-change-end`, which now drives a tile
+  // fetch — so re-framing whenever geometry changes would be a loop: pan,
+  // fetch, tiles arrive, snap back to the original framing, fetch again. The
+  // guard is reset when the map is destroyed, because it is per-MAP.
+  const frame = (map: MapKitMapSurface, mapkit: MapKitSurfaceModule) => {
+    if (hasFramedRef.current) return
+    const framing = focus?.bounds ?? bounds
+    if (!framing) return
+    map.region = boundsToRegion(mapkit, framing)
+    hasFramedRef.current = true
+  }
 
   // MapKit has no data source, so the polyline overlays are rebuilt (and the
   // region re-framed) whenever the rendered geometry changes.
@@ -285,6 +325,11 @@ export const RouteHeatmapMapKit: FC<RouteHeatmapMapKitProps> = ({
       map.removeOverlays(overlaysRef.current)
       overlaysRef.current = []
     }
+
+    // Frame BEFORE the tiled early return. A map recreated while tiles are
+    // already held would otherwise never be framed and would open on MapKit's
+    // default region — a blank map somewhere else entirely.
+    frame(map, mapkit)
 
     // Tiles replace this geometry rather than drawing over it — see the GL
     // sibling: the two describe the same roads and together every line renders
@@ -308,18 +353,6 @@ export const RouteHeatmapMapKit: FC<RouteHeatmapMapKitProps> = ({
       map.addOverlays(overlays)
       overlaysRef.current = overlays
     }
-
-    // Frame ONCE per map, not on every geometry change. Assigning `region`
-    // animates the map and fires `region-change-end`, which now drives a tile
-    // fetch — so re-framing whenever geometry changes would be a loop: pan,
-    // fetch, tiles arrive, snap back to the original framing, fetch again.
-    if (!hasFramedRef.current) {
-      const framing = focus?.bounds ?? bounds
-      if (framing) {
-        map.region = boundsToRegion(mapkit, framing)
-        hasFramedRef.current = true
-      }
-    }
   }, [
     bounds?.maxLat,
     bounds?.maxLng,
@@ -341,11 +374,14 @@ export const RouteHeatmapMapKit: FC<RouteHeatmapMapKitProps> = ({
 
     const styles = new Map<string, MapKitStyle>()
     const styleFor = (run: HeatmapTileRun) => {
-      const count = Math.min(
-        Math.max(Math.round(run.count), 1),
-        HEAT_COUNT_SATURATION
-      )
-      const key = `${run.hidden ? 'h' : 'v'}:${count}`
+      const count = Math.max(Math.round(run.count), 1)
+      // Opacity saturates at HEAT_COUNT_SATURATION; colour and width do NOT —
+      // their ramps run to 12 and 16. Clamping before all three would collapse
+      // every busy street onto the coolest tier, so only the opacity input is
+      // clamped, and the cache key keys on the resolved tier rather than the
+      // raw count so the style table stays small.
+      const opacityCount = Math.min(count, HEAT_COUNT_SATURATION)
+      const key = `${run.hidden ? 'h' : 'v'}:${opacityCount}:${TILE_COLOR_FOR_COUNT(count)}:${TILE_WIDTH_FOR_COUNT(count)}`
       const existing = styles.get(key)
       if (existing) return existing
       const style = new mapkit.Style(
@@ -354,7 +390,7 @@ export const RouteHeatmapMapKit: FC<RouteHeatmapMapKitProps> = ({
               strokeColor: HIDDEN_LINE_STYLE.strokeColor,
               lineWidth: HIDDEN_LINE_STYLE.lineWidth,
               strokeOpacity: heatOpacityForCount(
-                count,
+                opacityCount,
                 HEAT_HIDDEN_BASE_OPACITY
               )
             }
@@ -362,7 +398,7 @@ export const RouteHeatmapMapKit: FC<RouteHeatmapMapKitProps> = ({
               strokeColor: TILE_COLOR_FOR_COUNT(count),
               lineWidth: TILE_WIDTH_FOR_COUNT(count),
               strokeOpacity: heatOpacityForCount(
-                count,
+                opacityCount,
                 HEAT_VISIBLE_BASE_OPACITY
               )
             }

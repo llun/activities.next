@@ -6,6 +6,8 @@ import { render, screen, waitFor } from '@testing-library/react'
 
 import type { FitnessRouteHeatmapData } from '@/lib/client'
 import { createMapKitTestDouble } from '@/lib/components/fitness/mapkitTestDouble'
+import { TILE_EXTENT } from '@/lib/services/fitness-files/heatmapTiles/constants'
+import { encodeTile } from '@/lib/services/fitness-files/heatmapTiles/tileCodec'
 import { loadMapKitModule } from '@/lib/utils/mapkit'
 
 import { RouteHeatmapMapKit } from './RouteHeatmapMapKit'
@@ -178,5 +180,168 @@ describe('RouteHeatmapMapKit', () => {
     // The map itself is reused, only the overlays are rebuilt.
     expect(double.maps).toHaveLength(1)
     expect(double.getMap()?.destroyCount).toBe(0)
+  })
+})
+
+describe('RouteHeatmapMapKit tiled rendering', () => {
+  const tileSource = {
+    version: 2,
+    minZoom: 4,
+    maxZoom: 16,
+    ladder: [4, 6, 8, 10, 12, 14, 16],
+    extent: TILE_EXTENT
+  }
+  const tiled: FitnessRouteHeatmapData = { ...heatmap, tileSource }
+
+  const hot = encodeTile([{ count: 20, points: [0, 0, 32, 32] }])
+  const cool = encodeTile([{ count: 1, points: [8, 8, 40, 40] }])
+
+  const fetchWith = (payload: string) =>
+    vi.fn(async ({ tiles }: { tiles: Array<{ x: number; y: number }> }) => ({
+      version: 2,
+      tiles: Object.fromEntries(tiles.map(({ x, y }) => [`${x}:${y}`, payload]))
+    }))
+
+  // jsdom reports every box as 0x0, and the viewport reporter needs a real one
+  // to derive a zoom from — without this the whole tiled path is unreachable.
+  let rectSpy: ReturnType<typeof vi.spyOn> | undefined
+  beforeEach(() => {
+    rectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockReturnValue({
+        width: 800,
+        height: 450,
+        top: 0,
+        left: 0,
+        right: 800,
+        bottom: 450,
+        x: 0,
+        y: 0,
+        toJSON: () => ({})
+      } as DOMRect)
+  })
+
+  afterEach(() => {
+    rectSpy?.mockRestore()
+  })
+
+  it('fetches tiles for the region the map settles on', async () => {
+    const double = createMapKitTestDouble()
+    mockLoadMapKitModule.mockResolvedValue(double.mapkit as never)
+    const fetchTiles = fetchWith(cool)
+
+    render(<RouteHeatmapMapKit heatmap={tiled} fetchTiles={fetchTiles} />)
+
+    await waitFor(() => expect(fetchTiles).toHaveBeenCalled())
+    expect(fetchTiles.mock.calls[0][0].version).toBe(2)
+    expect(tileSource.ladder).toContain(fetchTiles.mock.calls[0][0].z)
+  })
+
+  it('replaces the untiled overlays rather than drawing beside them', async () => {
+    // The two describe the same roads at different fidelities; together every
+    // line renders at twice its opacity. The map opens on the untiled geometry
+    // — tiles cannot be asked for until a viewport exists — so this pins the
+    // hand-over, not the end state.
+    const double = createMapKitTestDouble()
+    mockLoadMapKitModule.mockResolvedValue(double.mapkit as never)
+
+    render(<RouteHeatmapMapKit heatmap={tiled} fetchTiles={fetchWith(cool)} />)
+
+    await waitFor(() =>
+      expect(double.getMap()?.currentOverlays.length).toBeGreaterThan(0)
+    )
+    const untiled = [...double.getMap()!.currentOverlays]
+
+    await waitFor(() =>
+      expect(double.getMap()!.removedOverlays.length).toBeGreaterThan(0)
+    )
+    for (const overlay of untiled) {
+      expect(double.getMap()!.currentOverlays).not.toContain(overlay)
+    }
+    expect(double.getMap()!.currentOverlays.length).toBeGreaterThan(0)
+  })
+
+  it('reaches the hot tier for a much-ridden run', async () => {
+    // The count ramps run to 12 and 16 while opacity saturates at 6. Clamping
+    // before all three would collapse every busy street onto the coolest tier.
+    const double = createMapKitTestDouble()
+    mockLoadMapKitModule.mockResolvedValue(double.mapkit as never)
+
+    render(<RouteHeatmapMapKit heatmap={tiled} fetchTiles={fetchWith(hot)} />)
+
+    await waitFor(() =>
+      expect(
+        double.overlaysOfKind('polyline').some((overlay) => {
+          const style = overlay.styleOptions as { strokeColor?: string }
+          return style?.strokeColor === '#facc15'
+        })
+      ).toBe(true)
+    )
+  })
+
+  it('frames a map that is rebuilt while tiles are already held', async () => {
+    // The framing guard and the per-tile overlay keys are per-MAP. Left over
+    // from a destroyed map they would make the next one open unframed, at
+    // MapKit's default region, with the diff believing its tiles were attached.
+    //
+    // The second map's fetch never resolves, so it mounts with the FIRST map's
+    // tiles still held — the state in which framing must still happen, and the
+    // one a fetch that resolves promptly would hide.
+    const double = createMapKitTestDouble()
+    mockLoadMapKitModule.mockResolvedValue(double.mapkit as never)
+    const fetchTiles = fetchWith(cool)
+
+    const { rerender } = render(
+      <RouteHeatmapMapKit heatmap={tiled} fetchTiles={fetchTiles} />
+    )
+    await waitFor(() => expect(double.maps.length).toBe(1))
+    await waitFor(() =>
+      expect(double.getMap()!.removedOverlays.length).toBeGreaterThan(0)
+    )
+
+    // From here the fetch never settles, so the second map mounts with the
+    // FIRST map's tiles still held — the state framing must survive, and the
+    // one a promptly-resolving fetch would hide.
+    fetchTiles.mockImplementation(() => new Promise(() => {}))
+
+    // A different heatmap id tears the map down and builds a new one.
+    rerender(
+      <RouteHeatmapMapKit
+        heatmap={{ ...tiled, id: 'hm-2' }}
+        fetchTiles={fetchTiles}
+      />
+    )
+
+    await waitFor(() => expect(double.maps.length).toBe(2))
+    const rebuilt = double.maps[1]
+    await waitFor(() =>
+      expect(rebuilt.assignedRegions.length).toBeGreaterThan(0)
+    )
+    await waitFor(() =>
+      expect(rebuilt.currentOverlays.length).toBeGreaterThan(0)
+    )
+  })
+
+  it('locks rotation, so the region never reports a superset of the view', async () => {
+    const double = createMapKitTestDouble()
+    mockLoadMapKitModule.mockResolvedValue(double.mapkit as never)
+
+    render(<RouteHeatmapMapKit heatmap={tiled} fetchTiles={fetchWith(cool)} />)
+
+    await waitFor(() => expect(double.getMap()).not.toBeNull())
+    expect(double.getMap()!.isRotationEnabled).toBe(false)
+  })
+
+  it('stays on untiled overlays for a heatmap with no pyramid', async () => {
+    const double = createMapKitTestDouble()
+    mockLoadMapKitModule.mockResolvedValue(double.mapkit as never)
+    const fetchTiles = fetchWith(cool)
+
+    render(<RouteHeatmapMapKit heatmap={heatmap} fetchTiles={fetchTiles} />)
+
+    await waitFor(() =>
+      expect(double.getMap()?.currentOverlays.length).toBeGreaterThan(0)
+    )
+    expect(fetchTiles).not.toHaveBeenCalled()
   })
 })

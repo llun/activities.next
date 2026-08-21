@@ -459,7 +459,14 @@ const RouteHeatmapGlMap: FC<RouteHeatmapGlMapProps> = ({
               const viewBounds = map.getBounds?.()
               if (typeof zoom !== 'number' || !viewBounds) return
               onViewChangeRef.current({
-                zoom,
+                // +1 converts GL's zoom to the pyramid's. Mapbox and MapLibre
+                // report zoom on a 512px tile grid; the pyramid — and
+                // `tilesForBounds` with it — is built on 256px tiles, and one
+                // 512px tile spans the same ground as four 256px ones, i.e.
+                // exactly one zoom level. Feeding GL's number in raw asks for a
+                // rung one level coarser than the view, which is the
+                // simplification the round-UP rule exists to avoid.
+                zoom: zoom + 1,
                 bounds: {
                   minLat: viewBounds.getSouth(),
                   maxLat: viewBounds.getNorth(),
