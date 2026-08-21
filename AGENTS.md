@@ -1604,13 +1604,13 @@ These exact steps are verified to work; the gotchas below are load-bearing.
    yarn install          # Node.js 24
    yarn migrate          # knexfile uses dotenv-flow → auto-loads .env.local
 
-   # The mock scripts run via swc-node, which does NOT auto-load .env.local.
+   # The mock scripts do NOT auto-load .env.local.
    # Export the vars into the shell first, then run them:
    set -a; . ./.env.local; set +a
    # The project is ESM-only. Run scripts through the scripts/run.cjs bootstrap
-   # (also wired into each script's shebang) so @swc-node/register loads them in
-   # CommonJS mode — this resolves the app's extensionless and CommonJS-named
-   # imports, which Node's strict ESM loader rejects.
+   # (also wired into each script's shebang) so tsx loads them in CommonJS
+   # mode — this resolves the app's extensionless and CommonJS-named imports,
+   # which Node's strict ESM loader rejects.
    node scripts/run.cjs scripts/mock/createMockUser.ts      # testuser / test@example.com / testpassword123
    node scripts/run.cjs scripts/mock/createMockStatuses.ts  # seeds main (home) timeline posts
    ```
