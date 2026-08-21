@@ -146,6 +146,84 @@ describe('credential provider issuer', () => {
     expect(await signIn(email, NEW_PASSWORD)).toBe(200)
   })
 
+  // The rollout window: the migration backfills every row that exists when it
+  // runs, but pre-1.7 code still serving after that writes fresh credential
+  // rows with no issuer, and those cannot sign in. The upserts therefore merge
+  // the issuer rather than only inserting it, so the paths a locked-out account
+  // would actually reach for repair the row instead of dead-ending.
+  describe('repairing a row left without an issuer', () => {
+    const stripIssuer = async (accountId: string, email: string) => {
+      await db()('account_providers')
+        .where('accountId', accountId)
+        .update({ issuer: null })
+      expect(await signIn(email, PASSWORD)).toBe(401)
+    }
+
+    it('repairs it on createCredentialProvider without touching the password', async () => {
+      const email = 'repair-provider@example.com'
+      const accountId = await database().createAccount({
+        domain: HOST,
+        email,
+        username: 'repairprovider',
+        passwordHash: await bcrypt.hash(PASSWORD, 10),
+        publicKey: 'test-public-key',
+        privateKey: 'test-private-key'
+      })
+      await stripIssuer(accountId, email)
+
+      // Called with a throwaway hash: the existing password must survive, so
+      // signing in below with the ORIGINAL password is the real assertion.
+      await database().createCredentialProvider({
+        accountId,
+        passwordHash: await bcrypt.hash('some-other-password', 10)
+      })
+
+      expect(await signIn(email, PASSWORD)).toBe(200)
+    })
+
+    it('repairs it on changePassword', async () => {
+      const email = 'repair-change@example.com'
+      const accountId = await database().createAccount({
+        domain: HOST,
+        email,
+        username: 'repairchange',
+        passwordHash: await bcrypt.hash(PASSWORD, 10),
+        publicKey: 'test-public-key',
+        privateKey: 'test-private-key'
+      })
+      await stripIssuer(accountId, email)
+
+      await database().changePassword({
+        accountId,
+        newPasswordHash: await bcrypt.hash(NEW_PASSWORD, 10)
+      })
+
+      expect(await signIn(email, NEW_PASSWORD)).toBe(200)
+    })
+
+    it('repairs it on resetPasswordWithCode', async () => {
+      const email = 'repair-reset@example.com'
+      const accountId = await database().createAccount({
+        domain: HOST,
+        email,
+        username: 'repairreset',
+        passwordHash: await bcrypt.hash(PASSWORD, 10),
+        publicKey: 'test-public-key',
+        privateKey: 'test-private-key'
+      })
+      await stripIssuer(accountId, email)
+
+      const passwordResetCode = 'repair-reset-code'
+      await database().requestPasswordReset({ email, passwordResetCode })
+      await database().resetPasswordWithCode({
+        passwordResetCode,
+        newPasswordHash: await bcrypt.hash(NEW_PASSWORD, 10)
+      })
+
+      expect(await signIn(email, NEW_PASSWORD)).toBe(200)
+    })
+  })
+
   it('lets an account whose password was changed sign in', async () => {
     const { accountId, email } =
       await createAccountWithoutCredentialRow('changed')

@@ -199,7 +199,11 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         updatedAt: currentTime
       })
       .onConflict('id')
-      .ignore()
+      // The row id encodes that this IS the credential row, so stamping the
+      // issuer is correct by construction and repairs one left NULL by pre-1.7
+      // code. Everything else is still left alone — this must not touch an
+      // existing password.
+      .merge({ issuer: CREDENTIAL_ISSUER })
   },
 
   async getAccountFromId({ id }: GetAccountFromIdParams) {
@@ -742,7 +746,16 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
           updatedAt: now
         })
         .onConflict('id')
-        .merge({ password: newPasswordHash, updatedAt: now })
+        // `issuer` is merged, not just inserted: a row written by pre-1.7 code
+        // during the rollout window (migration applied, old code still serving)
+        // carries a NULL issuer and cannot sign in, and this is the path a
+        // locked-out account would reach for. Merging only the password would
+        // make password reset a dead end for exactly those rows.
+        .merge({
+          password: newPasswordHash,
+          issuer: CREDENTIAL_ISSUER,
+          updatedAt: now
+        })
 
       await deleteSessionsWithTokenDetach(trx, (query) =>
         query.where('accountId', targetAccountId)
@@ -778,7 +791,12 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
           updatedAt: currentTime
         })
         .onConflict('id')
-        .merge({ password: newPasswordHash, updatedAt: currentTime })
+        // Repairs a NULL issuer too — see `resetPasswordWithCode`.
+        .merge({
+          password: newPasswordHash,
+          issuer: CREDENTIAL_ISSUER,
+          updatedAt: currentTime
+        })
       await deleteSessionsWithTokenDetach(trx, (query) =>
         query.where('accountId', accountId)
       )

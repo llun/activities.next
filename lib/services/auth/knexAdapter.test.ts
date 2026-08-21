@@ -1052,6 +1052,32 @@ describe('knexAdapter', () => {
       expect(await db('users').where('id', 'u1').first()).toBeUndefined()
     })
 
+    // The behavioural tests above pass whether or not the DELETE re-applies the
+    // caller's predicate, because nothing in a single-threaded test changes the
+    // row between the read and the delete. The race safety comes entirely from
+    // that re-application — a racing caller re-evaluates it after the winner
+    // commits — so the statement's shape is what has to be pinned.
+    it('re-applies the caller predicate in the DELETE, not just the row id', async () => {
+      const statements: string[] = []
+      const record = ({ sql }: { sql: string }) => statements.push(sql)
+      db.on('query', record)
+      try {
+        await adapter.consumeOne({
+          model: 'users',
+          where: [
+            { field: 'id', value: 'u1', operator: 'eq' as const },
+            { field: 'email', value: 'alice@test.com', operator: 'eq' as const }
+          ]
+        })
+      } finally {
+        db.off('query', record)
+      }
+
+      const deletes = statements.filter((sql) => sql.startsWith('delete'))
+      expect(deletes).toHaveLength(1)
+      expect(deletes[0]).toContain('email')
+    })
+
     it('returns null rather than consuming an arbitrary row for an empty predicate', async () => {
       const row = await adapter.consumeOne({ model: 'users', where: [] })
 
@@ -1145,6 +1171,52 @@ describe('knexAdapter', () => {
       expect(row).toBeNull()
     })
 
+    // better-auth guards refresh-token rotation and revocation with
+    // `{ field: 'revoked', operator: 'eq', value: null }` — "not revoked yet".
+    // Rendered literally that is `revoked = NULL`, which matches nothing on
+    // either backend, so every rotation would report an invalid refresh token.
+    it('treats an eq null guard as IS NULL rather than = NULL', async () => {
+      await db('counters').insert({ id: 'c3', value: 1, bucketHour: null })
+
+      const row = await adapter.incrementOne<{ id: string; value: number }>({
+        model: 'counters',
+        where: [
+          { field: 'id', value: 'c3', operator: 'eq' as const },
+          { field: 'bucketHour', value: null, operator: 'eq' as const }
+        ],
+        increment: { value: 1 }
+      })
+
+      expect(row?.value).toBe(2)
+    })
+
+    it('treats a ne null guard as IS NOT NULL', async () => {
+      await db('counters').insert({ id: 'c4', value: 1, bucketHour: null })
+
+      const unset = await adapter.incrementOne({
+        model: 'counters',
+        where: [
+          { field: 'id', value: 'c4', operator: 'eq' as const },
+          { field: 'bucketHour', value: null, operator: 'ne' as const }
+        ],
+        increment: { value: 1 }
+      })
+      expect(unset).toBeNull()
+
+      await db('counters')
+        .where('id', 'c4')
+        .update({ bucketHour: new Date('2026-02-03T04:00:00.000Z') })
+      const set = await adapter.incrementOne<{ value: number }>({
+        model: 'counters',
+        where: [
+          { field: 'id', value: 'c4', operator: 'eq' as const },
+          { field: 'bucketHour', value: null, operator: 'ne' as const }
+        ],
+        increment: { value: 1 }
+      })
+      expect(set?.value).toBe(2)
+    })
+
     it('updates at most one row for a predicate matching several', async () => {
       await adapter.incrementOne({
         model: 'counters',
@@ -1156,6 +1228,31 @@ describe('knexAdapter', () => {
         (row: { value: number }) => row.value
       )
       expect(values.filter((value) => value >= 10)).toHaveLength(1)
+    })
+
+    // Same reasoning as consumeOne's: the guard only does anything under a
+    // concurrent write, so pin that it reaches the UPDATE rather than being
+    // spent on the id lookup alone.
+    it('re-applies the caller predicate in the UPDATE, not just the row id', async () => {
+      const statements: string[] = []
+      const record = ({ sql }: { sql: string }) => statements.push(sql)
+      db.on('query', record)
+      try {
+        await adapter.incrementOne({
+          model: 'counters',
+          where: [
+            { field: 'id', value: 'c1', operator: 'eq' as const },
+            { field: 'value', value: 0, operator: 'gt' as const }
+          ],
+          increment: { value: 1 }
+        })
+      } finally {
+        db.off('query', record)
+      }
+
+      const updates = statements.filter((sql) => sql.startsWith('update'))
+      expect(updates).toHaveLength(1)
+      expect(updates[0]).toContain('value` >')
     })
 
     it('returns null rather than mutating an arbitrary row for an empty predicate', async () => {

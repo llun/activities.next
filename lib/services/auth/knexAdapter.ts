@@ -139,10 +139,28 @@ const applyWhere = (
     const method = connector === 'OR' ? 'orWhere' : 'where'
 
     switch (operator) {
+      // SQL's null is not equal to anything, itself included, so `= NULL` and
+      // `<> NULL` match no row on either backend. better-auth relies on an
+      // `eq null` guard for real decisions — refresh-token rotation and
+      // revocation both hinge on `{ field: 'revoked', operator: 'eq', value:
+      // null }` — and rendering that literally turns "not yet revoked" into
+      // "never matches", which reads back as an invalid refresh token.
       case 'eq':
+        if (value === null) {
+          query = query[method === 'orWhere' ? 'orWhereNull' : 'whereNull'](
+            `${tableName}.${field}`
+          )
+          break
+        }
         query = query[method](`${tableName}.${field}`, '=', value)
         break
       case 'ne':
+        if (value === null) {
+          query = query[
+            method === 'orWhere' ? 'orWhereNotNull' : 'whereNotNull'
+          ](`${tableName}.${field}`)
+          break
+        }
         query = query[method](`${tableName}.${field}`, '<>', value)
         break
       case 'gt':
@@ -217,7 +235,7 @@ const applyGroupedWhere = (
   })
 
 // Better-auth asks for related rows through the `join` argument on `findOne`
-// and `findMany` once `experimental.joins` is on (`{ user: true }` on a session
+// and `findMany` once `advanced.database.joins` is on (`{ user: true }` on a session
 // lookup, and so on). The factory transforms that into a `JoinConfig` keyed by
 // the joined table name, with the joining columns already mapped to real column
 // names, e.g. for this instance's `user`/`session` model mapping:
@@ -372,7 +390,8 @@ const extractInlineJoins = (
 // Answer the joins that could not be folded into the base statement with one
 // extra query each, then attach the results to the rows they belong to. This is
 // the same shape as the factory's own fallback, re-implemented here because that
-// fallback is unreachable once `experimental.joins` is on.
+// fallback is what 1.7 falls back TO when the adapter leaves a join
+// unanswered; answering it here keeps the single-statement path.
 const applyDeferredJoins = async (
   db: Knex,
   rows: Record<string, unknown>[],

@@ -3,13 +3,21 @@ import knex, { Knex } from 'knex'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-// End-to-end guard for `experimental.joins` (see `auth.ts`). On better-auth
-// 1.6.x that flag makes the adapter factory read the joined rows straight off
-// whatever the adapter returned — there is no capability check and no fallback,
-// so an adapter that ignored `join` resolves every session to `null` while
-// every unit test still passes. This test drives the real better-auth instance
-// against a real database and asserts a signed-in session still comes back with
-// its account attached.
+// End-to-end guard for `advanced.database.joins` (see `auth.ts`), which is
+// where better-auth 1.7 moved the flag from `experimental.joins`. Unknown
+// option keys are accepted silently, so the stale key neither failed to compile
+// nor warned — it just stopped requesting joins, and every authenticated
+// request quietly cost a second statement again. That is what the
+// single-statement assertion below is really guarding.
+//
+// On 1.6.x the flag was an assertion rather than a request: the factory read
+// the joined rows straight off whatever the adapter returned, with no
+// capability check and no fallback, so an adapter that ignored `join` resolved
+// every session to `null` — every signed-in user silently logged out — while
+// every unit test still passed. 1.7 falls back to separate queries instead,
+// which turns that outage into the slower path this test rejects. Either way
+// the check has to drive the real better-auth instance against a real database;
+// the adapter's own unit tests never see the factory's transform.
 const holder = vi.hoisted(() => ({ knex: null as Knex | null }))
 
 vi.mock('@/lib/config', () => ({

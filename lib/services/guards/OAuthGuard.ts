@@ -195,9 +195,11 @@ const resolveTokenContext = async ({
         // Scope hierarchy (for example read satisfying read:statuses) is
         // handled below so JWT and opaque tokens behave the same way, so no
         // `requiredScopes` are passed here. `verifyBearerToken` is better-auth
-        // 1.7's successor to `verifyBearerToken`; it additionally rejects
+        // 1.7's successor to `verifyAccessToken`; it additionally rejects
         // DPoP-bound tokens presented as plain bearer tokens, which this
-        // resource server has no way to sender-constrain.
+        // resource server has no way to sender-constrain. (`verifyJwsAccessToken`,
+        // which the compiler suggests on the rename, is NOT the equivalent — it
+        // takes `jwksFetch` rather than `jwksUrl` and skips that check.)
         jwtPayload = (await verifyBearerToken(token, {
           jwksUrl,
           verifyOptions: {
