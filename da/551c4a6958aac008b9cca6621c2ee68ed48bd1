@@ -1,0 +1,27 @@
+lib/jobs/fetchLinkPreviewJob.test.ts
+  s_8fbc352edaf843::t_e40881c6885426 26-29,33-34
+lib/services/link-previews/syncStatusLinkPreview.test.ts
+  s_8fbc352edaf843::t_867569d4f08e31 34-39,44
+lib/services/link-previews/resolveStatusPreviewUrl.test.ts
+  s_8fbc352edaf843::t_32201b044acb8e 7-8
+  s_8fbc352edaf843::t_874786401f3c74 35-36
+  s_8fbc352edaf843::t_1bd3540c93c800 54-70,76,82
+lib/services/link-previews/resolveStatusPreviewUrl.ts
+  s_8fbc352edaf843::t_6bd26939c52ba6 49-62,67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "da551c4a6958aac008b9cca6621c2ee68ed48bd1",
+  "prompts": {},
+  "sessions": {
+    "s_8fbc352edaf843": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f5805ef5-0c89-425f-91b8-cc86a0704bc4",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
