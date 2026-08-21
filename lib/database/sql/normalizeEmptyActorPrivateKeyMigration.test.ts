@@ -62,10 +62,18 @@ describe('normalize empty actor private key migration', () => {
     expect(row.privateKey).toBeNull()
   })
 
-  it('rolls back without failing', async () => {
+  it('does not restore the empty string on rollback', async () => {
+    // `down` is intentionally a no-op: '' and NULL both mean "no signing key",
+    // and writing '' back would reinstate the bug this migration exists to
+    // remove. Asserting the value stays NULL pins that intent — a `down` that
+    // "restored" the previous state would pass a bare resolves-without-throwing
+    // check.
     await database('actors').insert({ id: 'empty', privateKey: '' })
     await migration.up(database)
 
     await expect(migration.down(database)).resolves.toBeUndefined()
+
+    const row = await database('actors').where('id', 'empty').first()
+    expect(row.privateKey).toBeNull()
   })
 })

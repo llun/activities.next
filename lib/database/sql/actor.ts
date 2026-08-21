@@ -464,6 +464,10 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         .whereNull('deletionStatus')
         .orderBy('createdAt', 'asc')
         .orderBy('id', 'asc')
+        // knex's `modify` returns QueryBuilder<any, any>, so without this the
+        // rows reach isValidFederationSigningSQLActor as `any` and a column
+        // rename in this block would stop failing the build.
+        .select<SQLActor[]>('*')
 
       for (const sqlActor of localServiceActors) {
         const actor = getActorFromRow(sqlActor)

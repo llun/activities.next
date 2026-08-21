@@ -112,6 +112,20 @@ change doesn't touch.
   in the same PR, against fresh local DBs — never hand-edited. Commit a
   schema-only regeneration as `none:`. (CI's Schema Dump Sync job catches
   SQLite-dump drift; the PostgreSQL dump is not CI-checked.)
+- "Is this actor local?" is `whereLocalActor`
+  (`lib/database/sql/utils/localActor.ts`), never a hand-written
+  `whereNotNull('privateKey')`. Legacy rows store `privateKey = ''` for REMOTE
+  actors, so a null-only check counts them as local — it did for 216 of 221 rows
+  on production. In JS the test is `Boolean(actor.privateKey)`, never
+  `actor.privateKey !== ''`: the row mapper drops the field when falsy, so that
+  comparison is always true and filters nothing. Note `.modify()` returns
+  `QueryBuilder<any, any>` — name the row type on the `select` if the rows are
+  consumed as a typed shape.
+- The local public timeline passes local actor ids in as literal values and must
+  not join `actors`. Joining on that unique key collapses the planner's estimate
+  and loses `LIMIT` early termination at every page size (~176 buffers vs
+  ~16,200 measured); the id fetch itself stays bounded because it runs on an
+  anonymous path.
 - A caller-supplied id compared against a **numeric** column is coerced first.
   `medias.id` and `attachments.mediaId` are `integer` on PostgreSQL, so passing a
   non-numeric client string raises `invalid input syntax for type integer` — a

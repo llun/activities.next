@@ -17,10 +17,16 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 // from an empty-string row has no key at all and every JS-side test already
 // reads it as remote. Only the SQL predicates disagreed.
 //
-// One fixture, asserted against every reader, because the invariant is shared
-// and a per-module test would restate the same setup five times. The suite runs
-// on whichever backend `TEST_DATABASE_TYPE` selects — `NULL <> ''` is unknown
-// (and so excluded) on both, but the fixture is what proves it.
+// One fixture, asserted against the readers that CHANGED behaviour, because the
+// invariant is shared and a per-module test would restate the same setup five
+// times. The suite runs on whichever backend `TEST_DATABASE_TYPE` selects —
+// `NULL <> ''` is unknown (and so excluded) on both, but the fixture is what
+// proves it.
+//
+// Deliberately not covered here: `isLocalActorId` and `getLocalParticipantIds`
+// (`conversation.ts`) and `getFederationSigningActor` (`actor.ts`) already
+// carried both halves and were only re-spelled through the shared modifier, so
+// there is no behaviour change to pin and each has its own suite.
 describe('local actor predicate', () => {
   const { database, instance, prepare } = getTestDatabaseWithInstance(true)
 
@@ -158,6 +164,30 @@ describe('local actor predicate', () => {
       ])
     )
     expect(remoteIds).not.toContain(`${LOCAL_ACTOR_ID}/statuses/local-1`)
+  })
+
+  it('does not return an empty-key actor as a local follower of a followers collection', async () => {
+    // getLocalActorsFromFollowerUrl resolves a followers collection to the
+    // local actors that follow it, and drives the followers half of the
+    // timeline fan-out. Its predicate was `<> ''` alone, which already excluded
+    // NULL; re-spelling it through the shared modifier must not change that.
+    await database.createFollow({
+      actorId: EMPTY_KEY_ACTOR_ID,
+      targetActorId: LOCAL_ACTOR_ID,
+      status: FollowStatus.enum.Accepted,
+      inbox: `${EMPTY_KEY_ACTOR_ID}/inbox`,
+      sharedInbox: `https://${REMOTE_DOMAIN}/inbox`
+    })
+
+    const localFollowers = await database.getLocalActorsFromFollowerUrl({
+      followerUrl: `${LOCAL_ACTOR_ID}/followers`
+    })
+    expect(localFollowers.map((actor) => actor.id)).not.toContain(
+      EMPTY_KEY_ACTOR_ID
+    )
+    expect(localFollowers.map((actor) => actor.id)).not.toContain(
+      NULL_KEY_ACTOR_ID
+    )
   })
 
   it('does not treat an empty-key actor domain as a local domain for followers', async () => {

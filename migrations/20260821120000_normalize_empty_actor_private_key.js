@@ -9,6 +9,16 @@
 // a majority of remote posts and why its query planned around 221 actors
 // instead of 5.
 //
+// This normalises every such row rather than only the accountless ones. A row
+// with an account AND an empty key would be a local actor that cannot sign, and
+// is already non-functional today — webfinger returns null for it and its
+// requests go out unsigned — so there is no working state to preserve. Leaving
+// it as '' would instead leave one row that a future hand-written
+// `IS NOT NULL` would still read as local, which is the trap being closed.
+// Worth confirming none exists before deploying:
+//   SELECT count(*) FROM actors
+//    WHERE "accountId" IS NOT NULL AND ("privateKey" IS NULL OR "privateKey" = '');
+//
 // The application layer never disagreed: `getActorFromRow` omits `privateKey`
 // from the domain object unless it is truthy, so an `Actor` built from one of
 // these rows already had no key and every JS-side test already read it as
