@@ -1,0 +1,23 @@
+AGENTS.md
+  s_51fd2688de1d02::t_ad3154021ca957 35
+.oxlintrc.json
+  s_51fd2688de1d02::t_cb50414bf3c518 94
+  s_51fd2688de1d02::t_74a5a525a624d9 80-83,176-184
+  s_51fd2688de1d02::t_47b95759726edd 185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "941a0d7568c5d7e8b16891f5905fb6d8e7345166",
+  "prompts": {},
+  "sessions": {
+    "s_51fd2688de1d02": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "395909a7-92c9-431a-acba-c74922c99553",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
