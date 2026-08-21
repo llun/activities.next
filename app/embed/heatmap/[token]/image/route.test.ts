@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import crypto from 'node:crypto'
 
 import { Database } from '@/lib/database/types'
+import { encodeTile } from '@/lib/services/fitness-files/heatmapTiles/tileCodec'
 import { simplifySegmentsToBudget } from '@/lib/services/fitness-files/simplifyRoute'
 
 import { GET } from './route'
@@ -26,10 +27,18 @@ vi.mock('@/lib/services/fitness-files/simplifyRoute', async () => {
 })
 
 const mockGetFitnessRouteHeatmapByShareToken = vi.fn()
-let mockDatabase: Pick<Database, 'getFitnessRouteHeatmapByShareToken'> | null =
-  {
-    getFitnessRouteHeatmapByShareToken: mockGetFitnessRouteHeatmapByShareToken
-  }
+const mockGetFitnessRouteHeatmapPyramid = vi.fn()
+const mockGetFitnessRouteHeatmapTilesInRange = vi.fn()
+let mockDatabase: Pick<
+  Database,
+  | 'getFitnessRouteHeatmapByShareToken'
+  | 'getFitnessRouteHeatmapPyramid'
+  | 'getFitnessRouteHeatmapTilesInRange'
+> | null = {
+  getFitnessRouteHeatmapByShareToken: mockGetFitnessRouteHeatmapByShareToken,
+  getFitnessRouteHeatmapPyramid: mockGetFitnessRouteHeatmapPyramid,
+  getFitnessRouteHeatmapTilesInRange: mockGetFitnessRouteHeatmapTilesInRange
+}
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
@@ -85,10 +94,111 @@ describe('/embed/heatmap/[token]/image', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockDatabase = {
-      getFitnessRouteHeatmapByShareToken: mockGetFitnessRouteHeatmapByShareToken
+      getFitnessRouteHeatmapByShareToken:
+        mockGetFitnessRouteHeatmapByShareToken,
+      getFitnessRouteHeatmapPyramid: mockGetFitnessRouteHeatmapPyramid,
+      getFitnessRouteHeatmapTilesInRange: mockGetFitnessRouteHeatmapTilesInRange
     }
     mockGetFitnessRouteHeatmapByShareToken.mockResolvedValue(sharedHeatmap)
+    // No pyramid by default: every existing case is about the blob path.
+    mockGetFitnessRouteHeatmapPyramid.mockResolvedValue(null)
+    mockGetFitnessRouteHeatmapTilesInRange.mockResolvedValue([])
     mockGetMapProviderConfig.mockReturnValue({ type: 'osm' })
+  })
+
+  describe('pyramid-backed images', () => {
+    const pyramid = {
+      id: 'pyramid-1',
+      actorId: sharedHeatmap.actorId,
+      status: 'completed' as const,
+      version: 3,
+      claimSeq: 1,
+      totalCount: 1,
+      scannedCount: 1,
+      activityCount: 1,
+      tileCount: 1,
+      pointCount: 4,
+      createdAt: 1,
+      updatedAt: 2
+    }
+
+    const tileRow = (z: number, x: number, y: number, segments: string) => ({
+      actorId: sharedHeatmap.actorId,
+      tileKey: `${z}:${x}:${y}`,
+      z,
+      x,
+      y,
+      version: 3,
+      segments,
+      pointCount: 2,
+      createdAt: 1,
+      updatedAt: 2
+    })
+
+    it('draws from tiles, shading each run by its visit count', async () => {
+      // The blob was simplified once to a single global budget, so a city
+      // thumbnail drawn from it shows the same coarse lines a whole-world view
+      // would. Tiles are simplified per rung.
+      mockGetFitnessRouteHeatmapPyramid.mockResolvedValue(pyramid)
+      mockGetFitnessRouteHeatmapTilesInRange.mockImplementation(
+        async ({ z, minX, minY }) => [
+          tileRow(
+            z,
+            minX,
+            minY,
+            encodeTile([{ count: 6, points: [0, 0, 128, 128] }])
+          )
+        ]
+      )
+
+      const response = await GET(imageRequest(), {
+        params: Promise.resolve({ token: 'token-1' })
+      })
+      const svg = await response.text()
+
+      expect(response.status).toBe(200)
+      expect(mockGetFitnessRouteHeatmapTilesInRange).toHaveBeenCalled()
+      // Shaded, not the flat opacity the untiled path uses.
+      expect(svg).not.toContain('stroke-opacity="0.85"')
+      expect(svg).toContain('<polyline')
+    })
+
+    it('keeps the stored blob when the actor has no completed build', async () => {
+      mockGetFitnessRouteHeatmapPyramid.mockResolvedValue(null)
+
+      const response = await GET(imageRequest(), {
+        params: Promise.resolve({ token: 'token-1' })
+      })
+      const svg = await response.text()
+
+      expect(response.status).toBe(200)
+      expect(svg).toContain('stroke-opacity="0.85"')
+    })
+
+    it('keeps the stored blob when the pyramid read fails', async () => {
+      // An image the owner already had beats no image at all.
+      mockGetFitnessRouteHeatmapPyramid.mockRejectedValue(
+        new Error('pyramid table unavailable')
+      )
+
+      const response = await GET(imageRequest(), {
+        params: Promise.resolve({ token: 'token-1' })
+      })
+
+      expect(response.status).toBe(200)
+      expect(await response.text()).toContain('stroke-opacity="0.85"')
+    })
+
+    it('keeps the stored blob when the pyramid holds nothing for this view', async () => {
+      mockGetFitnessRouteHeatmapPyramid.mockResolvedValue(pyramid)
+      mockGetFitnessRouteHeatmapTilesInRange.mockResolvedValue([])
+
+      const response = await GET(imageRequest(), {
+        params: Promise.resolve({ token: 'token-1' })
+      })
+
+      expect(await response.text()).toContain('stroke-opacity="0.85"')
+    })
   })
 
   it('returns 404 for an unknown share token', async () => {

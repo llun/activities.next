@@ -1,3 +1,7 @@
+import {
+  HEAT_VISIBLE_BASE_OPACITY,
+  heatOpacityForCount
+} from '@/lib/services/fitness-files/heatmapTiles/constants'
 import { FitnessRouteHeatmapSegment } from '@/lib/types/database/fitnessRouteHeatmap'
 
 import { buildHeatmapSvg, buildMapboxStaticUrl } from './staticHeatmapImage'
@@ -169,5 +173,52 @@ describe('buildHeatmapSvg', () => {
       expect(numbers[index + 1]).toBeGreaterThanOrEqual(0)
       expect(numbers[index + 1]).toBeLessThanOrEqual(420)
     }
+  })
+})
+
+describe('buildHeatmapSvg stroke shading', () => {
+  const bounds = { minLat: 52, maxLat: 52.6, minLng: 5.6, maxLng: 6.2 }
+  const points = [
+    { lat: 52.1, lng: 5.7 },
+    { lat: 52.5, lng: 6.1 }
+  ]
+
+  it('shades a tiled segment by its visit count', () => {
+    // The same `heatOpacityForCount` the interactive map's ramp is generated
+    // from, so a thumbnail and the map it links to read alike.
+    const svg = buildHeatmapSvg({
+      segments: [{ count: 6, points } as never],
+      bounds,
+      width: 600,
+      height: 400
+    })
+    const expected =
+      Math.round(heatOpacityForCount(6, HEAT_VISIBLE_BASE_OPACITY) * 100) / 100
+    expect(svg).toContain(`stroke-opacity="${expected}"`)
+  })
+
+  it('draws a busy road more strongly than a quiet one', () => {
+    const opacityOf = (count: number) => {
+      const svg = buildHeatmapSvg({
+        segments: [{ count, points } as never],
+        bounds,
+        width: 600,
+        height: 400
+      })
+      return Number(/stroke-opacity="([\d.]+)"/.exec(svg)?.[1])
+    }
+    expect(opacityOf(6)).toBeGreaterThan(opacityOf(1))
+  })
+
+  it('keeps the flat opacity for untiled geometry, which has no count', () => {
+    // The blob is one polyline per activity, not a shared stretch of road.
+    // Inventing a count for it would be a lie about how often a road was ridden.
+    const svg = buildHeatmapSvg({
+      segments: [{ points }],
+      bounds,
+      width: 600,
+      height: 400
+    })
+    expect(svg).toContain('stroke-opacity="0.85"')
   })
 })

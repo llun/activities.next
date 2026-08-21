@@ -7,6 +7,7 @@ import {
   APPLE_SNAPSHOT_MIN_DIMENSION,
   fetchAppleSnapshot
 } from '@/lib/services/fitness-files/appleMapsSnapshot'
+import { buildHeatmapSegmentsFromTiles } from '@/lib/services/fitness-files/heatmapTiles/segmentsFromTiles'
 import {
   resolveSharedHeatmapRegionBounds,
   toPublicHeatmap
@@ -15,7 +16,9 @@ import {
   buildHeatmapSvg,
   buildMapboxStaticUrl
 } from '@/lib/services/fitness-files/staticHeatmapImage'
+import { logger } from '@/lib/utils/logger'
 import { apiErrorResponse } from '@/lib/utils/response'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 export const dynamic = 'force-dynamic'
@@ -108,12 +111,41 @@ export const GET = traceApiRoute(
     if (!heatmap || heatmap.status !== 'completed') return apiErrorResponse(404)
     // See resolveSharedHeatmapRegionBounds: an unresolvable region means the
     // stored geometry was never clipped, so rendering it publishes the world.
-    if (!resolveSharedHeatmapRegionBounds(heatmap)) return apiErrorResponse(404)
+    const regionBounds = resolveSharedHeatmapRegionBounds(heatmap)
+    if (!regionBounds) return apiErrorResponse(404)
 
     const publicHeatmap = toPublicHeatmap(heatmap)
     const url = new URL(req.url)
     const width = snapDimension(url.searchParams.get('w'), DEFAULT_WIDTH)
     const height = snapDimension(url.searchParams.get('h'), DEFAULT_HEIGHT)
+
+    // Prefer the pyramid: the stored blob was simplified once to a single
+    // global budget, so a thumbnail of a city drawn from it shows the same
+    // coarse lines a whole-world view would. Tiles are simplified per rung, so
+    // the image is drawn at the fidelity its own size warrants.
+    //
+    // Best-effort in both directions — an actor with no completed build, and a
+    // read that fails, both keep the blob, which is an image the owner already
+    // had. Clipping to the share's region is NOT optional here: the pyramid
+    // covers the actor's whole history.
+    const tiled = publicHeatmap.bounds
+      ? await buildHeatmapSegmentsFromTiles(database, {
+          actorId: heatmap.actorId,
+          bounds: publicHeatmap.bounds,
+          width,
+          height,
+          regionBounds
+        }).catch((error) => {
+          logger.warn({
+            message: 'Failed to build a route heatmap image from tiles',
+            heatmapId: heatmap.id,
+            actorId: heatmap.actorId,
+            err: toLoggableError(error)
+          })
+          return null
+        })
+      : null
+    const segments = tiled?.length ? tiled : publicHeatmap.segments
 
     const mapProvider = getMapProviderConfig()
 
@@ -124,7 +156,7 @@ export const GET = traceApiRoute(
       const appleSize = fitAppleDimensions(width, height)
       const snapshot = await fetchAppleSnapshot(
         {
-          segments: publicHeatmap.segments,
+          segments,
           width: appleSize.width,
           height: appleSize.height,
           scale: APPLE_SNAPSHOT_SCALE
@@ -143,7 +175,7 @@ export const GET = traceApiRoute(
     // secret `sk.` one), unlike the browser-side descriptor.
     if (mapProvider.type === 'mapbox') {
       const mapboxUrl = buildMapboxStaticUrl({
-        segments: publicHeatmap.segments,
+        segments,
         bounds: publicHeatmap.bounds ?? null,
         width,
         height,
@@ -175,7 +207,7 @@ export const GET = traceApiRoute(
     // Keyless fallback: route lines on a plain background.
     return svgResponse(
       buildHeatmapSvg({
-        segments: publicHeatmap.segments,
+        segments,
         bounds: publicHeatmap.bounds ?? null,
         width,
         height
