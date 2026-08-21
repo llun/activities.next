@@ -43,15 +43,20 @@ export interface HeatmapViewport {
 /**
  * The most tiles one view may ask for.
  *
- * Not a guard against absurd input — an ordinary viewport reaches it. A
- * full-bleed embed at 1920x1080, at a zoom just past a ladder rung, wants over
- * 500 tiles, and a 1440p one wants near a thousand. So a view that exceeds this
- * is COARSENED rather than refused: `load` steps down the ladder until the
- * count fits, which is the same trade the ladder itself makes — less detail for
- * a wider view — instead of abandoning the view and stranding whatever was
- * drawn before it.
+ * Sized from MEASURED worst cases, because coarsening is not free: a view that
+ * trips this is drawn a whole rung softer than its zoom asked for, which is the
+ * simplification this feature exists to stop showing. At the least favourable
+ * ladder rounding a full-bleed embed needs 273 tiles at 1280x720, 558 at
+ * 1920x1080 and 984 at 2560x1440 — so anything at or below ~512 would coarsen
+ * an ordinary desktop map at EVERY rung boundary rather than in some rare
+ * corner. A 4K map still coarsens, and should.
+ *
+ * Past this a view is coarsened rather than refused: `load` steps down the
+ * ladder until the count fits, which is the same trade the ladder itself makes
+ * — less detail for a wider view — instead of abandoning the view and
+ * stranding whatever was drawn before it.
  */
-export const MAX_TILES_PER_VIEW = 512
+export const MAX_TILES_PER_VIEW = 1024
 
 /**
  * How many decoded tiles to keep. Sized so panning back and forth across a
@@ -62,9 +67,9 @@ export const MAX_TILES_PER_VIEW = 512
  * eviction takes the oldest first — so a cache smaller than one view would
  * evict the batches that view had already fetched and assemble a map with holes
  * it has no way to notice. Above that floor it is a memory trade: a tile is a
- * few KB of decoded runs, so this holds a couple of viewports in a few MB.
+ * few KB of decoded runs, so this holds a viewport and a half in a few MB.
  */
-export const TILE_CACHE_MAX_TILES = 1536
+export const TILE_CACHE_MAX_TILES = 2048
 
 /** Wait for the pan or pinch to settle before spending a request on it. */
 export const VIEW_SETTLE_MS = 200

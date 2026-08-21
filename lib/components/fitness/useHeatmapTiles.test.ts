@@ -334,6 +334,31 @@ describe('useHeatmapTiles', () => {
     expect(fetchTiles.mock.calls[1][0].version).toBe(9)
   })
 
+  it('does not coarsen an ordinary desktop viewport', () => {
+    // Coarsening costs a whole rung of detail, so the ceiling has to sit above
+    // what a real map asks for rather than below it. Measured at the least
+    // favourable ladder rounding: 273 tiles at 1280x720, 558 at 1920x1080,
+    // 984 at 2560x1440.
+    const worstCaseFor = (width: number, height: number) => {
+      let worst = 0
+      for (const glZoom of [3.01, 5.01, 7.01, 9.01, 11.01, 13.01, 15.01]) {
+        const view = glZoom + 1
+        const z = storedZoomForView(view)
+        const scale = 2 ** (z - view)
+        worst = Math.max(
+          worst,
+          (Math.ceil((width / 256) * scale) + 1) *
+            (Math.ceil((height / 256) * scale) + 1)
+        )
+      }
+      return worst
+    }
+
+    expect(worstCaseFor(1280, 720)).toBeLessThanOrEqual(MAX_TILES_PER_VIEW)
+    expect(worstCaseFor(1920, 1080)).toBeLessThanOrEqual(MAX_TILES_PER_VIEW)
+    expect(worstCaseFor(2560, 1440)).toBeLessThanOrEqual(MAX_TILES_PER_VIEW)
+  })
+
   it('holds at least a whole view, so a big view cannot evict itself', () => {
     // Not a tuning choice. Tiles are inserted batch by batch while a view
     // loads and eviction takes the oldest first, so a cache smaller than one
