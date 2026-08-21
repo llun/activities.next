@@ -1,0 +1,47 @@
+app/(timeline)/fitness/heatmap/FitnessHeatmapView.test.tsx
+  s_0e2fd6be727054::t_91bef1de007a15 1329-1331,1618-1620,1672-1674
+app/(timeline)/fitness/heatmap/FitnessHeatmapView.tsx
+  s_0e2fd6be727054::t_73ecf5a605a5e4 9,14,241-254,706
+app/embed/heatmap/[token]/PublicHeatmapEmbed.tsx
+  s_0e2fd6be727054::t_4597773bc9324d 6,15-16,25-26,32,35
+app/embed/heatmap/[token]/page.tsx
+  s_0e2fd6be727054::t_6299cc1b0e6a62 118
+app/u/heatmaps/[token]/SharedHeatmapPage.tsx
+  s_0e2fd6be727054::t_ac803307b38212 5,21-22,37-38,121,123
+app/u/heatmaps/[token]/page.tsx
+  s_0e2fd6be727054::t_1d58cd5bd7d741 124
+lib/components/fitness/HeatmapShareEmbed.tsx
+  s_0e2fd6be727054::t_a76bac95dc4028 17,336,339
+lib/components/fitness/PublicRouteHeatmapMap.tsx
+  s_0e2fd6be727054::t_16bd842a249042 1-60
+lib/components/fitness/RegionHeatmapDetail.tsx
+  s_0e2fd6be727054::t_af32b97dd242af 24,339-340,378,547-551
+lib/components/fitness/RouteHeatmapMap.tsx
+  s_0e2fd6be727054::t_91a4d32861d642 8,15-25,37-46,107-155,178-179,197-203,226,231-235,243,252,259,265-269,319-328,340-347,367,435-472,490-493,514-517,533-540
+lib/components/fitness/RouteHeatmapMapKit.tsx
+  s_0e2fd6be727054::t_bd6a4e162e92d4 7,17,22-31,34,77-97,100-101,117,124-128,237-276,289-293,312-321,330,334-400
+lib/components/fitness/heatmapTileGeometry.test.ts
+  s_0e2fd6be727054::t_ba295b1d2dac9f 1-107
+lib/components/fitness/heatmapTileGeometry.ts
+  s_0e2fd6be727054::t_726d309ef4cb49 1-79
+lib/components/fitness/useHeatmapTiles.test.ts
+  s_0e2fd6be727054::t_e862dbbe137803 1-327
+lib/components/fitness/useHeatmapTiles.ts
+  s_0e2fd6be727054::t_0e253f2ee92d5e 1-304
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "3ee853404b25ebeb2cdc7f60cb9168421100ea8d",
+  "prompts": {},
+  "sessions": {
+    "s_0e2fd6be727054": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8b4fe7c-fd3e-48ba-9e1d-ef3b99484c21",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
