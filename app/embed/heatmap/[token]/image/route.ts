@@ -171,8 +171,14 @@ export const GET = traceApiRoute(
     if (mapProvider.type === 'apple') {
       const appleSize = fitAppleDimensions(width, height)
       for (const candidate of candidates) {
-        // Costs nothing to try: `buildAppleSnapshotPath` refuses an over-ceiling
-        // input before it signs or fetches anything.
+        // Trying the tiles first is free when they are over the ceiling:
+        // `buildAppleSnapshotPath` refuses that input before it signs or
+        // fetches anything, so the blob is reached without a request. When the
+        // tiles DO fit, a failed attempt costs a real fetch and the blob is
+        // then tried for real — which is the point. Apple answers 413 once the
+        // URL grows too long and `SNAPSHOT_URL_BUDGET` is this module's guess
+        // at where that is, so the candidate most likely to be refused upstream
+        // is exactly the long one.
         const snapshot = await fetchAppleSnapshot(
           {
             segments: candidate,
