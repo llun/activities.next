@@ -77,6 +77,10 @@
     "no-shadow-restricted-names": "error",
     "no-sparse-arrays": "error",
     "no-this-before-super": "error",
+    // eslint:recommended has this on, and @oxlint/migrate skips it as
+    // "nursery" — dropping it silently removed the ONLY static check over
+    // public/sw.js, which no tsconfig includes and nothing imports.
+    "no-undef": "error",
     "no-unassigned-vars": "error",
     "no-unexpected-multiline": "error",
     "no-unreachable": "error",
@@ -87,6 +91,7 @@
     "no-unused-private-class-members": "error",
     "no-unused-vars": "error",
     "no-useless-backreference": "error",
+    "no-useless-assignment": "error",
     "no-useless-catch": "error",
     "no-useless-escape": "error",
     "no-with": "error",
@@ -167,6 +172,16 @@
           }
         ]
       }
+    },
+    {
+      // public/sw.js is a browser service worker: it is served as a static asset,
+      // registered at runtime by navigator.serviceWorker.register('/sw.js'), and
+      // included in NO tsconfig, so `no-undef` above is the only thing checking
+      // it. Its own `/* global self, clients */` comment does not help — oxlint
+      // does not honor those directives — so its globals are declared here.
+      "files": ["public/sw.js"],
+      "env": { "serviceworker": true, "browser": true },
+      "globals": { "clients": "readonly" }
     },
     {
       // AGENTS.md conventions that were `no-restricted-syntax` selectors under
