@@ -1,6 +1,8 @@
 /**
  * @vitest-environment jsdom
  */
+import { htmlToDOM } from 'html-react-parser'
+
 import { extractPreviewUrl } from '@/lib/services/link-previews/extractUrl'
 import { processStatusTextContent } from '@/lib/utils/text/processStatusText'
 
@@ -132,6 +134,36 @@ const CASES: { description: string; text: string; noCard?: true }[] = [
     noCard: true,
     text: '<p><a href="https://evil.example/login"><b><span class="invisible"><a href="https://good.example/article">good</a></span></b> — worth a read.</a></p>'
   },
+  // An `<a>` start tag is an `<a>` start tag: the parser reparents on the TAG,
+  // regardless of what it carries or contains. These three exist because the
+  // obvious "optimizations" — only stop at a nest that has an href, or that has
+  // text, or that is not itself hidden — each look reasonable, each reintroduce
+  // a phantom card, and none of them were caught before these landed.
+  {
+    description: 'a nested anchor with no href at all',
+    noCard: true,
+    text: '<p>Read: <a href="https://evil.example/login"><b><a>good.example</a></b> — worth a read.</a></p>'
+  },
+  {
+    description: 'a nested anchor with no content',
+    noCard: true,
+    text: '<p>Read: <a href="https://evil.example/login"><b><a href="https://good.example/article"></a></b> — worth a read.</a></p>'
+  },
+  {
+    description: 'a nested anchor whose content is all invisible',
+    noCard: true,
+    text: '<p>Read: <a href="https://evil.example/login"><b><a href="https://good.example/article"><span class="invisible">x</span></a></b> — worth a read.</a></p>'
+  },
+  // Class 2, pinned deliberately: htmlparser2 keeps the blockquote inside the
+  // <p> where HTML5 closes the paragraph, which pops the hidden span too — so
+  // the reader CAN see this link and we give it no card. That is the safe
+  // direction and it is left alone on purpose; this case exists so that
+  // "fixing" it into a phantom fails loudly.
+  {
+    description: 'a block inside a hidden span inside a paragraph',
+    noCard: true,
+    text: '<p><span class="invisible">A<blockquote><a href="https://evil.example/x">x</a></blockquote></span></p>'
+  },
   {
     description: 'a paragraph inside a paragraph',
     text: '<p>a <a href="https://first.example/a">x</a><p>b <a href="https://second.example/b">y</a></p></p>'
@@ -175,6 +207,33 @@ const CASES: { description: string; text: string; noCard?: true }[] = [
 ]
 
 describe('the extractor agrees with a spec-compliant parser', () => {
+  // Everything below compares two parsers, and this file runs under jsdom — so
+  // it is worth proving they are still two. `htmlToDOM` picks its build by
+  // export condition; if Vite ever applied the `browser` condition here (a
+  // Vitest major, or someone adding `resolve.conditions`) the extractor would
+  // quietly switch to the browser's own parser and EVERY case in this file
+  // would pass unconditionally, comparing one parser against itself. A test
+  // that can silently become vacuous is worse than no test, so it checks.
+  //
+  // htmlparser2 keeps a nested anchor; HTML5 tree construction never does.
+  it('is still comparing two different parsers', () => {
+    const nodes = htmlToDOM(
+      '<a href="https://a.test/"><b><a href="https://b.test/">t</a></b></a>'
+    ) as {
+      name?: string
+      children?: { name?: string; children?: unknown[] }[]
+    }[]
+    const nestsAnchors =
+      nodes[0]?.name === 'a' && nodes[0]?.children?.[0]?.name === 'b'
+
+    expect(nestsAnchors).toBe(true)
+
+    const host = document.createElement('div')
+    host.innerHTML =
+      '<a href="https://a.test/"><b><a href="https://b.test/">t</a></b></a>'
+    expect(host.querySelector('a > b > a')).toBeNull()
+  })
+
   it.each(CASES)(
     'picks a link the reader can see, given $description',
     ({ text }) => {
