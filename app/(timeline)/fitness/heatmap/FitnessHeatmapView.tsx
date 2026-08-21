@@ -6,10 +6,12 @@ import {
   FitnessRouteHeatmapData,
   FitnessRouteHeatmapRegionNameData,
   FitnessRouteHeatmapSummaryData,
+  FitnessRouteHeatmapTileRequest,
   cancelFitnessRouteHeatmap,
   deleteFitnessRouteHeatmap,
   getFitnessRouteHeatmap,
   getFitnessRouteHeatmapRegionNames,
+  getFitnessRouteHeatmapTiles,
   getFitnessRouteHeatmaps,
   setFitnessRouteHeatmapRegionName,
   shareFitnessRouteHeatmap,
@@ -235,6 +237,20 @@ export const FitnessHeatmapView: FC<Props> = ({
   const focusKey = openRegion
     ? `${actorId}:${SELECTED_ACTIVITY_TYPE ?? ''}:${PERIOD_TYPE}:${EFFECTIVE_PERIOD_KEY}:${openRegionKey}`
     : ''
+
+  // Built here rather than in the detail because this is the only level that
+  // holds both halves of the owner's tile address — who they are, and which
+  // region is open. Clipping to that region is what makes the tiled view show
+  // the same extent the stored heatmap for it does.
+  const fetchOpenRegionTiles = useCallback(
+    (request: FitnessRouteHeatmapTileRequest) =>
+      getFitnessRouteHeatmapTiles({
+        ...request,
+        actorId,
+        region: openRegionKey
+      }),
+    [actorId, openRegionKey]
+  )
 
   useEffect(() => {
     focusKeyRef.current = focusKey
@@ -687,6 +703,7 @@ export const FitnessHeatmapView: FC<Props> = ({
         }}
         heatmap={heatmapData}
         mapProvider={mapProvider}
+        fetchTiles={fetchOpenRegionTiles}
         embedOrigin={embedOrigin}
         isSharing={isSharing}
         onShare={handleShare}

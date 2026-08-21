@@ -12,6 +12,8 @@ import {
   resolveSharedHeatmapRegionBounds,
   toPublicHeatmap
 } from '@/lib/services/fitness-files/publicHeatmap'
+import { logger } from '@/lib/utils/logger'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { PublicHeatmapEmbed } from './PublicHeatmapEmbed'
 
@@ -57,7 +59,15 @@ const Page: FC<PageProps> = async ({ params }) => {
   const pyramid = isPyramidVariantHeatmap(heatmap)
     ? await database
         .getFitnessRouteHeatmapPyramid({ actorId: heatmap.actorId })
-        .catch(() => null)
+        .catch((error) => {
+          logger.warn({
+            message: 'Failed to read the route heatmap pyramid for an embed',
+            heatmapId: heatmap.id,
+            actorId: heatmap.actorId,
+            err: toLoggableError(error)
+          })
+          return null
+        })
     : null
 
   // The owner-assigned region label (persisted per (actor, region) — see the
@@ -105,6 +115,7 @@ const Page: FC<PageProps> = async ({ params }) => {
       }}
       mapProvider={mapProvider}
       regionName={regionName}
+      token={token}
     />
   )
 }

@@ -1,4 +1,10 @@
+import { logger } from '@/lib/utils/logger'
+
 import Page from './page'
+
+vi.mock('@/lib/utils/logger', () => ({
+  logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() }
+}))
 
 const mockNotFound = vi.fn(() => {
   throw new Error('NEXT_NOT_FOUND')
@@ -83,5 +89,24 @@ describe('shared heatmap page', () => {
 
     await expect(render()).resolves.toBeDefined()
     expect(mockNotFound).not.toHaveBeenCalled()
+  })
+
+  it('still renders when the pyramid read fails, and records it', async () => {
+    // Tile work must never cost the reader the untiled map. Degrading silently
+    // would make a pyramid-table outage look identical to an actor with no
+    // build at all.
+    mockDb.getFitnessRouteHeatmapByShareToken.mockResolvedValue(heatmap(''))
+    mockDb.getFitnessRouteHeatmapPyramid.mockRejectedValue(
+      new Error('pyramid table unavailable')
+    )
+
+    await expect(render()).resolves.toBeDefined()
+    expect(mockNotFound).not.toHaveBeenCalled()
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        heatmapId: 'heatmap-1',
+        err: expect.objectContaining({ message: 'pyramid table unavailable' })
+      })
+    )
   })
 })
