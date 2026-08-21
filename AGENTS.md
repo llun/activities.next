@@ -1059,6 +1059,27 @@ it; there is no legacy shape left to copy.
   class attribute. `extractUrl.test.ts` pins the allowlist against the
   extractor's hidden-class list, so adding a class fails the suite until it is
   classified as hiding or benign.
+- **`convertEmojisToImages` runs BETWEEN the two sanitize passes, so both halves
+  of an emoji tag are an injection point.** On the remote path `createNoteJob`
+  persists an inbound `Emoji` tag's `name` and `icon.url` verbatim — the AP
+  schema asks only for `z.string()` — and this step splices them into HTML that
+  the first pass has already approved and the second will keep if the allowlist
+  permits it. (The local path is safe by construction: `getEmojiTags` resolves
+  `:shortcode:` tokens against this instance's own emoji table.)
+  The two halves need DIFFERENT defences, and each has been exploited:
+  `value` is only written into the markup, so `escapeHtml` covers it — raw, a
+  `"` in the url closed the `src` attribute and made the remainder live markup,
+  enough to wrap a link in `<span class="invisible">` that `cleanClassName`
+  renders as `display: none`, giving a post a preview card for a link no reader
+  could see. `name` is ALSO the literal REPLACE TARGET, so escaping its `alt`
+  does nothing: a name shaped like `<a href="…">` matched the post's own anchor
+  and consumed it. Only rejecting non-shortcode names covers that, via
+  `isEmojiShortcodeName`, which is also what stops a name like `e` replacing
+  every `e` in the post.
+  Keep the check at RENDER, not at ingest: it is the one choke point that also
+  protects rows already in the database. A rejected tag renders as nothing and
+  the literal `:shortcode:` stays in the text, which is what a reader on a
+  server lacking that emoji sees anyway.
 - **`syncStatusLinkPreview` never throws.** It is called from local create, local
   edit, and the inbound `CreateNoteJob`/`UpdateNoteJob`, and every one of those
   has already written the status by the time it runs. A preview card is

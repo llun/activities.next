@@ -8,6 +8,17 @@ import { CustomEmojiData } from '@/lib/types/domain/customEmoji'
 export const EMOJI_SHORTCODE_REGEX =
   /(?<![A-Za-z0-9:]):([a-zA-Z0-9_]{2,}):(?![A-Za-z0-9:])/g
 
+// The same shape, anchored, for validating a stored emoji tag's `name` — which
+// on the remote path is whatever an inbound `Emoji` tag said (the AP schema asks
+// only for `z.string()`), and which `convertEmojisToImages` uses as a literal
+// REPLACE TARGET against already-rendered HTML. A name that is not a shortcode
+// is therefore a way to match and consume the post's own markup, so it has to
+// be rejected before the replace rather than merely escaped on the way out.
+export const EMOJI_SHORTCODE_NAME_REGEX = /^:[a-zA-Z0-9_]{2,}:$/
+
+export const isEmojiShortcodeName = (name: string): boolean =>
+  EMOJI_SHORTCODE_NAME_REGEX.test(name)
+
 export interface ResolvedEmojiTag {
   name: string
   value: string

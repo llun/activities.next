@@ -494,6 +494,16 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   `SANITIZED_TRUSTED_STATUS_OPTION` that REPLACES `allowedClasses` instead of
   spreading it: a tag with no entry keeps its class untouched, so listing only
   `img` hands `span`/`a` back an unrestricted class attribute.
+- **Anything that rewrites status HTML between the two sanitize passes is an
+  injection point, and `convertEmojisToImages` is the one that exists.** A
+  remote `Emoji` tag's `name` and `icon.url` are stored verbatim, so both are
+  attacker-controlled. `escapeHtml` covers the url; the NAME additionally needs
+  `isEmojiShortcodeName`, because it is the literal replace target and escaping
+  its output cannot stop it from matching the post's own markup. Both have been
+  exploited — one to hide a link behind `<span class="invisible">` and take a
+  preview card for it, one to consume an anchor outright. Reject a change that
+  drops either, or that moves the check to ingest only: at render it also covers
+  rows already stored.
 - Every optional Mastodon `PreviewCard` field needs an `''`/`0` default. That
   schema is non-nullable and `Status.parse` runs per status inside a handler
   that **skips** what it cannot serialize, so one missing key drops the whole
