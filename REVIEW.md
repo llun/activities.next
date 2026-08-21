@@ -481,10 +481,15 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   parsers** — htmlparser2 on the server, the browser's own tree construction in
   the client bundle — so any HTML5 rule that MOVES content between elements is a
   divergence. Nested anchors are the known one: `getVisibleText` must keep
-  stopping at a descendant `<a>`, because a browser hoists the inner anchor out
-  and leaves the outer one empty. Reject a change that counts a nested anchor's
-  text as its ancestor's, and reject "an anchor containing an anchor is
-  invisible" too — an outer anchor with text of its own keeps it. A link whose text renders to nothing — empty,
+  stopping at the FIRST descendant `<a>`, in document order, because a browser
+  pops the outer anchor at the inner one's start tag — so the inner anchor and
+  everything after it ends up outside. Reject a change that counts a nested
+  anchor's text as its ancestor's, and equally one that counts the text AFTER
+  the nest (a trailing `" — worth a read."` reads as prose beside an empty
+  anchor). Reject "an anchor containing an anchor is invisible" too — text
+  before the nest survives and keeps the outer anchor eligible.
+  New cases belong in `parserAgreement.test.ts`, which checks the extractor
+  against a jsdom DOM rather than against hand-written expectations. A link whose text renders to nothing — empty,
   entity-only, or hidden by `hidden`/`invisible` including via an ANCESTOR — is
   skipped, because otherwise a link the reader cannot see gets a full-width
   clickable card carrying an attacker-chosen title and image. `<template>` is

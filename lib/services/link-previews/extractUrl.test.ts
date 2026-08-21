@@ -648,6 +648,8 @@ describe('extractPreviewUrl', () => {
           'del',
           'p',
           'li',
+          'ul',
+          'ol',
           'blockquote',
           'pre'
         ])('gives the card to the inner link through <%s>', (tag) => {
@@ -674,17 +676,59 @@ describe('extractPreviewUrl', () => {
           ).toBeNull()
         })
 
-        // The outer anchor keeps whatever text is its OWN — the algorithm only
-        // moves the nested anchor — so this one really is visible and really
-        // should win. The rule is "text inside a descendant anchor is not
-        // mine", not "an anchor containing an anchor is invisible".
-        it('keeps an outer link that has text of its own', () => {
+        // The outer anchor is popped at the inner one's START tag, so text
+        // BEFORE the nest stays with it and is genuinely visible. The rule is
+        // about the text, not the anchor.
+        it('keeps an outer link whose text comes before the nest', () => {
           expect(
             fromHtml(
               '<p><a href="https://evil.example/login">click ' +
                 '<b><a href="https://good.example/a">x</a></b></a></p>'
             )
           ).toBe('https://evil.example/login')
+        })
+
+        it('keeps an outer link with text on both sides of the nest', () => {
+          expect(
+            fromHtml(
+              '<p><a href="https://evil.example/login">before ' +
+                '<b><a href="https://good.example/a">x</a></b> after</a></p>'
+            )
+          ).toBe('https://evil.example/login')
+        })
+
+        // ...but text AFTER the nest is reparented out with it, so the reader
+        // reads it as ordinary prose sitting beside an empty anchor. Counting
+        // it was the same phishing card as counting the inner anchor's own
+        // text — a trailing " — worth a read." was enough.
+        it.each([
+          { description: 'inline text', tail: ' — worth a read.' },
+          { description: 'a single full stop', tail: '.' },
+          { description: 'text inside a block', tail: '<p>worth a read</p>' }
+        ])(
+          'ignores an outer link whose only text follows the nest as $description',
+          ({ tail }) => {
+            expect(
+              fromHtml(
+                '<p><a href="https://evil.example/login">' +
+                  '<b><a href="https://good.example/a">good.example/a</a></b>' +
+                  `${tail}</a></p>`
+              )
+            ).toBe('https://good.example/a')
+          }
+        )
+
+        // The worst shape: the inner anchor is a mention, so it is not content
+        // either. The reader's page says "New from the blog: @alice — worth a
+        // read." — no external link anywhere — and it carried a card for one.
+        it('gives no card when only a mention and trailing prose remain', () => {
+          expect(
+            fromHtml(
+              '<p>New from the blog: <a href="https://evil.example/login">' +
+                '<b><a href="https://good.social/@alice" class="u-url mention">@alice</a></b>' +
+                ' — worth a read.</a></p>'
+            )
+          ).toBeNull()
         })
       })
 

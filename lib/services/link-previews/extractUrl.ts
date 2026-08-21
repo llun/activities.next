@@ -156,23 +156,45 @@ const isHiddenNode = (node: DomNode): boolean => {
  * onto Tailwind's `hidden`) while still carrying text. Only excluding the
  * hidden ones tells those two apart.
  *
- * And a DESCENDANT ANCHOR's text is not this anchor's text, because the two
+ * And an anchor owns only the text BEFORE a descendant anchor, because the two
  * cannot both exist. HTML forbids an anchor inside an anchor and a browser
- * enforces it while parsing: the adoption agency algorithm hoists the inner one
- * out and leaves the outer holding an empty clone. We walk htmlparser2's tree,
- * which has no such rule and nests them verbatim, so without this the outer
- * anchor appeared to own text that the reader only ever sees under the inner
- * one — and being first in document order, it took the card while rendering as
- * nothing. Note the rule is about the TEXT, not the anchor: an outer anchor
- * with words of its own survives the algorithm and keeps them, so it stays
- * eligible.
+ * enforces it while parsing: the adoption agency algorithm pops the outer
+ * anchor at the inner one's START TAG. So everything from that point on — the
+ * inner anchor and anything following it, block or inline — is reparented
+ * outside, and only what came first stays behind. We walk htmlparser2's tree,
+ * which has no such rule and nests them verbatim.
+ *
+ * Both halves of that are load-bearing and each was a phishing card on its own.
+ * Counting the inner anchor's text let the outer one claim a link the reader
+ * only ever sees under the inner; counting the text AFTER let it claim a
+ * trailing " — worth a read." that the reader sees as ordinary prose beside an
+ * empty anchor. In both the outer anchor renders as nothing and, being first in
+ * document order, takes the card.
+ *
+ * What it is NOT is "an anchor containing an anchor is invisible": an outer
+ * anchor with words of its own before the nest keeps them and stays eligible.
  */
-const getVisibleText = (node: DomNode, belowAnchor = false): string => {
-  if (node.type === 'text') return node.data ?? ''
-  if (isHiddenNode(node)) return ''
-  if (belowAnchor && node.type === 'tag' && node.name === 'a') return ''
-  if (!node.children) return ''
-  return node.children.map((child) => getVisibleText(child, true)).join('')
+const getVisibleText = (node: DomNode): string => {
+  let text = ''
+  // Document order, so this is exactly "up to the inner anchor's start tag".
+  let reachedNestedAnchor = false
+
+  const walk = (current: DomNode, belowAnchor: boolean) => {
+    if (reachedNestedAnchor) return
+    if (current.type === 'text') {
+      text += current.data ?? ''
+      return
+    }
+    if (isHiddenNode(current)) return
+    if (belowAnchor && current.type === 'tag' && current.name === 'a') {
+      reachedNestedAnchor = true
+      return
+    }
+    for (const child of current.children ?? []) walk(child, true)
+  }
+
+  walk(node, false)
+  return text
 }
 
 // `trim()` removes ECMAScript whitespace, which does NOT include the zero-width

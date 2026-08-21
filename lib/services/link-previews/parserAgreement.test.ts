@@ -97,6 +97,25 @@ const CASES: { description: string; text: string }[] = [
     description: 'an outer anchor with text of its own',
     text: '<p><a href="https://first.example/a">click <b><a href="https://second.example/b">x</a></b></a></p>'
   },
+  // The outer anchor is popped at the inner anchor's START tag, so text after
+  // the nest lands OUTSIDE it. Only the "before" half survives — these three
+  // pin each side of that boundary.
+  {
+    description: 'an outer anchor whose only text is AFTER the nest',
+    text: '<p><a href="https://evil.example/login"><b><a href="https://good.example/a">good.example/a</a></b> — worth a read.</a></p>'
+  },
+  {
+    description: 'text after the nest with a mention inside it',
+    text: '<p>New from the blog: <a href="https://evil.example/login"><b><a href="https://good.social/@alice" class="u-url mention">@alice</a></b> — worth a read.</a></p>'
+  },
+  {
+    description: 'an outer anchor with text on both sides of the nest',
+    text: '<p><a href="https://first.example/a">before <b><a href="https://second.example/b">x</a></b> after</a></p>'
+  },
+  {
+    description: 'text after the nest inside a block',
+    text: '<p><a href="https://evil.example/login"><p><a href="https://good.example/a">g</a> tail</p></a></p>'
+  },
   {
     description: 'a paragraph inside a paragraph',
     text: '<p>a <a href="https://first.example/a">x</a><p>b <a href="https://second.example/b">y</a></p></p>'

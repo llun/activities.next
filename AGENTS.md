@@ -1141,12 +1141,18 @@ it; there is no legacy shape left to copy.
   reader's `cleanClassName` runs in the browser bundle, where it resolves to
   `template.innerHTML` — full tree construction, adoption agency and all. So a
   nested `<a>`, which htmlparser2 keeps verbatim and a browser hoists out of
-  its ancestor, made the OUTER anchor look like it owned the inner one's text;
+  its ancestor, made the OUTER anchor look like it owned text it does not;
   first in document order, it took the card while rendering as an empty clone.
-  `getVisibleText` therefore stops at a descendant anchor. Note the rule is
-  about the TEXT, not the anchor — an outer anchor with words of its own
-  survives the algorithm and keeps them. `sanitize-html` splits a DIRECT
-  `<a><a>` itself, so it takes one allowed tag in between to reach this.
+  The precise rule is that an anchor owns only the text BEFORE a descendant
+  anchor: the algorithm pops the outer one at the inner one's START TAG, so the
+  inner anchor AND everything after it — inline or block — is reparented
+  outside. `getVisibleText` therefore stops at the first descendant anchor, in
+  document order. Both halves were separately a phishing card: counting the
+  inner anchor's text, and counting a trailing `" — worth a read."` that the
+  reader sees as ordinary prose beside an empty anchor. What it is NOT is "an
+  anchor containing an anchor is invisible" — text before the nest survives and
+  stays eligible. `sanitize-html` splits a DIRECT `<a><a>` itself, so it takes
+  one allowed tag in between to reach this, and all fourteen work.
   If a construction rule other than nested anchors ever matters here, prefer
   giving the extractor a spec-compliant parser over adding a second special
   case.
