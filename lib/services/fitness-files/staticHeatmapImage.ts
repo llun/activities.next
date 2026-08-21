@@ -1,4 +1,8 @@
 import {
+  HEAT_VISIBLE_BASE_OPACITY,
+  heatOpacityForCount
+} from '@/lib/services/fitness-files/heatmapTiles/constants'
+import {
   FitnessRouteHeatmapBounds,
   FitnessRouteHeatmapSegment
 } from '@/lib/types/database/fitnessRouteHeatmap'
@@ -102,10 +106,23 @@ export const buildMapboxStaticUrl = ({
   width,
   height,
   token,
-  retina = true
+  retina = true,
+  requireAllOverlays = false
 }: StaticHeatmapImageInput & {
   token: string
   retina?: boolean
+  /**
+   * Refuse rather than truncate.
+   *
+   * The packing loop below drops whatever does not fit the URL budget, which is
+   * the right trade for the stored blob: its overlays are whole activities in
+   * activity order, so the survivors are still spread across the map and
+   * `/auto/` frames the map on them. Tile geometry is ordered by tile, so the
+   * survivors would be one contiguous corner of the view and `/auto/` would
+   * frame the image on that corner. A caller holding a second, coarser source
+   * passes this to find out that the finer one does not fit.
+   */
+  requireAllOverlays?: boolean
 }): string | null => {
   const downsampled = downsampleToBudget(
     usableSegments(segments),
@@ -130,6 +147,7 @@ export const buildMapboxStaticUrl = ({
   }
 
   if (overlays.length === 0) return null
+  if (requireAllOverlays && overlays.length < chunks.length) return null
 
   const size = `${Math.round(width)}x${Math.round(height)}${retina ? '@2x' : ''}`
   return (
@@ -140,6 +158,10 @@ export const buildMapboxStaticUrl = ({
 }
 
 const round1 = (value: number) => Math.round(value * 10) / 10
+const round2 = (value: number) => Math.round(value * 100) / 100
+
+/** The flat opacity an untiled polyline has always been drawn at. */
+const STATIC_ROUTE_STROKE_OPACITY = 0.85
 
 const emptyHeatmapSvg = (width: number, height: number): string =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="Route heatmap">` +
@@ -172,8 +194,12 @@ export const buildHeatmapSvg = ({
   let maxX = Number.NEGATIVE_INFINITY
   let minY = Number.POSITIVE_INFINITY
   let maxY = Number.NEGATIVE_INFINITY
-  const projected = downsampled.map((segment) =>
-    segment.points.map((point) => {
+  const projected = downsampled.map((segment) => ({
+    // Carried through so the stroke can shade by it. A segment from the untiled
+    // blob has no count — it is one activity's polyline, not a shared stretch
+    // of road — and falls back to the flat opacity the image always used.
+    count: (segment as { count?: number }).count,
+    points: segment.points.map((point) => {
       const { x, y } = projectWebMercator(point, 0)
       if (x < minX) minX = x
       if (x > maxX) maxX = x
@@ -181,7 +207,7 @@ export const buildHeatmapSvg = ({
       if (y > maxY) maxY = y
       return { x, y }
     })
-  )
+  }))
 
   const spanX = Math.max(maxX - minX, 1e-9)
   const spanY = Math.max(maxY - minY, 1e-9)
@@ -192,14 +218,23 @@ export const buildHeatmapSvg = ({
   const offsetY = SVG_PADDING + (innerHeight - spanY * scale) / 2
 
   const polylines = projected
-    .map((points) => {
+    .map(({ count, points }) => {
       const coords = points
         .map(
           ({ x, y }) =>
             `${round1((x - minX) * scale + offsetX)},${round1((y - minY) * scale + offsetY)}`
         )
         .join(' ')
-      return `<polyline points="${coords}" fill="none" stroke="#${ROUTE_COLOR_HEX}" stroke-width="1.4" stroke-opacity="0.85" stroke-linecap="round" stroke-linejoin="round"/>`
+      // Shaded by visit count when the geometry came from the pyramid, using
+      // the same `heatOpacityForCount` the interactive map's ramp is generated
+      // from — so a thumbnail and the map it links to read alike. Untiled
+      // geometry keeps the flat opacity: inventing a count for it would be a
+      // lie about how often a road was ridden.
+      const opacity =
+        typeof count === 'number'
+          ? round2(heatOpacityForCount(count, HEAT_VISIBLE_BASE_OPACITY))
+          : STATIC_ROUTE_STROKE_OPACITY
+      return `<polyline points="${coords}" fill="none" stroke="#${ROUTE_COLOR_HEX}" stroke-width="1.4" stroke-opacity="${opacity}" stroke-linecap="round" stroke-linejoin="round"/>`
     })
     .join('')
 
