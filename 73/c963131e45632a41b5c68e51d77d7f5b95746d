@@ -1,0 +1,42 @@
+CLAUDE.md
+  s_7b9e8834650c28::t_40dc67f520ebc1 34
+lib/database/sql/status.ts
+  s_7b9e8834650c28::t_61d43d94e0dddf 1471-1472
+  s_7b9e8834650c28::t_7bd6e372a11f54 29
+  s_7b9e8834650c28::t_3a746bf8235a68 30-32,1361,1537,2598,3389-3391
+  s_7b9e8834650c28::t_66df99eff9ea21 1465-1470,1475-1476
+  s_7b9e8834650c28::t_a240b331532f6e 3392-3401
+  s_7b9e8834650c28::t_40dc67f520ebc1 1473-1474
+lib/database/sql/utils/publiclyReadableStatus.ts
+  s_7b9e8834650c28::t_61d43d94e0dddf 128,135
+  s_7b9e8834650c28::t_39877e9dc1fadf 1-126,129-134,137-155
+  s_7b9e8834650c28::t_40dc67f520ebc1 127,136
+lib/database/sql/publiclyReadableStatusQueryShape.test.ts
+  s_7b9e8834650c28::t_9818768d571f9d 1-9,13-106,110-130,132-145
+  s_7b9e8834650c28::t_0a6f6eec3266d9 107-109
+  s_7b9e8834650c28::t_61d43d94e0dddf 11
+  s_7b9e8834650c28::t_40dc67f520ebc1 10,12,131
+AGENTS.md
+  s_7b9e8834650c28::t_4e729ba6acfeae 1973
+  s_7b9e8834650c28::t_df0d0cb74b51f6 1970-1972
+lib/database/sql/publiclyReadableStatusEquivalence.test.ts
+  s_7b9e8834650c28::t_40dc67f520ebc1 13
+  s_7b9e8834650c28::t_0a6f6eec3266d9 135-137,176-215,217-221,223-227,229-232,234-237
+  s_7b9e8834650c28::t_2d936f5f645712 1-12,14-134,138-175,216,222,228,233,238-252
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "73c963131e45632a41b5c68e51d77d7f5b95746d",
+  "prompts": {},
+  "sessions": {
+    "s_7b9e8834650c28": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bb05ef22-b0e4-4e2f-a13a-afb476987668",
+        "model": "claude-opus-5"
+      },
+      "human_author": null
+    }
+  }
+}
