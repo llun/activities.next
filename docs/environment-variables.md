@@ -24,8 +24,7 @@ Every endpoint that creates or edits a status enforces the resolved
 /api/v1/statuses[/:id]` and `POST /api/v1/accounts/outbox`, which is the
 endpoint the web composer and the inline reply box post through. Every upload
 endpoint (`POST /api/v1/media`, `POST /api/v2/media`, `PUT`/`PATCH
-/api/v1/media/:id`
-thumbnails, `POST /api/v1/medias/presigned`, `PATCH
+/api/v1/media/:id` thumbnails, `POST /api/v1/medias/presigned`, `PATCH
 /api/v1/accounts/update_credentials` avatars/headers, and admin custom emoji)
 enforces the resolved `media.maxFileSize`. All of them answer `422` above the
 limit. The status routes put the offending limit in the `error` message (except
