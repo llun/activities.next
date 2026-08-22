@@ -1,0 +1,19 @@
+lib/database/sql/publiclyReadableStatusCallSites.test.ts
+  s_7b9e8834650c28::t_8d9e8104a42ab8 233,239,245,264
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "3574448ca546a427a666be8f98a7d8b5a24febb0",
+  "prompts": {},
+  "sessions": {
+    "s_7b9e8834650c28": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bb05ef22-b0e4-4e2f-a13a-afb476987668",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
