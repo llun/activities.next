@@ -1,0 +1,24 @@
+lib/components/post-box/post-box.test.tsx
+  s_0ac975dce37e77::t_7e3a3528750f92 15,1426-1430
+AGENTS.md
+  s_0ac975dce37e77::t_44000753175086 1660-1663
+REVIEW.md
+  s_0ac975dce37e77::t_44000753175086 460,462
+  s_0ac975dce37e77::t_1dfaddd39b2b19 461
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "0ef7b56b83bed0e8290b66f39073da9ab5de77c4",
+  "prompts": {},
+  "sessions": {
+    "s_0ac975dce37e77": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a812eca9-7495-4ac3-be1c-af65cf8955ef",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
