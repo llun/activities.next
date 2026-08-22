@@ -1095,6 +1095,15 @@ export const PostBox: FC<Props> = ({
               isMediaUploadEnabled={isMediaUploadEnabled}
               attachments={postExtension.attachments}
               onAddAttachment={(attachment) => {
+                // Bounds postExtensionRef, not postExtension: this callback
+                // writes the ref synchronously below, before dispatch, so
+                // the reducer's own addAttachment cap (which guards only the
+                // committed postExtension) never sees a ref that already
+                // raced ahead of it. Two overlapping picker batches can each
+                // read a stale, still-below-cap availableSlots before either
+                // resolves, so this check is not redundant with the
+                // picker's availableSlots gate or the reducer's cap — do not
+                // delete it as a "already checked twice" simplification.
                 if (
                   postExtensionRef.current.attachments.length >=
                   maxMediaAttachments

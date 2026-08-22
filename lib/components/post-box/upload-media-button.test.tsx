@@ -170,6 +170,15 @@ describe('UploadMediaButton', () => {
       expect(
         screen.getByRole('button', { name: 'Add media (11/20)' })
       ).toBeEnabled()
+
+      renderButton({
+        maxMediaAttachments: 20,
+        attachments: existingAttachments(20)
+      })
+
+      expect(
+        screen.getByRole('button', { name: 'Add media (20/20)' })
+      ).toBeDisabled()
     })
   })
 

@@ -47,12 +47,12 @@ describe('useInstanceLimits', () => {
       expected: '12'
     },
     {
-      description: 'falls back to the default attachment cap when omitted',
+      description: 'falls back to the default cap when omitted',
       value: undefined,
       expected: String(MAX_STORED_MEDIA_ATTACHMENTS)
     },
     {
-      description: 'falls back to the default attachment cap for zero',
+      description: 'falls back to the default cap for a zero value',
       value: 0,
       expected: String(MAX_STORED_MEDIA_ATTACHMENTS)
     }

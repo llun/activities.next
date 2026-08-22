@@ -27,6 +27,14 @@ import { MAX_FILE_SIZE } from '@/lib/services/medias/constants'
  * (`validateStatusContentLimits`) and on every upload endpoint
  * (`exceedsMaxMediaUploadSize`), so a missing or stale provider can only make
  * the client optimistic, never let something through.
+ *
+ * `maxMediaAttachments` is the one exception: neither the create nor the edit
+ * status route rejects a status carrying more attachments than this resolved
+ * value — both bound themselves by the fixed `MAX_STORED_MEDIA_ATTACHMENTS`
+ * ceiling instead. A stale or missing provider here can let more media
+ * through than the admin configured, up to that fixed ceiling. See
+ * "Database-backed server settings" in `docs/environment-variables.md` for
+ * the full explanation.
  */
 export interface InstanceLimits {
   /** Resolved `posts.maxCharacters` — the composer's character budget. */

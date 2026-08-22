@@ -15,6 +15,7 @@ import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { EditableStatus, Status, StatusType } from '@/lib/types/domain/status'
+import { resizeImage } from '@/lib/utils/resizeImage'
 
 import { PostBox } from './post-box'
 
@@ -36,6 +37,7 @@ vi.mock('@/lib/utils/resizeImage', () => ({
 const updateNoteMock = updateNote as jest.MockedFunction<typeof updateNote>
 const createNoteMock = createNote as jest.MockedFunction<typeof createNote>
 const createPollMock = createPoll as jest.MockedFunction<typeof createPoll>
+const resizeImageMock = resizeImage as jest.MockedFunction<typeof resizeImage>
 const uploadAttachmentMock = uploadAttachment as jest.MockedFunction<
   typeof uploadAttachment
 >
@@ -1375,5 +1377,121 @@ describe('PostBox new post character limit with attachments', () => {
     // hasNewPostContent runs from the attachment call site here — a hardcoded
     // 500 would wrongly re-enable Post for this 120-character draft.
     expect(screen.getByRole('button', { name: 'Post' })).toBeDisabled()
+  })
+})
+
+describe('PostBox attachment ref guard', () => {
+  // Lets the test resolve each file's resizeImage step on its own schedule,
+  // rather than the file-name-based Promise.resolve() every other describe
+  // block in this file installs.
+  const deferred = <T,>() => {
+    let resolve!: (value: T) => void
+    const promise = new Promise<T>((res) => {
+      resolve = res
+    })
+    return { promise, resolve }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    global.URL.createObjectURL = vi.fn(() => 'blob:test-media')
+    global.URL.revokeObjectURL = vi.fn()
+    let counter = 0
+    global.crypto.randomUUID = vi.fn(() => `temp-media-${counter++}`)
+    uploadAttachmentMock.mockImplementation((file) =>
+      Promise.resolve({
+        type: 'upload',
+        id: `uploaded-${file.name}`,
+        mediaType: file.type,
+        url: `https://activities.local/api/v1/files/${file.name}`,
+        width: 640,
+        height: 480,
+        name: file.name
+      })
+    )
+    createNoteMock.mockResolvedValue({ status: editStatus, attachments: [] })
+  })
+
+  afterEach(() => {
+    resizeImageMock.mockImplementation((file: File) => Promise.resolve(file))
+  })
+
+  // postExtensionRef is written synchronously in onAddAttachment before the
+  // capped dispatch fires, so uploadMediaAttachments() (called at submit)
+  // reads it directly rather than the reducer-committed postExtension.
+  //
+  // Two picker batches fired back to back — before either's resizeImage
+  // settles — both read the same stale, still-below-cap attachment count and
+  // each decide to proceed. Batch A is let through to fully commit (and its
+  // [postExtension] resync effect runs, so ref and postExtension agree at the
+  // cap) before batch B is let through: B's dispatch is then a genuinely
+  // separate update the reducer's own cap correctly rejects, leaving
+  // postExtension untouched — so no further resync effect ever runs to
+  // notice that B's *ref* write (done unconditionally, before its dispatch)
+  // pushed postExtensionRef.current one past the cap. Only the ref guard
+  // itself stops that write.
+  it('keeps the submitted attachments at the configured cap across two overlapping picker batches', async () => {
+    const fileA = new File(['a'], 'a.png', { type: 'image/png' })
+    const fileB = new File(['b'], 'b.png', { type: 'image/png' })
+    const resizeA = deferred<File>()
+    const resizeB = deferred<File>()
+    resizeImageMock.mockImplementation((file: File) => {
+      if (file.name === fileA.name) return resizeA.promise
+      if (file.name === fileB.name) return resizeB.promise
+      return Promise.resolve(file)
+    })
+
+    render(
+      <InstanceLimitsProvider maxMediaAttachments={1}>
+        <PostBox
+          host="activities.local"
+          profile={profile}
+          isMediaUploadEnabled
+          onDiscardReply={vi.fn()}
+          onPostCreated={vi.fn()}
+          onPostUpdated={vi.fn()}
+          onDiscardEdit={vi.fn()}
+        />
+      </InstanceLimitsProvider>
+    )
+
+    const fileInput = Array.from(
+      document.querySelectorAll<HTMLInputElement>(
+        'input[type="file"][name="file"]'
+      )
+    ).at(-1)!
+
+    // Neither has resolved yet, so both compute their available-slot check
+    // off the same, still-empty attachment list.
+    fireEvent.change(fileInput, { target: { files: [fileA] } })
+    fireEvent.change(fileInput, { target: { files: [fileB] } })
+
+    // Let batch A finish and commit on its own — including the
+    // [postExtension] resync effect — before batch B is allowed to run.
+    await act(async () => {
+      resizeA.resolve(fileA)
+      await new Promise((r) => setTimeout(r, 0))
+    })
+
+    const postButton = screen.getByRole('button', { name: 'Post' })
+    expect(postButton).toBeEnabled()
+
+    // Now batch B resolves against an already-settled postExtension: its
+    // dispatch is a genuinely separate update the reducer rejects outright.
+    await act(async () => {
+      resizeB.resolve(fileB)
+      await new Promise((r) => setTimeout(r, 0))
+    })
+
+    fireEvent.click(postButton)
+
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalled())
+
+    expect(uploadAttachmentMock).toHaveBeenCalledTimes(1)
+    expect(createNoteMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attachments: [expect.objectContaining({ name: 'a.png' })]
+      })
+    )
   })
 })
