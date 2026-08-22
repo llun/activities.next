@@ -150,6 +150,27 @@ describe('StatusDatabase', () => {
       await mysqlDatabase.destroy()
     })
 
+    it('resolves the MySQL announce chain through the same pointer expression', async () => {
+      // MySQL has no CI coverage, so the only thing keeping this branch from
+      // drifting away from the recursive one is that both build the chain
+      // pointer from `announceOriginalPointer`.
+      const mysqlDatabase = knex({ client: 'mysql2' })
+      const sql = buildPubliclyReadableStatusIdsQuery({
+        database: mysqlDatabase,
+        targetStatusIds: createTargetStatusIds(mysqlDatabase)
+      })
+        .toString()
+        .replace(/[`"]/g, '')
+
+      expect(sql).toContain(
+        "original_statuses.id = case when target_statuses.type = 'Announce' " +
+          'then coalesce(target_statuses.originalStatusId, target_statuses.content) end'
+      )
+      expect(sql).not.toContain('originalStatusId is null and')
+
+      await mysqlDatabase.destroy()
+    })
+
     it('stores reply hashes for created replies', async () => {
       const knexDatabase = knex({
         client: 'better-sqlite3',
@@ -313,6 +334,117 @@ describe('StatusDatabase', () => {
             statusId: legacyAnnounceId
           }
         ])
+      } finally {
+        await knexDatabase.destroy()
+      }
+    })
+
+    it('resolves a boost through originalStatusId when content disagrees', async () => {
+      // `20260517000000_add_status_original_status_id.js` backfills
+      // `originalStatusId` by JSON-parsing `content` and writing out the `.url`
+      // or `.id` it finds, leaving `content` holding the raw body. Migrated rows
+      // therefore carry two different non-null strings and only
+      // `originalStatusId` names the boosted status — which is why the pointer
+      // is `COALESCE("originalStatusId", content)` and not the other way round.
+      // `createAnnounce` always writes the two identically, so only a
+      // hand-written row can tell the two orders apart.
+      const knexDatabase = knex({
+        client: 'better-sqlite3',
+        useNullAsDefault: true,
+        connection: {
+          filename: ':memory:'
+        }
+      })
+      const sqlDatabase = getSQLDatabase(knexDatabase)
+
+      try {
+        await sqlDatabase.migrate()
+        await seedDatabase(sqlDatabase)
+
+        const publicTargetId = `${primaryActorId}/statuses/divergent-public`
+        const privateTargetId = `${primaryActorId}/statuses/divergent-private`
+        await sqlDatabase.createNote({
+          id: publicTargetId,
+          url: publicTargetId,
+          actorId: primaryActorId,
+          text: 'Public divergent target',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+        await sqlDatabase.createNote({
+          id: privateTargetId,
+          url: privateTargetId,
+          actorId: primaryActorId,
+          text: 'Private divergent target',
+          to: [`${primaryActorId}/followers`],
+          cc: []
+        })
+
+        const insertPublicAnnounce = async ({
+          id,
+          originalStatusId,
+          content
+        }: {
+          id: string
+          originalStatusId: string
+          content: string
+        }) => {
+          const createdAt = new Date('2024-05-01T00:00:00.000Z')
+          await knexDatabase('statuses').insert({
+            id,
+            url: null,
+            urlHash: null,
+            actorId: replyAuthorId,
+            type: StatusType.enum.Announce,
+            reply: '',
+            content,
+            originalStatusId,
+            createdAt,
+            updatedAt: createdAt
+          })
+          await knexDatabase('recipients').insert({
+            id: crypto.randomUUID(),
+            statusId: id,
+            actorId: ACTIVITY_STREAM_PUBLIC,
+            type: 'to',
+            createdAt,
+            updatedAt: createdAt
+          })
+        }
+
+        const before = await sqlDatabase.getActorStatusesCount({
+          actorId: replyAuthorId,
+          publicOnly: true
+        })
+
+        // originalStatusId names the private status, so this boost is not
+        // publicly readable. Reading `content` first would resolve the public
+        // one and count it.
+        await insertPublicAnnounce({
+          id: `${replyAuthorId}/statuses/divergent-hidden`,
+          originalStatusId: privateTargetId,
+          content: publicTargetId
+        })
+        await expect(
+          sqlDatabase.getActorStatusesCount({
+            actorId: replyAuthorId,
+            publicOnly: true
+          })
+        ).resolves.toBe(before)
+
+        // And the mirror: originalStatusId names the public status, so this one
+        // counts even though `content` points somewhere unreadable.
+        await insertPublicAnnounce({
+          id: `${replyAuthorId}/statuses/divergent-visible`,
+          originalStatusId: publicTargetId,
+          content: privateTargetId
+        })
+        await expect(
+          sqlDatabase.getActorStatusesCount({
+            actorId: replyAuthorId,
+            publicOnly: true
+          })
+        ).resolves.toBe(before + 1)
       } finally {
         await knexDatabase.destroy()
       }

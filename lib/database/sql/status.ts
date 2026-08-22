@@ -234,21 +234,10 @@ export const buildPubliclyReadableStatusIdsQuery = ({
         ).orWhereExists(function () {
           this.select(database.raw('1'))
             .from('statuses as original_statuses')
-            .where((originalBuilder) => {
-              originalBuilder
-                .whereRaw('?? = ??', [
-                  'original_statuses.id',
-                  'target_statuses.originalStatusId'
-                ])
-                .orWhere((legacyBuilder) => {
-                  legacyBuilder
-                    .whereNull('target_statuses.originalStatusId')
-                    .whereRaw('?? = ??', [
-                      'original_statuses.id',
-                      'target_statuses.content'
-                    ])
-                })
-            })
+            .where(
+              'original_statuses.id',
+              announceOriginalPointer(database, 'target_statuses')
+            )
             .whereNot('original_statuses.type', StatusType.enum.Announce)
             .whereIn('original_statuses.id', publicRecipientStatusIds(database))
         })
