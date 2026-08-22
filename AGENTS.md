@@ -413,6 +413,35 @@ it; there is no legacy shape left to copy.
   both establish the container and read it. Guarded by
   `lib/components/fitness/FitnessStatGrid.test.tsx`.
 
+## Apple Maps Basemap
+
+- **Every Apple-rendered map draws the `mutedStandard` basemap, interactive and
+  static alike.** The four MapKit components (`ActivityRouteMapKit`,
+  `RouteHeatmapMapKit`, `RegionMapKit`, `PrivacyZoneMapKit`) pass
+  `mapType: mutedStandardMapType(mapkit)` to `new mapkit.Map(...)`, and the Web
+  Snapshot URL that renders stored route images carries the same basemap as
+  `t=mutedStandard` (`lib/services/fitness-files/appleMapsSnapshot.ts`). It is
+  the standard road map with its land, water and POI colours de-saturated, which
+  is the same reason the GL providers render heatmaps on `light-v11` /
+  `positron`: the route lines, heat runs and privacy circles drawn on top have to
+  stay the most prominent thing on the map. Do not give one surface its own map
+  type, and do not re-enable `showsMapTypeControl` — a reader switching to
+  satellite loses that contrast.
+- **`mutedStandardMapType` falls back to the literal on purpose.**
+  `mapkit.Map.MapTypes` is a static of the `map` library rather than of
+  `mapkit.core.js`, and every component builds its map inside a `try` that drops
+  the whole map to the static/OSM fallback renderer on throw — so reading
+  straight through an absent `MapTypes` would trade a purely visual option for no
+  Apple map at all. The enum member is defined as exactly
+  `MAPKIT_MUTED_STANDARD_MAP_TYPE`, so the fallback renders identically. The test
+  double carries the real static, so the components exercise the enum read.
+- The snapshot module keeps its own copy of the literal rather than importing the
+  component one: it is server-only (`lib/services/**`) and must not reach into
+  the client component tree — see **Server/Client Module Boundary**.
+- Changing the basemap does **not** restyle already-stored route images. They are
+  re-rendered only by **Regenerate maps for old statuses** (`/fitness/privacy`,
+  `POST /api/v1/fitness/general/regenerate-maps`).
+
 ## Fitness Route Heatmap Pyramid
 
 - **Tile visit counts ACCUMULATE, so an activity must be folded into a build

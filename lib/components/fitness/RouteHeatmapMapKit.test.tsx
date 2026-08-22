@@ -453,6 +453,16 @@ describe('RouteHeatmapMapKit tiled rendering', () => {
     })
   })
 
+  it('draws the muted standard basemap, so the heat runs stay the brightest thing', async () => {
+    const double = createMapKitTestDouble()
+    mockLoadMapKitModule.mockResolvedValue(double.mapkit as never)
+
+    render(<RouteHeatmapMapKit heatmap={tiled} fetchTiles={fetchWith(cool)} />)
+
+    await waitFor(() => expect(double.getMap()).not.toBeNull())
+    expect(double.getMap()!.options.mapType).toBe('mutedStandard')
+  })
+
   it('locks rotation, so the region never reports a superset of the view', async () => {
     const double = createMapKitTestDouble()
     mockLoadMapKitModule.mockResolvedValue(double.mapkit as never)

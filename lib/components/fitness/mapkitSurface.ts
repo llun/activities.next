@@ -16,6 +16,21 @@ export const APPLE_MAPS_LABEL = 'Apple Maps'
  */
 export const MAPKIT_LOAD_TIMEOUT_MS = 20_000
 
+/**
+ * The basemap every Apple-rendered map draws.
+ *
+ * `mutedStandard` is the standard road map with its land, water and POI colours
+ * de-saturated, so the route lines, heatmap runs and privacy circles painted on
+ * top stay the most prominent thing on the map — the same reason the GL
+ * providers render heatmaps on `light-v11` / `positron` rather than their
+ * colourful default styles. The literal is MapKit's own
+ * `mapkit.Map.MapTypes.MutedStandard` value, and the Apple Web Snapshots API
+ * spells the same basemap the same way (`t=mutedStandard`, see
+ * lib/services/fitness-files/appleMapsSnapshot.ts), so a stored route image and
+ * its interactive map agree.
+ */
+export const MAPKIT_MUTED_STANDARD_MAP_TYPE = 'mutedStandard'
+
 /** Minimum rendered span (degrees) so a single-point route still frames sanely. */
 const MIN_REGION_SPAN_DEG = 0.01
 /** Framing headroom around the fitted extent (MapKit has no `fitBounds` padding). */
@@ -72,11 +87,23 @@ export interface MapKitMapSurface {
   destroy: () => void
 }
 
-export interface MapKitSurfaceModule {
-  Map: new (
+/**
+ * MapKit's map constructor, plus the one static we read off it. `MapTypes` is
+ * optional because it is a static of the `map` library rather than of
+ * `mapkit.core.js` itself — see {@link mutedStandardMapType} for why that
+ * matters here.
+ */
+export interface MapKitMapConstructor {
+  new (
     element: HTMLElement | string,
     options?: Record<string, unknown>
-  ) => MapKitMapSurface
+  ): MapKitMapSurface
+  /** Basemap constants; each member is the literal MapKit accepts for `mapType`. */
+  MapTypes?: { MutedStandard?: string }
+}
+
+export interface MapKitSurfaceModule {
+  Map: MapKitMapConstructor
   Style: new (options?: Record<string, unknown>) => MapKitStyle
   PolylineOverlay: new (
     points: MapKitCoordinate[],
@@ -118,6 +145,18 @@ export interface MapKitSurfaceModule {
     span: MapKitCoordinateSpan
   ) => MapKitCoordinateRegion
 }
+
+/**
+ * `mapType` for a `mapkit.Map`, read from MapKit's own enum where it exists.
+ *
+ * The fallback is not cosmetic caution. Every component constructs its map
+ * inside a `try` that drops the whole map to the static/OSM fallback renderer on
+ * throw, so reading through an absent `Map.MapTypes` would trade a purely visual
+ * option for no Apple map at all. The enum member is defined as exactly
+ * {@link MAPKIT_MUTED_STANDARD_MAP_TYPE}, so the fallback renders identically.
+ */
+export const mutedStandardMapType = (mapkit: MapKitSurfaceModule): string =>
+  mapkit.Map.MapTypes?.MutedStandard ?? MAPKIT_MUTED_STANDARD_MAP_TYPE
 
 /** Typed wrapper around the shared CDN loader. */
 export const loadMapKitSurface = (): Promise<MapKitSurfaceModule> =>

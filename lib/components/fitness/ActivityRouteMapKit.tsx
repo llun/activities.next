@@ -27,6 +27,7 @@ import {
   type MapKitTapEvent,
   boundsToRegion,
   loadMapKitSurface,
+  mutedStandardMapType,
   pageToCoordinate
 } from '@/lib/components/fitness/mapkitSurface'
 import { createRouteHighlightElement } from '@/lib/components/fitness/routeHighlightMarker'
@@ -277,6 +278,7 @@ export const ActivityRouteMapKit: FC<ActivityRouteMapKitProps> = ({
 
         try {
           const map = new mapkit.Map(container, {
+            mapType: mutedStandardMapType(mapkit),
             showsMapTypeControl: false
           })
           mapkitRef.current = mapkit

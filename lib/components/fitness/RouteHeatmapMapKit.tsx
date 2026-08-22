@@ -17,7 +17,8 @@ import {
   type MapKitStyle,
   type MapKitSurfaceModule,
   boundsToRegion,
-  loadMapKitSurface
+  loadMapKitSurface,
+  mutedStandardMapType
 } from '@/lib/components/fitness/mapkitSurface'
 import {
   HeatmapTileFetcher,
@@ -211,6 +212,7 @@ export const RouteHeatmapMapKit: FC<RouteHeatmapMapKitProps> = ({
 
         try {
           const map = new mapkit.Map(container, {
+            mapType: mutedStandardMapType(mapkit),
             showsMapTypeControl: false
           })
           // The heatmap has no reason to rotate, and a rotated viewport's region
