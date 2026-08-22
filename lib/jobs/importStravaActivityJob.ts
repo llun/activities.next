@@ -24,7 +24,7 @@ import { saveFitnessFile } from '@/lib/services/fitness-files'
 import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
 import { withImportLock } from '@/lib/services/fitness-files/importLock'
 import { linkFitnessFileDeviceGear } from '@/lib/services/fitness-gears/resolveDeviceGear'
-import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
+import { MAX_IMPORTED_ACTIVITY_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { saveMedia } from '@/lib/services/medias/index'
 import { getActivityImportGroupKey } from '@/lib/services/notifications/activityImportGroupKey'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
@@ -226,7 +226,7 @@ const attachStravaPhotosToStatus = async ({
   )
   const remainingAttachmentSlots = Math.max(
     0,
-    MAX_ATTACHMENTS - existingAttachments.length
+    MAX_IMPORTED_ACTIVITY_ATTACHMENTS - existingAttachments.length
   )
 
   if (remainingAttachmentSlots <= 0) {

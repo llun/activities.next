@@ -6,12 +6,22 @@ export const MAX_FILE_SIZE = 209_715_200
 // storing media the driver would refuse to serve. This ceiling exists because
 // the read path buffers an object in memory, so an unbounded cap is an OOM.
 export const MAX_CONFIGURABLE_FILE_SIZE = 1_073_741_824
-// How many photos a Strava import may attach to one activity post. This is an
-// import-side fan-out bound, NOT the composer's cap: the authoring UI caps
-// itself at the admin-configured `posts.maxMediaAttachments` read through
-// `useInstanceLimits()` (see lib/components/instance-limits.tsx), which is also
-// the value the instance entity advertises as `max_media_attachments`.
-export const MAX_ATTACHMENTS = 10
+// The most attachments a fitness import will leave on one activity status —
+// counted across everything already on it (the route map included), not just
+// the photos being added. Both Strava import paths subtract the existing
+// attachments from this and fill what is left.
+//
+// It is NOT the composer's cap and NOT a Mastodon limit. The authoring UI caps
+// itself at the admin-configured `posts.maxMediaAttachments` via
+// `useInstanceLimits()` (lib/components/instance-limits.tsx), and Mastodon's
+// 4-attachment limit is `MAX_FEDERATION_MEDIA_ATTACHMENTS`, applied when a note
+// is serialised outbound — so an imported status federates 4 however many it
+// stores, while local surfaces still show them all.
+//
+// The value is inherited: it was the composer's upload cap before that moved to
+// the server setting, so 10 is a historical number rather than a reasoned one.
+// Kept as-is here to avoid a behaviour change; see the PR discussion.
+export const MAX_IMPORTED_ACTIVITY_ATTACHMENTS = 10
 export const MAX_WIDTH = 4000
 export const MAX_HEIGHT = 4000
 
