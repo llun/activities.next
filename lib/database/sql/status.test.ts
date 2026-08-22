@@ -451,14 +451,16 @@ describe('StatusDatabase', () => {
     })
 
     it('keeps a boosted reply out of the public replies count', async () => {
-      // `getStatusRepliesCount` cannot be collapsed onto the readable-ids
-      // subquery the way `getActorStatusesCount` was: its
-      // `whereNot('type', Announce)` filters the REPLY row, while the
-      // subquery's `type` is the resolved original's, so an Announce whose
-      // original is a public Note comes back from the subquery and only the
-      // outer filter drops it. `createAnnounce` always writes `reply: ''`, so
-      // no number anyone can observe moves if that filter goes — only a
-      // hand-written row pins the invariant.
+      // `getStatusRepliesCount`'s `whereNot('type', Announce)` filters the
+      // REPLY row, and is not redundant with the readability predicate: an
+      // Announce whose boosted original is a public Note is publicly readable,
+      // so only the outer filter keeps it out of a reply count. That held when
+      // the filter was the readable-ids subquery (whose `type` was the resolved
+      // original's, a different row again) and still holds now that
+      // `getStatusRepliesCount` uses the correlated
+      // `wherePubliclyReadableStatus`. `createAnnounce` always writes
+      // `reply: ''`, so no number anyone can observe moves if that filter
+      // goes — only a hand-written row pins the invariant.
       const knexDatabase = knex({
         client: 'better-sqlite3',
         useNullAsDefault: true,
