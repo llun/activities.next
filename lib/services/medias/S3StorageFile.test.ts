@@ -67,11 +67,11 @@ const ONE_PIXEL_PNG = Buffer.from(
 )
 
 // Every upload body this driver sends is an in-memory Buffer — a video's own
-// bytes, an image's encoded output. Rejecting anything else is the guard for
-// that: the image path used to write its encoded output to a file under
-// `tmpdir()` and stream it back off disk, which `next build` flags as dynamic
-// filesystem access that forces the whole project into the traced server
-// bundle. Draining a stream here instead would let that come back unnoticed.
+// bytes, an image's encoded output. Rejecting anything else is what keeps the
+// temp-file round trip `_uploadImageBufferToS3` used to perform from coming
+// back; that function's own comment explains why it must not. Draining a
+// stream here instead would quietly accept the regression, so every `send`
+// mock in this file routes its body through here.
 const readUploadBody = (body: unknown): Buffer => {
   if (!Buffer.isBuffer(body)) {
     throw new Error(
@@ -802,12 +802,11 @@ describe('S3FileStorage saveFile with a caller-supplied thumbnail', () => {
     return match
   }
 
-  // Regression: the encoded image used to be written to a file under
-  // `tmpdir()` and streamed back off disk purely to give `PutObjectCommand` a
-  // body. `next build` flagged the `tmpdir()` join and the `fs.open` on it as
-  // dynamic filesystem access, which forces every source file in the project —
-  // `public/` included — into the traced server bundle. Nothing wanted a file,
-  // so both the original and its thumbnail now go up as buffers.
+  // Gives the invariant `readUploadBody` enforces a name, so it is discoverable
+  // as a test rather than only as a helper that throws mid-upload. `toEqual` on
+  // the mapped array rather than `.every(…)` so a failure names which body went
+  // back to being a stream, and covers the count — an empty array satisfies
+  // `.every()` vacuously.
   it('uploads images as in-memory buffers, not file-backed streams', async () => {
     await createStorage().saveFile(actor, {
       file: await createPngFile(800, 600),
@@ -817,8 +816,7 @@ describe('S3FileStorage saveFile with a caller-supplied thumbnail', () => {
     const bodies = vi
       .mocked(PutObjectCommand)
       .mock.calls.map(([input]) => input.Body)
-    expect(bodies).toHaveLength(2)
-    expect(bodies.every((body) => Buffer.isBuffer(body))).toBe(true)
+    expect(bodies.map((body) => Buffer.isBuffer(body))).toEqual([true, true])
   })
 
   it('uploads a caller-supplied thumbnail alongside the image', async () => {
@@ -1188,14 +1186,26 @@ describe('S3FileStorage image output format', () => {
       ContentType: string
     }
 
+  // This block is the only cover `saveImageRendition` has, and it is the third
+  // caller of `_uploadImageBufferToS3`. Capturing the body rather than
+  // discarding it puts the rendition path behind the same buffer guard as the
+  // other two, and gives `rendition.bytes` something real to be checked against.
+  let uploadedBodies: Buffer[]
+
   beforeEach(() => {
     vi.clearAllMocks()
+    uploadedBodies = []
     ;(S3Client as jest.MockedClass<typeof S3Client>).mockImplementation(
       function () {
         return { send } as unknown as S3Client
       }
     )
-    send.mockResolvedValue({})
+    send.mockImplementation(async (command) => {
+      if (command instanceof PutObjectCommand) {
+        uploadedBodies.push(readUploadBody(command.input.Body))
+      }
+      return {}
+    })
     database.getActorFromId.mockResolvedValue(actor)
     database.getStorageUsageForAccount.mockResolvedValue(0)
     database.getFitnessStorageUsageForAccount.mockResolvedValue(0)
@@ -1235,6 +1245,13 @@ describe('S3FileStorage image output format', () => {
       mimeType: 'image/jpeg',
       url: `https://llun.test/api/v1/files/${putObjectInput().Key}`
     })
+    // `bytes` and `metaData` come from the encode's `OutputInfo`, which now
+    // arrives from `toBuffer({ resolveWithObject: true })` rather than
+    // `toFile()`. Checking `bytes` against the bytes actually uploaded is what
+    // makes that swap observable here; the 40x30 source is under the cap, so
+    // the stored image keeps its dimensions.
+    expect(rendition?.bytes).toBe(uploadedBodies[0].length)
+    expect(rendition?.metaData).toEqual({ width: 40, height: 30 })
     expect(database.createMedia).not.toHaveBeenCalled()
   })
 })
