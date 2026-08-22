@@ -127,7 +127,13 @@ const announceOriginalIsPublicNote = (database: Knex, table: string) =>
 // Written for knex's `modify`, which keeps it chainable mid-builder:
 //
 //     query.modify(wherePubliclyReadableStatus, database)
-//     query.modify(wherePubliclyReadableStatus, database, 'reply_statuses')
+//
+// Every call site today builds on an unaliased `database('statuses')`, so the
+// default `table` is what they all want. The third argument exists for a query
+// that aliases the status table, and must name an alias the OUTER query
+// actually exposes — pass one that is not in scope and the correlated
+// references resolve to nothing, which is a SQL error rather than a silently
+// wider result.
 //
 // Reach for this form when the number of rows the predicate is evaluated over
 // is BOUNDED — by a LIMIT, or by the query's own scope being inherently small.
