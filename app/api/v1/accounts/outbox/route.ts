@@ -7,6 +7,7 @@ import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { createPollFromUserInput } from '@/lib/actions/createPoll'
 import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { resolveQuoteForCreate } from '@/lib/services/quotes/resolveQuoteForCreate'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { validateStatusContentLimits } from '@/lib/services/statuses/contentLimits'
@@ -88,6 +89,26 @@ export const POST = traceApiRoute(
             quoteApprovalPolicy: requestedQuotePolicy,
             visibility
           } = request
+          // Bound how many attachments one status may store, the same way
+          // POST /api/v1/statuses and PUT /api/v1/statuses/:id do: every entry
+          // here becomes a database.createAttachment insert inside
+          // createNoteFromUserInput, so an unbounded list is an unbounded
+          // fan-out of writes. The bound is the fixed
+          // MAX_STORED_MEDIA_ATTACHMENTS ceiling and not the resolved
+          // posts.maxMediaAttachments, which drives the value advertised to
+          // clients rather than the create-route cap; enforcing the setting
+          // here alone would make this route stricter than the two it matches.
+          if (
+            attachments &&
+            attachments.length > MAX_STORED_MEDIA_ATTACHMENTS
+          ) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: ERROR_422,
+              responseStatusCode: 422
+            })
+          }
           // Authorize the quote target (if any) and default the new status's
           // quote policy, mirroring POST /api/v1/statuses.
           const quoteResolution = await resolveQuoteForCreate({

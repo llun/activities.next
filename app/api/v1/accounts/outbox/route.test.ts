@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { Database } from '@/lib/database/types'
+import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 
@@ -41,6 +42,16 @@ vi.mock('next/headers', () => ({
     get: () => undefined
   })
 }))
+
+const buildAttachments = (count: number) =>
+  Array.from({ length: count }, (_, index) => ({
+    type: 'upload' as const,
+    id: `media-${index}`,
+    mediaType: 'image/png',
+    url: `https://test.llun.dev/medias/${index}.png`,
+    width: 100,
+    height: 100
+  }))
 
 describe('POST /api/v1/accounts/outbox', () => {
   beforeEach(() => {
@@ -301,6 +312,86 @@ describe('POST /api/v1/accounts/outbox', () => {
 
     expect(res.status).toBe(422)
     expect(mockCreatePollFromUserInput).not.toHaveBeenCalled()
+  })
+
+  // The outbox route maps every attachment straight into a
+  // database.createAttachment insert, so an unbounded list is an unbounded
+  // fan-out of writes. It caps at the same fixed MAX_STORED_MEDIA_ATTACHMENTS
+  // ceiling POST /api/v1/statuses and PUT /api/v1/statuses/:id use, so the
+  // three create/edit paths agree on what a status may store.
+  it.each([
+    {
+      description: 'rejects a note carrying more attachments than the ceiling',
+      attachmentCount: MAX_STORED_MEDIA_ATTACHMENTS + 1,
+      expectedRejected: true
+    },
+    {
+      description: 'accepts a note carrying exactly the ceiling',
+      attachmentCount: MAX_STORED_MEDIA_ATTACHMENTS,
+      expectedRejected: false
+    }
+  ])('$description', async ({ attachmentCount, expectedRejected }) => {
+    const attachments = buildAttachments(attachmentCount)
+    const req = new NextRequest('http://localhost/api/v1/accounts/outbox', {
+      method: 'POST',
+      body: JSON.stringify({
+        type: 'note',
+        message: 'a note with media',
+        attachments
+      }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      }
+    })
+
+    const res = await POST(req, { params: Promise.resolve({}) })
+
+    if (expectedRejected) {
+      // Assert the gate first: without the cap the route hands the whole
+      // over-ceiling list to the create action, one insert per entry.
+      expect(mockCreateNoteFromUserInput).not.toHaveBeenCalled()
+      expect(res.status).toBe(422)
+      await expect(res.json()).resolves.toEqual({
+        error: 'Unprocessable entity'
+      })
+      return
+    }
+    // The create action is stubbed, so assert on what the gate forwarded
+    // rather than on the response status.
+    expect(mockCreateNoteFromUserInput).toHaveBeenCalledWith(
+      expect.objectContaining({ attachments })
+    )
+  })
+
+  // The bound is deliberately the fixed ceiling, not the admin-configured
+  // posts.maxMediaAttachments: that setting drives what the instance entity
+  // advertises to clients, and POST/PUT /api/v1/statuses[/:id] do not enforce
+  // it either. Enforcing it here alone would make the outbox route stricter
+  // than the routes it is supposed to match.
+  it('does not tighten the ceiling to the configured posts.maxMediaAttachments', async () => {
+    mockDatabase.getAllServerSettings.mockResolvedValue([
+      { key: 'posts.maxMediaAttachments', value: 2 }
+    ])
+    const attachments = buildAttachments(3)
+    const req = new NextRequest('http://localhost/api/v1/accounts/outbox', {
+      method: 'POST',
+      body: JSON.stringify({
+        type: 'note',
+        message: 'three attachments, configured limit of two',
+        attachments
+      }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      }
+    })
+
+    await POST(req, { params: Promise.resolve({}) })
+
+    expect(mockCreateNoteFromUserInput).toHaveBeenCalledWith(
+      expect.objectContaining({ attachments })
+    )
   })
 })
 
