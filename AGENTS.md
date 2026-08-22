@@ -847,12 +847,29 @@ it; there is no legacy shape left to copy.
   the same transaction that soft-deletes the gear.
 - **Match sports through `normalizeActivityTypeToSportKey`**
   (`@/lib/services/fitness-files/sportTypes`), never against the raw
-  `activityType`. That column holds whatever the source file said, and four
-  vocabularies reach it (FIT `cycling`, TCX `Biking`, Strava `GravelRide`,
-  free-form GPX). Gear stores canonical keys; the normalizer maps the dialects
+  `activityType`. Gear stores canonical keys; the normalizer maps the dialects
   onto them and returns null rather than guessing, so an unrecognised type
   simply does not auto-assign. Prefer null over a plausible guess: a wrong
   mapping silently attributes activities to the wrong bike.
+- **`fitness_files.activityType` is WRITTEN as a canonical sport key**, via
+  `normalizeStoredActivityType` in `toActivityData` — the one function all three
+  parsers return through, so it covers uploads and the Strava webhook alike (the
+  webhook writes its `sport_type` into a generated TCX and parses it back). Four
+  vocabularies still arrive at that funnel (FIT `cycling`, TCX `Biking`, Strava
+  `GravelRide`, free-form GPX), and rows imported before this rule keep whichever
+  one they came in with until `scripts/fitness/normalizeFitnessActivityTypes.ts`
+  sweeps them — which is why matching still goes through the normalizer rather
+  than comparing strings. A sport no key models (swimming, gym work, Garmin's
+  `Other`) is stored **verbatim**, not dropped: nothing can attribute it to gear,
+  but the overview breakdown and the calendar filter must still show it.
+- **Naming a sport for a post caption is `getActivityPresentation`**
+  (`@/lib/services/fitness-files/activityPresentation`) — the import job and the
+  Strava summary builder both go through it. It deliberately keeps **gerund**
+  labels ("Cycling", "Gravel cycling") separate from `SPORT_LABELS`' UI nouns
+  ("Ride", "Gravel ride"): caption text is federated and stored forever, so
+  rewording it changes published posts. Do not add a fourth table — matching
+  substrings on a raw `sport_type` is what captioned a `MountainBikeRide` with
+  the road-bike glyph.
 - **A sport belongs to at most one of an actor's gears**, retired ones included
   — scoping the invariant to active gear only would let unretiring produce two
   holders and make auto-assign arbitrary. Claiming a sport takes it off whoever
