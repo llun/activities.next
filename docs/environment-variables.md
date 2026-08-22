@@ -53,12 +53,22 @@ section: its pages and API keep working, so an existing link or bookmark still
 resolves, and nobody's saved navigation is deleted, so re-enabling a feature
 restores each account's layout exactly as they left it.
 
-`posts.maxMediaAttachments` is the exception: it is advertised to clients (and
-honoured by this instance's own composer and inline reply box, which read it
-through `useInstanceLimits()`), but neither create endpoint rejects a status
-carrying more than the configured number of attachments — they bound themselves
-by the stored-media ceiling instead. Lowering it changes what clients are told
-and what the built-in composer offers, not what the API accepts.
+`posts.maxMediaAttachments` is the exception, and the exception is wider than it
+looks: it is advertised to clients and honoured by this instance's own composer
+and inline reply box (which read it through `useInstanceLimits()`), but **no**
+route enforces the resolved value, and the routes do not even agree on a
+fallback. `POST`/`PUT /api/v1/statuses[/:id]` reject an attachment list longer
+than the fixed `MAX_STORED_MEDIA_ATTACHMENTS` ceiling (20) rather than the
+configured number. `POST /api/v1/accounts/outbox` — the endpoint the web
+composer actually posts through — enforces no attachment ceiling at all: its
+request schema puts no `.max()` on `attachments`, the route checks neither
+constant, and `createNoteFromUserInput` maps every entry straight through to
+`database.createAttachment`. So lowering `posts.maxMediaAttachments` changes
+what clients are told and what the built-in composer offers, never what any of
+these routes accept — and on the outbox path there is currently no accepted
+attachment count limit whatsoever. Note the contrast with the paragraph above:
+that one is about `posts.maxCharacters` and `polls.*`, which the outbox route
+_does_ enforce through `validateStatusContentLimits`.
 
 Several settings carry an upper bound. `polls.maxOptions` (50) and
 `polls.maxCharactersPerOption` (1,000) match the ceilings the status create
