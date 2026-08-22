@@ -53,7 +53,7 @@ export const StatusReplyBox: FC<Props> = ({
   // The instance's configured status length (admin setting posts.maxCharacters).
   // The reply endpoint enforces it too, so without this the reply box would let
   // a draft grow past the limit and only fail on submit.
-  const { maxStatusCharacters } = useInstanceLimits()
+  const { maxStatusCharacters, maxMediaAttachments } = useInstanceLimits()
   const [allowPost, setAllowPost] = useState<boolean>(false)
   const [isPosting, setIsPosting] = useState<boolean>(false)
   const [text, setText] = useState<string>('')
@@ -383,7 +383,7 @@ export const StatusReplyBox: FC<Props> = ({
                 isMediaUploadEnabled={isMediaUploadEnabled}
                 attachments={postExtension.attachments}
                 onAddAttachment={(attachment) => {
-                  dispatch(addAttachment(attachment))
+                  dispatch(addAttachment(attachment, maxMediaAttachments))
                 }}
                 onDuplicateError={() =>
                   setWarningMsg('Some files are already selected')

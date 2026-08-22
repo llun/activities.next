@@ -107,7 +107,11 @@ describe('Strava Webhook API', () => {
           // email. Asserted explicitly so the feature cannot be switched off
           // by dropping this one field with a green build.
           notifyOnComplete: true,
-          publishSendNote: true
+          publishSendNote: true,
+          // Same: the only entry point that stamps the post with the import
+          // time instead of the ride's start time, and dropping the field
+          // silently restores the backdating this flag exists to undo.
+          postAtImportTime: true
         }
       })
     )
@@ -150,7 +154,8 @@ describe('Strava Webhook API', () => {
           stravaActivityId: '13579',
           visibility: 'private',
           notifyOnComplete: true,
-          publishSendNote: true
+          publishSendNote: true,
+          postAtImportTime: true
         }
       })
     )
@@ -202,7 +207,8 @@ describe('Strava Webhook API', () => {
           stravaActivityId: '24680',
           visibility: 'private',
           notifyOnComplete: true,
-          publishSendNote: true
+          publishSendNote: true,
+          postAtImportTime: true
         }
       })
     )

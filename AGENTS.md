@@ -172,10 +172,10 @@ ActivityPub objects are **JSON-LD**, so the same logical object can arrive in ma
 
 ## Instance Limits in Client Components
 
-- **Client authoring UI must size itself to the admin-configured server settings, never to a hardcoded constant.** Read them from `useInstanceLimits()` (`@/lib/components/instance-limits`), which the `(timeline)` layout publishes once from `getResolvedServerSettings()`. Current consumers: the composer's character counter and the inline reply box (`posts.maxCharacters`), the poll editor (`polls.*`), and the composer's media picker and the avatar/header picker (`media.maxFileSize`).
+- **Client authoring UI must size itself to the admin-configured server settings, never to a hardcoded constant.** Read them from `useInstanceLimits()` (`@/lib/components/instance-limits`), which the `(timeline)` layout publishes once from `getResolvedServerSettings()`. Current consumers: the composer's character counter and the inline reply box (`posts.maxCharacters`), the poll editor (`polls.*`), the composer's media picker and the avatar/header picker (`media.maxFileSize`), and the media picker's attachment count — both the composer and the inline reply box — plus the `addAttachment` reducer guard behind it (`posts.maxMediaAttachments`).
 - Add a field to `InstanceLimits` and publish it from the layout rather than threading a prop: the composer renders inline under posts across the whole route group, so prop-threading touches ~30 files. Keep the context to values the browser genuinely needs; it is not a mirror of `ResolvedServerSettings`.
 - **Do not import `lib/config/serverSettings` into a Client Component** for its value exports — it carries `process.env`-reading closures. Defaults belong in a dependency-free module (see **Server/Client Module Boundary**).
-- The context is UX only. Every limit is enforced server-side too (`validateStatusContentLimits` on the status create/edit routes, `exceedsMaxMediaUploadSize` on every upload path); a client that is out of date can only be optimistic, never permissive. When a new surface can author or upload, put it under the provider and read the limit from it.
+- The context is UX only. Every limit is enforced server-side too (`validateStatusContentLimits` on the status create/edit routes, `exceedsMaxMediaUploadSize` on every upload path); a client that is out of date can only be optimistic, never permissive. `posts.maxMediaAttachments` is the exception, and a bigger one than it reads: **no** route enforces the resolved value. `POST`/`PUT /api/v1/statuses[/:id]` fall back to the fixed `MAX_STORED_MEDIA_ATTACHMENTS` ceiling, but `POST /api/v1/accounts/outbox` — the route both the composer and the inline reply box actually post through — bounds the attachment count by nothing at all, so on that path the provider is the only limit there is and a stale or missing one lets media through unbounded, not merely up to a ceiling. See **Database-backed server settings** in `docs/environment-variables.md` for the full explanation. When a new surface can author or upload, put it under the provider and read the limit from it.
 
 ## Date Serialization in Server Components
 
@@ -441,6 +441,37 @@ it; there is no legacy shape left to copy.
 - Changing the basemap does **not** restyle already-stored route images. They are
   re-rendered only by **Regenerate maps for old statuses** (`/fitness/privacy`,
   `POST /api/v1/fitness/general/regenerate-maps`).
+
+## Fitness Activity Dates
+
+- **A fitness post's `createdAt` is NOT the activity's start time — read
+  `fitness_files.activityStartTime`.** A post created through
+  `importFitnessFiles` was backdated to the earliest target activity's start —
+  or, with no parsed start time, to the fitness file row's own `createdAt` —
+  until the Strava webhook opted into `postAtImportTime`
+  (`lib/jobs/importFitnessFilesJob.ts`), which stamps the status when the import
+  publishes it so a just-finished ride is not filed hours down the timeline
+  behind everything posted while it was still being ridden. It does that for
+  ANY activity the webhook delivers, however old — Strava fires `create` for a
+  late device sync and a back-dated manual entry too. Every other caller still
+  backdates, because each replays history. Do not read any of that as "the two
+  used to be equal" and derive one from the other for old rows: they already
+  diverged for a merged multi-device activity whose primary file is not its
+  earliest (`createdAt` follows the earliest start, `status.fitness` follows
+  `isPrimary`, and the primary is the LONGEST outdoor file), for a file whose
+  parse yielded no start time at all, and for the streamless Strava fallback
+  note, which never reaches `importFitnessFiles` and has always been stamped at
+  import time. Anything rendering, sorting or grouping by "when the activity
+  happened" therefore has to read the file, not
+  the post: `FitnessStatusDetail`'s date, the import email
+  (`fitness?.activityStartTime ?? status.createdAt`) and
+  `getActivityImportGroupKey` all do. The status payload carries
+  `StatusFitnessFile.activityStartTime` precisely so a surface holding only a
+  status has it — the detail page's placeholder used `status.createdAt` as a
+  stand-in and silently started dating rides wrongly the moment those two
+  diverged. The post's own `createdAt` remains correct for what it means: when
+  the post was published, which is what the timeline, the relative timestamp and
+  the ActivityPub `published` should show.
 
 ## Fitness Route Heatmap Pyramid
 

@@ -44,12 +44,18 @@ vi.mock('@/lib/types/domain/actor', () => ({
 vi.mock('@/lib/components/instance-limits', () => ({
   InstanceLimitsProvider: ({
     maxStatusCharacters,
+    maxMediaAttachments,
     children
   }: {
     maxStatusCharacters?: number
+    maxMediaAttachments?: number
     children: ReactNode
   }) => (
-    <div data-testid="instance-limits" data-max={maxStatusCharacters}>
+    <div
+      data-testid="instance-limits"
+      data-max={maxStatusCharacters}
+      data-max-media-attachments={maxMediaAttachments}
+    >
       {children}
     </div>
   )
@@ -183,4 +189,18 @@ describe('(timeline) Layout', () => {
       )
     }
   )
+
+  it('publishes the resolved media attachment limit to the composer', async () => {
+    mockGetActorFromSession.mockResolvedValue(signedInActor as never)
+    mockGetAllServerSettings.mockResolvedValue([
+      { key: 'posts.maxMediaAttachments', value: 7 }
+    ])
+
+    await renderLayout()
+
+    expect(screen.getByTestId('instance-limits')).toHaveAttribute(
+      'data-max-media-attachments',
+      '7'
+    )
+  })
 })

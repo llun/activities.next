@@ -13,7 +13,7 @@ import {
   deleteFitnessFile,
   saveFitnessFile
 } from '@/lib/services/fitness-files'
-import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
+import { MAX_IMPORTED_ACTIVITY_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { saveMedia } from '@/lib/services/medias/index'
 import {
   StravaArchiveLimitError,
@@ -519,11 +519,14 @@ describe('importStravaArchiveJob', () => {
 
   it('attaches valid media paths even when earlier paths are missing', async () => {
     database.getAttachments.mockResolvedValueOnce(
-      Array.from({ length: MAX_ATTACHMENTS - 1 }, (_, index) => ({
-        id: `attachment-${index}`,
-        statusId: 'status-1',
-        actorId: 'actor-1'
-      })) as never
+      Array.from(
+        { length: MAX_IMPORTED_ACTIVITY_ATTACHMENTS - 1 },
+        (_, index) => ({
+          id: `attachment-${index}`,
+          statusId: 'status-1',
+          actorId: 'actor-1'
+        })
+      ) as never
     )
 
     mockArchiveReaderOpen.mockResolvedValueOnce({

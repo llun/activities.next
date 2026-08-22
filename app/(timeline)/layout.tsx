@@ -37,6 +37,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
   const instanceLimits = {
     maxStatusCharacters: posts.maxCharacters,
     maxMediaFileSize: media.maxFileSize,
+    maxMediaAttachments: posts.maxMediaAttachments,
     maxPollOptions: polls.maxOptions,
     maxPollOptionCharacters: polls.maxCharactersPerOption,
     minPollExpirationSeconds: polls.minExpirationSeconds,

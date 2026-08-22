@@ -22,9 +22,9 @@ to the admin form. Clients read the resolved values from `/api/v1/instance` and
 Every endpoint that creates or edits a status enforces the resolved
 `posts.maxCharacters` and `polls.*` limits — `POST`/`PUT
 /api/v1/statuses[/:id]` and `POST /api/v1/accounts/outbox`, which is the
-endpoint the web composer posts through. Every upload endpoint (`POST
-/api/v1/media`, `POST /api/v2/media`, `PUT`/`PATCH /api/v1/media/:id`
-thumbnails, `POST /api/v1/medias/presigned`, `PATCH
+endpoint the web composer and the inline reply box post through. Every upload
+endpoint (`POST /api/v1/media`, `POST /api/v2/media`, `PUT`/`PATCH
+/api/v1/media/:id` thumbnails, `POST /api/v1/medias/presigned`, `PATCH
 /api/v1/accounts/update_credentials` avatars/headers, and admin custom emoji)
 enforces the resolved `media.maxFileSize`. All of them answer `422` above the
 limit. The status routes put the offending limit in the `error` message (except
@@ -53,10 +53,25 @@ section: its pages and API keep working, so an existing link or bookmark still
 resolves, and nobody's saved navigation is deleted, so re-enabling a feature
 restores each account's layout exactly as they left it.
 
-`posts.maxMediaAttachments` is the exception: it is advertised to clients and
-bounds the admin form, but neither create endpoint rejects a status carrying
-more than the configured number of attachments. Lowering it changes what
-clients are told, not what is accepted.
+`posts.maxMediaAttachments` is the exception to the status-limit enforcement
+described at the top of this section, and the exception is wider than it looks:
+it is advertised to clients and honoured by this instance's own composer and
+inline reply box (which read it through `useInstanceLimits()`), but **no**
+route enforces the resolved value, and the routes do not even agree on a
+fallback. `POST`/`PUT /api/v1/statuses[/:id]` reject an attachment list longer
+than the fixed `MAX_STORED_MEDIA_ATTACHMENTS` ceiling (20) rather than the
+configured number. `POST /api/v1/accounts/outbox` — the endpoint both the web
+composer and the inline reply box actually post through — enforces no
+attachment ceiling at all: its request schema puts no `.max()` on
+`attachments`, the route checks neither constant, and
+`createNoteFromUserInput` maps every entry straight through to
+`database.createAttachment`. So lowering `posts.maxMediaAttachments` changes
+what clients are told and what the built-in composer offers, never what any of
+these routes accept — and on the outbox path there is currently no accepted
+attachment count limit whatsoever. Note that this is specific to the attachment
+count: the outbox route _does_ enforce the resolved `posts.maxCharacters` and
+`polls.*` through `validateStatusContentLimits`, which is why the general claim
+at the top of this section holds for every limit but this one.
 
 Several settings carry an upper bound. `polls.maxOptions` (50) and
 `polls.maxCharactersPerOption` (1,000) match the ceilings the status create

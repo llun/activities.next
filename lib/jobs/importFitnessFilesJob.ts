@@ -63,7 +63,29 @@ const JobData = z.object({
   //
   // An import that reuses an existing status never federates regardless of this
   // flag: see the publishSendNote expression on the process job below.
-  publishSendNote: z.boolean().optional().default(false)
+  publishSendNote: z.boolean().optional().default(false),
+  // Whether a status newly created here is stamped with the moment the import
+  // ran instead of being backdated to the activity's start time.
+  //
+  // Backdating is the default because every other caller imports HISTORY: the
+  // Strava archive walker, a multi-file upload of last season's rides, the
+  // retry-all path and the recovery scripts all replay activities that happened
+  // long before the import did, and a post stamped `now` would jump years of
+  // riding to the top of the timeline (and, on the recovery paths, of the
+  // followers' too).
+  //
+  // The Strava webhook is the one caller where the opposite is true: the
+  // activity was recorded minutes ago and the post IS the news of it, so
+  // backdating buried it below whatever was posted while the ride was still in
+  // progress — a four-hour ride landed four hours down the timeline. The
+  // activity's own start time is not lost by this: it lives on
+  // `fitness_files.activityStartTime`, which is what every fitness surface
+  // reads for the activity date.
+  //
+  // Set by the ORIGINATING publisher for the same reason as the two flags
+  // above, and defaults to false so a new caller keeps the historical
+  // behaviour until it opts in.
+  postAtImportTime: z.boolean().optional().default(false)
 })
 
 const ACTOR_NOT_FOUND_IMPORT_ERROR = 'Actor not found for fitness import'
@@ -223,8 +245,10 @@ const createLocalOnlyFitnessStatus = async ({
   const mentions: Mention[] = []
   const to = statusRecipientsTo(actor, mentions, null, visibility)
   const cc = statusRecipientsCC(actor, mentions, null, visibility)
-  // Backdated to the activity's start time so the URI tail sorts with the
-  // activity, matching the createdAt passed to database.createNote below.
+  // Minted from the resolved createdAt — the activity's start time for a
+  // historical import, the moment of import when the caller asked for that — so
+  // the URI tail always sorts with the post, matching the createdAt passed to
+  // database.createNote below.
   const postId = generatePublicId(createdAt)
   const statusId = getLocalStatusId({ actorId: actor.id, statusId: postId })
 
@@ -281,7 +305,8 @@ export const importFitnessFiles = async (
     overlapFitnessFileIds,
     visibility,
     notifyOnComplete,
-    publishSendNote
+    publishSendNote,
+    postAtImportTime
   } = JobData.parse(data)
 
   const importedGroups: ImportedFitnessGroup[] = []
@@ -470,8 +495,14 @@ export const importFitnessFiles = async (
     )
     const primaryTargetFile = selectPrimaryTargetFile(orderedTargetGroup)
     const earliestTargetFile = orderedTargetGroup[0]
-    const createdAt =
-      earliestTargetFile.startTimeMs ?? earliestTargetFile.fitnessFile.createdAt
+    // Read at the point of creation rather than once at the top of the run:
+    // this function downloads and parses every file first, which for a batch of
+    // FIT files is not instant, and the stamp is meant to be when the activity
+    // was posted.
+    const createdAt = postAtImportTime
+      ? Date.now()
+      : (earliestTargetFile.startTimeMs ??
+        earliestTargetFile.fitnessFile.createdAt)
     let createdStatusId: string | null = null
 
     try {

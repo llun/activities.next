@@ -7,6 +7,7 @@ import {
   MAX_POLL_EXPIRATION_SECONDS,
   MAX_POLL_OPTIONS,
   MAX_POLL_OPTION_CHARS,
+  MAX_STORED_MEDIA_ATTACHMENTS,
   MIN_POLL_EXPIRATION_SECONDS
 } from '@/lib/services/mastodon/constants'
 import { MAX_FILE_SIZE } from '@/lib/services/medias/constants'
@@ -26,12 +27,29 @@ import { MAX_FILE_SIZE } from '@/lib/services/medias/constants'
  * (`validateStatusContentLimits`) and on every upload endpoint
  * (`exceedsMaxMediaUploadSize`), so a missing or stale provider can only make
  * the client optimistic, never let something through.
+ *
+ * `maxMediaAttachments` is the one exception, and it is not a small one. No
+ * route enforces this resolved value. `POST`/`PUT /api/v1/statuses[/:id]`
+ * fall back to the fixed `MAX_STORED_MEDIA_ATTACHMENTS` ceiling, but
+ * `POST /api/v1/accounts/outbox` — the route both the composer and the inline
+ * reply box actually post through — bounds the attachment count by nothing at
+ * all. So for this field the provider is the only limit on the path the web UI
+ * uses, and a stale or missing one lets media through unbounded rather than
+ * merely up to a ceiling. See "Database-backed server settings" in
+ * `docs/environment-variables.md` for the full explanation.
  */
 export interface InstanceLimits {
   /** Resolved `posts.maxCharacters` — the composer's character budget. */
   maxStatusCharacters: number
   /** Resolved `media.maxFileSize` in bytes — the upload picker's size budget. */
   maxMediaFileSize: number
+  /**
+   * Resolved `posts.maxMediaAttachments` — how many attachments the media
+   * picker lets a single status carry. This is the same value the instance
+   * entity advertises as `max_media_attachments`, so the built-in composer
+   * caps itself exactly where a third-party Mastodon client would.
+   */
+  maxMediaAttachments: number
   /** Resolved `polls.maxOptions` — how many choices the poll editor offers. */
   maxPollOptions: number
   /** Resolved `polls.maxCharactersPerOption`. */
@@ -45,6 +63,7 @@ export interface InstanceLimits {
 export const DEFAULT_INSTANCE_LIMITS: InstanceLimits = {
   maxStatusCharacters: DEFAULT_MAX_STATUS_CHARACTERS,
   maxMediaFileSize: MAX_FILE_SIZE,
+  maxMediaAttachments: MAX_STORED_MEDIA_ATTACHMENTS,
   maxPollOptions: MAX_POLL_OPTIONS,
   maxPollOptionCharacters: MAX_POLL_OPTION_CHARS,
   minPollExpirationSeconds: MIN_POLL_EXPIRATION_SECONDS,
@@ -69,6 +88,7 @@ const positiveIntegerOr = (value: number | undefined, fallback: number) =>
 interface ProviderProps {
   maxStatusCharacters?: number
   maxMediaFileSize?: number
+  maxMediaAttachments?: number
   maxPollOptions?: number
   maxPollOptionCharacters?: number
   minPollExpirationSeconds?: number
@@ -79,6 +99,7 @@ interface ProviderProps {
 export const InstanceLimitsProvider: FC<ProviderProps> = ({
   maxStatusCharacters,
   maxMediaFileSize,
+  maxMediaAttachments,
   maxPollOptions,
   maxPollOptionCharacters,
   minPollExpirationSeconds,
@@ -96,6 +117,10 @@ export const InstanceLimitsProvider: FC<ProviderProps> = ({
       maxMediaFileSize: positiveIntegerOr(
         maxMediaFileSize,
         DEFAULT_INSTANCE_LIMITS.maxMediaFileSize
+      ),
+      maxMediaAttachments: positiveIntegerOr(
+        maxMediaAttachments,
+        DEFAULT_INSTANCE_LIMITS.maxMediaAttachments
       ),
       maxPollOptions: positiveIntegerOr(
         maxPollOptions,
@@ -117,6 +142,7 @@ export const InstanceLimitsProvider: FC<ProviderProps> = ({
     [
       maxStatusCharacters,
       maxMediaFileSize,
+      maxMediaAttachments,
       maxPollOptions,
       maxPollOptionCharacters,
       minPollExpirationSeconds,

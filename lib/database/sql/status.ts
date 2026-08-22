@@ -3308,6 +3308,13 @@ export const StatusSQLDatabaseMixin = (
               ...(fitnessFile.activityType
                 ? { activityType: fitnessFile.activityType }
                 : null),
+              ...(fitnessFile.activityStartTime
+                ? {
+                    activityStartTime: getCompatibleTime(
+                      fitnessFile.activityStartTime
+                    )
+                  }
+                : null),
               hasMapData: Boolean(fitnessFile.hasMapData),
               ...(fitnessFile.description
                 ? { description: fitnessFile.description }

@@ -24,7 +24,7 @@ import { saveFitnessFile } from '@/lib/services/fitness-files'
 import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
 import { withImportLock } from '@/lib/services/fitness-files/importLock'
 import { linkFitnessFileDeviceGear } from '@/lib/services/fitness-gears/resolveDeviceGear'
-import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
+import { MAX_IMPORTED_ACTIVITY_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { saveMedia } from '@/lib/services/medias/index'
 import { getActivityImportGroupKey } from '@/lib/services/notifications/activityImportGroupKey'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
@@ -95,7 +95,20 @@ const JobData = z.object({
   // recovered activity.
   //
   // Defaults to false so a caller is silent until it opts in.
-  publishSendNote: z.boolean().optional().default(false)
+  publishSendNote: z.boolean().optional().default(false),
+  // Whether a status newly created by this import is stamped with the moment
+  // the import ran instead of being backdated to the activity's start time.
+  //
+  // Set by the same single caller as the two flags above, and for a reason that
+  // follows the same split: the webhook fires minutes after a ride ends, so its
+  // post is news and belongs at the top of the timeline, while retry-all and
+  // the recovery scripts sweep activities that are already old — stamping those
+  // `now` would reorder an actor's whole history around whenever a sweep
+  // happened to run.
+  //
+  // Defaults to false so a caller keeps the backdated behaviour until it opts
+  // in.
+  postAtImportTime: z.boolean().optional().default(false)
 })
 
 const MAX_STRAVA_PHOTOS_TO_ATTACH = 4
@@ -226,7 +239,7 @@ const attachStravaPhotosToStatus = async ({
   )
   const remainingAttachmentSlots = Math.max(
     0,
-    MAX_ATTACHMENTS - existingAttachments.length
+    MAX_IMPORTED_ACTIVITY_ATTACHMENTS - existingAttachments.length
   )
 
   if (remainingAttachmentSlots <= 0) {
@@ -405,7 +418,8 @@ export const importStravaActivityJob = createJobHandle(
       stravaAuth,
       visibility,
       notifyOnComplete,
-      publishSendNote
+      publishSendNote,
+      postAtImportTime
     } = JobData.parse(message.data)
 
     const actor = await database.getActorFromId({ id: actorId })
@@ -804,7 +818,12 @@ export const importStravaActivityJob = createJobHandle(
               // Same: only the webhook federates. A merged sibling reuses the
               // existing status, so importFitnessFiles resolves this to false
               // for it and the ride's Create still goes out exactly once.
-              publishSendNote: shouldFederateImport
+              publishSendNote: shouldFederateImport,
+              // Same again: only the webhook posts a just-finished ride, so
+              // only it stamps the status with the import time rather than the
+              // activity's start. A merged sibling reuses the existing status,
+              // which keeps whatever stamp the first import gave it.
+              postAtImportTime
             },
             // The process job is the pipeline's federation trigger, and under
             // NoQueue publishing it runs it inline — before the Strava caption

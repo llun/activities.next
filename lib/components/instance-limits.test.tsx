@@ -5,17 +5,22 @@ import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
 import { FC } from 'react'
 
-import { DEFAULT_MAX_STATUS_CHARACTERS } from '@/lib/services/mastodon/constants'
+import {
+  DEFAULT_MAX_STATUS_CHARACTERS,
+  MAX_STORED_MEDIA_ATTACHMENTS
+} from '@/lib/services/mastodon/constants'
 import { MAX_FILE_SIZE } from '@/lib/services/medias/constants'
 
 import { InstanceLimitsProvider, useInstanceLimits } from './instance-limits'
 
 const LimitsProbe: FC = () => {
-  const { maxStatusCharacters, maxMediaFileSize } = useInstanceLimits()
+  const { maxStatusCharacters, maxMediaFileSize, maxMediaAttachments } =
+    useInstanceLimits()
   return (
     <>
       <span data-testid="max-status-characters">{maxStatusCharacters}</span>
       <span data-testid="max-media-file-size">{maxMediaFileSize}</span>
+      <span data-testid="max-media-attachments">{maxMediaAttachments}</span>
     </>
   )
 }
@@ -29,6 +34,37 @@ describe('useInstanceLimits', () => {
     )
     expect(screen.getByTestId('max-media-file-size')).toHaveTextContent(
       String(MAX_FILE_SIZE)
+    )
+    expect(screen.getByTestId('max-media-attachments')).toHaveTextContent(
+      String(MAX_STORED_MEDIA_ATTACHMENTS)
+    )
+  })
+
+  it.each([
+    {
+      description: 'serves the resolved attachment cap',
+      value: 12,
+      expected: '12'
+    },
+    {
+      description: 'falls back to the default cap when omitted',
+      value: undefined,
+      expected: String(MAX_STORED_MEDIA_ATTACHMENTS)
+    },
+    {
+      description: 'falls back to the default cap for a zero value',
+      value: 0,
+      expected: String(MAX_STORED_MEDIA_ATTACHMENTS)
+    }
+  ])('$description', ({ value, expected }) => {
+    render(
+      <InstanceLimitsProvider maxMediaAttachments={value}>
+        <LimitsProbe />
+      </InstanceLimitsProvider>
+    )
+
+    expect(screen.getByTestId('max-media-attachments')).toHaveTextContent(
+      expected
     )
   })
 

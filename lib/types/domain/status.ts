@@ -57,6 +57,14 @@ export const StatusFitnessFile = z.object({
   movingTimeSeconds: z.number().optional(),
   elevationGainMeters: z.number().optional(),
   activityType: z.string().optional(),
+  // When the activity itself was recorded. Carried here because the post's own
+  // `createdAt` is NOT a stand-in for it: a Strava webhook import is stamped
+  // when it published rather than when the ride began (see `postAtImportTime`
+  // in `lib/jobs/importFitnessFilesJob.ts`), so a surface that fell back to the
+  // post time would render the wrong activity date. Already public at this
+  // visibility — `/api/v1/fitness-files/by-status` serves it to every viewer
+  // who can see the status.
+  activityStartTime: z.number().optional(),
   hasMapData: z.boolean().optional(),
   deviceName: z.string().optional(),
   deviceManufacturer: z.string().optional(),
