@@ -445,12 +445,18 @@ it; there is no legacy shape left to copy.
 ## Fitness Activity Dates
 
 - **A fitness post's `createdAt` is NOT the activity's start time — read
-  `fitness_files.activityStartTime`.** The two were equal for every import until
-  the Strava webhook opted into `postAtImportTime`
+  `fitness_files.activityStartTime`.** Every import path backdated the post to
+  the activity's start until the Strava webhook opted into `postAtImportTime`
   (`lib/jobs/importFitnessFilesJob.ts`), which stamps the status when the import
   publishes it so a just-finished ride is not filed hours down the timeline
   behind everything posted while it was still being ridden. Every other caller
-  still backdates, because each replays history. Anything rendering, sorting or
+  still backdates, because each replays history. Do not read that history as
+  "the two used to be equal" and derive one from the other for old rows: they
+  already diverged for a merged multi-device activity whose primary file is not
+  its earliest (`createdAt` follows the earliest start, `status.fitness` follows
+  `isPrimary`, and the primary is the LONGEST outdoor file), for a file whose
+  parse yielded no start time at all, and for the streamless Strava fallback
+  note, which has always been stamped at import time. Anything rendering, sorting or
   grouping by "when the activity happened" therefore has to read the file, not
   the post: `FitnessStatusDetail`'s date, the import email
   (`fitness?.activityStartTime ?? status.createdAt`) and
