@@ -307,6 +307,10 @@ rendered by one pluggable provider, selected with `ACTIVITIES_FITNESS_MAP_PROVID
 - `apple` — Apple Maps: MapKit JS in the browser (authenticated with a short-lived
   token signed from `ACTIVITIES_FITNESS_APPLE_MAPS_TEAM_ID` /
   `..._KEY_ID` / `..._PRIVATE_KEY`) and the Apple Maps Snapshots API for static images.
+  Both draw Apple's **muted standard** basemap — the standard road map with its
+  land, water and POI colours de-saturated — so the route lines, heat runs and
+  privacy circles painted on top stay the most prominent thing on the map. There
+  is no map-type control and no way to switch to hybrid or satellite.
 - `mapbox` — Mapbox GL JS plus the Mapbox Static Images API, using
   `ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN`.
 - `osm` — keyless MapLibre GL JS with OpenFreeMap tiles; no credentials needed.
@@ -326,10 +330,11 @@ Apple Maps free tier (per Apple Developer Program membership, as published by Ap
 snapshot requests per day. Static route images are generated once per fitness post and
 stored, so snapshot usage tracks new imports rather than page views.
 
-Existing route-map images keep the style of the provider that generated them; run
-**Regenerate maps for old statuses** on the fitness privacy page (`/fitness/privacy`,
-backed by `POST /api/v1/fitness/general/regenerate-maps`) after switching providers to
-re-render them.
+Existing route-map images keep the style they were generated with — both the
+provider and its basemap; run **Regenerate maps for old statuses** on the fitness
+privacy page (`/fitness/privacy`, backed by
+`POST /api/v1/fitness/general/regenerate-maps`) after switching providers, or after
+a basemap change, to re-render them.
 
 ## Queue (Background Jobs)
 

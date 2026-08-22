@@ -12,6 +12,7 @@ import {
   type MapKitSurfaceModule,
   boundsToRegion,
   loadMapKitSurface,
+  mutedStandardMapType,
   pageToCoordinate
 } from '@/lib/components/fitness/mapkitSurface'
 import { Button } from '@/lib/components/ui/button'
@@ -195,6 +196,7 @@ export const RegionMapKit: FC<RegionMapKitProps> = ({
 
         try {
           const map = new mapkit.Map(container, {
+            mapType: mutedStandardMapType(mapkit),
             showsMapTypeControl: false
           })
           mapkitRef.current = mapkit

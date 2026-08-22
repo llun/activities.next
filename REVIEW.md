@@ -588,6 +588,24 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   the call added). Don't flag these as bugs, and don't "fix" them with a sweep
   that has nothing to run it.
 
+## Apple Maps basemap
+
+- Every Apple-rendered map draws `mutedStandard`, interactive and static alike:
+  the four MapKit components pass `mapType: mutedStandardMapType(mapkit)` to
+  `new mapkit.Map(...)`, and the Web Snapshot URL carries `t=mutedStandard`. A
+  surface with its own map type, or a re-enabled `showsMapTypeControl`, loses the
+  contrast the route lines, heat runs and privacy circles depend on.
+- `mutedStandardMapType` falls back to the literal rather than reading straight
+  through `mapkit.Map.MapTypes` — that static belongs to the `map` library, not
+  `mapkit.core.js`, and every component builds its map inside a `try` that drops
+  the whole map to the static/OSM fallback on throw. Don't "simplify" the
+  fallback away.
+- The snapshot module keeps its own copy of the literal instead of importing the
+  component one: `lib/services/**` is server-only and must not reach into the
+  client component tree.
+- Adding a query parameter to the snapshot URL shifts `MAX_SNAPSHOT_OVERLAYS`,
+  which is derived from `buildPath`. Re-check the ceiling rather than assuming it.
+
 ## Fitness route heatmap pyramid
 
 - An activity is folded into a build **exactly once** — the gate is positional

@@ -141,6 +141,9 @@ describe('buildAppleSnapshotPath', () => {
 
     const params = queryParams(path as string)
     expect(params.get('center')).toBe('auto')
+    // Same basemap the interactive MapKit maps select through `mapType`, so a
+    // stored route image and its live map read alike.
+    expect(params.get('t')).toBe('mutedStandard')
     expect(params.get('size')).toBe('640x480')
     expect(params.get('scale')).toBe('2')
     expect(params.get('teamId')).toBe('TEAM123')

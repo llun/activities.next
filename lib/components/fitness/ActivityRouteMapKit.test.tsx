@@ -90,6 +90,23 @@ describe('ActivityRouteMapKit', () => {
     expect(mockLoadMapKitModule).not.toHaveBeenCalled()
   })
 
+  it('draws the muted standard basemap, so the route line stays the brightest thing', async () => {
+    const double = createMapKitTestDouble()
+    mockLoadMapKitModule.mockImplementation((() =>
+      Promise.resolve(double.mapkit)) as never)
+
+    render(
+      <ActivityRouteMapKit
+        routeSegments={routeSegments}
+        routeSamples={routeSamples}
+        onUnavailable={vi.fn()}
+      />
+    )
+
+    await waitFor(() => expect(double.getMap()).not.toBeNull())
+    expect(double.getMap()!.options.mapType).toBe('mutedStandard')
+  })
+
   it('draws one polyline overlay per drawable segment once MapKit resolves', async () => {
     const double = createMapKitTestDouble()
     mockLoadMapKitModule.mockImplementation((() =>
