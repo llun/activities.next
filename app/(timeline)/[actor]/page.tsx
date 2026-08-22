@@ -70,7 +70,7 @@ const Page: FC<Props> = async ({ params }) => {
     database,
     decodedActorHandle,
     isLoggedIn,
-    { currentActorId: currentActor?.id }
+    { currentActor }
   )
   if (!actorProfile) {
     return notFound()

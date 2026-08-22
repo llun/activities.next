@@ -3265,6 +3265,15 @@ export type GetAttachmentsForActorParams = {
   actorId: string
   limit?: number
   maxCreatedAt?: number
+  // Visibility of the STATUS each attachment hangs off, with the same meaning
+  // and the same "all absent means no filter" default as GetActorStatusesParams
+  // above — an attachment is exactly as readable as the post carrying it, so a
+  // gallery must be scoped the same way its timeline is. Resolve these with
+  // `resolveActorStatusesAudience` rather than spelling them out.
+  publicOnly?: boolean
+  visibleToActorId?: string | null
+  includeFollowersOnly?: boolean
+  followersAudience?: string | null
 }
 export type GetMediasForAccountParams = {
   accountId: string

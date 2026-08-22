@@ -8,7 +8,10 @@ import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import { getRemoteActorStatuses } from '@/lib/services/mastodon/getRemoteActorStatuses'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
-import { canActorReadStatus } from '@/lib/services/statusAccess'
+import {
+  canActorReadStatus,
+  resolveActorStatusesAudience
+} from '@/lib/services/statusAccess'
 import {
   decodeCursor,
   resolveStatusCursor
@@ -120,18 +123,12 @@ export const GET = traceApiRoute(
       const minId = await resolveStatusCursor(database, decodedMinId)
       const sinceId = await resolveStatusCursor(database, decodedSinceId)
 
-      const follow =
-        currentActor && currentActor.id !== id
-          ? await database.getAcceptedOrRequestedFollow({
-              actorId: currentActor.id,
-              targetActorId: id
-            })
-          : null
-      const isFollower =
-        currentActor && currentActor.id !== id
-          ? follow?.status === FollowStatus.enum.Accepted
-          : false
-      const isOwner = currentActor?.id === id
+      const audience = await resolveActorStatusesAudience({
+        database,
+        targetActor: actor,
+        currentActor
+      })
+      const { isFollower, isOwner } = audience
       const followerStateByActorId = currentActor
         ? new Map<string, boolean>()
         : undefined
@@ -154,10 +151,10 @@ export const GET = traceApiRoute(
           maxStatusId: nextMaxId,
           minStatusId: minId || sinceId,
           limit,
-          publicOnly: currentActor === null,
-          visibleToActorId: currentActor && !isOwner ? currentActor.id : null,
-          includeFollowersOnly: isFollower,
-          followersAudience: actor.followersUrl,
+          publicOnly: audience.publicOnly,
+          visibleToActorId: audience.visibleToActorId,
+          includeFollowersOnly: audience.includeFollowersOnly,
+          followersAudience: audience.followersAudience,
           onlyMedia: parsedParams.only_media === true,
           excludeReplies: parsedParams.exclude_replies === true,
           excludeReblogs: parsedParams.exclude_reblogs === true,
