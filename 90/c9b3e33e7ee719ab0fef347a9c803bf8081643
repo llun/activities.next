@@ -1,0 +1,40 @@
+app/(timeline)/[actor]/getProfileData.ts
+  s_8500a52257703f::t_b5bdd577b82f8c 87-92
+  s_8500a52257703f::t_6fb947d45ddd41 108-117
+  s_8500a52257703f::t_b2f35b600eac3e 65-68,70,76-86,94,103
+  s_8500a52257703f::t_0632a35ca6b1b5 93
+lib/database/statusVisibilityCallSites.test.ts
+  s_8500a52257703f::t_0fd708c4af552e 114
+  s_8500a52257703f::t_006b745875d33b 91-94,96
+  s_8500a52257703f::t_6ab901ae021010 38-48,51-54,78,89-90,95,97-113,115-137,167-168,188,193-195,200-214,216-217,232-233,235-236,248-249,254
+  s_8500a52257703f::t_aa05ea6c7c4031 138,140-164,169
+  s_8500a52257703f::t_163c525202a12f 196-199
+  s_8500a52257703f::t_6649b9563a7490 139
+app/(timeline)/[actor]/getProfileData.test.ts
+  s_8500a52257703f::t_d8d9f4a41e56f7 486-523
+app/api/v1/accounts/[id]/media/route.test.ts
+  s_8500a52257703f::t_ee52e6dee263af 170-215
+app/api/v1/accounts/[id]/media/route.ts
+  s_8500a52257703f::t_db84f9502269d8 118-128
+  s_8500a52257703f::t_7145c10d21cbb1 3-6
+AGENTS.md
+  s_8500a52257703f::t_43431933690424 1983
+CLAUDE.md
+  s_8500a52257703f::t_43431933690424 46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "90c9b3e33e7ee719ab0fef347a9c803bf8081643",
+  "prompts": {},
+  "sessions": {
+    "s_8500a52257703f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "90abf0ee-902c-49a4-9c02-2af2482a33d5",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
