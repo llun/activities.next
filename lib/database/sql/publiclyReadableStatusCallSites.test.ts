@@ -230,19 +230,19 @@ describe('publicly readable status filtering at each call site', () => {
       description: 'excludeReblogs',
       filters: { excludeReblogs: true },
       // Every publicly readable non-Announce the actor owns.
-      expected: () => [parentId, publicReplyId, publicOwnId, taggedPublicId]
+      expected: [parentId, publicReplyId, publicOwnId, taggedPublicId]
     },
     {
       description: 'pinned',
       filters: { pinned: true },
       // Three rows are pinned; only this one is publicly readable.
-      expected: () => [publicOwnId]
+      expected: [publicOwnId]
     },
     {
       description: 'tagged',
       filters: { tagged: '#combo' },
       // Two rows carry the tag; only this one is publicly readable.
-      expected: () => [taggedPublicId]
+      expected: [taggedPublicId]
     }
   ])(
     'still drops followers-only rows with publicOnly and $description',
@@ -261,7 +261,7 @@ describe('publicly readable status filtering at each call site', () => {
       // `publicOnly`, so such a combination-specific regression passed both
       // files at once until this became an equality.
       expect([...statuses.map(({ id }) => id)].sort()).toEqual(
-        [...expected()].sort()
+        [...expected].sort()
       )
     }
   )
