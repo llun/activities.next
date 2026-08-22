@@ -317,12 +317,19 @@ async function normalizeFitnessActivityTypesScript(
 
     let updated = 0
     let failed = 0
+    // Which old values a row actually MOVED AWAY from, as opposed to which the
+    // plan intended to. The heatmap advice below is derived from this rather
+    // than from the plan: a run whose writes all failed changed nothing, and
+    // telling the operator their cache is stale — with a paste-ready rebuild
+    // command — would send them to redo work that was never invalidated.
+    const rewrittenFrom = new Set<string>()
     for (const rewrite of plan.rewrites) {
       try {
         await database.updateFitnessFileActivityData(rewrite.fileId, {
           activityType: rewrite.to
         })
         updated += 1
+        rewrittenFrom.add(rewrite.from)
       } catch (error) {
         failed += 1
         console.error(
@@ -338,13 +345,20 @@ async function normalizeFitnessActivityTypesScript(
     // periodKey, region), so renaming a `cycling` row to `ride` collides with
     // the row already built from `Ride` rather than merging into it. Rebuilding
     // is the operation that actually reconciles them.
-    const staleKeys = [...new Set(transitions.map(({ from }) => from))]
-    console.log(
-      `\nPer-activity-type route heatmaps cached under ${staleKeys
-        .map((key) => `"${key}"`)
-        .join(', ')} are now stale. Rebuild them with:\n` +
-        `  NODE_ENV=production scripts/fitness/recreateFitnessRouteHeatmaps.ts --actor-id ${actor.id}`
-    )
+    //
+    // Filtered through `transitions` rather than listing the set directly, to
+    // keep the same most-rows-first order the change report above used.
+    const staleKeys = transitions
+      .map(({ from }) => from)
+      .filter((from) => rewrittenFrom.has(from))
+    if (staleKeys.length > 0) {
+      console.log(
+        `\nPer-activity-type route heatmaps cached under ${staleKeys
+          .map((key) => `"${key}"`)
+          .join(', ')} are now stale. Rebuild them with:\n` +
+          `  NODE_ENV=production scripts/fitness/recreateFitnessRouteHeatmaps.ts --actor-id ${actor.id}`
+      )
+    }
 
     return failed > 0 ? 1 : 0
   } finally {

@@ -474,6 +474,66 @@ describe('normalizeFitnessActivityTypesScript', () => {
     )
   })
 
+  it('does not claim heatmaps are stale when every write failed', async () => {
+    // Nothing moved, so nothing was invalidated. Printing the rebuild command
+    // here sends an operator to redo work in response to a run that changed
+    // no rows — and the exit code alone does not stop them pasting it.
+    mockGetDatabase.mockReturnValue(
+      stubDatabase({
+        types: ['cycling', 'Biking'],
+        updateFitnessFileActivityData: vi
+          .fn()
+          .mockRejectedValue(new Error('connection terminated'))
+      })
+    )
+
+    const exitCode = await normalizeFitnessActivityTypesScript([
+      '--actor-id',
+      ACTOR_ID,
+      '--apply'
+    ])
+
+    expect(exitCode).toBe(1)
+    const printed = (
+      console.log as unknown as ReturnType<typeof vi.fn>
+    ).mock.calls
+      .flat()
+      .join('\n')
+    expect(printed).not.toContain('recreateFitnessRouteHeatmaps')
+  })
+
+  it('names only the values a row actually moved away from', async () => {
+    // A partially failed run invalidates only the caches whose rows changed.
+    mockGetDatabase.mockReturnValue(
+      stubDatabase({
+        types: ['cycling', 'Biking'],
+        updateFitnessFileActivityData: vi
+          .fn()
+          .mockImplementation((fileId: string) =>
+            fileId === 'file-0'
+              ? Promise.reject(new Error('deadlock detected'))
+              : Promise.resolve(undefined)
+          )
+      })
+    )
+
+    const exitCode = await normalizeFitnessActivityTypesScript([
+      '--actor-id',
+      ACTOR_ID,
+      '--apply'
+    ])
+
+    expect(exitCode).toBe(1)
+    const printed = (
+      console.log as unknown as ReturnType<typeof vi.fn>
+    ).mock.calls
+      .flat()
+      .join('\n')
+    const advice = printed.slice(printed.indexOf('route heatmaps cached under'))
+    expect(advice).toContain('"Biking"')
+    expect(advice).not.toContain('"cycling"')
+  })
+
   it('reports an actor that does not exist rather than scanning', async () => {
     const getFitnessFilesByActor = vi.fn()
     mockGetDatabase.mockReturnValue(
