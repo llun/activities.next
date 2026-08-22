@@ -1,0 +1,22 @@
+lib/database/statusVisibilityCallSites.test.ts
+  s_8500a52257703f::t_5fda570da88927 113-116,160-162,168,278-281,321-323
+  s_8500a52257703f::t_a2a3d38cfd0fdd 207-208,212-214,222-224,229-231
+  s_8500a52257703f::t_a95dcaf76078ae 21,24-28,41-46,51-65,104-112,117-159,163-167,169-175,182-187,190-197,205,209-211,246-248,251-254,256-261,263-277,283-284,286-295,305-306,313-320,324
+  s_8500a52257703f::t_0174ef2381adc2 325
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "a48a72c97a4c7ad4cdf1149d50bfef8750e0f57d",
+  "prompts": {},
+  "sessions": {
+    "s_8500a52257703f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "90abf0ee-902c-49a4-9c02-2af2482a33d5",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
