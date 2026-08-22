@@ -27,7 +27,21 @@ export interface FitnessActivityData {
   totalDurationSeconds: number
   movingTimeSeconds?: number
   elevationGainMeters?: number
+  /** The canonical sport key the column is stored as. See `toActivityData`. */
   activityType?: string
+  /**
+   * The sport exactly as the source file spelled it, kept beside the canonical
+   * key and never persisted.
+   *
+   * The key answers "which bike or which shoes", so it deliberately folds
+   * `Handcycle` and `Velomobile` into `ride` and `VirtualRun` into `run`. A
+   * post caption is not answering that question, and captioning a handcycle
+   * ride "Cycling" erases a distinction the athlete made. The Strava importer
+   * captions from its own raw `sport_type` and so kept the specificity, while
+   * an uploaded file had already been collapsed by the time its caption was
+   * built — the two paths disagreed about the same activity.
+   */
+  rawActivityType?: string
   startTime?: Date
   powerSeries?: number[]
   heartRateSeries?: number[]
@@ -470,6 +484,7 @@ const toActivityData = ({
         ? { elevationGainMeters: computedElevationGain }
         : null),
     ...(storedActivityType ? { activityType: storedActivityType } : null),
+    ...(activityType?.trim() ? { rawActivityType: activityType.trim() } : null),
     ...(startTime
       ? { startTime }
       : timestamps[0]
