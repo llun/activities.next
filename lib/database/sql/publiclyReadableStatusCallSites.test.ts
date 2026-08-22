@@ -226,26 +226,43 @@ describe('publicly readable status filtering at each call site', () => {
   // attachment fixture needs a `medias` row whose id is a valid integer on
   // PostgreSQL, which buys no additional composition signal.
   it.each([
-    { description: 'excludeReblogs', filters: { excludeReblogs: true } },
-    { description: 'pinned', filters: { pinned: true } },
-    { description: 'tagged', filters: { tagged: '#combo' } }
+    {
+      description: 'excludeReblogs',
+      filters: { excludeReblogs: true },
+      // Every publicly readable non-Announce the actor owns.
+      expected: () => [parentId, publicReplyId, publicOwnId, taggedPublicId]
+    },
+    {
+      description: 'pinned',
+      filters: { pinned: true },
+      // Three rows are pinned; only this one is publicly readable.
+      expected: () => [publicOwnId]
+    },
+    {
+      description: 'tagged',
+      filters: { tagged: '#combo' },
+      // Two rows carry the tag; only this one is publicly readable.
+      expected: () => [taggedPublicId]
+    }
   ])(
     'still drops followers-only rows with publicOnly and $description',
-    async ({ filters }) => {
+    async ({ filters, expected }) => {
       const statuses = await database.getActorStatuses({
         actorId,
         publicOnly: true,
         ...filters
       })
-      const ids = statuses.map(({ id }) => id)
 
-      expect(ids).not.toContain(privateOwnId)
-      expect(ids).not.toContain(privateReplyId)
-      expect(ids).not.toContain(taggedPrivateId)
-      expect(ids).not.toContain(publicBoostOfPrivateId)
-      // The filter itself still has to do its own job, or the assertions above
-      // would pass against an empty list.
-      expect(ids.length).toBeGreaterThan(0)
+      // Asserted as an exact set, not as absences plus a non-empty check. An
+      // absence-only assertion cannot tell a working filter from one that
+      // stopped correlating: dropping `status_pins.statusId = statuses.id`
+      // ONLY when `publicOnly` is also true leaves every absence satisfied and
+      // the list non-empty, and `status.test.ts`'s own pinned test never sets
+      // `publicOnly`, so such a combination-specific regression passed both
+      // files at once until this became an equality.
+      expect([...statuses.map(({ id }) => id)].sort()).toEqual(
+        [...expected()].sort()
+      )
     }
   )
 
