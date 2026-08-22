@@ -2159,7 +2159,11 @@ export const FitnessStatusDetail: FC<Props> = ({
         movingTimeSeconds: status.fitness.movingTimeSeconds ?? null,
         elevationGainMeters: status.fitness.elevationGainMeters ?? null,
         activityType: status.fitness.activityType ?? null,
-        activityStartTime: status.createdAt,
+        // The post's own timestamp is only a last resort: a Strava webhook
+        // import is stamped when it published rather than when the ride began,
+        // so falling back to it would date the activity wrongly until the
+        // by-status fetch below replaces this placeholder.
+        activityStartTime: status.fitness.activityStartTime ?? status.createdAt,
         hasMapData: status.fitness.hasMapData ?? false,
         description: status.fitness.description ?? null,
         deviceManufacturer: status.fitness.deviceManufacturer ?? null,

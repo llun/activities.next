@@ -451,6 +451,38 @@ describe('FitnessStatusDetail', () => {
     )
   })
 
+  it('dates the activity from the recorded start time, not the post time', async () => {
+    // A Strava webhook import is stamped when it published rather than when the
+    // ride began, and this placeholder is what renders until the by-status
+    // fetch lands — which here (the default mock) answers null and never does.
+    renderDetail({
+      status: buildStatus({
+        createdAt: Date.parse('2026-05-27T14:05:00Z'),
+        updatedAt: Date.parse('2026-05-27T14:05:00Z'),
+        fitness: {
+          id: 'fit-1',
+          fileName: 'ride.fit',
+          fileType: 'fit',
+          mimeType: 'application/octet-stream',
+          bytes: 2048,
+          url: 'https://activities.local/fit/ride.fit',
+          processingStatus: 'completed',
+          totalDistanceMeters: 5000,
+          totalDurationSeconds: 1800,
+          elevationGainMeters: 120,
+          activityType: 'ride',
+          activityStartTime: Date.parse('2026-05-27T10:42:00Z'),
+          hasMapData: false
+        }
+      } as Partial<StatusNote>)
+    })
+
+    expect(
+      screen.getByText('10:42 AM, May 27, 2026', { exact: false })
+    ).toBeInTheDocument()
+    expect(screen.queryByText('2:05 PM, May 27, 2026')).not.toBeInTheDocument()
+  })
+
   it('falls back to the static preview when the interactive map never finishes loading', async () => {
     mockGetFitnessFilesByStatus.mockResolvedValue([
       buildFitnessFile({ hasMapData: true })

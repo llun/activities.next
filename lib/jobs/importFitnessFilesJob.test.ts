@@ -266,6 +266,57 @@ describe('importFitnessFilesJob', () => {
     })
   })
 
+  it('stamps the status at import time when the caller opts in', async () => {
+    // The Strava webhook's case: the ride finished minutes ago and the post is
+    // the news of it, so backdating to the start time would file it below
+    // everything published while the ride was still going.
+    const file = await database.createFitnessFile({
+      actorId: actor.id,
+      path: 'fitness/import-post-time.fit',
+      fileName: 'import-post-time.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024,
+      importBatchId: 'batch-post-time'
+    })
+
+    const activityStartTime = new Date('2026-01-01T00:00:00.000Z')
+    mockParseFitnessFile.mockResolvedValueOnce({
+      coordinates: [],
+      trackPoints: [],
+      totalDistanceMeters: 5_000,
+      totalDurationSeconds: 1_000,
+      startTime: activityStartTime
+    })
+
+    const importStartedAt = Date.now()
+    await importFitnessFiles(database, {
+      actorId: actor.id,
+      batchId: 'batch-post-time',
+      fitnessFileIds: [file!.id],
+      visibility: 'public',
+      postAtImportTime: true
+    })
+    const importFinishedAt = Date.now()
+
+    const imported = await database.getFitnessFile({ id: file!.id })
+    const status = await database.getStatus({
+      statusId: imported!.statusId as string,
+      withReplies: false
+    })
+
+    expect(status?.createdAt).toBeGreaterThanOrEqual(importStartedAt)
+    expect(status?.createdAt).toBeLessThanOrEqual(importFinishedAt)
+    // The URI tail is minted from the same stamp, so the post sorts where it
+    // reads rather than back at the activity.
+    expect(getPublicIdTimestamp(status?.publicId as string)).toBe(
+      status?.createdAt
+    )
+    // The recorded start time is untouched — every fitness surface reads the
+    // activity's date from the file, not from the post.
+    expect(imported?.activityStartTime).toBe(activityStartTime.getTime())
+  })
+
   it('reuses existing status when import job is retried', async () => {
     const firstFile = await database.createFitnessFile({
       actorId: actor.id,

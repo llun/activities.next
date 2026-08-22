@@ -636,6 +636,41 @@ describe('StatusDatabase', () => {
         })
       })
 
+      it('returns the recorded activity start time on the fitness file', async () => {
+        // The post's own createdAt is not a stand-in for it: a Strava webhook
+        // import is stamped when it published, not when the ride began, so
+        // every surface reading the activity's date needs the recorded value.
+        const statusId = `${emptyActorId}/statuses/fitness-activity-start`
+        const activityStartTime = new Date('2026-05-27T05:12:00.000Z')
+
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'This post was published hours after the ride started'
+        })
+
+        const fitnessFile = await database.createFitnessFile({
+          actorId: emptyActorId,
+          statusId,
+          path: `fitness/${Date.now()}-activity-start.fit`,
+          fileName: 'activity-start.fit',
+          fileType: 'fit',
+          mimeType: 'application/octet-stream',
+          bytes: 4096
+        })
+        await database.updateFitnessFileActivityData(fitnessFile!.id, {
+          activityStartTime
+        })
+
+        const status = (await database.getStatus({ statusId })) as StatusNote
+        expect(status.fitness?.activityStartTime).toBe(
+          activityStartTime.getTime()
+        )
+      })
+
       it('returns the assigned gear name alongside the fitness file', async () => {
         const statusId = `${emptyActorId}/statuses/fitness-gear`
 
