@@ -1,4 +1,4 @@
-import { normalizeActivityTypeToSportKey } from '@/lib/services/fitness-files/sportTypes'
+import { getGearKindForActivityType } from '@/lib/services/fitness-files/sportTypes'
 
 import {
   NormalizableFitnessFile,
@@ -188,33 +188,41 @@ describe('planActivityTypeNormalization', () => {
     ])
   })
 
-  it('never changes an activity sport key, so gear cannot be reattributed', () => {
+  it('never changes the gear kind an activity resolves to', () => {
     // Auto-assign reads the column through `normalizeActivityTypeToSportKey`,
-    // so the rewrite is only safe on live data because every value written is
-    // a fixed point of that function. Assert it rather than trust it.
-    const raws = [
-      'cycling',
-      'gravel_cycling',
-      'indoor_cycling',
-      'mountain_biking',
-      'Biking',
-      'Ride',
-      'GravelRide',
-      'VirtualRide',
-      'EBikeRide',
-      'running',
-      'trail_running',
-      'walking',
-      'hiking'
-    ]
+    // so the rewrite is only safe on live data if it cannot move an activity
+    // between bike and shoes.
+    //
+    // The oracle is HARDCODED rather than derived from the plan. Comparing
+    // `normalize(rewrite.to)` against `normalize(rewrite.from)` looks like the
+    // same assertion but proves nothing: `to` is defined as
+    // `normalize(from)`, so it reduces to `normalize(normalize(x))
+    // === normalize(x)` and holds for any deterministic function — including
+    // one that classified every activity as a walk.
+    const EXPECTED_KIND: Record<string, 'bike' | 'shoes'> = {
+      cycling: 'bike',
+      gravel_cycling: 'bike',
+      indoor_cycling: 'bike',
+      mountain_biking: 'bike',
+      Biking: 'bike',
+      Ride: 'bike',
+      GravelRide: 'bike',
+      VirtualRide: 'bike',
+      EBikeRide: 'bike',
+      running: 'shoes',
+      trail_running: 'shoes',
+      walking: 'shoes',
+      hiking: 'shoes'
+    }
+    const raws = Object.keys(EXPECTED_KIND)
     const plan = planActivityTypeNormalization(
       raws.map((raw, index) => file(`file-${index}`, raw))
     )
 
     expect(plan.rewrites).toHaveLength(raws.length)
     for (const rewrite of plan.rewrites) {
-      expect(normalizeActivityTypeToSportKey(rewrite.to)).toBe(
-        normalizeActivityTypeToSportKey(rewrite.from)
+      expect(getGearKindForActivityType(rewrite.to)).toBe(
+        EXPECTED_KIND[rewrite.from]
       )
     }
   })
