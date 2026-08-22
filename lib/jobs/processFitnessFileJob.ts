@@ -5,6 +5,7 @@ import { Database } from '@/lib/database/types'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { buildActivityImportEmail } from '@/lib/services/email/templates/activityImport'
 import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
+import { getActivityPresentation } from '@/lib/services/fitness-files/activityPresentation'
 import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
 import { writeFitnessFileRoute } from '@/lib/services/fitness-files/fileRouteCache'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
@@ -65,43 +66,6 @@ const JobData = z.object({
   // so by the time this job reads the file its previous status is already gone.
   retryingMapFailure: z.boolean().optional().default(false)
 })
-
-const ACTIVITY_LABELS: Record<string, { label: string; emoji: string }> = {
-  run: { label: 'Running', emoji: '🏃' },
-  running: { label: 'Running', emoji: '🏃' },
-  walk: { label: 'Walking', emoji: '🚶' },
-  walking: { label: 'Walking', emoji: '🚶' },
-  hike: { label: 'Hiking', emoji: '🥾' },
-  hiking: { label: 'Hiking', emoji: '🥾' },
-  cycle: { label: 'Cycling', emoji: '🚴' },
-  cycling: { label: 'Cycling', emoji: '🚴' },
-  bike: { label: 'Cycling', emoji: '🚴' },
-  biking: { label: 'Cycling', emoji: '🚴' },
-  swim: { label: 'Swimming', emoji: '🏊' },
-  swimming: { label: 'Swimming', emoji: '🏊' }
-}
-
-const getActivityPresentation = (activityType?: string) => {
-  if (!activityType) {
-    return { label: 'Workout', emoji: '🏋️' }
-  }
-
-  const normalized = activityType.toLowerCase()
-
-  // `Object.hasOwn`, not a bare index: the table is an object literal, so it
-  // inherits `Object.prototype`. `activityType` is free-form text out of the
-  // uploaded file, and a `constructor` value would otherwise destructure the
-  // `Object` constructor into `{label, emoji}` and write
-  // "undefined undefined — 5.20 km" into the post body.
-  if (Object.hasOwn(ACTIVITY_LABELS, normalized)) {
-    return ACTIVITY_LABELS[normalized]
-  }
-
-  return {
-    label: `${activityType[0].toUpperCase()}${activityType.slice(1)}`,
-    emoji: '🏋️'
-  }
-}
 
 const formatDistance = (distanceMeters: number) => {
   const kilometers = distanceMeters / 1000
