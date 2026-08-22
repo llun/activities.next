@@ -99,8 +99,13 @@ export const getSportLabel = (key: string): string =>
  * Collapses a raw activity type to a comparable token: lowercase, with every
  * separator the four vocabularies use (spaces, underscores, hyphens) removed.
  * `Gravel ride`, `GravelRide` and `gravel_ride` all become `gravelride`.
+ *
+ * Exported because `activityPresentation.ts` keys its own caption tables on the
+ * same token. Two copies of this rule would key those tables differently from
+ * `EXACT_SPORT_KEYS` the moment a fifth vocabulary needed the separator set
+ * widened.
  */
-const toComparableToken = (value: string): string =>
+export const toComparableToken = (value: string): string =>
   value.toLowerCase().replace(/[^a-z0-9]/g, '')
 
 /**

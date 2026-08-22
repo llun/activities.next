@@ -1,6 +1,7 @@
 import {
   SportKey,
-  normalizeActivityTypeToSportKey
+  normalizeActivityTypeToSportKey,
+  toComparableToken
 } from '@/lib/services/fitness-files/sportTypes'
 
 /**
@@ -80,12 +81,13 @@ const UNMODELLED_ACTIVITY_LABELS: Record<string, ActivityPresentation> = {
 /**
  * Names an activity for the summary line of the post an import publishes.
  *
- * Reads the type through `normalizeActivityTypeToSportKey` rather than raw,
- * because it runs on BOTH vocabularies: a new import arrives already collapsed
- * to a sport key, while a file stored before that rule — reprocessed, or not
- * yet swept by `scripts/fitness/normalizeFitnessActivityTypes.ts` — still
- * carries `cycling` or `Biking`. Matching raw strings captioned a Strava ride
- * "Ride 🏋️", and would caption a normalized gravel ride "Gravel_ride 🏋️".
+ * Resolves in three steps — a raw spelling that must stay specific, then the
+ * sport key, then a sport no key models — because it runs on BOTH
+ * vocabularies. A caller may hand it the source file's own word
+ * (`cycling`, `Biking`, `MountainBikeRide`) or the canonical key the column
+ * stores (`ride`), and the same activity has to caption identically either
+ * way. Matching raw strings alone captioned a Strava ride "Ride 🏋️"; matching
+ * only the key would caption a normalized gravel ride "Gravel_ride 🏋️".
  */
 export const getActivityPresentation = (
   activityType?: string | null
@@ -94,12 +96,15 @@ export const getActivityPresentation = (
     return { label: 'Workout', emoji: '🏋️' }
   }
 
-  // `Object.hasOwn`, not a bare index, on both tables: they are object
+  // The same collapsing `sportTypes.ts` keys its own tables on, imported rather
+  // than repeated so the two cannot drift apart.
+  const token = toComparableToken(activityType)
+
+  // `Object.hasOwn`, not a bare index, on both tables below: they are object
   // literals, so they inherit `Object.prototype`. `activityType` is free-form
   // text out of the uploaded file, and a `constructor` value would otherwise
   // destructure the `Object` constructor into `{label, emoji}` and write
   // "undefined undefined — 5.20 km" into the post body.
-  const token = activityType.toLowerCase().replace(/[^a-z0-9]/g, '')
   if (Object.hasOwn(SPECIFIC_ACTIVITY_LABELS, token)) {
     return SPECIFIC_ACTIVITY_LABELS[token]
   }
