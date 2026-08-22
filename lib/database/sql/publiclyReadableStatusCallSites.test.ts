@@ -41,6 +41,8 @@ describe('publicly readable status filtering at each call site', () => {
   // the boost itself is public, so the recipients test alone lets it through,
   // and only following the announce chain to a non-public original drops it.
   const publicBoostOfPrivateId = `${actorId}/statuses/public-boost-of-private`
+  const taggedPublicId = `${actorId}/statuses/tagged-public`
+  const taggedPrivateId = `${actorId}/statuses/tagged-private`
 
   const audience = (isPublic: boolean, followersUrl: string = followers) =>
     isPublic ? [ACTIVITY_STREAM_PUBLIC] : [followersUrl]
@@ -98,6 +100,25 @@ describe('publicly readable status filtering at each call site', () => {
       })
     }
 
+    for (const [id, isPublic] of [
+      [taggedPublicId, true],
+      [taggedPrivateId, false]
+    ] as const) {
+      await database.createNote({
+        id,
+        url: id,
+        actorId,
+        text: `${id} #combo`,
+        to: audience(isPublic),
+        cc: []
+      })
+      await database.createTag({
+        statusId: id,
+        name: '#combo',
+        type: 'hashtag'
+      })
+    }
+
     await database.createAnnounce({
       id: publicBoostOfPrivateId,
       actorId,
@@ -105,6 +126,14 @@ describe('publicly readable status filtering at each call site', () => {
       to: [ACTIVITY_STREAM_PUBLIC],
       cc: []
     })
+
+    // Pin one row of each kind, including the public boost of a private note.
+    // That last one is what lets the pinned case tell the readability predicate
+    // apart from the plain "addressed to the public collection" fallback: it is
+    // pinned AND public, so only following the announce chain drops it.
+    await database.pinStatus({ actorId, statusId: publicOwnId })
+    await database.pinStatus({ actorId, statusId: privateOwnId })
+    await database.pinStatus({ actorId, statusId: publicBoostOfPrivateId })
 
     for (const [boosterId, username] of [
       [boosterPublicId, 'booster-public'],
@@ -187,6 +216,38 @@ describe('publicly readable status filtering at each call site', () => {
     expect(ids).not.toContain(privateOwnId)
     expect(ids).not.toContain(privateReplyId)
   })
+
+  // The Mastodon accounts-statuses endpoint
+  // (`app/api/v1/accounts/[id]/statuses/route.ts`) passes `publicOnly` together
+  // with `excludeReblogs`, `pinned`, `tagged` and `onlyMedia` in one call, and
+  // nothing exercised those combinations. They compose as independent top-level
+  // `AND`s today, so none of these failed when first written — this is coverage
+  // for a real argument shape, not a fix. `onlyMedia` is left out because an
+  // attachment fixture needs a `medias` row whose id is a valid integer on
+  // PostgreSQL, which buys no additional composition signal.
+  it.each([
+    { description: 'excludeReblogs', filters: { excludeReblogs: true } },
+    { description: 'pinned', filters: { pinned: true } },
+    { description: 'tagged', filters: { tagged: '#combo' } }
+  ])(
+    'still drops followers-only rows with publicOnly and $description',
+    async ({ filters }) => {
+      const statuses = await database.getActorStatuses({
+        actorId,
+        publicOnly: true,
+        ...filters
+      })
+      const ids = statuses.map(({ id }) => id)
+
+      expect(ids).not.toContain(privateOwnId)
+      expect(ids).not.toContain(privateReplyId)
+      expect(ids).not.toContain(taggedPrivateId)
+      expect(ids).not.toContain(publicBoostOfPrivateId)
+      // The filter itself still has to do its own job, or the assertions above
+      // would pass against an empty list.
+      expect(ids.length).toBeGreaterThan(0)
+    }
+  )
 
   it('drops a public boost of a followers-only note from the public actor status page', async () => {
     // The recipients-only fallback would return this row: the boost is
