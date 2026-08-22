@@ -1463,11 +1463,11 @@ export const StatusSQLDatabaseMixin = (
       // primary-key lookup per returned id, for a result the subquery had
       // already decided.
       //
-      // This is the ONE readability call site that keeps the set-based form.
-      // Everything else moved to the correlated `wherePubliclyReadableStatus`,
-      // whose cost is one recursive-CTE instantiation per Announce row — a
-      // LIMIT amortises that to a page, and a COUNT over the actor's whole
-      // history cannot amortise it at all. On a PostgreSQL 18 seed shaped like
+      // One of the two readability call sites that keep the set-based form
+      // (`getRebloggedBy` is the other, for a different reason recorded there).
+      // The correlated `wherePubliclyReadableStatus` costs one recursive-CTE
+      // instantiation per Announce row — a LIMIT amortises that to a page, and
+      // a COUNT over the actor's whole history cannot amortise it at all. On a PostgreSQL 18 seed shaped like
       // production (an actor with 1,889 publicly readable statuses, half of
       // them Announces) the correlated form read 40% fewer buffers and still
       // took three times as long: 15,421 buffers / 54ms against
@@ -2585,6 +2585,7 @@ export const StatusSQLDatabaseMixin = (
           legacyBuilder.whereNull('originalStatusId').where('content', statusId)
         })
       })
+    const reblogTargetStatusIds = reblogBase.clone().select('id')
 
     let visibleReblogsQuery = reblogBase
       .clone()
@@ -2595,7 +2596,27 @@ export const StatusSQLDatabaseMixin = (
           query: visibleReblogsQuery,
           visibleToActorId
         })
-      : visibleReblogsQuery.modify(wherePubliclyReadableStatus, database)
+      : // The set-based form, for the same reason `getActorStatusesCount` uses
+        // it — but far more sharply here. `visibleReblogsQuery` is embedded
+        // TWICE below: once as the `visible_reblogs` FROM subquery and again
+        // inside the correlated `whereNotExists` that keeps only each actor's
+        // newest reblog. A correlated readability predicate is therefore
+        // re-evaluated per row PAIR, instantiating one recursive CTE each time,
+        // while a materialised id set is computed once and reused by both
+        // copies. The candidate set is also not this status's reblogs alone:
+        // the legacy `originalStatusId IS NULL` branch of `reblogBase` admits
+        // every Announce in the instance that predates the backfill, so the
+        // correlated cost scales with instance-wide legacy Announce volume
+        // rather than with this status. Measured on the production-shaped
+        // PostgreSQL 18 seed: 49,474 buffers / 33ms set-based against 11,383 /
+        // 415ms correlated — fewer buffers, twelve times the wall clock.
+        visibleReblogsQuery.whereIn(
+          'statuses.id',
+          buildPubliclyReadableStatusIdsQuery({
+            database,
+            targetStatusIds: reblogTargetStatusIds
+          })
+        )
 
     const dedupedReblogsQuery = database
       .select<{ id: string; actorId: string; createdAt: Date }[]>(

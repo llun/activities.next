@@ -124,22 +124,42 @@ describe('publicly readable status query shape', () => {
     expect(sql).toContain("= 'announce' then coalesce(")
   })
 
-  it('keeps the set-based readable-id form for the public status count', async () => {
-    // Deliberately NOT unified with the correlated predicate. A COUNT has to
-    // touch every row anyway, and the correlated form costs one recursive-CTE
-    // instantiation per Announce: on the production-shaped seed it read 40%
-    // fewer buffers and still took three times as long (54ms against 18ms).
-    // The reasoning lives at `getActorStatusesCount`; this pins it so
-    // "finishing the unification" has to delete an assertion that explains why
-    // not.
-    const statements = await capture(() =>
-      database.getActorStatusesCount({ actorId, publicOnly: true })
-    )
+  // Two call sites deliberately keep the set-based readable-id form, for two
+  // different measured reasons, and both are pinned here so "finishing the
+  // unification" has to delete an assertion that explains why not. Neither is
+  // visible to a result-based test: the two forms select identical rows.
+  it.each([
+    {
+      description: 'the public status count',
+      // A COUNT has to touch every row anyway, and the correlated form costs
+      // one recursive-CTE instantiation per Announce: on the production-shaped
+      // seed it read 40% fewer buffers and still took three times as long
+      // (54ms against 18ms). Reasoning at `getActorStatusesCount`.
+      run: () => database.getActorStatusesCount({ actorId, publicOnly: true })
+    },
+    {
+      description: 'the anonymous reblogged-by list',
+      // `getRebloggedBy` embeds its filtered reblog set TWICE — a FROM subquery
+      // plus a correlated `whereNotExists` that dedupes to each actor's newest
+      // reblog — so a correlated predicate is re-evaluated per row PAIR while a
+      // materialised id set is computed once and shared. This one was actually
+      // shipped correlated and caught in review: 11,383 buffers / 415ms against
+      // 49,474 / 33ms, i.e. fewer buffers and twelve times the wall clock.
+      run: () => database.getRebloggedBy({ statusId: `${actorId}/statuses/1` })
+    }
+  ])(
+    'keeps the set-based readable-id form for $description',
+    async ({ run }) => {
+      const statements = await capture(run)
 
-    const matches = statements.filter((sql) =>
-      sql.includes('publicly_readable_statuses')
-    )
-    expect(matches).toHaveLength(1)
-    expect(matches[0]).not.toContain('announce_chain')
-  })
+      const matches = statements.filter((sql) =>
+        sql.includes('publicly_readable_statuses')
+      )
+      expect(matches.length).toBeGreaterThanOrEqual(1)
+      expect(matches.every((sql) => !sql.includes('announce_chain'))).toBe(true)
+      expect(statements.some((sql) => sql.includes('announce_chain'))).toBe(
+        false
+      )
+    }
+  )
 })
