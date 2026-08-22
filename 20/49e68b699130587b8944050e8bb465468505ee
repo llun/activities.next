@@ -1,0 +1,61 @@
+app/(timeline)/layout.test.tsx
+  s_ff6d9d0e6ec74f::t_24b9d63fa15896 192-205
+  s_ff6d9d0e6ec74f::t_5e9709e777ba27 47,51,54-58
+lib/components/posts/status-reply-box.test.tsx
+  s_ff6d9d0e6ec74f::t_4cd4c32ee35088 11,20-21,23
+  s_ff6d9d0e6ec74f::t_38bbe989f0641f 175-233
+lib/components/instance-limits.tsx
+  s_ff6d9d0e6ec74f::t_dc65d6f52cbcad 30
+  s_ff6d9d0e6ec74f::t_6231a32e2e744c 31-33,39
+  s_ff6d9d0e6ec74f::t_0e06e0971f43dc 34-38
+lib/components/post-box/post-box.test.tsx
+  s_ff6d9d0e6ec74f::t_06b2193a823ec1 18
+  s_ff6d9d0e6ec74f::t_67b385b68eb295 1384-1394,1413-1416,1421-1423,1425-1432,1434-1443,1464-1465,1469-1475,1477-1484
+  s_ff6d9d0e6ec74f::t_fb44970c27fdcf 40
+  s_ff6d9d0e6ec74f::t_6433c0c06aa8af 1382-1383,1395-1412,1417-1420,1424,1433,1444-1463,1466-1468,1476,1485-1497
+lib/components/post-box/upload-media-button.test.tsx
+  s_ff6d9d0e6ec74f::t_ec83a0d269f677 173-181
+lib/components/post-box/post-box.tsx
+  s_ff6d9d0e6ec74f::t_51a4a1e71717a3 1098-1106
+lib/components/instance-limits.test.tsx
+  s_ff6d9d0e6ec74f::t_402a6b501d4cd3 50,55
+docs/environment-variables.md
+  s_ff6d9d0e6ec74f::t_e1e22b6b354ddc 60-62,68-70
+  s_ff6d9d0e6ec74f::t_0e06e0971f43dc 63
+  s_ff6d9d0e6ec74f::t_f0f984c410fa0a 57-59
+  s_ff6d9d0e6ec74f::t_dd193432852d69 56,71-74
+  s_ff6d9d0e6ec74f::t_8fe2239e012e4e 25-26,65-67
+  s_ff6d9d0e6ec74f::t_06471e8cdd8f87 64
+  s_ff6d9d0e6ec74f::t_92fb95271a603e 27
+AGENTS.md
+  s_ff6d9d0e6ec74f::t_0e06e0971f43dc 178
+CLAUDE.md
+  s_ff6d9d0e6ec74f::t_b02949beb78af9 45
+lib/jobs/importStravaArchiveJob.test.ts
+  s_ff6d9d0e6ec74f::t_5e01998a726c7b 16
+  s_ff6d9d0e6ec74f::t_b02949beb78af9 522-529
+lib/jobs/importStravaActivityJob.ts
+  s_ff6d9d0e6ec74f::t_5e01998a726c7b 27,229
+scripts/fitness/importStravaArchive.ts
+  s_ff6d9d0e6ec74f::t_5e01998a726c7b 21,384
+lib/services/medias/constants.ts
+  s_ff6d9d0e6ec74f::t_5e01998a726c7b 9-24
+lib/jobs/importStravaArchiveJob.ts
+  s_ff6d9d0e6ec74f::t_5e01998a726c7b 21,346
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "2049e68b699130587b8944050e8bb465468505ee",
+  "prompts": {},
+  "sessions": {
+    "s_ff6d9d0e6ec74f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d03aa175-cf68-46f8-be56-6fea74039f46",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
