@@ -1108,8 +1108,9 @@ describe('importStravaActivityJob', () => {
       expected: true
     }
   ])('$description', async ({ requested, expected }) => {
-    // Same split as the two flags above: the webhook carries a ride that just
-    // finished, while retry-all and the scripts/fitness recovery tools replay
+    // Same split as notifyOnComplete and publishSendNote: the webhook carries a
+    // ride that just finished, while retry-all and the scripts/fitness recovery
+    // tools replay
     // activities that are already old — stamping those `now` would reorder an
     // actor's whole history around whenever the sweep happened to run.
     await importStravaActivityJob(database as unknown as Database, {

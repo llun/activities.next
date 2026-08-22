@@ -2159,10 +2159,13 @@ export const FitnessStatusDetail: FC<Props> = ({
         movingTimeSeconds: status.fitness.movingTimeSeconds ?? null,
         elevationGainMeters: status.fitness.elevationGainMeters ?? null,
         activityType: status.fitness.activityType ?? null,
-        // The post's own timestamp is only a last resort: a Strava webhook
-        // import is stamped when it published rather than when the ride began,
-        // so falling back to it would date the activity wrongly until the
-        // by-status fetch below replaces this placeholder.
+        // Must come off the payload, not from `status.createdAt`: a Strava
+        // webhook import is stamped when it published rather than when the ride
+        // began, so a post-time stand-in dates the activity wrongly until the
+        // by-status fetch below replaces this placeholder. The `??` arm is only
+        // a shape default — the single fallback that actually renders is the one
+        // on `activityDate` further down, which this deliberately mirrors rather
+        // than pre-empts.
         activityStartTime: status.fitness.activityStartTime ?? status.createdAt,
         hasMapData: status.fitness.hasMapData ?? false,
         description: status.fitness.description ?? null,
@@ -2188,6 +2191,7 @@ export const FitnessStatusDetail: FC<Props> = ({
     status.fitness?.movingTimeSeconds,
     status.fitness?.elevationGainMeters,
     status.fitness?.activityType,
+    status.fitness?.activityStartTime,
     status.fitness?.hasMapData,
     status.fitness?.description,
     status.fitness?.deviceManufacturer,

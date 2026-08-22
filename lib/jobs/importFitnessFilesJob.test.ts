@@ -289,15 +289,24 @@ describe('importFitnessFilesJob', () => {
       startTime: activityStartTime
     })
 
-    const importStartedAt = Date.now()
-    await importFitnessFiles(database, {
-      actorId: actor.id,
-      batchId: 'batch-post-time',
-      fitnessFileIds: [file!.id],
-      visibility: 'public',
-      postAtImportTime: true
-    })
-    const importFinishedAt = Date.now()
+    // Pinned rather than asserted against a window between two real Date.now()
+    // reads: a window only proves the stamp is not the activity start, and it
+    // fails spuriously if the wall clock steps backwards mid-test. `toFake:
+    // ['Date']` leaves timers real so the database round-trips still settle.
+    const importedAt = Date.parse('2026-06-01T09:15:00.000Z')
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(new Date(importedAt))
+      await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'batch-post-time',
+        fitnessFileIds: [file!.id],
+        visibility: 'public',
+        postAtImportTime: true
+      })
+    } finally {
+      vi.useRealTimers()
+    }
 
     const imported = await database.getFitnessFile({ id: file!.id })
     const status = await database.getStatus({
@@ -305,16 +314,83 @@ describe('importFitnessFilesJob', () => {
       withReplies: false
     })
 
-    expect(status?.createdAt).toBeGreaterThanOrEqual(importStartedAt)
-    expect(status?.createdAt).toBeLessThanOrEqual(importFinishedAt)
+    expect(status?.createdAt).toBe(importedAt)
     // The URI tail is minted from the same stamp, so the post sorts where it
     // reads rather than back at the activity.
-    expect(getPublicIdTimestamp(status?.publicId as string)).toBe(
-      status?.createdAt
-    )
+    expect(getPublicIdTimestamp(status?.publicId as string)).toBe(importedAt)
     // The recorded start time is untouched — every fitness surface reads the
     // activity's date from the file, not from the post.
     expect(imported?.activityStartTime).toBe(activityStartTime.getTime())
+  })
+
+  it('keeps the existing post stamp when an opt-in import merges into it', async () => {
+    // The second device's upload of the same ride. The sibling's post is
+    // already published and may already have federated, so re-stamping it would
+    // jump the ride back to the top of every follower's timeline.
+    const firstFile = await database.createFitnessFile({
+      actorId: actor.id,
+      path: 'fitness/merge-post-time-a.fit',
+      fileName: 'merge-post-time-a.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024,
+      importBatchId: 'batch-merge-post-time'
+    })
+    const secondFile = await database.createFitnessFile({
+      actorId: actor.id,
+      path: 'fitness/merge-post-time-b.fit',
+      fileName: 'merge-post-time-b.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024,
+      importBatchId: 'batch-merge-post-time'
+    })
+
+    const activity: FitnessActivityData = {
+      coordinates: [],
+      trackPoints: [],
+      totalDistanceMeters: 5_000,
+      totalDurationSeconds: 1_000,
+      startTime: new Date('2026-03-02T06:00:00.000Z')
+    }
+
+    const firstImportedAt = Date.parse('2026-03-02T07:30:00.000Z')
+    mockParseFitnessFile.mockResolvedValueOnce(activity)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(new Date(firstImportedAt))
+      await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'batch-merge-post-time',
+        fitnessFileIds: [firstFile!.id],
+        visibility: 'public',
+        postAtImportTime: true
+      })
+
+      // An hour later, the sibling arrives and merges into the same post.
+      vi.setSystemTime(new Date(firstImportedAt + 60 * 60 * 1000))
+      mockParseFitnessFile.mockResolvedValueOnce(activity)
+      await importFitnessFiles(database, {
+        actorId: actor.id,
+        batchId: 'batch-merge-post-time',
+        fitnessFileIds: [secondFile!.id],
+        overlapFitnessFileIds: [firstFile!.id],
+        visibility: 'public',
+        postAtImportTime: true
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+
+    const mergedFirst = await database.getFitnessFile({ id: firstFile!.id })
+    const mergedSecond = await database.getFitnessFile({ id: secondFile!.id })
+    expect(mergedSecond?.statusId).toBe(mergedFirst?.statusId)
+
+    const status = await database.getStatus({
+      statusId: mergedFirst!.statusId as string,
+      withReplies: false
+    })
+    expect(status?.createdAt).toBe(firstImportedAt)
   })
 
   it('reuses existing status when import job is retried', async () => {
