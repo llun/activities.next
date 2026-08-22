@@ -7,6 +7,7 @@ import {
   MAX_POLL_EXPIRATION_SECONDS,
   MAX_POLL_OPTIONS,
   MAX_POLL_OPTION_CHARS,
+  MAX_STORED_MEDIA_ATTACHMENTS,
   MIN_POLL_EXPIRATION_SECONDS
 } from '@/lib/services/mastodon/constants'
 import { MAX_FILE_SIZE } from '@/lib/services/medias/constants'
@@ -32,6 +33,13 @@ export interface InstanceLimits {
   maxStatusCharacters: number
   /** Resolved `media.maxFileSize` in bytes — the upload picker's size budget. */
   maxMediaFileSize: number
+  /**
+   * Resolved `posts.maxMediaAttachments` — how many attachments the media
+   * picker lets a single status carry. This is the same value the instance
+   * entity advertises as `max_media_attachments`, so the built-in composer
+   * caps itself exactly where a third-party Mastodon client would.
+   */
+  maxMediaAttachments: number
   /** Resolved `polls.maxOptions` — how many choices the poll editor offers. */
   maxPollOptions: number
   /** Resolved `polls.maxCharactersPerOption`. */
@@ -45,6 +53,7 @@ export interface InstanceLimits {
 export const DEFAULT_INSTANCE_LIMITS: InstanceLimits = {
   maxStatusCharacters: DEFAULT_MAX_STATUS_CHARACTERS,
   maxMediaFileSize: MAX_FILE_SIZE,
+  maxMediaAttachments: MAX_STORED_MEDIA_ATTACHMENTS,
   maxPollOptions: MAX_POLL_OPTIONS,
   maxPollOptionCharacters: MAX_POLL_OPTION_CHARS,
   minPollExpirationSeconds: MIN_POLL_EXPIRATION_SECONDS,
@@ -69,6 +78,7 @@ const positiveIntegerOr = (value: number | undefined, fallback: number) =>
 interface ProviderProps {
   maxStatusCharacters?: number
   maxMediaFileSize?: number
+  maxMediaAttachments?: number
   maxPollOptions?: number
   maxPollOptionCharacters?: number
   minPollExpirationSeconds?: number
@@ -79,6 +89,7 @@ interface ProviderProps {
 export const InstanceLimitsProvider: FC<ProviderProps> = ({
   maxStatusCharacters,
   maxMediaFileSize,
+  maxMediaAttachments,
   maxPollOptions,
   maxPollOptionCharacters,
   minPollExpirationSeconds,
@@ -96,6 +107,10 @@ export const InstanceLimitsProvider: FC<ProviderProps> = ({
       maxMediaFileSize: positiveIntegerOr(
         maxMediaFileSize,
         DEFAULT_INSTANCE_LIMITS.maxMediaFileSize
+      ),
+      maxMediaAttachments: positiveIntegerOr(
+        maxMediaAttachments,
+        DEFAULT_INSTANCE_LIMITS.maxMediaAttachments
       ),
       maxPollOptions: positiveIntegerOr(
         maxPollOptions,
@@ -117,6 +132,7 @@ export const InstanceLimitsProvider: FC<ProviderProps> = ({
     [
       maxStatusCharacters,
       maxMediaFileSize,
+      maxMediaAttachments,
       maxPollOptions,
       maxPollOptionCharacters,
       minPollExpirationSeconds,

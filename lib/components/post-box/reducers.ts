@@ -1,6 +1,5 @@
 import { Reducer } from 'react'
 
-import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
 import {
   DEFAULT_DURATION,
   Duration
@@ -72,9 +71,13 @@ export const removePollChoice = (index: number) => ({
 })
 type ActionRemovePollChoice = ReturnType<typeof removePollChoice>
 
-export const addAttachment = (attachment: PostBoxAttachment) => ({
+export const addAttachment = (
+  attachment: PostBoxAttachment,
+  maxAttachments: number
+) => ({
   type: 'addAttachment' as const,
-  attachment
+  attachment,
+  maxAttachments
 })
 type ActionAddAttachment = ReturnType<typeof addAttachment>
 
@@ -307,7 +310,10 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
       }
     }
     case 'addAttachment': {
-      if (state.attachments.length >= MAX_ATTACHMENTS) return state
+      // Bounded by the instance's resolved posts.maxMediaAttachments — the same
+      // value the instance entity advertises — so the composer can never build
+      // a status with more attachments than the instance accepts.
+      if (state.attachments.length >= action.maxAttachments) return state
       return {
         ...state,
         attachments: [...state.attachments, action.attachment],

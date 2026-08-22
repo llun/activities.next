@@ -6,6 +6,11 @@ export const MAX_FILE_SIZE = 209_715_200
 // storing media the driver would refuse to serve. This ceiling exists because
 // the read path buffers an object in memory, so an unbounded cap is an OOM.
 export const MAX_CONFIGURABLE_FILE_SIZE = 1_073_741_824
+// How many photos a Strava import may attach to one activity post. This is an
+// import-side fan-out bound, NOT the composer's cap: the authoring UI caps
+// itself at the admin-configured `posts.maxMediaAttachments` read through
+// `useInstanceLimits()` (see lib/components/instance-limits.tsx), which is also
+// the value the instance entity advertises as `max_media_attachments`.
 export const MAX_ATTACHMENTS = 10
 export const MAX_WIDTH = 4000
 export const MAX_HEIGHT = 4000

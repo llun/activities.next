@@ -1,3 +1,5 @@
+import { PostBoxAttachment } from '@/lib/types/domain/attachment'
+
 import {
   addAttachment,
   createDefaultState,
@@ -10,6 +12,35 @@ import {
 } from './reducers'
 
 describe('post-box reducers', () => {
+  const attachment = (id: string): PostBoxAttachment => ({
+    type: 'upload',
+    id,
+    mediaType: 'image/png',
+    url: `https://llun.test/${id}.png`,
+    width: 100,
+    height: 100
+  })
+
+  // The cap used to be a build-time constant of 10, which silently overrode a
+  // higher admin-configured posts.maxMediaAttachments.
+  it('caps attachments at the limit carried on the action', () => {
+    const state = {
+      ...createDefaultState(),
+      attachments: Array.from({ length: 10 }, (_, index) =>
+        attachment(`media-${index}`)
+      )
+    }
+
+    expect(
+      statusExtensionReducer(state, addAttachment(attachment('media-10'), 20))
+        .attachments
+    ).toHaveLength(11)
+    expect(
+      statusExtensionReducer(state, addAttachment(attachment('media-10'), 10))
+        .attachments
+    ).toHaveLength(10)
+  })
+
   it('disables poll mode when fitness file is attached', () => {
     const stateWithPoll = {
       ...createDefaultState(),
@@ -184,14 +215,17 @@ describe('post-box reducers', () => {
 
     const nextState = statusExtensionReducer(
       stateWithPoll,
-      addAttachment({
-        type: 'upload',
-        id: 'media-id',
-        mediaType: 'image/png',
-        url: 'https://llun.test/media.png',
-        width: 100,
-        height: 100
-      })
+      addAttachment(
+        {
+          type: 'upload',
+          id: 'media-id',
+          mediaType: 'image/png',
+          url: 'https://llun.test/media.png',
+          width: 100,
+          height: 100
+        },
+        20
+      )
     )
 
     expect(nextState.attachments).toHaveLength(1)

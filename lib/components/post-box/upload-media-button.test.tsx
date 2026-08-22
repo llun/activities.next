@@ -5,7 +5,10 @@ import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import React from 'react'
 
-import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
+import {
+  DEFAULT_INSTANCE_LIMITS,
+  InstanceLimitsProvider
+} from '@/lib/components/instance-limits'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { logger } from '@/lib/utils/logger'
 import { resizeImage } from '@/lib/utils/resizeImage'
@@ -48,29 +51,46 @@ describe('UploadMediaButton', () => {
     global.URL.revokeObjectURL = vi.fn()
   })
 
-  describe('MAX_ATTACHMENTS enforcement', () => {
-    it('does not add files when attachment limit is reached', async () => {
-      const existingAttachments: PostBoxAttachment[] = Array(MAX_ATTACHMENTS)
-        .fill(null)
-        .map((_, i) => ({
-          type: 'upload',
-          id: `existing-${i}`,
-          mediaType: 'image/jpeg',
-          url: `https://example.com/${i}.jpg`,
-          width: 100,
-          height: 100,
-          name: `existing-${i}.jpg`
-        }))
+  const existingAttachments = (count: number): PostBoxAttachment[] =>
+    Array.from({ length: count }, (_, index) => ({
+      type: 'upload',
+      id: `existing-${index}`,
+      mediaType: 'image/jpeg',
+      url: `https://example.com/${index}.jpg`,
+      width: 100,
+      height: 100,
+      name: `existing-${index}.jpg`
+    }))
 
-      render(
+  // The picker sizes itself to the instance's resolved
+  // posts.maxMediaAttachments, so anything asserting on the cap has to render
+  // inside a provider that publishes it.
+  const renderButton = ({
+    maxMediaAttachments,
+    attachments
+  }: {
+    maxMediaAttachments?: number
+    attachments: PostBoxAttachment[]
+  }) =>
+    render(
+      <InstanceLimitsProvider maxMediaAttachments={maxMediaAttachments}>
         <UploadMediaButton
           isMediaUploadEnabled={true}
-          attachments={existingAttachments}
+          attachments={attachments}
           onAddAttachment={mockOnAddAttachment}
           onDuplicateError={mockOnDuplicateError}
           onUploadStart={mockOnUploadStart}
         />
-      )
+      </InstanceLimitsProvider>
+    )
+
+  describe('attachment limit enforcement', () => {
+    it('does not add files when attachment limit is reached', async () => {
+      renderButton({
+        attachments: existingAttachments(
+          DEFAULT_INSTANCE_LIMITS.maxMediaAttachments
+        )
+      })
 
       const input =
         document.querySelector<HTMLInputElement>('input[type="file"]')!
@@ -84,27 +104,10 @@ describe('UploadMediaButton', () => {
     })
 
     it('only adds files up to available slots', async () => {
-      const existingAttachments: PostBoxAttachment[] = Array(8)
-        .fill(null)
-        .map((_, i) => ({
-          type: 'upload',
-          id: `existing-${i}`,
-          mediaType: 'image/jpeg',
-          url: `https://example.com/${i}.jpg`,
-          width: 100,
-          height: 100,
-          name: `existing-${i}.jpg`
-        }))
-
-      render(
-        <UploadMediaButton
-          isMediaUploadEnabled={true}
-          attachments={existingAttachments}
-          onAddAttachment={mockOnAddAttachment}
-          onDuplicateError={mockOnDuplicateError}
-          onUploadStart={mockOnUploadStart}
-        />
-      )
+      renderButton({
+        maxMediaAttachments: 10,
+        attachments: existingAttachments(8)
+      })
 
       const input =
         document.querySelector<HTMLInputElement>('input[type="file"]')!
@@ -117,9 +120,56 @@ describe('UploadMediaButton', () => {
       fireEvent.change(input, { target: { files } })
 
       await waitFor(() => {
-        // Should only add 2 files (8 existing + 2 = 10 limit)
+        // Should only add 2 files (8 existing + 2 = the configured 10 limit)
         expect(mockOnAddAttachment).toHaveBeenCalledTimes(2)
       })
+    })
+
+    // The picker used to hard-code a build-time cap of 10, so an instance whose
+    // admin raised posts.maxMediaAttachments still refused the 11th image.
+    it('accepts more than ten files when the instance allows it', async () => {
+      renderButton({ maxMediaAttachments: 20, attachments: [] })
+
+      const input =
+        document.querySelector<HTMLInputElement>('input[type="file"]')!
+      const files = Array.from({ length: 12 }, (_, index) =>
+        createMockFile(`file${index}.jpg`)
+      )
+
+      fireEvent.change(input, { target: { files } })
+
+      await waitFor(() => {
+        expect(mockOnAddAttachment).toHaveBeenCalledTimes(12)
+      })
+    })
+
+    it('stops at the configured limit when it is below ten', async () => {
+      renderButton({
+        maxMediaAttachments: 4,
+        attachments: existingAttachments(4)
+      })
+
+      const input =
+        document.querySelector<HTMLInputElement>('input[type="file"]')!
+      const file = createMockFile('new-file.jpg')
+
+      fireEvent.change(input, { target: { files: [file] } })
+
+      await waitFor(() => {
+        expect(mockOnUploadStart).toHaveBeenCalledTimes(1)
+      })
+      expect(mockOnAddAttachment).not.toHaveBeenCalled()
+    })
+
+    it('counts against the instance limit in its label and disabled state', () => {
+      renderButton({
+        maxMediaAttachments: 20,
+        attachments: existingAttachments(11)
+      })
+
+      expect(
+        screen.getByRole('button', { name: 'Add media (11/20)' })
+      ).toBeEnabled()
     })
   })
 
@@ -357,7 +407,9 @@ describe('UploadMediaButton', () => {
       )
 
       expect(
-        screen.getByRole('button', { name: `Add media (0/${MAX_ATTACHMENTS})` })
+        screen.getByRole('button', {
+          name: `Add media (0/${DEFAULT_INSTANCE_LIMITS.maxMediaAttachments})`
+        })
       ).toBeInTheDocument()
     })
 
@@ -408,7 +460,9 @@ describe('UploadMediaButton', () => {
       )
 
       expect(
-        screen.getByRole('button', { name: `Add media (2/${MAX_ATTACHMENTS})` })
+        screen.getByRole('button', {
+          name: `Add media (2/${DEFAULT_INSTANCE_LIMITS.maxMediaAttachments})`
+        })
       ).toBeInTheDocument()
     })
   })

@@ -5,7 +5,6 @@ import { useInstanceLimits } from '@/lib/components/instance-limits'
 import { Button } from '@/lib/components/ui/button'
 import {
   ACCEPTED_FILE_TYPES,
-  MAX_ATTACHMENTS,
   MAX_HEIGHT,
   MAX_WIDTH
 } from '@/lib/services/medias/constants'
@@ -36,7 +35,7 @@ export const UploadMediaButton: FC<Props> = ({
   onUploadStart,
   onBeforeAddAttachments
 }) => {
-  const { maxMediaFileSize } = useInstanceLimits()
+  const { maxMediaFileSize, maxMediaAttachments } = useInstanceLimits()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const onOpenFile = () => {
     const input = fileInputRef.current
@@ -52,7 +51,9 @@ export const UploadMediaButton: FC<Props> = ({
     const selectedFiles = Array.from(event.currentTarget.files)
     onUploadStart()
 
-    const availableSlots = MAX_ATTACHMENTS - attachments.length
+    // The instance's resolved posts.maxMediaAttachments, not a build-time
+    // constant, so raising the admin setting raises the picker with it.
+    const availableSlots = maxMediaAttachments - attachments.length
     if (availableSlots <= 0) return
 
     const filteredFiles = selectedFiles.filter((file) => {
@@ -155,10 +156,10 @@ export const UploadMediaButton: FC<Props> = ({
         variant="ghost"
         size="icon-sm"
         onClick={onOpenFile}
-        disabled={attachments.length >= MAX_ATTACHMENTS}
+        disabled={attachments.length >= maxMediaAttachments}
         className="text-muted-foreground hover:text-foreground"
-        aria-label={`Add media (${attachments.length}/${MAX_ATTACHMENTS})`}
-        title={`Add media (${attachments.length}/${MAX_ATTACHMENTS})`}
+        aria-label={`Add media (${attachments.length}/${maxMediaAttachments})`}
+        title={`Add media (${attachments.length}/${maxMediaAttachments})`}
       >
         <ImagePlus className="size-4" />
       </Button>
