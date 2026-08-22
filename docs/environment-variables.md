@@ -59,7 +59,7 @@ by this instance's own composer and inline reply box (which read it through
 `useInstanceLimits()`), but no route enforces the resolved value. All three
 create/edit paths — `POST`/`PUT /api/v1/statuses[/:id]` and `POST
 /api/v1/accounts/outbox` — instead reject an attachment list longer than the
-fixed `MAX_STORED_MEDIA_ATTACHMENTS` ceiling (20), answering `422`. So lowering
+fixed `MAX_STORED_MEDIA_ATTACHMENTS` ceiling (50), answering `422`. So lowering
 `posts.maxMediaAttachments` changes what clients are told and what the built-in
 composer offers, never what these routes accept; an API client that ignores the
 advertised value can still store up to the ceiling. Note that this is specific
