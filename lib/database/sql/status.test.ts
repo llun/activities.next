@@ -84,6 +84,57 @@ describe('StatusDatabase', () => {
       await sqliteDatabase.destroy()
     })
 
+    it.each([['pg'], ['better-sqlite3']])(
+      'inlines the Announce literal into the %s chain pointer',
+      async (client) => {
+        // knex emits a UNION'd CTE term's FROM bindings before its select-list
+        // bindings, so a bound `?` in the chain-pointer CASE would swap with
+        // the caller's target-set value: the CASE would compare the status type
+        // against the target actor id and the target set would filter on
+        // 'Announce'. Both queries still run, both return nothing useful.
+        const targetActorId = 'https://llun.test/users/binding-order'
+        const database = knex({ client, useNullAsDefault: true })
+        const sql = buildPubliclyReadableStatusIdsQuery({
+          database,
+          targetStatusIds: database('statuses')
+            .select('statuses.id')
+            .where('statuses.actorId', targetActorId)
+        }).toString()
+
+        expect(sql).toContain("= 'Announce' then coalesce(")
+        expect(sql).toContain(`= '${targetActorId}'`)
+        expect(sql).not.toContain(`= '${targetActorId}' then coalesce(`)
+
+        await database.destroy()
+      }
+    )
+
+    it.each([['pg'], ['better-sqlite3']])(
+      'follows the %s announce chain through one pointer equality',
+      async (client) => {
+        // The chain used to be joined with `originalStatusId = id OR
+        // (originalStatusId IS NULL AND content = id)`, which costs a BitmapOr
+        // of two primary-key probes per row and drags the wide `content` text
+        // through the recursion's working table.
+        const database = knex({ client, useNullAsDefault: true })
+        const sql = buildPubliclyReadableStatusIdsQuery({
+          database,
+          targetStatusIds: database('statuses')
+            .select('statuses.id')
+            .where('statuses.actorId', 'https://llun.test/users/chain')
+        })
+          .toString()
+          .replace(/[`"]/g, '')
+
+        expect(sql).toContain(
+          'on readable_statuses.originalPointer = original_statuses.id'
+        )
+        expect(sql).not.toContain('originalStatusId is null and')
+
+        await database.destroy()
+      }
+    )
+
     it('does not use recursive CTEs for MySQL-compatible public readability SQL', async () => {
       const mysqlDatabase = knex({ client: 'mysql2' })
       const sql = buildPubliclyReadableStatusIdsQuery({
@@ -2412,6 +2463,63 @@ describe('StatusDatabase', () => {
         expect(publicStatusIds).toContain(publicStatusId)
         expect(publicStatusIds).not.toContain(privateStatusId)
         expect(publicStatusIds).not.toContain(privateAnnounceId)
+      })
+
+      it('counts nested announces when the boosted original is publicly readable', async () => {
+        const suffix = `${Date.now()}-${Math.random()}`
+        const publicStatusId = `${emptyActorId}/statuses/nested-public-${suffix}`
+        const firstAnnounceId = `${emptyActorId}/statuses/nested-boost-${suffix}`
+        const nestedAnnounceId = `${emptyActorId}/statuses/nested-reboost-${suffix}`
+        const beforePublicCount = await database.getActorStatusesCount({
+          actorId: emptyActorId,
+          publicOnly: true
+        })
+
+        await database.createNote({
+          id: publicStatusId,
+          url: publicStatusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Public nested root status'
+        })
+        await database.createAnnounce({
+          id: firstAnnounceId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          originalStatusId: publicStatusId
+        })
+        await database.createAnnounce({
+          id: nestedAnnounceId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          originalStatusId: firstAnnounceId
+        })
+
+        const count = await database.getActorStatusesCount({
+          actorId: emptyActorId,
+          publicOnly: true
+        })
+        const statuses = await database.getActorStatuses({
+          actorId: emptyActorId,
+          publicOnly: true,
+          limit: 50
+        })
+        const publicStatusIds = statuses.map((status) => status.id)
+
+        // The note, the boost of it, and the boost of that boost all resolve to
+        // a publicly readable non-Announce, so all three count. The second hop
+        // only resolves if the recursion runs past its first iteration.
+        expect(count).toBe(beforePublicCount + 3)
+        expect(publicStatusIds).toEqual(
+          expect.arrayContaining([
+            publicStatusId,
+            firstAnnounceId,
+            nestedAnnounceId
+          ])
+        )
       })
 
       it('excludes nested announces when the boosted original is not publicly readable', async () => {
