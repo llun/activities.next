@@ -195,10 +195,13 @@ describe('publicly readable status filtering at each call site', () => {
     // the readability predicate from that fallback — the sibling test above,
     // with a plainly private note, passes under that fallback too.
     //
-    // `status.test.ts`'s 'excludes nested announces when the boosted original
-    // is not publicly readable' already covers this scenario, so this is the
-    // one case here that is not filling a gap. It stays so that all four
-    // `publicOnly` call sites state the same invariant in one place.
+    // Both `getActorStatuses` cases in this file are already covered in
+    // `status.test.ts` — this one by 'excludes nested announces when the
+    // boosted original is not publicly readable', the sibling above by 'counts
+    // only publicly readable actor statuses when requested'. Unlike the three
+    // reply/reblog cases, they are not filling a gap. They stay so that all
+    // four `publicOnly` call sites state the same invariant in one place,
+    // rather than sending a reader to another file to confirm this one.
     const statuses = await database.getActorStatuses({
       actorId,
       publicOnly: true

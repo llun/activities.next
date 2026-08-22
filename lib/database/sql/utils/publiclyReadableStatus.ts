@@ -142,13 +142,9 @@ const announceOriginalIsPublicNote = (database: Knex, table: string) =>
 //   - The predicate has to be evaluated over a large unbounded set anyway. A
 //     COUNT cannot amortise the per-Announce recursive-CTE instantiation the
 //     way a LIMIT does — see the note at `getActorStatusesCount`.
-//   - The query embeds the predicate MORE THAN ONCE. `getRebloggedBy` puts its
-//     filtered reblog set both in a FROM subquery and inside a correlated
-//     `whereNotExists` that dedupes to each actor's newest reblog, so a
-//     correlated predicate is re-evaluated per row PAIR while a materialised id
-//     set is computed once and shared by both copies. Correlated there read 4x
-//     FEWER buffers and took twelve times as long: 11,383 / 415ms against
-//     49,474 / 33ms.
+//   - The query embeds the predicate MORE THAN ONCE, so a correlated form is
+//     re-evaluated per row PAIR while a materialised id set is computed once
+//     and shared — see the note at `getRebloggedBy` in `status.ts`.
 //
 // Being unlimited is not by itself disqualifying. `getStatusRepliesCount` is an
 // unbounded COUNT and measures the same either way (1,448 buffers / 1.1ms
