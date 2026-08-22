@@ -449,6 +449,84 @@ describe('StatusDatabase', () => {
         await knexDatabase.destroy()
       }
     })
+
+    it('keeps a boosted reply out of the public replies count', async () => {
+      // `getStatusRepliesCount` cannot be collapsed onto the readable-ids
+      // subquery the way `getActorStatusesCount` was: its
+      // `whereNot('type', Announce)` filters the REPLY row, while the
+      // subquery's `type` is the resolved original's, so an Announce whose
+      // original is a public Note comes back from the subquery and only the
+      // outer filter drops it. `createAnnounce` always writes `reply: ''`, so
+      // no number anyone can observe moves if that filter goes — only a
+      // hand-written row pins the invariant.
+      const knexDatabase = knex({
+        client: 'better-sqlite3',
+        useNullAsDefault: true,
+        connection: {
+          filename: ':memory:'
+        }
+      })
+      const sqlDatabase = getSQLDatabase(knexDatabase)
+
+      try {
+        await sqlDatabase.migrate()
+        await seedDatabase(sqlDatabase)
+
+        const parentId = `${primaryActorId}/statuses/boosted-reply-parent`
+        await sqlDatabase.createNote({
+          id: parentId,
+          url: parentId,
+          actorId: primaryActorId,
+          text: 'Parent of a boosted reply',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+        await sqlDatabase.createNote({
+          id: `${replyAuthorId}/statuses/boosted-reply-child`,
+          url: `${replyAuthorId}/statuses/boosted-reply-child`,
+          actorId: replyAuthorId,
+          text: 'A real reply',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          reply: parentId
+        })
+
+        // An Announce carrying the parent's id, but also pointing `reply` at
+        // it. It resolves to a publicly readable Note, so the subquery returns
+        // it; it is still a boost, not a reply.
+        const boostedReplyId = `${replyAuthorId}/statuses/boosted-reply-announce`
+        const createdAt = new Date('2024-06-01T00:00:00.000Z')
+        await knexDatabase('statuses').insert({
+          id: boostedReplyId,
+          url: null,
+          urlHash: null,
+          actorId: replyAuthorId,
+          type: StatusType.enum.Announce,
+          reply: parentId,
+          content: parentId,
+          originalStatusId: parentId,
+          createdAt,
+          updatedAt: createdAt
+        })
+        await knexDatabase('recipients').insert({
+          id: crypto.randomUUID(),
+          statusId: boostedReplyId,
+          actorId: ACTIVITY_STREAM_PUBLIC,
+          type: 'to',
+          createdAt,
+          updatedAt: createdAt
+        })
+
+        await expect(
+          sqlDatabase.getStatusRepliesCount({
+            statusId: parentId,
+            publicOnly: true
+          })
+        ).resolves.toBe(1)
+      } finally {
+        await knexDatabase.destroy()
+      }
+    })
   })
 
   describe('potentially readable status SQL', () => {

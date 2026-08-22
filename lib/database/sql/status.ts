@@ -238,6 +238,11 @@ export const buildPubliclyReadableStatusIdsQuery = ({
               'original_statuses.id',
               announceOriginalPointer(database, 'target_statuses')
             )
+            // One hop only: a boosted boost is rejected here rather than
+            // followed, so MySQL answers "not publicly readable" where the
+            // recursive branch below walks the chain and answers "yes". The
+            // gap predates the shared pointer and MySQL has no CI coverage,
+            // so nothing will tell you if it ever matters.
             .whereNot('original_statuses.type', StatusType.enum.Announce)
             .whereIn('original_statuses.id', publicRecipientStatusIds(database))
         })
@@ -3427,6 +3432,13 @@ export const StatusSQLDatabaseMixin = (
       })
     }
 
+    // This one cannot be collapsed onto the subquery the way
+    // `getActorStatusesCount` was. The filter below is about the REPLY row,
+    // while the subquery's `type` column is the resolved *original's* — an
+    // Announce whose boosted original is a public Note comes back from the
+    // subquery, and only this line keeps it out of a reply count. Nothing
+    // writes `reply` on an Announce today, so dropping it changes no number
+    // anyone can observe, which is exactly why it needs saying here.
     const result = await query
       .whereNot('type', StatusType.enum.Announce)
       .count<{ count: string }>('* as count')
