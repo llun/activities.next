@@ -12,6 +12,7 @@ import {
   uploadAttachment
 } from '@/lib/client'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
+import { createDeferred } from '@/lib/testing/deferred'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { EditableStatus, Status, StatusType } from '@/lib/types/domain/status'
@@ -1381,17 +1382,6 @@ describe('PostBox new post character limit with attachments', () => {
 })
 
 describe('PostBox attachment ref guard', () => {
-  // Lets the test resolve each file's resizeImage step on its own schedule,
-  // rather than the file-name-based Promise.resolve() every other describe
-  // block in this file installs.
-  const deferred = <T,>() => {
-    let resolve!: (value: T) => void
-    const promise = new Promise<T>((res) => {
-      resolve = res
-    })
-    return { promise, resolve }
-  }
-
   beforeEach(() => {
     vi.clearAllMocks()
     global.URL.createObjectURL = vi.fn(() => 'blob:test-media')
@@ -1433,8 +1423,11 @@ describe('PostBox attachment ref guard', () => {
   it('keeps the submitted attachments at the configured cap across two overlapping picker batches', async () => {
     const fileA = new File(['a'], 'a.png', { type: 'image/png' })
     const fileB = new File(['b'], 'b.png', { type: 'image/png' })
-    const resizeA = deferred<File>()
-    const resizeB = deferred<File>()
+    // Each file's resizeImage step settles on its own schedule, rather than
+    // via the file-name-based Promise.resolve() every other describe block in
+    // this file installs.
+    const resizeA = createDeferred<File>()
+    const resizeB = createDeferred<File>()
     resizeImageMock.mockImplementation((file: File) => {
       if (file.name === fileA.name) return resizeA.promise
       if (file.name === fileB.name) return resizeB.promise
