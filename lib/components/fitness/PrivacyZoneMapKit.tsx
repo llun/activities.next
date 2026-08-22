@@ -12,6 +12,7 @@ import {
   type MapKitSurfaceModule,
   type MapKitTapEvent,
   loadMapKitSurface,
+  mutedStandardMapType,
   pageToCoordinate
 } from '@/lib/components/fitness/mapkitSurface'
 
@@ -108,6 +109,7 @@ export const PrivacyZoneMapKit: FC<PrivacyZoneMapKitProps> = ({
           const spanDeg = initialMarker ? MARKER_SPAN_DEG : DEFAULT_MAP_SPAN_DEG
 
           const map = new mapkit.Map(container, {
+            mapType: mutedStandardMapType(mapkit),
             showsMapTypeControl: false,
             region: new mapkit.CoordinateRegion(
               center,
