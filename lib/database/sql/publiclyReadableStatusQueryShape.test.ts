@@ -139,12 +139,9 @@ describe('publicly readable status query shape', () => {
     },
     {
       description: 'the anonymous reblogged-by list',
-      // `getRebloggedBy` embeds its filtered reblog set TWICE — a FROM subquery
-      // plus a correlated `whereNotExists` that dedupes to each actor's newest
-      // reblog — so a correlated predicate is re-evaluated per row PAIR while a
-      // materialised id set is computed once and shared. This one was actually
-      // shipped correlated and caught in review: 11,383 buffers / 415ms against
-      // 49,474 / 33ms, i.e. fewer buffers and twelve times the wall clock.
+      // Shipped correlated on this branch and caught in review, which is why
+      // it is pinned. Reasoning and measurements at `getRebloggedBy` in
+      // `status.ts`.
       run: () => database.getRebloggedBy({ statusId: `${actorId}/statuses/1` })
     }
   ])(
@@ -155,7 +152,7 @@ describe('publicly readable status query shape', () => {
       const matches = statements.filter((sql) =>
         sql.includes('publicly_readable_statuses')
       )
-      expect(matches.length).toBeGreaterThanOrEqual(1)
+      expect(matches).toHaveLength(1)
       expect(matches.every((sql) => !sql.includes('announce_chain'))).toBe(true)
       expect(statements.some((sql) => sql.includes('announce_chain'))).toBe(
         false

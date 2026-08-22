@@ -457,9 +457,10 @@ describe('StatusDatabase', () => {
       // so only the outer filter keeps it out of a reply count. That held when
       // the filter was the readable-ids subquery (whose `type` was the resolved
       // original's, a different row again) and still holds now that
-      // `getStatusRepliesCount` uses the correlated `wherePubliclyReadableStatus`. `createAnnounce` always writes `reply: ''`, so
-      // no number anyone can observe moves if that filter goes — only a
-      // hand-written row pins the invariant.
+      // `getStatusRepliesCount` uses the correlated
+      // `wherePubliclyReadableStatus`. `createAnnounce` always writes
+      // `reply: ''`, so no number anyone can observe moves if that filter
+      // goes — only a hand-written row pins the invariant.
       const knexDatabase = knex({
         client: 'better-sqlite3',
         useNullAsDefault: true,
