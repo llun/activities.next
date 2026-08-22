@@ -1245,11 +1245,14 @@ describe('S3FileStorage image output format', () => {
       mimeType: 'image/jpeg',
       url: `https://llun.test/api/v1/files/${putObjectInput().Key}`
     })
-    // `bytes` and `metaData` come from the encode's `OutputInfo`, which now
-    // arrives from `toBuffer({ resolveWithObject: true })` rather than
-    // `toFile()`. Checking `bytes` against the bytes actually uploaded is what
-    // makes that swap observable here; the 40x30 source is under the cap, so
-    // the stored image keeps its dimensions.
+    // `bytes` and `metaData` come from the encode's `OutputInfo`. They are not
+    // what catches a return to the temp file — `readUploadBody` throws upstream,
+    // before this line ever runs. What they catch is the other way `OutputInfo`
+    // goes wrong: reporting the INPUT image's size and dimensions instead,
+    // which uploads a perfectly valid Buffer and so slips past every type
+    // guard. Tying `bytes` to the bytes actually uploaded is what makes that
+    // visible. The 40x30 source is under the cap, so the stored image keeps its
+    // dimensions.
     expect(rendition?.bytes).toBe(uploadedBodies[0].length)
     expect(rendition?.metaData).toEqual({ width: 40, height: 30 })
     expect(database.createMedia).not.toHaveBeenCalled()
