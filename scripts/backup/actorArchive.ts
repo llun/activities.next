@@ -403,6 +403,10 @@ export async function* forEachActorStatus(
     // Every visibility is included: publicOnly/visibleToActorId/
     // includeFollowersOnly are deliberately omitted so this is a complete
     // export of the actor's own statuses, not a visitor's view of them.
+    // visibility-unfiltered: an archive is for its own owner, so the
+    // unfiltered query is the point. Declared for
+    // lib/database/statusVisibilityCallSites.test.ts, which otherwise treats a
+    // call with no audience as one that forgot to state one.
     const batch = await database.getActorStatuses({
       actorId,
       limit: pageSize,
