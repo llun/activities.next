@@ -1,0 +1,22 @@
+lib/agentsDocsSync.test.ts
+  s_a6b78342b6d5ed::t_4a566b27ff3eb5 21-26,31-41,47-52,54,56,68-71,80-83,98-99,109-114,121,127-129,131,139-146
+  s_a6b78342b6d5ed::t_f634ec7e0cb681 116-117
+CLAUDE.md
+  s_a6b78342b6d5ed::t_f634ec7e0cb681 24,30,119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "98f42355123c0ba942492b8d9f1d44f9fcfb63bd",
+  "prompts": {},
+  "sessions": {
+    "s_a6b78342b6d5ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c7bfbe83-9690-4073-8fa2-f2bb0b73c330",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
