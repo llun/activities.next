@@ -474,6 +474,32 @@ describe('normalizeFitnessActivityTypesScript', () => {
     )
   })
 
+  it('names every value that moved when the whole run succeeds', async () => {
+    // The counterpart to the two failure cases below: gating the advice on
+    // actual writes must not narrow it on the path where everything worked.
+    mockGetDatabase.mockReturnValue(
+      stubDatabase({ types: ['cycling', 'cycling', 'Biking', 'running'] })
+    )
+
+    const exitCode = await normalizeFitnessActivityTypesScript([
+      '--actor-id',
+      ACTOR_ID,
+      '--apply'
+    ])
+
+    expect(exitCode).toBe(0)
+    const printed = (
+      console.log as unknown as ReturnType<typeof vi.fn>
+    ).mock.calls
+      .flat()
+      .join('\n')
+    const advice = printed.slice(printed.indexOf('route heatmaps cached under'))
+    expect(advice).toContain('recreateFitnessRouteHeatmaps.ts')
+    expect(advice).toContain(`--actor-id ${ACTOR_ID}`)
+    // Most-rows-first, matching the change report above it.
+    expect(advice).toContain('"cycling", "Biking", "running"')
+  })
+
   it('does not claim heatmaps are stale when every write failed', async () => {
     // Nothing moved, so nothing was invalidated. Printing the rebuild command
     // here sends an operator to redo work in response to a run that changed
