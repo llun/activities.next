@@ -157,6 +157,31 @@ const publicRecipientStatusIds = (database: Knex) =>
     .select('statusId')
     .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
 
+// The status an Announce boosts, as a single column. Modern rows carry it in
+// `originalStatusId`; legacy rows only ever wrote the original's id into
+// `content`, so both forms collapse into one `COALESCE`. Anything that is not
+// an Announce points nowhere, and a NULL pointer joins to no row — which is
+// what makes this equivalent to spelling the two forms out as an `OR` in the
+// join condition, while costing one primary-key probe instead of a `BitmapOr`
+// of two, and keeping the wide `content` text out of the recursion's working
+// table.
+//
+// The Announce literal is escaped into the fragment instead of bound, because
+// knex mis-orders positional bindings when a term of a UNION'd CTE carries both
+// a bound raw in its select list and a bound subquery in its FROM: the FROM's
+// value is emitted first, so the two swap and the CASE silently compares the
+// status type against the caller's target-set argument. The recursive branch of
+// `buildPubliclyReadableStatusIdsQuery` is exactly that shape. Identifier
+// placeholders are unaffected — they are resolved at compile time and never
+// reach the binding array. Guarded by a compiled-SQL test.
+const announceOriginalPointer = (database: Knex, table: string) => {
+  const announceType = database.raw('?', [StatusType.enum.Announce]).toString()
+  return database.raw(
+    `case when ?? = ${announceType} then coalesce(??, ??) end`,
+    [`${table}.type`, `${table}.originalStatusId`, `${table}.content`]
+  )
+}
+
 type StatusHydrationContext = {
   bookmarkedStatusIds?: Set<string>
   likedStatusIds?: Set<string>
@@ -209,21 +234,15 @@ export const buildPubliclyReadableStatusIdsQuery = ({
         ).orWhereExists(function () {
           this.select(database.raw('1'))
             .from('statuses as original_statuses')
-            .where((originalBuilder) => {
-              originalBuilder
-                .whereRaw('?? = ??', [
-                  'original_statuses.id',
-                  'target_statuses.originalStatusId'
-                ])
-                .orWhere((legacyBuilder) => {
-                  legacyBuilder
-                    .whereNull('target_statuses.originalStatusId')
-                    .whereRaw('?? = ??', [
-                      'original_statuses.id',
-                      'target_statuses.content'
-                    ])
-                })
-            })
+            .where(
+              'original_statuses.id',
+              announceOriginalPointer(database, 'target_statuses')
+            )
+            // One hop only: a boosted boost is rejected here rather than
+            // followed, so MySQL answers "not publicly readable" where the
+            // recursive branch below walks the chain and answers "yes". The
+            // gap predates the shared pointer and MySQL has no CI coverage,
+            // so nothing will tell you if it ever matters.
             .whereNot('original_statuses.type', StatusType.enum.Announce)
             .whereIn('original_statuses.id', publicRecipientStatusIds(database))
         })
@@ -233,15 +252,14 @@ export const buildPubliclyReadableStatusIdsQuery = ({
   return database
     .withRecursive(
       'publicly_readable_statuses',
-      ['targetId', 'id', 'type', 'originalStatusId', 'content'],
+      ['targetId', 'id', 'type', 'originalPointer'],
       (cte) => {
         cte
           .select(
             'target_statuses.id as targetId',
             'target_statuses.id',
             'target_statuses.type',
-            'target_statuses.originalStatusId',
-            'target_statuses.content'
+            announceOriginalPointer(database, 'target_statuses')
           )
           .from(targetStatusIdsQuery)
           .innerJoin(
@@ -255,19 +273,13 @@ export const buildPubliclyReadableStatusIdsQuery = ({
               'readable_statuses.targetId',
               'original_statuses.id',
               'original_statuses.type',
-              'original_statuses.originalStatusId',
-              'original_statuses.content'
+              announceOriginalPointer(database, 'original_statuses')
             )
               .from('statuses as original_statuses')
               .innerJoin(
                 'publicly_readable_statuses as readable_statuses',
-                database.raw('(?? = ?? or (?? is null and ?? = ??))', [
-                  'readable_statuses.originalStatusId',
-                  'original_statuses.id',
-                  'readable_statuses.originalStatusId',
-                  'readable_statuses.content',
-                  'original_statuses.id'
-                ])
+                'readable_statuses.originalPointer',
+                'original_statuses.id'
               )
               .where('readable_statuses.type', StatusType.enum.Announce)
               .whereIn(
@@ -1494,12 +1506,23 @@ export const StatusSQLDatabaseMixin = (
     publicOnly = false
   }: GetActorStatusesCountParams) {
     if (publicOnly) {
-      const result = await applyPublicReadableStatusFilter({
-        query: database('statuses').where('actorId', actorId),
-        targetStatusIds: getActorTargetStatusIds(actorId)
-      })
+      // There is no counter for this: an Announce is only publicly readable
+      // while the status it boosts still is, and that status belongs to another
+      // actor whose visibility edits and deletes never touch this actor's rows.
+      // So the count is computed — but counted straight off the readable-ids
+      // subquery, which is already scoped to this actor's statuses. Filtering
+      // `statuses` by it re-applied the same `actorId` predicate through one
+      // primary-key lookup per returned id, for a result the subquery had
+      // already decided.
+      const result = await database
+        .from(
+          buildPubliclyReadableStatusIdsQuery({
+            database,
+            targetStatusIds: getActorTargetStatusIds(actorId)
+          }).as('publicly_readable_actor_statuses')
+        )
         .countDistinct<{ count: string | number }>({
-          count: 'statuses.id'
+          count: 'publicly_readable_actor_statuses.id'
         })
         .first()
 
@@ -3416,6 +3439,13 @@ export const StatusSQLDatabaseMixin = (
       })
     }
 
+    // This one cannot be collapsed onto the subquery the way
+    // `getActorStatusesCount` was. The filter below is about the REPLY row,
+    // while the subquery's `type` column is the resolved *original's* — an
+    // Announce whose boosted original is a public Note comes back from the
+    // subquery, and only this line keeps it out of a reply count. Nothing
+    // writes `reply` on an Announce today, so dropping it changes no number
+    // anyone can observe, which is exactly why it needs saying here.
     const result = await query
       .whereNot('type', StatusType.enum.Announce)
       .count<{ count: string }>('* as count')

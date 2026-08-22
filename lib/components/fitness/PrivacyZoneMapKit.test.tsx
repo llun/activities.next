@@ -81,6 +81,24 @@ describe('PrivacyZoneMapKit', () => {
     await waitFor(() => expect(onUnavailable).toHaveBeenCalled())
   })
 
+  it('draws the muted standard basemap, so the zone circles stay legible', async () => {
+    const double = createMapKitTestDouble()
+    mockLoadMapKitModule.mockImplementation((() =>
+      Promise.resolve(double.mapkit)) as never)
+
+    render(
+      <PrivacyZoneMapKit
+        marker={null}
+        zones={[]}
+        onPick={vi.fn()}
+        onUnavailable={vi.fn()}
+      />
+    )
+
+    await waitFor(() => expect(double.getMap()).not.toBeNull())
+    expect(double.getMap()!.options.mapType).toBe('mutedStandard')
+  })
+
   it('picks the tapped coordinate from a single-tap event', async () => {
     const double = createMapKitTestDouble()
     mockLoadMapKitModule.mockImplementation((() =>

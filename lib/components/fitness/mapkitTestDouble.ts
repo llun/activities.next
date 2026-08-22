@@ -210,11 +210,17 @@ export const createMapKitTestDouble = (): MapKitTestDouble => {
   }
 
   const mapkit = {
-    Map: function Map(container: HTMLElement | string, options = {}) {
-      const map = new TestMap(container, options)
-      maps.push(map)
-      return map
-    } as unknown as MapKitSurfaceModule['Map'],
+    Map: Object.assign(
+      function Map(container: HTMLElement | string, options = {}) {
+        const map = new TestMap(container, options)
+        maps.push(map)
+        return map
+      },
+      // MapKit hangs its basemap constants off the Map constructor as a static.
+      // Carrying the real literal here is what makes the components exercise the
+      // enum read in `mutedStandardMapType` rather than its fallback.
+      { MapTypes: { MutedStandard: 'mutedStandard' } }
+    ) as unknown as MapKitSurfaceModule['Map'],
     Style: function Style(options = {}) {
       return new TestStyle(options)
     } as unknown as MapKitSurfaceModule['Style'],

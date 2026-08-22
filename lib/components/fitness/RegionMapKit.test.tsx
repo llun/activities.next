@@ -80,6 +80,17 @@ describe('RegionMapKit', () => {
     await waitFor(() => expect(onUnavailable).toHaveBeenCalled())
   })
 
+  it('draws the muted standard basemap, so the selection box stays legible', async () => {
+    const double = createMapKitTestDouble()
+    mockLoadMapKitModule.mockImplementation((() =>
+      Promise.resolve(double.mapkit)) as never)
+
+    renderRegionMapKit()
+
+    await waitFor(() => expect(double.maps).toHaveLength(1))
+    expect(double.getMap()!.options.mapType).toBe('mutedStandard')
+  })
+
   it('draws the selection box from a pointer drag and restores the map gestures', async () => {
     const double = createMapKitTestDouble()
     mockLoadMapKitModule.mockImplementation((() =>
