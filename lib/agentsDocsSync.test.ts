@@ -31,6 +31,13 @@ const POINTER_FILE_RULE =
 // Derived from that bullet rather than hand-listed. A hardcoded copy stays
 // green while the bullet grows a fourth file whose citations nothing checks —
 // which is this same drift one level up, in the guard itself.
+//
+// This is read once, at collection time, because `it.each` needs its cases
+// then. That makes the first test load-bearing beyond its own assertion: if the
+// bullet is reworded past the regex this returns `[]`, `it.each` registers no
+// cases at all, and the only thing left saying so is that test re-running this
+// parse and failing on it. Do not weaken it into something the `it.each` above
+// could outlive.
 const pointerFiles = () => {
   const rule = POINTER_FILE_RULE.exec(readRepositoryFile('AGENTS.md'))
   if (!rule) return []
