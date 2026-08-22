@@ -18,6 +18,7 @@ import type {
   FitnessRouteHeatmapRegionNameData,
   FitnessRouteHeatmapSummaryData
 } from '@/lib/client'
+import { createDeferred } from '@/lib/testing/deferred'
 import { loadMapboxModule } from '@/lib/utils/mapbox'
 import { loadMaplibreModule } from '@/lib/utils/maplibre'
 
@@ -88,16 +89,6 @@ const mockCancelFitnessRouteHeatmap =
   cancelFitnessRouteHeatmap as jest.MockedFunction<
     typeof cancelFitnessRouteHeatmap
   >
-
-const createDeferred = <T,>() => {
-  let resolve!: (value: T) => void
-  let reject!: (error: unknown) => void
-  const promise = new Promise<T>((promiseResolve, promiseReject) => {
-    resolve = promiseResolve
-    reject = promiseReject
-  })
-  return { promise, resolve, reject }
-}
 
 // A minimal GL map double whose `load` handler fires synchronously, so the map
 // reaches its ready state within the test. `onAddSource` lets a test capture the

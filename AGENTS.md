@@ -1649,6 +1649,16 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   is separately `vi.mock`'d, and forces a type-erasing double-cast. `vi.importMock`
   **is** a valid, documented Vitest API — some review bots incorrectly claim it
   does not exist; do not "fix" it on their say-so.
+- **To control when an awaited call settles, import `createDeferred` from
+  `@/lib/testing/deferred` — do not hand-roll another promise-with-exposed-resolve
+  helper.** The same eight lines had been reimplemented in four test files under
+  three different names before they were extracted. It returns
+  `{ promise, resolve, reject }` and the promise stays **pending** until a test
+  settles it, which is the whole point: the pending render and the settled one
+  are separate flushes, so a `Promise.resolve(value)` stand-in collapses them
+  into the first `act()` and the assertion about the in-flight state passes
+  vacuously. Thirteen tests across `MessagesPage`, `SearchPageClient` and
+  `FitnessHeatmapView` fail if the helper stops deferring.
 - Prefer unit tests near `lib/` and route tests near `app/`.
 - All tests run in parallel using isolated SQLite in-memory databases. The
   schema is loaded from the committed reference dumps (`migrations/schema*.sql`)
