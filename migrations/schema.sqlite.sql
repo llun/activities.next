@@ -109,7 +109,6 @@ CREATE TABLE `bookmarks` (`id` integer not null primary key autoincrement, `acto
 CREATE UNIQUE INDEX `bookmarks_actor_status_unique` on `bookmarks` (`actorId`, `statusId`);
 CREATE INDEX `bookmarks_actor_created_id` on `bookmarks` (`actorId`, `createdAt`, `id`);
 CREATE INDEX `bookmarks_status` on `bookmarks` (`statusId`);
-CREATE INDEX `statuses_announce_actor_original_idx` on `statuses` (`type`, `actorId`, `originalStatusId`);
 CREATE INDEX `bookmarks_actor_source_status` on `bookmarks` (`actorId`, `sourceStatusId`);
 CREATE TABLE `direct_conversations` (`id` varchar(255), `rootStatusId` varchar(255) not null, `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, primary key (`id`));
 CREATE INDEX `direct_conversations_root_status` on `direct_conversations` (`rootStatusId`);
@@ -277,3 +276,4 @@ CREATE TABLE `oauthResource` (`id` varchar(255), `identifier` varchar(255) not n
 CREATE UNIQUE INDEX `oauthresource_identifier_unique` on `oauthResource` (`identifier`);
 CREATE TABLE `oauthClientResource` (`id` varchar(255), `clientId` varchar(255) not null, `resourceId` varchar(255) not null, `metadata` text null, `createdAt` datetime default CURRENT_TIMESTAMP, foreign key(`clientId`) references `oauthClient`(`clientId`) on delete CASCADE, foreign key(`resourceId`) references `oauthResource`(`identifier`) on delete CASCADE, primary key (`id`));
 CREATE TABLE `oauthClientAssertion` (`id` varchar(255), `expiresAt` datetime not null, primary key (`id`));
+CREATE INDEX `statuses_announce_original_actor_idx` on `statuses` (`type`, `originalStatusId`, `actorId`);

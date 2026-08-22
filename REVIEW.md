@@ -128,6 +128,22 @@ change doesn't touch.
   buffers vs ~16,700 at a page of 30, and the join is no better at 23). The id fetch carries an explicit `LIMIT` of one past
   what the query can bind — it runs on an anonymous path, which is why the bound
   is required, not what supplies it.
+- A new composite index orders its columns so the ones **every** caller
+  constrains come first. A column that only some callers pin belongs last:
+  anything after an unconstrained column cannot become an index condition, and
+  the query silently degrades to scanning the whole leading-column range.
+  `statuses_announce_original_actor_idx` is `(type, "originalStatusId",
+"actorId")` for exactly that reason — `getRebloggedBy` leaves `actorId` free.
+  Because the callers that pin all three columns behave identically under either
+  order, a functional test cannot see the difference; assert the index
+  definition itself (`statusAnnounceIndexOrderMigration.test.ts`).
+- PostgreSQL 18 naming an index whose leading column the query does not
+  constrain is not by itself a finding. Skip scan makes it a candidate and
+  `cost_index` prices heap I/O off the leading column's correlation, which
+  low-cardinality columns score high on spuriously — but the heap fetches
+  dominate and are the same either way. Measure the alternative on a local seed
+  before proposing anything; there is no `enable_indexskipscan` GUC, and never
+  A/B it by dropping an index on production.
 - A caller-supplied id compared against a **numeric** column is coerced first.
   `medias.id` and `attachments.mediaId` are `integer` on PostgreSQL, so passing a
   non-numeric client string raises `invalid input syntax for type integer` — a

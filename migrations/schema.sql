@@ -1928,7 +1928,7 @@ CREATE INDEX "statusesUrlHashIndex" ON public.statuses USING btree ("urlHash");
 
 CREATE INDEX "statuses_actorId_idx" ON public.statuses USING btree ("actorId", "createdAt", "updatedAt");
 
-CREATE INDEX statuses_announce_actor_original_idx ON public.statuses USING btree (type, "actorId", "originalStatusId");
+CREATE INDEX statuses_announce_original_actor_idx ON public.statuses USING btree (type, "originalStatusId", "actorId");
 
 CREATE INDEX statuses_reply_created_idx ON public.statuses USING btree (reply, "createdAt", id);
 
