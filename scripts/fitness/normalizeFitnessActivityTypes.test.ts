@@ -21,33 +21,45 @@ const mockGetDatabase = getDatabase as jest.MockedFunction<typeof getDatabase>
 
 const ACTOR_ID = 'https://llun.social/users/ride'
 
-/**
- * A database whose first page carries `types` and whose second is empty, so the
- * script's offset paging terminates.
- */
-const stubDatabase = ({
-  types,
-  updateFitnessFileActivityData = vi.fn().mockResolvedValue(undefined)
-}: {
-  types: Array<string | null>
-  updateFitnessFileActivityData?: ReturnType<typeof vi.fn>
-}) => {
-  const files = types.map((activityType, index) => ({
-    id: `file-${index}`,
-    fileName: `file-${index}.fit`,
+/** The script's own page size — a page shorter than this ends the scan. */
+const SCAN_PAGE_SIZE = 200
+
+const rowsFor = (types: Array<string | null>, offset = 0) =>
+  types.map((activityType, index) => ({
+    id: `file-${offset + index}`,
+    fileName: `file-${offset + index}.fit`,
     activityType
   }))
-  return {
-    getActorFromId: vi.fn().mockResolvedValue({ id: ACTOR_ID }),
-    getFitnessFilesByActor: vi
-      .fn()
-      .mockImplementation(({ offset }: { offset: number }) =>
-        Promise.resolve(offset === 0 ? files : [])
-      ),
+
+/**
+ * A stubbed database for the script's own `main()`.
+ *
+ * Every collaborator is overridable, so a test needing a missing actor or a
+ * failing scan configures it here rather than reaching past the cast to
+ * reassign a property afterwards. By default the first page carries `types` and
+ * the next is empty, which ends the scan.
+ */
+const stubDatabase = ({
+  types = [],
+  updateFitnessFileActivityData = vi.fn().mockResolvedValue(undefined),
+  getActorFromId = vi.fn().mockResolvedValue({ id: ACTOR_ID }),
+  getFitnessFilesByActor = vi
+    .fn()
+    .mockImplementation(({ offset }: { offset: number }) =>
+      Promise.resolve(offset === 0 ? rowsFor(types) : [])
+    )
+}: {
+  types?: Array<string | null>
+  updateFitnessFileActivityData?: ReturnType<typeof vi.fn>
+  getActorFromId?: ReturnType<typeof vi.fn>
+  getFitnessFilesByActor?: ReturnType<typeof vi.fn>
+} = {}) =>
+  ({
+    getActorFromId,
+    getFitnessFilesByActor,
     updateFitnessFileActivityData,
     destroy: vi.fn().mockResolvedValue(undefined)
-  } as unknown as ReturnType<typeof getDatabase>
-}
+  }) as unknown as ReturnType<typeof getDatabase>
 
 const file = (
   id: string,
@@ -408,12 +420,68 @@ describe('normalizeFitnessActivityTypesScript', () => {
     expect(updateFitnessFileActivityData).toHaveBeenCalledTimes(3)
   })
 
+  it('keeps paging while a page comes back full', async () => {
+    // The scan stops on a SHORT page, so a full one must be followed by another
+    // fetch at the next offset. Every other test here supplies a handful of
+    // rows and so ends the scan on the first iteration — which leaves both
+    // common pagination typos (an offset that never advances, and an
+    // off-by-one in the break) passing the whole file. An actor with 200+
+    // activities is the normal case for the history this script exists to fix.
+    const firstPage = rowsFor(Array(SCAN_PAGE_SIZE).fill('cycling'))
+    const secondPage = rowsFor(['Biking'], SCAN_PAGE_SIZE)
+    // Capped, because the scan only ends on a short page: an offset that never
+    // advances would be handed the same full page forever and HANG the suite
+    // rather than fail an assertion. The cap lets the loop terminate so the
+    // call-count assertion below is what reports the bug.
+    let calls = 0
+    const getFitnessFilesByActor = vi
+      .fn()
+      .mockImplementation(({ offset }: { offset: number }) => {
+        calls += 1
+        if (calls > 4) return Promise.resolve([])
+        if (offset === 0) return Promise.resolve(firstPage)
+        if (offset === SCAN_PAGE_SIZE) return Promise.resolve(secondPage)
+        return Promise.resolve([])
+      })
+    const updateFitnessFileActivityData = vi.fn().mockResolvedValue(undefined)
+    mockGetDatabase.mockReturnValue(
+      stubDatabase({ getFitnessFilesByActor, updateFitnessFileActivityData })
+    )
+
+    const exitCode = await normalizeFitnessActivityTypesScript([
+      '--actor-id',
+      ACTOR_ID,
+      '--apply'
+    ])
+
+    expect(exitCode).toBe(0)
+    expect(getFitnessFilesByActor).toHaveBeenCalledTimes(2)
+    expect(getFitnessFilesByActor).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ offset: 0, limit: SCAN_PAGE_SIZE })
+    )
+    expect(getFitnessFilesByActor).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ offset: SCAN_PAGE_SIZE, limit: SCAN_PAGE_SIZE })
+    )
+    // Every row across both pages, so a truncated scan cannot pass.
+    expect(updateFitnessFileActivityData).toHaveBeenCalledTimes(
+      SCAN_PAGE_SIZE + 1
+    )
+    expect(updateFitnessFileActivityData).toHaveBeenCalledWith(
+      `file-${SCAN_PAGE_SIZE}`,
+      { activityType: 'ride' }
+    )
+  })
+
   it('reports an actor that does not exist rather than scanning', async () => {
-    const database = stubDatabase({ types: [] })
-    ;(
-      database as unknown as { getActorFromId: ReturnType<typeof vi.fn> }
-    ).getActorFromId = vi.fn().mockResolvedValue(null)
-    mockGetDatabase.mockReturnValue(database)
+    const getFitnessFilesByActor = vi.fn()
+    mockGetDatabase.mockReturnValue(
+      stubDatabase({
+        getActorFromId: vi.fn().mockResolvedValue(null),
+        getFitnessFilesByActor
+      })
+    )
 
     const exitCode = await normalizeFitnessActivityTypesScript([
       '--actor-id',
@@ -421,15 +489,13 @@ describe('normalizeFitnessActivityTypesScript', () => {
     ])
 
     expect(exitCode).toBe(1)
+    expect(getFitnessFilesByActor).not.toHaveBeenCalled()
   })
 
   it('closes the database even when the scan throws', async () => {
-    const database = stubDatabase({ types: [] })
-    ;(
-      database as unknown as {
-        getFitnessFilesByActor: ReturnType<typeof vi.fn>
-      }
-    ).getFitnessFilesByActor = vi.fn().mockRejectedValue(new Error('gone'))
+    const database = stubDatabase({
+      getFitnessFilesByActor: vi.fn().mockRejectedValue(new Error('gone'))
+    })
     mockGetDatabase.mockReturnValue(database)
 
     await expect(
