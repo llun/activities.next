@@ -20,6 +20,7 @@ import {
   searchAccounts
 } from '@/lib/client'
 import type { DirectConversationView } from '@/lib/client'
+import { createDeferred } from '@/lib/testing/deferred'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
@@ -46,22 +47,6 @@ vi.mock('@/lib/components/posts/posts', () => ({
     </div>
   )
 }))
-
-type Deferred<T> = {
-  promise: Promise<T>
-  resolve: (value: T) => void
-  reject: (error: Error) => void
-}
-
-const createDeferred = <T,>(): Deferred<T> => {
-  let resolve!: (value: T) => void
-  let reject!: (error: Error) => void
-  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise
-    reject = rejectPromise
-  })
-  return { promise, resolve, reject }
-}
 
 const currentTime = new Date('2026-05-17T12:00:00.000Z').getTime()
 

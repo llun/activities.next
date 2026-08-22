@@ -451,6 +451,15 @@ change doesn't touch.
 - Tests are co-located, named `*.test.ts(x)`. `describe`/`it` names are plain
   descriptive text — no `#`/`.` sigil — and read as behavior statements.
   Input/expected-only variations use a table-driven `it.each([...])`.
+- A test that needs to control **when** an awaited call settles imports
+  `createDeferred` from `@/lib/testing/deferred` rather than hand-rolling another
+  promise-with-exposed-resolve helper (the same eight lines had been copied into
+  four files under three names). Its promise stays pending until the test settles
+  it — a `Promise.resolve(value)` stand-in collapses the pending render and the
+  settled one into the same `act()` flush, so the assertion about the in-flight
+  state passes whether or not the code under test is correct. `PostBox
+attachment ref guard` is exactly that: it passed with the bug present until
+  the two picker batches were sequenced.
 - Tests run on **Vitest** (`vi.*`, not `jest.*`). To read a mocked module and
   configure it, prefer **`vi.importMock<T>('@/path')`** over
   `(await import('@/path')) as unknown as T`. `vi.importMock` is purpose-built,

@@ -6,6 +6,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 import { search } from '@/lib/client'
+import { createDeferred } from '@/lib/testing/deferred'
 
 import { SearchPageClient } from './SearchPageClient'
 
@@ -101,16 +102,6 @@ const selectTab = (name: string) => {
     button: 0,
     ctrlKey: false
   })
-}
-
-const createDeferred = <T,>() => {
-  let resolve!: (value: T) => void
-  let reject!: (reason?: unknown) => void
-  const promise = new Promise<T>((promiseResolve, promiseReject) => {
-    resolve = promiseResolve
-    reject = promiseReject
-  })
-  return { promise, resolve, reject }
 }
 
 const withoutDOMException = async (callback: () => Promise<void>) => {
