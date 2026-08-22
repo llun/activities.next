@@ -28,14 +28,13 @@ import { MAX_FILE_SIZE } from '@/lib/services/medias/constants'
  * (`exceedsMaxMediaUploadSize`), so a missing or stale provider can only make
  * the client optimistic, never let something through.
  *
- * `maxMediaAttachments` is the one exception, and it is not a small one. No
- * route enforces this resolved value. `POST`/`PUT /api/v1/statuses[/:id]`
- * fall back to the fixed `MAX_STORED_MEDIA_ATTACHMENTS` ceiling, but
- * `POST /api/v1/accounts/outbox` — the route both the composer and the inline
- * reply box actually post through — bounds the attachment count by nothing at
- * all. So for this field the provider is the only limit on the path the web UI
- * uses, and a stale or missing one lets media through unbounded rather than
- * merely up to a ceiling. See "Database-backed server settings" in
+ * `maxMediaAttachments` is the one exception: no route enforces this resolved
+ * value. All three create/edit paths — `POST`/`PUT /api/v1/statuses[/:id]` and
+ * `POST /api/v1/accounts/outbox`, the route both the composer and the inline
+ * reply box actually post through — fall back to the fixed
+ * `MAX_STORED_MEDIA_ATTACHMENTS` ceiling instead. So for this field a stale or
+ * missing provider lets media through up to that ceiling rather than up to the
+ * configured number. See "Database-backed server settings" in
  * `docs/environment-variables.md` for the full explanation.
  */
 export interface InstanceLimits {
