@@ -3,6 +3,7 @@ import FitParser from 'fit-file-parser'
 import type { FitData } from 'fit-file-parser'
 import { z } from 'zod'
 
+import { normalizeStoredActivityType } from '@/lib/services/fitness-files/sportTypes'
 import { getBrandFromManufacturer } from '@/lib/utils/fitnessDeviceBrands'
 
 export interface FitnessCoordinate {
@@ -437,6 +438,16 @@ const toActivityData = ({
     .map((point) => point.speed)
     .filter((value): value is number => typeof value === 'number')
 
+  // Stored in the canonical form, never as the raw string the file carried:
+  // the same ride reaches here as `cycling` from a FIT file, `Biking` from a
+  // Garmin TCX and `Ride` from the TCX built for a Strava import, and
+  // everything downstream that GROUPS on the value — the fitness overview
+  // breakdown, the calendar filter, the per-type route-heatmap cache key —
+  // would otherwise see three different activities. Every parser funnels
+  // through this function, so this is the single write-side normalization.
+  // Sports the keys do not model (swims, gym work) are kept verbatim.
+  const storedActivityType = normalizeStoredActivityType(activityType)
+
   return {
     coordinates,
     trackPoints,
@@ -458,7 +469,7 @@ const toActivityData = ({
       : typeof computedElevationGain === 'number'
         ? { elevationGainMeters: computedElevationGain }
         : null),
-    ...(activityType ? { activityType } : null),
+    ...(storedActivityType ? { activityType: storedActivityType } : null),
     ...(startTime
       ? { startTime }
       : timestamps[0]
