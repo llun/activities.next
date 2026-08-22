@@ -5,6 +5,7 @@ import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import type { ResolvedServerSettings } from '@/lib/config/serverSettings'
+import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { MAX_CONFIGURABLE_FILE_SIZE } from '@/lib/services/medias/constants'
 import type { MediaStorageBackendSummary } from '@/lib/services/medias/storageBackendSummary'
 
@@ -76,6 +77,28 @@ describe('PostsMediaSettingsForm', () => {
     renderForm()
     expect(screen.getByLabelText('Post size')).toHaveValue('500')
     expect(screen.getByLabelText('Upload size limit')).toHaveValue(200)
+  })
+
+  // The field's `max` is not decoration: NumberField settles the buffer against
+  // it on blur, so a hardcoded cap here silently clamps away anything the
+  // stored-media ceiling allows. Assert both halves against the constant so the
+  // two cannot drift the next time the ceiling moves.
+  it('caps media per post at the stored-media ceiling', () => {
+    renderForm()
+    const field = screen.getByLabelText('Media per post')
+    expect(field).toHaveAttribute('max', String(MAX_STORED_MEDIA_ATTACHMENTS))
+
+    fireEvent.change(field, {
+      target: { value: String(MAX_STORED_MEDIA_ATTACHMENTS) }
+    })
+    fireEvent.blur(field)
+    expect(field).toHaveValue(MAX_STORED_MEDIA_ATTACHMENTS)
+
+    fireEvent.change(field, {
+      target: { value: String(MAX_STORED_MEDIA_ATTACHMENTS + 1) }
+    })
+    fireEvent.blur(field)
+    expect(field).toHaveValue(MAX_STORED_MEDIA_ATTACHMENTS)
   })
 
   // The backend is infrastructure read from the environment at boot, so it is
