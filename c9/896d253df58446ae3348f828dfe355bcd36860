@@ -1,0 +1,51 @@
+docs/maintenance.md
+  s_a99f23a799a218::t_c1a2682fef2572 441
+  s_a99f23a799a218::t_818bea58ab15d3 362,401-440
+lib/services/fitness-files/parseFitnessFile.test.ts
+  s_a99f23a799a218::t_573cbca216c31c 55-56,101,361
+scripts/fitness/normalizeFitnessActivityTypes.test.ts
+  s_a99f23a799a218::t_b84aa376812f6b 246-247,249-250
+  s_a99f23a799a218::t_a6389811340c7a 1-66,82-89,95-245,248,251-257
+  s_a99f23a799a218::t_fd820997d779bf 67-81,90-94
+lib/services/fitness-files/parseFitnessFile.ts
+  s_a99f23a799a218::t_0ba151df85080c 6,441-450,472
+lib/jobs/processFitnessFileJob.ts
+  s_a99f23a799a218::t_fd820997d779bf 8
+lib/services/fitness-files/sportTypes.test.ts
+  s_a99f23a799a218::t_b7f8494bbc4b3c 10-11,235-238,249-250,256-300
+  s_a99f23a799a218::t_1ceb66f984af47 301
+  s_a99f23a799a218::t_fd820997d779bf 239-248,251-255
+lib/services/fitness-files/activityPresentation.ts
+  s_a99f23a799a218::t_ebaa77897a37f9 78
+  s_a99f23a799a218::t_3e889c272600cf 1-18,29,40-77,79-100
+  s_a99f23a799a218::t_9a2349055ce878 19-28,30-39
+lib/services/fitness-files/sportTypes.ts
+  s_a99f23a799a218::t_3fb6bb2be56c6d 252-284
+  s_a99f23a799a218::t_d84f80b9316ff4 251
+lib/services/fitness-files/activityPresentation.test.ts
+  s_a99f23a799a218::t_7b264f8e8fdab1 1-5,7-9,11-15,17-19,26-27,29-30,32-34,36-37,40-44,55-56,78,84-128
+  s_a99f23a799a218::t_c239be5b8345c8 6,10,16,20-25,28,31,35,38-39,45-54,57-77,79-83
+docs/fitness-file-storage.md
+  s_a99f23a799a218::t_b9bafdc5d89613 343
+  s_a99f23a799a218::t_58cefb79ee418e 55-56,233
+scripts/fitness/normalizeFitnessActivityTypes.ts
+  s_a99f23a799a218::t_786d6017d7eef5 210
+  s_a99f23a799a218::t_af5cc993a2e489 207-209
+  s_a99f23a799a218::t_160054deef1756 1-206,211-366
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "c9896d253df58446ae3348f828dfe355bcd36860",
+  "prompts": {},
+  "sessions": {
+    "s_a99f23a799a218": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6babe34f-8b63-46b1-a9fa-a9e446461bb7",
+        "model": "claude-opus-5"
+      },
+      "human_author": null
+    }
+  }
+}
