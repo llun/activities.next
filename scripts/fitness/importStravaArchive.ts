@@ -18,7 +18,7 @@ import {
 import { processFitnessFileJob } from '@/lib/jobs/processFitnessFileJob'
 import { saveFitnessFile } from '@/lib/services/fitness-files'
 import { saveMedia } from '@/lib/services/medias'
-import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
+import { MAX_IMPORTED_ACTIVITY_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { getQueue } from '@/lib/services/queue'
 import { getStravaArchiveImportBatchId } from '@/lib/services/strava/archiveImport'
 import {
@@ -381,7 +381,7 @@ async function importStravaArchive(args = process.argv.slice(2)) {
         )
         let remainingSlots = Math.max(
           0,
-          MAX_ATTACHMENTS - existingAttachments.length
+          MAX_IMPORTED_ACTIVITY_ATTACHMENTS - existingAttachments.length
         )
 
         for (const mediaPath of activity.mediaPaths) {

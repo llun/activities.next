@@ -8,6 +8,7 @@ import { createNote } from '@/lib/client'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
+import { resizeImage } from '@/lib/utils/resizeImage'
 
 import { StatusReplyBox } from './status-reply-box'
 
@@ -16,7 +17,10 @@ vi.mock('@/lib/client', () => ({
   uploadAttachment: vi.fn()
 }))
 
+vi.mock('@/lib/utils/resizeImage')
+
 const createNoteMock = createNote as jest.MockedFunction<typeof createNote>
+const resizeImageMock = resizeImage as jest.MockedFunction<typeof resizeImage>
 
 const currentTime = new Date('2026-04-26T10:00:00.000Z').getTime()
 
@@ -167,4 +171,63 @@ describe('StatusReplyBox character counter', () => {
       else expect(postButton).toBeDisabled()
     }
   )
+})
+
+// The reply box's media picker dispatches straight to the reducer (no ref
+// batching like the full composer), so its cap enforcement lives entirely in
+// the addAttachment reducer guard, keyed on the instance's resolved
+// posts.maxMediaAttachments passed at the dispatch call site.
+describe('StatusReplyBox attachment cap', () => {
+  beforeEach(() => {
+    createNoteMock.mockResolvedValue({
+      status: replyStatus,
+      attachments: []
+    })
+    resizeImageMock.mockImplementation((file) => Promise.resolve(file))
+
+    let counter = 0
+    global.crypto.randomUUID = vi.fn(() => `uuid-${counter++}` as never)
+    global.URL.createObjectURL = vi.fn(() => 'blob:test-url')
+    global.URL.revokeObjectURL = vi.fn()
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('holds two overlapping picker batches to the configured cap', async () => {
+    render(
+      <InstanceLimitsProvider maxMediaAttachments={1}>
+        <StatusReplyBox
+          profile={profile}
+          replyStatus={replyStatus}
+          isMediaUploadEnabled={true}
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      </InstanceLimitsProvider>
+    )
+
+    const input =
+      document.querySelector<HTMLInputElement>('input[type="file"]')!
+    const fileA = new File(['a'], 'a.jpg', { type: 'image/jpeg' })
+    const fileB = new File(['b'], 'b.jpg', { type: 'image/jpeg' })
+
+    // Fire both picker batches back to back, before either's state update
+    // commits: both read the same (still zero) attachment count and each
+    // decide they have a free slot, so only the reducer's own cap check —
+    // evaluated against the reducer's actual current state at dispatch time,
+    // not either batch's stale read — can stop the second one from landing.
+    fireEvent.change(input, { target: { files: [fileA] } })
+    fireEvent.change(input, { target: { files: [fileB] } })
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Add media (1/1)' })
+      ).toBeInTheDocument()
+    })
+    expect(
+      screen.queryByRole('button', { name: 'Add media (2/1)' })
+    ).not.toBeInTheDocument()
+  })
 })

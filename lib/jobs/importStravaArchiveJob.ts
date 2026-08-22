@@ -18,7 +18,7 @@ import {
 } from '@/lib/services/fitness-files'
 import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
 import { assertFitnessStoragePath } from '@/lib/services/fitness-files/path'
-import { MAX_ATTACHMENTS } from '@/lib/services/medias/constants'
+import { MAX_IMPORTED_ACTIVITY_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { saveMedia } from '@/lib/services/medias/index'
 import { getQueue } from '@/lib/services/queue'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
@@ -343,7 +343,7 @@ const attachActivityMediaToStatus = async ({
   )
   const remainingSlots = Math.max(
     0,
-    MAX_ATTACHMENTS - existingAttachments.length
+    MAX_IMPORTED_ACTIVITY_ATTACHMENTS - existingAttachments.length
   )
   if (remainingSlots <= 0) {
     return
