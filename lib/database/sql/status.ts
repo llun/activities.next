@@ -294,6 +294,60 @@ export const buildPubliclyReadableStatusIdsQuery = ({
     .whereNot('type', StatusType.enum.Announce)
 }
 
+// The set of one actor's status ids a given audience may be shown, as a
+// subquery to filter against. `getActorStatuses` filters `statuses.id` by it;
+// `getAttachmentsForActor` filters `attachments.statusId` by the same set, so
+// a followers-only post's images are withheld from exactly the viewers the post
+// itself is withheld from.
+//
+// Returns `null` for "no filter", which is a real audience rather than a
+// missing one — the owner viewing their own timeline, and the complete history
+// export in `scripts/backup/actorArchive.ts`. Callers must therefore decide the
+// audience deliberately; `resolveActorStatusesAudience` in
+// `@/lib/services/statusAccess` is how request paths do that.
+export const buildActorVisibleStatusIdsQuery = ({
+  database,
+  actorId,
+  publicOnly = false,
+  visibleToActorId,
+  includeFollowersOnly = false,
+  followersAudience
+}: {
+  database: Knex
+  actorId: string
+  publicOnly?: boolean
+  visibleToActorId?: string | null
+  includeFollowersOnly?: boolean
+  followersAudience?: string | null
+}): Knex.QueryBuilder | null => {
+  if (!publicOnly && !visibleToActorId && !includeFollowersOnly) return null
+
+  if (publicOnly) {
+    return buildPubliclyReadableStatusIdsQuery({
+      database,
+      targetStatusIds: database('statuses')
+        .select('statuses.id')
+        .where('actorId', actorId)
+    })
+  }
+
+  const recipientActorIds = [...PUBLIC_ACTIVITY_RECIPIENTS]
+  if (includeFollowersOnly) {
+    recipientActorIds.push(
+      ...[followersAudience, `${actorId}/followers`].filter(
+        (audience): audience is string => Boolean(audience)
+      )
+    )
+  }
+  if (visibleToActorId) {
+    recipientActorIds.push(visibleToActorId)
+  }
+
+  return database('recipients')
+    .select('statusId')
+    .whereIn('recipients.actorId', [...new Set(recipientActorIds)])
+}
+
 export const StatusSQLDatabaseMixin = (
   database: Knex,
   actorDatabase: ActorDatabase,
@@ -1554,38 +1608,19 @@ export const StatusSQLDatabaseMixin = (
       .orderBy('id', 'desc')
       .limit(limit)
 
-    const recipientActorIds =
-      publicOnly || visibleToActorId || includeFollowersOnly
-        ? [...PUBLIC_ACTIVITY_RECIPIENTS]
-        : null
-
-    if (recipientActorIds) {
-      if (!publicOnly) {
-        if (includeFollowersOnly) {
-          recipientActorIds.push(
-            ...[followersAudience, `${actorId}/followers`].filter(
-              (audience): audience is string => Boolean(audience)
-            )
-          )
-        }
-        if (visibleToActorId) {
-          recipientActorIds.push(visibleToActorId)
-        }
-      }
-
-      if (publicOnly) {
-        query = applyPublicReadableStatusFilter({
-          query,
-          targetStatusIds: getActorTargetStatusIds(actorId)
-        })
-      } else {
-        query = query.whereIn(
-          'statuses.id',
-          database('recipients')
-            .select('statusId')
-            .whereIn('recipients.actorId', [...new Set(recipientActorIds)])
-        )
-      }
+    // A null subquery means the caller asked for no visibility filter at all —
+    // the owner's own timeline and the full-history export both rely on that.
+    // See `buildActorVisibleStatusIdsQuery`.
+    const visibleStatusIds = buildActorVisibleStatusIdsQuery({
+      database,
+      actorId,
+      publicOnly,
+      visibleToActorId,
+      includeFollowersOnly,
+      followersAudience
+    })
+    if (visibleStatusIds) {
+      query = query.whereIn('statuses.id', visibleStatusIds)
     }
 
     if (onlyMedia) {

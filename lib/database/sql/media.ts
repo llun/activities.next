@@ -1,5 +1,6 @@
 import { Knex } from 'knex'
 
+import { buildActorVisibleStatusIdsQuery } from '@/lib/database/sql/status'
 import {
   CounterKey,
   decreaseCounterValue,
@@ -458,12 +459,32 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
   async getAttachmentsForActor({
     actorId,
     limit = 25,
-    maxCreatedAt
+    maxCreatedAt,
+    publicOnly = false,
+    visibleToActorId,
+    includeFollowersOnly = false,
+    followersAudience
   }: GetAttachmentsForActorParams): Promise<Attachment[]> {
     let query = database<Attachment>('attachments')
       .where('actorId', actorId)
       .orderBy('createdAt', 'desc')
       .orderBy('id', 'desc')
+
+    // An attachment inherits its status's audience. Filtering on `statusId`
+    // against the same subquery `getActorStatuses` uses is what keeps a
+    // followers-only post's images out of a stranger's media gallery; a null
+    // subquery is the deliberate unfiltered mode (the owner's own gallery).
+    const visibleStatusIds = buildActorVisibleStatusIdsQuery({
+      database,
+      actorId,
+      publicOnly,
+      visibleToActorId,
+      includeFollowersOnly,
+      followersAudience
+    })
+    if (visibleStatusIds) {
+      query = query.whereIn('attachments.statusId', visibleStatusIds)
+    }
 
     if (maxCreatedAt) {
       query = query.where('createdAt', '<', new Date(maxCreatedAt))
