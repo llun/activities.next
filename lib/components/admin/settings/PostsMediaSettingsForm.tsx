@@ -6,6 +6,10 @@ import { PageHeader } from '@/lib/components/page-header'
 import { Select } from '@/lib/components/ui/select'
 import { MEDIA_STORAGE_ENV_PREFIX } from '@/lib/config/environmentTemplates'
 import type { ResolvedServerSettings } from '@/lib/config/serverSettings'
+import {
+  MAX_FEDERATION_MEDIA_ATTACHMENTS,
+  MAX_STORED_MEDIA_ATTACHMENTS
+} from '@/lib/services/mastodon/constants'
 import { MAX_CONFIGURABLE_FILE_SIZE } from '@/lib/services/medias/constants'
 import type { MediaStorageBackendSummary } from '@/lib/services/medias/storageBackendSummary'
 
@@ -184,13 +188,13 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
         <SettingsField
           label="Media per post"
           htmlFor="posts-max-media"
-          help="Up to 20. The fediverse still only ever sees the first 4."
+          help={`Up to ${MAX_STORED_MEDIA_ATTACHMENTS}. The fediverse still only ever sees the first ${MAX_FEDERATION_MEDIA_ATTACHMENTS}.`}
         >
           <NumberField
             id="posts-max-media"
             value={values['posts.maxMediaAttachments'] as number}
             min={1}
-            max={20}
+            max={MAX_STORED_MEDIA_ATTACHMENTS}
             suffix="attachments"
             onChange={(next) => setValue('posts.maxMediaAttachments', next)}
           />
