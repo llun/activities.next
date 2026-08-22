@@ -1731,11 +1731,12 @@ each ends with the Definition of Done gate.
   - `scripts/` utilities added or changed → `docs/maintenance.md` (and the feature guide that lists them)
   - Deployment, Docker, or runtime-config changes → `README.md`, `docs/setup.md`, and the database setup guides
   - New or changed coding conventions and patterns → the matching `AGENTS.md` section, the `REVIEW.md` checklist, and (when agents need it at task start) the `CLAUDE.md` key reminders
-  - Changes to AGENTS.md rules themselves → keep the thin per-tool pointer files in sync (`CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`, `.cursor/rules/agents.mdc`) and the PR checklist in `.github/PULL_REQUEST_TEMPLATE.md`
+  - Changes to AGENTS.md rules themselves → keep the thin per-tool pointer files in sync (`CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`) and the PR checklist in `.github/PULL_REQUEST_TEMPLATE.md`. `lib/agentsDocsSync.test.ts` fails if one of those files is missing or if a pointer file cites an `AGENTS.md` section that does not exist — it is why the list above may not name a file that has been deleted, as it did for `.cursor/rules/agents.mdc` (removed in #1424) until this guard was added
 - Keep `docs/` durable and general-purpose (see Project Structure): update the reference docs in place; do not add change-specific writeups.
 
 ## Commit & Pull Request Guidelines
 
+- **Work reaches `main` as a pull request**: commit to the feature branch, push it, and open a PR. Nothing is merged by committing to `main` directly (Definition of Done item 1), and the review loop below has no PR to attach to until this has happened.
 - Commit messages must start with one of these prefixes followed by a short imperative description:
   - `none:` to mark that commit as no-release unless another commit in the range requests a higher bump
   - `major:` for breaking changes (major version bump)
