@@ -35,13 +35,23 @@ const VISIBILITY_KEYS = new Set([
   'includeFollowersOnly'
 ])
 
+// `getProfileData` is the other half of the rule, and the half the database
+// methods cannot see. It resolves the audience itself and its own call to them
+// therefore always looks correct — but its viewer arrives through an OPTIONAL
+// field, so a page that drops `{ currentActor }` silently reverts to treating
+// every visitor as logged out. That is the exact shape of the original bug at
+// the one call site that matters, it compiles and lints clean, and no
+// behavioural test covers those pages.
+const PROFILE_DATA_FUNCTION = 'getProfileData'
+const PROFILE_DATA_OPTIONS_INDEX = 3
+const PROFILE_DATA_VIEWER_KEY = 'currentActor'
+
 // A caller may pass a resolved audience in one piece rather than key by key
 // (the profile page spreads `visibilityScope`), so a spread counts — but only
-// when the thing being spread is named for what it is. Any spread at all would
-// be too permissive: `...(maxStatusId ? { maxStatusId } : null)` is a pagination
-// cursor, and treating it as a visibility statement would exempt the
-// deliberately-unfiltered archive walker without anyone saying so.
-const AUDIENCE_IDENTIFIER = /visibilit|audience|scope/i
+// when the thing being spread is named for what it is. Matching anything with
+// "scope" in it was tried and is too weak: a `...maxIdScope` carrying only a
+// pagination cursor satisfied it while stating no audience at all.
+const AUDIENCE_IDENTIFIER = /visibilit|audience/i
 
 const SCANNED_ROOTS = [
   path.join(process.cwd(), 'app'),
@@ -65,7 +75,7 @@ const collectSourceFiles = (directory: string): string[] => {
 type CallSite = {
   file: string
   line: number
-  method: string
+  callee: string
   statesVisibility: boolean
 }
 
@@ -76,9 +86,87 @@ const lineOfOffset = (source: string, offset: number, base: number) => {
   return source.slice(0, index).split('\n').length
 }
 
+type ObjectProperty = {
+  type?: string
+  // `{ currentActor: x }` carries the name on `key`; the shorthand
+  // `{ currentActor }` is an `Identifier` property whose own `value` is the
+  // name and which has no `key` at all. Reading only `key` silently treated
+  // every shorthand as stating nothing.
+  key?: { type?: string; value?: string }
+  value?: string
+  arguments?: { type?: string; value?: string }
+}
+
+const objectProperties = (expression: unknown): ObjectProperty[] => {
+  const object = expression as
+    { type?: string; properties?: ObjectProperty[] } | undefined
+  return object?.type === 'ObjectExpression' ? (object.properties ?? []) : []
+}
+
+const namesKey = (properties: ObjectProperty[], keys: Set<string>) =>
+  properties.some((property) => {
+    if (property.type === 'SpreadElement') {
+      return (
+        property.arguments?.type === 'Identifier' &&
+        AUDIENCE_IDENTIFIER.test(property.arguments.value ?? '')
+      )
+    }
+    if (property.type === 'Identifier') return keys.has(property.value ?? '')
+    return keys.has(property.key?.value ?? '')
+  })
+
+// The callee's name whether it is called as a method (`database.foo(…)`) or as
+// a plain function (`foo(…)`, which is how `getProfileData` and any destructured
+// database method would appear). Matching only member expressions left the
+// destructured form invisible to the whole walk.
+const calleeName = (callee: unknown): string | null => {
+  const node = callee as
+    | {
+        type?: string
+        value?: string
+        property?: { type?: string; value?: string }
+      }
+    | undefined
+  if (node?.type === 'Identifier') return node.value ?? null
+  if (
+    node?.type === 'MemberExpression' &&
+    node.property?.type === 'Identifier'
+  ) {
+    return node.property.value ?? null
+  }
+  return null
+}
+
+// `lib/client.ts` exports its own `getActorStatuses` — the browser wrapper over
+// `GET /api/v1/accounts/:id/statuses`, which is scoped server-side and takes no
+// visibility arguments at all. It shares only a name with the database method,
+// so a file that imports it is not a call site of the thing being guarded.
+const CLIENT_MODULE = '@/lib/client'
+
+const namesImportedFromClient = (source: string): Set<string> => {
+  const imports = new Set<string>()
+  const pattern = new RegExp(
+    `import\\s*\\{([^}]*)\\}\\s*from\\s*['"]${CLIENT_MODULE}['"]`,
+    'g'
+  )
+  for (const match of source.matchAll(pattern)) {
+    for (const binding of match[1].split(',')) {
+      const name = binding
+        .trim()
+        .split(/\s+as\s+/)
+        .pop()
+        ?.trim()
+      if (name) imports.add(name)
+    }
+  }
+  return imports
+}
+
 const collectCallSites = (file: string): CallSite[] => {
   const source = fs.readFileSync(file, 'utf-8')
-  if (![...GUARDED_METHODS].some((method) => source.includes(method))) return []
+  const watched = [...GUARDED_METHODS, PROFILE_DATA_FUNCTION]
+  if (!watched.some((name) => source.includes(name))) return []
+  const clientImports = namesImportedFromClient(source)
 
   const module = parseSync(source, {
     syntax: 'typescript',
@@ -97,57 +185,36 @@ const collectCallSites = (file: string): CallSite[] => {
 
     const candidate = node as {
       type?: string
-      callee?: {
-        type?: string
-        property?: { type?: string; value?: string }
-      }
+      callee?: unknown
       arguments?: { expression?: unknown }[]
       span?: { start: number }
     }
 
-    if (
-      candidate.type === 'CallExpression' &&
-      candidate.callee?.type === 'MemberExpression' &&
-      candidate.callee.property?.type === 'Identifier' &&
-      GUARDED_METHODS.has(candidate.callee.property.value ?? '')
-    ) {
-      const [firstArgument] = candidate.arguments ?? []
-      const expression = firstArgument?.expression as
-        | {
-            type?: string
-            properties?: {
-              type?: string
-              key?: { type?: string; value?: string }
-            }[]
-          }
-        | undefined
+    if (candidate.type === 'CallExpression') {
+      const name = calleeName(candidate.callee)
+      const args = candidate.arguments ?? []
+      if (name && clientImports.has(name)) {
+        Object.values(node as Record<string, unknown>).forEach(walk)
+        return
+      }
+      const record = (statesVisibility: boolean) =>
+        sites.push({
+          file: path.relative(process.cwd(), file),
+          line: lineOfOffset(source, candidate.span?.start ?? base, base),
+          callee: name ?? '',
+          statesVisibility
+        })
 
-      const properties: {
-        type?: string
-        key?: { type?: string; value?: string }
-      }[] =
-        expression?.type === 'ObjectExpression'
-          ? (expression.properties ?? [])
-          : []
-      const statesVisibility = properties.some((property) => {
-        if (property.type === 'SpreadElement') {
-          const spread = property as {
-            arguments?: { type?: string; value?: string }
-          }
-          return (
-            spread.arguments?.type === 'Identifier' &&
-            AUDIENCE_IDENTIFIER.test(spread.arguments.value ?? '')
+      if (name && GUARDED_METHODS.has(name)) {
+        record(namesKey(objectProperties(args[0]?.expression), VISIBILITY_KEYS))
+      } else if (name === PROFILE_DATA_FUNCTION) {
+        record(
+          namesKey(
+            objectProperties(args[PROFILE_DATA_OPTIONS_INDEX]?.expression),
+            new Set([PROFILE_DATA_VIEWER_KEY])
           )
-        }
-        return VISIBILITY_KEYS.has(property.key?.value ?? '')
-      })
-
-      sites.push({
-        file: path.relative(process.cwd(), file),
-        line: lineOfOffset(source, candidate.span?.start ?? base, base),
-        method: candidate.callee.property.value ?? '',
-        statesVisibility
-      })
+        )
+      }
     }
 
     Object.values(node as Record<string, unknown>).forEach(walk)
@@ -162,11 +229,11 @@ describe('status and attachment visibility call sites', () => {
   const callSites = files.flatMap(collectCallSites)
 
   it('finds the call sites it is meant to guard', () => {
-    // A refactor that renames these methods must not turn this suite into a
-    // vacuous pass.
+    // A refactor that renames these must not turn this suite into a vacuous
+    // pass — nor may the AST walk silently stop matching a callee shape.
     expect(callSites.length).toBeGreaterThan(0)
-    expect(new Set(callSites.map((site) => site.method))).toEqual(
-      GUARDED_METHODS
+    expect(new Set(callSites.map((site) => site.callee))).toEqual(
+      new Set([...GUARDED_METHODS, PROFILE_DATA_FUNCTION])
     )
   })
 
@@ -178,13 +245,13 @@ describe('status and attachment visibility call sites', () => {
         'utf-8'
       )
       // The marker is looked for anywhere in the file rather than on the call
-      // itself: the two legitimate cases already explain themselves in a
-      // comment block above the call, which is where a reviewer reads it.
+      // itself: the legitimate cases already explain themselves in a comment
+      // block above the call, which is where a reviewer reads it.
       return !source.includes(OPT_OUT_MARKER)
     })
 
     expect(
-      unstated.map((site) => `${site.file}:${site.line} ${site.method}`)
+      unstated.map((site) => `${site.file}:${site.line} ${site.callee}`)
     ).toEqual([])
   })
 })

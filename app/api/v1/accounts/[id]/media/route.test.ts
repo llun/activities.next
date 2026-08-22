@@ -167,6 +167,52 @@ describe('GET /api/v1/accounts/:id/media', () => {
     expect(urls).toContain(DIRECT_MEDIA_URL)
   })
 
+  // `read:statuses` is a scope a client may legally hold on its own, and
+  // granted-granular never satisfies a required coarse scope. Without
+  // `matchMode: 'any'` the guard demands `read` AND `read:statuses`, so this
+  // token 401s instead of being recognised as the owner — which is what the
+  // sibling statuses route already gets right.
+  it('accepts an OAuth token scoped only to read:statuses', async () => {
+    mockStoredToken.mockResolvedValue({
+      expiresAt: new Date(Date.now() + 60_000),
+      referenceId: ACTOR1_ID,
+      scopes: 'read:statuses'
+    })
+
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v1/accounts/${urlToId(ACTOR1_ID)}/media?limit=50`,
+        { method: 'GET', headers: { Authorization: 'Bearer read-statuses' } }
+      ),
+      { params: Promise.resolve({ id: urlToId(ACTOR1_ID) }) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(await mediaUrls(response)).toContain(FOLLOWERS_MEDIA_URL)
+  })
+
+  // The guard's own rejection paths return a bare apiErrorResponse, which
+  // carries no CORS headers; a cross-origin caller would see an opaque browser
+  // failure rather than the JSON error. `errorResponse` is what restores them.
+  it('keeps CORS headers on a guard-rejected response', async () => {
+    mockStoredToken.mockResolvedValue({
+      expiresAt: new Date(Date.now() - 60_000),
+      referenceId: ACTOR1_ID,
+      scopes: 'read'
+    })
+
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v1/accounts/${urlToId(ACTOR1_ID)}/media`,
+        { method: 'GET', headers: { Authorization: 'Bearer expired' } }
+      ),
+      { params: Promise.resolve({ id: urlToId(ACTOR1_ID) }) }
+    )
+
+    expect(response.status).toBe(401)
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBeTruthy()
+  })
+
   it('serves the owner their own private attachments', async () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }

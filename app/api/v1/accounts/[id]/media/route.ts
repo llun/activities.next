@@ -1,6 +1,9 @@
 import { z } from 'zod'
 
-import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import {
+  OptionalOAuthGuard,
+  corsErrorResponse
+} from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { resolveActorStatusesAudience } from '@/lib/services/statusAccess'
@@ -112,6 +115,17 @@ export const GET = traceApiRoute(
           ...(nextLink ? [['Link', nextLink] as [string, string]] : [])
         ]
       })
+    },
+    // Same guard configuration as the sibling statuses route, and neither half
+    // is optional. `matchMode: 'any'` because granted-granular never satisfies
+    // a required coarse scope (`hasGrantedScope`), so the default `'all'` would
+    // 401 a token holding only `read:statuses` — a scope a client may legally
+    // hold alone. `errorResponse` because the guard's own 401/403/500 paths
+    // return bare `apiErrorResponse`, which attaches no CORS headers, leaving a
+    // cross-origin caller an opaque browser failure instead of the JSON error.
+    {
+      errorResponse: corsErrorResponse(CORS_HEADERS),
+      matchMode: 'any'
     }
   ),
   {

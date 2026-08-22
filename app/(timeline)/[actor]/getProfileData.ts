@@ -61,14 +61,29 @@ export const getProfileData = async (
 
   if (persistedActor?.account) {
     const currentActor = options.currentActor ?? null
-    // Which of this actor's posts (and their attachments) this viewer is
-    // allowed to be shown. Resolved before the fan-out below because every
-    // query in it is scoped by the answer.
-    const audience = await resolveActorStatusesAudience({
-      database,
-      targetActor: persistedActor,
-      currentActor
-    })
+
+    // Only the statuses and attachments queries are scoped by the viewer, so
+    // the audience lookup runs alongside the four counts rather than in front
+    // of them — for a signed-in non-owner it costs a follow query, and making
+    // the whole fan-out wait on it would add that latency to a hot page.
+    const [
+      audience,
+      statusesCount,
+      followingCount,
+      followersCount,
+      hasFitnessData
+    ] = await Promise.all([
+      resolveActorStatusesAudience({
+        database,
+        targetActor: persistedActor,
+        currentActor
+      }),
+      database.getActorStatusesCount({ actorId: persistedActor.id }),
+      database.getActorFollowingCount({ actorId: persistedActor.id }),
+      database.getActorFollowersCount({ actorId: persistedActor.id }),
+      database.getActorHasFitnessData({ actorId: persistedActor.id })
+    ])
+
     const visibilityScope = {
       publicOnly: audience.publicOnly,
       visibleToActorId: audience.visibleToActorId,
@@ -76,34 +91,30 @@ export const getProfileData = async (
       followersAudience: audience.followersAudience
     }
 
-    const [
-      scopedStatuses,
-      statusesCount,
-      attachments,
-      followingCount,
-      followersCount,
-      hasFitnessData
-    ] = await Promise.all([
+    const [scopedStatuses, attachments] = await Promise.all([
       database.getActorStatuses({
         actorId: persistedActor.id,
         currentActorId: currentActor?.id,
         ...visibilityScope
       }),
-      database.getActorStatusesCount({ actorId: persistedActor.id }),
       database.getAttachmentsForActor({
         actorId: persistedActor.id,
         ...visibilityScope
-      }),
-      database.getActorFollowingCount({ actorId: persistedActor.id }),
-      database.getActorFollowersCount({ actorId: persistedActor.id }),
-      database.getActorHasFitnessData({ actorId: persistedActor.id })
+      })
     ])
 
     // The SQL scope above filters on the status's own recipients, which cannot
     // see through a boost: an Announce is public while the status it boosts may
-    // not be. `canActorReadStatus` follows that chain and is the authority, the
-    // same way `GET /api/v1/accounts/:id/statuses` and the outbox route pair a
-    // narrowed query with a per-status check.
+    // not be. `canActorReadStatus` follows that chain and is the authority,
+    // pairing a narrowed query with a per-status check the way
+    // `GET /api/v1/accounts/:id/statuses` and the outbox route do.
+    //
+    // `isFollower` covers this actor's own statuses. A boosted original belongs
+    // to someone else, so its follow state is looked up per status rather than
+    // prefetched into the `followerStateByActorId` map the statuses route
+    // builds — that route scans repeatedly and reuses the map across batches,
+    // where this renders one page. Bounded by page size and issued
+    // concurrently; revisit if a profile page ever pages server-side.
     const statuses = (
       await Promise.all(
         scopedStatuses.map(async (status) =>

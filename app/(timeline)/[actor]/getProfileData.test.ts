@@ -483,6 +483,44 @@ describe('getProfileData', () => {
       })
     })
 
+    // A remote actor's attachments are whatever their statuses brought here
+    // when they federated in, which includes followers-only posts delivered to
+    // a local follower. `getActorPosts` reads the remote outbox (public by
+    // construction), so the attachment query is the only one that needs
+    // scoping — and it is reached on a different branch from the local one, so
+    // it needs its own coverage.
+    it('scopes a remote actor gallery to what the viewer may read', async () => {
+      const viewer = {
+        id: 'viewer-actor-id',
+        username: 'viewer',
+        domain: 'example.com'
+      } as unknown as DomainActor
+
+      await getProfileData(mockDatabase, '@remoteuser@remote.com', true, {
+        currentActor: viewer
+      })
+
+      expect(mockDatabase.getAttachmentsForActor).toHaveBeenCalledWith({
+        actorId: mockPerson.id,
+        publicOnly: false,
+        visibleToActorId: viewer.id,
+        includeFollowersOnly: false,
+        followersAudience: mockPerson.followers
+      })
+    })
+
+    it('restricts a remote actor gallery to public attachments with no viewer', async () => {
+      await getProfileData(mockDatabase, '@remoteuser@remote.com', true)
+
+      expect(mockDatabase.getAttachmentsForActor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          publicOnly: true,
+          visibleToActorId: null,
+          includeFollowersOnly: false
+        })
+      )
+    })
+
     it('should return hasFitnessData as false for remote actors', async () => {
       const result = await getProfileData(
         mockDatabase,
