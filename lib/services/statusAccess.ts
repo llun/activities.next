@@ -33,6 +33,22 @@ export const isStatusPubliclyReadable = (status: Status): boolean => {
   return true
 }
 
+// "Does this viewer have an ACCEPTED follow of that actor?" — the one shape both
+// halves of this module need, and which each had its own copy of. A Requested
+// follow is not a follower: it is the pending state, and treating it as one
+// would hand a stranger the followers-only audience by asking.
+const isAcceptedFollowerOf = async (
+  database: Database,
+  viewerId: string,
+  targetActorId: string
+): Promise<boolean> => {
+  const follow = await database.getAcceptedOrRequestedFollow({
+    actorId: viewerId,
+    targetActorId
+  })
+  return follow?.status === FollowStatus.enum.Accepted
+}
+
 const canActorReadSingleStatus = async ({
   database,
   status,
@@ -55,11 +71,7 @@ const canActorReadSingleStatus = async ({
       isFollower ?? followerStateByActorId?.get(status.actorId)
     if (prefetchedIsFollower !== undefined) return prefetchedIsFollower
 
-    const follow = await database.getAcceptedOrRequestedFollow({
-      actorId: currentActor.id,
-      targetActorId: status.actorId
-    })
-    return follow?.status === FollowStatus.enum.Accepted
+    return isAcceptedFollowerOf(database, currentActor.id, status.actorId)
   }
 
   return false
@@ -105,14 +117,10 @@ export const resolveActorStatusesAudience = async ({
   const viewer = currentActor ?? null
   const isOwner = Boolean(viewer && viewer.id === targetActor.id)
 
-  const follow =
+  const isFollower =
     viewer && !isOwner
-      ? await database.getAcceptedOrRequestedFollow({
-          actorId: viewer.id,
-          targetActorId: targetActor.id
-        })
-      : null
-  const isFollower = follow?.status === FollowStatus.enum.Accepted
+      ? await isAcceptedFollowerOf(database, viewer.id, targetActor.id)
+      : false
 
   return {
     isOwner,

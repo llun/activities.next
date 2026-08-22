@@ -123,7 +123,8 @@ describe('getProfileData', () => {
       const result = await getProfileData(
         mockDatabase,
         '@localuser@example.com',
-        true
+        true,
+        { currentActor: null }
       )
 
       expect(result).not.toBeNull()
@@ -141,7 +142,8 @@ describe('getProfileData', () => {
       const result = await getProfileData(
         mockDatabase,
         '@localuser@example.com',
-        false
+        false,
+        { currentActor: null }
       )
 
       expect(result).not.toBeNull()
@@ -162,7 +164,8 @@ describe('getProfileData', () => {
       const result = await getProfileData(
         mockDatabase,
         '@localuser@example.com',
-        true
+        true,
+        { currentActor: null }
       )
 
       expect(result).not.toBeNull()
@@ -176,7 +179,8 @@ describe('getProfileData', () => {
       const result = await getProfileData(
         mockDatabase,
         '@localuser@example.com',
-        true
+        true,
+        { currentActor: null }
       )
 
       expect(result).not.toBeNull()
@@ -228,7 +232,9 @@ describe('getProfileData', () => {
       }
 
       it('restricts a logged-out visitor to publicly readable statuses', async () => {
-        await getProfileData(mockDatabase, '@localuser@example.com', false)
+        await getProfileData(mockDatabase, '@localuser@example.com', false, {
+          currentActor: null
+        })
 
         expect(
           visibilityArgsFor(mockDatabase.getActorStatuses as jest.Mock)
@@ -241,7 +247,9 @@ describe('getProfileData', () => {
       })
 
       it('restricts a logged-out visitor to publicly readable attachments', async () => {
-        await getProfileData(mockDatabase, '@localuser@example.com', false)
+        await getProfileData(mockDatabase, '@localuser@example.com', false, {
+          currentActor: null
+        })
 
         expect(
           visibilityArgsFor(mockDatabase.getAttachmentsForActor as jest.Mock)
@@ -350,7 +358,8 @@ describe('getProfileData', () => {
         const result = await getProfileData(
           mockDatabase,
           '@localuser@example.com',
-          false
+          false,
+          { currentActor: null }
         )
 
         expect(result?.statuses).toEqual([])
@@ -385,7 +394,8 @@ describe('getProfileData', () => {
       const result = await getProfileData(
         mockDatabase,
         '@remoteuser@remote.com',
-        true
+        true,
+        { currentActor: null }
       )
 
       expect(result).not.toBeNull()
@@ -410,7 +420,9 @@ describe('getProfileData', () => {
       // signed by the headless instance actor — never the viewer's user actor,
       // which may be absent or unservable — so the profile resolves instead of
       // 404ing. See getFederationSigningActor.
-      await getProfileData(mockDatabase, '@remoteuser@remote.com', true)
+      await getProfileData(mockDatabase, '@remoteuser@remote.com', true, {
+        currentActor: null
+      })
 
       expect(getFederationSigningActorSafe).toHaveBeenCalledWith(
         mockDatabase,
@@ -442,7 +454,8 @@ describe('getProfileData', () => {
       const result = await getProfileData(
         mockDatabase,
         '@remoteuser@remote.com',
-        true
+        true,
+        { currentActor: null }
       )
 
       expect(result).toMatchObject({
@@ -510,7 +523,9 @@ describe('getProfileData', () => {
     })
 
     it('restricts a remote actor gallery to public attachments with no viewer', async () => {
-      await getProfileData(mockDatabase, '@remoteuser@remote.com', true)
+      await getProfileData(mockDatabase, '@remoteuser@remote.com', true, {
+        currentActor: null
+      })
 
       expect(mockDatabase.getAttachmentsForActor).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -525,7 +540,8 @@ describe('getProfileData', () => {
       const result = await getProfileData(
         mockDatabase,
         '@remoteuser@remote.com',
-        true
+        true,
+        { currentActor: null }
       )
 
       expect(result).not.toBeNull()
@@ -536,7 +552,8 @@ describe('getProfileData', () => {
       const result = await getProfileData(
         mockDatabase,
         '@remoteuser@remote.com',
-        false
+        false,
+        { currentActor: null }
       )
 
       expect(result).toBeNull()
@@ -563,7 +580,8 @@ describe('getProfileData', () => {
       const result = await getProfileData(
         mockDatabase,
         '@remoteuser@remote.com',
-        true
+        true,
+        { currentActor: null }
       )
 
       expect(result).not.toBeNull()
@@ -587,7 +605,8 @@ describe('getProfileData', () => {
       const result = await getProfileData(
         mockDatabase,
         '@nonexistent@example.com',
-        true
+        true,
+        { currentActor: null }
       )
 
       expect(result).toBeNull()
@@ -600,7 +619,8 @@ describe('getProfileData', () => {
       const result = await getProfileData(
         mockDatabase,
         '@nonexistent@example.com',
-        false
+        false,
+        { currentActor: null }
       )
 
       expect(result).toBeNull()
@@ -634,7 +654,9 @@ describe('getProfileData', () => {
       // Call without isLoggedIn parameter
       const result = await getProfileData(
         mockDatabase,
-        '@remoteuser@remote.com'
+        '@remoteuser@remote.com',
+        undefined,
+        { currentActor: null }
       )
 
       expect(result).not.toBeNull()

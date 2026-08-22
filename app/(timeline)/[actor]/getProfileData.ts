@@ -33,7 +33,7 @@ type ProfileData = {
 
 type ProfileDataOptions = {
   statusPageUrl?: string
-  // The signed-in viewer, or null/undefined when logged out. This drives BOTH
+  // The signed-in viewer, explicitly `null` when logged out. This drives BOTH
   // halves of what a profile serves: hydration (the like/bookmark/reaction state
   // carried on the returned statuses) and, through
   // `resolveActorStatusesAudience`, which statuses and attachments are returned
@@ -44,14 +44,20 @@ type ProfileDataOptions = {
   // spelling could only hydrate, so the local-account branch below queried with
   // no visibility filter and served followers-only posts, direct messages and
   // their attachments to logged-out visitors.
-  currentActor?: DomainActor | null
+  //
+  // REQUIRED, and the options object with it: an optional viewer is what let a
+  // page omit it and silently serve every visitor the logged-out view — the
+  // original bug, at the one call site that mattered. A caller with no viewer
+  // must now say `null` rather than say nothing, which the compiler checks at
+  // every call site, including ones a lint or test-time scan would never see.
+  currentActor: DomainActor | null
 }
 
 export const getProfileData = async (
   database: Database,
   actorHandle: string,
   isLoggedIn: boolean = true,
-  options: ProfileDataOptions = {}
+  options: ProfileDataOptions
 ): Promise<ProfileData | null> => {
   const [username, domain] = actorHandle.split('@').slice(1)
   const persistedActor = await database.getActorFromUsername({
@@ -60,7 +66,7 @@ export const getProfileData = async (
   })
 
   if (persistedActor?.account) {
-    const currentActor = options.currentActor ?? null
+    const currentActor = options.currentActor
 
     // Only the statuses and attachments queries are scoped by the viewer, so
     // the audience lookup runs alongside the four counts rather than in front

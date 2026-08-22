@@ -15,11 +15,15 @@ import path from 'path'
 // third parties, and (through the attachments call beside it) the images on
 // all of them.
 //
-// Making the argument required in the type would be the stronger guard, but it
-// would also force the two legitimately-unfiltered callers to restate their
-// intent in a way the type cannot check either. So the rule is enforced here
-// instead: every call must either state a visibility audience or carry an
-// explicit opt-out marker, which is a line a reviewer can see.
+// A required argument is the stronger guard, and where it fits it is what was
+// used: `getProfileData`'s viewer is required, so the compiler rejects the
+// omission and nothing below needs to check it. These two are the case it does
+// not fit. Their unfiltered mode is legitimate rather than accidental, so a
+// required discriminant would make both honest callers restate an intent the
+// type still could not verify, and every one of the hundreds of existing calls
+// across the suite would have to be rewritten to say it. So the rule is
+// enforced here instead: every call must either state a visibility audience or
+// carry an explicit opt-out marker, which is a line a reviewer can see.
 //
 // Everything below is read from the AST rather than matched with a regex. The
 // object literal spans newlines and can nest; more importantly, several
@@ -45,27 +49,13 @@ const VISIBILITY_KEYS = new Set([
   'includeFollowersOnly'
 ])
 
-// `getProfileData` is the other half of the rule, and the half the database
-// methods cannot see. It resolves the audience itself, so its own calls to them
-// always look correct — but its viewer arrives through an OPTIONAL field, so a
-// page that drops `{ currentActor }` silently reverts to treating every visitor
-// as logged out. That is the exact shape of the original bug at the call sites
-// that matter, it compiles and lints clean, and no behavioural test covers
-// those pages.
-const PROFILE_DATA_FUNCTION = 'getProfileData'
-const PROFILE_DATA_OPTIONS_INDEX = 3
-const PROFILE_DATA_VIEWER_KEY = 'currentActor'
-
-// The pages that must pass a viewer. Listed rather than merely counted so that
-// a call site disappearing from the walk fails loudly: a renamed binding used
-// to vanish from the collected set entirely, which the per-name canary below
-// could not see because its siblings still matched. A new entry here is a
-// deliberate review step, not a chore.
-const PROFILE_DATA_CALL_SITES = [
-  'app/(timeline)/[actor]/followers/page.tsx',
-  'app/(timeline)/[actor]/following/page.tsx',
-  'app/(timeline)/[actor]/page.tsx'
-]
+// `getProfileData` is deliberately NOT checked here. Its viewer used to be an
+// optional field a page could drop — the original bug — and this suite did
+// briefly guard it, through a hardcoded page list and enough AST machinery to
+// follow aliased imports and decoy spreads. That was the wrong tool: the
+// viewer is now a REQUIRED parameter, so the compiler rejects an omission at
+// every call site, including ones no scan of these directories would reach.
+// See `ProfileDataOptions` in app/(timeline)/[actor]/getProfileData.ts.
 
 // `lib/client.ts` exports its own `getActorStatuses` — the browser wrapper over
 // `GET /api/v1/accounts/:id/statuses`, which is scoped server-side and takes no
@@ -280,8 +270,7 @@ const calleeName = (
 
 const collectCallSites = (file: string): CallSite[] => {
   const source = fs.readFileSync(file, 'utf-8')
-  const watched = [...GUARDED_METHODS, PROFILE_DATA_FUNCTION]
-  if (!watched.some((name) => source.includes(name))) return []
+  if (![...GUARDED_METHODS].some((name) => source.includes(name))) return []
 
   const module = parseSync(source, {
     syntax: 'typescript',
@@ -318,28 +307,14 @@ const collectCallSites = (file: string): CallSite[] => {
         statesVisibility
       })
 
-    if (GUARDED_METHODS.has(name)) {
-      record(
-        namesKey(
-          objectProperties(args[0]?.expression, objects),
-          VISIBILITY_KEYS,
-          objects
-        )
+    if (!GUARDED_METHODS.has(name)) return
+    record(
+      namesKey(
+        objectProperties(args[0]?.expression, objects),
+        VISIBILITY_KEYS,
+        objects
       )
-      return
-    }
-    if (name === PROFILE_DATA_FUNCTION) {
-      record(
-        namesKey(
-          objectProperties(
-            args[PROFILE_DATA_OPTIONS_INDEX]?.expression,
-            objects
-          ),
-          new Set([PROFILE_DATA_VIEWER_KEY]),
-          objects
-        )
-      )
-    }
+    )
   })
 
   return sites
@@ -354,20 +329,7 @@ describe('status and attachment visibility call sites', () => {
     // walk silently stop matching a callee shape.
     expect(callSites.length).toBeGreaterThan(0)
     expect(new Set(callSites.map((site) => site.callee))).toEqual(
-      new Set([...GUARDED_METHODS, PROFILE_DATA_FUNCTION])
-    )
-  })
-
-  // The check above dedupes by name, so it stays green while SOME calls to a
-  // name go unseen. These are the pages the fix is carried into, so they are
-  // named individually.
-  it('sees every page that reads a profile', () => {
-    const seen = callSites
-      .filter((site) => site.callee === PROFILE_DATA_FUNCTION)
-      .map((site) => site.file)
-
-    expect([...new Set(seen)].sort()).toEqual(
-      [...PROFILE_DATA_CALL_SITES].sort()
+      GUARDED_METHODS
     )
   })
 
