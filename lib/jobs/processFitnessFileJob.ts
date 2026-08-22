@@ -92,7 +92,14 @@ const formatDuration = (durationSeconds: number) => {
 }
 
 const buildActivitySummary = (data: FitnessActivityData): string => {
-  const { label, emoji } = getActivityPresentation(data.activityType)
+  // The RAW spelling in preference to the stored key: `activityType` has
+  // already been collapsed for gear ("which bike or which shoes"), which turns
+  // a handcycle ride into a plain `ride`. The Strava importer captions from its
+  // own raw `sport_type`, so reading the key here made the two import paths
+  // caption the same activity differently.
+  const { label, emoji } = getActivityPresentation(
+    data.rawActivityType ?? data.activityType
+  )
 
   const base = `${emoji} ${label}`
 

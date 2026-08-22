@@ -864,12 +864,25 @@ it; there is no legacy shape left to copy.
   but the overview breakdown and the calendar filter must still show it.
 - **Naming a sport for a post caption is `getActivityPresentation`**
   (`@/lib/services/fitness-files/activityPresentation`) — the import job and the
-  Strava summary builder both go through it. It deliberately keeps **gerund**
+  Strava summary builder both go through it, and nothing else should grow its
+  own table. Matching substrings on a raw `sport_type` is exactly what captioned
+  a `MountainBikeRide` with the road-bike glyph. It deliberately keeps **gerund**
   labels ("Cycling", "Gravel cycling") separate from `SPORT_LABELS`' UI nouns
   ("Ride", "Gravel ride"): caption text is federated and stored forever, so
-  rewording it changes published posts. Do not add a fourth table — matching
-  substrings on a raw `sport_type` is what captioned a `MountainBikeRide` with
-  the road-bike glyph.
+  rewording it changes published posts.
+- **Caption from the RAW sport, not the stored key** —
+  `FitnessActivityData.rawActivityType` carries the source file's own spelling
+  beside the canonical `activityType`, and `buildActivitySummary` prefers it.
+  The key answers "which bike or which shoes", so it folds `Handcycle` and
+  `Velomobile` into `ride` and `VirtualRun` into `run`; a caption is not
+  answering that, and "Cycling" erases a distinction the athlete made. Those
+  three have their own entries in `SPECIFIC_ACTIVITY_LABELS`, checked **before**
+  the sport-key lookup because they do resolve to a key and would never reach
+  the unmodelled table. Reading the stored key here made a directly uploaded
+  handcycle ride disagree with the same ride imported from Strava, which
+  captions from its own raw `sport_type` — guarded end to end in
+  `processFitnessFileJob.test.ts`, since a unit test on the presenter alone
+  cannot catch a caller handing it the wrong value.
 - **A sport belongs to at most one of an actor's gears**, retired ones included
   — scoping the invariant to active gear only would let unretiring produce two
   holders and make auto-assign arbitrary. Claiming a sport takes it off whoever
