@@ -22,10 +22,18 @@ import path from 'path'
 // explicit opt-out marker, which is a line a reviewer can see.
 //
 // Everything below is read from the AST rather than matched with a regex. The
-// object literal spans newlines and can nest; more importantly, three separate
+// object literal spans newlines and can nest; more importantly, several
 // attempts to approximate this with names alone each turned out to have a
 // false-pass hole, and every one of them is recorded at the code that closes
 // it.
+//
+// Known limitation: resolution is per-file. A call reached through a module
+// that re-exports one of these as its DEFAULT (`export default getProfileData`,
+// imported elsewhere under any name) is invisible here, because identifying it
+// needs cross-module resolution. A namespace import is fine — `m.getProfileData(…)`
+// is a member expression and matches on the property name. Nothing in the repo
+// re-exports these today; this is the boundary of the guard, not a claim that
+// it cannot be stepped around by someone trying.
 
 const OPT_OUT_MARKER = 'visibility-unfiltered'
 
@@ -140,13 +148,24 @@ const collectImportBindings = (module: unknown): Map<string, ImportBinding> => {
       imported?: { value?: string }
     }[]
     for (const specifier of specifiers) {
-      if (specifier.type !== 'ImportSpecifier') continue
       const local = specifier.local?.value
       if (!local) continue
-      bindings.set(local, {
-        imported: specifier.imported?.value ?? local,
-        source
-      })
+      // Named imports carry the original on `imported` when aliased. A default
+      // or namespace import has no such name; recording it as `default` at
+      // least keeps the binding known rather than silently absent.
+      if (specifier.type === 'ImportSpecifier') {
+        bindings.set(local, {
+          imported: specifier.imported?.value ?? local,
+          source
+        })
+        continue
+      }
+      if (
+        specifier.type === 'ImportDefaultSpecifier' ||
+        specifier.type === 'ImportNamespaceSpecifier'
+      ) {
+        bindings.set(local, { imported: 'default', source })
+      }
     }
   })
   return bindings
@@ -173,10 +192,22 @@ const collectObjectLiterals = (
   return objects
 }
 
-const objectProperties = (expression: unknown): ObjectProperty[] => {
+// The argument's properties, whether written inline or prepared under a name.
+// Resolving the named form matters for ergonomics rather than safety: extracting
+// options into a `const` for readability is the natural refactor, and rejecting
+// it while accepting the spread of the identical object would push callers into
+// a worse shape to satisfy a test.
+const objectProperties = (
+  expression: unknown,
+  objects: Map<string, ObjectProperty[]>
+): ObjectProperty[] => {
   const object = expression as
-    { type?: string; properties?: ObjectProperty[] } | undefined
-  return object?.type === 'ObjectExpression' ? (object.properties ?? []) : []
+    { type?: string; value?: string; properties?: ObjectProperty[] } | undefined
+  if (object?.type === 'ObjectExpression') return object.properties ?? []
+  if (object?.type === 'Identifier' && object.value) {
+    return objects.get(object.value) ?? []
+  }
+  return []
 }
 
 const namesKey = (
@@ -212,13 +243,27 @@ const namesKey = (
 const calleeName = (
   callee: unknown
 ): { name: string; bare: boolean } | null => {
-  const node = callee as
+  let node = callee as
     | {
         type?: string
         value?: string
+        base?: unknown
+        expression?: unknown
         property?: { type?: string; value?: string }
       }
     | undefined
+
+  // `database?.getActorStatuses(…)` wraps the member expression in an
+  // OptionalChainingExpression, which the two shapes below do not match — so
+  // the call was dropped before it was even recorded, invisible to every
+  // assertion here. A nullable database or actor with defensive optional
+  // chaining is ordinary code, not a contrived evasion.
+  let unwrapped = 0
+  while (node?.type === 'OptionalChainingExpression' && unwrapped < 4) {
+    node = (node.base ?? node.expression) as typeof node
+    unwrapped += 1
+  }
+
   if (node?.type === 'Identifier') {
     return node.value ? { name: node.value, bare: true } : null
   }
@@ -276,7 +321,7 @@ const collectCallSites = (file: string): CallSite[] => {
     if (GUARDED_METHODS.has(name)) {
       record(
         namesKey(
-          objectProperties(args[0]?.expression),
+          objectProperties(args[0]?.expression, objects),
           VISIBILITY_KEYS,
           objects
         )
@@ -286,7 +331,10 @@ const collectCallSites = (file: string): CallSite[] => {
     if (name === PROFILE_DATA_FUNCTION) {
       record(
         namesKey(
-          objectProperties(args[PROFILE_DATA_OPTIONS_INDEX]?.expression),
+          objectProperties(
+            args[PROFILE_DATA_OPTIONS_INDEX]?.expression,
+            objects
+          ),
           new Set([PROFILE_DATA_VIEWER_KEY]),
           objects
         )
