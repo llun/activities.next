@@ -1,4 +1,5 @@
 import { Database } from '@/lib/database/types'
+import { getActivityPresentation } from '@/lib/services/fitness-files/activityPresentation'
 import { ACCEPTED_IMAGE_TYPES } from '@/lib/services/medias/constants'
 import { FitnessSettings } from '@/lib/types/database/fitnessSettings'
 import {
@@ -139,34 +140,24 @@ const toPhotoId = (value: unknown) => {
   return undefined
 }
 
-const getActivityLabelAndEmoji = (activity: StravaActivity) => {
-  const rawType = (activity.sport_type || activity.type || '').trim()
-  const normalized = rawType.toLowerCase()
-
-  if (normalized.includes('run')) {
-    return { label: rawType || 'Run', emoji: '🏃' }
-  }
-  if (normalized.includes('walk')) {
-    return { label: rawType || 'Walk', emoji: '🚶' }
-  }
-  if (normalized.includes('hike')) {
-    return { label: rawType || 'Hike', emoji: '🥾' }
-  }
-  if (
-    normalized.includes('ride') ||
-    normalized.includes('cycle') ||
-    normalized.includes('bike')
-  ) {
-    return { label: rawType || 'Ride', emoji: '🚴' }
-  }
-  if (normalized.includes('swim')) {
-    return { label: rawType || 'Swim', emoji: '🏊' }
-  }
-  if (rawType.length > 0) {
-    return { label: rawType, emoji: '🏋️' }
-  }
-  return { label: 'Workout', emoji: '🏋️' }
-}
+/**
+ * Names a Strava activity for the caption of the post an import publishes.
+ *
+ * Delegates to the shared `getActivityPresentation` rather than keeping its own
+ * table. This used to match substrings on Strava's raw `sport_type` and hand
+ * the unprettified enum straight back as the label, which collapsed every bike
+ * sub-type onto the road-bike glyph: a `MountainBikeRide` was captioned
+ * "MountainBikeRide 🚴" where the same ride out of a FIT file got
+ * "Mountain biking 🚵". `normalizeActivityTypeToSportKey` already knows every
+ * Strava spelling, so one vocabulary now answers for both.
+ *
+ * This is not only the streamless-fallback path: a file-backed import creates
+ * its status with an empty body and `buildStravaActivitySummary` fills it
+ * (see `importStravaActivityJob`), so this is the caption of an ordinary
+ * successful Strava import.
+ */
+const getActivityLabelAndEmoji = (activity: StravaActivity) =>
+  getActivityPresentation(activity.sport_type || activity.type)
 
 export const getStravaActivityStartTimeMs = (activity: StravaActivity) => {
   if (!activity.start_date) {

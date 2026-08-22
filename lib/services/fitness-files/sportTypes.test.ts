@@ -7,7 +7,8 @@ import {
   getSportKeysForKind,
   getSportLabel,
   isSportKey,
-  normalizeActivityTypeToSportKey
+  normalizeActivityTypeToSportKey,
+  normalizeStoredActivityType
 } from '@/lib/services/fitness-files/sportTypes'
 
 describe('normalizeActivityTypeToSportKey', () => {
@@ -229,5 +230,72 @@ describe('gear kinds', () => {
     for (const raw of ['Ride', 'running', 'Biking', 'kayaking']) {
       expect(getGearKindForActivityType(raw)).not.toBe('device')
     }
+  })
+})
+
+describe('normalizeStoredActivityType', () => {
+  it.each([
+    { description: 'FIT cycling', raw: 'cycling', stored: 'ride' },
+    {
+      description: 'FIT gravel_cycling',
+      raw: 'gravel_cycling',
+      stored: 'gravel_ride'
+    },
+    {
+      description: 'FIT indoor_cycling',
+      raw: 'indoor_cycling',
+      stored: 'virtual_ride'
+    },
+    { description: 'TCX Biking', raw: 'Biking', stored: 'ride' },
+    { description: 'Strava Ride', raw: 'Ride', stored: 'ride' },
+    {
+      description: 'Strava GravelRide',
+      raw: 'GravelRide',
+      stored: 'gravel_ride'
+    },
+    { description: 'GPX free text', raw: 'Road cycling', stored: 'ride' }
+  ])('collapses $description to its sport key', ({ raw, stored }) => {
+    expect(normalizeStoredActivityType(raw)).toBe(stored)
+  })
+
+  it('collapses every vocabulary for one sport onto one stored value', () => {
+    // The reason the column is normalized at all: the fitness overview
+    // breakdown groups on the raw string, so three spellings of one ride were
+    // three rows in the table.
+    const stored = ['cycling', 'Biking', 'Ride', 'road_cycling'].map(
+      normalizeStoredActivityType
+    )
+
+    expect(new Set(stored)).toEqual(new Set(['ride']))
+  })
+
+  it('is idempotent, so a backfill is safe to rerun', () => {
+    for (const key of SPORT_KEYS) {
+      expect(normalizeStoredActivityType(key)).toBe(key)
+    }
+  })
+
+  it.each([
+    { description: 'a swim', raw: 'swimming' },
+    { description: "Garmin's Other catch-all", raw: 'Other' },
+    { description: 'free-form text', raw: 'Kayaking' }
+  ])('keeps $description verbatim rather than dropping it', ({ raw }) => {
+    // No gear kind fits these, but they are still activities the breakdown and
+    // the calendar filter must go on showing. Returning null would erase them.
+    expect(normalizeActivityTypeToSportKey(raw)).toBeNull()
+    expect(normalizeStoredActivityType(raw)).toBe(raw)
+  })
+
+  it('trims an unmodelled value it keeps', () => {
+    expect(normalizeStoredActivityType('  Other  ')).toBe('Other')
+  })
+
+  it.each([
+    { description: 'undefined', raw: undefined },
+    { description: 'null', raw: null },
+    { description: 'an empty string', raw: '' },
+    { description: 'whitespace only', raw: '   ' }
+  ])('answers null for $description', ({ raw }) => {
+    expect(normalizeStoredActivityType(raw)).toBeNull()
   })
 })

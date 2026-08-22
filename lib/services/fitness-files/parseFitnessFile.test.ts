@@ -52,8 +52,35 @@ describe('parseFitnessFile', () => {
     expect(parsed.totalDistanceMeters).toBeGreaterThan(100)
     expect(parsed.totalDurationSeconds).toBe(600)
     expect(parsed.elevationGainMeters).toBe(25)
-    expect(parsed.activityType).toBe('running')
+    // Stored canonically, not as the raw `running` the file carried.
+    expect(parsed.activityType).toBe('run')
+    expect(parsed.rawActivityType).toBe('running')
     expect(parsed.startTime?.toISOString()).toBe('2026-01-01T10:00:00.000Z')
+  })
+
+  it('keeps the raw sport beside the key when the key is coarser', async () => {
+    // `Handcycle` normalizes to `ride` because gear attribution asks "which
+    // bike". The caption is not asking that, so the raw spelling has to
+    // survive parsing or a directly uploaded handcycle ride is captioned
+    // "Cycling" while the same ride imported from Strava says "Handcycling".
+    const gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="tests">
+  <trk>
+    <type>Handcycle</type>
+    <trkseg>
+      <trkpt lat="37.7749" lon="-122.4194"><time>2026-01-01T10:00:00Z</time></trkpt>
+      <trkpt lat="37.7759" lon="-122.4184"><time>2026-01-01T10:10:00Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>`
+
+    const parsed = await parseFitnessFile({
+      fileType: 'gpx',
+      buffer: Buffer.from(gpx)
+    })
+
+    expect(parsed.activityType).toBe('ride')
+    expect(parsed.rawActivityType).toBe('Handcycle')
   })
 
   it('parses TCX data and prefers lap metadata for distance/duration', async () => {
@@ -97,7 +124,7 @@ describe('parseFitnessFile', () => {
     expect(parsed.totalDistanceMeters).toBeCloseTo(12_345.6, 3)
     expect(parsed.totalDurationSeconds).toBe(1800)
     expect(parsed.elevationGainMeters).toBe(35)
-    expect(parsed.activityType).toBe('Biking')
+    expect(parsed.activityType).toBe('ride')
     expect(parsed.startTime?.toISOString()).toBe('2026-01-02T07:00:00.000Z')
   })
 
@@ -357,7 +384,7 @@ describe('parseFitnessFile', () => {
     expect(parsed.totalDistanceMeters).toBe(5_000)
     expect(parsed.totalDurationSeconds).toBe(1_500)
     expect(parsed.elevationGainMeters).toBe(140)
-    expect(parsed.activityType).toBe('running')
+    expect(parsed.activityType).toBe('run')
     expect(parsed.startTime?.toISOString()).toBe('2026-01-03T06:00:00.000Z')
   })
 
