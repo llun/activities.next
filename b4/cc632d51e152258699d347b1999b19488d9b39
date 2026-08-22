@@ -1,0 +1,19 @@
+lib/agentsDocsSync.test.ts
+  s_a6b78342b6d5ed::t_af134557efb80f 34-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "b4cc632d51e152258699d347b1999b19488d9b39",
+  "prompts": {},
+  "sessions": {
+    "s_a6b78342b6d5ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c7bfbe83-9690-4073-8fa2-f2bb0b73c330",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
