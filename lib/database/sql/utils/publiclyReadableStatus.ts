@@ -41,6 +41,15 @@ export const announceOriginalPointer = (database: Knex, table: string) => {
 // point of this whole module's correlated form is that nothing materialises
 // ahead of the outer row. On PostgreSQL this is served by
 // `recipients_actorId_statusId_idx` at `Heap Fetches: 0`.
+//
+// `publicRecipientStatusIds` in `status.ts` is the same test spelled as a
+// `whereIn` subquery, and the two are deliberately NOT converged. That one
+// feeds `buildPubliclyReadableStatusIdsQuery`, whose plan #1493 tuned and which
+// this module exists to leave alone; rewriting its semi-join as an EXISTS would
+// re-plan a query no measurement here covers, for no gain. Unlike
+// `announceOriginalPointer` — which both forms share, and must, because a
+// divergence there changes the ANSWER — these two cannot drift semantically:
+// each is one predicate over the same `PUBLIC_ACTIVITY_RECIPIENTS` constant.
 const publicRecipientExistsQuery = (database: Knex, statusIdColumn: string) =>
   database
     .select(database.raw('1'))
@@ -120,13 +129,31 @@ const announceOriginalIsPublicNote = (database: Knex, table: string) =>
 //     query.modify(wherePubliclyReadableStatus, database)
 //     query.modify(wherePubliclyReadableStatus, database, 'reply_statuses')
 //
-// This is the form for any query a LIMIT bounds. The set-based
-// `buildPubliclyReadableStatusIdsQuery` computes the same answer as a materialised
-// id set, which the planner must finish before a LIMIT sees a single row — on a
-// PostgreSQL 18 seed shaped like production that put the anonymous profile
-// page's 30-row query at 33,308-33,311 buffers for every page size, against
-// 325/476/573 here at limits of 20/30/40. Keep the set form only where the
-// query has to touch every row anyway; see the note at `getActorStatusesCount`.
+// Reach for this form when the number of rows the predicate is evaluated over
+// is BOUNDED — by a LIMIT, or by the query's own scope being inherently small.
+// The set-based `buildPubliclyReadableStatusIdsQuery` computes the same answer
+// as a materialised id set, which the planner must finish before a LIMIT sees a
+// single row: on a PostgreSQL 18 seed shaped like production that put the
+// anonymous profile page's 30-row query at 33,308-33,311 buffers for every page
+// size, against 325/476/573 here at limits of 20/30/40.
+//
+// Keep the SET form in two cases, both measured on that seed:
+//
+//   - The predicate has to be evaluated over a large unbounded set anyway. A
+//     COUNT cannot amortise the per-Announce recursive-CTE instantiation the
+//     way a LIMIT does — see the note at `getActorStatusesCount`.
+//   - The query embeds the predicate MORE THAN ONCE. `getRebloggedBy` puts its
+//     filtered reblog set both in a FROM subquery and inside a correlated
+//     `whereNotExists` that dedupes to each actor's newest reblog, so a
+//     correlated predicate is re-evaluated per row PAIR while a materialised id
+//     set is computed once and shared by both copies. Correlated there read 4x
+//     FEWER buffers and took twelve times as long: 11,383 / 415ms against
+//     49,474 / 33ms.
+//
+// Being unlimited is not by itself disqualifying. `getStatusRepliesCount` is an
+// unbounded COUNT and measures the same either way (1,448 buffers / 1.1ms
+// against 1,464 / 1.2ms), because one status's replies are a small set. What
+// costs is the number of evaluations, not the absence of a LIMIT.
 //
 // The two disjuncts are NOT interchangeable with a "check depth 1 first, then
 // recurse" fast path. Spelling the common case as its own correlated EXISTS
