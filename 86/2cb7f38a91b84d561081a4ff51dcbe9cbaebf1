@@ -1,0 +1,21 @@
+scripts/fitness/normalizeFitnessActivityTypes.ts
+  s_a99f23a799a218::t_c7893f867f2509 320-325,332,348-361
+scripts/fitness/normalizeFitnessActivityTypes.test.ts
+  s_a99f23a799a218::t_7cb40fc7d3ee3a 477-536
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "862cb7f38a91b84d561081a4ff51dcbe9cbaebf1",
+  "prompts": {},
+  "sessions": {
+    "s_a99f23a799a218": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6babe34f-8b63-46b1-a9fa-a9e446461bb7",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
