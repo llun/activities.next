@@ -84,19 +84,12 @@ describe('PostsMediaSettingsForm', () => {
 
   // The field's `max` is not decoration: NumberField settles the buffer against
   // it on blur, so a hardcoded cap here silently clamps away anything the
-  // stored-media ceiling allows. Assert the attribute, the blur clamp and the
-  // help copy against the constants so none of the three can drift the next
-  // time a ceiling moves — a stale "Up to 20" would misdescribe a field that
-  // now accepts 50.
+  // stored-media ceiling allows. Assert the attribute and the clamp against the
+  // constant so the two cannot drift the next time the ceiling moves.
   it('caps media per post at the stored-media ceiling', () => {
     renderForm()
     const field = screen.getByLabelText('Media per post')
     expect(field).toHaveAttribute('max', String(MAX_STORED_MEDIA_ATTACHMENTS))
-    expect(
-      screen.getByText(
-        `Up to ${MAX_STORED_MEDIA_ATTACHMENTS}. The fediverse still only ever sees the first ${MAX_FEDERATION_MEDIA_ATTACHMENTS}.`
-      )
-    ).toBeInTheDocument()
 
     fireEvent.change(field, {
       target: { value: String(MAX_STORED_MEDIA_ATTACHMENTS) }
@@ -109,6 +102,18 @@ describe('PostsMediaSettingsForm', () => {
     })
     fireEvent.blur(field)
     expect(field).toHaveValue(MAX_STORED_MEDIA_ATTACHMENTS)
+  })
+
+  // The help copy is derived from the same two constants the field and the
+  // outbound note are bounded by, so it drifts silently: a stale "Up to 20"
+  // would misdescribe a field that accepts 50.
+  it('states both media ceilings in the help copy', () => {
+    renderForm()
+    expect(
+      screen.getByText(
+        `Up to ${MAX_STORED_MEDIA_ATTACHMENTS}. The fediverse still only ever sees the first ${MAX_FEDERATION_MEDIA_ATTACHMENTS}.`
+      )
+    ).toBeInTheDocument()
   })
 
   // The backend is infrastructure read from the environment at boot, so it is
