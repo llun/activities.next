@@ -1095,6 +1095,41 @@ describe('importStravaActivityJob', () => {
     )
   })
 
+  it.each([
+    {
+      description:
+        'backdates the imported post unless its caller asked otherwise',
+      requested: {},
+      expected: false
+    },
+    {
+      description: 'forwards the post-at-import-time opt-in from the webhook',
+      requested: { postAtImportTime: true },
+      expected: true
+    }
+  ])('$description', async ({ requested, expected }) => {
+    // Same split as notifyOnComplete and publishSendNote: the webhook carries a
+    // ride that just finished, while retry-all and the scripts/fitness recovery
+    // tools replay
+    // activities that are already old — stamping those `now` would reorder an
+    // actor's whole history around whenever the sweep happened to run.
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-post-time-forward',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '123',
+        ...requested
+      }
+    })
+
+    expect(mockImportFitnessFiles).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ postAtImportTime: expected }),
+      expect.anything()
+    )
+  })
+
   describe('federation opt-in', () => {
     const PROCESS_JOB = {
       id: 'process-job-id',

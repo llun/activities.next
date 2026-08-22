@@ -194,7 +194,15 @@ export const POST = traceApiRoute(
           // finished and expects their followers to see. The bulk recovery
           // paths leave it off so a sweep never re-delivers a timeline's worth
           // of activities.
-          publishSendNote: true
+          publishSendNote: true,
+          // Same entry point again: the post is the news that the ride
+          // happened, so it is stamped when the import publishes it rather than
+          // backdated to the moment the ride began — a long ride would
+          // otherwise arrive already buried under everything posted while it
+          // was still being ridden. The recorded start time is unaffected; it
+          // lives on the fitness file and is what the activity page and every
+          // fitness rollup read.
+          postAtImportTime: true
         }
       })
 
