@@ -1,3 +1,5 @@
+import { normalizeActivityTypeToSportKey } from '@/lib/services/fitness-files/sportTypes'
+
 import { getActivityPresentation } from './activityPresentation'
 
 describe('getActivityPresentation', () => {
@@ -83,6 +85,43 @@ describe('getActivityPresentation', () => {
       label: 'Gravel cycling',
       emoji: '🚴'
     })
+  })
+
+  it.each([
+    // These DO resolve to a sport key — `ride`, `ride`, `run` — because a key
+    // answers "which bike or which shoes". A caption is not answering that, and
+    // folding them in erases a distinction the athlete made.
+    {
+      description: 'Handcycle',
+      type: 'Handcycle',
+      label: 'Handcycling',
+      emoji: '🚴'
+    },
+    {
+      description: 'Velomobile',
+      type: 'Velomobile',
+      label: 'Velomobile',
+      emoji: '🚴'
+    },
+    {
+      description: 'VirtualRun',
+      type: 'VirtualRun',
+      label: 'Indoor running',
+      emoji: '🏃'
+    }
+  ])(
+    'keeps $description more specific than its sport key',
+    ({ type, label, emoji }) => {
+      expect(getActivityPresentation(type)).toEqual({ label, emoji })
+    }
+  )
+
+  it('still attributes the specific sports to the right gear kind', () => {
+    // The caption is more specific, but the SPORT KEY must not move — a
+    // handcycle is still attributed to a bike.
+    expect(normalizeActivityTypeToSportKey('Handcycle')).toBe('ride')
+    expect(normalizeActivityTypeToSportKey('Velomobile')).toBe('ride')
+    expect(normalizeActivityTypeToSportKey('VirtualRun')).toBe('run')
   })
 
   it.each([
