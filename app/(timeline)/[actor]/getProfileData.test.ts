@@ -62,8 +62,10 @@ describe('getProfileData', () => {
     summary: 'A remote user'
   }
 
+  // No `@context`: the AP Actor schema deliberately does not model it — the
+  // compaction step owns it and nothing here reads it — so carrying one made
+  // this literal fail to type against `Actor`.
   const mockPerson: Actor = {
-    '@context': 'https://www.w3.org/ns/activitystreams',
     type: 'Person',
     id: 'https://remote.com/users/remoteuser',
     preferredUsername: 'remoteuser',
@@ -483,6 +485,7 @@ describe('getProfileData', () => {
 
     it('passes the requested remote status page cursor to the outbox loader', async () => {
       await getProfileData(mockDatabase, '@remoteuser@remote.com', true, {
+        currentActor: null,
         statusPageUrl:
           'https://remote.com/users/remoteuser/outbox?page=true&max_id=1'
       })
