@@ -18,20 +18,42 @@ import path from 'path'
 // content — whether the two documents AGREE is a judgement no test can make.
 const REPOSITORY_ROOT = process.cwd()
 
+const readRepositoryFile = (relativePath: string) =>
+  fs.readFileSync(path.join(REPOSITORY_ROOT, relativePath), 'utf8')
+
+const existsInRepository = (relativePath: string) =>
+  fs.existsSync(path.join(REPOSITORY_ROOT, relativePath))
+
 /** The bullet in AGENTS.md that enumerates the per-tool pointer files. */
 const POINTER_FILE_RULE =
   /keep the thin per-tool pointer files in sync \(([^)]*)\)/
+
+// Derived from that bullet rather than hand-listed. A hardcoded copy stays
+// green while the bullet grows a fourth file whose citations nothing checks —
+// which is this same drift one level up, in the guard itself.
+const pointerFiles = () => {
+  const rule = POINTER_FILE_RULE.exec(readRepositoryFile('AGENTS.md'))
+  if (!rule) return []
+  return Array.from(rule[1].matchAll(/`([^`]+)`/g), (match) => match[1])
+}
+
+const POINTER_FILES = pointerFiles()
 
 // The one citation form the pointer files use: ``See **X** in `AGENTS.md`.``,
 // or ``See **X** and **Y** in `AGENTS.md`.`` for a bullet that draws on two
 // sections. Matching the whole clause rather than hunting for bold runs near
 // the words `AGENTS.md` is what keeps this from sweeping up ordinary emphasis —
 // these bullets are dense with it.
+//
+// `See\s+`, not a literal `See `: CLAUDE.md hard-wraps its longer bullets, and
+// two of them wrap in the gap between `See` and the section name. The literal
+// space skipped exactly those two, so the guard was blind to a rename of the
+// one section they cite — a false negative, which for a guard is the direction
+// that matters.
 const SECTION_CITATION =
-  /See ((?:\*\*[^*]+\*\*\s*(?:and\s+)?)+)in `AGENTS\.md`/g
+  /See\s+((?:\*\*[^*]+\*\*\s*(?:and\s+)?)+)in `AGENTS\.md`/g
 
-// CLAUDE.md hard-wraps its longer bullets, so a section name can straddle a
-// newline and its leading indent.
+// A section name can straddle a newline and its leading indent too.
 const collapseWhitespace = (value: string) => value.replace(/\s+/g, ' ').trim()
 
 const citedSections = (contents: string) =>
@@ -43,7 +65,10 @@ const citedSections = (contents: string) =>
 
 // Forms that used to appear and are no longer allowed. A single form is what
 // makes the citations parseable here at all; without it this test would have to
-// guess which bold run is a section name and which is ordinary emphasis.
+// guess which bold run is a section name and which is ordinary emphasis. Naming
+// a section in passing — ``**Some Section** applies.`` — is for the same reason
+// not a citation as far as this file is concerned, and is invisible to it: say
+// ``See **Some Section** in `AGENTS.md`.`` or the guard cannot help you.
 const RETIRED_CITATION_FORMS: { pattern: RegExp; use: string }[] = [
   {
     pattern: /`AGENTS\.md` →/,
@@ -52,11 +77,12 @@ const RETIRED_CITATION_FORMS: { pattern: RegExp; use: string }[] = [
   {
     pattern: /section in `AGENTS\.md`/,
     use: 'See **Section Name** in `AGENTS.md`. (no "section" noun)'
+  },
+  {
+    pattern: /subsection of `AGENTS\.md`/,
+    use: 'See **Section Name** in `AGENTS.md`. (no "subsection" noun)'
   }
 ]
-
-const readRepositoryFile = (relativePath: string) =>
-  fs.readFileSync(path.join(REPOSITORY_ROOT, relativePath), 'utf8')
 
 const agentsHeadings = () =>
   readRepositoryFile('AGENTS.md')
@@ -69,6 +95,8 @@ const agentsHeadings = () =>
  * opening of exactly one. The prefix case is real and worth allowing: the
  * heading `Local Actors ("does this server host this actor?")` is cited as
  * `Local Actors`, which identifies it precisely and reads far better inline.
+ * An ambiguous prefix counts as unresolved, so a new heading that shadows an
+ * existing citation fails here rather than silently rebinding it.
  */
 const resolvesToHeading = (citation: string, headings: string[]) => {
   if (headings.includes(citation)) return true
@@ -77,31 +105,30 @@ const resolvesToHeading = (citation: string, headings: string[]) => {
 
 describe('AGENTS.md and its per-tool pointer files', () => {
   it('lists only pointer files that exist', () => {
-    const rule = POINTER_FILE_RULE.exec(readRepositoryFile('AGENTS.md'))
     // The rule text moving or being reworded must fail loudly rather than
-    // quietly stop checking anything.
-    expect(rule).not.toBeNull()
+    // quietly stop checking anything — including in the `it.each` below, which
+    // draws its cases from this same list.
+    expect(
+      POINTER_FILE_RULE.exec(readRepositoryFile('AGENTS.md'))
+    ).not.toBeNull()
+    expect(POINTER_FILES.length).toBeGreaterThan(1)
 
-    const listed = Array.from(rule![1].matchAll(/`([^`]+)`/g), (m) => m[1])
-    expect(listed.length).toBeGreaterThan(1)
-
-    const missing = listed.filter(
-      (file) => !fs.existsSync(path.join(REPOSITORY_ROOT, file))
+    expect(POINTER_FILES.filter((file) => !existsInRepository(file))).toEqual(
+      []
     )
-    expect(missing).toEqual([])
   })
 
-  // Every file the rule above names has to be readable here, so a pointer file
-  // added to the list without being created fails on both counts.
-  it.each(['CLAUDE.md', 'GEMINI.md', '.github/copilot-instructions.md'])(
+  it.each(POINTER_FILES)(
     'cites only real AGENTS.md sections from %s',
     (pointerFile) => {
       const headings = agentsHeadings()
       expect(headings.length).toBeGreaterThan(20)
 
-      const citations = citedSections(readRepositoryFile(pointerFile))
+      // Absence is the previous test's finding to report, with a better message
+      // than the ENOENT this would otherwise throw.
+      if (!existsInRepository(pointerFile)) return
 
-      const unresolved = citations.filter(
+      const unresolved = citedSections(readRepositoryFile(pointerFile)).filter(
         (citation) => !resolvesToHeading(citation, headings)
       )
       expect(unresolved).toEqual([])
@@ -109,16 +136,14 @@ describe('AGENTS.md and its per-tool pointer files', () => {
   )
 
   it('cites AGENTS.md sections in one form', () => {
-    const offenders = [
-      'CLAUDE.md',
-      'GEMINI.md',
-      '.github/copilot-instructions.md'
-    ].flatMap((pointerFile) => {
-      const contents = readRepositoryFile(pointerFile)
-      return RETIRED_CITATION_FORMS.filter(({ pattern }) =>
-        pattern.test(contents)
-      ).map(({ use }) => `${pointerFile}: use ${use}`)
-    })
+    const offenders = POINTER_FILES.filter(existsInRepository).flatMap(
+      (pointerFile) => {
+        const contents = readRepositoryFile(pointerFile)
+        return RETIRED_CITATION_FORMS.filter(({ pattern }) =>
+          pattern.test(contents)
+        ).map(({ use }) => `${pointerFile}: use ${use}`)
+      }
+    )
 
     expect(offenders).toEqual([])
   })
