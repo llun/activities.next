@@ -1657,8 +1657,10 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   settles it, which is the whole point: the pending render and the settled one
   are separate flushes, so a `Promise.resolve(value)` stand-in collapses them
   into the first `act()` and the assertion about the in-flight state passes
-  vacuously. Thirteen tests across `MessagesPage`, `SearchPageClient` and
-  `FitnessHeatmapView` fail if the helper stops deferring.
+  vacuously. `PostBox attachment ref guard` is the sharpest example — it passes
+  with the bug present unless the two picker batches are sequenced — and
+  thirteen more tests across `MessagesPage`, `SearchPageClient` and
+  `FitnessHeatmapView` fail outright if the helper stops deferring.
 - Prefer unit tests near `lib/` and route tests near `app/`.
 - All tests run in parallel using isolated SQLite in-memory databases. The
   schema is loaded from the committed reference dumps (`migrations/schema*.sql`)
