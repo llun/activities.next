@@ -27,6 +27,10 @@ import {
   resolvePublicIdsByIds
 } from '@/lib/database/sql/utils/publicIdLookup'
 import {
+  announceOriginalPointer,
+  wherePubliclyReadableStatus
+} from '@/lib/database/sql/utils/publiclyReadableStatus'
+import {
   StatusHashtagTagRow,
   selectHashtagTagsByStatusIds
 } from '@/lib/database/sql/utils/status'
@@ -156,31 +160,6 @@ const publicRecipientStatusIds = (database: Knex) =>
   database('recipients')
     .select('statusId')
     .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
-
-// The status an Announce boosts, as a single column. Modern rows carry it in
-// `originalStatusId`; legacy rows only ever wrote the original's id into
-// `content`, so both forms collapse into one `COALESCE`. Anything that is not
-// an Announce points nowhere, and a NULL pointer joins to no row — which is
-// what makes this equivalent to spelling the two forms out as an `OR` in the
-// join condition, while costing one primary-key probe instead of a `BitmapOr`
-// of two, and keeping the wide `content` text out of the recursion's working
-// table.
-//
-// The Announce literal is escaped into the fragment instead of bound, because
-// knex mis-orders positional bindings when a term of a UNION'd CTE carries both
-// a bound raw in its select list and a bound subquery in its FROM: the FROM's
-// value is emitted first, so the two swap and the CASE silently compares the
-// status type against the caller's target-set argument. The recursive branch of
-// `buildPubliclyReadableStatusIdsQuery` is exactly that shape. Identifier
-// placeholders are unaffected — they are resolved at compile time and never
-// reach the binding array. Guarded by a compiled-SQL test.
-const announceOriginalPointer = (database: Knex, table: string) => {
-  const announceType = database.raw('?', [StatusType.enum.Announce]).toString()
-  return database.raw(
-    `case when ?? = ${announceType} then coalesce(??, ??) end`,
-    [`${table}.type`, `${table}.originalStatusId`, `${table}.content`]
-  )
-}
 
 type StatusHydrationContext = {
   bookmarkedStatusIds?: Set<string>
@@ -337,18 +316,6 @@ export const StatusSQLDatabaseMixin = (
       ])
     )
   }
-  const applyPublicReadableStatusFilter = ({
-    query,
-    targetStatusIds
-  }: {
-    query: Knex.QueryBuilder
-    targetStatusIds: Knex.QueryBuilder
-  }) =>
-    query.whereIn(
-      'statuses.id',
-      buildPubliclyReadableStatusIdsQuery({ database, targetStatusIds })
-    )
-
   const applyPotentiallyReadableStatusFilter = ({
     query,
     visibleToActorId
@@ -1258,22 +1225,6 @@ export const StatusSQLDatabaseMixin = (
     )
   }
 
-  const getReplyTargetStatusIds = ({
-    statusId,
-    url
-  }: {
-    statusId: string
-    url?: string
-  }) =>
-    database('statuses')
-      .select('statuses.id')
-      .where((builder) => {
-        builder.where('reply', statusId)
-        if (url) {
-          builder.orWhere('reply', url)
-        }
-      })
-
   const getActorTargetStatusIds = (actorId: string) =>
     database('statuses').select('statuses.id').where('actorId', actorId)
 
@@ -1407,10 +1358,7 @@ export const StatusSQLDatabaseMixin = (
       .orderBy('createdAt', 'desc')
 
     if (publicOnly) {
-      query = applyPublicReadableStatusFilter({
-        query,
-        targetStatusIds: getReplyTargetStatusIds({ statusId, url })
-      })
+      query = query.modify(wherePubliclyReadableStatus, database)
     } else if (visibleToActorId) {
       query = applyPotentiallyReadableStatusFilter({
         query,
@@ -1514,6 +1462,18 @@ export const StatusSQLDatabaseMixin = (
       // `statuses` by it re-applied the same `actorId` predicate through one
       // primary-key lookup per returned id, for a result the subquery had
       // already decided.
+      //
+      // This is the ONE readability call site that keeps the set-based form.
+      // Everything else moved to the correlated `wherePubliclyReadableStatus`,
+      // whose cost is one recursive-CTE instantiation per Announce row — a
+      // LIMIT amortises that to a page, and a COUNT over the actor's whole
+      // history cannot amortise it at all. On a PostgreSQL 18 seed shaped like
+      // production (an actor with 1,889 publicly readable statuses, half of
+      // them Announces) the correlated form read 40% fewer buffers and still
+      // took three times as long: 15,421 buffers / 54ms against
+      // 25,752 / 18ms here.
+      // The two are pinned as equivalent by
+      // `publiclyReadableStatusEquivalence.test.ts`; only their plans differ.
       const result = await database
         .from(
           buildPubliclyReadableStatusIdsQuery({
@@ -1574,10 +1534,7 @@ export const StatusSQLDatabaseMixin = (
       }
 
       if (publicOnly) {
-        query = applyPublicReadableStatusFilter({
-          query,
-          targetStatusIds: getActorTargetStatusIds(actorId)
-        })
+        query = query.modify(wherePubliclyReadableStatus, database)
       } else {
         query = query.whereIn(
           'statuses.id',
@@ -2628,7 +2585,6 @@ export const StatusSQLDatabaseMixin = (
           legacyBuilder.whereNull('originalStatusId').where('content', statusId)
         })
       })
-    const reblogTargetStatusIds = reblogBase.clone().select('id')
 
     let visibleReblogsQuery = reblogBase
       .clone()
@@ -2639,10 +2595,7 @@ export const StatusSQLDatabaseMixin = (
           query: visibleReblogsQuery,
           visibleToActorId
         })
-      : applyPublicReadableStatusFilter({
-          query: visibleReblogsQuery,
-          targetStatusIds: reblogTargetStatusIds
-        })
+      : visibleReblogsQuery.modify(wherePubliclyReadableStatus, database)
 
     const dedupedReblogsQuery = database
       .select<{ id: string; actorId: string; createdAt: Date }[]>(
@@ -3433,19 +3386,19 @@ export const StatusSQLDatabaseMixin = (
     })
 
     if (publicOnly) {
-      query = applyPublicReadableStatusFilter({
-        query,
-        targetStatusIds: getReplyTargetStatusIds({ statusId, url })
-      })
+      query = query.modify(wherePubliclyReadableStatus, database)
     }
 
-    // This one cannot be collapsed onto the subquery the way
-    // `getActorStatusesCount` was. The filter below is about the REPLY row,
-    // while the subquery's `type` column is the resolved *original's* — an
-    // Announce whose boosted original is a public Note comes back from the
-    // subquery, and only this line keeps it out of a reply count. Nothing
-    // writes `reply` on an Announce today, so dropping it changes no number
-    // anyone can observe, which is exactly why it needs saying here.
+    // The filter below is about the REPLY row, and still has to be: an
+    // Announce whose boosted original is a public Note satisfies the
+    // readability predicate under either form, so only this line keeps it out
+    // of a reply count. What changed is why that needs saying. The
+    // readable-ids subquery this replaced reported the resolved *original's*
+    // type, so the two `type` tests were about different rows and reading them
+    // as a duplicate was the trap; the correlated predicate tests the reply row
+    // itself. Nothing writes `reply` on an Announce today either way, so
+    // dropping this line still moves no number anyone can observe — which is
+    // exactly why it needs saying at all.
     const result = await query
       .whereNot('type', StatusType.enum.Announce)
       .count<{ count: string }>('* as count')
