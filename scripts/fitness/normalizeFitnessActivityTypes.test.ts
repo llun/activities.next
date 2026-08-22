@@ -1,11 +1,53 @@
+import { getDatabase } from '@/lib/database'
 import { getGearKindForActivityType } from '@/lib/services/fitness-files/sportTypes'
 
 import {
   NormalizableFitnessFile,
+  normalizeFitnessActivityTypesScript,
   parseArgs,
   planActivityTypeNormalization,
   summarizeRewrites
 } from './normalizeFitnessActivityTypes'
+
+vi.mock('@/lib/database', () => ({
+  getDatabase: vi.fn()
+}))
+
+vi.mock('./describeConnection', () => ({
+  printDatabaseBanner: vi.fn()
+}))
+
+const mockGetDatabase = getDatabase as jest.MockedFunction<typeof getDatabase>
+
+const ACTOR_ID = 'https://llun.social/users/ride'
+
+/**
+ * A database whose first page carries `types` and whose second is empty, so the
+ * script's offset paging terminates.
+ */
+const stubDatabase = ({
+  types,
+  updateFitnessFileActivityData = vi.fn().mockResolvedValue(undefined)
+}: {
+  types: Array<string | null>
+  updateFitnessFileActivityData?: ReturnType<typeof vi.fn>
+}) => {
+  const files = types.map((activityType, index) => ({
+    id: `file-${index}`,
+    fileName: `file-${index}.fit`,
+    activityType
+  }))
+  return {
+    getActorFromId: vi.fn().mockResolvedValue({ id: ACTOR_ID }),
+    getFitnessFilesByActor: vi
+      .fn()
+      .mockImplementation(({ offset }: { offset: number }) =>
+        Promise.resolve(offset === 0 ? files : [])
+      ),
+    updateFitnessFileActivityData,
+    destroy: vi.fn().mockResolvedValue(undefined)
+  } as unknown as ReturnType<typeof getDatabase>
+}
 
 const file = (
   id: string,
@@ -261,5 +303,138 @@ describe('summarizeRewrites', () => {
 
   it('answers an empty list for no rewrites', () => {
     expect(summarizeRewrites([])).toEqual([])
+  })
+})
+
+describe('normalizeFitnessActivityTypesScript', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('writes nothing without --apply', async () => {
+    const updateFitnessFileActivityData = vi.fn()
+    mockGetDatabase.mockReturnValue(
+      stubDatabase({
+        types: ['cycling', 'Biking'],
+        updateFitnessFileActivityData
+      })
+    )
+
+    const exitCode = await normalizeFitnessActivityTypesScript([
+      '--actor-id',
+      ACTOR_ID
+    ])
+
+    expect(exitCode).toBe(0)
+    expect(updateFitnessFileActivityData).not.toHaveBeenCalled()
+  })
+
+  it('writes the sport key, not the value it replaced', async () => {
+    // The one line that actually mutates production rows. A transposed
+    // `rewrite.from` here would write `cycling` back over every row and no
+    // other test in this file would notice.
+    const updateFitnessFileActivityData = vi.fn().mockResolvedValue(undefined)
+    mockGetDatabase.mockReturnValue(
+      stubDatabase({
+        types: ['cycling', 'GravelRide'],
+        updateFitnessFileActivityData
+      })
+    )
+
+    const exitCode = await normalizeFitnessActivityTypesScript([
+      '--actor-id',
+      ACTOR_ID,
+      '--apply'
+    ])
+
+    expect(exitCode).toBe(0)
+    expect(updateFitnessFileActivityData).toHaveBeenCalledTimes(2)
+    expect(updateFitnessFileActivityData).toHaveBeenCalledWith('file-0', {
+      activityType: 'ride'
+    })
+    expect(updateFitnessFileActivityData).toHaveBeenCalledWith('file-1', {
+      activityType: 'gravel_ride'
+    })
+  })
+
+  it('leaves canonical and unmodelled rows untouched under --apply', async () => {
+    const updateFitnessFileActivityData = vi.fn().mockResolvedValue(undefined)
+    mockGetDatabase.mockReturnValue(
+      stubDatabase({
+        types: ['ride', 'swimming', null, 'cycling'],
+        updateFitnessFileActivityData
+      })
+    )
+
+    await normalizeFitnessActivityTypesScript([
+      '--actor-id',
+      ACTOR_ID,
+      '--apply'
+    ])
+
+    expect(updateFitnessFileActivityData).toHaveBeenCalledTimes(1)
+    expect(updateFitnessFileActivityData).toHaveBeenCalledWith('file-3', {
+      activityType: 'ride'
+    })
+  })
+
+  it('carries on past a failed row and reports it in the exit code', async () => {
+    // A bulk mutation that aborts halfway leaves the actor's history in two
+    // vocabularies at once, which is worse than the state it started in.
+    const updateFitnessFileActivityData = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('deadlock detected'))
+      .mockResolvedValue(undefined)
+    mockGetDatabase.mockReturnValue(
+      stubDatabase({
+        types: ['cycling', 'Biking', 'running'],
+        updateFitnessFileActivityData
+      })
+    )
+
+    const exitCode = await normalizeFitnessActivityTypesScript([
+      '--actor-id',
+      ACTOR_ID,
+      '--apply'
+    ])
+
+    expect(exitCode).toBe(1)
+    expect(updateFitnessFileActivityData).toHaveBeenCalledTimes(3)
+  })
+
+  it('reports an actor that does not exist rather than scanning', async () => {
+    const database = stubDatabase({ types: [] })
+    ;(
+      database as unknown as { getActorFromId: ReturnType<typeof vi.fn> }
+    ).getActorFromId = vi.fn().mockResolvedValue(null)
+    mockGetDatabase.mockReturnValue(database)
+
+    const exitCode = await normalizeFitnessActivityTypesScript([
+      '--actor-id',
+      ACTOR_ID
+    ])
+
+    expect(exitCode).toBe(1)
+  })
+
+  it('closes the database even when the scan throws', async () => {
+    const database = stubDatabase({ types: [] })
+    ;(
+      database as unknown as {
+        getFitnessFilesByActor: ReturnType<typeof vi.fn>
+      }
+    ).getFitnessFilesByActor = vi.fn().mockRejectedValue(new Error('gone'))
+    mockGetDatabase.mockReturnValue(database)
+
+    await expect(
+      normalizeFitnessActivityTypesScript(['--actor-id', ACTOR_ID])
+    ).rejects.toThrow('gone')
+    expect(database?.destroy).toHaveBeenCalled()
   })
 })
