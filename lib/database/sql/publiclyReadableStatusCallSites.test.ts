@@ -42,8 +42,8 @@ describe('publicly readable status filtering at each call site', () => {
   // and only following the announce chain to a non-public original drops it.
   const publicBoostOfPrivateId = `${actorId}/statuses/public-boost-of-private`
 
-  const audience = (isPublic: boolean) =>
-    isPublic ? [ACTIVITY_STREAM_PUBLIC] : [followers]
+  const audience = (isPublic: boolean, followersUrl: string = followers) =>
+    isPublic ? [ACTIVITY_STREAM_PUBLIC] : [followersUrl]
 
   beforeAll(async () => {
     await prepare()
@@ -131,7 +131,7 @@ describe('publicly readable status filtering at each call site', () => {
         id,
         actorId: boosterId,
         originalStatusId: parentId,
-        to: isPublic ? [ACTIVITY_STREAM_PUBLIC] : [`${boosterId}/followers`],
+        to: audience(isPublic, `${boosterId}/followers`),
         cc: []
       })
     }
@@ -192,7 +192,13 @@ describe('publicly readable status filtering at each call site', () => {
     // The recipients-only fallback would return this row: the boost is
     // addressed to the public collection. Only following the announce chain to
     // a non-public original excludes it, so this is the case that distinguishes
-    // the readability predicate from that fallback.
+    // the readability predicate from that fallback — the sibling test above,
+    // with a plainly private note, passes under that fallback too.
+    //
+    // `status.test.ts`'s 'excludes nested announces when the boosted original
+    // is not publicly readable' already covers this scenario, so this is the
+    // one case here that is not filling a gap. It stays so that all four
+    // `publicOnly` call sites state the same invariant in one place.
     const statuses = await database.getActorStatuses({
       actorId,
       publicOnly: true
