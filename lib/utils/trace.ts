@@ -1,6 +1,5 @@
-import { trace } from '@opentelemetry/api'
+import { Span, SpanStatusCode, trace } from '@opentelemetry/api'
 
-import { logger } from '@/lib/utils/logger'
 import { VERSION } from '@/lib/utils/version'
 
 export const TRACE_APPLICATION_SCOPE = 'activities.next'
@@ -10,50 +9,33 @@ export interface Data {
   [key: string]: string | boolean | number | undefined
 }
 
-export const getSpan = (op: string, name: string, data: Data = {}) => {
-  const tracer = trace.getTracer(
-    TRACE_APPLICATION_SCOPE,
-    TRACE_APPLICATION_VERSION
-  )
-  const span = tracer.startSpan(`${op}.${name}`, { attributes: data })
-  return span
-}
-
 export const getTracer = () =>
   trace.getTracer(TRACE_APPLICATION_SCOPE, TRACE_APPLICATION_VERSION)
 
-const AsyncFunction = async function () {}.constructor
-type AsyncFunction = typeof AsyncFunction
-
-export function Trace(op: string) {
-  return function (
-    target: object,
-    propertyKey: string,
-    descriptor: PropertyDescriptor
-  ) {
-    const original = descriptor.value as AsyncFunction
-    if (original instanceof AsyncFunction) {
-      return {
-        ...descriptor,
-        value: async function (...args: unknown[]) {
-          const span = getSpan(op, propertyKey)
-          logger.debug({ target: target.constructor.name, op, propertyKey })
-          const value = await original.apply(this, args)
-          span.end()
-          return value
-        }
-      }
-    }
-
-    return {
-      ...descriptor,
-      value: function (...args: unknown[]) {
-        const span = getSpan(op, propertyKey)
-        logger.debug({ target: target.constructor.name, op, propertyKey })
-        const value = original.apply(this, args)
+/**
+ * Runs `fn` inside an active span named `${op}.${name}`.
+ * The span is the active context while `fn` runs (so nested work links to it),
+ * records exceptions and ERROR status on throw, and always ends — on success,
+ * on early return, and on throw. Without a registered provider this is a no-op.
+ */
+export const withSpan = <T>(
+  op: string,
+  name: string,
+  data: Data = {},
+  fn: (span: Span) => Promise<T>
+): Promise<T> =>
+  getTracer().startActiveSpan(
+    `${op}.${name}`,
+    { attributes: data },
+    async (span) => {
+      try {
+        return await fn(span)
+      } catch (error) {
+        span.recordException(error instanceof Error ? error : String(error))
+        span.setStatus({ code: SpanStatusCode.ERROR, message: String(error) })
+        throw error
+      } finally {
         span.end()
-        return value
       }
     }
-  }
-}
+  )

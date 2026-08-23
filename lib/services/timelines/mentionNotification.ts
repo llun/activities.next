@@ -12,7 +12,7 @@ import { NotificationType } from '@/lib/types/database/operations'
 import { getActorURL } from '@/lib/types/domain/actor'
 import { StatusType } from '@/lib/types/domain/status'
 import { TagType } from '@/lib/types/domain/tag'
-import { getTracer } from '@/lib/utils/trace'
+import { withSpan } from '@/lib/utils/trace'
 
 import { TimelineRuleParams } from './types'
 
@@ -35,13 +35,12 @@ export const notifyRemoteReplyAndMention = async ({
   currentActor,
   status
 }: TimelineRuleParams): Promise<void> =>
-  getTracer().startActiveSpan(
-    'timelines.notifyRemoteReplyAndMention',
+  withSpan(
+    'timeline',
+    'notifyRemoteReplyAndMention',
     {
-      attributes: {
-        actorId: currentActor.id,
-        statusId: status.id
-      }
+      actorId: currentActor.id,
+      statusId: status.id
     },
     async (span) => {
       const config = getConfig()
@@ -52,7 +51,6 @@ export const notifyRemoteReplyAndMention = async ({
         status.isLocalActor ||
         status.actorId === currentActor.id
       ) {
-        span.end()
         return
       }
       if (
@@ -61,7 +59,6 @@ export const notifyRemoteReplyAndMention = async ({
           actorIdB: status.actorId
         })
       ) {
-        span.end()
         return
       }
 
@@ -195,7 +192,5 @@ export const notifyRemoteReplyAndMention = async ({
           events: alertEvents
         })
       }
-
-      span.end()
     }
   )

@@ -10,7 +10,7 @@ import { FollowStatus } from '@/lib/types/domain/follow'
 import { StatusType } from '@/lib/types/domain/status'
 import { logger } from '@/lib/utils/logger'
 import { UNFOLLOW_NETWORK_ERROR_CODES } from '@/lib/utils/response'
-import { getTracer } from '@/lib/utils/trace'
+import { withSpan } from '@/lib/utils/trace'
 
 /**
  * Job data schema for sending note updates
@@ -29,7 +29,7 @@ export const JobData = z.object({
 export const sendUpdateNoteJob: JobHandle = createJobHandle(
   SEND_UPDATE_NOTE_JOB_NAME,
   async (database, message) => {
-    await getTracer().startActiveSpan('sendUpdateNoteJob', async (span) => {
+    await withSpan('job', 'sendUpdateNote', {}, async (span) => {
       const { actorId, statusId } = JobData.parse(message.data)
       const { status, actor } = await loadStatusAndActor(database, span, {
         actorId,
@@ -38,13 +38,11 @@ export const sendUpdateNoteJob: JobHandle = createJobHandle(
 
       if (!status || !actor) {
         span.recordException(new Error('Status or actor not found'))
-        span.end()
         return
       }
 
       if (status.type !== StatusType.enum.Note) {
         span.recordException(new Error('Status is not a Note'))
-        span.end()
         return
       }
 
@@ -88,8 +86,6 @@ export const sendUpdateNoteJob: JobHandle = createJobHandle(
           }
         })
       )
-
-      span.end()
     })
   }
 )

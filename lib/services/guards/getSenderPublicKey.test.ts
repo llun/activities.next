@@ -17,14 +17,18 @@ enableFetchMocks()
 
 const mockSpan = {
   end: vi.fn(),
-  recordException: vi.fn()
+  recordException: vi.fn(),
+  setAttribute: vi.fn(),
+  setStatus: vi.fn()
 }
-const mockStartActiveSpan = vi.fn((...params: unknown[]) => {
-  const callback = params[params.length - 1] as (
-    span: typeof mockSpan
-  ) => unknown
-  return callback(mockSpan)
-})
+const mockWithSpan = vi.fn(
+  (
+    _op: string,
+    _name: string,
+    _data: unknown,
+    fn: (span: typeof mockSpan) => unknown
+  ) => fn(mockSpan)
+)
 const mockWarn = logger.warn as jest.Mock
 
 vi.mock('@/lib/utils/logger', () => ({
@@ -37,9 +41,12 @@ vi.mock('@/lib/utils/logger', () => ({
 }))
 
 vi.mock('@/lib/utils/trace', () => ({
-  getTracer: () => ({
-    startActiveSpan: mockStartActiveSpan
-  })
+  withSpan: (
+    op: string,
+    name: string,
+    data: unknown,
+    fn: (span: typeof mockSpan) => unknown
+  ) => mockWithSpan(op, name, data, fn)
 }))
 
 const createActorDocument = ({
@@ -114,7 +121,7 @@ describe('getSenderPublicKey', () => {
     mockRequests(fetchMock)
     mockSpan.end.mockClear()
     mockSpan.recordException.mockClear()
-    mockStartActiveSpan.mockClear()
+    mockWithSpan.mockClear()
     mockWarn.mockReset()
   })
 
@@ -556,12 +563,12 @@ describe('getSenderPublicKey', () => {
 
     await getSenderPublicKeyDetails(database, actorId)
 
-    expect(mockStartActiveSpan).toHaveBeenCalledWith(
-      'guard.getSenderPublicKey',
-      { attributes: { actorId } },
+    expect(mockWithSpan).toHaveBeenCalledWith(
+      'guard',
+      'getSenderPublicKey',
+      { actorId },
       expect.any(Function)
     )
-    expect(mockSpan.end).toHaveBeenCalled()
   })
 
   it('logs malformed sender public key responses', async () => {

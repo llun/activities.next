@@ -3,7 +3,7 @@ import { Actor } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
 import { isDirectStatus } from '@/lib/utils/directStatus'
 import { logger } from '@/lib/utils/logger'
-import { getTracer } from '@/lib/utils/trace'
+import { withSpan } from '@/lib/utils/trace'
 
 import { getBlockedRecipientActorIdsForStatus } from './blockFilter'
 import { mainTimelineRule } from './main'
@@ -40,10 +40,11 @@ export const addStatusToTimelines = async (
   database: Database,
   status: Status
 ): Promise<void> => {
-  return getTracer().startActiveSpan(
-    'timelines.addStatusToTimelines',
-    { attributes: { statusId: status.id } },
-    async (span) => {
+  return withSpan(
+    'timeline',
+    'addStatusToTimelines',
+    { statusId: status.id },
+    async () => {
       const { to, cc, actorId } = status
       const recipients = [...to, ...cc, actorId]
       const localActors = (
@@ -157,7 +158,6 @@ export const addStatusToTimelines = async (
           ])
         })
       )
-      span.end()
     }
   )
 }

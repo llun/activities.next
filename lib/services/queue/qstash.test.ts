@@ -1,28 +1,41 @@
+import {
+  Context,
+  TextMapGetter,
+  TextMapPropagator,
+  TextMapSetter,
+  propagation
+} from '@opentelemetry/api'
 import { Client } from '@upstash/qstash'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { QStashQueue } from './qstash'
 
 vi.mock('@upstash/qstash')
 vi.mock('@/lib/utils/trace', () => ({
-  getTracer: () => ({
-    startActiveSpan: vi.fn((name, callback) =>
-      callback({
-        recordException: vi.fn(),
-        end: vi.fn()
+  withSpan: vi.fn(
+    (
+      _op: string,
+      _name: string,
+      _data: unknown,
+      fn: (span: unknown) => unknown
+    ) =>
+      fn({
+        setAttribute: vi.fn(),
+        setStatus: vi.fn(),
+        recordException: vi.fn()
       })
-    )
-  })
+  )
 }))
 
 describe('QStashQueue', () => {
   const mockPublishJSON = vi.fn()
 
   beforeEach(() => {
-    ;(Client as unknown as jest.Mock).mockImplementation(function () {
+    vi.mocked(Client).mockImplementation(function (this: unknown) {
       return {
         publishJSON: mockPublishJSON
-      }
-    })
+      } as unknown as Client
+    } as unknown as typeof Client)
     mockPublishJSON.mockClear()
   })
 
@@ -72,5 +85,54 @@ describe('QStashQueue', () => {
         deduplicationId: Buffer.from('simple-job').toString('base64url')
       })
     )
+  })
+
+  it('injects active trace context into QStash publish headers when propagator is set', async () => {
+    // Fake propagator that writes a dummy header
+    const fakePropagator: TextMapPropagator = {
+      inject(_ctx: Context, carrier: unknown, setter: TextMapSetter): void {
+        setter.set(
+          carrier as Record<string, string>,
+          'traceparent',
+          '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'
+        )
+      },
+      extract(
+        _ctx: Context,
+        _carrier: unknown,
+        _getter: TextMapGetter
+      ): Context {
+        return _ctx
+      },
+      fields(): string[] {
+        return ['traceparent']
+      }
+    }
+
+    propagation.setGlobalPropagator(fakePropagator)
+
+    const queue = new QStashQueue({
+      type: 'qstash',
+      url: 'https://example.com/queue',
+      token: 'token',
+      currentSigningKey: 'key',
+      nextSigningKey: 'nextKey'
+    })
+
+    await queue.publish({
+      id: 'job-1',
+      name: 'sendNote',
+      data: {}
+    })
+
+    expect(mockPublishJSON).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headers: {
+          traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'
+        }
+      })
+    )
+
+    propagation.disable()
   })
 })

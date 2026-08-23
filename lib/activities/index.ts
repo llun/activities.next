@@ -54,7 +54,7 @@ import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
-import { getTracer } from '@/lib/utils/trace'
+import { withSpan } from '@/lib/utils/trace'
 
 interface PostActivityToInboxParams {
   span: Span
@@ -117,37 +117,31 @@ export const getNote = async ({
   statusId,
   signingActor
 }: GetNoteParams): Promise<Note | null> =>
-  getTracer().startActiveSpan(
-    'activities.getNote',
-    { attributes: { statusId } },
-    async (span) => {
-      try {
-        const { statusCode, body } = await request({
+  withSpan('activity', 'getNote', { statusId }, async (span) => {
+    try {
+      const { statusCode, body } = await request({
+        url: statusId,
+        headers: activityPubRequestHeaders({
           url: statusId,
-          headers: activityPubRequestHeaders({
-            url: statusId,
-            signingActor
-          })
+          signingActor
         })
-        if (statusCode !== 200) return null
-        // Canonicalise the fetched note via JSON-LD compaction so every caller
-        // (including boosted-note resolution) gets a predictable shape.
-        return compactActivityPub(JSON.parse(body))
-      } catch (error) {
-        const nodeError = error as NodeJS.ErrnoException
-        if (nodeError.code === 'ETIMEDOUT') {
-          span.setAttribute('timeout', true)
-          return
-        }
-
-        span.recordException(nodeError)
-        logger.error(`[getNote] ${nodeError.message}`)
+      })
+      if (statusCode !== 200) return null
+      // Canonicalise the fetched note via JSON-LD compaction so every caller
+      // (including boosted-note resolution) gets a predictable shape.
+      return compactActivityPub(JSON.parse(body))
+    } catch (error) {
+      const nodeError = error as NodeJS.ErrnoException
+      if (nodeError.code === 'ETIMEDOUT') {
+        span.setAttribute('timeout', true)
         return null
-      } finally {
-        span.end()
       }
+
+      span.recordException(nodeError)
+      logger.error(`[getNote] ${nodeError.message}`)
+      return null
     }
-  )
+  })
 
 interface SendNoteParams {
   currentActor: Actor
@@ -155,13 +149,12 @@ interface SendNoteParams {
   note: Note
 }
 export const sendNote = async ({ currentActor, inbox, note }: SendNoteParams) =>
-  getTracer().startActiveSpan(
-    'activities.sendNote',
+  withSpan(
+    'activity',
+    'sendNote',
     {
-      attributes: {
-        actorId: currentActor.id,
-        inbox
-      }
+      actorId: currentActor.id,
+      inbox
     },
     async (span) => {
       const activity: CreateStatus = {
@@ -182,7 +175,6 @@ export const sendNote = async ({ currentActor, inbox, note }: SendNoteParams) =>
         logPrefix: 'sendNote',
         silenceTimeout: true
       })
-      span.end()
     }
   )
 
@@ -196,18 +188,16 @@ export const sendUpdateNote = async ({
   inbox,
   status
 }: SendUpdateNoteParams) =>
-  getTracer().startActiveSpan(
-    'activities.sendUpdateNote',
+  withSpan(
+    'activity',
+    'sendUpdateNote',
     {
-      attributes: {
-        actorId: currentActor.id,
-        inbox
-      }
+      actorId: currentActor.id,
+      inbox
     },
     async (span) => {
       const note = getNoteFromStatus(status, { includeUpdated: true })
       if (!note) {
-        span.end()
         return
       }
 
@@ -229,7 +219,6 @@ export const sendUpdateNote = async ({
         logPrefix: 'sendUpdateNote',
         silenceTimeout: true
       })
-      span.end()
     }
   )
 
@@ -250,9 +239,10 @@ export const sendQuoteRequest = async ({
   quotedStatusId,
   instrument
 }: SendQuoteRequestParams) =>
-  getTracer().startActiveSpan(
-    'activities.sendQuoteRequest',
-    { attributes: { actorId: currentActor.id, inbox } },
+  withSpan(
+    'activity',
+    'sendQuoteRequest',
+    { actorId: currentActor.id, inbox },
     async (span) => {
       const activity = {
         '@context': QUOTE_ACTIVITY_CONTEXT,
@@ -270,7 +260,6 @@ export const sendQuoteRequest = async ({
         logPrefix: 'sendQuoteRequest',
         silenceTimeout: true
       })
-      span.end()
       return statusCode
     }
   )
@@ -289,9 +278,10 @@ export const sendQuoteAccept = async ({
   quoteRequest,
   stampId
 }: SendQuoteAcceptParams) =>
-  getTracer().startActiveSpan(
-    'activities.sendQuoteAccept',
-    { attributes: { actorId: currentActor.id, inbox } },
+  withSpan(
+    'activity',
+    'sendQuoteAccept',
+    { actorId: currentActor.id, inbox },
     async (span) => {
       const activity = {
         '@context': QUOTE_ACTIVITY_CONTEXT,
@@ -309,7 +299,6 @@ export const sendQuoteAccept = async ({
         logPrefix: 'sendQuoteAccept',
         silenceTimeout: true
       })
-      span.end()
       return statusCode
     }
   )
@@ -325,9 +314,10 @@ export const sendQuoteReject = async ({
   inbox,
   quoteRequest
 }: SendQuoteRejectParams) =>
-  getTracer().startActiveSpan(
-    'activities.sendQuoteReject',
-    { attributes: { actorId: currentActor.id, inbox } },
+  withSpan(
+    'activity',
+    'sendQuoteReject',
+    { actorId: currentActor.id, inbox },
     async (span) => {
       const activity = {
         '@context': QUOTE_ACTIVITY_CONTEXT,
@@ -344,7 +334,6 @@ export const sendQuoteReject = async ({
         logPrefix: 'sendQuoteReject',
         silenceTimeout: true
       })
-      span.end()
       return statusCode
     }
   )
@@ -360,9 +349,10 @@ export const sendQuoteRevoke = async ({
   inbox,
   stampId
 }: SendQuoteRevokeParams) =>
-  getTracer().startActiveSpan(
-    'activities.sendQuoteRevoke',
-    { attributes: { actorId: currentActor.id, inbox } },
+  withSpan(
+    'activity',
+    'sendQuoteRevoke',
+    { actorId: currentActor.id, inbox },
     async (span) => {
       // FEP-044f revocation is a Delete of the QuoteAuthorization stamp. The
       // receiver matches it by stamp id and requires the sender to be the
@@ -382,7 +372,6 @@ export const sendQuoteRevoke = async ({
         logPrefix: 'sendQuoteRevoke',
         silenceTimeout: true
       })
-      span.end()
       return statusCode
     }
   )
@@ -397,17 +386,15 @@ export const sendAnnounce = async ({
   inbox,
   status
 }: SendAnnounceParams) =>
-  getTracer().startActiveSpan(
-    'activities.sendAnnounce',
+  withSpan(
+    'activity',
+    'sendAnnounce',
     {
-      attributes: {
-        actorId: currentActor.id,
-        inbox
-      }
+      actorId: currentActor.id,
+      inbox
     },
     async (span) => {
       if (status.type !== StatusType.enum.Announce) {
-        span.end()
         return null
       }
 
@@ -429,7 +416,6 @@ export const sendAnnounce = async ({
         logPrefix: 'sendAnnounce',
         silenceTimeout: true
       })
-      span.end()
     }
   )
 
@@ -447,13 +433,12 @@ export const deleteStatus = async ({
   to,
   cc
 }: DeleteStatusParams) =>
-  getTracer().startActiveSpan(
-    'activities.deleteStatus',
+  withSpan(
+    'activity',
+    'deleteStatus',
     {
-      attributes: {
-        actorId: currentActor.id,
-        inbox
-      }
+      actorId: currentActor.id,
+      inbox
     },
     async (span) => {
       const activity: DeleteStatus = {
@@ -476,7 +461,6 @@ export const deleteStatus = async ({
         logPrefix: 'deleteStatus',
         silenceTimeout: true
       })
-      span.end()
     }
   )
 
@@ -490,13 +474,12 @@ export const undoAnnounce = async ({
   inbox,
   announce
 }: UndoAnnounceParams) =>
-  getTracer().startActiveSpan(
-    'activities.undoAnnounce',
+  withSpan(
+    'activity',
+    'undoAnnounce',
     {
-      attributes: {
-        actorId: currentActor.id,
-        inbox
-      }
+      actorId: currentActor.id,
+      inbox
     },
     async (span) => {
       const activity: UndoStatus = {
@@ -523,7 +506,6 @@ export const undoAnnounce = async ({
         logPrefix: 'undoAnnounce',
         silenceTimeout: true
       })
-      span.end()
     }
   )
 
@@ -533,14 +515,13 @@ export const follow = async (
   targetActorId: string,
   signingActor?: Actor
 ) =>
-  getTracer().startActiveSpan(
-    'activities.follow',
+  withSpan(
+    'activity',
+    'follow',
     {
-      attributes: {
-        id,
-        actorId: currentActor.id,
-        targetActorId
-      }
+      id,
+      actorId: currentActor.id,
+      targetActorId
     },
     async (span) => {
       const activity: FollowRequest = {
@@ -556,7 +537,6 @@ export const follow = async (
       })
       const targetInbox = person?.inbox
       if (!targetInbox) {
-        span.end()
         return false
       }
 
@@ -567,7 +547,6 @@ export const follow = async (
         activity,
         logPrefix: 'follow'
       })
-      span.end()
       return statusCode === 202
     }
   )
@@ -577,13 +556,12 @@ export const unfollow = async (
   follow: Follow,
   signingActor?: Actor
 ) =>
-  getTracer().startActiveSpan(
-    'activities.unfollow',
+  withSpan(
+    'activity',
+    'unfollow',
     {
-      attributes: {
-        actorId: currentActor.id,
-        follow: follow.id
-      }
+      actorId: currentActor.id,
+      follow: follow.id
     },
     async (span) => {
       const activity: UndoFollow = {
@@ -612,7 +590,6 @@ export const unfollow = async (
         activity,
         logPrefix: 'unfollow'
       })
-      span.end()
       return statusCode === 202
     }
   )
@@ -627,9 +604,10 @@ export const followRelay = async (
   relay: Relay,
   signingActor: Actor
 ): Promise<{ followActivityId: string; ok: boolean }> =>
-  getTracer().startActiveSpan(
-    'activities.followRelay',
-    { attributes: { relayId: relay.id, inbox: relay.inboxUrl } },
+  withSpan(
+    'activity',
+    'followRelay',
+    { relayId: relay.id, inbox: relay.inboxUrl },
     async (span) => {
       const followActivityId = `https://${signingActor.domain}/${crypto.randomUUID()}`
       const activity: FollowRequest = {
@@ -646,7 +624,6 @@ export const followRelay = async (
         activity,
         logPrefix: 'followRelay'
       })
-      span.end()
       return { followActivityId, ok: statusCode === 202 }
     }
   )
@@ -657,9 +634,10 @@ export const unfollowRelay = async (
   relay: Relay,
   signingActor: Actor
 ): Promise<boolean> =>
-  getTracer().startActiveSpan(
-    'activities.unfollowRelay',
-    { attributes: { relayId: relay.id, inbox: relay.inboxUrl } },
+  withSpan(
+    'activity',
+    'unfollowRelay',
+    { relayId: relay.id, inbox: relay.inboxUrl },
     async (span) => {
       const followActivityId =
         relay.followActivityId ??
@@ -683,7 +661,6 @@ export const unfollowRelay = async (
         activity,
         logPrefix: 'unfollowRelay'
       })
-      span.end()
       return statusCode === 202
     }
   )
@@ -701,14 +678,13 @@ export const block = async ({
   targetActorId,
   signingActor
 }: BlockParams) =>
-  getTracer().startActiveSpan(
-    'activities.block',
+  withSpan(
+    'activity',
+    'block',
     {
-      attributes: {
-        actorId: currentActor.id,
-        targetActorId,
-        uri
-      }
+      actorId: currentActor.id,
+      targetActorId,
+      uri
     },
     async (span) => {
       const activity: BlockRequest = {
@@ -732,7 +708,6 @@ export const block = async ({
         activity,
         logPrefix: 'block'
       })
-      span.end()
       return { ok: statusCode === 202, uri }
     }
   )
@@ -754,14 +729,13 @@ export const sendFlag = async ({
   content,
   signingActor
 }: FlagParams) =>
-  getTracer().startActiveSpan(
-    'activities.sendFlag',
+  withSpan(
+    'activity',
+    'sendFlag',
     {
-      attributes: {
-        actorId: currentActor.id,
-        targetActorId,
-        uri
-      }
+      actorId: currentActor.id,
+      targetActorId,
+      uri
     },
     async (span) => {
       const activity: FlagRequest = {
@@ -786,7 +760,6 @@ export const sendFlag = async ({
         activity,
         logPrefix: 'sendFlag'
       })
-      span.end()
       return { ok: statusCode === 202, uri }
     }
   )
@@ -796,13 +769,12 @@ export const unblock = async (
   block: DomainBlock,
   signingActor?: Actor
 ) =>
-  getTracer().startActiveSpan(
-    'activities.unblock',
+  withSpan(
+    'activity',
+    'unblock',
     {
-      attributes: {
-        actorId: currentActor.id,
-        block: block.id
-      }
+      actorId: currentActor.id,
+      block: block.id
     },
     async (span) => {
       const activity: UndoBlock = {
@@ -831,7 +803,6 @@ export const unblock = async (
         activity,
         logPrefix: 'unblock'
       })
-      span.end()
       return statusCode === 202
     }
   )
@@ -841,13 +812,12 @@ export const acceptFollow = async (
   followingInbox: string,
   followRequest: FollowRequest
 ) =>
-  getTracer().startActiveSpan(
-    'activities.acceptFollow',
+  withSpan(
+    'activity',
+    'acceptFollow',
     {
-      attributes: {
-        actorId: currentActor.id,
-        followingInbox
-      }
+      actorId: currentActor.id,
+      followingInbox
     },
     async (span) => {
       const activity: AcceptFollow = {
@@ -869,7 +839,6 @@ export const acceptFollow = async (
         activity,
         logPrefix: 'acceptFollow'
       })
-      span.end()
       return statusCode === 202
     }
   )
@@ -879,13 +848,12 @@ export const rejectFollow = async (
   followingInbox: string,
   followRequest: FollowRequest
 ) =>
-  getTracer().startActiveSpan(
-    'activities.rejectFollow',
+  withSpan(
+    'activity',
+    'rejectFollow',
     {
-      attributes: {
-        actorId: currentActor.id,
-        followingInbox
-      }
+      actorId: currentActor.id,
+      followingInbox
     },
     async (span) => {
       const activity: RejectFollow = {
@@ -907,7 +875,6 @@ export const rejectFollow = async (
         activity,
         logPrefix: 'rejectFollow'
       })
-      span.end()
       return statusCode === 202
     }
   )
@@ -920,9 +887,10 @@ interface LikeParams {
   status: Status
 }
 export const sendLike = async ({ currentActor, status }: LikeParams) =>
-  getTracer().startActiveSpan(
-    'activities.sendLike',
-    { attributes: { actorId: currentActor.id, statusId: status.id } },
+  withSpan(
+    'activity',
+    'sendLike',
+    { actorId: currentActor.id, statusId: status.id },
     async (span) => {
       if (!status.actor) return
 
@@ -940,7 +908,6 @@ export const sendLike = async ({ currentActor, status }: LikeParams) =>
         activity,
         logPrefix: 'sendLike'
       })
-      span.end()
     }
   )
 
@@ -975,13 +942,12 @@ const buildReactionActivity = ({
 }
 
 export const sendReaction = async (params: ReactionParams) =>
-  getTracer().startActiveSpan(
-    'activities.sendReaction',
+  withSpan(
+    'activity',
+    'sendReaction',
     {
-      attributes: {
-        actorId: params.currentActor.id,
-        statusId: params.status.id
-      }
+      actorId: params.currentActor.id,
+      statusId: params.status.id
     },
     async (span) => {
       const { currentActor, status } = params
@@ -994,18 +960,16 @@ export const sendReaction = async (params: ReactionParams) =>
         activity: buildReactionActivity(params),
         logPrefix: 'sendReaction'
       })
-      span.end()
     }
   )
 
 export const sendUndoReaction = async (params: ReactionParams) =>
-  getTracer().startActiveSpan(
-    'activities.sendUndoReaction',
+  withSpan(
+    'activity',
+    'sendUndoReaction',
     {
-      attributes: {
-        actorId: params.currentActor.id,
-        statusId: params.status.id
-      }
+      actorId: params.currentActor.id,
+      statusId: params.status.id
     },
     async (span) => {
       const { currentActor, status } = params
@@ -1028,7 +992,6 @@ export const sendUndoReaction = async (params: ReactionParams) =>
         activity,
         logPrefix: 'sendUndoReaction'
       })
-      span.end()
     }
   )
 
@@ -1037,9 +1000,10 @@ interface UndoLikeParams {
   status: Status
 }
 export const sendUndoLike = async ({ currentActor, status }: UndoLikeParams) =>
-  getTracer().startActiveSpan(
-    'activities.sendUndoLike',
-    { attributes: { actorId: currentActor.id, statusId: status.id } },
+  withSpan(
+    'activity',
+    'sendUndoLike',
+    { actorId: currentActor.id, statusId: status.id },
     async (span) => {
       if (!status.actor) return
 
@@ -1062,7 +1026,6 @@ export const sendUndoLike = async ({ currentActor, status }: UndoLikeParams) =>
         activity,
         logPrefix: 'sendUndoLike'
       })
-      span.end()
     }
   )
 
@@ -1077,14 +1040,13 @@ export const sendPollVotes = async ({
   status,
   choices
 }: SendPollVotesParams) =>
-  getTracer().startActiveSpan(
-    'activities.sendPollVotes',
+  withSpan(
+    'activity',
+    'sendPollVotes',
     {
-      attributes: {
-        actorId: currentActor.id,
-        statusId: status.id,
-        choices: choices.join(',')
-      }
+      actorId: currentActor.id,
+      statusId: status.id,
+      choices: choices.join(',')
     },
     async (span) => {
       if (!status.actor) return
@@ -1126,7 +1088,5 @@ export const sendPollVotes = async ({
           logPrefix: 'sendPollVotes'
         })
       }
-
-      span.end()
     }
   )

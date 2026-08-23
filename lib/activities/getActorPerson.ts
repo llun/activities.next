@@ -4,7 +4,7 @@ import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
-import { getTracer } from '@/lib/utils/trace'
+import { withSpan } from '@/lib/utils/trace'
 
 export type GetActorPersonFunction = (params: {
   actorId: string
@@ -17,7 +17,7 @@ export const getActorPerson: GetActorPersonFunction = ({
   withNetworkRetry = true,
   signingActor
 }) =>
-  getTracer().startActiveSpan('activities.getActorProfile', async (span) => {
+  withSpan('activity', 'getActorProfile', { actorId }, async (span) => {
     try {
       const { statusCode, body } = await request({
         url: actorId,
@@ -43,7 +43,5 @@ export const getActorPerson: GetActorPersonFunction = ({
       span.recordException(nodeError)
       logger.error(`[getActorProfile] ${nodeError.message}`)
       return null
-    } finally {
-      span.end()
     }
   })

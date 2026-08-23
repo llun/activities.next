@@ -4,7 +4,7 @@ import { getFederatedStatusDeliveryInboxes } from '@/lib/services/federation/sta
 import { Actor } from '@/lib/types/domain/actor'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { getVisibility } from '@/lib/utils/getVisibility'
-import { getSpan } from '@/lib/utils/trace'
+import { withSpan } from '@/lib/utils/trace'
 
 interface DeleteStatusFromUserInputParams {
   currentActor: Actor
@@ -15,45 +15,42 @@ export const deleteStatusFromUserInput = async ({
   currentActor,
   statusId,
   database
-}: DeleteStatusFromUserInputParams): Promise<void> => {
-  const span = getSpan('actions', 'deleteNote', { statusId })
-  const originalStatus = await database.getStatus({
-    statusId,
-    withReplies: false
-  })
-  if (!originalStatus) {
-    span.end()
-    return
-  }
-  const normalizedCurrentActorId = normalizeActorId(currentActor.id)
-  const normalizedStatusActorId = normalizeActorId(originalStatus.actorId)
-  if (
-    !normalizedCurrentActorId ||
-    !normalizedStatusActorId ||
-    normalizedCurrentActorId !== normalizedStatusActorId
-  ) {
-    span.end()
-    return
-  }
-
-  const inboxes = await getFederatedStatusDeliveryInboxes({
-    database,
-    currentActor,
-    status: originalStatus
-  })
-  const isDirect =
-    getVisibility(originalStatus.to, originalStatus.cc) === 'direct'
-  await Promise.all(
-    inboxes.map((inbox) => {
-      return deleteStatus({
-        currentActor,
-        inbox,
-        statusId,
-        to: isDirect ? originalStatus.to : undefined,
-        cc: isDirect ? originalStatus.cc : undefined
-      })
+}: DeleteStatusFromUserInputParams): Promise<void> =>
+  withSpan('actions', 'deleteNote', { statusId }, async () => {
+    const originalStatus = await database.getStatus({
+      statusId,
+      withReplies: false
     })
-  )
-  await database.deleteStatus({ statusId, actorId: currentActor.id })
-  span.end()
-}
+    if (!originalStatus) {
+      return
+    }
+    const normalizedCurrentActorId = normalizeActorId(currentActor.id)
+    const normalizedStatusActorId = normalizeActorId(originalStatus.actorId)
+    if (
+      !normalizedCurrentActorId ||
+      !normalizedStatusActorId ||
+      normalizedCurrentActorId !== normalizedStatusActorId
+    ) {
+      return
+    }
+
+    const inboxes = await getFederatedStatusDeliveryInboxes({
+      database,
+      currentActor,
+      status: originalStatus
+    })
+    const isDirect =
+      getVisibility(originalStatus.to, originalStatus.cc) === 'direct'
+    await Promise.all(
+      inboxes.map((inbox) => {
+        return deleteStatus({
+          currentActor,
+          inbox,
+          statusId,
+          to: isDirect ? originalStatus.to : undefined,
+          cc: isDirect ? originalStatus.cc : undefined
+        })
+      })
+    )
+    await database.deleteStatus({ statusId, actorId: currentActor.id })
+  })

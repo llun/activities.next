@@ -8,7 +8,7 @@ import {
   StatusType
 } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
-import { getSpan } from '@/lib/utils/trace'
+import { withSpan } from '@/lib/utils/trace'
 
 interface UpdateStatusInteractionPolicyFromUserInput {
   statusId: string
@@ -34,39 +34,39 @@ export const updateStatusInteractionPolicyFromUserInput = async ({
   publish = true,
   status: preloadedStatus,
   database
-}: UpdateStatusInteractionPolicyFromUserInput): Promise<Status | null> => {
-  const span = getSpan('actions', 'updateStatusInteractionPolicyFromUser', {
-    statusId
-  })
-  const status = preloadedStatus ?? (await database.getStatus({ statusId }))
-  if (
-    !status ||
-    status.id !== statusId ||
-    status.actorId !== currentActor.id ||
-    (status.type !== StatusType.enum.Note &&
-      status.type !== StatusType.enum.Poll)
-  ) {
-    span.end()
-    return null
-  }
+}: UpdateStatusInteractionPolicyFromUserInput): Promise<Status | null> =>
+  withSpan(
+    'actions',
+    'updateStatusInteractionPolicyFromUser',
+    { statusId },
+    async () => {
+      const status = preloadedStatus ?? (await database.getStatus({ statusId }))
+      if (
+        !status ||
+        status.id !== statusId ||
+        status.actorId !== currentActor.id ||
+        (status.type !== StatusType.enum.Note &&
+          status.type !== StatusType.enum.Poll)
+      ) {
+        return null
+      }
 
-  const updatedStatus = await database.updateStatusQuoteApprovalPolicy({
-    statusId,
-    quoteApprovalPolicy
-  })
-  if (!updatedStatus) {
-    span.end()
-    return null
-  }
+      const updatedStatus = await database.updateStatusQuoteApprovalPolicy({
+        statusId,
+        quoteApprovalPolicy
+      })
+      if (!updatedStatus) {
+        return null
+      }
 
-  if (publish) {
-    await getQueue().publish({
-      id: getHashFromString(`${statusId}#interaction-policy`),
-      name: SEND_UPDATE_NOTE_JOB_NAME,
-      data: { actorId: currentActor.id, statusId }
-    })
-  }
+      if (publish) {
+        await getQueue().publish({
+          id: getHashFromString(`${statusId}#interaction-policy`),
+          name: SEND_UPDATE_NOTE_JOB_NAME,
+          data: { actorId: currentActor.id, statusId }
+        })
+      }
 
-  span.end()
-  return updatedStatus
-}
+      return updatedStatus
+    }
+  )

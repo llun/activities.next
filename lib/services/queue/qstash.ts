@@ -1,7 +1,8 @@
+import { context, propagation } from '@opentelemetry/api'
 import { Client } from '@upstash/qstash'
 import { z } from 'zod'
 
-import { getTracer } from '@/lib/utils/trace'
+import { withSpan } from '@/lib/utils/trace'
 
 import { defaultJobHandle } from './base'
 import { JobMessage, Queue } from './type'
@@ -33,25 +34,23 @@ export class QStashQueue implements Queue {
   }
 
   async publish(message: JobMessage): Promise<void> {
-    await getTracer().startActiveSpan('queue.publish', async (span) => {
-      try {
-        await this._client.publishJSON({
-          url: this._url,
-          body: message,
-          timeout: MAX_JOB_TIMEOUT_SECONDS,
-          retries: MAX_JOB_RETRIES,
-          deduplicationId: Buffer.from(message.id).toString('base64url'),
-          ...(message.delaySeconds && message.delaySeconds > 0
-            ? { delay: message.delaySeconds }
-            : {})
-        })
-      } catch (error) {
-        const nodeError = error as NodeJS.ErrnoException
-        span.recordException(nodeError)
-        throw error
-      } finally {
-        span.end()
-      }
+    return withSpan('queue', 'publish', { jobName: message.name }, async () => {
+      const traceHeaders: Record<string, string> = {}
+      propagation.inject(context.active(), traceHeaders)
+
+      await this._client.publishJSON({
+        url: this._url,
+        body: message,
+        timeout: MAX_JOB_TIMEOUT_SECONDS,
+        retries: MAX_JOB_RETRIES,
+        deduplicationId: Buffer.from(message.id).toString('base64url'),
+        ...(Object.keys(traceHeaders).length > 0
+          ? { headers: traceHeaders }
+          : {}),
+        ...(message.delaySeconds && message.delaySeconds > 0
+          ? { delay: message.delaySeconds }
+          : {})
+      })
     })
   }
 

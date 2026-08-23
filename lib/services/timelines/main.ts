@@ -1,6 +1,6 @@
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { StatusType } from '@/lib/types/domain/status'
-import { getTracer } from '@/lib/utils/trace'
+import { withSpan } from '@/lib/utils/trace'
 
 import { MainTimelineRule, Timeline } from './types'
 
@@ -28,15 +28,14 @@ export const mainTimelineRule: MainTimelineRule = async ({
   currentActor,
   status
 }) =>
-  getTracer().startActiveSpan(
-    'timelines.mainTimelineRule',
+  withSpan(
+    'timeline',
+    'mainTimelineRule',
     {
-      attributes: {
-        actorId: currentActor.id,
-        statusId: status.id
-      }
+      actorId: currentActor.id,
+      statusId: status.id
     },
-    async (span) => {
+    async () => {
       if (status.type === StatusType.enum.Announce) {
         // The viewer's own boosts always belong in their home timeline; only
         // boosts from others are gated on the follow. A single lookup yields
@@ -54,7 +53,6 @@ export const mainTimelineRule: MainTimelineRule = async ({
             announceFollow.status !== FollowStatus.enum.Accepted ||
             announceFollow.reblogs === false
           ) {
-            span.end()
             return null
           }
         }
@@ -65,13 +63,11 @@ export const mainTimelineRule: MainTimelineRule = async ({
           currentActor,
           status: originalStatus
         })
-        span.end()
         if (timeline === Timeline.MAIN) return null
         return Timeline.MAIN
       }
 
       if (status.actorId === currentActor.id) {
-        span.end()
         return Timeline.MAIN
       }
       const isFollowing = await database.isCurrentActorFollowing({
@@ -80,7 +76,6 @@ export const mainTimelineRule: MainTimelineRule = async ({
       })
 
       if (!status.reply) {
-        span.end()
         if (isFollowing) return Timeline.MAIN
         return null
       }
@@ -91,15 +86,12 @@ export const mainTimelineRule: MainTimelineRule = async ({
       })
       // Deleted parent status, don't show child status
       if (!repliedStatus) {
-        span.end()
         return null
       }
       if (repliedStatus.actorId === currentActor.id) {
-        span.end()
         return Timeline.MAIN
       }
       if (!isFollowing) {
-        span.end()
         return null
       }
       const value = await mainTimelineRule({
@@ -107,7 +99,6 @@ export const mainTimelineRule: MainTimelineRule = async ({
         currentActor,
         status: repliedStatus
       })
-      span.end()
       return value
     }
   )

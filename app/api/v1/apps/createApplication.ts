@@ -13,7 +13,7 @@ import type { Knex } from 'knex'
 
 import { getKnex } from '@/lib/database'
 import { Scope } from '@/lib/types/database/operations'
-import { getTracer } from '@/lib/utils/trace'
+import { withSpan } from '@/lib/utils/trace'
 
 import type {
   ErrorResponse,
@@ -103,9 +103,10 @@ export const createApplication = async (
   request: PostRequest,
   options: CreateApplicationOptions = {}
 ): Promise<PostResponse> => {
-  return getTracer().startActiveSpan(
+  return withSpan(
+    'api',
     'createApplication',
-    { attributes: { clientName: request.client_name, scopes: request.scopes } },
+    { clientName: request.client_name, scopes: request.scopes },
     async (span) => {
       const scopes = request.scopes ?? Scope.enum.read
       const db = getKnex()
@@ -267,8 +268,6 @@ export const createApplication = async (
         const nodeError = error as NodeJS.ErrnoException
         span.recordException(nodeError)
         return validationErrorResponse()
-      } finally {
-        span.end()
       }
     }
   )
