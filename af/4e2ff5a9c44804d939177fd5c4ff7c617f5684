@@ -1,0 +1,34 @@
+AGENTS.md
+  h_580a04e334fef4 854,862-866
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  h_580a04e334fef4 433-435
+docs/fitness-file-storage.md
+  h_580a04e334fef4 55,343
+docs/maintenance.md
+  h_580a04e334fef4 404-405,420,424-426
+lib/services/fitness-files/activityPresentation.test.ts
+  h_580a04e334fef4 108-113,142-168
+lib/services/fitness-files/activityPresentation.ts
+  h_580a04e334fef4 61-62,66-70,80-86
+lib/services/fitness-files/sportTypes.test.ts
+  h_580a04e334fef4 2,10,238-252,273-325,333,336-353,355-358,362,371-373,379
+lib/services/fitness-files/sportTypes.ts
+  h_580a04e334fef4 256-370,381-383,385-388,390-391,402-404
+lib/services/strava/activity.test.ts
+  h_580a04e334fef4 388,396-407
+scripts/fitness/normalizeFitnessActivityTypes.test.ts
+  h_580a04e334fef4 151-171,220-222,226,232,237,240
+scripts/fitness/normalizeFitnessActivityTypes.ts
+  h_580a04e334fef4 49-52,181-183,187-192,196-205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "af4e2ff5a9c44804d939177fd5c4ff7c617f5684",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
