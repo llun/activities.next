@@ -157,6 +157,7 @@ type MediaRow = {
   description?: string | null
   focusX?: number | string | null
   focusY?: number | string | null
+  blurhash?: string | null
 }
 
 type MediaMetaData = Media['original']['metaData']
@@ -192,7 +193,8 @@ const parseMediaRow = (data: MediaRow): Media => ({
   data.focusY !== null &&
   data.focusY !== undefined
     ? { focus: { x: Number(data.focusX), y: Number(data.focusY) } }
-    : {})
+    : {}),
+  ...(data.blurhash ? { blurhash: data.blurhash } : {})
 })
 
 // `medias` columns needed to rebuild a full Media row (used by every read).
@@ -210,7 +212,8 @@ const MEDIA_COLUMNS = [
   'thumbnailMetaData',
   'description',
   'focusX',
-  'focusY'
+  'focusY',
+  'blurhash'
 ] as const
 
 export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
@@ -219,7 +222,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     original,
     thumbnail,
     description,
-    focus
+    focus,
+    blurhash
   }: CreateMediaParams) {
     if (!actorId) return null
 
@@ -245,7 +249,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
             }
           : null),
         ...(description ? { description } : null),
-        ...(focus ? { focusX: focus.x, focusY: focus.y } : null)
+        ...(focus ? { focusX: focus.x, focusY: focus.y } : null),
+        ...(blurhash ? { blurhash } : null)
       }
 
       const ids = await trx('medias').insert(content, ['id'])
@@ -282,7 +287,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         original,
         ...(thumbnail ? { thumbnail } : null),
         ...(description ? { description } : null),
-        ...(focus ? { focus } : null)
+        ...(focus ? { focus } : null),
+        ...(blurhash ? { blurhash } : null)
       } as Media
     })
   },
@@ -312,7 +318,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         'medias.thumbnailMetaData',
         'medias.description',
         'medias.focusX',
-        'medias.focusY'
+        'medias.focusY',
+        'medias.blurhash'
       )
       .first<MediaRow>()
 
@@ -358,7 +365,10 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     height,
     name = '',
     mediaId,
-    createdAt
+    createdAt,
+    blurhash,
+    focus,
+    thumbnailUrl
   }: CreateAttachmentParams): Promise<Attachment> {
     const currentTime =
       typeof createdAt === 'number' ? new Date(createdAt) : new Date()
@@ -372,12 +382,27 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       width,
       height,
       name,
+      blurhash: blurhash ?? undefined,
+      focus: focus ?? undefined,
+      thumbnailUrl: thumbnailUrl ?? undefined,
       createdAt: currentTime.getTime(),
       updatedAt: currentTime.getTime()
     })
     await database('attachments').insert({
-      ...data,
+      id: data.id,
+      actorId: data.actorId,
+      statusId: data.statusId,
+      type: data.type,
+      mediaType: data.mediaType,
+      url: data.url,
+      width: data.width,
+      height: data.height,
+      name: data.name,
       mediaId,
+      blurhash: blurhash ?? null,
+      focusX: focus?.x ?? null,
+      focusY: focus?.y ?? null,
+      thumbnailUrl: thumbnailUrl ?? null,
       createdAt: currentTime,
       updatedAt: currentTime
     })
@@ -385,7 +410,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
   },
 
   async getAttachments({ statusId }: GetAttachmentsParams) {
-    const data = await database<Attachment>('attachments')
+    const data = await database('attachments')
       .where('statusId', statusId)
       .orderBy('createdAt', 'asc')
       .orderBy('id', 'asc')
@@ -400,6 +425,15 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
             item.mediaId === null || item.mediaId === undefined
               ? null
               : String(item.mediaId),
+          blurhash: item.blurhash ?? undefined,
+          focus:
+            item.focusX !== null &&
+            item.focusX !== undefined &&
+            item.focusY !== null &&
+            item.focusY !== undefined
+              ? { x: Number(item.focusX), y: Number(item.focusY) }
+              : undefined,
+          thumbnailUrl: item.thumbnailUrl ?? undefined,
           createdAt: getCompatibleTime(item.createdAt),
           updatedAt: getCompatibleTime(item.updatedAt)
         })
@@ -426,7 +460,11 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         'name',
         'createdAt',
         'updatedAt',
-        'mediaId'
+        'mediaId',
+        'blurhash',
+        'focusX',
+        'focusY',
+        'thumbnailUrl'
       )
 
     return data
@@ -441,6 +479,15 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
             item.mediaId === null || item.mediaId === undefined
               ? null
               : String(item.mediaId),
+          blurhash: item.blurhash ?? undefined,
+          focus:
+            item.focusX !== null &&
+            item.focusX !== undefined &&
+            item.focusY !== null &&
+            item.focusY !== undefined
+              ? { x: Number(item.focusX), y: Number(item.focusY) }
+              : undefined,
+          thumbnailUrl: item.thumbnailUrl ?? undefined,
           createdAt: getCompatibleTime(item.createdAt),
           updatedAt: getCompatibleTime(item.updatedAt)
         })
@@ -465,7 +512,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     includeFollowersOnly = false,
     followersAudience
   }: GetAttachmentsForActorParams): Promise<Attachment[]> {
-    let query = database<Attachment>('attachments')
+    let query = database('attachments')
       .where('actorId', actorId)
       .orderBy('createdAt', 'desc')
       .orderBy('id', 'desc')
@@ -504,6 +551,15 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
             item.mediaId === null || item.mediaId === undefined
               ? null
               : String(item.mediaId),
+          blurhash: item.blurhash ?? undefined,
+          focus:
+            item.focusX !== null &&
+            item.focusX !== undefined &&
+            item.focusY !== null &&
+            item.focusY !== undefined
+              ? { x: Number(item.focusX), y: Number(item.focusY) }
+              : undefined,
+          thumbnailUrl: item.thumbnailUrl ?? undefined,
           createdAt: getCompatibleTime(item.createdAt),
           updatedAt: getCompatibleTime(item.updatedAt)
         })
@@ -543,6 +599,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         'medias.description',
         'medias.focusX',
         'medias.focusY',
+        'medias.blurhash',
         'medias.createdAt',
         'attachments.statusId'
       )
@@ -589,6 +646,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       item.focusY !== undefined
         ? { focus: { x: Number(item.focusX), y: Number(item.focusY) } }
         : {}),
+      ...(item.blurhash ? { blurhash: item.blurhash } : {}),
       ...(item.statusId ? { statusId: item.statusId } : {})
     }))
 
@@ -637,6 +695,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     accountId,
     description,
     focus,
+    blurhash,
     thumbnail
   }: UpdateMediaParams): Promise<UpdateMediaResult | null> {
     const id = toMediaRowId(mediaId)
@@ -663,6 +722,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         description?: string | null
         focusX?: number
         focusY?: number
+        blurhash?: string | null
         thumbnail?: string
         thumbnailBytes?: number
         thumbnailMimeType?: string
@@ -675,6 +735,9 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       if (focus !== undefined) {
         updates.focusX = focus.x
         updates.focusY = focus.y
+      }
+      if (blurhash !== undefined) {
+        updates.blurhash = blurhash
       }
 
       let thumbnailUsageDelta = 0

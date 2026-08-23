@@ -62,6 +62,6 @@ export const getMediaAttachment = (
     // whitespace-only legacy rows normalise to null too; a real description is
     // returned verbatim (not trimmed) to match the write-path transform.
     description: media.description?.trim() ? media.description : null,
-    blurhash: null
+    blurhash: media.blurhash ?? null
   })
 }

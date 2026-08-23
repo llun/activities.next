@@ -602,8 +602,26 @@ For local archive or one-off activity imports, see the `--help` output from:
 Additional utility scripts:
 
 ```bash
+NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --dry-run
 NODE_ENV=production ./scripts/maintenance/fixAttachmentUrls.ts --dry-run
 NODE_ENV=development ./scripts/mock/createMockStatuses.ts
+```
+
+## Blurhash & Smart Focus Backfill
+
+The `backfillMediaBlurhash.ts` script scans existing `medias` and `attachments` records that lack a `blurhash` or focal point coordinates, computes them from stored files / URLs, and updates the database.
+
+### Usage
+
+```bash
+# Preview what would be updated without writing to the database
+NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --dry-run
+
+# Run backfill on missing rows in batches of 50
+NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --batch-size 50
+
+# Recompute blurhash and focal point even on rows that already have them
+NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --force
 ```
 
 ## Related Documentation

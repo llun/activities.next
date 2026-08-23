@@ -3656,6 +3656,7 @@ __metadata:
     better-auth: "npm:1.7.1"
     better-call: "npm:2.0.6"
     better-sqlite3: "npm:^13.0.3"
+    blurhash: "npm:^2.0.5"
     class-variance-authority: "npm:^0.7.1"
     clsx: "npm:^2.1.1"
     csv-parse: "npm:^7.0.2"
@@ -3997,6 +3998,13 @@ __metadata:
   dependencies:
     require-from-string: "npm:^2.0.2"
   checksum: 10c0/fdddea4aa4120a34285486f2267526cd9298b6e8b773ad25e765d4f104b6d7437ab4ba542e6939e3ac834a7570bcf121ee2cf6d3ae7cd7082c4b5bedc8f271e1
+  languageName: node
+  linkType: hard
+
+"blurhash@npm:^2.0.5":
+  version: 2.0.5
+  resolution: "blurhash@npm:2.0.5"
+  checksum: 10c0/75d5f042b5bb8ead977524a985048378a033af866534abbaee73c80030cc9fc34e6c5b7d483c68bbdb600e0ae438f2ea6140b1f46d75fcfa57a902208ae8b85e
   languageName: node
   linkType: hard
 

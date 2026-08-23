@@ -1307,5 +1307,63 @@ describe('MediaDatabase', () => {
         expect(stillThere).toBeDefined()
       })
     })
+
+    describe('blurhash and attachment focal points', () => {
+      it('creates and retrieves media with blurhash', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const accountId = actor!.account!.id
+        const media = await database.createMedia({
+          actorId: actors.primary.id,
+          original: {
+            path: '/test/media-blurhash.jpg',
+            bytes: 1234,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          },
+          blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
+        })
+
+        expect(media?.blurhash).toBe('LEHV6nWB2yk8pyo0adR*.7kCMdnj')
+        const retrieved = await database.getMediaByIdForAccount({
+          mediaId: media!.id,
+          accountId
+        })
+        expect(retrieved?.blurhash).toBe('LEHV6nWB2yk8pyo0adR*.7kCMdnj')
+      })
+
+      it('creates and retrieves attachments with blurhash, focus, and thumbnailUrl', async () => {
+        const statuses = await database.getActorStatuses({
+          actorId: actors.primary.id,
+          limit: 1
+        })
+        expect(statuses.length).toBeGreaterThan(0)
+
+        const attachment = await database.createAttachment({
+          actorId: actors.primary.id,
+          statusId: statuses[0].id,
+          mediaType: 'image/jpeg',
+          url: 'https://example.com/image.jpg',
+          width: 800,
+          height: 600,
+          name: 'An image',
+          blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+          focus: { x: -0.5, y: 0.75 },
+          thumbnailUrl: 'https://example.com/thumbnail.jpg'
+        })
+
+        expect(attachment.blurhash).toBe('LEHV6nWB2yk8pyo0adR*.7kCMdnj')
+        expect(attachment.focus).toEqual({ x: -0.5, y: 0.75 })
+        expect(attachment.thumbnailUrl).toBe(
+          'https://example.com/thumbnail.jpg'
+        )
+
+        const list = await database.getAttachments({ statusId: statuses[0].id })
+        const found = list.find((a) => a.id === attachment.id)
+        expect(found).toBeDefined()
+        expect(found?.blurhash).toBe('LEHV6nWB2yk8pyo0adR*.7kCMdnj')
+        expect(found?.focus).toEqual({ x: -0.5, y: 0.75 })
+        expect(found?.thumbnailUrl).toBe('https://example.com/thumbnail.jpg')
+      })
+    })
   })
 })

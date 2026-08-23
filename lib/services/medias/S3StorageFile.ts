@@ -16,6 +16,7 @@ import { Database } from '@/lib/database/types'
 import {
   MAX_HEIGHT,
   MAX_WIDTH,
+  PRESIGNED_ANALYSIS_MAX_BYTES,
   STORED_IMAGE_RESIZE_OPTIONS
 } from '@/lib/services/medias/constants'
 import { MediaValidationError } from '@/lib/services/medias/errors'
@@ -25,6 +26,10 @@ import {
   sanitizeStoredFileName
 } from '@/lib/services/medias/fileName'
 import { getMediaAttachment } from '@/lib/services/medias/getMediaAttachment'
+import {
+  ImageAnalysisResult,
+  analyzeImageBuffer
+} from '@/lib/services/medias/imageAnalysis'
 import {
   DEFAULT_IMAGE_OUTPUT_FORMAT,
   type ImageOutputFormat,
@@ -59,6 +64,7 @@ import {
   assertByteLengthWithinLimit,
   readUnknownBodyToBufferWithLimit
 } from '@/lib/utils/streamLimit'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 const normalizeContentType = (contentType?: string | string[]) => {
   const value = Array.isArray(contentType) ? contentType[0] : contentType
@@ -103,6 +109,7 @@ const PRESIGNED_UPLOAD_UNHOISTABLE_HEADERS = new Set([
 interface UploadImageOptions {
   isThumbnail?: boolean
   format?: ImageOutputFormat
+  manualFocus?: { x: number; y: number } | null
 }
 
 export class S3FileStorage implements MediaStorage {
@@ -390,6 +397,45 @@ export class S3FileStorage implements MediaStorage {
       if (!verifiedMedia) {
         return null
       }
+
+      if (media.original.mimeType.startsWith('image')) {
+        const expectedSize = upload.size ?? media.original.bytes
+        if (expectedSize <= PRESIGNED_ANALYSIS_MAX_BYTES) {
+          try {
+            const getCommand = new GetObjectCommand({
+              Bucket: this._config.bucket,
+              Key: media.original.path
+            })
+            const response = await this._client.send(getCommand)
+            if (response.Body) {
+              const buffer = await readUnknownBodyToBufferWithLimit(
+                response.Body as IncomingMessage,
+                PRESIGNED_ANALYSIS_MAX_BYTES
+              )
+              const analysis = await analyzeImageBuffer(buffer, {
+                manualFocus: media.focus
+              })
+              if (analysis.blurhash || analysis.focus) {
+                const updated = await this._database.updateMedia({
+                  mediaId,
+                  accountId,
+                  blurhash: analysis.blurhash,
+                  focus: analysis.focus ?? undefined
+                })
+                if (updated?.media) {
+                  return this._getSaveFileOutput(updated.media)
+                }
+              }
+            }
+          } catch (error) {
+            logger.warn({
+              message: 'Failed to analyze presigned image upload',
+              error: toLoggableError(error)
+            })
+          }
+        }
+      }
+
       return this._getSaveFileOutput(verifiedMedia)
     } catch (error) {
       if (error instanceof PresignedUploadValidationError) {
@@ -425,9 +471,14 @@ export class S3FileStorage implements MediaStorage {
       )
     }
 
-    const { path, metaData, previewImage } = file.type.startsWith('video')
-      ? await this._uploadVideoToS3(currentTime, file)
-      : await this._uploadImageToS3(currentTime, file)
+    const { path, metaData, previewImage, blurhash, focus } =
+      file.type.startsWith('video')
+        ? await this._uploadVideoToS3(currentTime, file, {
+            manualFocus: media.focus
+          })
+        : await this._uploadImageToS3(currentTime, file, {
+            manualFocus: media.focus
+          })
     // Same precedence as the local driver: a caller-supplied thumbnail wins, and
     // a video otherwise falls back to the frame extracted from it. `previewImage`
     // is null for an image upload — a video whose frame cannot be decoded
@@ -477,7 +528,8 @@ export class S3FileStorage implements MediaStorage {
             }
           : null),
         ...(media.description ? { description: media.description } : null),
-        ...(media.focus ? { focus: media.focus } : null)
+        ...(focus ? { focus } : null),
+        ...(blurhash ? { blurhash } : null)
       })
     } catch (error) {
       await this._reclaimStored(path, thumbnail?.path)
@@ -514,13 +566,10 @@ export class S3FileStorage implements MediaStorage {
 
     // Use the stored image's actual size/dimensions (outputInfo), not the input
     // image's metadata.
-    const { outputInfo, path, contentType } = await this._uploadImageBufferToS3(
-      Date.now(),
-      buffer,
-      {
+    const { outputInfo, path, contentType, blurhash } =
+      await this._uploadImageBufferToS3(Date.now(), buffer, {
         isThumbnail: true
-      }
-    )
+      })
     return {
       path,
       bytes: outputInfo.size,
@@ -528,7 +577,8 @@ export class S3FileStorage implements MediaStorage {
       metaData: {
         width: outputInfo.width,
         height: outputInfo.height
-      }
+      },
+      blurhash
     }
   }
 
@@ -598,7 +648,8 @@ export class S3FileStorage implements MediaStorage {
     buffer: Buffer,
     {
       isThumbnail = false,
-      format: imageFormat = DEFAULT_IMAGE_OUTPUT_FORMAT
+      format: imageFormat = DEFAULT_IMAGE_OUTPUT_FORMAT,
+      manualFocus
     }: UploadImageOptions = {}
   ) {
     const { bucket } = this._config
@@ -626,12 +677,12 @@ export class S3FileStorage implements MediaStorage {
     // whole project to be traced into the server bundle, because `tmpdir()`
     // and the `fs.open` on it are not statically analysable. A buffer body is
     // what `_uploadVideoToS3` already sends, for far larger payloads.
-    const [metaData, { data: imageBody, info: outputInfo }] = await Promise.all(
-      [
+    const [metaData, { data: imageBody, info: outputInfo }, analysis] =
+      await Promise.all([
         sharp(buffer).metadata(),
-        resizedImage.keepExif().toBuffer({ resolveWithObject: true })
-      ]
-    )
+        resizedImage.keepExif().toBuffer({ resolveWithObject: true }),
+        analyzeImageBuffer(buffer, { manualFocus })
+      ])
 
     const timeDirectory = format(currentTime, 'yyyy-MM-dd')
     const path = `medias/${timeDirectory}/${randomPrefix}${isThumbnail ? '-thumbnail' : ''}.${extension}`
@@ -652,13 +703,19 @@ export class S3FileStorage implements MediaStorage {
       outputInfo,
       path,
       contentType,
-      previewImage: null
+      previewImage: null,
+      blurhash: analysis.blurhash,
+      focus: analysis.focus
     }
   }
 
   // Mirrors `LocalFileStorage._saveVideoFile`: probe, validate, extract the
   // preview frame from a temp copy, and only then store.
-  private async _uploadVideoToS3(currentTime: number, file: File) {
+  private async _uploadVideoToS3(
+    currentTime: number,
+    file: File,
+    options: { manualFocus?: { x: number; y: number } | null } = {}
+  ) {
     const buffer = Buffer.from(await file.arrayBuffer())
     const probe = await extractVideoMeta(buffer)
     const videoStream = probe.streams.find(
@@ -694,7 +751,25 @@ export class S3FileStorage implements MediaStorage {
       Body: buffer
     })
     await s3client.send(command)
-    return { path, metaData, contentType: file.type, previewImage }
+
+    let analysis: ImageAnalysisResult = {
+      blurhash: null,
+      focus: options.manualFocus ?? null
+    }
+    if (previewImage) {
+      analysis = await analyzeImageBuffer(previewImage, {
+        manualFocus: options.manualFocus
+      })
+    }
+
+    return {
+      path,
+      metaData,
+      contentType: file.type,
+      previewImage,
+      blurhash: analysis.blurhash,
+      focus: analysis.focus
+    }
   }
 
   private _getSaveFileOutput(media: Media): MediaStorageSaveFileOutput {

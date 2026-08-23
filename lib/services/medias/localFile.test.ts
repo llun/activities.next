@@ -808,4 +808,48 @@ describe('LocalFileStorage.saveFile with a caller-supplied thumbnail', () => {
     ).rejects.toThrow('Fail to store media')
     await expect(fs.readdir(mediaRoot)).resolves.toHaveLength(0)
   })
+
+  it('computes blurhash and smart focus on image saveFile', async () => {
+    const result = await createStorage().saveFile(actor, {
+      file: await createPngFile(200, 150)
+    })
+
+    expect(result?.blurhash).toBeDefined()
+    expect(typeof result?.blurhash).toBe('string')
+    expect(database.createMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        blurhash: expect.any(String),
+        focus: expect.objectContaining({
+          x: expect.any(Number),
+          y: expect.any(Number)
+        })
+      })
+    )
+  })
+
+  it('preserves manual focus when provided in saveFile', async () => {
+    const manualFocus = { x: 0.5, y: -0.5 }
+    const result = await createStorage().saveFile(actor, {
+      file: await createPngFile(200, 150),
+      focus: manualFocus
+    })
+
+    expect(result?.meta.focus).toEqual(manualFocus)
+    expect(database.createMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        focus: manualFocus,
+        blurhash: expect.any(String)
+      })
+    )
+  })
+
+  it('computes blurhash on saveThumbnail', async () => {
+    const thumbnail = await createStorage().saveThumbnail(
+      actor,
+      await createPngFile(100, 100)
+    )
+
+    expect(thumbnail?.blurhash).toBeDefined()
+    expect(typeof thumbnail?.blurhash).toBe('string')
+  })
 })

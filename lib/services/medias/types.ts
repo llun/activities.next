@@ -154,6 +154,7 @@ export interface ThumbnailStorageOutput {
   bytes: number
   mimeType: string
   metaData: { width: number; height: number }
+  blurhash?: string | null
 }
 
 // A processed image stored WITHOUT a `medias` row, so the caller owns the
