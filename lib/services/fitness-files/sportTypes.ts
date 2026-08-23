@@ -262,8 +262,18 @@ export const normalizeActivityTypeToSportKey = (
  * canonical tokens so dialects (e.g. WeightTraining, Other, Rowing) collapse.
  */
 export const NON_GEAR_STORED_ACTIVITY_TYPES = [
+  'swim',
   'training',
   'rowing',
+  'yoga',
+  'climbing',
+  'ski',
+  'skating',
+  'surfing',
+  'racket_sports',
+  'martial_arts',
+  'team_sports',
+  'golf',
   'other'
 ] as const
 
@@ -288,13 +298,142 @@ const EXACT_NON_GEAR_STORED_TYPES: Record<string, NonGearStoredActivityType> = {
   other: 'other',
   generic: 'other',
 
-  // Rowing
+  // Swim
+  swim: 'swim',
+  swimming: 'swim',
+  lapswimming: 'swim',
+  lap_swimming: 'swim',
+  openwaterswimming: 'swim',
+  open_water_swimming: 'swim',
+  poolswim: 'swim',
+  pool_swim: 'swim',
+
+  // Rowing & Paddling
   rowing: 'rowing',
   row: 'rowing',
   virtualrow: 'rowing',
   virtualrowing: 'rowing',
   indoorrowing: 'rowing',
   indoorrow: 'rowing',
+  kayaking: 'rowing',
+  kayak: 'rowing',
+  canoeing: 'rowing',
+  canoe: 'rowing',
+  paddling: 'rowing',
+  paddle: 'rowing',
+
+  // Yoga & Mind-Body
+  yoga: 'yoga',
+  pilates: 'yoga',
+  mindbody: 'yoga',
+  meditation: 'yoga',
+  breathwork: 'yoga',
+
+  // Climbing
+  climbing: 'climbing',
+  rockclimbing: 'climbing',
+  rock_climbing: 'climbing',
+  bouldering: 'climbing',
+  indoorclimbing: 'climbing',
+  indoor_climbing: 'climbing',
+
+  // Winter Sports & Skiing
+  ski: 'ski',
+  skiing: 'ski',
+  alpineski: 'ski',
+  alpine_ski: 'ski',
+  backcountryski: 'ski',
+  backcountry_ski: 'ski',
+  nordicski: 'ski',
+  nordic_ski: 'ski',
+  rollerski: 'ski',
+  roller_ski: 'ski',
+  snowboard: 'ski',
+  snowboarding: 'ski',
+  snowshoe: 'ski',
+  snowshoeing: 'ski',
+  crosscountryskiing: 'ski',
+
+  // Skating
+  skating: 'skating',
+  skate: 'skating',
+  iceskate: 'skating',
+  ice_skate: 'skating',
+  iceskating: 'skating',
+  ice_skating: 'skating',
+  inlineskate: 'skating',
+  inline_skate: 'skating',
+  inlineskating: 'skating',
+  inline_skating: 'skating',
+  rollerskate: 'skating',
+  roller_skate: 'skating',
+  rollerskating: 'skating',
+  roller_skating: 'skating',
+  skateboard: 'skating',
+  skateboarding: 'skating',
+
+  // Water Sports & Surfing
+  surfing: 'surfing',
+  surf: 'surfing',
+  windsurf: 'surfing',
+  windsurfing: 'surfing',
+  kitesurf: 'surfing',
+  kitesurfing: 'surfing',
+  standuppaddling: 'surfing',
+  stand_up_paddling: 'surfing',
+  sup: 'surfing',
+  scubadiving: 'surfing',
+  scuba_diving: 'surfing',
+  scuba: 'surfing',
+  snorkeling: 'surfing',
+  snorkel: 'surfing',
+  diving: 'surfing',
+
+  // Racket Sports
+  racket_sports: 'racket_sports',
+  racketsports: 'racket_sports',
+  tennis: 'racket_sports',
+  pickleball: 'racket_sports',
+  padel: 'racket_sports',
+  squash: 'racket_sports',
+  badminton: 'racket_sports',
+  tabletennis: 'racket_sports',
+  table_tennis: 'racket_sports',
+
+  // Martial Arts & Boxing
+  martial_arts: 'martial_arts',
+  martialarts: 'martial_arts',
+  boxing: 'martial_arts',
+  kickboxing: 'martial_arts',
+  karate: 'martial_arts',
+  judo: 'martial_arts',
+  taekwondo: 'martial_arts',
+  mma: 'martial_arts',
+  wrestling: 'martial_arts',
+
+  // Team Sports
+  team_sports: 'team_sports',
+  teamsports: 'team_sports',
+  soccer: 'team_sports',
+  football: 'team_sports',
+  basketball: 'team_sports',
+  volleyball: 'team_sports',
+  rugby: 'team_sports',
+  handball: 'team_sports',
+  baseball: 'team_sports',
+  softball: 'team_sports',
+  hockey: 'team_sports',
+  icehockey: 'team_sports',
+  ice_hockey: 'team_sports',
+  fieldhockey: 'team_sports',
+  field_hockey: 'team_sports',
+  lacrosse: 'team_sports',
+  cricket: 'team_sports',
+  waterpolo: 'team_sports',
+  water_polo: 'team_sports',
+
+  // Golf
+  golf: 'golf',
 
   // Training / Workout / Gym / Weights / Calisthenics
   training: 'training',
@@ -302,8 +441,6 @@ const EXACT_NON_GEAR_STORED_TYPES: Record<string, NonGearStoredActivityType> = {
   workout: 'training',
   crossfit: 'training',
   hiit: 'training',
-  pilates: 'training',
-  yoga: 'training',
   elliptical: 'training',
   stairstepper: 'training',
   stairclimbing: 'training',
@@ -330,11 +467,94 @@ const SUBSTRING_NON_GEAR_RULES: ReadonlyArray<{
     key: 'other'
   },
   {
+    matches: (token) => token.includes('swim'),
+    key: 'swim'
+  },
+  {
     matches: (token) =>
       token.startsWith('row') ||
       token.endsWith('row') ||
-      token.includes('rowing'),
+      token.includes('rowing') ||
+      token.includes('kayak') ||
+      token.includes('canoe') ||
+      token.includes('paddle'),
     key: 'rowing'
+  },
+  {
+    matches: (token) =>
+      token.includes('yoga') ||
+      token.includes('pilates') ||
+      token.includes('meditat') ||
+      token.includes('breathwork') ||
+      token.includes('mindbody'),
+    key: 'yoga'
+  },
+  {
+    matches: (token) => token.includes('climb') || token.includes('boulder'),
+    key: 'climbing'
+  },
+  {
+    matches: (token) =>
+      token.includes('ski') ||
+      token.includes('snowboard') ||
+      token.includes('snowshoe'),
+    key: 'ski'
+  },
+  {
+    matches: (token) => token.includes('skat') || token.includes('skateboard'),
+    key: 'skating'
+  },
+  {
+    matches: (token) =>
+      token.includes('surf') ||
+      token.includes('scuba') ||
+      token.includes('snorkel') ||
+      token === 'diving' ||
+      token === 'freediving' ||
+      token.includes('scubadiving'),
+    key: 'surfing'
+  },
+  {
+    matches: (token) =>
+      token.includes('tennis') ||
+      token.includes('pickleball') ||
+      token.includes('padel') ||
+      token.includes('squash') ||
+      token.includes('badminton') ||
+      token.includes('racket'),
+    key: 'racket_sports'
+  },
+  {
+    matches: (token) =>
+      token.includes('boxing') ||
+      token.includes('kickbox') ||
+      token.includes('martial') ||
+      token.includes('karate') ||
+      token.includes('judo') ||
+      token.includes('taekwondo') ||
+      token.includes('wrestl') ||
+      token === 'mma',
+    key: 'martial_arts'
+  },
+  {
+    matches: (token) =>
+      token.includes('soccer') ||
+      token.includes('football') ||
+      token.includes('basketball') ||
+      token.includes('volleyball') ||
+      token.includes('rugby') ||
+      token.includes('handball') ||
+      token.includes('baseball') ||
+      token.includes('softball') ||
+      token.includes('hockey') ||
+      token.includes('lacrosse') ||
+      token.includes('cricket') ||
+      token.includes('waterpolo'),
+    key: 'team_sports'
+  },
+  {
+    matches: (token) => token.includes('golf'),
+    key: 'golf'
   },
   {
     matches: (token) =>
@@ -342,8 +562,6 @@ const SUBSTRING_NON_GEAR_RULES: ReadonlyArray<{
       token.includes('workout') ||
       token.includes('crossfit') ||
       token.includes('calisthenic') ||
-      token.includes('pilates') ||
-      token.includes('yoga') ||
       token.includes('elliptical') ||
       token.includes('stairstepper') ||
       token.includes('strength') ||

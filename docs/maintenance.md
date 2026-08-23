@@ -421,8 +421,8 @@ every canonical key normalizes to itself, so a second pass reports nothing to do
 
 Gear attribution cannot shift as a result — every value written is a fixed point
 of the same function auto-assign reads the column through — so an activity keeps
-whatever gear it had. Any non-gear activity that does not match training or rowing
-collapses to `other`.
+whatever gear it had. Any activity that does not match a canonical sport key or
+canonical non-gear activity collapses to `other`.
 
 ```bash
 # Preview, then apply.

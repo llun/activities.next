@@ -162,9 +162,38 @@ describe('planActivityTypeNormalization', () => {
     },
     { description: 'Strava Workout', from: 'Workout', to: 'training' },
     // Rowing
+    // Rowing
     { description: 'Strava Rowing', from: 'Rowing', to: 'rowing' },
     { description: 'Strava VirtualRow', from: 'VirtualRow', to: 'rowing' },
     { description: 'FIT indoor_rowing', from: 'indoor_rowing', to: 'rowing' },
+    { description: 'Strava Kayaking', from: 'Kayaking', to: 'rowing' },
+    // Yoga
+    { description: 'Strava Yoga', from: 'Yoga', to: 'yoga' },
+    { description: 'Strava Pilates', from: 'Pilates', to: 'yoga' },
+    // Swim
+    { description: 'FIT swimming', from: 'swimming', to: 'swim' },
+    { description: 'Strava Swim', from: 'Swim', to: 'swim' },
+    // Climbing
+    {
+      description: 'Strava RockClimbing',
+      from: 'RockClimbing',
+      to: 'climbing'
+    },
+    // Skiing
+    { description: 'Strava AlpineSki', from: 'AlpineSki', to: 'ski' },
+    { description: 'Strava Snowboard', from: 'Snowboard', to: 'ski' },
+    // Skating
+    { description: 'Strava IceSkate', from: 'IceSkate', to: 'skating' },
+    // Surfing
+    { description: 'Strava Surfing', from: 'Surfing', to: 'surfing' },
+    // Racket
+    { description: 'Strava Tennis', from: 'Tennis', to: 'racket_sports' },
+    // Martial Arts
+    { description: 'Strava Boxing', from: 'Boxing', to: 'martial_arts' },
+    // Team Sports
+    { description: 'Strava Soccer', from: 'Soccer', to: 'team_sports' },
+    // Golf
+    { description: 'Strava Golf', from: 'Golf', to: 'golf' },
     // Other (normalized to lowercase)
     { description: 'TCX Other', from: 'Other', to: 'other' },
     { description: 'spaced Other', from: '  Other  ', to: 'other' }
@@ -218,9 +247,9 @@ describe('planActivityTypeNormalization', () => {
 
   it('rewrites unmatched types to other', () => {
     const plan = planActivityTypeNormalization([
-      file('file-1', 'swimming'),
-      file('file-2', 'swimming'),
-      file('file-3', 'Kayaking'),
+      file('file-1', 'Skydiving'),
+      file('file-2', 'Skydiving'),
+      file('file-3', 'CustomMadeUpSport'),
       file('file-4', 'other')
     ])
 
@@ -228,19 +257,19 @@ describe('planActivityTypeNormalization', () => {
       {
         fileId: 'file-1',
         fileName: 'file-1.fit',
-        from: 'swimming',
+        from: 'Skydiving',
         to: 'other'
       },
       {
         fileId: 'file-2',
         fileName: 'file-2.fit',
-        from: 'swimming',
+        from: 'Skydiving',
         to: 'other'
       },
       {
         fileId: 'file-3',
         fileName: 'file-3.fit',
-        from: 'Kayaking',
+        from: 'CustomMadeUpSport',
         to: 'other'
       }
     ])

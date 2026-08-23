@@ -44,10 +44,7 @@ import { loadEnvConfig } from '@next/env'
 import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
-import {
-  isCanonicalStoredActivityType,
-  normalizeStoredActivityType
-} from '@/lib/services/fitness-files/sportTypes'
+import { normalizeStoredActivityType } from '@/lib/services/fitness-files/sportTypes'
 
 import { printDatabaseBanner } from './describeConnection'
 
@@ -211,9 +208,6 @@ export const summarizeRewrites = (
       second.count - first.count || first.from.localeCompare(second.from)
   )
 }
-
-const byCountThenName = (first: [string, number], second: [string, number]) =>
-  second[1] - first[1] || first[0].localeCompare(second[0])
 
 async function normalizeFitnessActivityTypesScript(
   args = process.argv.slice(2)

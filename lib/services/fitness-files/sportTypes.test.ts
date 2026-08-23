@@ -302,10 +302,24 @@ describe('normalizeStoredActivityType', () => {
       raw: 'calisthenics',
       stored: 'training'
     },
-    { description: 'FIT yoga', raw: 'yoga', stored: 'training' },
-    { description: 'FIT pilates', raw: 'pilates', stored: 'training' },
+    // Yoga / Mind-Body
+    { description: 'FIT yoga', raw: 'yoga', stored: 'yoga' },
+    { description: 'Strava Yoga', raw: 'Yoga', stored: 'yoga' },
+    { description: 'FIT pilates', raw: 'pilates', stored: 'yoga' },
+    { description: 'Strava Pilates', raw: 'Pilates', stored: 'yoga' },
+    { description: 'Meditation', raw: 'Meditation', stored: 'yoga' },
 
-    // Rowing
+    // Swim
+    { description: 'FIT swimming', raw: 'swimming', stored: 'swim' },
+    { description: 'Strava Swim', raw: 'Swim', stored: 'swim' },
+    { description: 'TCX Lap Swimming', raw: 'lap_swimming', stored: 'swim' },
+    {
+      description: 'Open Water Swimming',
+      raw: 'Open Water Swimming',
+      stored: 'swim'
+    },
+
+    // Rowing & Paddling
     { description: 'Strava Rowing', raw: 'Rowing', stored: 'rowing' },
     { description: 'Strava VirtualRow', raw: 'VirtualRow', stored: 'rowing' },
     { description: 'FIT rowing', raw: 'rowing', stored: 'rowing' },
@@ -315,6 +329,101 @@ describe('normalizeStoredActivityType', () => {
       stored: 'rowing'
     },
     { description: 'free-form Row', raw: 'Row', stored: 'rowing' },
+    { description: 'Strava Kayaking', raw: 'Kayaking', stored: 'rowing' },
+    { description: 'Strava Canoeing', raw: 'Canoeing', stored: 'rowing' },
+
+    // Climbing
+    {
+      description: 'Strava RockClimbing',
+      raw: 'RockClimbing',
+      stored: 'climbing'
+    },
+    { description: 'FIT bouldering', raw: 'bouldering', stored: 'climbing' },
+
+    // Winter Sports & Skiing
+    { description: 'Strava AlpineSki', raw: 'AlpineSki', stored: 'ski' },
+    { description: 'Strava Snowboard', raw: 'Snowboard', stored: 'ski' },
+    { description: 'FIT nordic_ski', raw: 'nordic_ski', stored: 'ski' },
+    { description: 'FIT snowshoeing', raw: 'snowshoeing', stored: 'ski' },
+
+    // Skating
+    { description: 'Strava IceSkate', raw: 'IceSkate', stored: 'skating' },
+    {
+      description: 'Strava InlineSkate',
+      raw: 'InlineSkate',
+      stored: 'skating'
+    },
+    {
+      description: 'Strava Skateboard',
+      raw: 'Skateboard',
+      stored: 'skating'
+    },
+
+    // Water Sports & Surfing
+    { description: 'Strava Surfing', raw: 'Surfing', stored: 'surfing' },
+    {
+      description: 'Strava Windsurf',
+      raw: 'Windsurf',
+      stored: 'surfing'
+    },
+    {
+      description: 'Strava Kitesurf',
+      raw: 'Kitesurf',
+      stored: 'surfing'
+    },
+    {
+      description: 'Strava ScubaDiving',
+      raw: 'ScubaDiving',
+      stored: 'surfing'
+    },
+
+    // Racket Sports
+    { description: 'Strava Tennis', raw: 'Tennis', stored: 'racket_sports' },
+    {
+      description: 'Strava Pickleball',
+      raw: 'Pickleball',
+      stored: 'racket_sports'
+    },
+    { description: 'FIT squash', raw: 'squash', stored: 'racket_sports' },
+    {
+      description: 'FIT badminton',
+      raw: 'badminton',
+      stored: 'racket_sports'
+    },
+
+    // Martial Arts & Boxing
+    {
+      description: 'Strava Boxing',
+      raw: 'Boxing',
+      stored: 'martial_arts'
+    },
+    {
+      description: 'Strava MartialArts',
+      raw: 'MartialArts',
+      stored: 'martial_arts'
+    },
+    { description: 'FIT karate', raw: 'karate', stored: 'martial_arts' },
+
+    // Team Sports
+    { description: 'Strava Soccer', raw: 'Soccer', stored: 'team_sports' },
+    {
+      description: 'Strava Football',
+      raw: 'Football',
+      stored: 'team_sports'
+    },
+    {
+      description: 'Strava Basketball',
+      raw: 'Basketball',
+      stored: 'team_sports'
+    },
+    {
+      description: 'Strava Volleyball',
+      raw: 'Volleyball',
+      stored: 'team_sports'
+    },
+
+    // Golf
+    { description: 'Strava Golf', raw: 'Golf', stored: 'golf' },
 
     // Other (normalized to lowercase)
     { description: 'TCX Other', raw: 'Other', stored: 'other' },
@@ -344,11 +453,23 @@ describe('normalizeStoredActivityType', () => {
     ].map(normalizeStoredActivityType)
     expect(new Set(storedTraining)).toEqual(new Set(['training']))
 
+    const storedYoga = ['Yoga', 'yoga', 'Pilates', 'pilates', 'Meditation'].map(
+      normalizeStoredActivityType
+    )
+    expect(new Set(storedYoga)).toEqual(new Set(['yoga']))
+
+    const storedSwim = ['Swim', 'swimming', 'lap_swimming', 'pool_swim'].map(
+      normalizeStoredActivityType
+    )
+    expect(new Set(storedSwim)).toEqual(new Set(['swim']))
+
     const storedRowing = [
       'Rowing',
       'VirtualRow',
       'indoor_rowing',
-      'rowing'
+      'rowing',
+      'Kayaking',
+      'Canoeing'
     ].map(normalizeStoredActivityType)
     expect(new Set(storedRowing)).toEqual(new Set(['rowing']))
 
@@ -365,9 +486,9 @@ describe('normalizeStoredActivityType', () => {
   })
 
   it.each([
-    { description: 'a swim', raw: 'swimming' },
-    { description: 'free-form text', raw: 'Kayaking' },
-    { description: 'spaced free-form text', raw: '  Kayaking  ' }
+    { description: 'skydiving', raw: 'Skydiving' },
+    { description: 'unknown sport', raw: 'CustomMadeUpSport' },
+    { description: 'spaced unknown', raw: '  CustomMadeUpSport  ' }
   ])('defaults unmatched $description to other', ({ raw }) => {
     expect(normalizeActivityTypeToSportKey(raw)).toBeNull()
     expect(normalizeStoredActivityType(raw)).toBe('other')
