@@ -860,10 +860,8 @@ it; there is no legacy shape left to copy.
   one they came in with until `scripts/fitness/normalizeFitnessActivityTypes.ts`
   sweeps them — which is why matching still goes through the normalizer rather
   than comparing strings. Normalized stored types cover the 9 gear sport keys plus
-  common non-gear activities (`training`, `rowing`, `other`). A sport the canonical
-  types do not model (such as swimming) is stored **verbatim**, not dropped: nothing
-  can attribute it to gear, but the overview breakdown and the calendar filter must
-  still show it.
+  common non-gear activities (`training`, `rowing`, and defaulting anything else to
+  `other`). Missing or whitespace-only values normalize to null.
 - **Naming a sport for a post caption is `getActivityPresentation`**
   (`@/lib/services/fitness-files/activityPresentation`) — the import job and the
   Strava summary builder both go through it, and nothing else should grow its

@@ -366,17 +366,11 @@ describe('normalizeStoredActivityType', () => {
 
   it.each([
     { description: 'a swim', raw: 'swimming' },
-    { description: 'free-form text', raw: 'Kayaking' }
-  ])('keeps $description verbatim rather than dropping it', ({ raw }) => {
-    // No gear kind fits these and they are not in the canonical stored set,
-    // but they are still activities the breakdown and the calendar filter
-    // must go on showing. Returning null would erase them.
+    { description: 'free-form text', raw: 'Kayaking' },
+    { description: 'spaced free-form text', raw: '  Kayaking  ' }
+  ])('defaults unmatched $description to other', ({ raw }) => {
     expect(normalizeActivityTypeToSportKey(raw)).toBeNull()
-    expect(normalizeStoredActivityType(raw)).toBe(raw)
-  })
-
-  it('trims an unmodelled value it keeps', () => {
-    expect(normalizeStoredActivityType('  Kayaking  ')).toBe('Kayaking')
+    expect(normalizeStoredActivityType(raw)).toBe('other')
   })
 
   it.each([

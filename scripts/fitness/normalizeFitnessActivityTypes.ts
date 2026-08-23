@@ -185,24 +185,16 @@ export const planActivityTypeNormalization = (
     }
 
     if (storedType === current) {
-      if (isCanonicalStoredActivityType(current)) {
-        plan.alreadyNormalized += 1
-      } else {
-        plan.unmapped.set(current, (plan.unmapped.get(current) ?? 0) + 1)
-      }
+      plan.alreadyNormalized += 1
       continue
     }
 
-    if (isCanonicalStoredActivityType(storedType)) {
-      plan.rewrites.push({
-        fileId: file.id,
-        fileName: file.fileName,
-        from: current,
-        to: storedType
-      })
-    } else {
-      plan.unmapped.set(current, (plan.unmapped.get(current) ?? 0) + 1)
-    }
+    plan.rewrites.push({
+      fileId: file.id,
+      fileName: file.fileName,
+      from: current,
+      to: storedType
+    })
   }
 
   return plan

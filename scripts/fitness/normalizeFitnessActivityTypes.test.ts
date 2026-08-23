@@ -216,28 +216,35 @@ describe('planActivityTypeNormalization', () => {
     expect(second.alreadyNormalized).toBe(2)
   })
 
-  it('reports unmodelled types without rewriting them', () => {
-    // Swims have no gear kind to attribute them to and are not canonical stored
-    // types, but they are still activities the breakdown and the calendar filter
-    // must go on showing. Dropping or blanking them would erase them.
+  it('rewrites unmatched types to other', () => {
     const plan = planActivityTypeNormalization([
       file('file-1', 'swimming'),
       file('file-2', 'swimming'),
-      file('file-3', 'Kayaking')
+      file('file-3', 'Kayaking'),
+      file('file-4', 'other')
     ])
 
-    expect(plan.rewrites).toEqual([])
-    expect([...plan.unmapped.entries()]).toEqual([
-      ['swimming', 2],
-      ['Kayaking', 1]
+    expect(plan.rewrites).toEqual([
+      {
+        fileId: 'file-1',
+        fileName: 'file-1.fit',
+        from: 'swimming',
+        to: 'other'
+      },
+      {
+        fileId: 'file-2',
+        fileName: 'file-2.fit',
+        from: 'swimming',
+        to: 'other'
+      },
+      {
+        fileId: 'file-3',
+        fileName: 'file-3.fit',
+        from: 'Kayaking',
+        to: 'other'
+      }
     ])
-  })
-
-  it('does not trim an unmodelled value it is otherwise leaving alone', () => {
-    const plan = planActivityTypeNormalization([file('file-1', '  Kayaking  ')])
-
-    expect(plan.rewrites).toEqual([])
-    expect([...plan.unmapped.keys()]).toEqual(['  Kayaking  '])
+    expect(plan.alreadyNormalized).toBe(1)
   })
 
   it('counts rows carrying no activity type', () => {
@@ -394,11 +401,11 @@ describe('normalizeFitnessActivityTypesScript', () => {
     })
   })
 
-  it('leaves canonical and unmodelled rows untouched under --apply', async () => {
+  it('leaves canonical and empty rows untouched under --apply', async () => {
     const updateFitnessFileActivityData = vi.fn().mockResolvedValue(undefined)
     mockGetDatabase.mockReturnValue(
       stubDatabase({
-        types: ['ride', 'swimming', null, 'cycling'],
+        types: ['ride', 'other', null, 'cycling'],
         updateFitnessFileActivityData
       })
     )

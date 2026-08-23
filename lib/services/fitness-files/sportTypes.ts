@@ -382,10 +382,8 @@ const normalizeNonGearStoredActivityType = (
  * before storing it, and `scripts/fitness/normalizeFitnessActivityTypes.ts`
  * does the same to history imported before this rule existed.
  *
- * A value the canonical types do not model is kept VERBATIM (trimmed), not dropped:
- * swims have no gear kind to attribute them to, but they are still real
- * activities that the breakdown and the calendar filter must go on showing.
- * Returning null for them would erase them from every rollup.
+ * Any value that does not match a known sport key, training, or rowing defaults
+ * to 'other'. Missing or whitespace-only values normalize to null.
  *
  * Idempotent by construction — every canonical key normalizes to itself — which
  * is what makes the backfill script safe to rerun and lets it skip rows in one
@@ -396,13 +394,16 @@ export const normalizeStoredActivityType = (
 ): string | null => {
   if (!rawActivityType) return null
 
-  const sportKey = normalizeActivityTypeToSportKey(rawActivityType)
+  const trimmed = rawActivityType.trim()
+  if (!trimmed) return null
+
+  const sportKey = normalizeActivityTypeToSportKey(trimmed)
   if (sportKey) return sportKey
 
-  const nonGearType = normalizeNonGearStoredActivityType(rawActivityType)
+  const nonGearType = normalizeNonGearStoredActivityType(trimmed)
   if (nonGearType) return nonGearType
 
-  return rawActivityType.trim() || null
+  return 'other'
 }
 
 /**
