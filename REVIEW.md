@@ -112,6 +112,15 @@ change doesn't touch.
   in the same PR, against fresh local DBs — never hand-edited. Commit a
   schema-only regeneration as `none:`. (CI's Schema Dump Sync job catches
   SQLite-dump drift; the PostgreSQL dump is not CI-checked.)
+- The viewer's own follow row is read with `getViewerFollow`
+  (`lib/services/getViewerFollow.ts`) on **read** paths — it is
+  `cache()`d, so a profile render resolves it once instead of once per call site
+  — and with `database.getAcceptedOrRequestedFollow` everywhere else. Its
+  arguments are positional because `cache` keys on argument identity; an options
+  object memoizes nothing. Never route a **mutating** route's own pre-mutation
+  read through it: follow, unfollow, block and follow-request
+  authorize/reject read the row, change it, then report the result, so a value
+  cached from before their write would describe the state they replaced.
 - "Is this actor local?" is `whereLocalActor`
   (`lib/database/sql/utils/localActor.ts`), never a hand-written
   `whereNotNull('privateKey')`. Legacy rows store `privateKey = ''` for REMOTE
@@ -460,6 +469,14 @@ change doesn't touch.
   state passes whether or not the code under test is correct. `PostBox
 attachment ref guard` is exactly that: it passed with the bug present until
   the two picker batches were sequenced.
+- A test for a React `cache()`d helper stands a request scope up with
+  `runInReactCacheScope` from `@/lib/testing/reactCacheScope` and swaps that
+  module's `serverCache` in via `vi.mock('react', …)`. Vitest resolves React's
+  client build, whose `cache` is a hard passthrough — only the `react-server`
+  build memoizes, and only inside a scope — so a test that calls the helper
+  twice and expects one query reads two and proves nothing either way. Scopes are
+  sequential: React's dispatcher is a single mutable global, so a nested or
+  concurrent scope throws instead of pretending to isolate.
 - Tests run on **Vitest** (`vi.*`, not `jest.*`). To read a mocked module and
   configure it, prefer **`vi.importMock<T>('@/path')`** over
   `(await import('@/path')) as unknown as T`. `vi.importMock` is purpose-built,

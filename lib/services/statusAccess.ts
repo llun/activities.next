@@ -1,8 +1,10 @@
 import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/types/domain/actor'
-import { FollowStatus } from '@/lib/types/domain/follow'
+import { Follow, FollowStatus } from '@/lib/types/domain/follow'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { getVisibility } from '@/lib/utils/getVisibility'
+
+import { getViewerFollow } from './getViewerFollow'
 
 const isPublicOrUnlisted = (status: Status): boolean => {
   const visibility = getVisibility(status.to, status.cc)
@@ -33,21 +35,29 @@ export const isStatusPubliclyReadable = (status: Status): boolean => {
   return true
 }
 
-// "Does this viewer have an ACCEPTED follow of that actor?" — the one shape both
-// halves of this module need, and which each had its own copy of. A Requested
-// follow is not a follower: it is the pending state, and treating it as one
-// would hand a stranger the followers-only audience by asking.
-const isAcceptedFollowerOf = async (
-  database: Database,
-  viewerId: string,
-  targetActorId: string
-): Promise<boolean> => {
-  const follow = await database.getAcceptedOrRequestedFollow({
-    actorId: viewerId,
-    targetActorId
-  })
-  return follow?.status === FollowStatus.enum.Accepted
-}
+// "Does this follow row make the viewer a follower?" — the one rule both halves
+// of this module need, and which each had its own copy of. A Requested follow is
+// not a follower: it is the pending state, and treating it as one would hand a
+// stranger the followers-only audience by asking.
+//
+// The rule is shared; the lookup that feeds it is not.
+// `resolveActorStatusesAudience` asks about the profile's own actor, which
+// `getRelationship` asks about again on the same render, so it reads through the
+// request-memoized `getViewerFollow`.
+//
+// `canActorReadSingleStatus` still queries the database directly, and that is a
+// scope boundary rather than a claim that it never repeats — it does. It asks
+// about whoever wrote a boosted ORIGINAL, once per status inside
+// `getProfileData`'s own per-status pass, with no `followerStateByActorId`
+// prefetch on that path: a profile carrying two boosts of the same
+// followers-only author issues the identical query twice. Routing this call
+// through `getViewerFollow` too would collapse that as well, and is safe —
+// nothing writes this direction while serving a boosted status — but it reaches
+// a dozen further call sites (inbox handling, status create/edit, search, polls),
+// most on paths with no request scope to memoize into, so it is deliberately
+// left for its own change.
+const isAcceptedFollow = (follow: Follow | null): boolean =>
+  follow?.status === FollowStatus.enum.Accepted
 
 const canActorReadSingleStatus = async ({
   database,
@@ -71,7 +81,12 @@ const canActorReadSingleStatus = async ({
       isFollower ?? followerStateByActorId?.get(status.actorId)
     if (prefetchedIsFollower !== undefined) return prefetchedIsFollower
 
-    return isAcceptedFollowerOf(database, currentActor.id, status.actorId)
+    return isAcceptedFollow(
+      await database.getAcceptedOrRequestedFollow({
+        actorId: currentActor.id,
+        targetActorId: status.actorId
+      })
+    )
   }
 
   return false
@@ -119,7 +134,9 @@ export const resolveActorStatusesAudience = async ({
 
   const isFollower =
     viewer && !isOwner
-      ? await isAcceptedFollowerOf(database, viewer.id, targetActor.id)
+      ? isAcceptedFollow(
+          await getViewerFollow(database, viewer.id, targetActor.id)
+        )
       : false
 
   return {

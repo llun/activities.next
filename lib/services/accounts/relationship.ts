@@ -1,4 +1,5 @@
 import { Database } from '@/lib/database/types'
+import { getViewerFollow } from '@/lib/services/getViewerFollow'
 import { Mastodon } from '@/lib/types/activitypub'
 import { Actor } from '@/lib/types/domain/actor'
 import { FollowStatus } from '@/lib/types/domain/follow'
@@ -50,12 +51,16 @@ export const getRelationship = async ({
       currentActorId: targetActorId,
       followingActorId: currentActor.id
     }),
-    database.getAcceptedOrRequestedFollow({
-      actorId: currentActor.id,
-      targetActorId
-    }),
+    // Request-memoized: the actor profile page resolves the very same row while
+    // deciding which of the target's statuses this viewer may be shown, so on
+    // that render the two reads collapse into one. Every mutating caller
+    // (follow, unfollow, block, follow-request authorize/reject) reaches this
+    // only after its own write, so it still reads the row it just changed.
+    getViewerFollow(database, currentActor.id, targetActorId),
     // Mirror of the outgoing lookup: the target's follow row pointing at the
     // current actor. Requested status = a pending incoming follow request.
+    // Nothing else on a request asks for this direction, so it stays a plain
+    // read.
     database.getAcceptedOrRequestedFollow({
       actorId: targetActorId,
       targetActorId: currentActor.id
