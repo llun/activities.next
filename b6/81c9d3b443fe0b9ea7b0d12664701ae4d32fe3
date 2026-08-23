@@ -1,0 +1,48 @@
+AGENTS.md
+  h_580a04e334fef4 854,862,863-865
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  h_580a04e334fef4 433,434-464,465
+docs/maintenance.md
+  h_580a04e334fef4 404-405,420,424-425
+lib/services/fitness-files/activityPresentation.test.ts
+  h_580a04e334fef4 108-113,142-144,145-233,234-257,259-260
+lib/services/fitness-files/activityPresentation.ts
+  h_580a04e334fef4 61-62,66-70,77,81,82-83,84-85,86-163,164-166,167-170,171
+lib/services/fitness-files/sportTypes.test.ts
+  h_580a04e334fef4 2,10,238-252,273-304,305-320,321,322,323-331,332-426,427-434,442,445-455,456-465,466-469,470-472,473-474,476-479,483,489-491,492,494
+lib/services/fitness-files/sportTypes.ts
+  h_580a04e334fef4 256-264,265,266-267,268-276,277-300,301-311,312-317,318-436,437-443,444-468,469-472,473-476,477-480,481-482,483-558,559-564,565-588,599-601,603-604,606-607,612,615-618,621,622-623,624
+lib/services/strava/activity.test.ts
+  h_580a04e334fef4 388,396-407
+scripts/fitness/normalizeFitnessActivityTypes.test.ts
+  h_580a04e334fef4 151-164,165,166-168,169-196,197-200,248,250-252,253,256-259,260,261-265,266,267-271,272,273-274,276,433,437
+scripts/fitness/normalizeFitnessActivityTypes.ts
+  h_580a04e334fef4 30-31,47,136,138,147,152,165-167,171,172,176-181
+lib/services/fitness-files/parseFitnessFile.ts
+  h_580a04e334fef4 461
+docs/fitness-file-storage.md
+  h_580a04e334fef4 55,343
+app/api/v1/media/[id]/route.ts
+  s_02e817135d5c42::t_76dea4aa93b5c0 282-287
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "b681c9d3b443fe0b9ea7b0d12664701ae4d32fe3",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  },
+  "sessions": {
+    "s_02e817135d5c42": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6d899e61-9a7e-46ab-942f-77987ed8ca9f",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
