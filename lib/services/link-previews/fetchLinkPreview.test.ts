@@ -88,7 +88,7 @@ describe('fetchLinkPreview', () => {
     expect(mockedFetch).toHaveBeenCalledTimes(1)
   })
 
-  it('sends a descriptive user agent', async () => {
+  it('sends a descriptive user agent with compatibility token', async () => {
     mockedFetch.mockResolvedValue(htmlResponse(PAGE, 'https://example.com/ua'))
 
     await fetchLinkPreview({ database, url: 'https://example.com/ua' })
@@ -96,6 +96,7 @@ describe('fetchLinkPreview', () => {
     const options = mockedFetch.mock.calls[0][0]
     const headers = options.headers as Record<string, string>
     expect(headers['User-Agent']).toContain('activities.next')
+    expect(headers['User-Agent']).toContain('Mastodon')
     expect(headers.Accept).toContain('text/html')
   })
 
