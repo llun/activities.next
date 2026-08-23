@@ -27,10 +27,8 @@
  * here is a fixed point of that function, so an activity's sport key — and
  * therefore its gear — is the same before and after.
  *
- * Activity types the sport keys deliberately do not model (swimming, gym work,
- * Garmin's `Other`) are LEFT ALONE and reported, never rewritten: they have no
- * gear kind to attribute them to, but they are still real activities the
- * breakdown and the calendar filter must go on showing.
+ * Common non-gear activities (training, rowing) are collapsed to their canonical
+ * stored types, and any unmatched non-empty activity type defaults to 'other'.
  *
  * IMPORTANT: run this with the PRODUCTION database env configured. `@next/env`
  * loads `.env.local` above `.env.production` even under NODE_ENV=production, so
@@ -46,7 +44,7 @@ import { loadEnvConfig } from '@next/env'
 import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
-import { normalizeActivityTypeToSportKey } from '@/lib/services/fitness-files/sportTypes'
+import { normalizeStoredActivityType } from '@/lib/services/fitness-files/sportTypes'
 
 import { printDatabaseBanner } from './describeConnection'
 
@@ -135,34 +133,23 @@ export interface ActivityTypeRewrite {
 }
 
 export interface ActivityTypeNormalizationPlan {
-  /** Rows whose stored value differs from its sport key. */
+  /** Rows whose stored value differs from its canonical stored activity type. */
   rewrites: ActivityTypeRewrite[]
-  /** Rows already stored as their sport key — nothing to do. */
+  /** Rows already stored as their canonical activity type — nothing to do. */
   alreadyNormalized: number
   /** Rows carrying no activity type at all. */
   missingType: number
-  /**
-   * Distinct raw values no sport key models, with how many rows carry each.
-   * Reported so an operator can see what was intentionally left behind rather
-   * than wonder whether the run missed it.
-   */
-  unmapped: Map<string, number>
 }
 
 const emptyPlan = (): ActivityTypeNormalizationPlan => ({
   rewrites: [],
   alreadyNormalized: 0,
-  missingType: 0,
-  unmapped: new Map()
+  missingType: 0
 })
 
 /**
  * Decides what a page of files needs, with no database access, so the whole
- * decision table is testable against the four vocabularies at once.
- *
- * Only a value with a real sport key is ever rewritten. An unmodelled value is
- * reported and left exactly as stored — a whitespace-only edit to a row the
- * script is otherwise leaving alone is a surprise in a bulk mutation.
+ * decision table is testable against the various vocabularies at once.
  */
 export const planActivityTypeNormalization = (
   files: NormalizableFitnessFile[],
@@ -175,13 +162,13 @@ export const planActivityTypeNormalization = (
       continue
     }
 
-    const sportKey = normalizeActivityTypeToSportKey(current)
-    if (!sportKey) {
-      plan.unmapped.set(current, (plan.unmapped.get(current) ?? 0) + 1)
+    const storedType = normalizeStoredActivityType(current)
+    if (!storedType) {
+      plan.missingType += 1
       continue
     }
 
-    if (sportKey === current) {
+    if (storedType === current) {
       plan.alreadyNormalized += 1
       continue
     }
@@ -190,7 +177,7 @@ export const planActivityTypeNormalization = (
       fileId: file.id,
       fileName: file.fileName,
       from: current,
-      to: sportKey
+      to: storedType
     })
   }
 
@@ -221,9 +208,6 @@ export const summarizeRewrites = (
       second.count - first.count || first.from.localeCompare(second.from)
   )
 }
-
-const byCountThenName = (first: [string, number], second: [string, number]) =>
-  second[1] - first[1] || first[0].localeCompare(second[0])
 
 async function normalizeFitnessActivityTypesScript(
   args = process.argv.slice(2)
@@ -290,18 +274,6 @@ async function normalizeFitnessActivityTypesScript(
       console.log('\nChanges:')
       for (const { from, to, count } of transitions) {
         console.log(`  ${from} -> ${to}  (${count})`)
-      }
-    }
-
-    if (plan.unmapped.size > 0) {
-      console.log(
-        '\nLeft unchanged, no sport key models these (swims, gym work,' +
-          " Garmin's `Other`, free-form GPX text):"
-      )
-      for (const [value, count] of [...plan.unmapped.entries()].sort(
-        byCountThenName
-      )) {
-        console.log(`  ${value}  (${count})`)
       }
     }
 

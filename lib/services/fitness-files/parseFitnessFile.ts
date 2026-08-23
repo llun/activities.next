@@ -458,8 +458,7 @@ const toActivityData = ({
   // everything downstream that GROUPS on the value — the fitness overview
   // breakdown, the calendar filter, the per-type route-heatmap cache key —
   // would otherwise see three different activities. Every parser funnels
-  // through this function, so this is the single write-side normalization.
-  // Sports the keys do not model (swims, gym work) are kept verbatim.
+  // Non-gear activities collapse to training, rowing, or other.
   const storedActivityType = normalizeStoredActivityType(activityType)
 
   return {

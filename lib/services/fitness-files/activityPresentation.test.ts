@@ -88,9 +88,6 @@ describe('getActivityPresentation', () => {
   })
 
   it.each([
-    // These DO resolve to a sport key — `ride`, `ride`, `run` — because a key
-    // answers "which bike or which shoes". A caption is not answering that, and
-    // folding them in erases a distinction the athlete made.
     {
       description: 'Handcycle',
       type: 'Handcycle',
@@ -108,6 +105,12 @@ describe('getActivityPresentation', () => {
       type: 'VirtualRun',
       label: 'Indoor running',
       emoji: '🏃'
+    },
+    {
+      description: 'VirtualRow',
+      type: 'VirtualRow',
+      label: 'Indoor rowing',
+      emoji: '🚣'
     }
   ])(
     'keeps $description more specific than its sport key',
@@ -136,9 +139,125 @@ describe('getActivityPresentation', () => {
     })
   })
 
-  it('capitalizes an unrecognised type rather than guessing a sport', () => {
-    expect(getActivityPresentation('kayaking')).toEqual({
+  it.each([
+    { description: 'rowing', type: 'rowing', label: 'Rowing', emoji: '🚣' },
+    { description: 'Rowing', type: 'Rowing', label: 'Rowing', emoji: '🚣' },
+    {
+      description: 'Kayaking',
+      type: 'Kayaking',
       label: 'Kayaking',
+      emoji: '🚣'
+    },
+    { description: 'yoga', type: 'yoga', label: 'Yoga', emoji: '🧘' },
+    { description: 'Yoga', type: 'Yoga', label: 'Yoga', emoji: '🧘' },
+    { description: 'Pilates', type: 'Pilates', label: 'Pilates', emoji: '🧘' },
+    {
+      description: 'Meditation',
+      type: 'Meditation',
+      label: 'Meditation',
+      emoji: '🧘'
+    },
+    {
+      description: 'climbing',
+      type: 'climbing',
+      label: 'Climbing',
+      emoji: '🧗'
+    },
+    {
+      description: 'RockClimbing',
+      type: 'RockClimbing',
+      label: 'Rock climbing',
+      emoji: '🧗'
+    },
+    { description: 'ski', type: 'ski', label: 'Skiing', emoji: '⛷️' },
+    {
+      description: 'AlpineSki',
+      type: 'AlpineSki',
+      label: 'Alpine skiing',
+      emoji: '⛷️'
+    },
+    {
+      description: 'Snowboard',
+      type: 'Snowboard',
+      label: 'Snowboarding',
+      emoji: '🏂'
+    },
+    { description: 'skating', type: 'skating', label: 'Skating', emoji: '⛸️' },
+    {
+      description: 'IceSkate',
+      type: 'IceSkate',
+      label: 'Ice skating',
+      emoji: '⛸️'
+    },
+    {
+      description: 'Skateboard',
+      type: 'Skateboard',
+      label: 'Skateboarding',
+      emoji: '🛹'
+    },
+    { description: 'surfing', type: 'surfing', label: 'Surfing', emoji: '🏄' },
+    {
+      description: 'ScubaDiving',
+      type: 'ScubaDiving',
+      label: 'Scuba diving',
+      emoji: '🤿'
+    },
+    { description: 'tennis', type: 'tennis', label: 'Tennis', emoji: '🎾' },
+    {
+      description: 'racket_sports',
+      type: 'racket_sports',
+      label: 'Racket sports',
+      emoji: '🎾'
+    },
+    { description: 'boxing', type: 'boxing', label: 'Boxing', emoji: '🥊' },
+    {
+      description: 'martial_arts',
+      type: 'martial_arts',
+      label: 'Martial arts',
+      emoji: '🥊'
+    },
+    { description: 'karate', type: 'karate', label: 'Karate', emoji: '🥋' },
+    { description: 'soccer', type: 'soccer', label: 'Soccer', emoji: '⚽' },
+    {
+      description: 'football',
+      type: 'football',
+      label: 'Football',
+      emoji: '🏈'
+    },
+    {
+      description: 'team_sports',
+      type: 'team_sports',
+      label: 'Team sports',
+      emoji: '⚽'
+    },
+    { description: 'golf', type: 'golf', label: 'Golf', emoji: '⛳' },
+    {
+      description: 'training',
+      type: 'training',
+      label: 'Training',
+      emoji: '🏋️'
+    },
+    {
+      description: 'WeightTraining',
+      type: 'WeightTraining',
+      label: 'Weight training',
+      emoji: '🏋️'
+    },
+    {
+      description: 'Workout',
+      type: 'Workout',
+      label: 'Workout',
+      emoji: '🏋️'
+    },
+    { description: 'other', type: 'other', label: 'Other', emoji: '🏋️' },
+    { description: 'Other', type: 'Other', label: 'Other', emoji: '🏋️' }
+  ])('names $description appropriately', ({ type, label, emoji }) => {
+    expect(getActivityPresentation(type)).toEqual({ label, emoji })
+  })
+
+  it('capitalizes an unrecognised type rather than guessing a sport', () => {
+    expect(getActivityPresentation('skydiving')).toEqual({
+      label: 'Skydiving',
       emoji: '🏋️'
     })
   })

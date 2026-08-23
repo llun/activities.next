@@ -385,7 +385,7 @@ describe('buildStravaActivitySummary', () => {
     expect(summary).not.toContain('MountainBikeRide')
   })
 
-  it('keeps a sport no key models as the word Strava used', () => {
+  it('presents a gym workout with proper casing', () => {
     const summary = buildStravaActivitySummary({
       id: 123,
       distance: 0,
@@ -393,7 +393,18 @@ describe('buildStravaActivitySummary', () => {
       sport_type: 'WeightTraining'
     })
 
-    expect(summary).toContain('WeightTraining')
+    expect(summary).toContain('Weight training')
+  })
+
+  it('keeps an unmodelled sport as the word Strava used', () => {
+    const summary = buildStravaActivitySummary({
+      id: 123,
+      distance: 0,
+      moving_time: 0,
+      sport_type: 'Kayaking'
+    })
+
+    expect(summary).toContain('Kayaking')
   })
 })
 
