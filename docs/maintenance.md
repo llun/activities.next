@@ -359,6 +359,7 @@ NODE_ENV=production ./scripts/fitness/repairStravaActivityFiles.ts --actor-id ht
 NODE_ENV=production ./scripts/fitness/backfillFitnessMovingTime.ts --actor-id https://your-domain.tld/users/username --dry-run
 NODE_ENV=production ./scripts/fitness/importFitnessGear.ts --actor-id https://your-domain.tld/users/username --input ./gear-import.json --dry-run
 NODE_ENV=production ./scripts/fitness/backfillFitnessDevices.ts --actor-id https://your-domain.tld/users/username
+NODE_ENV=production ./scripts/fitness/normalizeFitnessActivityTypes.ts --actor-id https://your-domain.tld/users/username
 NODE_ENV=production ./scripts/fitness/retrigerStravaActivities.ts --actor-id https://your-domain.tld/users/username --activity-id 123456789
 NODE_ENV=production ./scripts/fitness/listStravaWebhooks.ts @username@your-domain.tld
 ```
@@ -396,6 +397,47 @@ recognises get no row at all, which is the same decision a fresh import makes.
 NODE_ENV=production ./scripts/fitness/backfillFitnessDevices.ts --actor-id https://your-domain.tld/users/username
 NODE_ENV=production ./scripts/fitness/backfillFitnessDevices.ts --actor-id https://your-domain.tld/users/username --apply
 ```
+
+#### Normalizing activity types stored before they were canonical
+
+`scripts/fitness/normalizeFitnessActivityTypes.ts` collapses an actor's stored
+`fitness_files.activityType` values to the canonical sport keys (`ride`,
+`gravel_ride`, `run`, …).
+
+Four vocabularies write that column — FIT `sport`/`sub_sport` (`cycling`,
+`gravel_cycling`), Garmin TCX `Sport` (`Biking`), Strava `sport_type` (`Ride`,
+`GravelRide`) and free-form GPX text — so the same ride was stored spelled three
+different ways. Gear was never affected, because it matches through
+`normalizeActivityTypeToSportKey`, but everything that **groups or filters** on
+the raw string was: the fitness overview breakdown listed "Cycling", "Biking"
+and "Ride" as three separate activities, and the per-type route-heatmap cache
+keyed three separate rows. New imports are normalized at parse time, so this
+script is only for history imported before that rule.
+
+It is a **dry run by default**: it prints the `old -> new` transitions it would
+make and writes nothing until `--apply` is passed (it takes no `--dry-run` flag,
+unlike most of its siblings — it says so if you pass one). Re-running is safe:
+every sport key normalizes to itself, so a second pass reports nothing to do.
+
+Gear attribution cannot shift as a result — every value written is a fixed point
+of the same function auto-assign reads the column through — so an activity keeps
+whatever gear it had. Activities no sport key models (swims, gym work, Garmin's
+`Other`) are left exactly as stored and listed in the report, so you can see what
+was intentionally skipped.
+
+```bash
+# Preview, then apply.
+NODE_ENV=production ./scripts/fitness/normalizeFitnessActivityTypes.ts --actor-id https://your-domain.tld/users/username
+NODE_ENV=production ./scripts/fitness/normalizeFitnessActivityTypes.ts --actor-id https://your-domain.tld/users/username --apply
+```
+
+Afterwards, rebuild the per-activity-type route heatmaps: their cache keys on
+the OLD strings, and the script does not rewrite them (the unique index on
+`(actorId, activityTypeKey, periodType, periodKey, region)` means renaming a
+`cycling` row to `ride` would collide with the row already built from `Ride`
+rather than merge into it). The script prints the exact command, which is the
+usual `recreateFitnessRouteHeatmaps.ts` run — read its note above first, since a
+rebuild is heavier than the queued-job count suggests.
 
 #### Backfilling gear onto activities imported before gear tracking existed
 
