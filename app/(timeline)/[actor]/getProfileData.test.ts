@@ -7,7 +7,8 @@ import { getFederationSigningActorSafe } from '@/lib/services/federation/getFede
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
-import { Status } from '@/lib/types/domain/status'
+import { FollowStatus } from '@/lib/types/domain/follow'
+import { Status, StatusType } from '@/lib/types/domain/status'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 
 import { getProfileData } from './getProfileData'
@@ -36,6 +37,7 @@ describe('getProfileData', () => {
     getActorFollowingCount: vi.fn(),
     getActorFollowersCount: vi.fn(),
     getActorHasFitnessData: vi.fn(),
+    getAcceptedOrRequestedFollow: vi.fn(),
     setActorCounters: vi.fn(),
     updateActor: vi.fn()
   } as unknown as Database
@@ -60,8 +62,10 @@ describe('getProfileData', () => {
     summary: 'A remote user'
   }
 
+  // No `@context`: the AP Actor schema deliberately does not model it — the
+  // compaction step owns it and nothing here reads it — so carrying one made
+  // this literal fail to type against `Actor`.
   const mockPerson: Actor = {
-    '@context': 'https://www.w3.org/ns/activitystreams',
     type: 'Person',
     id: 'https://remote.com/users/remoteuser',
     preferredUsername: 'remoteuser',
@@ -104,6 +108,9 @@ describe('getProfileData', () => {
     ;(mockDatabase.getActorFollowersCount as jest.Mock).mockResolvedValue(20)
     ;(mockDatabase.getActorHasFitnessData as jest.Mock).mockResolvedValue(false)
     ;(mockDatabase.setActorCounters as jest.Mock).mockResolvedValue(undefined)
+    ;(mockDatabase.getAcceptedOrRequestedFollow as jest.Mock).mockResolvedValue(
+      null
+    )
     ;(getPersonFromActor as jest.Mock).mockReturnValue(mockPerson)
   })
 
@@ -118,7 +125,8 @@ describe('getProfileData', () => {
       const result = await getProfileData(
         mockDatabase,
         '@localuser@example.com',
-        true
+        true,
+        { currentActor: null }
       )
 
       expect(result).not.toBeNull()
@@ -136,7 +144,8 @@ describe('getProfileData', () => {
       const result = await getProfileData(
         mockDatabase,
         '@localuser@example.com',
-        false
+        false,
+        { currentActor: null }
       )
 
       expect(result).not.toBeNull()
@@ -157,7 +166,8 @@ describe('getProfileData', () => {
       const result = await getProfileData(
         mockDatabase,
         '@localuser@example.com',
-        true
+        true,
+        { currentActor: null }
       )
 
       expect(result).not.toBeNull()
@@ -171,11 +181,191 @@ describe('getProfileData', () => {
       const result = await getProfileData(
         mockDatabase,
         '@localuser@example.com',
-        true
+        true,
+        { currentActor: null }
       )
 
       expect(result).not.toBeNull()
       expect(result?.hasFitnessData).toBe(true)
+    })
+
+    // The profile page used to call getActorStatuses with only currentActorId,
+    // which is hydration-only. With none of publicOnly/visibleToActorId/
+    // includeFollowersOnly set, the query applies no visibility predicate at
+    // all, so a logged-out visitor's profile page server-rendered the actor's
+    // followers-only posts and direct messages — and getAttachmentsForActor,
+    // called the same way, put those posts' images in the Media tab.
+    //
+    // These assert the ARGUMENTS rather than the rows because the defect was a
+    // missing argument: the database layer was behaving exactly as asked.
+    describe('status and attachment visibility', () => {
+      const followersUrl = 'https://example.com/users/localuser/followers'
+      const localActorWithFollowers = {
+        ...mockLocalActor,
+        followersUrl
+      }
+
+      const viewer = {
+        id: 'viewer-actor-id',
+        username: 'viewer',
+        domain: 'example.com'
+      } as unknown as DomainActor
+
+      const owner = {
+        id: mockLocalActor.id,
+        username: 'localuser',
+        domain: 'example.com'
+      } as unknown as DomainActor
+
+      beforeEach(() => {
+        ;(mockDatabase.getActorFromUsername as jest.Mock).mockResolvedValue(
+          localActorWithFollowers
+        )
+      })
+
+      const visibilityArgsFor = (mock: jest.Mock) => {
+        const [args] = mock.mock.calls.at(-1) as [Record<string, unknown>]
+        return {
+          publicOnly: args.publicOnly,
+          visibleToActorId: args.visibleToActorId,
+          includeFollowersOnly: args.includeFollowersOnly,
+          followersAudience: args.followersAudience
+        }
+      }
+
+      it('restricts a logged-out visitor to publicly readable statuses', async () => {
+        await getProfileData(mockDatabase, '@localuser@example.com', false, {
+          currentActor: null
+        })
+
+        expect(
+          visibilityArgsFor(mockDatabase.getActorStatuses as jest.Mock)
+        ).toEqual({
+          publicOnly: true,
+          visibleToActorId: null,
+          includeFollowersOnly: false,
+          followersAudience: followersUrl
+        })
+      })
+
+      it('restricts a logged-out visitor to publicly readable attachments', async () => {
+        await getProfileData(mockDatabase, '@localuser@example.com', false, {
+          currentActor: null
+        })
+
+        expect(
+          visibilityArgsFor(mockDatabase.getAttachmentsForActor as jest.Mock)
+        ).toEqual({
+          publicOnly: true,
+          visibleToActorId: null,
+          includeFollowersOnly: false,
+          followersAudience: followersUrl
+        })
+      })
+
+      it('scopes a signed-in non-follower to what is addressed to them', async () => {
+        await getProfileData(mockDatabase, '@localuser@example.com', true, {
+          currentActor: viewer
+        })
+
+        expect(
+          visibilityArgsFor(mockDatabase.getActorStatuses as jest.Mock)
+        ).toEqual({
+          publicOnly: false,
+          visibleToActorId: viewer.id,
+          includeFollowersOnly: false,
+          followersAudience: followersUrl
+        })
+      })
+
+      it('admits followers-only statuses once the viewer follows the actor', async () => {
+        ;(
+          mockDatabase.getAcceptedOrRequestedFollow as jest.Mock
+        ).mockResolvedValue({ status: FollowStatus.enum.Accepted })
+
+        await getProfileData(mockDatabase, '@localuser@example.com', true, {
+          currentActor: viewer
+        })
+
+        expect(
+          visibilityArgsFor(mockDatabase.getActorStatuses as jest.Mock)
+        ).toEqual({
+          publicOnly: false,
+          visibleToActorId: viewer.id,
+          includeFollowersOnly: true,
+          followersAudience: followersUrl
+        })
+      })
+
+      it('keeps a requested-but-not-accepted follow out of the followers audience', async () => {
+        ;(
+          mockDatabase.getAcceptedOrRequestedFollow as jest.Mock
+        ).mockResolvedValue({ status: FollowStatus.enum.Requested })
+
+        await getProfileData(mockDatabase, '@localuser@example.com', true, {
+          currentActor: viewer
+        })
+
+        expect(
+          visibilityArgsFor(mockDatabase.getActorStatuses as jest.Mock)
+            .includeFollowersOnly
+        ).toBe(false)
+      })
+
+      // All three visibility arguments falsy is what makes the query unfiltered,
+      // which is how the owner sees their own private posts. It is the one case
+      // that must NOT be narrowed.
+      it('leaves the owner viewing their own profile unfiltered', async () => {
+        await getProfileData(mockDatabase, '@localuser@example.com', true, {
+          currentActor: owner
+        })
+
+        expect(
+          visibilityArgsFor(mockDatabase.getActorStatuses as jest.Mock)
+        ).toEqual({
+          publicOnly: false,
+          visibleToActorId: null,
+          includeFollowersOnly: false,
+          followersAudience: followersUrl
+        })
+        expect(mockDatabase.getAcceptedOrRequestedFollow).not.toHaveBeenCalled()
+      })
+
+      it('still hydrates viewer interaction state from the signed-in actor', async () => {
+        await getProfileData(mockDatabase, '@localuser@example.com', true, {
+          currentActor: viewer
+        })
+
+        expect(mockDatabase.getActorStatuses).toHaveBeenCalledWith(
+          expect.objectContaining({ currentActorId: viewer.id })
+        )
+      })
+
+      // Second layer: the SQL scope filters on a status's own recipients, which
+      // cannot see through a boost. canActorReadStatus follows the announce
+      // chain, so a status the query hands back anyway is still dropped.
+      it('drops a status the query returned that the viewer may not read', async () => {
+        const followersOnlyStatus = {
+          id: 'https://example.com/users/localuser/statuses/secret',
+          type: StatusType.enum.Note,
+          actorId: mockLocalActor.id,
+          to: [followersUrl],
+          cc: [],
+          text: 'followers only'
+        } as unknown as Status
+        ;(mockDatabase.getActorStatuses as jest.Mock).mockResolvedValue([
+          followersOnlyStatus
+        ])
+
+        const result = await getProfileData(
+          mockDatabase,
+          '@localuser@example.com',
+          false,
+          { currentActor: null }
+        )
+
+        expect(result?.statuses).toEqual([])
+      })
     })
   })
 
@@ -206,7 +396,8 @@ describe('getProfileData', () => {
       const result = await getProfileData(
         mockDatabase,
         '@remoteuser@remote.com',
-        true
+        true,
+        { currentActor: null }
       )
 
       expect(result).not.toBeNull()
@@ -231,7 +422,9 @@ describe('getProfileData', () => {
       // signed by the headless instance actor — never the viewer's user actor,
       // which may be absent or unservable — so the profile resolves instead of
       // 404ing. See getFederationSigningActor.
-      await getProfileData(mockDatabase, '@remoteuser@remote.com', true)
+      await getProfileData(mockDatabase, '@remoteuser@remote.com', true, {
+        currentActor: null
+      })
 
       expect(getFederationSigningActorSafe).toHaveBeenCalledWith(
         mockDatabase,
@@ -263,7 +456,8 @@ describe('getProfileData', () => {
       const result = await getProfileData(
         mockDatabase,
         '@remoteuser@remote.com',
-        true
+        true,
+        { currentActor: null }
       )
 
       expect(result).toMatchObject({
@@ -291,6 +485,7 @@ describe('getProfileData', () => {
 
     it('passes the requested remote status page cursor to the outbox loader', async () => {
       await getProfileData(mockDatabase, '@remoteuser@remote.com', true, {
+        currentActor: null,
         statusPageUrl:
           'https://remote.com/users/remoteuser/outbox?page=true&max_id=1'
       })
@@ -304,11 +499,52 @@ describe('getProfileData', () => {
       })
     })
 
+    // A remote actor's attachments are whatever their statuses brought here
+    // when they federated in, which includes followers-only posts delivered to
+    // a local follower. `getActorPosts` reads the remote outbox (public by
+    // construction), so the attachment query is the only one that needs
+    // scoping — and it is reached on a different branch from the local one, so
+    // it needs its own coverage.
+    it('scopes a remote actor gallery to what the viewer may read', async () => {
+      const viewer = {
+        id: 'viewer-actor-id',
+        username: 'viewer',
+        domain: 'example.com'
+      } as unknown as DomainActor
+
+      await getProfileData(mockDatabase, '@remoteuser@remote.com', true, {
+        currentActor: viewer
+      })
+
+      expect(mockDatabase.getAttachmentsForActor).toHaveBeenCalledWith({
+        actorId: mockPerson.id,
+        publicOnly: false,
+        visibleToActorId: viewer.id,
+        includeFollowersOnly: false,
+        followersAudience: mockPerson.followers
+      })
+    })
+
+    it('restricts a remote actor gallery to public attachments with no viewer', async () => {
+      await getProfileData(mockDatabase, '@remoteuser@remote.com', true, {
+        currentActor: null
+      })
+
+      expect(mockDatabase.getAttachmentsForActor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          publicOnly: true,
+          visibleToActorId: null,
+          includeFollowersOnly: false
+        })
+      )
+    })
+
     it('should return hasFitnessData as false for remote actors', async () => {
       const result = await getProfileData(
         mockDatabase,
         '@remoteuser@remote.com',
-        true
+        true,
+        { currentActor: null }
       )
 
       expect(result).not.toBeNull()
@@ -319,7 +555,8 @@ describe('getProfileData', () => {
       const result = await getProfileData(
         mockDatabase,
         '@remoteuser@remote.com',
-        false
+        false,
+        { currentActor: null }
       )
 
       expect(result).toBeNull()
@@ -346,7 +583,8 @@ describe('getProfileData', () => {
       const result = await getProfileData(
         mockDatabase,
         '@remoteuser@remote.com',
-        true
+        true,
+        { currentActor: null }
       )
 
       expect(result).not.toBeNull()
@@ -370,7 +608,8 @@ describe('getProfileData', () => {
       const result = await getProfileData(
         mockDatabase,
         '@nonexistent@example.com',
-        true
+        true,
+        { currentActor: null }
       )
 
       expect(result).toBeNull()
@@ -383,7 +622,8 @@ describe('getProfileData', () => {
       const result = await getProfileData(
         mockDatabase,
         '@nonexistent@example.com',
-        false
+        false,
+        { currentActor: null }
       )
 
       expect(result).toBeNull()
@@ -417,7 +657,9 @@ describe('getProfileData', () => {
       // Call without isLoggedIn parameter
       const result = await getProfileData(
         mockDatabase,
-        '@remoteuser@remote.com'
+        '@remoteuser@remote.com',
+        undefined,
+        { currentActor: null }
       )
 
       expect(result).not.toBeNull()

@@ -33,6 +33,22 @@ export const isStatusPubliclyReadable = (status: Status): boolean => {
   return true
 }
 
+// "Does this viewer have an ACCEPTED follow of that actor?" — the one shape both
+// halves of this module need, and which each had its own copy of. A Requested
+// follow is not a follower: it is the pending state, and treating it as one
+// would hand a stranger the followers-only audience by asking.
+const isAcceptedFollowerOf = async (
+  database: Database,
+  viewerId: string,
+  targetActorId: string
+): Promise<boolean> => {
+  const follow = await database.getAcceptedOrRequestedFollow({
+    actorId: viewerId,
+    targetActorId
+  })
+  return follow?.status === FollowStatus.enum.Accepted
+}
+
 const canActorReadSingleStatus = async ({
   database,
   status,
@@ -55,14 +71,67 @@ const canActorReadSingleStatus = async ({
       isFollower ?? followerStateByActorId?.get(status.actorId)
     if (prefetchedIsFollower !== undefined) return prefetchedIsFollower
 
-    const follow = await database.getAcceptedOrRequestedFollow({
-      actorId: currentActor.id,
-      targetActorId: status.actorId
-    })
-    return follow?.status === FollowStatus.enum.Accepted
+    return isAcceptedFollowerOf(database, currentActor.id, status.actorId)
   }
 
   return false
+}
+
+// The query-scoping half of this module. `canActorReadStatus` above decides one
+// already-loaded status; this decides which of an actor's statuses a viewer is
+// allowed to be shown in the first place, as the argument set
+// `getActorStatuses`/`getAttachmentsForActor` take.
+//
+// It exists because those arguments are individually optional and default to
+// "no filter" — omitting all of them is a real mode (the owner's own timeline,
+// and the full-history export in `scripts/backup/actorArchive.ts`), so a caller
+// that simply forgets them gets that mode silently rather than an error. The
+// profile page did exactly that and served followers-only posts and direct
+// messages to logged-out visitors. Resolve the audience here rather than
+// spelling the four arguments out at each call site, so "who may see this
+// actor's statuses" has one answer.
+export type ActorStatusesAudience = {
+  isOwner: boolean
+  isFollower: boolean
+  publicOnly: boolean
+  visibleToActorId: string | null
+  includeFollowersOnly: boolean
+  followersAudience: string | null
+}
+
+export const resolveActorStatusesAudience = async ({
+  database,
+  targetActor,
+  currentActor
+}: {
+  database: Database
+  // Structural rather than `Pick<Actor, …>` so a remote profile can pass the
+  // ActivityPub person's `followers`, which is optional there. A missing
+  // followers URL only costs the `${id}/followers` fallback the SQL layer adds.
+  targetActor: { id: string; followersUrl?: string | null }
+  // Accepts `undefined` as well as `null` so an absent viewer cannot be read as
+  // a present one: `currentActor === null` is false for `undefined`, which is
+  // the shape that turns this into "no filter".
+  currentActor?: Actor | null
+}): Promise<ActorStatusesAudience> => {
+  const viewer = currentActor ?? null
+  const isOwner = Boolean(viewer && viewer.id === targetActor.id)
+
+  const isFollower =
+    viewer && !isOwner
+      ? await isAcceptedFollowerOf(database, viewer.id, targetActor.id)
+      : false
+
+  return {
+    isOwner,
+    isFollower,
+    publicOnly: !viewer,
+    // The owner is deliberately left unfiltered: all three arguments falsy is
+    // what lets them see their own private posts.
+    visibleToActorId: viewer && !isOwner ? viewer.id : null,
+    includeFollowersOnly: isFollower,
+    followersAudience: targetActor.followersUrl ?? null
+  }
 }
 
 export const canActorReadStatus = async ({

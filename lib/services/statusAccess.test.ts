@@ -3,7 +3,11 @@ import { FollowStatus } from '@/lib/types/domain/follow'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
-import { canActorReadStatus, isStatusPubliclyReadable } from './statusAccess'
+import {
+  canActorReadStatus,
+  isStatusPubliclyReadable,
+  resolveActorStatusesAudience
+} from './statusAccess'
 
 const ACTOR_ID = 'https://example.com/users/author'
 const FOLLOWER_ID = 'https://example.com/users/follower'
@@ -251,5 +255,54 @@ describe('status access helpers', () => {
       })
     ).resolves.toBe(true)
     expect(database.getAcceptedOrRequestedFollow).not.toHaveBeenCalled()
+  })
+
+  // Both halves of this module ask the same question through one
+  // `isAcceptedFollowerOf`, and the two ids it takes are easy to transpose.
+  // Every other test here mocks the lookup to answer the same way whatever it
+  // is asked, so a swap would leak the followers-only audience to the wrong
+  // side of the relationship with the whole suite still green. These assert the
+  // arguments, not the answer.
+  describe('follow lookup direction', () => {
+    const acceptedFollow = () => ({
+      getAcceptedOrRequestedFollow: vi.fn().mockResolvedValue({
+        status: FollowStatus.enum.Accepted
+      })
+    })
+
+    it('asks whether the viewer follows the status author', async () => {
+      const database = acceptedFollow()
+
+      await canActorReadStatus({
+        database: database as never,
+        status: note({
+          id: `${ACTOR_ID}/statuses/direction`,
+          to: [FOLLOWERS_URL],
+          cc: []
+        }),
+        currentActor: actor
+      })
+
+      expect(database.getAcceptedOrRequestedFollow).toHaveBeenCalledWith({
+        actorId: FOLLOWER_ID,
+        targetActorId: ACTOR_ID
+      })
+    })
+
+    it('asks whether the viewer follows the profile actor', async () => {
+      const database = acceptedFollow()
+
+      const audience = await resolveActorStatusesAudience({
+        database: database as never,
+        targetActor: { id: ACTOR_ID, followersUrl: FOLLOWERS_URL },
+        currentActor: actor
+      })
+
+      expect(database.getAcceptedOrRequestedFollow).toHaveBeenCalledWith({
+        actorId: FOLLOWER_ID,
+        targetActorId: ACTOR_ID
+      })
+      expect(audience.includeFollowersOnly).toBe(true)
+    })
   })
 })
