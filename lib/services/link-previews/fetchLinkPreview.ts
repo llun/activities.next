@@ -63,13 +63,15 @@ const UTF8_COMPATIBLE_CHARSETS = new Set(['utf-8', 'utf8', 'us-ascii', 'ascii'])
 
 // The fetcher identifies itself and points at the project, so an operator
 // seeing these requests in their logs can tell what they are and who to
-// contact — the etiquette Mastodon's own crawler UA follows.
-const LINK_PREVIEW_USER_AGENT = `activities.next/${packageJson.version} (+https://github.com/llun/activities.next; link preview)`
+// contact. The `(compatible; Mastodon/4.3.0)` token ensures sites that gate
+// social preview metadata behind recognized crawlers (such as YouTube's EU
+// consent walls) serve the full OpenGraph tags rather than consent interstitials.
+const LINK_PREVIEW_USER_AGENT = `activities.next/${packageJson.version} (compatible; Mastodon/4.3.0; +https://github.com/llun/activities.next; link preview)`
 
 const REQUEST_HEADERS = {
   'User-Agent': LINK_PREVIEW_USER_AGENT,
   Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.1',
-  'Accept-Language': 'en;q=0.9,*;q=0.5'
+  'Accept-Language': 'en-US,en;q=0.9,*;q=0.5'
 }
 
 class LinkPreviewFetchError extends Error {
