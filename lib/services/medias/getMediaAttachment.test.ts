@@ -133,9 +133,17 @@ describe('getMediaAttachment', () => {
     expect(attachment.type).toBe(type)
   })
 
-  it('always emits a null blurhash (not yet computed)', () => {
+  it('emits null blurhash when none is stored', () => {
     const attachment = getMediaAttachment(baseMedia, 'llun.test')
     expect(attachment.blurhash).toBeNull()
+  })
+
+  it('emits stored blurhash string when present', () => {
+    const attachment = getMediaAttachment(
+      { ...baseMedia, blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj' },
+      'llun.test'
+    )
+    expect(attachment.blurhash).toBe('LEHV6nWB2yk8pyo0adR*.7kCMdnj')
   })
 
   it('emits remote_url and preview_remote_url as null for local media', () => {

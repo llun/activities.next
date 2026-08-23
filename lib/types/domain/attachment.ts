@@ -45,6 +45,9 @@ export const Attachment = z.object({
   height: z.number().optional(),
   name: z.string(),
   mediaId: z.string().nullable().optional(),
+  blurhash: z.string().nullish(),
+  focus: z.object({ x: z.number(), y: z.number() }).nullish(),
+  thumbnailUrl: z.string().nullish(),
 
   createdAt: z.number(),
   updatedAt: z.number()
@@ -98,7 +101,11 @@ export const getDocumentFromAttachment = (attachment: Attachment) =>
     url: attachment.url,
     ...(attachment.width ? { width: attachment.width } : null),
     ...(attachment.height ? { height: attachment.height } : null),
-    name: attachment.name
+    name: attachment.name,
+    ...(attachment.blurhash ? { blurhash: attachment.blurhash } : null),
+    ...(attachment.focus
+      ? { focalPoint: [attachment.focus.x, attachment.focus.y] }
+      : null)
   })
 
 export const getMastodonAttachment = (attachment: Attachment) => {
@@ -109,7 +116,7 @@ export const getMastodonAttachment = (attachment: Attachment) => {
     return Mastodon.MediaTypes.Image.parse({
       id: attachment.id,
       url: attachment.url,
-      preview_url: null,
+      preview_url: attachment.thumbnailUrl ?? null,
       remote_url: null,
       description: attachment.name,
       type: 'image',
@@ -119,16 +126,17 @@ export const getMastodonAttachment = (attachment: Attachment) => {
           height: attachment.height ?? 0,
           size: `${attachment.width}x${attachment.height}`,
           aspect: (attachment.width ?? 0) / (attachment.height ?? 1)
-        }
+        },
+        ...(attachment.focus ? { focus: attachment.focus } : {})
       },
-      blurhash: null
+      blurhash: attachment.blurhash ?? null
     })
   }
   if (attachment.mediaType.startsWith('video')) {
     return Mastodon.MediaTypes.Video.parse({
       id: attachment.id,
       url: attachment.url,
-      preview_url: null,
+      preview_url: attachment.thumbnailUrl ?? null,
       remote_url: null,
       description: attachment.name,
       type: 'video',
@@ -145,7 +153,7 @@ export const getMastodonAttachment = (attachment: Attachment) => {
           aspect: (attachment.width ?? 0) / (attachment.height ?? 1)
         }
       },
-      blurhash: null
+      blurhash: attachment.blurhash ?? null
     })
   }
   return null

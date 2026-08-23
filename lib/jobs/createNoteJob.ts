@@ -18,6 +18,7 @@ import {
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLinkPreview'
+import { isValidBlurhash } from '@/lib/services/medias/imageAnalysis'
 import { verifyRemoteQuote } from '@/lib/services/quotes/verifyRemoteQuote'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import {
@@ -33,6 +34,7 @@ import {
   normalizeActorId,
   toRecipientArray
 } from '@/lib/utils/activitypub'
+import { isValidFocalPoint } from '@/lib/utils/focalPoint'
 import { logger } from '@/lib/utils/logger'
 
 import { createJobHandle } from './createJobHandle'
@@ -282,6 +284,16 @@ export const createNoteJob = createJobHandle(
       addStatusToTimelines(database, status),
       ...attachments.map(async (attachment, index) => {
         if (attachment.type !== 'Document') return
+        const blurhash =
+          attachment.blurhash && isValidBlurhash(attachment.blurhash)
+            ? attachment.blurhash
+            : null
+        const focus =
+          attachment.focalPoint &&
+          isValidFocalPoint(attachment.focalPoint[0], attachment.focalPoint[1])
+            ? { x: attachment.focalPoint[0], y: attachment.focalPoint[1] }
+            : null
+
         return database.createAttachment({
           actorId,
           statusId: note.id,
@@ -290,6 +302,8 @@ export const createNoteJob = createJobHandle(
           width: attachment.width,
           name: attachment.name || '',
           url: attachment.url,
+          blurhash,
+          focus,
           createdAt: publishedAt + index
         })
       })

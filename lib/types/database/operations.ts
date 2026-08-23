@@ -3215,6 +3215,7 @@ interface BaseMedia {
   // Focal point for cropping previews, each axis in [-1.0, 1.0]. Mastodon's
   // MediaAttachment `meta.focus`.
   focus?: { x: number; y: number }
+  blurhash?: string | null
 }
 
 // A processed thumbnail ready to persist on an existing media row. Mirrors the
@@ -3251,6 +3252,9 @@ export type CreateAttachmentParams = {
   name?: string
   mediaId?: string
   createdAt?: number
+  blurhash?: string | null
+  focus?: { x: number; y: number } | null
+  thumbnailUrl?: string | null
 }
 export type GetAttachmentsParams = {
   statusId: string
@@ -3320,6 +3324,7 @@ export type UpdateMediaParams = {
   accountId: string
   description?: string | null
   focus?: { x: number; y: number }
+  blurhash?: string | null
   thumbnail?: MediaThumbnailInput
 }
 export type UpdateMediaResult = {

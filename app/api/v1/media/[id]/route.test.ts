@@ -157,6 +157,29 @@ describe('/api/v1/media/[id]', () => {
     })
   })
 
+  it('GET returns blurhash for media that has blurhash', async () => {
+    const media = await database.createMedia({
+      actorId: ACTOR1_ID,
+      description: 'before',
+      blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+      original: {
+        path: 'medias/route-blurhash.jpg',
+        bytes: 1000,
+        mimeType: 'image/jpeg',
+        metaData: { width: 320, height: 240 }
+      }
+    })
+    const id = String(media!.id)
+
+    const response = await GET(getRequest(id), {
+      params: Promise.resolve({ id })
+    })
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data.blurhash).toBe('LEHV6nWB2yk8pyo0adR*.7kCMdnj')
+  })
+
   it('GET returns 404 for media owned by another account', async () => {
     const id = await createMediaFor(ACTOR2_ID, 'get-foreign')
 

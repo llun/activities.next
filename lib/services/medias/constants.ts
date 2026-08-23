@@ -6,6 +6,8 @@ export const MAX_FILE_SIZE = 209_715_200
 // storing media the driver would refuse to serve. This ceiling exists because
 // the read path buffers an object in memory, so an unbounded cap is an OOM.
 export const MAX_CONFIGURABLE_FILE_SIZE = 1_073_741_824
+// Max bytes to download and analyze for blurhash/focus in presigned upload completion (50 MB)
+export const PRESIGNED_ANALYSIS_MAX_BYTES = 52_428_800
 // The most attachments a fitness import will leave on one activity status —
 // counted across everything already on it (the route map included), not just
 // the photos being added. Both Strava import paths subtract the existing

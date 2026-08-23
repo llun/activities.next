@@ -7,6 +7,10 @@ import sharp from 'sharp'
 
 import { MediaStorageFileConfig } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
+import {
+  ImageAnalysisResult,
+  analyzeImageBuffer
+} from '@/lib/services/medias/imageAnalysis'
 import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 
@@ -36,6 +40,7 @@ import { extractVideoPreviewFrame } from './videoPreview'
 interface SaveImageOptions {
   isThumbnail?: boolean
   format?: ImageOutputFormat
+  manualFocus?: { x: number; y: number } | null
 }
 
 export class LocalFileStorage implements MediaStorage {
@@ -152,9 +157,10 @@ export class LocalFileStorage implements MediaStorage {
       )
     }
 
-    const { path, metaData, previewImage } = file.type.startsWith('video')
-      ? await this._saveVideoFile(file)
-      : await this._saveImageFile(file)
+    const { path, metaData, previewImage, blurhash, focus } =
+      file.type.startsWith('video')
+        ? await this._saveVideoFile(file, { manualFocus: media.focus })
+        : await this._saveImageFile(file, { manualFocus: media.focus })
     // A caller-supplied thumbnail wins; a video otherwise falls back to the
     // frame extracted from it.
     const thumbnailSource = thumbnailBuffer ?? previewImage
@@ -200,7 +206,8 @@ export class LocalFileStorage implements MediaStorage {
             }
           : null),
         ...(media.description ? { description: media.description } : null),
-        ...(media.focus ? { focus: media.focus } : null)
+        ...(focus ? { focus } : null),
+        ...(blurhash ? { blurhash } : null)
       })
     } catch (error) {
       await this._reclaimStored(path, thumbnail?.path)
@@ -239,10 +246,8 @@ export class LocalFileStorage implements MediaStorage {
 
     // Use the stored image's actual size/dimensions (outputInfo), not the input
     // image's metadata.
-    const { outputInfo, path, contentType } = await this._saveImageBuffer(
-      buffer,
-      { isThumbnail: true }
-    )
+    const { outputInfo, path, contentType, blurhash } =
+      await this._saveImageBuffer(buffer, { isThumbnail: true })
     return {
       path,
       bytes: outputInfo.size,
@@ -250,7 +255,8 @@ export class LocalFileStorage implements MediaStorage {
       metaData: {
         width: outputInfo.width,
         height: outputInfo.height
-      }
+      },
+      blurhash
     }
   }
 
@@ -318,7 +324,8 @@ export class LocalFileStorage implements MediaStorage {
     imageBuffer: Buffer,
     {
       isThumbnail = false,
-      format = DEFAULT_IMAGE_OUTPUT_FORMAT
+      format = DEFAULT_IMAGE_OUTPUT_FORMAT,
+      manualFocus
     }: SaveImageOptions = {}
   ) {
     const uploadPath = this._config.path
@@ -338,9 +345,10 @@ export class LocalFileStorage implements MediaStorage {
     // the stored file's real size/dimensions (e.g. thumbnails) use `outputInfo`.
     // Read metadata from a separate sharp instance so the two operations don't
     // run concurrently on the same pipeline.
-    const [metaData, outputInfo] = await Promise.all([
+    const [metaData, outputInfo, analysis] = await Promise.all([
       sharp(imageBuffer).metadata(),
-      resizedImage.keepExif().toFile(filePath)
+      resizedImage.keepExif().toFile(filePath),
+      analyzeImageBuffer(imageBuffer, { manualFocus })
     ])
 
     return {
@@ -349,7 +357,9 @@ export class LocalFileStorage implements MediaStorage {
       outputInfo,
       path: filename,
       contentType,
-      previewImage: null
+      previewImage: null,
+      blurhash: analysis.blurhash,
+      focus: analysis.focus
     }
   }
 
@@ -359,7 +369,10 @@ export class LocalFileStorage implements MediaStorage {
   // disk whenever ffmpeg found no decodable frame, with no `medias` row — the
   // only handle anything but `scripts/maintenance/cleanupMediaStorage.ts` has
   // on a stored path.
-  private async _saveVideoFile(videoFile: File) {
+  private async _saveVideoFile(
+    videoFile: File,
+    options: { manualFocus?: { x: number; y: number } | null } = {}
+  ) {
     const uploadPath = this._config.path
     const buffer = Buffer.from(await videoFile.arrayBuffer())
     const probe = await extractVideoMeta(buffer)
@@ -388,11 +401,24 @@ export class LocalFileStorage implements MediaStorage {
     const filename = `${randomPrefix}${ext}`
     const filePath = path.resolve(process.cwd(), uploadPath, filename)
     await fs.writeFile(filePath, buffer)
+
+    let analysis: ImageAnalysisResult = {
+      blurhash: null,
+      focus: options.manualFocus ?? null
+    }
+    if (previewImage) {
+      analysis = await analyzeImageBuffer(previewImage, {
+        manualFocus: options.manualFocus
+      })
+    }
+
     return {
       metaData,
       path: filename,
       contentType: videoFile.type,
-      previewImage
+      previewImage,
+      blurhash: analysis.blurhash,
+      focus: analysis.focus
     }
   }
 }
