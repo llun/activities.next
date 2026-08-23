@@ -1,0 +1,26 @@
+docs/architecture.md
+  h_580a04e334fef4 213-214,216-218
+lib/services/link-previews/fetchLinkPreview.test.ts
+  h_580a04e334fef4 31,183,194,205,216,227,250,264,284,316,338-357,385,414,434,455,470
+lib/services/link-previews/fetchLinkPreview.ts
+  h_580a04e334fef4 25-28,155-156
+lib/services/link-previews/parseOpenGraph.test.ts
+  h_580a04e334fef4 377-385
+lib/services/link-previews/parseOpenGraph.ts
+  h_580a04e334fef4 22-25
+lib/utils/safeRemoteFetch.test.ts
+  h_580a04e334fef4 113-183
+lib/utils/safeRemoteFetch.ts
+  h_580a04e334fef4 80,88,575-576,581-585,593,597-608,615,619-622,670,729-733,736
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "2eb74c0f11ebf917d59b638ebeff3f987751b402",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
