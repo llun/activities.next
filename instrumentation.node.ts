@@ -2,6 +2,7 @@ import { TraceExporter as GoogleCloudTraceExporter } from '@google-cloud/opentel
 import { CloudPropagator } from '@google-cloud/opentelemetry-cloud-trace-propagator'
 import {
   CompositePropagator,
+  W3CBaggagePropagator,
   W3CTraceContextPropagator
 } from '@opentelemetry/core'
 import { OTLPTraceExporter as GrpcOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc'
@@ -9,57 +10,111 @@ import { OTLPTraceExporter as HttpOLTPTraceExporter } from '@opentelemetry/expor
 import { OTLPTraceExporter as ProtoOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto'
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http'
 import { KnexInstrumentation } from '@opentelemetry/instrumentation-knex'
+import { UndiciInstrumentation } from '@opentelemetry/instrumentation-undici'
 import { gcpDetector } from '@opentelemetry/resource-detector-gcp'
 import { resourceFromAttributes } from '@opentelemetry/resources'
 import { NodeSDK } from '@opentelemetry/sdk-node'
-import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions'
-import { registerOTel } from '@vercel/otel'
 
 import { type Config, getConfig } from './lib/config'
+import { logger } from './lib/utils/logger'
 import { TRACE_APPLICATION_SCOPE } from './lib/utils/trace'
 
-const getTraceExporter = (config: Config) => {
+export const parseHeaders = (
+  headers?: string
+): Record<string, string> | undefined => {
+  if (!headers) return undefined
+  const result: Record<string, string> = {}
+  for (const pair of headers.split(',')) {
+    const [rawKey, ...rawVal] = pair.split('=')
+    const key = rawKey?.trim()
+    const val = rawVal.join('=').trim()
+    if (key && val) {
+      result[key] = val
+    }
+  }
+  return Object.keys(result).length > 0 ? result : undefined
+}
+
+export const getTraceExporter = (config: Config) => {
   if (!config.openTelemetry) return null
-  switch (config.openTelemetry.protocol) {
+  const { protocol, endpoint, headers } = config.openTelemetry
+  const parsedHeaders = parseHeaders(headers)
+  const options = {
+    ...(endpoint ? { url: endpoint } : {}),
+    ...(parsedHeaders ? { headers: parsedHeaders } : {})
+  }
+
+  switch (protocol) {
     case 'grpc':
-      return new GrpcOLTPTraceExporter()
+      return new GrpcOLTPTraceExporter(options)
     case 'http/json':
-      return new HttpOLTPTraceExporter()
+      return new HttpOLTPTraceExporter(options)
     case 'google':
       return new GoogleCloudTraceExporter()
+    case 'http/protobuf':
     default:
-      return new ProtoOLTPTraceExporter()
+      return new ProtoOLTPTraceExporter(options)
   }
 }
+
+let sdk: NodeSDK | null = null
 
 export const registerNodeInstrumentation = async () => {
   const config = getConfig()
   const exporter = getTraceExporter(config)
 
-  if (exporter) {
-    if (config.openTelemetry?.protocol === 'google') {
-      const sdk = new NodeSDK({
-        resource: resourceFromAttributes({
-          [SemanticResourceAttributes.SERVICE_NAME]: TRACE_APPLICATION_SCOPE,
-          environment: process.env.NODE_ENV
-        }),
-        resourceDetectors: [gcpDetector],
-        traceExporter: exporter,
-        textMapPropagator: new CompositePropagator({
-          propagators: [new W3CTraceContextPropagator(), new CloudPropagator()]
-        }),
-        instrumentations: [new KnexInstrumentation(), new HttpInstrumentation()]
-      })
-      sdk.start()
-    } else {
-      registerOTel({
-        serviceName: TRACE_APPLICATION_SCOPE,
-        attributes: {
-          environment: process.env.NODE_ENV
-        },
-        traceExporter: exporter,
-        instrumentations: [new KnexInstrumentation(), new HttpInstrumentation()]
-      })
+  if (!exporter) return
+
+  const isGoogle = config.openTelemetry?.protocol === 'google'
+
+  sdk = new NodeSDK({
+    resource: resourceFromAttributes({
+      'service.name': TRACE_APPLICATION_SCOPE,
+      environment: process.env.NODE_ENV
+    }),
+    ...(isGoogle ? { resourceDetectors: [gcpDetector] } : {}),
+    traceExporter: exporter,
+    textMapPropagator: new CompositePropagator({
+      propagators: [
+        new W3CTraceContextPropagator(),
+        new W3CBaggagePropagator(),
+        new CloudPropagator()
+      ]
+    }),
+    instrumentations: [
+      new KnexInstrumentation(),
+      new HttpInstrumentation({
+        ignoreIncomingRequestHook: (req) => {
+          const url = req.url ?? ''
+          return (
+            url.startsWith('/_next/') ||
+            url === '/health' ||
+            url === '/manifest.webmanifest' ||
+            url.startsWith('/static/')
+          )
+        }
+      }),
+      new UndiciInstrumentation()
+    ]
+  })
+
+  sdk.start()
+
+  const shutdown = () => {
+    if (sdk) {
+      sdk
+        .shutdown()
+        .then(() => {
+          logger.info('OpenTelemetry SDK shut down successfully')
+          process.exit(0)
+        })
+        .catch((err) => {
+          logger.error({ err }, 'Error shutting down OpenTelemetry SDK')
+          process.exit(1)
+        })
     }
   }
+
+  process.once('SIGTERM', shutdown)
+  process.once('SIGINT', shutdown)
 }
