@@ -10,7 +10,7 @@ import { Actor } from '@/lib/types/domain/actor'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
-import { getSpan } from '@/lib/utils/trace'
+import { withSpan } from '@/lib/utils/trace'
 
 interface UpdateNoteFromUserInput {
   statusId: string
@@ -36,83 +36,80 @@ export const updateNoteFromUserInput = async ({
   publish = true,
   status: preloadedStatus,
   database
-}: UpdateNoteFromUserInput) => {
-  const span = getSpan('actions', 'updateNoteFromUser', { statusId })
-  const status = preloadedStatus ?? (await database.getStatus({ statusId }))
-  if (
-    !status ||
-    status.id !== statusId ||
-    status.type !== StatusType.enum.Note ||
-    status.actorId !== currentActor.id
-  ) {
-    span.end()
-    return null
-  }
+}: UpdateNoteFromUserInput) =>
+  withSpan('actions', 'updateNoteFromUser', { statusId }, async () => {
+    const status = preloadedStatus ?? (await database.getStatus({ statusId }))
+    if (
+      !status ||
+      status.id !== statusId ||
+      status.type !== StatusType.enum.Note ||
+      status.actorId !== currentActor.id
+    ) {
+      return null
+    }
 
-  let updatedStatus = await database.updateNote({
-    statusId,
-    summary: summary === undefined ? status.summary : summary?.trim() || null,
-    text: text ?? status.text,
-    ...(attachments !== undefined ? { attachments } : {}),
-    ...(sensitive !== undefined ? { sensitive } : {}),
-    ...(language !== undefined ? { language } : {})
+    let updatedStatus = await database.updateNote({
+      statusId,
+      summary: summary === undefined ? status.summary : summary?.trim() || null,
+      text: text ?? status.text,
+      ...(attachments !== undefined ? { attachments } : {}),
+      ...(sensitive !== undefined ? { sensitive } : {}),
+      ...(language !== undefined ? { language } : {})
+    })
+    if (!updatedStatus) {
+      return null
+    }
+
+    // Re-sync emoji tags when the text changes so newly added `:shortcode:`
+    // tokens federate and removed ones stop federating, then re-fetch so the
+    // returned status and the timeline cache reflect the re-synced tags (mirroring
+    // createNoteFromUserInput).
+    if (text !== undefined) {
+      await database.deleteStatusTagsByType({ statusId, type: 'emoji' })
+      await persistEmojiTagsForStatus({ database, statusId, text })
+
+      // Re-detect the content language alongside the edit; the previous
+      // detection (if any) is stale once the text changes — persistDetectedLanguage
+      // clears the old row when the new text no longer detects confidently.
+      await persistDetectedLanguage({ database, statusId, text })
+
+      updatedStatus = (await database.getStatus({ statusId })) ?? updatedStatus
+    }
+
+    await addStatusToTimelines(database, updatedStatus)
+
+    if (publish) {
+      await getQueue().publish({
+        id: getHashFromString(statusId),
+        name: SEND_UPDATE_NOTE_JOB_NAME,
+        data: {
+          actorId: currentActor.id,
+          statusId
+        }
+      })
+
+      // Notify the authors of accepted quotes of this status that a post they
+      // quoted was edited. Only published (federated) edits notify quoters.
+      await notifyQuotedStatusUpdate({
+        database,
+        quotedStatusId: statusId,
+        sourceActorId: currentActor.id,
+        sourceActor: currentActor
+      })
+    }
+
+    // The edit may have added, changed or removed the link the card was for.
+    // Only when the text actually changed: an attachment-only or visibility-only
+    // edit cannot move the card.
+    //
+    // Scheduled AFTER the edit has federated, for the same reason
+    // createNoteFromUserInput schedules after its send job: on the default
+    // in-process queue `publish` runs the handler inline, so doing this first made
+    // an edit to a post containing a link wait on a third-party fetch before the
+    // edit reached timelines or went out to other servers.
+    if (text !== undefined) {
+      await syncStatusLinkPreview({ database, status: updatedStatus })
+    }
+
+    return updatedStatus
   })
-  if (!updatedStatus) {
-    span.end()
-    return null
-  }
-
-  // Re-sync emoji tags when the text changes so newly added `:shortcode:`
-  // tokens federate and removed ones stop federating, then re-fetch so the
-  // returned status and the timeline cache reflect the re-synced tags (mirroring
-  // createNoteFromUserInput).
-  if (text !== undefined) {
-    await database.deleteStatusTagsByType({ statusId, type: 'emoji' })
-    await persistEmojiTagsForStatus({ database, statusId, text })
-
-    // Re-detect the content language alongside the edit; the previous
-    // detection (if any) is stale once the text changes — persistDetectedLanguage
-    // clears the old row when the new text no longer detects confidently.
-    await persistDetectedLanguage({ database, statusId, text })
-
-    updatedStatus = (await database.getStatus({ statusId })) ?? updatedStatus
-  }
-
-  await addStatusToTimelines(database, updatedStatus)
-
-  if (publish) {
-    await getQueue().publish({
-      id: getHashFromString(statusId),
-      name: SEND_UPDATE_NOTE_JOB_NAME,
-      data: {
-        actorId: currentActor.id,
-        statusId
-      }
-    })
-
-    // Notify the authors of accepted quotes of this status that a post they
-    // quoted was edited. Only published (federated) edits notify quoters.
-    await notifyQuotedStatusUpdate({
-      database,
-      quotedStatusId: statusId,
-      sourceActorId: currentActor.id,
-      sourceActor: currentActor
-    })
-  }
-
-  // The edit may have added, changed or removed the link the card was for.
-  // Only when the text actually changed: an attachment-only or visibility-only
-  // edit cannot move the card.
-  //
-  // Scheduled AFTER the edit has federated, for the same reason
-  // createNoteFromUserInput schedules after its send job: on the default
-  // in-process queue `publish` runs the handler inline, so doing this first made
-  // an edit to a post containing a link wait on a third-party fetch before the
-  // edit reached timelines or went out to other servers.
-  if (text !== undefined) {
-    await syncStatusLinkPreview({ database, status: updatedStatus })
-  }
-
-  span.end()
-  return updatedStatus
-}

@@ -11,7 +11,7 @@ import {
 } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
-import { getTracer } from '@/lib/utils/trace'
+import { withSpan } from '@/lib/utils/trace'
 
 const PublicKeyDocument = z
   .object({
@@ -299,27 +299,20 @@ export async function getSenderPublicKeyDetails(
   database: Database,
   actorId: string
 ): Promise<SenderPublicKeyDetails> {
-  const tracer = getTracer()
-  return tracer.startActiveSpan(
-    'guard.getSenderPublicKey',
-    { attributes: { actorId } },
-    async (span) => {
-      try {
-        return await resolveSenderPublicKeyDetails(database, actorId)
-      } catch (error) {
-        const nodeError = error as Error
-        span.recordException(nodeError)
-        logger.warn({
-          actorId,
-          err: nodeError,
-          message: 'Unable to resolve sender public key'
-        })
-        return EMPTY_PUBLIC_KEY_DETAILS
-      } finally {
-        span.end()
-      }
+  return withSpan('guard', 'getSenderPublicKey', { actorId }, async (span) => {
+    try {
+      return await resolveSenderPublicKeyDetails(database, actorId)
+    } catch (error) {
+      const nodeError = error as Error
+      span.recordException(nodeError)
+      logger.warn({
+        actorId,
+        err: nodeError,
+        message: 'Unable to resolve sender public key'
+      })
+      return EMPTY_PUBLIC_KEY_DETAILS
     }
-  )
+  })
 }
 
 export async function getSenderPublicKey(database: Database, actorId: string) {

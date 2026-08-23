@@ -8,7 +8,7 @@ import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
-import { getTracer } from '@/lib/utils/trace'
+import { withSpan } from '@/lib/utils/trace'
 
 interface Params {
   person: Actor
@@ -72,15 +72,16 @@ export const getActorCollections = async ({
   signingActor,
   pageUrl
 }: Params) => {
-  return getTracer().startActiveSpan(
-    `activities.${field}`,
+  return withSpan(
+    'activity',
+    field,
     {
-      attributes: { actorId: person.id, field }
+      actorId: person.id,
+      field
     },
     async (span) => {
       if (!person[field]) {
         span.recordException(new Error(`Person ${field} is undefined`))
-        span.end()
         return null
       }
 
@@ -96,7 +97,6 @@ export const getActorCollections = async ({
         span.recordException(
           new Error(`Person ${field} returns ${fieldResponse.statusCode}`)
         )
-        span.end()
         return null
       }
 
@@ -111,7 +111,6 @@ export const getActorCollections = async ({
       // This is common for remote actors where Mastodon only provides totalItems
       // without exposing the actual list of followers/following
       if (!collectionPageUrl) {
-        span.end()
         return {
           page: null,
           totalItems: collection.totalItems ?? 0
@@ -155,8 +154,6 @@ export const getActorCollections = async ({
           page: null,
           totalItems: collection.totalItems ?? 0
         }
-      } finally {
-        span.end()
       }
     }
   )

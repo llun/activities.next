@@ -14,7 +14,7 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { generatePublicId } from '@/lib/utils/publicId'
-import { getTracer } from '@/lib/utils/trace'
+import { withSpan } from '@/lib/utils/trace'
 
 interface UserAnnounceParams {
   currentActor: Actor
@@ -59,7 +59,7 @@ export const userAnnounce = async ({
   database,
   visibility
 }: UserAnnounceParams) =>
-  getTracer().startActiveSpan('userAnnounce', async (span) => {
+  withSpan('actions', 'userAnnounce', {}, async () => {
     const [originalStatus, actorAnnounceStatus] = await Promise.all([
       database.getStatus({
         statusId,
@@ -69,7 +69,6 @@ export const userAnnounce = async ({
     ])
 
     if (!originalStatus || actorAnnounceStatus) {
-      span.end()
       return null
     }
 
@@ -85,7 +84,6 @@ export const userAnnounce = async ({
       originalStatusId: originalStatus.id
     })
     if (!status) {
-      span.end()
       return null
     }
     await addStatusToTimelines(database, status)
@@ -149,6 +147,5 @@ export const userAnnounce = async ({
       }
     })
 
-    span.end()
     return status
   })

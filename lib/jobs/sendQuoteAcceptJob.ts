@@ -7,7 +7,7 @@ import { SEND_QUOTE_ACCEPT_JOB_NAME } from '@/lib/jobs/names'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { JobHandle } from '@/lib/services/queue/type'
-import { getTracer } from '@/lib/utils/trace'
+import { withSpan } from '@/lib/utils/trace'
 
 export const JobData = z.object({
   // The quoted author (inbox owner) who approves the quote.
@@ -26,7 +26,7 @@ export const JobData = z.object({
 export const sendQuoteAcceptJob: JobHandle = createJobHandle(
   SEND_QUOTE_ACCEPT_JOB_NAME,
   async (database, message) => {
-    await getTracer().startActiveSpan('sendQuoteAcceptJob', async (span) => {
+    await withSpan('job', 'sendQuoteAccept', {}, async () => {
       const {
         actorId,
         quotingActorId,
@@ -37,7 +37,6 @@ export const sendQuoteAcceptJob: JobHandle = createJobHandle(
       } = JobData.parse(message.data)
 
       if (!(await canFederateWithDomain(database, quotingActorId))) {
-        span.end()
         return
       }
 
@@ -46,7 +45,6 @@ export const sendQuoteAcceptJob: JobHandle = createJobHandle(
         getFederationSigningActor(database)
       ])
       if (!currentActor) {
-        span.end()
         return
       }
 
@@ -68,8 +66,6 @@ export const sendQuoteAcceptJob: JobHandle = createJobHandle(
         },
         stampId
       })
-
-      span.end()
     })
   }
 )

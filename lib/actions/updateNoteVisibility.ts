@@ -12,7 +12,7 @@ import { StatusNote, StatusType } from '@/lib/types/domain/status'
 import { getMentionFromTag } from '@/lib/types/domain/tag'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
-import { getSpan } from '@/lib/utils/trace'
+import { withSpan } from '@/lib/utils/trace'
 
 interface UpdateNoteVisibilityFromUserInput {
   statusId: string
@@ -30,50 +30,65 @@ export const updateNoteVisibilityFromUserInput = async ({
   publish = true,
   status: preloadedStatus,
   database
-}: UpdateNoteVisibilityFromUserInput) => {
-  const span = getSpan('actions', 'updateNoteVisibilityFromUser', { statusId })
-  const status = preloadedStatus ?? (await database.getStatus({ statusId }))
-  if (
-    !status ||
-    status.id !== statusId ||
-    status.type !== StatusType.enum.Note ||
-    status.actorId !== currentActor.id
-  ) {
-    span.end()
-    return null
-  }
+}: UpdateNoteVisibilityFromUserInput) =>
+  withSpan(
+    'actions',
+    'updateNoteVisibilityFromUser',
+    { statusId },
+    async () => {
+      const status = preloadedStatus ?? (await database.getStatus({ statusId }))
+      if (
+        !status ||
+        status.id !== statusId ||
+        status.type !== StatusType.enum.Note ||
+        status.actorId !== currentActor.id
+      ) {
+        return null
+      }
 
-  const mentions = status.tags
-    .filter((tag) => tag.type === 'mention')
-    .map((tag) => getMentionFromTag(tag))
-    .filter((tag): tag is Mention => tag !== null)
+      const mentions = status.tags
+        .filter((tag) => tag.type === 'mention')
+        .map((tag) => getMentionFromTag(tag))
+        .filter((tag): tag is Mention => tag !== null)
 
-  const replyStatus = status.reply
-    ? await database.getStatus({ statusId: status.reply, withReplies: false })
-    : null
+      const replyStatus = status.reply
+        ? await database.getStatus({
+            statusId: status.reply,
+            withReplies: false
+          })
+        : null
 
-  const to = statusRecipientsTo(currentActor, mentions, replyStatus, visibility)
-  const cc = statusRecipientsCC(currentActor, mentions, replyStatus, visibility)
-  const updatedStatus = await database.updateNoteVisibility({
-    statusId,
-    to,
-    cc
-  })
-  if (!updatedStatus) {
-    span.end()
-    return null
-  }
+      const to = statusRecipientsTo(
+        currentActor,
+        mentions,
+        replyStatus,
+        visibility
+      )
+      const cc = statusRecipientsCC(
+        currentActor,
+        mentions,
+        replyStatus,
+        visibility
+      )
+      const updatedStatus = await database.updateNoteVisibility({
+        statusId,
+        to,
+        cc
+      })
+      if (!updatedStatus) {
+        return null
+      }
 
-  await addStatusToTimelines(database, updatedStatus)
+      await addStatusToTimelines(database, updatedStatus)
 
-  if (publish) {
-    await getQueue().publish({
-      id: getHashFromString(statusId),
-      name: SEND_UPDATE_NOTE_JOB_NAME,
-      data: { actorId: currentActor.id, statusId }
-    })
-  }
+      if (publish) {
+        await getQueue().publish({
+          id: getHashFromString(statusId),
+          name: SEND_UPDATE_NOTE_JOB_NAME,
+          data: { actorId: currentActor.id, statusId }
+        })
+      }
 
-  span.end()
-  return updatedStatus
-}
+      return updatedStatus
+    }
+  )

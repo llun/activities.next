@@ -6,7 +6,7 @@ import { SEND_BLOCK_JOB_NAME } from '@/lib/jobs/names'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { JobHandle } from '@/lib/services/queue/type'
-import { getTracer } from '@/lib/utils/trace'
+import { withSpan } from '@/lib/utils/trace'
 
 export const JobData = z.object({
   actorId: z.string(),
@@ -17,14 +17,13 @@ export const JobData = z.object({
 export const sendBlockJob: JobHandle = createJobHandle(
   SEND_BLOCK_JOB_NAME,
   async (database, message) => {
-    await getTracer().startActiveSpan('sendBlockJob', async (span) => {
+    await withSpan('job', 'sendBlock', {}, async (span) => {
       const { actorId, targetActorId, uri } = JobData.parse(message.data)
       span.setAttribute('actorId', actorId)
       span.setAttribute('targetActorId', targetActorId)
       span.setAttribute('uri', uri)
 
       if (!(await canFederateWithDomain(database, targetActorId))) {
-        span.end()
         return
       }
 
@@ -34,7 +33,6 @@ export const sendBlockJob: JobHandle = createJobHandle(
       ])
       if (!currentActor) {
         span.recordException(new Error('Actor not found'))
-        span.end()
         return
       }
 
@@ -44,7 +42,6 @@ export const sendBlockJob: JobHandle = createJobHandle(
       })
       // Skip stale Block jobs after unblock or re-block; the latest persisted block owns federation.
       if (currentBlock?.uri !== uri) {
-        span.end()
         return
       }
 
@@ -57,10 +54,8 @@ export const sendBlockJob: JobHandle = createJobHandle(
       if (!result.ok) {
         const error = new Error('Failed to send Block')
         span.recordException(error)
-        span.end()
         throw error
       }
-      span.end()
     })
   }
 )
