@@ -16,13 +16,14 @@ import { Follow } from '@/lib/types/domain/follow'
  * profile.
  *
  * **Read paths only.** `database.getAcceptedOrRequestedFollow` stays the entry
- * point everywhere else, and in particular on the follow, unfollow, block and
- * follow-request authorize/reject routes: those read the row, mutate it, and
- * then report the result, so a value cached from before their own write would
- * be wrong. Those routes reach `getRelationship` (and therefore this helper)
- * only *after* the mutation, which is a cold read; keep it that way — routing
- * one of their own pre-mutation reads through here would make their response
- * describe the state they just replaced.
+ * point everywhere else. The follow, unfollow and block routes read *this* row,
+ * mutate it, and then report the result through `getRelationship` — so they
+ * reach this helper only after their own write, which is a cold read. Keep it
+ * that way: routing one of their pre-mutation reads through here would make the
+ * response describe the state they just replaced. (The follow-request
+ * authorize/reject routes mutate the opposite direction, which is a different
+ * key and so cannot collide either way — but they are the same shape of hazard
+ * if the direction ever changes.)
  *
  * The parameters are positional and primitive on purpose. React `cache` keys on
  * argument identity, so the options-object spelling the database method itself

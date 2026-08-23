@@ -185,6 +185,29 @@ describe('profile follow lookup', () => {
 
       expect(viewerFollowCalls(PROFILE_ACTOR_ID)).toHaveLength(2)
     })
+
+    // Every other case here seeds an Accepted follow, so on their own they only
+    // ever prove the permissive branch: an audience that returned
+    // `includeFollowersOnly: true` unconditionally would satisfy all of them.
+    // Pin the deny outcome through the same memoized path — this is the surface
+    // that served followers-only posts and direct messages to anyone before
+    // #1510, so a wrong answer here is a privacy bug, not a slow page.
+    it('withholds followers-only statuses from a viewer whose follow is only requested', async () => {
+      mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue({
+        id: 'follow-id',
+        actorId: VIEWER_ACTOR_ID,
+        targetActorId: PROFILE_ACTOR_ID,
+        status: FollowStatus.enum.Requested
+      })
+
+      await runInReactCacheScope(() => renderProfileForViewer(PROFILE_HANDLE))
+
+      expect(mockDatabase.getActorStatuses).toHaveBeenCalledWith(
+        expect.objectContaining({ includeFollowersOnly: false })
+      )
+      // Still one lookup: the memoization is unchanged by the answer.
+      expect(viewerFollowCalls(PROFILE_ACTOR_ID)).toHaveLength(1)
+    })
   })
 
   // The remote branch resolves the actor from a FETCHED ActivityPub document
@@ -244,6 +267,21 @@ describe('profile follow lookup', () => {
           includeFollowersOnly: true,
           followersAudience: `${REMOTE_ACTOR_ID}/followers`
         })
+      )
+    })
+
+    it('withholds the remote gallery from a viewer whose follow is only requested', async () => {
+      mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue({
+        id: 'follow-id',
+        actorId: VIEWER_ACTOR_ID,
+        targetActorId: REMOTE_ACTOR_ID,
+        status: FollowStatus.enum.Requested
+      })
+
+      await runInReactCacheScope(() => renderProfileForViewer(REMOTE_HANDLE))
+
+      expect(mockDatabase.getAttachmentsForActor).toHaveBeenCalledWith(
+        expect.objectContaining({ includeFollowersOnly: false })
       )
     })
   })
