@@ -430,6 +430,9 @@ const getActivityLabel = (activityType?: string) => {
   if (normalized.includes('run')) return 'Run'
   if (normalized.includes('walk') || normalized.includes('hike')) return 'Walk'
   if (normalized.includes('swim')) return 'Swim'
+  if (normalized.includes('row')) return 'Row'
+  if (normalized === 'training') return 'Training'
+  if (normalized === 'other') return 'Other'
 
   return `${activityType[0].toUpperCase()}${activityType.slice(1)}`
 }

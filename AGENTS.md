@@ -851,7 +851,7 @@ it; there is no legacy shape left to copy.
   onto them and returns null rather than guessing, so an unrecognised type
   simply does not auto-assign. Prefer null over a plausible guess: a wrong
   mapping silently attributes activities to the wrong bike.
-- **`fitness_files.activityType` is WRITTEN as a canonical sport key**, via
+- **`fitness_files.activityType` is WRITTEN as a canonical activity type**, via
   `normalizeStoredActivityType` in `toActivityData` — the one function all three
   parsers return through, so it covers uploads and the Strava webhook alike (the
   webhook writes its `sport_type` into a generated TCX and parses it back). Four
@@ -859,9 +859,11 @@ it; there is no legacy shape left to copy.
   `GravelRide`, free-form GPX), and rows imported before this rule keep whichever
   one they came in with until `scripts/fitness/normalizeFitnessActivityTypes.ts`
   sweeps them — which is why matching still goes through the normalizer rather
-  than comparing strings. A sport no key models (swimming, gym work, Garmin's
-  `Other`) is stored **verbatim**, not dropped: nothing can attribute it to gear,
-  but the overview breakdown and the calendar filter must still show it.
+  than comparing strings. Normalized stored types cover the 9 gear sport keys plus
+  common non-gear activities (`training`, `rowing`, `other`). A sport the canonical
+  types do not model (such as swimming) is stored **verbatim**, not dropped: nothing
+  can attribute it to gear, but the overview breakdown and the calendar filter must
+  still show it.
 - **Naming a sport for a post caption is `getActivityPresentation`**
   (`@/lib/services/fitness-files/activityPresentation`) — the import job and the
   Strava summary builder both go through it, and nothing else should grow its

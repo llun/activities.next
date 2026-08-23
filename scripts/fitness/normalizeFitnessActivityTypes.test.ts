@@ -148,8 +148,27 @@ describe('planActivityTypeNormalization', () => {
     },
     { description: 'Strava EBikeRide', from: 'EBikeRide', to: 'ebike_ride' },
     // Free-form GPX <trk><type>
-    { description: 'GPX free text', from: 'Road cycling', to: 'ride' }
-  ])('rewrites $description to its sport key', ({ from, to }) => {
+    { description: 'GPX free text', from: 'Road cycling', to: 'ride' },
+    // Training / Gym / Workout
+    {
+      description: 'Strava WeightTraining',
+      from: 'WeightTraining',
+      to: 'training'
+    },
+    {
+      description: 'FIT weight_training',
+      from: 'weight_training',
+      to: 'training'
+    },
+    { description: 'Strava Workout', from: 'Workout', to: 'training' },
+    // Rowing
+    { description: 'Strava Rowing', from: 'Rowing', to: 'rowing' },
+    { description: 'Strava VirtualRow', from: 'VirtualRow', to: 'rowing' },
+    { description: 'FIT indoor_rowing', from: 'indoor_rowing', to: 'rowing' },
+    // Other (normalized to lowercase)
+    { description: 'TCX Other', from: 'Other', to: 'other' },
+    { description: 'spaced Other', from: '  Other  ', to: 'other' }
+  ])('rewrites $description to its canonical stored type', ({ from, to }) => {
     const plan = planActivityTypeNormalization([file('file-1', from)])
 
     expect(plan.rewrites).toEqual([
@@ -198,27 +217,27 @@ describe('planActivityTypeNormalization', () => {
   })
 
   it('reports unmodelled types without rewriting them', () => {
-    // Swims and gym work have no gear kind to attribute them to, but they are
-    // still activities the breakdown and the calendar filter must go on
-    // showing. Dropping or blanking them would erase them from every rollup.
+    // Swims have no gear kind to attribute them to and are not canonical stored
+    // types, but they are still activities the breakdown and the calendar filter
+    // must go on showing. Dropping or blanking them would erase them.
     const plan = planActivityTypeNormalization([
       file('file-1', 'swimming'),
       file('file-2', 'swimming'),
-      file('file-3', 'Other')
+      file('file-3', 'Kayaking')
     ])
 
     expect(plan.rewrites).toEqual([])
     expect([...plan.unmapped.entries()]).toEqual([
       ['swimming', 2],
-      ['Other', 1]
+      ['Kayaking', 1]
     ])
   })
 
   it('does not trim an unmodelled value it is otherwise leaving alone', () => {
-    const plan = planActivityTypeNormalization([file('file-1', '  Other  ')])
+    const plan = planActivityTypeNormalization([file('file-1', '  Kayaking  ')])
 
     expect(plan.rewrites).toEqual([])
-    expect([...plan.unmapped.keys()]).toEqual(['  Other  '])
+    expect([...plan.unmapped.keys()]).toEqual(['  Kayaking  '])
   })
 
   it('counts rows carrying no activity type', () => {

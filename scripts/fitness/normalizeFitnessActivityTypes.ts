@@ -46,7 +46,10 @@ import { loadEnvConfig } from '@next/env'
 import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
-import { normalizeActivityTypeToSportKey } from '@/lib/services/fitness-files/sportTypes'
+import {
+  isCanonicalStoredActivityType,
+  normalizeStoredActivityType
+} from '@/lib/services/fitness-files/sportTypes'
 
 import { printDatabaseBanner } from './describeConnection'
 
@@ -175,23 +178,31 @@ export const planActivityTypeNormalization = (
       continue
     }
 
-    const sportKey = normalizeActivityTypeToSportKey(current)
-    if (!sportKey) {
+    const storedType = normalizeStoredActivityType(current)
+    if (!storedType) {
+      plan.missingType += 1
+      continue
+    }
+
+    if (storedType === current) {
+      if (isCanonicalStoredActivityType(current)) {
+        plan.alreadyNormalized += 1
+      } else {
+        plan.unmapped.set(current, (plan.unmapped.get(current) ?? 0) + 1)
+      }
+      continue
+    }
+
+    if (isCanonicalStoredActivityType(storedType)) {
+      plan.rewrites.push({
+        fileId: file.id,
+        fileName: file.fileName,
+        from: current,
+        to: storedType
+      })
+    } else {
       plan.unmapped.set(current, (plan.unmapped.get(current) ?? 0) + 1)
-      continue
     }
-
-    if (sportKey === current) {
-      plan.alreadyNormalized += 1
-      continue
-    }
-
-    plan.rewrites.push({
-      fileId: file.id,
-      fileName: file.fileName,
-      from: current,
-      to: sportKey
-    })
   }
 
   return plan

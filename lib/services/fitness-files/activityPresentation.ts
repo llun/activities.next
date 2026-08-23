@@ -58,14 +58,16 @@ const SPORT_PRESENTATION: Record<SportKey, ActivityPresentation> = {
 const SPECIFIC_ACTIVITY_LABELS: Record<string, ActivityPresentation> = {
   handcycle: { label: 'Handcycling', emoji: '🚴' },
   velomobile: { label: 'Velomobile', emoji: '🚴' },
-  virtualrun: { label: 'Indoor running', emoji: '🏃' }
+  virtualrun: { label: 'Indoor running', emoji: '🏃' },
+  virtualrow: { label: 'Indoor rowing', emoji: '🚣' }
 }
 
 /**
- * Fallbacks for activities the sport keys deliberately do not model, so a swim
- * still reads as a swim. Those values are stored verbatim — there is no gear
- * kind to attribute them to, but they are still real activities — and without
- * this table they would take the generic glyph below.
+ * Fallbacks for activities the sport keys deliberately do not model, so a swim,
+ * rowing, training, or other session still reads appropriately. Those values
+ * are stored in their canonical form (or verbatim for unmapped sports) — there
+ * is no gear kind to attribute them to, but they are still real activities —
+ * and without this table they would take the generic fallback below.
  *
  * Keys are collapsed the way `sportTypes.ts` collapses its own tables:
  * lowercase with every separator removed, so `lap_swimming` and `Lap Swimming`
@@ -75,7 +77,13 @@ const UNMODELLED_ACTIVITY_LABELS: Record<string, ActivityPresentation> = {
   swim: { label: 'Swimming', emoji: '🏊' },
   swimming: { label: 'Swimming', emoji: '🏊' },
   openwaterswimming: { label: 'Swimming', emoji: '🏊' },
-  lapswimming: { label: 'Swimming', emoji: '🏊' }
+  lapswimming: { label: 'Swimming', emoji: '🏊' },
+  rowing: { label: 'Rowing', emoji: '🚣' },
+  row: { label: 'Rowing', emoji: '🚣' },
+  training: { label: 'Training', emoji: '🏋️' },
+  weighttraining: { label: 'Weight training', emoji: '🏋️' },
+  workout: { label: 'Workout', emoji: '🏋️' },
+  other: { label: 'Other', emoji: '🏋️' }
 }
 
 /**

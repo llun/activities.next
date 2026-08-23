@@ -88,9 +88,6 @@ describe('getActivityPresentation', () => {
   })
 
   it.each([
-    // These DO resolve to a sport key — `ride`, `ride`, `run` — because a key
-    // answers "which bike or which shoes". A caption is not answering that, and
-    // folding them in erases a distinction the athlete made.
     {
       description: 'Handcycle',
       type: 'Handcycle',
@@ -108,6 +105,12 @@ describe('getActivityPresentation', () => {
       type: 'VirtualRun',
       label: 'Indoor running',
       emoji: '🏃'
+    },
+    {
+      description: 'VirtualRow',
+      type: 'VirtualRow',
+      label: 'Indoor rowing',
+      emoji: '🚣'
     }
   ])(
     'keeps $description more specific than its sport key',
@@ -134,6 +137,33 @@ describe('getActivityPresentation', () => {
       label: 'Swimming',
       emoji: '🏊'
     })
+  })
+
+  it.each([
+    { description: 'rowing', type: 'rowing', label: 'Rowing', emoji: '🚣' },
+    { description: 'Rowing', type: 'Rowing', label: 'Rowing', emoji: '🚣' },
+    {
+      description: 'training',
+      type: 'training',
+      label: 'Training',
+      emoji: '🏋️'
+    },
+    {
+      description: 'WeightTraining',
+      type: 'WeightTraining',
+      label: 'Weight training',
+      emoji: '🏋️'
+    },
+    {
+      description: 'Workout',
+      type: 'Workout',
+      label: 'Workout',
+      emoji: '🏋️'
+    },
+    { description: 'other', type: 'other', label: 'Other', emoji: '🏋️' },
+    { description: 'Other', type: 'Other', label: 'Other', emoji: '🏋️' }
+  ])('names $description appropriately', ({ type, label, emoji }) => {
+    expect(getActivityPresentation(type)).toEqual({ label, emoji })
   })
 
   it('capitalizes an unrecognised type rather than guessing a sport', () => {

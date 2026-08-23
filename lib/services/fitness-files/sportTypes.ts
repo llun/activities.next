@@ -254,6 +254,121 @@ export const normalizeActivityTypeToSportKey = (
 }
 
 /**
+ * Non-gear activity types that are stored in canonical normalized form.
+ *
+ * Gear default-sports model only sports a bike or shoes are used for, but the
+ * overview breakdown, calendar heatmap and filters group by stored activityType.
+ * We normalize common activities (training, rowing, other) to lowercase
+ * canonical tokens so dialects (e.g. WeightTraining, Other, Rowing) collapse.
+ */
+export const NON_GEAR_STORED_ACTIVITY_TYPES = [
+  'training',
+  'rowing',
+  'other'
+] as const
+
+export type NonGearStoredActivityType =
+  (typeof NON_GEAR_STORED_ACTIVITY_TYPES)[number]
+
+export const CANONICAL_STORED_ACTIVITY_TYPES = [
+  ...SPORT_KEYS,
+  ...NON_GEAR_STORED_ACTIVITY_TYPES
+] as const
+
+export type CanonicalStoredActivityType =
+  (typeof CANONICAL_STORED_ACTIVITY_TYPES)[number]
+
+export const isCanonicalStoredActivityType = (
+  value: string
+): value is CanonicalStoredActivityType =>
+  (CANONICAL_STORED_ACTIVITY_TYPES as readonly string[]).includes(value)
+
+const EXACT_NON_GEAR_STORED_TYPES: Record<string, NonGearStoredActivityType> = {
+  // Other / Generic
+  other: 'other',
+  generic: 'other',
+
+  // Rowing
+  rowing: 'rowing',
+  row: 'rowing',
+  virtualrow: 'rowing',
+  virtualrowing: 'rowing',
+  indoorrowing: 'rowing',
+  indoorrow: 'rowing',
+
+  // Training / Workout / Gym / Weights / Calisthenics
+  training: 'training',
+  weighttraining: 'training',
+  workout: 'training',
+  crossfit: 'training',
+  hiit: 'training',
+  pilates: 'training',
+  yoga: 'training',
+  elliptical: 'training',
+  stairstepper: 'training',
+  stairclimbing: 'training',
+  fitnessequipment: 'training',
+  crosstraining: 'training',
+  cardiotraining: 'training',
+  flexibilitytraining: 'training',
+  strengthtraining: 'training',
+  functionalstrengthtraining: 'training',
+  traditionalstrengthtraining: 'training',
+  calisthenics: 'training',
+  gym: 'training',
+  fitness: 'training',
+  weight: 'training',
+  weights: 'training'
+}
+
+const SUBSTRING_NON_GEAR_RULES: ReadonlyArray<{
+  matches: (token: string) => boolean
+  key: NonGearStoredActivityType
+}> = [
+  {
+    matches: (token) => token === 'other' || token === 'generic',
+    key: 'other'
+  },
+  {
+    matches: (token) =>
+      token.startsWith('row') ||
+      token.endsWith('row') ||
+      token.includes('rowing'),
+    key: 'rowing'
+  },
+  {
+    matches: (token) =>
+      token.includes('training') ||
+      token.includes('workout') ||
+      token.includes('crossfit') ||
+      token.includes('calisthenic') ||
+      token.includes('pilates') ||
+      token.includes('yoga') ||
+      token.includes('elliptical') ||
+      token.includes('stairstepper') ||
+      token.includes('strength') ||
+      (token.includes('weight') && !token.includes('flyweight')) ||
+      (token.includes('fitness') && !token.includes('bike')),
+    key: 'training'
+  }
+]
+
+const normalizeNonGearStoredActivityType = (
+  rawActivityType: string
+): NonGearStoredActivityType | null => {
+  const token = toComparableToken(rawActivityType)
+  if (!token) return null
+
+  const exact = Object.hasOwn(EXACT_NON_GEAR_STORED_TYPES, token)
+    ? EXACT_NON_GEAR_STORED_TYPES[token]
+    : undefined
+  if (exact) return exact
+
+  const rule = SUBSTRING_NON_GEAR_RULES.find(({ matches }) => matches(token))
+  return rule ? rule.key : null
+}
+
+/**
  * The canonical form `fitness_files.activityType` is STORED in.
  *
  * Four vocabularies reach the column (see the module header), so the same ride
@@ -263,17 +378,17 @@ export const normalizeActivityTypeToSportKey = (
  * the raw string did: the fitness overview breakdown counted three separate
  * activities, and the per-type route-heatmap cache keyed three separate rows.
  *
- * So every write path collapses the raw value to its sport key before storing
- * it, and `scripts/fitness/normalizeFitnessActivityTypes.ts` does the same to
- * history imported before this rule existed.
+ * So every write path collapses the raw value to its canonical activity type
+ * before storing it, and `scripts/fitness/normalizeFitnessActivityTypes.ts`
+ * does the same to history imported before this rule existed.
  *
- * A value the sport keys do not model is kept VERBATIM (trimmed), not dropped:
- * swims and gym sessions have no gear kind to attribute them to, but they are
- * still real activities that the breakdown and the calendar filter must go on
- * showing. Returning null for them would erase them from every rollup.
+ * A value the canonical types do not model is kept VERBATIM (trimmed), not dropped:
+ * swims have no gear kind to attribute them to, but they are still real
+ * activities that the breakdown and the calendar filter must go on showing.
+ * Returning null for them would erase them from every rollup.
  *
- * Idempotent by construction — every sport key normalizes to itself — which is
- * what makes the backfill script safe to rerun and lets it skip rows in one
+ * Idempotent by construction — every canonical key normalizes to itself — which
+ * is what makes the backfill script safe to rerun and lets it skip rows in one
  * comparison.
  */
 export const normalizeStoredActivityType = (
@@ -283,6 +398,9 @@ export const normalizeStoredActivityType = (
 
   const sportKey = normalizeActivityTypeToSportKey(rawActivityType)
   if (sportKey) return sportKey
+
+  const nonGearType = normalizeNonGearStoredActivityType(rawActivityType)
+  if (nonGearType) return nonGearType
 
   return rawActivityType.trim() || null
 }
