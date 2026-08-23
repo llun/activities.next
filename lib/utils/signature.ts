@@ -6,7 +6,7 @@ import { getConfig } from '@/lib/config'
 import { getHeadersValue } from '@/lib/services/guards/getHeaderValue'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { Actor } from '@/lib/types/domain/actor'
-import { getSpan } from '@/lib/utils/trace'
+import { withSpan } from '@/lib/utils/trace'
 
 interface StringMap {
   [key: string]: string
@@ -33,39 +33,34 @@ export async function verify(
   headers: IncomingHttpHeaders | Headers,
   publicKey: string
 ) {
-  const span = getSpan('signature', 'verify', {
-    requestTarget
+  return withSpan('signature', 'verify', { requestTarget }, async () => {
+    const requestSignature = getHeadersValue(headers, 'signature')
+    const parsedSignature = await parse(requestSignature as string)
+    if (!parsedSignature.headers) {
+      return false
+    }
+
+    const comparedSignedString = parsedSignature.headers
+      .split(' ')
+      .map((item) => {
+        if (item === '(request-target)') {
+          return `(request-target): ${requestTarget}`
+        }
+        if (item === 'host') {
+          return `${item}: ${headerHost(headers)}`
+        }
+        return `${item}: ${getHeadersValue(headers, item)}`
+      })
+      .join('\n')
+    const signature = parsedSignature.signature
+    const verifier = crypto.createVerify(parsedSignature.algorithm)
+    verifier.update(comparedSignedString)
+    try {
+      return verifier.verify(publicKey, signature, 'base64')
+    } catch {
+      return false
+    }
   })
-
-  const requestSignature = getHeadersValue(headers, 'signature')
-  const parsedSignature = await parse(requestSignature as string)
-  if (!parsedSignature.headers) {
-    span.end()
-    return false
-  }
-
-  const comparedSignedString = parsedSignature.headers
-    .split(' ')
-    .map((item) => {
-      if (item === '(request-target)') {
-        return `(request-target): ${requestTarget}`
-      }
-      if (item === 'host') {
-        return `${item}: ${headerHost(headers)}`
-      }
-      return `${item}: ${getHeadersValue(headers, item)}`
-    })
-    .join('\n')
-  const signature = parsedSignature.signature
-  const verifier = crypto.createVerify(parsedSignature.algorithm)
-  verifier.update(comparedSignedString)
-  try {
-    return verifier.verify(publicKey, signature, 'base64')
-  } catch {
-    return false
-  } finally {
-    span.end()
-  }
 }
 
 export function signedHeaders(

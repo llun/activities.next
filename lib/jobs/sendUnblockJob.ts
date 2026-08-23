@@ -7,7 +7,7 @@ import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { JobHandle } from '@/lib/services/queue/type'
 import { Block } from '@/lib/types/domain/block'
-import { getTracer } from '@/lib/utils/trace'
+import { withSpan } from '@/lib/utils/trace'
 
 export const JobData = z.object({
   actorId: z.string(),
@@ -17,13 +17,12 @@ export const JobData = z.object({
 export const sendUnblockJob: JobHandle = createJobHandle(
   SEND_UNBLOCK_JOB_NAME,
   async (database, message) => {
-    await getTracer().startActiveSpan('sendUnblockJob', async (span) => {
+    await withSpan('job', 'sendUnblock', {}, async (span) => {
       const { actorId, block } = JobData.parse(message.data)
       span.setAttribute('actorId', actorId)
       span.setAttribute('blockId', block.id)
 
       if (!(await canFederateWithDomain(database, block.targetActorId))) {
-        span.end()
         return
       }
 
@@ -33,7 +32,6 @@ export const sendUnblockJob: JobHandle = createJobHandle(
       ])
       if (!currentActor) {
         span.recordException(new Error('Actor not found'))
-        span.end()
         return
       }
 
@@ -42,7 +40,6 @@ export const sendUnblockJob: JobHandle = createJobHandle(
         targetActorId: block.targetActorId
       })
       if (currentBlock && currentBlock.uri !== block.uri) {
-        span.end()
         return
       }
 
@@ -50,10 +47,8 @@ export const sendUnblockJob: JobHandle = createJobHandle(
       if (!ok) {
         const error = new Error('Failed to send Undo Block')
         span.recordException(error)
-        span.end()
         throw error
       }
-      span.end()
     })
   }
 )

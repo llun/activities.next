@@ -9,7 +9,7 @@ import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { JobHandle } from '@/lib/services/queue/type'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
-import { getTracer } from '@/lib/utils/trace'
+import { withSpan } from '@/lib/utils/trace'
 
 export const JobData = z.object({
   actorId: z.string(),
@@ -22,11 +22,10 @@ export const JobData = z.object({
 export const sendQuoteRequestJob: JobHandle = createJobHandle(
   SEND_QUOTE_REQUEST_JOB_NAME,
   async (database, message) => {
-    await getTracer().startActiveSpan('sendQuoteRequestJob', async (span) => {
+    await withSpan('job', 'sendQuoteRequest', {}, async (span) => {
       const { actorId, statusId, quotedStatusId } = JobData.parse(message.data)
 
       if (!(await canFederateWithDomain(database, quotedStatusId))) {
-        span.end()
         return
       }
 
@@ -35,13 +34,11 @@ export const sendQuoteRequestJob: JobHandle = createJobHandle(
         getFederationSigningActor(database)
       ])
       if (!status || !actor) {
-        span.end()
         return
       }
 
       const instrument = getNoteFromStatus(status)
       if (!instrument) {
-        span.end()
         return
       }
 
@@ -56,7 +53,6 @@ export const sendQuoteRequestJob: JobHandle = createJobHandle(
         (await getNote({ statusId: quotedStatusId, signingActor }))
           ?.attributedTo
       if (typeof quotedAuthorId !== 'string') {
-        span.end()
         return
       }
 
@@ -73,8 +69,6 @@ export const sendQuoteRequestJob: JobHandle = createJobHandle(
         quotedStatusId,
         instrument
       })
-
-      span.end()
     })
   }
 )

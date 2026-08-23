@@ -4,7 +4,7 @@ import { getQueue } from '@/lib/services/queue'
 import { Actor } from '@/lib/types/domain/actor'
 import { StatusType } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
-import { getTracer } from '@/lib/utils/trace'
+import { withSpan } from '@/lib/utils/trace'
 
 interface UserUndoAnnounceParams {
   currentActor: Actor
@@ -17,16 +17,14 @@ export const userUndoAnnounce = async ({
   database,
   statusId
 }: UserUndoAnnounceParams) =>
-  getTracer().startActiveSpan('userUndoAnnounce', async (span) => {
+  withSpan('actions', 'userUndoAnnounce', {}, async (span) => {
     const status = await database.getStatus({ statusId, withReplies: false })
     if (!status || status.type !== StatusType.enum.Announce) {
-      span.end()
       return null
     }
 
     if (status.actorId !== currentActor.id) {
       span.setAttribute('unauthorized', true)
-      span.end()
       return null
     }
 
@@ -40,6 +38,5 @@ export const userUndoAnnounce = async ({
       }
     })
 
-    span.end()
     return status
   })

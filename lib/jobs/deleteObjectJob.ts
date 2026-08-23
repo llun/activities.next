@@ -4,7 +4,7 @@ import {
   normalizeActivityPubAnnounce,
   normalizeActorId
 } from '@/lib/utils/activitypub'
-import { getTracer } from '@/lib/utils/trace'
+import { withSpan } from '@/lib/utils/trace'
 
 import { createJobHandle } from './createJobHandle'
 import { DELETE_OBJECT_JOB_NAME } from './names'
@@ -31,7 +31,7 @@ const getStampUri = (data: unknown): string | null => {
 export const deleteObjectJob = createJobHandle(
   DELETE_OBJECT_JOB_NAME,
   async (database, message) => {
-    await getTracer().startActiveSpan('deleteObject', async (span) => {
+    await withSpan('job', 'deleteObject', {}, async (span) => {
       const data = message.data
 
       // FEP-044f revocation: a Delete of a QuoteAuthorization stamp revokes the
@@ -72,7 +72,6 @@ export const deleteObjectJob = createJobHandle(
           } else {
             span.setAttribute('quoteRevocationSenderMismatch', true)
           }
-          span.end()
           return
         }
       }
@@ -80,7 +79,6 @@ export const deleteObjectJob = createJobHandle(
       if (typeof data === 'string') {
         if (!actorMatchesVerifiedSender(data, message)) {
           span.setAttribute('senderMismatch', true)
-          span.end()
           return
         }
 
@@ -88,7 +86,6 @@ export const deleteObjectJob = createJobHandle(
         await database.deleteActor({
           actorId: data
         })
-        span.end()
         return
       }
 
@@ -100,7 +97,6 @@ export const deleteObjectJob = createJobHandle(
           statusId: tombStone.id,
           actorId: getVerifiedSenderActorId(message.verifiedSenderActorId)
         })
-        span.end()
         return
       }
 
@@ -111,7 +107,6 @@ export const deleteObjectJob = createJobHandle(
         const announce = announceResult.data
         if (!actorMatchesVerifiedSender(announce.actor, message)) {
           span.setAttribute('senderMismatch', true)
-          span.end()
           return
         }
 
@@ -120,13 +115,11 @@ export const deleteObjectJob = createJobHandle(
           statusId: announce.id,
           actorId: getVerifiedSenderActorId(message.verifiedSenderActorId)
         })
-        span.end()
         return
       }
 
       span.recordException(new Error('Invalid data'))
       span.setAttribute('data', JSON.stringify(data))
-      span.end()
     })
   }
 )

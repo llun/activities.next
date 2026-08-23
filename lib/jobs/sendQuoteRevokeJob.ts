@@ -9,7 +9,7 @@ import { getFederationSigningActor } from '@/lib/services/federation/getFederati
 import { getExplicitRecipientInboxes } from '@/lib/services/federation/statusDelivery'
 import { JobHandle } from '@/lib/services/queue/type'
 import { logger } from '@/lib/utils/logger'
-import { getTracer } from '@/lib/utils/trace'
+import { withSpan } from '@/lib/utils/trace'
 
 export const JobData = z.object({
   // The quoted author revoking their approval (signs the Delete).
@@ -35,12 +35,11 @@ export const JobData = z.object({
 export const sendQuoteRevokeJob: JobHandle = createJobHandle(
   SEND_QUOTE_REVOKE_JOB_NAME,
   async (database, message) => {
-    await getTracer().startActiveSpan('sendQuoteRevokeJob', async (span) => {
+    await withSpan('job', 'sendQuoteRevoke', {}, async () => {
       const { actorId, quotingActorId, quotingStatusId, stampId } =
         JobData.parse(message.data)
 
       if (!(await canFederateWithDomain(database, quotingActorId))) {
-        span.end()
         return
       }
 
@@ -55,7 +54,6 @@ export const sendQuoteRevokeJob: JobHandle = createJobHandle(
           : Promise.resolve(null)
       ])
       if (!currentActor) {
-        span.end()
         return
       }
 
@@ -91,8 +89,6 @@ export const sendQuoteRevokeJob: JobHandle = createJobHandle(
           }
         })
       )
-
-      span.end()
     })
   }
 )

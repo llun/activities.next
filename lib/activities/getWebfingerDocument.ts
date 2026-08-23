@@ -2,7 +2,7 @@ import { WebFinger } from '@/lib/types/activitypub/webfinger'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
-import { getTracer } from '@/lib/utils/trace'
+import { withSpan } from '@/lib/utils/trace'
 
 // Standard OStatus rel carrying the URL template a server wants remote-follow
 // visitors sent to. Mirrors REMOTE_FOLLOW_SUBSCRIBE_REL on the serving side.
@@ -19,44 +19,37 @@ export const getWebfingerDocument = async ({
 }: {
   account: string
 }): Promise<WebFinger | null> =>
-  getTracer().startActiveSpan(
-    'activities.getWebfingerDocument',
-    { attributes: { account } },
-    async (span) => {
-      const [user, domain, ...rest] = account.split('@')
-      if (!user || !domain || rest.length > 0) {
-        span.end()
-        return null
-      }
-
-      try {
-        const url = new URL(`https://${domain}/.well-known/webfinger`)
-        url.searchParams.set('resource', `acct:${account}`)
-
-        const { statusCode, body } = await request({
-          url: url.toString(),
-          headers: {
-            Accept: 'application/jrd+json, application/json'
-          },
-          numberOfRetry: 0
-        })
-        if (statusCode !== 200) return null
-
-        const parsed = WebFinger.safeParse(JSON.parse(body))
-        return parsed.success ? parsed.data : null
-      } catch (error) {
-        span.recordException(error as Error)
-        logger.warn({
-          message: 'Failed to fetch webfinger document',
-          account,
-          err: toLoggableError(error)
-        })
-        return null
-      } finally {
-        span.end()
-      }
+  withSpan('activity', 'getWebfingerDocument', { account }, async (span) => {
+    const [user, domain, ...rest] = account.split('@')
+    if (!user || !domain || rest.length > 0) {
+      return null
     }
-  )
+
+    try {
+      const url = new URL(`https://${domain}/.well-known/webfinger`)
+      url.searchParams.set('resource', `acct:${account}`)
+
+      const { statusCode, body } = await request({
+        url: url.toString(),
+        headers: {
+          Accept: 'application/jrd+json, application/json'
+        },
+        numberOfRetry: 0
+      })
+      if (statusCode !== 200) return null
+
+      const parsed = WebFinger.safeParse(JSON.parse(body))
+      return parsed.success ? parsed.data : null
+    } catch (error) {
+      span.recordException(error as Error)
+      logger.warn({
+        message: 'Failed to fetch webfinger document',
+        account,
+        err: toLoggableError(error)
+      })
+      return null
+    }
+  })
 
 /**
  * Reads the remote-follow URL template a server advertises, or null when it
