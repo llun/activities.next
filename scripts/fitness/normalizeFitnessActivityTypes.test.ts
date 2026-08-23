@@ -148,8 +148,56 @@ describe('planActivityTypeNormalization', () => {
     },
     { description: 'Strava EBikeRide', from: 'EBikeRide', to: 'ebike_ride' },
     // Free-form GPX <trk><type>
-    { description: 'GPX free text', from: 'Road cycling', to: 'ride' }
-  ])('rewrites $description to its sport key', ({ from, to }) => {
+    { description: 'GPX free text', from: 'Road cycling', to: 'ride' },
+    // Training / Gym / Workout
+    {
+      description: 'Strava WeightTraining',
+      from: 'WeightTraining',
+      to: 'training'
+    },
+    {
+      description: 'FIT weight_training',
+      from: 'weight_training',
+      to: 'training'
+    },
+    { description: 'Strava Workout', from: 'Workout', to: 'training' },
+    // Rowing
+    // Rowing
+    { description: 'Strava Rowing', from: 'Rowing', to: 'rowing' },
+    { description: 'Strava VirtualRow', from: 'VirtualRow', to: 'rowing' },
+    { description: 'FIT indoor_rowing', from: 'indoor_rowing', to: 'rowing' },
+    { description: 'Strava Kayaking', from: 'Kayaking', to: 'rowing' },
+    // Yoga
+    { description: 'Strava Yoga', from: 'Yoga', to: 'yoga' },
+    { description: 'Strava Pilates', from: 'Pilates', to: 'yoga' },
+    // Swim
+    { description: 'FIT swimming', from: 'swimming', to: 'swim' },
+    { description: 'Strava Swim', from: 'Swim', to: 'swim' },
+    // Climbing
+    {
+      description: 'Strava RockClimbing',
+      from: 'RockClimbing',
+      to: 'climbing'
+    },
+    // Skiing
+    { description: 'Strava AlpineSki', from: 'AlpineSki', to: 'ski' },
+    { description: 'Strava Snowboard', from: 'Snowboard', to: 'ski' },
+    // Skating
+    { description: 'Strava IceSkate', from: 'IceSkate', to: 'skating' },
+    // Surfing
+    { description: 'Strava Surfing', from: 'Surfing', to: 'surfing' },
+    // Racket
+    { description: 'Strava Tennis', from: 'Tennis', to: 'racket_sports' },
+    // Martial Arts
+    { description: 'Strava Boxing', from: 'Boxing', to: 'martial_arts' },
+    // Team Sports
+    { description: 'Strava Soccer', from: 'Soccer', to: 'team_sports' },
+    // Golf
+    { description: 'Strava Golf', from: 'Golf', to: 'golf' },
+    // Other (normalized to lowercase)
+    { description: 'TCX Other', from: 'Other', to: 'other' },
+    { description: 'spaced Other', from: '  Other  ', to: 'other' }
+  ])('rewrites $description to its canonical stored type', ({ from, to }) => {
     const plan = planActivityTypeNormalization([file('file-1', from)])
 
     expect(plan.rewrites).toEqual([
@@ -197,28 +245,35 @@ describe('planActivityTypeNormalization', () => {
     expect(second.alreadyNormalized).toBe(2)
   })
 
-  it('reports unmodelled types without rewriting them', () => {
-    // Swims and gym work have no gear kind to attribute them to, but they are
-    // still activities the breakdown and the calendar filter must go on
-    // showing. Dropping or blanking them would erase them from every rollup.
+  it('rewrites unmatched types to other', () => {
     const plan = planActivityTypeNormalization([
-      file('file-1', 'swimming'),
-      file('file-2', 'swimming'),
-      file('file-3', 'Other')
+      file('file-1', 'Skydiving'),
+      file('file-2', 'Skydiving'),
+      file('file-3', 'CustomMadeUpSport'),
+      file('file-4', 'other')
     ])
 
-    expect(plan.rewrites).toEqual([])
-    expect([...plan.unmapped.entries()]).toEqual([
-      ['swimming', 2],
-      ['Other', 1]
+    expect(plan.rewrites).toEqual([
+      {
+        fileId: 'file-1',
+        fileName: 'file-1.fit',
+        from: 'Skydiving',
+        to: 'other'
+      },
+      {
+        fileId: 'file-2',
+        fileName: 'file-2.fit',
+        from: 'Skydiving',
+        to: 'other'
+      },
+      {
+        fileId: 'file-3',
+        fileName: 'file-3.fit',
+        from: 'CustomMadeUpSport',
+        to: 'other'
+      }
     ])
-  })
-
-  it('does not trim an unmodelled value it is otherwise leaving alone', () => {
-    const plan = planActivityTypeNormalization([file('file-1', '  Other  ')])
-
-    expect(plan.rewrites).toEqual([])
-    expect([...plan.unmapped.keys()]).toEqual(['  Other  '])
+    expect(plan.alreadyNormalized).toBe(1)
   })
 
   it('counts rows carrying no activity type', () => {
@@ -375,11 +430,11 @@ describe('normalizeFitnessActivityTypesScript', () => {
     })
   })
 
-  it('leaves canonical and unmodelled rows untouched under --apply', async () => {
+  it('leaves canonical and empty rows untouched under --apply', async () => {
     const updateFitnessFileActivityData = vi.fn().mockResolvedValue(undefined)
     mockGetDatabase.mockReturnValue(
       stubDatabase({
-        types: ['ride', 'swimming', null, 'cycling'],
+        types: ['ride', 'other', null, 'cycling'],
         updateFitnessFileActivityData
       })
     )

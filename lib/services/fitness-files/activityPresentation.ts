@@ -58,24 +58,117 @@ const SPORT_PRESENTATION: Record<SportKey, ActivityPresentation> = {
 const SPECIFIC_ACTIVITY_LABELS: Record<string, ActivityPresentation> = {
   handcycle: { label: 'Handcycling', emoji: '🚴' },
   velomobile: { label: 'Velomobile', emoji: '🚴' },
-  virtualrun: { label: 'Indoor running', emoji: '🏃' }
+  virtualrun: { label: 'Indoor running', emoji: '🏃' },
+  virtualrow: { label: 'Indoor rowing', emoji: '🚣' }
 }
 
 /**
- * Fallbacks for activities the sport keys deliberately do not model, so a swim
- * still reads as a swim. Those values are stored verbatim — there is no gear
- * kind to attribute them to, but they are still real activities — and without
- * this table they would take the generic glyph below.
+ * Fallbacks for activities the sport keys deliberately do not model, so a swim,
+ * rowing, training, or other session still reads appropriately. Those values
+ * are stored in their canonical form (or verbatim for unmapped sports) — there
+ * is no gear kind to attribute them to, but they are still real activities —
+ * and without this table they would take the generic fallback below.
  *
  * Keys are collapsed the way `sportTypes.ts` collapses its own tables:
  * lowercase with every separator removed, so `lap_swimming` and `Lap Swimming`
  * both land here.
  */
 const UNMODELLED_ACTIVITY_LABELS: Record<string, ActivityPresentation> = {
+  // Swimming
   swim: { label: 'Swimming', emoji: '🏊' },
   swimming: { label: 'Swimming', emoji: '🏊' },
   openwaterswimming: { label: 'Swimming', emoji: '🏊' },
-  lapswimming: { label: 'Swimming', emoji: '🏊' }
+  lapswimming: { label: 'Swimming', emoji: '🏊' },
+
+  // Rowing & Paddling
+  rowing: { label: 'Rowing', emoji: '🚣' },
+  row: { label: 'Rowing', emoji: '🚣' },
+  kayaking: { label: 'Kayaking', emoji: '🚣' },
+  canoeing: { label: 'Canoeing', emoji: '🚣' },
+  paddling: { label: 'Paddling', emoji: '🚣' },
+
+  // Yoga & Mind-Body
+  yoga: { label: 'Yoga', emoji: '🧘' },
+  pilates: { label: 'Pilates', emoji: '🧘' },
+  meditation: { label: 'Meditation', emoji: '🧘' },
+  breathwork: { label: 'Breathwork', emoji: '🧘' },
+
+  // Climbing
+  climbing: { label: 'Climbing', emoji: '🧗' },
+  rockclimbing: { label: 'Rock climbing', emoji: '🧗' },
+  bouldering: { label: 'Bouldering', emoji: '🧗' },
+
+  // Winter Sports & Skiing
+  ski: { label: 'Skiing', emoji: '⛷️' },
+  skiing: { label: 'Skiing', emoji: '⛷️' },
+  alpineski: { label: 'Alpine skiing', emoji: '⛷️' },
+  backcountryski: { label: 'Backcountry skiing', emoji: '⛷️' },
+  nordicski: { label: 'Nordic skiing', emoji: '⛷️' },
+  rollerski: { label: 'Roller skiing', emoji: '⛷️' },
+  snowboard: { label: 'Snowboarding', emoji: '🏂' },
+  snowboarding: { label: 'Snowboarding', emoji: '🏂' },
+  snowshoe: { label: 'Snowshoeing', emoji: '❄️' },
+  snowshoeing: { label: 'Snowshoeing', emoji: '❄️' },
+
+  // Skating
+  skating: { label: 'Skating', emoji: '⛸️' },
+  iceskate: { label: 'Ice skating', emoji: '⛸️' },
+  iceskating: { label: 'Ice skating', emoji: '⛸️' },
+  inlineskate: { label: 'Inline skating', emoji: '🛼' },
+  inlineskating: { label: 'Inline skating', emoji: '🛼' },
+  rollerskate: { label: 'Roller skating', emoji: '🛼' },
+  rollerskating: { label: 'Roller skating', emoji: '🛼' },
+  skateboard: { label: 'Skateboarding', emoji: '🛹' },
+  skateboarding: { label: 'Skateboarding', emoji: '🛹' },
+
+  // Water Sports & Surfing
+  surfing: { label: 'Surfing', emoji: '🏄' },
+  windsurfing: { label: 'Windsurfing', emoji: '🏄' },
+  kitesurfing: { label: 'Kitesurfing', emoji: '🏄' },
+  standuppaddling: { label: 'Stand up paddling', emoji: '🏄' },
+  scubadiving: { label: 'Scuba diving', emoji: '🤿' },
+  snorkeling: { label: 'Snorkeling', emoji: '🤿' },
+
+  // Racket Sports
+  racket_sports: { label: 'Racket sports', emoji: '🎾' },
+  racketsports: { label: 'Racket sports', emoji: '🎾' },
+  tennis: { label: 'Tennis', emoji: '🎾' },
+  pickleball: { label: 'Pickleball', emoji: '🎾' },
+  padel: { label: 'Padel', emoji: '🎾' },
+  squash: { label: 'Squash', emoji: '🎾' },
+  badminton: { label: 'Badminton', emoji: '🏸' },
+  tabletennis: { label: 'Table tennis', emoji: '🏓' },
+
+  // Martial Arts & Boxing
+  martial_arts: { label: 'Martial arts', emoji: '🥊' },
+  martialarts: { label: 'Martial arts', emoji: '🥊' },
+  boxing: { label: 'Boxing', emoji: '🥊' },
+  kickboxing: { label: 'Kickboxing', emoji: '🥊' },
+  karate: { label: 'Karate', emoji: '🥋' },
+  judo: { label: 'Judo', emoji: '🥋' },
+
+  // Team Sports
+  team_sports: { label: 'Team sports', emoji: '⚽' },
+  teamsports: { label: 'Team sports', emoji: '⚽' },
+  soccer: { label: 'Soccer', emoji: '⚽' },
+  football: { label: 'Football', emoji: '🏈' },
+  basketball: { label: 'Basketball', emoji: '🏀' },
+  volleyball: { label: 'Volleyball', emoji: '🏐' },
+  rugby: { label: 'Rugby', emoji: '🏉' },
+  baseball: { label: 'Baseball', emoji: '⚾' },
+
+  // Golf
+  golf: { label: 'Golf', emoji: '⛳' },
+
+  // Training / Workout / Gym / Weights
+  training: { label: 'Training', emoji: '🏋️' },
+  weighttraining: { label: 'Weight training', emoji: '🏋️' },
+  workout: { label: 'Workout', emoji: '🏋️' },
+  crossfit: { label: 'Crossfit', emoji: '🏋️' },
+  hiit: { label: 'HIIT', emoji: '🏋️' },
+
+  // Other
+  other: { label: 'Other', emoji: '🏋️' }
 }
 
 /**
