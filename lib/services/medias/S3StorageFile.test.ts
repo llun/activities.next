@@ -1,5 +1,6 @@
 import {
   DeleteObjectCommand,
+  GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
   S3Client
@@ -97,6 +98,7 @@ describe('S3FileStorage presigned upload completion', () => {
     getMediaByIdForAccount: vi.fn(),
     getStorageUsageForAccount: vi.fn(),
     markMediaUploadVerified: vi.fn(),
+    updateMedia: vi.fn(),
     deleteMedia: vi.fn()
   } as unknown as jest.Mocked<Database>
 
@@ -168,6 +170,7 @@ describe('S3FileStorage presigned upload completion', () => {
       }
     } as never)
     database.deleteMedia.mockResolvedValue(true)
+    database.updateMedia.mockResolvedValue(null)
   })
 
   it('uses the configured endpoint for the S3 client without treating hostname as the endpoint', () => {
@@ -371,6 +374,128 @@ describe('S3FileStorage presigned upload completion', () => {
       Bucket: 'bucket',
       Key: 'medias/2026-01-01/upload.png'
     })
+  })
+
+  it('analyzes image and updates blurhash on completePresignedUpload', async () => {
+    const pngBuffer = await sharp({
+      create: {
+        width: 100,
+        height: 100,
+        channels: 4,
+        background: { r: 255, g: 0, b: 0, alpha: 1 }
+      }
+    })
+      .png()
+      .toBuffer()
+
+    database.getMediaByIdForAccount.mockResolvedValue({
+      id: 'media-1',
+      actorId: 'actor-1',
+      original: {
+        path: 'medias/2026-01-01/upload.png',
+        bytes: pngBuffer.length,
+        mimeType: 'image/png',
+        metaData: {
+          width: 10,
+          height: 10,
+          upload: {
+            state: 'pending',
+            checksumSha1: checksumHex,
+            checksumSha1Base64: checksumBase64,
+            contentType: 'image/png',
+            size: pngBuffer.length
+          }
+        },
+        fileName: 'upload.png'
+      }
+    } as never)
+
+    database.markMediaUploadVerified.mockResolvedValue({
+      id: 'media-1',
+      actorId: 'actor-1',
+      original: {
+        path: 'medias/2026-01-01/upload.png',
+        bytes: pngBuffer.length,
+        mimeType: 'image/png',
+        metaData: {
+          width: 10,
+          height: 10,
+          upload: {
+            state: 'verified',
+            verifiedAt: Date.now()
+          }
+        },
+        fileName: 'upload.png'
+      }
+    } as never)
+
+    database.updateMedia.mockResolvedValue({
+      media: {
+        id: 'media-1',
+        actorId: 'actor-1',
+        original: {
+          path: 'medias/2026-01-01/upload.png',
+          bytes: pngBuffer.length,
+          mimeType: 'image/png',
+          metaData: {
+            width: 10,
+            height: 10,
+            upload: {
+              state: 'verified',
+              verifiedAt: Date.now()
+            }
+          },
+          fileName: 'upload.png'
+        },
+        blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+        focusX: 0,
+        focusY: 0
+      }
+    } as never)
+
+    send.mockImplementation(async (command) => {
+      if (command instanceof HeadObjectCommand) {
+        return {
+          ContentLength: pngBuffer.length,
+          ContentType: 'image/png',
+          Metadata: {
+            checksumsha1: checksumHex
+          }
+        }
+      }
+      if (command instanceof GetObjectCommand) {
+        return {
+          Body: {
+            transformToByteArray: async () => new Uint8Array(pngBuffer)
+          }
+        }
+      }
+      throw new Error('Unexpected command')
+    })
+
+    const storage = new S3FileStorage(
+      {
+        type: MediaStorageType.ObjectStorage,
+        bucket: 'bucket',
+        region: 'us-east-1',
+        endpoint: 'https://s3.example.com'
+      },
+      'llun.test',
+      database
+    )
+
+    await storage.completePresignedUpload(actor, 'media-1')
+
+    expect(database.updateMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mediaId: 'media-1',
+        blurhash: expect.any(String),
+        focus: expect.objectContaining({
+          x: expect.any(Number),
+          y: expect.any(Number)
+        })
+      })
+    )
   })
 
   it('rejects uploads when no S3 checksum or checksum metadata is available', async () => {

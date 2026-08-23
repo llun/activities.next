@@ -430,7 +430,7 @@ export class S3FileStorage implements MediaStorage {
           } catch (error) {
             logger.warn({
               message: 'Failed to analyze presigned image upload',
-              error: toLoggableError(error)
+              err: toLoggableError(error)
             })
           }
         }

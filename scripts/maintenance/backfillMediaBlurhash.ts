@@ -12,10 +12,10 @@
  *   --force        Recompute blurhash/focus even on rows that already have them
  */
 import { loadEnvConfig } from '@next/env'
-import knex, { Knex } from 'knex'
+import { Knex } from 'knex'
 
-import { getConfig } from '@/lib/config'
-import { getDatabase } from '@/lib/database'
+import { getDatabase, getKnex } from '@/lib/database'
+import { toMediaRowId } from '@/lib/database/sql/media'
 import { getMediaStorage } from '@/lib/services/medias'
 import { analyzeImageBuffer } from '@/lib/services/medias/imageAnalysis'
 
@@ -50,13 +50,29 @@ const parseArgs = (args: string[]): CliOptions => {
   return { batchSize, dryRun, force }
 }
 
+const getFileBuffer = async (
+  storage: NonNullable<ReturnType<typeof getMediaStorage>>,
+  targetPath: string
+): Promise<Buffer | null> => {
+  const fileOutput = await storage.getFile(targetPath)
+  if (!fileOutput) return null
+  if (fileOutput.type === 'buffer') return fileOutput.buffer
+  if (fileOutput.type === 'redirect') {
+    const res = await fetch(fileOutput.redirectUrl)
+    if (res.ok) {
+      return Buffer.from(await res.arrayBuffer())
+    }
+  }
+  return null
+}
+
 const backfillMedias = async (
   db: Knex,
   storage: NonNullable<ReturnType<typeof getMediaStorage>>,
   options: CliOptions
 ) => {
   console.log('--- Backfilling medias table ---')
-  let offset = 0
+  let lastId = 0
   let totalProcessed = 0
   let totalUpdated = 0
 
@@ -71,9 +87,9 @@ const backfillMedias = async (
         'focusY',
         'blurhash'
       )
+      .where('id', '>', lastId)
       .orderBy('id', 'asc')
       .limit(options.batchSize)
-      .offset(offset)
 
     if (!options.force) {
       query = query.whereNull('blurhash')
@@ -81,6 +97,7 @@ const backfillMedias = async (
 
     const rows = await query
     if (rows.length === 0) break
+    lastId = Number(rows[rows.length - 1].id)
 
     for (const row of rows) {
       totalProcessed += 1
@@ -90,15 +107,15 @@ const backfillMedias = async (
       if (!targetPath) continue
 
       try {
-        const fileOutput = await storage.getFile(targetPath)
-        if (!fileOutput || fileOutput.type !== 'buffer') {
+        const buffer = await getFileBuffer(storage, targetPath)
+        if (!buffer) {
           console.warn(
             `[medias ${row.id}] Could not read file buffer at ${targetPath}`
           )
           continue
         }
 
-        const analysis = await analyzeImageBuffer(fileOutput.buffer, {
+        const analysis = await analyzeImageBuffer(buffer, {
           manualFocus:
             row.focusX !== null && row.focusY !== null
               ? { x: Number(row.focusX), y: Number(row.focusY) }
@@ -131,10 +148,6 @@ const backfillMedias = async (
         console.error(`[medias ${row.id}] error processing:`, err)
       }
     }
-
-    if (options.force) {
-      offset += options.batchSize
-    }
   }
 
   console.log(
@@ -148,7 +161,7 @@ const backfillAttachments = async (
   options: CliOptions
 ) => {
   console.log('--- Backfilling attachments table ---')
-  let offset = 0
+  let lastId = ''
   let totalProcessed = 0
   let totalUpdated = 0
 
@@ -164,9 +177,9 @@ const backfillAttachments = async (
         'focusY',
         'thumbnailUrl'
       )
-      .orderBy('createdAt', 'asc')
+      .where('id', '>', lastId)
+      .orderBy('id', 'asc')
       .limit(options.batchSize)
-      .offset(offset)
 
     if (!options.force) {
       query = query.whereNull('blurhash')
@@ -174,6 +187,26 @@ const backfillAttachments = async (
 
     const rows = await query
     if (rows.length === 0) break
+    lastId = String(rows[rows.length - 1].id)
+
+    // Batch resolve medias for attachments that reference a numeric mediaId
+    const mediaIdMap = new Map<string, number>()
+    for (const row of rows) {
+      if (row.mediaId) {
+        const rowId = toMediaRowId(row.mediaId)
+        if (rowId !== null) {
+          mediaIdMap.set(row.mediaId, rowId)
+        }
+      }
+    }
+
+    const mediaRows =
+      mediaIdMap.size > 0
+        ? await db('medias')
+            .whereIn('id', Array.from(mediaIdMap.values()))
+            .select('id', 'blurhash', 'focusX', 'focusY', 'thumbnail')
+        : []
+    const mediaMap = new Map(mediaRows.map((m) => [m.id, m]))
 
     for (const row of rows) {
       totalProcessed += 1
@@ -182,12 +215,10 @@ const backfillAttachments = async (
       let focusY = row.focusY
       let thumbnailUrl = row.thumbnailUrl
 
-      // 1. If mediaId is present, check corresponding medias row first
+      // 1. If mediaId is present, check corresponding medias row
       if (row.mediaId) {
-        const media = await db('medias')
-          .where('id', row.mediaId)
-          .select('blurhash', 'focusX', 'focusY', 'thumbnail')
-          .first()
+        const rowId = mediaIdMap.get(row.mediaId)
+        const media = rowId !== undefined ? mediaMap.get(rowId) : undefined
 
         if (media) {
           if (media.blurhash && !blurhash) blurhash = media.blurhash
@@ -221,10 +252,6 @@ const backfillAttachments = async (
         }
       }
     }
-
-    if (options.force) {
-      offset += options.batchSize
-    }
   }
 
   console.log(
@@ -234,8 +261,7 @@ const backfillAttachments = async (
 
 export const main = async () => {
   const options = parseArgs(process.argv.slice(2))
-  const config = getConfig()
-  const db = knex(config.database)
+  const db = getKnex()
   const database = getDatabase()
   if (!database) {
     throw new Error('Database connection failed')

@@ -79,6 +79,23 @@ describe('imageAnalysis', () => {
       expect(focus!.y).toBeLessThanOrEqual(1)
     })
 
+    it('handles EXIF orientation swapping dimensions correctly', async () => {
+      // 200 wide x 100 high image with orientation 6 (90 deg rotate) becomes 100 wide x 200 high
+      const svg =
+        '<svg width="200" height="100"><rect width="200" height="100" fill="white"/><circle cx="180" cy="80" r="15" fill="black"/></svg>'
+      const buffer = await sharp(Buffer.from(svg))
+        .jpeg()
+        .withMetadata({ orientation: 6 })
+        .toBuffer()
+
+      const focus = await computeSmartFocus(buffer)
+      expect(focus).not.toBeNull()
+      expect(focus!.x).toBeGreaterThanOrEqual(-1)
+      expect(focus!.x).toBeLessThanOrEqual(1)
+      expect(focus!.y).toBeGreaterThanOrEqual(-1)
+      expect(focus!.y).toBeLessThanOrEqual(1)
+    })
+
     it('returns null on a corrupt buffer without throwing', async () => {
       const corruptBuffer = Buffer.from('corrupt-bytes')
       const focus = await computeSmartFocus(corruptBuffer)

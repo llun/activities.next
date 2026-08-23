@@ -41,7 +41,7 @@ import { getCompatibleTime } from './utils/getCompatibleTime'
 // driver sends it as a parameter to an integer column and PostgreSQL answers
 // `value out of range for type integer` — the same 500 a non-numeric id caused.
 // The repo's own attachments.mediaId migration bounds at this exact value.
-const MAX_MEDIA_ROW_ID = 2147483647
+export const MAX_MEDIA_ROW_ID = 2147483647
 
 // `medias.id` is an integer column. Mastodon clients send ids as strings and
 // put whatever they like in them, so coerce before comparing: PostgreSQL
@@ -83,7 +83,7 @@ const MAX_MEDIA_ROW_ID = 2147483647
 // renders as '1' (both verified) — and `createMedia` no longer returns a raw
 // number. So it is defence in depth for a form nothing is known to have
 // written, not a shim for observed data. On PostgreSQL it was a 500 before.
-const toMediaRowId = (mediaId: string): number | null => {
+export const toMediaRowId = (mediaId: string): number | null => {
   if (!/^\d+(\.0+)?$/.test(mediaId)) return null
   const id = Number(mediaId)
   return id > 0 && id <= MAX_MEDIA_ROW_ID ? id : null

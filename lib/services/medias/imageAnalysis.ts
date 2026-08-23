@@ -67,7 +67,7 @@ export const computeBlurhash = async (
   } catch (error) {
     logger.warn({
       message: 'Failed to compute image blurhash',
-      error: toLoggableError(error)
+      err: toLoggableError(error)
     })
     return null
   }
@@ -83,8 +83,9 @@ export const computeSmartFocus = async (
   try {
     const rotated = sharp(buffer).rotate()
     const metadata = await rotated.metadata()
-    const width = metadata.width ?? 0
-    const height = metadata.height ?? 0
+    const isRotated = Boolean(metadata.orientation && metadata.orientation >= 5)
+    const width = (isRotated ? metadata.height : metadata.width) ?? 0
+    const height = (isRotated ? metadata.width : metadata.height) ?? 0
 
     if (width <= 0 || height <= 0) {
       return { x: 0, y: 0 }
@@ -115,7 +116,7 @@ export const computeSmartFocus = async (
   } catch (error) {
     logger.warn({
       message: 'Failed to compute smart focus',
-      error: toLoggableError(error)
+      err: toLoggableError(error)
     })
     return null
   }
@@ -144,7 +145,7 @@ export const analyzeImageBuffer = async (
   } catch (error) {
     logger.warn({
       message: 'Failed to analyze image buffer',
-      error: toLoggableError(error)
+      err: toLoggableError(error)
     })
     return {
       blurhash: null,
