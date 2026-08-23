@@ -21,7 +21,19 @@ import { createRequire } from 'node:module'
  * in production.
  *
  * Each `runInReactCacheScope` call is one request: a fresh store, restored on
- * the way out, so scopes neither leak into each other nor into unrelated tests.
+ * the way out. Scopes must be **sequential** — see the reentrancy guard on
+ * `runInReactCacheScope` for why concurrent ones cannot work and are refused.
+ *
+ * This drives React's own `react-server` `cache` rather than a hand-rolled
+ * memoizer on purpose. A fake would be testing the fake: React keys primitive
+ * arguments through a `Map` and object arguments through a `WeakMap`, and it is
+ * exactly that split that makes the positional-primitive contract
+ * `getViewerFollow` follows load-bearing. Reaching into
+ * `__SERVER_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE` is the cost,
+ * and it is a safe one to pay here because the failure mode is loud: if React
+ * renames or reshapes that export, no dispatcher gets installed, `cache` takes
+ * its passthrough branch, and the call counts these tests assert go back up —
+ * a failing test, never a silent pass.
  */
 const require = createRequire(import.meta.url)
 
@@ -55,15 +67,43 @@ const loadServerReact = (): ServerReact =>
  */
 export const serverCache = loadServerReact().cache
 
-/** Runs `fn` as if it were one request, with an empty `cache()` store. */
+let isScopeActive = false
+
+/**
+ * Runs `fn` as if it were one request, with an empty `cache()` store.
+ *
+ * Scopes must be sequential — `await` each one before starting the next. A
+ * second scope entered while one is live throws rather than nesting, because
+ * the dispatcher lives in a single mutable global (`internals.A`) that React
+ * reads at call time, not an `AsyncLocalStorage` keyed to the caller. Two live
+ * scopes therefore cannot be isolated at all: after an `await`, either one's
+ * continuation reads whichever dispatcher happens to be installed, so scope A
+ * can memoize into scope B's store while both are running. Saving and restoring
+ * the previous dispatcher on a stack would fix only the value left behind at the
+ * end and make that mid-flight bleed *look* handled.
+ *
+ * Left unguarded, the symptom was subtle: `Promise.all([runInReactCacheScope(a),
+ * runInReactCacheScope(b)])` leaves a live dispatcher installed after both
+ * settle, so later code outside any scope gets memoized where production would
+ * hand it the passthrough.
+ */
 export const runInReactCacheScope = async <T>(
   fn: () => Promise<T>
 ): Promise<T> => {
+  if (isScopeActive) {
+    throw new Error(
+      'runInReactCacheScope is already active. React exposes one global cache ' +
+        'dispatcher slot, so concurrent or nested scopes cannot be isolated ' +
+        'from each other. Await each scope before starting the next.'
+    )
+  }
+
   const internals =
     loadServerReact()
       .__SERVER_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE
   const previousDispatcher = internals.A
   const store = new Map<unknown, unknown>()
+  isScopeActive = true
   internals.A = {
     getCacheForType: <C>(create: () => C): C => {
       if (!store.has(create)) store.set(create, create())
@@ -74,5 +114,6 @@ export const runInReactCacheScope = async <T>(
     return await fn()
   } finally {
     internals.A = previousDispatcher
+    isScopeActive = false
   }
 }

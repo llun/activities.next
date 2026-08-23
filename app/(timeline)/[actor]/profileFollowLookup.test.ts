@@ -1,5 +1,10 @@
+import { getActorCollectionCounts } from '@/lib/activities/getActorCollectionCounts'
+import { getActorPerson } from '@/lib/activities/getActorPerson'
+import { getActorPosts } from '@/lib/activities/getActorPosts'
+import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { Database } from '@/lib/database/types'
 import { getRelationship } from '@/lib/services/accounts/relationship'
+import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import { runInReactCacheScope } from '@/lib/testing/reactCacheScope'
 import { Actor } from '@/lib/types/domain/actor'
 import { FollowStatus } from '@/lib/types/domain/follow'
@@ -16,6 +21,12 @@ vi.mock('react', async (importOriginal) => {
   return { ...actual, cache: serverCache }
 })
 
+vi.mock('@/lib/activities/getActorCollectionCounts')
+vi.mock('@/lib/activities/getActorPerson')
+vi.mock('@/lib/activities/getActorPosts')
+vi.mock('@/lib/activities/getWebfingerSelf')
+vi.mock('@/lib/services/federation/getFederationSigningActor')
+
 // Rendering `/@user@domain` for a signed-in visitor who is not the owner runs
 // two independent lookups of the same follow row — one to scope which statuses
 // the viewer may be shown, one for the follow button — from two call sites that
@@ -25,6 +36,16 @@ describe('profile follow lookup', () => {
   const PROFILE_ACTOR_ID = 'https://example.com/users/profile'
   const VIEWER_ACTOR_ID = 'https://example.com/users/viewer'
   const PROFILE_HANDLE = '@profile@example.com'
+  const REMOTE_ACTOR_ID = 'https://remote.test/users/remote'
+  const REMOTE_HANDLE = '@remote@remote.test'
+
+  // Only the fields getProfileData's remote branch reads off the fetched
+  // document: the id it keys the audience lookup on, and the followers
+  // collection it passes through as the audience.
+  const remotePerson = {
+    id: REMOTE_ACTOR_ID,
+    followers: `${REMOTE_ACTOR_ID}/followers`
+  } as Awaited<ReturnType<typeof getActorPerson>>
 
   const buildActor = (id: string, username: string): Actor => ({
     id,
@@ -76,26 +97,31 @@ describe('profile follow lookup', () => {
 
   const database = mockDatabase as unknown as Database
 
-  // Every call for the viewer's own follow of the profile actor. getRelationship
-  // also reads the opposite direction (the profile actor's follow of the
-  // viewer), which is a different row and deliberately not memoized.
-  const viewerFollowCalls = () =>
+  // Every call for the viewer's own follow of a target. getRelationship also
+  // reads the opposite direction (the target's follow of the viewer), which is a
+  // different row and deliberately not memoized.
+  const viewerFollowCalls = (targetActorId: string) =>
     mockDatabase.getAcceptedOrRequestedFollow.mock.calls.filter(
       ([params]) =>
         params.actorId === VIEWER_ACTOR_ID &&
-        params.targetActorId === PROFILE_ACTOR_ID
+        params.targetActorId === targetActorId
     )
 
-  // What the page does, in the order it does it.
-  const renderProfileForViewer = async () => {
-    await getProfileData(database, PROFILE_HANDLE, true, {
+  // What the page does, in the order it does it — and, as the page does, taking
+  // the relationship's target from the profile's own `person.id` rather than
+  // from a constant. That is the identity the memoization depends on: if the two
+  // halves ever named the actor differently, the keys would stop collapsing.
+  const renderProfileForViewer = async (handle: string) => {
+    const profile = await getProfileData(database, handle, true, {
       currentActor: viewer
     })
+    if (!profile) throw new Error(`no profile for ${handle}`)
     await getRelationship({
       database,
       currentActor: viewer,
-      targetActorId: PROFILE_ACTOR_ID
+      targetActorId: profile.person.id
     })
+    return profile
   }
 
   beforeEach(() => {
@@ -122,38 +148,81 @@ describe('profile follow lookup', () => {
     })
   })
 
-  it('reads the viewer follow once for a signed-in non-owner profile view', async () => {
-    await runInReactCacheScope(renderProfileForViewer)
+  describe('for a local actor', () => {
+    it('reads the viewer follow once for a signed-in non-owner profile view', async () => {
+      await runInReactCacheScope(() => renderProfileForViewer(PROFILE_HANDLE))
 
-    expect(viewerFollowCalls()).toHaveLength(1)
-  })
-
-  it('still reports the viewer as a follower to both call sites', async () => {
-    const { statuses, relationship } = await runInReactCacheScope(async () => {
-      const profile = await getProfileData(database, PROFILE_HANDLE, true, {
-        currentActor: viewer
-      })
-      return {
-        statuses: mockDatabase.getActorStatuses.mock.calls[0][0],
-        relationship: await getRelationship({
-          database,
-          currentActor: viewer,
-          targetActorId: PROFILE_ACTOR_ID
-        }),
-        profile
-      }
+      expect(viewerFollowCalls(PROFILE_ACTOR_ID)).toHaveLength(1)
     })
 
-    // The audience half: the memoized row still opens the followers-only scope.
-    expect(statuses).toMatchObject({ includeFollowersOnly: true })
-    // The relationship half: an Accepted follow is following, not requested.
-    expect(relationship).toMatchObject({ following: true, requested: false })
+    it('still reports the viewer as a follower to both call sites', async () => {
+      const { statuses, relationship } = await runInReactCacheScope(
+        async () => {
+          const profile = await getProfileData(database, PROFILE_HANDLE, true, {
+            currentActor: viewer
+          })
+          return {
+            statuses: mockDatabase.getActorStatuses.mock.calls[0][0],
+            relationship: await getRelationship({
+              database,
+              currentActor: viewer,
+              targetActorId: PROFILE_ACTOR_ID
+            }),
+            profile
+          }
+        }
+      )
+
+      // The audience half: the memoized row still opens the followers-only scope.
+      expect(statuses).toMatchObject({ includeFollowersOnly: true })
+      // The relationship half: an Accepted follow is following, not requested.
+      expect(relationship).toMatchObject({ following: true, requested: false })
+    })
+
+    it('does not carry the follow row between requests', async () => {
+      await runInReactCacheScope(() => renderProfileForViewer(PROFILE_HANDLE))
+      await runInReactCacheScope(() => renderProfileForViewer(PROFILE_HANDLE))
+
+      expect(viewerFollowCalls(PROFILE_ACTOR_ID)).toHaveLength(2)
+    })
   })
 
-  it('does not carry the follow row between requests', async () => {
-    await runInReactCacheScope(renderProfileForViewer)
-    await runInReactCacheScope(renderProfileForViewer)
+  // The remote branch resolves the actor from a FETCHED ActivityPub document
+  // rather than a database row, so the id the audience lookup is keyed on and
+  // the id the page hands `getRelationship` arrive by different routes. They
+  // still have to be the same string for the two reads to collapse.
+  describe('for a remote actor', () => {
+    beforeEach(() => {
+      mockDatabase.getActorFromUsername.mockResolvedValue(null)
+      vi.mocked(getWebfingerSelf).mockResolvedValue(REMOTE_ACTOR_ID)
+      vi.mocked(getFederationSigningActorSafe).mockResolvedValue(undefined)
+      vi.mocked(getActorPerson).mockResolvedValue(remotePerson)
+      vi.mocked(getActorPosts).mockResolvedValue({
+        statuses: [],
+        statusesCount: 0,
+        nextPageUrl: null,
+        prevPageUrl: null
+      })
+      vi.mocked(getActorCollectionCounts).mockResolvedValue({
+        followersCount: 0,
+        followingCount: 0,
+        statusesCount: 0
+      })
+      mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue({
+        id: 'follow-id',
+        actorId: VIEWER_ACTOR_ID,
+        targetActorId: REMOTE_ACTOR_ID,
+        status: FollowStatus.enum.Accepted
+      })
+    })
 
-    expect(viewerFollowCalls()).toHaveLength(2)
+    it('reads the viewer follow once for a signed-in non-owner profile view', async () => {
+      const profile = await runInReactCacheScope(() =>
+        renderProfileForViewer(REMOTE_HANDLE)
+      )
+
+      expect(profile.person.id).toBe(REMOTE_ACTOR_ID)
+      expect(viewerFollowCalls(REMOTE_ACTOR_ID)).toHaveLength(1)
+    })
   })
 })

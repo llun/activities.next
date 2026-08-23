@@ -113,7 +113,7 @@ change doesn't touch.
   schema-only regeneration as `none:`. (CI's Schema Dump Sync job catches
   SQLite-dump drift; the PostgreSQL dump is not CI-checked.)
 - The viewer's own follow row is read with `getViewerFollow`
-  (`lib/services/accounts/getViewerFollow.ts`) on **read** paths — it is
+  (`lib/services/getViewerFollow.ts`) on **read** paths — it is
   `cache()`d, so a profile render resolves it once instead of once per call site
   — and with `database.getAcceptedOrRequestedFollow` everywhere else. Its
   arguments are positional because `cache` keys on argument identity; an options
@@ -474,7 +474,9 @@ attachment ref guard` is exactly that: it passed with the bug present until
   module's `serverCache` in via `vi.mock('react', …)`. Vitest resolves React's
   client build, whose `cache` is a hard passthrough — only the `react-server`
   build memoizes, and only inside a scope — so a test that calls the helper
-  twice and expects one query reads two and proves nothing either way.
+  twice and expects one query reads two and proves nothing either way. Scopes are
+  sequential: React's dispatcher is a single mutable global, so a nested or
+  concurrent scope throws instead of pretending to isolate.
 - Tests run on **Vitest** (`vi.*`, not `jest.*`). To read a mocked module and
   configure it, prefer **`vi.importMock<T>('@/path')`** over
   `(await import('@/path')) as unknown as T`. `vi.importMock` is purpose-built,

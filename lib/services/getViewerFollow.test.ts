@@ -58,25 +58,22 @@ describe('getViewerFollow', () => {
   // which is what decides whether followers-only posts are shown.
   it.each([
     {
-      description: 'a different viewer',
+      description: 'gives a different viewer its own row',
       viewerId: OTHER_VIEWER,
       targetActorId: TARGET
     },
     {
-      description: 'a different target',
+      description: 'gives a different target its own row',
       viewerId: VIEWER,
       targetActorId: OTHER_TARGET
     }
-  ])(
-    'reads its own row for $description',
-    async ({ viewerId, targetActorId }) => {
-      const row = await runInReactCacheScope(async () => {
-        await getViewerFollow(database, VIEWER, TARGET)
-        return getViewerFollow(database, viewerId, targetActorId)
-      })
+  ])('$description', async ({ viewerId, targetActorId }) => {
+    const row = await runInReactCacheScope(async () => {
+      await getViewerFollow(database, VIEWER, TARGET)
+      return getViewerFollow(database, viewerId, targetActorId)
+    })
 
-      expect(getAcceptedOrRequestedFollow).toHaveBeenCalledTimes(2)
-      expect(row).toMatchObject({ id: `${viewerId}->${targetActorId}` })
-    }
-  )
+    expect(getAcceptedOrRequestedFollow).toHaveBeenCalledTimes(2)
+    expect(row).toMatchObject({ id: `${viewerId}->${targetActorId}` })
+  })
 })

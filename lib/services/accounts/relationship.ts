@@ -1,11 +1,11 @@
 import { Database } from '@/lib/database/types'
+import { getViewerFollow } from '@/lib/services/getViewerFollow'
 import { Mastodon } from '@/lib/types/activitypub'
 import { Actor } from '@/lib/types/domain/actor'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import { getMuteExpiresAt } from './getMuteExpiresAt'
-import { getViewerFollow } from './getViewerFollow'
 
 interface GetRelationshipParams {
   database: Database
