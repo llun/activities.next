@@ -22,10 +22,10 @@ export const LINK_PREVIEW_REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000
 // the same trap the remote-actor refresh path avoids by stamping its failures.
 export const LINK_PREVIEW_FAILURE_TTL_MS = 60 * 60 * 1000
 
-// Deliberately tighter than the 2 MiB `safeRemoteFetch` default: the metadata
-// lives in <head>, and a page bigger than this is not one we want to parse
-// inline in a request on a NoQueue deployment.
-export const LINK_PREVIEW_MAX_BODY_BYTES = 1024 * 1024
+// Bounds transfer over the wire for inline NoQueue fetches. Responses exceeding
+// this cap are truncated rather than rejected, allowing the <head> to be parsed
+// without downloading unbounded response bodies.
+export const LINK_PREVIEW_MAX_BODY_BYTES = 2 * 1024 * 1024
 
 // Connect and read budgets are set SEPARATELY on purpose. `safeRemoteFetch`
 // falls back to using `timeoutInMilliseconds` for both, and got's own request
@@ -152,7 +152,8 @@ export const fetchLinkPreview = async ({
       maxBodyBytes: LINK_PREVIEW_MAX_BODY_BYTES,
       maxRedirects: LINK_PREVIEW_MAX_REDIRECTS,
       connectTimeoutInMilliseconds: LINK_PREVIEW_CONNECT_TIMEOUT_MS,
-      readTimeoutInMilliseconds: LINK_PREVIEW_READ_TIMEOUT_MS
+      readTimeoutInMilliseconds: LINK_PREVIEW_READ_TIMEOUT_MS,
+      onBodyTooLarge: 'truncate'
     })
 
     if (response.statusCode !== 200) {

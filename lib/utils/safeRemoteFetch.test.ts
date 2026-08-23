@@ -110,6 +110,77 @@ describe('safeRemoteFetch', () => {
     expect(body.destroyed).toBe(true)
   })
 
+  it('truncates body and destroys stream when onBodyTooLarge is truncate', async () => {
+    let chunksPushed = 0
+    const body = new Readable({
+      read() {
+        chunksPushed += 1
+        this.push('1234')
+        this.push('5678')
+        this.push('9012')
+        this.push(null)
+      }
+    })
+    const safeRemoteFetch = createSafeRemoteFetch({
+      resolveHost: async () => [SAFE_ADDRESS],
+      transport: async () => ({
+        statusCode: 200,
+        headers: {},
+        body
+      })
+    })
+
+    const result = await safeRemoteFetch({
+      url: 'https://safe.example/truncate',
+      maxBodyBytes: 8,
+      onBodyTooLarge: 'truncate'
+    })
+
+    expect(result.body).toBe('12345678')
+    expect(result.bodyTruncated).toBe(true)
+    expect(body.destroyed).toBe(true)
+  })
+
+  it('does not reject on over-cap content-length when onBodyTooLarge is truncate', async () => {
+    const safeRemoteFetch = createSafeRemoteFetch({
+      resolveHost: async () => [SAFE_ADDRESS],
+      transport: async () => ({
+        statusCode: 200,
+        headers: { 'content-length': '100' },
+        body: streamFrom(['1234', '5678', '9012'])
+      })
+    })
+
+    const result = await safeRemoteFetch({
+      url: 'https://safe.example/truncate-length',
+      maxBodyBytes: 8,
+      onBodyTooLarge: 'truncate'
+    })
+
+    expect(result.body).toBe('12345678')
+    expect(result.bodyTruncated).toBe(true)
+  })
+
+  it('returns bodyTruncated false when body is within byte limit', async () => {
+    const safeRemoteFetch = createSafeRemoteFetch({
+      resolveHost: async () => [SAFE_ADDRESS],
+      transport: async () => ({
+        statusCode: 200,
+        headers: {},
+        body: streamFrom(['1234', '5678'])
+      })
+    })
+
+    const result = await safeRemoteFetch({
+      url: 'https://safe.example/exact',
+      maxBodyBytes: 8,
+      onBodyTooLarge: 'truncate'
+    })
+
+    expect(result.body).toBe('12345678')
+    expect(result.bodyTruncated).toBe(false)
+  })
+
   it('rejects redirects beyond the configured cap', async () => {
     const safeRemoteFetch = createSafeRemoteFetch({
       resolveHost: async () => [SAFE_ADDRESS],
