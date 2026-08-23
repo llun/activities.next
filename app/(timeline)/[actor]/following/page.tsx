@@ -45,7 +45,8 @@ const Page: FC<Props> = async ({ params }) => {
   const actorProfile = await getProfileData(
     database,
     decodedActorHandle,
-    isLoggedIn
+    isLoggedIn,
+    { currentActor }
   )
   if (!actorProfile) {
     return notFound()

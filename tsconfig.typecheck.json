@@ -28,7 +28,6 @@
     "app/(timeline)/[actor]/[status]/page.remote-signing.test.tsx",
     "app/(timeline)/[actor]/[status]/page.visibility.test.tsx",
     "app/(timeline)/[actor]/[status]/resolveStatusFromPath.test.ts",
-    "app/(timeline)/[actor]/getProfileData.test.ts",
     "app/(timeline)/fitness/RecentFitnessActivities.test.tsx",
     "app/(timeline)/fitness/gear/[id]/GearActivitiesFeed.test.tsx",
     "app/(timeline)/lists/[id]/ListTimeline.test.tsx",
