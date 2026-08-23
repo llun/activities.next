@@ -847,12 +847,42 @@ it; there is no legacy shape left to copy.
   the same transaction that soft-deletes the gear.
 - **Match sports through `normalizeActivityTypeToSportKey`**
   (`@/lib/services/fitness-files/sportTypes`), never against the raw
-  `activityType`. That column holds whatever the source file said, and four
-  vocabularies reach it (FIT `cycling`, TCX `Biking`, Strava `GravelRide`,
-  free-form GPX). Gear stores canonical keys; the normalizer maps the dialects
+  `activityType`. Gear stores canonical keys; the normalizer maps the dialects
   onto them and returns null rather than guessing, so an unrecognised type
   simply does not auto-assign. Prefer null over a plausible guess: a wrong
   mapping silently attributes activities to the wrong bike.
+- **`fitness_files.activityType` is WRITTEN as a canonical sport key**, via
+  `normalizeStoredActivityType` in `toActivityData` — the one function all three
+  parsers return through, so it covers uploads and the Strava webhook alike (the
+  webhook writes its `sport_type` into a generated TCX and parses it back). Four
+  vocabularies still arrive at that funnel (FIT `cycling`, TCX `Biking`, Strava
+  `GravelRide`, free-form GPX), and rows imported before this rule keep whichever
+  one they came in with until `scripts/fitness/normalizeFitnessActivityTypes.ts`
+  sweeps them — which is why matching still goes through the normalizer rather
+  than comparing strings. A sport no key models (swimming, gym work, Garmin's
+  `Other`) is stored **verbatim**, not dropped: nothing can attribute it to gear,
+  but the overview breakdown and the calendar filter must still show it.
+- **Naming a sport for a post caption is `getActivityPresentation`**
+  (`@/lib/services/fitness-files/activityPresentation`) — the import job and the
+  Strava summary builder both go through it, and nothing else should grow its
+  own table. Matching substrings on a raw `sport_type` is exactly what captioned
+  a `MountainBikeRide` with the road-bike glyph. It deliberately keeps **gerund**
+  labels ("Cycling", "Gravel cycling") separate from `SPORT_LABELS`' UI nouns
+  ("Ride", "Gravel ride"): caption text is federated and stored forever, so
+  rewording it changes published posts.
+- **Caption from the RAW sport, not the stored key** —
+  `FitnessActivityData.rawActivityType` carries the source file's own spelling
+  beside the canonical `activityType`, and `buildActivitySummary` prefers it.
+  The key answers "which bike or which shoes", so it folds `Handcycle` and
+  `Velomobile` into `ride` and `VirtualRun` into `run`; a caption is not
+  answering that, and "Cycling" erases a distinction the athlete made. Those
+  three have their own entries in `SPECIFIC_ACTIVITY_LABELS`, checked **before**
+  the sport-key lookup because they do resolve to a key and would never reach
+  the unmodelled table. Reading the stored key here made a directly uploaded
+  handcycle ride disagree with the same ride imported from Strava, which
+  captions from its own raw `sport_type` — guarded end to end in
+  `processFitnessFileJob.test.ts`, since a unit test on the presenter alone
+  cannot catch a caller handing it the wrong value.
 - **A sport belongs to at most one of an actor's gears**, retired ones included
   — scoping the invariant to active gear only would let unretiring produce two
   holders and make auto-assign arbitrary. Claiming a sport takes it off whoever

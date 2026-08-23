@@ -342,6 +342,59 @@ describe('buildStravaActivitySummary', () => {
     expect(summary).toContain('Morning Run')
     expect(summary).toContain('Felt great')
   })
+
+  it.each([
+    {
+      description: 'MountainBikeRide',
+      sportType: 'MountainBikeRide',
+      emoji: '🚵'
+    },
+    { description: 'GravelRide', sportType: 'GravelRide', emoji: '🚴' },
+    { description: 'EBikeRide', sportType: 'EBikeRide', emoji: '🚴' },
+    { description: 'VirtualRide', sportType: 'VirtualRide', emoji: '🚴' },
+    { description: 'Ride', sportType: 'Ride', emoji: '🚴' },
+    { description: 'Run', sportType: 'Run', emoji: '🏃' }
+  ])('gives $description its own glyph', ({ sportType, emoji }) => {
+    // The emoji is always visible: it prefixes the caption whether or not the
+    // activity has a name. Matching substrings on Strava's raw `sport_type`
+    // collapsed every bike sub-type onto the road-bike glyph, so a mountain
+    // bike ride imported from Strava disagreed with the same ride out of a FIT
+    // file. This is the ordinary import path, not only the streamless
+    // fallback: a file-backed import's status is created with an empty body
+    // and this summary is what fills it.
+    const summary = buildStravaActivitySummary({
+      id: 123,
+      name: 'Morning ride',
+      distance: 10000,
+      moving_time: 3000,
+      sport_type: sportType
+    })
+
+    expect(summary.startsWith(emoji)).toBe(true)
+  })
+
+  it('prettifies the sport when the activity has no name to show instead', () => {
+    const summary = buildStravaActivitySummary({
+      id: 123,
+      distance: 10000,
+      moving_time: 3000,
+      sport_type: 'MountainBikeRide'
+    })
+
+    expect(summary).toContain('Mountain biking')
+    expect(summary).not.toContain('MountainBikeRide')
+  })
+
+  it('keeps a sport no key models as the word Strava used', () => {
+    const summary = buildStravaActivitySummary({
+      id: 123,
+      distance: 0,
+      moving_time: 0,
+      sport_type: 'WeightTraining'
+    })
+
+    expect(summary).toContain('WeightTraining')
+  })
 })
 
 describe('getStravaActivityUrl', () => {

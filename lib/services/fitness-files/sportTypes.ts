@@ -99,8 +99,13 @@ export const getSportLabel = (key: string): string =>
  * Collapses a raw activity type to a comparable token: lowercase, with every
  * separator the four vocabularies use (spaces, underscores, hyphens) removed.
  * `Gravel ride`, `GravelRide` and `gravel_ride` all become `gravelride`.
+ *
+ * Exported because `activityPresentation.ts` keys its own caption tables on the
+ * same token. Two copies of this rule would key those tables differently from
+ * `EXACT_SPORT_KEYS` the moment a fifth vocabulary needed the separator set
+ * widened.
  */
-const toComparableToken = (value: string): string =>
+export const toComparableToken = (value: string): string =>
   value.toLowerCase().replace(/[^a-z0-9]/g, '')
 
 /**
@@ -246,6 +251,40 @@ export const normalizeActivityTypeToSportKey = (
 
   const rule = SUBSTRING_SPORT_RULES.find(({ matches }) => matches(token))
   return rule ? rule.key : null
+}
+
+/**
+ * The canonical form `fitness_files.activityType` is STORED in.
+ *
+ * Four vocabularies reach the column (see the module header), so the same ride
+ * arrived as `cycling` from a FIT file, `Biking` from a Garmin TCX and `Ride`
+ * from Strava. Gear never cared — it matches through
+ * `normalizeActivityTypeToSportKey` — but everything that groups or filters on
+ * the raw string did: the fitness overview breakdown counted three separate
+ * activities, and the per-type route-heatmap cache keyed three separate rows.
+ *
+ * So every write path collapses the raw value to its sport key before storing
+ * it, and `scripts/fitness/normalizeFitnessActivityTypes.ts` does the same to
+ * history imported before this rule existed.
+ *
+ * A value the sport keys do not model is kept VERBATIM (trimmed), not dropped:
+ * swims and gym sessions have no gear kind to attribute them to, but they are
+ * still real activities that the breakdown and the calendar filter must go on
+ * showing. Returning null for them would erase them from every rollup.
+ *
+ * Idempotent by construction — every sport key normalizes to itself — which is
+ * what makes the backfill script safe to rerun and lets it skip rows in one
+ * comparison.
+ */
+export const normalizeStoredActivityType = (
+  rawActivityType?: string | null
+): string | null => {
+  if (!rawActivityType) return null
+
+  const sportKey = normalizeActivityTypeToSportKey(rawActivityType)
+  if (sportKey) return sportKey
+
+  return rawActivityType.trim() || null
 }
 
 /**

@@ -1838,6 +1838,62 @@ describe('processFitnessFileJob', () => {
       expect(updatedFitnessFile?.gearId).toBeUndefined()
     })
   })
+
+  describe('activity caption', () => {
+    it('captions from the raw sport, not the coarser key it is stored as', async () => {
+      // `Handcycle` is STORED as `ride` — gear attribution asks "which bike".
+      // The caption is not asking that, and reading the stored key here made a
+      // directly uploaded handcycle ride say "Cycling" while the identical ride
+      // imported from Strava said "Handcycling", because that path captions
+      // from its own raw `sport_type`.
+      mockParseFitnessFile.mockResolvedValue({
+        ...defaultActivityData,
+        activityType: 'ride',
+        rawActivityType: 'Handcycle'
+      })
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: ''
+      })
+
+      await processFitnessFileJob(database, {
+        id: 'job-caption-raw-sport',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      const status = await database.getStatus({
+        statusId,
+        withReplies: false
+      })
+      if (status?.type !== StatusType.enum.Note) fail('Expected a note status')
+      expect(status.text).toContain('Handcycling')
+      expect(status.text).not.toContain('Cycling —')
+    })
+
+    it('falls back to the stored key when no raw sport was parsed', async () => {
+      mockParseFitnessFile.mockResolvedValue({
+        ...defaultActivityData,
+        activityType: 'ride',
+        rawActivityType: undefined
+      })
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: ''
+      })
+
+      await processFitnessFileJob(database, {
+        id: 'job-caption-key-fallback',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      const status = await database.getStatus({
+        statusId,
+        withReplies: false
+      })
+      if (status?.type !== StatusType.enum.Note) fail('Expected a note status')
+      expect(status.text).toContain('Cycling')
+    })
+  })
   describe('route cache', () => {
     it('caches the parsed route so a heatmap rebuild need not re-read the file', async () => {
       const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
