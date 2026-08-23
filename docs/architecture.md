@@ -210,11 +210,12 @@ that both the web UI and the Mastodon API's `Status.card` render.
   normalized URL, and `status_link_previews` maps a status to the card it shows.
   A link shared by many posts is fetched once, not once per post.
 - Pages are fetched through `safeRemoteFetch` (HTTPS only, private-IP
-  blocklists, DNS pinning, redirect and body caps) with a 1 MiB body cap and a
+  blocklists, DNS pinning, redirect and body caps) with a 2 MiB transfer cap
+  (bodies over 2 MiB are truncated rather than rejected) and a
   5s-per-hop budget over at most one redirect,
-  and must answer `text/html` in UTF-8 to be parsed at all. Only the document
-  `<head>` is parsed: the byte cap bounds transfer, not CPU, and the HTML parser
-  is quadratic in nesting depth.
+  and must answer `text/html` in UTF-8 to be parsed at all. Up to 1 MiB of the
+  document `<head>` is parsed: the byte cap bounds transfer, not CPU, and the
+  HTML parser is quadratic in nesting depth.
 - A completed card is re-read after 7 days. A failure is stored as a
   negative-cache row for an hour, so an unreachable host is not re-contacted for
   every post that mentions it.

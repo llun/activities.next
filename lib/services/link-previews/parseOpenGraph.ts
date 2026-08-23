@@ -19,7 +19,10 @@ export const MAX_SHORT_TEXT_LENGTH = 255
 // in-process queue runs inside the request that created the status. Every tag
 // this reads is defined to live in <head>, so slicing there removes the entire
 // class of hostile <body> payloads rather than trying to time-bound them.
-export const MAX_HEAD_LENGTH = 128 * 1024
+// The 1 MiB cap allows heavy <head> tags (such as YouTube with ~680 KB of inline
+// config scripts in <head> before its OpenGraph tags) while keeping the parse
+// strictly head-bounded.
+export const MAX_HEAD_LENGTH = 1024 * 1024
 
 const HEAD_END = '</head>'
 
