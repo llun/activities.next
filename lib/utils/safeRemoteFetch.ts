@@ -77,6 +77,7 @@ export type SafeRemoteFetchOptions = {
   maxBodyBytes?: number
   maxRedirects?: number
   method?: SafeRemoteFetchMethod
+  onBodyTooLarge?: 'fail' | 'truncate'
   readTimeoutInMilliseconds?: number
   timeoutInMilliseconds?: number
   url: string
@@ -84,6 +85,7 @@ export type SafeRemoteFetchOptions = {
 
 export type SafeRemoteFetchResult = {
   body: string
+  bodyTruncated: boolean
   headers: Record<string, string | string[] | undefined>
   statusCode: number
   url: string
@@ -570,12 +572,17 @@ const getRequestHeaders = ({
 
 const readResponseBody = async (
   response: SafeRemoteFetchTransportResponse,
-  maxBodyBytes: number
+  maxBodyBytes: number,
+  onBodyTooLarge: 'fail' | 'truncate' = 'fail'
 ) => {
   const declaredLength = Number(
     getHeaderValue(response.headers, 'content-length')
   )
-  if (Number.isFinite(declaredLength) && declaredLength > maxBodyBytes) {
+  if (
+    onBodyTooLarge === 'fail' &&
+    Number.isFinite(declaredLength) &&
+    declaredLength > maxBodyBytes
+  ) {
     const error = createResponseTooLargeError()
     response.body.destroy()
     throw error
@@ -583,21 +590,36 @@ const readResponseBody = async (
 
   const chunks: Buffer[] = []
   let bodyBytes = 0
+  let bodyTruncated = false
 
   for await (const chunk of response.body) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
-    bodyBytes += buffer.byteLength
+    const newTotal = bodyBytes + buffer.byteLength
 
-    if (bodyBytes > maxBodyBytes) {
+    if (newTotal > maxBodyBytes) {
+      if (onBodyTooLarge === 'truncate') {
+        const remaining = maxBodyBytes - bodyBytes
+        if (remaining > 0) {
+          chunks.push(buffer.subarray(0, remaining))
+        }
+        bodyTruncated = true
+        response.body.destroy()
+        break
+      }
+
       const error = createResponseTooLargeError()
       response.body.destroy()
       throw error
     }
 
+    bodyBytes = newTotal
     chunks.push(buffer)
   }
 
-  return Buffer.concat(chunks).toString('utf8')
+  return {
+    body: Buffer.concat(chunks).toString('utf8'),
+    bodyTruncated
+  }
 }
 
 const getRedirectLocation = (
@@ -645,6 +667,7 @@ export const createSafeRemoteFetch = ({
     maxBodyBytes = DEFAULT_SAFE_REMOTE_FETCH_MAX_BODY_BYTES,
     maxRedirects = DEFAULT_SAFE_REMOTE_FETCH_MAX_REDIRECTS,
     method = 'GET',
+    onBodyTooLarge = 'fail',
     readTimeoutInMilliseconds,
     timeoutInMilliseconds = 10000,
     url
@@ -703,9 +726,14 @@ export const createSafeRemoteFetch = ({
       })
       const redirectUrl = getRedirectLocation(response, currentUrl)
       if (!redirectUrl) {
-        const responseBody = await readResponseBody(response, maxBodyBytes)
+        const { body: responseBody, bodyTruncated } = await readResponseBody(
+          response,
+          maxBodyBytes,
+          onBodyTooLarge
+        )
         return {
           body: responseBody,
+          bodyTruncated,
           headers: response.headers,
           statusCode: response.statusCode,
           url: currentUrl.toString()

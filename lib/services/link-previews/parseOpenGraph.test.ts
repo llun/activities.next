@@ -374,6 +374,15 @@ describe('parseOpenGraphMetadata', () => {
     expect(result?.title).toBe('Headless')
   })
 
+  it('reads metadata from a large head exceeding 128 KiB', () => {
+    // 700 KB of scripts in head before the OG tags (e.g. YouTube)
+    const padding = '<script>/* ' + 'x'.repeat(700 * 1024) + ' */</script>'
+    const html = `<html><head>${padding}<meta property="og:title" content="YouTube Video Title"></head><body></body></html>`
+
+    const result = parseOpenGraphMetadata(html, BASE_URL)
+    expect(result?.title).toBe('YouTube Video Title')
+  })
+
   describe('getDeclaredCharset', () => {
     it.each([
       {

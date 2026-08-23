@@ -28,6 +28,7 @@ const mockedFetch = vi.mocked(safeRemoteFetch)
 
 const htmlResponse = (html: string, url = 'https://example.com/article') => ({
   body: html,
+  bodyTruncated: false,
   headers: { 'content-type': 'text/html; charset=utf-8' },
   statusCode: 200,
   url
@@ -179,6 +180,7 @@ describe('fetchLinkPreview', () => {
       description: 'rejects a non-200 response',
       response: {
         body: PAGE,
+        bodyTruncated: false,
         headers: { 'content-type': 'text/html' },
         statusCode: 404,
         url: 'https://example.com/missing'
@@ -189,6 +191,7 @@ describe('fetchLinkPreview', () => {
       description: 'rejects a non-html content type',
       response: {
         body: '{}',
+        bodyTruncated: false,
         headers: { 'content-type': 'application/json' },
         statusCode: 200,
         url: 'https://example.com/json'
@@ -199,6 +202,7 @@ describe('fetchLinkPreview', () => {
       description: 'rejects a pdf',
       response: {
         body: '%PDF-1.4',
+        bodyTruncated: false,
         headers: { 'content-type': 'application/pdf' },
         statusCode: 200,
         url: 'https://example.com/doc.pdf'
@@ -209,6 +213,7 @@ describe('fetchLinkPreview', () => {
       description: 'rejects a non-utf8 charset',
       response: {
         body: PAGE,
+        bodyTruncated: false,
         headers: { 'content-type': 'text/html; charset=iso-8859-1' },
         statusCode: 200,
         url: 'https://example.com/latin'
@@ -219,6 +224,7 @@ describe('fetchLinkPreview', () => {
       description: 'rejects a response with no content type',
       response: {
         body: PAGE,
+        bodyTruncated: false,
         headers: {},
         statusCode: 200,
         url: 'https://example.com/notype'
@@ -241,6 +247,7 @@ describe('fetchLinkPreview', () => {
     const url = 'https://example.com/xhtml'
     mockedFetch.mockResolvedValue({
       body: PAGE,
+      bodyTruncated: false,
       headers: { 'content-type': 'application/xhtml+xml' },
       statusCode: 200,
       url
@@ -254,6 +261,7 @@ describe('fetchLinkPreview', () => {
     const url = 'https://example.com/empty'
     mockedFetch.mockResolvedValue({
       body: '<html><head></head><body>nothing</body></html>',
+      bodyTruncated: false,
       headers: { 'content-type': 'text/html' },
       statusCode: 200,
       url
@@ -273,6 +281,7 @@ describe('fetchLinkPreview', () => {
     mockedFetch.mockResolvedValue({
       body: `<html><head><meta property="og:title" content="Moved">
              <meta property="og:image" content="/img/a.png"></head><body></body></html>`,
+      bodyTruncated: false,
       headers: { 'content-type': 'text/html' },
       statusCode: 200,
       // safeRemoteFetch reports where the redirect chain actually ended.
@@ -304,6 +313,7 @@ describe('fetchLinkPreview', () => {
     const options = mockedFetch.mock.calls[0][0]
     expect(options.maxBodyBytes).toBe(LINK_PREVIEW_MAX_BODY_BYTES)
     expect(options.maxRedirects).toBe(LINK_PREVIEW_MAX_REDIRECTS)
+    expect(options.onBodyTooLarge).toBe('truncate')
     // Set explicitly, never via the single `timeoutInMilliseconds` knob: that
     // one is used for BOTH connect and read, so a lone value silently buys a
     // hop of double the intended budget.
@@ -325,7 +335,26 @@ describe('fetchLinkPreview', () => {
     expect(
       LINK_PREVIEW_TIMEOUT_MS * (LINK_PREVIEW_MAX_REDIRECTS + 1)
     ).toBeLessThanOrEqual(10_000)
-    expect(LINK_PREVIEW_MAX_BODY_BYTES).toBeLessThan(2 * 1024 * 1024)
+    expect(LINK_PREVIEW_MAX_BODY_BYTES).toBeLessThanOrEqual(2 * 1024 * 1024)
+  })
+
+  it('stores a card when safeRemoteFetch returns a truncated body with valid head metadata', async () => {
+    const url = 'https://example.com/truncated-page'
+    mockedFetch.mockResolvedValue({
+      body: `${PAGE}<div>${'x'.repeat(1000)}`,
+      bodyTruncated: true,
+      headers: { 'content-type': 'text/html; charset=utf-8' },
+      statusCode: 200,
+      url
+    })
+
+    const card = await fetchLinkPreview({ database, url })
+
+    expect(card).toMatchObject({
+      url,
+      title: 'A good article',
+      fetchStatus: 'completed'
+    })
   })
 
   // The card's domain is presented to the reader as "where this link goes", so
@@ -353,6 +382,7 @@ describe('fetchLinkPreview', () => {
     const url = 'https://trusted.example.com/redirect?to=evil'
     mockedFetch.mockResolvedValue({
       body: PAGE,
+      bodyTruncated: false,
       headers: { 'content-type': 'text/html' },
       statusCode: 200,
       url: `https://evil.example/${'a'.repeat(3000)}`
@@ -381,6 +411,7 @@ describe('fetchLinkPreview', () => {
         <meta property="og:image:width" content="99999999999999">
         <meta property="og:image:height" content="99999999999999">
       </head><body></body></html>`,
+      bodyTruncated: false,
       headers: { 'content-type': 'text/html' },
       statusCode: 200,
       url
@@ -400,6 +431,7 @@ describe('fetchLinkPreview', () => {
     const url = 'https://example.com/meta-charset'
     mockedFetch.mockResolvedValue({
       body: '<html><head><meta charset="windows-1251"><meta property="og:title" content="T"></head><body></body></html>',
+      bodyTruncated: false,
       // A bare text/html header: the encoding is declared only in the markup.
       headers: { 'content-type': 'text/html' },
       statusCode: 200,
@@ -420,6 +452,7 @@ describe('fetchLinkPreview', () => {
     const url = `https://example.com/ascii-${charset.toLowerCase()}`
     mockedFetch.mockResolvedValue({
       body: PAGE,
+      bodyTruncated: false,
       headers: { 'content-type': `text/html; charset=${charset}` },
       statusCode: 200,
       url
@@ -434,6 +467,7 @@ describe('fetchLinkPreview', () => {
     const url = 'https://example.com/meta-ascii'
     mockedFetch.mockResolvedValue({
       body: '<html><head><meta charset="us-ascii"><meta property="og:title" content="T"></head><body></body></html>',
+      bodyTruncated: false,
       headers: { 'content-type': 'text/html' },
       statusCode: 200,
       url
