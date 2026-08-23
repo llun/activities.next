@@ -224,5 +224,27 @@ describe('profile follow lookup', () => {
       expect(profile.person.id).toBe(REMOTE_ACTOR_ID)
       expect(viewerFollowCalls(REMOTE_ACTOR_ID)).toHaveLength(1)
     })
+
+    // A call count alone cannot tell "the two lookups collapsed into one" from
+    // "the audience half never ran" — both leave exactly one. So pin what the
+    // audience half produced as well, the way the local case does through
+    // `getActorStatuses`. On this branch it is the attachment query that carries
+    // the scope: `getActorPosts` reads the remote outbox, which is public by
+    // construction. Without this, dropping the remote branch's audience
+    // resolution entirely — an unscoped remote profile, the followers-only leak
+    // this whole area exists to prevent — left every test here passing.
+    it('scopes the remote gallery with the memoized follow row', async () => {
+      await runInReactCacheScope(() => renderProfileForViewer(REMOTE_HANDLE))
+
+      expect(mockDatabase.getAttachmentsForActor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: REMOTE_ACTOR_ID,
+          publicOnly: false,
+          visibleToActorId: VIEWER_ACTOR_ID,
+          includeFollowersOnly: true,
+          followersAudience: `${REMOTE_ACTOR_ID}/followers`
+        })
+      )
+    })
   })
 })
