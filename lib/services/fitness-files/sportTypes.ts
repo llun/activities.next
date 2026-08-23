@@ -391,7 +391,7 @@ const normalizeNonGearStoredActivityType = (
  */
 export const normalizeStoredActivityType = (
   rawActivityType?: string | null
-): string | null => {
+): CanonicalStoredActivityType | null => {
   if (!rawActivityType) return null
 
   const trimmed = rawActivityType.trim()
