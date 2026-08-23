@@ -77,7 +77,8 @@ export const getAttachments = (object: BaseNote): Document[] => {
         name: unsafeObject.name,
         width: unsafeObject.width,
         height: unsafeObject.height,
-        blurhash: unsafeObject.blurhash
+        blurhash: unsafeObject.blurhash,
+        focalPoint: unsafeObject.focalPoint
       })
     }
   }

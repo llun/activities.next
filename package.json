@@ -52,6 +52,7 @@
     "better-auth": "1.7.1",
     "better-call": "2.0.6",
     "better-sqlite3": "^13.0.3",
+    "blurhash": "^2.0.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "csv-parse": "^7.0.2",

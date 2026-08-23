@@ -1312,5 +1312,75 @@ describe('createNoteJob', () => {
       const edge = await database.getStatusQuote({ statusId: quotingNoteId })
       expect(edge).toMatchObject({ quotedStatusId, state: 'pending' })
     })
+
+    it('persists validated blurhash and focalPoint from inbound note attachments', async () => {
+      const noteId = `https://${actor1!.domain}/notes/attachment-focal-test-${Date.now()}`
+      const note = {
+        ...MockMastodonActivityPubNote({
+          id: noteId,
+          from: actor1!.id,
+          content: '<p>Photo with blurhash and focal point</p>'
+        }),
+        attachment: [
+          {
+            type: 'Document',
+            mediaType: 'image/jpeg',
+            url: 'https://somewhere.test/media/photo.jpg',
+            width: 1200,
+            height: 800,
+            name: 'A scenic mountain',
+            blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+            focalPoint: [-0.4, 0.6]
+          }
+        ]
+      }
+
+      await createNoteJob(database, {
+        id: 'id-attachment-focal',
+        name: CREATE_NOTE_JOB_NAME,
+        data: note,
+        verifiedSenderActorId: actor1!.id
+      })
+
+      const attachments = await database.getAttachments({ statusId: noteId })
+      expect(attachments).toHaveLength(1)
+      expect(attachments[0].blurhash).toBe('LEHV6nWB2yk8pyo0adR*.7kCMdnj')
+      expect(attachments[0].focus).toEqual({ x: -0.4, y: 0.6 })
+    })
+
+    it('sanitizes invalid blurhash and focalPoint from inbound note attachments', async () => {
+      const noteId = `https://${actor1!.domain}/notes/attachment-invalid-test-${Date.now()}`
+      const note = {
+        ...MockMastodonActivityPubNote({
+          id: noteId,
+          from: actor1!.id,
+          content: '<p>Photo with invalid meta</p>'
+        }),
+        attachment: [
+          {
+            type: 'Document',
+            mediaType: 'image/jpeg',
+            url: 'https://somewhere.test/media/photo2.jpg',
+            width: 1200,
+            height: 800,
+            name: 'A photo',
+            blurhash: 'invalid blurhash with spaces',
+            focalPoint: [2.5, -3.0] // out of [-1, 1] range
+          }
+        ]
+      }
+
+      await createNoteJob(database, {
+        id: 'id-attachment-invalid',
+        name: CREATE_NOTE_JOB_NAME,
+        data: note,
+        verifiedSenderActorId: actor1!.id
+      })
+
+      const attachments = await database.getAttachments({ statusId: noteId })
+      expect(attachments).toHaveLength(1)
+      expect(attachments[0].blurhash).toBeUndefined()
+      expect(attachments[0].focus).toBeUndefined()
+    })
   })
 })

@@ -130,7 +130,11 @@ CREATE TABLE public.attachments (
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     "actorId" character varying(255),
-    "mediaId" integer
+    "mediaId" integer,
+    blurhash character varying(255),
+    "focusX" double precision,
+    "focusY" double precision,
+    "thumbnailUrl" character varying(255)
 );
 
 CREATE TABLE public.auth_codes (
@@ -724,7 +728,8 @@ CREATE TABLE public.medias (
     "thumbnailMetaData" jsonb,
     "originalFileName" character varying(255),
     "focusX" double precision,
-    "focusY" double precision
+    "focusY" double precision,
+    blurhash character varying(255)
 );
 
 CREATE SEQUENCE public.medias_id_seq

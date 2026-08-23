@@ -279,7 +279,12 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
       accountId: account.id,
       ...(descriptionProvided ? { description: parsed.data.description } : {}),
       ...(focusProvided ? { focus: parsed.data.focus } : {}),
-      ...(thumbnail ? { thumbnail } : {})
+      ...(thumbnail
+        ? {
+            thumbnail,
+            ...(thumbnail.blurhash ? { blurhash: thumbnail.blurhash } : {})
+          }
+        : {})
     })
   } catch (error) {
     // Don't leak the freshly-stored thumbnail if persisting the update failed.

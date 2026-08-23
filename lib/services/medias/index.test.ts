@@ -98,9 +98,12 @@ const S3_STORAGE_TYPES = [
   MediaStorageType.ObjectStorage
 ]
 
-// Re-exported error class rather than a storage-delegating function, so it is
-// the one export the matrix below does not describe.
-const NON_DELEGATING_EXPORTS = ['PresignedUploadValidationError']
+// Re-exported error class and storage factory rather than a storage-delegating
+// function, so they are the exports the matrix below does not describe.
+const NON_DELEGATING_EXPORTS = [
+  'PresignedUploadValidationError',
+  'getMediaStorage'
+]
 
 interface MediaStorageFunctionCase {
   name: keyof typeof mediaStorageService
