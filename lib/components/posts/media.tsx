@@ -1,6 +1,13 @@
 'use client'
 
-import { CSSProperties, FC, MouseEvent, useState } from 'react'
+import {
+  CSSProperties,
+  FC,
+  MouseEvent,
+  useEffect,
+  useRef,
+  useState
+} from 'react'
 
 import { Attachment } from '@/lib/types/domain/attachment'
 import { cn } from '@/lib/utils'
@@ -24,6 +31,15 @@ export const Media: FC<Props> = ({
   onClick
 }) => {
   const [isLoaded, setIsLoaded] = useState(false)
+  const imgRef = useRef<HTMLImageElement | null>(null)
+
+  useEffect(() => {
+    if (imgRef.current?.complete && imgRef.current.naturalWidth > 0) {
+      setIsLoaded(true)
+    } else {
+      setIsLoaded(false)
+    }
+  }, [attachment?.url])
 
   if (!attachment) {
     return null
@@ -49,9 +65,18 @@ export const Media: FC<Props> = ({
         <div className={cn('relative overflow-hidden', className)}>
           <BlurhashCanvas
             blurhash={blurhash}
-            className="absolute inset-0 h-full w-full object-cover"
+            className={cn(
+              'absolute inset-0 h-full w-full object-cover transition-opacity duration-300 pointer-events-none',
+              isLoaded ? 'opacity-0' : 'opacity-100'
+            )}
           />
           <img
+            ref={(node) => {
+              imgRef.current = node
+              if (node?.complete && node.naturalWidth > 0 && !isLoaded) {
+                setIsLoaded(true)
+              }
+            }}
             onClick={onClick}
             key={id}
             className={cn(

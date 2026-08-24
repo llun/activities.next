@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { Attachment } from '@/lib/types/domain/attachment'
@@ -63,7 +63,7 @@ describe('Media', () => {
     expect(img).toHaveStyle({ objectPosition: '0% 0%' })
   })
 
-  it('renders BlurhashCanvas when blurhash is present', () => {
+  it('renders BlurhashCanvas and transitions opacity when image loads', () => {
     const attachmentWithBlurhash: Attachment = {
       ...baseAttachment,
       blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
@@ -77,9 +77,17 @@ describe('Media', () => {
       'data-blurhash',
       'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
     )
+    expect(canvas.className).toContain('opacity-100')
 
     const img = screen.getByRole('img')
     expect(img).toBeInTheDocument()
+    expect(img.className).toContain('opacity-0')
+
+    // Simulate image load event
+    fireEvent.load(img)
+
+    expect(img.className).toContain('opacity-100')
+    expect(canvas.className).toContain('opacity-0')
   })
 
   it('renders video with poster and focal point object position', () => {
