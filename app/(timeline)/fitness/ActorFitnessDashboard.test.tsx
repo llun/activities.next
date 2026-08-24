@@ -63,6 +63,13 @@ const expectedWindow = (now: number, days: number) => {
   return { startDate: startMs, endDate: endMs + DAY_MS }
 }
 
+const expectedYearWindow = (now: number) => {
+  const year = new Date(now).getFullYear()
+  const startMs = new Date(formatLocalDateInput(new Date(year, 0, 1))).getTime()
+  const endMs = new Date(formatLocalDateInput(new Date(year, 11, 31))).getTime()
+  return { startDate: startMs, endDate: endMs + DAY_MS }
+}
+
 describe('ActorFitnessDashboard', () => {
   beforeEach(() => {
     // Pin Date.now() (read by the hydration effect + applyPreset) so the query
@@ -79,7 +86,7 @@ describe('ActorFitnessDashboard', () => {
     vi.clearAllMocks()
   })
 
-  it('renders exactly the 1Y/2Y/5Y/10Y presets and no 30D/90D presets', () => {
+  it('renders exactly the YTD/1Y/5Y/10Y presets and no 30D/90D presets', () => {
     render(
       <ActorFitnessDashboard
         actorId={ACTOR_ID}
@@ -87,11 +94,12 @@ describe('ActorFitnessDashboard', () => {
       />
     )
 
+    expect(screen.getByRole('button', { name: 'YTD' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '1Y' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '2Y' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '5Y' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '10Y' })).toBeInTheDocument()
 
+    expect(screen.queryByRole('button', { name: '2Y' })).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: '30D' })
     ).not.toBeInTheDocument()
@@ -100,7 +108,7 @@ describe('ActorFitnessDashboard', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('marks 1Y as the initially selected preset', () => {
+  it('marks YTD as the initially selected preset', () => {
     render(
       <ActorFitnessDashboard
         actorId={ACTOR_ID}
@@ -109,17 +117,17 @@ describe('ActorFitnessDashboard', () => {
     )
 
     const activeClasses = ['bg-foreground', 'text-background']
-    expect(screen.getByRole('button', { name: '1Y' })).toHaveClass(
+    expect(screen.getByRole('button', { name: 'YTD' })).toHaveClass(
       ...activeClasses
     )
-    for (const label of ['2Y', '5Y', '10Y']) {
+    for (const label of ['1Y', '5Y', '10Y']) {
       expect(screen.getByRole('button', { name: label })).not.toHaveClass(
         ...activeClasses
       )
     }
   })
 
-  it('requests a 365-day window for the default 1Y preset on load', async () => {
+  it('requests the full calendar year window for the default YTD preset on load', async () => {
     render(
       <ActorFitnessDashboard
         actorId={ACTOR_ID}
@@ -127,21 +135,21 @@ describe('ActorFitnessDashboard', () => {
       />
     )
 
-    const window365 = expectedWindow(FIXED_CURRENT_TIME, 365)
+    const windowYtd = expectedYearWindow(FIXED_CURRENT_TIME)
     await waitFor(() => {
       expect(mockedGetFitnessSummary).toHaveBeenLastCalledWith({
         actorId: ACTOR_ID,
-        ...window365
+        ...windowYtd
       })
     })
     expect(mockedGetFitnessCalendarData).toHaveBeenLastCalledWith({
       actorId: ACTOR_ID,
-      ...window365
+      ...windowYtd
     })
   })
 
   it.each([
-    { label: '2Y', days: 730 },
+    { label: '1Y', days: 365 },
     { label: '5Y', days: 1825 },
     { label: '10Y', days: 3650 }
   ])(
@@ -169,4 +177,37 @@ describe('ActorFitnessDashboard', () => {
       })
     }
   )
+
+  it('requests the full calendar year window when switching back to YTD', async () => {
+    render(
+      <ActorFitnessDashboard
+        actorId={ACTOR_ID}
+        currentTime={FIXED_CURRENT_TIME}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '1Y' }))
+
+    const window365 = expectedWindow(FIXED_CURRENT_TIME, 365)
+    await waitFor(() => {
+      expect(mockedGetFitnessSummary).toHaveBeenLastCalledWith({
+        actorId: ACTOR_ID,
+        ...window365
+      })
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'YTD' }))
+
+    const windowYtd = expectedYearWindow(FIXED_CURRENT_TIME)
+    await waitFor(() => {
+      expect(mockedGetFitnessSummary).toHaveBeenLastCalledWith({
+        actorId: ACTOR_ID,
+        ...windowYtd
+      })
+    })
+    expect(mockedGetFitnessCalendarData).toHaveBeenLastCalledWith({
+      actorId: ACTOR_ID,
+      ...windowYtd
+    })
+  })
 })
