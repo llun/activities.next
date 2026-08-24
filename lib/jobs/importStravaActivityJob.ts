@@ -469,44 +469,7 @@ export const importStravaActivityJob = createJobHandle(
     const resolvedVisibility =
       visibility ?? mapStravaVisibilityToMastodon(activity.visibility)
     const batchId = getStravaActivityBatchId(stravaActivityId)
-
-    // Only an activity Strava says is shared gets pushed anywhere, whatever the
-    // account default says.
-    //
-    // The webhook always sends an explicit `visibility` (the actor's Strava
-    // default), so the `only_me` -> `direct` arm of mapStravaVisibilityToMastodon
-    // never gets a chance to apply on that path. That was harmless while every
-    // import was local-only — the post existed at the account default and went
-    // nowhere. Now that imports federate it would be a leak, and the account
-    // default is the one setting a user would never think to check for it.
-    //
-    // An allowlist rather than `!== 'only_me'` because the field is optional:
-    // absent, a denylist federates at the account default, which can be public.
-    // mapStravaVisibilityToMastodon resolves the same unknown to `private`, so
-    // failing closed here is the answer this codebase already gives.
-    const isStravaSharedActivity =
-      activity.visibility === 'everyone' ||
-      activity.visibility === 'followers_only'
-    const shouldFederateImport = publishSendNote && isStravaSharedActivity
-
-    // Logged rather than left silent: the visibility type is open-ended, so a
-    // value Strava adds later — or stops sending — would suppress federation
-    // for every import, and the symptom ("my rides stopped appearing on other
-    // servers") looks identical to the bug this opt-in exists to fix. Only for
-    // a caller that asked to federate, and never for only_me, which is a
-    // decision rather than a surprise.
-    if (
-      publishSendNote &&
-      !isStravaSharedActivity &&
-      activity.visibility !== 'only_me'
-    ) {
-      logger.warn({
-        message: 'Not federating an import with an unrecognised visibility',
-        actorId,
-        stravaActivityId,
-        stravaVisibility: activity.visibility ?? null
-      })
-    }
+    const shouldFederateImport = publishSendNote
 
     // Nothing here reads `activity.gear_id`, and that is deliberate: gear is
     // attributed downstream by `processFitnessFileJob`, from the gear whose

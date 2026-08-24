@@ -1321,72 +1321,50 @@ describe('importStravaActivityJob', () => {
       expect(database.updateFitnessFileImportStatus).not.toHaveBeenCalled()
     })
 
-    it('never federates an activity the athlete marked only me on Strava', async () => {
-      // The webhook always sends an explicit visibility, so the only_me ->
-      // direct mapping never applies here and the ride would otherwise be
-      // pushed at whatever the account default happens to be.
-      mockGetStravaActivity.mockReset()
-      mockGetStravaActivity.mockResolvedValue({
-        id: 123,
-        name: 'Secret Ride',
-        distance: 5_000,
-        elapsed_time: 1_500,
-        total_elevation_gain: 20,
-        start_date: '2026-01-01T00:00:00.000Z',
-        sport_type: 'Ride',
-        visibility: 'only_me'
-      } as never)
+    it.each([
+      { stravaVisibility: 'everyone' },
+      { stravaVisibility: 'followers_only' },
+      { stravaVisibility: 'only_me' },
+      { stravaVisibility: undefined },
+      { stravaVisibility: 'custom_future_visibility' }
+    ])(
+      'federates at configured visibility when Strava visibility is $stravaVisibility',
+      async ({ stravaVisibility }) => {
+        mockGetStravaActivity.mockReset()
+        mockGetStravaActivity.mockResolvedValue({
+          id: 123,
+          name: 'Morning Ride',
+          distance: 5_000,
+          elapsed_time: 1_500,
+          total_elevation_gain: 20,
+          start_date: '2026-01-01T00:00:00.000Z',
+          sport_type: 'Ride',
+          ...(stravaVisibility !== undefined
+            ? { visibility: stravaVisibility }
+            : {})
+        } as never)
 
-      await importStravaActivityJob(database as unknown as Database, {
-        id: 'job-federation-only-me',
-        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
-        data: {
-          actorId: 'actor-1',
-          stravaActivityId: '123',
-          visibility: 'public',
-          publishSendNote: true
-        }
-      })
+        await importStravaActivityJob(database as unknown as Database, {
+          id: 'job-federation-various-visibilities',
+          name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+          data: {
+            actorId: 'actor-1',
+            stravaActivityId: '123',
+            visibility: 'public',
+            publishSendNote: true
+          }
+        })
 
-      expect(mockImportFitnessFiles).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({ publishSendNote: false }),
-        expect.anything()
-      )
-    })
-
-    it('does not federate when Strava reports no visibility for the activity', async () => {
-      // The field is optional, so a denylist would federate an unknown at the
-      // account default — which can be public. mapStravaVisibilityToMastodon
-      // resolves the same unknown to private.
-      mockGetStravaActivity.mockReset()
-      mockGetStravaActivity.mockResolvedValue({
-        id: 123,
-        name: 'Unlabelled Ride',
-        distance: 5_000,
-        elapsed_time: 1_500,
-        total_elevation_gain: 20,
-        start_date: '2026-01-01T00:00:00.000Z',
-        sport_type: 'Ride'
-      } as never)
-
-      await importStravaActivityJob(database as unknown as Database, {
-        id: 'job-federation-unknown-visibility',
-        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
-        data: {
-          actorId: 'actor-1',
-          stravaActivityId: '123',
-          visibility: 'public',
-          publishSendNote: true
-        }
-      })
-
-      expect(mockImportFitnessFiles).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({ publishSendNote: false }),
-        expect.anything()
-      )
-    })
+        expect(mockImportFitnessFiles).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({
+            publishSendNote: true,
+            visibility: 'public'
+          }),
+          expect.anything()
+        )
+      }
+    )
 
     it('sends an update when Strava photos land after the create', async () => {
       // The process job is published before the photos, so under NoQueue the
