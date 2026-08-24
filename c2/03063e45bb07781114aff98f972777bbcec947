@@ -1,0 +1,22 @@
+lib/components/posts/BlurhashCanvas.tsx
+  h_580a04e334fef4 4,9,17,46
+lib/components/posts/media.test.tsx
+  h_580a04e334fef4 16-17,21,27,72-73,76-79,87,92
+lib/components/posts/media.tsx
+  h_580a04e334fef4 61-64,69-72,75
+scripts/maintenance/backfillMediaBlurhash.test.ts
+  h_580a04e334fef4 1-114
+scripts/maintenance/backfillMediaBlurhash.ts
+  h_580a04e334fef4 25,31,53,69,158,160,233-272
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "c203063e45bb07781114aff98f972777bbcec947",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
