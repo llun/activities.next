@@ -1,0 +1,38 @@
+lib/jobs/importStravaActivityJob.federation.test.ts
+  h_580a04e334fef4 347-388
+lib/jobs/importStravaActivityJob.test.ts
+  h_580a04e334fef4 25,184,325,496-501,502,503-504,519,525-530,531,532-533,542,549,1324-1352,1353,1354-1356,1358-1361,1362,1363-1367,1415
+lib/jobs/importStravaActivityJob.ts
+  h_580a04e334fef4 46,468,469,529,550,775,782,942-948,957
+app/api/v1/webhooks/strava/[webhookToken]/route.ts
+  h_580a04e334fef4 166,170
+docs/fitness-file-storage.md
+  h_580a04e334fef4 312
+lib/services/fitness-files/retryImports.ts
+  h_580a04e334fef4 75,139-141
+app/api/v1/fitness/import/[batchId]/route.test.ts
+  h_580a04e334fef4 604-606
+app/api/v1/fitness/retry-failed/route.ts
+  h_580a04e334fef4 4,16-17
+lib/components/settings/FitnessFileManagement.tsx
+  h_580a04e334fef4 158-163
+lib/services/fitness-files/retryImports.test.ts
+  h_580a04e334fef4 173
+scripts/fitness/repairFailedFitnessImports.ts
+  h_580a04e334fef4 11-12,34-35
+scripts/fitness/runImportStravaActivity.test.ts
+  h_580a04e334fef4 1-117
+scripts/fitness/runImportStravaActivity.ts
+  h_580a04e334fef4 18,30-31,34-40,69-70,74,108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "e35b426b17783b07f0bdaab6fc7ca9d7c968de25",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
