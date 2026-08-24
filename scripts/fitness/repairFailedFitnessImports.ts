@@ -8,7 +8,8 @@
  *
  * For each failed file the correct importer is invoked in-process:
  *   - `strava-activity:<id>` batch → importStravaActivityJob (re-fetches the
- *     Strava activity, so caption/photos/visibility are restored)
+ *     Strava activity, so caption/photos are restored; takes visibility from
+ *     the account's fitness settings)
  *   - any other batch (manual upload) → importFitnessFilesJob (recreates the
  *     post from the stored file)
  *
@@ -30,8 +31,8 @@
  * Options:
  *   --visibility <public|unlisted|private|direct>
  *       Visibility for recreated posts. Default `public`. Only applies to
- *       manual-upload batches; Strava-activity retries re-derive the activity's
- *       own visibility from Strava.
+ *       manual-upload batches; Strava-activity retries use the account's
+ *       configured default visibility from fitness settings.
  *   --dry-run
  *       List what would be retried without changing anything.
  */

@@ -939,14 +939,13 @@ export const importStravaActivityJob = createJobHandle(
     // public audience — and an Update embeds the whole note, so the content
     // leaves the instance whatever the receiver decides to do with it. Some
     // implementations additionally treat an Update for an object they have
-    // never seen as a Create. Ungated, a recovery sweep — or an only_me
-    // activity, which reaches here having deliberately skipped its Create —
-    // would ship a status precisely because it had a photo. For the same reason
-    // gated on the process job having been queued: that job is what sends the
-    // Create, so after it failed to publish an Update is the only thing that
-    // would reach the network, federating a ride we just marked failed and
-    // whose retry (through retryImports, which does not opt in) never sends a
-    // Create of its own.
+    // never seen as a Create. Ungated, a recovery sweep (which deliberately
+    // skips the Create) would ship a status precisely because it had a photo.
+    // For the same reason gated on the process job having been queued: that
+    // job is what sends the Create, so after it failed to publish an Update is
+    // the only thing that would reach the network, federating a ride we just
+    // marked failed and whose retry (through retryImports, which does not opt
+    // in) never sends a Create of its own.
     //
     // The id carries the Strava activity so a merged sibling's photos get their
     // own Update rather than being deduplicated against the primary's, while a

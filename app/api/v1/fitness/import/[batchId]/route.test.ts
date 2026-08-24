@@ -601,9 +601,9 @@ describe('fitness import batch route', () => {
       fitnessFileIds: ['file-1'],
       importStatus: 'pending'
     })
-    // The full Strava importer runs (caption/photos/visibility), not just the
-    // file importer. Visibility is intentionally omitted so the job re-derives
-    // the activity's real Strava visibility.
+    // The full Strava importer runs (caption/photos), not just the file
+    // importer. Visibility is intentionally omitted so the job falls back to
+    // the account's configured default visibility from fitness settings.
     expect(getQueue().publish).toHaveBeenCalledWith({
       id: expect.any(String),
       name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,

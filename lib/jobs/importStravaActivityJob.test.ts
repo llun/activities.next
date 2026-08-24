@@ -1412,7 +1412,7 @@ describe('importStravaActivityJob', () => {
       // sendUpdateNoteJob consults no opt-in of its own, and Mastodon
       // synthesises a Create for an unseen object younger than about a day —
       // so an ungated Update publishes a status that deliberately stayed
-      // local, an only_me activity included, just because it had a photo.
+      // local (such as a recovery sweep) just because it had a photo.
       database.getAttachments.mockResolvedValue([])
       database.createAttachment.mockResolvedValue({} as never)
       mockGetStravaActivityPhotos.mockResolvedValueOnce([

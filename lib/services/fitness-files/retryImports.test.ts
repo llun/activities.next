@@ -170,7 +170,7 @@ describe('retryFitnessImportBatch', () => {
         data: { actorId: 'actor-1', stravaActivityId: '777' }
       })
     )
-    // Strava retries re-derive visibility server-side, so it must be omitted.
+    // Strava retries use the configured default visibility server-side, so it must be omitted.
     const job = (getQueue().publish as jest.Mock).mock.calls[0][0]
     expect(job.data).not.toHaveProperty('visibility')
     // A retry sweep runs over every failed batch an actor has. Opting it into
