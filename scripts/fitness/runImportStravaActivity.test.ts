@@ -45,28 +45,14 @@ describe('runImportStravaActivity', () => {
     vi.restoreAllMocks()
   })
 
-  it('runs import job with credentials and no visibility when --visibility is omitted', async () => {
+  it('returns 1 when --visibility is omitted', async () => {
     const database = {} as ReturnType<typeof getDatabase>
     mockGetDatabase.mockReturnValue(database)
 
     const exitCode = await runImportStravaActivity(baseArgs)
 
-    expect(exitCode).toBe(0)
-    expect(mockImportStravaActivityJob).toHaveBeenCalledWith(database, {
-      id: expect.stringMatching(
-        /^cli:https:\/\/llun\.test\/users\/test1:123456789:\d+$/
-      ),
-      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
-      data: {
-        actorId: 'https://llun.test/users/test1',
-        stravaActivityId: '123456789',
-        stravaAuth: {
-          appId: 'strava-app-123',
-          appSecret: 'strava-secret-456',
-          accessToken: 'strava-token-789'
-        }
-      }
-    })
+    expect(exitCode).toBe(1)
+    expect(mockImportStravaActivityJob).not.toHaveBeenCalled()
   })
 
   it('forwards --visibility to import job when provided', async () => {

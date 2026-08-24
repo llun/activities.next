@@ -7,7 +7,8 @@
  *     --activity-id <activity-id> \
  *     --strava-app-id <strava-app-id> \
  *     --strava-app-secret <strava-app-secret> \
- *     --access-token <access-token>
+ *     --access-token <access-token> \
+ *     --visibility <public|unlisted|private|direct>
  */
 import { loadEnvConfig } from '@next/env'
 import { z } from 'zod'
@@ -28,7 +29,7 @@ const CliArgs = z.object({
   stravaAppId: z.string().min(1),
   stravaAppSecret: z.string().min(1),
   accessToken: z.string().min(1),
-  visibility: Visibility.optional()
+  visibility: Visibility
 })
 
 const USAGE = `Usage: NODE_ENV=development scripts/fitness/runImportStravaActivity.ts \
@@ -37,7 +38,7 @@ const USAGE = `Usage: NODE_ENV=development scripts/fitness/runImportStravaActivi
   --strava-app-id <strava-app-id> \
   --strava-app-secret <strava-app-secret> \
   --access-token <access-token> \
-  [--visibility <public|unlisted|private|direct>]`
+  --visibility <public|unlisted|private|direct>`
 
 const parseArgs = (args: string[]) => {
   const parsedArgs: Record<string, string> = {}
@@ -105,7 +106,7 @@ export async function runImportStravaActivity(args = process.argv.slice(2)) {
     data: {
       actorId: input.actorId,
       stravaActivityId: input.activityId,
-      ...(input.visibility ? { visibility: input.visibility } : {}),
+      visibility: input.visibility,
       stravaAuth: {
         appId: input.stravaAppId,
         appSecret: input.stravaAppSecret,
