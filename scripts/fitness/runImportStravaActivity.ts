@@ -7,7 +7,8 @@
  *     --activity-id <activity-id> \
  *     --strava-app-id <strava-app-id> \
  *     --strava-app-secret <strava-app-secret> \
- *     --access-token <access-token>
+ *     --access-token <access-token> \
+ *     --visibility <public|unlisted|private|direct>
  */
 import { loadEnvConfig } from '@next/env'
 import { z } from 'zod'
@@ -15,6 +16,7 @@ import { z } from 'zod'
 import { getDatabase } from '@/lib/database'
 import { importStravaActivityJob } from '@/lib/jobs/importStravaActivityJob'
 import { IMPORT_STRAVA_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
+import { Visibility } from '@/lib/types/mastodon/visibility'
 
 import { printDatabaseBanner } from './describeConnection'
 
@@ -26,10 +28,17 @@ const CliArgs = z.object({
   activityId: z.string().min(1),
   stravaAppId: z.string().min(1),
   stravaAppSecret: z.string().min(1),
-  accessToken: z.string().min(1)
+  accessToken: z.string().min(1),
+  visibility: Visibility
 })
 
-const USAGE = `Usage: NODE_ENV=development scripts/fitness/runImportStravaActivity.ts --actor-id <actor-id> --activity-id <activity-id> --strava-app-id <strava-app-id> --strava-app-secret <strava-app-secret> --access-token <access-token>`
+const USAGE = `Usage: NODE_ENV=development scripts/fitness/runImportStravaActivity.ts \
+  --actor-id <actor-id> \
+  --activity-id <activity-id> \
+  --strava-app-id <strava-app-id> \
+  --strava-app-secret <strava-app-secret> \
+  --access-token <access-token> \
+  --visibility <public|unlisted|private|direct>`
 
 const parseArgs = (args: string[]) => {
   const parsedArgs: Record<string, string> = {}
@@ -58,11 +67,12 @@ const parseArgs = (args: string[]) => {
     activityId: parsedArgs['activity-id'],
     stravaAppId: parsedArgs['strava-app-id'],
     stravaAppSecret: parsedArgs['strava-app-secret'],
-    accessToken: parsedArgs['access-token']
+    accessToken: parsedArgs['access-token'],
+    visibility: parsedArgs['visibility']
   })
 }
 
-async function runImportStravaActivity(args = process.argv.slice(2)) {
+export async function runImportStravaActivity(args = process.argv.slice(2)) {
   if (args.includes('--help') || args.includes('-h')) {
     console.log(USAGE)
     return 0
@@ -96,6 +106,7 @@ async function runImportStravaActivity(args = process.argv.slice(2)) {
     data: {
       actorId: input.actorId,
       stravaActivityId: input.activityId,
+      visibility: input.visibility,
       stravaAuth: {
         appId: input.stravaAppId,
         appSecret: input.stravaAppSecret,

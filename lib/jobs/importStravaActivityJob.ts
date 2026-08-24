@@ -43,8 +43,7 @@ import {
   getStravaActivityStreams,
   getStravaActivityUrl,
   getValidStravaAccessToken,
-  isSupportedStravaPhotoMimeType,
-  mapStravaVisibilityToMastodon
+  isSupportedStravaPhotoMimeType
 } from '@/lib/services/strava/activity'
 import { getStravaActivityBatchId } from '@/lib/services/strava/activityBatch'
 import { addStatusToTimelines } from '@/lib/services/timelines'
@@ -466,47 +465,9 @@ export const importStravaActivityJob = createJobHandle(
       activityId: stravaActivityId,
       accessToken
     })
-    const resolvedVisibility =
-      visibility ?? mapStravaVisibilityToMastodon(activity.visibility)
+    const statusVisibility =
+      visibility ?? fitnessSettings.defaultVisibility ?? Visibility.enum.private
     const batchId = getStravaActivityBatchId(stravaActivityId)
-
-    // Only an activity Strava says is shared gets pushed anywhere, whatever the
-    // account default says.
-    //
-    // The webhook always sends an explicit `visibility` (the actor's Strava
-    // default), so the `only_me` -> `direct` arm of mapStravaVisibilityToMastodon
-    // never gets a chance to apply on that path. That was harmless while every
-    // import was local-only — the post existed at the account default and went
-    // nowhere. Now that imports federate it would be a leak, and the account
-    // default is the one setting a user would never think to check for it.
-    //
-    // An allowlist rather than `!== 'only_me'` because the field is optional:
-    // absent, a denylist federates at the account default, which can be public.
-    // mapStravaVisibilityToMastodon resolves the same unknown to `private`, so
-    // failing closed here is the answer this codebase already gives.
-    const isStravaSharedActivity =
-      activity.visibility === 'everyone' ||
-      activity.visibility === 'followers_only'
-    const shouldFederateImport = publishSendNote && isStravaSharedActivity
-
-    // Logged rather than left silent: the visibility type is open-ended, so a
-    // value Strava adds later — or stops sending — would suppress federation
-    // for every import, and the symptom ("my rides stopped appearing on other
-    // servers") looks identical to the bug this opt-in exists to fix. Only for
-    // a caller that asked to federate, and never for only_me, which is a
-    // decision rather than a surprise.
-    if (
-      publishSendNote &&
-      !isStravaSharedActivity &&
-      activity.visibility !== 'only_me'
-    ) {
-      logger.warn({
-        message: 'Not federating an import with an unrecognised visibility',
-        actorId,
-        stravaActivityId,
-        stravaVisibility: activity.visibility ?? null
-      })
-    }
 
     // Nothing here reads `activity.gear_id`, and that is deliberate: gear is
     // attributed downstream by `processFitnessFileJob`, from the gear whose
@@ -565,7 +526,7 @@ export const importStravaActivityJob = createJobHandle(
             actor,
             activity,
             stravaActivityId,
-            visibility: resolvedVisibility
+            visibility: statusVisibility
           })
 
         await addStatusToTimelines(database, createdNote)
@@ -586,7 +547,7 @@ export const importStravaActivityJob = createJobHandle(
         // retry-all sweep or a scripts/fitness recovery run still delivers one
         // Create per streamless activity — exactly what the flag exists to
         // prevent — so it answers to the same opt-in.
-        if (shouldFederateImport) {
+        if (publishSendNote) {
           await getQueue().publish({
             id: getHashFromString(`${actorId}:strava-note:${stravaActivityId}`),
             name: SEND_NOTE_JOB_NAME,
@@ -811,14 +772,14 @@ export const importStravaActivityJob = createJobHandle(
               batchId,
               fitnessFileIds: [targetFitnessFile.id],
               overlapFitnessFileIds,
-              visibility: resolvedVisibility,
+              visibility: statusVisibility,
               // Forwarded from this job's own caller, so only the webhook — one
               // activity, arriving while the user is elsewhere — emails.
               notifyOnComplete,
               // Same: only the webhook federates. A merged sibling reuses the
               // existing status, so importFitnessFiles resolves this to false
               // for it and the ride's Create still goes out exactly once.
-              publishSendNote: shouldFederateImport,
+              publishSendNote,
               // Same again: only the webhook posts a just-finished ride, so
               // only it stamps the status with the import time rather than the
               // activity's start. A merged sibling reuses the existing status,
@@ -978,14 +939,13 @@ export const importStravaActivityJob = createJobHandle(
     // public audience — and an Update embeds the whole note, so the content
     // leaves the instance whatever the receiver decides to do with it. Some
     // implementations additionally treat an Update for an object they have
-    // never seen as a Create. Ungated, a recovery sweep — or an only_me
-    // activity, which reaches here having deliberately skipped its Create —
-    // would ship a status precisely because it had a photo. For the same reason
-    // gated on the process job having been queued: that job is what sends the
-    // Create, so after it failed to publish an Update is the only thing that
-    // would reach the network, federating a ride we just marked failed and
-    // whose retry (through retryImports, which does not opt in) never sends a
-    // Create of its own.
+    // never seen as a Create. Ungated, a recovery sweep (which deliberately
+    // skips the Create) would ship a status precisely because it had a photo.
+    // For the same reason gated on the process job having been queued: that
+    // job is what sends the Create, so after it failed to publish an Update is
+    // the only thing that would reach the network, federating a ride we just
+    // marked failed and whose retry (through retryImports, which does not opt
+    // in) never sends a Create of its own.
     //
     // The id carries the Strava activity so a merged sibling's photos get their
     // own Update rather than being deduplicated against the primary's, while a
@@ -994,11 +954,7 @@ export const importStravaActivityJob = createJobHandle(
     // Kept out of the photo try/catch above so a failure here is not reported
     // as a photo failure — the photos are on the status either way, and what
     // was lost is the Update.
-    if (
-      shouldFederateImport &&
-      attachedPhotoCount > 0 &&
-      !processJobPublishFailed
-    ) {
+    if (publishSendNote && attachedPhotoCount > 0 && !processJobPublishFailed) {
       try {
         await getQueue().publish({
           id: getHashFromString(

@@ -344,4 +344,46 @@ describe('importStravaActivityJob federation', () => {
     expect(hoisted.sendNoteSnapshots).toHaveLength(1)
     expect(hoisted.sendNoteSnapshots[0].statusId).toBe(fileA.statusId)
   })
+
+  it('federates a webhook import even when Strava activity has visibility: only_me', async () => {
+    const startDate = rideStart(6)
+    mockParseFitnessFile.mockResolvedValueOnce({
+      coordinates: [
+        { lat: 37.77, lng: -122.41 },
+        { lat: 37.78, lng: -122.42 }
+      ],
+      trackPoints: [
+        { lat: 37.77, lng: -122.41 },
+        { lat: 37.78, lng: -122.42 }
+      ],
+      totalDistanceMeters: 20_000,
+      totalDurationSeconds: 3_600,
+      elevationGainMeters: 50,
+      activityType: 'cycling',
+      startTime: new Date(startDate)
+    } as never)
+    mockGetStravaActivity.mockResolvedValueOnce({
+      id: 2006,
+      name: ACTIVITY_NAME,
+      distance: 20_000,
+      elapsed_time: 3_600,
+      total_elevation_gain: 50,
+      start_date: startDate,
+      sport_type: 'Ride',
+      visibility: 'only_me'
+    } as never)
+
+    await importStravaActivityJob(database, {
+      id: 'job-2006',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        stravaActivityId: '2006',
+        publishSendNote: true
+      }
+    })
+
+    expect(hoisted.sendNoteSnapshots).toHaveLength(1)
+    expect(hoisted.sendNoteSnapshots[0].text).toContain(ACTIVITY_NAME)
+  })
 })
