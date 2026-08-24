@@ -505,6 +505,7 @@ export const GearComponentsCard: FC<Props> = ({
                           type="button"
                           variant="ghost"
                           className="text-primary-text"
+                          aria-label={`Retire ${component.componentType}`}
                           disabled={isPending}
                           onClick={() => handleRetire(component.id)}
                         >

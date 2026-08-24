@@ -28,6 +28,19 @@ export const POST = traceApiRoute(
     }
     if (!id || !componentId) return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
 
+    // The route consumes no body parameters (the owner adds any successor part
+    // through POST .../components explicitly), but validates that a non-empty
+    // payload is valid JSON so a malformed or truncated client request is rejected
+    // with 400 rather than executing an unintended retirement.
+    const text = await req.text()
+    if (text.trim().length > 0) {
+      try {
+        JSON.parse(text)
+      } catch (_error) {
+        return apiErrorResponse(HTTP_STATUS.BAD_REQUEST)
+      }
+    }
+
     const rejection = await rejectComponentsForDevice({
       req,
       database,

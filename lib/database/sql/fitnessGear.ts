@@ -881,21 +881,27 @@ export const FitnessGearSQLDatabaseMixin = (
       gearId,
       actorId
     })
-    // An already-removed part cannot be retired again — it is history, and the
-    // part that succeeded it is the one on the bike.
-    if (!existing || existing.removedAt) return null
+    if (!existing) return null
 
+    // The state change is a predicate on the UPDATE statement rather than a
+    // decision taken from a read in front of it. Only a real transition writes,
+    // so two concurrent requests (two tabs, a retried request) result in one
+    // update; 0 rows affected maps straight to null (which the route answers as 404).
     const currentTime = new Date()
-    await database('fitness_gear_components')
+    const updated = await database('fitness_gear_components')
       .where('id', id)
+      .whereNull('removedAt')
+      .whereNull('deletedAt')
       .update({ removedAt: currentTime, updatedAt: currentTime })
 
-    const updated = await getOwnedComponentRow(database, {
+    if (!updated) return null
+
+    const row = await getOwnedComponentRow(database, {
       id,
       gearId,
       actorId
     })
-    return updated ? parseSQLFitnessGearComponent(updated) : null
+    return row ? parseSQLFitnessGearComponent(row) : null
   },
 
   async getFitnessGearComponentDistanceRollups({ actorId, gearIds }) {

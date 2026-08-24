@@ -183,4 +183,20 @@ describe('Fitness gear component retire API', () => {
     expect(data.error).toBe('A recording device has no components')
     expect(mockDb.retireFitnessGearComponent).not.toHaveBeenCalled()
   })
+
+  it('returns 400 for invalid JSON body', async () => {
+    const response = await POST(
+      new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        },
+        body: 'invalid-json{'
+      }),
+      params
+    )
+    expect(response.status).toBe(400)
+    expect(mockDb.retireFitnessGearComponent).not.toHaveBeenCalled()
+  })
 })

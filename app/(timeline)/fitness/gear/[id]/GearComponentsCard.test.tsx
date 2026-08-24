@@ -276,7 +276,7 @@ describe('GearComponentsCard', () => {
   it('retires an installed component and refetches', async () => {
     const onChanged = renderCard([createComponent()])
 
-    fireEvent.click(screen.getByRole('button', { name: 'Retire' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retire Chain' }))
 
     await waitFor(() =>
       expect(mockRetireFitnessGearComponent).toHaveBeenCalledWith(
@@ -285,6 +285,14 @@ describe('GearComponentsCard', () => {
       )
     )
     expect(onChanged).toHaveBeenCalled()
+  })
+
+  it('scopes the retire button accessible name to the component type', () => {
+    renderCard([createComponent({ componentType: 'Fork' })])
+
+    expect(
+      screen.getByRole('button', { name: 'Retire Fork' })
+    ).toBeInTheDocument()
   })
 
   it('hides retired components behind a toggle', () => {
@@ -400,14 +408,14 @@ describe('GearComponentsCard', () => {
     )
     const onChanged = renderCard([createComponent()])
 
-    fireEvent.click(screen.getByRole('button', { name: 'Retire' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retire Chain' }))
 
     expect(
       await screen.findByText('Component already retired')
     ).toBeInTheDocument()
     expect(onChanged).not.toHaveBeenCalled()
     // The row's own action comes back so the failure can be retried.
-    expect(screen.getByRole('button', { name: 'Retire' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Retire Chain' })).toBeEnabled()
   })
 
   it('surfaces a delete failure', async () => {

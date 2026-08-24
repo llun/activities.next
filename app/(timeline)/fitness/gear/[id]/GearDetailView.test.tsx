@@ -457,8 +457,7 @@ describe('GearDetailView', () => {
     )
     expect(screen.getByText('Cassette')).toBeInTheDocument()
 
-    const [gearRetireButton] = screen.getAllByRole('button', { name: 'Retire' })
-    fireEvent.click(gearRetireButton)
+    fireEvent.click(screen.getByRole('button', { name: 'Retire' }))
     await waitFor(() => expect(mockGetFitnessGearList).toHaveBeenCalledTimes(2))
 
     expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
