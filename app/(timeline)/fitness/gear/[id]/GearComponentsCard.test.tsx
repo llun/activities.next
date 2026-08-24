@@ -7,7 +7,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import {
   createFitnessGearComponent,
   deleteFitnessGearComponent,
-  replaceFitnessGearComponent
+  retireFitnessGearComponent
 } from '@/lib/client'
 import type { GearComponentEntity } from '@/lib/services/fitness-gears/gearEntities'
 
@@ -16,7 +16,7 @@ import { GearComponentsCard } from './GearComponentsCard'
 vi.mock('@/lib/client', () => ({
   createFitnessGearComponent: vi.fn(),
   deleteFitnessGearComponent: vi.fn(),
-  replaceFitnessGearComponent: vi.fn()
+  retireFitnessGearComponent: vi.fn()
 }))
 
 const mockCreateFitnessGearComponent =
@@ -27,9 +27,9 @@ const mockDeleteFitnessGearComponent =
   deleteFitnessGearComponent as jest.MockedFunction<
     typeof deleteFitnessGearComponent
   >
-const mockReplaceFitnessGearComponent =
-  replaceFitnessGearComponent as jest.MockedFunction<
-    typeof replaceFitnessGearComponent
+const mockRetireFitnessGearComponent =
+  retireFitnessGearComponent as jest.MockedFunction<
+    typeof retireFitnessGearComponent
   >
 
 const createComponent = (
@@ -92,10 +92,9 @@ describe('GearComponentsCard', () => {
     vi.clearAllMocks()
     mockCreateFitnessGearComponent.mockResolvedValue(createComponent())
     mockDeleteFitnessGearComponent.mockResolvedValue(undefined)
-    mockReplaceFitnessGearComponent.mockResolvedValue({
-      retired: createComponent({ removedAt: Date.UTC(2025, 5, 1) }),
-      replacement: createComponent({ id: 'component-2' })
-    })
+    mockRetireFitnessGearComponent.mockResolvedValue(
+      createComponent({ removedAt: Date.UTC(2025, 5, 1) })
+    )
   })
 
   it('renders the header with the installed count', () => {
@@ -274,13 +273,13 @@ describe('GearComponentsCard', () => {
     expect(bar).toHaveAttribute('aria-valuetext', '180% of service interval')
   })
 
-  it('replaces an installed component and refetches', async () => {
+  it('retires an installed component and refetches', async () => {
     const onChanged = renderCard([createComponent()])
 
-    fireEvent.click(screen.getByRole('button', { name: 'Replace' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retire Chain' }))
 
     await waitFor(() =>
-      expect(mockReplaceFitnessGearComponent).toHaveBeenCalledWith(
+      expect(mockRetireFitnessGearComponent).toHaveBeenCalledWith(
         'gear-1',
         'component-1'
       )
@@ -288,7 +287,15 @@ describe('GearComponentsCard', () => {
     expect(onChanged).toHaveBeenCalled()
   })
 
-  it('hides replaced components behind a toggle', () => {
+  it('scopes the retire button accessible name to the component type', () => {
+    renderCard([createComponent({ componentType: 'Fork' })])
+
+    expect(
+      screen.getByRole('button', { name: 'Retire Fork' })
+    ).toBeInTheDocument()
+  })
+
+  it('hides retired components behind a toggle', () => {
     renderCard([
       createComponent(),
       createComponent({
@@ -301,33 +308,33 @@ describe('GearComponentsCard', () => {
     expect(screen.queryByText('Cassette')).not.toBeInTheDocument()
 
     fireEvent.click(
-      screen.getByRole('button', { name: 'Show 1 replaced component' })
+      screen.getByRole('button', { name: 'Show 1 retired component' })
     )
 
     expect(screen.getByText('Cassette')).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'Hide replaced components' })
+      screen.getByRole('button', { name: 'Hide retired components' })
     ).toBeInTheDocument()
   })
 
-  it('pluralises the replaced-components toggle', () => {
+  it('pluralises the retired-components toggle', () => {
     renderCard([
       createComponent({ id: 'a', removedAt: 1 }),
       createComponent({ id: 'b', removedAt: 2 })
     ])
 
     expect(
-      screen.getByRole('button', { name: 'Show 2 replaced components' })
+      screen.getByRole('button', { name: 'Show 2 retired components' })
     ).toBeInTheDocument()
   })
 
-  it('requires a second click to delete a replaced component', async () => {
+  it('requires a second click to delete a retired component', async () => {
     const onChanged = renderCard([
       createComponent({ removedAt: Date.UTC(2025, 5, 1) })
     ])
 
     fireEvent.click(
-      screen.getByRole('button', { name: 'Show 1 replaced component' })
+      screen.getByRole('button', { name: 'Show 1 retired component' })
     )
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
 
@@ -344,11 +351,11 @@ describe('GearComponentsCard', () => {
     expect(onChanged).toHaveBeenCalled()
   })
 
-  it('disarms a pending delete when the replaced rows are hidden and shown again', async () => {
+  it('disarms a pending delete when the retired rows are hidden and shown again', async () => {
     renderCard([createComponent({ removedAt: Date.UTC(2025, 5, 1) })])
 
     fireEvent.click(
-      screen.getByRole('button', { name: 'Show 1 replaced component' })
+      screen.getByRole('button', { name: 'Show 1 retired component' })
     )
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
     expect(
@@ -356,10 +363,10 @@ describe('GearComponentsCard', () => {
     ).toBeInTheDocument()
 
     fireEvent.click(
-      screen.getByRole('button', { name: 'Hide replaced components' })
+      screen.getByRole('button', { name: 'Hide retired components' })
     )
     fireEvent.click(
-      screen.getByRole('button', { name: 'Show 1 replaced component' })
+      screen.getByRole('button', { name: 'Show 1 retired component' })
     )
 
     // The row comes back unarmed, so the next click confirms nothing.
@@ -379,7 +386,7 @@ describe('GearComponentsCard', () => {
     ])
 
     fireEvent.click(
-      screen.getByRole('button', { name: 'Show 2 replaced components' })
+      screen.getByRole('button', { name: 'Show 2 retired components' })
     )
     const [rowA, rowB] = screen.getAllByRole('button', { name: 'Delete' })
 
@@ -395,20 +402,20 @@ describe('GearComponentsCard', () => {
     expect(mockDeleteFitnessGearComponent).not.toHaveBeenCalled()
   })
 
-  it('surfaces a replace failure', async () => {
-    mockReplaceFitnessGearComponent.mockRejectedValue(
-      new Error('Component already replaced')
+  it('surfaces a retire failure', async () => {
+    mockRetireFitnessGearComponent.mockRejectedValue(
+      new Error('Component already retired')
     )
     const onChanged = renderCard([createComponent()])
 
-    fireEvent.click(screen.getByRole('button', { name: 'Replace' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retire Chain' }))
 
     expect(
-      await screen.findByText('Component already replaced')
+      await screen.findByText('Component already retired')
     ).toBeInTheDocument()
     expect(onChanged).not.toHaveBeenCalled()
     // The row's own action comes back so the failure can be retried.
-    expect(screen.getByRole('button', { name: 'Replace' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Retire Chain' })).toBeEnabled()
   })
 
   it('surfaces a delete failure', async () => {
@@ -420,7 +427,7 @@ describe('GearComponentsCard', () => {
     ])
 
     fireEvent.click(
-      screen.getByRole('button', { name: 'Show 1 replaced component' })
+      screen.getByRole('button', { name: 'Show 1 retired component' })
     )
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
     fireEvent.click(screen.getByRole('button', { name: 'Confirm delete' }))
@@ -537,7 +544,7 @@ describe('GearComponentsCard', () => {
   })
 
   // Mirrors the pinned-column guards in GearListView.test.tsx. This table's
-  // rows are inert, so it uses the non-hover variant — and its replaced-row dim
+  // rows are inert, so it uses the non-hover variant — and its retired-row dim
   // has to sit on a descendant, not the pinned cell, because `opacity` fades an
   // element's background along with its text.
   describe('pinned first column', () => {
@@ -570,11 +577,11 @@ describe('GearComponentsCard', () => {
       expect(getTypeCell('Chain')?.className).not.toContain('group-hover:')
     })
 
-    it('dims a replaced component through its cells so the pinned column stays opaque', () => {
+    it('dims a retired component through its cells so the pinned column stays opaque', () => {
       renderCard([createComponent({ removedAt: Date.UTC(2025, 2, 15) })])
 
       fireEvent.click(
-        screen.getByRole('button', { name: /^Show 1 replaced component/ })
+        screen.getByRole('button', { name: /^Show 1 retired component/ })
       )
 
       const cell = getTypeCell('Chain')

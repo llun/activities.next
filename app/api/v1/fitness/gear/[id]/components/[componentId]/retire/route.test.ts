@@ -27,7 +27,7 @@ vi.mock('@/lib/config', () => ({
 type MockDatabase = Pick<
   Database,
   | 'getFitnessGear'
-  | 'replaceFitnessGearComponent'
+  | 'retireFitnessGearComponent'
   | 'getFitnessGearComponentDistanceRollups'
   | 'getAccountFromEmail'
   | 'getActorsForAccount'
@@ -42,6 +42,28 @@ vi.mock('@/lib/database', () => ({
 vi.mock('next/headers', () => ({
   cookies: vi.fn().mockResolvedValue({ get: () => undefined })
 }))
+
+const account = {
+  id: 'account-1',
+  email: seedActor1.email,
+  defaultActorId: ACTOR1_ID,
+  twoFactorEnabled: false,
+  createdAt: 1000,
+  updatedAt: 1000
+}
+
+const actor = {
+  ...seedActor1,
+  id: ACTOR1_ID,
+  account,
+  followersUrl: `${ACTOR1_ID}/followers`,
+  inboxUrl: `${ACTOR1_ID}/inbox`,
+  sharedInboxUrl: 'https://llun.test/inbox',
+  statusCount: 0,
+  lastStatusAt: null,
+  createdAt: 1000,
+  updatedAt: 1000
+}
 
 const component = (
   overrides: Partial<FitnessGearComponent> = {}
@@ -66,10 +88,10 @@ const bikeGear: FitnessGear = {
   updatedAt: 1000
 }
 
-describe('Fitness gear component replace API', () => {
+describe('Fitness gear component retire API', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
     getFitnessGear: vi.fn(),
-    replaceFitnessGearComponent: vi.fn(),
+    retireFitnessGearComponent: vi.fn(),
     getFitnessGearComponentDistanceRollups: vi.fn(),
     getAccountFromEmail: vi.fn(),
     getActorsForAccount: vi.fn(),
@@ -85,15 +107,9 @@ describe('Fitness gear component replace API', () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
-    mockDb.getAccountFromEmail.mockResolvedValue({
-      id: 'account-1',
-      email: seedActor1.email,
-      defaultActorId: ACTOR1_ID
-    })
-    mockDb.getActorsForAccount.mockResolvedValue([
-      { ...seedActor1, id: ACTOR1_ID }
-    ])
-    mockDb.getActorFromId.mockResolvedValue({ ...seedActor1, id: ACTOR1_ID })
+    mockDb.getAccountFromEmail.mockResolvedValue(account)
+    mockDb.getActorsForAccount.mockResolvedValue([actor])
+    mockDb.getActorFromId.mockResolvedValue(actor)
     mockDb.getFitnessGearComponentDistanceRollups.mockResolvedValue({})
     mockDb.getFitnessGear.mockResolvedValue(bikeGear)
   })
@@ -102,38 +118,12 @@ describe('Fitness gear component replace API', () => {
     params: Promise.resolve({ id: 'gear-1', componentId: 'component-1' })
   }
   const url =
-    'http://llun.test/api/v1/fitness/gear/gear-1/components/component-1/replace'
+    'http://llun.test/api/v1/fitness/gear/gear-1/components/component-1/retire'
 
-  it('returns the retired part alongside its replacement', async () => {
-    mockDb.replaceFitnessGearComponent.mockResolvedValue({
-      retired: component({ removedAt: 1700 }),
-      replacement: component({ id: 'component-2', addedAt: 1700 })
-    })
-
-    const response = await POST(
-      new NextRequest(url, {
-        method: 'POST',
-        headers: { Origin: 'https://llun.test' },
-        body: JSON.stringify({})
-      }),
-      params
+  it('returns the retired component', async () => {
+    mockDb.retireFitnessGearComponent.mockResolvedValue(
+      component({ removedAt: 1700 })
     )
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.retired).toMatchObject({ id: 'component-1', removedAt: 1700 })
-    expect(data.replacement).toMatchObject({
-      id: 'component-2',
-      addedAt: 1700,
-      removedAt: null
-    })
-  })
-
-  it('accepts an empty body, since the design replaces in one click', async () => {
-    mockDb.replaceFitnessGearComponent.mockResolvedValue({
-      retired: component({ removedAt: 1700 }),
-      replacement: component({ id: 'component-2' })
-    })
 
     const response = await POST(
       new NextRequest(url, {
@@ -142,65 +132,30 @@ describe('Fitness gear component replace API', () => {
       }),
       params
     )
+    const data = await response.json()
 
     expect(response.status).toBe(200)
-    expect(mockDb.replaceFitnessGearComponent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'component-1',
-        gearId: 'gear-1',
-        actorId: ACTOR1_ID
-      })
-    )
-  })
-
-  // An empty body means "replace with a blank part"; a body that fails to parse
-  // means the client sent something it expected us to read. Treating the second
-  // as the first would retire the fitted part and drop the payload silently.
-  it.each([
-    { description: 'a truncated JSON payload', body: '{"brand": "Shim' },
-    { description: 'a non-JSON payload', body: 'brand=Shimano' }
-  ])(
-    'answers 400 for $description without replacing anything',
-    async ({ body }) => {
-      const response = await POST(
-        new NextRequest(url, {
-          method: 'POST',
-          headers: { Origin: 'https://llun.test' },
-          body
-        }),
-        params
-      )
-
-      expect(response.status).toBe(400)
-      expect(mockDb.replaceFitnessGearComponent).not.toHaveBeenCalled()
-    }
-  )
-
-  it('answers 422 for a JSON body that is not an object', async () => {
-    const response = await POST(
-      new NextRequest(url, {
-        method: 'POST',
-        headers: { Origin: 'https://llun.test' },
-        body: '"Shimano"'
-      }),
-      params
-    )
-
-    expect(response.status).toBe(422)
-    expect(mockDb.replaceFitnessGearComponent).not.toHaveBeenCalled()
+    expect(data.component).toMatchObject({
+      id: 'component-1',
+      removedAt: 1700
+    })
+    expect(mockDb.retireFitnessGearComponent).toHaveBeenCalledWith({
+      id: 'component-1',
+      gearId: 'gear-1',
+      actorId: ACTOR1_ID
+    })
   })
 
   it.each([
-    { description: 'the component was already replaced' },
+    { description: 'the component was already retired' },
     { description: 'the gear belongs to someone else' }
   ])('answers 404 when $description', async () => {
-    mockDb.replaceFitnessGearComponent.mockResolvedValue(null)
+    mockDb.retireFitnessGearComponent.mockResolvedValue(null)
 
     const response = await POST(
       new NextRequest(url, {
         method: 'POST',
-        headers: { Origin: 'https://llun.test' },
-        body: JSON.stringify({})
+        headers: { Origin: 'https://llun.test' }
       }),
       params
     )
@@ -218,8 +173,7 @@ describe('Fitness gear component replace API', () => {
     const response = await POST(
       new NextRequest(url, {
         method: 'POST',
-        headers: { Origin: 'https://llun.test' },
-        body: JSON.stringify({})
+        headers: { Origin: 'https://llun.test' }
       }),
       params
     )
@@ -227,6 +181,22 @@ describe('Fitness gear component replace API', () => {
 
     expect(response.status).toBe(422)
     expect(data.error).toBe('A recording device has no components')
-    expect(mockDb.replaceFitnessGearComponent).not.toHaveBeenCalled()
+    expect(mockDb.retireFitnessGearComponent).not.toHaveBeenCalled()
+  })
+
+  it('returns 400 for invalid JSON body', async () => {
+    const response = await POST(
+      new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        },
+        body: 'invalid-json{'
+      }),
+      params
+    )
+    expect(response.status).toBe(400)
+    expect(mockDb.retireFitnessGearComponent).not.toHaveBeenCalled()
   })
 })

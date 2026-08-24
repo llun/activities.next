@@ -40,7 +40,7 @@ vi.mock('@/lib/client', () => ({
   deleteFitnessGearComponent: vi.fn(),
   getFitnessGearComponents: vi.fn(),
   getFitnessGearList: vi.fn(),
-  replaceFitnessGearComponent: vi.fn(),
+  retireFitnessGearComponent: vi.fn(),
   setFitnessGearRetired: vi.fn(),
   updateFitnessGear: vi.fn()
 }))
@@ -214,7 +214,7 @@ describe('GearDetailView', () => {
     expect(screen.getByText('Activities')).toBeInTheDocument()
     expect(screen.getByText('1204')).toBeInTheDocument()
     expect(screen.getByText('Components installed')).toBeInTheDocument()
-    // The replaced component counts toward neither the tile nor the header.
+    // The retired component counts toward neither the tile nor the header.
     expect(screen.getByText('2 installed')).toBeInTheDocument()
     // "Distance" is both a stat tile and the components table's column header.
     expect(screen.getAllByText('Distance')).toHaveLength(2)
@@ -315,7 +315,7 @@ describe('GearDetailView', () => {
 
     it('keeps the components card mounted while the reader is on Activities', async () => {
       // The card holds its add form, its typed-in values and its "Show N
-      // replaced" toggle in local state, and a glance at Activities mid-form
+      // retired" toggle in local state, and a glance at Activities mid-form
       // would otherwise throw all of it away — the same loss a refetch is
       // already careful not to cause.
       mockGetFitnessGearComponents.mockResolvedValue([
@@ -329,7 +329,7 @@ describe('GearDetailView', () => {
       render(<GearDetailView gearId="gear-1" feed={feed} />)
 
       fireEvent.click(
-        await screen.findByRole('button', { name: 'Show 1 replaced component' })
+        await screen.findByRole('button', { name: 'Show 1 retired component' })
       )
       expect(screen.getByText('Cassette')).toBeInTheDocument()
 
@@ -451,9 +451,9 @@ describe('GearDetailView', () => {
       )
     render(<GearDetailView gearId="gear-1" feed={feed} />)
 
-    // Expand the replaced rows: the child's own state is what a remount loses.
+    // Expand the retired rows: the child's own state is what a remount loses.
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Show 1 replaced component' })
+      await screen.findByRole('button', { name: 'Show 1 retired component' })
     )
     expect(screen.getByText('Cassette')).toBeInTheDocument()
 
