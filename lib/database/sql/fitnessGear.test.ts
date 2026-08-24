@@ -927,12 +927,12 @@ describe('FitnessGearDatabase', () => {
       })
     })
 
-    describe('replaceFitnessGearComponent', () => {
-      it('closes the old part today and opens a fresh one carrying the service interval', async () => {
+    describe('retireFitnessGearComponent', () => {
+      it('closes the fitted part at today and does not create a new component', async () => {
         const gear = await database.createFitnessGear({
           actorId: actors.primary.id,
           kind: 'bike',
-          name: 'Replace chain'
+          name: 'Retire chain'
         })
         const original = await database.createFitnessGearComponent({
           gearId: gear.id,
@@ -943,28 +943,32 @@ describe('FitnessGearDatabase', () => {
           serviceDistanceMeters: 5_000_000
         })
 
-        const result = await database.replaceFitnessGearComponent({
+        const result = await database.retireFitnessGearComponent({
           id: original!.id,
           gearId: gear.id,
           actorId: actors.primary.id
         })
 
-        expect(result?.retired.removedAt).toEqual(expect.any(Number))
-        expect(result?.replacement).toMatchObject({
-          componentType: 'Chain',
-          serviceDistanceMeters: 5_000_000
+        expect(result?.id).toBe(original!.id)
+        expect(result?.removedAt).toEqual(expect.any(Number))
+        expect(result?.componentType).toBe('Chain')
+        expect(result?.brand).toBe('KMC')
+        expect(result?.model).toBe('X11EL Gold')
+        expect(result?.serviceDistanceMeters).toBe(5_000_000)
+
+        const components = await database.getFitnessGearComponents({
+          gearId: gear.id,
+          actorId: actors.primary.id
         })
-        expect(result?.replacement.removedAt).toBeUndefined()
-        expect(result?.replacement.addedAt).toEqual(expect.any(Number))
-        expect(result?.replacement.brand).toBeUndefined()
-        expect(result?.replacement.lastAlertedDistanceMeters).toBeUndefined()
+        expect(components).toHaveLength(1)
+        expect(components[0].removedAt).toEqual(expect.any(Number))
       })
 
-      it('returns null when the part was already replaced', async () => {
+      it('returns null when the part was already retired', async () => {
         const gear = await database.createFitnessGear({
           actorId: actors.primary.id,
           kind: 'bike',
-          name: 'Replace twice'
+          name: 'Retire twice'
         })
         const original = await database.createFitnessGearComponent({
           gearId: gear.id,
@@ -972,12 +976,12 @@ describe('FitnessGearDatabase', () => {
           componentType: 'Rear tire'
         })
 
-        await database.replaceFitnessGearComponent({
+        await database.retireFitnessGearComponent({
           id: original!.id,
           gearId: gear.id,
           actorId: actors.primary.id
         })
-        const second = await database.replaceFitnessGearComponent({
+        const second = await database.retireFitnessGearComponent({
           id: original!.id,
           gearId: gear.id,
           actorId: actors.primary.id
@@ -989,7 +993,7 @@ describe('FitnessGearDatabase', () => {
         const gear = await database.createFitnessGear({
           actorId: actors.primary.id,
           kind: 'bike',
-          name: 'Replace foreign'
+          name: 'Retire foreign'
         })
         const original = await database.createFitnessGearComponent({
           gearId: gear.id,
@@ -997,7 +1001,7 @@ describe('FitnessGearDatabase', () => {
           componentType: 'Fork'
         })
 
-        const result = await database.replaceFitnessGearComponent({
+        const result = await database.retireFitnessGearComponent({
           id: original!.id,
           gearId: gear.id,
           actorId: actors.replyAuthor.id

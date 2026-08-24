@@ -15,7 +15,7 @@ import { useGearTableColumns } from '@/app/(timeline)/fitness/gear/useGearTableC
 import {
   createFitnessGearComponent,
   deleteFitnessGearComponent,
-  replaceFitnessGearComponent
+  retireFitnessGearComponent
 } from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
 import { Card } from '@/lib/components/ui/card'
@@ -107,7 +107,7 @@ export const GearComponentsCard: FC<Props> = ({
   onChanged
 }) => {
   const [isFormOpen, setIsFormOpen] = useState(false)
-  const [showReplaced, setShowReplaced] = useState(false)
+  const [showRetired, setShowRetired] = useState(false)
   const [componentType, setComponentType] = useState<string>(
     COMPONENT_TYPE_OPTIONS[0]
   )
@@ -120,7 +120,7 @@ export const GearComponentsCard: FC<Props> = ({
   const [error, setError] = useState<string | null>(null)
   const [pendingActionId, setPendingActionId] = useState<string | null>(null)
   // A second click on the same row's Delete confirms it — cheaper than a
-  // dialog for a row the user just replaced, and still not a single misclick.
+  // dialog for a row the user just retired, and still not a single misclick.
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
     null
   )
@@ -132,8 +132,8 @@ export const GearComponentsCard: FC<Props> = ({
   } = useGearTableColumns(TYPE_COLUMN_WIDTH)
 
   const installed = components.filter((component) => !component.removedAt)
-  const replaced = components.filter((component) => component.removedAt)
-  const visible = showReplaced ? [...installed, ...replaced] : installed
+  const retired = components.filter((component) => component.removedAt)
+  const visible = showRetired ? [...installed, ...retired] : installed
 
   const resetForm = () => {
     setComponentType(COMPONENT_TYPE_OPTIONS[0])
@@ -182,17 +182,17 @@ export const GearComponentsCard: FC<Props> = ({
     }
   }
 
-  const handleReplace = async (componentId: string) => {
+  const handleRetire = async (componentId: string) => {
     setError(null)
     setPendingActionId(componentId)
     try {
-      await replaceFitnessGearComponent(gearId, componentId)
+      await retireFitnessGearComponent(gearId, componentId)
       onChanged()
-    } catch (replaceError) {
+    } catch (retireError) {
       setError(
-        replaceError instanceof Error
-          ? replaceError.message
-          : 'Failed to replace component.'
+        retireError instanceof Error
+          ? retireError.message
+          : 'Failed to retire component.'
       )
     } finally {
       setPendingActionId(null)
@@ -390,7 +390,7 @@ export const GearComponentsCard: FC<Props> = ({
                   Added
                 </th>
                 <th className="px-3 pb-2 font-medium" style={dataColumnStyle()}>
-                  Removed
+                  Retired
                 </th>
                 <th
                   className="px-3 pr-4 pb-2 font-medium"
@@ -400,11 +400,11 @@ export const GearComponentsCard: FC<Props> = ({
             </thead>
             <tbody>
               {visible.map((component) => {
-                const isReplaced = Boolean(component.removedAt)
+                const isRetired = Boolean(component.removedAt)
                 const isPending = pendingActionId === component.id
                 return (
                   <tr key={component.id} className="border-t">
-                    {/* A replaced component dims its contents rather than the
+                    {/* A retired component dims its contents rather than the
                         row: fading the row would take the pinned column's own
                         background down with it and let the data columns scroll
                         through. */}
@@ -416,7 +416,7 @@ export const GearComponentsCard: FC<Props> = ({
                       )}
                       style={pinnedColumnStyle}
                     >
-                      <div className={cn(isReplaced && 'opacity-60')}>
+                      <div className={cn(isRetired && 'opacity-60')}>
                         {component.componentType}
                       </div>
                     </td>
@@ -424,7 +424,7 @@ export const GearComponentsCard: FC<Props> = ({
                       className={cn(
                         CELL_WRAP,
                         'px-3 py-2.5 align-top text-muted-foreground',
-                        isReplaced && 'opacity-60'
+                        isRetired && 'opacity-60'
                       )}
                       style={dataColumnStyle(96)}
                     >
@@ -434,7 +434,7 @@ export const GearComponentsCard: FC<Props> = ({
                       className={cn(
                         CELL_WRAP,
                         'px-3 py-2.5 align-top text-muted-foreground',
-                        isReplaced && 'opacity-60'
+                        isRetired && 'opacity-60'
                       )}
                       style={dataColumnStyle(132)}
                     >
@@ -443,7 +443,7 @@ export const GearComponentsCard: FC<Props> = ({
                     <td
                       className={cn(
                         'px-3 py-2.5 text-right align-top whitespace-nowrap',
-                        isReplaced && 'opacity-60'
+                        isRetired && 'opacity-60'
                       )}
                       style={dataColumnStyle(108)}
                     >
@@ -455,7 +455,7 @@ export const GearComponentsCard: FC<Props> = ({
                     <td
                       className={cn(
                         'px-3 py-2.5 align-top whitespace-nowrap text-muted-foreground',
-                        isReplaced && 'opacity-60'
+                        isRetired && 'opacity-60'
                       )}
                       style={dataColumnStyle(112)}
                     >
@@ -466,7 +466,7 @@ export const GearComponentsCard: FC<Props> = ({
                     <td
                       className={cn(
                         'px-3 py-2.5 align-top whitespace-nowrap text-muted-foreground',
-                        isReplaced && 'opacity-60'
+                        isRetired && 'opacity-60'
                       )}
                       style={dataColumnStyle(88)}
                     >
@@ -478,7 +478,7 @@ export const GearComponentsCard: FC<Props> = ({
                       className="px-3 py-2.5 pr-4 text-right align-top whitespace-nowrap"
                       style={dataColumnStyle(84)}
                     >
-                      {isReplaced ? (
+                      {isRetired ? (
                         <Button
                           size="sm"
                           type="button"
@@ -506,9 +506,9 @@ export const GearComponentsCard: FC<Props> = ({
                           variant="ghost"
                           className="text-primary-text"
                           disabled={isPending}
-                          onClick={() => handleReplace(component.id)}
+                          onClick={() => handleRetire(component.id)}
                         >
-                          Replace
+                          Retire
                         </Button>
                       )}
                     </td>
@@ -520,23 +520,23 @@ export const GearComponentsCard: FC<Props> = ({
         </div>
       )}
 
-      {replaced.length > 0 && (
+      {retired.length > 0 && (
         <div className="px-4">
           <button
             type="button"
             className="cursor-pointer text-xs font-medium text-primary-text hover:underline"
-            // Hiding the replaced rows must disarm any pending confirmation
+            // Hiding the retired rows must disarm any pending confirmation
             // with them: the armed row would otherwise come back armed and
             // delete on the first click after the next "Show ...".
             onClick={() => {
-              setShowReplaced((current) => !current)
+              setShowRetired((current) => !current)
               setConfirmingDeleteId(null)
             }}
           >
-            {showReplaced
-              ? 'Hide replaced components'
-              : `Show ${replaced.length} replaced component${
-                  replaced.length === 1 ? '' : 's'
+            {showRetired
+              ? 'Hide retired components'
+              : `Show ${retired.length} retired component${
+                  retired.length === 1 ? '' : 's'
                 }`}
           </button>
         </div>

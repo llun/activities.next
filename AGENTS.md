@@ -964,8 +964,8 @@ it; there is no legacy shape left to copy.
   (37%) and _lighter_ in dark (55%), because on the dark ramp contrast comes from
   going up. This is the split the design system makes itself (`GK_ORANGE` vs
   `GK_ORANGE_TEXT`). It backs the gear list's retired toggle, the gear
-  product-page link, and the components card's replaced toggle and per-row
-  Replace action;
+  product-page link, and the components card's retired toggle and per-row
+  Retire action;
   `app/globals.contrast.test.ts` recomputes both ratios from the live token
   values, so collapsing the two tokens back together fails the suite. Other
   orange text in the app still predates this and should move over when touched.
@@ -996,7 +996,7 @@ it; there is no legacy shape left to copy.
   scroll straight through the pinned cell. The divider is an inset shadow, not a
   `border-r`, because `border-collapse: collapse` (Tailwind's preflight default)
   hands border painting to the table and drops a sticky cell's own right border.
-  A dimmed row (retired gear, a replaced component) dims its **cells**, never the
+  A dimmed row (retired gear, a retired component) dims its **cells**, never the
   `<tr>` and never the pinned `<td>` itself — `opacity` fades an element's
   background along with its text, so either one takes the pinned column's surface
   down with it. And the hover colour is the OPAQUE `bg-muted` on both the row and
