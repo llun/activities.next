@@ -22,13 +22,13 @@ import { analyzeImageBuffer } from '@/lib/services/medias/imageAnalysis'
 const projectDir = process.cwd()
 loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
 
-interface CliOptions {
+export interface CliOptions {
   batchSize: number
   dryRun: boolean
   force: boolean
 }
 
-const parseArgs = (args: string[]): CliOptions => {
+export const parseArgs = (args: string[]): CliOptions => {
   let batchSize = 50
   let dryRun = false
   let force = false
@@ -50,7 +50,7 @@ const parseArgs = (args: string[]): CliOptions => {
   return { batchSize, dryRun, force }
 }
 
-const getFileBuffer = async (
+export const getFileBuffer = async (
   storage: NonNullable<ReturnType<typeof getMediaStorage>>,
   targetPath: string
 ): Promise<Buffer | null> => {
@@ -66,7 +66,7 @@ const getFileBuffer = async (
   return null
 }
 
-const backfillMedias = async (
+export const backfillMedias = async (
   db: Knex,
   storage: NonNullable<ReturnType<typeof getMediaStorage>>,
   options: CliOptions
@@ -155,9 +155,9 @@ const backfillMedias = async (
   )
 }
 
-const backfillAttachments = async (
+export const backfillAttachments = async (
   db: Knex,
-  _storage: NonNullable<ReturnType<typeof getMediaStorage>>,
+  storage: NonNullable<ReturnType<typeof getMediaStorage>>,
   options: CliOptions
 ) => {
   console.log('--- Backfilling attachments table ---')
@@ -227,6 +227,46 @@ const backfillAttachments = async (
           if (media.thumbnail && !thumbnailUrl) {
             thumbnailUrl = `/api/v1/files/${media.thumbnail}`
           }
+        }
+      }
+
+      // 2. If blurhash is still missing on an image attachment, analyze image directly from URL
+      if (!blurhash && row.mediaType?.startsWith('image') && row.url) {
+        try {
+          let buffer: Buffer | null = null
+          const filesIndex = row.url.indexOf('/api/v1/files/')
+          if (filesIndex !== -1) {
+            const targetPath = row.url.slice(
+              filesIndex + '/api/v1/files/'.length
+            )
+            buffer = await getFileBuffer(storage, targetPath)
+          } else if (
+            row.url.startsWith('http://') ||
+            row.url.startsWith('https://')
+          ) {
+            const res = await fetch(row.url)
+            if (res.ok) {
+              buffer = Buffer.from(await res.arrayBuffer())
+            }
+          }
+
+          if (buffer) {
+            const analysis = await analyzeImageBuffer(buffer, {
+              manualFocus:
+                focusX !== null && focusY !== null
+                  ? { x: Number(focusX), y: Number(focusY) }
+                  : null
+            })
+            if (analysis.blurhash) {
+              blurhash = analysis.blurhash
+            }
+            if (analysis.focus && focusX === null && focusY === null) {
+              focusX = analysis.focus.x
+              focusY = analysis.focus.y
+            }
+          }
+        } catch {
+          // Ignore individual attachment analysis error
         }
       }
 

@@ -58,13 +58,21 @@ export const Media: FC<Props> = ({
   } = attachment
   const objectPosition = focalPointToCssObjectPosition(focus)
   const style: CSSProperties = { objectPosition }
+  const aspectRatio =
+    width && height && width > 0 && height > 0
+      ? `${width} / ${height}`
+      : undefined
 
   if (mediaType.startsWith('image')) {
     if (blurhash) {
       return (
-        <div className={cn('relative overflow-hidden', className)}>
+        <div
+          className={cn('relative overflow-hidden', className)}
+          style={{ aspectRatio }}
+        >
           <BlurhashCanvas
             blurhash={blurhash}
+            style={style}
             className={cn(
               'absolute inset-0 h-full w-full object-cover transition-opacity duration-300 pointer-events-none',
               isLoaded ? 'opacity-0' : 'opacity-100'

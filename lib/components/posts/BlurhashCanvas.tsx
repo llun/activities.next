@@ -1,11 +1,12 @@
 'use client'
 
 import { decode } from 'blurhash'
-import { FC, useEffect, useRef } from 'react'
+import { CSSProperties, FC, useEffect, useRef } from 'react'
 
 interface Props {
   blurhash: string
   className?: string
+  style?: CSSProperties
   width?: number
   height?: number
 }
@@ -13,6 +14,7 @@ interface Props {
 export const BlurhashCanvas: FC<Props> = ({
   blurhash,
   className,
+  style,
   width = 32,
   height = 32
 }) => {
@@ -41,6 +43,7 @@ export const BlurhashCanvas: FC<Props> = ({
       width={width}
       height={height}
       className={className}
+      style={style}
       aria-hidden="true"
     />
   )
