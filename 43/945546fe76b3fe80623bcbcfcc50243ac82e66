@@ -1,0 +1,20 @@
+app/api/v1/webhooks/strava/[webhookToken]/route.ts
+  h_580a04e334fef4 166,170
+docs/fitness-file-storage.md
+  h_580a04e334fef4 312
+lib/jobs/importStravaActivityJob.test.ts
+  h_580a04e334fef4 25,184,325,502,519,531,542,549,1353,1362
+lib/jobs/importStravaActivityJob.ts
+  h_580a04e334fef4 469
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "43945546fe76b3fe80623bcbcfcc50243ac82e66",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
