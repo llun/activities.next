@@ -29,11 +29,11 @@ interface Props {
   currentTime: number
 }
 
-type PresetKey = '1y' | '2y' | '5y' | '10y' | 'custom'
+type PresetKey = 'ytd' | '1y' | '5y' | '10y' | 'custom'
 
-const PRESETS: Array<{ key: PresetKey; label: string; days: number }> = [
+const PRESETS: Array<{ key: PresetKey; label: string; days?: number }> = [
+  { key: 'ytd', label: 'YTD' },
   { key: '1y', label: '1Y', days: 365 },
-  { key: '2y', label: '2Y', days: 730 },
   { key: '5y', label: '5Y', days: 1825 },
   { key: '10y', label: '10Y', days: 3650 }
 ]
@@ -41,9 +41,7 @@ const PRESETS: Array<{ key: PresetKey; label: string; days: number }> = [
 // Single source of truth for the initial range: the active preset pill and the
 // seeded date window both derive from this key, so changing the default can't
 // silently desync the highlighted preset from the computed dates.
-const DEFAULT_PRESET_KEY: PresetKey = '1y'
-const DEFAULT_PRESET_DAYS =
-  PRESETS.find((item) => item.key === DEFAULT_PRESET_KEY)?.days ?? 365
+const DEFAULT_PRESET_KEY: PresetKey = 'ytd'
 
 const CALENDAR_METRICS: Array<[CalendarMetric, string]> = [
   ['count', 'Count'],
@@ -68,6 +66,39 @@ const formatLocalDateInput = (date: Date): string => {
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
+}
+
+const getPresetRange = (
+  key: PresetKey,
+  currentTime: number,
+  mode: 'utc' | 'local'
+): { start: string; end: string } => {
+  if (key === 'ytd') {
+    if (mode === 'utc') {
+      const year = new Date(currentTime).getUTCFullYear()
+      return { start: `${year}-01-01`, end: `${year}-12-31` }
+    }
+    const year = new Date(currentTime).getFullYear()
+    return {
+      start: formatLocalDateInput(new Date(year, 0, 1)),
+      end: formatLocalDateInput(new Date(year, 11, 31))
+    }
+  }
+
+  const presetDef = PRESETS.find((item) => item.key === key)
+  const days = presetDef?.days ?? 365
+
+  if (mode === 'utc') {
+    return {
+      start: formatDateInput(currentTime - days * DAY_MS),
+      end: formatDateInput(currentTime)
+    }
+  }
+
+  return {
+    start: formatLocalDateInput(new Date(currentTime - days * DAY_MS)),
+    end: formatLocalDateInput(new Date(currentTime))
+  }
 }
 
 const formatDistance = (meters: number): string => {
@@ -104,20 +135,20 @@ const getTotals = (summary: FitnessActivitySummary[]) =>
 
 export const ActorFitnessDashboard: FC<Props> = ({ actorId, currentTime }) => {
   const [preset, setPreset] = useState<PresetKey>(DEFAULT_PRESET_KEY)
-  const [startDate, setStartDate] = useState(() =>
-    formatDateInput(currentTime - DEFAULT_PRESET_DAYS * DAY_MS)
+  const [startDate, setStartDate] = useState(
+    () => getPresetRange(DEFAULT_PRESET_KEY, currentTime, 'utc').start
   )
-  const [endDate, setEndDate] = useState(() => formatDateInput(currentTime))
+  const [endDate, setEndDate] = useState(
+    () => getPresetRange(DEFAULT_PRESET_KEY, currentTime, 'utc').end
+  )
 
   // After hydration, align the default range with the user's local calendar:
   // the SSR-deterministic UTC defaults above can be a day off for non-UTC
   // users, which would silently exclude today's activities.
   useEffect(() => {
-    const now = Date.now()
-    setStartDate(
-      formatLocalDateInput(new Date(now - DEFAULT_PRESET_DAYS * DAY_MS))
-    )
-    setEndDate(formatLocalDateInput(new Date(now)))
+    const range = getPresetRange(DEFAULT_PRESET_KEY, Date.now(), 'local')
+    setStartDate(range.start)
+    setEndDate(range.end)
   }, [])
   const [summary, setSummary] = useState<FitnessActivitySummary[]>([])
   const [calendarDays, setCalendarDays] = useState<FitnessCalendarDay[]>([])
@@ -184,10 +215,10 @@ export const ActorFitnessDashboard: FC<Props> = ({ actorId, currentTime }) => {
     if (!presetDef) return
     setPreset(newPreset)
     // Event handler: use the actual current time, not the server-render
-    // snapshot, so a long-lived page still gets a range ending today.
-    const now = Date.now()
-    setStartDate(formatLocalDateInput(new Date(now - presetDef.days * DAY_MS)))
-    setEndDate(formatLocalDateInput(new Date(now)))
+    // snapshot, so a long-lived page still gets a range aligned to now.
+    const range = getPresetRange(newPreset, Date.now(), 'local')
+    setStartDate(range.start)
+    setEndDate(range.end)
   }
 
   return (
