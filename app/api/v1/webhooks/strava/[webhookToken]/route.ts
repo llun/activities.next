@@ -163,11 +163,11 @@ export const POST = traceApiRoute(
 
       const stravaActivityId = String(body.object_id)
       const parsedVisibility = Visibility.safeParse(
-        fitnessSettings.defaultVisibility ?? 'private'
+        fitnessSettings.defaultVisibility ?? Visibility.enum.private
       )
       const visibility = parsedVisibility.success
         ? parsedVisibility.data
-        : 'private'
+        : Visibility.enum.private
       if (!parsedVisibility.success) {
         logger.warn({
           message: 'Invalid Strava default visibility; falling back to private',

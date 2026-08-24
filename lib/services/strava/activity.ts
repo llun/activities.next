@@ -7,7 +7,6 @@ import {
   formatFitnessDuration,
   formatFitnessElevation
 } from '@/lib/utils/fitness'
-import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
 
 const STRAVA_API_BASE = 'https://www.strava.com/api/v3'
@@ -192,21 +191,6 @@ export const getStravaActivityDurationSeconds = (
   }
 
   return 0
-}
-
-export const mapStravaVisibilityToMastodon = (
-  visibility?: StravaActivityVisibility | null
-): MastodonVisibility => {
-  switch (visibility) {
-    case 'everyone':
-      return 'public'
-    case 'followers_only':
-      return 'private'
-    case 'only_me':
-      return 'direct'
-    default:
-      return 'private'
-  }
 }
 
 export const buildStravaActivitySummary = (activity: StravaActivity) => {

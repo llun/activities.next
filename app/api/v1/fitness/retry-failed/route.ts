@@ -1,6 +1,7 @@
 import { STUCK_PROCESSING_THRESHOLD_MS } from '@/lib/services/fitness-files/processingState'
 import { retryFitnessImportBatch } from '@/lib/services/fitness-files/retryImports'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { Visibility } from '@/lib/types/mastodon/visibility'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
@@ -12,8 +13,8 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 // Manual upload retries publish as private so a recovery never re-publishes a
 // post more visibly than the owner intended; `strava-activity:<id>` batches
-// ignore this and re-derive the activity's real Strava visibility.
-const RETRY_VISIBILITY = 'private'
+// ignore this and take the account's configured default visibility from fitness settings.
+const RETRY_VISIBILITY = Visibility.enum.private
 
 /**
  * Retries every failed or stuck fitness import for the current actor in one

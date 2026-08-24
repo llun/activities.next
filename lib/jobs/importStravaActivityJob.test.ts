@@ -22,6 +22,7 @@ import {
   getValidStravaAccessToken
 } from '@/lib/services/strava/activity'
 import { addStatusToTimelines } from '@/lib/services/timelines'
+import { Visibility } from '@/lib/types/mastodon/visibility'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 
@@ -180,6 +181,7 @@ describe('importStravaActivityJob', () => {
       actorId: 'actor-1',
       serviceType: 'strava',
       accessToken: 'access-token',
+      defaultVisibility: Visibility.enum.public,
       createdAt: Date.now(),
       updatedAt: Date.now()
     })
@@ -320,7 +322,7 @@ describe('importStravaActivityJob', () => {
         actorId: 'actor-1',
         fitnessFileIds: ['new-file'],
         overlapFitnessFileIds: ['overlap-file'],
-        visibility: 'public'
+        visibility: Visibility.enum.public
       }),
       { deferProcessJobPublishes: true }
     )
@@ -491,16 +493,15 @@ describe('importStravaActivityJob', () => {
     })
   })
 
-  it('maps Strava only_me visibility to direct import visibility', async () => {
-    mockGetStravaActivity.mockResolvedValueOnce({
-      id: 124,
-      name: 'Private Session',
-      distance: 2_500,
-      elapsed_time: 800,
-      total_elevation_gain: 20,
-      start_date: '2026-01-01T00:30:00.000Z',
-      sport_type: 'Run',
-      visibility: 'only_me'
+  it('uses defaultVisibility from fitness settings when visibility is not queued', async () => {
+    database.getFitnessSettings.mockResolvedValueOnce({
+      id: 'fitness-settings-1',
+      actorId: 'actor-1',
+      serviceType: 'strava',
+      accessToken: 'access-token',
+      defaultVisibility: Visibility.enum.unlisted,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     })
 
     await importStravaActivityJob(database as unknown as Database, {
@@ -515,22 +516,21 @@ describe('importStravaActivityJob', () => {
     expect(mockImportFitnessFiles).toHaveBeenCalledWith(
       database,
       expect.objectContaining({
-        visibility: 'direct'
+        visibility: Visibility.enum.unlisted
       }),
       { deferProcessJobPublishes: true }
     )
   })
 
-  it('prefers queued visibility over Strava activity visibility', async () => {
-    mockGetStravaActivity.mockResolvedValueOnce({
-      id: 124,
-      name: 'Shared Session',
-      distance: 2_500,
-      elapsed_time: 800,
-      total_elevation_gain: 20,
-      start_date: '2026-01-01T00:30:00.000Z',
-      sport_type: 'Run',
-      visibility: 'everyone'
+  it('prefers queued visibility over fitness settings defaultVisibility', async () => {
+    database.getFitnessSettings.mockResolvedValueOnce({
+      id: 'fitness-settings-1',
+      actorId: 'actor-1',
+      serviceType: 'strava',
+      accessToken: 'access-token',
+      defaultVisibility: Visibility.enum.unlisted,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     })
 
     await importStravaActivityJob(database as unknown as Database, {
@@ -539,14 +539,14 @@ describe('importStravaActivityJob', () => {
       data: {
         actorId: 'actor-1',
         stravaActivityId: '124',
-        visibility: 'private'
+        visibility: Visibility.enum.public
       }
     })
 
     expect(mockImportFitnessFiles).toHaveBeenCalledWith(
       database,
       expect.objectContaining({
-        visibility: 'private'
+        visibility: Visibility.enum.public
       }),
       { deferProcessJobPublishes: true }
     )
@@ -1321,72 +1321,50 @@ describe('importStravaActivityJob', () => {
       expect(database.updateFitnessFileImportStatus).not.toHaveBeenCalled()
     })
 
-    it('never federates an activity the athlete marked only me on Strava', async () => {
-      // The webhook always sends an explicit visibility, so the only_me ->
-      // direct mapping never applies here and the ride would otherwise be
-      // pushed at whatever the account default happens to be.
-      mockGetStravaActivity.mockReset()
-      mockGetStravaActivity.mockResolvedValue({
-        id: 123,
-        name: 'Secret Ride',
-        distance: 5_000,
-        elapsed_time: 1_500,
-        total_elevation_gain: 20,
-        start_date: '2026-01-01T00:00:00.000Z',
-        sport_type: 'Ride',
-        visibility: 'only_me'
-      } as never)
+    it.each([
+      { stravaVisibility: 'everyone' },
+      { stravaVisibility: 'followers_only' },
+      { stravaVisibility: 'only_me' },
+      { stravaVisibility: undefined },
+      { stravaVisibility: 'custom_future_visibility' }
+    ])(
+      'federates at configured visibility when Strava visibility is $stravaVisibility',
+      async ({ stravaVisibility }) => {
+        mockGetStravaActivity.mockReset()
+        mockGetStravaActivity.mockResolvedValue({
+          id: 123,
+          name: 'Morning Ride',
+          distance: 5_000,
+          elapsed_time: 1_500,
+          total_elevation_gain: 20,
+          start_date: '2026-01-01T00:00:00.000Z',
+          sport_type: 'Ride',
+          ...(stravaVisibility !== undefined
+            ? { visibility: stravaVisibility }
+            : {})
+        } as never)
 
-      await importStravaActivityJob(database as unknown as Database, {
-        id: 'job-federation-only-me',
-        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
-        data: {
-          actorId: 'actor-1',
-          stravaActivityId: '123',
-          visibility: 'public',
-          publishSendNote: true
-        }
-      })
+        await importStravaActivityJob(database as unknown as Database, {
+          id: 'job-federation-various-visibilities',
+          name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+          data: {
+            actorId: 'actor-1',
+            stravaActivityId: '123',
+            visibility: Visibility.enum.public,
+            publishSendNote: true
+          }
+        })
 
-      expect(mockImportFitnessFiles).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({ publishSendNote: false }),
-        expect.anything()
-      )
-    })
-
-    it('does not federate when Strava reports no visibility for the activity', async () => {
-      // The field is optional, so a denylist would federate an unknown at the
-      // account default — which can be public. mapStravaVisibilityToMastodon
-      // resolves the same unknown to private.
-      mockGetStravaActivity.mockReset()
-      mockGetStravaActivity.mockResolvedValue({
-        id: 123,
-        name: 'Unlabelled Ride',
-        distance: 5_000,
-        elapsed_time: 1_500,
-        total_elevation_gain: 20,
-        start_date: '2026-01-01T00:00:00.000Z',
-        sport_type: 'Ride'
-      } as never)
-
-      await importStravaActivityJob(database as unknown as Database, {
-        id: 'job-federation-unknown-visibility',
-        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
-        data: {
-          actorId: 'actor-1',
-          stravaActivityId: '123',
-          visibility: 'public',
-          publishSendNote: true
-        }
-      })
-
-      expect(mockImportFitnessFiles).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({ publishSendNote: false }),
-        expect.anything()
-      )
-    })
+        expect(mockImportFitnessFiles).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({
+            publishSendNote: true,
+            visibility: Visibility.enum.public
+          }),
+          expect.anything()
+        )
+      }
+    )
 
     it('sends an update when Strava photos land after the create', async () => {
       // The process job is published before the photos, so under NoQueue the
@@ -1434,7 +1412,7 @@ describe('importStravaActivityJob', () => {
       // sendUpdateNoteJob consults no opt-in of its own, and Mastodon
       // synthesises a Create for an unseen object younger than about a day —
       // so an ungated Update publishes a status that deliberately stayed
-      // local, an only_me activity included, just because it had a photo.
+      // local (such as a recovery sweep) just because it had a photo.
       database.getAttachments.mockResolvedValue([])
       database.createAttachment.mockResolvedValue({} as never)
       mockGetStravaActivityPhotos.mockResolvedValueOnce([
