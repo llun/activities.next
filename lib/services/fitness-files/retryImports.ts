@@ -72,7 +72,7 @@ interface RetryFitnessImportBatchParams {
  * keeps its `completed` import status, because re-running importStravaActivityJob
  * short-circuits past the importer when a statusId exists (resetting it to
  * `pending` would strand it). A `strava-activity:<id>` batch re-runs the full
- * Strava importer (re-fetching caption/photos/visibility); other batches re-run
+ * Strava importer (re-fetching caption and photos); other batches re-run
  * the file importer with the surviving completed files as overlap context.
  *
  * Throws if the queue publish fails (after restoring the pre-retry state) so
@@ -136,9 +136,9 @@ export const retryFitnessImportBatch = async ({
   const retryJob = stravaActivityId
     ? {
         // A `strava-activity:<id>` batch re-runs the full Strava importer, which
-        // re-fetches the activity for its caption, photos and real visibility —
-        // so `visibility` is intentionally OMITTED here and the job re-derives
-        // the activity's actual Strava visibility. Do not add it back.
+        // re-fetches the activity for its caption and photos — so `visibility`
+        // is intentionally OMITTED here so the job falls back to the account's
+        // configured default visibility from fitness settings. Do not add it back.
         id: getHashFromString(
           `${batchActorId}:strava-activity-retry:${batchId}`
         ),
