@@ -1,0 +1,16 @@
+scripts/fitness/runImportStravaActivity.test.ts
+  h_580a04e334fef4 48,54-55
+scripts/fitness/runImportStravaActivity.ts
+  h_580a04e334fef4 10-11,32,41,109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "725d8846aefcd4cbb5b5502a289f8285d0818cbd",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
