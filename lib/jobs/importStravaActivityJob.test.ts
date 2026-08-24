@@ -180,6 +180,7 @@ describe('importStravaActivityJob', () => {
       actorId: 'actor-1',
       serviceType: 'strava',
       accessToken: 'access-token',
+      defaultVisibility: 'public',
       createdAt: Date.now(),
       updatedAt: Date.now()
     })
@@ -491,16 +492,15 @@ describe('importStravaActivityJob', () => {
     })
   })
 
-  it('maps Strava only_me visibility to direct import visibility', async () => {
-    mockGetStravaActivity.mockResolvedValueOnce({
-      id: 124,
-      name: 'Private Session',
-      distance: 2_500,
-      elapsed_time: 800,
-      total_elevation_gain: 20,
-      start_date: '2026-01-01T00:30:00.000Z',
-      sport_type: 'Run',
-      visibility: 'only_me'
+  it('uses defaultVisibility from fitness settings when visibility is not queued', async () => {
+    database.getFitnessSettings.mockResolvedValueOnce({
+      id: 'fitness-settings-1',
+      actorId: 'actor-1',
+      serviceType: 'strava',
+      accessToken: 'access-token',
+      defaultVisibility: 'unlisted',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     })
 
     await importStravaActivityJob(database as unknown as Database, {
@@ -515,22 +515,21 @@ describe('importStravaActivityJob', () => {
     expect(mockImportFitnessFiles).toHaveBeenCalledWith(
       database,
       expect.objectContaining({
-        visibility: 'direct'
+        visibility: 'unlisted'
       }),
       { deferProcessJobPublishes: true }
     )
   })
 
-  it('prefers queued visibility over Strava activity visibility', async () => {
-    mockGetStravaActivity.mockResolvedValueOnce({
-      id: 124,
-      name: 'Shared Session',
-      distance: 2_500,
-      elapsed_time: 800,
-      total_elevation_gain: 20,
-      start_date: '2026-01-01T00:30:00.000Z',
-      sport_type: 'Run',
-      visibility: 'everyone'
+  it('prefers queued visibility over fitness settings defaultVisibility', async () => {
+    database.getFitnessSettings.mockResolvedValueOnce({
+      id: 'fitness-settings-1',
+      actorId: 'actor-1',
+      serviceType: 'strava',
+      accessToken: 'access-token',
+      defaultVisibility: 'unlisted',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     })
 
     await importStravaActivityJob(database as unknown as Database, {
@@ -539,14 +538,14 @@ describe('importStravaActivityJob', () => {
       data: {
         actorId: 'actor-1',
         stravaActivityId: '124',
-        visibility: 'private'
+        visibility: 'public'
       }
     })
 
     expect(mockImportFitnessFiles).toHaveBeenCalledWith(
       database,
       expect.objectContaining({
-        visibility: 'private'
+        visibility: 'public'
       }),
       { deferProcessJobPublishes: true }
     )

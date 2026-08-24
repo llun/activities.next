@@ -43,8 +43,7 @@ import {
   getStravaActivityStreams,
   getStravaActivityUrl,
   getValidStravaAccessToken,
-  isSupportedStravaPhotoMimeType,
-  mapStravaVisibilityToMastodon
+  isSupportedStravaPhotoMimeType
 } from '@/lib/services/strava/activity'
 import { getStravaActivityBatchId } from '@/lib/services/strava/activityBatch'
 import { addStatusToTimelines } from '@/lib/services/timelines'
@@ -466,10 +465,9 @@ export const importStravaActivityJob = createJobHandle(
       activityId: stravaActivityId,
       accessToken
     })
-    const resolvedVisibility =
-      visibility ?? mapStravaVisibilityToMastodon(activity.visibility)
+    const statusVisibility =
+      visibility ?? fitnessSettings.defaultVisibility ?? 'private'
     const batchId = getStravaActivityBatchId(stravaActivityId)
-    const shouldFederateImport = publishSendNote
 
     // Nothing here reads `activity.gear_id`, and that is deliberate: gear is
     // attributed downstream by `processFitnessFileJob`, from the gear whose
@@ -528,7 +526,7 @@ export const importStravaActivityJob = createJobHandle(
             actor,
             activity,
             stravaActivityId,
-            visibility: resolvedVisibility
+            visibility: statusVisibility
           })
 
         await addStatusToTimelines(database, createdNote)
@@ -549,7 +547,7 @@ export const importStravaActivityJob = createJobHandle(
         // retry-all sweep or a scripts/fitness recovery run still delivers one
         // Create per streamless activity — exactly what the flag exists to
         // prevent — so it answers to the same opt-in.
-        if (shouldFederateImport) {
+        if (publishSendNote) {
           await getQueue().publish({
             id: getHashFromString(`${actorId}:strava-note:${stravaActivityId}`),
             name: SEND_NOTE_JOB_NAME,
@@ -774,14 +772,14 @@ export const importStravaActivityJob = createJobHandle(
               batchId,
               fitnessFileIds: [targetFitnessFile.id],
               overlapFitnessFileIds,
-              visibility: resolvedVisibility,
+              visibility: statusVisibility,
               // Forwarded from this job's own caller, so only the webhook — one
               // activity, arriving while the user is elsewhere — emails.
               notifyOnComplete,
               // Same: only the webhook federates. A merged sibling reuses the
               // existing status, so importFitnessFiles resolves this to false
               // for it and the ride's Create still goes out exactly once.
-              publishSendNote: shouldFederateImport,
+              publishSendNote,
               // Same again: only the webhook posts a just-finished ride, so
               // only it stamps the status with the import time rather than the
               // activity's start. A merged sibling reuses the existing status,
@@ -957,11 +955,7 @@ export const importStravaActivityJob = createJobHandle(
     // Kept out of the photo try/catch above so a failure here is not reported
     // as a photo failure — the photos are on the status either way, and what
     // was lost is the Update.
-    if (
-      shouldFederateImport &&
-      attachedPhotoCount > 0 &&
-      !processJobPublishFailed
-    ) {
+    if (publishSendNote && attachedPhotoCount > 0 && !processJobPublishFailed) {
       try {
         await getQueue().publish({
           id: getHashFromString(
