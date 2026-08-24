@@ -1,0 +1,14 @@
+lib/services/fitness-files/retryImports.ts
+  h_580a04e334fef4 75,139-141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "6b1a4f85426bdd4e0892a322c22c4f397a723866",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
