@@ -466,7 +466,7 @@ export const importStravaActivityJob = createJobHandle(
       accessToken
     })
     const statusVisibility =
-      visibility ?? fitnessSettings.defaultVisibility ?? 'private'
+      visibility ?? fitnessSettings.defaultVisibility ?? Visibility.enum.private
     const batchId = getStravaActivityBatchId(stravaActivityId)
 
     // Nothing here reads `activity.gear_id`, and that is deliberate: gear is

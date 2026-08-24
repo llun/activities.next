@@ -22,6 +22,7 @@ import {
   getValidStravaAccessToken
 } from '@/lib/services/strava/activity'
 import { addStatusToTimelines } from '@/lib/services/timelines'
+import { Visibility } from '@/lib/types/mastodon/visibility'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 
@@ -180,7 +181,7 @@ describe('importStravaActivityJob', () => {
       actorId: 'actor-1',
       serviceType: 'strava',
       accessToken: 'access-token',
-      defaultVisibility: 'public',
+      defaultVisibility: Visibility.enum.public,
       createdAt: Date.now(),
       updatedAt: Date.now()
     })
@@ -321,7 +322,7 @@ describe('importStravaActivityJob', () => {
         actorId: 'actor-1',
         fitnessFileIds: ['new-file'],
         overlapFitnessFileIds: ['overlap-file'],
-        visibility: 'public'
+        visibility: Visibility.enum.public
       }),
       { deferProcessJobPublishes: true }
     )
@@ -498,7 +499,7 @@ describe('importStravaActivityJob', () => {
       actorId: 'actor-1',
       serviceType: 'strava',
       accessToken: 'access-token',
-      defaultVisibility: 'unlisted',
+      defaultVisibility: Visibility.enum.unlisted,
       createdAt: Date.now(),
       updatedAt: Date.now()
     })
@@ -515,7 +516,7 @@ describe('importStravaActivityJob', () => {
     expect(mockImportFitnessFiles).toHaveBeenCalledWith(
       database,
       expect.objectContaining({
-        visibility: 'unlisted'
+        visibility: Visibility.enum.unlisted
       }),
       { deferProcessJobPublishes: true }
     )
@@ -527,7 +528,7 @@ describe('importStravaActivityJob', () => {
       actorId: 'actor-1',
       serviceType: 'strava',
       accessToken: 'access-token',
-      defaultVisibility: 'unlisted',
+      defaultVisibility: Visibility.enum.unlisted,
       createdAt: Date.now(),
       updatedAt: Date.now()
     })
@@ -538,14 +539,14 @@ describe('importStravaActivityJob', () => {
       data: {
         actorId: 'actor-1',
         stravaActivityId: '124',
-        visibility: 'public'
+        visibility: Visibility.enum.public
       }
     })
 
     expect(mockImportFitnessFiles).toHaveBeenCalledWith(
       database,
       expect.objectContaining({
-        visibility: 'public'
+        visibility: Visibility.enum.public
       }),
       { deferProcessJobPublishes: true }
     )
@@ -1349,7 +1350,7 @@ describe('importStravaActivityJob', () => {
           data: {
             actorId: 'actor-1',
             stravaActivityId: '123',
-            visibility: 'public',
+            visibility: Visibility.enum.public,
             publishSendNote: true
           }
         })
@@ -1358,7 +1359,7 @@ describe('importStravaActivityJob', () => {
           expect.anything(),
           expect.objectContaining({
             publishSendNote: true,
-            visibility: 'public'
+            visibility: Visibility.enum.public
           }),
           expect.anything()
         )
