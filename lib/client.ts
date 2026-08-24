@@ -2762,30 +2762,23 @@ export const deleteFitnessGearComponent = async (
   }
 }
 
-export const replaceFitnessGearComponent = async (
+export const retireFitnessGearComponent = async (
   gearId: string,
   componentId: string
-): Promise<{
-  retired: GearComponentEntity
-  replacement: GearComponentEntity
-}> => {
+): Promise<GearComponentEntity> => {
   const response = await fetch(
-    `/api/v1/fitness/gear/${encodeURIComponent(gearId)}/components/${encodeURIComponent(componentId)}/replace`,
+    `/api/v1/fitness/gear/${encodeURIComponent(gearId)}/components/${encodeURIComponent(componentId)}/retire`,
     {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({})
+      method: 'POST'
     }
   )
   if (!response.ok) {
     throw new Error(
-      await parseApiError(response, 'Failed to replace component.')
+      await parseApiError(response, 'Failed to retire component.')
     )
   }
-  return (await response.json()) as {
-    retired: GearComponentEntity
-    replacement: GearComponentEntity
-  }
+  const data = (await response.json()) as { component: GearComponentEntity }
+  return data.component
 }
 
 export const updateFitnessFileGear = async (

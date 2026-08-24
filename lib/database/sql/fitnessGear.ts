@@ -162,16 +162,11 @@ export interface FitnessGearDatabase {
     gearId: string
     actorId: string
   }): Promise<boolean>
-  replaceFitnessGearComponent(params: {
+  retireFitnessGearComponent(params: {
     id: string
     gearId: string
     actorId: string
-    brand?: string | null
-    model?: string | null
-  }): Promise<{
-    retired: FitnessGearComponent
-    replacement: FitnessGearComponent
-  } | null>
+  }): Promise<FitnessGearComponent | null>
   getFitnessGearComponentDistanceRollups(params: {
     actorId: string
     gearIds: string[]
@@ -880,49 +875,33 @@ export const FitnessGearSQLDatabaseMixin = (
     return deleted > 0
   },
 
-  async replaceFitnessGearComponent({ id, gearId, actorId, brand, model }) {
-    return database.transaction(async (trx) => {
-      const existing = await getOwnedComponentRow(trx, { id, gearId, actorId })
-      // An already-removed part cannot be replaced — it is history, and the
-      // part that succeeded it is the one on the bike.
-      if (!existing || existing.removedAt) return null
-
-      const currentTime = new Date()
-      await trx('fitness_gear_components')
-        .where('id', id)
-        .update({ removedAt: currentTime, updatedAt: currentTime })
-
-      const replacement: SQLFitnessGearComponent = {
-        id: crypto.randomUUID(),
-        gearId,
-        componentType: existing.componentType,
-        brand: brand === undefined ? null : brand,
-        model: model === undefined ? null : model,
-        addedAt: currentTime,
-        removedAt: null,
-        // The service interval belongs to the part slot, not the part: a new
-        // chain wants reminding at the same distance the old one did.
-        serviceDistanceMeters: existing.serviceDistanceMeters ?? null,
-        lastAlertedDistanceMeters: null,
-        createdAt: currentTime,
-        updatedAt: currentTime,
-        deletedAt: null
-      }
-      await trx('fitness_gear_components').insert(replacement)
-
-      const retiredRow = await trx<SQLFitnessGearComponent>(
-        'fitness_gear_components'
-      )
-        .where('id', id)
-        .first()
-
-      return {
-        retired: parseSQLFitnessGearComponent(
-          retiredRow ?? { ...existing, removedAt: currentTime }
-        ),
-        replacement: parseSQLFitnessGearComponent(replacement)
-      }
+  async retireFitnessGearComponent({ id, gearId, actorId }) {
+    const existing = await getOwnedComponentRow(database, {
+      id,
+      gearId,
+      actorId
     })
+    if (!existing) return null
+
+    // The state change is a predicate on the UPDATE statement rather than a
+    // decision taken from a read in front of it. Only a real transition writes,
+    // so two concurrent requests (two tabs, a retried request) result in one
+    // update; 0 rows affected maps straight to null (which the route answers as 404).
+    const currentTime = new Date()
+    const updated = await database('fitness_gear_components')
+      .where('id', id)
+      .whereNull('removedAt')
+      .whereNull('deletedAt')
+      .update({ removedAt: currentTime, updatedAt: currentTime })
+
+    if (!updated) return null
+
+    const row = await getOwnedComponentRow(database, {
+      id,
+      gearId,
+      actorId
+    })
+    return row ? parseSQLFitnessGearComponent(row) : null
   },
 
   async getFitnessGearComponentDistanceRollups({ actorId, gearIds }) {

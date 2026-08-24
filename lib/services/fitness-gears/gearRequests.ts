@@ -158,11 +158,6 @@ export const UpdateGearComponentRequest = z
     { message: 'removedAt must be after addedAt' }
   )
 
-export const ReplaceGearComponentRequest = z.object({
-  brand: optionalText(VARCHAR_MAX),
-  model: optionalText(VARCHAR_MAX)
-})
-
 /**
  * `null` clears an activity's gear attribution, and an empty or whitespace-only
  * string means the same thing — the normalization is the server's job, not the

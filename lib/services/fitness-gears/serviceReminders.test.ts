@@ -188,11 +188,11 @@ describe('evaluateGearServiceReminders', () => {
       expect(reloaded?.lastAlertedDistanceMeters).toBe(60_000)
     })
 
-    it('ignores a component that has already been replaced', async () => {
+    it('ignores a component that has already been retired', async () => {
       const bike = await database.createFitnessGear({
         actorId: actors.followRequester.id,
         kind: 'bike',
-        name: 'Replaced component bike'
+        name: 'Retired component bike'
       })
       const chain = await database.createFitnessGearComponent({
         gearId: bike.id,
@@ -204,10 +204,10 @@ describe('evaluateGearServiceReminders', () => {
         database,
         actors.followRequester.id,
         bike.id,
-        'replaced',
+        'retired',
         50_000
       )
-      await database.replaceFitnessGearComponent({
+      await database.retireFitnessGearComponent({
         id: chain!.id,
         gearId: bike.id,
         actorId: actors.followRequester.id
@@ -218,8 +218,7 @@ describe('evaluateGearServiceReminders', () => {
         actorId: actors.followRequester.id,
         gearIds: [bike.id]
       })
-      // The fresh chain starts at 0 km within its own install window, and the
-      // old one is history — neither is due.
+      // The retired chain is history and no active component is installed — none is due.
       expect(createNotificationWithPolicy).not.toHaveBeenCalled()
     })
 

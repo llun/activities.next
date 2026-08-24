@@ -291,7 +291,7 @@ Every gear endpoint is owner-scoped, and answers `404` rather than `403` for any
 - `GET /api/v1/fitness/gear/:id/activities` — a page of the activities attributed to this gear, newest first, **as the posts they were published as**, matching on `deviceGearId` for a device and `gearId` for everything else. Takes `limit` (default 20, clamped to 1–100) and `offset`, and answers `{ statuses, hasMore, nextOffset }`: `statuses` is the app-domain `Status` shape the timelines render, loaded in one batched read and hydrated for the caller. `hasMore` comes from fetching one row past the page rather than a second COUNT over a history that can run to five figures. `nextOffset` counts ACTIVITY ROWS, not the statuses returned — deleting a status only nulls `fitness_files.statusId`, so a row with no post left still occupies an offset, and paging from `statuses.length` would re-request everything in between.
 - `GET` and `POST /api/v1/fitness/gear/:id/components` — a device is a 422 on every component endpoint; it has no parts to service.
 - `PATCH` and `DELETE /api/v1/fitness/gear/:id/components/:componentId`
-- `POST /api/v1/fitness/gear/:id/components/:componentId/replace` — closes the fitted part at today's date and opens a fresh one at 0 km carrying the same component type and service interval. A single endpoint because the two writes have to be atomic and because what the replacement inherits is a server-side rule.
+- `POST /api/v1/fitness/gear/:id/components/:componentId/retire` — closes the fitted part at today's date; the successor is added explicitly through `POST .../components`.
 
 ### Map Provider Tokens
 
