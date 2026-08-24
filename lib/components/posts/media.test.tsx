@@ -13,15 +13,18 @@ import { Media } from './media'
 vi.mock('./BlurhashCanvas', () => ({
   BlurhashCanvas: ({
     blurhash,
-    className
+    className,
+    style
   }: {
     blurhash: string
     className?: string
+    style?: React.CSSProperties
   }) => (
     <div
       data-testid="blurhash-canvas"
       data-blurhash={blurhash}
       className={className}
+      style={style}
     />
   )
 }))
@@ -66,10 +69,14 @@ describe('Media', () => {
   it('renders BlurhashCanvas and transitions opacity when image loads', () => {
     const attachmentWithBlurhash: Attachment = {
       ...baseAttachment,
-      blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
+      blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+      focus: { x: -1, y: 1 }
     }
 
-    render(<Media attachment={attachmentWithBlurhash} />)
+    const { container } = render(<Media attachment={attachmentWithBlurhash} />)
+
+    const wrapper = container.firstChild as HTMLElement
+    expect(wrapper).toHaveStyle({ aspectRatio: '800 / 600' })
 
     const canvas = screen.getByTestId('blurhash-canvas')
     expect(canvas).toBeInTheDocument()
@@ -77,10 +84,12 @@ describe('Media', () => {
       'data-blurhash',
       'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
     )
+    expect(canvas).toHaveStyle({ objectPosition: '0% 0%' })
     expect(canvas.className).toContain('opacity-100')
 
     const img = screen.getByRole('img')
     expect(img).toBeInTheDocument()
+    expect(img).toHaveStyle({ objectPosition: '0% 0%' })
     expect(img.className).toContain('opacity-0')
 
     // Simulate image load event
