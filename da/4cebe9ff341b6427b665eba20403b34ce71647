@@ -1,0 +1,16 @@
+lib/jobs/importStravaActivityJob.test.ts
+  h_580a04e334fef4 183,495-503,518,524-532,541,548
+lib/jobs/importStravaActivityJob.ts
+  h_580a04e334fef4 46,468-469,529,550,775,782,958
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "da4cebe9ff341b6427b665eba20403b34ce71647",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
