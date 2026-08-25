@@ -51,6 +51,12 @@ export const deleteObjectJob = createJobHandle(
       // through costs nothing: a genuine stamp uri names no actor or status, so
       // every path below is a no-op for it, and each is independently scoped to
       // the verified sender.
+      // Set when this Delete really was a quote revocation. The fall-through
+      // below must still RUN (a planted id names a real actor or status that
+      // deserves its delete), but it must not REPORT: a stamp uri matches no
+      // actor and parses as no Tombstone, so every path reads it as junk and
+      // would otherwise mark the feature's happy path as an error.
+      let revokedQuote = false
       const stampUri = getStampUri(data)
       if (stampUri) {
         const edge = await database.getStatusQuoteByAuthorizationUri({
@@ -78,6 +84,7 @@ export const deleteObjectJob = createJobHandle(
               state: 'revoked'
             })
             span.setAttribute('revokedQuoteStatusId', edge.statusId)
+            revokedQuote = true
           } else {
             span.setAttribute('quoteRevocationSenderMismatch', true)
           }
@@ -86,7 +93,10 @@ export const deleteObjectJob = createJobHandle(
 
       if (typeof data === 'string') {
         if (!actorMatchesVerifiedSender(data, message)) {
-          span.setAttribute('senderMismatch', true)
+          // Not a mismatch when we just revoked: `senderMismatch` means someone
+          // tried to delete something they do not own, and the quoted author
+          // deleting their own stamp is the opposite of that.
+          if (!revokedQuote) span.setAttribute('senderMismatch', true)
           return
         }
 
@@ -114,7 +124,7 @@ export const deleteObjectJob = createJobHandle(
       if (announceResult.success) {
         const announce = announceResult.data
         if (!actorMatchesVerifiedSender(announce.actor, message)) {
-          span.setAttribute('senderMismatch', true)
+          if (!revokedQuote) span.setAttribute('senderMismatch', true)
           return
         }
 
@@ -126,6 +136,12 @@ export const deleteObjectJob = createJobHandle(
         return
       }
 
+      // A revocation that reached here is not invalid data: the FEP-044f shape
+      // `{ id, type: 'QuoteAuthorization' }` — what our own sendQuoteRevoke
+      // emits — is neither a Tombstone nor an Announce, so without this every
+      // successful revocation would record an exception on its span and read as
+      // a job failure in tracing.
+      if (revokedQuote) return
       span.recordException(new Error('Invalid data'))
       span.setAttribute('data', JSON.stringify(data))
     })

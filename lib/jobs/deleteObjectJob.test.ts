@@ -11,6 +11,39 @@ import { Actor } from '@/lib/types/domain/actor'
 
 enableFetchMocks()
 
+const spanExceptions: unknown[] = []
+const spanAttributes: Record<string, unknown> = {}
+const recordedExceptions = () => spanExceptions
+const recordedAttributes = () => spanAttributes
+
+vi.mock('@/lib/utils/trace', async () => {
+  const actual =
+    await vi.importActual<typeof import('@/lib/utils/trace')>(
+      '@/lib/utils/trace'
+    )
+  return {
+    ...actual,
+    // A recording stand-in for the span: the job reports outcomes through it,
+    // and a successful revocation must leave it clean.
+    withSpan: <T>(
+      _op: string,
+      _name: string,
+      _data: unknown,
+      fn: (span: unknown) => Promise<T>
+    ) =>
+      fn({
+        setAttribute: (key: string, value: unknown) => {
+          spanAttributes[key] = value
+        },
+        recordException: (error: unknown) => {
+          spanExceptions.push(error)
+        },
+        setStatus: () => {},
+        end: () => {}
+      })
+  }
+})
+
 describe('deleteObjectJob', () => {
   const database = getTestSQLDatabase()
   let actor1: Actor | undefined
@@ -32,6 +65,8 @@ describe('deleteObjectJob', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
+    spanExceptions.length = 0
+    for (const key of Object.keys(spanAttributes)) delete spanAttributes[key]
   })
 
   // Seed the quoted status (as stored when we created the outbound quote) so its
@@ -234,39 +269,74 @@ describe('deleteObjectJob', () => {
     ).resolves.toBeNull()
   })
 
-  it('deletes nothing beyond the revocation for a genuine stamp uri', async () => {
-    // The other side of the additive branch: falling through must not start
-    // deleting things. A real stamp uri names no actor and no status, so every
-    // path below it is a no-op.
-    const stamp = Date.now()
-    const author = `https://remote.example/users/genuine-${stamp}`
-    const quotedStatusId = `${author}/statuses/1`
-    await seedQuotedStatus(author, quotedStatusId)
-    const stampUri = `${author}/quote_authorizations/genuine-${stamp}`
-    const quotingId = `https://local.test/users/me/statuses/genuine-${stamp}`
-    await database.createStatusQuote({
-      statusId: quotingId,
-      quotedStatusId,
-      state: 'accepted',
-      authorizationUri: stampUri
-    })
+  it.each([
+    {
+      description: 'the FEP-044f object shape our own sendQuoteRevoke emits',
+      // `{ id, type: 'QuoteAuthorization' }` is neither a Tombstone nor an
+      // Announce, so the additive fall-through reads it as junk unless the
+      // revocation is remembered. No test used this shape, which is how that
+      // regression reached review.
+      asData: (stampUri: string) => ({
+        id: stampUri,
+        type: 'QuoteAuthorization'
+      })
+    },
+    {
+      description: 'the bare stamp uri shape',
+      // Here the fall-through reaches the actor path, where a stamp uri is not
+      // the sender's actor id — a successful revocation must not be reported as
+      // someone deleting what they do not own.
+      asData: (stampUri: string) => stampUri
+    }
+  ])(
+    'revokes without reporting an error for $description',
+    async ({ asData }) => {
+      const stamp = Date.now()
+      const author = `https://remote.example/users/clean-span-${stamp}`
+      const quotedStatusId = `${author}/statuses/1`
+      await seedQuotedStatus(author, quotedStatusId)
+      const stampUri = `${author}/quote_authorizations/clean-${stamp}`
+      const quotingId = `https://local.test/users/me/statuses/clean-${stamp}`
+      await database.createStatusQuote({
+        statusId: quotingId,
+        quotedStatusId,
+        state: 'accepted',
+        authorizationUri: stampUri
+      })
 
+      await deleteObjectJob(database, {
+        id: `clean-span-job-${stamp}`,
+        name: DELETE_OBJECT_JOB_NAME,
+        data: asData(stampUri),
+        verifiedSenderActorId: author
+      })
+
+      const edge = await database.getStatusQuote({ statusId: quotingId })
+      expect(edge?.state).toBe('revoked')
+      expect(recordedExceptions()).toHaveLength(0)
+      expect(recordedAttributes()).not.toHaveProperty('senderMismatch')
+      // The fall-through must stay a no-op for a real stamp: it names no actor
+      // and no status, so nothing else may be touched.
+      await expect(
+        database.getActorFromId({ id: author })
+      ).resolves.not.toBeNull()
+      await expect(
+        database.getStatus({ statusId: quotedStatusId, withReplies: false })
+      ).resolves.not.toBeNull()
+    }
+  )
+
+  it('still reports genuinely invalid data', async () => {
+    // The suppression must be scoped to an actual revocation, or a malformed
+    // Delete stops being visible at all.
     await deleteObjectJob(database, {
-      id: `genuine-job-${stamp}`,
+      id: `invalid-data-job-${Date.now()}`,
       name: DELETE_OBJECT_JOB_NAME,
-      data: stampUri,
-      verifiedSenderActorId: author
+      data: { id: 'https://remote.example/whatever', type: 'NotAThing' },
+      verifiedSenderActorId: 'https://remote.example/users/someone'
     })
 
-    const edge = await database.getStatusQuote({ statusId: quotingId })
-    expect(edge?.state).toBe('revoked')
-    // The quoted author and their status survive: the Delete named the stamp.
-    await expect(
-      database.getActorFromId({ id: author })
-    ).resolves.not.toBeNull()
-    await expect(
-      database.getStatus({ statusId: quotedStatusId, withReplies: false })
-    ).resolves.not.toBeNull()
+    expect(recordedExceptions()).toHaveLength(1)
   })
 
   it('deletes actor when data is a string (actor id)', async () => {
