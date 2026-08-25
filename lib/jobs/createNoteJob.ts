@@ -4,7 +4,6 @@ import {
   assertActorCanFederate,
   recordActorIfNeeded
 } from '@/lib/actions/utils'
-import { getNote } from '@/lib/activities'
 import {
   BaseNote,
   getAttachments,
@@ -15,11 +14,13 @@ import {
   getSummary,
   getTags
 } from '@/lib/activities/note'
-import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLinkPreview'
 import { isValidBlurhash } from '@/lib/services/medias/imageAnalysis'
-import { persistInboundQuoteEdge } from '@/lib/services/quotes/persistInboundQuoteEdge'
+import {
+  persistInboundQuoteEdge,
+  resolveInboundQuotedStatus
+} from '@/lib/services/quotes/persistInboundQuoteEdge'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import {
   ArticleContent,
@@ -35,7 +36,6 @@ import {
   toRecipientArray
 } from '@/lib/utils/activitypub'
 import { isValidFocalPoint } from '@/lib/utils/focalPoint'
-import { logger } from '@/lib/utils/logger'
 
 import { createJobHandle } from './createJobHandle'
 import { CREATE_NOTE_JOB_NAME } from './names'
@@ -129,58 +129,28 @@ export const createNoteJob = createJobHandle(
     // degrades to `pending` and never drops the note.
     const quotedStatusId = getQuoteTargetId(note)
     if (quotedStatusId) {
-      let quotedStatus = await database.getStatus({
-        statusId: quotedStatusId,
-        withReplies: false
-      })
-      // A Mastodon 4.5 quote references a post we usually do not already store.
-      // When the note carries a FEP-044f authorization stamp, fetch the quoted
-      // note (instance-signed, mirroring the boost path in createAnnounceJob) and
-      // store it so verifyRemoteQuote can confirm the quoted author and the quote
-      // card can load the content. Without this, every remote quote is stuck as a
-      // `pending` tombstone even when it was legitimately approved. Fetching only
-      // makes the author knowable — the stamp is still validated below, so a
-      // fetch never grants trust on its own.
-      //
-      // `skipQuoteResolution` bounds this to a single hop: the quoted note is
-      // stored WITHOUT chasing its own quote target, so an attacker-controlled
-      // chain of quoting notes (A quotes B quotes C …) cannot drive unbounded
-      // recursive fetches. Wrapped in try/catch so any failure (e.g. the quoted
-      // author's domain is federation-blocked, or a store error) leaves
-      // `quotedStatus` null and degrades the edge to `pending` rather than
-      // throwing and orphaning this note (the "never drops the note" invariant).
-      if (
-        !quotedStatus &&
-        note.quoteAuthorization &&
-        !message.skipQuoteResolution
-      ) {
-        try {
-          const signingActor = await getFederationSigningActor(database)
-          const fetchedQuotedNote = await getNote({
+      // A Mastodon 4.5 quote references a post we usually do not already store,
+      // so the shared resolver fetches it (instance-signed, mirroring the boost
+      // path in createAnnounceJob) when the note carries a stamp worth
+      // verifying. `skipQuoteResolution` bounds that to a single hop so a chain
+      // of quoting notes cannot drive unbounded recursive fetches.
+      const quotedStatus = message.skipQuoteResolution
+        ? await database.getStatus({
             statusId: quotedStatusId,
-            signingActor
+            withReplies: false
           })
-          if (fetchedQuotedNote) {
-            await createNoteJob(database, {
-              id: fetchedQuotedNote.id,
-              name: CREATE_NOTE_JOB_NAME,
-              data: fetchedQuotedNote,
-              skipQuoteResolution: true
-            })
-            quotedStatus = await database.getStatus({
-              statusId: quotedStatusId,
-              withReplies: false
-            })
-          }
-        } catch (error) {
-          logger.warn({
-            message:
-              'Failed to fetch quoted note for inbound quote; leaving the edge pending',
+        : await resolveInboundQuotedStatus({
+            database,
+            note,
             quotedStatusId,
-            error: error instanceof Error ? error.message : String(error)
+            storeNote: (fetchedQuotedNote) =>
+              createNoteJob(database, {
+                id: fetchedQuotedNote.id,
+                name: CREATE_NOTE_JOB_NAME,
+                data: fetchedQuotedNote,
+                skipQuoteResolution: true
+              })
           })
-        }
-      }
       // Derive and write the edge. An edge may already exist here (e.g. we
       // accepted this actor's QuoteRequest before the Create Note arrived); the
       // shared helper advances it through the one-way state machine so a

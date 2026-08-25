@@ -247,6 +247,15 @@ describe('Status', () => {
             id: `${status.id}/shares`,
             type: 'Collection',
             totalItems: 0
+          },
+          // Emitted for every note, quoting or not, so a peer that FETCHES a
+          // status is told the same quote policy as one that received it over
+          // an inbox delivery.
+          interactionPolicy: {
+            canQuote: {
+              automaticApproval: [ACTIVITY_STREAM_PUBLIC],
+              manualApproval: []
+            }
           }
         })
         expect(note).not.toHaveProperty('updated')

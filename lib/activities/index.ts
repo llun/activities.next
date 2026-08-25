@@ -158,10 +158,7 @@ export const sendNote = async ({ currentActor, inbox, note }: SendNoteParams) =>
     },
     async (span) => {
       const activity: CreateStatus = {
-        // The note carries FEP-044f terms unconditionally (interactionPolicy,
-        // plus the quote aliases when it quotes), so it must ship the context
-        // that defines them — a receiver that compacts drops every undefined
-        // term, silently turning a quote post into a plain one.
+        // FEP-044f terms ride on every note — see AGENTS.md, ActivityPub & JSON-LD.
         '@context': QUOTE_ACTIVITY_CONTEXT,
         id: note.id,
         type: CreateAction,
@@ -206,9 +203,8 @@ export const sendUpdateNote = async ({
       }
 
       const activity: UpdateStatus = {
-        // Same FEP-044f terms as the Create above — and this is the activity
-        // that re-federates a note once its quote is approved, so dropping the
-        // terms here is what leaves the approval invisible to the receiver.
+        // Also the activity that re-federates a note once its quote is approved,
+        // so dropping the terms here hides the approval from the receiver.
         '@context': QUOTE_ACTIVITY_CONTEXT,
         id: `${note.id}#updates/${Date.now()}`,
         type: UpdateAction,

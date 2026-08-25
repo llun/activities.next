@@ -75,8 +75,11 @@ const InboundQuoteRequest = z
 // the follow handshake (`object: Follow`), so without this lenient member the
 // union rejects a quote response with a 400 and `handleQuoteResponse` below is
 // never consulted, leaving every approved outbound quote stuck as `pending`.
-// Declared after Accept/Reject in the union so a follow handshake still parses
-// as the strict shape `acceptFollowRequest`/`rejectFollowRequest` require.
+// Listed after Accept/Reject so a follow handshake keeps the strict parse (and
+// its narrowed type) rather than falling into the passthrough member. That is a
+// readability preference, not a correctness requirement: the `safeParse`
+// re-narrowing in each branch below recovers the strict shape either way,
+// because a passthrough parse preserves `object` verbatim.
 const InboundQuoteResponse = z
   .object({
     id: z.string(),
@@ -232,7 +235,8 @@ export const POST = traceApiRoute(
                 if (
                   await handleQuoteResponse({
                     database,
-                    activity: compactedActivity
+                    activity: compactedActivity,
+                    verifiedSenderActorId: context.verifiedSenderActorId
                   })
                 ) {
                   return apiResponse({
@@ -281,7 +285,8 @@ export const POST = traceApiRoute(
                 if (
                   await handleQuoteResponse({
                     database,
-                    activity: compactedActivity
+                    activity: compactedActivity,
+                    verifiedSenderActorId: context.verifiedSenderActorId
                   })
                 ) {
                   return apiResponse({

@@ -538,6 +538,137 @@ describe('updateNoteJob', () => {
       ).resolves.toBeNull()
     })
 
+    it('fetches the quoted note and accepts when the Update stamps a quote of a post we never stored', async () => {
+      // The dominant remote-to-remote flow, and the one a local-only lookup
+      // cannot settle: B quotes C's post (which this instance does not store),
+      // the Create arrives stampless so the edge is `pending`, then C accepts
+      // and B re-federates the Update carrying the stamp. Resolving the quoted
+      // note here is what lets verifyRemoteQuote learn C's authorship at all.
+      const quotedAuthorId = 'https://somewhere.test/users/remoteauthor'
+      const quotedStatusId = `${quotedAuthorId}/statuses/quoted-update-remote`
+      const quotingStatusId = `${EXTERNAL_ACTOR1}/statuses/quoting-update-remote`
+      const note = {
+        ...MockMastodonActivityPubNote({
+          id: quotingStatusId,
+          from: EXTERNAL_ACTOR1,
+          content: 'quoting a post we do not store'
+        }),
+        quote: quotedStatusId
+      }
+      await createNoteJob(database, {
+        id: 'create-update-remote',
+        name: CREATE_NOTE_JOB_NAME,
+        data: note,
+        verifiedSenderActorId: EXTERNAL_ACTOR1
+      })
+      await expect(
+        database.getStatusQuote({ statusId: quotingStatusId })
+      ).resolves.toMatchObject({ state: 'pending' })
+      await expect(
+        database.getStatus({ statusId: quotedStatusId, withReplies: false })
+      ).resolves.toBeNull()
+
+      const stampUri = buildQuoteAuthorizationUri(
+        quotedAuthorId,
+        quotingStatusId
+      )
+      const stampBody = JSON.stringify(
+        buildQuoteAuthorizationObject({
+          stampUri,
+          attributedTo: quotedAuthorId,
+          interactingObject: quotingStatusId,
+          interactionTarget: quotedStatusId
+        })
+      )
+      const quotedNoteBody = JSON.stringify(
+        MockMastodonActivityPubNote({
+          id: quotedStatusId,
+          from: quotedAuthorId,
+          content: 'the quoted post',
+          withContext: true
+        })
+      )
+      fetchMock.mockResponse(async (req) => {
+        const { pathname } = new URL(req.url)
+        if (pathname.includes('/quote_authorizations/')) {
+          return { status: 200, body: stampBody }
+        }
+        if (pathname.includes('/statuses/quoted-update-remote')) {
+          return { status: 200, body: quotedNoteBody }
+        }
+        return { status: 404, body: '' }
+      })
+
+      await updateNoteJob(database, {
+        id: 'update-remote',
+        name: UPDATE_NOTE_JOB_NAME,
+        data: { ...note, quoteAuthorization: stampUri }
+      })
+
+      const edge = await database.getStatusQuote({ statusId: quotingStatusId })
+      expect(edge).toMatchObject({ state: 'accepted' })
+      expect(edge?.authorizationUri).toBe(stampUri)
+    })
+
+    it('refuses an Update that re-points the quote at a different target', async () => {
+      const actor1 = (await database.getActorFromUsername({
+        username: seedActor1.username,
+        domain: seedActor1.domain
+      })) as Actor
+      const { note, quotingStatusId } = await seedPendingQuote({
+        suffix: 'update-repoint',
+        quotedAuthorId: actor1.id,
+        quotingActorId: EXTERNAL_ACTOR1
+      })
+      const otherStatusId = `${actor1.id}/statuses/quoted-update-repoint-other`
+      await database.createNote({
+        id: otherStatusId,
+        url: otherStatusId,
+        actorId: actor1.id,
+        text: 'a different status',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      await updateNoteJob(database, {
+        id: 'update-repoint',
+        name: UPDATE_NOTE_JOB_NAME,
+        data: { ...note, quote: otherStatusId }
+      })
+
+      // Fails closed: the stored edge keeps its original target untouched.
+      const edge = await database.getStatusQuote({ statusId: quotingStatusId })
+      expect(edge).toMatchObject({ state: 'pending' })
+      expect(edge?.quotedStatusId).not.toBe(otherStatusId)
+    })
+
+    it('ignores an attributedTo claiming the quoted author, using the stored author instead', async () => {
+      // verifyRemoteQuote accepts outright when quoter == quoted author. The
+      // Update payload's `attributedTo` is not proof of authorship — routing
+      // only requires it match the verified SENDER, not the note's stored
+      // author — so taking the quoting actor from it would let an edit flip an
+      // unstamped edge to `accepted`.
+      const actor1 = (await database.getActorFromUsername({
+        username: seedActor1.username,
+        domain: seedActor1.domain
+      })) as Actor
+      const { note, quotingStatusId } = await seedPendingQuote({
+        suffix: 'update-authorship',
+        quotedAuthorId: actor1.id,
+        quotingActorId: EXTERNAL_ACTOR1
+      })
+
+      await updateNoteJob(database, {
+        id: 'update-authorship',
+        name: UPDATE_NOTE_JOB_NAME,
+        data: { ...note, attributedTo: actor1.id }
+      })
+
+      await expect(
+        database.getStatusQuote({ statusId: quotingStatusId })
+      ).resolves.toMatchObject({ state: 'pending' })
+    })
+
     it('does not downgrade an accepted edge when a stampless Update arrives', async () => {
       const actor1 = (await database.getActorFromUsername({
         username: seedActor1.username,

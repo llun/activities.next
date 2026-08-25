@@ -742,28 +742,59 @@ describe('POST /api/users/[username]/inbox', () => {
     it.each([
       {
         description: 'an embedded QuoteRequest object',
-        object: embeddedQuoteRequest
+        object: embeddedQuoteRequest,
+        // handleQuoteResponse reads the QuoteRequest id off `object`, so that is
+        // the field the two cases differ in and the one worth asserting: if
+        // compaction dropped or restructured it the edge would never match and
+        // the quote would stay pending — the bug this route change fixes.
+        expectedObject: expect.objectContaining({
+          id: `${QUOTING_STATUS_ID}#quote-request`
+        })
       },
       {
         description: 'a bare QuoteRequest id string',
-        object: `${QUOTING_STATUS_ID}#quote-request`
+        object: `${QUOTING_STATUS_ID}#quote-request`,
+        expectedObject: `${QUOTING_STATUS_ID}#quote-request`
       }
-    ])('settles an Accept carrying $description', async ({ object }) => {
+    ])(
+      'settles an Accept carrying $description',
+      async ({ object, expectedObject }) => {
+        mockHandleQuoteResponse.mockResolvedValue(true)
+
+        const response = await POST(quoteResponseRequest('Accept', object), {
+          params: Promise.resolve({ username: 'llun' })
+        })
+
+        expect(response.status).toBe(202)
+        expect(mockHandleQuoteResponse).toHaveBeenCalledWith(
+          expect.objectContaining({
+            database: mockDatabase,
+            activity: expect.objectContaining({
+              type: 'Accept',
+              object: expectedObject
+            })
+          })
+        )
+        // A quote response is not a follow handshake.
+        expect(mockAcceptFollowRequest).not.toHaveBeenCalled()
+      }
+    )
+
+    it('authorizes the handler on the signature-verified sender, not the document actor', async () => {
+      // Compaction can rewrite `actor` via a sender-supplied context alias, and
+      // the signature guard verified the RAW body. The route must hand the
+      // handler the identity the signature actually proved.
       mockHandleQuoteResponse.mockResolvedValue(true)
 
-      const response = await POST(quoteResponseRequest('Accept', object), {
+      await POST(quoteResponseRequest('Accept', embeddedQuoteRequest), {
         params: Promise.resolve({ username: 'llun' })
       })
 
-      expect(response.status).toBe(202)
       expect(mockHandleQuoteResponse).toHaveBeenCalledWith(
         expect.objectContaining({
-          database: mockDatabase,
-          activity: expect.objectContaining({ type: 'Accept' })
+          verifiedSenderActorId: 'https://remote.test/users/alice'
         })
       )
-      // A quote response is not a follow handshake.
-      expect(mockAcceptFollowRequest).not.toHaveBeenCalled()
     })
 
     it('forwards the hosted stamp uri on the Accept it hands to the handler', async () => {
@@ -839,6 +870,18 @@ describe('POST /api/users/[username]/inbox', () => {
 
         expect(response.status).toBe(202)
         expect(handler()).toHaveBeenCalledTimes(1)
+        // The follow handlers dereference `activity.object.id`, so the branch
+        // must hand them the strict Follow shape, never the passthrough one.
+        expect(handler()).toHaveBeenCalledWith(
+          expect.objectContaining({
+            activity: expect.objectContaining({
+              object: expect.objectContaining({
+                type: 'Follow',
+                id: 'https://activities.local/follows/1'
+              })
+            })
+          })
+        )
         expect(other()).not.toHaveBeenCalled()
       }
     )

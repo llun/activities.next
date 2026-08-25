@@ -11,6 +11,7 @@ import {
 } from '@/lib/types/domain/status'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 type VerifyRemoteQuoteParams = {
   database: Database
@@ -61,6 +62,7 @@ const fetchQuoteAuthorization = async (
   } catch (error) {
     logger.warn({
       message: 'Failed to fetch quote authorization stamp',
+      err: toLoggableError(error),
       error: error instanceof Error ? error.message : String(error)
     })
     return null

@@ -21,7 +21,8 @@ import { StatusType } from '@/lib/types/domain/status'
 import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
 
 import { createJobHandle } from './createJobHandle'
-import { UPDATE_NOTE_JOB_NAME } from './names'
+import { createNoteJob } from './createNoteJob'
+import { CREATE_NOTE_JOB_NAME, UPDATE_NOTE_JOB_NAME } from './names'
 
 export const updateNoteJob = createJobHandle(
   UPDATE_NOTE_JOB_NAME,
@@ -94,7 +95,14 @@ export const updateNoteJob = createJobHandle(
     await syncQuoteEdgeFromUpdate({
       database,
       note,
-      actorId: existingStatus.actorId
+      actorId: existingStatus.actorId,
+      storeNote: (fetchedQuotedNote) =>
+        createNoteJob(database, {
+          id: fetchedQuotedNote.id,
+          name: CREATE_NOTE_JOB_NAME,
+          data: fetchedQuotedNote,
+          skipQuoteResolution: true
+        })
     })
 
     // Re-detect the content language alongside the edit; the previous

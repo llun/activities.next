@@ -1,15 +1,26 @@
+import { getNote } from '@/lib/activities'
 import { BaseNote, getQuoteTargetId } from '@/lib/activities/note'
 import { Database } from '@/lib/database/types'
+import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { verifyRemoteQuote } from '@/lib/services/quotes/verifyRemoteQuote'
 import { Status } from '@/lib/types/domain/status'
+import { logger } from '@/lib/utils/logger'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
+
+// Stores a quoted note this instance fetched. Injected by the caller because
+// storing one means running the inbound Create path, which lives in
+// `lib/jobs/createNoteJob` — importing it here would close a cycle.
+export type StoreFetchedQuotedNote = (note: BaseNote) => Promise<void>
 
 type PersistInboundQuoteEdgeParams = {
   database: Database
   // The quoting note (already compacted at the inbox boundary).
   note: BaseNote
-  // The quoting actor id (the note's attributedTo, normalized).
+  // The quoting actor id. The Create path derives it from the note's
+  // `attributedTo`; the Update path deliberately passes the note's STORED
+  // author instead (see `syncQuoteEdgeFromUpdate`).
   actorId: string
-  // The quoted status, if we already have it locally; null otherwise.
+  // The quoted status, if we have it locally; null otherwise.
   quotedStatus: Status | null
   // The quoted status id the caller resolved from the note.
   quotedStatusId: string
@@ -25,12 +36,67 @@ const sameHost = (a: string, b: string): boolean => {
 }
 
 /**
+ * Fetch and store the quoted note when this instance does not already have it,
+ * so `verifyRemoteQuote` can confirm the quoted author and the quote card can
+ * load the content. Without it a stamped quote of a post we never stored is
+ * stuck `pending` even though it was legitimately approved.
+ *
+ * Bounded deliberately: it runs only when the note carries a stamp worth
+ * verifying, and `skipQuoteResolution` stops the stored note from chasing its
+ * own quote target, so a chain of quoting notes (A quotes B quotes C …) cannot
+ * drive unbounded recursive fetches. Any failure (a federation-blocked domain,
+ * a store error) leaves the result null and degrades the edge to `pending`
+ * rather than throwing and orphaning the note.
+ *
+ * Fetching only makes the author knowable — the stamp is still validated by
+ * `verifyRemoteQuote`, so a fetch never grants trust on its own.
+ */
+export const resolveInboundQuotedStatus = async ({
+  database,
+  note,
+  quotedStatusId,
+  storeNote
+}: {
+  database: Database
+  note: BaseNote
+  quotedStatusId: string
+  storeNote: StoreFetchedQuotedNote
+}): Promise<Status | null> => {
+  const stored = await database.getStatus({
+    statusId: quotedStatusId,
+    withReplies: false
+  })
+  if (stored) return stored
+  if (!note.quoteAuthorization) return null
+
+  try {
+    const signingActor = await getFederationSigningActor(database)
+    const fetchedQuotedNote = await getNote({
+      statusId: quotedStatusId,
+      signingActor
+    })
+    if (!fetchedQuotedNote) return null
+    await storeNote(fetchedQuotedNote)
+    return database.getStatus({ statusId: quotedStatusId, withReplies: false })
+  } catch (error) {
+    logger.warn({
+      message:
+        'Failed to fetch quoted note for inbound quote; leaving the edge pending',
+      quotedStatusId,
+      err: toLoggableError(error),
+      error: error instanceof Error ? error.message : String(error)
+    })
+    return null
+  }
+}
+
+/**
  * Derive an inbound quote edge's state with the FEP-044f receiver rules and
  * write it, creating the edge or advancing an existing one. Shared by the
  * inbound Create and Update paths so a quote approval that arrives on either
- * activity settles identically — an Update is how a quoter re-federates its
- * note once the quoted author's Accept has handed it a `quoteAuthorization`
- * stamp, so the two must agree.
+ * settles identically — an Update is how a quoter re-federates its note once
+ * the quoted author's Accept has handed it a `quoteAuthorization` stamp, so the
+ * two must agree.
  *
  * The edge is advanced through the one-way state machine in
  * `updateStatusQuoteState`, so a re-derived `pending` (an Update that arrives
@@ -80,33 +146,43 @@ export const persistInboundQuoteEdge = async ({
 }
 
 /**
- * Re-derive the quote edge for a note arriving on an inbound Update. Unlike the
- * Create path this never dereferences the quoted note: an Update is an
- * unsolicited re-federation, so it must not be able to drive outbound fetches.
- * A quote whose target this instance has never stored therefore stays pending
- * until the quoted note reaches us some other way.
+ * Re-derive the quote edge for a note arriving on an inbound Update — the
+ * activity a quoter re-federates once an Accept has handed it a stamp.
+ *
+ * Only an edge this instance already recorded, still `pending`, and still
+ * pointing at the same target is advanced. Edge CREATION stays with the Create
+ * path: an Update is not a place to start a quote relationship we never
+ * recorded, and refusing to re-point an existing one fails closed (Mastodon
+ * does not permit changing a quote target on edit).
+ *
+ * Those guards also bound what this can dereference. The quoted note is fetched
+ * (as on the Create path) only for `existingEdge.quotedStatusId` — a value this
+ * instance stored, not one the Update supplies — so an Update can never name an
+ * arbitrary URL to fetch. Note the stamp fetch inside `verifyRemoteQuote` is
+ * reachable from here either way; this path is not, and never was, fetch-free.
  */
 export const syncQuoteEdgeFromUpdate = async ({
   database,
   note,
-  actorId
-}: Omit<
-  PersistInboundQuoteEdgeParams,
-  'quotedStatus' | 'quotedStatusId'
->): Promise<void> => {
+  actorId,
+  storeNote
+}: Omit<PersistInboundQuoteEdgeParams, 'quotedStatus' | 'quotedStatusId'> & {
+  storeNote: StoreFetchedQuotedNote
+}): Promise<void> => {
   const quotedStatusId = getQuoteTargetId(note)
   if (!quotedStatusId) return
 
-  // Nothing to advance when no edge exists: the Create path owns edge creation
-  // (including the bounded fetch of an unknown quoted note), and an Update is
-  // not a place to start a quote relationship this instance never recorded.
   const existingEdge = await database.getStatusQuote({ statusId: note.id })
   if (!existingEdge || existingEdge.state !== 'pending') return
   if (existingEdge.quotedStatusId !== quotedStatusId) return
 
-  const quotedStatus = await database.getStatus({
-    statusId: quotedStatusId,
-    withReplies: false
+  const quotedStatus = await resolveInboundQuotedStatus({
+    database,
+    note,
+    // The edge's own stored target, never the id off the Update payload — the
+    // guard above proves they match, and this is the one that cannot be moved.
+    quotedStatusId: existingEdge.quotedStatusId,
+    storeNote
   })
   await persistInboundQuoteEdge({
     database,

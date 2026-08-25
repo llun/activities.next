@@ -1,4 +1,9 @@
-import type { StatusQuote } from '@/lib/types/domain/status'
+import { getEffectiveQuoteApprovalPolicy } from '@/lib/services/quotes/quotePolicy'
+import type {
+  QuoteApprovalPolicy,
+  StatusQuote
+} from '@/lib/types/domain/status'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 /**
  * The FEP-044f quote fields a note carries, or `null` when it quotes nothing.
@@ -38,3 +43,46 @@ export const getQuoteNoteFields = (
     ...(quoteAuthorization ? { quoteAuthorization } : null)
   }
 }
+
+// Advertise the audiences that may quote a status. `public` → the public
+// collection; `followers` → the author's followers collection; `nobody` → only
+// the author. Manual-approval queues are not modelled, so manualApproval is [].
+const buildCanQuote = (policy: QuoteApprovalPolicy, actorId: string) => {
+  const automaticApproval =
+    policy === 'public'
+      ? [ACTIVITY_STREAM_PUBLIC]
+      : policy === 'followers'
+        ? [`${actorId}/followers`]
+        : [actorId]
+  return { automaticApproval, manualApproval: [] as string[] }
+}
+
+/**
+ * Who may quote THIS status (FEP-044f `interactionPolicy.canQuote`). Emitted
+ * unconditionally: a peer cannot honour a quote policy it was never told, and
+ * the answer is meaningful for every status, quoting or not.
+ *
+ * Shared for the same reason `getQuoteNoteFields` is — a peer that learns a
+ * status by FETCHING it (a URL search, resolving an `inReplyTo` ancestor,
+ * walking our `/replies` collection) must be told the same policy as one that
+ * received it over an inbox delivery. Nothing reads this inbound locally, so a
+ * divergence here is invisible to every test and only shows up as a remote
+ * server allowing or refusing a quote it should not have.
+ */
+type InteractionPolicyStatus = {
+  actorId: string
+  to: string[]
+  cc: string[]
+  quoteApprovalPolicy?: QuoteApprovalPolicy
+}
+
+export const getInteractionPolicyFields = (
+  status: InteractionPolicyStatus
+) => ({
+  interactionPolicy: {
+    canQuote: buildCanQuote(
+      getEffectiveQuoteApprovalPolicy(status),
+      status.actorId
+    )
+  }
+})

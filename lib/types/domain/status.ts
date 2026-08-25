@@ -8,7 +8,10 @@ import {
   getReply,
   getSummary
 } from '@/lib/activities/note'
-import { getQuoteNoteFields } from '@/lib/activities/quoteNoteFields'
+import {
+  getInteractionPolicyFields,
+  getQuoteNoteFields
+} from '@/lib/activities/quoteNoteFields'
 import { MAX_FEDERATION_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import type { Announce as ActivityPubAnnounce } from '@/lib/types/activitypub/activities'
 import { Document } from '@/lib/types/activitypub/objects'
@@ -525,6 +528,7 @@ export const toActivityPubObject = (status: Status): Note | Question => {
       totalItems: originalStatus.totalShares
     },
     ...quoteFields,
+    ...getInteractionPolicyFields(originalStatus),
 
     published: getISOTimeUTC(originalStatus.createdAt),
     ...(hasStatusBeenEdited(originalStatus)

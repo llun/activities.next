@@ -10,6 +10,9 @@ type HandleQuoteResponseParams = {
   database: Database
   // The compacted inbound Accept/Reject activity.
   activity: unknown
+  // The actor the HTTP signature actually proved, from the inbox guard. This is
+  // the ONLY trustworthy identity here — see the authorization note below.
+  verifiedSenderActorId: string
 }
 
 // Read a bare id or an embedded `{ id }` reference.
@@ -44,7 +47,8 @@ const sameHost = (a: string, b: string): boolean => {
  */
 export const handleQuoteResponse = async ({
   database,
-  activity
+  activity,
+  verifiedSenderActorId
 }: HandleQuoteResponseParams): Promise<boolean> => {
   const record = activity as Record<string, unknown>
   const type = record.type
@@ -62,8 +66,16 @@ export const handleQuoteResponse = async ({
   // (and inject an attacker-controlled stamp). Require an exact author match; if
   // we cannot resolve the author locally, fail closed rather than trust same-host
   // authority (host equality is not authorship on a multi-user instance).
-  const responder = refId(record.actor)
-  if (!responder) return false
+  //
+  // The identity compared is the signature-VERIFIED sender, never this
+  // document's own `actor`. The inbox guard verifies `actor` on the RAW body,
+  // but what reaches here is the COMPACTED document, and a sender-supplied
+  // JSON-LD context can alias `actor` to a different value than the one signed
+  // for — proven: a document signed by `mallory` whose context points the
+  // literal `actor` term at a junk IRI and aliases another key onto `as:actor`
+  // compacts to `actor: alice`. Trusting that field let any federatable actor
+  // forge the quoted author's approval of a pending quote, and the quoteRequestId
+  // it keys on is derivable from the public quoting post's URL.
   const quotedStatus = await database.getStatus({
     statusId: edge.quotedStatusId,
     withReplies: false
@@ -72,7 +84,9 @@ export const handleQuoteResponse = async ({
     ? getOriginalStatus(quotedStatus).actorId
     : null
   if (!quotedAuthorId) return false
-  if (normalizeActorId(responder) !== normalizeActorId(quotedAuthorId)) {
+  if (
+    normalizeActorId(verifiedSenderActorId) !== normalizeActorId(quotedAuthorId)
+  ) {
     return false
   }
 

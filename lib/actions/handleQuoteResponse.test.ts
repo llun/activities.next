@@ -52,6 +52,7 @@ describe('handleQuoteResponse', () => {
     const database = makeDatabase({ updateSpy })
     const handled = await handleQuoteResponse({
       database,
+      verifiedSenderActorId: QUOTED_AUTHOR,
       activity: {
         type: 'Accept',
         actor: QUOTED_AUTHOR,
@@ -76,6 +77,7 @@ describe('handleQuoteResponse', () => {
     const database = makeDatabase({ updateSpy })
     const handled = await handleQuoteResponse({
       database,
+      verifiedSenderActorId: QUOTED_AUTHOR,
       activity: {
         type: 'Reject',
         actor: QUOTED_AUTHOR,
@@ -96,6 +98,7 @@ describe('handleQuoteResponse', () => {
     const database = makeDatabase({ updateSpy })
     const handled = await handleQuoteResponse({
       database,
+      verifiedSenderActorId: 'https://evil.example/users/mallory',
       activity: {
         type: 'Accept',
         actor: 'https://evil.example/users/mallory',
@@ -113,6 +116,7 @@ describe('handleQuoteResponse', () => {
     const database = makeDatabase({ updateSpy })
     await handleQuoteResponse({
       database,
+      verifiedSenderActorId: QUOTED_AUTHOR,
       activity: {
         type: 'Accept',
         actor: QUOTED_AUTHOR,
@@ -142,6 +146,7 @@ describe('handleQuoteResponse', () => {
     } as unknown as Database
     const handled = await handleQuoteResponse({
       database,
+      verifiedSenderActorId: 'https://target.example/users/mallory',
       activity: {
         type: 'Accept',
         actor: 'https://target.example/users/mallory',
@@ -154,11 +159,68 @@ describe('handleQuoteResponse', () => {
     expect(updateSpy).not.toHaveBeenCalled()
   })
 
+  it.each([
+    { type: 'Accept' as const, extra: { result: STAMP_URI } },
+    { type: 'Reject' as const, extra: {} }
+  ])(
+    'refuses a $type whose document claims the quoted author but was signed by someone else',
+    async ({ type, extra }) => {
+      // The inbox guard verifies `actor` on the RAW body, but what reaches here
+      // is the COMPACTED document, and a sender-supplied JSON-LD context can
+      // alias `actor` onto a value that was never signed for: a document signed
+      // by mallory can compact to `actor: alice`. Authorizing on that field let
+      // any federatable actor settle someone else's pending quote, so the
+      // comparison must use the signature-verified sender instead.
+      const updateSpy = vi.fn().mockResolvedValue(null)
+      const database = makeDatabase({ updateSpy })
+
+      const handled = await handleQuoteResponse({
+        database,
+        verifiedSenderActorId: 'https://evil.example/users/mallory',
+        activity: {
+          type,
+          actor: QUOTED_AUTHOR,
+          object: QUOTE_REQUEST_ID,
+          ...extra
+        }
+      })
+
+      expect(handled).toBe(false)
+      expect(updateSpy).not.toHaveBeenCalled()
+      expect(getQueue().publish).not.toHaveBeenCalled()
+    }
+  )
+
+  it('accepts when the verified sender matches the quoted author despite a mismatched document actor', async () => {
+    // The mirror of the case above: the signature is what authorizes, so a
+    // document whose `actor` compacted to something else does not block a
+    // genuine approval from the quoted author.
+    const updateSpy = vi.fn().mockResolvedValue(null)
+    const database = makeDatabase({ updateSpy })
+
+    const handled = await handleQuoteResponse({
+      database,
+      verifiedSenderActorId: QUOTED_AUTHOR,
+      activity: {
+        type: 'Accept',
+        actor: 'https://somewhere.example/users/someone',
+        object: QUOTE_REQUEST_ID,
+        result: STAMP_URI
+      }
+    })
+
+    expect(handled).toBe(true)
+    expect(updateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ state: 'accepted' })
+    )
+  })
+
   it('returns false when no outbound quote matches (falls through to follow handling)', async () => {
     const updateSpy = vi.fn()
     const database = makeDatabase({ edge: null, updateSpy })
     const handled = await handleQuoteResponse({
       database,
+      verifiedSenderActorId: QUOTED_AUTHOR,
       activity: {
         type: 'Accept',
         actor: QUOTED_AUTHOR,
@@ -176,6 +238,7 @@ describe('handleQuoteResponse', () => {
     await expect(
       handleQuoteResponse({
         database,
+        verifiedSenderActorId: QUOTED_AUTHOR,
         activity: {
           type: 'Follow',
           actor: QUOTED_AUTHOR,
