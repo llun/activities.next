@@ -1399,17 +1399,31 @@ it; there is no legacy shape left to copy.
   happens in the same commit, so there is still no painted frame of autoplay.
   `autoplay` is set only on a player the reader mounted, and must be in the
   iframe's `allow` list to reach the frame at all.
-  **The focus indicator on the facade is an `outline`, never a `ring`**, and
-  that is not a style preference: the button is flush with the edges of a
-  wrapper that must clip (`overflow-hidden`, to round the video's corners), so
-  an outward ring is clipped away, and an inward one (`ring-inset`) is painted
-  BELOW the button's own descendants — where the full-bleed poster covers the
-  padding box exactly and hides it whenever a thumbnail loaded. Both were
-  shipped and both were invisible. An outline paints above content, and a
-  negative offset keeps it inside the clip. Verify a focus change by
-  screenshotting the focused element **with a poster loaded**, not by reading
-  `getComputedStyle` — a box-shadow that is computed is not a box-shadow that
-  is painted. The two anatomies are **separate components** behind
+  **The facade's focus indicator lives on a child OVERLAY, not on the button**,
+  and that is not a style preference — it is the only place it survives. The
+  button is flush with the edges of a wrapper that must clip
+  (`overflow-hidden`, to round the video's corners), so anything painted
+  outward (a plain `ring`, a zero-offset outline) is clipped away; and anything
+  painted inward (`ring-inset`, a negative-offset outline) is painted BELOW the
+  button's own descendants, where the full-bleed poster covers its box exactly.
+  Both kinds shipped and both measured at essentially zero visible pixels. The
+  indicator is therefore a `pointer-events-none absolute inset-0` span rendered
+  as the button's LAST child, which has no descendants of its own to hide it,
+  and carries `rounded-t-[11px]` so the wrapper's inner radius does not nip its
+  top corners. On that overlay it is an **outline, not a ring**: forced-colors
+  mode (Windows High Contrast) drops box-shadows, which left the card's only
+  control with no focus indicator at all while the caption link beside it kept
+  one. The caption may keep its outline on the element itself, because its
+  children are in-flow text that never reaches its padding edge.
+  Verify any focus change by COUNTING INDICATOR PIXELS on an element
+  screenshot of the focused element, **with a poster loaded and with
+  `forced-colors: active` as well**, never by reading `getComputedStyle` — a
+  box-shadow that is computed is not a box-shadow that is painted, and that
+  mistake cost this feature two review rounds. Two traps in the harness:
+  Playwright's `page.screenshot({clip})` is page-relative while
+  `getBoundingClientRect()` is viewport-relative (use element screenshots), and
+  `:focus-visible` will not match a programmatic `.focus()` unless keyboard
+  modality was established first. The two anatomies are **separate components** behind
   one exported `LinkPreviewCard`, so React swaps component type rather than
   reordering hooks. The Mastodon `card.html`/`embed_url` stay empty regardless:
   the embed URL is built in the browser, so this is not oEmbed consumption.

@@ -176,14 +176,15 @@ const YouTubeLinkPreviewCard: FC<YouTubeLinkPreviewCardProps> = ({
             }
             // The focus indicator is NOT on this element — see the overlay at
             // the end of the button. Nothing painted on the button itself
-            // survives: an outward ring is clipped by the wrapper's
-            // `overflow-hidden` (which must stay, to round the video's square
-            // corners) because the button is flush with its edges, an inward
-            // one paints below the button's own descendants, and an outline
-            // does not come out either, because the poster is an
-            // `absolute inset-0` child covering the box exactly. All three were
-            // measured on a focused button with a poster loaded: zero indicator
-            // pixels. `outline-none` is therefore deliberate, not an oversight.
+            // survives: an outward ring or a zero-offset outline is clipped by
+            // the wrapper's `overflow-hidden` (which must stay, to round the
+            // video's square corners) because the button is flush with its
+            // edges, while an inward ring OR an inset outline paints below the
+            // button's own descendants — and the poster is an
+            // `absolute inset-0` child covering the box exactly. All of them
+            // were measured on a focused button with a poster loaded and came
+            // back at essentially zero visible pixels. `outline-none` is
+            // therefore deliberate, not an oversight.
             className="group absolute inset-0 flex cursor-pointer items-center justify-center focus-visible:outline-none"
           >
             {posterUrl ? (
@@ -222,13 +223,20 @@ const YouTubeLinkPreviewCard: FC<YouTubeLinkPreviewCardProps> = ({
             >
               <Play className="size-8 fill-white text-white" />
             </span>
-            {/* The focus indicator, as an overlay rather than a style on the
-                button, because this is the only place it survives: painted
-                LAST, after the poster that covers the button's box, and inside
-                its own bounds so the wrapper's clip cannot take it. */}
+            {/* The focus indicator lives on this overlay rather than on the
+                button, because the button is the one element it cannot survive
+                on: its poster is an `absolute inset-0` child covering the box
+                exactly, and both a ring and an outline paint below it. This
+                span is the button's LAST child and has no children of its own,
+                so an outline on it paints over the poster — and an outline,
+                not a ring, because forced-colors mode (Windows High Contrast)
+                drops box-shadows entirely and would leave the card's only
+                control with no focus indicator at all. The radius matches the
+                wrapper's inner corner so the top two corners are not nipped by
+                its clip. */}
             <span
               aria-hidden="true"
-              className="pointer-events-none absolute inset-0 ring-inset ring-ring/50 group-focus-visible:ring-2"
+              className="pointer-events-none absolute inset-0 rounded-t-[11px] group-focus-visible:outline-2 group-focus-visible:-outline-offset-2 group-focus-visible:outline-ring/50"
             />
           </button>
         )}
@@ -242,10 +250,12 @@ const YouTubeLinkPreviewCard: FC<YouTubeLinkPreviewCardProps> = ({
         onClick={(event: MouseEvent) => event.stopPropagation()}
         // Spelled out rather than left to the UA outline, which does render but
         // is clipped on three sides: this anchor is flush with the wrapper's
-        // left, right and bottom edges. Same offset outline as the button, for
-        // one mechanism rather than two — and it needs the matching bottom
-        // radius, since a square outline inside a `rounded-xl` clip gets its
-        // corners nipped.
+        // left, right and bottom edges. The offset outline can sit on the
+        // element itself here — unlike the play button, whose full-bleed poster
+        // covers its box — because this anchor's children are in-flow text that
+        // never reaches its padding edge. It needs the matching bottom radius,
+        // since a square outline inside a `rounded-xl` clip gets its corners
+        // nipped.
         className="block space-y-0.5 rounded-b-[11px] p-3 transition-colors hover:bg-muted/40 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring/50"
       >
         {/* No publisher name beside it: on a YouTube card it only ever repeats

@@ -298,11 +298,12 @@ describe('LinkPreviewCard', () => {
       expect(document.activeElement).toBe(document.querySelector('iframe'))
     })
 
-    // The play state is keyed on the video id rather than a boolean precisely so
-    // this cannot happen: `Posts` keys a row on the status id, so an edit that
-    // swaps the linked video updates props on the SAME mounted card. A boolean
-    // would keep the frame open and start the new video under the old click's
-    // consent.
+    // What makes this hold is the `key` on the video: `Posts` keys a row on the
+    // status id, so without it an edit that swaps the linked video would update
+    // props on the SAME mounted card and keep the frame open, starting the new
+    // video under the old click's consent. The card also remembers which video
+    // was played, but that is defence in depth — it passes this case and fails
+    // the return trip below.
     it('returns to the facade when the post is edited to a different video', () => {
       const { rerender } = render(<LinkPreviewCard linkPreview={videoCard()} />)
 
