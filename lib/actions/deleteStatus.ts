@@ -38,8 +38,10 @@ export const deleteStatusFromUserInput = async ({
 
     // Delete locally first so the status leaves the author's timelines
     // immediately, then federate the Tombstone in the background. Delivery used
-    // to run inline ahead of this, which made the request wait on every remote
-    // inbox (and left the status undeleted whenever one of them failed).
+    // to run inline ahead of this, so the response waited on every remote inbox
+    // — and since resolving those inboxes also ran first, an error collecting
+    // them abandoned the delete entirely. (The sends themselves never rejected:
+    // postActivityToInbox swallows delivery failures.)
     await database.deleteStatus({ statusId, actorId: currentActor.id })
 
     try {

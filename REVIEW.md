@@ -542,8 +542,10 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
 
 - The local delete commits **first**; `SendDeleteNoteJob` federates the
   `Delete`/`Tombstone` afterwards. Flag any change that reintroduces inline
-  fan-out ahead of `database.deleteStatus` — that blocked the response on remote
-  inboxes and let one failing server abort the local delete.
+  fan-out ahead of `database.deleteStatus`: that made the response wait on every
+  remote inbox, and put inbox resolution ahead of the delete, so an error while
+  collecting them abandoned the delete entirely. (A failing remote server was
+  never the trigger — both the sender and `getActorPerson` swallow and return.)
 - The job must **not** load the status: `database.deleteStatus` is a cascading
   hard delete, so the audience travels in the job payload (`to`/`cc` captured
   pre-delete) and `getFederatedStatusDeliveryInboxes` takes
