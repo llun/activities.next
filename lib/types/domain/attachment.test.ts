@@ -2,7 +2,8 @@ import { Attachment } from '@/lib/types/domain/attachment'
 import {
   getDocumentFromAttachment,
   getMastodonAttachment,
-  isFitnessAttachment
+  isFitnessAttachment,
+  isVisualAttachment
 } from '@/lib/types/domain/attachment'
 
 describe('attachment', () => {
@@ -257,6 +258,70 @@ describe('attachment', () => {
       })
 
       expect(result).toBe(false)
+    })
+  })
+
+  describe('isVisualAttachment', () => {
+    it.each([
+      {
+        description: 'returns true for image/jpeg',
+        mediaType: 'image/jpeg',
+        expected: true
+      },
+      {
+        description: 'returns true for image/png',
+        mediaType: 'image/png',
+        expected: true
+      },
+      {
+        description: 'returns true for image/gif',
+        mediaType: 'image/gif',
+        expected: true
+      },
+      {
+        description: 'returns true for video/mp4',
+        mediaType: 'video/mp4',
+        expected: true
+      },
+      {
+        description: 'returns true for video/quicktime',
+        mediaType: 'video/quicktime',
+        expected: true
+      },
+      {
+        description: 'returns false for audio/mp4',
+        mediaType: 'audio/mp4',
+        expected: false
+      },
+      {
+        description: 'returns false for audio/mpeg',
+        mediaType: 'audio/mpeg',
+        expected: false
+      },
+      {
+        description: 'returns false for application/vnd.ant.fit',
+        mediaType: 'application/vnd.ant.fit',
+        expected: false
+      },
+      {
+        description: 'returns false for application/gpx+xml',
+        mediaType: 'application/gpx+xml',
+        expected: false
+      },
+      {
+        description: 'returns false for application/pdf',
+        mediaType: 'application/pdf',
+        expected: false
+      },
+      {
+        description: 'returns false for an unknown media type',
+        mediaType: '',
+        expected: false
+      }
+    ])('$description', ({ mediaType, expected }) => {
+      const result = isVisualAttachment({ ...baseAttachment, mediaType })
+
+      expect(result).toBe(expected)
     })
   })
 })

@@ -20,6 +20,15 @@ interface Props {
   className?: string
   attachment?: Attachment
   showVideoControl?: boolean
+  /**
+   * Pass `'lazy'` from a surface that renders an unbounded number of images at
+   * once — a post's media strip holds every attachment, so a photo dump is
+   * otherwise a request per photo for pictures nobody has scrolled to. Leave it
+   * unset for a surface showing one image: an in-viewport lazy image is fetched
+   * at a lower priority, which is exactly the wrong trade for a post's largest
+   * element.
+   */
+  loading?: 'lazy' | 'eager'
   onClick?: (event: MouseEvent) => void
 }
 
@@ -28,6 +37,7 @@ export const Media: FC<Props> = ({
   caption,
   attachment,
   showVideoControl = false,
+  loading,
   onClick
 }) => {
   const [isLoaded, setIsLoaded] = useState(false)
@@ -87,6 +97,7 @@ export const Media: FC<Props> = ({
             }}
             onClick={onClick}
             key={id}
+            loading={loading}
             className={cn(
               'h-full w-full transition-opacity duration-300',
               className?.includes('object-contain')
@@ -109,6 +120,7 @@ export const Media: FC<Props> = ({
       <img
         onClick={onClick}
         key={id}
+        loading={loading}
         className={className}
         style={style}
         alt={caption ?? name ?? url}
