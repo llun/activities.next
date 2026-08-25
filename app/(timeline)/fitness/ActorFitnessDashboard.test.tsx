@@ -270,9 +270,15 @@ describe('ActorFitnessDashboard', () => {
       />
     )
 
+    // The header ORDER, not just its presence: Duration lands between two
+    // right-aligned tabular-nums columns, so swapping two header labels while
+    // leaving the cells alone is invisible to a per-header existence check and
+    // would file every duration under "Distance".
     expect(
-      await screen.findByRole('columnheader', { name: 'Duration' })
-    ).toBeInTheDocument()
+      (await screen.findAllByRole('columnheader')).map(
+        (header) => header.textContent
+      )
+    ).toEqual(['Activity', 'Count', 'Duration', 'Distance'])
 
     const row = screen.getByRole('link', { name: 'Run' }).closest('tr')
     expect(row).not.toBeNull()

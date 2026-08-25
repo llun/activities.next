@@ -16,7 +16,10 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { ActorFitnessDashboard } from './ActorFitnessDashboard'
 import { RecentFitnessActivities } from './RecentFitnessActivities'
-import { readActivityTypeParam } from './activityFilter'
+import {
+  readActivityTypeParam,
+  resolveActivityTypeFilter
+} from './activityFilter'
 
 export const dynamic = 'force-dynamic'
 
@@ -78,16 +81,30 @@ const Page: FC<Props> = async ({ searchParams }) => {
 
   // Actor-scoped (matching the dashboard + the hasFitnessData gate above) so a
   // multi-actor account shows the signed-in actor's own recent activities.
-  const activityType = readActivityTypeParam(await searchParams)
+  // A `?activity=` value is honoured only when it names one of this actor's own
+  // stored activity types — see `resolveActivityTypeFilter` for why an unchecked
+  // one is not merely useless but unsafe. The extra read is paid for only by a
+  // request that asked for a filter; the unfiltered page runs the same two
+  // queries it always did.
+  const requestedActivityType = readActivityTypeParam(await searchParams)
+  const activityType = requestedActivityType
+    ? resolveActivityTypeFilter(
+        requestedActivityType,
+        await database.getDistinctActivityTypesForActor({
+          actorId: currentActor.id
+        })
+      )
+    : undefined
   const recentFiles = await database.getFitnessFilesByActor({
     actorId: currentActor.id,
     limit: RECENT_LIMIT,
     processingStatus: 'completed',
     isPrimary: true,
-    // Spread, never a plain `activityType` key: the database method reads
-    // `null` as "activities with no recorded type" and only an ABSENT key as
-    // "every type", so passing `undefined` explicitly is the same filter-nothing
-    // it looks like only by luck of that method's `!== undefined` check.
+    // Spread rather than a plain key so "no filter" passes no `activityType` at
+    // all. The database method happens to read an explicit `undefined` the same
+    // way, but `null` means something else entirely there — "activities with no
+    // recorded type" — so the narrowing stays something this call states only
+    // when it means it.
     ...(activityType ? { activityType } : {})
   })
   const statusIds = Array.from(

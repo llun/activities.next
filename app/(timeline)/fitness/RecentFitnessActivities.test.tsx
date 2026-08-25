@@ -214,6 +214,39 @@ describe('RecentFitnessActivities', () => {
     expect(screen.queryByTestId('posts')).not.toBeInTheDocument()
   })
 
+  it.each([
+    {
+      description: 'names the active filter',
+      activityType: 'gravel_ride',
+      expected: 'Showing recent Gravel Ride activities'
+    },
+    {
+      description: 'says so when nothing is filtered',
+      activityType: undefined,
+      expected: 'Showing all recent activities'
+    }
+  ])(
+    'announces the current scope through a status region and $description',
+    ({ activityType, expected }) => {
+      // The navigation moves nothing else — scroll={false}, a static page
+      // title, and aria-current flipping on the already-focused link — so this
+      // region is the only thing that tells a screen reader the list changed.
+      const status = createStatus('https://activities.local/users/llun/s/6')
+
+      render(
+        <RecentFitnessActivities
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          currentActor={profile}
+          statuses={[status]}
+          activityType={activityType}
+        />
+      )
+
+      expect(screen.getByRole('status')).toHaveTextContent(expected)
+    }
+  )
+
   it('leaves the heading bare when nothing is filtered', () => {
     const status = createStatus('https://activities.local/users/llun/s/5')
 

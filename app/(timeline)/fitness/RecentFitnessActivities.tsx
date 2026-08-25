@@ -48,15 +48,27 @@ export const RecentFitnessActivities: FC<Props> = ({
             prefetch={false}
             scroll={false}
             aria-label={`Clear ${label} filter`}
-            className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium text-primary-text transition-colors hover:bg-muted"
+            className="inline-flex max-w-full items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium break-words text-primary-text transition-colors hover:bg-muted"
           >
             {label}
-            <X className="size-3" aria-hidden="true" />
+            <X className="size-3 shrink-0" aria-hidden="true" />
           </Link>
         )}
       </div>
+      {/* Applying or clearing the filter is a navigation that swaps the list
+          below and moves nothing else: `scroll={false}` keeps the page still,
+          the page title is static so Next's route announcer has nothing new to
+          read, and the only other signal is `aria-current` flipping on the link
+          the user is already focused on — which screen readers do not reliably
+          re-announce. This is the one thing that tells them the scope changed;
+          it is server-rendered, so it differs on every filtered render. */}
+      <p role="status" className="sr-only">
+        {label
+          ? `Showing recent ${label} activities`
+          : 'Showing all recent activities'}
+      </p>
       {statuses.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+        <p className="rounded-lg border border-dashed p-6 text-center text-sm break-words text-muted-foreground">
           No recent {label} activities have been posted.
         </p>
       ) : (

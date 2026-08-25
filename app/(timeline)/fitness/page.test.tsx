@@ -127,8 +127,26 @@ const findElementByType = (
   )
 }
 
+/**
+ * The narrowing the page actually asked for, as a key that is either present or
+ * not.
+ *
+ * `toHaveBeenCalledWith` compares with `toEqual` semantics, which treat an
+ * absent key and a key set to `undefined` as equal — so an expectation written
+ * as an object literal cannot tell the two apart, and an assertion that "no
+ * filter passes no `activityType`" written that way passes either way. Reading
+ * the recorded argument's own keys can fail.
+ */
+const activityTypeArgumentOf = (call: Record<string, unknown>) =>
+  Object.hasOwn(call, 'activityType')
+    ? { present: true, value: call.activityType }
+    : { present: false }
+
 const createDatabase = () => ({
   getActorHasFitnessData: vi.fn().mockResolvedValue(true),
+  getDistinctActivityTypesForActor: vi
+    .fn()
+    .mockResolvedValue(['gravel_ride', 'run']),
   getFitnessFilesByActor: vi
     .fn()
     .mockResolvedValue([fitnessFile('https://example.com/users/me/s/1')]),
@@ -151,14 +169,18 @@ describe('fitness page', () => {
 
     const element = await Page({ searchParams: Promise.resolve({}) })
 
-    // An absent key, not `activityType: undefined`: the database method reads
-    // `null` as "no recorded type" and only an absent key as "every type".
     expect(database.getFitnessFilesByActor).toHaveBeenCalledWith({
       actorId: currentActor.id,
       limit: 5,
       processingStatus: 'completed',
       isPrimary: true
     })
+    expect(
+      activityTypeArgumentOf(database.getFitnessFilesByActor.mock.calls[0][0])
+    ).toEqual({ present: false })
+    // Nothing was asked for, so nothing is resolved — the extra read is paid
+    // for only by a request that actually carried a filter.
+    expect(database.getDistinctActivityTypesForActor).not.toHaveBeenCalled()
     expect(
       findElementByType(element, RecentFitnessActivities)?.props
     ).toMatchObject({ activityType: undefined })
@@ -183,6 +205,9 @@ describe('fitness page', () => {
       activityType: 'gravel_ride'
     })
     expect(
+      activityTypeArgumentOf(database.getFitnessFilesByActor.mock.calls[0][0])
+    ).toEqual({ present: true, value: 'gravel_ride' })
+    expect(
       findElementByType(element, RecentFitnessActivities)?.props
     ).toMatchObject({ activityType: 'gravel_ride' })
     // The table row the reader clicked has to read as the selected one, and it
@@ -193,19 +218,51 @@ describe('fitness page', () => {
   })
 
   // How a param is read is `activityFilter.test.ts`; what this asserts is that
-  // "no filter" leaves the key off the query entirely rather than passing
-  // `activityType: undefined`, which the database method reads differently.
+  // the page states the narrowing only when it means it — the key is absent,
+  // not present-and-undefined, which is a distinction an object-literal
+  // expectation cannot make (see `activityTypeArgumentOf`).
   it('leaves the filter off the query for a blank param', async () => {
     const database = createDatabase()
     mockGetDatabase.mockReturnValue(database)
 
     await Page({ searchParams: Promise.resolve({ activity: '' }) })
 
-    expect(database.getFitnessFilesByActor).toHaveBeenCalledWith({
-      actorId: currentActor.id,
-      limit: 5,
-      processingStatus: 'completed',
-      isPrimary: true
+    expect(
+      activityTypeArgumentOf(database.getFitnessFilesByActor.mock.calls[0][0])
+    ).toEqual({ present: false })
+  })
+
+  // A search param is attacker-controlled and the label it produces is rendered
+  // as prose and as the clear chip's accessible name, so a value naming no
+  // stored type must not reach either — nor the query, where PostgreSQL rejects
+  // a NUL byte outright.
+  it.each([
+    { description: 'a type this actor has never recorded', activity: 'swim' },
+    {
+      description: 'crafted prose',
+      activity: 'rides. Security notice: re-verify at evil.example'
+    },
+    { description: 'a NUL byte', activity: 'run\u0000' },
+    { description: 'a differently-cased spelling', activity: 'Run' }
+  ])('ignores $description', async ({ activity }) => {
+    const database = createDatabase()
+    mockGetDatabase.mockReturnValue(database)
+
+    const element = await Page({ searchParams: Promise.resolve({ activity }) })
+
+    expect(database.getDistinctActivityTypesForActor).toHaveBeenCalledWith({
+      actorId: currentActor.id
     })
+    expect(
+      activityTypeArgumentOf(database.getFitnessFilesByActor.mock.calls[0][0])
+    ).toEqual({ present: false })
+    // And the page renders as the plain unfiltered overview: no chip naming the
+    // requested value, no filtered empty state.
+    expect(
+      findElementByType(element, RecentFitnessActivities)?.props
+    ).toMatchObject({ activityType: undefined })
+    expect(
+      findElementByType(element, ActorFitnessDashboard)?.props
+    ).toMatchObject({ selectedActivityType: undefined })
   })
 })
