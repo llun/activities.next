@@ -20,6 +20,12 @@ describe('attachment', () => {
     updatedAt: Date.now()
   }
 
+  // `getMastodonAttachment` answers a union, and the `unknown` member carries no
+  // `meta` — so reach for it through a narrowing check rather than an optional
+  // chain the compiler cannot follow.
+  const metaOf = (attachment: ReturnType<typeof getMastodonAttachment>) =>
+    'meta' in attachment ? attachment.meta : undefined
+
   describe('getDocumentFromAttachment', () => {
     it('converts attachment to Document schema', () => {
       const result = getDocumentFromAttachment(baseAttachment)
@@ -127,7 +133,7 @@ describe('attachment', () => {
       })
 
       expect(result?.type).toEqual('video')
-      expect(result?.meta).toMatchObject({ focus: { x: -0.25, y: 0.5 } })
+      expect(metaOf(result)).toMatchObject({ focus: { x: -0.25, y: 0.5 } })
     })
 
     it('omits the focal point on a video attachment without one', () => {
@@ -136,7 +142,7 @@ describe('attachment', () => {
         mediaType: 'video/mp4'
       })
 
-      expect(result?.meta).not.toHaveProperty('focus')
+      expect(metaOf(result)).not.toHaveProperty('focus')
     })
 
     it('returns video type for webm', () => {
@@ -160,8 +166,8 @@ describe('attachment', () => {
       const result = getMastodonAttachment(attachmentNoDimensions)
 
       expect(result).not.toBeNull()
-      expect(result?.meta?.original?.width).toEqual(0)
-      expect(result?.meta?.original?.height).toEqual(0)
+      expect(metaOf(result)?.original?.width).toEqual(0)
+      expect(metaOf(result)?.original?.height).toEqual(0)
     })
 
     it('handles missing dimensions in video', () => {
@@ -175,15 +181,24 @@ describe('attachment', () => {
       const result = getMastodonAttachment(videoNoDimensions)
 
       expect(result).not.toBeNull()
-      expect(result?.meta?.original?.width).toEqual(0)
-      expect(result?.meta?.original?.height).toEqual(0)
+      expect(metaOf(result)?.original?.width).toEqual(0)
+      expect(metaOf(result)?.original?.height).toEqual(0)
     })
 
     it('calculates aspect ratio correctly', () => {
       const result = getMastodonAttachment(baseAttachment)
 
-      expect(result?.meta?.original?.aspect).toBeCloseTo(1920 / 1080)
-      expect(result?.meta?.original?.size).toEqual('1920x1080')
+      // Asserted on the whole entity: `original` differs between the image and
+      // video members, so only the image branch carries `size`/`aspect`.
+      expect(result).toMatchObject({
+        type: 'image',
+        meta: {
+          original: {
+            size: '1920x1080',
+            aspect: expect.closeTo(1920 / 1080)
+          }
+        }
+      })
     })
   })
 

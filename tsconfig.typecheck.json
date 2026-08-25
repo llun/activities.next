@@ -168,7 +168,6 @@
     "lib/services/strava/archiveReader.open.test.ts",
     "lib/services/timelines/getFilteredTimelinePage.test.ts",
     "lib/services/translation/translateStatus.test.ts",
-    "lib/types/domain/attachment.test.ts",
     "lib/types/domain/status.test.ts",
     "lib/utils/getPersonFromActor.test.ts",
     "lib/utils/mapkit.test.ts",

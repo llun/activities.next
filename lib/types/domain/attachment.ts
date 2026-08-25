@@ -178,13 +178,16 @@ export const getMastodonAttachment = (attachment: Attachment) => {
     })
   }
   // Everything else — an `audio/mp4` upload, a remote GIF — is Mastodon's
-  // `unknown` type rather than a `null` entry. `null` is not a MediaAttachment,
-  // so it violated the entity, and it left the attachment with no id for a
-  // client to name: an editing client could only echo back the ids it could
-  // see, and `updateNote` deletes every replaceable attachment missing from
-  // that list, so the unnameable one was dropped from the post. `unknown`
-  // carries the id, url, description and blurhash without claiming dimensions
-  // or a duration this row does not store.
+  // `unknown` type rather than a `null` entry, and the difference is the whole
+  // post rather than one attachment. `media_attachments` is
+  // `MediaAttachment.array()`, so a `null` failed `getMastodonStatus`'s closing
+  // `Mastodon.Status.parse`: `getMastodonStatuses` dropped the status from the
+  // page as un-hydratable and a single-status GET errored, which took a post
+  // carrying one audio clip off the API entirely while the web UI still
+  // rendered it. `unknown` carries the id, url, description and blurhash
+  // without claiming dimensions or a duration this row does not store — and
+  // carrying an id is also what lets an editing client name the attachment
+  // instead of dropping it.
   return Mastodon.MediaTypes.Unknown.parse({
     id: attachment.id,
     url: attachment.url,
