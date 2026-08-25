@@ -92,26 +92,47 @@ export const handleQuoteResponse = async ({
   }
 
   if (type === 'Accept') {
+    // Only a `pending` edge has anything to settle. The state machine discards
+    // every other transition anyway, and this returns before the stamp fetch
+    // below — otherwise a verified quoted author could replay one Accept
+    // indefinitely and make us re-fetch on each, inline in the inbox request.
+    if (edge.state !== 'pending') return true
+
     const stampUri = refId(record.result)
-    // Store the stamp only once it is confirmed to BE one: hosted under the
-    // quoted author's authority AND dereferencing to a QuoteAuthorization whose
-    // three FEP-044f fields match this exact edge. A same-host check alone let a
-    // hostile quoted author pass off any co-resident id — an actor or a status —
-    // as the stamp, which `deleteObjectJob` then matches when deciding whether
-    // an inbound Delete is a quote revocation. Failing verification still leaves
-    // the quote accepted; it just carries no stamp to re-federate.
+    // Store the stamp only once it is hosted under the quoted author's
+    // authority AND has not been DISPROVED: a same-host check alone let a
+    // hostile quoted author pass off any co-resident id — an actor or a status
+    // — as the stamp, which `deleteObjectJob` matches when deciding whether an
+    // inbound Delete is a quote revocation.
+    //
+    // `unavailable` deliberately still stores it. The check cannot disprove a
+    // stamp it could not read, and dropping it is irreversible: this edge goes
+    // `pending → accepted` here, `accepted → accepted` is a no-op, so no later
+    // Accept can ever supply the stamp. One transient 503 would otherwise strip
+    // `quoteAuthorization` from every federated copy of our note for good and
+    // leave every receiver rendering an approved quote as unapproved — the
+    // exact failure this whole change exists to fix. That trade is only safe
+    // because a planted uri can no longer swallow an unrelated Delete.
+    const stampCheck =
+      stampUri && sameHost(stampUri, edge.quotedStatusId)
+        ? await verifyQuoteAuthorizationStamp({
+            database,
+            stampUri,
+            quotedAuthorId,
+            quotingStatusId: edge.statusId,
+            quotedStatusId: edge.quotedStatusId
+          })
+        : 'mismatch'
     const authorizationUri =
-      stampUri &&
-      sameHost(stampUri, edge.quotedStatusId) &&
-      (await verifyQuoteAuthorizationStamp({
-        database,
-        stampUri,
-        quotedAuthorId,
-        quotingStatusId: edge.statusId,
-        quotedStatusId: edge.quotedStatusId
-      }))
-        ? stampUri
-        : undefined
+      stampUri && stampCheck !== 'mismatch' ? stampUri : undefined
+    if (stampCheck === 'unavailable') {
+      logger.warn({
+        message:
+          'Storing an unverified quote authorization stamp: it could not be read',
+        statusId: edge.statusId,
+        stampUri
+      })
+    }
     await database.updateStatusQuoteState({
       statusId: edge.statusId,
       state: 'accepted',

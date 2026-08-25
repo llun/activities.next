@@ -25,17 +25,20 @@ const STAMP_URI = 'https://target.example/users/alice/quote_authorizations/abc'
 const makeDatabase = (
   overrides: Partial<{
     edge: { statusId: string; quotedStatusId: string } | null
+    edgeState: string
     updateSpy: ReturnType<typeof vi.fn>
   }> = {}
 ): Database =>
   ({
-    getStatusQuoteByQuoteRequestId: vi
-      .fn()
-      .mockResolvedValue(
-        overrides.edge === undefined
-          ? { statusId: QUOTING_STATUS_ID, quotedStatusId: QUOTED_STATUS_ID }
-          : overrides.edge
-      ),
+    getStatusQuoteByQuoteRequestId: vi.fn().mockResolvedValue(
+      overrides.edge === undefined
+        ? {
+            statusId: QUOTING_STATUS_ID,
+            quotedStatusId: QUOTED_STATUS_ID,
+            state: overrides.edgeState ?? 'pending'
+          }
+        : overrides.edge
+    ),
     updateStatusQuoteState:
       overrides.updateSpy ?? vi.fn().mockResolvedValue(null),
     getStatus: vi.fn().mockImplementation(({ statusId }) =>
@@ -53,7 +56,7 @@ const makeDatabase = (
 describe('handleQuoteResponse', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockVerifyStamp.mockResolvedValue(true)
+    mockVerifyStamp.mockResolvedValue('verified')
   })
 
   it('accepts a matching outbound quote from the quoted authority, storing the stamp and re-federating', async () => {
@@ -126,7 +129,7 @@ describe('handleQuoteResponse', () => {
     // the stamp. `deleteObjectJob` matches stored stamps when deciding whether
     // an inbound Delete is a quote revocation, so an unverified value planted
     // here swallows that object's own legitimate Delete.
-    mockVerifyStamp.mockResolvedValue(false)
+    mockVerifyStamp.mockResolvedValue('mismatch')
     const updateSpy = vi.fn().mockResolvedValue(null)
     const database = makeDatabase({ updateSpy })
 
@@ -147,6 +150,58 @@ describe('handleQuoteResponse', () => {
       state: 'accepted',
       authorizationUri: undefined
     })
+  })
+
+  it('keeps a stamp the check could not read, rather than dropping it forever', async () => {
+    // `unavailable` is not a disproof. This edge goes pending -> accepted here
+    // and `accepted -> accepted` is a no-op, so no later Accept could ever
+    // supply the stamp: dropping it on one transient 503 would strip
+    // quoteAuthorization from every federated copy of the note permanently and
+    // leave receivers rendering an approved quote as unapproved.
+    mockVerifyStamp.mockResolvedValue('unavailable')
+    const updateSpy = vi.fn().mockResolvedValue(null)
+    const database = makeDatabase({ updateSpy })
+
+    await handleQuoteResponse({
+      database,
+      verifiedSenderActorId: QUOTED_AUTHOR,
+      activity: {
+        type: 'Accept',
+        actor: QUOTED_AUTHOR,
+        object: QUOTE_REQUEST_ID,
+        result: STAMP_URI
+      }
+    })
+
+    expect(updateSpy).toHaveBeenCalledWith({
+      statusId: QUOTING_STATUS_ID,
+      state: 'accepted',
+      authorizationUri: STAMP_URI
+    })
+  })
+
+  it('does not re-fetch the stamp for an Accept replayed against a settled edge', async () => {
+    // Nothing to settle, and the state machine would discard the write — but a
+    // verified quoted author could otherwise replay one Accept indefinitely and
+    // make us re-fetch on each, inline in the inbox request.
+    const updateSpy = vi.fn().mockResolvedValue(null)
+    const database = makeDatabase({ updateSpy, edgeState: 'accepted' })
+
+    const handled = await handleQuoteResponse({
+      database,
+      verifiedSenderActorId: QUOTED_AUTHOR,
+      activity: {
+        type: 'Accept',
+        actor: QUOTED_AUTHOR,
+        object: QUOTE_REQUEST_ID,
+        result: STAMP_URI
+      }
+    })
+
+    expect(handled).toBe(true)
+    expect(mockVerifyStamp).not.toHaveBeenCalled()
+    expect(updateSpy).not.toHaveBeenCalled()
+    expect(getQueue().publish).not.toHaveBeenCalled()
   })
 
   it('verifies the stamp against this edge, not merely its host', async () => {

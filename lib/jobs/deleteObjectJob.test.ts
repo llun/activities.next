@@ -132,6 +132,52 @@ describe('deleteObjectJob', () => {
     expect(edge?.state).toBe('accepted')
   })
 
+  it('still deletes an actor whose own id was planted as a stamp uri', async () => {
+    // `authorizationUri` is remote-supplied and only same-host checked, so a
+    // hostile actor can plant a co-resident's id there. If the quote branch
+    // consumed the activity on a sender mismatch, that co-resident's own
+    // legitimate Delete would be swallowed forever and they could never be
+    // removed from this instance.
+    const stamp = Date.now()
+    const victimId = `https://remote.example/users/planted-victim-${stamp}`
+    await database.createActor({
+      actorId: victimId,
+      username: `plantedvictim${stamp}`,
+      domain: 'remote.example',
+      followersUrl: `${victimId}/followers`,
+      inboxUrl: `${victimId}/inbox`,
+      sharedInboxUrl: 'https://remote.example/inbox',
+      publicKey: 'public-key',
+      createdAt: Date.now()
+    })
+
+    const author = `https://remote.example/users/planter-${stamp}`
+    const quotedStatusId = `${author}/statuses/1`
+    await seedQuotedStatus(author, quotedStatusId)
+    const quotingId = `https://local.test/users/me/statuses/planted-${stamp}`
+    await database.createStatusQuote({
+      statusId: quotingId,
+      quotedStatusId,
+      state: 'accepted',
+      // Not a stamp at all — the victim's actor id, same host as the quoted
+      // status, which is all the storing path ever checked.
+      authorizationUri: victimId
+    })
+
+    // The victim deletes themselves, correctly signed.
+    await deleteObjectJob(database, {
+      id: `planted-job-${stamp}`,
+      name: DELETE_OBJECT_JOB_NAME,
+      data: victimId,
+      verifiedSenderActorId: victimId
+    })
+
+    await expect(database.getActorFromId({ id: victimId })).resolves.toBeNull()
+    // The planter's quote is untouched: this was never a revocation.
+    const edge = await database.getStatusQuote({ statusId: quotingId })
+    expect(edge?.state).toBe('accepted')
+  })
+
   it('deletes actor when data is a string (actor id)', async () => {
     // Create a new actor to delete
     const actorId = `https://external.test/users/to-delete-${Date.now()}`

@@ -41,7 +41,8 @@ export const deleteObjectJob = createJobHandle(
       // co-resident of the quoted author would otherwise be able to revoke
       // someone else's authorized quote — so resolve the exact author and fail
       // closed if it cannot be resolved. Runs before the actor/status delete
-      // paths; a status/actor id never matches a stored stamp uri.
+      // paths, but must never CONSUME the activity on their behalf: a stored
+      // stamp uri is remote-supplied, so a status or actor id CAN match one.
       const stampUri = getStampUri(data)
       if (stampUri) {
         const edge = await database.getStatusQuoteByAuthorizationUri({
@@ -73,10 +74,16 @@ export const deleteObjectJob = createJobHandle(
           }
           // Sender is not the quoted author, so this is not a revocation of
           // that quote. Fall THROUGH to the normal delete paths rather than
-          // returning: `authorizationUri` is a remote-supplied value (an Accept
-          // stores its `result` after only a same-host check), so a hostile
-          // quoted author can plant an actor or status id there and have this
-          // branch swallow that object's own legitimate Delete forever.
+          // returning: `authorizationUri` is remote-supplied and only ever
+          // same-host checked against the quoted status, so a hostile actor can
+          // plant an id belonging to a co-resident actor or status there and
+          // have this branch swallow that object's own legitimate Delete
+          // forever. `handleQuoteResponse` now verifies an Accept's `result`
+          // before storing it, but `persistInboundQuoteEdge` still cannot:
+          // `verifyRemoteQuote`'s self-quote shortcut returns `accepted` without
+          // reading any stamp, so an actor quoting their OWN status can persist
+          // an arbitrary same-host uri. This fall-through is what makes that
+          // harmless, so do not restore the early return.
           span.setAttribute('quoteRevocationSenderMismatch', true)
         }
       }
