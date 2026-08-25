@@ -1361,6 +1361,37 @@ it; there is no legacy shape left to copy.
   through `safeExternalHref`, and its thumbnail is `https`-only and loaded with
   `referrerPolicy="no-referrer"`. The displayed domain is always derived from
   the URL, never from the page's own `og:site_name`, which the page controls.
+- **A YouTube link renders a click-to-play player, and the branch reads the URL
+  — never the metadata.** `getYouTubeVideoFromUrl` (`lib/utils/youtube.ts`)
+  parses `linkPreview.url`, which is the **redirect-resolved final URL this
+  server fetched** (`fetchLinkPreview` stores `normalizePreviewUrl(response.url)`),
+  so a page can only be treated as YouTube by actually being served from a
+  YouTube host. Neither `og:type` nor the stored `type` column is consulted,
+  even though `mapCardType` already writes `'video'` for these pages: that
+  column is page-claimed, and gating on it would make one URL render two ways
+  depending on what a cache entry happened to capture. Hosts are matched
+  **exactly** (`youtube.com.evil.example` ends with nothing that matters) and
+  the id must be 11 base64url characters, which also rejects a percent-encoded
+  segment; `/embed/videoseries` is refused by name because it is eleven
+  lowercase letters that embed a whole playlist.
+  The feature's entire third-party surface is two fixed hosts, both in
+  `csp.ts`: the player is framed from `https://www.youtube-nocookie.com`, the
+  only origin in `frame-src` (there was no `frame-src` at all before this —
+  `default-src 'none'` blocks every iframe), and the poster comes from
+  `https://i.ytimg.com`, which is an **unconditional** `img-src` source rather
+  than one of `remoteMediaSources`, so narrowing (or emptying)
+  `ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS` cannot blank the thumbnail of every
+  video card. `next.config.test.ts` pins that against the emptied allowlist.
+  **Nothing loads from the player until the reader presses play** — a live
+  iframe per row is a megabyte of player code and a Google request for every
+  video that merely scrolled past — and the play state is keyed on the video
+  id, not a boolean, so a card replaced in place cannot inherit the previous
+  video's consent and autoplay something nobody clicked. `autoplay` is set only
+  on a player the reader mounted, and must be in the iframe's `allow` list to
+  reach the frame at all. The two anatomies are **separate components** behind
+  one exported `LinkPreviewCard`, so React swaps component type rather than
+  reordering hooks. The Mastodon `card.html`/`embed_url` stay empty regardless:
+  the embed URL is built in the browser, so this is not oEmbed consumption.
 - **The card yields to media, a quote or a fitness activity in the UI** — but it
   is still fetched and still served over the API in all three cases, so a client
   is free to decide otherwise. Display policy lives in `post.tsx`, not in the

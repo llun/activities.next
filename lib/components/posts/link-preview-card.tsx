@@ -1,15 +1,37 @@
 'use client'
 
-import { FC, MouseEvent, useEffect, useState } from 'react'
+import { Play } from 'lucide-react'
+import { FC, MouseEvent, useEffect, useRef, useState } from 'react'
 
 import { safeExternalHref } from '@/lib/components/trends/safeHref'
 import { StatusLinkPreview } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
+import {
+  YouTubeVideo,
+  getYouTubeEmbedUrl,
+  getYouTubePosterUrl,
+  getYouTubeVideoFromUrl
+} from '@/lib/utils/youtube'
 
 interface LinkPreviewCardProps {
   linkPreview: StatusLinkPreview
   className?: string
 }
+
+/**
+ * Whether an `<img>` has already finished loading and has no pixels — i.e. it
+ * failed.
+ *
+ * These cards are server-rendered, so the browser begins fetching the thumbnail
+ * while it parses the HTML — often finishing before React hydrates. `error` does
+ * not bubble, so React attaches that listener to the element itself during
+ * hydration and a failure that landed first is never delivered: `onError` simply
+ * never fires and the card holds a broken image open forever. Asking the element
+ * what already happened, at the moment the ref attaches, is what recovers it.
+ * (`complete` alone is not enough — it is also true for an image that loaded.)
+ */
+const hasImageAlreadyFailed = (image: HTMLImageElement) =>
+  image.complete && image.naturalWidth === 0
 
 // The bare hostname is what tells a reader where a link actually goes, so it is
 // always derived from the URL rather than taken from the page's own
@@ -24,6 +46,176 @@ const getDomain = (linkPreview: StatusLinkPreview) => {
   }
 }
 
+interface YouTubeLinkPreviewCardProps extends LinkPreviewCardProps {
+  video: YouTubeVideo
+}
+
+/**
+ * The card for a link to a YouTube video: a click-to-play facade over the
+ * embedded player, with the title and domain below it linking out to YouTube.
+ *
+ * Nothing is loaded from YouTube's player until the reader presses play. A live
+ * iframe per row would fetch a megabyte of player code and announce the reader
+ * to Google for every video that merely scrolled past, so the facade is what
+ * keeps a timeline cheap and quiet; pressing play is the consent that makes the
+ * request reasonable.
+ */
+const YouTubeLinkPreviewCard: FC<YouTubeLinkPreviewCardProps> = ({
+  linkPreview,
+  video,
+  className
+}) => {
+  // Keyed on the video rather than a bare boolean, so a card replaced in place
+  // (an edit, or a feed row reused for another post) cannot inherit the
+  // previous one's consent: `isPlaying` is false for the new video from its
+  // first render. Resetting a boolean in an effect instead would leave one
+  // painted frame in which a video nobody clicked was already autoplaying.
+  const [playingVideoId, setPlayingVideoId] = useState<string | null>(null)
+  // Posters are remembered by URL for the same reason — a new candidate is not
+  // in the list, so the next video starts with a clean slate and no effect has
+  // to run to arrange it.
+  const [failedPosterUrls, setFailedPosterUrls] = useState<readonly string[]>(
+    []
+  )
+
+  const isPlaying = playingVideoId === video.videoId
+  const derivedPosterUrl = getYouTubePosterUrl(video)
+  // The page's own image first — usually the same frame the derived thumbnail
+  // shows, at whatever size YouTube gave the card — then YouTube's `hqdefault`,
+  // which exists for every video. A card whose stored thumbnail 404s therefore
+  // still gets a real poster instead of an empty box.
+  const posterUrls =
+    linkPreview.imageUrl && linkPreview.imageUrl !== derivedPosterUrl
+      ? [linkPreview.imageUrl, derivedPosterUrl]
+      : [derivedPosterUrl]
+  const posterUrl =
+    posterUrls.find((url) => !failedPosterUrls.includes(url)) ?? null
+  // Re-entrant by design: the ref runs again after the state change, sees the
+  // next candidate, and stops when one loads. Returning the SAME array for a URL
+  // already recorded is what makes that terminate — React bails out of an
+  // identical state and never re-renders.
+  const markPosterFailed = (url: string) =>
+    setFailedPosterUrls((current) =>
+      current.includes(url) ? current : [...current, url]
+    )
+
+  const domain = getDomain(linkPreview)
+
+  // The button the reader just activated is the element that unmounts, and the
+  // browser's fallback for a focused element disappearing is `document.body` —
+  // so a keyboard user would be dropped to the top of the page with no signal
+  // that anything happened, and the next Tab would resume from the document
+  // start rather than from the video they just opened. Moving focus onto the
+  // frame keeps them where they were and hands the player their keys (space to
+  // pause). This is the same move `StatusReplyBox` makes when its inline UI
+  // replaces the trigger that opened it.
+  const playerRef = useRef<HTMLIFrameElement>(null)
+  useEffect(() => {
+    if (isPlaying) playerRef.current?.focus()
+  }, [isPlaying])
+
+  return (
+    <div
+      className={cn(
+        'mt-2 overflow-hidden rounded-xl border border-border/60 bg-muted/20',
+        className
+      )}
+    >
+      <div className="relative aspect-video w-full bg-black">
+        {isPlaying ? (
+          <iframe
+            ref={playerRef}
+            // Built from the card's own url, never from the page's metadata —
+            // and always on the cookie-light host, which is the only origin
+            // this app's CSP allows in a frame.
+            src={getYouTubeEmbedUrl(video, { autoplay: true })}
+            // Frames need an accessible name of their own; the card title is
+            // what a reader would call this one.
+            title={linkPreview.title || 'YouTube video player'}
+            // Autoplay's default allowlist is `self`, so the reader's click in
+            // THIS document does not reach the frame unless it is delegated.
+            allow="autoplay; encrypted-media; picture-in-picture"
+            allowFullScreen
+            // No referrerPolicy override: the site default sends the origin
+            // only, and `no-referrer` breaks videos whose owners restrict
+            // embedding to allowlisted domains. The poster below keeps
+            // `no-referrer` because it loads before the reader has consented to
+            // anything; this frame only exists because they pressed play.
+            // No sandbox either: the player needs `allow-scripts` and
+            // `allow-same-origin`, which together neutralize it. The boundary
+            // here is the strict url parse plus the fixed frame-src origin.
+            className="absolute inset-0 size-full border-0"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={(event: MouseEvent) => {
+              event.stopPropagation()
+              setPlayingVideoId(video.videoId)
+            }}
+            aria-label={
+              linkPreview.title
+                ? `Play video: ${linkPreview.title}`
+                : 'Play video'
+            }
+            className="group absolute inset-0 flex w-full cursor-pointer items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            {posterUrl ? (
+              // A plain <img>, not next/image: the same reason the standard
+              // card gives — this server must not sit in front of every
+              // thumbnail it renders.
+              <img
+                key={posterUrl}
+                src={posterUrl}
+                alt=""
+                role="presentation"
+                loading="lazy"
+                referrerPolicy="no-referrer"
+                // Both halves are needed: the ref catches a failure that
+                // happened before hydration, onError catches one that happens
+                // after. Keying on the URL gives each candidate its own element,
+                // so the ref runs again for the fallback.
+                ref={(image) => {
+                  if (image && hasImageAlreadyFailed(image)) {
+                    markPosterFailed(posterUrl)
+                  }
+                }}
+                onError={() => markPosterFailed(posterUrl)}
+                className="absolute inset-0 size-full object-cover"
+              />
+            ) : null}
+            {/* Decoration: the button's own label already says what this does,
+                and with no poster left to show this is the whole facade. */}
+            <span
+              aria-hidden="true"
+              className="relative rounded-full bg-black/60 p-4 transition-colors group-hover:bg-black/80"
+            >
+              <Play className="size-8 fill-white text-white" />
+            </span>
+          </button>
+        )}
+      </div>
+      <a
+        href={safeExternalHref(linkPreview.url)}
+        target="_blank"
+        rel="noopener noreferrer nofollow"
+        // Defensive, and the same reason the standard card gives: every sibling
+        // block that navigates stops propagation.
+        onClick={(event: MouseEvent) => event.stopPropagation()}
+        className="block space-y-0.5 p-3 transition-colors hover:bg-muted/40"
+      >
+        {/* No publisher name beside it: on a YouTube card it only ever repeats
+            the domain. The domain is the part the page cannot choose, so it is
+            the part that is shown. */}
+        <div className="truncate text-xs text-muted-foreground">{domain}</div>
+        <div className="line-clamp-2 wrap-anywhere text-sm font-semibold leading-snug">
+          {linkPreview.title}
+        </div>
+      </a>
+    </div>
+  )
+}
+
 /**
  * The preview card for the link in a status — the same anatomy as the trending
  * link card: thumbnail, "publisher · domain", a clamped title and description.
@@ -33,7 +225,7 @@ const getDomain = (linkPreview: StatusLinkPreview) => {
  * `safeExternalHref`, and the thumbnail is loaded without a referrer so reading
  * a timeline does not announce the reader to whatever host the author chose.
  */
-export const LinkPreviewCard: FC<LinkPreviewCardProps> = ({
+const StandardLinkPreviewCard: FC<LinkPreviewCardProps> = ({
   linkPreview,
   className
 }) => {
@@ -41,11 +233,17 @@ export const LinkPreviewCard: FC<LinkPreviewCardProps> = ({
   // can fail for reasons this server cannot see or fix — hotlink protection, a
   // dead CDN, an expired signed URL. Keeping a broken image holds an 88px hole
   // open in the card, so a failure degrades to the text-only card instead.
-  const [imageFailed, setImageFailed] = useState(false)
-  // A status can be replaced in place (an edit, or a feed row being reused for
-  // a different post), and the previous card's failure must not suppress the
-  // new one's thumbnail.
-  useEffect(() => setImageFailed(false), [linkPreview.imageUrl])
+  //
+  // The failure is remembered by URL rather than as a boolean, which is what
+  // keeps a status replaced in place (an edit, or a feed row reused for a
+  // different post) from inheriting the previous card's failure: a different
+  // URL simply does not match. It used to be a boolean reset in an effect, and
+  // that effect ran AFTER the ref below and overwrote what it had just found —
+  // so the pre-hydration failure this fallback exists for was undone on every
+  // mount.
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null)
+  const imageFailed =
+    Boolean(linkPreview.imageUrl) && failedImageUrl === linkPreview.imageUrl
 
   const domain = getDomain(linkPreview)
   // Only shown when it adds something the domain does not already say.
@@ -80,7 +278,15 @@ export const LinkPreviewCard: FC<LinkPreviewCardProps> = ({
           role="presentation"
           loading="lazy"
           referrerPolicy="no-referrer"
-          onError={() => setImageFailed(true)}
+          // The ref covers a failure that landed before hydration, which is the
+          // common case for a server-rendered card: without it `onError` never
+          // fires and the promised text-only fallback never happens.
+          ref={(image) => {
+            if (image && hasImageAlreadyFailed(image)) {
+              setFailedImageUrl(linkPreview.imageUrl ?? null)
+            }
+          }}
+          onError={() => setFailedImageUrl(linkPreview.imageUrl ?? null)}
           className="size-[88px] shrink-0 rounded-lg object-cover"
         />
       ) : null}
@@ -119,5 +325,37 @@ export const LinkPreviewCard: FC<LinkPreviewCardProps> = ({
         ) : null}
       </div>
     </a>
+  )
+}
+
+/**
+ * The preview card for the link in a status. A link to a YouTube video renders
+ * as a click-to-play player; everything else renders as the standard card.
+ *
+ * The branch reads the card's `url` — the redirect-resolved URL this server
+ * actually fetched — and never the page's own `og:type` or the stored card
+ * `type`, both of which the page controls. Splitting the two anatomies into
+ * separate components (rather than branching inside one) is what makes a card
+ * replaced in place safe: React swaps the component type, so neither half can
+ * inherit the other's state.
+ */
+export const LinkPreviewCard: FC<LinkPreviewCardProps> = ({
+  linkPreview,
+  className
+}) => {
+  const video = getYouTubeVideoFromUrl(linkPreview.url)
+
+  if (video) {
+    return (
+      <YouTubeLinkPreviewCard
+        linkPreview={linkPreview}
+        video={video}
+        className={className}
+      />
+    )
+  }
+
+  return (
+    <StandardLinkPreviewCard linkPreview={linkPreview} className={className} />
   )
 }
