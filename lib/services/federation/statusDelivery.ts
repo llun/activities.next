@@ -16,15 +16,22 @@ const PUBLIC_AUDIENCES = new Set([
 
 const EXPLICIT_RECIPIENT_LOOKUP_CONCURRENCY = 8
 
+// Delivery targets depend on the audience alone, never on the rest of the
+// status. Accepting just those two fields lets a caller that no longer has the
+// row resolve inboxes from a captured audience — SendDeleteNoteJob runs after
+// the status has been hard-deleted. Every Status satisfies this structurally,
+// so existing callers pass through unchanged.
+type StatusAudience = Pick<Status, 'to' | 'cc'>
+
 const isFollowersAudience = (actorId: string) => actorId.endsWith('/followers')
 
-const hasFollowersAudience = (status: Status) =>
+const hasFollowersAudience = (status: StatusAudience) =>
   [...status.to, ...status.cc].some(isFollowersAudience)
 
-const hasPublicAudience = (status: Status) =>
+const hasPublicAudience = (status: StatusAudience) =>
   [...status.to, ...status.cc].some((actorId) => PUBLIC_AUDIENCES.has(actorId))
 
-const getExplicitRecipientActorIds = (status: Status) =>
+const getExplicitRecipientActorIds = (status: StatusAudience) =>
   [...new Set([...status.to, ...status.cc])].filter(
     (actorId) => !PUBLIC_AUDIENCES.has(actorId) && !isFollowersAudience(actorId)
   )
@@ -131,7 +138,7 @@ export const getFederatedStatusDeliveryInboxes = async ({
 }: {
   database: Database
   currentActor: Actor
-  status: Status
+  status: StatusAudience
 }) => {
   const inboxes: string[] = []
 

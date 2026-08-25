@@ -4,6 +4,7 @@ import { NextRequest } from 'next/server'
 import { getSQLDatabase } from '@/lib/database/sql'
 import { encodeFavouritedByCursor } from '@/lib/database/sql/utils/favouritedByCursor'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { SEND_DELETE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import {
   MAX_FEDERATION_MEDIA_ATTACHMENTS,
   MAX_PINNED_STATUSES,
@@ -68,10 +69,11 @@ vi.mock('@/lib/services/queue', async () => ({
   })
 }))
 
+// No `deleteStatus` here on purpose: status deletion federates through
+// SendDeleteNoteJob now, so the request path never reaches the sender.
 vi.mock('@/lib/activities', async () => ({
   sendLike: vi.fn().mockResolvedValue(undefined),
-  sendUndoLike: vi.fn().mockResolvedValue(undefined),
-  deleteStatus: vi.fn().mockResolvedValue(undefined)
+  sendUndoLike: vi.fn().mockResolvedValue(undefined)
 }))
 
 vi.mock('@/lib/services/medias', async (importOriginal) => ({
@@ -3167,6 +3169,30 @@ describe('GET /api/v1/statuses/[id]', () => {
         ),
         { params: Promise.resolve({ id: urlToId(statusId) }) }
       )
+
+    it('queues the federation delete with the audience the status had', async () => {
+      const { statusId } = await createNoteWithMedia('queues-federation')
+
+      const response = await deleteStatusRequest(statusId)
+
+      expect(response.status).toBe(200)
+      await expect(
+        database.getStatus({ statusId, withReplies: false })
+      ).resolves.toBeNull()
+      // The row is gone by now, so the job can only learn the audience from
+      // what the action captured into this payload.
+      expect(getQueue().publish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: SEND_DELETE_NOTE_JOB_NAME,
+          data: {
+            actorId: ACTOR1_ID,
+            statusId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: []
+          }
+        })
+      )
+    })
 
     it('destroys media rows and storage files when delete_media is true', async () => {
       const { statusId, media } = await createNoteWithMedia('with-media')

@@ -4384,13 +4384,13 @@ __metadata:
     date-fns: "npm:^4.4.0"
     dotenv-flow: "npm:^4.1.0"
     fast-xml-parser: "npm:^5.10.1"
-    fit-file-parser: "npm:^4.1.0"
+    fit-file-parser: "npm:^5.0.1"
     got: "npm:^15.1.0"
     html-react-parser: "npm:^6.1.7"
     husky: "npm:^9.1.7"
     jest-extended: "npm:^7.0.0"
     jest-fetch-mock: "npm:^4.2.0"
-    jose: "npm:^6.2.9"
+    jose: "npm:^6.2.10"
     jsdom: "npm:^30.0.1"
     jsonld: "npm:^9.0.0"
     knex: "npm:^3.3.0"
@@ -4413,7 +4413,7 @@ __metadata:
     react: "npm:^19.2.8"
     react-dom: "npm:^19.2.8"
     react-modal: "npm:^3.16.3"
-    resend: "npm:^6.20.0"
+    resend: "npm:^6.22.0"
     sanitize-html: "npm:^2.17.7"
     sharp: "npm:^0.35.3"
     tailwind-merge: "npm:^3.6.0"
@@ -5670,12 +5670,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"fit-file-parser@npm:^4.1.0":
-  version: 4.1.0
-  resolution: "fit-file-parser@npm:4.1.0"
+"fit-file-parser@npm:^5.0.1":
+  version: 5.0.1
+  resolution: "fit-file-parser@npm:5.0.1"
   dependencies:
     buffer: "npm:^6.0.3"
-  checksum: 10c0/0861170eb836f0710c77bad3db22dbacb649fe160c82e3b5d82fb8c136dc3fd1949b7a608f2d9b07b278fc0fcad42aad187ff3d8248fa117c1bf115237dca752
+  checksum: 10c0/1473596005cd986698308aab20a306b1c08fe4dc950de131580835eef004dbbf5ea77422154f785c10837dc729c7a39f5a0ee8d807b4431b133fc8d7b959c121
   languageName: node
   linkType: hard
 
@@ -6303,7 +6303,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"jose@npm:^6.2.3, jose@npm:^6.2.4, jose@npm:^6.2.9":
+"jose@npm:^6.2.10":
+  version: 6.2.10
+  resolution: "jose@npm:6.2.10"
+  checksum: 10c0/799fd8d3d92fe748ebe1f57dbd3dfd917d2e61d9fb39912c72cc674ae61d69414b7cc0ce773df8a0160e849926fc31853aec9caab88c481563d5a8ab6558e107
+  languageName: node
+  linkType: hard
+
+"jose@npm:^6.2.3, jose@npm:^6.2.4":
   version: 6.2.9
   resolution: "jose@npm:6.2.9"
   checksum: 10c0/fc6d79b11fdd5cc1393bccd644533b3e2445fd8eb2468066eb23c01ed7f6b41deca710e8aabe9379a382cca7920740900c7f610bdf0be4ff5e7ee44412730d4c
@@ -8080,9 +8087,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"resend@npm:^6.20.0":
-  version: 6.20.0
-  resolution: "resend@npm:6.20.0"
+"resend@npm:^6.22.0":
+  version: 6.22.0
+  resolution: "resend@npm:6.22.0"
   dependencies:
     postal-mime: "npm:2.7.5"
     standardwebhooks: "npm:1.0.0"
@@ -8091,7 +8098,7 @@ __metadata:
   peerDependenciesMeta:
     "@react-email/render":
       optional: true
-  checksum: 10c0/675ba31a4fd8808397239785fa3abb4275f7db5c0478c3763377d8812f77a42d9fb1ee1049636d6a349ca0e0e5527685afeb993b9d51d5b3b6b61278a815c651
+  checksum: 10c0/bda31dde878eddb2e35ca57bc55230300a989467101e08ba26a72acb2c0757668ab7c16a03a50bf60a91a7c0b580b0106efd8450b7559ed385cfba28940dd261
   languageName: node
   linkType: hard
 
