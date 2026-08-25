@@ -40,6 +40,12 @@ export const RecentFitnessActivities: FC<Props> = ({
   // already focused on — which screen readers do not reliably re-announce. This
   // is the one thing that tells them the scope changed.
   //
+  // It reports the OUTCOME, not the scope that was asked for. Announcing
+  // "Showing recent Run activities" over an empty list is the one wrong thing
+  // this region could say, and the visible empty state below cannot correct it:
+  // that paragraph is not itself a live region, and with focus unmoved and the
+  // page unscrolled nothing carries the reader to it.
+  //
   // A live region only announces a change to content it ALREADY held: one that
   // mounts carrying its own text is silent, and so is one React re-creates
   // because it moved in the tree. That is why the section below is always
@@ -55,9 +61,13 @@ export const RecentFitnessActivities: FC<Props> = ({
   return (
     <section className="space-y-3">
       <p role="status" className="sr-only">
-        {label
-          ? `Showing recent ${label} activities`
-          : 'Showing all recent activities'}
+        {statuses.length === 0
+          ? label
+            ? `No recent ${label} activities have been posted.`
+            : 'No recent activities have been posted.'
+          : label
+            ? `Showing recent ${label} activities`
+            : 'Showing all recent activities'}
       </p>
       {hasNothingToShow ? null : (
         <>

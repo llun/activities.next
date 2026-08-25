@@ -25,15 +25,15 @@ vi.mock('@/lib/client', () => ({
   getFitnessCalendarData: vi.fn()
 }))
 
-// next/link swallows `prefetch` instead of reflecting it in the DOM, so the
-// only way to assert on it is to render the prop ourselves. `scroll` is dropped
-// rather than spread: it is not a valid DOM attribute.
+// next/link swallows `prefetch` and `scroll` instead of reflecting them in the
+// DOM, so the only way to assert on them is to render them ourselves. Neither
+// may be spread onto the `<a>`: they are not valid DOM attributes.
 vi.mock('next/link', () => ({
   default: ({
     children,
     href,
     prefetch,
-    scroll: _scroll,
+    scroll,
     ...rest
   }: AnchorHTMLAttributes<HTMLAnchorElement> & {
     href: string
@@ -41,7 +41,12 @@ vi.mock('next/link', () => ({
     scroll?: boolean
     children: ReactNode
   }) => (
-    <a href={href} data-prefetch={String(prefetch)} {...rest}>
+    <a
+      href={href}
+      data-prefetch={String(prefetch)}
+      data-scroll={String(scroll)}
+      {...rest}
+    >
       {children}
     </a>
   )
@@ -68,6 +73,26 @@ const summary: FitnessActivitySummary[] = [
     totalDistanceMeters: 42000,
     totalDurationSeconds: 7500,
     totalElevationGainMeters: 300
+  }
+]
+
+// An actor holding both the canonical form and the spelling Strava sent before
+// it was applied on write. Capitalising is case-insensitive, so both rows would
+// otherwise read "Run".
+const collidingSummary: FitnessActivitySummary[] = [
+  {
+    activityType: 'run',
+    count: 3,
+    totalDistanceMeters: 15000,
+    totalDurationSeconds: 5400,
+    totalElevationGainMeters: 120
+  },
+  {
+    activityType: 'Run',
+    count: 2,
+    totalDistanceMeters: 9000,
+    totalDurationSeconds: 3000,
+    totalElevationGainMeters: 60
   }
 ]
 
@@ -321,6 +346,12 @@ describe('ActorFitnessDashboard', () => {
     expect(link).toHaveAttribute('href', '/fitness?activity=gravel_ride')
     expect(link).toHaveAttribute('title', 'Show recent Gravel Ride activities')
     expect(link).toHaveAttribute('data-prefetch', 'false')
+    // `scroll={false}` is the premise the whole announcement design rests on:
+    // the filter navigation must move nothing, which is why the live region is
+    // the only signal a screen reader gets. Without this assertion the prop can
+    // be deleted and every test still passes, while the page silently jumps to
+    // the top on each filter click.
+    expect(link).toHaveAttribute('data-scroll', 'false')
     expect(link).not.toHaveAttribute('aria-current')
   })
 
@@ -342,5 +373,39 @@ describe('ActorFitnessDashboard', () => {
       'href',
       '/fitness?activity=gravel_ride'
     )
+  })
+  it('tells apart two stored spellings that differ only in case', async () => {
+    // Both rows carry different numbers and link to different filters, so an
+    // identical name makes two controls the reader cannot choose between — and
+    // whichever they pick silently omits the other half of their runs.
+    mockedGetFitnessSummary.mockResolvedValue(collidingSummary)
+
+    render(
+      <ActorFitnessDashboard
+        actorId={ACTOR_ID}
+        currentTime={FIXED_CURRENT_TIME}
+      />
+    )
+
+    const lowercase = await screen.findByRole('link', { name: 'Run (run)' })
+    const capitalised = screen.getByRole('link', { name: 'Run (Run)' })
+
+    expect(lowercase).toHaveAttribute('href', '/fitness?activity=run')
+    expect(capitalised).toHaveAttribute('href', '/fitness?activity=Run')
+    expect(screen.queryByRole('link', { name: 'Run' })).not.toBeInTheDocument()
+  })
+
+  it('leaves an unambiguous label unqualified', async () => {
+    render(
+      <ActorFitnessDashboard
+        actorId={ACTOR_ID}
+        currentTime={FIXED_CURRENT_TIME}
+      />
+    )
+
+    expect(await screen.findByRole('link', { name: 'Run' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Gravel Ride' })
+    ).toBeInTheDocument()
   })
 })

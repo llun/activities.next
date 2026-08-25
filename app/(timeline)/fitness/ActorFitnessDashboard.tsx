@@ -23,6 +23,7 @@ import {
 } from '@/lib/components/fitness/FitnessCalendarHeatmap'
 import { Card } from '@/lib/components/ui/card'
 import {
+  buildActivityTypeLabels,
   formatActivityTypeLabel,
   getActivityPresentation
 } from '@/lib/services/fitness-files/activityPresentation'
@@ -223,6 +224,15 @@ export const ActorFitnessDashboard: FC<Props> = ({
           second.count - first.count
       ),
     [summary]
+  )
+
+  // Labels are built over the whole set, not per row: two stored spellings that
+  // differ only in case fold onto one label, and this is what tells the reader
+  // which of the two rows their filter will actually follow.
+  const activityLabels = useMemo(
+    () =>
+      buildActivityTypeLabels(topActivities.map((item) => item.activityType)),
+    [topActivities]
   )
 
   const applyPreset = (newPreset: PresetKey) => {
@@ -441,7 +451,9 @@ export const ActorFitnessDashboard: FC<Props> = ({
                   </thead>
                   <tbody>
                     {topActivities.map((item) => {
-                      const label = formatActivityTypeLabel(item.activityType)
+                      const label =
+                        activityLabels.get(item.activityType) ??
+                        formatActivityTypeLabel(item.activityType)
                       const { emoji } = getActivityPresentation(
                         item.activityType
                       )

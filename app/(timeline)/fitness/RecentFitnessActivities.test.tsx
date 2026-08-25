@@ -10,13 +10,15 @@ import { Status, StatusType } from '@/lib/types/domain/status'
 
 import { RecentFitnessActivities } from './RecentFitnessActivities'
 
-// `scroll` is dropped rather than spread: it is not a valid DOM attribute.
+// next/link swallows `prefetch` and `scroll` instead of reflecting them in the
+// DOM, so they are rendered here to be assertable. Neither may be spread onto
+// the `<a>`: they are not valid DOM attributes.
 vi.mock('next/link', () => ({
   default: ({
     children,
     href,
-    scroll: _scroll,
-    prefetch: _prefetch,
+    scroll,
+    prefetch,
     ...rest
   }: AnchorHTMLAttributes<HTMLAnchorElement> & {
     href: string
@@ -24,7 +26,12 @@ vi.mock('next/link', () => ({
     scroll?: boolean
     children: ReactNode
   }) => (
-    <a href={href} {...rest}>
+    <a
+      href={href}
+      data-prefetch={String(prefetch)}
+      data-scroll={String(scroll)}
+      {...rest}
+    >
       {children}
     </a>
   )
@@ -111,8 +118,11 @@ describe('RecentFitnessActivities', () => {
     // mounts already carrying its text announces nothing, so it has to be in
     // the tree BEFORE the first filter — and this is the branch an actor whose
     // activities have no surviving posts sits in while unfiltered.
+    // It reports the OUTCOME, not the scope asked for: there is nothing to show,
+    // and the region is the only thing that can say so — the visible empty
+    // state is not itself a live region.
     expect(screen.getByRole('status')).toHaveTextContent(
-      'Showing all recent activities'
+      'No recent activities have been posted.'
     )
   })
 
@@ -130,7 +140,7 @@ describe('RecentFitnessActivities', () => {
     )
 
     const before = screen.getByRole('status')
-    expect(before).toHaveTextContent('Showing all recent activities')
+    expect(before).toHaveTextContent('No recent activities have been posted.')
 
     rerender(
       <RecentFitnessActivities
@@ -144,7 +154,9 @@ describe('RecentFitnessActivities', () => {
 
     const after = screen.getByRole('status')
     expect(after).toBe(before)
-    expect(after).toHaveTextContent('Showing recent Gravel Ride activities')
+    expect(after).toHaveTextContent(
+      'No recent Gravel Ride activities have been posted.'
+    )
   })
 
   it('renders heading and posts stub when given one status', () => {
@@ -231,7 +243,33 @@ describe('RecentFitnessActivities', () => {
     const chip = screen.getByRole('link', { name: 'Clear Gravel Ride filter' })
     expect(chip).toHaveAttribute('href', '/fitness')
     expect(chip).toHaveTextContent('Gravel Ride')
+    // Both are load-bearing and neither is visible to a functional assertion:
+    // `scroll={false}` is why the live region is the only signal of the change,
+    // and `prefetch={false}` keeps this dynamic page off the hover path.
+    expect(chip).toHaveAttribute('data-scroll', 'false')
+    expect(chip).toHaveAttribute('data-prefetch', 'false')
     expect(screen.getByTestId('posts')).toHaveTextContent('1 posts')
+  })
+
+  it('announces that a filter matched nothing rather than claiming a list', () => {
+    // The one wrong thing this region could say. The visible empty state cannot
+    // correct it: that paragraph is not a live region, and with focus unmoved
+    // and the page unscrolled nothing carries the reader to it.
+    render(
+      <RecentFitnessActivities
+        host="activities.local"
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={profile}
+        statuses={[]}
+        activityType="swimming"
+      />
+    )
+
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent(
+      'No recent Swimming activities have been posted.'
+    )
+    expect(status).not.toHaveTextContent('Showing')
   })
 
   it('keeps the section rendered when a filter matched nothing', () => {
@@ -250,9 +288,15 @@ describe('RecentFitnessActivities', () => {
     expect(
       screen.getByRole('link', { name: 'Clear Swimming filter' })
     ).toBeInTheDocument()
+    // Twice on purpose: the sr-only region announces it, and the visible
+    // paragraph below states it for everyone else. Assert the visible one
+    // specifically, so this keeps testing what a sighted reader sees.
+    const copies = screen.getAllByText(
+      'No recent Swimming activities have been posted.'
+    )
     expect(
-      screen.getByText('No recent Swimming activities have been posted.')
-    ).toBeInTheDocument()
+      copies.filter((element) => element.getAttribute('role') !== 'status')
+    ).toHaveLength(1)
     expect(screen.queryByTestId('posts')).not.toBeInTheDocument()
   })
 
