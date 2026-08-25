@@ -221,3 +221,20 @@ export const getActivityPresentation = (
     emoji: '🏋️'
   }
 }
+
+/**
+ * The stored activity type as UI chrome names it: the column's own word with
+ * separators dropped and every word capitalised (`gravel_ride` → "Gravel
+ * Ride").
+ *
+ * Deliberately NOT `getActivityPresentation(type).label`. That table captions a
+ * published post, where several stored spellings folding onto one caption is
+ * the point — `ride` and `Ride` both read "Cycling". A UI list names one row
+ * per stored value and, on the fitness overview, that name is the link that
+ * filters by that exact value, so the fold would print two identically named
+ * rows carrying different numbers and different filters.
+ */
+export const formatActivityTypeLabel = (type: string): string =>
+  type
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (character) => character.toUpperCase())

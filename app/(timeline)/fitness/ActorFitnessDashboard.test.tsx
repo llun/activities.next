@@ -2,7 +2,14 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
+import { AnchorHTMLAttributes, ReactNode } from 'react'
 
 import {
   FitnessActivitySummary,
@@ -16,6 +23,28 @@ import { ActorFitnessDashboard } from './ActorFitnessDashboard'
 vi.mock('@/lib/client', () => ({
   getFitnessSummary: vi.fn(),
   getFitnessCalendarData: vi.fn()
+}))
+
+// next/link swallows `prefetch` instead of reflecting it in the DOM, so the
+// only way to assert on it is to render the prop ourselves. `scroll` is dropped
+// rather than spread: it is not a valid DOM attribute.
+vi.mock('next/link', () => ({
+  default: ({
+    children,
+    href,
+    prefetch,
+    scroll: _scroll,
+    ...rest
+  }: AnchorHTMLAttributes<HTMLAnchorElement> & {
+    href: string
+    prefetch?: boolean | 'auto' | null
+    scroll?: boolean
+    children: ReactNode
+  }) => (
+    <a href={href} data-prefetch={String(prefetch)} {...rest}>
+      {children}
+    </a>
+  )
 }))
 
 const mockedGetFitnessSummary = vi.mocked(getFitnessSummary)
@@ -32,6 +61,13 @@ const summary: FitnessActivitySummary[] = [
     totalDistanceMeters: 15000,
     totalDurationSeconds: 5400,
     totalElevationGainMeters: 120
+  },
+  {
+    activityType: 'gravel_ride',
+    count: 2,
+    totalDistanceMeters: 42000,
+    totalDurationSeconds: 7500,
+    totalElevationGainMeters: 300
   }
 ]
 
@@ -209,5 +245,96 @@ describe('ActorFitnessDashboard', () => {
       actorId: ACTOR_ID,
       ...windowYtd
     })
+  })
+  it('titles the activity breakdown card Activities', async () => {
+    render(
+      <ActorFitnessDashboard
+        actorId={ACTOR_ID}
+        currentTime={FIXED_CURRENT_TIME}
+      />
+    )
+
+    expect(
+      await screen.findByRole('heading', { name: 'Activities' })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: 'Activity Mix' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('reports a duration column beside the count and distance', async () => {
+    render(
+      <ActorFitnessDashboard
+        actorId={ACTOR_ID}
+        currentTime={FIXED_CURRENT_TIME}
+      />
+    )
+
+    expect(
+      await screen.findByRole('columnheader', { name: 'Duration' })
+    ).toBeInTheDocument()
+
+    const row = screen.getByRole('link', { name: 'Run' }).closest('tr')
+    expect(row).not.toBeNull()
+    const cells = within(row as HTMLElement).getAllByRole('cell')
+    expect(cells[1]).toHaveTextContent('3')
+    expect(cells[2]).toHaveTextContent('1h 30m')
+    expect(cells[3]).toHaveTextContent('15.0 km')
+  })
+
+  it('names each activity with the emoji its posts are captioned with', async () => {
+    render(
+      <ActorFitnessDashboard
+        actorId={ACTOR_ID}
+        currentTime={FIXED_CURRENT_TIME}
+      />
+    )
+
+    const runRow = (await screen.findByRole('link', { name: 'Run' })).closest(
+      'tr'
+    )
+    expect(runRow).toHaveTextContent('\u{1F3C3}')
+    // A qualified bike sport keeps its own glyph rather than taking the
+    // generic-workout fallback, which is what a raw-string-only lookup gave it.
+    expect(
+      screen.getByRole('link', { name: 'Gravel Ride' }).closest('tr')
+    ).toHaveTextContent('\u{1F6B4}')
+  })
+
+  it('links each activity name to that type filter without prefetching it', async () => {
+    render(
+      <ActorFitnessDashboard
+        actorId={ACTOR_ID}
+        currentTime={FIXED_CURRENT_TIME}
+      />
+    )
+
+    const link = await screen.findByRole('link', { name: 'Gravel Ride' })
+    // The stored value, encoded — the page matches `?activity=` against the
+    // column verbatim.
+    expect(link).toHaveAttribute('href', '/fitness?activity=gravel_ride')
+    expect(link).toHaveAttribute('title', 'Show recent Gravel Ride activities')
+    expect(link).toHaveAttribute('data-prefetch', 'false')
+    expect(link).not.toHaveAttribute('aria-current')
+  })
+
+  it('turns the selected activity into a link that clears the filter', async () => {
+    render(
+      <ActorFitnessDashboard
+        actorId={ACTOR_ID}
+        currentTime={FIXED_CURRENT_TIME}
+        selectedActivityType="run"
+      />
+    )
+
+    const selected = await screen.findByRole('link', { name: 'Run' })
+    expect(selected).toHaveAttribute('href', '/fitness')
+    expect(selected).toHaveAttribute('title', 'Clear filter')
+    expect(selected).toHaveAttribute('aria-current', 'true')
+
+    expect(screen.getByRole('link', { name: 'Gravel Ride' })).toHaveAttribute(
+      'href',
+      '/fitness?activity=gravel_ride'
+    )
   })
 })

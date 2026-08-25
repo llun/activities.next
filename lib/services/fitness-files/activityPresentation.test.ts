@@ -1,6 +1,9 @@
 import { normalizeActivityTypeToSportKey } from '@/lib/services/fitness-files/sportTypes'
 
-import { getActivityPresentation } from './activityPresentation'
+import {
+  formatActivityTypeLabel,
+  getActivityPresentation
+} from './activityPresentation'
 
 describe('getActivityPresentation', () => {
   it.each([
@@ -282,5 +285,38 @@ describe('getActivityPresentation', () => {
       label: 'Constructor',
       emoji: '🏋️'
     })
+  })
+})
+
+describe('formatActivityTypeLabel', () => {
+  it.each([
+    { description: 'a single word', type: 'ride', expected: 'Ride' },
+    {
+      description: 'an underscored key',
+      type: 'gravel_ride',
+      expected: 'Gravel Ride'
+    },
+    {
+      description: 'a type already capitalised',
+      type: 'Ride',
+      expected: 'Ride'
+    },
+    {
+      description: 'an unmapped sport stored verbatim',
+      type: 'stand_up_paddling',
+      expected: 'Stand Up Paddling'
+    }
+  ])('names $description', ({ type, expected }) => {
+    expect(formatActivityTypeLabel(type)).toBe(expected)
+  })
+
+  it('keeps stored spellings the post caption folds together apart', () => {
+    // `ride` and `cycling` both caption "Cycling" — right for a post, wrong for
+    // a list whose two rows carry separate numbers and separate filters.
+    expect(getActivityPresentation('ride').label).toBe('Cycling')
+    expect(getActivityPresentation('cycling').label).toBe('Cycling')
+
+    expect(formatActivityTypeLabel('ride')).toBe('Ride')
+    expect(formatActivityTypeLabel('cycling')).toBe('Cycling')
   })
 })

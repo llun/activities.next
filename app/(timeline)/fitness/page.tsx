@@ -16,6 +16,7 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { ActorFitnessDashboard } from './ActorFitnessDashboard'
 import { RecentFitnessActivities } from './RecentFitnessActivities'
+import { readActivityTypeParam } from './activityFilter'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +26,11 @@ export const metadata: Metadata = {
 
 const RECENT_LIMIT = 5
 
-const Page: FC = async () => {
+interface Props {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}
+
+const Page: FC<Props> = async ({ searchParams }) => {
   const database = getDatabase()
   if (!database) throw new Error('Database is not available')
 
@@ -73,11 +78,17 @@ const Page: FC = async () => {
 
   // Actor-scoped (matching the dashboard + the hasFitnessData gate above) so a
   // multi-actor account shows the signed-in actor's own recent activities.
+  const activityType = readActivityTypeParam(await searchParams)
   const recentFiles = await database.getFitnessFilesByActor({
     actorId: currentActor.id,
     limit: RECENT_LIMIT,
     processingStatus: 'completed',
-    isPrimary: true
+    isPrimary: true,
+    // Spread, never a plain `activityType` key: the database method reads
+    // `null` as "activities with no recorded type" and only an ABSENT key as
+    // "every type", so passing `undefined` explicitly is the same filter-nothing
+    // it looks like only by luck of that method's `!== undefined` check.
+    ...(activityType ? { activityType } : {})
   })
   const statusIds = Array.from(
     new Set(
@@ -113,6 +124,7 @@ const Page: FC = async () => {
       <ActorFitnessDashboard
         actorId={currentActor.id}
         currentTime={currentTime}
+        selectedActivityType={activityType}
       />
 
       {/* `getActorProfile`, never the raw `Actor` and never `cleanJson`, which
@@ -127,6 +139,7 @@ const Page: FC = async () => {
         currentTime={currentTime}
         currentActor={getActorProfile(currentActor)}
         statuses={statuses.map((status) => cleanJson(status))}
+        activityType={activityType}
       />
     </div>
   )

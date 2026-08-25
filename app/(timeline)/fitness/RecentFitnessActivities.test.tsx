@@ -3,11 +3,32 @@
  */
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
+import { AnchorHTMLAttributes, ReactNode } from 'react'
 
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 
 import { RecentFitnessActivities } from './RecentFitnessActivities'
+
+// `scroll` is dropped rather than spread: it is not a valid DOM attribute.
+vi.mock('next/link', () => ({
+  default: ({
+    children,
+    href,
+    scroll: _scroll,
+    prefetch: _prefetch,
+    ...rest
+  }: AnchorHTMLAttributes<HTMLAnchorElement> & {
+    href: string
+    prefetch?: boolean | 'auto' | null
+    scroll?: boolean
+    children: ReactNode
+  }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  )
+}))
 
 vi.mock('@/lib/components/posts/posts', () => ({
   Posts: (props: {
@@ -62,13 +83,15 @@ const createStatus = (id: string): Status => ({
   replies: [],
   actorAnnounceStatusId: null,
   isActorLiked: false,
+  isActorBookmarked: false,
   totalLikes: 0,
+  totalShares: 0,
   attachments: [],
   tags: []
 })
 
 describe('RecentFitnessActivities', () => {
-  it('renders nothing when statuses is empty', () => {
+  it('renders nothing when statuses is empty and nothing is filtered', () => {
     const { container } = render(
       <RecentFitnessActivities
         host="activities.local"
@@ -149,5 +172,60 @@ describe('RecentFitnessActivities', () => {
       'data-show-actions',
       'false'
     )
+  })
+  it('offers a chip that clears the filter when one activity type is shown', () => {
+    const status = createStatus('https://activities.local/users/llun/s/4')
+
+    render(
+      <RecentFitnessActivities
+        host="activities.local"
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={profile}
+        statuses={[status]}
+        activityType="gravel_ride"
+      />
+    )
+
+    const chip = screen.getByRole('link', { name: 'Clear Gravel Ride filter' })
+    expect(chip).toHaveAttribute('href', '/fitness')
+    expect(chip).toHaveTextContent('Gravel Ride')
+    expect(screen.getByTestId('posts')).toHaveTextContent('1 posts')
+  })
+
+  it('keeps the section rendered when a filter matched nothing', () => {
+    // The chip is the only way back out of a filter, so an empty filtered list
+    // must not take the whole section — and its own early return — with it.
+    render(
+      <RecentFitnessActivities
+        host="activities.local"
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={profile}
+        statuses={[]}
+        activityType="swimming"
+      />
+    )
+
+    expect(
+      screen.getByRole('link', { name: 'Clear Swimming filter' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('No recent Swimming activities have been posted.')
+    ).toBeInTheDocument()
+    expect(screen.queryByTestId('posts')).not.toBeInTheDocument()
+  })
+
+  it('leaves the heading bare when nothing is filtered', () => {
+    const status = createStatus('https://activities.local/users/llun/s/5')
+
+    render(
+      <RecentFitnessActivities
+        host="activities.local"
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={profile}
+        statuses={[status]}
+      />
+    )
+
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
   })
 })
