@@ -1680,7 +1680,20 @@ system's `Attachments` component.
   a test cannot read back off the node: jsdom's CSS parser rejects a gradient
   carrying `calc()` and stores nothing. Known cosmetic cost: the mask also fades
   the outer edge of a focused item's ring when that item is flush against a
-  scrollable edge — three of the ring's four sides stay opaque.
+  scrollable edge.
+- **A strip item's focus indicator is an `outline` with a NEGATIVE offset, not
+  a ring.** Its border box is exactly the strip's height and `overflow-x-auto`
+  forces `overflow-y` to compute to `auto`, so an OUTSET ring's top and bottom
+  bars fall outside the scrollport and are clipped away. An INSET ring is worse
+  rather than better: an inset `box-shadow` paints with the element's
+  background, underneath its content, and the button's only child is an opaque
+  image filling the whole box — so it is occluded on all four sides and there is
+  no indicator at all. An outline with a negative offset is the one form that
+  draws inside the border box AND paints above content. The lone picture is not
+  inside an overflow container and keeps the ordinary outset ring. (Note
+  `MessageBubble`'s media cells carry `focus-visible:ring-inset` over the same
+  full-bleed image shape, so their indicator is invisible too — a pre-existing
+  bug, not a precedent to copy.)
 - **The chevrons sit outside the tab order (`tabIndex={-1}`).** They duplicate no
   function — every picture is a focusable button and focusing one scrolls it
   into view — and each is unmounted by the very scroll it performs, so a focused

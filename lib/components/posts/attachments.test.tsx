@@ -178,6 +178,14 @@ describe('Attachments', () => {
         expectedWidth: 'min(100%, 44px)'
       },
       {
+        description: 'lays a clamped sliver out at the 1:3 floor, not narrower',
+        // Wide enough that the natural-width cap and the target-size floor
+        // both stay out of the way, so the clamp's own value is what shows.
+        width: 400,
+        height: 10000,
+        expectedWidth: 'min(100%, 140px)'
+      },
+      {
         description: 'clamps a panorama wider than 3:1',
         width: 10000,
         height: 10,
@@ -281,8 +289,10 @@ describe('Attachments', () => {
       }
     ])('$description', ({ width, height, expectedWidth }) => {
       const target = buildAttachment({ width, height })
-      // A second attachment is required to enter the strip layout at all.
-      const filler = buildAttachment({ width: 800, height: 600 })
+      // A second attachment is required to enter the strip layout at all. Its
+      // shape is distinct from every row's so the width lookup below can only
+      // ever match the target.
+      const filler = buildAttachment({ width: 400, height: 400 })
       render(
         <Attachments
           status={buildNoteStatus([target, filler])}
@@ -351,10 +361,11 @@ describe('Attachments', () => {
       />
     )
 
-    const [firstRenderedButton] = screen.getAllByRole('button')
-    fireEvent.click(firstRenderedButton)
+    // The SECOND picture, so a correct index and a hardcoded 0 differ.
+    const [, secondRenderedButton] = screen.getAllByRole('button')
+    fireEvent.click(secondRenderedButton)
 
-    expect(onMediaSelected).toHaveBeenCalledWith([firstImage, secondImage], 0)
+    expect(onMediaSelected).toHaveBeenCalledWith([firstImage, secondImage], 1)
   })
 
   describe('audio attachments', () => {
@@ -372,6 +383,22 @@ describe('Attachments', () => {
       expect(audioElement?.parentElement).toHaveClass('flex', 'items-start')
       expect(screen.queryByRole('group')).not.toBeInTheDocument()
       expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('a picture alongside audio', () => {
+    it('renders both, the picture in its own box and the audio as a player', () => {
+      const image = buildAttachment({ width: 800, height: 600 })
+      const audio = buildAttachment({ mediaType: 'audio/mpeg' })
+      const { container } = render(
+        <Attachments
+          status={buildNoteStatus([image, audio])}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      expect(screen.getAllByRole('button')).toHaveLength(1)
+      expect(container.querySelector('audio')).toBeInTheDocument()
     })
   })
 
@@ -490,6 +517,65 @@ describe('Attachments', () => {
       )
     })
 
+    it('re-measures when an edit changes item widths but not their count', () => {
+      // The hook is keyed on the laid-out WIDTHS for exactly this case: the
+      // observer watches the container, which does not resize, the count is
+      // unchanged, and scrollLeft stays 0 — so a count-keyed effect would never
+      // re-run and the forward chevron would sit over a strip that now fits.
+      const panorama = buildAttachment({ width: 1200, height: 500 })
+      const portrait = buildAttachment({ width: 600, height: 900 })
+      const replacement = buildAttachment({ width: 600, height: 900 })
+      const { rerender } = render(
+        <Attachments
+          status={buildNoteStatus([panorama, portrait])}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      // Geometry behind a getter so the rerender can change it without
+      // re-stamping the node React is about to reuse.
+      const strip = screen.getByRole('group')
+      const geometry = { scrollWidth: 1000 }
+      Object.defineProperty(strip, 'scrollWidth', {
+        configurable: true,
+        get: () => geometry.scrollWidth
+      })
+      Object.defineProperty(strip, 'clientWidth', {
+        configurable: true,
+        value: 500
+      })
+      Object.defineProperty(strip, 'scrollLeft', {
+        configurable: true,
+        value: 0
+      })
+      fireEvent.scroll(strip)
+      expect(
+        screen.getByRole('button', { name: 'More media' })
+      ).toBeInTheDocument()
+
+      // 576 + 160 becomes 160 + 160: same two items, and now it all fits.
+      geometry.scrollWidth = 400
+      rerender(
+        <Attachments
+          status={buildNoteStatus([replacement, portrait])}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      expect(
+        screen.queryByRole('button', { name: 'More media' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('attaches the edge fade to the strip itself', () => {
+      // Scrolled fully to the end, so the mask has no calc() stop — that is
+      // the one variant jsdom's CSS parser will store and hand back.
+      const strip = renderScrolledStrip({ scrollLeft: 500 })
+
+      expect(strip.style.maskImage).toContain('linear-gradient')
+      expect(strip.style.maskImage).toContain('48px')
+    })
+
     it('keeps both chevrons out of the tab order', () => {
       // Each is unmounted by the scroll it performs, so a focused one would
       // drop focus to <body>; the picture buttons are the keyboard path.
@@ -503,17 +589,78 @@ describe('Attachments', () => {
       ).toHaveAttribute('tabindex', '-1')
     })
 
-    it('nudges by 70% of the visible width', () => {
-      const strip = renderScrolledStrip({ scrollLeft: 0 })
+    it.each([
+      { description: 'the forward chevron', name: 'More media' },
+      { description: 'the back chevron', name: 'Previous media' }
+    ])(
+      '$description stops its click from reaching an ancestor click handler',
+      ({ name }) => {
+        // The chevrons sit inside the clickable post row, so a click that
+        // escaped would scroll the strip AND navigate away from the timeline.
+        const parentOnClick = vi.fn()
+        render(
+          <div onClick={parentOnClick}>
+            <Attachments
+              status={buildNoteStatus([
+                buildAttachment({ width: 800, height: 600 }),
+                buildAttachment({ width: 800, height: 600 }),
+                buildAttachment({ width: 800, height: 600 })
+              ])}
+              onMediaSelected={vi.fn()}
+            />
+          </div>
+        )
+        const strip = screen.getByRole('group')
+        Object.defineProperty(strip, 'scrollWidth', {
+          configurable: true,
+          value: 1000
+        })
+        Object.defineProperty(strip, 'clientWidth', {
+          configurable: true,
+          value: 500
+        })
+        Object.defineProperty(strip, 'scrollLeft', {
+          configurable: true,
+          value: 250
+        })
+        Object.defineProperty(strip, 'scrollBy', {
+          configurable: true,
+          value: vi.fn()
+        })
+        fireEvent.scroll(strip)
+
+        fireEvent.click(screen.getByRole('button', { name }))
+
+        expect(parentOnClick).not.toHaveBeenCalled()
+      }
+    )
+
+    it.each([
+      {
+        description: 'the forward chevron nudges forward by 70% of the strip',
+        name: 'More media',
+        expectedLeft: 350
+      },
+      {
+        description: 'the back chevron nudges backward by the same amount',
+        name: 'Previous media',
+        expectedLeft: -350
+      }
+    ])('$description', ({ name, expectedLeft }) => {
+      // Scrolled to the middle so both chevrons are mounted.
+      const strip = renderScrolledStrip({ scrollLeft: 250 })
       const scrollBy = vi.fn()
       Object.defineProperty(strip, 'scrollBy', {
         configurable: true,
         value: scrollBy
       })
 
-      fireEvent.click(screen.getByRole('button', { name: 'More media' }))
+      fireEvent.click(screen.getByRole('button', { name }))
 
-      expect(scrollBy).toHaveBeenCalledWith({ left: 350, behavior: 'smooth' })
+      expect(scrollBy).toHaveBeenCalledWith({
+        left: expectedLeft,
+        behavior: 'smooth'
+      })
     })
   })
 

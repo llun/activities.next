@@ -2,7 +2,9 @@ import { Attachment } from '@/lib/types/domain/attachment'
 import {
   getDocumentFromAttachment,
   getMastodonAttachment,
+  isAudibleAttachment,
   isFitnessAttachment,
+  isRenderableAttachment,
   isVisualAttachment
 } from '@/lib/types/domain/attachment'
 
@@ -320,6 +322,77 @@ describe('attachment', () => {
       }
     ])('$description', ({ mediaType, expected }) => {
       const result = isVisualAttachment({ ...baseAttachment, mediaType })
+
+      expect(result).toBe(expected)
+    })
+  })
+
+  describe('isRenderableAttachment', () => {
+    // Must stay in step with the branches of lib/components/posts/media.tsx,
+    // which renders image, video and audio and returns null for anything else.
+    it.each([
+      {
+        description: 'returns true for image/jpeg',
+        mediaType: 'image/jpeg',
+        expected: true
+      },
+      {
+        description: 'returns true for video/mp4',
+        mediaType: 'video/mp4',
+        expected: true
+      },
+      {
+        description:
+          'returns true for audio/mp4, which isVisualAttachment rejects',
+        mediaType: 'audio/mp4',
+        expected: true
+      },
+      {
+        description: 'returns true for audio/mpeg',
+        mediaType: 'audio/mpeg',
+        expected: true
+      },
+      {
+        description: 'returns false for a fitness file',
+        mediaType: 'application/vnd.ant.fit',
+        expected: false
+      },
+      {
+        description: 'returns false for application/pdf',
+        mediaType: 'application/pdf',
+        expected: false
+      },
+      {
+        description: 'returns false for an unknown media type',
+        mediaType: '',
+        expected: false
+      }
+    ])('$description', ({ mediaType, expected }) => {
+      const result = isRenderableAttachment({ ...baseAttachment, mediaType })
+
+      expect(result).toBe(expected)
+    })
+  })
+
+  describe('isAudibleAttachment', () => {
+    it.each([
+      {
+        description: 'returns true for audio/mp4',
+        mediaType: 'audio/mp4',
+        expected: true
+      },
+      {
+        description: 'returns false for image/jpeg',
+        mediaType: 'image/jpeg',
+        expected: false
+      },
+      {
+        description: 'returns false for video/mp4',
+        mediaType: 'video/mp4',
+        expected: false
+      }
+    ])('$description', ({ mediaType, expected }) => {
+      const result = isAudibleAttachment({ ...baseAttachment, mediaType })
 
       expect(result).toBe(expected)
     })

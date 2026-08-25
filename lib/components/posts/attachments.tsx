@@ -107,9 +107,10 @@ const getMediaGeometry = ({ width, height }: Attachment) => {
  * three — and wrong in both themes. Masking fades the strip's own pixels and
  * lets whatever is behind show through.
  *
- * A standalone function because it is the one part of the strip a test cannot
- * read back off the rendered node: jsdom's CSS parser rejects a gradient
- * carrying `calc()` and stores nothing.
+ * A standalone function so the string itself is unit-testable: jsdom's CSS
+ * parser rejects the two variants carrying `calc()` and stores nothing for
+ * them, so a rendered node can only ever be asserted against the left-edge-only
+ * form.
  */
 export const buildEdgeFadeMask = (
   canScrollLeft: boolean,
@@ -126,7 +127,27 @@ export const buildEdgeFadeMask = (
 }
 
 const MEDIA_BOX_CLASS =
-  'relative block cursor-zoom-in overflow-hidden rounded-xl border border-border/60 bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50'
+  'relative block cursor-zoom-in overflow-hidden rounded-xl border border-border/60 bg-muted/20'
+
+/**
+ * A lone picture is not inside an overflow container, so an ordinary outset
+ * ring paints in the clear space around it.
+ */
+const SINGLE_FOCUS_CLASS =
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50'
+
+/**
+ * A strip item cannot use that ring. Its border box is exactly the strip's
+ * height and `overflow-x-auto` forces `overflow-y` to compute to `auto`, so an
+ * OUTSET ring's top and bottom bars fall outside the scrollport and are clipped
+ * away. An INSET one is worse: an inset `box-shadow` paints with the element's
+ * background, underneath its content, and the button's only child is an opaque
+ * image filling the whole box — so it is occluded on all four sides and there
+ * is no indicator at all. An outline with a negative offset draws inside the
+ * border box AND paints above content, which is the combination this needs.
+ */
+const STRIP_FOCUS_CLASS =
+  'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring/50'
 
 /**
  * The chevrons are POINTER affordances and deliberately sit outside the tab
@@ -236,7 +257,7 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
             type="button"
             onClick={openMedia(0)}
             aria-label={mediaLabel(attachment, 0)}
-            className={MEDIA_BOX_CLASS}
+            className={cn(MEDIA_BOX_CLASS, SINGLE_FOCUS_CLASS)}
             style={{ aspectRatio, width: `min(100%, ${width}px)` }}
           >
             <Media
@@ -282,7 +303,11 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
                 type="button"
                 onClick={openMedia(index)}
                 aria-label={mediaLabel(attachment, index)}
-                className={cn(MEDIA_BOX_CLASS, 'h-full flex-none')}
+                className={cn(
+                  MEDIA_BOX_CLASS,
+                  STRIP_FOCUS_CLASS,
+                  'h-full flex-none'
+                )}
                 style={{
                   width,
                   maxWidth: STRIP_ITEM_MAX_WIDTH,

@@ -38,15 +38,22 @@ const configureScroller = (
   })
 }
 
-// A ResizeObserver whose only job here is to prove it gets disconnected — the
-// hook's `measure` reads the element directly rather than the entry, so the
-// stub never needs to deliver anything for the assertions in this file.
+// The hook reads the element directly rather than the observer entry, so the
+// stub delivers nothing — but it captures the constructor callback and the
+// observed node so a test can prove the hook actually wired the two together
+// and re-measures when the callback fires.
 let disconnected = 0
+let deliver: (() => void) | null = null
+let observed: Element | null = null
 
 class ResizeObserverStub {
-  constructor(_callback: () => void) {}
+  constructor(callback: () => void) {
+    deliver = callback
+  }
 
-  observe() {}
+  observe(target: Element) {
+    observed = target
+  }
 
   unobserve() {}
 
@@ -101,6 +108,8 @@ const Probe: FC<ProbeProps> = ({
 describe('useMediaStripScroll', () => {
   beforeEach(() => {
     disconnected = 0
+    deliver = null
+    observed = null
     capturedScrollByPage = null
     vi.stubGlobal('ResizeObserver', ResizeObserverStub)
   })
@@ -255,6 +264,37 @@ describe('useMediaStripScroll', () => {
         contentKey="320,160"
       />
     )
+
+    expect(screen.getByTestId('right')).toHaveTextContent('false')
+  })
+
+  it('observes the scroll container itself, not the viewport', () => {
+    render(<Probe scrollWidth={1000} clientWidth={500} scrollLeft={0} />)
+
+    expect(observed).toBe(screen.getByTestId('scroller'))
+  })
+
+  it('re-measures when the observer fires', () => {
+    // The container resizing is the whole reason the hook holds an observer: a
+    // post can be re-laid-out (a sidebar collapses, a column widens) without
+    // any scroll event or content change. Without this the affordances would
+    // stay painted over a strip that no longer overflows.
+    const scroller = { scrollWidth: 1000, clientWidth: 500, scrollLeft: 0 }
+    render(
+      <Probe
+        scrollWidth={scroller.scrollWidth}
+        clientWidth={scroller.clientWidth}
+        scrollLeft={scroller.scrollLeft}
+      />
+    )
+    expect(screen.getByTestId('right')).toHaveTextContent('true')
+
+    // The column grew, so the same content now fits.
+    Object.defineProperty(screen.getByTestId('scroller'), 'clientWidth', {
+      configurable: true,
+      value: 1000
+    })
+    act(() => deliver?.())
 
     expect(screen.getByTestId('right')).toHaveTextContent('false')
   })
