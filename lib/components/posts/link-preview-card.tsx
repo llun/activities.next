@@ -29,6 +29,12 @@ interface LinkPreviewCardProps {
  * never fires and the card holds a broken image open forever. Asking the element
  * what already happened, at the moment the ref attaches, is what recovers it.
  * (`complete` alone is not enough — it is also true for an image that loaded.)
+ *
+ * Known false positive, accepted: an SVG carrying only a `viewBox` loads and
+ * paints fine yet reports `naturalWidth === 0`, so it is read as a failure and
+ * the card degrades. There is no cleaner DOM question to ask, the input is rare
+ * for an `og:image`, and the degradation is graceful — a text-only card, or the
+ * next poster candidate.
  */
 const hasImageAlreadyFailed = (image: HTMLImageElement) =>
   image.complete && image.naturalWidth === 0
@@ -91,9 +97,11 @@ const YouTubeLinkPreviewCard: FC<YouTubeLinkPreviewCardProps> = ({
   const posterUrl =
     posterUrls.find((url) => !failedPosterUrls.includes(url)) ?? null
   // Re-entrant by design: the ref runs again after the state change, sees the
-  // next candidate, and stops when one loads. Returning the SAME array for a URL
-  // already recorded is what makes that terminate — React bails out of an
-  // identical state and never re-renders.
+  // next candidate, and stops when one loads. What terminates it is that the
+  // candidate list has at most two entries and every failure advances past one
+  // — not the identical-array branch below, which never runs on that path,
+  // since `posterUrl` is by construction a URL the list does not yet contain.
+  // That branch is for a late `error` from an element already replaced.
   const markPosterFailed = (url: string) =>
     setFailedPosterUrls((current) =>
       current.includes(url) ? current : [...current, url]
@@ -141,9 +149,13 @@ const YouTubeLinkPreviewCard: FC<YouTubeLinkPreviewCardProps> = ({
             // embedding to allowlisted domains. The poster below keeps
             // `no-referrer` because it loads before the reader has consented to
             // anything; this frame only exists because they pressed play.
-            // No sandbox either: the player needs `allow-scripts` and
-            // `allow-same-origin`, which together neutralize it. The boundary
-            // here is the strict url parse plus the fixed frame-src origin.
+            // No sandbox either — but not because one would be useless. A
+            // sandbox is only neutered by `allow-scripts allow-same-origin`
+            // when the framed document is SAME-origin with us, which this is
+            // not, so one would still deny top-level navigation and popups.
+            // It is left off because the player's own affordances need popups
+            // ("Watch on YouTube", end-screen links), and the origin is already
+            // pinned twice over: by the builder and by the CSP frame-src.
             className="absolute inset-0 size-full border-0"
           />
         ) : (
@@ -158,7 +170,13 @@ const YouTubeLinkPreviewCard: FC<YouTubeLinkPreviewCardProps> = ({
                 ? `Play video: ${linkPreview.title}`
                 : 'Play video'
             }
-            className="group absolute inset-0 flex w-full cursor-pointer items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            // `ring-inset` is load-bearing, not decoration: a ring is an
+            // OUTWARD box-shadow, and this button is flush with the edges of a
+            // wrapper that must clip (`overflow-hidden`, to round the video's
+            // square corners) — so an outward ring is clipped away on every
+            // flush side and the focus indicator all but disappears. Painting
+            // it inward keeps it inside the button's own box.
+            className="group absolute inset-0 flex cursor-pointer items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
           >
             {posterUrl ? (
               // A plain <img>, not next/image: the same reason the standard
@@ -188,7 +206,11 @@ const YouTubeLinkPreviewCard: FC<YouTubeLinkPreviewCardProps> = ({
                 and with no poster left to show this is the whole facade. */}
             <span
               aria-hidden="true"
-              className="relative rounded-full bg-black/60 p-4 transition-colors group-hover:bg-black/80"
+              // The hairline is what keeps the badge legible when NO poster
+              // loaded: the area behind it is then plain `bg-black`, and black
+              // at any opacity composites to black, so the circle and its hover
+              // state would both vanish and leave a bare floating triangle.
+              className="relative rounded-full bg-black/60 p-4 ring-1 ring-white/25 transition-colors group-hover:bg-black/80"
             >
               <Play className="size-8 fill-white text-white" />
             </span>
@@ -202,7 +224,11 @@ const YouTubeLinkPreviewCard: FC<YouTubeLinkPreviewCardProps> = ({
         // Defensive, and the same reason the standard card gives: every sibling
         // block that navigates stops propagation.
         onClick={(event: MouseEvent) => event.stopPropagation()}
-        className="block space-y-0.5 p-3 transition-colors hover:bg-muted/40"
+        // Focus styling is spelled out here rather than left to the base
+        // outline, and inset for the same reason as the button above: this
+        // anchor is flush with three edges of the clipping wrapper, and in this
+        // nested layout the native outline does not render at all.
+        className="block space-y-0.5 p-3 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
       >
         {/* No publisher name beside it: on a YouTube card it only ever repeats
             the domain. The domain is the part the page cannot choose, so it is
@@ -281,6 +307,11 @@ const StandardLinkPreviewCard: FC<LinkPreviewCardProps> = ({
           // The ref covers a failure that landed before hydration, which is the
           // common case for a server-rendered card: without it `onError` never
           // fires and the promised text-only fallback never happens.
+          // Unlike the YouTube poster this needs no `key`, because a recorded
+          // failure UNMOUNTS the image — so no broken element ever survives to
+          // be handed a new `src` and condemn it on the old element's state.
+          // Anything that keeps the image mounted through a failure has to
+          // bring the key with it.
           ref={(image) => {
             if (image && hasImageAlreadyFailed(image)) {
               setFailedImageUrl(linkPreview.imageUrl ?? null)
@@ -347,7 +378,15 @@ export const LinkPreviewCard: FC<LinkPreviewCardProps> = ({
 
   if (video) {
     return (
+      // Keyed on the video so React CLEARS the card's state when the linked
+      // video changes, rather than the card comparing against state it kept.
+      // Deriving `isPlaying` from a remembered id defends A→B but not A→B→A:
+      // the remembered id was never cleared, so returning to a video the reader
+      // had played re-entered the playing branch with no click — mounting an
+      // autoplaying frame and taking focus. A remount starts from `null`, in
+      // the same commit, so there is still no painted frame of autoplay.
       <YouTubeLinkPreviewCard
+        key={video.videoId}
         linkPreview={linkPreview}
         video={video}
         className={className}

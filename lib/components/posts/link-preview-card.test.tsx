@@ -273,6 +273,20 @@ describe('LinkPreviewCard', () => {
       expect(iframe).toHaveAttribute('allowfullscreen')
     })
 
+    // The player deliberately does NOT carry the posters' `no-referrer`: some
+    // videos are embeddable only from allowlisted domains, and withholding the
+    // origin breaks them. It sits two lines from two images that DO carry it,
+    // so pin the absence — otherwise harmonising the three reads as tidying up.
+    it('sends the instance origin to the player rather than no referrer', () => {
+      render(<LinkPreviewCard linkPreview={videoCard()} />)
+
+      fireEvent.click(getPlayButton())
+
+      expect(document.querySelector('iframe')).not.toHaveAttribute(
+        'referrerpolicy'
+      )
+    })
+
     // The button the reader activated is the element that unmounts, so without
     // this focus lands on document.body: no signal that anything happened, and
     // the next Tab restarts from the top of the page instead of the video.
@@ -307,6 +321,29 @@ describe('LinkPreviewCard', () => {
       expect(
         screen.getByRole('button', { name: /^Play video/ })
       ).toBeInTheDocument()
+    })
+
+    // The return hop, which is the one that bit: consent used to be remembered
+    // as "the last video played" and never cleared, so editing back to a video
+    // the reader had already watched re-entered the playing branch with no
+    // click — an un-consented request to YouTube, and a focus steal with it.
+    it('still asks for a click when the post is edited back to a video already played', () => {
+      const { rerender } = render(<LinkPreviewCard linkPreview={videoCard()} />)
+
+      fireEvent.click(getPlayButton())
+      expect(document.querySelector('iframe')).toBeInTheDocument()
+
+      rerender(
+        <LinkPreviewCard
+          linkPreview={videoCard({
+            url: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ'
+          })}
+        />
+      )
+      rerender(<LinkPreviewCard linkPreview={videoCard()} />)
+
+      expect(document.querySelector('iframe')).toBeNull()
+      expect(getPlayButton()).toBeInTheDocument()
     })
 
     // Frames need an accessible name of their own.

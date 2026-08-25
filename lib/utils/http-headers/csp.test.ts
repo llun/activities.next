@@ -8,13 +8,16 @@ import {
 
 // getContentSecurityPolicy and getProxyHostConfig each memoize, so a test that
 // changes ACTIVITIES_HOST must clear BOTH caches to observe the effect.
-const getDirectiveSources = (name: string) =>
-  getContentSecurityPolicy()
+const getSourcesFrom = (policy: string, name: string) =>
+  policy
     .split(';')
     .map((directive) => directive.trim())
     .find((directive) => directive.startsWith(`${name} `))
     ?.split(/\s+/)
     .slice(1) ?? []
+
+const getDirectiveSources = (name: string) =>
+  getSourcesFrom(getContentSecurityPolicy(), name)
 
 const getImageSources = () => getDirectiveSources('img-src')
 
@@ -84,12 +87,7 @@ describe('getContentSecurityPolicy map providers', () => {
   })
 
   const getEmbedDirectiveSources = (name: string) =>
-    getEmbedContentSecurityPolicy()
-      .split(';')
-      .map((directive) => directive.trim())
-      .find((directive) => directive.startsWith(`${name} `))
-      ?.split(/\s+/)
-      .slice(1) ?? []
+    getSourcesFrom(getEmbedContentSecurityPolicy(), name)
 
   it('allows the keyless MapLibre + OpenFreeMap sources when no Mapbox token is set', () => {
     resetContentSecurityPolicyCacheForTests()
@@ -191,12 +189,7 @@ describe('getContentSecurityPolicy frame-src', () => {
   })
 
   const getFrameSources = (policy: string) =>
-    policy
-      .split(';')
-      .map((directive) => directive.trim())
-      .find((directive) => directive.startsWith('frame-src '))
-      ?.split(/\s+/)
-      .slice(1) ?? []
+    getSourcesFrom(policy, 'frame-src')
 
   // The click-to-play player in a link preview card is the only frame this app
   // renders, and it is always built on the cookie-light host — so that one

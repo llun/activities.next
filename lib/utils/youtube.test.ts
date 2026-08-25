@@ -66,6 +66,11 @@ describe('getYouTubeVideoFromUrl', () => {
       expected: { videoId: VIDEO_ID }
     },
     {
+      description: 'reads an embed url on the bare nocookie host',
+      input: `https://youtube-nocookie.com/embed/${VIDEO_ID}`,
+      expected: { videoId: VIDEO_ID }
+    },
+    {
       description: 'reads a watch url served over http',
       input: `http://www.youtube.com/watch?v=${VIDEO_ID}`,
       expected: { videoId: VIDEO_ID }

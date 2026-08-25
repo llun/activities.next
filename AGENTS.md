@@ -1371,9 +1371,13 @@ it; there is no legacy shape left to copy.
   column is page-claimed, and gating on it would make one URL render two ways
   depending on what a cache entry happened to capture. Hosts are matched
   **exactly** (`youtube.com.evil.example` ends with nothing that matters) and
-  the id must be 11 base64url characters, which also rejects a percent-encoded
-  segment; `/embed/videoseries` is refused by name because it is eleven
-  lowercase letters that embed a whole playlist.
+  the id must be 11 base64url characters — which rejects a percent-encoded PATH
+  segment outright, since the pathname is never decoded, while a `?v=` value is
+  decoded by `URLSearchParams` first and then has to satisfy the same shape.
+  `/embed/videoseries` is refused by name because it is eleven lowercase
+  letters that embed a whole playlist; nothing else needs that carve-out,
+  because `list` is never carried into the embed URL, so no playlist can be
+  framed however it is spelled.
   The feature's entire third-party surface is two fixed hosts, both in
   `csp.ts`: the player is framed from `https://www.youtube-nocookie.com`, the
   only origin in `frame-src` (there was no `frame-src` at all before this —
