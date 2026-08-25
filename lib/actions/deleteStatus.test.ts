@@ -25,6 +25,13 @@ describe('deleteStatusFromUserInput', () => {
     vi.clearAllMocks()
   })
 
+  // vi.clearAllMocks() drops call history but keeps queued one-shot behaviour,
+  // so an unconsumed mockRejectedValueOnce would fire inside a later test's
+  // action and be swallowed by its catch.
+  afterEach(() => {
+    vi.mocked(getQueue().publish).mockReset().mockResolvedValue(undefined)
+  })
+
   it('deletes the status locally before queueing the federation job', async () => {
     const status = {
       id: 'https://llun.test/users/me/statuses/direct-delete',
@@ -116,6 +123,7 @@ describe('deleteStatusFromUserInput', () => {
       })
     ).resolves.toBeUndefined()
 
+    expect(vi.mocked(getQueue().publish)).toHaveBeenCalledTimes(1)
     expect(database.deleteStatus).toHaveBeenCalledWith({
       statusId: status.id,
       actorId: CURRENT_ACTOR.id

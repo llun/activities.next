@@ -1557,6 +1557,41 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   own. There is deliberately no prop for hiding one of the menu's own items;
   that is the per-page drift this whole section exists to prevent.
 
+## Status Delete Federation
+
+- **The local delete commits FIRST and the `Delete` fans out from
+  `SendDeleteNoteJob` afterwards — and that job must never load the status it is
+  announcing the death of.** `database.deleteStatus` is a cascading hard delete,
+  so by the time the job runs the row (and its whole same-actor reply subtree) is
+  gone. `deleteStatusFromUserInput` (`lib/actions/deleteStatus.ts`) therefore
+  captures the audience before deleting and publishes it in the payload
+  (`{ actorId, statusId, to, cc }`), and `getFederatedStatusDeliveryInboxes`
+  takes `Pick<Status, 'to' | 'cc'>` rather than a whole `Status` so a caller
+  holding only that payload can still resolve inboxes. **Do not "unify" this job
+  onto `loadStatusAndActor`**: that is exactly the bug `sendUndoAnnounceJob` has
+  — `undoAnnounce` hard-deletes then enqueues, the job bails on `!status`, and
+  the `Undo` never federates. Every delivery test in
+  `lib/jobs/sendDeleteNoteJob.test.ts` uses a statusId that is deliberately NOT
+  in the database for that reason.
+- **The dedup id is `getHashFromString(`${statusId}#delete`)`, and the suffix is
+  correctness.** The queue deduplicates globally on `message.id` across job
+  names, with a window that outlives consumption, and `SendNoteJob` /
+  `SendUpdateNoteJob` already publish under the bare `getHashFromString(statusId)`
+  — without the suffix, deleting a status posted or edited inside that window is
+  silently dropped and never federates.
+- **The `publish` is wrapped in try/catch on purpose.** The hard delete has
+  already committed and cannot be undone, so a failed enqueue must not surface as
+  a failed request — that would tell the author their post is still there when it
+  is gone, and would skip the route's media cleanup. It is logged with a stack;
+  remote copies reconcile on their next fetch, which 404s.
+- Delivery errors never reach that catch: `postActivityToInbox` swallows every
+  network failure and returns `undefined`, so the activities `deleteStatus`
+  sender does not reject. A test that fails the _socket_ therefore proves nothing
+  about the job's per-inbox guard — mock the **sender** to reject, which is the
+  only seam that can.
+- Known gap, unchanged by the move to a job: a cascaded reply subtree is deleted
+  locally but only the top status's `Delete` federates.
+
 ## Better-auth Plugin Guidelines
 
 - **Do not register a better-auth plugin unless its required database tables exist** in the Knex migrations. The custom `knexAdapter` does not auto-create tables; missing tables will cause runtime errors.

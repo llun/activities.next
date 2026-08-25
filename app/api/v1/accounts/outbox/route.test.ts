@@ -9,6 +9,11 @@ import { DELETE, POST } from './route'
 
 const mockCreateNoteFromUserInput = vi.fn()
 const mockCreatePollFromUserInput = vi.fn()
+const mockDeleteStatusFromUserInput = vi.fn()
+vi.mock('@/lib/actions/deleteStatus', () => ({
+  deleteStatusFromUserInput: (...args: unknown[]) =>
+    mockDeleteStatusFromUserInput(...args)
+}))
 const mockResolveQuoteForCreate = vi.fn()
 const mockGetServerSession = vi.fn()
 vi.mock('@/lib/actions/createNote', () => ({
@@ -416,5 +421,28 @@ describe('DELETE /api/v1/accounts/outbox', () => {
     const res = await DELETE(req, { params: Promise.resolve({}) })
 
     expect(res.status).toBe(400)
+  })
+
+  // The other caller of the shared delete action, which owns the local delete
+  // and the federation enqueue. Only the wiring is asserted here; the ordering
+  // itself is covered in lib/actions/deleteStatus.test.ts.
+  it('hands a valid delete to the shared delete action', async () => {
+    mockDeleteStatusFromUserInput.mockResolvedValue(undefined)
+    const statusId = 'https://test.llun.dev/users/test1/statuses/delete-me'
+    const req = new NextRequest('http://localhost/api/v1/accounts/outbox', {
+      method: 'DELETE',
+      body: JSON.stringify({ statusId }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      }
+    })
+
+    const res = await DELETE(req, { params: Promise.resolve({}) })
+
+    expect(res.status).toBe(200)
+    expect(mockDeleteStatusFromUserInput).toHaveBeenCalledWith(
+      expect.objectContaining({ statusId, currentActor: seedActor1 })
+    )
   })
 })

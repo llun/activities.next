@@ -35,7 +35,14 @@ export const sendDeleteNoteJob: JobHandle = createJobHandle(
 
       const actor = await database.getActorFromId({ id: actorId })
       if (!actor) {
+        // Terminal, not retryable: without the actor there is no key to sign
+        // with. Logged because the status row is already gone, so this is the
+        // only remaining record that a Delete was owed.
         span.recordException(new Error('Actor not found'))
+        logger.error(
+          { actorId, statusId },
+          'Cannot federate status delete: actor not found'
+        )
         return
       }
 
