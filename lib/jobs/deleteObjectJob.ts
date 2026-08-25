@@ -40,9 +40,17 @@ export const deleteObjectJob = createJobHandle(
       // the stamp). Host equality is not enough on a multi-user instance — a
       // co-resident of the quoted author would otherwise be able to revoke
       // someone else's authorized quote — so resolve the exact author and fail
-      // closed if it cannot be resolved. Runs before the actor/status delete
-      // paths, but must never CONSUME the activity on their behalf: a stored
-      // stamp uri is remote-supplied, so a status or actor id CAN match one.
+      // closed if it cannot be resolved.
+      //
+      // This branch is purely ADDITIVE: it never returns, on either outcome. A
+      // stored `authorizationUri` is remote-supplied and only ever same-host
+      // checked, so an id naming a real actor or status CAN sit in that column
+      // — planted, or a peer simply echoing the quoted status in an Accept's
+      // `result`. Consuming the activity here would swallow that object's own
+      // legitimate Delete forever, and no retry could ever get past it. Falling
+      // through costs nothing: a genuine stamp uri names no actor or status, so
+      // every path below is a no-op for it, and each is independently scoped to
+      // the verified sender.
       const stampUri = getStampUri(data)
       if (stampUri) {
         const edge = await database.getStatusQuoteByAuthorizationUri({
@@ -70,21 +78,9 @@ export const deleteObjectJob = createJobHandle(
               state: 'revoked'
             })
             span.setAttribute('revokedQuoteStatusId', edge.statusId)
-            return
+          } else {
+            span.setAttribute('quoteRevocationSenderMismatch', true)
           }
-          // Sender is not the quoted author, so this is not a revocation of
-          // that quote. Fall THROUGH to the normal delete paths rather than
-          // returning: `authorizationUri` is remote-supplied and only ever
-          // same-host checked against the quoted status, so a hostile actor can
-          // plant an id belonging to a co-resident actor or status there and
-          // have this branch swallow that object's own legitimate Delete
-          // forever. `handleQuoteResponse` now verifies an Accept's `result`
-          // before storing it, but `persistInboundQuoteEdge` still cannot:
-          // `verifyRemoteQuote`'s self-quote shortcut returns `accepted` without
-          // reading any stamp, so an actor quoting their OWN status can persist
-          // an arbitrary same-host uri. This fall-through is what makes that
-          // harmless, so do not restore the early return.
-          span.setAttribute('quoteRevocationSenderMismatch', true)
         }
       }
 

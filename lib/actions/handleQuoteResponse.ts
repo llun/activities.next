@@ -96,6 +96,12 @@ export const handleQuoteResponse = async ({
     // every other transition anyway, and this returns before the stamp fetch
     // below — otherwise a verified quoted author could replay one Accept
     // indefinitely and make us re-fetch on each, inline in the inbox request.
+    //
+    // Known cost: it also skips the re-federation below, so if a first Accept's
+    // write committed but its publish failed, a replayed Accept no longer heals
+    // it. Keeping the publish would be worse — it hands that same actor a
+    // fan-out amplifier, one replay delivering an Update to every recipient of
+    // our note, inline under the default in-process queue.
     if (edge.state !== 'pending') return true
 
     const stampUri = refId(record.result)

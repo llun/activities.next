@@ -178,6 +178,97 @@ describe('deleteObjectJob', () => {
     expect(edge?.state).toBe('accepted')
   })
 
+  it('still deletes an actor whose own id was planted as their stamp uri', async () => {
+    // The half a sender-mismatch fall-through cannot reach: here the deleter IS
+    // the quoted author, so the revocation branch fires — and if it consumed the
+    // activity, the author could never delete themselves from this instance.
+    const stamp = Date.now()
+    const author = `https://remote.example/users/self-planter-${stamp}`
+    const quotedStatusId = `${author}/statuses/1`
+    await seedQuotedStatus(author, quotedStatusId)
+    const quotingId = `https://local.test/users/me/statuses/self-planted-${stamp}`
+    await database.createStatusQuote({
+      statusId: quotingId,
+      quotedStatusId,
+      state: 'accepted',
+      // Their own actor id, not a stamp — same host as the quoted status, which
+      // is all the storing path ever checks.
+      authorizationUri: author
+    })
+
+    await deleteObjectJob(database, {
+      id: `self-planted-job-${stamp}`,
+      name: DELETE_OBJECT_JOB_NAME,
+      data: author,
+      verifiedSenderActorId: author
+    })
+
+    await expect(database.getActorFromId({ id: author })).resolves.toBeNull()
+  })
+
+  it('still deletes a status whose own id was planted as a stamp uri', async () => {
+    // The likeliest non-malicious trigger: a peer echoing the quoted status in
+    // an Accept's `result`. Swallowing the author's Delete would leave the post
+    // on this instance and never mark quotes of it deleted.
+    const stamp = Date.now()
+    const author = `https://remote.example/users/status-planter-${stamp}`
+    const quotedStatusId = `${author}/statuses/planted-${stamp}`
+    await seedQuotedStatus(author, quotedStatusId)
+    const quotingId = `https://local.test/users/me/statuses/status-planted-${stamp}`
+    await database.createStatusQuote({
+      statusId: quotingId,
+      quotedStatusId,
+      state: 'accepted',
+      authorizationUri: quotedStatusId
+    })
+
+    await deleteObjectJob(database, {
+      id: `status-planted-job-${stamp}`,
+      name: DELETE_OBJECT_JOB_NAME,
+      data: { id: quotedStatusId, type: 'Tombstone' },
+      verifiedSenderActorId: author
+    })
+
+    await expect(
+      database.getStatus({ statusId: quotedStatusId, withReplies: false })
+    ).resolves.toBeNull()
+  })
+
+  it('deletes nothing beyond the revocation for a genuine stamp uri', async () => {
+    // The other side of the additive branch: falling through must not start
+    // deleting things. A real stamp uri names no actor and no status, so every
+    // path below it is a no-op.
+    const stamp = Date.now()
+    const author = `https://remote.example/users/genuine-${stamp}`
+    const quotedStatusId = `${author}/statuses/1`
+    await seedQuotedStatus(author, quotedStatusId)
+    const stampUri = `${author}/quote_authorizations/genuine-${stamp}`
+    const quotingId = `https://local.test/users/me/statuses/genuine-${stamp}`
+    await database.createStatusQuote({
+      statusId: quotingId,
+      quotedStatusId,
+      state: 'accepted',
+      authorizationUri: stampUri
+    })
+
+    await deleteObjectJob(database, {
+      id: `genuine-job-${stamp}`,
+      name: DELETE_OBJECT_JOB_NAME,
+      data: stampUri,
+      verifiedSenderActorId: author
+    })
+
+    const edge = await database.getStatusQuote({ statusId: quotingId })
+    expect(edge?.state).toBe('revoked')
+    // The quoted author and their status survive: the Delete named the stamp.
+    await expect(
+      database.getActorFromId({ id: author })
+    ).resolves.not.toBeNull()
+    await expect(
+      database.getStatus({ statusId: quotedStatusId, withReplies: false })
+    ).resolves.not.toBeNull()
+  })
+
   it('deletes actor when data is a string (actor id)', async () => {
     // Create a new actor to delete
     const actorId = `https://external.test/users/to-delete-${Date.now()}`

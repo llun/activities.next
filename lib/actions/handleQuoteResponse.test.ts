@@ -123,12 +123,11 @@ describe('handleQuoteResponse', () => {
     expect(updateSpy).not.toHaveBeenCalled()
   })
 
-  it("does not store a result that does not verify as this edge's stamp", async () => {
-    // `result` is remote-supplied and only same-host checked, so a hostile
-    // quoted author could pass off any co-resident id — an actor, a status — as
-    // the stamp. `deleteObjectJob` matches stored stamps when deciding whether
-    // an inbound Delete is a quote revocation, so an unverified value planted
-    // here swallows that object's own legitimate Delete.
+  it("does not store a result disproved as this edge's stamp", async () => {
+    // A stamp that was read and does not authorize THIS edge — a real
+    // QuoteAuthorization naming a different quoting note, say. Only a definitive
+    // disproof drops it; a stamp that merely could not be read is kept (see the
+    // test below), because failing to read a document does not disprove it.
     mockVerifyStamp.mockResolvedValue('mismatch')
     const updateSpy = vi.fn().mockResolvedValue(null)
     const database = makeDatabase({ updateSpy })
@@ -140,7 +139,7 @@ describe('handleQuoteResponse', () => {
         type: 'Accept',
         actor: QUOTED_AUTHOR,
         object: QUOTE_REQUEST_ID,
-        result: `${QUOTED_AUTHOR}/statuses/not-a-stamp`
+        result: `${QUOTED_AUTHOR}/quote_authorizations/for-another-note`
       }
     })
 
