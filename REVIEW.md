@@ -500,9 +500,11 @@ attachment ref guard` is exactly that: it passed with the bug present until
   `LocalFileStorage` and `S3FileStorage` are edited one at a time and drift
   silently — an uploaded `thumbnail` was stored by one and dropped by the other
   for as long as both existed, so the same upload answered with a different
-  `meta.small`/`preview_url` per backend (the upload-response entity only;
-  `getMastodonAttachment` hardcodes `preview_url: null` and the AP `Document`
-  has no thumbnail field, so nothing federated). Shared policy belongs in a
+  `meta.small`/`preview_url` per backend. That divergence now reaches every
+  client reading the status, not just the upload response: an attachment row
+  snapshots `thumbnailUrl` (resolved off `meta.small`) and
+  `getMastodonAttachment` serves it as `preview_url`. Only federation is still
+  blind to it — the AP `Document` has no thumbnail field. Shared policy belongs in a
   module both import
   (`medias/thumbnailInput` validates a supplied thumbnail; `medias/fileName`
   handles supplied names), and a change to one driver's `saveFile` needs the
