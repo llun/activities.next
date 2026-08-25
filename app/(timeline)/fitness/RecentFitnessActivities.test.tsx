@@ -91,8 +91,8 @@ const createStatus = (id: string): Status => ({
 })
 
 describe('RecentFitnessActivities', () => {
-  it('renders nothing when statuses is empty and nothing is filtered', () => {
-    const { container } = render(
+  it('shows nothing but the scope announcement when empty and unfiltered', () => {
+    render(
       <RecentFitnessActivities
         host="activities.local"
         currentTime={FIXED_CURRENT_TIME}
@@ -101,8 +101,50 @@ describe('RecentFitnessActivities', () => {
       />
     )
 
-    expect(container).toBeEmptyDOMElement()
+    expect(
+      screen.queryByRole('heading', { name: 'Recent activities' })
+    ).not.toBeInTheDocument()
     expect(screen.queryByTestId('posts')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+
+    // The live region is the one thing this branch still renders. A region that
+    // mounts already carrying its text announces nothing, so it has to be in
+    // the tree BEFORE the first filter — and this is the branch an actor whose
+    // activities have no surviving posts sits in while unfiltered.
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Showing all recent activities'
+    )
+  })
+
+  it('keeps the same status region across the first filter of a postless actor', () => {
+    // The transition the hoist exists for: no section either side, so the only
+    // thing that can announce is a text change inside a region that was already
+    // mounted.
+    const { rerender } = render(
+      <RecentFitnessActivities
+        host="activities.local"
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={profile}
+        statuses={[]}
+      />
+    )
+
+    const before = screen.getByRole('status')
+    expect(before).toHaveTextContent('Showing all recent activities')
+
+    rerender(
+      <RecentFitnessActivities
+        host="activities.local"
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={profile}
+        statuses={[]}
+        activityType="gravel_ride"
+      />
+    )
+
+    const after = screen.getByRole('status')
+    expect(after).toBe(before)
+    expect(after).toHaveTextContent('Showing recent Gravel Ride activities')
   })
 
   it('renders heading and posts stub when given one status', () => {
