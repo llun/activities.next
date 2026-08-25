@@ -77,12 +77,28 @@ describe('attachment', () => {
       expect(result?.type).toEqual('image')
     })
 
-    it('returns null for gif (treated differently)', () => {
-      const gifAttachment = { ...baseAttachment, mediaType: 'image/gif' }
-      const result = getMastodonAttachment(gifAttachment)
+    // `null` is not a MediaAttachment, and an entry with no id is one a client
+    // cannot name — which an edit then reads as "remove it". Anything this
+    // serializer cannot describe becomes Mastodon's `unknown` type instead,
+    // carrying the id, url, description and blurhash it does have.
+    it.each([
+      ['gif, which is excluded from the image type', 'image/gif'],
+      ['an audio upload, which has no stored duration', 'audio/mp4'],
+      ['an unrecognised type', 'application/octet-stream']
+    ])('returns the unknown type for %s', (_description, mediaType) => {
+      const result = getMastodonAttachment({
+        ...baseAttachment,
+        mediaType,
+        blurhash: 'LEHV6nWB2yk8pyo0adR*'
+      })
 
-      // GIFs are excluded from image type
-      expect(result).toBeNull()
+      expect(result).toMatchObject({
+        type: 'unknown',
+        id: 'attachment-123',
+        url: 'https://example.com/media/image.jpg',
+        description: 'Test image',
+        blurhash: 'LEHV6nWB2yk8pyo0adR*'
+      })
     })
 
     it('returns video type for mp4', () => {
@@ -132,17 +148,6 @@ describe('attachment', () => {
       const result = getMastodonAttachment(webmAttachment)
 
       expect(result?.type).toEqual('video')
-    })
-
-    it('returns null for unsupported media types', () => {
-      const audioAttachment: Attachment = {
-        ...baseAttachment,
-        mediaType: 'audio/mp3'
-      }
-
-      const result = getMastodonAttachment(audioAttachment)
-
-      expect(result).toBeNull()
     })
 
     it('handles missing dimensions in image', () => {

@@ -2797,6 +2797,102 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(await database.getAttachments({ statusId })).toHaveLength(1)
     })
 
+    // An audio upload has no dimensions or duration to serialise, so it used to
+    // come back as a bare `null` with no id. A client echoing back what it
+    // could see then named only the image, and the edit read the missing audio
+    // as a removal — silently dropping it from the post. It is published as
+    // Mastodon's `unknown` type now, so the client can name it and keep it.
+    it('keeps an audio attachment through an edit that echoes the published ids', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-unknown-type-attachment`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Mixed media target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const image = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/api-edit-mixed-image.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 },
+          fileName: 'api-edit-mixed-image.jpg'
+        }
+      })
+      const audio = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/api-edit-mixed-audio.m4a',
+          bytes: 2048,
+          mimeType: 'audio/mp4',
+          metaData: { width: 0, height: 0 },
+          fileName: 'api-edit-mixed-audio.m4a'
+        }
+      })
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: 'image/jpeg',
+        url: 'https://llun.test/api/v1/files/medias/api-edit-mixed-image.webp',
+        width: 320,
+        height: 240,
+        name: 'Mixed image',
+        mediaId: image!.id
+      })
+      const audioAttachment = await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: 'audio/mp4',
+        url: 'https://llun.test/api/v1/files/medias/api-edit-mixed-audio.m4a',
+        name: 'Mixed audio',
+        mediaId: audio!.id
+      })
+
+      const published = await GET(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          { headers: { Origin: 'https://llun.test' } }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      const publishedData = await published.json()
+      // Every attachment is addressable: none serialises as a bare null.
+      expect(publishedData.media_attachments).toHaveLength(2)
+      expect(publishedData.media_attachments).not.toContain(null)
+      const publishedIds = publishedData.media_attachments.map(
+        (attachment: { id: string }) => attachment.id
+      )
+      expect(publishedIds).toContain(audioAttachment.id)
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              status: 'Mixed media edited',
+              media_ids: publishedIds
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const attachments = await database.getAttachments({ statusId })
+      expect(attachments).toHaveLength(2)
+      expect(
+        attachments.some((attachment) => attachment.mediaType === 'audio/mp4')
+      ).toBe(true)
+    })
+
     it('keeps the existing description when media_attributes only updates focus', async () => {
       const statusId = `${ACTOR1_ID}/statuses/api-edit-media-attributes-focus`
       await database.createNote({

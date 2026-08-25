@@ -177,5 +177,21 @@ export const getMastodonAttachment = (attachment: Attachment) => {
       blurhash: attachment.blurhash ?? null
     })
   }
-  return null
+  // Everything else — an `audio/mp4` upload, a remote GIF — is Mastodon's
+  // `unknown` type rather than a `null` entry. `null` is not a MediaAttachment,
+  // so it violated the entity, and it left the attachment with no id for a
+  // client to name: an editing client could only echo back the ids it could
+  // see, and `updateNote` deletes every replaceable attachment missing from
+  // that list, so the unnameable one was dropped from the post. `unknown`
+  // carries the id, url, description and blurhash without claiming dimensions
+  // or a duration this row does not store.
+  return Mastodon.MediaTypes.Unknown.parse({
+    id: attachment.id,
+    url: attachment.url,
+    preview_url: attachment.thumbnailUrl ?? null,
+    remote_url: null,
+    description: attachment.name,
+    type: 'unknown',
+    blurhash: attachment.blurhash ?? null
+  })
 }
