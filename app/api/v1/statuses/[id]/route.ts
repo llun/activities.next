@@ -354,10 +354,21 @@ export const PUT = traceApiRoute(
         // through the status's own attachments so a third-party client's edit
         // reaches the same row the composer's does; an id that is already a
         // media id passes through untouched.
+        // Deduped again after resolution, not only on the raw ids above: two
+        // ids a client sent for one attachment — the uuid it read off the
+        // status and the media id it uploaded with — collapse to one row here.
+        // Nothing downstream double-attaches today (a uuid only resolves for
+        // media already on this status, so the pair lands in the kept set
+        // rather than the inserted one), so this keeps the resolved list
+        // well-formed rather than fixing a live duplicate.
         const resolvedMediaIds =
           mediaIds === undefined
             ? undefined
-            : resolveStatusAttachmentMediaIds(existingStatus, mediaIds)
+            : [
+                ...new Set(
+                  resolveStatusAttachmentMediaIds(existingStatus, mediaIds)
+                )
+              ]
 
         // Apply per-attachment metadata edits (Mastodon media_attributes[])
         // before resolving attachments so the refreshed description/focus flow

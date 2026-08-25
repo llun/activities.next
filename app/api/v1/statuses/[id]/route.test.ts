@@ -2738,6 +2738,65 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(updatedMedia?.focus).toEqual({ x: 0.25, y: -0.75 })
     })
 
+    // Both id forms name the same attachment, so the edit is a no-op that
+    // leaves exactly one attachment. Pins the client-visible result of mixing
+    // them, which is now accepted rather than answered 422.
+    it('attaches media once when media_ids carries both the attachment id and the media id', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-both-id-forms`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Both id forms target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const media = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/api-edit-both-id-forms.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 },
+          fileName: 'api-edit-both-id-forms.jpg'
+        },
+        description: 'Both id forms'
+      })
+      expect(media).not.toBeNull()
+      const attachment = await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: media!.original.mimeType,
+        url: 'https://llun.test/api/v1/files/medias/api-edit-both-id-forms.webp',
+        width: 320,
+        height: 240,
+        name: 'Both id forms',
+        mediaId: media!.id
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              media_ids: [attachment.id, media!.id]
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.media_attachments).toHaveLength(1)
+      expect(await database.getAttachments({ statusId })).toHaveLength(1)
+    })
+
     it('keeps the existing description when media_attributes only updates focus', async () => {
       const statusId = `${ACTOR1_ID}/statuses/api-edit-media-attributes-focus`
       await database.createNote({

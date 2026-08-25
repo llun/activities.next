@@ -2,7 +2,7 @@ import { getBaseURL } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/types/domain/actor'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
-import { Status } from '@/lib/types/domain/status'
+import { Status, StatusType } from '@/lib/types/domain/status'
 
 const getMediaUrl = (path: string) => `${getBaseURL()}/api/v1/files/${path}`
 
@@ -73,7 +73,10 @@ export const resolveStatusAttachmentMediaIds = (
   ids: string[]
 ): string[] => {
   const mediaIdByAttachmentId = new Map(
-    (status.type === 'Note' || status.type === 'Poll'
+    // Only a Note (and the Poll that extends it) carries attachments; an
+    // Announce has none to map, and the edit route rejects one anyway.
+    (status.type === StatusType.enum.Note ||
+    status.type === StatusType.enum.Poll
       ? status.attachments
       : []
     ).flatMap((attachment) =>
