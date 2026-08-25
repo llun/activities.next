@@ -2798,10 +2798,11 @@ describe('GET /api/v1/statuses/[id]', () => {
     })
 
     // An audio upload has no dimensions or duration to serialise, so it used to
-    // come back as a bare `null` with no id. A client echoing back what it
-    // could see then named only the image, and the edit read the missing audio
-    // as a removal — silently dropping it from the post. It is published as
-    // Mastodon's `unknown` type now, so the client can name it and keep it.
+    // come back as a bare `null` — which `Mastodon.Status.parse` rejects, so
+    // the whole status failed to serialise: dropped from timelines as
+    // un-hydratable and an error on this very GET. Published as Mastodon's
+    // `unknown` type it serialises, and carrying an id is what lets an editing
+    // client name it and keep it.
     it('keeps an audio attachment through an edit that echoes the published ids', async () => {
       const statusId = `${ACTOR1_ID}/statuses/api-edit-unknown-type-attachment`
       await database.createNote({

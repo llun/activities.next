@@ -67,9 +67,12 @@ product or security decision, not a gap to be closed.
 - **An attachment this instance cannot describe is `type: "unknown"`, never a
   `null` entry.** An `audio/mp4` upload has no stored duration and a remote GIF
   no `gifv` metadata, so neither fills Mastodon's `Audio`/`Gifv` shape; both are
-  served as `unknown`, carrying the id, url, description and blurhash. The id
-  matters as much as the type: an entry a client cannot name is one an edit
-  reads as a removal.
+  served as `unknown`, carrying the id, url, description and blurhash. This is
+  not cosmetic: `media_attachments` is an array of MediaAttachment, so a `null`
+  entry failed the entity's own validation and took the entire status off the
+  API — dropped from timelines as un-hydratable, an error on a single-status
+  GET — while the web UI still rendered it. The id matters as much as the type:
+  an entry a client cannot name is one it cannot preserve through an edit.
 
 - **OAuth access tokens expire after 7 days.** Mastodon access tokens do not
   expire by default. Activity.next issues short-lived access tokens (7 days)
