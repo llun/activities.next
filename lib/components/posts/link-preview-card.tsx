@@ -175,16 +175,18 @@ const YouTubeLinkPreviewCard: FC<YouTubeLinkPreviewCardProps> = ({
                 : 'Play video'
             }
             // The focus indicator is NOT on this element — see the overlay at
-            // the end of the button. Nothing painted on the button itself
-            // survives: an outward ring or a zero-offset outline is clipped by
-            // the wrapper's `overflow-hidden` (which must stay, to round the
-            // video's square corners) because the button is flush with its
-            // edges, while an inward ring OR an inset outline paints below the
-            // button's own descendants — and the poster is an
-            // `absolute inset-0` child covering the box exactly. All of them
-            // were measured on a focused button with a poster loaded and came
-            // back at essentially zero visible pixels. `outline-none` is
-            // therefore deliberate, not an oversight.
+            // the end of the button. Nothing painted on the button itself is
+            // usable. Painted outward (a ring, a zero-offset outline) the
+            // wrapper's `overflow-hidden` — which must stay, to round the
+            // video's square corners — clips the three sides the button is
+            // flush with, leaving only a 2px line along the bottom, where its
+            // edge is interior. Painted inward (`ring-inset`, a negative-offset
+            // outline) it lands below the button's own descendants, and the
+            // poster is an `absolute inset-0` child covering the box exactly:
+            // 14 pixels. Measured on the wrapper, with a poster loaded — an
+            // element screenshot of the button reports zero for the outward
+            // case whether or not anything painted. `outline-none` is therefore
+            // deliberate, not an oversight.
             className="group absolute inset-0 flex cursor-pointer items-center justify-center focus-visible:outline-none"
           >
             {posterUrl ? (
@@ -231,9 +233,11 @@ const YouTubeLinkPreviewCard: FC<YouTubeLinkPreviewCardProps> = ({
                 so an outline on it paints over the poster — and an outline,
                 not a ring, because forced-colors mode (Windows High Contrast)
                 drops box-shadows entirely and would leave the card's only
-                control with no focus indicator at all. The radius matches the
-                wrapper's inner corner so the top two corners are not nipped by
-                its clip. */}
+                control with no focus indicator at all. The radius is the
+                wrapper's inner corner — its `rounded-xl` (12px) less its 1px
+                border — so the top two corners are not nipped by the clip;
+                it is written out rather than derived, so it has to be revisited
+                if that radius or border ever changes. */}
             <span
               aria-hidden="true"
               className="pointer-events-none absolute inset-0 rounded-t-[11px] group-focus-visible:outline-2 group-focus-visible:-outline-offset-2 group-focus-visible:outline-ring/50"

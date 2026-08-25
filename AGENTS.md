@@ -1403,10 +1403,15 @@ it; there is no legacy shape left to copy.
   and that is not a style preference — it is the only place it survives. The
   button is flush with the edges of a wrapper that must clip
   (`overflow-hidden`, to round the video's corners), so anything painted
-  outward (a plain `ring`, a zero-offset outline) is clipped away; and anything
-  painted inward (`ring-inset`, a negative-offset outline) is painted BELOW the
-  button's own descendants, where the full-bleed poster covers its box exactly.
-  Both kinds shipped and both measured at essentially zero visible pixels. The
+  outward (a plain `ring`, a zero-offset outline) is clipped on the three sides
+  that are flush with it and survives only along the bottom, whose edge is
+  interior to the wrapper — a full-width 2px line between the video and the
+  caption, measured at 1416 pixels against the shipped overlay's 4412. Unusable
+  as an indicator, not invisible; do not repeat the earlier claim that it
+  measured zero, which was an artefact of the measurement method below.
+  Anything painted inward (`ring-inset`, a negative-offset outline) IS
+  effectively invisible — 14 pixels — because it paints BELOW the button's own
+  descendants, where the full-bleed poster covers its box exactly. The
   indicator is therefore a `pointer-events-none absolute inset-0` span rendered
   as the button's LAST child, which has no descendants of its own to hide it,
   and carries `rounded-t-[11px]` so the wrapper's inner radius does not nip its
@@ -1416,10 +1421,14 @@ it; there is no legacy shape left to copy.
   one. The caption may keep its outline on the element itself, because its
   children are in-flow text that never reaches its padding edge.
   Verify any focus change by COUNTING INDICATOR PIXELS on an element
-  screenshot of the focused element, **with a poster loaded and with
-  `forced-colors: active` as well**, never by reading `getComputedStyle` — a
-  box-shadow that is computed is not a box-shadow that is painted, and that
-  mistake cost this feature two review rounds. Two traps in the harness:
+  screenshot, **with a poster loaded and with `forced-colors: active` as
+  well**, never by reading `getComputedStyle` — a box-shadow that is computed
+  is not a box-shadow that is painted, and that mistake cost this feature two
+  review rounds. Screenshot the WRAPPER, not the focused element, whenever the
+  candidate paints outward: an element screenshot cannot see anything outside
+  that element's own box, so it reports zero for every outward indicator and
+  will walk you into calling one invisible when it is merely clipped. Two more
+  traps in the harness:
   Playwright's `page.screenshot({clip})` is page-relative while
   `getBoundingClientRect()` is viewport-relative (use element screenshots), and
   `:focus-visible` will not match a programmatic `.focus()` unless keyboard
