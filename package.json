@@ -58,7 +58,7 @@
     "csv-parse": "^7.0.2",
     "date-fns": "^4.4.0",
     "fast-xml-parser": "^5.10.1",
-    "fit-file-parser": "^4.1.0",
+    "fit-file-parser": "^5.0.1",
     "got": "^15.1.0",
     "html-react-parser": "^6.1.7",
     "jose": "^6.2.10",

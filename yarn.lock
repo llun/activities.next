@@ -3663,7 +3663,7 @@ __metadata:
     date-fns: "npm:^4.4.0"
     dotenv-flow: "npm:^4.1.0"
     fast-xml-parser: "npm:^5.10.1"
-    fit-file-parser: "npm:^4.1.0"
+    fit-file-parser: "npm:^5.0.1"
     got: "npm:^15.1.0"
     html-react-parser: "npm:^6.1.7"
     husky: "npm:^9.1.7"
@@ -4805,12 +4805,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"fit-file-parser@npm:^4.1.0":
-  version: 4.1.0
-  resolution: "fit-file-parser@npm:4.1.0"
+"fit-file-parser@npm:^5.0.1":
+  version: 5.0.1
+  resolution: "fit-file-parser@npm:5.0.1"
   dependencies:
     buffer: "npm:^6.0.3"
-  checksum: 10c0/0861170eb836f0710c77bad3db22dbacb649fe160c82e3b5d82fb8c136dc3fd1949b7a608f2d9b07b278fc0fcad42aad187ff3d8248fa117c1bf115237dca752
+  checksum: 10c0/1473596005cd986698308aab20a306b1c08fe4dc950de131580835eef004dbbf5ea77422154f785c10837dc729c7a39f5a0ee8d807b4431b133fc8d7b959c121
   languageName: node
   linkType: hard
 
