@@ -28,8 +28,9 @@ const SINGLE_MAX_HEIGHT = 420
 
 /**
  * No single item may fill the strip, so the next one always peeks past the
- * edge. That peek — not the chevrons, which need a pointer to appear — is what
- * says "this scrolls" on a touch screen.
+ * edge. That peek is what says "this scrolls" on a touch screen, where the back
+ * chevron never appears at all (it is gated on hover) and the forward one is
+ * easy to miss.
  */
 const STRIP_ITEM_MAX_WIDTH = '78%'
 
@@ -126,6 +127,13 @@ export const buildEdgeFadeMask = (
   return `linear-gradient(to right, ${start}, ${end})`
 }
 
+/**
+ * A pointer press must not move focus to the chevron — see CHEVRON_CLASS below.
+ * Cancelling the default on mousedown is what stops the browser focusing it,
+ * and it leaves the click itself, and every keyboard path, untouched.
+ */
+const preventFocusOnPress = (event: MouseEvent) => event.preventDefault()
+
 const MEDIA_BOX_CLASS =
   'relative block cursor-zoom-in overflow-hidden rounded-xl border border-border/60 bg-muted/20'
 
@@ -150,12 +158,17 @@ const STRIP_FOCUS_CLASS =
   'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring/50'
 
 /**
- * The chevrons are POINTER affordances and deliberately sit outside the tab
- * order. They duplicate no function — every picture is a focusable button and
- * focusing one scrolls it into view, which is the whole of what a chevron does
- * — and each is unmounted by the very scroll it performs, so a focused one
- * would drop focus to `<body>` on its last press and send the next Tab back to
- * the top of the page (WCAG 2.4.3).
+ * The chevrons are POINTER affordances. They duplicate no function — every
+ * picture is a focusable button and focusing one scrolls it into view, which is
+ * the whole of what a chevron does — and each is unmounted by the very scroll
+ * it performs, so a chevron holding focus would drop it to `<body>` on its last
+ * press and send the next Tab back to the top of the page (WCAG 2.4.3).
+ *
+ * Keeping them out of the tab order takes BOTH `tabIndex={-1}` and the
+ * mousedown guard below. `tabindex="-1"` removes an element from the SEQUENTIAL
+ * tab order only; it stays click-focusable, and Chrome and Firefox focus a
+ * `<button>` on click, so the mouse path reaches the same dropped focus the
+ * keyboard path avoids.
  */
 const CHEVRON_CLASS =
   'absolute top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full border bg-popover text-foreground shadow-sm hover:bg-muted'
@@ -327,6 +340,7 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
               type="button"
               tabIndex={-1}
               aria-label="Previous media"
+              onMouseDown={preventFocusOnPress}
               onClick={(event) => {
                 event.stopPropagation()
                 strip.scrollByPage(-1)
@@ -351,6 +365,7 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
               type="button"
               tabIndex={-1}
               aria-label="More media"
+              onMouseDown={preventFocusOnPress}
               onClick={(event) => {
                 event.stopPropagation()
                 strip.scrollByPage(1)

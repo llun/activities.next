@@ -21,12 +21,20 @@ interface Props {
   attachment?: Attachment
   showVideoControl?: boolean
   /**
-   * Pass `'lazy'` from a surface that renders an unbounded number of images at
+   * Pass `'lazy'` from a surface that renders an unbounded number of media at
    * once — a post's media strip holds every attachment, so a photo dump is
    * otherwise a request per photo for pictures nobody has scrolled to. Leave it
    * unset for a surface showing one image: an in-viewport lazy image is fetched
    * at a lower priority, which is exactly the wrong trade for a post's largest
    * element.
+   *
+   * It reaches a video as `preload="none"`, since `loading` is an image-only
+   * attribute: left alone a `<video>` defaults to fetching `metadata`, so a
+   * strip of twenty clips is twenty range requests for videos nobody has
+   * scrolled to. The `poster` is fetched either way — nothing declarative
+   * defers it — but that is one image request each, the same as a photo, and
+   * the strip's videos hide their controls anyway, so losing the preloaded
+   * duration costs nothing here.
    */
   loading?: 'lazy' | 'eager'
   onClick?: (event: MouseEvent) => void
@@ -140,6 +148,7 @@ export const Media: FC<Props> = ({
         width={width}
         height={height}
         poster={poster}
+        preload={loading === 'lazy' ? 'none' : undefined}
         controls={showVideoControl}
         onClick={(event) => {
           // Don't play the video here

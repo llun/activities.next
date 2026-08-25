@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { createEvent, fireEvent, render, screen } from '@testing-library/react'
 
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
@@ -27,6 +27,10 @@ afterEach(() => {
 })
 
 const currentTime = new Date('2026-04-26T10:00:00.000Z').getTime()
+
+// Enough for `Media` to take its blurhash branch, which is the one every
+// locally uploaded image actually renders through.
+const BLURHASH = 'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
 
 let attachmentSequence = 0
 
@@ -151,6 +155,26 @@ describe('Attachments', () => {
         description: 'treats negative dimensions as unknown',
         width: -800,
         height: -600
+      },
+      {
+        description: 'treats a missing width alone as unknown',
+        width: undefined,
+        height: 600
+      },
+      {
+        description: 'treats a missing height alone as unknown',
+        width: 800,
+        height: undefined
+      },
+      {
+        description: 'treats a negative width alone as unknown',
+        width: -800,
+        height: 600
+      },
+      {
+        description: 'treats a negative height alone as unknown',
+        width: 800,
+        height: -600
       }
     ])('$description', ({ width, height }) => {
       // Several media-storage paths persist `metaData.width ?? 0`, so a real
@@ -217,18 +241,27 @@ describe('Attachments', () => {
       expect(screen.getByRole('button').style.width).toBe('min(100%, 44px)')
     })
 
-    it('loads a lone picture eagerly, as the largest element on the post', () => {
-      const { container } = render(
-        <Attachments
-          status={buildNoteStatus([
-            buildAttachment({ width: 800, height: 600 })
-          ])}
-          onMediaSelected={vi.fn()}
-        />
-      )
+    it.each([
+      { description: 'a plain image', blurhash: undefined },
+      {
+        description: 'an image with a blurhash placeholder',
+        blurhash: BLURHASH
+      }
+    ])(
+      'loads $description eagerly when alone, being the largest element',
+      ({ blurhash }) => {
+        const { container } = render(
+          <Attachments
+            status={buildNoteStatus([
+              buildAttachment({ width: 800, height: 600, blurhash })
+            ])}
+            onMediaSelected={vi.fn()}
+          />
+        )
 
-      expect(container.querySelector('img')).not.toHaveAttribute('loading')
-    })
+        expect(container.querySelector('img')).not.toHaveAttribute('loading')
+      }
+    )
 
     it('renders no scroll strip', () => {
       render(
@@ -253,6 +286,37 @@ describe('Attachments', () => {
       buildAttachment({ width: 600, height: 900 }),
       buildAttachment({ width: 1200, height: 500 })
     ]
+
+    it('lays items out at their own width instead of letting them shrink', () => {
+      // `flex-none` is the single declaration that makes the strip overflow.
+      // Without it the default flex-shrink squeezes every item to fit, so
+      // scrollWidth === clientWidth forever: no chevrons, no fade, no peek, no
+      // scrolling, and every photo cropped. jsdom lays nothing out, so the
+      // class itself is what can be pinned here.
+      render(
+        <Attachments
+          status={buildNoteStatus(buildThreeImages())}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      screen
+        .getAllByRole('button')
+        .forEach((item) => expect(item).toHaveClass('flex-none'))
+    })
+
+    it('crops rather than letterboxes, which the ratio clamp relies on', () => {
+      const { container } = render(
+        <Attachments
+          status={buildNoteStatus(buildThreeImages())}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      Array.from(container.querySelectorAll('img')).forEach((image) =>
+        expect(image).toHaveClass('object-cover')
+      )
+    })
 
     it('renders a labelled scroll strip', () => {
       render(
@@ -309,12 +373,21 @@ describe('Attachments', () => {
       expect(button?.style.scrollSnapAlign).toBe('start')
     })
 
-    it('lazy-loads strip images, which are now uncapped', () => {
+    // Both branches of `Media`: a locally uploaded image always carries a
+    // blurhash, so asserting only the plain <img> would pin the branch
+    // production does not take.
+    it.each([
+      { description: 'a plain image', blurhash: undefined },
+      {
+        description: 'an image with a blurhash placeholder',
+        blurhash: BLURHASH
+      }
+    ])('lazy-loads $description in the uncapped strip', ({ blurhash }) => {
       const { container } = render(
         <Attachments
           status={buildNoteStatus([
-            buildAttachment({ width: 800, height: 600 }),
-            buildAttachment({ width: 800, height: 600 })
+            buildAttachment({ width: 800, height: 600, blurhash }),
+            buildAttachment({ width: 800, height: 600, blurhash })
           ])}
           onMediaSelected={vi.fn()}
         />
@@ -383,6 +456,65 @@ describe('Attachments', () => {
       expect(audioElement?.parentElement).toHaveClass('flex', 'items-start')
       expect(screen.queryByRole('group')).not.toBeInTheDocument()
       expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('video attachments', () => {
+    it('lays a video out in the strip like any other picture', () => {
+      const { container } = render(
+        <Attachments
+          status={buildNoteStatus([
+            buildAttachment({
+              mediaType: 'video/mp4',
+              width: 1200,
+              height: 500
+            }),
+            buildAttachment({ width: 800, height: 600 })
+          ])}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      const [video] = screen.getAllByRole('button')
+      expect(video.style.width).toBe('576px')
+      expect(container.querySelector('video')).toBeInTheDocument()
+    })
+
+    it('defers a strip video the way it defers a strip image', () => {
+      // `loading` is image-only, so an unbounded strip of videos would
+      // otherwise be one metadata range request per clip.
+      const { container } = render(
+        <Attachments
+          status={buildNoteStatus([
+            buildAttachment({
+              mediaType: 'video/mp4',
+              width: 800,
+              height: 600
+            }),
+            buildAttachment({ mediaType: 'video/mp4', width: 800, height: 600 })
+          ])}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      const videos = Array.from(container.querySelectorAll('video'))
+      expect(videos).toHaveLength(2)
+      videos.forEach((video) =>
+        expect(video).toHaveAttribute('preload', 'none')
+      )
+    })
+
+    it('does not defer a lone video, the largest element on the post', () => {
+      const { container } = render(
+        <Attachments
+          status={buildNoteStatus([
+            buildAttachment({ mediaType: 'video/mp4', width: 800, height: 600 })
+          ])}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      expect(container.querySelector('video')).not.toHaveAttribute('preload')
     })
   })
 
@@ -576,6 +708,32 @@ describe('Attachments', () => {
       expect(strip.style.maskImage).toContain('48px')
     })
 
+    it.each([
+      { description: 'the forward chevron', name: 'More media' },
+      { description: 'the back chevron', name: 'Previous media' }
+    ])('$description does not take focus from a pointer press', ({ name }) => {
+      // tabIndex={-1} only removes it from the SEQUENTIAL tab order; Chrome
+      // and Firefox still focus a button on click, and the chevron is
+      // unmounted by its own scroll, which would drop focus to <body>.
+      renderScrolledStrip({ scrollLeft: 250 })
+
+      const chevron = screen.getByRole('button', { name })
+      const event = createEvent.mouseDown(chevron)
+      fireEvent(chevron, event)
+
+      expect(event.defaultPrevented).toBe(true)
+    })
+
+    it('keeps the forward chevron visible without a pointer', () => {
+      // group-hover never latches on a touch screen, so hover-gating this one
+      // would make the "there is more" cue permanently invisible there.
+      renderScrolledStrip({ scrollLeft: 250 })
+
+      const forward = screen.getByRole('button', { name: 'More media' })
+      expect(forward.className).not.toContain('opacity-0')
+      expect(forward.className).not.toContain('pointer-events-none')
+    })
+
     it('keeps both chevrons out of the tab order', () => {
       // Each is unmounted by the scroll it performs, so a focused one would
       // drop focus to <body>; the picture buttons are the keyboard path.
@@ -661,6 +819,66 @@ describe('Attachments', () => {
         left: expectedLeft,
         behavior: 'smooth'
       })
+    })
+  })
+
+  it('opens the lightbox on the lone picture itself', () => {
+    // MediasModal reads initialSelection with no wrapping, so an index past the
+    // end throws rather than showing a blank slide.
+    const attachment = buildAttachment({ width: 800, height: 600 })
+    const onMediaSelected = vi.fn()
+    render(
+      <Attachments
+        status={buildNoteStatus([attachment])}
+        onMediaSelected={onMediaSelected}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button'))
+
+    expect(onMediaSelected).toHaveBeenCalledWith([attachment], 0)
+  })
+
+  describe('focus indicators', () => {
+    // This indicator has been got wrong twice — an outset ring clipped by the
+    // strip's own overflow, then an inset ring painted underneath the opaque
+    // image — so the spelling is pinned rather than left to a future reader.
+    it('gives a strip item an outline drawn inside its border box', () => {
+      render(
+        <Attachments
+          status={buildNoteStatus([
+            buildAttachment({ width: 800, height: 600 }),
+            buildAttachment({ width: 800, height: 600 })
+          ])}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      const [item] = screen.getAllByRole('button')
+      expect(item).toHaveClass(
+        'focus-visible:outline-2',
+        'focus-visible:-outline-offset-2',
+        'focus-visible:outline-ring/50'
+      )
+      // An outset ring would be clipped and an inset one occluded.
+      expect(item.className).not.toContain('focus-visible:ring-')
+    })
+
+    it('leaves a lone picture the ordinary outset ring', () => {
+      render(
+        <Attachments
+          status={buildNoteStatus([
+            buildAttachment({ width: 800, height: 600 })
+          ])}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      // Not inside an overflow container, so nothing clips it.
+      expect(screen.getByRole('button')).toHaveClass(
+        'focus-visible:ring-2',
+        'focus-visible:ring-ring/50'
+      )
     })
   })
 

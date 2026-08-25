@@ -177,6 +177,13 @@ describe('useMediaStripScroll', () => {
   // own dead zone sits at 500 - SCROLL_EDGE_TOLERANCE.
   const MAX_SCROLL_LEFT = 500
 
+  it('keeps the dead zone at 8px', () => {
+    // Asserted as a literal: deriving the boundary cases below from the
+    // constant makes them pass against any value, including 0, which would
+    // remove the dead zone the constant exists for.
+    expect(SCROLL_EDGE_TOLERANCE).toBe(8)
+  })
+
   it.each([
     {
       description: 'does not enable left scroll exactly at the tolerance',

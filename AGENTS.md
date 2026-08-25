@@ -1653,8 +1653,9 @@ system's `Attachments` component.
   each item as wide as its own ratio makes it. Three details are load-bearing
   and must not be "cleaned up":
   - `STRIP_ITEM_MAX_WIDTH` (78%) means no item can fill the strip, so the next
-    one always peeks past the edge. That peek — not the chevrons, which need a
-    pointer — is what says "this scrolls" on a touch screen.
+    one always peeks past the edge. That peek is what says "this scrolls" on a
+    touch screen, where the back chevron never appears at all and the forward
+    one is easy to miss.
   - `scroll-snap-type: x proximity`, never `mandatory`: mandatory snapping pulls
     the peeking item flush with the edge as soon as the scroll settles and
     destroys the affordance the 78% cap creates.
@@ -1676,11 +1677,12 @@ system's `Attachments` component.
   so a fade painted in any one token is visibly wrong on the other three, and a
   literal white one is wrong in dark mode everywhere. A mask fades the strip's
   own pixels and lets whatever is behind show through. It lives in
-  `buildEdgeFadeMask` rather than inline because it is the one part of the strip
-  a test cannot read back off the node: jsdom's CSS parser rejects a gradient
-  carrying `calc()` and stores nothing. Known cosmetic cost: the mask also fades
-  the outer edge of a focused item's ring when that item is flush against a
-  scrollable edge.
+  `buildEdgeFadeMask` rather than inline so the string itself is unit-testable:
+  jsdom's CSS parser rejects the two variants carrying `calc()` and stores
+  nothing for them, so a RENDERED node can only be asserted against the
+  left-edge-only form. Known cosmetic cost: the mask also fades the leading edge
+  of a focused item's outline, which is exactly where the browser scrolls a
+  Tab-focused item to.
 - **A strip item's focus indicator is an `outline` with a NEGATIVE offset, not
   a ring.** Its border box is exactly the strip's height and `overflow-x-auto`
   forces `overflow-y` to compute to `auto`, so an OUTSET ring's top and bottom
