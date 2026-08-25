@@ -71,11 +71,15 @@ const YouTubeLinkPreviewCard: FC<YouTubeLinkPreviewCardProps> = ({
   video,
   className
 }) => {
-  // Keyed on the video rather than a bare boolean, so a card replaced in place
-  // (an edit, or a feed row reused for another post) cannot inherit the
-  // previous one's consent: `isPlaying` is false for the new video from its
-  // first render. Resetting a boolean in an effect instead would leave one
-  // painted frame in which a video nobody clicked was already autoplaying.
+  // Defence in depth, NOT the mechanism: what actually clears a reader's
+  // consent when the linked video changes is the `key` this component is
+  // mounted under (see the dispatcher), which remounts it with this back at
+  // `null`. Comparing against a remembered id was the original mechanism and
+  // was not enough — it defended A→B but not A→B→A, because the id was only
+  // ever compared against, never cleared. Since the key means this component
+  // now sees exactly one videoId for its whole life, the comparison is
+  // equivalent to a boolean; it is kept so that removing the key degrades to
+  // the old one-directional guard rather than to none at all.
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null)
   // Posters are remembered by URL for the same reason — a new candidate is not
   // in the list, so the next video starts with a clean slate and no effect has
@@ -170,13 +174,17 @@ const YouTubeLinkPreviewCard: FC<YouTubeLinkPreviewCardProps> = ({
                 ? `Play video: ${linkPreview.title}`
                 : 'Play video'
             }
-            // `ring-inset` is load-bearing, not decoration: a ring is an
-            // OUTWARD box-shadow, and this button is flush with the edges of a
-            // wrapper that must clip (`overflow-hidden`, to round the video's
-            // square corners) — so an outward ring is clipped away on every
-            // flush side and the focus indicator all but disappears. Painting
-            // it inward keeps it inside the button's own box.
-            className="group absolute inset-0 flex cursor-pointer items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
+            // The focus indicator is NOT on this element — see the overlay at
+            // the end of the button. Nothing painted on the button itself
+            // survives: an outward ring is clipped by the wrapper's
+            // `overflow-hidden` (which must stay, to round the video's square
+            // corners) because the button is flush with its edges, an inward
+            // one paints below the button's own descendants, and an outline
+            // does not come out either, because the poster is an
+            // `absolute inset-0` child covering the box exactly. All three were
+            // measured on a focused button with a poster loaded: zero indicator
+            // pixels. `outline-none` is therefore deliberate, not an oversight.
+            className="group absolute inset-0 flex cursor-pointer items-center justify-center focus-visible:outline-none"
           >
             {posterUrl ? (
               // A plain <img>, not next/image: the same reason the standard
@@ -214,6 +222,14 @@ const YouTubeLinkPreviewCard: FC<YouTubeLinkPreviewCardProps> = ({
             >
               <Play className="size-8 fill-white text-white" />
             </span>
+            {/* The focus indicator, as an overlay rather than a style on the
+                button, because this is the only place it survives: painted
+                LAST, after the poster that covers the button's box, and inside
+                its own bounds so the wrapper's clip cannot take it. */}
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 ring-inset ring-ring/50 group-focus-visible:ring-2"
+            />
           </button>
         )}
       </div>
@@ -224,11 +240,13 @@ const YouTubeLinkPreviewCard: FC<YouTubeLinkPreviewCardProps> = ({
         // Defensive, and the same reason the standard card gives: every sibling
         // block that navigates stops propagation.
         onClick={(event: MouseEvent) => event.stopPropagation()}
-        // Focus styling is spelled out here rather than left to the base
-        // outline, and inset for the same reason as the button above: this
-        // anchor is flush with three edges of the clipping wrapper, and in this
-        // nested layout the native outline does not render at all.
-        className="block space-y-0.5 p-3 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
+        // Spelled out rather than left to the UA outline, which does render but
+        // is clipped on three sides: this anchor is flush with the wrapper's
+        // left, right and bottom edges. Same offset outline as the button, for
+        // one mechanism rather than two — and it needs the matching bottom
+        // radius, since a square outline inside a `rounded-xl` clip gets its
+        // corners nipped.
+        className="block space-y-0.5 rounded-b-[11px] p-3 transition-colors hover:bg-muted/40 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring/50"
       >
         {/* No publisher name beside it: on a YouTube card it only ever repeats
             the domain. The domain is the part the page cannot choose, so it is

@@ -1388,11 +1388,28 @@ it; there is no legacy shape left to copy.
   video card. `next.config.test.ts` pins that against the emptied allowlist.
   **Nothing loads from the player until the reader presses play** — a live
   iframe per row is a megabyte of player code and a Google request for every
-  video that merely scrolled past — and the play state is keyed on the video
-  id, not a boolean, so a card replaced in place cannot inherit the previous
-  video's consent and autoplay something nobody clicked. `autoplay` is set only
-  on a player the reader mounted, and must be in the iframe's `allow` list to
-  reach the frame at all. The two anatomies are **separate components** behind
+  video that merely scrolled past — and **the card is mounted under a React
+  `key` on the video id**, so a card replaced in place is REMOUNTED and cannot
+  inherit the previous video's consent and autoplay something nobody clicked.
+  Do not delete that key as redundant: the component also remembers which video
+  was played, but that alone was the original guard and it was insufficient —
+  the remembered id was only ever compared against, never cleared, so it
+  defended a change A→B and not a change back A→B→A, which re-entered the
+  playing branch with no gesture. A remount clears it in both directions, and
+  happens in the same commit, so there is still no painted frame of autoplay.
+  `autoplay` is set only on a player the reader mounted, and must be in the
+  iframe's `allow` list to reach the frame at all.
+  **The focus indicator on the facade is an `outline`, never a `ring`**, and
+  that is not a style preference: the button is flush with the edges of a
+  wrapper that must clip (`overflow-hidden`, to round the video's corners), so
+  an outward ring is clipped away, and an inward one (`ring-inset`) is painted
+  BELOW the button's own descendants — where the full-bleed poster covers the
+  padding box exactly and hides it whenever a thumbnail loaded. Both were
+  shipped and both were invisible. An outline paints above content, and a
+  negative offset keeps it inside the clip. Verify a focus change by
+  screenshotting the focused element **with a poster loaded**, not by reading
+  `getComputedStyle` — a box-shadow that is computed is not a box-shadow that
+  is painted. The two anatomies are **separate components** behind
   one exported `LinkPreviewCard`, so React swaps component type rather than
   reordering hooks. The Mastodon `card.html`/`embed_url` stay empty regardless:
   the embed URL is built in the browser, so this is not oEmbed consumption.
