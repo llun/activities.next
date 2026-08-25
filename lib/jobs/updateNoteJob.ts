@@ -18,7 +18,11 @@ import {
   VideoContent
 } from '@/lib/types/activitypub'
 import { StatusType } from '@/lib/types/domain/status'
-import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
+import {
+  normalizeActivityPubContent,
+  normalizeActorId
+} from '@/lib/utils/activitypub'
+import { logger } from '@/lib/utils/logger'
 
 import { createJobHandle } from './createJobHandle'
 import { createNoteJob } from './createNoteJob'
@@ -45,6 +49,27 @@ export const updateNoteJob = createJobHandle(
       withReplies: false
     })
     if (!existingStatus || existingStatus.type !== StatusType.enum.Note) {
+      return
+    }
+
+    // An Update may only be applied by the note's OWN author. Routing verifies
+    // the payload's `attributedTo` against the signer (`getJobMessage`'s
+    // `createObjectActorMismatch`), which an attacker satisfies by attributing
+    // the payload to themselves while pointing `id` at someone else's status —
+    // so without this the target is resolved by `note.id` alone and any
+    // federated actor can rewrite the text of any stored status, local users
+    // included, complete with a `status_history` revision that makes the
+    // defacement read as a genuine edit by the victim.
+    if (
+      normalizeActorId(note.attributedTo) !==
+      normalizeActorId(existingStatus.actorId)
+    ) {
+      logger.warn({
+        message: 'Ignoring an Update for a status the sender does not own',
+        statusId: note.id,
+        statusActorId: existingStatus.actorId,
+        updateActorId: note.attributedTo
+      })
       return
     }
 
@@ -96,12 +121,12 @@ export const updateNoteJob = createJobHandle(
       database,
       note,
       actorId: existingStatus.actorId,
-      storeNote: (fetchedQuotedNote) =>
+      storeNote: (fetchedQuotedNote, bound) =>
         createNoteJob(database, {
           id: fetchedQuotedNote.id,
           name: CREATE_NOTE_JOB_NAME,
           data: fetchedQuotedNote,
-          skipQuoteResolution: true
+          ...bound
         })
     })
 

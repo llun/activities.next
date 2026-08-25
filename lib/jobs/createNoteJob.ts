@@ -143,12 +143,12 @@ export const createNoteJob = createJobHandle(
             database,
             note,
             quotedStatusId,
-            storeNote: (fetchedQuotedNote) =>
+            storeNote: (fetchedQuotedNote, bound) =>
               createNoteJob(database, {
                 id: fetchedQuotedNote.id,
                 name: CREATE_NOTE_JOB_NAME,
                 data: fetchedQuotedNote,
-                skipQuoteResolution: true
+                ...bound
               })
           })
       // Derive and write the edge. An edge may already exist here (e.g. we

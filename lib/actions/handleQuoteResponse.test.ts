@@ -3,6 +3,12 @@ import type { Database } from '@/lib/database/types'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
 
+const mockVerifyStamp = vi.fn()
+vi.mock('@/lib/services/quotes/verifyRemoteQuote', () => ({
+  verifyQuoteAuthorizationStamp: (...params: unknown[]) =>
+    mockVerifyStamp(...params)
+}))
+
 vi.mock('@/lib/services/queue', () => ({
   getQueue: vi.fn().mockReturnValue({
     publish: vi.fn().mockResolvedValue(undefined)
@@ -45,7 +51,10 @@ const makeDatabase = (
   }) as unknown as Database
 
 describe('handleQuoteResponse', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockVerifyStamp.mockResolvedValue(true)
+  })
 
   it('accepts a matching outbound quote from the quoted authority, storing the stamp and re-federating', async () => {
     const updateSpy = vi.fn().mockResolvedValue(null)
@@ -109,6 +118,59 @@ describe('handleQuoteResponse', () => {
 
     expect(handled).toBe(false)
     expect(updateSpy).not.toHaveBeenCalled()
+  })
+
+  it("does not store a result that does not verify as this edge's stamp", async () => {
+    // `result` is remote-supplied and only same-host checked, so a hostile
+    // quoted author could pass off any co-resident id — an actor, a status — as
+    // the stamp. `deleteObjectJob` matches stored stamps when deciding whether
+    // an inbound Delete is a quote revocation, so an unverified value planted
+    // here swallows that object's own legitimate Delete.
+    mockVerifyStamp.mockResolvedValue(false)
+    const updateSpy = vi.fn().mockResolvedValue(null)
+    const database = makeDatabase({ updateSpy })
+
+    await handleQuoteResponse({
+      database,
+      verifiedSenderActorId: QUOTED_AUTHOR,
+      activity: {
+        type: 'Accept',
+        actor: QUOTED_AUTHOR,
+        object: QUOTE_REQUEST_ID,
+        result: `${QUOTED_AUTHOR}/statuses/not-a-stamp`
+      }
+    })
+
+    // Still accepted — it simply carries no stamp to re-federate.
+    expect(updateSpy).toHaveBeenCalledWith({
+      statusId: QUOTING_STATUS_ID,
+      state: 'accepted',
+      authorizationUri: undefined
+    })
+  })
+
+  it('verifies the stamp against this edge, not merely its host', async () => {
+    const database = makeDatabase({})
+
+    await handleQuoteResponse({
+      database,
+      verifiedSenderActorId: QUOTED_AUTHOR,
+      activity: {
+        type: 'Accept',
+        actor: QUOTED_AUTHOR,
+        object: QUOTE_REQUEST_ID,
+        result: STAMP_URI
+      }
+    })
+
+    expect(mockVerifyStamp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stampUri: STAMP_URI,
+        quotedAuthorId: QUOTED_AUTHOR,
+        quotingStatusId: QUOTING_STATUS_ID,
+        quotedStatusId: QUOTED_STATUS_ID
+      })
+    )
   })
 
   it('does not store a stamp hosted on a foreign authority', async () => {

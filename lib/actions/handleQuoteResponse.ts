@@ -1,6 +1,7 @@
 import { Database } from '@/lib/database/types'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
+import { verifyQuoteAuthorizationStamp } from '@/lib/services/quotes/verifyRemoteQuote'
 import { getOriginalStatus } from '@/lib/types/domain/status'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -92,9 +93,25 @@ export const handleQuoteResponse = async ({
 
   if (type === 'Accept') {
     const stampUri = refId(record.result)
-    // Only store a stamp hosted under the quoted author's own authority.
+    // Store the stamp only once it is confirmed to BE one: hosted under the
+    // quoted author's authority AND dereferencing to a QuoteAuthorization whose
+    // three FEP-044f fields match this exact edge. A same-host check alone let a
+    // hostile quoted author pass off any co-resident id — an actor or a status —
+    // as the stamp, which `deleteObjectJob` then matches when deciding whether
+    // an inbound Delete is a quote revocation. Failing verification still leaves
+    // the quote accepted; it just carries no stamp to re-federate.
     const authorizationUri =
-      stampUri && sameHost(stampUri, edge.quotedStatusId) ? stampUri : undefined
+      stampUri &&
+      sameHost(stampUri, edge.quotedStatusId) &&
+      (await verifyQuoteAuthorizationStamp({
+        database,
+        stampUri,
+        quotedAuthorId,
+        quotingStatusId: edge.statusId,
+        quotedStatusId: edge.quotedStatusId
+      }))
+        ? stampUri
+        : undefined
     await database.updateStatusQuoteState({
       statusId: edge.statusId,
       state: 'accepted',

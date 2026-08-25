@@ -10,7 +10,17 @@ import { toLoggableError } from '@/lib/utils/toLoggableError'
 // Stores a quoted note this instance fetched. Injected by the caller because
 // storing one means running the inbound Create path, which lives in
 // `lib/jobs/createNoteJob` — importing it here would close a cycle.
-export type StoreFetchedQuotedNote = (note: BaseNote) => Promise<void>
+//
+// The `bound` argument is supplied BY the resolver and must be forwarded into
+// the stored note's job message: it is what stops that note from chasing its
+// own quote target, so an attacker-controlled chain of quoting notes (A quotes
+// B quotes C …) cannot drive unbounded recursive fetches. Passing it in rather
+// than letting each call site remember it keeps the bound with the code that
+// does the fetching.
+export type StoreFetchedQuotedNote = (
+  note: BaseNote,
+  bound: { skipQuoteResolution: true }
+) => Promise<void>
 
 type PersistInboundQuoteEdgeParams = {
   database: Database
@@ -76,8 +86,23 @@ export const resolveInboundQuotedStatus = async ({
       signingActor
     })
     if (!fetchedQuotedNote) return null
-    await storeNote(fetchedQuotedNote)
-    return database.getStatus({ statusId: quotedStatusId, withReplies: false })
+    // A redirect or alias must not let a different note stand in for the id we
+    // asked for — the same guard `verifyQuoteInstrument` applies. Without it the
+    // fetched document names its own id and author, so a quoter could point at a
+    // decoy that answers with `attributedTo: <someone else>` and have this
+    // instance store, attribute and fan out a status that actor never wrote.
+    // Nothing downstream re-checks: the note reaches `createNoteJob` with no
+    // verified sender, which fail-opens `actorMatchesVerifiedSender`.
+    if (fetchedQuotedNote.id !== quotedStatusId) return null
+    await storeNote(fetchedQuotedNote, { skipQuoteResolution: true })
+    // `return await`, never a bare `return` of the promise: inside a `try` the
+    // latter settles this function's promise after the catch frame is gone, so
+    // a rejection here would escape and throw out of the inbound job — orphaning
+    // a note that was already committed but never reached a timeline.
+    return await database.getStatus({
+      statusId: quotedStatusId,
+      withReplies: false
+    })
   } catch (error) {
     logger.warn({
       message:

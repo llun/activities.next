@@ -1,8 +1,14 @@
 import { compactActivityPub } from '@/lib/activities/jsonld'
 import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
-import { getQuoteNoteFields } from '@/lib/activities/quoteNoteFields'
+import {
+  getInteractionPolicyFields,
+  getQuoteNoteFields
+} from '@/lib/activities/quoteNoteFields'
 import { StatusQuote } from '@/lib/types/domain/status'
-import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
+import {
+  ACTIVITY_STREAM_PUBLIC,
+  ACTIVITY_STREAM_URL
+} from '@/lib/utils/activitystream'
 
 const QUOTED_STATUS_ID = 'https://remote.test/users/alice/statuses/1'
 const STAMP_URI = 'https://remote.test/users/alice/quote_authorizations/abc'
@@ -77,7 +83,15 @@ describe('quote fields under JSON-LD compaction', () => {
     content: 'quoting',
     ...getQuoteNoteFields(
       edge({ state: 'accepted', authorizationUri: STAMP_URI })
-    )
+    ),
+    // Rides on EVERY note, quoting or not, which is why the context swap is
+    // unconditional — so the terms behind it need guarding just as much as the
+    // quote aliases do.
+    ...getInteractionPolicyFields({
+      actorId: 'https://llun.test/users/me',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
   })
 
   it('survives a receiver that compacts when the note declares QUOTE_ACTIVITY_CONTEXT', async () => {
@@ -86,9 +100,16 @@ describe('quote fields under JSON-LD compaction', () => {
     )) as Record<string, unknown>
 
     expect(result.quote).toBe(QUOTED_STATUS_ID)
+    expect(result.quoteUrl).toBe(QUOTED_STATUS_ID)
     expect(result.quoteUri).toBe(QUOTED_STATUS_ID)
     expect(result._misskey_quote).toBe(QUOTED_STATUS_ID)
     expect(result.quoteAuthorization).toBe(STAMP_URI)
+    expect(result.interactionPolicy).toEqual({
+      canQuote: {
+        automaticApproval: ['as:Public'],
+        manualApproval: []
+      }
+    })
   })
 
   it('is dropped when the note declares only the ActivityStreams context', async () => {
@@ -101,6 +122,10 @@ describe('quote fields under JSON-LD compaction', () => {
 
     expect(result.content).toBe('quoting')
     expect(result.quote).toBeUndefined()
+    expect(result.quoteUrl).toBeUndefined()
+    expect(result.quoteUri).toBeUndefined()
+    expect(result._misskey_quote).toBeUndefined()
     expect(result.quoteAuthorization).toBeUndefined()
+    expect(result.interactionPolicy).toBeUndefined()
   })
 })

@@ -37,6 +37,37 @@ const sameAuthority = (a: string, b: string): boolean => {
 }
 
 /**
+ * Confirm a stamp uri really is a QuoteAuthorization the quoted author issued
+ * for this exact (quoting note → quoted status) pair. Shared with the quoter
+ * side of the handshake, which must not store a `result` it never checked: the
+ * uri is remote-supplied, and `authorizationUri` is matched by `deleteObjectJob`
+ * when deciding whether a Delete is a quote revocation.
+ */
+export const verifyQuoteAuthorizationStamp = async ({
+  database,
+  stampUri,
+  quotedAuthorId,
+  quotingStatusId,
+  quotedStatusId
+}: {
+  database: Database
+  stampUri: string
+  quotedAuthorId: string
+  quotingStatusId: string
+  quotedStatusId: string
+}): Promise<boolean> => {
+  if (!sameAuthority(stampUri, quotedAuthorId)) return false
+  const stamp = await fetchQuoteAuthorization(database, stampUri)
+  if (!stamp) return false
+  return (
+    sameAuthority(stamp.id, quotedAuthorId) &&
+    stamp.attributedTo === quotedAuthorId &&
+    stamp.interactingObject === quotingStatusId &&
+    stamp.interactionTarget === quotedStatusId
+  )
+}
+
+/**
  * Fetch and validate the FEP-044f QuoteAuthorization stamp. Signed with the
  * headless instance actor (every s2s fetch uses the instance signer), compacted,
  * and safe-parsed. Any failure yields null so the caller degrades to `pending`.

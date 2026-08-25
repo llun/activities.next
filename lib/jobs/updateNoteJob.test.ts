@@ -1,5 +1,6 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { createNoteJob } from '@/lib/jobs/createNoteJob'
 import { CREATE_NOTE_JOB_NAME, UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
@@ -343,6 +344,42 @@ describe('updateNoteJob', () => {
       0
     )
   })
+  it('refuses an Update for a status the sender does not author', async () => {
+    // Routing only checks the payload's attributedTo against the SIGNER, which
+    // an attacker satisfies by attributing it to themselves while pointing `id`
+    // at the victim's status. Without an owner check any federated actor can
+    // rewrite the text of any stored status — local users included — and the
+    // edit is recorded as a genuine revision by the victim.
+    const victimNote = MockMastodonActivityPubNote({
+      id: `${EXTERNAL_ACTOR1}/statuses/owned-by-victim`,
+      from: EXTERNAL_ACTOR1,
+      content: '<p>original</p>'
+    })
+    await createNoteJob(database, {
+      id: 'create-owned-by-victim',
+      name: CREATE_NOTE_JOB_NAME,
+      data: victimNote,
+      verifiedSenderActorId: EXTERNAL_ACTOR1
+    })
+
+    await updateNoteJob(database, {
+      id: 'update-defacement',
+      name: UPDATE_NOTE_JOB_NAME,
+      data: {
+        ...victimNote,
+        attributedTo: 'https://evil.example/users/mallory',
+        content: '<p>DEFACED by mallory</p>'
+      },
+      verifiedSenderActorId: 'https://evil.example/users/mallory'
+    })
+
+    const status = (await database.getStatus({
+      statusId: victimNote.id
+    })) as Status
+    expect(status.text).toEqual('<p>original</p>')
+    expect(status.actorId).toEqual(EXTERNAL_ACTOR1)
+  })
+
   describe('quote edge re-verification', () => {
     // A quoter re-federates its note as an Update the moment the quoted author
     // Accepts, so the stamp reaches the receiver on the Update rather than the
@@ -608,6 +645,88 @@ describe('updateNoteJob', () => {
       const edge = await database.getStatusQuote({ statusId: quotingStatusId })
       expect(edge).toMatchObject({ state: 'accepted' })
       expect(edge?.authorizationUri).toBe(stampUri)
+    })
+
+    it('bounds the quoted-note fetch to a single hop', async () => {
+      // The stored quoted note must not chase its OWN quote target, or a chain
+      // of quoting notes (A quotes B quotes C …) drives unbounded recursive
+      // fetches. The Create path has always been bounded; this pins the newly
+      // added Update path, where the bound is forwarded from the resolver.
+      const quotedAuthorId = 'https://somewhere.test/users/chainauthor'
+      const quotedStatusId = `${quotedAuthorId}/statuses/quoted-chain`
+      const nextHopId = `${quotedAuthorId}/statuses/next-hop-should-not-fetch`
+      const quotingStatusId = `${EXTERNAL_ACTOR1}/statuses/quoting-chain`
+      const note = {
+        ...MockMastodonActivityPubNote({
+          id: quotingStatusId,
+          from: EXTERNAL_ACTOR1,
+          content: 'head of the chain'
+        }),
+        quote: quotedStatusId
+      }
+      await createNoteJob(database, {
+        id: 'create-chain',
+        name: CREATE_NOTE_JOB_NAME,
+        data: note,
+        verifiedSenderActorId: EXTERNAL_ACTOR1
+      })
+
+      const stampUri = buildQuoteAuthorizationUri(
+        quotedAuthorId,
+        quotingStatusId
+      )
+      // The quoted note itself quotes something else AND carries its own stamp,
+      // so an unbounded resolver would fetch the next hop too.
+      const quotedNoteBody = JSON.stringify({
+        ...MockMastodonActivityPubNote({
+          id: quotedStatusId,
+          from: quotedAuthorId,
+          content: 'middle of the chain'
+        }),
+        // QUOTE_ACTIVITY_CONTEXT, not the bare AS2 one: getNote compacts what it
+        // fetches, so under a context that does not define these terms they are
+        // stripped and the chain cannot recurse at all — which would make this
+        // test pass for the wrong reason.
+        '@context': QUOTE_ACTIVITY_CONTEXT,
+        quote: nextHopId,
+        quoteAuthorization: buildQuoteAuthorizationUri(
+          quotedAuthorId,
+          quotedStatusId
+        )
+      })
+      fetchMock.mockResponse(async (req) => {
+        const { pathname } = new URL(req.url)
+        if (pathname.includes('/quote_authorizations/')) {
+          return {
+            status: 200,
+            body: JSON.stringify(
+              buildQuoteAuthorizationObject({
+                stampUri,
+                attributedTo: quotedAuthorId,
+                interactingObject: quotingStatusId,
+                interactionTarget: quotedStatusId
+              })
+            )
+          }
+        }
+        if (pathname.includes('/statuses/quoted-chain')) {
+          return { status: 200, body: quotedNoteBody }
+        }
+        return { status: 404, body: '' }
+      })
+
+      await updateNoteJob(database, {
+        id: 'update-chain',
+        name: UPDATE_NOTE_JOB_NAME,
+        data: { ...note, quoteAuthorization: stampUri }
+      })
+
+      const fetchedUrls = fetchMock.mock.calls.map((call) => String(call[0]))
+      expect(fetchedUrls.some((url) => url.includes('quoted-chain'))).toBe(true)
+      // The second hop is never dereferenced.
+      expect(
+        fetchedUrls.some((url) => url.includes('next-hop-should-not-fetch'))
+      ).toBe(false)
     })
 
     it('refuses an Update that re-points the quote at a different target', async () => {

@@ -69,10 +69,15 @@ export const deleteObjectJob = createJobHandle(
               state: 'revoked'
             })
             span.setAttribute('revokedQuoteStatusId', edge.statusId)
-          } else {
-            span.setAttribute('quoteRevocationSenderMismatch', true)
+            return
           }
-          return
+          // Sender is not the quoted author, so this is not a revocation of
+          // that quote. Fall THROUGH to the normal delete paths rather than
+          // returning: `authorizationUri` is a remote-supplied value (an Accept
+          // stores its `result` after only a same-host check), so a hostile
+          // quoted author can plant an actor or status id there and have this
+          // branch swallow that object's own legitimate Delete forever.
+          span.setAttribute('quoteRevocationSenderMismatch', true)
         }
       }
 
