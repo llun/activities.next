@@ -24,6 +24,7 @@ import { saveFitnessFile } from '@/lib/services/fitness-files'
 import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
 import { withImportLock } from '@/lib/services/fitness-files/importLock'
 import { linkFitnessFileDeviceGear } from '@/lib/services/fitness-gears/resolveDeviceGear'
+import { getSavedMediaAttachmentMetadata } from '@/lib/services/medias/attachmentMediaMetadata'
 import { MAX_IMPORTED_ACTIVITY_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { saveMedia } from '@/lib/services/medias/index'
 import { getActivityImportGroupKey } from '@/lib/services/notifications/activityImportGroupKey'
@@ -330,7 +331,8 @@ const attachStravaPhotosToStatus = async ({
         width: storedMedia.meta.original.width,
         height: storedMedia.meta.original.height,
         name: attachmentName,
-        mediaId: storedMedia.id
+        mediaId: storedMedia.id,
+        ...getSavedMediaAttachmentMetadata(storedMedia)
       })
       attachmentNames.add(attachmentName)
       attachedCount += 1

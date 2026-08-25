@@ -55,6 +55,26 @@ export const Attachment = z.object({
 
 export type Attachment = z.infer<typeof Attachment>
 
+/**
+ * The columns an `attachments` row snapshots from the `medias` row it points
+ * at: the BlurHash placeholder, the focal point, and the stored thumbnail's
+ * public URL.
+ *
+ * The snapshot is what every reader actually serves — `getMastodonAttachment`
+ * below and the timeline's `Media` component both read the attachment row, not
+ * the media row — so any path that writes an attachment has to fill these in
+ * or the post renders without a placeholder and serialises `blurhash: null`.
+ *
+ * Every field is required rather than optional so a new write path cannot
+ * quietly omit one. `@/lib/services/medias/attachmentMediaMetadata` resolves
+ * them.
+ */
+export interface AttachmentMediaMetadata {
+  blurhash: string | null
+  focus: { x: number; y: number } | null
+  thumbnailUrl: string | null
+}
+
 const getPathnameFromUrl = (value: string) => {
   try {
     return new URL(value, 'https://local.invalid').pathname.toLowerCase()
@@ -145,6 +165,7 @@ export const getMastodonAttachment = (attachment: Attachment) => {
         width: attachment.width ?? 0,
         height: attachment.height ?? 0,
         aspect: (attachment.width ?? 0) / (attachment.height ?? 1),
+        ...(attachment.focus ? { focus: attachment.focus } : {}),
 
         original: {
           width: attachment.width ?? 0,

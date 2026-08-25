@@ -100,6 +100,29 @@ describe('attachment', () => {
       expect(result?.url).toEqual('https://example.com/media/video.mp4')
     })
 
+    // The upload path stores a focal point for a video's preview frame the
+    // same way it does for an image, so the video entity has to carry it or a
+    // focus a client set on a video is stored and never returned.
+    it('serializes the focal point on a video attachment', () => {
+      const result = getMastodonAttachment({
+        ...baseAttachment,
+        mediaType: 'video/mp4',
+        focus: { x: -0.25, y: 0.5 }
+      })
+
+      expect(result?.type).toEqual('video')
+      expect(result?.meta).toMatchObject({ focus: { x: -0.25, y: 0.5 } })
+    })
+
+    it('omits the focal point on a video attachment without one', () => {
+      const result = getMastodonAttachment({
+        ...baseAttachment,
+        mediaType: 'video/mp4'
+      })
+
+      expect(result?.meta).not.toHaveProperty('focus')
+    })
+
     it('returns video type for webm', () => {
       const webmAttachment: Attachment = {
         ...baseAttachment,
