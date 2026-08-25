@@ -8,6 +8,7 @@ import {
   getReply,
   getSummary
 } from '@/lib/activities/note'
+import { getQuoteNoteFields } from '@/lib/activities/quoteNoteFields'
 import { MAX_FEDERATION_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import type { Announce as ActivityPubAnnounce } from '@/lib/types/activitypub/activities'
 import { Document } from '@/lib/types/activitypub/objects'
@@ -479,6 +480,12 @@ export const toActivityPubObject = (status: Status): Note | Question => {
   }
 
   const originalStatus = getOriginalStatus(status)
+  // Quote emission (FEP-044f), shared with `getNoteFromStatus` so a note a peer
+  // FETCHES (this route, the outbox, the replies collection) describes its quote
+  // exactly as one delivered to their inbox does. Every surface returning this
+  // object must declare QUOTE_ACTIVITY_CONTEXT or a receiver that compacts the
+  // document drops these terms.
+  const quoteFields = getQuoteNoteFields(originalStatus.quote)
   return Note.parse({
     id: originalStatus.id,
     type: originalStatus.type,
@@ -517,6 +524,7 @@ export const toActivityPubObject = (status: Status): Note | Question => {
       type: 'Collection',
       totalItems: originalStatus.totalShares
     },
+    ...quoteFields,
 
     published: getISOTimeUTC(originalStatus.createdAt),
     ...(hasStatusBeenEdited(originalStatus)

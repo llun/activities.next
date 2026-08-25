@@ -1,3 +1,4 @@
+import { getQuoteNoteFields } from '@/lib/activities/quoteNoteFields'
 import { getConfig } from '@/lib/config'
 import { MAX_FEDERATION_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { getEffectiveQuoteApprovalPolicy } from '@/lib/services/quotes/quotePolicy'
@@ -30,18 +31,10 @@ export const getNoteFromStatus = (
   if (actualStatus.type === StatusType.enum.Poll) return null
   const includeUpdated = options.includeUpdated ?? hasStatusBeenEdited(status)
 
-  // Quote emission (FEP-044f). Advertise the quote target while the edge is live
-  // (pending/accepted) via all compat aliases; the hosted stamp uri only when
-  // accepted. Always advertise who may quote THIS status via interactionPolicy.
-  const quoteEdge = actualStatus.quote
-  const emitQuoteTarget =
-    quoteEdge &&
-    (quoteEdge.state === 'pending' || quoteEdge.state === 'accepted')
-  const quoteTargetId = emitQuoteTarget ? quoteEdge.quotedStatusId : undefined
-  const quoteAuthorization =
-    quoteEdge?.state === 'accepted'
-      ? (quoteEdge.authorizationUri ?? undefined)
-      : undefined
+  // Quote emission (FEP-044f), shared with the AP GET/outbox/replies surfaces so
+  // a delivered note and a fetched one describe the same quote. Always advertise
+  // who may quote THIS status via interactionPolicy.
+  const quoteFields = getQuoteNoteFields(actualStatus.quote)
 
   return Note.parse({
     id: actualStatus.id,
@@ -72,17 +65,7 @@ export const getNoteFromStatus = (
         getNoteFromStatus(Status.parse(reply))
       )
     },
-    // Quote target, written under every compat alias (Mastodon `quote`/
-    // `quoteUrl`, Fedibird `quoteUri`, Misskey `_misskey_quote`).
-    ...(quoteTargetId
-      ? {
-          quote: quoteTargetId,
-          quoteUrl: quoteTargetId,
-          quoteUri: quoteTargetId,
-          _misskey_quote: quoteTargetId
-        }
-      : null),
-    ...(quoteAuthorization ? { quoteAuthorization } : null),
+    ...quoteFields,
     interactionPolicy: {
       canQuote: buildCanQuote(
         getEffectiveQuoteApprovalPolicy(actualStatus),

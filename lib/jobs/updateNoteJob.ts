@@ -9,6 +9,7 @@ import {
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLinkPreview'
 import { notifyQuotedStatusUpdate } from '@/lib/services/notifications/notifyQuotedStatusUpdate'
+import { syncQuoteEdgeFromUpdate } from '@/lib/services/quotes/persistInboundQuoteEdge'
 import {
   ArticleContent,
   ImageContent,
@@ -77,6 +78,23 @@ export const updateNoteJob = createJobHandle(
       summary,
       text,
       language
+    })
+
+    // A quoter re-federates its note as an Update once the quoted author's
+    // Accept hands it a `quoteAuthorization` stamp, so an Update is the second
+    // place an approval can arrive. Without re-deriving the edge here a quote
+    // approved after its Create stays a "pending approval" tombstone forever,
+    // even though every other server shows it as accepted. Runs regardless of
+    // `contentChanged` — a stamp-only re-federation carries unchanged content,
+    // which is exactly the case this exists for.
+    // The quoting actor is this note's STORED author, never the `attributedTo`
+    // the Update payload carries: verifyRemoteQuote's self-quote shortcut
+    // accepts outright when quoter == quoted author, so trusting a payload
+    // field there would let an edit claim authorship it does not have.
+    await syncQuoteEdgeFromUpdate({
+      database,
+      note,
+      actorId: existingStatus.actorId
     })
 
     // Re-detect the content language alongside the edit; the previous

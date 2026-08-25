@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
 import { HANDLE_QUOTE_REQUEST_JOB_NAME } from '@/lib/jobs/names'
 
 import { POST } from './route'
@@ -16,6 +17,9 @@ const mockUndoFollowRequest = vi.fn()
 const mockLikeRequest = vi.fn()
 const mockEmojiReactionRequest = vi.fn()
 const mockUndoEmojiReactionRequest = vi.fn()
+const mockHandleQuoteResponse = vi.fn()
+const mockAcceptFollowRequest = vi.fn()
+const mockRejectFollowRequest = vi.fn()
 const mockVerifyAllows = vi.fn()
 const mockGetModerationStatesForActors = vi.fn()
 const mockDatabase = {
@@ -115,7 +119,13 @@ vi.mock('@/lib/services/guards/OnlyLocalUserGuard', () => ({
 }))
 
 vi.mock('@/lib/actions/acceptFollowRequest', () => ({
-  acceptFollowRequest: vi.fn()
+  acceptFollowRequest: (...params: unknown[]) =>
+    mockAcceptFollowRequest(...params)
+}))
+
+vi.mock('@/lib/actions/handleQuoteResponse', () => ({
+  handleQuoteResponse: (...params: unknown[]) =>
+    mockHandleQuoteResponse(...params)
 }))
 
 vi.mock('@/lib/actions/acceptRelayRequest', () => ({
@@ -158,7 +168,8 @@ vi.mock('@/lib/actions/emojiReaction', async () => {
 })
 
 vi.mock('@/lib/actions/rejectFollowRequest', () => ({
-  rejectFollowRequest: vi.fn()
+  rejectFollowRequest: (...params: unknown[]) =>
+    mockRejectFollowRequest(...params)
 }))
 
 vi.mock('@/lib/actions/undoFollowRequest', () => ({
@@ -216,6 +227,13 @@ describe('POST /api/users/[username]/inbox', () => {
     mockEmojiReactionRequest.mockResolvedValue(undefined)
     mockUndoEmojiReactionRequest.mockResolvedValue(undefined)
     mockGetModerationStatesForActors.mockResolvedValue(new Map())
+    mockHandleQuoteResponse.mockResolvedValue(false)
+    mockAcceptFollowRequest.mockResolvedValue({
+      object: 'https://activities.local/users/llun'
+    })
+    mockRejectFollowRequest.mockResolvedValue({
+      object: 'https://activities.local/users/llun'
+    })
     mockActivityBody = mockDefaultActivityBody
     mockConsumeRequestBody = false
   })
@@ -685,6 +703,175 @@ describe('POST /api/users/[username]/inbox', () => {
         statusId
       })
       expect(mockUndoEmojiReactionRequest).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('FEP-044f quote response', () => {
+    const QUOTING_STATUS_ID =
+      'https://activities.local/users/llun/statuses/01a039b7'
+    const QUOTED_STATUS_ID =
+      'https://remote.test/users/alice/statuses/117156466043215104'
+    const STAMP_URI =
+      'https://remote.test/users/alice/quote_authorizations/abc123'
+
+    // The shape Mastodon 4.5 delivers when it approves our QuoteRequest: an
+    // Accept whose `object` is the QuoteRequest we sent and whose `result` is
+    // the hosted QuoteAuthorization stamp. Never an Accept(Follow).
+    const quoteResponseRequest = (type: 'Accept' | 'Reject', object: unknown) =>
+      new NextRequest('https://activities.local/api/users/llun/inbox', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          '@context': QUOTE_ACTIVITY_CONTEXT,
+          id: `${STAMP_URI}#${type.toLowerCase()}`,
+          type,
+          actor: 'https://remote.test/users/alice',
+          object,
+          ...(type === 'Accept' ? { result: STAMP_URI } : null)
+        })
+      })
+
+    const embeddedQuoteRequest = {
+      id: `${QUOTING_STATUS_ID}#quote-request`,
+      type: 'QuoteRequest',
+      actor: 'https://activities.local/users/llun',
+      object: QUOTED_STATUS_ID,
+      instrument: QUOTING_STATUS_ID
+    }
+
+    it.each([
+      {
+        description: 'an embedded QuoteRequest object',
+        object: embeddedQuoteRequest
+      },
+      {
+        description: 'a bare QuoteRequest id string',
+        object: `${QUOTING_STATUS_ID}#quote-request`
+      }
+    ])('settles an Accept carrying $description', async ({ object }) => {
+      mockHandleQuoteResponse.mockResolvedValue(true)
+
+      const response = await POST(quoteResponseRequest('Accept', object), {
+        params: Promise.resolve({ username: 'llun' })
+      })
+
+      expect(response.status).toBe(202)
+      expect(mockHandleQuoteResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          database: mockDatabase,
+          activity: expect.objectContaining({ type: 'Accept' })
+        })
+      )
+      // A quote response is not a follow handshake.
+      expect(mockAcceptFollowRequest).not.toHaveBeenCalled()
+    })
+
+    it('forwards the hosted stamp uri on the Accept it hands to the handler', async () => {
+      mockHandleQuoteResponse.mockResolvedValue(true)
+
+      await POST(quoteResponseRequest('Accept', embeddedQuoteRequest), {
+        params: Promise.resolve({ username: 'llun' })
+      })
+
+      expect(mockHandleQuoteResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          activity: expect.objectContaining({ result: STAMP_URI })
+        })
+      )
+    })
+
+    it('settles a Reject carrying a QuoteRequest object', async () => {
+      mockHandleQuoteResponse.mockResolvedValue(true)
+
+      const response = await POST(
+        quoteResponseRequest('Reject', embeddedQuoteRequest),
+        { params: Promise.resolve({ username: 'llun' }) }
+      )
+
+      expect(response.status).toBe(202)
+      expect(mockHandleQuoteResponse).toHaveBeenCalledTimes(1)
+      expect(mockRejectFollowRequest).not.toHaveBeenCalled()
+    })
+
+    it.each([{ type: 'Accept' as const }, { type: 'Reject' as const }])(
+      'acknowledges a $type carrying a non-Follow object that matches no quote',
+      async ({ type }) => {
+        mockHandleQuoteResponse.mockResolvedValue(false)
+
+        const response = await POST(
+          quoteResponseRequest(type, embeddedQuoteRequest),
+          { params: Promise.resolve({ username: 'llun' }) }
+        )
+
+        // Acknowledged without side effects rather than 400'd: the activity is
+        // well formed, we simply hold no record it settles.
+        expect(response.status).toBe(202)
+        expect(mockAcceptFollowRequest).not.toHaveBeenCalled()
+        expect(mockRejectFollowRequest).not.toHaveBeenCalled()
+      }
+    )
+
+    it.each([
+      {
+        type: 'Accept' as const,
+        handler: () => mockAcceptFollowRequest,
+        other: () => mockRejectFollowRequest
+      },
+      {
+        type: 'Reject' as const,
+        handler: () => mockRejectFollowRequest,
+        other: () => mockAcceptFollowRequest
+      }
+    ])(
+      'still routes a $type(Follow) to the follow handshake',
+      async ({ type, handler, other }) => {
+        mockHandleQuoteResponse.mockResolvedValue(false)
+
+        const response = await POST(
+          quoteResponseRequest(type, {
+            id: 'https://activities.local/follows/1',
+            type: 'Follow',
+            actor: 'https://activities.local/users/llun',
+            object: 'https://remote.test/users/alice'
+          }),
+          { params: Promise.resolve({ username: 'llun' }) }
+        )
+
+        expect(response.status).toBe(202)
+        expect(handler()).toHaveBeenCalledTimes(1)
+        expect(other()).not.toHaveBeenCalled()
+      }
+    )
+
+    it('does not reach the quote handler when the sender domain is blocked', async () => {
+      mockCanFederateWithDomain.mockResolvedValue(false)
+
+      const response = await POST(
+        quoteResponseRequest('Accept', embeddedQuoteRequest),
+        { params: Promise.resolve({ username: 'llun' }) }
+      )
+
+      expect(response.status).toBe(403)
+      expect(mockHandleQuoteResponse).not.toHaveBeenCalled()
+    })
+
+    it('does not reach the quote handler when the sender is suspended', async () => {
+      mockGetModerationStatesForActors.mockResolvedValue(
+        new Map([
+          [
+            'https://remote.test/users/alice',
+            { suspendedAt: 1_700_000_000_000, silencedAt: null }
+          ]
+        ])
+      )
+
+      const response = await POST(
+        quoteResponseRequest('Accept', embeddedQuoteRequest),
+        { params: Promise.resolve({ username: 'llun' }) }
+      )
+
+      expect(response.status).toBe(202)
+      expect(mockHandleQuoteResponse).not.toHaveBeenCalled()
     })
   })
 
