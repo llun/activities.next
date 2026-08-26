@@ -614,7 +614,14 @@ describe('actor archive remote attachment cap', () => {
   )
 
   it('resolves the cap from the media.maxFileSize server setting', () => {
-    expect(SOURCE).toContain('getMaxMediaUploadSize(database)')
+    // Asserting the call is PRESENT is not enough — it must be the thing
+    // assigned. A revert can keep the call and discard its result
+    // (`(await getMaxMediaUploadSize(database), 10 * 1024 * 1024)`), which
+    // hardcodes a cap while looking correct to a presence check. Matching the
+    // assignment is still formatting-tolerant: `\s*` absorbs a prettier wrap.
+    expect(SOURCE).toMatch(
+      /maxBytes:\s*await getMaxMediaUploadSize\(database\)/
+    )
   })
 
   it('does not import the compile-time upload size constant', () => {
