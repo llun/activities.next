@@ -54,16 +54,34 @@ const gear: FitnessGear = {
   updatedAt: 1000
 }
 
+// `addedAt` and `removedAt` are derived from the install periods, so a fixture
+// setting either gets a matching single period unless the test states its own.
 const component = (
   overrides: Partial<FitnessGearComponent> = {}
-): FitnessGearComponent => ({
-  id: 'component-1',
-  gearId: 'gear-1',
-  componentType: 'Chain',
-  createdAt: 1000,
-  updatedAt: 1000,
-  ...overrides
-})
+): FitnessGearComponent => {
+  const built = {
+    id: 'component-1',
+    gearId: 'gear-1',
+    componentType: 'Chain',
+    createdAt: 1000,
+    updatedAt: 1000,
+    ...overrides
+  }
+  return {
+    ...built,
+    periods: overrides.periods ?? [
+      {
+        id: 'period-1',
+        componentId: built.id,
+        installSequence: 1,
+        addedAt: built.addedAt,
+        removedAt: built.removedAt,
+        createdAt: built.createdAt,
+        updatedAt: built.updatedAt
+      }
+    ]
+  }
+}
 
 describe('Fitness gear components API', () => {
   const mockDb: jest.Mocked<MockDatabase> = {

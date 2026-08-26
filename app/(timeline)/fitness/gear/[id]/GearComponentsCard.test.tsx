@@ -7,8 +7,8 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import {
   createFitnessGearComponent,
   deleteFitnessGearComponent,
-  retireFitnessGearComponent,
-  updateFitnessGearComponent
+  refitFitnessGearComponent,
+  retireFitnessGearComponent
 } from '@/lib/client'
 import type { GearComponentEntity } from '@/lib/services/fitness-gears/gearEntities'
 
@@ -17,8 +17,8 @@ import { GearComponentsCard } from './GearComponentsCard'
 vi.mock('@/lib/client', () => ({
   createFitnessGearComponent: vi.fn(),
   deleteFitnessGearComponent: vi.fn(),
-  retireFitnessGearComponent: vi.fn(),
-  updateFitnessGearComponent: vi.fn()
+  refitFitnessGearComponent: vi.fn(),
+  retireFitnessGearComponent: vi.fn()
 }))
 
 const mockCreateFitnessGearComponent =
@@ -33,26 +33,37 @@ const mockRetireFitnessGearComponent =
   retireFitnessGearComponent as jest.MockedFunction<
     typeof retireFitnessGearComponent
   >
-const mockUpdateFitnessGearComponent =
-  updateFitnessGearComponent as jest.MockedFunction<
-    typeof updateFitnessGearComponent
+const mockRefitFitnessGearComponent =
+  refitFitnessGearComponent as jest.MockedFunction<
+    typeof refitFitnessGearComponent
   >
 
+// `periods` defaults to the single period the derived `addedAt`/`removedAt`
+// describe, so a fixture that only sets those two stays self-consistent. A test
+// about install history passes `periods` explicitly.
 const createComponent = (
   overrides: Partial<GearComponentEntity> = {}
-): GearComponentEntity => ({
-  id: 'component-1',
-  gearId: 'gear-1',
-  componentType: 'Chain',
-  brand: 'Shimano',
-  model: 'HG701',
-  addedAt: Date.UTC(2024, 0, 15),
-  removedAt: null,
-  serviceDistanceMeters: null,
-  distanceMeters: 2450000,
-  activityCount: 82,
-  ...overrides
-})
+): GearComponentEntity => {
+  const component = {
+    id: 'component-1',
+    gearId: 'gear-1',
+    componentType: 'Chain',
+    brand: 'Shimano',
+    model: 'HG701',
+    addedAt: Date.UTC(2024, 0, 15),
+    removedAt: null,
+    serviceDistanceMeters: null,
+    distanceMeters: 2450000,
+    activityCount: 82,
+    ...overrides
+  }
+  return {
+    ...component,
+    periods: overrides.periods ?? [
+      { addedAt: component.addedAt, removedAt: component.removedAt }
+    ]
+  }
+}
 
 // jsdom has no ResizeObserver, so without this stub `useGearTableColumns`
 // early-returns and none of the pinning or snapping below is exercised at all.
@@ -101,12 +112,12 @@ describe('GearComponentsCard', () => {
     mockRetireFitnessGearComponent.mockResolvedValue(
       createComponent({ removedAt: Date.UTC(2025, 5, 1) })
     )
-    // Without this default the unretire tests pass only on a neighbour's
+    // Without this default the refit tests pass only on a neighbour's
     // leaked implementation: `vi.clearAllMocks()` resets call history and
     // leaves implementations in place, so whichever test last set one on this
     // mock decides what the next test sees — including the rejection from
-    // "surfaces an unretire failure". Remove it and `--sequence.shuffle` fails.
-    mockUpdateFitnessGearComponent.mockResolvedValue(
+    // "surfaces a refit failure". Remove it and `--sequence.shuffle` fails.
+    mockRefitFitnessGearComponent.mockResolvedValue(
       createComponent({ removedAt: null })
     )
   })
@@ -224,6 +235,39 @@ describe('GearComponentsCard', () => {
     renderCard([createComponent({ addedAt: null })])
 
     expect(screen.getByText('Since beginning')).toBeInTheDocument()
+  })
+
+  // A refitted part has more than one install period, and the gap between them
+  // is the thing that must be visible: collapsed to a single window it reads as
+  // having been on the bike the whole time, which is the misattribution the
+  // periods exist to prevent. The two columns are a pair — line N of Added and
+  // line N of Retired are the two ends of the same period.
+  it('lists one line per install period on a refitted component', () => {
+    renderCard([
+      createComponent({
+        addedAt: Date.UTC(2024, 0, 15),
+        removedAt: null,
+        periods: [
+          { addedAt: Date.UTC(2024, 0, 15), removedAt: Date.UTC(2024, 5, 1) },
+          { addedAt: Date.UTC(2024, 10, 20), removedAt: null }
+        ]
+      })
+    ])
+
+    expect(screen.getByText('Jan 15, 2024')).toBeInTheDocument()
+    expect(screen.getByText('Jun 1, 2024')).toBeInTheDocument()
+    expect(screen.getByText('Nov 20, 2024')).toBeInTheDocument()
+    // Still fitted, so the second period has no end.
+    expect(screen.getByText('—')).toBeInTheDocument()
+  })
+
+  // The single-period case is every row that existed before install history and
+  // every part that has never come off, so it must not grow a second line.
+  it('renders one line per column for a component that has never been refitted', () => {
+    renderCard([createComponent({ addedAt: Date.UTC(2024, 0, 15) })])
+
+    expect(screen.getAllByText('Jan 15, 2024')).toHaveLength(1)
+    expect(screen.getAllByText('—')).toHaveLength(1)
   })
 
   it.each([
@@ -348,9 +392,9 @@ describe('GearComponentsCard', () => {
   })
 
   // Two confirm ids let an arm survive the flip: a row armed for Delete, then
-  // unretired, came back with Delete already armed — a one-click delete.
-  it('does not carry an arm across unretiring a row', async () => {
-    mockUpdateFitnessGearComponent.mockResolvedValue(
+  // refitted, came back with Delete already armed — a one-click delete.
+  it('does not carry an arm across refitting a row', async () => {
+    mockRefitFitnessGearComponent.mockResolvedValue(
       createComponent({ removedAt: null })
     )
     renderCard([createComponent({ removedAt: Date.UTC(2025, 5, 1) })])
@@ -363,18 +407,19 @@ describe('GearComponentsCard', () => {
       screen.getByRole('button', { name: 'Confirm delete' })
     ).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Unretire Chain' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Refit Chain' }))
 
     await waitFor(() =>
-      expect(mockUpdateFitnessGearComponent).toHaveBeenCalled()
+      expect(mockRefitFitnessGearComponent).toHaveBeenCalled()
     )
     // Nothing is armed once the row changes which action it offers.
     expect(screen.queryByRole('button', { name: 'Confirm delete' })).toBeNull()
   })
 
-  // The server has always accepted `removedAt: null`; nothing in the UI called
-  // it, so a mis-retire was permanent.
-  it('unretires a retired component and refetches', async () => {
+  // Refit posts to its own endpoint rather than clearing `removedAt` through
+  // the generic PATCH: clearing it reopened the closed period, which credited
+  // the part every activity ridden while it was off the bike.
+  it('refits a retired component and refetches', async () => {
     const onChanged = renderCard([
       createComponent({ removedAt: Date.UTC(2025, 5, 1) })
     ])
@@ -382,38 +427,35 @@ describe('GearComponentsCard', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Show 1 retired component' })
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Unretire Chain' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Refit Chain' }))
 
     await waitFor(() =>
-      expect(mockUpdateFitnessGearComponent).toHaveBeenCalledWith(
+      expect(mockRefitFitnessGearComponent).toHaveBeenCalledWith(
         'gear-1',
-        'component-1',
-        { removedAt: null }
+        'component-1'
       )
     )
     expect(onChanged).toHaveBeenCalled()
   })
 
-  // Unretire is not armed. It is NOT the mirror of Retire — see the comment on
-  // `handleUnretire`: a delayed unretire credits every activity ridden while
-  // the part sat retired, and re-retiring does not take that back. It stays
-  // unarmed because arming adds friction to the misclick without preventing
-  // the misattribution.
-  it('unretires on a single click', async () => {
+  // Refit is not armed: it opens a new install period at today and leaves the
+  // closed one alone, so a stray click costs nothing an immediate Retire does
+  // not undo. Arming it would only add friction to the misclick recovery.
+  it('refits on a single click', async () => {
     renderCard([createComponent({ removedAt: Date.UTC(2025, 5, 1) })])
 
     fireEvent.click(
       screen.getByRole('button', { name: 'Show 1 retired component' })
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Unretire Chain' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Refit Chain' }))
 
     await waitFor(() =>
-      expect(mockUpdateFitnessGearComponent).toHaveBeenCalled()
+      expect(mockRefitFitnessGearComponent).toHaveBeenCalled()
     )
   })
 
-  it('surfaces an unretire failure', async () => {
-    mockUpdateFitnessGearComponent.mockRejectedValue(
+  it('surfaces a refit failure', async () => {
+    mockRefitFitnessGearComponent.mockRejectedValue(
       new Error('Component not found')
     )
     const onChanged = renderCard([
@@ -423,7 +465,7 @@ describe('GearComponentsCard', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Show 1 retired component' })
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Unretire Chain' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Refit Chain' }))
 
     expect(await screen.findByText('Component not found')).toBeInTheDocument()
     expect(onChanged).not.toHaveBeenCalled()
@@ -442,7 +484,7 @@ describe('GearComponentsCard', () => {
     )
 
     const actions = screen
-      .getByRole('button', { name: 'Unretire Chain' })
+      .getByRole('button', { name: 'Refit Chain' })
       .closest('div')
     // Both tokens: `flex-wrap` does nothing without `display: flex`, and the
     // enclosing `<td>` carries `whitespace-nowrap`, so a block container puts
@@ -450,7 +492,7 @@ describe('GearComponentsCard', () => {
     expect(actions).toHaveClass('flex', 'flex-wrap')
   })
 
-  it('offers both unretire and delete on a retired row', () => {
+  it('offers both refit and delete on a retired row', () => {
     renderCard([createComponent({ removedAt: Date.UTC(2025, 5, 1) })])
 
     fireEvent.click(
@@ -458,7 +500,7 @@ describe('GearComponentsCard', () => {
     )
 
     expect(
-      screen.getByRole('button', { name: 'Unretire Chain' })
+      screen.getByRole('button', { name: 'Refit Chain' })
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
   })

@@ -45,14 +45,32 @@ export interface GearEntity {
   firstUsedAt: number | null
 }
 
+/**
+ * One stretch during which the part was fitted. A component always has at least
+ * one; a part taken off and put back on has one per stretch, and the activities
+ * of the gap between them count toward neither.
+ */
+export interface GearComponentPeriodEntity {
+  addedAt: number | null
+  removedAt: number | null
+}
+
 export interface GearComponentEntity {
   id: string
   gearId: string
   componentType: string
   brand: string | null
   model: string | null
+  /**
+   * Derived from `periods`, not stored: the first period's start and the LAST
+   * period's end. They mean what they always did — when the part first went on,
+   * and when it last came off — so `removedAt === null` still reads as "fitted
+   * right now", including for a part that has been refitted.
+   */
   addedAt: number | null
   removedAt: number | null
+  /** Oldest first. */
+  periods: GearComponentPeriodEntity[]
   serviceDistanceMeters: number | null
   distanceMeters: number
   activityCount: number
@@ -102,6 +120,10 @@ export const toGearComponentEntity = (
   model: component.model ?? null,
   addedAt: component.addedAt ?? null,
   removedAt: component.removedAt ?? null,
+  periods: component.periods.map((period) => ({
+    addedAt: period.addedAt ?? null,
+    removedAt: period.removedAt ?? null
+  })),
   serviceDistanceMeters: component.serviceDistanceMeters ?? null,
   distanceMeters: rollup.distanceMeters,
   activityCount: rollup.activityCount

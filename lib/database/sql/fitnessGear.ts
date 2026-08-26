@@ -8,10 +8,12 @@ import { FitnessGearKind } from '@/lib/services/fitness-files/sportTypes'
 import {
   FitnessGear,
   FitnessGearComponent,
+  FitnessGearComponentPeriod,
   FitnessGearDeviceRollup,
   FitnessGearDistanceRollup,
   SQLFitnessGear,
-  SQLFitnessGearComponent
+  SQLFitnessGearComponent,
+  SQLFitnessGearComponentPeriod
 } from '@/lib/types/database/fitnessGear'
 
 /**
@@ -75,11 +77,19 @@ export interface CreateFitnessGearComponentParams {
   componentType: string
   brand?: string | null
   model?: string | null
+  // Seeds the component's FIRST install period. Neither is a column on the
+  // component itself any more; a component always has at least one period.
   addedAt?: Date | null
   removedAt?: Date | null
   serviceDistanceMeters?: number | null
 }
 
+// `addedAt` and `removedAt` no longer name columns on the component: `addedAt`
+// moves the FIRST period's start and `removedAt` the LAST period's end, which
+// is exactly what those two have always meant for the component as a whole.
+// Only the outermost bounds are reachable this way, so an edit cannot make two
+// periods overlap — keeping each period's own `addedAt < removedAt` is then
+// enough to keep the whole history ordered.
 export interface UpdateFitnessGearComponentParams {
   id: string
   gearId: string
@@ -167,6 +177,24 @@ export interface FitnessGearDatabase {
     gearId: string
     actorId: string
   }): Promise<FitnessGearComponent | null>
+  /**
+   * Puts a retired part back on the bike by opening a NEW install period at
+   * today, leaving the closed one exactly as it is.
+   *
+   * Not the mirror of retiring, and deliberately not "reopen the window that
+   * was closed": reopening credits the part every activity ridden while it was
+   * off, and re-retiring cannot take that back. A new period costs at most the
+   * gap between the retirement and the refit, which is seconds for a misclick
+   * and is the truth for a genuine refit.
+   *
+   * Null when the part is already fitted, which is the same answer retiring
+   * gives for a part already retired.
+   */
+  refitFitnessGearComponent(params: {
+    id: string
+    gearId: string
+    actorId: string
+  }): Promise<FitnessGearComponent | null>
   getFitnessGearComponentDistanceRollups(params: {
     actorId: string
     gearIds: string[]
@@ -247,16 +275,41 @@ const parseSQLFitnessGear = (row: SQLFitnessGear): FitnessGear => ({
   deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined
 })
 
+const parseSQLFitnessGearComponentPeriod = (
+  row: SQLFitnessGearComponentPeriod
+): FitnessGearComponentPeriod => ({
+  id: row.id,
+  componentId: row.componentId,
+  // SQLite can hand an integer column back as a string; the sequence is used
+  // for ordering and for computing the next one, so it has to be a number.
+  installSequence: normalizeOptionalNumber(row.installSequence) ?? 0,
+  addedAt: row.addedAt ? getCompatibleTime(row.addedAt) : undefined,
+  removedAt: row.removedAt ? getCompatibleTime(row.removedAt) : undefined,
+  createdAt: getCompatibleTime(row.createdAt),
+  updatedAt: getCompatibleTime(row.updatedAt)
+})
+
+/**
+ * `addedAt` and `removedAt` are derived here rather than read off the component
+ * row: the first period's start is when the part first went on, and the LAST
+ * period's end is when it last came off (undefined while it is fitted). For the
+ * single-period component every row was before install history existed, that is
+ * exactly the pair the columns used to hold.
+ *
+ * `periods` arrives already ordered by `installSequence`.
+ */
 const parseSQLFitnessGearComponent = (
-  row: SQLFitnessGearComponent
+  row: SQLFitnessGearComponent,
+  periods: FitnessGearComponentPeriod[]
 ): FitnessGearComponent => ({
   id: row.id,
   gearId: row.gearId,
   componentType: row.componentType,
   brand: row.brand ?? undefined,
   model: row.model ?? undefined,
-  addedAt: row.addedAt ? getCompatibleTime(row.addedAt) : undefined,
-  removedAt: row.removedAt ? getCompatibleTime(row.removedAt) : undefined,
+  addedAt: periods[0]?.addedAt,
+  removedAt: periods[periods.length - 1]?.removedAt,
+  periods,
   serviceDistanceMeters: normalizeOptionalNumber(row.serviceDistanceMeters),
   lastAlertedDistanceMeters: normalizeOptionalNumber(
     row.lastAlertedDistanceMeters
@@ -265,6 +318,44 @@ const parseSQLFitnessGearComponent = (
   updatedAt: getCompatibleTime(row.updatedAt),
   deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined
 })
+
+/**
+ * Every period of the given components, oldest first, keyed by component id.
+ *
+ * Batched rather than looped for the same reason the rollups are: a gear page
+ * reads every component at once, and one query per part is how a page of them
+ * turns into a page of queries.
+ */
+const getComponentPeriods = async (
+  connection: Knex | Knex.Transaction,
+  componentIds: string[]
+): Promise<Map<string, FitnessGearComponentPeriod[]>> => {
+  const periodsByComponentId = new Map<string, FitnessGearComponentPeriod[]>()
+  const uniqueIds = [...new Set(componentIds)]
+  if (uniqueIds.length === 0) return periodsByComponentId
+
+  for (const chunk of chunkArray(uniqueIds, getWhereInBatchSize(connection))) {
+    const rows = await connection<SQLFitnessGearComponentPeriod>(
+      'fitness_gear_component_periods'
+    )
+      .whereIn('componentId', chunk)
+      .orderBy('componentId', 'asc')
+      .orderBy('installSequence', 'asc')
+      .select('*')
+
+    for (const row of rows) {
+      const parsed = parseSQLFitnessGearComponentPeriod(row)
+      const existing = periodsByComponentId.get(parsed.componentId)
+      if (existing) {
+        existing.push(parsed)
+        continue
+      }
+      periodsByComponentId.set(parsed.componentId, [parsed])
+    }
+  }
+
+  return periodsByComponentId
+}
 
 /**
  * A sport can be the default of at most one of an actor's gears. Picking it for
@@ -332,6 +423,20 @@ const getOwnedComponentRow = async (
     .whereNull('g.deletedAt')
     .select('c.*')
     .first()
+
+const getOwnedComponent = async (
+  connection: Knex | Knex.Transaction,
+  params: { id: string; gearId: string; actorId: string }
+): Promise<FitnessGearComponent | null> => {
+  const row = await getOwnedComponentRow(connection, params)
+  if (!row) return null
+
+  const periodsByComponentId = await getComponentPeriods(connection, [row.id])
+  return parseSQLFitnessGearComponent(
+    row,
+    periodsByComponentId.get(row.id) ?? []
+  )
+}
 
 export const FitnessGearSQLDatabaseMixin = (
   database: Knex
@@ -779,17 +884,33 @@ export const FitnessGearSQLDatabaseMixin = (
       componentType: params.componentType,
       brand: params.brand ?? null,
       model: params.model ?? null,
-      addedAt: params.addedAt ?? null,
-      removedAt: params.removedAt ?? null,
       serviceDistanceMeters: params.serviceDistanceMeters ?? null,
       lastAlertedDistanceMeters: null,
       createdAt: currentTime,
       updatedAt: currentTime,
       deletedAt: null
     }
+    const period: SQLFitnessGearComponentPeriod = {
+      id: crypto.randomUUID(),
+      componentId: data.id,
+      installSequence: 1,
+      addedAt: params.addedAt ?? null,
+      removedAt: params.removedAt ?? null,
+      createdAt: currentTime,
+      updatedAt: currentTime
+    }
 
-    await database('fitness_gear_components').insert(data)
-    return parseSQLFitnessGearComponent(data)
+    // One transaction, because a component with no period is a shape the rollup
+    // must never meet: both of its window tests would be vacuously true and it
+    // would claim every activity on the gear.
+    await database.transaction(async (trx) => {
+      await trx('fitness_gear_components').insert(data)
+      await trx('fitness_gear_component_periods').insert(period)
+    })
+
+    return parseSQLFitnessGearComponent(data, [
+      parseSQLFitnessGearComponentPeriod(period)
+    ])
   },
 
   async getFitnessGearComponents({ gearId, actorId }) {
@@ -806,10 +927,19 @@ export const FitnessGearSQLDatabaseMixin = (
       // removed ones land is decided below.
       .orderBy('c.createdAt', 'asc')
 
+    const periodsByComponentId = await getComponentPeriods(
+      database,
+      rows.map((row) => row.id)
+    )
+
     // Installed parts first, then the replaced ones newest-first. Split here
     // rather than with an `ORDER BY removedAt` because the backends disagree on
     // whether NULLs sort first or last, and "still fitted" has to come first.
-    const parsed = rows.map(parseSQLFitnessGearComponent)
+    // A refitted part is installed again, so it moves back into the first
+    // group: `removedAt` is the LAST period's end, not the first's.
+    const parsed = rows.map((row) =>
+      parseSQLFitnessGearComponent(row, periodsByComponentId.get(row.id) ?? [])
+    )
     const installed = parsed.filter((component) => !component.removedAt)
     const replaced = parsed
       .filter((component) => component.removedAt)
@@ -829,14 +959,13 @@ export const FitnessGearSQLDatabaseMixin = (
     })
     if (!existing) return null
 
-    const updateData: Record<string, unknown> = { updatedAt: new Date() }
+    const currentTime = new Date()
+    const updateData: Record<string, unknown> = { updatedAt: currentTime }
     if ('componentType' in params && params.componentType !== undefined) {
       updateData.componentType = params.componentType
     }
     if ('brand' in params) updateData.brand = params.brand ?? null
     if ('model' in params) updateData.model = params.model ?? null
-    if ('addedAt' in params) updateData.addedAt = params.addedAt ?? null
-    if ('removedAt' in params) updateData.removedAt = params.removedAt ?? null
     if ('serviceDistanceMeters' in params) {
       updateData.serviceDistanceMeters = params.serviceDistanceMeters ?? null
       if (
@@ -847,16 +976,57 @@ export const FitnessGearSQLDatabaseMixin = (
       }
     }
 
-    await database('fitness_gear_components')
-      .where('id', params.id)
-      .update(updateData)
+    await database.transaction(async (trx) => {
+      await trx('fitness_gear_components')
+        .where('id', params.id)
+        .update(updateData)
 
-    const updated = await getOwnedComponentRow(database, {
+      // The dates live on the periods now, and only the outermost bounds are
+      // reachable from here: `addedAt` is the first period's start, `removedAt`
+      // the last period's end. Ordered by `installSequence` rather than by the
+      // dates themselves, because the first period's `addedAt` may be null.
+      if ('addedAt' in params || 'removedAt' in params) {
+        if ('addedAt' in params) {
+          const first = await trx<SQLFitnessGearComponentPeriod>(
+            'fitness_gear_component_periods'
+          )
+            .where('componentId', params.id)
+            .orderBy('installSequence', 'asc')
+            .first()
+          if (first) {
+            await trx('fitness_gear_component_periods')
+              .where('id', first.id)
+              .update({
+                addedAt: params.addedAt ?? null,
+                updatedAt: currentTime
+              })
+          }
+        }
+
+        if ('removedAt' in params) {
+          const last = await trx<SQLFitnessGearComponentPeriod>(
+            'fitness_gear_component_periods'
+          )
+            .where('componentId', params.id)
+            .orderBy('installSequence', 'desc')
+            .first()
+          if (last) {
+            await trx('fitness_gear_component_periods')
+              .where('id', last.id)
+              .update({
+                removedAt: params.removedAt ?? null,
+                updatedAt: currentTime
+              })
+          }
+        }
+      }
+    })
+
+    return getOwnedComponent(database, {
       id: params.id,
       gearId: params.gearId,
       actorId: params.actorId
     })
-    return updated ? parseSQLFitnessGearComponent(updated) : null
   },
 
   async deleteFitnessGearComponent({ id, gearId, actorId }) {
@@ -887,21 +1057,89 @@ export const FitnessGearSQLDatabaseMixin = (
     // decision taken from a read in front of it. Only a real transition writes,
     // so two concurrent requests (two tabs, a retried request) result in one
     // update; 0 rows affected maps straight to null (which the route answers as 404).
+    //
+    // It closes the OPEN period, of which a component has at most one — a refit
+    // only opens a period when none is open, and an edit can only move the
+    // outermost bounds.
     const currentTime = new Date()
-    const updated = await database('fitness_gear_components')
-      .where('id', id)
+    const updated = await database('fitness_gear_component_periods')
+      .where('componentId', id)
       .whereNull('removedAt')
-      .whereNull('deletedAt')
       .update({ removedAt: currentTime, updatedAt: currentTime })
 
     if (!updated) return null
 
-    const row = await getOwnedComponentRow(database, {
-      id,
-      gearId,
-      actorId
-    })
-    return row ? parseSQLFitnessGearComponent(row) : null
+    await database('fitness_gear_components')
+      .where('id', id)
+      .update({ updatedAt: currentTime })
+
+    return getOwnedComponent(database, { id, gearId, actorId })
+  },
+
+  async refitFitnessGearComponent({ id, gearId, actorId }) {
+    const currentTime = new Date()
+
+    try {
+      const opened = await database.transaction(async (trx) => {
+        const existing = await getOwnedComponentRow(trx, {
+          id,
+          gearId,
+          actorId
+        })
+        if (!existing) return null
+
+        const periods = await trx<SQLFitnessGearComponentPeriod>(
+          'fitness_gear_component_periods'
+        )
+          .where('componentId', id)
+          .orderBy('installSequence', 'desc')
+          .select('*')
+
+        // Already fitted — the same no-op answer retiring gives for a part
+        // already retired, and the route turns it into a 404.
+        if (periods.some((period) => !period.removedAt)) return null
+
+        const highestSequence = periods.reduce(
+          (highest, period) =>
+            Math.max(
+              highest,
+              normalizeOptionalNumber(period.installSequence) ?? 0
+            ),
+          0
+        )
+
+        await trx('fitness_gear_component_periods').insert({
+          id: crypto.randomUUID(),
+          componentId: id,
+          installSequence: highestSequence + 1,
+          // The new period starts NOW, never at the moment the part came off:
+          // backdating it to the retirement is precisely the retroactive credit
+          // this table exists to stop.
+          addedAt: currentTime,
+          removedAt: null,
+          createdAt: currentTime,
+          updatedAt: currentTime
+        })
+        await trx('fitness_gear_components')
+          .where('id', id)
+          .update({ updatedAt: currentTime })
+
+        return true
+      })
+
+      if (!opened) return null
+    } catch (error) {
+      // Two refits racing read the same highest sequence and both try to claim
+      // the next one; `(componentId, installSequence)` is UNIQUE, so the loser
+      // lands here. Re-read before deciding: if the part is fitted now, this is
+      // the same "already fitted" no-op the winner's second click would get.
+      // Anything else is a real failure and must not be swallowed.
+      const current = await getOwnedComponent(database, { id, gearId, actorId })
+      if (current && !current.removedAt) return null
+      throw error
+    }
+
+    return getOwnedComponent(database, { id, gearId, actorId })
   },
 
   async getFitnessGearComponentDistanceRollups({ actorId, gearIds }) {
@@ -918,19 +1156,31 @@ export const FitnessGearSQLDatabaseMixin = (
       // clause so a component with no matching activity still produces a row
       // (COUNT over the joined id then yields 0 instead of dropping it).
       //
+      // The window belongs to the PERIOD, not the component: a part that came
+      // off and went back on has one row per stretch it was fitted, and the
+      // activities of the gap between them belong to neither. Summing over the
+      // period join is safe because periods never overlap — a refit only opens
+      // one when none is open, and an edit can only move the outermost bounds —
+      // so no activity is counted twice.
+      //
       // `activityStartTime` is compared column-to-column against the window
       // bounds, which is safe on both backends because knex writes all three
       // columns in the same representation. Never introduce raw date
       // arithmetic here without an isSQLiteClient branch.
       //
       // An activity with a NULL `activityStartTime` (a GPX carrying no
-      // timestamps) therefore counts only for a component whose window is open
-      // on that side. That is intended: an activity that cannot be placed in
-      // time cannot be placed inside `[addedAt, removedAt)` either, so a part
-      // fitted on a date must not claim it. The consequence is that a gear
-      // total can legitimately exceed the sum of its components' totals.
+      // timestamps) therefore counts only for a period open on that side. That
+      // is intended: an activity that cannot be placed in time cannot be placed
+      // inside `[addedAt, removedAt)` either, so a part fitted on a date must
+      // not claim it. The consequence is that a gear total can legitimately
+      // exceed the sum of its components' totals.
       const rows = await database('fitness_gear_components as c')
         .innerJoin('fitness_gears as g', 'g.id', 'c.gearId')
+        .leftJoin(
+          'fitness_gear_component_periods as p',
+          'p.componentId',
+          'c.id'
+        )
         .leftJoin('fitness_files as f', function () {
           this.on('f.gearId', '=', 'c.gearId')
             // Same actor scope the gear rollup applies. Not reachable today —
@@ -940,21 +1190,26 @@ export const FitnessGearSQLDatabaseMixin = (
             // the gear total stays right is not a discrepancy anyone would
             // manage to reproduce.
             .andOn('f.actorId', '=', 'g.actorId')
+            // Fail closed. A component with no period row at all is a shape
+            // nothing here creates, but without this both window tests below
+            // read as TRUE against the NULLs of the missing row and the
+            // component claims every activity on the gear.
+            .andOnNotNull('p.id')
             .andOnNull('f.deletedAt')
             .andOnVal('f.processingStatus', '=', 'completed')
             .andOnVal('f.isPrimary', '=', true)
             .andOn(function () {
-              this.onNull('c.addedAt').orOn(
+              this.onNull('p.addedAt').orOn(
                 'f.activityStartTime',
                 '>=',
-                'c.addedAt'
+                'p.addedAt'
               )
             })
             .andOn(function () {
-              this.onNull('c.removedAt').orOn(
+              this.onNull('p.removedAt').orOn(
                 'f.activityStartTime',
                 '<',
-                'c.removedAt'
+                'p.removedAt'
               )
             })
         })

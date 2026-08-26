@@ -60,10 +60,6 @@ export interface SQLFitnessGearComponent {
   componentType: string
   brand?: string | null
   model?: string | null
-  // null = installed since the gear's beginning.
-  addedAt?: number | Date | string | null
-  // null = still installed.
-  removedAt?: number | Date | string | null
   serviceDistanceMeters?: number | string | null
   lastAlertedDistanceMeters?: number | string | null
 
@@ -72,6 +68,50 @@ export interface SQLFitnessGearComponent {
   deletedAt?: number | Date | string | null
 }
 
+/**
+ * One stretch during which a component was fitted to its gear. A part that
+ * comes off and goes back on — a wheelset put away for the winter, or a
+ * retirement undone months later — gets a second row rather than having its
+ * original window reopened, which is what used to credit it every activity
+ * ridden while it was off the bike.
+ *
+ * `installSequence` is the ordering key rather than `addedAt`: the first
+ * period's `addedAt` is nullable ("since the gear's beginning") and the
+ * backends disagree on where NULLs sort. It is UNIQUE with `componentId`, which
+ * is what stops two concurrent refits from both opening a period — two open
+ * periods would make the rollup count every later activity twice.
+ */
+export interface SQLFitnessGearComponentPeriod {
+  id: string
+  componentId: string
+  installSequence: number | string
+  // null = installed since the gear's beginning.
+  addedAt?: number | Date | string | null
+  // null = still installed.
+  removedAt?: number | Date | string | null
+
+  createdAt: number | Date
+  updatedAt: number | Date
+}
+
+export interface FitnessGearComponentPeriod {
+  id: string
+  componentId: string
+  installSequence: number
+  addedAt?: number
+  removedAt?: number
+
+  createdAt: number
+  updatedAt: number
+}
+
+/**
+ * `addedAt` and `removedAt` are DERIVED from `periods` — the first period's
+ * start and the last period's end — rather than stored on the component row.
+ * They mean exactly what they always did (when the part first went on, and when
+ * it last came off, null while it is fitted), so every reader that asks a
+ * component those two questions is unaffected by the periods behind them.
+ */
 export interface FitnessGearComponent {
   id: string
   gearId: string
@@ -80,6 +120,8 @@ export interface FitnessGearComponent {
   model?: string
   addedAt?: number
   removedAt?: number
+  // Oldest first. Never empty for a component this module created.
+  periods: FitnessGearComponentPeriod[]
   serviceDistanceMeters?: number
   lastAlertedDistanceMeters?: number
 

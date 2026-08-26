@@ -1010,6 +1010,375 @@ describe('FitnessGearDatabase', () => {
       })
     })
 
+    describe('component install periods', () => {
+      // The bug this table exists for, in the shape it was reported: a part
+      // retired on 2026-02-01 and put back on later used to have its ORIGINAL
+      // window reopened, so it was credited the 20 km ridden on 2026-02-15
+      // while it sat off the bike — and retiring it again did not take that
+      // back, because that only closes the window at the new today.
+      //
+      // The dates are all in the past and the refit opens its period at the
+      // real today, so the 2026-02-15 ride is unambiguously in the gap: after
+      // the first period's end and before the second period's start.
+      it('does not credit a refitted part the activities ridden while it was off', async () => {
+        const bike = await database.createFitnessGear({
+          actorId: actors.empty.id,
+          kind: 'bike',
+          name: 'Refit bike'
+        })
+        const component = await database.createFitnessGearComponent({
+          gearId: bike.id,
+          actorId: actors.empty.id,
+          componentType: 'Wheelset',
+          addedAt: new Date('2026-01-01T00:00:00.000Z'),
+          removedAt: new Date('2026-02-01T00:00:00.000Z')
+        })
+
+        // Ridden while fitted.
+        await createActivity(database, {
+          actorId: actors.empty.id,
+          pathSuffix: 'refit-fitted',
+          distanceMeters: 10_000,
+          activityStartTime: new Date('2026-01-15T08:00:00.000Z'),
+          gearId: bike.id
+        })
+        // Ridden on the bike while the wheelset was on the shelf.
+        await createActivity(database, {
+          actorId: actors.empty.id,
+          pathSuffix: 'refit-gap',
+          distanceMeters: 20_000,
+          activityStartTime: new Date('2026-02-15T08:00:00.000Z'),
+          gearId: bike.id
+        })
+
+        const refitted = await database.refitFitnessGearComponent({
+          id: component!.id,
+          gearId: bike.id,
+          actorId: actors.empty.id
+        })
+        expect(refitted).not.toBeNull()
+        // Fitted again, and the gap ride predates the new period.
+        expect(refitted!.removedAt).toBeUndefined()
+        expect(refitted!.periods[1].addedAt!).toBeGreaterThan(
+          Date.parse('2026-02-15T08:00:00.000Z')
+        )
+
+        const rollups = await database.getFitnessGearComponentDistanceRollups({
+          actorId: actors.empty.id,
+          gearIds: [bike.id]
+        })
+        expect(rollups[component!.id]).toEqual({
+          distanceMeters: 10_000,
+          activityCount: 1
+        })
+
+        // And re-retiring does not silently absorb it either.
+        await database.retireFitnessGearComponent({
+          id: component!.id,
+          gearId: bike.id,
+          actorId: actors.empty.id
+        })
+        const afterRetire =
+          await database.getFitnessGearComponentDistanceRollups({
+            actorId: actors.empty.id,
+            gearIds: [bike.id]
+          })
+        expect(afterRetire[component!.id]).toEqual({
+          distanceMeters: 10_000,
+          activityCount: 1
+        })
+      })
+
+      it('counts an activity ridden after the refit, and only once', async () => {
+        const bike = await database.createFitnessGear({
+          actorId: actors.extra.id,
+          kind: 'bike',
+          name: 'Second period bike'
+        })
+        const component = await database.createFitnessGearComponent({
+          gearId: bike.id,
+          actorId: actors.extra.id,
+          componentType: 'Wheelset',
+          addedAt: new Date('2026-01-01T00:00:00.000Z'),
+          removedAt: new Date('2026-02-01T00:00:00.000Z')
+        })
+        await database.refitFitnessGearComponent({
+          id: component!.id,
+          gearId: bike.id,
+          actorId: actors.extra.id
+        })
+
+        // Inside the first period, and then well after the second one opened.
+        await createActivity(database, {
+          actorId: actors.extra.id,
+          pathSuffix: 'second-period-first',
+          distanceMeters: 10_000,
+          activityStartTime: new Date('2026-01-15T08:00:00.000Z'),
+          gearId: bike.id
+        })
+        await createActivity(database, {
+          actorId: actors.extra.id,
+          pathSuffix: 'second-period-latest',
+          distanceMeters: 30_000,
+          activityStartTime: new Date(Date.now() + 60_000),
+          gearId: bike.id
+        })
+
+        const rollups = await database.getFitnessGearComponentDistanceRollups({
+          actorId: actors.extra.id,
+          gearIds: [bike.id]
+        })
+        // 40_000 rather than 50_000 or a doubled count: the two periods are
+        // joined separately and an activity matches at most one of them.
+        expect(rollups[component!.id]).toEqual({
+          distanceMeters: 40_000,
+          activityCount: 2
+        })
+      })
+
+      // An open-on-both-sides period is the only one an undated activity can
+      // fall in, and a refitted component has exactly one open period — so this
+      // also proves the join cannot count such an activity twice.
+      it('counts an undated activity once for a component that has been refitted', async () => {
+        const bike = await database.createFitnessGear({
+          actorId: actors.pollAuthor.id,
+          kind: 'bike',
+          name: 'Undated refit bike'
+        })
+        const component = await database.createFitnessGearComponent({
+          gearId: bike.id,
+          actorId: actors.pollAuthor.id,
+          componentType: 'Frame'
+        })
+        await database.retireFitnessGearComponent({
+          id: component!.id,
+          gearId: bike.id,
+          actorId: actors.pollAuthor.id
+        })
+        await database.refitFitnessGearComponent({
+          id: component!.id,
+          gearId: bike.id,
+          actorId: actors.pollAuthor.id
+        })
+        await createActivity(database, {
+          actorId: actors.pollAuthor.id,
+          pathSuffix: 'undated-refit',
+          distanceMeters: 5_000,
+          gearId: bike.id
+        })
+
+        const rollups = await database.getFitnessGearComponentDistanceRollups({
+          actorId: actors.pollAuthor.id,
+          gearIds: [bike.id]
+        })
+        // The refit's period is `[now, null)`, which an undated activity cannot
+        // be placed inside — only the first period, still open on both sides
+        // after the retire reopened nothing, would take it. It does not, so the
+        // count is 0 and certainly not 2.
+        expect(rollups[component!.id]).toEqual({
+          distanceMeters: 0,
+          activityCount: 0
+        })
+      })
+
+      it('reports the first period’s start and the last period’s end as the component window', async () => {
+        const bike = await database.createFitnessGear({
+          actorId: actors.followRequester.id,
+          kind: 'bike',
+          name: 'Derived window bike'
+        })
+        const component = await database.createFitnessGearComponent({
+          gearId: bike.id,
+          actorId: actors.followRequester.id,
+          componentType: 'Chain',
+          addedAt: new Date('2026-01-01T00:00:00.000Z'),
+          removedAt: new Date('2026-02-01T00:00:00.000Z')
+        })
+
+        const refitted = await database.refitFitnessGearComponent({
+          id: component!.id,
+          gearId: bike.id,
+          actorId: actors.followRequester.id
+        })
+
+        expect(refitted?.periods).toHaveLength(2)
+        expect(
+          refitted?.periods.map((period) => period.installSequence)
+        ).toEqual([1, 2])
+        // The FIRST period's start — the part went on in January, whatever has
+        // happened since.
+        expect(refitted?.addedAt).toEqual(
+          Date.parse('2026-01-01T00:00:00.000Z')
+        )
+        // The LAST period's end, so a refitted part reads as fitted again.
+        expect(refitted?.removedAt).toBeUndefined()
+        expect(refitted?.periods[0].removedAt).toEqual(
+          Date.parse('2026-02-01T00:00:00.000Z')
+        )
+        expect(refitted?.periods[1].addedAt).toBeDefined()
+        expect(refitted?.periods[1].removedAt).toBeUndefined()
+      })
+    })
+
+    describe('refitFitnessGearComponent', () => {
+      const createRetiredComponent = async (actorId: string, name: string) => {
+        const gear = await database.createFitnessGear({
+          actorId,
+          kind: 'bike',
+          name
+        })
+        const component = await database.createFitnessGearComponent({
+          gearId: gear.id,
+          actorId,
+          componentType: 'Chain',
+          addedAt: new Date('2026-01-01T00:00:00.000Z'),
+          removedAt: new Date('2026-02-01T00:00:00.000Z')
+        })
+        return { gear, component: component! }
+      }
+
+      it('opens a new period at today and leaves the closed one untouched', async () => {
+        const { gear, component } = await createRetiredComponent(
+          actors.primary.id,
+          'Refit opens bike'
+        )
+        const before = Date.now()
+
+        const result = await database.refitFitnessGearComponent({
+          id: component.id,
+          gearId: gear.id,
+          actorId: actors.primary.id
+        })
+
+        expect(result?.periods).toHaveLength(2)
+        // The closed period is exactly as it was — reopening it is the
+        // retroactive credit this replaces.
+        expect(result?.periods[0]).toMatchObject({
+          installSequence: 1,
+          addedAt: Date.parse('2026-01-01T00:00:00.000Z'),
+          removedAt: Date.parse('2026-02-01T00:00:00.000Z')
+        })
+        expect(result?.periods[1].installSequence).toEqual(2)
+        expect(result?.periods[1].removedAt).toBeUndefined()
+        // Today, not the moment the part came off.
+        expect(result?.periods[1].addedAt).toBeGreaterThanOrEqual(before)
+      })
+
+      it('returns null when the part is already fitted', async () => {
+        const gear = await database.createFitnessGear({
+          actorId: actors.primary.id,
+          kind: 'bike',
+          name: 'Already fitted bike'
+        })
+        const component = await database.createFitnessGearComponent({
+          gearId: gear.id,
+          actorId: actors.primary.id,
+          componentType: 'Chain'
+        })
+
+        const result = await database.refitFitnessGearComponent({
+          id: component!.id,
+          gearId: gear.id,
+          actorId: actors.primary.id
+        })
+        expect(result).toBeNull()
+
+        // And nothing was opened behind that null.
+        const components = await database.getFitnessGearComponents({
+          gearId: gear.id,
+          actorId: actors.primary.id
+        })
+        expect(components[0].periods).toHaveLength(1)
+      })
+
+      it('returns null for another actor', async () => {
+        const { gear, component } = await createRetiredComponent(
+          actors.primary.id,
+          'Refit stranger bike'
+        )
+
+        const result = await database.refitFitnessGearComponent({
+          id: component.id,
+          gearId: gear.id,
+          actorId: actors.replyAuthor.id
+        })
+        expect(result).toBeNull()
+      })
+
+      // Two tabs, or a retried request. `(componentId, installSequence)` is
+      // UNIQUE, so only one of them can claim the next sequence; two open
+      // periods would make every later activity count twice.
+      it('opens exactly one period when two refits race', async () => {
+        const { gear, component } = await createRetiredComponent(
+          actors.primary.id,
+          'Refit race bike'
+        )
+
+        const results = await Promise.all([
+          database.refitFitnessGearComponent({
+            id: component.id,
+            gearId: gear.id,
+            actorId: actors.primary.id
+          }),
+          database.refitFitnessGearComponent({
+            id: component.id,
+            gearId: gear.id,
+            actorId: actors.primary.id
+          })
+        ])
+
+        const components = await database.getFitnessGearComponents({
+          gearId: gear.id,
+          actorId: actors.primary.id
+        })
+        expect(components[0].periods).toHaveLength(2)
+        expect(
+          components[0].periods.filter((period) => !period.removedAt)
+        ).toHaveLength(1)
+        // One caller opened it; the other is told the part is already fitted.
+        expect(results.filter(Boolean)).toHaveLength(1)
+      })
+
+      it('round-trips retire and refit', async () => {
+        const gear = await database.createFitnessGear({
+          actorId: actors.extra.id,
+          kind: 'bike',
+          name: 'Round trip bike'
+        })
+        const component = await database.createFitnessGearComponent({
+          gearId: gear.id,
+          actorId: actors.extra.id,
+          componentType: 'Chain'
+        })
+
+        const retired = await database.retireFitnessGearComponent({
+          id: component!.id,
+          gearId: gear.id,
+          actorId: actors.extra.id
+        })
+        expect(retired?.removedAt).toBeDefined()
+        expect(retired?.periods).toHaveLength(1)
+
+        const refitted = await database.refitFitnessGearComponent({
+          id: component!.id,
+          gearId: gear.id,
+          actorId: actors.extra.id
+        })
+        expect(refitted?.removedAt).toBeUndefined()
+        expect(refitted?.periods).toHaveLength(2)
+
+        const retiredAgain = await database.retireFitnessGearComponent({
+          id: component!.id,
+          gearId: gear.id,
+          actorId: actors.extra.id
+        })
+        // Retiring again closes the SECOND period rather than reopening or
+        // replacing the first.
+        expect(retiredAgain?.periods).toHaveLength(2)
+        expect(retiredAgain?.periods[1].removedAt).toBeDefined()
+      })
+    })
+
     describe('findFitnessGearByDefaultSport', () => {
       it('finds the active gear holding the sport', async () => {
         const gear = await database.createFitnessGear({
@@ -1551,6 +1920,81 @@ describe('FitnessGearDatabase', () => {
     })
 
     describe('updateFitnessGearComponent', () => {
+      // The dates are on the periods now, and the PATCH reaches only the
+      // outermost bounds — the first period's start and the last period's end.
+      // That is what those two fields have always meant for the component as a
+      // whole, and it is why an edit cannot make two periods overlap.
+      it('moves the first period’s start and the last period’s end', async () => {
+        const bike = await database.createFitnessGear({
+          actorId: actors.pollAuthor.id,
+          kind: 'bike',
+          name: 'Component bounds bike'
+        })
+        const component = await database.createFitnessGearComponent({
+          gearId: bike.id,
+          actorId: actors.pollAuthor.id,
+          componentType: 'Chain',
+          addedAt: new Date('2026-01-01T00:00:00.000Z'),
+          removedAt: new Date('2026-02-01T00:00:00.000Z')
+        })
+        await database.refitFitnessGearComponent({
+          id: component!.id,
+          gearId: bike.id,
+          actorId: actors.pollAuthor.id
+        })
+
+        const updated = await database.updateFitnessGearComponent({
+          id: component!.id,
+          gearId: bike.id,
+          actorId: actors.pollAuthor.id,
+          addedAt: new Date('2025-12-01T00:00:00.000Z'),
+          removedAt: new Date('2026-09-01T00:00:00.000Z')
+        })
+
+        expect(updated?.periods).toHaveLength(2)
+        expect(updated?.periods[0].addedAt).toEqual(
+          Date.parse('2025-12-01T00:00:00.000Z')
+        )
+        // The middle bound is untouched, so the gap survives the edit.
+        expect(updated?.periods[0].removedAt).toEqual(
+          Date.parse('2026-02-01T00:00:00.000Z')
+        )
+        expect(updated?.periods[1].removedAt).toEqual(
+          Date.parse('2026-09-01T00:00:00.000Z')
+        )
+      })
+
+      // `removedAt: null` remains the precise way to say "this retirement never
+      // happened" — it reopens the LAST period rather than opening another one,
+      // which is exactly the difference from a refit.
+      it('reopens the last period rather than opening a new one when the removal date is cleared', async () => {
+        const bike = await database.createFitnessGear({
+          actorId: actors.pollAuthor.id,
+          kind: 'bike',
+          name: 'Component reopen bike'
+        })
+        const component = await database.createFitnessGearComponent({
+          gearId: bike.id,
+          actorId: actors.pollAuthor.id,
+          componentType: 'Chain',
+          addedAt: new Date('2026-01-01T00:00:00.000Z'),
+          removedAt: new Date('2026-02-01T00:00:00.000Z')
+        })
+
+        const updated = await database.updateFitnessGearComponent({
+          id: component!.id,
+          gearId: bike.id,
+          actorId: actors.pollAuthor.id,
+          removedAt: null
+        })
+
+        expect(updated?.periods).toHaveLength(1)
+        expect(updated?.periods[0].addedAt).toEqual(
+          Date.parse('2026-01-01T00:00:00.000Z')
+        )
+        expect(updated?.removedAt).toBeUndefined()
+      })
+
       it('updates only the fields given and leaves the rest alone', async () => {
         const bike = await database.createFitnessGear({
           actorId: actors.pollAuthor.id,
