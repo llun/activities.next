@@ -1001,19 +1001,53 @@ export const FitnessGearSQLDatabaseMixin = (
       // taken in front of the write is a decision about a state that may no
       // longer hold when the write lands.
       if ('addedAt' in params || 'removedAt' in params) {
-        if ('addedAt' in params) {
-          const first = await trx<SQLFitnessGearComponentPeriod>(
-            'fitness_gear_component_periods'
-          )
-            .where('componentId', params.id)
-            .orderBy('installSequence', 'asc')
-            .first()
-          if (first) {
+        const orderedPeriods = await trx<SQLFitnessGearComponentPeriod>(
+          'fitness_gear_component_periods'
+        )
+          .where('componentId', params.id)
+          .orderBy('installSequence', 'asc')
+          .select('*')
+        const first = orderedPeriods[0]
+        const last = orderedPeriods[orderedPeriods.length - 1]
+
+        // Both bounds land on the SAME row when the component has one period,
+        // and then that row's stored state says nothing about whether the edit
+        // is ordered — both ends are being replaced. Writing them separately
+        // makes the first write's predicate compare the new `addedAt` against
+        // the OLD `removedAt` the second write is about to overwrite, so moving
+        // a window wholesale applied only half of itself and left the other
+        // half silently dropped behind a 200.
+        const writesBothBoundsOnOneRow =
+          first &&
+          last &&
+          first.id === last.id &&
+          'addedAt' in params &&
+          'removedAt' in params
+
+        if (writesBothBoundsOnOneRow) {
+          const addedAt = params.addedAt ?? null
+          const removedAt = params.removedAt ?? null
+          // Nothing stored is consulted, so the ordering is settled here.
+          if (!addedAt || !removedAt || removedAt > addedAt) {
+            await trx('fitness_gear_component_periods')
+              .where('id', first.id)
+              .update({ addedAt, removedAt, updatedAt: currentTime })
+          }
+        } else {
+          // One bound per row, so each is checked against the other end the row
+          // actually keeps — as a predicate on the write, not a decision taken
+          // from the read above it. WHICH period is last is resolved here, at
+          // write time, while a caller validated the periods it had READ, and a
+          // refit landing between the two appends a new one: the bound would
+          // otherwise land on a row nobody checked and write a period no
+          // activity can fall inside, which a later refit then buries in the
+          // middle where nothing looks again.
+          if ('addedAt' in params && first) {
             const query = trx('fitness_gear_component_periods').where(
               'id',
               first.id
             )
-            // Clearing it cannot invert anything, so it needs no predicate.
+            // Clearing a bound cannot invert anything.
             const addedAt = params.addedAt
             if (addedAt) {
               query.where((builder) =>
@@ -1027,16 +1061,8 @@ export const FitnessGearSQLDatabaseMixin = (
               updatedAt: currentTime
             })
           }
-        }
 
-        if ('removedAt' in params) {
-          const last = await trx<SQLFitnessGearComponentPeriod>(
-            'fitness_gear_component_periods'
-          )
-            .where('componentId', params.id)
-            .orderBy('installSequence', 'desc')
-            .first()
-          if (last) {
+          if ('removedAt' in params && last) {
             const query = trx('fitness_gear_component_periods').where(
               'id',
               last.id

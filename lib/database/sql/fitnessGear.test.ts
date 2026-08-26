@@ -2019,6 +2019,43 @@ describe('FitnessGearDatabase', () => {
         expect(updated?.removedAt).toBeUndefined()
       })
 
+      // Both bounds land on the SAME row when a component has one period, and
+      // each write's ordering predicate reads the row's stored state — so the
+      // first write compares the new `addedAt` against the OLD `removedAt`,
+      // which the second write is about to replace. Moving a window wholesale
+      // is the case where that matters: every value is ordered, and the edit
+      // must apply whole rather than half.
+      it('moves both ends of a single period past the old window', async () => {
+        const bike = await database.createFitnessGear({
+          actorId: actors.pollAuthor.id,
+          kind: 'bike',
+          name: 'Component wholesale bike'
+        })
+        const component = await database.createFitnessGearComponent({
+          gearId: bike.id,
+          actorId: actors.pollAuthor.id,
+          componentType: 'Chain',
+          addedAt: new Date('2026-01-01T00:00:00.000Z'),
+          removedAt: new Date('2026-03-01T00:00:00.000Z')
+        })
+
+        const updated = await database.updateFitnessGearComponent({
+          id: component!.id,
+          gearId: bike.id,
+          actorId: actors.pollAuthor.id,
+          addedAt: new Date('2026-04-01T00:00:00.000Z'),
+          removedAt: new Date('2026-09-01T00:00:00.000Z')
+        })
+
+        expect(updated?.periods).toHaveLength(1)
+        expect(updated?.periods[0].addedAt).toEqual(
+          Date.parse('2026-04-01T00:00:00.000Z')
+        )
+        expect(updated?.periods[0].removedAt).toEqual(
+          Date.parse('2026-09-01T00:00:00.000Z')
+        )
+      })
+
       // `removedAt: null` remains the precise way to say "this retirement never
       // happened" — it reopens the LAST period rather than opening another one,
       // which is exactly the difference from a refit.
