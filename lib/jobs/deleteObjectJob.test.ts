@@ -326,6 +326,46 @@ describe('deleteObjectJob', () => {
     }
   )
 
+  it('still reports a sender mismatch when a planted Announce id was revoked', async () => {
+    // The one shape where suppression would hide a real signal. An Announce is
+    // a boost, never a stamp, so no legitimate revocation reaches this branch —
+    // getting here with a revocation behind us means someone stored a third
+    // party's Announce id as an authorizationUri and is now trying to delete an
+    // object they do not own.
+    const stamp = Date.now()
+    const author = `https://remote.example/users/announce-planter-${stamp}`
+    const quotedStatusId = `${author}/statuses/1`
+    await seedQuotedStatus(author, quotedStatusId)
+    const announceId = `${author}/statuses/announce-${stamp}`
+    const quotingId = `https://local.test/users/me/statuses/announce-planted-${stamp}`
+    await database.createStatusQuote({
+      statusId: quotingId,
+      quotedStatusId,
+      state: 'accepted',
+      authorizationUri: announceId
+    })
+
+    await deleteObjectJob(database, {
+      id: `announce-planted-job-${stamp}`,
+      name: DELETE_OBJECT_JOB_NAME,
+      data: {
+        id: announceId,
+        type: 'Announce',
+        actor: `https://remote.example/users/someone-else-${stamp}`,
+        published: new Date().toISOString(),
+        to: [],
+        cc: [],
+        object: quotedStatusId
+      },
+      verifiedSenderActorId: author
+    })
+
+    // The revocation still happened, and the refused delete is still surfaced.
+    const edge = await database.getStatusQuote({ statusId: quotingId })
+    expect(edge?.state).toBe('revoked')
+    expect(recordedAttributes()).toHaveProperty('senderMismatch', true)
+  })
+
   it('still reports genuinely invalid data', async () => {
     // The suppression must be scoped to an actual revocation, or a malformed
     // Delete stops being visible at all.

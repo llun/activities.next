@@ -124,7 +124,13 @@ export const deleteObjectJob = createJobHandle(
       if (announceResult.success) {
         const announce = announceResult.data
         if (!actorMatchesVerifiedSender(announce.actor, message)) {
-          if (!revokedQuote) span.setAttribute('senderMismatch', true)
+          // Reported unconditionally, unlike the string path above: an Announce
+          // is a boost and never a stamp, so no legitimate revocation shape
+          // reaches here. Arriving with `revokedQuote` set means someone stored
+          // a third party's Announce id as an authorizationUri and is now
+          // deleting an object they do not own — precisely the case the
+          // attribute exists to surface.
+          span.setAttribute('senderMismatch', true)
           return
         }
 

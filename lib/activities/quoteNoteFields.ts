@@ -57,6 +57,13 @@ const buildCanQuote = (policy: QuoteApprovalPolicy, actorId: string) => {
   return { automaticApproval, manualApproval: [] as string[] }
 }
 
+type InteractionPolicyStatus = {
+  actorId: string
+  to: string[]
+  cc: string[]
+  quoteApprovalPolicy?: QuoteApprovalPolicy
+}
+
 /**
  * Who may quote THIS status (FEP-044f `interactionPolicy.canQuote`). Emitted
  * unconditionally: a peer cannot honour a quote policy it was never told, and
@@ -69,13 +76,6 @@ const buildCanQuote = (policy: QuoteApprovalPolicy, actorId: string) => {
  * divergence here is invisible to every test and only shows up as a remote
  * server allowing or refusing a quote it should not have.
  */
-type InteractionPolicyStatus = {
-  actorId: string
-  to: string[]
-  cc: string[]
-  quoteApprovalPolicy?: QuoteApprovalPolicy
-}
-
 export const getInteractionPolicyFields = (
   status: InteractionPolicyStatus
 ) => ({
