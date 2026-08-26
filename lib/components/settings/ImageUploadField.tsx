@@ -1,6 +1,6 @@
 'use client'
 
-import { Loader2, Upload } from 'lucide-react'
+import { Loader2, Upload, X } from 'lucide-react'
 import { FC, SyntheticEvent, useRef, useState } from 'react'
 
 import { uploadAttachment } from '@/lib/client'
@@ -20,7 +20,6 @@ interface ImageUploadFieldProps {
   fieldName: 'iconUrl' | 'headerImageUrl'
   currentUrl: string | null
   label: string
-  placeholder: string
   previewType: 'thumbnail' | 'landscape'
 }
 
@@ -28,7 +27,6 @@ export const ImageUploadField: FC<ImageUploadFieldProps> = ({
   fieldName,
   currentUrl,
   label,
-  placeholder,
   previewType
 }) => {
   // The instance's configured upload cap (admin setting media.maxFileSize), so
@@ -42,6 +40,13 @@ export const ImageUploadField: FC<ImageUploadFieldProps> = ({
 
   const handleUploadClick = () => {
     fileInputRef.current?.click()
+  }
+
+  const handleRemoveClick = () => {
+    // Submitting an empty value is how both profile routes are told to clear
+    // the stored image.
+    setImageUrl('')
+    setUploadError(null)
   }
 
   const handleFileSelect = async (
@@ -127,14 +132,17 @@ export const ImageUploadField: FC<ImageUploadFieldProps> = ({
         </div>
       )}
 
-      {/* Input field with upload button */}
+      {/* The field is read-only because the routes behind it only accept a URL
+          naming media this instance already stores, which is exactly what the
+          upload button produces. A typeable box would invite a remote URL that
+          the server refuses. */}
       <div className="flex gap-2">
         <Input
           type="text"
           id={fieldName}
           value={imageUrl}
-          onChange={(e) => setImageUrl(e.target.value)}
-          placeholder={placeholder}
+          readOnly
+          placeholder="No image uploaded yet"
           className="flex-1"
         />
         <Button
@@ -143,6 +151,7 @@ export const ImageUploadField: FC<ImageUploadFieldProps> = ({
           size="icon"
           onClick={handleUploadClick}
           disabled={isUploading}
+          aria-label={isUploading ? `Uploading ${label}` : `Upload ${label}`}
         >
           {isUploading ? (
             <Loader2 className="size-4 animate-spin" />
@@ -150,6 +159,18 @@ export const ImageUploadField: FC<ImageUploadFieldProps> = ({
             <Upload className="size-4" />
           )}
         </Button>
+        {imageUrl && (
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={handleRemoveClick}
+            disabled={isUploading}
+            aria-label={`Remove ${label}`}
+          >
+            <X className="size-4" />
+          </Button>
+        )}
       </div>
 
       {/* Hidden file input */}
