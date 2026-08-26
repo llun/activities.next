@@ -35,6 +35,8 @@ lib/services/medias/mediaFileUrl.test.ts
   s_bf5e9f0c013c49::t_98c9fcdba435f0 111-115,121-126,128-131,133-135,308-320,334-338,359-375
   s_bf5e9f0c013c49::t_4a9f72c7d3f066 321-333
   s_bf5e9f0c013c49::t_a13bd908e0895a 92-93,277-292,304-305,339-350
+CLAUDE.md
+  s_bf5e9f0c013c49::t_821d8cb03e1f69 54
 ---
 {
   "schema_version": "authorship/3.0.0",
