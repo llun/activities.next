@@ -105,12 +105,21 @@ export const activityPubResponse = ({
   req,
   data,
   contentType,
-  allowedMethods = [HttpMethod.enum.GET]
+  allowedMethods = [HttpMethod.enum.GET],
+  // Extra response headers. They are ADDED to this function's own two, never
+  // substituted for them, because `Headers` appends a repeated name rather than
+  // replacing it. That cuts both ways: `Vary` is a list header, so a caller
+  // naming what else its response varies by correctly joins the `Accept` below
+  // — the outbox root does this for the headers that pick its actor — while
+  // `Content-Type` is single-valued and a second one corrupts it into
+  // `a/b, c/d`. Pass `contentType` to choose the content type.
+  additionalHeaders = []
 }: {
   req: NextRequest
   data: unknown
   contentType?: string | null
   allowedMethods?: HttpMethod[]
+  additionalHeaders?: [string, string][]
 }) => {
   const responseContentType =
     contentType ??
@@ -123,7 +132,8 @@ export const activityPubResponse = ({
     data,
     additionalHeaders: [
       ['Content-Type', responseContentType],
-      ['Vary', 'Accept']
+      ['Vary', 'Accept'],
+      ...additionalHeaders
     ]
   })
 }

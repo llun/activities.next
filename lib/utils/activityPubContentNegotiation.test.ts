@@ -96,4 +96,20 @@ describe('activityPubResponse', () => {
       'GET,POST'
     )
   })
+
+  it('sends caller headers alongside the negotiated content type and Vary', () => {
+    const response = activityPubResponse({
+      req: new Request('https://example.com', {
+        headers: { accept: 'application/activity+json' }
+      }) as never,
+      data: { ok: true },
+      additionalHeaders: [['Cache-Control', 'public, max-age=60, s-maxage=60']]
+    })
+
+    expect(response.headers.get('cache-control')).toBe(
+      'public, max-age=60, s-maxage=60'
+    )
+    expect(response.headers.get('content-type')).toBe(ACTIVITYPUB_CONTENT_TYPE)
+    expect(response.headers.get('vary')).toBe('Accept')
+  })
 })
