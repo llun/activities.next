@@ -1763,33 +1763,50 @@ system's `Attachments` component.
   Both were switched back to a plain scrollbar rather than quietly inheriting
   it.
 
-## Status Delete Federation
+## Status Delete & Unboost Federation
 
 - **The local delete commits FIRST and the `Delete` fans out from
   `SendDeleteNoteJob` afterwards — and that job must never load the status it is
-  announcing the death of.** `database.deleteStatus` is a cascading hard delete,
+  announcing the death of — and the same holds for `SendUndoAnnounceJob` and the
+  Announce it undoes.** `database.deleteStatus` is a cascading hard delete,
   so by the time the job runs the row (and its whole same-actor reply subtree) is
   gone. `deleteStatusFromUserInput` (`lib/actions/deleteStatus.ts`) therefore
   captures the audience before deleting and publishes it in the payload
   (`{ actorId, statusId, to, cc }`), and `getFederatedStatusDeliveryInboxes`
   takes `Pick<Status, 'to' | 'cc'>` rather than a whole `Status` so a caller
-  holding only that payload can still resolve inboxes. **Do not "unify" this job
-  onto `loadStatusAndActor`**: that is exactly the bug `sendUndoAnnounceJob` has
-  — `undoAnnounce` hard-deletes then enqueues, the job bails on `!status`, and
-  the `Undo` never federates. Every delivery test in
-  `lib/jobs/sendDeleteNoteJob.test.ts` uses a statusId that is deliberately NOT
-  in the database for that reason.
+  holding only that payload can still resolve inboxes. **Do not "unify" either job
+  onto `loadStatusAndActor`**: that is exactly the bug `sendUndoAnnounceJob`
+  shipped with — `undoAnnounce` hard-deletes then enqueues, the job bailed on
+  `!status`, and no unboost ever federated. Every delivery test in
+  `lib/jobs/sendDeleteNoteJob.test.ts` and `lib/jobs/sendUndoAnnounceJob.test.ts`
+  uses a statusId that is deliberately NOT in the database for that reason.
 - **The dedup id is `getHashFromString(`${statusId}#delete`)`, and the suffix is
   correctness.** The queue deduplicates globally on `message.id` across job
   names, with a window that outlives consumption, and `SendNoteJob` /
   `SendUpdateNoteJob` already publish under the bare `getHashFromString(statusId)`
   — without the suffix, deleting a status posted or edited inside that window is
   silently dropped and never federates.
-- **The `publish` is wrapped in try/catch on purpose.** The hard delete has
+- **Unboost carries more than the audience, because its activity embeds the
+  Announce.** `undoAnnounce` (`lib/activities/index.ts`) builds its object from
+  `id`, `actorId`, `createdAt`, `to`, `cc` and `originalStatus.id`, so the job
+  payload carries all six and the sender's `announce` parameter is narrowed to
+  exactly that shape (`UndoAnnounceTarget`) rather than a whole `StatusAnnounce`
+  — the same narrowing trick `getFederatedStatusDeliveryInboxes` uses, and safe
+  because the job is the sender's only consumer. Its dedup id is
+  `getHashFromString(`${statusId}#undo`)`, matching the emitted `<id>#undo`;
+  `SendAnnounceJob` publishes under the bare status id, so without the suffix a
+  boost followed by an unboost inside the dedup window drops the `Undo`. It
+  keeps `getFollowersInbox` + `filterFederatedUrls` rather than the shared
+  delivery helper, because `sendAnnounceJob` resolves inboxes the same way and
+  the two must stay symmetric.
+- **Both actions wrap `publish` in try/catch on purpose.** The hard delete has
   already committed and cannot be undone, so a failed enqueue must not surface as
   a failed request — that would tell the author their post is still there when it
-  is gone, and would skip the route's media cleanup. It is logged with a stack;
-  remote copies reconcile on their next fetch, which 404s.
+  is gone (and on the delete path would skip the route's media cleanup). It is
+  logged with a stack; remote copies reconcile on their next fetch, which 404s.
+  This matters more for unboost than it looks: once the job stopped bailing
+  early, the default in-process queue runs the whole fan-out inside that
+  `publish`, so a follower-inbox lookup can now throw where it never could.
 - Delivery errors never reach that catch: `postActivityToInbox` swallows every
   network failure and returns `undefined`, so the activities `deleteStatus`
   sender does not reject. A test that fails the _socket_ therefore proves nothing
