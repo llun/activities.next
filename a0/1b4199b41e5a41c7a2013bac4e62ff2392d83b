@@ -1,0 +1,24 @@
+lib/components/posts/media.test.tsx
+  s_a3b90525842071::t_6164fc2b1c8c35 114-120,175-208
+  s_a3b90525842071::t_3431037d90ad97 209-210
+lib/services/medias/imageAnalysis.test.ts
+  s_a3b90525842071::t_6164fc2b1c8c35 6,77
+lib/services/medias/imageAnalysis.ts
+  s_a3b90525842071::t_6164fc2b1c8c35 27,45,53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "a01b4199b41e5a41c7a2013bac4e62ff2392d83b",
+  "prompts": {},
+  "sessions": {
+    "s_a3b90525842071": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "029eb1cf-00b7-4f56-b1d3-679cd6f1e78c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
