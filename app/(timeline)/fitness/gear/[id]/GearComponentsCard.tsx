@@ -15,7 +15,8 @@ import { useGearTableColumns } from '@/app/(timeline)/fitness/gear/useGearTableC
 import {
   createFitnessGearComponent,
   deleteFitnessGearComponent,
-  retireFitnessGearComponent
+  retireFitnessGearComponent,
+  updateFitnessGearComponent
 } from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
 import { Card } from '@/lib/components/ui/card'
@@ -119,9 +120,19 @@ export const GearComponentsCard: FC<Props> = ({
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pendingActionId, setPendingActionId] = useState<string | null>(null)
-  // A second click on the same row's Delete confirms it — cheaper than a
-  // dialog for a row the user just retired, and still not a single misclick.
-  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
+  // A second click on the same row's Retire or Delete confirms it — cheaper
+  // than a dialog, and still not a single misclick. Retire arms too: it is not
+  // destructive the way Delete is, since the Unretire beside it puts the row
+  // back, but it closes the install window, so a stray click silently stops the
+  // part accruing distance and it takes reading the table closely to notice.
+  //
+  // ONE id, not one per action: a row offers exactly one confirmable action and
+  // `component.removedAt` decides which, so a single id makes "armed for the
+  // action this row no longer offers" unrepresentable. With two, unretiring a
+  // row armed for Delete left that arm set, and retiring it again brought the
+  // Delete button back already armed — a one-click delete, which is the hazard
+  // the disarm rules exist to prevent.
+  const [confirmingActionId, setConfirmingActionId] = useState<string | null>(
     null
   )
   const {
@@ -183,10 +194,16 @@ export const GearComponentsCard: FC<Props> = ({
   }
 
   const handleRetire = async (componentId: string) => {
+    if (confirmingActionId !== componentId) {
+      setConfirmingActionId(componentId)
+      return
+    }
+
     setError(null)
     setPendingActionId(componentId)
     try {
       await retireFitnessGearComponent(gearId, componentId)
+      setConfirmingActionId(null)
       onChanged()
     } catch (retireError) {
       setError(
@@ -199,9 +216,41 @@ export const GearComponentsCard: FC<Props> = ({
     }
   }
 
+  // Clearing `removedAt` reopens the ORIGINAL `[addedAt, now)` window. A
+  // component has one window and no per-period history, so this is not the
+  // mirror of Retire: undoing a retire seconds later credits nothing extra,
+  // but undoing one from last season credits every activity ridden while the
+  // part sat retired — and re-retiring does NOT take that back, because it
+  // only closes the window at the new now. Verified against the rollup query.
+  //
+  // Unretire is still unarmed. Arming it would add friction to the misclick
+  // this exists to recover from without preventing the misattribution, which
+  // the UI cannot distinguish from a legitimate refit anyway.
+  const handleUnretire = async (componentId: string) => {
+    setError(null)
+    // The row is about to offer Retire instead of Delete; carrying an arm
+    // across that flip is what the single id exists to prevent.
+    setConfirmingActionId(null)
+    setPendingActionId(componentId)
+    try {
+      await updateFitnessGearComponent(gearId, componentId, {
+        removedAt: null
+      })
+      onChanged()
+    } catch (unretireError) {
+      setError(
+        unretireError instanceof Error
+          ? unretireError.message
+          : 'Failed to unretire component.'
+      )
+    } finally {
+      setPendingActionId(null)
+    }
+  }
+
   const handleDelete = async (componentId: string) => {
-    if (confirmingDeleteId !== componentId) {
-      setConfirmingDeleteId(componentId)
+    if (confirmingActionId !== componentId) {
+      setConfirmingActionId(componentId)
       return
     }
 
@@ -209,7 +258,7 @@ export const GearComponentsCard: FC<Props> = ({
     setPendingActionId(componentId)
     try {
       await deleteFitnessGearComponent(gearId, componentId)
-      setConfirmingDeleteId(null)
+      setConfirmingActionId(null)
       onChanged()
     } catch (deleteError) {
       setError(
@@ -478,40 +527,69 @@ export const GearComponentsCard: FC<Props> = ({
                       className="px-3 py-2.5 pr-4 text-right align-top whitespace-nowrap"
                       style={dataColumnStyle(84)}
                     >
-                      {isRetired ? (
-                        <Button
-                          size="sm"
-                          type="button"
-                          variant="ghost"
-                          className="text-destructive"
-                          disabled={isPending}
-                          onClick={() => handleDelete(component.id)}
-                          // Leaving the button disarms it: an armed row that
-                          // stays armed is a destructive single click waiting
-                          // for whoever comes back to this table.
-                          onBlur={() => {
-                            if (confirmingDeleteId === component.id) {
-                              setConfirmingDeleteId(null)
+                      <div className="flex flex-wrap justify-end gap-1">
+                        {isRetired ? (
+                          <>
+                            <Button
+                              size="sm"
+                              type="button"
+                              variant="ghost"
+                              className="text-primary-text"
+                              aria-label={`Unretire ${component.componentType}`}
+                              disabled={isPending}
+                              onClick={() => handleUnretire(component.id)}
+                            >
+                              Unretire
+                            </Button>
+                            <Button
+                              size="sm"
+                              type="button"
+                              variant="ghost"
+                              className="text-destructive"
+                              disabled={isPending}
+                              onClick={() => handleDelete(component.id)}
+                              // Leaving the button disarms it: an armed row that
+                              // stays armed is a destructive single click waiting
+                              // for whoever comes back to this table.
+                              onBlur={() => {
+                                if (confirmingActionId === component.id) {
+                                  setConfirmingActionId(null)
+                                }
+                              }}
+                            >
+                              {confirmingActionId === component.id
+                                ? 'Confirm delete'
+                                : 'Delete'}
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            size="sm"
+                            type="button"
+                            variant="ghost"
+                            className="text-primary-text"
+                            aria-label={
+                              confirmingActionId === component.id
+                                ? `Confirm retire ${component.componentType}`
+                                : `Retire ${component.componentType}`
                             }
-                          }}
-                        >
-                          {confirmingDeleteId === component.id
-                            ? 'Confirm delete'
-                            : 'Delete'}
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          type="button"
-                          variant="ghost"
-                          className="text-primary-text"
-                          aria-label={`Retire ${component.componentType}`}
-                          disabled={isPending}
-                          onClick={() => handleRetire(component.id)}
-                        >
-                          Retire
-                        </Button>
-                      )}
+                            disabled={isPending}
+                            onClick={() => handleRetire(component.id)}
+                            // Same disarm rule as Delete: an armed row left
+                            // armed closes the next visitor's install window on
+                            // one click.
+                            onBlur={() => {
+                              if (confirmingActionId === component.id) {
+                                setConfirmingActionId(null)
+                              }
+                            }}
+                          >
+                            {confirmingActionId === component.id
+                              ? 'Confirm retire'
+                              : 'Retire'}
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )
@@ -531,7 +609,7 @@ export const GearComponentsCard: FC<Props> = ({
             // delete on the first click after the next "Show ...".
             onClick={() => {
               setShowRetired((current) => !current)
-              setConfirmingDeleteId(null)
+              setConfirmingActionId(null)
             }}
           >
             {showRetired
