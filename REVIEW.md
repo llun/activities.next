@@ -522,6 +522,60 @@ attachment ref guard` is exactly that: it passed with the bug present until
   loopback development hosts, which `isHostTrustedByRules` alone rejects.
   `getAttachmentMediaPath` is not this check: it never returns null and is for
   URLs this instance just produced.
+- **The path it recovers must also be refused when it walks upwards, is
+  absolute, or carries a NUL byte — and that check runs AFTER decoding**
+  (`isTraversingStoragePath`, shared with the blurhash backfill; do not fork
+  it). `new URL()` resolves dot segments only where the separators are literal
+  slashes, so `https://<our-host>/api/v1/files/..%2f..%2fsecrets/env` reaches
+  the decoder still spelled `..%2f` and comes back as `../../secrets/env`; the
+  host-relative branch parses no URL at all, so a plain
+  `/api/v1/files/../../secrets/env` is never normalised either.
+  `copyProfileImage` joined that onto the staging directory and copied whatever
+  it found into the archive as `avatar.<ext>`, and `iconUrl` is a bare
+  `z.string()` any signed-in user can set — so this was a live arbitrary-file
+  read, not a hardening exercise. Refuse only a segment that RESOLVES to `..`:
+  `ab/..cd.webp` is an ordinary stored file name. Cover Windows too — `\` is a
+  separator, `C:` is absolute, and Win32 strips a component's trailing dots and
+  spaces carrying two or more dots, since Windows normalises trailing dots away
+  and Node's own `path.win32` does not model that. Refusing the whole shape is
+  deliberately wider than what Win32 actually collapses — no stored path is
+  named out of dots, so over-refusing costs nothing and does not depend on
+  getting the platform's rules exactly right.
+- **Do not answer "the storage driver will reject it".** `LocalFileStorage.getFile`
+  does make a containment check; `S3FileStorage.getFile` makes none — a
+  traversing key is merely inert there, and with a CDN `hostname` configured it
+  is string-concatenated into a redirect URL. Any new step that turns a stored
+  path into a filesystem read should still resolve and confirm containment for
+  itself, the way `copyProfileImage` and `createMediaTempFilePath` do — a
+  signature taking a bare path says nothing about where the path came from.
+- **A wildcard trusted-host entry is not a literal authority, and the check
+  belongs AFTER parsing.** `new URL()` accepts `*` in a host, so an
+  exact-authority comparison against the rule's own spelling let
+  `https://*.cdn.example/api/v1/files/<path>` pass as ours. Both of
+  `isOwnInstanceHost`'s passes need a guard: the exact pass reads RAW rules so
+  it skips any rule containing `*`, and `normalizeHost` — which recognised the
+  documented `*.example.com` form only on the raw value, leaving `*example.com`,
+  `cdn.*` and `foo.*.example.com` as literal hostnames a `%2a`-spelled
+  authority matched exactly — now refuses any parsed hostname still containing
+  one, reading the `*.` marker off the AUTHORITY so a scheme-prefixed rule
+  still expands.
+- **Four consumers of `ACTIVITIES_TRUSTED_HOSTS` apply that refusal, each on
+  the PARSED hostname** — `normalizeHost`, `isOwnAuthority`'s loopback
+  fallback, `buildTrustedOrigins` and `toHostname` — because each reads a
+  misplaced wildcard differently. `buildTrustedOrigins` hands it to
+  better-auth, which globs any pattern containing `*`, so `*example.com`
+  trusted `evilexample.com` for the auth Origin check and for
+  `callbackURL`/`redirectTo` — an open redirect carrying auth callbacks.
+  **Check after parsing, never before: the parser is what MAKES the `*`.** It
+  percent-decodes the authority, applies IDNA mapping and strips tab/CR/LF, so
+  `%2aexample.com` and a fullwidth `＊example.com` sail past a raw check — which
+  buys nothing anyway, since a literal `*example.com` parses to a hostname
+  carrying the same `*`. Where a guard reads `hostname` but emits `origin`, it
+  must also require a web scheme: `blob:` derives its origin from the inner URL
+  in its PATH and reports an empty host, the one scheme where the two disagree.
+  `getAllowedOrigins` in the Apple Maps token route is a fifth consumer that
+  deliberately does not filter — whether MapKit globs `*` is unverified, so
+  establish that before sweeping it.
 - **A stored file with no `medias` row is unreachable**, so whatever fails
   after a write must reclaim it — only `scripts/maintenance/cleanupMediaStorage.ts`
   can find it otherwise. Equally, do not report a storage failure as a

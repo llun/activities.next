@@ -24,7 +24,10 @@ import { toMediaRowId } from '@/lib/database/sql/media'
 import { getMediaStorage } from '@/lib/services/medias'
 import { PRESIGNED_ANALYSIS_MAX_BYTES } from '@/lib/services/medias/constants'
 import { analyzeImageBuffer } from '@/lib/services/medias/imageAnalysis'
-import { getMediaFileUrl } from '@/lib/services/medias/mediaFileUrl'
+import {
+  getMediaFileUrl,
+  isTraversingStoragePath
+} from '@/lib/services/medias/mediaFileUrl'
 import {
   getTrustedHostRules,
   hostMatchesRule,
@@ -130,10 +133,15 @@ const isOwnAuthority = (
   // `https://*.<trusted-domain>/api/v1/files/<path>` match the rule's own
   // spelling and read an attacker-chosen path straight out of local storage.
   const candidate = authority.trim().toLowerCase()
-  if (!candidate || candidate.startsWith('*.')) return false
+  // `includes`, not `startsWith('*.')`: a rule is only a wildcard in the
+  // documented `*.example.com` spelling, so `*example.com`, `cdn.*` and
+  // `foo.*.example.com` reach here as LITERAL rules carrying a `*` — and
+  // `new URL()` percent-decodes `%2a` in an authority, so a federated
+  // attachment URL can spell one exactly and be read out of local storage.
+  if (!candidate || candidate.includes('*')) return false
   return ownHostRules.some((rule) => {
     const normalizedRule = rule.trim().toLowerCase()
-    return !normalizedRule.startsWith('*.') && normalizedRule === candidate
+    return !normalizedRule.includes('*') && normalizedRule === candidate
   })
 }
 
@@ -227,15 +235,6 @@ const getOwnPathname = (
     return null
   }
 }
-
-// A decoded segment that walks upwards, or an absolute decoded path, is never a
-// storage path. `new URL` normalises a LITERAL `../` out of the pathname, but a
-// percent-encoded one survives it and `decodeURIComponent` puts it back — so
-// the check has to happen after decoding. Both storage drivers refuse such a
-// path anyway; a maintenance sweep should not be asking them to.
-const isTraversingStoragePath = (storagePath: string) =>
-  storagePath.startsWith('/') ||
-  storagePath.split('/').some((segment) => segment === '..')
 
 export const getLocalStoragePath = (
   rawUrl: string,

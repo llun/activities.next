@@ -7,6 +7,27 @@ describe('getServedDomains', () => {
     ])
   })
 
+  // A passkey binds to one concrete domain, so any wildcard is disqualifying —
+  // and the parser is what MAKES the `*` in the encoded spellings, so the
+  // check has to read the PARSED hostname. A raw check let `%2aevil.example`
+  // through as the concrete-looking domain `*evil.example`.
+  it.each([
+    { description: 'a documented wildcard', host: '*.wild.example' },
+    { description: 'a misplaced wildcard', host: '*evil.example' },
+    { description: 'a percent-encoded asterisk', host: '%2aevil.example' },
+    { description: 'a fullwidth asterisk', host: '＊evil.example' }
+  ])('omits a trusted host spelled as $description', ({ host }) => {
+    expect(
+      getServedDomains({
+        host: 'llun.social',
+        trustedHosts: [host, 'ok.example']
+      })
+    ).toEqual([
+      { domain: 'llun.social', primary: true },
+      { domain: 'ok.example', primary: false }
+    ])
+  })
+
   it('lists the primary first, then trusted hosts', () => {
     expect(
       getServedDomains({

@@ -122,6 +122,121 @@ describe('getMediaPathFromFileUrl', () => {
       description: 'a value that is not a URL at all',
       url: 'not-a-url',
       expected: null
+    },
+    // A stored path names one file under the media root, so a `..` segment is
+    // never one of ours. `new URL()` resolves dot segments for us only when
+    // the separators are literal slashes, which leaves two ways in: an encoded
+    // slash on an absolute URL, and the host-relative branch, which never
+    // parses a URL at all.
+    {
+      description:
+        'an encoded slash spelling a traversal out of the media root',
+      url: 'https://llun.test/api/v1/files/..%2f..%2fsecrets/env',
+      expected: null
+    },
+    {
+      description: 'an upper-case encoded traversal',
+      url: 'https://llun.test/api/v1/files/%2E%2E%2F%2E%2E%2Fsecrets/env',
+      expected: null
+    },
+    {
+      description: 'a traversal reached after a leading directory',
+      url: 'https://llun.test/api/v1/files/ab/..%2f..%2f..%2fsecrets/env',
+      expected: null
+    },
+    {
+      description: 'a plain traversal on a host-relative URL',
+      url: '/api/v1/files/../../secrets/env',
+      expected: null
+    },
+    {
+      description: 'a backslash traversal, which Windows resolves the same way',
+      url: 'https://llun.test/api/v1/files/..%5c..%5csecrets',
+      expected: null
+    },
+    // A malformed escape leaves the path undecoded, and the check reads that
+    // fallback rather than the decoded string it never produced. Nothing
+    // traverses either way: an undecodable `%2f` is a literal character to
+    // `path.join` too, so the whole value stays one path segment.
+    {
+      description: 'an encoded traversal left undecoded by a malformed escape',
+      url: 'https://llun.test/api/v1/files/..%2f..%2fsecrets%',
+      expected: '..%2f..%2fsecrets%'
+    },
+    // Only a whole `..` segment traverses. A file name that merely contains
+    // two dots is an ordinary stored path, and a `.` segment resolves back to
+    // the directory it sits in.
+    {
+      description: 'a stored file name containing two dots',
+      url: 'https://llun.test/api/v1/files/ab/..cd..webp',
+      expected: 'ab/..cd..webp'
+    },
+    {
+      description: 'a single-dot segment on a host-relative URL',
+      url: '/api/v1/files/ab/./cd.webp',
+      expected: 'ab/./cd.webp'
+    },
+    {
+      description: 'a file name that is a colon but not a drive',
+      url: '/api/v1/files/ab/cd:ef.webp',
+      expected: 'ab/cd:ef.webp'
+    },
+    // An absolute decoded path is not a storage path either. `path.join`
+    // reinterprets one as relative and `path.resolve` treats it as an escape,
+    // so neither reading is what the URL named.
+    {
+      description: 'a decoded path that is absolute',
+      url: 'https://llun.test/api/v1/files//etc/passwd',
+      expected: null
+    },
+    {
+      description: 'a decoded path made absolute by an encoded slash',
+      url: 'https://llun.test/api/v1/files/%2Fetc/passwd',
+      expected: null
+    },
+    {
+      description: 'a decoded path made absolute by a backslash',
+      url: 'https://llun.test/api/v1/files/%5Cetc%5Cpasswd',
+      expected: null
+    },
+    // Windows: a drive letter is absolute, and Win32 strips a component's
+    // trailing dots and spaces before opening it, so `.. ` names the parent
+    // there. The archive and maintenance scripts run wherever the operator
+    // runs them.
+    {
+      description: 'a Windows drive-letter path',
+      url: 'https://llun.test/api/v1/files/C:%5CWindows%5Cwin.ini',
+      expected: null
+    },
+    {
+      description: 'a drive-letter path on the host-relative branch',
+      url: '/api/v1/files/C:/Windows/win.ini',
+      expected: null
+    },
+    {
+      description: 'a traversal whose segments carry a trailing space',
+      url: 'https://llun.test/api/v1/files/..%20%2f..%20%2fsecret',
+      expected: null
+    },
+    {
+      description: 'a traversal spelled with three dots',
+      url: 'https://llun.test/api/v1/files/...%2f...%2fsecret',
+      expected: null
+    },
+    // Node refuses a NUL byte in a path, so letting one through only decides
+    // where it throws: on the storage-plan route that aborts the whole export.
+    {
+      description: 'a path carrying a NUL byte',
+      url: 'https://llun.test/api/v1/files/ab%00.webp',
+      expected: null
+    },
+    // A wildcard trusted-host rule is not a literal authority. `new URL()`
+    // accepts `*` in a host, so comparing the rule against itself let a URL
+    // spelling it pass as ours.
+    {
+      description: 'a URL whose authority is spelled as the wildcard rule',
+      url: 'https://*.cdn.llun.test/api/v1/files/ab/cd.webp',
+      expected: null
     }
   ])('$description', ({ url, expected }) => {
     expect(getMediaPathFromFileUrl(url, config)).toBe(expected)

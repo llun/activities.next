@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  waitForElementToBeRemoved
+} from '@testing-library/react'
 import { ReactNode } from 'react'
 
 import { getActorStatuses } from '@/lib/client'
@@ -221,11 +227,17 @@ describe('ActorTimelines', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
 
-    await waitFor(() => {
-      expect(getActorStatusesMock).toHaveBeenCalledWith({
-        actorId: 'https://remote.example/users/actor',
-        pageUrl: 'https://remote.example/users/actor/outbox?page=true&max_id=1'
-      })
+    // Wait on the append landing in the DOM, not on the request being made:
+    // the call happens synchronously inside the click, so a `waitFor` on the
+    // mock settles before the response resolves, and the commit lands one
+    // macrotask later — the very boundary testing-library's own drain awaits.
+    // A bare DOM assertion after that `waitFor` therefore has no retry window
+    // and loses the race under a loaded machine.
+    await screen.findByText('https://remote.example/statuses/older')
+
+    expect(getActorStatusesMock).toHaveBeenCalledWith({
+      actorId: 'https://remote.example/users/actor',
+      pageUrl: 'https://remote.example/users/actor/outbox?page=true&max_id=1'
     })
     expect(
       screen.getAllByText('https://remote.example/statuses/older')
@@ -269,9 +281,9 @@ describe('ActorTimelines', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
 
-    await waitFor(() => {
-      expect(getActorStatusesMock).toHaveBeenCalledTimes(2)
-    })
+    await screen.findByText('https://remote.example/statuses/oldest')
+
+    expect(getActorStatusesMock).toHaveBeenCalledTimes(2)
     expect(getActorStatusesMock).toHaveBeenNthCalledWith(1, {
       actorId: 'https://remote.example/users/actor',
       pageUrl: 'https://remote.example/users/actor/outbox?page=true&max_id=1'
@@ -310,11 +322,11 @@ describe('ActorTimelines', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
 
-    await waitFor(() => {
-      expect(getActorStatusesMock).toHaveBeenCalledWith({
-        actorId: 'https://remote.example/users/actor',
-        pageUrl: 'https://remote.example/users/actor/outbox?page=true&max_id=1'
-      })
+    await screen.findByText('https://remote.example/statuses/first-post')
+
+    expect(getActorStatusesMock).toHaveBeenCalledWith({
+      actorId: 'https://remote.example/users/actor',
+      pageUrl: 'https://remote.example/users/actor/outbox?page=true&max_id=1'
     })
     expect(
       screen.getAllByText('https://remote.example/statuses/first-post')
@@ -376,9 +388,15 @@ describe('ActorTimelines', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
 
-    await waitFor(() => {
-      expect(getActorStatusesMock).toHaveBeenCalledTimes(1)
-    })
+    // Nothing is appended here, so the settled state is the control itself
+    // going away. It reads "Loading..." while the request is in flight, which
+    // means the "Load more" assertion below would pass mid-flight too — wait
+    // for the in-flight control to be removed first so it asserts the end state.
+    await waitForElementToBeRemoved(() =>
+      screen.queryByRole('button', { name: 'Loading...' })
+    )
+
+    expect(getActorStatusesMock).toHaveBeenCalledTimes(1)
     expect(
       screen.queryByRole('button', { name: 'Load more' })
     ).not.toBeInTheDocument()

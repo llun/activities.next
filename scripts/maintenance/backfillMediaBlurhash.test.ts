@@ -231,9 +231,36 @@ describe('getLocalStoragePath', () => {
     {
       description: 'rejects a host-relative traversal',
       url: '/api/v1/files/../../../../etc/passwd'
+    },
+    // The traversal rule is shared with `getMediaPathFromFileUrl`, so this
+    // sweep refuses the Windows spellings its own copy used to let through.
+    {
+      description: 'rejects an encoded-backslash traversal',
+      url: 'https://llun.test/api/v1/files/..%5c..%5csecrets'
+    },
+    {
+      description: 'rejects a Windows drive-letter path',
+      url: 'https://llun.test/api/v1/files/C:%5CWindows%5Cwin.ini'
+    },
+    {
+      description: 'rejects a path carrying a NUL byte',
+      url: 'https://llun.test/api/v1/files/ab%00.webp'
     }
   ])('$description', ({ url }) => {
     expect(getLocalStoragePath(url, HOSTS.ownHostRules)).toBeNull()
+  })
+
+  // Only `*.example.com` is a wildcard. Every other spelling reaches
+  // `isOwnAuthority` as a LITERAL rule carrying a `*`, and `new URL()`
+  // percent-decodes `%2a`, so a federated attachment URL could spell one
+  // exactly and have this sweep read the named path out of local storage.
+  it.each([
+    { description: 'a wildcard missing its dot', rule: '*cdn.llun.test' },
+    { description: 'a trailing wildcard label', rule: 'cdn.*' },
+    { description: 'a wildcard in the middle', rule: 'foo.*.cdn.llun.test' }
+  ])('refuses an authority spelled as $description', ({ rule }) => {
+    const url = `https://${rule.replaceAll('*', '%2a')}/api/v1/files/media/a.webp`
+    expect(getLocalStoragePath(url, ['llun.test', rule])).toBeNull()
   })
 
   it('returns null for the same path on a remote instance', () => {
