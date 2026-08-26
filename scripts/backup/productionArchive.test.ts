@@ -1269,6 +1269,66 @@ describe('production archive scripts', () => {
         errorSpy.mockRestore()
       }
     })
+
+    it('reports the status when the public storage fallback fails', async () => {
+      // The one path that reaches `downloadPublicStorageFile`: the S3 client
+      // throws and `source.hostname` is set, so the download falls back to a
+      // plain HTTP GET. Its failure carries the status only as an attached
+      // `httpStatusCode` — drop that attachment and this is the test that
+      // notices, since the message it is also interpolated into is withheld.
+      const sendSpy = vi
+        .spyOn(S3Client.prototype, 'send')
+        .mockImplementation((async () => {
+          throw Object.assign(
+            new Error('connect ECONNREFUSED 10.4.2.11:9000'),
+            {
+              code: 'ECONNREFUSED',
+              syscall: 'connect'
+            }
+          )
+        }) as typeof S3Client.prototype.send)
+      const originalFetch = global.fetch
+      global.fetch = vi.fn(
+        async () => new Response('nope', { status: 503 })
+      ) as typeof fetch
+      const logSpy = vi.spyOn(console, 'log').mockImplementation()
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation()
+
+      try {
+        const manifest = await archiveStorage(
+          [
+            {
+              destination: 'media',
+              files: ['ab/cd.webp'],
+              source: {
+                bucket: 'activitynext-prod-media',
+                hostname: 'cdn.internal',
+                kind: 's3',
+                region: 'auto'
+              }
+            }
+          ],
+          tempDir,
+          { allowMissingStorage: true }
+        )
+
+        expect(global.fetch).toHaveBeenCalledWith(
+          'https://cdn.internal/ab/cd.webp',
+          expect.anything()
+        )
+        expect(manifest).toEqual([
+          expect.objectContaining({
+            failedFiles: [{ error: 'HTTP 503', path: 'ab/cd.webp' }]
+          })
+        ])
+        expect(JSON.stringify(manifest)).not.toContain('cdn.internal')
+      } finally {
+        global.fetch = originalFetch
+        sendSpy.mockRestore()
+        logSpy.mockRestore()
+        errorSpy.mockRestore()
+      }
+    })
   })
 
   describe('redactStorageError', () => {
@@ -1357,7 +1417,7 @@ describe('production archive scripts', () => {
       },
       {
         description: 'an out-of-range status',
-        error: Object.assign(new Error('failed'), { status: 9000 }),
+        error: Object.assign(new Error('failed'), { httpStatusCode: 9000 }),
         expected: 'unknown'
       }
     ])('redacts $description', ({ error, expected }) => {
@@ -1369,6 +1429,42 @@ describe('production archive scripts', () => {
         cause: undefined as unknown
       })
       error.cause = error
+
+      expect(redactStorageError(error, source)).toBe('unknown')
+    })
+
+    // Wrappers are plain `Error`, whose name is excluded, so `unknown` means
+    // the walk never reached the coded level rather than that it read a name
+    // on the way. Together these two pin `MAX_ERROR_CAUSE_DEPTH` in both
+    // directions: lowering it fails the first, raising it fails the second.
+    const buildCauseChain = (depth: number) => {
+      let error: unknown = Object.assign(new Error('getaddrinfo ENOTFOUND'), {
+        code: 'ENOTFOUND',
+        syscall: 'getaddrinfo'
+      })
+      for (let level = 1; level < depth; level += 1) {
+        error = Object.assign(new Error('wrapped'), { cause: error })
+      }
+      return error
+    }
+
+    it('reads a code at the deepest level it walks', () => {
+      expect(redactStorageError(buildCauseChain(5), source)).toBe(
+        'getaddrinfo ENOTFOUND'
+      )
+    })
+
+    it('stops one level past the cause cap', () => {
+      expect(redactStorageError(buildCauseChain(6), source)).toBe('unknown')
+    })
+
+    it('falls back when reading the error throws', () => {
+      const error = {}
+      Object.defineProperty(error, 'code', {
+        get() {
+          throw new Error('boom')
+        }
+      })
 
       expect(redactStorageError(error, source)).toBe('unknown')
     })

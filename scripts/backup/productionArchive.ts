@@ -14,7 +14,7 @@ import { createInterface } from 'readline'
 import { Readable } from 'stream'
 import { pipeline } from 'stream/promises'
 import type { ReadableStream as NodeReadableStream } from 'stream/web'
-import { promisify } from 'util'
+import { inspect, promisify } from 'util'
 
 import { getConfig } from '@/lib/config'
 import {
@@ -1481,7 +1481,12 @@ export const archiveStorage = async (
           // The console line keeps the driver's own message: it goes to the
           // operator running the export, on their own machine, and never into
           // the archive. Only the redacted form is written to the manifest.
-          const message = error instanceof Error ? error.message : String(error)
+          // `inspect` rather than `String` for a non-Error throw — it renders a
+          // plain object as its contents instead of `[object Object]`, and it
+          // does not throw on a Symbol, which is the one value `String` would
+          // turn into a failed export from inside this catch.
+          const message =
+            error instanceof Error ? error.message : inspect(error)
 
           await fs.rm(archiveFilePath, { force: true })
           failedFiles.push({
@@ -1550,17 +1555,15 @@ const redactStorageSource = (source: StorageSource) => ({
   ...(source.prefix ? { prefix: source.prefix } : null)
 })
 
-/**
- * Every string `redactStorageSource` drops, lowercased. Deriving it from the
- * source rather than listing the fields again keeps one definition of "what is
- * sensitive about a storage source", so a field added to `StorageSource` later
- * is withheld from both halves without anyone remembering this one.
- *
- * Whole values only. It is the second line of defence, for a single-label value
- * the shape check below cannot tell from an error code — a Docker-network
- * `hostname: 'minio'`, a bucket named `activitynext`. Anything with a dot, dash
- * or colon in it is already refused by shape.
- */
+// Every string `redactStorageSource` drops, lowercased. Deriving it from the
+// source rather than listing the fields again keeps one definition of "what is
+// sensitive about a storage source", so a field added to `StorageSource` later
+// is withheld from both halves without anyone remembering this one.
+//
+// Whole values only. It is the second line of defence, for a single-label value
+// the shape check below cannot tell from an error code — a Docker-network
+// `hostname: 'minio'`, a bucket named `activitynext`. Anything with a dot, dash
+// or colon in it is already refused by shape.
 const getRedactedStorageSourceValues = (source: StorageSource) =>
   new Set(
     Object.entries(source)
@@ -1572,19 +1575,26 @@ const getRedactedStorageSourceValues = (source: StorageSource) =>
       .map(([, value]) => String(value).toLowerCase())
   )
 
-/**
- * Error codes, error names and libuv syscalls are single bare words —
- * `ENOTFOUND`, `NoSuchKey`, `getaddrinfo`. A dot, dash, colon, slash or space
- * means it is not one, which is what keeps `minio.internal`, `10.4.2.11`,
- * `https://minio.internal:9000` and `activitynext-prod-media` out by SHAPE
- * rather than by pattern-matching for the forms we happened to think of. An S3
- * error `name` is whatever `Code` the storage server sent, so it is untrusted
- * input like any other.
- */
+// Error codes, error names and libuv syscalls are single bare words —
+// `ENOTFOUND`, `NoSuchKey`, `getaddrinfo`. A dot, dash, colon, slash or space
+// means it is not one, which is what keeps `minio.internal`, `10.4.2.11`,
+// `https://minio.internal:9000` and `activitynext-prod-media` out by SHAPE
+// rather than by pattern-matching for the forms we happened to think of.
+//
+// On the S3 path ALL THREE of `code`, `name` and `syscall` are whatever the
+// storage server sent, not just `name`: the SDK's error handler flattens every
+// member of the XML `<Error>` element onto the data object, and
+// `decorateServiceException` then copies each onto the exception wherever the
+// exception has no value of its own. So do not relax this filter for `code` or
+// `syscall` on the belief that they are libuv constants — on that path they are
+// untrusted input, and the shape check is the only thing bounding them.
 const SAFE_ERROR_TOKEN_PATTERN = /^[A-Za-z][A-Za-z0-9_]{0,63}$/
 
 // `fetch` reports a DNS failure as `TypeError: fetch failed` and hangs the real
 // error off `cause`, so the code worth reporting is rarely on the top level.
+// The cap is also what bounds a `cause` CYCLE — the walk cannot push more than
+// this many levels whether or not they repeat, so no separate cycle check is
+// needed.
 const MAX_ERROR_CAUSE_DEPTH = 5
 
 const getErrorChain = (error: unknown) => {
@@ -1597,7 +1607,6 @@ const getErrorChain = (error: unknown) => {
     current !== null
   ) {
     const level = current as Record<string, unknown>
-    if (chain.includes(level)) break
     chain.push(level)
     current = level.cause
   }
@@ -1605,15 +1614,18 @@ const getErrorChain = (error: unknown) => {
   return chain
 }
 
+// Only the two shapes this code path actually produces: `$metadata` is where
+// the AWS SDK puts it, and `httpStatusCode` is what `downloadPublicStorageFile`
+// attaches. A bare `status` was deliberately dropped — it is not an HTTP field
+// by convention, so a `child_process`-style error would have been reported as
+// `HTTP 127`, and nothing here can produce one anyway.
 const getErrorHttpStatusCode = (level: Record<string, unknown>) => {
   const metadata = level.$metadata
   const candidates = [
     typeof metadata === 'object' && metadata !== null
       ? (metadata as Record<string, unknown>).httpStatusCode
       : undefined,
-    level.httpStatusCode,
-    level.statusCode,
-    level.status
+    level.httpStatusCode
   ]
 
   return candidates.find(
@@ -1625,14 +1637,32 @@ const getErrorHttpStatusCode = (level: Record<string, unknown>) => {
   )
 }
 
-/**
- * Reduces a storage-driver failure to what an operator can act on —
- * `getaddrinfo ENOTFOUND`, `copyfile ENOENT`, `NoSuchKey HTTP 404`, `HTTP 503`
- * — and nothing that says where storage lives. `unknown` is the honest answer
- * for a failure that classifies itself only in its message; the export console
- * still printed that message in full.
- */
+// Reduces a storage-driver failure to what an operator can act on —
+// `getaddrinfo ENOTFOUND`, `copyfile ENOENT`, `NoSuchKey HTTP 404`, `HTTP 503`
+// — with no bucket, region, endpoint, hostname, address or local root in it.
+// Not "nothing that says where storage lives": `copyfile ENOENT` still implies
+// a local filesystem, which `source.kind` publishes anyway, and a vendor code
+// such as `XMinioStorageFull` names the storage SOFTWARE where `kind: 's3'`
+// said only S3-compatible. That fingerprint is the price of a code an operator
+// can act on, and it is worth paying — it is just not nothing.
+//
+// `unknown` is the honest answer for a failure that classifies itself only in
+// its message; the export console still printed that message in full.
 export const redactStorageError = (error: unknown, source: StorageSource) => {
+  // This runs inside the `catch` that lets `--allow-missing-storage` continue,
+  // so it must not be able to throw: a property read is not obviously safe on
+  // an arbitrary caught value, and a redactor that escapes its own catch would
+  // turn one tolerated missing file into a failed export.
+  try {
+    return describeStorageError(error, source)
+  } catch {
+    return UNKNOWN_STORAGE_ERROR
+  }
+}
+
+const UNKNOWN_STORAGE_ERROR = 'unknown'
+
+const describeStorageError = (error: unknown, source: StorageSource) => {
   const redactedValues = getRedactedStorageSourceValues(source)
   const isSafeToken = (value: unknown): value is string =>
     typeof value === 'string' &&
@@ -1664,7 +1694,7 @@ export const redactStorageError = (error: unknown, source: StorageSource) => {
     .find((value) => value !== undefined)
   if (httpStatusCode !== undefined) parts.push(`HTTP ${httpStatusCode}`)
 
-  return parts.length > 0 ? parts.join(' ') : 'unknown'
+  return parts.length > 0 ? parts.join(' ') : UNKNOWN_STORAGE_ERROR
 }
 
 const writeManifest = async (stagingDir: string, manifest: ArchiveManifest) => {
