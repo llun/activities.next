@@ -1,0 +1,27 @@
+docs/fitness-file-storage.md
+  s_eacd0c3a89f5e1::t_1a21c0928dd40e 221,223,225,231-234,236,238
+  s_eacd0c3a89f5e1::t_43f534ca0e4b48 235,237,239
+docs/maintenance.md
+  s_eacd0c3a89f5e1::t_cd0c3dc55a9f40 530-535
+CLAUDE.md
+  s_eacd0c3a89f5e1::t_3a9c9c9125fe5b 128-129
+AGENTS.md
+  s_eacd0c3a89f5e1::t_81556a913bfafa 776,780-802,804-821,830,887-892
+  s_eacd0c3a89f5e1::t_43f534ca0e4b48 803
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "6d6598f1720ca75258df00d0cb81b4fb4a7b0afa",
+  "prompts": {},
+  "sessions": {
+    "s_eacd0c3a89f5e1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4cf735c2-2b90-40eb-8be8-b59706ebd921",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
