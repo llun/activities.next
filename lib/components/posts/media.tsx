@@ -20,6 +20,24 @@ interface Props {
   className?: string
   attachment?: Attachment
   showVideoControl?: boolean
+  /**
+   * Pass `'lazy'` from a surface that renders an unbounded number of media at
+   * once — a post's media strip holds every attachment, so a photo dump is
+   * otherwise a request per photo for pictures nobody has scrolled to. Leave it
+   * unset for a surface showing one image: an in-viewport lazy image is fetched
+   * at a lower priority, which is exactly the wrong trade for a post's largest
+   * element.
+   *
+   * It reaches a video as `preload="none"`, since `loading` is an image-only
+   * attribute: left alone a `<video>` defaults to fetching `metadata`, so a
+   * strip of twenty clips is twenty range requests for videos nobody has
+   * scrolled to. That only applies to a video carrying a `poster`, though —
+   * see the `preload` line below. The poster itself is fetched either way,
+   * nothing declarative defers it, but that is one image request each, the
+   * same as a photo, and the strip hides its controls anyway, so losing the
+   * preloaded duration costs nothing.
+   */
+  loading?: 'lazy' | 'eager'
   onClick?: (event: MouseEvent) => void
 }
 
@@ -28,6 +46,7 @@ export const Media: FC<Props> = ({
   caption,
   attachment,
   showVideoControl = false,
+  loading,
   onClick
 }) => {
   const [isLoaded, setIsLoaded] = useState(false)
@@ -87,6 +106,7 @@ export const Media: FC<Props> = ({
             }}
             onClick={onClick}
             key={id}
+            loading={loading}
             className={cn(
               'h-full w-full transition-opacity duration-300',
               className?.includes('object-contain')
@@ -109,6 +129,7 @@ export const Media: FC<Props> = ({
       <img
         onClick={onClick}
         key={id}
+        loading={loading}
         className={className}
         style={style}
         alt={caption ?? name ?? url}
@@ -128,6 +149,13 @@ export const Media: FC<Props> = ({
         width={width}
         height={height}
         poster={poster}
+        // Only skip the fetch when there is a poster to paint instead. With no
+        // poster this element's ONLY way to show anything before playback is
+        // the `#t=0.01` fragment below, which needs metadata to decode a frame
+        // — and the strip hides its controls, so `preload="none"` would leave a
+        // bare empty box. Federated video always lands here: `thumbnailUrl` is
+        // written on the local-upload path alone.
+        preload={loading === 'lazy' && poster ? 'none' : undefined}
         controls={showVideoControl}
         onClick={(event) => {
           // Don't play the video here

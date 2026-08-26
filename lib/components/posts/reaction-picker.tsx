@@ -276,7 +276,7 @@ export const ReactionPicker: FC<ReactionPickerProps> = ({
         </div>
 
         {!query.trim() && (
-          <div className="no-scrollbar flex items-center gap-0.5 overflow-x-auto px-2 pt-1.5">
+          <div className="flex items-center gap-0.5 overflow-x-auto px-2 pt-1.5">
             {tabs.map((entry) => (
               <button
                 key={entry.id}

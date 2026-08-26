@@ -8,6 +8,7 @@ import { FC } from 'react'
 import { FitnessStatGrid } from '@/lib/components/fitness/FitnessStatGrid'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
+import { isRenderableAttachment } from '@/lib/types/domain/attachment'
 import {
   EditableStatus,
   Status,
@@ -377,11 +378,14 @@ export const Post: FC<PostProps> = (props) => {
           The fitness clause reads `fitnessFile`, the same value the chip above
           is gated on, rather than `actualStatus.fitness` — so it yields only
           when a chip is actually on screen to yield to, instead of to the mere
-          presence of a fitness row. */}
+          presence of a fitness row. The media clause asks the same question of
+          the attachments for the same reason: `Attachments` skips anything
+          `Media` renders as nothing, so a bare `.length` would yield the card
+          to a PDF that puts no block on screen to yield to. */}
       {actualStatus.linkPreview &&
       !actualStatus.quote &&
       !fitnessFile &&
-      actualStatus.attachments.length === 0 ? (
+      !actualStatus.attachments.some(isRenderableAttachment) ? (
         <LinkPreviewCard linkPreview={actualStatus.linkPreview} />
       ) : null}
       {actualStatus.quote ? (

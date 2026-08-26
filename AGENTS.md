@@ -1636,6 +1636,134 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   own. There is deliberately no prop for hiding one of the menu's own items;
   that is the per-page drift this whole section exists to prevent.
 
+### Post media layout (`attachments.tsx`)
+
+A status's media is **one attachment at its own size, or a horizontally
+scrollable strip — never a grid.** `lib/components/posts/attachments.tsx` owns
+this for every surface that renders a post, and the shapes come from the design
+system's `Attachments` component.
+
+- **A lone picture keeps its own aspect ratio and hugs the post's left edge.**
+  Not `w-full`, not `aspect-video`: the old single branch cropped every portrait
+  photo to 16:9 across the full content width. It is scaled by **width** —
+  `min(100%, round(SINGLE_MAX_HEIGHT * ratio)px)`, capped at the file's own
+  pixels so a thumbnail is never upscaled — and never by capping the height of
+  an `aspect-ratio` box, which leaves the ratio to be re-derived from a clamped
+  axis and is resolved inconsistently across browsers.
+- **Two or more pictures are a fixed-height (`STRIP_ROW_HEIGHT`) scrolling row**,
+  each item as wide as its own ratio makes it. Four details are load-bearing
+  and must not be "cleaned up":
+  - `flex-none` on each item is what makes the strip overflow at all. Without it
+    the default `flex-shrink` squeezes every item to fit, so
+    `scrollWidth === clientWidth` forever: no chevrons, no fade, no peek, no
+    scrolling, and every photo cropped. The whole feature turns off silently,
+    which is why a test pins the class — jsdom lays nothing out, so nothing else
+    at that level can carry the rule.
+  - `STRIP_ITEM_MAX_WIDTH` (78%) means no item can fill the strip, so the next
+    one always peeks past the edge. That peek is what says "this scrolls" on a
+    touch screen, where the back chevron never appears at all and the forward
+    one is easy to miss.
+  - `scroll-snap-type: x proximity`, never `mandatory`: mandatory snapping pulls
+    the peeking item flush with the edge as soon as the scroll settles and
+    destroys the affordance the 78% cap creates.
+  - The forward chevron is always visible while there is more to the right; the
+    back chevron only appears on hover. Going back is worth chrome only once you
+    have gone forward — and `pointer-events-none` while it is `opacity-0` is
+    part of that, because `opacity-0` alone still hit-tests and `group-hover`
+    never latches on a touch screen, leaving a dead column over the leftmost
+    photo.
+- **There is no 4-item cap and no `+N` overlay.** Everything attached is in the
+  strip, because scrolling reaches it. Re-adding a cap hides media the post
+  actually carries. Strip images therefore pass `loading="lazy"` to `Media` —
+  a photo dump was 4 requests and is now one per photo. A **lone** picture
+  deliberately does not: an in-viewport lazy image is fetched at lower priority,
+  which is the wrong trade for the post's largest element. `loading` is an
+  image-only attribute, so `Media` turns it into `preload="none"` for a video —
+  but **only one carrying a `poster`**. A posterless video's sole pre-playback
+  frame comes from the `#t=0.01` source fragment, which needs metadata to
+  decode, and the strip hides its controls, so deferring one leaves a bare empty
+  box. Federated video always lands there: `thumbnailUrl` is written on the
+  local-upload path alone.
+- **The edge fade is a `mask-image`, not a background gradient.** Posts render on
+  four different surfaces — `bg-card` when framed, `bg-background` on the status
+  detail, `bg-muted/30` for an ancestor row, and the page itself when unframed —
+  so a fade painted in any one token is visibly wrong on the other three, and a
+  literal white one is wrong in dark mode everywhere. A mask fades the strip's
+  own pixels and lets whatever is behind show through. It lives in
+  `buildEdgeFadeMask` rather than inline so the string itself is unit-testable:
+  jsdom's CSS parser rejects the two variants carrying `calc()` and stores
+  nothing for them, so a RENDERED node can only be asserted against the
+  left-edge-only form. Known cosmetic cost: the mask also fades the leading edge
+  of a focused item's outline, which is exactly where the browser scrolls a
+  Tab-focused item to.
+- **A strip item's focus indicator is an `outline` with a NEGATIVE offset, not
+  a ring.** Its border box is exactly the strip's height and `overflow-x-auto`
+  forces `overflow-y` to compute to `auto`, so an OUTSET ring's top and bottom
+  bars fall outside the scrollport and are clipped away. An INSET ring is worse
+  rather than better: an inset `box-shadow` paints with the element's
+  background, underneath its content, and the button's only child is an opaque
+  image filling the whole box — so it is occluded on all four sides and there is
+  no indicator at all. An outline with a negative offset is the one form that
+  draws inside the border box AND paints above content. The lone picture is not
+  inside an overflow container and keeps the ordinary outset ring. (Note
+  `MessageBubble`'s media cells carry `focus-visible:ring-inset` over the same
+  full-bleed image shape, so their indicator is invisible too — a pre-existing
+  bug, not a precedent to copy.)
+- **Keeping the chevrons out of the tab order takes BOTH `tabIndex={-1}` and a
+  mousedown guard.** They duplicate no function — every picture is a focusable
+  button and focusing one scrolls it into view — and each is unmounted by the
+  very scroll it performs, so a chevron holding focus drops it to `<body>` on
+  its last press and sends the next Tab back to the top of the page (WCAG
+  2.4.3). `tabindex="-1"` removes an element from the SEQUENTIAL order only; it
+  stays click-focusable, and Chrome and Firefox focus a `<button>` on click, so
+  `preventFocusOnPress` cancels the default on mousedown to close the mouse
+  path. Deleting either half reopens the failure.
+- **Every picture button carries an explicit `aria-label`.** `Media` names an
+  image from its `alt`, but `attachment.name` is a required string that
+  federation writes as `attachment.name || ''`, so an undescribed photo left the
+  button announcing as a bare "button". Use the same wording as
+  `ActorMediaGallery`: the description when there is one, `Open media <n>`
+  otherwise.
+- **Attachments are bucketed by what can actually be laid out in a picture box.**
+  `isVisualAttachment` (`lib/types/domain/attachment.ts`, shared with
+  `MessageBubble`) selects image and video; `isAudibleAttachment` renders audio
+  as left-aligned players below the strip, because an `<audio>` element
+  stretched to the row height is not a picture; and anything else — a fitness
+  `.fit` file, a PDF — is skipped rather than rendering the empty box the old
+  grid gave it. The **lightbox is handed exactly the pictures on screen** and an
+  index into that list, never the raw attachment array: passing on what was
+  filtered gives `MediasModal` a blank slide, an empty thumbnail and a wrong
+  "n of m". Any surface asking "do I have media to show" must ask
+  `isRenderableAttachment`, not `attachments.length` — `post.tsx`'s link-preview
+  suppression does, so a post carrying only a PDF still gets its link card.
+- **A box is always reserved, and `0` means "unknown", not "zero pixels".**
+  Several media-storage paths persist `metaData.width ?? 0` and a federated
+  `Document` carries whatever the origin sent, so every dimension read goes
+  through `getMediaGeometry`; reading `attachment.width` raw collapsed the box
+  to 0x0 and the photo vanished from the post. It also clamps the shape to
+  `MIN_ASPECT_RATIO`/`MAX_ASPECT_RATIO` — a 10x10000 sliver otherwise rounds one
+  axis to zero — and falls back to `FALLBACK_ASPECT_RATIO` when there are no
+  usable dimensions, so the blurhash placeholder has something to paint into and
+  the strip measures itself correctly before any bytes arrive.
+- The scroll affordances come from `useMediaStripScroll`, which measures the
+  strip's own container (never a viewport breakpoint — a post can sit in a
+  narrow column on a wide window) through a **callback** ref, because the strip
+  is conditional and a ref object assigned later re-runs no effect. Same
+  doctrine as `useCompactActionBar` and `useGearTableColumns`. Its `contentKey`
+  must describe the laid-out **width** of the items, not merely how many there
+  are: the observer watches the container, so editing a post to swap a panorama
+  for a portrait changes what overflows without changing the container's box,
+  the item count or `scrollLeft`.
+- The strip hides its scrollbar with the `no-scrollbar` utility, defined in
+  `app/globals.css`. Apply it **only to a row that carries its own overflow
+  affordance.** It had been applied in the emoji and reaction pickers' category
+  rows for a long time while being defined nowhere — Tailwind v4 has no such
+  built-in — so it silently did nothing; defining it for the strip would have
+  taken the scrollbar, their only overflow cue, off both, and on an instance
+  with custom emoji the reaction picker's row is 9 tabs in a 270px scrollport.
+  Both were switched back to a plain scrollbar rather than quietly inheriting
+  it.
+
 ## Status Delete Federation
 
 - **The local delete commits FIRST and the `Delete` fans out from
