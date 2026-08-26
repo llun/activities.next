@@ -242,16 +242,38 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
         </div>
 
         <div className="space-y-2">
-          <Label>Webhook Activity Visibility</Label>
+          {/* Not "Webhook activity visibility": the same stored setting is what
+              a retry and the repair scripts post at, so naming one caller
+              understates its scope. The archive upload below is the one import
+              path that does NOT read it. */}
+          <Label>Automatic import visibility</Label>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <VisibilitySelector
               visibility={defaultVisibility}
               onVisibilityChange={setDefaultVisibility}
             />
-            <span>
-              Automatically imported Strava activities will use this visibility.
-            </span>
           </div>
+          <p className="text-[0.8rem] text-muted-foreground">
+            Every activity imported from Strava is posted at this visibility —
+            including ones you marked &quot;Only you&quot; or
+            &quot;Followers&quot; there. Strava&apos;s own privacy setting for
+            an activity is never carried over. Applies to activities the webhook
+            delivers and to any retry or repair of one; the archive upload below
+            uses its own visibility.
+          </p>
+          {(defaultVisibility === 'public' ||
+            defaultVisibility === 'unlisted') && (
+            <div className="rounded-md bg-yellow-50 p-3 dark:bg-yellow-950">
+              <p
+                role="alert"
+                className="text-sm text-yellow-600 dark:text-yellow-400"
+              >
+                Anyone on the fediverse can read these posts. An activity you
+                marked &quot;Only you&quot; on Strava will still be posted for
+                everyone, with its route map and stats.
+              </p>
+            </div>
+          )}
         </div>
 
         {error && <p className="text-sm text-destructive">{error}</p>}
