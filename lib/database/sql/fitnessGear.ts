@@ -3,6 +3,7 @@ import { Knex } from 'knex'
 
 import { applyCountableActivityFilter } from '@/lib/database/sql/utils/countableActivity'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import { chunkArray, getWhereInBatchSize } from '@/lib/database/sql/utils/knex'
 import { FitnessGearKind } from '@/lib/services/fitness-files/sportTypes'
 import {
@@ -88,8 +89,10 @@ export interface CreateFitnessGearComponentParams {
 // moves the FIRST period's start and `removedAt` the LAST period's end, which
 // is exactly what those two have always meant for the component as a whole.
 // Only the outermost bounds are reachable this way, so an edit cannot make two
-// periods overlap — keeping each period's own `addedAt < removedAt` is then
-// enough to keep the whole history ordered.
+// periods OVERLAP. Keeping each period's own `addedAt < removedAt` is what
+// keeps it from inverting one instead, and that is the ROUTE's job — it is the
+// layer that can see both ends of the period each bound lands on, which the
+// component's derived pair does not describe once a part has been refitted.
 export interface UpdateFitnessGearComponentParams {
   id: string
   gearId: string
@@ -1065,6 +1068,18 @@ export const FitnessGearSQLDatabaseMixin = (
     const updated = await database('fitness_gear_component_periods')
       .where('componentId', id)
       .whereNull('removedAt')
+      // The periods table has no `deletedAt` of its own, so the component's is
+      // carried in as a subquery rather than left to the ownership read above.
+      // That read is a decision taken in front of the write, and a soft-delete
+      // landing between the two would otherwise let this close a period on a
+      // component nothing can reach again.
+      .whereIn(
+        'componentId',
+        database('fitness_gear_components')
+          .select('id')
+          .where('id', id)
+          .whereNull('deletedAt')
+      )
       .update({ removedAt: currentTime, updatedAt: currentTime })
 
     if (!updated) return null
@@ -1131,12 +1146,18 @@ export const FitnessGearSQLDatabaseMixin = (
     } catch (error) {
       // Two refits racing read the same highest sequence and both try to claim
       // the next one; `(componentId, installSequence)` is UNIQUE, so the loser
-      // lands here. Re-read before deciding: if the part is fitted now, this is
-      // the same "already fitted" no-op the winner's second click would get.
-      // Anything else is a real failure and must not be swallowed.
-      const current = await getOwnedComponent(database, { id, gearId, actorId })
-      if (current && !current.removedAt) return null
-      throw error
+      // lands here and gets the same "already fitted" no-op the winner's second
+      // click would.
+      //
+      // Classified from the ERROR, through the same shared helper every other
+      // racing insert in this directory uses — not by re-reading the component
+      // and suppressing when it happens to look fitted. That re-read cannot
+      // tell this transaction's unique violation from any other failure inside
+      // it (a dropped connection, a lock timeout, a bug in either write), so a
+      // real fault landing while some other writer had just refitted the part
+      // would be reported as a tidy 404 and leave no trace.
+      if (!isUniqueConstraintError(error)) throw error
+      return null
     }
 
     return getOwnedComponent(database, { id, gearId, actorId })

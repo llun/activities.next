@@ -1305,10 +1305,17 @@ describe('FitnessGearDatabase', () => {
         expect(result).toBeNull()
       })
 
-      // Two tabs, or a retried request. `(componentId, installSequence)` is
-      // UNIQUE, so only one of them can claim the next sequence; two open
-      // periods would make every later activity count twice.
-      it('opens exactly one period when two refits race', async () => {
+      // Two tabs, or a retried request. What this pins is the INVARIANT — one
+      // open period, one caller told "already fitted" — not the unique index
+      // that protects it under a genuine interleave: on SQLite knex serializes
+      // the two transactions, so the second one's own read already sees the
+      // first's committed insert and returns through the ordinary branch. The
+      // index itself is proved directly, at the raw-SQL level, by
+      // `fitnessGearComponentPeriodsMigration.test.ts`'s "refuses a second open
+      // period per component"; the mapping from that violation to "already
+      // fitted" is `isUniqueConstraintError`, which has its own tests. Do not
+      // read a pass here as proof that the catch path ran.
+      it('opens exactly one period when two refits are issued together', async () => {
         const { gear, component } = await createRetiredComponent(
           actors.primary.id,
           'Refit race bike'

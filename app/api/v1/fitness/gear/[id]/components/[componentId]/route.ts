@@ -45,12 +45,23 @@ export const PATCH = traceApiRoute(
     if (rejection) return rejection
 
     // The schema's own `removedAt > addedAt` rule can only see this request, so
-    // a partial PATCH that moves one end of the install window has to be
-    // checked against the stored other end — the same way the gear PATCH one
-    // directory up validates its kind-scoped fields against the stored gear.
-    // Left to the schema alone, `PATCH { removedAt }` earlier than the stored
-    // `addedAt` writes a window no activity can ever fall inside: the component
-    // reads 0 km on every surface and its service reminder can never fire.
+    // a partial PATCH that moves one end of an install period has to be checked
+    // against the stored other end — the same way the gear PATCH one directory
+    // up validates its kind-scoped fields against the stored gear. Left to the
+    // schema alone, `PATCH { removedAt }` earlier than the stored `addedAt`
+    // writes a period no activity can ever fall inside: the component loses
+    // that period's distance on every surface, permanently and silently,
+    // behind a 200.
+    //
+    // Each bound must be checked against the other end OF THE PERIOD IT LANDS
+    // ON. `addedAt` moves the FIRST period's start and `removedAt` the LAST
+    // period's end, while the component's own `addedAt`/`removedAt` are derived
+    // from those two DIFFERENT periods — so checking the request against that
+    // derived pair compares bounds belonging to different periods the moment a
+    // part has been refitted, and lets an inverting edit straight through. It
+    // reads as correct because for a single-period component — every component
+    // that has never been refitted — the first period and the last period are
+    // the same row, and the two formulations coincide exactly.
     if ('addedAt' in parsed.data || 'removedAt' in parsed.data) {
       const components = await database.getFitnessGearComponents({
         gearId: id,
@@ -61,16 +72,32 @@ export const PATCH = traceApiRoute(
       )
       if (!existing) return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
 
-      const addedAt =
-        'addedAt' in parsed.data
-          ? (parsed.data.addedAt ?? null)
-          : (existing.addedAt ?? null)
-      const removedAt =
-        'removedAt' in parsed.data
-          ? (parsed.data.removedAt ?? null)
-          : (existing.removedAt ?? null)
+      // Both writes land on this one row when the component has a single
+      // period, which is why the check is expressed per period rather than per
+      // field: that case has to see BOTH new values, not one new and one stored.
+      const lastIndex = existing.periods.length - 1
+      const boundsAfterWrite = (index: number) => {
+        const period = existing.periods[index]
+        return {
+          addedAt:
+            index === 0 && 'addedAt' in parsed.data
+              ? (parsed.data.addedAt ?? null)
+              : (period.addedAt ?? null),
+          removedAt:
+            index === lastIndex && 'removedAt' in parsed.data
+              ? (parsed.data.removedAt ?? null)
+              : (period.removedAt ?? null)
+        }
+      }
 
-      if (addedAt !== null && removedAt !== null && removedAt <= addedAt) {
+      const inverted = [0, lastIndex]
+        .filter((index) => index >= 0)
+        .some((index) => {
+          const { addedAt, removedAt } = boundsAfterWrite(index)
+          return addedAt !== null && removedAt !== null && removedAt <= addedAt
+        })
+
+      if (inverted) {
         return apiResponse({
           req,
           allowedMethods: [],

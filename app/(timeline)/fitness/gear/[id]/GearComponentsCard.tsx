@@ -95,6 +95,17 @@ const PeriodDates: FC<{
     <>
       {periods.map((period, index) => (
         <div key={index}>
+          {/* Which line belongs to which period is carried by POSITION, and
+              position is exactly what a screen reader drops: it reads out every
+              Added date, then every Retired date, with nothing saying that the
+              second of one goes with the second of the other. Numbering the
+              lines restores the pairing, and only where there is a pairing to
+              restore — a component with one period, which is every part that
+              has never been refitted, announces exactly the bare date it
+              always did. */}
+          {periods.length > 1 && (
+            <span className="sr-only">{`Install ${index + 1}: `}</span>
+          )}
           {period[bound] === null || period[bound] === undefined
             ? emptyLabel
             : formatGearDate(period[bound] as number)}

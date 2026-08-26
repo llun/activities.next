@@ -803,7 +803,15 @@ it; there is no legacy shape left to copy.
 null }` remains the precise "this retirement never happened" — it reopens the
   LAST period — and PATCH's `addedAt`/`removedAt` reach only the outermost
   bounds (first period's start, last period's end), which is what keeps an edit
-  from making two periods overlap.
+  from making two periods OVERLAP. It does not on its own keep a period from
+  being INVERTED, and the route has to check each bound against the other end
+  of the period it lands on to do that: the component's own `addedAt` and
+  `removedAt` are derived from two DIFFERENT periods once a part has been
+  refitted, so validating the request against that derived pair compares bounds
+  that do not belong together and lets `[May 1, Feb 15)` through — a period no
+  activity can fall inside, which drops its distance silently and for good. The
+  bug reads as correct because for a single-period component the first and last
+  period are the same row and the two formulations coincide.
 - **Periods must never overlap, and `UNIQUE (componentId, installSequence)` is
   what enforces it against a race.** The rollup joins the periods and sums over
   them, so an activity inside two of them is counted twice — a permanently wrong

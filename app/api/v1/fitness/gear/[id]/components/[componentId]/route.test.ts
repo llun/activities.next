@@ -256,6 +256,125 @@ describe('Fitness gear component item API', () => {
       expect(mockDb.updateFitnessGearComponent).toHaveBeenCalled()
     })
 
+    // A refitted component, whose derived pair comes from two DIFFERENT periods:
+    // `addedAt` is P1's start and `removedAt` is P2's end. Validating a request
+    // against that pair compares bounds that do not belong together — which is
+    // what let an inverting edit through with a 200 and dropped the period's
+    // distance for good.
+    const refittedComponent = () =>
+      component({
+        addedAt: Date.UTC(2026, 0, 1),
+        removedAt: undefined,
+        periods: [
+          {
+            id: 'period-1',
+            componentId: 'component-1',
+            installSequence: 1,
+            addedAt: Date.UTC(2026, 0, 1),
+            removedAt: Date.UTC(2026, 2, 1),
+            createdAt: 1000,
+            updatedAt: 1000
+          },
+          {
+            id: 'period-2',
+            componentId: 'component-1',
+            installSequence: 2,
+            addedAt: Date.UTC(2026, 4, 1),
+            createdAt: 1000,
+            updatedAt: 1000
+          }
+        ]
+      })
+
+    it('refuses a removal date that would invert the last period of a refitted component', async () => {
+      mockDb.getFitnessGearComponents.mockResolvedValue([refittedComponent()])
+
+      // After the first period's end and before the last period's start. It is
+      // later than the component's derived `addedAt` (Jan 1), so the old check
+      // passed it; it lands on the LAST period, turning it into
+      // [May 1, Feb 15) — a range no activity can satisfy.
+      const response = await PATCH(
+        new NextRequest(url, {
+          method: 'PATCH',
+          headers: { Origin: 'https://llun.test' },
+          body: JSON.stringify({ removedAt: Date.UTC(2026, 1, 15) })
+        }),
+        params
+      )
+
+      expect(response.status).toBe(422)
+      expect(mockDb.updateFitnessGearComponent).not.toHaveBeenCalled()
+    })
+
+    it('refuses an added date that would invert the first period of a refitted component', async () => {
+      mockDb.getFitnessGearComponents.mockResolvedValue([refittedComponent()])
+
+      // The mirror case, and the one the old check could not see at all: the
+      // component's derived `removedAt` is null while the last period is open,
+      // so the guard short-circuited and accepted anything. This lands on the
+      // FIRST period, turning it into [Aug 1, Mar 1).
+      const response = await PATCH(
+        new NextRequest(url, {
+          method: 'PATCH',
+          headers: { Origin: 'https://llun.test' },
+          body: JSON.stringify({ addedAt: Date.UTC(2026, 7, 1) })
+        }),
+        params
+      )
+
+      expect(response.status).toBe(422)
+      expect(mockDb.updateFitnessGearComponent).not.toHaveBeenCalled()
+    })
+
+    it('accepts an edit that keeps both periods of a refitted component ordered', async () => {
+      mockDb.getFitnessGearComponents.mockResolvedValue([refittedComponent()])
+      mockDb.updateFitnessGearComponent.mockResolvedValue(refittedComponent())
+
+      // Inside the first period's own bounds, so nothing inverts. The point is
+      // that the stricter check did not become a blanket refusal of every
+      // multi-period edit.
+      const response = await PATCH(
+        new NextRequest(url, {
+          method: 'PATCH',
+          headers: { Origin: 'https://llun.test' },
+          body: JSON.stringify({ addedAt: Date.UTC(2026, 1, 1) })
+        }),
+        params
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockDb.updateFitnessGearComponent).toHaveBeenCalled()
+    })
+
+    // Both bounds land on the same row when there is one period, so that case
+    // has to be checked against BOTH new values rather than one new and one
+    // stored — otherwise moving a window wholesale is refused for crossing the
+    // bound it is itself replacing.
+    it('accepts moving both ends of a single-period component past the old window', async () => {
+      mockDb.getFitnessGearComponents.mockResolvedValue([
+        component({
+          addedAt: Date.UTC(2026, 0, 1),
+          removedAt: Date.UTC(2026, 2, 1)
+        })
+      ])
+      mockDb.updateFitnessGearComponent.mockResolvedValue(component())
+
+      const response = await PATCH(
+        new NextRequest(url, {
+          method: 'PATCH',
+          headers: { Origin: 'https://llun.test' },
+          body: JSON.stringify({
+            addedAt: Date.UTC(2026, 3, 1),
+            removedAt: Date.UTC(2026, 8, 1)
+          })
+        }),
+        params
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockDb.updateFitnessGearComponent).toHaveBeenCalled()
+    })
+
     it('accepts clearing the removal date on a component with an added date', async () => {
       mockDb.getFitnessGearComponents.mockResolvedValue([
         component({

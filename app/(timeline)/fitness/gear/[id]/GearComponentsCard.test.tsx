@@ -270,6 +270,34 @@ describe('GearComponentsCard', () => {
     expect(screen.getAllByText('—')).toHaveLength(1)
   })
 
+  // Which Added line goes with which Retired line is carried by position, and a
+  // screen reader reads the two columns separately — so the pairing has to be
+  // in the text as well.
+  it('numbers the install lines for a screen reader when a part has been refitted', () => {
+    renderCard([
+      createComponent({
+        addedAt: Date.UTC(2024, 0, 15),
+        removedAt: null,
+        periods: [
+          { addedAt: Date.UTC(2024, 0, 15), removedAt: Date.UTC(2024, 5, 1) },
+          { addedAt: Date.UTC(2024, 10, 20), removedAt: null }
+        ]
+      })
+    ])
+
+    // Once per column, so each date is announced with the install it belongs to.
+    expect(screen.getAllByText(/Install 1:/)).toHaveLength(2)
+    expect(screen.getAllByText(/Install 2:/)).toHaveLength(2)
+  })
+
+  // A single-period row announces the bare date it always did — the numbering
+  // exists to disambiguate a pairing, and there is none to disambiguate here.
+  it('does not number the install line when there is only one', () => {
+    renderCard([createComponent({ addedAt: Date.UTC(2024, 0, 15) })])
+
+    expect(screen.queryByText(/Install 1:/)).toBeNull()
+  })
+
   it.each([
     {
       description: 'renders the remaining interval below 85%',

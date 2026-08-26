@@ -14,6 +14,26 @@ describe('fitness gear component periods', () => {
 
   const actorId = 'https://llun.test/users/periods'
 
+  // Identifier quoting is per-dialect — backticks on SQLite, double quotes on
+  // PostgreSQL — so strip it and let the assertion describe the shape rather
+  // than whichever backend the suite is running against.
+  const normalize = (sql: string) =>
+    sql.replaceAll('`', '').replaceAll('"', '').toLowerCase()
+
+  const capture = async (run: () => Promise<unknown>): Promise<string[]> => {
+    const statements: string[] = []
+    const listener = ({ sql }: { sql: string }) => {
+      statements.push(normalize(sql))
+    }
+    instance.on('query', listener)
+    try {
+      await run()
+    } finally {
+      instance.off('query', listener)
+    }
+    return statements
+  }
+
   beforeAll(async () => {
     await prepare()
     await database.migrate()
@@ -99,6 +119,42 @@ describe('fitness gear component periods', () => {
       distanceMeters: 0,
       activityCount: 0
     })
+  })
+
+  // `retireFitnessGearComponent` closes the open period, and the component's
+  // own `deletedAt` has to ride along IN THAT STATEMENT rather than being left
+  // to the ownership read in front of it — the rule the whole file follows for
+  // a state change. No result-based test can see the difference: a soft-delete
+  // landing between the read and the write makes the trailing re-read answer
+  // null either way, and the interleave cannot be forced in-process. What is
+  // observable is the SQL, so that is what this asserts.
+  it('carries the component deletion check inside the retiring UPDATE', async () => {
+    const gear = await createBikeWithRide('retire-shape', {
+      distanceMeters: 5_000,
+      activityStartTime: new Date('2026-07-15T08:00:00.000Z')
+    })
+    const component = await database.createFitnessGearComponent({
+      gearId: gear.id,
+      actorId,
+      componentType: 'Chain'
+    })
+
+    const statements = await capture(() =>
+      database.retireFitnessGearComponent({
+        id: component!.id,
+        gearId: gear.id,
+        actorId
+      })
+    )
+
+    const update = statements.find((sql) =>
+      sql.startsWith('update fitness_gear_component_periods')
+    )
+    expect(update).toBeDefined()
+    expect(update).toContain('removedat is null')
+    // The guard, as a predicate on the write itself.
+    expect(update).toContain('select id from fitness_gear_components')
+    expect(update).toContain('deletedat is null')
   })
 
   // Periods cannot overlap by construction, but the join fans out over them, so
