@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { getDatabase } from '@/lib/database'
 import { IMPORT_STRAVA_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
-import { Visibility } from '@/lib/types/mastodon/visibility'
+import { resolveStravaDefaultVisibility } from '@/lib/services/strava/defaultVisibility'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 import { apiResponse } from '@/lib/utils/response'
@@ -162,19 +162,10 @@ export const POST = traceApiRoute(
       }
 
       const stravaActivityId = String(body.object_id)
-      const parsedVisibility = Visibility.safeParse(
-        fitnessSettings.defaultVisibility ?? Visibility.enum.private
-      )
-      const visibility = parsedVisibility.success
-        ? parsedVisibility.data
-        : Visibility.enum.private
-      if (!parsedVisibility.success) {
-        logger.warn({
-          message: 'Invalid Strava default visibility; falling back to private',
-          actorId: fitnessSettings.actorId,
-          defaultVisibility: fitnessSettings.defaultVisibility
-        })
-      }
+      const visibility = resolveStravaDefaultVisibility({
+        storedVisibility: fitnessSettings.defaultVisibility,
+        actorId: fitnessSettings.actorId
+      })
 
       await getQueue().publish({
         id: getHashFromString(
