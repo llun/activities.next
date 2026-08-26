@@ -1,4 +1,5 @@
 import fs from 'fs/promises'
+import fetchMock from 'jest-fetch-mock'
 import os from 'os'
 import path from 'path'
 
@@ -21,8 +22,8 @@ import {
   forEachLike,
   getArchiveFitnessPath,
   getArchiveMediaPath,
-  getMediaStoragePathFromUrl,
-  parseExportActorArgs
+  parseExportActorArgs,
+  registerAttachmentUrl
 } from './actorArchive'
 
 const buildAttachment = (overrides: Partial<Attachment> = {}): Attachment => ({
@@ -121,28 +122,175 @@ describe('parseExportActorArgs', () => {
   })
 })
 
-describe('getMediaStoragePathFromUrl', () => {
-  it.each([
-    [
-      'a media file URL',
-      'https://example.test/api/v1/files/ab/cd.webp',
-      'ab/cd.webp'
-    ],
-    [
-      'a media file URL with an encoded space',
-      'https://example.test/api/v1/files/ab%20cd/ef.webp',
-      'ab cd/ef.webp'
-    ],
-    [
-      'a fitness-file URL',
-      'https://example.test/api/v1/fitness-files/id-1',
-      null
-    ],
-    ['a foreign host URL', 'https://other.example/some/path.jpg', null],
-    ['a non-absolute string', 'not-a-url', null]
-  ])('returns %s -> %s', (_description, url, expected) => {
-    expect(getMediaStoragePathFromUrl(url)).toBe(expected)
+describe('registerAttachmentUrl', () => {
+  const hostConfig = { host: 'example.test', trustedHosts: ['alias.example'] }
+
+  const runRegister = async ({
+    attachment,
+    fetchRemoteAttachments = false,
+    stagingDir = '/nonexistent'
+  }: {
+    attachment: Attachment
+    fetchRemoteAttachments?: boolean
+    stagingDir?: string
+  }) => {
+    const mediaPaths = new Set<string>()
+    const mediaIds = new Set<string>()
+    const urlToArchivePath = new Map<string, string>()
+    const warnings: string[] = []
+
+    await registerAttachmentUrl({
+      attachment,
+      fetchRemoteAttachments,
+      hostConfig,
+      mediaPaths,
+      mediaIds,
+      urlToArchivePath,
+      stagingDir,
+      warnings
+    })
+
+    return { mediaPaths, mediaIds, urlToArchivePath, warnings }
+  }
+
+  // `vitest.setup.ts` enables the fetch mock but leaves it passing through, so
+  // the tests that reach the download branch opt in with `doMock()`. One
+  // teardown covers all of them, including a later one that opts in without
+  // cleaning up after itself.
+  afterEach(() => {
+    fetchMock.resetMocks()
+    fetchMock.dontMock()
   })
+
+  it.each([
+    {
+      description: 'the configured host',
+      url: 'https://example.test/api/v1/files/ab/cd.webp'
+    },
+    {
+      description: 'a trusted host',
+      url: 'https://alias.example/api/v1/files/ab/cd.webp'
+    }
+  ])('archives an attachment stored on $description', async ({ url }) => {
+    const { mediaPaths, mediaIds, urlToArchivePath, warnings } =
+      await runRegister({
+        attachment: buildAttachment({ url, mediaId: 'media-1' })
+      })
+
+    expect([...mediaPaths]).toEqual(['ab/cd.webp'])
+    expect([...mediaIds]).toEqual(['media-1'])
+    expect(urlToArchivePath.get(url)).toBe('media_attachments/files/ab/cd.webp')
+    expect(warnings).toEqual([])
+  })
+
+  // `/api/v1/files/` is this project's own route, so every OTHER
+  // activities.next instance serves attachment URLs under exactly that path.
+  // Reading one as a local storage path put a file the archive never contains
+  // into the manifest and skipped the download branch below.
+  it('does not treat another instance media URL as a stored path', async () => {
+    const url = 'https://other.example/api/v1/files/ab/cd.webp'
+    const { mediaPaths, mediaIds, urlToArchivePath, warnings } =
+      await runRegister({ attachment: buildAttachment({ url }) })
+
+    expect([...mediaPaths]).toEqual([])
+    expect([...mediaIds]).toEqual([])
+    expect(urlToArchivePath.has(url)).toBe(false)
+    expect(warnings).toEqual([`Remote attachment kept as absolute URL: ${url}`])
+  })
+
+  it('downloads another instance media URL when asked to fetch remotes', async () => {
+    const url = 'https://other.example/api/v1/files/ab/cd.webp'
+    const dir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'actor-archive-remote-test-')
+    )
+
+    fetchMock.doMock()
+    fetchMock.mockResponseOnce('remote-bytes', { status: 200 })
+
+    try {
+      const { mediaPaths, urlToArchivePath, warnings } = await runRegister({
+        attachment: buildAttachment({ url }),
+        fetchRemoteAttachments: true,
+        stagingDir: dir
+      })
+
+      expect([...mediaPaths]).toEqual([])
+      expect(warnings).toEqual([])
+
+      const relativePath = urlToArchivePath.get(url)
+      expect(relativePath).toMatch(
+        /^media_attachments\/remote\/[0-9a-f]{16}\.webp$/
+      )
+      expect(await fs.readFile(path.join(dir, relativePath!), 'utf-8')).toBe(
+        'remote-bytes'
+      )
+    } finally {
+      await fs.rm(dir, { force: true, recursive: true })
+    }
+  })
+
+  it('does not re-register a URL already resolved to an archive path', async () => {
+    // `mediaPaths`/`mediaIds` are Sets, so adding the same value twice is
+    // invisible either way — use a different `mediaId` per call so a second,
+    // non-memoized registration would show up as a second Set entry.
+    const url = 'https://example.test/api/v1/files/ab/cd.webp'
+    const mediaPaths = new Set<string>()
+    const mediaIds = new Set<string>()
+    const urlToArchivePath = new Map<string, string>()
+    const warnings: string[] = []
+    // Not `runRegister`: this needs the same collections across both calls,
+    // and that helper allocates a fresh set of them per call.
+    const register = (mediaId: string) =>
+      registerAttachmentUrl({
+        attachment: buildAttachment({ url, mediaId }),
+        fetchRemoteAttachments: false,
+        hostConfig,
+        mediaPaths,
+        mediaIds,
+        urlToArchivePath,
+        stagingDir: '/nonexistent',
+        warnings
+      })
+
+    await register('media-1')
+    await register('media-2')
+
+    expect([...mediaIds]).toEqual(['media-1'])
+    expect([...mediaPaths]).toEqual(['ab/cd.webp'])
+    expect(warnings).toEqual([])
+  })
+
+  it.each([
+    {
+      description: 'a non-OK HTTP response',
+      setupMock: () => fetchMock.mockResponseOnce('', { status: 404 }),
+      expectedMessage: 'HTTP 404'
+    },
+    {
+      description: 'a rejected fetch',
+      setupMock: () => fetchMock.mockRejectOnce(new Error('network fail')),
+      expectedMessage: 'network fail'
+    }
+  ])(
+    'warns and leaves no archive path when fetching a remote attachment fails on $description',
+    async ({ setupMock, expectedMessage }) => {
+      const url = 'https://other.example/api/v1/files/ab/cd.webp'
+
+      fetchMock.doMock()
+      setupMock()
+
+      const { mediaPaths, urlToArchivePath, warnings } = await runRegister({
+        attachment: buildAttachment({ url }),
+        fetchRemoteAttachments: true
+      })
+
+      expect([...mediaPaths]).toEqual([])
+      expect(urlToArchivePath.has(url)).toBe(false)
+      expect(warnings).toEqual([
+        `Failed to fetch remote attachment ${url}: ${expectedMessage}`
+      ])
+    }
+  )
 })
 
 describe('getArchiveMediaPath / getArchiveFitnessPath', () => {

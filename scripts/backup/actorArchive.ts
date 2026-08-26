@@ -19,7 +19,7 @@ import { getDatabase } from '@/lib/database'
 import { encodeFavouriteCursor } from '@/lib/database/sql/utils/favouriteCursor'
 import { Database } from '@/lib/database/types'
 import { getEffectiveFitnessStorageConfig } from '@/lib/services/fitness-files'
-import { getMediaFileUrl } from '@/lib/services/medias/mediaFileUrl'
+import { getMediaPathFromFileUrl } from '@/lib/services/medias/mediaFileUrl'
 import {
   AnnounceAction,
   CreateAction
@@ -47,6 +47,7 @@ import {
 import { getLocalActorOutboxId } from '@/lib/utils/activitypubId'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
+import { HostRuleConfig } from '@/lib/utils/host'
 
 import { printDatabaseBanner } from '../fitness/describeConnection'
 import {
@@ -68,7 +69,6 @@ const MEDIA_ID_BATCH_SIZE = 100
 const MEDIA_ARCHIVE_DIR = 'media_attachments/files'
 const REMOTE_MEDIA_ARCHIVE_DIR = 'media_attachments/remote'
 const FITNESS_ARCHIVE_DIR = 'fitness_files/files'
-const MEDIA_FILE_URL_SEGMENT = '/api/v1/files/'
 
 export const EXPORT_ACTOR_USAGE = `Usage: NODE_ENV=production scripts/backup/exportActorArchive.ts \\
   (--username <name> [--domain <domain>] | --actor-id <https://host/users/name> | --email <email>) \\
@@ -158,31 +158,6 @@ export const getHandleFromActor = (actor: {
   username: string
   domain: string
 }) => `${actor.username}@${actor.domain}`
-
-/**
- * Recovers the storage-relative path from a URL built by getMediaFileUrl
- * (`https://<host>/api/v1/files/<path>`). Returns null for fitness-file URLs
- * (served from a different route) and for foreign/remote URLs.
- */
-export const getMediaStoragePathFromUrl = (url: string): string | null => {
-  let parsed: URL
-  try {
-    parsed = new URL(url)
-  } catch {
-    return null
-  }
-
-  if (!parsed.pathname.startsWith(MEDIA_FILE_URL_SEGMENT)) return null
-
-  const encodedPath = parsed.pathname.slice(MEDIA_FILE_URL_SEGMENT.length)
-  if (!encodedPath) return null
-
-  try {
-    return decodeURIComponent(encodedPath)
-  } catch {
-    return encodedPath
-  }
-}
 
 export const getArchiveMediaPath = (storagePath: string) =>
   `${MEDIA_ARCHIVE_DIR}/${storagePath}`
@@ -671,9 +646,19 @@ const copyProfileImage = async ({
   }
 }
 
-const registerAttachmentUrl = async ({
+/**
+ * Files one attachment URL: as a path this instance stores, or — only when
+ * `--fetch-remote-attachments` was passed — as a copy downloaded into the
+ * archive. `hostConfig` is what separates the two, and it has to: an
+ * attachment federated from another activities.next instance carries the same
+ * `/api/v1/files/` path this one serves, so without the host check its URL
+ * became a local storage path that never resolved, and the download branch
+ * below was never reached.
+ */
+export const registerAttachmentUrl = async ({
   attachment,
   fetchRemoteAttachments,
+  hostConfig,
   mediaPaths,
   mediaIds,
   urlToArchivePath,
@@ -682,6 +667,7 @@ const registerAttachmentUrl = async ({
 }: {
   attachment: Attachment
   fetchRemoteAttachments: boolean
+  hostConfig: HostRuleConfig
   mediaPaths: Set<string>
   mediaIds: Set<string>
   urlToArchivePath: Map<string, string>
@@ -690,7 +676,7 @@ const registerAttachmentUrl = async ({
 }) => {
   if (urlToArchivePath.has(attachment.url)) return
 
-  const storagePath = getMediaStoragePathFromUrl(attachment.url)
+  const storagePath = getMediaPathFromFileUrl(attachment.url, hostConfig)
   if (storagePath) {
     mediaPaths.add(storagePath)
     urlToArchivePath.set(attachment.url, getArchiveMediaPath(storagePath))
@@ -786,6 +772,7 @@ export const exportActorArchive = async (
           await registerAttachmentUrl({
             attachment,
             fetchRemoteAttachments: args.fetchRemoteAttachments,
+            hostConfig: config,
             mediaPaths,
             mediaIds,
             urlToArchivePath,
@@ -842,10 +829,10 @@ export const exportActorArchive = async (
     }
 
     const iconPath = actor.iconUrl
-      ? getMediaStoragePathFromUrl(actor.iconUrl)
+      ? getMediaPathFromFileUrl(actor.iconUrl, config)
       : null
     const headerPath = actor.headerImageUrl
-      ? getMediaStoragePathFromUrl(actor.headerImageUrl)
+      ? getMediaPathFromFileUrl(actor.headerImageUrl, config)
       : null
     if (iconPath) mediaPaths.add(iconPath)
     if (headerPath) mediaPaths.add(headerPath)
