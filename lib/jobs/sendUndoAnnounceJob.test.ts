@@ -83,6 +83,11 @@ describe('sendUndoAnnounceJob', () => {
   })
 
   it('does nothing if actor is not found', async () => {
+    // Asserting "no fetch" alone proves nothing here: an unknown actor has no
+    // followers either, so the fan-out would be empty with or without the
+    // guard. Watch the call the guard is there to prevent instead.
+    const followersSpy = vi.spyOn(database, 'getFollowersInbox')
+
     await sendUndoAnnounceJob(database, {
       id: 'job-id',
       name: SEND_UNDO_ANNOUNCE_JOB_NAME,
@@ -96,7 +101,9 @@ describe('sendUndoAnnounceJob', () => {
       }
     })
 
+    expect(followersSpy).not.toHaveBeenCalled()
     expect(fetchMock).not.toHaveBeenCalled()
+    followersSpy.mockRestore()
   })
 
   it('rejects a payload missing the announce data it can no longer look up', async () => {

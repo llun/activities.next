@@ -8,6 +8,7 @@ import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'
 import { Actor } from '@/lib/types/domain/actor'
 import { StatusAnnounce } from '@/lib/types/domain/status'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 // Mock the queue
@@ -41,6 +42,12 @@ describe('Undo Announce action', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  // clearAllMocks drops call history but keeps queued one-shot behaviour, so an
+  // unconsumed mockRejectedValueOnce would fire inside a later test.
+  afterEach(() => {
+    vi.mocked(getQueue().publish).mockReset().mockResolvedValue(undefined)
   })
 
   describe('userUndoAnnounce', () => {
@@ -81,6 +88,35 @@ describe('Undo Announce action', () => {
       expect(published.id).not.toBe(getHashFromString(announce.id))
     })
 
+    it('keeps the local delete when queueing the federation job fails', async () => {
+      const announceId = `${actor2.id}/statuses/announce-queue-failure`
+      await database.createAnnounce({
+        id: announceId,
+        actorId: actor2.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: `${actor1.id}/statuses/post-1`,
+        createdAt: Date.now()
+      })
+      vi.mocked(getQueue().publish).mockRejectedValueOnce(
+        new Error('Queue unavailable')
+      )
+
+      await expect(
+        userUndoAnnounce({
+          currentActor: actor2,
+          statusId: announceId,
+          database
+        })
+      ).resolves.not.toBeNull()
+
+      expect(vi.mocked(getQueue().publish)).toHaveBeenCalledTimes(1)
+      // The boost is gone either way; a queue outage must not report otherwise.
+      await expect(
+        database.getStatus({ statusId: announceId, withReplies: false })
+      ).resolves.toBeNull()
+    })
+
     it('returns null when status does not exist', async () => {
       const result = await userUndoAnnounce({
         currentActor: actor2,
@@ -104,14 +140,31 @@ describe('Undo Announce action', () => {
     })
 
     it('returns null when status is not owned by the current actor', async () => {
+      // A row that still exists: the first test hard-deletes announce-1, and
+      // against a missing row this passes whether or not the ownership check
+      // is there.
+      const announceId = `${actor2.id}/statuses/announce-owned-by-actor2`
+      await database.createAnnounce({
+        id: announceId,
+        actorId: actor2.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: `${actor1.id}/statuses/post-1`,
+        createdAt: Date.now()
+      })
+
       const result = await userUndoAnnounce({
         currentActor: actor1,
-        statusId: `${actor2.id}/statuses/announce-1`,
+        statusId: announceId,
         database
       })
 
       expect(result).toBeNull()
       expect(getQueue().publish).not.toHaveBeenCalled()
+      // And it is still there — a non-owner must not delete it either.
+      await expect(
+        database.getStatus({ statusId: announceId, withReplies: false })
+      ).resolves.not.toBeNull()
     })
   })
 })

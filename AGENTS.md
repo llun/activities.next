@@ -1595,11 +1595,14 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   keeps `getFollowersInbox` + `filterFederatedUrls` rather than the shared
   delivery helper, because `sendAnnounceJob` resolves inboxes the same way and
   the two must stay symmetric.
-- **The `publish` is wrapped in try/catch on purpose.** The hard delete has
+- **Both actions wrap `publish` in try/catch on purpose.** The hard delete has
   already committed and cannot be undone, so a failed enqueue must not surface as
   a failed request — that would tell the author their post is still there when it
-  is gone, and would skip the route's media cleanup. It is logged with a stack;
-  remote copies reconcile on their next fetch, which 404s.
+  is gone (and on the delete path would skip the route's media cleanup). It is
+  logged with a stack; remote copies reconcile on their next fetch, which 404s.
+  This matters more for unboost than it looks: once the job stopped bailing
+  early, the default in-process queue runs the whole fan-out inside that
+  `publish`, so a follower-inbox lookup can now throw where it never could.
 - Delivery errors never reach that catch: `postActivityToInbox` swallows every
   network failure and returns `undefined`, so the activities `deleteStatus`
   sender does not reject. A test that fails the _socket_ therefore proves nothing
