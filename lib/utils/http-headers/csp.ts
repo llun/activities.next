@@ -26,6 +26,17 @@ const APPLE_MAPKIT_CSP_SOURCES = ['https://*.apple-mapkit.com']
 const MAPLIBRE_CDN_CSP_SOURCES = ['https://cdn.jsdelivr.net']
 const OPENFREEMAP_CSP_SOURCES = ['https://tiles.openfreemap.org']
 
+// The click-to-play YouTube player in a link preview card. Both URLs are
+// derived in the browser from the card's own url — the redirect-resolved one
+// this server fetched — never from remote metadata, so these two fixed hosts
+// are the feature's entire third-party surface: the player is framed from the
+// cookie-light host, and the facade's poster is served from YouTube's image
+// host. `child-src` is deliberately not added alongside `frame-src`: it is the
+// obsolete fallback, workers keep `worker-src`, and everything not named here
+// still falls back to `default-src 'none'`.
+const YOUTUBE_EMBED_CSP_SOURCES = ['https://www.youtube-nocookie.com']
+const YOUTUBE_POSTER_CSP_SOURCES = ['https://i.ytimg.com']
+
 const isDevelopment = () => process.env.NODE_ENV !== 'production'
 const isSafeLocalHostname = (hostname: string) =>
   ['localhost', '127.0.0.1', '[::1]'].includes(hostname.toLowerCase())
@@ -189,6 +200,12 @@ const buildContentSecurityPolicy = (frameAncestors: string): string => {
       ...(appOriginSource ? [appOriginSource] : []),
       ...(allowFreeMapSources ? OPENFREEMAP_CSP_SOURCES : []),
       ...(allowAppleMapSources ? APPLE_MAPKIT_CSP_SOURCES : []),
+      // Unconditional, unlike everything below it. The YouTube facade's poster
+      // is not federated media an operator is choosing to trust — it is a
+      // first-party feature of this app pointed at one fixed host — so a
+      // narrowed (or emptied) ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS must not
+      // silently blank the thumbnail of every video card.
+      ...YOUTUBE_POSTER_CSP_SOURCES,
       ...remoteMediaSources,
       ...serviceMediaSources,
       ...(mediaStorageSource ? [mediaStorageSource] : [])
@@ -230,6 +247,9 @@ const buildContentSecurityPolicy = (frameAncestors: string): string => {
     "default-src 'none'",
     "base-uri 'self'",
     "object-src 'none'",
+    // The only origin this app ever puts in a frame. Note this is the opposite
+    // direction to `frame-ancestors` below: that one says who may frame US.
+    `frame-src ${YOUTUBE_EMBED_CSP_SOURCES.join(' ')}`,
     `frame-ancestors ${frameAncestors}`,
     "form-action 'self'",
     // Next framework hydration still emits inline script/style content here;

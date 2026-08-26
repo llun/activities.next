@@ -164,6 +164,7 @@ ActivityPub objects are **JSON-LD**, so the same logical object can arrive in ma
 - **An alias in `CANONICAL_CONTEXT` only helps when the _sender_ defines the term too.** `CANONICAL_CONTEXT` is the context compaction targets; expansion still uses the document's own `@context`, and the bundled ActivityStreams context sets `"@vocab": "_:"`, so a term the sender never defines expands to a blank node — which `stripJsonLdArtifacts` recovers for `type` values but **deletes** for property keys. For terms peers commonly emit undefined (Misskey's `_misskey_reaction`) or declare in a vocabulary the offline loader cannot resolve (litepub's `EmojiReact`), also add them to `EXTENSION_TERM_FALLBACK_CONTEXT`, which `normalizeInputContext` prepends to every inbound document as the lowest-precedence entry — so a sender that does define the term still wins. This is the same trick that keeps litepub actors' `publicKey` readable via the `security/v1` fallback.
 - **Keep the Zod schemas liberal, not strict.** Model only the fields you consume; never `.strict()`; tolerate unknown tag/attachment kinds via the `z.looseObject({})` fallback in the `Tag`/`Attachment` unions (`z.looseObject` is valid Zod v4 — see `lib/types/activitypub/actor.ts`); never Zod-validate `@context`. Narrow loose values back to fully-valid known shapes at the consumption boundary with `safeParse` (e.g. `getTags`/`getAttachments` return only valid `KnownTag`/`Document` via `KnownTag.safeParse`/`Document.safeParse`).
 - **Do not change `http://schema.org#` to `https`.** Mastodon maps the `schema` prefix to the non-standard `http://schema.org#` base in actor `@context`; the canonical context must use the same IRI so profile fields (`PropertyValue`/`value`) compact correctly.
+- **A document that emits FEP-044f quote terms must declare `QUOTE_ACTIVITY_CONTEXT` (`lib/activities/quoteContext.ts`), never the bare `ACTIVITY_STREAM_URL`.** This is the outbound mirror of the `CANONICAL_CONTEXT` aliasing rule above, and it fails the same silent way: JSON-LD is context-driven, so a term the document never defines expands to a blank node and `stripJsonLdArtifacts` deletes it. The note keeps its content and quietly loses its quote — no error, no build warning, and no test failure, because nothing reads `interactionPolicy` inbound and every result-based assertion still passes. Both emitters (`getNoteFromStatus` for delivery, `toActivityPubObject` for fetch) build these fields through `lib/activities/quoteNoteFields.ts` and emit `interactionPolicy` **unconditionally**, so the rule binds every note-carrying surface, quote post or not. Six shipped the wrong context at once: `sendNote`, `sendUpdateNote`, the AP status GET, the `/replies` collection, the user outbox page, and the `outbox.json` writer in `scripts/backup/actorArchive.ts`. Each is pinned by a `@context` assertion (`lib/activities/index.test.ts`, `sendUpdateNoteJob.test.ts`, the three route tests, and `scripts/backup/actorArchive.test.ts`) because a revert is invisible in results; `lib/activities/quoteNoteFields.test.ts` proves the round trip both ways. The archive's likes/bookmarks collections share that writer but hold bare ids, so the extra term definitions are inert there.
 - Compaction emits the public collection as the compact alias `as:Public`; `toRecipientArray` canonicalises it back to the full ActivityStreams Public IRI when coercing recipients for persistence so stored recipients have one canonical form. JSON-LD blank-node ids (`_:b0`) are document-local artifacts and are rejected by `extractActivityPubId`/`normalizeActivityPubUri` — they are never valid resolvable ActivityPub ids.
 
 ## Server/Client Module Boundary
@@ -1361,6 +1362,81 @@ it; there is no legacy shape left to copy.
   through `safeExternalHref`, and its thumbnail is `https`-only and loaded with
   `referrerPolicy="no-referrer"`. The displayed domain is always derived from
   the URL, never from the page's own `og:site_name`, which the page controls.
+- **A YouTube link renders a click-to-play player, and the branch reads the URL
+  — never the metadata.** `getYouTubeVideoFromUrl` (`lib/utils/youtube.ts`)
+  parses `linkPreview.url`, which is the **redirect-resolved final URL this
+  server fetched** (`fetchLinkPreview` stores `normalizePreviewUrl(response.url)`),
+  so a page can only be treated as YouTube by actually being served from a
+  YouTube host. Neither `og:type` nor the stored `type` column is consulted,
+  even though `mapCardType` already writes `'video'` for these pages: that
+  column is page-claimed, and gating on it would make one URL render two ways
+  depending on what a cache entry happened to capture. Hosts are matched
+  **exactly** (`youtube.com.evil.example` ends with nothing that matters) and
+  the id must be 11 base64url characters — which rejects a percent-encoded PATH
+  segment outright, since the pathname is never decoded, while a `?v=` value is
+  decoded by `URLSearchParams` first and then has to satisfy the same shape.
+  `/embed/videoseries` is refused by name because it is eleven lowercase
+  letters that embed a whole playlist; nothing else needs that carve-out,
+  because `list` is never carried into the embed URL, so no playlist can be
+  framed however it is spelled.
+  The feature's entire third-party surface is two fixed hosts, both in
+  `csp.ts`: the player is framed from `https://www.youtube-nocookie.com`, the
+  only origin in `frame-src` (there was no `frame-src` at all before this —
+  `default-src 'none'` blocks every iframe), and the poster comes from
+  `https://i.ytimg.com`, which is an **unconditional** `img-src` source rather
+  than one of `remoteMediaSources`, so narrowing (or emptying)
+  `ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS` cannot blank the thumbnail of every
+  video card. `next.config.test.ts` pins that against the emptied allowlist.
+  **Nothing loads from the player until the reader presses play** — a live
+  iframe per row is a megabyte of player code and a Google request for every
+  video that merely scrolled past — and **the card is mounted under a React
+  `key` on the video id**, so a card replaced in place is REMOUNTED and cannot
+  inherit the previous video's consent and autoplay something nobody clicked.
+  Do not delete that key as redundant: the component also remembers which video
+  was played, but that alone was the original guard and it was insufficient —
+  the remembered id was only ever compared against, never cleared, so it
+  defended a change A→B and not a change back A→B→A, which re-entered the
+  playing branch with no gesture. A remount clears it in both directions, and
+  happens in the same commit, so there is still no painted frame of autoplay.
+  `autoplay` is set only on a player the reader mounted, and must be in the
+  iframe's `allow` list to reach the frame at all.
+  **The facade's focus indicator lives on a child OVERLAY, not on the button**,
+  and that is not a style preference — it is the only place it survives. The
+  button is flush with the edges of a wrapper that must clip
+  (`overflow-hidden`, to round the video's corners), so anything painted
+  outward (a plain `ring`, a zero-offset outline) is clipped on the three sides
+  that are flush with it and survives only along the bottom, whose edge is
+  interior to the wrapper — a full-width 2px line between the video and the
+  caption, measured at 1416 pixels against the shipped overlay's 4412. Unusable
+  as an indicator, not invisible; do not repeat the earlier claim that it
+  measured zero, which was an artefact of the measurement method below.
+  Anything painted inward (`ring-inset`, a negative-offset outline) IS
+  effectively invisible — 14 pixels — because it paints BELOW the button's own
+  descendants, where the full-bleed poster covers its box exactly. The
+  indicator is therefore a `pointer-events-none absolute inset-0` span rendered
+  as the button's LAST child, which has no descendants of its own to hide it,
+  and carries `rounded-t-[11px]` so the wrapper's inner radius does not nip its
+  top corners. On that overlay it is an **outline, not a ring**: forced-colors
+  mode (Windows High Contrast) drops box-shadows, which left the card's only
+  control with no focus indicator at all while the caption link beside it kept
+  one. The caption may keep its outline on the element itself, because its
+  children are in-flow text that never reaches its padding edge.
+  Verify any focus change by COUNTING INDICATOR PIXELS on an element
+  screenshot, **with a poster loaded and with `forced-colors: active` as
+  well**, never by reading `getComputedStyle` — a box-shadow that is computed
+  is not a box-shadow that is painted, and that mistake cost this feature two
+  review rounds. Screenshot the WRAPPER, not the focused element, whenever the
+  candidate paints outward: an element screenshot cannot see anything outside
+  that element's own box, so it reports zero for every outward indicator and
+  will walk you into calling one invisible when it is merely clipped. Two more
+  traps in the harness:
+  Playwright's `page.screenshot({clip})` is page-relative while
+  `getBoundingClientRect()` is viewport-relative (use element screenshots), and
+  `:focus-visible` will not match a programmatic `.focus()` unless keyboard
+  modality was established first. The two anatomies are **separate components** behind
+  one exported `LinkPreviewCard`, so React swaps component type rather than
+  reordering hooks. The Mastodon `card.html`/`embed_url` stay empty regardless:
+  the embed URL is built in the browser, so this is not oEmbed consumption.
 - **The card yields to media, a quote or a fitness activity in the UI** — but it
   is still fetched and still served over the API in all three cases, so a client
   is free to decide otherwise. Display policy lives in `post.tsx`, not in the

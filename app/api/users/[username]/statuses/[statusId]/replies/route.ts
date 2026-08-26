@@ -1,3 +1,4 @@
+import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
 import {
   OnlyLocalUserGuard,
   OnlyLocalUserGuardHandle
@@ -11,7 +12,6 @@ import {
   toActivityPubObject
 } from '@/lib/types/domain/status'
 import { activityPubResponse } from '@/lib/utils/activityPubContentNegotiation'
-import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -60,7 +60,9 @@ export const GET = traceApiRoute(
     return activityPubResponse({
       req,
       data: {
-        '@context': ACTIVITY_STREAM_URL,
+        // The items come from toActivityPubObject, which emits the FEP-044f
+        // quote aliases; a receiver that compacts drops any undefined term.
+        '@context': QUOTE_ACTIVITY_CONTEXT,
         id: `${status.id}/replies`,
         type: 'Collection',
         totalItems: totalReplies,

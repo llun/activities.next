@@ -13,6 +13,7 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 
+import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { encodeFavouriteCursor } from '@/lib/database/sql/utils/favouriteCursor'
@@ -44,7 +45,6 @@ import {
   toActivityPubObject
 } from '@/lib/types/domain/status'
 import { getLocalActorOutboxId } from '@/lib/utils/activitypubId'
-import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 
@@ -368,10 +368,16 @@ export const createOrderedCollectionWriter = (filePath: string, id: string) => {
   let wroteFirst = false
   let count = 0
 
+  // QUOTE_ACTIVITY_CONTEXT, not the bare AS2 url: the outbox collection embeds
+  // notes from `toActivityPubObject`, which emits the FEP-044f quote aliases, and
+  // anything that compacts this file — including our own `compactActivityPub` —
+  // drops every term the document's context never defined. The likes/bookmarks
+  // collections written by the same helper carry bare ids, so the extra term
+  // definitions are inert there.
   stream.write(
-    `{"@context":${JSON.stringify(ACTIVITY_STREAM_URL)},"id":${JSON.stringify(
-      id
-    )},"type":"OrderedCollection","orderedItems":[`
+    `{"@context":${JSON.stringify(
+      QUOTE_ACTIVITY_CONTEXT
+    )},"id":${JSON.stringify(id)},"type":"OrderedCollection","orderedItems":[`
   )
 
   return {

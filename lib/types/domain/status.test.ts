@@ -247,6 +247,15 @@ describe('Status', () => {
             id: `${status.id}/shares`,
             type: 'Collection',
             totalItems: 0
+          },
+          // Emitted for every note, quoting or not, so a peer that FETCHES a
+          // status is told the same quote policy as one that received it over
+          // an inbox delivery.
+          interactionPolicy: {
+            canQuote: {
+              automaticApproval: [ACTIVITY_STREAM_PUBLIC],
+              manualApproval: []
+            }
           }
         })
         expect(note).not.toHaveProperty('updated')
@@ -396,6 +405,88 @@ describe('Status', () => {
             (_, index) => `https://example.com/files/image-${index}.png`
           )
         )
+      })
+      describe('quote emission', () => {
+        // A peer that FETCHES a note (this object backs the AP status GET, the
+        // outbox and the replies collection) must see the same quote a peer
+        // handed the note over an inbox delivery does. Before this the object
+        // carried no quote fields at all, so a quote post read as a plain one to
+        // anyone who fetched it.
+        const withQuote = (status: StatusNote, quote: StatusNote['quote']) =>
+          toActivityPubObject({ ...status, quote })
+
+        let noteStatus: StatusNote
+
+        beforeAll(async () => {
+          noteStatus = (await database.getStatus({
+            statusId: `${actor1?.id}/statuses/post-1`,
+            withReplies: false
+          })) as StatusNote
+        })
+
+        it.each([
+          { state: 'pending' as const },
+          { state: 'accepted' as const }
+        ])(
+          'advertises the quote target under every compat alias on a $state edge',
+          ({ state }) => {
+            const quotedStatusId = 'https://remote.test/users/alice/statuses/1'
+            const note = withQuote(noteStatus, { quotedStatusId, state })
+
+            expect(note).toMatchObject({
+              quote: quotedStatusId,
+              quoteUrl: quotedStatusId,
+              quoteUri: quotedStatusId,
+              _misskey_quote: quotedStatusId
+            })
+          }
+        )
+
+        it('emits the hosted stamp uri only on an accepted edge', () => {
+          const quotedStatusId = 'https://remote.test/users/alice/statuses/1'
+          const authorizationUri =
+            'https://remote.test/users/alice/quote_authorizations/abc'
+
+          expect(
+            withQuote(noteStatus, {
+              quotedStatusId,
+              state: 'accepted',
+              authorizationUri
+            })
+          ).toMatchObject({ quoteAuthorization: authorizationUri })
+          // A stamp on a pending edge is unverified and must never be
+          // advertised as approval the quoted author did not give.
+          expect(
+            withQuote(noteStatus, {
+              quotedStatusId,
+              state: 'pending',
+              authorizationUri
+            })
+          ).not.toHaveProperty('quoteAuthorization')
+        })
+
+        it.each([
+          { state: 'rejected' as const },
+          { state: 'revoked' as const },
+          { state: 'deleted' as const }
+        ])('emits no quote target on a $state edge', ({ state }) => {
+          const note = withQuote(noteStatus, {
+            quotedStatusId: 'https://remote.test/users/alice/statuses/1',
+            state
+          })
+
+          expect(note).not.toHaveProperty('quote')
+          expect(note).not.toHaveProperty('quoteUrl')
+          expect(note).not.toHaveProperty('quoteUri')
+          expect(note).not.toHaveProperty('_misskey_quote')
+        })
+
+        it('emits no quote fields for a status that quotes nothing', () => {
+          const note = toActivityPubObject(noteStatus)
+
+          expect(note).not.toHaveProperty('quote')
+          expect(note).not.toHaveProperty('quoteAuthorization')
+        })
       })
     })
 

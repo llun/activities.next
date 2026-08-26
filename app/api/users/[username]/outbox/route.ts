@@ -1,3 +1,4 @@
+import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import type { Database } from '@/lib/database/types'
 import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
@@ -101,7 +102,10 @@ export const GET = traceApiRoute(
       return activityPubResponse({
         req,
         data: {
-          '@context': ACTIVITY_STREAM_URL,
+          // The Create objects come from toActivityPubObject, which emits the
+          // FEP-044f quote aliases; a receiver that compacts drops any term its
+          // context never defined.
+          '@context': QUOTE_ACTIVITY_CONTEXT,
           id: `${getLocalActorOutboxId(actor.id)}?page=true`,
           type: 'OrderedCollectionPage',
           partOf: getLocalActorOutboxId(actor.id),

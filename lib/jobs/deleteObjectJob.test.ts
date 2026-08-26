@@ -11,6 +11,39 @@ import { Actor } from '@/lib/types/domain/actor'
 
 enableFetchMocks()
 
+const spanExceptions: unknown[] = []
+const spanAttributes: Record<string, unknown> = {}
+const recordedExceptions = () => spanExceptions
+const recordedAttributes = () => spanAttributes
+
+vi.mock('@/lib/utils/trace', async () => {
+  const actual =
+    await vi.importActual<typeof import('@/lib/utils/trace')>(
+      '@/lib/utils/trace'
+    )
+  return {
+    ...actual,
+    // A recording stand-in for the span: the job reports outcomes through it,
+    // and a successful revocation must leave it clean.
+    withSpan: <T>(
+      _op: string,
+      _name: string,
+      _data: unknown,
+      fn: (span: unknown) => Promise<T>
+    ) =>
+      fn({
+        setAttribute: (key: string, value: unknown) => {
+          spanAttributes[key] = value
+        },
+        recordException: (error: unknown) => {
+          spanExceptions.push(error)
+        },
+        setStatus: () => {},
+        end: () => {}
+      })
+  }
+})
+
 describe('deleteObjectJob', () => {
   const database = getTestSQLDatabase()
   let actor1: Actor | undefined
@@ -32,6 +65,8 @@ describe('deleteObjectJob', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
+    spanExceptions.length = 0
+    for (const key of Object.keys(spanAttributes)) delete spanAttributes[key]
   })
 
   // Seed the quoted status (as stored when we created the outbound quote) so its
@@ -130,6 +165,218 @@ describe('deleteObjectJob', () => {
 
     const edge = await database.getStatusQuote({ statusId: quotingId })
     expect(edge?.state).toBe('accepted')
+  })
+
+  it('still deletes an actor whose own id was planted as a stamp uri', async () => {
+    // `authorizationUri` is remote-supplied and only same-host checked, so a
+    // hostile actor can plant a co-resident's id there. If the quote branch
+    // consumed the activity on a sender mismatch, that co-resident's own
+    // legitimate Delete would be swallowed forever and they could never be
+    // removed from this instance.
+    const stamp = Date.now()
+    const victimId = `https://remote.example/users/planted-victim-${stamp}`
+    await database.createActor({
+      actorId: victimId,
+      username: `plantedvictim${stamp}`,
+      domain: 'remote.example',
+      followersUrl: `${victimId}/followers`,
+      inboxUrl: `${victimId}/inbox`,
+      sharedInboxUrl: 'https://remote.example/inbox',
+      publicKey: 'public-key',
+      createdAt: Date.now()
+    })
+
+    const author = `https://remote.example/users/planter-${stamp}`
+    const quotedStatusId = `${author}/statuses/1`
+    await seedQuotedStatus(author, quotedStatusId)
+    const quotingId = `https://local.test/users/me/statuses/planted-${stamp}`
+    await database.createStatusQuote({
+      statusId: quotingId,
+      quotedStatusId,
+      state: 'accepted',
+      // Not a stamp at all — the victim's actor id, same host as the quoted
+      // status, which is all the storing path ever checked.
+      authorizationUri: victimId
+    })
+
+    // The victim deletes themselves, correctly signed.
+    await deleteObjectJob(database, {
+      id: `planted-job-${stamp}`,
+      name: DELETE_OBJECT_JOB_NAME,
+      data: victimId,
+      verifiedSenderActorId: victimId
+    })
+
+    await expect(database.getActorFromId({ id: victimId })).resolves.toBeNull()
+    // The planter's quote is untouched: this was never a revocation.
+    const edge = await database.getStatusQuote({ statusId: quotingId })
+    expect(edge?.state).toBe('accepted')
+  })
+
+  it('still deletes an actor whose own id was planted as their stamp uri', async () => {
+    // The half a sender-mismatch fall-through cannot reach: here the deleter IS
+    // the quoted author, so the revocation branch fires — and if it consumed the
+    // activity, the author could never delete themselves from this instance.
+    const stamp = Date.now()
+    const author = `https://remote.example/users/self-planter-${stamp}`
+    const quotedStatusId = `${author}/statuses/1`
+    await seedQuotedStatus(author, quotedStatusId)
+    const quotingId = `https://local.test/users/me/statuses/self-planted-${stamp}`
+    await database.createStatusQuote({
+      statusId: quotingId,
+      quotedStatusId,
+      state: 'accepted',
+      // Their own actor id, not a stamp — same host as the quoted status, which
+      // is all the storing path ever checks.
+      authorizationUri: author
+    })
+
+    await deleteObjectJob(database, {
+      id: `self-planted-job-${stamp}`,
+      name: DELETE_OBJECT_JOB_NAME,
+      data: author,
+      verifiedSenderActorId: author
+    })
+
+    await expect(database.getActorFromId({ id: author })).resolves.toBeNull()
+  })
+
+  it('still deletes a status whose own id was planted as a stamp uri', async () => {
+    // The likeliest non-malicious trigger: a peer echoing the quoted status in
+    // an Accept's `result`. Swallowing the author's Delete would leave the post
+    // on this instance and never mark quotes of it deleted.
+    const stamp = Date.now()
+    const author = `https://remote.example/users/status-planter-${stamp}`
+    const quotedStatusId = `${author}/statuses/planted-${stamp}`
+    await seedQuotedStatus(author, quotedStatusId)
+    const quotingId = `https://local.test/users/me/statuses/status-planted-${stamp}`
+    await database.createStatusQuote({
+      statusId: quotingId,
+      quotedStatusId,
+      state: 'accepted',
+      authorizationUri: quotedStatusId
+    })
+
+    await deleteObjectJob(database, {
+      id: `status-planted-job-${stamp}`,
+      name: DELETE_OBJECT_JOB_NAME,
+      data: { id: quotedStatusId, type: 'Tombstone' },
+      verifiedSenderActorId: author
+    })
+
+    await expect(
+      database.getStatus({ statusId: quotedStatusId, withReplies: false })
+    ).resolves.toBeNull()
+  })
+
+  it.each([
+    {
+      description: 'the FEP-044f object shape our own sendQuoteRevoke emits',
+      // `{ id, type: 'QuoteAuthorization' }` is neither a Tombstone nor an
+      // Announce, so the additive fall-through reads it as junk unless the
+      // revocation is remembered. No test used this shape, which is how that
+      // regression reached review.
+      asData: (stampUri: string) => ({
+        id: stampUri,
+        type: 'QuoteAuthorization'
+      })
+    },
+    {
+      description: 'the bare stamp uri shape',
+      // Here the fall-through reaches the actor path, where a stamp uri is not
+      // the sender's actor id — a successful revocation must not be reported as
+      // someone deleting what they do not own.
+      asData: (stampUri: string) => stampUri
+    }
+  ])(
+    'revokes without reporting an error for $description',
+    async ({ asData }) => {
+      const stamp = Date.now()
+      const author = `https://remote.example/users/clean-span-${stamp}`
+      const quotedStatusId = `${author}/statuses/1`
+      await seedQuotedStatus(author, quotedStatusId)
+      const stampUri = `${author}/quote_authorizations/clean-${stamp}`
+      const quotingId = `https://local.test/users/me/statuses/clean-${stamp}`
+      await database.createStatusQuote({
+        statusId: quotingId,
+        quotedStatusId,
+        state: 'accepted',
+        authorizationUri: stampUri
+      })
+
+      await deleteObjectJob(database, {
+        id: `clean-span-job-${stamp}`,
+        name: DELETE_OBJECT_JOB_NAME,
+        data: asData(stampUri),
+        verifiedSenderActorId: author
+      })
+
+      const edge = await database.getStatusQuote({ statusId: quotingId })
+      expect(edge?.state).toBe('revoked')
+      expect(recordedExceptions()).toHaveLength(0)
+      expect(recordedAttributes()).not.toHaveProperty('senderMismatch')
+      // The fall-through must stay a no-op for a real stamp: it names no actor
+      // and no status, so nothing else may be touched.
+      await expect(
+        database.getActorFromId({ id: author })
+      ).resolves.not.toBeNull()
+      await expect(
+        database.getStatus({ statusId: quotedStatusId, withReplies: false })
+      ).resolves.not.toBeNull()
+    }
+  )
+
+  it('still reports a sender mismatch when a planted Announce id was revoked', async () => {
+    // The one shape where suppression would hide a real signal. An Announce is
+    // a boost, never a stamp, so no legitimate revocation reaches this branch —
+    // getting here with a revocation behind us means someone stored a third
+    // party's Announce id as an authorizationUri and is now trying to delete an
+    // object they do not own.
+    const stamp = Date.now()
+    const author = `https://remote.example/users/announce-planter-${stamp}`
+    const quotedStatusId = `${author}/statuses/1`
+    await seedQuotedStatus(author, quotedStatusId)
+    const announceId = `${author}/statuses/announce-${stamp}`
+    const quotingId = `https://local.test/users/me/statuses/announce-planted-${stamp}`
+    await database.createStatusQuote({
+      statusId: quotingId,
+      quotedStatusId,
+      state: 'accepted',
+      authorizationUri: announceId
+    })
+
+    await deleteObjectJob(database, {
+      id: `announce-planted-job-${stamp}`,
+      name: DELETE_OBJECT_JOB_NAME,
+      data: {
+        id: announceId,
+        type: 'Announce',
+        actor: `https://remote.example/users/someone-else-${stamp}`,
+        published: new Date().toISOString(),
+        to: [],
+        cc: [],
+        object: quotedStatusId
+      },
+      verifiedSenderActorId: author
+    })
+
+    // The revocation still happened, and the refused delete is still surfaced.
+    const edge = await database.getStatusQuote({ statusId: quotingId })
+    expect(edge?.state).toBe('revoked')
+    expect(recordedAttributes()).toHaveProperty('senderMismatch', true)
+  })
+
+  it('still reports genuinely invalid data', async () => {
+    // The suppression must be scoped to an actual revocation, or a malformed
+    // Delete stops being visible at all.
+    await deleteObjectJob(database, {
+      id: `invalid-data-job-${Date.now()}`,
+      name: DELETE_OBJECT_JOB_NAME,
+      data: { id: 'https://remote.example/whatever', type: 'NotAThing' },
+      verifiedSenderActorId: 'https://remote.example/users/someone'
+    })
+
+    expect(recordedExceptions()).toHaveLength(1)
   })
 
   it('deletes actor when data is a string (actor id)', async () => {

@@ -2116,6 +2116,31 @@ describe('Post', () => {
       expect(screen.queryByText('A linked article')).not.toBeInTheDocument()
     })
 
+    // A YouTube link gets the click-to-play player rather than the link
+    // anatomy. The card is chosen from the url alone, so it reaches this
+    // surface with no other change to the status.
+    it('renders a play button for a card that links a YouTube video', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{
+            ...status,
+            summary: null,
+            linkPreview: {
+              ...linkPreview,
+              url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+            }
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(
+        screen.getByRole('button', { name: 'Play video: A linked article' })
+      ).toBeInTheDocument()
+    })
+
     // Media, a quoted post and a fitness activity are all richer
     // representations of what the post is about; the link card yields to them
     // rather than stacking a second block underneath.

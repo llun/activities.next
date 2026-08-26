@@ -9,6 +9,7 @@ import {
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLinkPreview'
 import { notifyQuotedStatusUpdate } from '@/lib/services/notifications/notifyQuotedStatusUpdate'
+import { syncQuoteEdgeFromUpdate } from '@/lib/services/quotes/persistInboundQuoteEdge'
 import {
   ArticleContent,
   ImageContent,
@@ -17,10 +18,15 @@ import {
   VideoContent
 } from '@/lib/types/activitypub'
 import { StatusType } from '@/lib/types/domain/status'
-import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
+import {
+  normalizeActivityPubContent,
+  normalizeActorId
+} from '@/lib/utils/activitypub'
+import { logger } from '@/lib/utils/logger'
 
 import { createJobHandle } from './createJobHandle'
-import { UPDATE_NOTE_JOB_NAME } from './names'
+import { createNoteJob } from './createNoteJob'
+import { CREATE_NOTE_JOB_NAME, UPDATE_NOTE_JOB_NAME } from './names'
 
 export const updateNoteJob = createJobHandle(
   UPDATE_NOTE_JOB_NAME,
@@ -43,6 +49,27 @@ export const updateNoteJob = createJobHandle(
       withReplies: false
     })
     if (!existingStatus || existingStatus.type !== StatusType.enum.Note) {
+      return
+    }
+
+    // An Update may only be applied by the note's OWN author. Routing verifies
+    // the payload's `attributedTo` against the signer (`getJobMessage`'s
+    // `createObjectActorMismatch`), which an attacker satisfies by attributing
+    // the payload to themselves while pointing `id` at someone else's status —
+    // so without this the target is resolved by `note.id` alone and any
+    // federated actor can rewrite the text of any stored status, local users
+    // included, complete with a `status_history` revision that makes the
+    // defacement read as a genuine edit by the victim.
+    if (
+      normalizeActorId(note.attributedTo) !==
+      normalizeActorId(existingStatus.actorId)
+    ) {
+      logger.warn({
+        message: 'Ignoring an Update for a status the sender does not own',
+        statusId: note.id,
+        statusActorId: existingStatus.actorId,
+        updateActorId: note.attributedTo
+      })
       return
     }
 
@@ -77,6 +104,30 @@ export const updateNoteJob = createJobHandle(
       summary,
       text,
       language
+    })
+
+    // A quoter re-federates its note as an Update once the quoted author's
+    // Accept hands it a `quoteAuthorization` stamp, so an Update is the second
+    // place an approval can arrive. Without re-deriving the edge here a quote
+    // approved after its Create stays a "pending approval" tombstone forever,
+    // even though every other server shows it as accepted. Runs regardless of
+    // `contentChanged` — a stamp-only re-federation carries unchanged content,
+    // which is exactly the case this exists for.
+    // The quoting actor is this note's STORED author, never the `attributedTo`
+    // the Update payload carries: verifyRemoteQuote's self-quote shortcut
+    // accepts outright when quoter == quoted author, so trusting a payload
+    // field there would let an edit claim authorship it does not have.
+    await syncQuoteEdgeFromUpdate({
+      database,
+      note,
+      actorId: existingStatus.actorId,
+      storeNote: (fetchedQuotedNote, bound) =>
+        createNoteJob(database, {
+          id: fetchedQuotedNote.id,
+          name: CREATE_NOTE_JOB_NAME,
+          data: fetchedQuotedNote,
+          ...bound
+        })
     })
 
     // Re-detect the content language alongside the edit; the previous

@@ -118,7 +118,10 @@ product or security decision, not a gap to be closed.
   in `Status.card`. Two fields are always empty, deliberately: `html` and
   `embed_url` (this server does not consume oEmbed, and emitting remote-authored
   markup for clients to inject buys nothing), and `blurhash` is null because
-  thumbnails are served from the origin rather than stored locally. A boost
+  thumbnails are served from the origin rather than stored locally. The
+  first-party web UI's YouTube player is no exception to that: it derives its
+  embed URL in the browser from `card.url`, so a client reading these two fields
+  still sees them empty. A boost
   (`reblog`) carries `card: null` at the top level; the card is on the wrapped
   status. Fetching can be turned off entirely by an admin under
   Admin → Network → Link previews, in which case `card` stays null for new
@@ -238,7 +241,12 @@ product or security decision, not a gap to be closed.
   note is fetched (instance-signed, like the boost path) so the stamp can be
   verified against its author and the quote card can embed the content. Fetching
   only makes the author knowable — the stamp's three-field match against that
-  author is still what grants approval. Legacy Fedibird (`quoteUri`)
+  author is still what grants approval. An approval is honored on whichever
+  activity carries it: the quoted author's `Accept` (whose `object` is the
+  `QuoteRequest`, never a `Follow`), or a later `Update` in which the quoter
+  re-federates the note now bearing the stamp. Both settle a `pending` edge
+  through the same one-way state machine, so a re-derived `pending` can never
+  downgrade one already accepted. Legacy Fedibird (`quoteUri`)
   and Misskey (`_misskey_quote`) quotes carry no stamp, so they are stored and
   rendered as unapproved (`pending`) rather than as embedded quotes, matching
   Mastodon 4.5's treatment of stamp-less quotes. Revoking approval fans the stamp

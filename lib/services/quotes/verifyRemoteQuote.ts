@@ -11,6 +11,7 @@ import {
 } from '@/lib/types/domain/status'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 type VerifyRemoteQuoteParams = {
   database: Database
@@ -33,6 +34,51 @@ const sameAuthority = (a: string, b: string): boolean => {
   } catch {
     return false
   }
+}
+
+/**
+ * The outcome of checking a stamp uri, kept THREE-valued on purpose.
+ * `unavailable` (the document could not be read at all) is not the same claim
+ * as `mismatch` (it was read and does not authorize this edge), and a caller
+ * that collapses them punishes a transient 503 exactly as it punishes a forgery.
+ */
+export type QuoteAuthorizationStampCheck =
+  'verified' | 'mismatch' | 'unavailable'
+
+/**
+ * Confirm a stamp uri really is a QuoteAuthorization the quoted author issued
+ * for this exact (quoting note → quoted status) pair. Shared with the quoter
+ * side of the handshake, which must not store a `result` it never checked: the
+ * uri is remote-supplied, and `authorizationUri` is matched by `deleteObjectJob`
+ * when deciding whether a Delete is a quote revocation.
+ *
+ * A uri outside the quoted author's authority is a `mismatch` — that is decided
+ * locally and needs no fetch. Everything the fetch itself can fail on (non-200,
+ * timeout, unparseable body, a document that does not validate as a
+ * QuoteAuthorization) is `unavailable`, because none of it disproves the stamp.
+ */
+export const verifyQuoteAuthorizationStamp = async ({
+  database,
+  stampUri,
+  quotedAuthorId,
+  quotingStatusId,
+  quotedStatusId
+}: {
+  database: Database
+  stampUri: string
+  quotedAuthorId: string
+  quotingStatusId: string
+  quotedStatusId: string
+}): Promise<QuoteAuthorizationStampCheck> => {
+  if (!sameAuthority(stampUri, quotedAuthorId)) return 'mismatch'
+  const stamp = await fetchQuoteAuthorization(database, stampUri)
+  if (!stamp) return 'unavailable'
+  const matches =
+    sameAuthority(stamp.id, quotedAuthorId) &&
+    stamp.attributedTo === quotedAuthorId &&
+    stamp.interactingObject === quotingStatusId &&
+    stamp.interactionTarget === quotedStatusId
+  return matches ? 'verified' : 'mismatch'
 }
 
 /**
@@ -61,6 +107,7 @@ const fetchQuoteAuthorization = async (
   } catch (error) {
     logger.warn({
       message: 'Failed to fetch quote authorization stamp',
+      err: toLoggableError(error),
       error: error instanceof Error ? error.message : String(error)
     })
     return null
