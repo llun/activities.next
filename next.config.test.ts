@@ -212,6 +212,10 @@ describe('next config security hardening', () => {
 
         expect(csp?.value).toContain("default-src 'none'")
         expect(csp?.value).toContain("frame-ancestors 'none'")
+        // The click-to-play YouTube player is the only thing this app frames.
+        expect(csp?.value).toContain(
+          'frame-src https://www.youtube-nocookie.com'
+        )
         // No Mapbox token → the keyless MapLibre + OpenFreeMap map provider is
         // allowed instead (jsDelivr for the script/style, OpenFreeMap for the
         // tiles), so the region picker still shows a real interactive map.
@@ -234,6 +238,7 @@ describe('next config security hardening', () => {
           'data:',
           'blob:',
           'https://tiles.openfreemap.org',
+          'https://i.ytimg.com',
           'https:'
         ])
         expect(csp?.value).toContain("manifest-src 'self'")
@@ -351,6 +356,7 @@ describe('next config security hardening', () => {
           'data:',
           'blob:',
           'https://*.apple-mapkit.com',
+          'https://i.ytimg.com',
           'https:'
         ])
         expect(getCspDirectiveSources('worker-src')).toEqual([
@@ -358,11 +364,14 @@ describe('next config security hardening', () => {
           'blob:',
           'https://*.apple-mapkit.com'
         ])
-        // Apple replaces the other providers; no framing directives are added.
+        // Apple replaces the other providers and adds no framing sources of its
+        // own; the only framed origin is the fixed YouTube player host.
         expect(csp?.value).not.toContain('mapbox.com')
         expect(csp?.value).not.toContain('cdn.jsdelivr.net')
         expect(csp?.value).not.toContain('child-src')
-        expect(csp?.value).not.toContain('frame-src')
+        expect(getCspDirectiveSources('frame-src')).toEqual([
+          'https://www.youtube-nocookie.com'
+        ])
       }
     )
   })
@@ -411,6 +420,7 @@ describe('next config security hardening', () => {
           'data:',
           'blob:',
           'https://tiles.openfreemap.org',
+          'https://i.ytimg.com',
           'https:',
           'http://localhost:9000'
         ])
@@ -462,11 +472,15 @@ describe('next config security hardening', () => {
         const imageSources = getCspDirectiveSources('img-src')
         const mediaSources = getCspDirectiveSources('media-src')
 
+        // The YouTube poster host survives an emptied allowlist: it belongs to
+        // a first-party feature pointed at one fixed host, not to the
+        // federated media this setting governs.
         expect(imageSources).toEqual([
           "'self'",
           'data:',
           'blob:',
-          'https://tiles.openfreemap.org'
+          'https://tiles.openfreemap.org',
+          'https://i.ytimg.com'
         ])
         expect(mediaSources).toEqual(["'self'", 'blob:'])
         expect(imageSources).not.toContain('https:')
@@ -538,6 +552,9 @@ describe('next config security hardening', () => {
         )
         expect(imageSources).not.toContain('https:')
         expect(imageSources).not.toContain('http://remote-media.example.com')
+        // Narrowing which federated hosts may serve media never withdraws the
+        // YouTube poster host, which is a fixed part of the video card.
+        expect(imageSources).toContain('https://i.ytimg.com')
         expect(mediaSources).toEqual(
           expect.arrayContaining([
             "'self'",
