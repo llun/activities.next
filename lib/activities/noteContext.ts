@@ -13,10 +13,11 @@ import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
  * activities.next instances federating lost the terms in both directions, and
  * Mastodon kept them only because it reads the JSON without processing it.
  *
- * This is not a quote-only or attachment-only concern: `getNoteFromStatus`
- * puts `interactionPolicy` on every Note it builds, quoting or not, so a plain
- * text post loses who may quote it. It supersets `QUOTE_ACTIVITY_CONTEXT`, so
- * a surface on this context also satisfies what the quote vocabulary requires.
+ * This is not a quote-only or attachment-only concern: both serializers put
+ * `interactionPolicy` on every Note they build, quoting or not (through
+ * `quoteNoteFields`), so a plain text post loses who may quote it. It supersets
+ * `QUOTE_ACTIVITY_CONTEXT`, so a surface on this context also satisfies what
+ * the quote vocabulary requires.
  *
  * Mirrors the inbound aliases in `CANONICAL_CONTEXT`: a term we accept from
  * peers is a term we have to declare when we are the sender.
@@ -50,10 +51,11 @@ export const NOTE_CONTEXT_TERMS = {
 
 /**
  * The `@context` for any activity or object that carries a Note this instance
- * built. Six surfaces: `sendNote`'s Create, `sendUpdateNote`'s Update, the
- * outbox page, the AP representation of a single status, the AP replies
- * collection, and `sendQuoteRequest`'s `instrument`. The other quote
- * activities echo ids rather than Notes and keep `QUOTE_ACTIVITY_CONTEXT`.
+ * built. Seven surfaces: `sendNote`'s Create, `sendUpdateNote`'s Update,
+ * `sendQuoteRequest`'s `instrument`, the outbox page, the AP representation of
+ * a single status, the AP replies collection, and the `outbox.json` writer in
+ * `scripts/backup/actorArchive.ts`. The other quote activities echo ids rather
+ * than Notes and keep `QUOTE_ACTIVITY_CONTEXT`.
  *
  * On the outbox page the context sits on the `OrderedCollectionPage`, so the
  * embedded Notes inherit it only from a receiver that processes the page as
