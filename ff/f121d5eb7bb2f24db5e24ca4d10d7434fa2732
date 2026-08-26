@@ -1,0 +1,39 @@
+AGENTS.md
+  s_3aef31ca22620f::t_5db49090ceadbe 2245
+  s_3aef31ca22620f::t_015e0657079d8d 2243,2246
+REVIEW.md
+  s_3aef31ca22620f::t_83786d70119613 525-539
+lib/services/medias/mediaFileUrl.test.ts
+  s_3aef31ca22620f::t_2cc86221473539 125-131,134-156,161,163,165-166,169-174,177
+  s_3aef31ca22620f::t_4928cbdb9c99c2 132-133
+  s_3aef31ca22620f::t_133fc0b599526e 157-160,162,164,167-168,175-176
+  s_3aef31ca22620f::t_9ae5c2e52c034c 178-195
+lib/services/medias/mediaFileUrl.ts
+  s_3aef31ca22620f::t_ddaa464ea56c7f 42-43,45-51,56-61,63-64,103
+  s_3aef31ca22620f::t_0348437fd0c433 44,52-55,62,65,76-80,92-96,98,100,102
+  s_3aef31ca22620f::t_8dc3ee23f5330d 41
+scripts/backup/actorArchive.test.ts
+  s_3aef31ca22620f::t_1050176a582b18 18,297-411
+  s_3aef31ca22620f::t_09750a59deb336 412-413
+CLAUDE.md
+  s_3aef31ca22620f::t_71fc5164e96b72 53
+scripts/backup/actorArchive.ts
+  s_3aef31ca22620f::t_fb22276d61e06d 641-663
+  s_3aef31ca22620f::t_0d08af7064adcc 621-626
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "fff121d5eb7bb2f24db5e24ca4d10d7434fa2732",
+  "prompts": {},
+  "sessions": {
+    "s_3aef31ca22620f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c9b299cc-ec52-402d-a7a5-dd7991ecd229",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
