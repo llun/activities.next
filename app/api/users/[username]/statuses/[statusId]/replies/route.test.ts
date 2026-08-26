@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
+import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { type Actor } from '@/lib/types/domain/actor'
 import { StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -111,10 +111,10 @@ describe('GET /api/users/[username]/statuses/[statusId]/replies', () => {
 
     const data = await response.json()
     expect(data).toMatchObject({
-      // QUOTE_ACTIVITY_CONTEXT, not the bare AS2 url: the items carry FEP-044f
-      // terms, and a receiver that compacts drops any term the document's own
-      // context never defined.
-      '@context': QUOTE_ACTIVITY_CONTEXT,
+      // The collection embeds whole Note objects, so it needs the same term
+      // declarations the notes themselves go out under — the FEP-044f quote
+      // aliases included, which the note context supersets.
+      '@context': NOTE_ACTIVITY_CONTEXT,
       id: 'https://example.com/users/test/statuses/123/replies',
       type: 'Collection',
       totalItems: 3,

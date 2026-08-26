@@ -2,7 +2,7 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 
-import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
+import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { MAX_FEDERATION_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { Attachment } from '@/lib/types/domain/attachment'
@@ -370,7 +370,7 @@ describe('createOrderedCollectionWriter', () => {
         // The outbox collection embeds notes from toActivityPubObject, which
         // emits the FEP-044f quote aliases; anything that compacts this file
         // drops every term its context never defined.
-        '@context': QUOTE_ACTIVITY_CONTEXT,
+        '@context': NOTE_ACTIVITY_CONTEXT,
         id: 'https://example.test/users/alice/outbox',
         type: 'OrderedCollection',
         orderedItems: [{ id: 'a' }, { id: 'b' }],

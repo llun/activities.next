@@ -13,7 +13,7 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 
-import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
+import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { encodeFavouriteCursor } from '@/lib/database/sql/utils/favouriteCursor'
@@ -368,15 +368,17 @@ export const createOrderedCollectionWriter = (filePath: string, id: string) => {
   let wroteFirst = false
   let count = 0
 
-  // QUOTE_ACTIVITY_CONTEXT, not the bare AS2 url: the outbox collection embeds
-  // notes from `toActivityPubObject`, which emits the FEP-044f quote aliases, and
-  // anything that compacts this file — including our own `compactActivityPub` —
-  // drops every term the document's context never defined. The likes/bookmarks
-  // collections written by the same helper carry bare ids, so the extra term
-  // definitions are inert there.
+  // NOTE_ACTIVITY_CONTEXT, not the bare AS2 url: the outbox collection embeds
+  // notes from `toActivityPubObject`, which emits the FEP-044f quote aliases and
+  // `interactionPolicy`, an attachment's blurhash/focalPoint, the Hashtag/Emoji
+  // tag types and a poll's votersCount — and anything that compacts this file,
+  // including our own `compactActivityPub`, drops every term the document's
+  // context never defined. It supersets QUOTE_ACTIVITY_CONTEXT. The
+  // likes/bookmarks collections written by the same helper carry bare ids, so
+  // the extra term definitions are inert there.
   stream.write(
     `{"@context":${JSON.stringify(
-      QUOTE_ACTIVITY_CONTEXT
+      NOTE_ACTIVITY_CONTEXT
     )},"id":${JSON.stringify(id)},"type":"OrderedCollection","orderedItems":[`
   )
 

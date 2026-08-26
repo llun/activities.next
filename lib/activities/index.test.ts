@@ -17,7 +17,7 @@ import {
   unfollowRelay
 } from '@/lib/activities'
 import { CreateStatus } from '@/lib/activities/createStatus'
-import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
+import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { mockRequests } from '@/lib/stub/activities'
 import { MockActor } from '@/lib/stub/actor'
@@ -105,8 +105,9 @@ describe('activities', () => {
       // aliases when it quotes), so the activity must declare the context that
       // defines them: a receiver that compacts drops every undefined term, with
       // no error anywhere. Nothing about the delivered content reveals this, so
-      // it is asserted here or not at all.
-      expect(data['@context']).toEqual(QUOTE_ACTIVITY_CONTEXT)
+      // it is asserted here or not at all. The note context supersets the quote
+      // one and adds the attachment and tag terms the same Note carries.
+      expect(data['@context']).toEqual(NOTE_ACTIVITY_CONTEXT)
       const object = data.object
       expect(object.content).toEqual('<p>Hello</p>')
       expect(object.to).toContain(
