@@ -105,12 +105,19 @@ export const activityPubResponse = ({
   req,
   data,
   contentType,
-  allowedMethods = [HttpMethod.enum.GET]
+  allowedMethods = [HttpMethod.enum.GET],
+  // Extra response headers, for the one caller that needs `Cache-Control`. They
+  // are ADDED to this function's own two, never substituted for them: `Headers`
+  // appends a repeated name rather than replacing it, so passing `Content-Type`
+  // or `Vary` here corrupts the negotiated value into a comma-joined list
+  // instead of overriding it. Pass `contentType` to choose the content type.
+  additionalHeaders = []
 }: {
   req: NextRequest
   data: unknown
   contentType?: string | null
   allowedMethods?: HttpMethod[]
+  additionalHeaders?: [string, string][]
 }) => {
   const responseContentType =
     contentType ??
@@ -123,7 +130,8 @@ export const activityPubResponse = ({
     data,
     additionalHeaders: [
       ['Content-Type', responseContentType],
-      ['Vary', 'Accept']
+      ['Vary', 'Accept'],
+      ...additionalHeaders
     ]
   })
 }

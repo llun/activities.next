@@ -3,6 +3,7 @@ import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import type { Database } from '@/lib/database/types'
 import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
 import { isStatusPubliclyReadable } from '@/lib/services/statusAccess'
+import { getCachedActorPublicStatusCount } from '@/lib/services/statuses/actorPublicStatusCount'
 import {
   AnnounceAction,
   CreateAction
@@ -52,10 +53,10 @@ export const GET = traceApiRoute(
       const pageParam = url.searchParams.get('page')
       if (!pageParam) {
         const outboxId = getLocalActorOutboxId(actor.id)
-        const totalItems = await database.getActorStatusesCount({
-          actorId: actor.id,
-          publicOnly: true
-        })
+        const totalItems = await getCachedActorPublicStatusCount(
+          database,
+          actor.id
+        )
         return activityPubResponse({
           req,
           data: {
@@ -65,7 +66,20 @@ export const GET = traceApiRoute(
             totalItems,
             first: `${outboxId}?page=true`,
             last: `${outboxId}?min_id=0&page=true`
-          }
+          },
+          // The root is a single aggregate over the actor's whole public
+          // history and the only branch a remote server re-fetches in bursts,
+          // so it is the one that gets a shared-cache lifetime — matching the
+          // TTL behind `totalItems`, so the CDN and the process cannot disagree
+          // about how stale the number may be.
+          //
+          // Deliberately NOT on `?page=true` below: that branch's
+          // `orderedItems` reflects each status's live visibility, and a status
+          // hidden mid-window must stop being served immediately rather than
+          // linger in a shared cache.
+          additionalHeaders: [
+            ['Cache-Control', 'public, max-age=60, s-maxage=60']
+          ]
         })
       }
 
