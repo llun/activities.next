@@ -522,7 +522,6 @@ attachment ref guard` is exactly that: it passed with the bug present until
   loopback development hosts, which `isHostTrustedByRules` alone rejects.
   `getAttachmentMediaPath` is not this check: it never returns null and is for
   URLs this instance just produced.
-
 - **A stored file with no `medias` row is unreachable**, so whatever fails
   after a write must reclaim it — only `scripts/maintenance/cleanupMediaStorage.ts`
   can find it otherwise. Equally, do not report a storage failure as a
