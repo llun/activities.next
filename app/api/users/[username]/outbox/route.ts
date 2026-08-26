@@ -1,8 +1,10 @@
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
+import { ACTIVITIES_HOST, FORWARDED_HOST } from '@/lib/constants'
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import type { Database } from '@/lib/database/types'
 import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
 import { isStatusPubliclyReadable } from '@/lib/services/statusAccess'
+import { getCachedActorPublicStatusesCount } from '@/lib/services/statuses/actorPublicStatusesCount'
 import {
   AnnounceAction,
   CreateAction
@@ -52,10 +54,10 @@ export const GET = traceApiRoute(
       const pageParam = url.searchParams.get('page')
       if (!pageParam) {
         const outboxId = getLocalActorOutboxId(actor.id)
-        const totalItems = await database.getActorStatusesCount({
-          actorId: actor.id,
-          publicOnly: true
-        })
+        const totalItems = await getCachedActorPublicStatusesCount(
+          database,
+          actor.id
+        )
         return activityPubResponse({
           req,
           data: {
@@ -65,7 +67,29 @@ export const GET = traceApiRoute(
             totalItems,
             first: `${outboxId}?page=true`,
             last: `${outboxId}?min_id=0&page=true`
-          }
+          },
+          // The root is a single aggregate over the actor's whole public
+          // history and the only branch a remote server re-fetches in bursts,
+          // so it is the one that gets a shared-cache lifetime — matching the
+          // TTL behind `totalItems`, so the CDN and the process cannot disagree
+          // about how stale the number may be. The body carries no viewer-
+          // dependent content: nothing here reads a session, and the count is
+          // `publicOnly`.
+          //
+          // It IS host-dependent, though, and that is not obvious. The actor
+          // this route resolves comes from `headerHost`, which trusts
+          // `x-activity-next-host` and `x-forwarded-host` ahead of `Host`, so
+          // on a multi-domain instance the same path serves a different actor —
+          // a different `id`, `first`, `last` and count — per header. A shared
+          // cache that forwarded those without keying on them would serve one
+          // domain's collection for another's, so declare them. `Vary` is a
+          // list header, so these join the `Accept` that `activityPubResponse`
+          // sends rather than replacing it. `Origin` is here because
+          // `getCORSHeaders` reflects it into `Access-Control-Allow-Origin`.
+          additionalHeaders: [
+            ['Cache-Control', 'public, max-age=60, s-maxage=60'],
+            ['Vary', `${ACTIVITIES_HOST}, ${FORWARDED_HOST}, Host, Origin`]
+          ]
         })
       }
 
@@ -101,6 +125,12 @@ export const GET = traceApiRoute(
 
       return activityPubResponse({
         req,
+        // Said explicitly rather than left to a cache's default policy. This
+        // page's `orderedItems` reflects each status's live visibility, so one
+        // hidden mid-window must stop being served at once — omitting the
+        // header states no such thing, it just defers to whatever the cache in
+        // front happens to do with an unlabelled 200.
+        additionalHeaders: [['Cache-Control', 'no-store']],
         data: {
           // The Create objects come from toActivityPubObject, which emits
           // the FEP-044f quote aliases, an attachment's blurhash/focalPoint,
