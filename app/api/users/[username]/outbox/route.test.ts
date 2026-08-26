@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
+import { resetActorPublicStatusesCountCacheForTests } from '@/lib/services/statuses/actorPublicStatusesCount'
 import { type Actor } from '@/lib/types/domain/actor'
 import { StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -98,6 +99,11 @@ describe('GET /api/users/[username]/outbox', () => {
     mockDatabase.getActorStatusesCount.mockResolvedValue(0)
     mockDatabase.getActorStatuses.mockClear()
     mockDatabase.getActorStatuses.mockResolvedValue([])
+    // `mockDatabase` and `mockActor.id` are module-scope constants shared by
+    // every case here, so they are one key in the count cache: without this
+    // reset the first case's count would be served to all the others, well
+    // inside its TTL.
+    resetActorPublicStatusesCountCacheForTests()
   })
 
   it('negotiates collection responses with the shared ActivityPub helper', async () => {
@@ -284,5 +290,74 @@ describe('GET /api/users/[username]/outbox', () => {
     })
     expect(mockDatabase.getActorStatuses).not.toHaveBeenCalled()
     expect(data.totalItems).toBe(1)
+  })
+
+  it('lets shared caches hold the collection for the count cache TTL', async () => {
+    const response = await GET(
+      new NextRequest('https://example.com/api/users/test/outbox', {
+        headers: { accept: 'application/activity+json' }
+      }),
+      { params: Promise.resolve({ username: 'test' }) }
+    )
+
+    expect(response.headers.get('cache-control')).toBe(
+      'public, max-age=60, s-maxage=60'
+    )
+  })
+
+  // The actor this route resolves comes from these headers, so a shared cache
+  // must key on them or it will serve one domain's collection for another's.
+  it('declares the headers that choose which actor the collection describes', async () => {
+    const response = await GET(
+      new NextRequest('https://example.com/api/users/test/outbox', {
+        headers: { accept: 'application/activity+json' }
+      }),
+      { params: Promise.resolve({ username: 'test' }) }
+    )
+
+    const vary =
+      response.headers
+        .get('vary')
+        ?.split(',')
+        .map((value) => value.trim().toLowerCase()) ?? []
+    expect(vary).toEqual(
+      expect.arrayContaining([
+        'accept',
+        'x-activity-next-host',
+        'x-forwarded-host',
+        'host',
+        'origin'
+      ])
+    )
+  })
+
+  it('tells shared caches not to hold an outbox page at all', async () => {
+    const response = await GET(
+      new NextRequest('https://example.com/api/users/test/outbox?page=true', {
+        headers: { accept: 'application/activity+json' }
+      }),
+      { params: Promise.resolve({ username: 'test' }) }
+    )
+
+    expect(response.headers.get('cache-control')).toBe('no-store')
+  })
+
+  it('counts the actor public statuses once across repeated collection requests', async () => {
+    mockDatabase.getActorStatusesCount.mockResolvedValue(1938)
+
+    const requestCollection = () =>
+      GET(
+        new NextRequest('https://example.com/api/users/test/outbox', {
+          headers: { accept: 'application/activity+json' }
+        }),
+        { params: Promise.resolve({ username: 'test' }) }
+      )
+
+    const first = await (await requestCollection()).json()
+    const second = await (await requestCollection()).json()
+
+    expect(first.totalItems).toBe(1938)
+    expect(second.totalItems).toBe(1938)
+    expect(mockDatabase.getActorStatusesCount).toHaveBeenCalledTimes(1)
   })
 })
