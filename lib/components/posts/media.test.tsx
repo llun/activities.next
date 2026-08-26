@@ -3,7 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { Attachment } from '@/lib/types/domain/attachment'
 
@@ -30,6 +30,14 @@ vi.mock('./BlurhashCanvas', () => ({
 }))
 
 describe('Media', () => {
+  // Restoration has to happen here rather than at the end of the test that
+  // installs the spies: a failing assertion would skip it, leaving
+  // `HTMLImageElement.prototype.complete` mocked true for every later test
+  // and turning one failure into a cascade that masks it.
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   const baseAttachment: Attachment = {
     id: 'att-1',
     actorId: 'actor-1',
@@ -99,10 +107,14 @@ describe('Media', () => {
     expect(canvas.className).toContain('opacity-0')
   })
 
-  // The `ref` callback's `node.complete && node.naturalWidth > 0` branch. A
-  // cached image is already complete before React attaches `onLoad`, so
-  // without it the placeholder would sit at full opacity over a picture that
-  // is already painted.
+  // A cached image is already complete before React attaches `onLoad`, so
+  // without a complete/naturalWidth check the placeholder would sit at full
+  // opacity over a picture that is already painted.
+  //
+  // This covers the mount `useEffect`, NOT the `ref` callback: refs attach
+  // before effects fire, but the effect reads the same two getters through
+  // `imgRef.current` and reaches the same result, so deleting the callback's
+  // copy leaves this test green. The test below pins the callback itself.
   it('reveals a cached image that was already complete on mount', () => {
     const attachmentWithBlurhash: Attachment = {
       ...baseAttachment,
@@ -120,7 +132,41 @@ describe('Media', () => {
 
     expect(screen.getByRole('img')).toHaveClass('opacity-100')
     expect(screen.getByTestId('blurhash-canvas')).toHaveClass('opacity-0')
-    vi.restoreAllMocks()
+  })
+
+  // The `ref` callback's own `node.complete && node.naturalWidth > 0` check.
+  // The mount effect covers the same ground, but its dependency array is
+  // `[attachment?.url]`, so it does not re-run when the `<img>` remounts on a
+  // changed `key={id}` with the url unchanged. In that case the callback is
+  // the only thing that reveals an already-painted picture.
+  it('reveals a cached image when the img remounts without the url changing', () => {
+    let complete = false
+    let naturalWidth = 0
+    vi.spyOn(HTMLImageElement.prototype, 'complete', 'get').mockImplementation(
+      () => complete
+    )
+    vi.spyOn(
+      HTMLImageElement.prototype,
+      'naturalWidth',
+      'get'
+    ).mockImplementation(() => naturalWidth)
+
+    const attachment: Attachment = {
+      ...baseAttachment,
+      blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4'
+    }
+
+    const { rerender } = render(<Media attachment={attachment} />)
+    expect(screen.getByRole('img')).toHaveClass('opacity-0')
+
+    // Same url, new id: the effect does not re-run, but `key={id}` remounts
+    // the element, so the replacement node arrives already complete.
+    complete = true
+    naturalWidth = 800
+    rerender(<Media attachment={{ ...attachment, id: 'att-2' }} />)
+
+    expect(screen.getByRole('img')).toHaveClass('opacity-100')
+    expect(screen.getByTestId('blurhash-canvas')).toHaveClass('opacity-0')
   })
 
   // There is no `onError`, so a picture that never loads leaves `isLoaded`

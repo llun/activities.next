@@ -7,10 +7,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { BlurhashCanvas } from './BlurhashCanvas'
 
-// A real blurhash from a stored image, and two that a remote actor could put on
-// a federated note: both pass `isValidBlurhash`, which only checks the base83
-// charset and a 6..100 length, and both throw inside `decode`, which derives
-// the required length from the size flag in the first character.
+// A real blurhash from a stored image, and two that are well-formed base83 of a
+// legal length but still throw inside `decode`, which derives the required
+// length from the size flag in the first character.
+//
+// `normalizeBlurhash` rejects both at the federation inbox now, so a new note
+// cannot introduce one. Rows written before that check became structural still
+// hold them and nothing re-validates on read, so this component's `try/catch`
+// is the only thing standing between such a row and the page.
 const VALID_BLURHASH = 'L6PZfSi_.AyE_3t7t7R**0o#DgR4'
 const CHARSET_VALID_BUT_TOO_SHORT = 'aaaaaa'
 const CHARSET_VALID_BUT_TOO_LONG = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAA'
@@ -55,8 +59,8 @@ describe('BlurhashCanvas', () => {
 
   // The reason this component's try/catch is load-bearing. `decode` throws on a
   // hash whose length does not match `4 + 2 * componentX * componentY`, derived
-  // from its first character — and `isValidBlurhash`, the only check a
-  // federated blurhash passes through before it is stored, never looks at that.
+  // from its first character. The inbox check rejects those today, but it did
+  // not always, and it is not consulted again on read.
   //
   // There is no error boundary between a post and the root, so the nearest one
   // is `app/error.tsx`: an escaping throw replaces the entire page with the

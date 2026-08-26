@@ -1,4 +1,4 @@
-import { decode, isBlurhashValid } from 'blurhash'
+import { decode, encode, isBlurhashValid } from 'blurhash'
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
 
@@ -6,23 +6,49 @@ import {
   analyzeImageBuffer,
   computeBlurhash,
   computeSmartFocus,
-  isValidBlurhash
+  normalizeBlurhash
 } from './imageAnalysis'
 
 describe('imageAnalysis', () => {
-  describe('isValidBlurhash', () => {
-    it('validates standard blurhash strings', () => {
-      expect(isValidBlurhash('LEHV6nWB2yk8pyo0adR*.7kCMdnj')).toBe(true)
-      expect(isValidBlurhash('LGF5]+Yk^6#M@-5c,1J5@[or[Q6.')).toBe(true)
+  describe('normalizeBlurhash', () => {
+    const VALID_HASH = 'L6PZfSi_.AyE_3t7t7R**0o#DgR4'
+
+    it('returns standard blurhash strings unchanged', () => {
+      expect(normalizeBlurhash('LEHV6nWB2yk8pyo0adR*.7kCMdnj')).toBe(
+        'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
+      )
+      expect(normalizeBlurhash('LGF5]+Yk^6#M@-5c,1J5@[or[Q6.')).toBe(
+        'LGF5]+Yk^6#M@-5c,1J5@[or[Q6.'
+      )
     })
 
     it('rejects invalid, empty, or non-string inputs', () => {
-      expect(isValidBlurhash('')).toBe(false)
-      expect(isValidBlurhash('abc')).toBe(false) // too short (< 6 chars)
-      expect(isValidBlurhash(null)).toBe(false)
-      expect(isValidBlurhash(undefined)).toBe(false)
-      expect(isValidBlurhash('invalid spaces in hash')).toBe(false)
+      expect(normalizeBlurhash('')).toBeNull()
+      expect(normalizeBlurhash('abc')).toBeNull() // too short (< 6 chars)
+      expect(normalizeBlurhash(null)).toBeNull()
+      expect(normalizeBlurhash(undefined)).toBeNull()
+      expect(normalizeBlurhash('invalid spaces in hash')).toBeNull()
     })
+
+    // The value stored has to be the value checked. The check has always
+    // compared the trimmed form, so answering with a boolean let the caller
+    // persist the padded original: approved here, undecodable at render time.
+    it.each([
+      { description: 'a trailing space', padded: `${VALID_HASH} ` },
+      { description: 'a leading space', padded: ` ${VALID_HASH}` },
+      { description: 'a leading newline', padded: `\n${VALID_HASH}` },
+      { description: 'padding on both sides', padded: `  ${VALID_HASH}  ` }
+    ])(
+      'returns the decodable form of a hash with $description',
+      ({ padded }) => {
+        // The premise: the padded form is the one `decode` cannot read.
+        expect(() => decode(padded, 32, 32)).toThrow()
+
+        const normalized = normalizeBlurhash(padded)
+        expect(normalized).toBe(VALID_HASH)
+        expect(() => decode(normalized as string, 32, 32)).not.toThrow()
+      }
+    )
 
     // The charset alone says nothing about structure: the required length is
     // `4 + 2 * componentX * componentY`, derived from the size flag in the
@@ -47,29 +73,67 @@ describe('imageAnalysis', () => {
       }
     ])('rejects a hash $description', ({ blurhash, requiredLength }) => {
       // The premise: legal charset, legal length, and still undecodable.
-      expect(blurhash).toMatch(/^[0-9a-zA-Z#$%*+,\-.:;=?@[\]^_{|}~]{6,100}$/)
+      expect(blurhash).toMatch(/^[0-9a-zA-Z#$%*+,\-.:;=?@[\]^_{|}~]{6,166}$/)
       expect(() => decode(blurhash, 32, 32)).toThrow(
         new RegExp(`should be ${requiredLength}`)
       )
 
-      expect(isValidBlurhash(blurhash)).toBe(false)
+      expect(normalizeBlurhash(blurhash)).toBeNull()
     })
 
     // The structural check does NOT look at the alphabet, so the regex is not
     // redundant: each of these has the right length for its size flag and
     // `decode` returns pixels for characters outside base83.
+    //
+    // The space is INTERIOR deliberately. A trailing one is trimmed away
+    // before the regex sees it, leaving a 27-character body that the regex
+    // accepts and the structural half rejects for its length - which would
+    // pin the opposite of what this block claims.
     it.each([
       {
         description: 'an exclamation mark',
         blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR!'
       },
       { description: 'a backslash', blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR\\' },
-      { description: 'a space', blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR ' }
+      {
+        description: 'an interior space',
+        blurhash: 'L6PZfSi_.AyE_3t7 7R**0o#DgR4'
+      }
     ])(
       'rejects a right-length hash containing $description',
       ({ blurhash }) => {
         expect(isBlurhashValid(blurhash).result).toBe(true)
-        expect(isValidBlurhash(blurhash)).toBe(false)
+        expect(normalizeBlurhash(blurhash)).toBeNull()
+      }
+    )
+
+    // The length cap used to be 100 characters, two short of a 7x7 hash, so a
+    // remote encoding at more than 48 components had its blurhash dropped even
+    // though `decode` reads it fine.
+    it.each([
+      {
+        description: '6x8, the widest the old 100-character cap allowed',
+        componentX: 6,
+        componentY: 8
+      },
+      {
+        description: '7x7, two characters past it',
+        componentX: 7,
+        componentY: 7
+      },
+      {
+        description: '9x9, the most components encode accepts',
+        componentX: 9,
+        componentY: 9
+      }
+    ])(
+      'accepts a hash encoded at $description',
+      ({ componentX, componentY }) => {
+        const pixels = new Uint8ClampedArray(64 * 64 * 4).fill(128)
+        const hash = encode(pixels, 64, 64, componentX, componentY)
+
+        expect(() => decode(hash, 32, 32)).not.toThrow()
+        expect(normalizeBlurhash(hash)).toBe(hash)
       }
     )
 
@@ -87,7 +151,7 @@ describe('imageAnalysis', () => {
 
       const hash = await computeBlurhash(image)
       expect(hash).not.toBeNull()
-      expect(isValidBlurhash(hash)).toBe(true)
+      expect(normalizeBlurhash(hash)).toBe(hash)
     })
   })
 
@@ -100,7 +164,7 @@ describe('imageAnalysis', () => {
       const hash = await computeBlurhash(buffer)
       expect(hash).not.toBeNull()
       expect(typeof hash).toBe('string')
-      expect(isValidBlurhash(hash)).toBe(true)
+      expect(normalizeBlurhash(hash)).toBe(hash)
     })
 
     it('returns null on a corrupt buffer without throwing', async () => {
@@ -178,7 +242,7 @@ describe('imageAnalysis', () => {
 
       const result = await analyzeImageBuffer(buffer)
       expect(result.blurhash).not.toBeNull()
-      expect(isValidBlurhash(result.blurhash)).toBe(true)
+      expect(normalizeBlurhash(result.blurhash)).toBe(result.blurhash)
       expect(result.focus).not.toBeNull()
       expect(result.focus!.x).toBeGreaterThanOrEqual(-1)
       expect(result.focus!.x).toBeLessThanOrEqual(1)
