@@ -25,8 +25,12 @@ import { isFederationSigningActorUsername } from '@/lib/services/federation/inst
 // other.
 export const LOCAL_USERNAME_PATTERN = /^[a-zA-Z0-9_][a-zA-Z0-9_.-]*$/
 
-// The stricter of the two limits the creation paths carried before this was
-// shared, so neither path loosened.
+// The limit `POST /api/v1/actors` already carried. Registration had NONE, so
+// sharing one schema newly bounds it — a deliberate tightening, not a preserved
+// rule: `actors.username` is `varchar(255)`, so a longer name was storable but
+// a 256-character one overflowed the column and 500'd on PostgreSQL rather than
+// being refused. An instance already holding a longer username keeps it; this
+// is checked only when a name is minted.
 export const LOCAL_USERNAME_MAX_LENGTH = 50
 
 /**

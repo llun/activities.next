@@ -1,3 +1,4 @@
+import { LOCAL_USERNAME_MAX_LENGTH } from '@/lib/services/accounts/localUsername'
 import { FEDERATION_SIGNING_ACTOR_USERNAME } from '@/lib/services/federation/instanceActor'
 
 import { CreateAccountRequest } from './types'
@@ -52,5 +53,22 @@ describe('CreateAccountRequest', () => {
 
     expect(parsed.success).toBe(true)
     expect(parsed.success && parsed.data.username).toBe('null')
+  })
+
+  // Registration carried no length limit at all before it shared a schema with
+  // `POST /api/v1/actors`, so this bound is new here rather than preserved.
+  // `actors.username` is varchar(255): an over-long name used to overflow the
+  // column and 500 on PostgreSQL instead of being refused.
+  it('bounds the username length that registration accepts', () => {
+    const parse = (username: string) =>
+      CreateAccountRequest.safeParse({
+        username,
+        name: '',
+        email: 'test@example.com',
+        password: 'password123'
+      })
+
+    expect(parse('a'.repeat(LOCAL_USERNAME_MAX_LENGTH)).success).toBe(true)
+    expect(parse('a'.repeat(LOCAL_USERNAME_MAX_LENGTH + 1)).success).toBe(false)
   })
 })
