@@ -50,7 +50,8 @@ export const POST = traceApiRoute(
       ...safeParsed
     } = parsed.data
 
-    // Only a URL naming media this instance already stores. The form always
+    // Only a URL shaped like one this instance serves its own media from — a
+    // host and path check, not a lookup. The form always
     // submits both fields, so an empty one is the user clearing the image
     // rather than a partial update — `parseProfileImageUrl` answers null for it
     // and `updateActor` reads that as an explicit clear.

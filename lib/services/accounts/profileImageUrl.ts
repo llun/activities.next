@@ -85,8 +85,12 @@ const classifySubmission = (
  * pixel for every viewer of their profile and — for the actor's icon —
  * republished to every instance that fetches the actor.
  *
- * Only a URL naming media THIS instance already stores is accepted. That is
- * what the upload button in `ImageUploadField` produces, and what
+ * Only a URL SHAPED like one this instance serves its own media from is
+ * accepted — our own host, under `/api/v1/files/`, no traversal. It is a check
+ * on the host and path, NOT a lookup: nothing confirms a file exists at that
+ * path, so a well-formed URL naming nothing still validates. That is enough for
+ * what this closes, which is the URL pointing somewhere we do not control. It is
+ * also what the upload button in `ImageUploadField` produces, and what
  * `update_credentials` produces from an uploaded file, so it is what every
  * legitimate client already sends.
  *

@@ -23,8 +23,8 @@ export const POST = traceApiRoute(
       return invalidImageUrl()
     }
 
-    // Shares one rule with POST /api/v1/accounts/profile: only a URL naming
-    // media this instance already stores. This route previously validated with
+    // Shares one rule with POST /api/v1/accounts/profile: only a URL shaped
+    // like one this instance serves its own media from. This route previously validated with
     // `z.string().url()`, which in Zod 4 accepts `javascript:`, `data:` and
     // `file:` URLs — so the shape check alone left the schemes worth refusing.
     // A missing or empty value still clears the image, as it always has, and

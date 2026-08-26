@@ -1,7 +1,7 @@
 'use client'
 
 import { Loader2, Upload, X } from 'lucide-react'
-import { FC, SyntheticEvent, useRef, useState } from 'react'
+import { FC, SyntheticEvent, useEffect, useRef, useState } from 'react'
 
 import { uploadAttachment } from '@/lib/client'
 import { useInstanceLimits } from '@/lib/components/instance-limits'
@@ -38,6 +38,25 @@ export const ImageUploadField: FC<ImageUploadFieldProps> = ({
   const [isHovering, setIsHovering] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const uploadButtonRef = useRef<HTMLButtonElement>(null)
+  const wasUploadingRef = useRef(false)
+
+  // The other half of the same WCAG 2.4.3 problem `handleRemoveClick` solves.
+  // Both buttons are `disabled` while an upload runs, and disabling the element
+  // that currently holds focus drops it to `<body>` — activating Upload leaves
+  // focus on Upload (clicking a `display: none` file input moves nothing), so
+  // every upload, successful or failed, stranded a keyboard user at the top of
+  // the page. Restoring afterwards has to wait for the re-render that clears
+  // `disabled`, since focus does not stick to a still-disabled button. Only
+  // reclaimed when focus actually fell to the body, so a user who moved on
+  // during the upload is not yanked back.
+  useEffect(() => {
+    const finished = wasUploadingRef.current && !isUploading
+    wasUploadingRef.current = isUploading
+    if (!finished) return
+    if (document.activeElement === document.body) {
+      uploadButtonRef.current?.focus()
+    }
+  }, [isUploading])
 
   const handleUploadClick = () => {
     fileInputRef.current?.click()
@@ -146,8 +165,8 @@ export const ImageUploadField: FC<ImageUploadFieldProps> = ({
       )}
 
       {/* The field is read-only because the routes behind it only accept a URL
-          naming media this instance already stores, which is exactly what the
-          upload button produces. A typeable box would invite a remote URL that
+          on this instance's own media path, which is exactly what the upload
+          button produces. A typeable box would invite a remote URL that
           the server refuses. */}
       <div className="flex gap-2">
         <Input

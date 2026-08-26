@@ -2,17 +2,29 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+
+import { uploadAttachment } from '@/lib/client'
 
 import { ImageUploadField } from './ImageUploadField'
 
 vi.mock('@/lib/client', () => ({ uploadAttachment: vi.fn() }))
+
+vi.mock('@/lib/utils/resizeImage', () => ({
+  resizeImage: vi.fn(async (file: File) => file)
+}))
 
 vi.mock('@/lib/components/instance-limits', () => ({
   useInstanceLimits: () => ({ maxMediaFileSize: 1024 * 1024 })
 }))
 
 const MEDIA_URL = 'https://llun.test/api/v1/files/a1b2c3d4e5f60718.jpg'
+
+type UploadResult = Awaited<ReturnType<typeof uploadAttachment>>
+
+// The component reads only `result.url`, so a full attachment is not needed to
+// drive it — but the mock's return type is, hence the cast.
+const uploadResult = { url: MEDIA_URL } as UploadResult
 
 const getSubmittedValue = (container: HTMLElement, fieldName: string) =>
   container.querySelector<HTMLInputElement>(
@@ -96,6 +108,75 @@ describe('ImageUploadField', () => {
     expect(input).toHaveClass('bg-muted')
     expect(input).toHaveClass('dark:bg-muted')
     expect(input.className).not.toContain('dark:bg-input')
+  })
+
+  it('returns focus to Upload after an upload re-enables it', async () => {
+    // Both buttons are `disabled` while an upload runs, and in a real browser
+    // disabling the element holding focus drops it to `<body>` — the same WCAG
+    // 2.4.3 loss `handleRemoveClick` avoids, reached through the disable path.
+    //
+    // jsdom does NOT implement that blur (a focused button keeps focus when
+    // disabled — verified directly), so asserting on the real cause here would
+    // pass with the fix removed. The blur is driven explicitly instead, and
+    // what is actually under test is the restoration: focus sitting on the body
+    // when an upload finishes is returned to Upload.
+    let resolveUpload: (value: UploadResult) => void = () => {}
+    vi.mocked(uploadAttachment).mockReturnValue(
+      new Promise<UploadResult>((resolve) => {
+        resolveUpload = resolve
+      })
+    )
+
+    const { container } = renderField(null)
+    const fileInput =
+      container.querySelector<HTMLInputElement>('input[type="file"]')!
+    fireEvent.change(fileInput, {
+      target: { files: [new File(['x'], 'avatar.png', { type: 'image/png' })] }
+    })
+
+    // Focus is on the body for the duration, which is the state a real browser
+    // leaves behind when it disables the button that held it.
+    expect(document.activeElement).toBe(document.body)
+
+    resolveUpload(uploadResult)
+
+    await waitFor(() =>
+      expect(getSubmittedValue(container, 'iconUrl')).toBe(MEDIA_URL)
+    )
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Upload Icon image' })
+    )
+  })
+
+  it('leaves focus alone when the user moved elsewhere during an upload', async () => {
+    // The effect only reclaims focus that fell to the body, so someone who
+    // tabbed on while the upload ran is not yanked back to it.
+    let resolveUpload: (value: UploadResult) => void = () => {}
+    vi.mocked(uploadAttachment).mockReturnValue(
+      new Promise<UploadResult>((resolve) => {
+        resolveUpload = resolve
+      })
+    )
+
+    const { container } = renderField(null)
+    const elsewhere = document.createElement('button')
+    document.body.appendChild(elsewhere)
+    screen.getByRole('button', { name: 'Upload Icon image' }).focus()
+
+    const fileInput =
+      container.querySelector<HTMLInputElement>('input[type="file"]')!
+    fireEvent.change(fileInput, {
+      target: { files: [new File(['x'], 'avatar.png', { type: 'image/png' })] }
+    })
+
+    elsewhere.focus()
+    resolveUpload(uploadResult)
+
+    await waitFor(() =>
+      expect(getSubmittedValue(container, 'iconUrl')).toBe(MEDIA_URL)
+    )
+    expect(document.activeElement).toBe(elsewhere)
+    elsewhere.remove()
   })
 
   it('offers no remove button when no image is set', () => {
