@@ -1,0 +1,27 @@
+lint/agentsRules.mjs
+  s_861af37a4fa7fc::t_a3528d0325c1a6 154-156,158-169,175-176
+lint/agentsRules.test.ts
+  s_861af37a4fa7fc::t_a3528d0325c1a6 248,296-302
+  s_861af37a4fa7fc::t_a00cebc0e5b525 342-365
+  s_861af37a4fa7fc::t_8e3e73847e360c 303-304
+AGENTS.md
+  s_861af37a4fa7fc::t_c38d5c17694f45 2321
+CLAUDE.md
+  s_861af37a4fa7fc::t_ca7738b56d69cf 56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "2a62daf05fcf623d830a5597560bddb4ab9dfdac",
+  "prompts": {},
+  "sessions": {
+    "s_861af37a4fa7fc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5fdb01f2-72f7-4f96-9a28-bea358453793",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
