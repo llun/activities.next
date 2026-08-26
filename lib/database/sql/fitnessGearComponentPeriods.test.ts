@@ -152,8 +152,12 @@ describe('fitness gear component periods', () => {
     )
     expect(update).toBeDefined()
     expect(update).toContain('removedat is null')
-    // The guard, as a predicate on the write itself.
-    expect(update).toContain('select id from fitness_gear_components')
+    // The guard, as a predicate on the write itself — asserted structurally
+    // rather than by its spelling. An equivalent `whereExists` with
+    // `select(1)`, or a different order of the subquery's own clauses, is the
+    // same guard, and a shape test that fails for those is a test of the
+    // author's phrasing rather than of the behaviour.
+    expect(update).toContain('from fitness_gear_components')
     expect(update).toContain('deletedat is null')
   })
 

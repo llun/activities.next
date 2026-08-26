@@ -817,7 +817,11 @@ null }` remains the precise "this retirement never happened" — it reopens the
   them, so an activity inside two of them is counted twice — a permanently wrong
   number nothing downstream can detect. Two concurrent refits both read the
   highest sequence and both try to claim the next one; the unique index lets
-  exactly one win, and the loser re-reads and reports "already fitted". Do
+  exactly one win, and the loser reports "already fitted". The loser identifies
+  itself from the ERROR, through the shared `isUniqueConstraintError` — never by
+  re-reading the component and suppressing when it happens to look fitted, which
+  cannot tell that transaction's unique violation from a dropped connection or a
+  bug in either write, and would report a real fault as a tidy 404. Do
   **not** replace it with the partial `(componentId) WHERE removedAt IS NULL`
   that expresses "at most one open period" directly: knex emits a partial
   index's predicate on PostgreSQL and SQLite but DROPS it on MySQL-compatible

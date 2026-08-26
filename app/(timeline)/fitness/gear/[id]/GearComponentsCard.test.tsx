@@ -286,8 +286,12 @@ describe('GearComponentsCard', () => {
     ])
 
     // Once per column, so each date is announced with the install it belongs to.
-    expect(screen.getAllByText(/Install 1:/)).toHaveLength(2)
-    expect(screen.getAllByText(/Install 2:/)).toHaveLength(2)
+    // Anchored, so `Install 1:` does not also match `Install 10:` the day a
+    // fixture grows that far — and anchored WITHOUT the trailing space the
+    // element actually renders, because the default matcher normalizes
+    // whitespace before comparing.
+    expect(screen.getAllByText(/^Install 1:$/)).toHaveLength(2)
+    expect(screen.getAllByText(/^Install 2:$/)).toHaveLength(2)
   })
 
   // A single-period row announces the bare date it always did — the numbering
@@ -295,7 +299,7 @@ describe('GearComponentsCard', () => {
   it('does not number the install line when there is only one', () => {
     renderCard([createComponent({ addedAt: Date.UTC(2024, 0, 15) })])
 
-    expect(screen.queryByText(/Install 1:/)).toBeNull()
+    expect(screen.queryByText(/^Install 1:$/)).toBeNull()
   })
 
   it.each([
