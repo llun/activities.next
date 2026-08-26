@@ -150,28 +150,40 @@ const isRequireOfPathModule = (node) =>
   node.arguments[0].type === 'Literal' &&
   PATH_MODULES.has(node.arguments[0].value)
 
+// Node types that wrap an expression without changing the value it evaluates
+// to: an optional chain, and TypeScript's assertions, which are erased at
+// runtime. All of them carry the wrapped expression as `.expression`.
+const TRANSPARENT_WRAPPERS = new Set([
+  'ChainExpression',
+  'TSAsExpression',
+  'TSSatisfiesExpression',
+  'TSNonNullExpression',
+  'TSTypeAssertion',
+  'TSInstantiationExpression'
+])
+
 /**
- * The expression inside the wrapper nodes that do not change a value: an
- * optional chain (`ChainExpression`) and a non-null assertion
- * (`TSNonNullExpression`, `path!`).
+ * The expression inside any stack of those wrappers.
  *
  * Every predicate below switches on the node type, so a wrapper ends the walk —
- * and seeing through an alias is the whole job of these rules. The two wrappers
- * arrive in different positions, which is why unwrapping has to be a loop
- * rather than a check at one site: oxlint wraps the OUTERMOST node of an
- * optional chain, so `path?.resolve` is a ChainExpression around the member,
- * while `path!.resolve` is a plain member whose OBJECT is the wrapper. An
- * inline `path?.resolve(x)` was never affected either way, because there the
- * chain wraps the CALL and the rule reads its `callee`; what was invisible is
- * the wrapper in a VALUE position — `const r = path?.resolve`,
- * `full.startsWith(path?.resolve(base))`, `path!.resolve(base, x)`.
+ * and seeing through an alias is the whole job of these rules. This is a loop
+ * over a set rather than a check at one site because the wrappers nest and
+ * arrive in DIFFERENT positions: oxlint wraps the OUTERMOST node of an optional
+ * chain, so `path?.resolve` is a `ChainExpression` around the member, while
+ * `path!.resolve` is a plain member whose OBJECT is the wrapper and
+ * `path.resolve(base) as string` wraps the CALL.
+ *
+ * An inline `path?.resolve(x)` was never affected, because there the chain
+ * wraps the call and the rule reads its `callee` — which is what hid the whole
+ * class. What was invisible is a wrapper in a VALUE position:
+ * `const r = path?.resolve`, `path!.resolve(base, x)`,
+ * `full.startsWith(path.resolve(base) as string)`. Each of the three was found
+ * separately, by a different review round, which is why this now bans the
+ * category instead of the spellings that turned up.
  */
 const unwrapWrappers = (node) => {
   let current = node
-  while (
-    current.type === 'ChainExpression' ||
-    current.type === 'TSNonNullExpression'
-  ) {
+  while (TRANSPARENT_WRAPPERS.has(current.type)) {
     current = current.expression
   }
   return current

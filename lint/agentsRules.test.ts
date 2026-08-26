@@ -372,6 +372,17 @@ describe('agents oxlint plugin', () => {
           '  return fullPath.startsWith(root)',
           '}',
           '',
+          '// Both halves again through a TypeScript assertion, which wraps the',
+          '// CALL — the plainest-looking member of the wrapper class, and the',
+          '// last one found.',
+          'export const cast = (base: string, fullPath: string) =>',
+          '  fullPath.startsWith(path.resolve(base) as string)',
+          '',
+          'export const castExtracted = (base: string, fullPath: string) => {',
+          '  const root = path.resolve(base) satisfies string',
+          '  return fullPath.startsWith(root)',
+          '}',
+          '',
           '// Both halves again through an optional chain, which oxlint wraps in',
           '// a ChainExpression the predicates have to look through.',
           'export const optionalInline = (base: string, fullPath: string) =>',
@@ -403,8 +414,10 @@ describe('agents oxlint plugin', () => {
         ].join('\n')
       })
     ).toEqual([
-      'lib/services/medias/containment.ts:14 agents(no-resolved-path-prefix-check)',
-      'lib/services/medias/containment.ts:18 agents(no-resolved-path-prefix-check)',
+      'lib/services/medias/containment.ts:15 agents(no-resolved-path-prefix-check)',
+      'lib/services/medias/containment.ts:19 agents(no-resolved-path-prefix-check)',
+      'lib/services/medias/containment.ts:25 agents(no-resolved-path-prefix-check)',
+      'lib/services/medias/containment.ts:29 agents(no-resolved-path-prefix-check)',
       'lib/services/medias/containment.ts:4 agents(no-resolved-path-prefix-check)',
       'lib/services/medias/containment.ts:8 agents(no-resolved-path-prefix-check)'
     ])

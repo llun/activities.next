@@ -617,7 +617,10 @@ attachment ref guard` is exactly that: it passed with the bug present until
   reviewer is narrower and worth knowing: a helper that resolves on a driver's
   behalf, a path built by string concatenation, and a binding imported from
   another module. Do not answer any of those with a raw-text Vitest scan; that
-  is what these rules replaced, and it was wrong in both directions. Note the
+  is what these rules replaced, and it was wrong in both directions. **Treat an
+  `oxlint-disable` comment naming either rule as a finding in itself** — a lint
+  rule can be silenced with a comment where the text scan could not be, and
+  nothing reports that the suppression was used. Note the
   check is lexical either way: a symlink planted under a storage root defeats
   it, which is a documented residual, not something to paper over at the call
   site.
