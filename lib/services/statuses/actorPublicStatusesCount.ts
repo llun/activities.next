@@ -19,11 +19,17 @@ import { Database } from '@/lib/database/types'
 // ~150ms a count and 530 fetches in 11 minutes is a real share of them.
 //
 // The `Cache-Control` the outbox root sends is a third layer, and deliberately
-// not trusted as the only one. A CDN in front may key on more than the URL:
-// llun.dev's ActivityPub cache policy includes `Signature` and `Date`, both of
-// which differ per request, so signed server-to-server fetches — the ones
-// federation actually makes — each take their own cache entry and collapse into
-// nothing. The origin has to be able to absorb the burst by itself.
+// not trusted as the only one: a CDN may key on headers that differ per
+// request, and a signed server-to-server fetch — what federation actually sends
+// — carries several. Whether any given deployment's shared cache collapses a
+// burst is a property of its configuration, not of this response, so the origin
+// has to be able to absorb one by itself.
+//
+// Caching the PROMISE rather than the resolved count is what makes a concurrent
+// miss free: it needs no second map of in-flight queries, and no reasoning about
+// which settles first. `getMySQLFullTextMinTokenSize` in
+// `lib/database/sql/search/documents.ts` does the same, and deletes its entry on
+// failure for the same reason this does.
 //
 // Keyed per database instance so the production singleton is cached while each
 // test's throwaway database resolves independently, and per actor because one
@@ -40,20 +46,16 @@ export const ACTOR_PUBLIC_STATUSES_COUNT_TTL_MS = 60_000
 export const MAX_CACHED_ACTORS = 512
 
 type CacheEntry = {
-  count: number
+  // Still pending for as long as the query runs, so a concurrent miss joins it
+  // instead of starting a second one.
+  count: Promise<number>
+  // Counted from when the query STARTS, which on a 60s TTL differs from when it
+  // resolves by the length of one query — and the count it caches is a snapshot
+  // of the moment it began reading anyway.
   expiresAt: number
 }
 
-type DatabaseCache = {
-  entries: Map<string, CacheEntry>
-  // The query each actor already has in flight, so concurrent misses await one
-  // rather than each running their own. Self-clearing on settle, so its size is
-  // bounded by concurrent requests rather than by actors, and it needs no cap of
-  // its own.
-  inFlight: Map<string, Promise<number>>
-}
-
-let cacheByDatabase = new WeakMap<Database, DatabaseCache>()
+let cacheByDatabase = new WeakMap<Database, Map<string, CacheEntry>>()
 
 // Insertion-order eviction, mirroring `setBoundedCacheValue` in
 // `lib/utils/host.ts` — that one is module-private to an unrelated domain, so
@@ -73,65 +75,51 @@ const setBoundedEntry = (
   entries.set(actorId, entry)
 }
 
-const getDatabaseCache = (database: Database) => {
-  const cache = cacheByDatabase.get(database)
-  if (cache) return cache
+const getActorEntries = (database: Database) => {
+  const entries = cacheByDatabase.get(database)
+  if (entries) return entries
 
-  const databaseCache: DatabaseCache = {
-    entries: new Map(),
-    inFlight: new Map()
-  }
-  cacheByDatabase.set(database, databaseCache)
-  return databaseCache
+  const actorEntries = new Map<string, CacheEntry>()
+  cacheByDatabase.set(database, actorEntries)
+  return actorEntries
 }
 
 /**
  * `database.getActorStatusesCount({ actorId, publicOnly: true })` behind a
  * per-actor TTL cache that also collapses concurrent misses into one query.
  *
- * Errors are not cached: a rejection settles the in-flight entry without
- * writing a count, so the next caller retries rather than being served a
- * failure for a minute. Every caller already awaiting that query sees the
- * rejection too, rather than hanging.
+ * Errors are not cached: a rejection removes the entry, so the next caller
+ * retries rather than being served a failure for a minute, and every caller
+ * already awaiting that query sees the rejection rather than hanging.
  */
 export const getCachedActorPublicStatusesCount = (
   database: Database,
   actorId: string
 ): Promise<number> => {
-  // Everything up to the query is synchronous, which is what makes the two maps
-  // safe. Reading the cache before the query and writing it after used to drop
-  // a concurrently-computed entry for a DIFFERENT actor: both callers found no
+  // Read and write are both synchronous, with no `await` between them. Reading
+  // the cache before the query and writing it after used to drop a
+  // concurrently-computed entry for a DIFFERENT actor: both callers found no
   // map for a cold database, each built one, and the later write replaced the
   // earlier wholesale.
-  const cache = getDatabaseCache(database)
-  const entry = cache.entries.get(actorId)
-  if (entry && entry.expiresAt > Date.now()) return Promise.resolve(entry.count)
+  const entries = getActorEntries(database)
+  const entry = entries.get(actorId)
+  if (entry && entry.expiresAt > Date.now()) return entry.count
 
-  // A burst arrives faster than one count takes to run, so without this the
-  // first N requests all recompute — the CDN cannot be relied on to absorb them
-  // for signed federation traffic, whose per-request `Signature` and `Date`
-  // make every fetch a distinct shared-cache entry.
-  const inFlight = cache.inFlight.get(actorId)
-  if (inFlight) return inFlight
-
-  const query = database
+  const count = database
     .getActorStatusesCount({ actorId, publicOnly: true })
-    .then((count) => {
-      setBoundedEntry(cache.entries, actorId, {
-        count,
-        expiresAt: Date.now() + ACTOR_PUBLIC_STATUSES_COUNT_TTL_MS
-      })
-      return count
-    })
-    .finally(() => {
-      cache.inFlight.delete(actorId)
+    .catch((error) => {
+      // Only if this entry is still the cached one: a later miss may already
+      // have replaced it, and that successor's query is not this one's to
+      // discard.
+      if (entries.get(actorId)?.count === count) entries.delete(actorId)
+      throw error
     })
 
-  // Settling cannot have run yet — a `then`/`finally` callback is a microtask
-  // and nothing has yielded since the chain was built — so this cannot delete
-  // an entry it then re-adds.
-  cache.inFlight.set(actorId, query)
-  return query
+  setBoundedEntry(entries, actorId, {
+    count,
+    expiresAt: Date.now() + ACTOR_PUBLIC_STATUSES_COUNT_TTL_MS
+  })
+  return count
 }
 
 export const resetActorPublicStatusesCountCacheForTests = () => {
@@ -155,5 +143,5 @@ export const getActorPublicStatusesCountCachedActorIdsForTests = (
     )
   }
 
-  return [...(cacheByDatabase.get(database)?.entries.keys() ?? [])]
+  return [...(cacheByDatabase.get(database)?.keys() ?? [])]
 }

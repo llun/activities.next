@@ -246,5 +246,6 @@ describe('getCachedActorPublicStatusesCount', () => {
     expect(await getCachedActorPublicStatusesCount(database, ACTOR_ID)).toBe(
       1938
     )
+    expect(getActorStatusesCount).toHaveBeenCalledTimes(2)
   })
 })
