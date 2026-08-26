@@ -7,7 +7,8 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import {
   createFitnessGearComponent,
   deleteFitnessGearComponent,
-  retireFitnessGearComponent
+  retireFitnessGearComponent,
+  updateFitnessGearComponent
 } from '@/lib/client'
 import type { GearComponentEntity } from '@/lib/services/fitness-gears/gearEntities'
 
@@ -16,7 +17,8 @@ import { GearComponentsCard } from './GearComponentsCard'
 vi.mock('@/lib/client', () => ({
   createFitnessGearComponent: vi.fn(),
   deleteFitnessGearComponent: vi.fn(),
-  retireFitnessGearComponent: vi.fn()
+  retireFitnessGearComponent: vi.fn(),
+  updateFitnessGearComponent: vi.fn()
 }))
 
 const mockCreateFitnessGearComponent =
@@ -30,6 +32,10 @@ const mockDeleteFitnessGearComponent =
 const mockRetireFitnessGearComponent =
   retireFitnessGearComponent as jest.MockedFunction<
     typeof retireFitnessGearComponent
+  >
+const mockUpdateFitnessGearComponent =
+  updateFitnessGearComponent as jest.MockedFunction<
+    typeof updateFitnessGearComponent
   >
 
 const createComponent = (
@@ -277,6 +283,9 @@ describe('GearComponentsCard', () => {
     const onChanged = renderCard([createComponent()])
 
     fireEvent.click(screen.getByRole('button', { name: 'Retire Chain' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Confirm retire Chain' })
+    )
 
     await waitFor(() =>
       expect(mockRetireFitnessGearComponent).toHaveBeenCalledWith(
@@ -285,6 +294,141 @@ describe('GearComponentsCard', () => {
       )
     )
     expect(onChanged).toHaveBeenCalled()
+  })
+
+  // Retire closes the install window, so a stray click silently stops the part
+  // accruing distance — and it takes reading the table closely to notice.
+  it('does not retire on a single click', () => {
+    renderCard([createComponent()])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retire Chain' }))
+
+    expect(mockRetireFitnessGearComponent).not.toHaveBeenCalled()
+    expect(
+      screen.getByRole('button', { name: 'Confirm retire Chain' })
+    ).toBeInTheDocument()
+  })
+
+  it('disarms a pending retire when the button loses focus', () => {
+    renderCard([createComponent()])
+
+    const retire = screen.getByRole('button', { name: 'Retire Chain' })
+    fireEvent.click(retire)
+    fireEvent.blur(screen.getByRole('button', { name: 'Confirm retire Chain' }))
+
+    expect(
+      screen.getByRole('button', { name: 'Retire Chain' })
+    ).toBeInTheDocument()
+    expect(mockRetireFitnessGearComponent).not.toHaveBeenCalled()
+  })
+
+  it('arms only one retire at a time', () => {
+    renderCard([
+      createComponent(),
+      createComponent({ id: 'component-2', componentType: 'Cassette' })
+    ])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retire Chain' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retire Cassette' }))
+
+    expect(
+      screen.getByRole('button', { name: 'Retire Chain' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Confirm retire Cassette' })
+    ).toBeInTheDocument()
+  })
+
+  // Two confirm ids let an arm survive the flip: a row armed for Delete, then
+  // unretired, came back with Delete already armed — a one-click delete.
+  it('does not carry an arm across unretiring a row', async () => {
+    mockUpdateFitnessGearComponent.mockResolvedValue(
+      createComponent({ removedAt: null })
+    )
+    renderCard([createComponent({ removedAt: Date.UTC(2025, 5, 1) })])
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show 1 retired component' })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(
+      screen.getByRole('button', { name: 'Confirm delete' })
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Unretire Chain' }))
+
+    await waitFor(() =>
+      expect(mockUpdateFitnessGearComponent).toHaveBeenCalled()
+    )
+    // Nothing is armed once the row changes which action it offers.
+    expect(screen.queryByRole('button', { name: 'Confirm delete' })).toBeNull()
+  })
+
+  // The server has always accepted `removedAt: null`; nothing in the UI called
+  // it, so a mis-retire was permanent.
+  it('unretires a retired component and refetches', async () => {
+    const onChanged = renderCard([
+      createComponent({ removedAt: Date.UTC(2025, 5, 1) })
+    ])
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show 1 retired component' })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Unretire Chain' }))
+
+    await waitFor(() =>
+      expect(mockUpdateFitnessGearComponent).toHaveBeenCalledWith(
+        'gear-1',
+        'component-1',
+        { removedAt: null }
+      )
+    )
+    expect(onChanged).toHaveBeenCalled()
+  })
+
+  // Unlike Retire and Delete, Unretire is not armed: it restores state rather
+  // than destroying it, and a stray click is undone by one more click.
+  it('unretires on a single click', async () => {
+    renderCard([createComponent({ removedAt: Date.UTC(2025, 5, 1) })])
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show 1 retired component' })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Unretire Chain' }))
+
+    await waitFor(() =>
+      expect(mockUpdateFitnessGearComponent).toHaveBeenCalled()
+    )
+  })
+
+  it('surfaces an unretire failure', async () => {
+    mockUpdateFitnessGearComponent.mockRejectedValue(
+      new Error('Component not found')
+    )
+    const onChanged = renderCard([
+      createComponent({ removedAt: Date.UTC(2025, 5, 1) })
+    ])
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show 1 retired component' })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Unretire Chain' }))
+
+    expect(await screen.findByText('Component not found')).toBeInTheDocument()
+    expect(onChanged).not.toHaveBeenCalled()
+  })
+
+  it('offers both unretire and delete on a retired row', () => {
+    renderCard([createComponent({ removedAt: Date.UTC(2025, 5, 1) })])
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show 1 retired component' })
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Unretire Chain' })
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
   })
 
   it('scopes the retire button accessible name to the component type', () => {
@@ -409,13 +553,20 @@ describe('GearComponentsCard', () => {
     const onChanged = renderCard([createComponent()])
 
     fireEvent.click(screen.getByRole('button', { name: 'Retire Chain' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Confirm retire Chain' })
+    )
 
     expect(
       await screen.findByText('Component already retired')
     ).toBeInTheDocument()
     expect(onChanged).not.toHaveBeenCalled()
-    // The row's own action comes back so the failure can be retried.
-    expect(screen.getByRole('button', { name: 'Retire Chain' })).toBeEnabled()
+    // The row's own action comes back so the failure can be retried — still
+    // armed, as Delete leaves itself, because the confirmation the user already
+    // gave was not the thing that failed. Leaving the row disarms it either way.
+    expect(
+      screen.getByRole('button', { name: 'Confirm retire Chain' })
+    ).toBeEnabled()
   })
 
   it('surfaces a delete failure', async () => {
