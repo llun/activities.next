@@ -2,12 +2,13 @@
 
 import {
   Activity,
-  ArrowDownWideNarrow,
+  BarChart3,
   CalendarDays,
   Clock,
   Mountain,
   Route
 } from 'lucide-react'
+import Link from 'next/link'
 import { FC, useEffect, useMemo, useState } from 'react'
 
 import {
@@ -21,12 +22,26 @@ import {
   FitnessCalendarHeatmap
 } from '@/lib/components/fitness/FitnessCalendarHeatmap'
 import { Card } from '@/lib/components/ui/card'
+import {
+  buildActivityTypeLabels,
+  formatActivityTypeLabel,
+  getActivityPresentation
+} from '@/lib/services/fitness-files/activityPresentation'
 import { cn } from '@/lib/utils'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+
+import { getActivityFilterHref } from './activityFilter'
 
 interface Props {
   actorId: string
   currentTime: number
+  /**
+   * The stored `activityType` the recent-activities feed below is filtered to,
+   * straight off the page's `?activity=` search param. Owned by the URL rather
+   * than by this component so the server render that filters the feed and the
+   * row that reads as selected can never disagree.
+   */
+  selectedActivityType?: string
 }
 
 type PresetKey = 'ytd' | '1y' | '5y' | '10y' | 'custom'
@@ -113,9 +128,6 @@ const formatDuration = (seconds: number): string => {
   return `${hours}h ${minutes}m`
 }
 
-const formatActivityType = (type: string): string =>
-  type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-
 const getTotals = (summary: FitnessActivitySummary[]) =>
   summary.reduce(
     (acc, item) => {
@@ -133,7 +145,11 @@ const getTotals = (summary: FitnessActivitySummary[]) =>
     }
   )
 
-export const ActorFitnessDashboard: FC<Props> = ({ actorId, currentTime }) => {
+export const ActorFitnessDashboard: FC<Props> = ({
+  actorId,
+  currentTime,
+  selectedActivityType
+}) => {
   const [preset, setPreset] = useState<PresetKey>(DEFAULT_PRESET_KEY)
   const [startDate, setStartDate] = useState(
     () => getPresetRange(DEFAULT_PRESET_KEY, currentTime, 'utc').start
@@ -208,6 +224,15 @@ export const ActorFitnessDashboard: FC<Props> = ({ actorId, currentTime }) => {
           second.count - first.count
       ),
     [summary]
+  )
+
+  // Labels are built over the whole set, not per row: two stored spellings that
+  // differ only in case fold onto one label, and this is what tells the reader
+  // which of the two rows their filter will actually follow.
+  const activityLabels = useMemo(
+    () =>
+      buildActivityTypeLabels(topActivities.map((item) => item.activityType)),
+    [topActivities]
   )
 
   const applyPreset = (newPreset: PresetKey) => {
@@ -381,31 +406,107 @@ export const ActorFitnessDashboard: FC<Props> = ({ actorId, currentTime }) => {
           <section>
             <Card className="flex flex-col gap-3 p-4">
               <h2 className="inline-flex items-center gap-2 text-base font-medium">
-                <ArrowDownWideNarrow className="size-4" />
-                Activity Mix
+                <BarChart3 className="size-4" />
+                Activities
               </h2>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left text-muted-foreground">
-                    <th className="px-3 py-2">Activity</th>
-                    <th className="px-3 py-2 text-right">Count</th>
-                    <th className="px-3 py-2 text-right">Distance</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {topActivities.map((item) => (
-                    <tr key={item.activityType} className="border-b">
-                      <td className="px-3 py-2">
-                        {formatActivityType(item.activityType)}
-                      </td>
-                      <td className="px-3 py-2 text-right">{item.count}</td>
-                      <td className="px-3 py-2 text-right">
-                        {formatDistance(item.totalDistanceMeters)}
-                      </td>
+              {/* The card can sit in a 360px column beside the calendar, and a
+                  free-form activity type is stored verbatim — so the numbers
+                  keep their own width (`whitespace-nowrap`) and only the name
+                  wraps, with the whole table free to scroll rather than push
+                  the card wider than its grid track.
+
+                  `break-words` on that name, NOT the `wrap-anywhere` the gear
+                  tables use: this table auto-sizes rather than snapping, and
+                  breaking anywhere drops the name column's min-content
+                  contribution to one character, which is what let table layout
+                  squeeze "Walk" into "Wal / k" on a phone. Keeping whole words
+                  as the floor makes the column overflow into the scroller above
+                  instead. */}
+              <div className="-mx-1 overflow-x-auto px-1">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-muted-foreground">
+                      <th scope="col" className="px-3 py-2 font-medium">
+                        Activity
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-2 py-2 text-right font-medium"
+                      >
+                        Count
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-2 py-2 text-right font-medium"
+                      >
+                        Duration
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-2 py-2 text-right font-medium"
+                      >
+                        Distance
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {topActivities.map((item) => {
+                      const label =
+                        activityLabels.get(item.activityType) ??
+                        formatActivityTypeLabel(item.activityType)
+                      const { emoji } = getActivityPresentation(
+                        item.activityType
+                      )
+                      const isSelected =
+                        selectedActivityType === item.activityType
+                      return (
+                        <tr key={item.activityType} className="border-b">
+                          <td className="px-3 py-2">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <span aria-hidden="true" className="shrink-0">
+                                {emoji}
+                              </span>
+                              {/* `prefetch={false}`: one link per activity type
+                                  pointing at this same `force-dynamic` page,
+                                  so prefetching them would re-run the whole
+                                  overview render once per row on screen. */}
+                              <Link
+                                href={getActivityFilterHref(
+                                  item.activityType,
+                                  isSelected
+                                )}
+                                prefetch={false}
+                                scroll={false}
+                                aria-current={isSelected ? 'true' : undefined}
+                                title={
+                                  isSelected
+                                    ? 'Clear filter'
+                                    : `Show recent ${label} activities`
+                                }
+                                className={cn(
+                                  'break-words font-medium text-primary-text hover:underline',
+                                  isSelected && 'underline'
+                                )}
+                              >
+                                {label}
+                              </Link>
+                            </div>
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums">
+                            {item.count}
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums">
+                            {formatDuration(item.totalDurationSeconds)}
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums">
+                            {formatDistance(item.totalDistanceMeters)}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </Card>
           </section>
         </div>

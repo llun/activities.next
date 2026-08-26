@@ -3,11 +3,39 @@
  */
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
+import { AnchorHTMLAttributes, ReactNode } from 'react'
 
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 
 import { RecentFitnessActivities } from './RecentFitnessActivities'
+
+// next/link swallows `prefetch` and `scroll` instead of reflecting them in the
+// DOM, so they are rendered here to be assertable. Neither may be spread onto
+// the `<a>`: they are not valid DOM attributes.
+vi.mock('next/link', () => ({
+  default: ({
+    children,
+    href,
+    scroll,
+    prefetch,
+    ...rest
+  }: AnchorHTMLAttributes<HTMLAnchorElement> & {
+    href: string
+    prefetch?: boolean | 'auto' | null
+    scroll?: boolean
+    children: ReactNode
+  }) => (
+    <a
+      href={href}
+      data-prefetch={String(prefetch)}
+      data-scroll={String(scroll)}
+      {...rest}
+    >
+      {children}
+    </a>
+  )
+}))
 
 vi.mock('@/lib/components/posts/posts', () => ({
   Posts: (props: {
@@ -62,14 +90,16 @@ const createStatus = (id: string): Status => ({
   replies: [],
   actorAnnounceStatusId: null,
   isActorLiked: false,
+  isActorBookmarked: false,
   totalLikes: 0,
+  totalShares: 0,
   attachments: [],
   tags: []
 })
 
 describe('RecentFitnessActivities', () => {
-  it('renders nothing when statuses is empty', () => {
-    const { container } = render(
+  it('shows nothing but the scope announcement when empty and unfiltered', () => {
+    render(
       <RecentFitnessActivities
         host="activities.local"
         currentTime={FIXED_CURRENT_TIME}
@@ -78,8 +108,55 @@ describe('RecentFitnessActivities', () => {
       />
     )
 
-    expect(container).toBeEmptyDOMElement()
+    expect(
+      screen.queryByRole('heading', { name: 'Recent activities' })
+    ).not.toBeInTheDocument()
     expect(screen.queryByTestId('posts')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+
+    // The live region is the one thing this branch still renders. A region that
+    // mounts already carrying its text announces nothing, so it has to be in
+    // the tree BEFORE the first filter — and this is the branch an actor whose
+    // activities have no surviving posts sits in while unfiltered.
+    // It reports the OUTCOME, not the scope asked for: there is nothing to show,
+    // and the region is the only thing that can say so — the visible empty
+    // state is not itself a live region.
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'No recent activities have been posted.'
+    )
+  })
+
+  it('keeps the same status region across the first filter of a postless actor', () => {
+    // The transition the hoist exists for: no section either side, so the only
+    // thing that can announce is a text change inside a region that was already
+    // mounted.
+    const { rerender } = render(
+      <RecentFitnessActivities
+        host="activities.local"
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={profile}
+        statuses={[]}
+      />
+    )
+
+    const before = screen.getByRole('status')
+    expect(before).toHaveTextContent('No recent activities have been posted.')
+
+    rerender(
+      <RecentFitnessActivities
+        host="activities.local"
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={profile}
+        statuses={[]}
+        activityType="gravel_ride"
+      />
+    )
+
+    const after = screen.getByRole('status')
+    expect(after).toBe(before)
+    expect(after).toHaveTextContent(
+      'No recent Gravel Ride activities have been posted.'
+    )
   })
 
   it('renders heading and posts stub when given one status', () => {
@@ -149,5 +226,125 @@ describe('RecentFitnessActivities', () => {
       'data-show-actions',
       'false'
     )
+  })
+  it('offers a chip that clears the filter when one activity type is shown', () => {
+    const status = createStatus('https://activities.local/users/llun/s/4')
+
+    render(
+      <RecentFitnessActivities
+        host="activities.local"
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={profile}
+        statuses={[status]}
+        activityType="gravel_ride"
+      />
+    )
+
+    const chip = screen.getByRole('link', { name: 'Clear Gravel Ride filter' })
+    expect(chip).toHaveAttribute('href', '/fitness')
+    expect(chip).toHaveTextContent('Gravel Ride')
+    // Both are load-bearing and neither is visible to a functional assertion:
+    // `scroll={false}` is why the live region is the only signal of the change,
+    // and `prefetch={false}` keeps this dynamic page off the hover path.
+    expect(chip).toHaveAttribute('data-scroll', 'false')
+    expect(chip).toHaveAttribute('data-prefetch', 'false')
+    expect(screen.getByTestId('posts')).toHaveTextContent('1 posts')
+  })
+
+  it('announces that a filter matched nothing rather than claiming a list', () => {
+    // The one wrong thing this region could say. The visible empty state cannot
+    // correct it: that paragraph is not a live region, and with focus unmoved
+    // and the page unscrolled nothing carries the reader to it.
+    render(
+      <RecentFitnessActivities
+        host="activities.local"
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={profile}
+        statuses={[]}
+        activityType="swimming"
+      />
+    )
+
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent(
+      'No recent Swimming activities have been posted.'
+    )
+    expect(status).not.toHaveTextContent('Showing')
+  })
+
+  it('keeps the section rendered when a filter matched nothing', () => {
+    // The chip is the only way back out of a filter, so an empty filtered list
+    // must not take the whole section — and its own early return — with it.
+    render(
+      <RecentFitnessActivities
+        host="activities.local"
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={profile}
+        statuses={[]}
+        activityType="swimming"
+      />
+    )
+
+    expect(
+      screen.getByRole('link', { name: 'Clear Swimming filter' })
+    ).toBeInTheDocument()
+    // Twice on purpose: the sr-only region announces it, and the visible
+    // paragraph below states it for everyone else. Assert the visible one
+    // specifically, so this keeps testing what a sighted reader sees.
+    const copies = screen.getAllByText(
+      'No recent Swimming activities have been posted.'
+    )
+    expect(
+      copies.filter((element) => element.getAttribute('role') !== 'status')
+    ).toHaveLength(1)
+    expect(screen.queryByTestId('posts')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    {
+      description: 'names the active filter',
+      activityType: 'gravel_ride',
+      expected: 'Showing recent Gravel Ride activities'
+    },
+    {
+      description: 'says so when nothing is filtered',
+      activityType: undefined,
+      expected: 'Showing all recent activities'
+    }
+  ])(
+    'announces the current scope through a status region and $description',
+    ({ activityType, expected }) => {
+      // The navigation moves nothing else — scroll={false}, a static page
+      // title, and aria-current flipping on the already-focused link — so this
+      // region is the only thing that tells a screen reader the list changed.
+      const status = createStatus('https://activities.local/users/llun/s/6')
+
+      render(
+        <RecentFitnessActivities
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          currentActor={profile}
+          statuses={[status]}
+          activityType={activityType}
+        />
+      )
+
+      expect(screen.getByRole('status')).toHaveTextContent(expected)
+    }
+  )
+
+  it('leaves the heading bare when nothing is filtered', () => {
+    const status = createStatus('https://activities.local/users/llun/s/5')
+
+    render(
+      <RecentFitnessActivities
+        host="activities.local"
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={profile}
+        statuses={[status]}
+      />
+    )
+
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
   })
 })
