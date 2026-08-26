@@ -773,11 +773,52 @@ it; there is no legacy shape left to copy.
   `fitness_gear_components` carry no distance column: a gear's lifetime distance
   is `SUM(fitness_files.totalDistanceMeters) WHERE gearId = ?`, and a
   component's is the same sum restricted to activities whose `activityStartTime`
-  falls in its `[addedAt, removedAt)` install window (null `addedAt` = since the
-  gear's beginning, null `removedAt` = still fitted). Do not add a cached total
+  falls in one of its install periods (see below). Do not add a cached total
   "for performance" — it would have to be reconciled on every back-dated upload,
   archive re-import, edit and delete, and the whole point of the model is that
   totals always agree with the calendar.
+- **A component's install history is a LIST of periods, not one window.**
+  `fitness_gear_component_periods` holds a row per stretch the part was fitted
+  (`installSequence`, `addedAt`, `removedAt`), and `fitness_gear_components` has
+  no `addedAt`/`removedAt` columns at all. The component's own `addedAt` and
+  `removedAt` are DERIVED — the first period's start and the LAST period's end —
+  so they still mean what they always did ("when it first went on", "when it
+  last came off", null while fitted) and every existing reader is unaffected,
+  including `evaluateGearServiceReminders`' "is it fitted now" and
+  `diffGearComponents`' `(type, brand, model, addedAt)` identity. One window
+  could not describe a part that comes off and goes back on: clearing
+  `removedAt` reopened the ORIGINAL window, so a part unretired months later was
+  credited every activity ridden while it sat off the bike, and re-retiring did
+  not take that back — it only closed the window again at the new today. Do not
+  reintroduce the columns as a denormalised copy of the latest period, for the
+  reason the totals are derived: a second source of truth for the same fact
+  drifts and nothing downstream can tell.
+- **Retiring closes the open period; refitting opens the NEXT one at today.**
+  `POST /api/v1/fitness/gear/:id/components/:componentId/refit` is its own
+  endpoint precisely because it is NOT the mirror of `/retire` — reopening the
+  closed period is the retroactive credit above. A new period costs at most the
+  gap between the retirement and the refit: seconds for a misclick (so the
+  card's one-click, unarmed Refit still reads as an undo), and the truth for a
+  wheelset that really did spend a winter on the shelf. `PATCH { removedAt:
+null }` remains the precise "this retirement never happened" — it reopens the
+  LAST period — and PATCH's `addedAt`/`removedAt` reach only the outermost
+  bounds (first period's start, last period's end), which is what keeps an edit
+  from making two periods overlap.
+- **Periods must never overlap, and `UNIQUE (componentId, installSequence)` is
+  what enforces it against a race.** The rollup joins the periods and sums over
+  them, so an activity inside two of them is counted twice — a permanently wrong
+  number nothing downstream can detect. Two concurrent refits both read the
+  highest sequence and both try to claim the next one; the unique index lets
+  exactly one win, and the loser re-reads and reports "already fitted". Do
+  **not** replace it with the partial `(componentId) WHERE removedAt IS NULL`
+  that expresses "at most one open period" directly: knex emits a partial
+  index's predicate on PostgreSQL and SQLite but DROPS it on MySQL-compatible
+  clients (see `20260820000000_add_local_public_timeline_indexes.js`), leaving a
+  bare `UNIQUE(componentId)` that forbids a second period outright.
+- **`installSequence`, not `addedAt`, is the ordering key.** The first period's
+  `addedAt` is nullable ("since the gear's beginning") and the backends disagree
+  on where NULLs sort — the same reason `getFitnessGearComponents` splits its own
+  list in JS rather than in SQL.
 - **Both rollups reuse the stats predicate**
   (`deletedAt IS NULL` + `processingStatus = 'completed'` + `isPrimary`) that
   `getFitnessActivitySummary` uses, so gear numbers line up with the fitness
@@ -786,7 +827,7 @@ it; there is no legacy shape left to copy.
   requires a non-null `activityType`/`activityStartTime` because it groups by
   them, so a timestamp-less GPX counts toward a gear total and is invisible
   there; and an activity with no `activityStartTime` counts only for a
-  component whose window is open on that side, since it cannot be placed inside
+  component with a period open on that side, since it cannot be placed inside
   `[addedAt, removedAt)`. A gear total may therefore exceed the sum of its
   components.
 - **Below 480px the components table snaps one data column per swipe** —
@@ -843,7 +884,12 @@ it; there is no legacy shape left to copy.
   a row and counts 0. The window compares `activityStartTime` column-to-column
   against the bounds, which is safe because knex writes all three in the same
   representation per backend — never add raw date arithmetic there without an
-  `isSQLiteClient` branch.
+  `isSQLiteClient` branch. The component query additionally joins
+  `fitness_gear_component_periods` and carries `p.id IS NOT NULL` in the file
+  join: a component with no period row is a shape nothing creates, but without
+  that clause BOTH window tests read as TRUE against the missing row's NULLs and
+  the component claims every activity on the gear
+  (`fitnessGearComponentPeriods.test.ts`).
 - **`fitness_files.gearId` has no database-level foreign key**, because adding
   one via `alterTable` needs a table rebuild on SQLite. Ownership is enforced in
   `lib/database/sql/fitnessGear.ts`, and `deleteFitnessGear` nulls the column in
