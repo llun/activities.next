@@ -16,6 +16,10 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { ActorFitnessDashboard } from './ActorFitnessDashboard'
 import { RecentFitnessActivities } from './RecentFitnessActivities'
+import {
+  readActivityTypeParam,
+  resolveActivityTypeFilter
+} from './activityFilter'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +29,11 @@ export const metadata: Metadata = {
 
 const RECENT_LIMIT = 5
 
-const Page: FC = async () => {
+interface Props {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}
+
+const Page: FC<Props> = async ({ searchParams }) => {
   const database = getDatabase()
   if (!database) throw new Error('Database is not available')
 
@@ -73,11 +81,31 @@ const Page: FC = async () => {
 
   // Actor-scoped (matching the dashboard + the hasFitnessData gate above) so a
   // multi-actor account shows the signed-in actor's own recent activities.
+  // A `?activity=` value is honoured only when it names one of this actor's own
+  // stored activity types — see `resolveActivityTypeFilter` for why an unchecked
+  // one is not merely useless but unsafe. The extra read is paid for only by a
+  // request that asked for a filter; the unfiltered page runs the same two
+  // queries it always did.
+  const requestedActivityType = readActivityTypeParam(await searchParams)
+  const activityType = requestedActivityType
+    ? resolveActivityTypeFilter(
+        requestedActivityType,
+        await database.getDistinctActivityTypesForActor({
+          actorId: currentActor.id
+        })
+      )
+    : undefined
   const recentFiles = await database.getFitnessFilesByActor({
     actorId: currentActor.id,
     limit: RECENT_LIMIT,
     processingStatus: 'completed',
-    isPrimary: true
+    isPrimary: true,
+    // Spread rather than a plain key so "no filter" passes no `activityType` at
+    // all. The database method happens to read an explicit `undefined` the same
+    // way, but `null` means something else entirely there — "activities with no
+    // recorded type" — so the narrowing stays something this call states only
+    // when it means it.
+    ...(activityType ? { activityType } : {})
   })
   const statusIds = Array.from(
     new Set(
@@ -113,6 +141,7 @@ const Page: FC = async () => {
       <ActorFitnessDashboard
         actorId={currentActor.id}
         currentTime={currentTime}
+        selectedActivityType={activityType}
       />
 
       {/* `getActorProfile`, never the raw `Actor` and never `cleanJson`, which
@@ -127,6 +156,7 @@ const Page: FC = async () => {
         currentTime={currentTime}
         currentActor={getActorProfile(currentActor)}
         statuses={statuses.map((status) => cleanJson(status))}
+        activityType={activityType}
       />
     </div>
   )

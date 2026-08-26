@@ -32,6 +32,7 @@ import {
   serializeRegion
 } from '@/lib/fitness/regions'
 import { formatRelativeTime } from '@/lib/fitness/relativeTime'
+import { formatActivityTypeLabel } from '@/lib/services/fitness-files/activityPresentation'
 import type { PublicMapProvider } from '@/lib/utils/mapProvider'
 
 // Re-exported so existing imports/tests keep resolving the route map from here.
@@ -66,9 +67,7 @@ const PERIOD_TYPE: PeriodType = 'all_time'
 const EFFECTIVE_PERIOD_KEY = 'all'
 
 const formatActivityLabel = (type?: string): string =>
-  type
-    ? type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-    : 'All activities'
+  type ? formatActivityTypeLabel(type) : 'All activities'
 
 const formatPeriodLabel = (periodType: string, periodKey: string): string =>
   periodType === 'all_time' ? 'All time' : periodKey

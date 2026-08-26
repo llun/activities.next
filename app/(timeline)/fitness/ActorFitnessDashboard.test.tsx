@@ -2,7 +2,14 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
+import { AnchorHTMLAttributes, ReactNode } from 'react'
 
 import {
   FitnessActivitySummary,
@@ -16,6 +23,33 @@ import { ActorFitnessDashboard } from './ActorFitnessDashboard'
 vi.mock('@/lib/client', () => ({
   getFitnessSummary: vi.fn(),
   getFitnessCalendarData: vi.fn()
+}))
+
+// next/link swallows `prefetch` and `scroll` instead of reflecting them in the
+// DOM, so the only way to assert on them is to render them ourselves. Neither
+// may be spread onto the `<a>`: they are not valid DOM attributes.
+vi.mock('next/link', () => ({
+  default: ({
+    children,
+    href,
+    prefetch,
+    scroll,
+    ...rest
+  }: AnchorHTMLAttributes<HTMLAnchorElement> & {
+    href: string
+    prefetch?: boolean | 'auto' | null
+    scroll?: boolean
+    children: ReactNode
+  }) => (
+    <a
+      href={href}
+      data-prefetch={String(prefetch)}
+      data-scroll={String(scroll)}
+      {...rest}
+    >
+      {children}
+    </a>
+  )
 }))
 
 const mockedGetFitnessSummary = vi.mocked(getFitnessSummary)
@@ -32,6 +66,33 @@ const summary: FitnessActivitySummary[] = [
     totalDistanceMeters: 15000,
     totalDurationSeconds: 5400,
     totalElevationGainMeters: 120
+  },
+  {
+    activityType: 'gravel_ride',
+    count: 2,
+    totalDistanceMeters: 42000,
+    totalDurationSeconds: 7500,
+    totalElevationGainMeters: 300
+  }
+]
+
+// An actor holding both the canonical form and the spelling Strava sent before
+// it was applied on write. Capitalising is case-insensitive, so both rows would
+// otherwise read "Run".
+const collidingSummary: FitnessActivitySummary[] = [
+  {
+    activityType: 'run',
+    count: 3,
+    totalDistanceMeters: 15000,
+    totalDurationSeconds: 5400,
+    totalElevationGainMeters: 120
+  },
+  {
+    activityType: 'Run',
+    count: 2,
+    totalDistanceMeters: 9000,
+    totalDurationSeconds: 3000,
+    totalElevationGainMeters: 60
   }
 ]
 
@@ -209,5 +270,142 @@ describe('ActorFitnessDashboard', () => {
       actorId: ACTOR_ID,
       ...windowYtd
     })
+  })
+  it('titles the activity breakdown card Activities', async () => {
+    render(
+      <ActorFitnessDashboard
+        actorId={ACTOR_ID}
+        currentTime={FIXED_CURRENT_TIME}
+      />
+    )
+
+    expect(
+      await screen.findByRole('heading', { name: 'Activities' })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: 'Activity Mix' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('reports a duration column beside the count and distance', async () => {
+    render(
+      <ActorFitnessDashboard
+        actorId={ACTOR_ID}
+        currentTime={FIXED_CURRENT_TIME}
+      />
+    )
+
+    // The header ORDER, not just its presence: Duration lands between two
+    // right-aligned tabular-nums columns, so swapping two header labels while
+    // leaving the cells alone is invisible to a per-header existence check and
+    // would file every duration under "Distance".
+    expect(
+      (await screen.findAllByRole('columnheader')).map(
+        (header) => header.textContent
+      )
+    ).toEqual(['Activity', 'Count', 'Duration', 'Distance'])
+
+    const row = screen.getByRole('link', { name: 'Run' }).closest('tr')
+    expect(row).not.toBeNull()
+    const cells = within(row as HTMLElement).getAllByRole('cell')
+    expect(cells[1]).toHaveTextContent('3')
+    expect(cells[2]).toHaveTextContent('1h 30m')
+    expect(cells[3]).toHaveTextContent('15.0 km')
+  })
+
+  it('names each activity with the emoji its posts are captioned with', async () => {
+    render(
+      <ActorFitnessDashboard
+        actorId={ACTOR_ID}
+        currentTime={FIXED_CURRENT_TIME}
+      />
+    )
+
+    const runRow = (await screen.findByRole('link', { name: 'Run' })).closest(
+      'tr'
+    )
+    expect(runRow).toHaveTextContent('\u{1F3C3}')
+    // A qualified bike sport keeps its own glyph rather than taking the
+    // generic-workout fallback, which is what a raw-string-only lookup gave it.
+    expect(
+      screen.getByRole('link', { name: 'Gravel Ride' }).closest('tr')
+    ).toHaveTextContent('\u{1F6B4}')
+  })
+
+  it('links each activity name to that type filter without prefetching it', async () => {
+    render(
+      <ActorFitnessDashboard
+        actorId={ACTOR_ID}
+        currentTime={FIXED_CURRENT_TIME}
+      />
+    )
+
+    const link = await screen.findByRole('link', { name: 'Gravel Ride' })
+    // The stored value, encoded — the page matches `?activity=` against the
+    // column verbatim.
+    expect(link).toHaveAttribute('href', '/fitness?activity=gravel_ride')
+    expect(link).toHaveAttribute('title', 'Show recent Gravel Ride activities')
+    expect(link).toHaveAttribute('data-prefetch', 'false')
+    // `scroll={false}` is the premise the whole announcement design rests on:
+    // the filter navigation must move nothing, which is why the live region is
+    // the only signal a screen reader gets. Without this assertion the prop can
+    // be deleted and every test still passes, while the page silently jumps to
+    // the top on each filter click.
+    expect(link).toHaveAttribute('data-scroll', 'false')
+    expect(link).not.toHaveAttribute('aria-current')
+  })
+
+  it('turns the selected activity into a link that clears the filter', async () => {
+    render(
+      <ActorFitnessDashboard
+        actorId={ACTOR_ID}
+        currentTime={FIXED_CURRENT_TIME}
+        selectedActivityType="run"
+      />
+    )
+
+    const selected = await screen.findByRole('link', { name: 'Run' })
+    expect(selected).toHaveAttribute('href', '/fitness')
+    expect(selected).toHaveAttribute('title', 'Clear filter')
+    expect(selected).toHaveAttribute('aria-current', 'true')
+
+    expect(screen.getByRole('link', { name: 'Gravel Ride' })).toHaveAttribute(
+      'href',
+      '/fitness?activity=gravel_ride'
+    )
+  })
+  it('tells apart two stored spellings that differ only in case', async () => {
+    // Both rows carry different numbers and link to different filters, so an
+    // identical name makes two controls the reader cannot choose between — and
+    // whichever they pick silently omits the other half of their runs.
+    mockedGetFitnessSummary.mockResolvedValue(collidingSummary)
+
+    render(
+      <ActorFitnessDashboard
+        actorId={ACTOR_ID}
+        currentTime={FIXED_CURRENT_TIME}
+      />
+    )
+
+    const lowercase = await screen.findByRole('link', { name: 'Run (run)' })
+    const capitalised = screen.getByRole('link', { name: 'Run (Run)' })
+
+    expect(lowercase).toHaveAttribute('href', '/fitness?activity=run')
+    expect(capitalised).toHaveAttribute('href', '/fitness?activity=Run')
+    expect(screen.queryByRole('link', { name: 'Run' })).not.toBeInTheDocument()
+  })
+
+  it('leaves an unambiguous label unqualified', async () => {
+    render(
+      <ActorFitnessDashboard
+        actorId={ACTOR_ID}
+        currentTime={FIXED_CURRENT_TIME}
+      />
+    )
+
+    expect(await screen.findByRole('link', { name: 'Run' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Gravel Ride' })
+    ).toBeInTheDocument()
   })
 })

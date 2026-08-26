@@ -221,3 +221,62 @@ export const getActivityPresentation = (
     emoji: '🏋️'
   }
 }
+
+/**
+ * The stored activity type as UI chrome names it: the column's own word with
+ * separators dropped and every word capitalised (`gravel_ride` → "Gravel
+ * Ride").
+ *
+ * Deliberately NOT `getActivityPresentation(type).label`. That table captions a
+ * published post, where several stored spellings folding onto one caption is
+ * the point — `ride` and `cycling` both read "Cycling". A UI list names one row
+ * per stored value and, on the fitness overview, that name is the link that
+ * filters by that exact value, so the fold would print two identically named
+ * rows carrying different numbers and different filters.
+ *
+ * It narrows the fold rather than removing it: capitalising is itself
+ * case-insensitive, so `ride` and `Ride` — both real, since the canonical form
+ * is applied on write and older rows keep whatever Strava sent — still land on
+ * one label. Use `buildActivityTypeLabels` wherever the values are rendered as
+ * a SET, which is what makes the survivors distinguishable.
+ */
+export const formatActivityTypeLabel = (type: string): string =>
+  type
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (character) => character.toUpperCase())
+
+/**
+ * One display label per stored activity type, disambiguated against the others
+ * it is rendered beside.
+ *
+ * `formatActivityTypeLabel` cannot be injective — it case-folds, so an actor
+ * holding both `Ride` (imported from Strava before the canonical form was
+ * applied on write) and `ride` gets two rows reading "Ride". On the fitness
+ * overview those rows carry different numbers and link to different filters,
+ * so identical names make two controls that cannot be told apart, and the one
+ * the reader picks silently omits the other's activities.
+ *
+ * Only a colliding label is qualified, with the stored value that produced it,
+ * so the ordinary instance — where every label is already unique — renders
+ * exactly as before. Keyed on the raw stored value because that is what the
+ * caller holds and what the filter compares against.
+ */
+export const buildActivityTypeLabels = (
+  activityTypes: string[]
+): Map<string, string> => {
+  const typesByLabel = new Map<string, Set<string>>()
+  for (const activityType of activityTypes) {
+    const label = formatActivityTypeLabel(activityType)
+    const collidingTypes = typesByLabel.get(label) ?? new Set<string>()
+    collidingTypes.add(activityType)
+    typesByLabel.set(label, collidingTypes)
+  }
+
+  return new Map(
+    activityTypes.map((activityType) => {
+      const label = formatActivityTypeLabel(activityType)
+      const isAmbiguous = (typesByLabel.get(label)?.size ?? 0) > 1
+      return [activityType, isAmbiguous ? `${label} (${activityType})` : label]
+    })
+  )
+}
