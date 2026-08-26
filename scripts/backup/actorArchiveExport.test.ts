@@ -3,9 +3,12 @@
  * property no unit test of `registerAttachmentUrl` can reach: that
  * `--remote-fetch-budget` is ONE budget spent across the whole run.
  *
- * It lives in its own file because it has to mock `@/lib/database`,
- * `@/lib/config` and half of `./productionArchive`, and `actorArchive.test.ts`
- * beside it exercises those for real.
+ * It lives in its own file because reaching `exportActorArchive` at all means
+ * mocking `@/lib/database`, `@/lib/config` and half of `./productionArchive` at
+ * module scope. `actorArchive.test.ts` beside it never goes through those — it
+ * calls the exported pieces directly, handing each one a real test database and
+ * a hand-built `HostRuleConfig` — and blanket mocks here would be mocks it
+ * neither wants nor can see around.
  *
  * Three source-text guards used to stand in for this and each one was defeated
  * in review by a different spelling of the same bug — recompute the deadline
@@ -31,9 +34,10 @@ const REMOTE_HOST = 'remote-archive-host.llun.test'
 const DOMAIN = 'actor-archive-export-test.llun.test'
 const USERNAME = 'exportowner'
 
-// The clock the export sees. Held here rather than in a closure because the
-// `vi.mock` factories below are hoisted above every import in this file.
-const clock = vi.hoisted(() => ({
+// Everything the hoisted `vi.mock` factories below need to reach: they are
+// lifted above every import in this file, so a plain closure variable would
+// still be in its temporal dead zone when they run.
+const holder = vi.hoisted(() => ({
   database: null as unknown as Database,
   nowMs: 1_700_000_000_000,
   /** Wall-clock cost charged to the budget by each remote download. */
@@ -42,7 +46,7 @@ const clock = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => clock.database
+  getDatabase: () => holder.database
 }))
 
 vi.mock('@/lib/config', () => ({
@@ -77,7 +81,7 @@ vi.mock('./productionArchive', async (importOriginal) => {
     // the manifest is read here — the last thing to touch it — rather than
     // from the tarball that is never written.
     createTarArchive: async (stagingDir: string) => {
-      clock.stagingManifest = JSON.parse(
+      holder.stagingManifest = JSON.parse(
         await fs.readFile(path.join(stagingDir, 'manifest.json'), 'utf-8')
       )
     }
@@ -89,7 +93,7 @@ vi.mock('./productionArchive', async (importOriginal) => {
 // deterministic instead of a race.
 vi.mock('@/lib/utils/safeImageDownload', () => ({
   safeImageFetch: vi.fn(async () => {
-    clock.nowMs += clock.msPerDownload
+    holder.nowMs += holder.msPerDownload
     return new Response('remote-bytes', { status: 200 })
   })
 }))
@@ -106,7 +110,7 @@ const { exportActorArchive } = await import('./actorArchive')
  * that fills it back in runs somewhere the compiler cannot follow, so a direct
  * read afterwards types as `never`.
  */
-const readStagedManifest = () => clock.stagingManifest
+const readStagedManifest = () => holder.stagingManifest
 
 /**
  * Seeds one status per remote attachment and runs a whole export.
@@ -122,12 +126,12 @@ const runExport = async ({
   budgetSeconds: number
 }) => {
   const database = getTestSQLDatabase()
-  clock.database = database
-  clock.stagingManifest = null
-  clock.nowMs = 1_700_000_000_000
+  holder.database = database
+  holder.stagingManifest = null
+  holder.nowMs = 1_700_000_000_000
   vi.mocked(safeImageFetch).mockClear()
 
-  const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => clock.nowMs)
+  const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => holder.nowMs)
   const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined)
   const outputDir = await fs.mkdtemp(
     path.join(os.tmpdir(), 'actor-archive-export-test-')
@@ -158,7 +162,7 @@ const runExport = async ({
         cc: [],
         url: `https://${DOMAIN}/statuses/remote-${index}`,
         text: `status ${index}`,
-        createdAt: clock.nowMs + index
+        createdAt: holder.nowMs + index
       })
       // A DIFFERENT URL per status: `registerAttachmentUrl` memoizes on the
       // URL, so repeating one would silently collapse the run to a single
@@ -203,6 +207,12 @@ const runExport = async ({
       )
     }
   } finally {
+    // `exportActorArchive` destroys the database in its own `finally`, and a
+    // second destroy is a no-op — but its `try` starts after the actor is
+    // resolved, so a failure in the seeding above would otherwise leak the
+    // connection pool. Cheaper to be unconditional than to reason about which
+    // path threw.
+    await database.destroy()
     nowSpy.mockRestore()
     logSpy.mockRestore()
     await fs.rm(outputDir, { force: true, recursive: true })
