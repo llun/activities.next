@@ -17,10 +17,10 @@ import {
   saveFitnessFile
 } from '@/lib/services/fitness-files'
 import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
-import { assertFitnessStoragePath } from '@/lib/services/fitness-files/path'
 import { getSavedMediaAttachmentMetadata } from '@/lib/services/medias/attachmentMediaMetadata'
 import { MAX_IMPORTED_ACTIVITY_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { saveMedia } from '@/lib/services/medias/index'
+import { assertStorageFilePath } from '@/lib/services/medias/storagePath'
 import { getQueue } from '@/lib/services/queue'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
 import { getStravaActivityUrl } from '@/lib/services/strava/activity'
@@ -199,10 +199,7 @@ const resolveArchivePath = async (
 
   if (fitnessStorage.type === 'fs') {
     return {
-      archiveFilePath: assertFitnessStoragePath(
-        fitnessStorage.path,
-        archivePath
-      ),
+      archiveFilePath: assertStorageFilePath(fitnessStorage.path, archivePath),
       cleanup: async () => {},
       maxFitnessFileBytes
     }

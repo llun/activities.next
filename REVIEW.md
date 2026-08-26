@@ -591,6 +591,31 @@ attachment ref guard` is exactly that: it passed with the bug present until
   `getAllowedOrigins` in the Apple Maps token route is a fifth consumer that
   deliberately does not filter — whether MapKit globs `*` is unverified, so
   establish that before sweeping it.
+- **A stored path is confined to the storage root by
+  `resolveStorageFilePath` / `assertStorageFilePath`
+  (`lib/services/medias/storagePath`), on every filesystem path a local driver
+  builds — read, delete and write alike.** A bare `path.resolve(root, filePath)`
+  walks out of the root given `../` or an absolute path, and the escape is
+  silent: the read or the unlink lands somewhere else on disk. Watch for the
+  read-only variant of this — `LocalFileStorage.getFile` carried the check while
+  `deleteFile` beside it had none, which made containment an invariant of the
+  callers rather than of the driver. `resolveStorageFilePath` returns null (and
+  logs the refusal); `assertStorageFilePath` throws, for a write with nothing
+  sensible to return. Object storage is a different question: an S3 key has no
+  filesystem root to escape.
+- **Reject a hand-rolled containment check, and reject `startsWith` against a
+  bare resolved root.** `fullPath.startsWith(path.resolve(base))` has no
+  separator boundary, so a sibling directory whose name the root prefixes passes
+  it — root `/srv/uploads` accepts `/srv/uploads-backup/x`. That form guarded an
+  `fs.unlink` in `scripts/maintenance/cleanupMediaStorage.ts`, and it reads as
+  correct at a glance, which is why `storagePathCallSites.test.ts` greps for the
+  inline spelling. That guard catches the obvious spelling and nothing subtler —
+  a resolved root pulled into a variable first, a destructured `resolve`, an
+  optional-chained `path?.resolve`, a renamed import or a helper resolving on a
+  driver's behalf all carry the identical bug and all pass it — so review those
+  by hand until the AST rule lands. Note the check is lexical either way: a symlink
+  planted under a storage root defeats it, which is a documented residual, not
+  something to paper over at the call site.
 - **A stored file with no `medias` row is unreachable**, so whatever fails
   after a write must reclaim it — only `scripts/maintenance/cleanupMediaStorage.ts`
   can find it otherwise. Equally, do not report a storage failure as a

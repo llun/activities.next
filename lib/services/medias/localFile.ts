@@ -2,7 +2,6 @@ import crypto from 'crypto'
 import fs from 'fs/promises'
 import mime from 'mime-types'
 import path from 'path'
-import process from 'process'
 import sharp from 'sharp'
 
 import { MediaStorageFileConfig } from '@/lib/config/mediaStorage'
@@ -27,6 +26,7 @@ import {
 } from './imageOutputFormat'
 import { getMediaFileUrl } from './mediaFileUrl'
 import { checkQuotaAvailable, getUploadQuotaReservation } from './quota'
+import { assertStorageFilePath, resolveStorageFilePath } from './storagePath'
 import { readValidThumbnail } from './thumbnailInput'
 import {
   ImageRenditionOutput,
@@ -72,16 +72,8 @@ export class LocalFileStorage implements MediaStorage {
   }
 
   async getFile(filePath: string) {
-    const storageRoot = path.resolve(this._config.path)
-    const fullPath = path.resolve(storageRoot, filePath)
-    const relativePath = path.relative(storageRoot, fullPath)
-    if (
-      relativePath === '..' ||
-      relativePath.startsWith(`..${path.sep}`) ||
-      path.isAbsolute(relativePath)
-    ) {
-      return null
-    }
+    const fullPath = resolveStorageFilePath(this._config.path, filePath)
+    if (!fullPath) return null
 
     const contentType = mime.contentType(path.extname(fullPath))
     if (!contentType) return null
@@ -100,8 +92,12 @@ export class LocalFileStorage implements MediaStorage {
   }
 
   async deleteFile(filePath: string): Promise<boolean> {
+    // Same containment rule `getFile` applies. An unlink is the more damaging
+    // half of the pair, so the check cannot live on the read path alone.
+    const fullPath = resolveStorageFilePath(this._config.path, filePath)
+    if (!fullPath) return false
+
     try {
-      const fullPath = path.resolve(this._config.path, filePath)
       await fs.unlink(fullPath)
       return true
     } catch (e) {
@@ -333,7 +329,7 @@ export class LocalFileStorage implements MediaStorage {
 
     const randomPrefix = crypto.randomBytes(8).toString('hex')
     const filename = `${randomPrefix}${isThumbnail ? '-thumbnail' : ''}.${extension}`
-    const filePath = path.resolve(process.cwd(), uploadPath, filename)
+    const filePath = assertStorageFilePath(uploadPath, filename)
     const resizedImage = encodeImageOutput(
       sharp(imageBuffer)
         .resize(MAX_WIDTH, MAX_HEIGHT, STORED_IMAGE_RESIZE_OPTIONS)
@@ -399,7 +395,7 @@ export class LocalFileStorage implements MediaStorage {
 
     const randomPrefix = crypto.randomBytes(8).toString('hex')
     const filename = `${randomPrefix}${ext}`
-    const filePath = path.resolve(process.cwd(), uploadPath, filename)
+    const filePath = assertStorageFilePath(uploadPath, filename)
     await fs.writeFile(filePath, buffer)
 
     let analysis: ImageAnalysisResult = {
