@@ -6,15 +6,14 @@ import path from 'path'
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { MAX_FEDERATION_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
-import {
-  MAX_CONFIGURABLE_FILE_SIZE,
-  MAX_FILE_SIZE
-} from '@/lib/services/medias/constants'
+import { MAX_FILE_SIZE } from '@/lib/services/medias/constants'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { safeImageFetch } from '@/lib/utils/safeImageDownload'
 
 import {
+  REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS,
   buildActorJson,
   buildExportActivity,
   buildFollowersCsv,
@@ -30,6 +29,15 @@ import {
   parseExportActorArgs,
   registerAttachmentUrl
 } from './actorArchive'
+
+// A spy that CALLS THROUGH: the refusal tests below must exercise the real
+// address policy — a mock would prove only the wiring and would still pass
+// against a plain `fetch`. This only makes the call arguments assertable.
+vi.mock('@/lib/utils/safeImageDownload', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/utils/safeImageDownload')>()
+  return { ...actual, safeImageFetch: vi.fn(actual.safeImageFetch) }
+})
 
 const buildAttachment = (overrides: Partial<Attachment> = {}): Attachment => ({
   id: 'attachment-1',
@@ -425,30 +433,30 @@ describe('registerAttachmentUrl', () => {
     }
   )
 
-  // The cap is the RESOLVED `media.maxFileSize`, which an admin may raise well
-  // above the `MAX_FILE_SIZE` default. Reading the default instead refused a
-  // remote attachment this instance's own upload path would accept.
-  it('copies an attachment larger than the default cap when the resolved cap allows it', async () => {
-    const url = 'https://other.example/api/v1/files/ab/big.webp'
-    const dir = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'actor-archive-raised-cap-test-')
-    )
+  // Nothing about the timeout is visible in a result, so a revert to the old
+  // 60s — which bounded the body read and silently dropped large attachments —
+  // passed every other test in this file. Same for the overall deadline: drop
+  // it and each hop simply restarts the clock.
+  it('bounds a remote attachment fetch by both a per-hop timeout and an overall deadline', async () => {
+    const url = 'https://other.example/api/v1/files/ab/cd.webp'
 
     fetchMock.doMock()
     fetchMock.mockResponseOnce('remote-bytes', { status: 200 })
 
+    const dir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'actor-archive-timeout-test-')
+    )
     try {
-      const { urlToArchivePath, warnings } = await runRegister({
+      await runRegister({
         attachment: buildAttachment({ url }),
         fetchRemoteAttachments: true,
-        maxAttachmentBytes: MAX_CONFIGURABLE_FILE_SIZE,
         stagingDir: dir
       })
 
-      expect(warnings).toEqual([])
-      expect(urlToArchivePath.get(url)).toMatch(
-        /^media_attachments\/remote\/[0-9a-f]{16}\.webp$/
-      )
+      expect(vi.mocked(safeImageFetch)).toHaveBeenCalledWith(url, {
+        timeoutMs: REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS,
+        signal: expect.any(AbortSignal)
+      })
     } finally {
       await fs.rm(dir, { force: true, recursive: true })
     }

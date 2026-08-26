@@ -71,18 +71,23 @@ const MEDIA_ID_BATCH_SIZE = 100
 const MEDIA_ARCHIVE_DIR = 'media_attachments/files'
 const REMOTE_MEDIA_ARCHIVE_DIR = 'media_attachments/remote'
 /**
- * How long ONE hop of a remote attachment download may take, headers and body
- * together — `safeImageFetch` keeps its `AbortSignal.timeout` live for the
- * whole read, where the archive's old 60s timer was cleared the moment headers
- * arrived and left the body untimed.
+ * How long ONE remote attachment may take in total — every redirect hop, its
+ * headers and its body — enforced as an overall deadline passed to
+ * `safeImageFetch` alongside the same value as its per-hop timeout.
  *
  * Deliberately much larger than `PUBLIC_STORAGE_FETCH_TIMEOUT_MS`, because a
  * timeout that bounds the body is also a throughput floor: at 60s, reaching
  * even the default 200 MiB cap would have required a sustained 3.5 MB/s, so a
  * large federated video on an ordinary link would have been dropped from the
- * archive that used to contain it. Ten minutes puts that floor near 350 KB/s
- * at the default cap. It still bounds a slow-drip host, which unbounded did
- * not.
+ * archive that used to contain it — silent data loss in a backup. Ten minutes
+ * puts that floor near 350 KB/s at the default cap.
+ *
+ * It has to be a DEADLINE and not just a per-hop timeout, because these URLs
+ * are owner-supplied and the export walks them one after another with no cap
+ * on how many a status carries: per-hop alone, a host stalling at every hop
+ * costs this times `MAX_SAFE_IMAGE_REDIRECTS + 1`, and an account facing a ban
+ * or a legal request — exactly when this flag gets used — could plant enough
+ * of them to stall the export for days.
  */
 export const REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS = 600_000
 const FITNESS_ARCHIVE_DIR = 'fitness_files/files'
@@ -766,7 +771,8 @@ export const registerAttachmentUrl = async ({
 
   try {
     const response = await safeImageFetch(attachment.url, {
-      timeoutMs: REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS
+      timeoutMs: REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS,
+      signal: AbortSignal.timeout(REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS)
     })
     // `safeImageFetch` answers null for three different reasons — a refused
     // URL, a redirect carrying no usable `Location`, and exhausting its hop
@@ -842,8 +848,12 @@ export const exportActorArchive = async (
   )
 
   // Resolved once for the whole export rather than per attachment: it is a
-  // database read behind a 15s cache, and the cap must not shift mid-run.
-  const maxAttachmentBytes = await getMaxMediaUploadSize(database)
+  // database read behind a 15s cache, and the cap must not shift mid-run. Only
+  // the remote-download branch reads it, so an export without that flag — the
+  // default — should not pay for the lookup at all.
+  const maxAttachmentBytes = args.fetchRemoteAttachments
+    ? await getMaxMediaUploadSize(database)
+    : 0
 
   const warnings: string[] = []
   const mediaPaths = new Set<string>()

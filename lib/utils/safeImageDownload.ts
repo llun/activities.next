@@ -108,10 +108,21 @@ export const getSafeImageDownloadUrl = async (rawUrl: string) => {
  * Returns the first non-redirect response, or `null` when a hop is refused, a
  * redirect carries no usable `Location`, or the hop budget runs out. The caller
  * still owns the content-type check and the byte cap.
+ *
+ * `timeoutMs` is PER HOP and restarts on each one, so on its own it bounds a
+ * single request and not the call: the loop makes up to
+ * `MAX_SAFE_IMAGE_REDIRECTS + 1` fetches, so a host that stalls just under the
+ * limit at every hop costs that multiple. A caller that needs a real ceiling —
+ * one looping over attacker-supplied URLs, say — passes `signal` as an overall
+ * deadline; it is combined with each hop's own timeout rather than replacing
+ * it, so whichever expires first wins.
  */
 export const safeImageFetch = async (
   rawUrl: string,
-  { timeoutMs = DEFAULT_SAFE_IMAGE_TIMEOUT_MS }: { timeoutMs?: number } = {}
+  {
+    timeoutMs = DEFAULT_SAFE_IMAGE_TIMEOUT_MS,
+    signal
+  }: { timeoutMs?: number; signal?: AbortSignal } = {}
 ): Promise<Response | null> => {
   let target = rawUrl
 
@@ -119,9 +130,10 @@ export const safeImageFetch = async (
     const safeUrl = await getSafeImageDownloadUrl(target)
     if (!safeUrl) return null
 
+    const hopTimeout = AbortSignal.timeout(timeoutMs)
     const response = await fetch(safeUrl, {
       redirect: 'manual',
-      signal: AbortSignal.timeout(timeoutMs)
+      signal: signal ? AbortSignal.any([hopTimeout, signal]) : hopTimeout
     })
     if (!REDIRECT_STATUS_CODES.has(response.status)) return response
 
