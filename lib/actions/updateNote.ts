@@ -3,6 +3,7 @@ import { Database } from '@/lib/database/types'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLinkPreview'
+import { withAttachmentMediaMetadata } from '@/lib/services/medias/attachmentMediaMetadata'
 import { notifyQuotedStatusUpdate } from '@/lib/services/notifications/notifyQuotedStatusUpdate'
 import { getQueue } from '@/lib/services/queue'
 import { addStatusToTimelines } from '@/lib/services/timelines'
@@ -48,11 +49,29 @@ export const updateNoteFromUserInput = async ({
       return null
     }
 
+    // Re-read the placeholder and focal point from the owner's own media rows
+    // rather than carrying whatever the request body held: the attachment row
+    // snapshots them, `POST /api/v1/accounts/outbox` accepts client-supplied
+    // attachment objects, and a `media_attributes` focus edit lands on the
+    // media row moments before this — so the media row is both the trusted and
+    // the freshest source. Resolved for every attachment, kept and new alike,
+    // because `updateNote` rewrites both.
+    const resolvedAttachments =
+      attachments === undefined
+        ? undefined
+        : await withAttachmentMediaMetadata({
+            database,
+            currentActor,
+            attachments
+          })
+
     let updatedStatus = await database.updateNote({
       statusId,
       summary: summary === undefined ? status.summary : summary?.trim() || null,
       text: text ?? status.text,
-      ...(attachments !== undefined ? { attachments } : {}),
+      ...(resolvedAttachments !== undefined
+        ? { attachments: resolvedAttachments }
+        : {}),
       ...(sensitive !== undefined ? { sensitive } : {}),
       ...(language !== undefined ? { language } : {})
     })

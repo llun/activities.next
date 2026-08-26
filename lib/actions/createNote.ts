@@ -8,7 +8,10 @@ import { buildMentionEmail } from '@/lib/services/email/templates/mention'
 import { buildReplyEmail } from '@/lib/services/email/templates/reply'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLinkPreview'
-import { getMediaFileUrl } from '@/lib/services/medias/mediaFileUrl'
+import {
+  EMPTY_ATTACHMENT_MEDIA_METADATA,
+  resolveAttachmentMediaMetadata
+} from '@/lib/services/medias/attachmentMediaMetadata'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
@@ -556,28 +559,16 @@ export const createNoteFromUserInput = async ({
       .map((attachment) => attachment.id)
       .filter((id): id is string => Boolean(id))
 
-    const mediaRows =
-      currentActor.account?.id && mediaIds.length > 0
-        ? await database.getMediaByIdsForAccount({
-            mediaIds,
-            accountId: currentActor.account.id
-          })
-        : []
-    const mediaMap = new Map(mediaRows.map((m) => [String(m.id), m]))
+    const mediaMetadataById = await resolveAttachmentMediaMetadata({
+      database,
+      currentActor,
+      mediaIds
+    })
 
     await Promise.all([
       addStatusToTimelines(database, createdStatus),
-      ...attachments.map((attachment) => {
-        const media = attachment.id
-          ? mediaMap.get(String(attachment.id))
-          : undefined
-        const blurhash = media?.blurhash ?? null
-        const focus = media?.focus ?? null
-        const thumbnailUrl = media?.thumbnail
-          ? getMediaFileUrl(currentActor.domain, media.thumbnail.path)
-          : null
-
-        return database.createAttachment({
+      ...attachments.map((attachment) =>
+        database.createAttachment({
           actorId: currentActor.id,
           statusId,
           mediaType: attachment.mediaType,
@@ -586,11 +577,12 @@ export const createNoteFromUserInput = async ({
           height: attachment.height,
           name: attachment.name,
           mediaId: attachment.id,
-          blurhash,
-          focus,
-          thumbnailUrl
+          ...(attachment.id
+            ? (mediaMetadataById.get(String(attachment.id)) ??
+              EMPTY_ATTACHMENT_MEDIA_METADATA)
+            : EMPTY_ATTACHMENT_MEDIA_METADATA)
         })
-      })
+      )
     ])
 
     if (fitnessFile) {

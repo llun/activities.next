@@ -18,6 +18,7 @@ import {
 import { processFitnessFileJob } from '@/lib/jobs/processFitnessFileJob'
 import { saveFitnessFile } from '@/lib/services/fitness-files'
 import { saveMedia } from '@/lib/services/medias'
+import { getSavedMediaAttachmentMetadata } from '@/lib/services/medias/attachmentMediaMetadata'
 import { MAX_IMPORTED_ACTIVITY_ATTACHMENTS } from '@/lib/services/medias/constants'
 import { getQueue } from '@/lib/services/queue'
 import { getStravaArchiveImportBatchId } from '@/lib/services/strava/archiveImport'
@@ -446,7 +447,8 @@ async function importStravaArchive(args = process.argv.slice(2)) {
               width: storedMedia.meta.original.width,
               height: storedMedia.meta.original.height,
               name: attachmentName,
-              mediaId: storedMedia.id
+              mediaId: storedMedia.id,
+              ...getSavedMediaAttachmentMetadata(storedMedia)
             })
 
             remainingSlots -= 1

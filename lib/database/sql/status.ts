@@ -770,35 +770,70 @@ export const StatusSQLDatabaseMixin = (
               height: attachment.height,
               name: attachment.name ?? '',
               mediaId: attachment.id,
+              blurhash: attachment.blurhash,
+              focus: attachment.focus,
+              thumbnailUrl: attachment.thumbnailUrl,
               createdAt: attachmentCreatedAt.getTime(),
               updatedAt: attachmentCreatedAt.getTime()
             })
 
+            // `focus` is one object on the parsed row and two columns in the
+            // table, so the insert is written out column by column the way
+            // `createAttachment` does it rather than spreading `data`.
             return trx('attachments').insert({
-              ...data,
+              id: data.id,
+              actorId: data.actorId,
+              statusId: data.statusId,
+              type: data.type,
+              mediaType: data.mediaType,
+              url: data.url,
+              width: data.width,
+              height: data.height,
+              name: data.name,
+              mediaId: data.mediaId,
+              blurhash: data.blurhash ?? null,
+              focusX: data.focus?.x ?? null,
+              focusY: data.focus?.y ?? null,
+              thumbnailUrl: data.thumbnailUrl ?? null,
               createdAt: attachmentCreatedAt,
               updatedAt: attachmentCreatedAt
             })
           })
         )
 
-        // Attachments kept across the edit refresh their copied metadata (alt
-        // text): the attachment row snapshots media.description at attach
-        // time, so a media_attributes edit must re-copy it or the status keeps
-        // serving the stale description. Only rows whose alt text actually
-        // changed are rewritten, so an edit that leaves the media untouched
-        // preserves the existing row (createdAt/updatedAt) unchanged.
-        const existingNameByMediaId = new Map(
+        // Attachments kept across the edit refresh every field they copied
+        // from the media row — alt text, BlurHash, focal point and thumbnail:
+        // the attachment row snapshots all four at attach time, so a
+        // media_attributes edit must re-copy them or the status keeps serving
+        // the stale value. Focus is the one a client can actually change on a
+        // posted status (Mastodon's focal-point editor), and it was silently
+        // dropped while only the description was refreshed. Only rows that
+        // actually differ are rewritten, so an edit that leaves the media
+        // untouched preserves the existing row (createdAt/updatedAt) unchanged.
+        const existingSnapshotByMediaId = new Map(
           existingReplaceableAttachments.map((attachment) => [
             attachment.mediaId,
-            attachment.name ?? ''
+            attachment
           ])
         )
-        const keptAttachments = attachments.filter(
-          (attachment) =>
-            existingMediaIds.has(attachment.id) &&
-            (attachment.name ?? '') !== existingNameByMediaId.get(attachment.id)
-        )
+        const isSameFocus = (
+          left: { x: number; y: number } | null | undefined,
+          right: { x: number; y: number } | null | undefined
+        ) =>
+          (left?.x ?? null) === (right?.x ?? null) &&
+          (left?.y ?? null) === (right?.y ?? null)
+        const keptAttachments = attachments.filter((attachment) => {
+          if (!existingMediaIds.has(attachment.id)) return false
+          const existing = existingSnapshotByMediaId.get(attachment.id)
+          if (!existing) return false
+          return (
+            (attachment.name ?? '') !== (existing.name ?? '') ||
+            (attachment.blurhash ?? null) !== (existing.blurhash ?? null) ||
+            (attachment.thumbnailUrl ?? null) !==
+              (existing.thumbnailUrl ?? null) ||
+            !isSameFocus(attachment.focus, existing.focus)
+          )
+        })
         // `attachments.mediaId` is an `integer` column on PostgreSQL, so a
         // malformed id here would error rather than miss. Safe without its own
         // coercion: every `attachment.id` in `keptAttachments` has already
@@ -811,6 +846,10 @@ export const StatusSQLDatabaseMixin = (
               .where('mediaId', attachment.id)
               .update({
                 name: attachment.name ?? '',
+                blurhash: attachment.blurhash,
+                focusX: attachment.focus?.x ?? null,
+                focusY: attachment.focus?.y ?? null,
+                thumbnailUrl: attachment.thumbnailUrl,
                 updatedAt: currentTime
               })
           )

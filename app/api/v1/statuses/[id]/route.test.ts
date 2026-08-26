@@ -2668,6 +2668,234 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(updatedMedia?.focus).toEqual({ x: 0.5, y: -0.5 })
     })
 
+    // The only id a third-party client can send. The status entity publishes
+    // `media_attachments[].id` as the ATTACHMENT row's uuid while every media
+    // path addresses the numeric `medias` row id, so an id read back off the
+    // status used to fail `toMediaRowId` and answer 422 — the Mastodon
+    // focal-point editor could not reach the media row at all. Every other
+    // test here passes `media!.id`, which only this app's own composer sends.
+    it('accepts the attachment id the status entity published for media_attributes', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-published-attachment-id`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Published id target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const media = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/api-edit-published-id.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 },
+          fileName: 'api-edit-published-id.jpg'
+        },
+        description: 'Published id description'
+      })
+      expect(media).not.toBeNull()
+      const attachment = await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: media!.original.mimeType,
+        url: 'https://llun.test/api/v1/files/medias/api-edit-published-id.webp',
+        width: 320,
+        height: 240,
+        name: 'Published id description',
+        mediaId: media!.id
+      })
+      // What a client reads back from the status, and never the media row id.
+      expect(attachment.id).not.toEqual(media!.id)
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              media_attributes: [{ id: attachment.id, focus: '0.25,-0.75' }]
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.media_attachments[0].meta).toMatchObject({
+        focus: { x: 0.25, y: -0.75 }
+      })
+
+      const actor = await database.getActorFromId({ id: ACTOR1_ID })
+      const updatedMedia = await database.getMediaByIdForAccount({
+        mediaId: media!.id,
+        accountId: actor!.account!.id
+      })
+      expect(updatedMedia?.focus).toEqual({ x: 0.25, y: -0.75 })
+    })
+
+    // Both id forms name the same attachment, so the edit is a no-op that
+    // leaves exactly one attachment. Pins the client-visible result of mixing
+    // them, which is now accepted rather than answered 422.
+    it('attaches media once when media_ids carries both the attachment id and the media id', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-both-id-forms`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Both id forms target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const media = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/api-edit-both-id-forms.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 },
+          fileName: 'api-edit-both-id-forms.jpg'
+        },
+        description: 'Both id forms'
+      })
+      expect(media).not.toBeNull()
+      const attachment = await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: media!.original.mimeType,
+        url: 'https://llun.test/api/v1/files/medias/api-edit-both-id-forms.webp',
+        width: 320,
+        height: 240,
+        name: 'Both id forms',
+        mediaId: media!.id
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              media_ids: [attachment.id, media!.id]
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.media_attachments).toHaveLength(1)
+      expect(await database.getAttachments({ statusId })).toHaveLength(1)
+    })
+
+    // An audio upload has no dimensions or duration to serialise, so it used to
+    // come back as a bare `null` — which `Mastodon.Status.parse` rejects, so
+    // the whole status failed to serialise: dropped from timelines as
+    // un-hydratable and an error on this very GET. Published as Mastodon's
+    // `unknown` type it serialises, and carrying an id is what lets an editing
+    // client name it and keep it.
+    it('keeps an audio attachment through an edit that echoes the published ids', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-unknown-type-attachment`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Mixed media target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const image = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/api-edit-mixed-image.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 },
+          fileName: 'api-edit-mixed-image.jpg'
+        }
+      })
+      const audio = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/api-edit-mixed-audio.m4a',
+          bytes: 2048,
+          mimeType: 'audio/mp4',
+          metaData: { width: 0, height: 0 },
+          fileName: 'api-edit-mixed-audio.m4a'
+        }
+      })
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: 'image/jpeg',
+        url: 'https://llun.test/api/v1/files/medias/api-edit-mixed-image.webp',
+        width: 320,
+        height: 240,
+        name: 'Mixed image',
+        mediaId: image!.id
+      })
+      const audioAttachment = await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: 'audio/mp4',
+        url: 'https://llun.test/api/v1/files/medias/api-edit-mixed-audio.m4a',
+        name: 'Mixed audio',
+        mediaId: audio!.id
+      })
+
+      const published = await GET(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          { headers: { Origin: 'https://llun.test' } }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      const publishedData = await published.json()
+      // Every attachment is addressable: none serialises as a bare null.
+      expect(publishedData.media_attachments).toHaveLength(2)
+      expect(publishedData.media_attachments).not.toContain(null)
+      const publishedIds = publishedData.media_attachments.map(
+        (attachment: { id: string }) => attachment.id
+      )
+      expect(publishedIds).toContain(audioAttachment.id)
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              status: 'Mixed media edited',
+              media_ids: publishedIds
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const attachments = await database.getAttachments({ statusId })
+      expect(attachments).toHaveLength(2)
+      expect(
+        attachments.some((attachment) => attachment.mediaType === 'audio/mp4')
+      ).toBe(true)
+    })
+
     it('keeps the existing description when media_attributes only updates focus', async () => {
       const statusId = `${ACTOR1_ID}/statuses/api-edit-media-attributes-focus`
       await database.createNote({

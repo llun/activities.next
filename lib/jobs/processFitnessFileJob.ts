@@ -29,6 +29,7 @@ import { normalizeActivityTypeToSportKey } from '@/lib/services/fitness-files/sp
 import { linkFitnessFileDeviceGear } from '@/lib/services/fitness-gears/resolveDeviceGear'
 import { evaluateGearServiceReminders } from '@/lib/services/fitness-gears/serviceReminders'
 import { saveMedia, saveMediaImageRendition } from '@/lib/services/medias'
+import { getSavedMediaAttachmentMetadata } from '@/lib/services/medias/attachmentMediaMetadata'
 import { getActivityImportGroupKey } from '@/lib/services/notifications/activityImportGroupKey'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { shouldSendEmailForNotification } from '@/lib/services/notifications/emailNotificationSettings'
@@ -624,7 +625,8 @@ export const processFitnessFileJob = createJobHandle(
             width: storedMap.meta.original.width,
             height: storedMap.meta.original.height,
             name: ROUTE_MAP_ATTACHMENT_NAME,
-            mediaId: storedMap.id
+            mediaId: storedMap.id,
+            ...getSavedMediaAttachmentMetadata(storedMap)
           })
 
           await database.updateFitnessFileActivityData(fitnessFileId, {

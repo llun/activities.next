@@ -86,15 +86,10 @@ export const getMastodonStatusEdits = async (
       ...(pollOptions
         ? { poll: { options: pollOptions.map((title) => ({ title })) } }
         : {}),
-      // getMastodonAttachment returns null for attachments it cannot serialize
-      // (non image/video); drop those like the timeline serializer effectively
-      // does rather than emitting null entries.
       media_attachments: revision.attachments
-        ? (revision.attachments
-            .map((attachment) => getMastodonAttachment(attachment))
-            .filter(
-              (attachment) => attachment !== null
-            ) as Mastodon.Status['media_attachments'])
+        ? (revision.attachments.map((attachment) =>
+            getMastodonAttachment(attachment)
+          ) as Mastodon.Status['media_attachments'])
         : current.media_attachments,
       emojis: current.emojis
     }
