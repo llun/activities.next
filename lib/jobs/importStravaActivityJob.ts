@@ -45,6 +45,7 @@ import {
   isSupportedStravaPhotoMimeType
 } from '@/lib/services/strava/activity'
 import { getStravaActivityBatchId } from '@/lib/services/strava/activityBatch'
+import { resolveStravaDefaultVisibility } from '@/lib/services/strava/defaultVisibility'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Actor, getMention } from '@/lib/types/domain/actor'
 import { EditableStatus, Status, StatusType } from '@/lib/types/domain/status'
@@ -386,8 +387,16 @@ export const importStravaActivityJob = createJobHandle(
       activityId: stravaActivityId,
       accessToken
     })
+    // A queued `visibility` was already validated by `JobData.parse`; the
+    // stored default was not, and it is what every retry and repair path
+    // reaches here with.
     const statusVisibility =
-      visibility ?? fitnessSettings.defaultVisibility ?? Visibility.enum.private
+      visibility ??
+      resolveStravaDefaultVisibility({
+        storedVisibility: fitnessSettings.defaultVisibility,
+        actorId,
+        stravaActivityId
+      })
     const batchId = getStravaActivityBatchId(stravaActivityId)
 
     // Nothing here reads `activity.gear_id`, and that is deliberate: gear is
