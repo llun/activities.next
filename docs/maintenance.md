@@ -609,7 +609,7 @@ NODE_ENV=development ./scripts/mock/createMockStatuses.ts
 
 ## Blurhash & Smart Focus Backfill
 
-The `backfillMediaBlurhash.ts` script scans existing `medias` and `attachments` records that lack a `blurhash` or focal point coordinates, computes them from stored files / URLs, and updates the database.
+The `backfillMediaBlurhash.ts` script scans existing `medias` and `attachments` records that lack a `blurhash` or focal point coordinates, computes them from stored files / URLs, and updates the database. It also fills in a missing `attachments.thumbnailUrl` from the linked `medias` row.
 
 ### Usage
 
@@ -620,9 +620,22 @@ NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --dry-run
 # Run backfill on missing rows in batches of 50
 NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --batch-size 50
 
-# Recompute blurhash and focal point even on rows that already have them
+# Recompute the blurhash even on rows that already have one
 NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --force
+
+# Never fetch a remote attachment URL — only read files this instance stores
+NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --local-only
 ```
+
+### What `--force` does, and does not, recompute
+
+`--force` recomputes the **blurhash**. It does **not** recompute a **focal point** that is already stored: `PUT /api/v1/media/:id` lets an owner set one by hand, and no column records whether a stored point was set that way or detected automatically, so recomputing would silently discard the owner's choice. A missing focal point is still filled in, with or without the flag.
+
+### Remote attachment URLs
+
+An attachment federated to this instance carries a URL its remote author chose, so the script treats it as untrusted input reached from inside the deployment. Before any such URL is fetched it must be HTTPS, carry no credentials, and resolve to a public address — a URL naming the local network is skipped. The response must declare an `image/` content type, and the body is capped at 10 MB. Pass `--local-only` to skip these downloads entirely and backfill only from files this instance stores.
+
+A URL is treated as local storage only when its host is this instance's own (`ACTIVITIES_HOST` or one of `ACTIVITIES_TRUSTED_HOSTS`). Every other activities.next instance serves attachments under the same `/api/v1/files/` path, so the host is what tells the two apart.
 
 ## Related Documentation
 

@@ -1,5 +1,3 @@
-import { lookup } from 'node:dns/promises'
-import { BlockList, isIP } from 'node:net'
 import { z } from 'zod'
 
 import {
@@ -54,6 +52,7 @@ import { Visibility } from '@/lib/types/mastodon/visibility'
 import { getManufacturerKeyFromDeviceName } from '@/lib/utils/fitnessDeviceBrands'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
+import { getSafeImageDownloadUrl } from '@/lib/utils/safeImageDownloadUrl'
 import {
   SAFE_DOWNLOAD_MAX_BYTES,
   readResponseArrayBufferWithLimit
@@ -112,28 +111,6 @@ const JobData = z.object({
 })
 
 const MAX_STRAVA_PHOTOS_TO_ATTACH = 4
-const STRAVA_PHOTO_ADDRESS_BLOCK_LIST = new BlockList()
-
-STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('0.0.0.0', 8)
-STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('10.0.0.0', 8)
-STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('100.64.0.0', 10)
-STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('127.0.0.0', 8)
-STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('169.254.0.0', 16)
-STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('172.16.0.0', 12)
-STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('192.0.0.0', 24)
-STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('192.0.2.0', 24)
-STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('192.168.0.0', 16)
-STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('198.18.0.0', 15)
-STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('198.51.100.0', 24)
-STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('203.0.113.0', 24)
-STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('224.0.0.0', 4)
-STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('240.0.0.0', 4)
-STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('::', 128, 'ipv6')
-STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('::1', 128, 'ipv6')
-STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('fc00::', 7, 'ipv6')
-STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('fe80::', 10, 'ipv6')
-STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('ff00::', 8, 'ipv6')
-STRAVA_PHOTO_ADDRESS_BLOCK_LIST.addSubnet('2001:db8::', 32, 'ipv6')
 
 const getStravaFallbackPostId = ({
   actorId,
@@ -151,66 +128,6 @@ const getAttachmentName = (photoId: string | undefined, index: number) => {
 
 const getPhotoFileExtension = (mimeType: string) => {
   return mimeType === 'image/png' ? 'png' : 'jpg'
-}
-
-const isRestrictedStravaPhotoHostname = (hostname: string) => {
-  return (
-    hostname === 'localhost' ||
-    hostname.endsWith('.localhost') ||
-    hostname.endsWith('.local') ||
-    hostname.endsWith('.internal') ||
-    hostname.endsWith('.home.arpa')
-  )
-}
-
-const isRestrictedStravaPhotoAddress = (address: string) => {
-  const family = isIP(address)
-  if (family === 0) {
-    return true
-  }
-
-  return STRAVA_PHOTO_ADDRESS_BLOCK_LIST.check(
-    address,
-    family === 6 ? 'ipv6' : 'ipv4'
-  )
-}
-
-const getSafeStravaPhotoUrl = async (photoUrl: string) => {
-  let url: URL
-  try {
-    url = new URL(photoUrl)
-  } catch {
-    return null
-  }
-
-  if (url.protocol !== 'https:' || url.username || url.password) {
-    return null
-  }
-
-  const hostname = url.hostname.trim().toLowerCase()
-  if (!hostname || isRestrictedStravaPhotoHostname(hostname)) {
-    return null
-  }
-
-  if (isIP(hostname)) {
-    return isRestrictedStravaPhotoAddress(hostname) ? null : url
-  }
-
-  const resolvedAddresses = await lookup(hostname, {
-    all: true,
-    verbatim: true
-  }).catch(() => [])
-
-  if (
-    resolvedAddresses.length === 0 ||
-    resolvedAddresses.some(({ address }) =>
-      isRestrictedStravaPhotoAddress(address)
-    )
-  ) {
-    return null
-  }
-
-  return url
 }
 
 const attachStravaPhotosToStatus = async ({
@@ -262,7 +179,7 @@ const attachStravaPhotosToStatus = async ({
     }
 
     try {
-      const photoUrl = await getSafeStravaPhotoUrl(photo.url)
+      const photoUrl = await getSafeImageDownloadUrl(photo.url)
       if (!photoUrl) {
         logger.warn({
           message: 'Skipping Strava photo with unsafe URL',
