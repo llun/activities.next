@@ -5,7 +5,7 @@ type NormalizeHostOptions = {
   allowWildcard?: boolean
 }
 
-type HostRuleConfig = {
+export type HostRuleConfig = {
   host?: string | null
   trustedHosts?: readonly string[] | null
 }
@@ -199,6 +199,47 @@ export const isHostTrustedByRules = (
   return normalizeHostRules(rules).some((rule) =>
     hostMatchesRule(normalizedHost, rule)
   )
+}
+
+/**
+ * Reduces a host value to a comparable authority: no scheme, no path, lower
+ * case, and without the port the scheme implies anyway. Configured hosts are
+ * documented as bare authorities, but an operator may still write
+ * `https://example.com/`, and `new URL(...).host` has already dropped a default
+ * port on the other side of the comparison.
+ */
+const canonicalAuthority = (value: string | undefined | null): string => {
+  if (!value) return ''
+  return getAuthority(value.trim())
+    .toLowerCase()
+    .replace(/:(?:80|443)$/, '')
+}
+
+/**
+ * Whether an authority — a `host` or `host:port`, the shape `new URL(...).host`
+ * reports — is one this instance serves: the configured host, or any
+ * `ACTIVITIES_TRUSTED_HOSTS` entry. Use it to decide whether a stored absolute
+ * URL points back at us.
+ *
+ * `isHostTrustedByRules` alone is not that question. It answers the narrower
+ * one — may an inbound `X-Forwarded-Host` be believed — and `normalizeHost`
+ * deliberately rejects loopback names for it, so on a `localhost:3000`
+ * development instance it says no to the instance's own host. Comparing
+ * canonical authorities first covers that case and every exact `host:port`
+ * match; deferring to the rules matcher after it adds the wildcard entries
+ * (`*.example.com`) that only that matcher understands.
+ */
+export const isOwnInstanceHost = (
+  host: string | undefined | null,
+  config: HostRuleConfig
+): boolean => {
+  const authority = canonicalAuthority(host)
+  if (!authority) return false
+
+  const rules = getTrustedHostRules(config)
+  if (rules.some((rule) => canonicalAuthority(rule) === authority)) return true
+
+  return isHostTrustedByRules(host, rules)
 }
 
 export const selectHeaderHost = (

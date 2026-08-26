@@ -2,6 +2,7 @@ import {
   HostHeaders,
   getHostCacheSizesForTests,
   isHostTrustedByRules,
+  isOwnInstanceHost,
   normalizeHost,
   resetHostCachesForTests,
   selectHeaderHost
@@ -170,5 +171,87 @@ describe('isHostTrustedByRules', () => {
     }
 
     expect(getHostCacheSizesForTests().normalizedRules).toBeLessThanOrEqual(256)
+  })
+})
+
+describe('isOwnInstanceHost', () => {
+  afterEach(() => {
+    resetHostCachesForTests()
+  })
+
+  const config = {
+    host: 'llun.test',
+    trustedHosts: ['alias.example', '*.edge.llun.test']
+  }
+
+  it.each([
+    { description: 'the configured host', host: 'llun.test', expected: true },
+    {
+      description: 'the configured host in another case',
+      host: 'LLUN.TEST',
+      expected: true
+    },
+    {
+      description: 'a trusted host',
+      host: 'alias.example',
+      expected: true
+    },
+    {
+      description: 'a wildcard trusted host',
+      host: 'cdn.edge.llun.test',
+      expected: true
+    },
+    {
+      description: 'the configured host with the default HTTPS port',
+      host: 'llun.test:443',
+      expected: true
+    },
+    {
+      description: 'the configured host on another port',
+      host: 'llun.test:8443',
+      expected: false
+    },
+    {
+      description: 'a host that only shares a suffix',
+      host: 'evil-llun.test',
+      expected: false
+    },
+    {
+      description: 'an unrelated subdomain',
+      host: 'sub.llun.test',
+      expected: false
+    },
+    {
+      description: 'an unrelated host',
+      host: 'other.example',
+      expected: false
+    },
+    { description: 'an empty host', host: '', expected: false },
+    { description: 'a missing host', host: null, expected: false }
+  ])('answers $expected for $description', ({ host, expected }) => {
+    expect(isOwnInstanceHost(host, config)).toBe(expected)
+  })
+
+  // `normalizeHost` rejects loopback names so an inbound `X-Forwarded-Host`
+  // can never claim one, which leaves `isHostTrustedByRules` unable to
+  // recognise a development instance's own host. The exact-authority pass is
+  // what covers it.
+  it.each([
+    { description: 'a loopback host with a port', host: 'localhost:3000' },
+    { description: 'a loopback address', host: '127.0.0.1:3000' }
+  ])('recognises $description as our own', ({ host }) => {
+    expect(isOwnInstanceHost(host, { host })).toBeTrue()
+    expect(isHostTrustedByRules(host, [host])).toBeFalse()
+  })
+
+  it('tolerates a configured host written as a URL', () => {
+    expect(
+      isOwnInstanceHost('llun.test', { host: 'https://llun.test/' })
+    ).toBeTrue()
+  })
+
+  it('answers false when no host is configured', () => {
+    expect(isOwnInstanceHost('llun.test', { host: '' })).toBeFalse()
+    expect(isOwnInstanceHost('', { host: '' })).toBeFalse()
   })
 })
