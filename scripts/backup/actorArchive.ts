@@ -618,7 +618,12 @@ const relocateStorageDir = async (
   await fs.rename(source, destination)
 }
 
-const copyProfileImage = async ({
+/**
+ * Copies one profile image out of the archive's media directory to the
+ * archive root, where the Mastodon format expects `avatar.<ext>` /
+ * `header.<ext>`.
+ */
+export const copyProfileImage = async ({
   stagingDir,
   storagePath,
   fileNamePrefix,
@@ -633,7 +638,34 @@ const copyProfileImage = async ({
 
   const extension = path.extname(storagePath) || '.bin'
   const fileName = `${fileNamePrefix}${extension}`
-  const source = path.join(stagingDir, MEDIA_ARCHIVE_DIR, storagePath)
+  const mediaDir = path.resolve(stagingDir, MEDIA_ARCHIVE_DIR)
+  const source = path.resolve(mediaDir, storagePath)
+
+  // `getMediaPathFromFileUrl` already refuses a `..` segment, so nothing
+  // should arrive here that escapes. This is the step that turns a stored path
+  // into a file read off the operator's machine, though, and its signature
+  // says nothing about where the path came from — so it confirms containment
+  // for itself rather than trusting a caller three hundred lines away, the
+  // same reason `createMediaTempFilePath` asserts its own result is still
+  // under `tmpdir()`. Resolving rather than joining is what lets an absolute
+  // path be seen as outside instead of being silently reinterpreted as a
+  // relative one.
+  //
+  // The last disjunct is Windows-only and cannot be covered by a test here:
+  // between two absolute paths POSIX always answers with a relative string,
+  // and only a win32 CROSS-DRIVE pair (`C:\staging` to `D:\secrets`) makes
+  // `path.relative` hand back an absolute path of its own.
+  const relativePath = path.relative(mediaDir, source)
+  if (
+    relativePath === '..' ||
+    relativePath.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativePath)
+  ) {
+    warnings.push(
+      `Refused ${fileNamePrefix} image path outside the archive media directory: ${storagePath}`
+    )
+    return null
+  }
 
   try {
     await fs.copyFile(source, path.join(stagingDir, fileName))

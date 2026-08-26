@@ -249,6 +249,65 @@ describe('isOwnInstanceHost', () => {
     expect(isHostTrustedByRules(host, [host])).toBeFalse()
   })
 
+  // `new URL()` accepts `*` in a host, so a rule compared literally against
+  // itself would let a URL spelling that authority pass as ours — the hole
+  // `scripts/maintenance/backfillMediaBlurhash.ts` documents closing for its
+  // own matcher. Wildcards belong to the rules pass, which expands them.
+  it.each([
+    { description: 'the wildcard rule itself', host: '*.edge.llun.test' },
+    {
+      description: 'the wildcard rule in another case',
+      host: '*.EDGE.llun.test'
+    },
+    { description: 'a bare wildcard label', host: '*' }
+  ])('answers false for $description', ({ host }) => {
+    expect(isOwnInstanceHost(host, config)).toBeFalse()
+  })
+
+  // Only `*.example.com` is a wildcard to `normalizeHost`. Every other
+  // spelling used to survive as a literal hostname carrying a `*`, and
+  // `new URL()` percent-decodes `%2a`, so a caller could spell that authority
+  // exactly and be believed as one of ours.
+  it.each([
+    { description: 'a wildcard missing its dot', rule: '*llun.test' },
+    { description: 'a wildcard in the middle', rule: 'foo.*.llun.test' },
+    { description: 'a trailing wildcard label', rule: 'cdn.llun.test.*' },
+    { description: 'a wildcard inside a label', rule: '*-cdn.llun.test' }
+  ])('refuses an authority spelled as $description', ({ rule }) => {
+    const spoofed = rule.replaceAll('*', '%2a')
+    expect(normalizeHost(rule)).toBeNull()
+    expect(
+      isOwnInstanceHost(new URL(`https://${spoofed}`).host, {
+        host: 'llun.test',
+        trustedHosts: [rule]
+      })
+    ).toBeFalse()
+  })
+
+  // The marker sits on the authority, so it has to be found behind a scheme
+  // too — refusing a stray `*` otherwise killed this spelling, which used to
+  // work only because `getHostParts` re-read the literal the parse produced.
+  it.each([
+    {
+      description: 'a bare wildcard rule',
+      rule: '*.edge.llun.test',
+      host: 'cdn.edge.llun.test'
+    },
+    {
+      description: 'a wildcard rule behind a scheme',
+      rule: 'https://*.edge.llun.test',
+      host: 'cdn.edge.llun.test'
+    },
+    {
+      description: 'a wildcard rule with a port',
+      rule: '*.edge.llun.test:8443',
+      host: 'cdn.edge.llun.test:8443'
+    }
+  ])('still expands $description', ({ rule, host }) => {
+    expect(normalizeHost(rule)).not.toBeNull()
+    expect(isHostTrustedByRules(host, [rule])).toBeTrue()
+  })
+
   it('tolerates a configured host written as a URL', () => {
     expect(
       isOwnInstanceHost('llun.test', { host: 'https://llun.test/' })
