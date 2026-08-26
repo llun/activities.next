@@ -49,7 +49,13 @@ export const NOTE_CONTEXT_TERMS = {
 
 /**
  * The `@context` for any activity or object that carries a Note this instance
- * built — `sendNote`'s Create, `sendUpdateNote`'s Update, the outbox page, and
- * the AP representation of a single status.
+ * built. Six surfaces: `sendNote`'s Create, `sendUpdateNote`'s Update, the
+ * outbox page, the AP representation of a single status, the AP replies
+ * collection, and `sendQuoteRequest`'s `instrument`. The other quote
+ * activities echo ids rather than Notes and keep `QUOTE_ACTIVITY_CONTEXT`.
+ *
+ * On the outbox page the context sits on the `OrderedCollectionPage`, so the
+ * embedded Notes inherit it only from a receiver that processes the page as
+ * one document — `getActorPosts` compacts each entry on its own and does not.
  */
 export const NOTE_ACTIVITY_CONTEXT = [ACTIVITY_STREAM_URL, NOTE_CONTEXT_TERMS]
