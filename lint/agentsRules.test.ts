@@ -293,9 +293,8 @@ describe('agents oxlint plugin', () => {
       '    return path!.resolve(this._config.path, filePath)',
       '  }',
       '',
-      '  // A bare generic instantiation. `path.resolve<string>` is a TS2635',
-      '  // under this repo`s own tsconfig.typecheck.json (another tsconfig',
-      '  // reports TS2558 for it — see TRANSPARENT_WRAPPERS),',
+      '  // A bare generic instantiation — TS2635 in that form, TS2558 once you',
+      '  // add call parens, which is a different node; see TRANSPARENT_WRAPPERS.',
       '  // but faking genericness through a cast compiles clean under this',
       '  // repo`s own typecheck, and this call was invisible while the node',
       '  // type was out of the wrapper set.',
@@ -349,10 +348,10 @@ describe('agents oxlint plugin', () => {
       'lib/services/fitness-files/localFile.ts:36 agents(no-storage-path-builder)',
       'lib/services/fitness-files/localFile.ts:45 agents(no-storage-path-builder)',
       'lib/services/fitness-files/localFile.ts:51 agents(no-storage-path-builder)',
-      'lib/services/fitness-files/localFile.ts:62 agents(no-storage-path-builder)',
-      'lib/services/fitness-files/localFile.ts:66 agents(no-storage-path-builder)',
-      'lib/services/fitness-files/localFile.ts:70 agents(no-storage-path-builder)',
-      'lib/services/fitness-files/localFile.ts:74 agents(no-storage-path-builder)',
+      'lib/services/fitness-files/localFile.ts:61 agents(no-storage-path-builder)',
+      'lib/services/fitness-files/localFile.ts:65 agents(no-storage-path-builder)',
+      'lib/services/fitness-files/localFile.ts:69 agents(no-storage-path-builder)',
+      'lib/services/fitness-files/localFile.ts:73 agents(no-storage-path-builder)',
       'lib/services/medias/localFile.ts:12 agents(no-storage-path-builder)',
       'lib/services/medias/localFile.ts:16 agents(no-storage-path-builder)',
       'lib/services/medias/localFile.ts:20 agents(no-storage-path-builder)',
@@ -361,10 +360,10 @@ describe('agents oxlint plugin', () => {
       'lib/services/medias/localFile.ts:36 agents(no-storage-path-builder)',
       'lib/services/medias/localFile.ts:45 agents(no-storage-path-builder)',
       'lib/services/medias/localFile.ts:51 agents(no-storage-path-builder)',
-      'lib/services/medias/localFile.ts:62 agents(no-storage-path-builder)',
-      'lib/services/medias/localFile.ts:66 agents(no-storage-path-builder)',
-      'lib/services/medias/localFile.ts:70 agents(no-storage-path-builder)',
-      'lib/services/medias/localFile.ts:74 agents(no-storage-path-builder)'
+      'lib/services/medias/localFile.ts:61 agents(no-storage-path-builder)',
+      'lib/services/medias/localFile.ts:65 agents(no-storage-path-builder)',
+      'lib/services/medias/localFile.ts:69 agents(no-storage-path-builder)',
+      'lib/services/medias/localFile.ts:73 agents(no-storage-path-builder)'
     ])
   })
 

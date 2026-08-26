@@ -158,11 +158,14 @@ const isRequireOfPathModule = (node) =>
 // `TSInstantiationExpression` was removed from this set once, on the reasoning
 // that `path.resolve` and `path.join` are not generic so nothing could reach it
 // around one. Half true, and the wrong half was load-bearing: the direct
-// `path.resolve<string>` is indeed a TS2635 — under THIS repo's
-// `tsconfig.typecheck.json`, the only config whose verdict matters here. A
-// narrowed ad-hoc tsconfig reports TS2558 for the same line instead, because
-// it pulls a different set of `@types/node` overloads into scope, and a
-// review round already tried to "correct" the code on that basis. But
+// `path.resolve<string>` is indeed a TS2635 — and mind which expression that
+// is. BARE, as an instantiation expression, it is TS2635 ("has no signatures
+// for which the type argument list is applicable"); add the call parens,
+// `path.resolve<string>(a, b)`, and the same line becomes TS2558 ("Expected 0
+// type arguments, but got 1"). Same file, same tsconfig, different node. Two
+// review rounds reported TS2558 here and asked for the code to be corrected;
+// both had written the call form, which is not the form this entry is about.
+// The bare one is, because that is what a `TSInstantiationExpression` IS.
 // `(path.resolve as unknown as GenericResolver)<string>` compiles clean under
 // this repo's own `yarn typecheck` and, with the entry gone, both rules
 // reported nothing for the call. Measured, not argued — hence the fixture.
