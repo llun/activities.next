@@ -1070,9 +1070,18 @@ describe('backfillMediaBlurhash execution', () => {
       }))
     )
 
+    // `limit` is what narrows this to the PAGING query. Matching every SELECT
+    // against the table counts any other one the loop might later issue — a
+    // per-batch diagnostic count inflated this to 8 — while a limit clause is
+    // exactly what the assertion is about, and a mutation that drops `.limit()`
+    // altogether still fails, on zero matches rather than four.
     const selects: string[] = []
     db.on('query', ({ sql }: { sql: string }) => {
-      if (sql.startsWith('select') && sql.includes('attachments')) {
+      if (
+        sql.startsWith('select') &&
+        sql.includes('attachments') &&
+        sql.includes('limit')
+      ) {
         selects.push(sql)
       }
     })
@@ -1085,6 +1094,12 @@ describe('backfillMediaBlurhash execution', () => {
     // two.
     expect(selects).toHaveLength(4)
   })
+
+  // If you extend the paging coverage: a mutation that stops `lastId` advancing
+  // does not fail, it HANGS well past the 30s `testTimeout`. better-sqlite3 is
+  // a synchronous driver, so the awaits inside the sweep's `while (true)`
+  // settle on the microtask queue and the loop never yields to the timer phase
+  // the watchdog lives in. Kill such a run rather than waiting it out.
 
   // The summary is a SUMMARY: one line, after the batch loop. Every other
   // assertion on it is `toHaveBeenCalledWith`, which asks only whether the line
@@ -1164,19 +1179,16 @@ describe('backfillMediaBlurhash execution', () => {
     )
   })
 
-  // A guard on the fixture rather than on the script. Position is not what
-  // makes it PASS — `beforeEach` reruns before every test, so with the reset
-  // above in place these assertions hold wherever the test sits. Position is
-  // what gives it a FAILING case: delete that reset and a guard running first
-  // would find only `safeImageFetch` dirty, leaked from the
-  // `downloadRemoteImage` block, while `analyzeImageBuffer` is still
-  // untouched. Running last is what catches both, because
-  // `vi.restoreAllMocks()` never reaches a `vi.fn()` a `vi.mock` factory
-  // created — two tests here used to carry their own `mockReset()` for exactly
-  // that reason. Nothing depended on the leak, but a test written against
-  // either mock's DEFAULT behaviour would silently inherit a neighbour's.
-  // `sequence.shuffle` is not configured, so this order is deterministic; a
-  // shuffled run degrades the guard to a vacuous pass, never a false failure.
+  // A guard on the fixture rather than on the script, placed last so it runs
+  // after the tests that dirty these mocks — `beforeEach` reruns regardless, so
+  // placement is what gives the guard a failing case rather than a passing one.
+  // The leak it guards: `vi.restoreAllMocks()` never reaches a `vi.fn()` a
+  // `vi.mock` factory created, so without the reset above these two carry their
+  // implementation and their call history across the whole block, and two tests
+  // here used to work around that with a local `mockReset()`. Nothing depended
+  // on the leak, but a test written against either mock's DEFAULT behaviour
+  // would silently inherit a neighbour's. `sequence.shuffle` is not configured;
+  // a shuffled run degrades this to a vacuous pass, never a false failure.
   it('starts every test with the module mocks reset', () => {
     expect(vi.mocked(analyzeImageBuffer).mock.calls).toHaveLength(0)
     expect(
