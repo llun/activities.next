@@ -134,6 +134,38 @@ describe('parseProfileImageUrl', () => {
       })
     })
 
+    it.each([
+      {
+        description: 'a trailing space on the stored value',
+        stored: `${STALE} `
+      },
+      {
+        description: 'a leading space on the stored value',
+        stored: ` ${STALE}`
+      },
+      {
+        description: 'whitespace on both sides of the stored value',
+        stored: `  ${STALE}  `
+      }
+    ])('matches through $description', ({ stored }) => {
+      // The rows this protects predate the validator: the old field was free
+      // text parsed by a bare `z.string()`, and nothing on the read path trims,
+      // so a copy-paste that carried a space is stored and resubmitted with it.
+      // Comparing a trimmed submission against a raw stored value missed
+      // exactly those rows.
+      expect(parseProfileImageUrl(STALE, config, stored)).toEqual({
+        valid: true,
+        value: undefined
+      })
+    })
+
+    it('matches when the submission is the side carrying whitespace', () => {
+      expect(parseProfileImageUrl(`  ${STALE}  `, config, STALE)).toEqual({
+        valid: true,
+        value: undefined
+      })
+    })
+
     it('does not treat an empty stored value as a match for an empty submission', () => {
       // Guards the `currentValue &&` truthiness check: with no image stored,
       // an empty submission must still take the clear branch.

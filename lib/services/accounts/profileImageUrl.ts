@@ -78,7 +78,13 @@ export const parseProfileImageUrl = (
   //
   // It gives away nothing: a NEW value still has to pass, and clearing still
   // works, so the stale value stays reachable and removable rather than sticky.
-  if (currentValue && trimmed === currentValue) {
+  // Both sides are trimmed. Everything this validator STORES is already
+  // trimmed, but the values it is protecting predate it: the old field was a
+  // free-text box parsed by a bare `z.string()`, and nothing on the read path
+  // trims either, so a copy-paste that carried a trailing space is stored and
+  // resubmitted with it. Comparing a trimmed submission against a raw stored
+  // value missed exactly those rows and left them bricking the form.
+  if (currentValue && trimmed === currentValue.trim()) {
     return { valid: true, value: undefined }
   }
 

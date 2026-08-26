@@ -44,13 +44,17 @@ export const ImageUploadField: FC<ImageUploadFieldProps> = ({
   }
 
   const handleRemoveClick = () => {
-    // Hand focus to Upload BEFORE clearing. Remove is rendered only while a
-    // value is set, so clearing unmounts the button that was just activated —
-    // and a focused element removed from the document drops focus to `<body>`,
-    // sending the next Tab back to the top of the page (WCAG 2.4.3). The
-    // media strip's chevrons have the same shape and are documented in
-    // AGENTS.md; their fix (leave the control out of the tab order) does not
-    // apply here, because Remove is the only way to clear the image.
+    // Hand focus to Upload. Remove is rendered only while a value is set, so
+    // clearing unmounts the button that was just activated — and a focused
+    // element removed from the document drops focus to `<body>`, sending the
+    // next Tab back to the top of the page (WCAG 2.4.3). The media strip's
+    // chevrons have the same shape and are documented in AGENTS.md; their fix
+    // (leave the control out of the tab order) does not apply here, because
+    // Remove is the only way to clear the image.
+    //
+    // React batches the state update below, so the unmount happens after this
+    // handler returns and the call would work after it too. It sits first so
+    // the handoff does not depend on that batching.
     uploadButtonRef.current?.focus()
     // Submitting an empty value is how both profile routes are told to clear
     // the stored image.
@@ -159,7 +163,14 @@ export const ImageUploadField: FC<ImageUploadFieldProps> = ({
           // assistive tech cannot see — this field is the only announced
           // representation of which image is set, and `disabled` would drop it
           // from the tab order.
-          className="flex-1 bg-muted"
+          //
+          // `dark:bg-muted` is required, not redundant. `Input`'s own base
+          // carries `dark:bg-input/30`, and this project compiles the dark
+          // variant as `&:is(.dark *)` — `:is()` takes its most specific
+          // argument's specificity, so that base rule outranks a bare
+          // `bg-muted` and the field stayed indistinguishable in dark mode.
+          // Naming the same variant lets `twMerge` drop the base instead.
+          className="flex-1 bg-muted dark:bg-muted"
         />
         <Button
           ref={uploadButtonRef}

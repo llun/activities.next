@@ -80,12 +80,22 @@ describe('ImageUploadField', () => {
     )
   })
 
-  it('gives the read-only field a muted surface', () => {
+  it('gives the read-only field a muted surface in both themes', () => {
     // `Input` styles `disabled` but not `readOnly`, so an unmuted box reads as
     // typeable beside the genuinely editable Name and Summary fields.
+    //
+    // Asserting the base class alone would not catch the bug this replaced:
+    // `Input`'s own `dark:bg-input/30` outranks a bare `bg-muted` under this
+    // project's `&:is(.dark *)` dark variant, so the field stayed
+    // indistinguishable in dark mode. Naming the variant makes `twMerge` drop
+    // the base, and its ABSENCE from the rendered class list is the only part
+    // of that a jsdom test can see — a losing cascade is invisible here.
     renderField(MEDIA_URL)
 
-    expect(screen.getByLabelText('Icon image')).toHaveClass('bg-muted')
+    const input = screen.getByLabelText('Icon image')
+    expect(input).toHaveClass('bg-muted')
+    expect(input).toHaveClass('dark:bg-muted')
+    expect(input.className).not.toContain('dark:bg-input')
   })
 
   it('offers no remove button when no image is set', () => {
