@@ -101,6 +101,10 @@ describe('resolveStravaDefaultVisibility', () => {
       actorId: 'https://llun.test/users/test'
     })
 
+    // Asserted before destructuring: without it, a resolver that stopped
+    // warning would fail here as a TypeError on `undefined` rather than as a
+    // readable expectation.
+    expect(logger.warn).toHaveBeenCalledTimes(1)
     const [payload] = vi.mocked(logger.warn).mock.calls[0]
     expect(Object.keys(payload as object)).not.toContain('stravaActivityId')
   })

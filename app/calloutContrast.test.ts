@@ -63,10 +63,14 @@ const contrastRatio = (foreground: string, background: string) => {
   return (lighter + 0.05) / (darker + 0.05)
 }
 
-// Callouts written with literal palette classes, as `[file, light fg, light bg,
-// dark fg, dark bg]`. Add a row when a new one appears rather than trusting the
-// nearest example in the file — the pairing this replaced was copied from a
-// sibling block that was already failing.
+// Callouts written with literal palette classes.
+//
+// This is a REGRESSION TEST OVER AN EXPLICIT TABLE, not a scanner: it reads
+// only the files named here, and a new low-contrast pairing somewhere else is
+// caught by nothing. Add a row when a new callout appears rather than trusting
+// the nearest example in the file — the pairing this replaced was copied from
+// a sibling block in the same file that was already failing, which is exactly
+// how the bug got in.
 const PALETTE_CALLOUTS: {
   file: string
   lightForeground: string
