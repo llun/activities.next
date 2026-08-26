@@ -812,6 +812,13 @@ null }` remains the precise "this retirement never happened" — it reopens the
   activity can fall inside, which drops its distance silently and for good. The
   bug reads as correct because for a single-period component the first and last
   period are the same row and the two formulations coincide.
+  **The route's check is not sufficient on its own, and each bound write
+  carries its own ordering predicate as well.** The route validates the periods
+  it READ; `updateFitnessGearComponent` resolves which period is last when it
+  WRITES, and a refit landing between the two appends one — so the bound lands
+  on a row the check never saw. Once a further refit buries that period in the
+  middle, nothing re-examines it, because only the first and last are ever
+  checked.
 - **Periods must never overlap, and `UNIQUE (componentId, installSequence)` is
   what enforces it against a race.** The rollup joins the periods and sums over
   them, so an activity inside two of them is counted twice — a permanently wrong

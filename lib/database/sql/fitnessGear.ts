@@ -988,6 +988,18 @@ export const FitnessGearSQLDatabaseMixin = (
       // reachable from here: `addedAt` is the first period's start, `removedAt`
       // the last period's end. Ordered by `installSequence` rather than by the
       // dates themselves, because the first period's `addedAt` may be null.
+      //
+      // Each write carries its own ordering predicate, and that is not
+      // belt-and-braces over the route's 422. WHICH period is last is resolved
+      // here, at write time, while the caller validated the periods it had
+      // READ — and a refit landing between the two appends a new one, so the
+      // bound lands on a row nobody checked. A period written `[Aug 1, Feb 15)`
+      // can hold no activity at all, and once a later refit buries it in the
+      // middle it is beyond the route's reach forever, because only the first
+      // and last are ever re-examined. Expressed as a predicate rather than a
+      // re-read for the reason every state change in this file is: a decision
+      // taken in front of the write is a decision about a state that may no
+      // longer hold when the write lands.
       if ('addedAt' in params || 'removedAt' in params) {
         if ('addedAt' in params) {
           const first = await trx<SQLFitnessGearComponentPeriod>(
@@ -997,12 +1009,23 @@ export const FitnessGearSQLDatabaseMixin = (
             .orderBy('installSequence', 'asc')
             .first()
           if (first) {
-            await trx('fitness_gear_component_periods')
-              .where('id', first.id)
-              .update({
-                addedAt: params.addedAt ?? null,
-                updatedAt: currentTime
-              })
+            const query = trx('fitness_gear_component_periods').where(
+              'id',
+              first.id
+            )
+            // Clearing it cannot invert anything, so it needs no predicate.
+            const addedAt = params.addedAt
+            if (addedAt) {
+              query.where((builder) =>
+                builder
+                  .whereNull('removedAt')
+                  .orWhere('removedAt', '>', addedAt)
+              )
+            }
+            await query.update({
+              addedAt: addedAt ?? null,
+              updatedAt: currentTime
+            })
           }
         }
 
@@ -1014,12 +1037,20 @@ export const FitnessGearSQLDatabaseMixin = (
             .orderBy('installSequence', 'desc')
             .first()
           if (last) {
-            await trx('fitness_gear_component_periods')
-              .where('id', last.id)
-              .update({
-                removedAt: params.removedAt ?? null,
-                updatedAt: currentTime
-              })
+            const query = trx('fitness_gear_component_periods').where(
+              'id',
+              last.id
+            )
+            const removedAt = params.removedAt
+            if (removedAt) {
+              query.where((builder) =>
+                builder.whereNull('addedAt').orWhere('addedAt', '<', removedAt)
+              )
+            }
+            await query.update({
+              removedAt: removedAt ?? null,
+              updatedAt: currentTime
+            })
           }
         }
       }

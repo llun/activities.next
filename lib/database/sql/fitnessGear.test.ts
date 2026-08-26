@@ -1971,6 +1971,54 @@ describe('FitnessGearDatabase', () => {
         )
       })
 
+      // The route validates a date edit against the periods it READ, then this
+      // method resolves the target again when it WRITES. A refit landing
+      // between the two appends a new last period, so `removedAt` lands on a
+      // row nobody checked — and writes a period no activity can fall inside,
+      // which is the silent, permanent loss the whole table exists to prevent.
+      //
+      // Reachable without any interleave at all, because the write carried no
+      // bound check of its own: handing it a date that inverts the current last
+      // period was enough.
+      it('refuses a removal date that would invert the period it lands on', async () => {
+        const bike = await database.createFitnessGear({
+          actorId: actors.pollAuthor.id,
+          kind: 'bike',
+          name: 'Component drift bike'
+        })
+        const component = await database.createFitnessGearComponent({
+          gearId: bike.id,
+          actorId: actors.pollAuthor.id,
+          componentType: 'Chain',
+          addedAt: new Date('2026-01-01T00:00:00.000Z'),
+          removedAt: new Date('2026-03-01T00:00:00.000Z')
+        })
+        // The refit the racing caller never saw: a second period opening today.
+        await database.refitFitnessGearComponent({
+          id: component!.id,
+          gearId: bike.id,
+          actorId: actors.pollAuthor.id
+        })
+
+        const updated = await database.updateFitnessGearComponent({
+          id: component!.id,
+          gearId: bike.id,
+          actorId: actors.pollAuthor.id,
+          // Valid against the FIRST period, which is what a caller holding the
+          // pre-refit snapshot would have checked it against.
+          removedAt: new Date('2026-02-15T00:00:00.000Z')
+        })
+
+        // The second period is left open rather than inverted.
+        expect(updated?.periods).toHaveLength(2)
+        expect(updated?.periods[1].removedAt).toBeUndefined()
+        expect(updated?.periods[1].addedAt).toBeGreaterThan(
+          Date.parse('2026-02-15T00:00:00.000Z')
+        )
+        // And it still counts activities, which an inverted period never can.
+        expect(updated?.removedAt).toBeUndefined()
+      })
+
       // `removedAt: null` remains the precise way to say "this retirement never
       // happened" — it reopens the LAST period rather than opening another one,
       // which is exactly the difference from a refit.
