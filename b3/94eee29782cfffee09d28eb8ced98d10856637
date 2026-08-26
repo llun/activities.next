@@ -1,0 +1,40 @@
+CLAUDE.md
+  s_895dd3c6090136::t_137c890b5f4ab7 35
+app/api/users/[username]/outbox/route.ts
+  s_895dd3c6090136::t_56f11a5523fece 55-58,68-81
+  s_895dd3c6090136::t_fb9adb33755880 5
+lib/services/statuses/actorPublicStatusCount.test.ts
+  s_895dd3c6090136::t_f460bf930970c4 118,125-127
+  s_895dd3c6090136::t_ac2fc4f58f80d5 4
+  s_895dd3c6090136::t_eae3b25b741d74 1-3,5-117,119-124,128-129
+AGENTS.md
+  s_895dd3c6090136::t_129b6651bb4455 2158
+lib/services/statuses/actorPublicStatusCount.ts
+  s_895dd3c6090136::t_ce81eeaa0be775 1-30,32-103
+  s_895dd3c6090136::t_9c5f2a6100e0a4 31
+app/api/users/[username]/outbox/route.test.ts
+  s_895dd3c6090136::t_5676f1e2a38471 288-331
+  s_895dd3c6090136::t_b74e00d82d95b1 4
+  s_895dd3c6090136::t_328a527a8a2ca3 101-105
+lib/utils/activityPubContentNegotiation.ts
+  s_895dd3c6090136::t_6deb5426922645 108,114,120,133-134
+  s_895dd3c6090136::t_2991fae896d6b2 109-113
+lib/utils/activityPubContentNegotiation.test.ts
+  s_895dd3c6090136::t_fc32e34139edd8 99-114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "b394eee29782cfffee09d28eb8ced98d10856637",
+  "prompts": {},
+  "sessions": {
+    "s_895dd3c6090136": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "976185f5-5df9-4b1a-927a-9d20f4178ce3",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
