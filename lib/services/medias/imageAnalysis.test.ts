@@ -88,7 +88,7 @@ describe('imageAnalysis', () => {
     //
     // The space is INTERIOR deliberately. A trailing one is trimmed away
     // before the regex sees it, leaving a 27-character body that the regex
-    // accepts and the structural half rejects for its length - which would
+    // accepts and the structural half rejects for its length — which would
     // pin the opposite of what this block claims.
     it.each([
       {
