@@ -814,13 +814,30 @@ describe('actor archive remote attachment cap', () => {
   // Same shape of hazard, same reason it needs a source assertion: nothing in
   // a result distinguishes a deadline stamped once for the run from one
   // recomputed per attachment, and the second is no bound at all — every
-  // attachment would find the full budget ahead of it. The property is that
-  // `Date.now()` is read where `remoteFetch` is built and NOT inside
-  // `registerAttachmentUrl`'s download branch.
-  it('stamps the budget deadline once, from the parsed budget', () => {
-    expect(SOURCE).toMatch(
-      /deadline:\s*Date\.now\(\)\s*\+\s*args\.remoteFetchBudgetSeconds\s*\*\s*1000\s*[,}]/
+  // attachment would find the full budget ahead of it.
+  //
+  // WHERE it is stamped is the whole property, so asserting the expression
+  // merely EXISTS proves nothing: an earlier version of this test did exactly
+  // that, and moving the identical expression down into the status loop —
+  // rebuilding `remoteFetch` per attachment, which hands every attachment a
+  // full budget — left the whole suite green. The count pins it to one stamp,
+  // and the index comparison pins that one above the loop that spends it,
+  // which is the only place a per-attachment stamp could live.
+  it('stamps the budget deadline once, above the status walk that spends it', () => {
+    const stamps = [
+      ...SOURCE.matchAll(
+        /deadline:\s*Date\.now\(\)\s*\+\s*args\.remoteFetchBudgetSeconds\s*\*\s*1000\s*[,}]/g
+      )
+    ]
+    expect(stamps).toHaveLength(1)
+
+    // Asserted rather than assumed: were this marker renamed, `indexOf` would
+    // answer -1 and the comparison below would be trivially satisfiable.
+    const statusWalkIndex = SOURCE.indexOf(
+      'for await (const status of forEachActorStatus'
     )
+    expect(statusWalkIndex).toBeGreaterThan(0)
+    expect(stamps[0].index).toBeLessThan(statusWalkIndex)
   })
 
   // The property that makes an aggregate bound safe in a BACKUP tool: the
@@ -834,8 +851,14 @@ describe('actor archive remote attachment cap', () => {
   // exact instead: `remoteFetch.deadline` is read once, by the start gate.
   // Wiring it into the fetch needs a second read, and replacing the gate with
   // one fails the pattern below.
+  //
+  // It depends on that exact spelling, so a behaviour-preserving refactor —
+  // destructuring `const { deadline } = remoteFetch` above the gate — fails it
+  // too. That is the price of the guard rather than a bug in it; `matchAll` is
+  // used so such a failure reads as "expected [] to have length 1" instead of
+  // a `TypeError` from `String.match`'s null.
   it('never turns the budget deadline into an abort signal', () => {
-    expect(SOURCE.match(/remoteFetch\.deadline/g)).toHaveLength(1)
+    expect([...SOURCE.matchAll(/remoteFetch\.deadline/g)]).toHaveLength(1)
     expect(SOURCE).toMatch(
       /if\s*\(Date\.now\(\)\s*>=\s*remoteFetch\.deadline\)/
     )

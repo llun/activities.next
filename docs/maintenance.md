@@ -165,10 +165,14 @@ the configured host), `--actor-id`, or `--email` to select the actor.
   redirecting, and the run as a whole stops starting new downloads once
   `--remote-fetch-budget` is spent. A refused, over-size or budget-skipped
   attachment is recorded as a warning in `manifest.json` and its absolute URL
-  is kept, exactly as if the flag had not been passed. One caveat worth knowing
-  before you use it on a hostile account: a downloaded file's extension comes
-  from the URL rather than from its contents, so treat an extracted archive's
-  `media_attachments/remote/` as untrusted rather than serving it over HTTP
+  is kept, exactly as if the flag had not been passed. Two caveats worth
+  knowing before you use it on a hostile account: the size cap bounds each
+  attachment on its own and nothing bounds their total, so a large history can
+  still fill the temporary directory the archive is staged in even though
+  `--remote-fetch-budget` now bounds how long the run takes; and a downloaded
+  file's extension comes from the URL rather than from its contents, so treat
+  an extracted archive's `media_attachments/remote/` as untrusted rather than
+  serving it over HTTP
 - `--remote-fetch-budget <seconds>` — how long the export may go on **starting**
   remote attachment downloads (default 3600). Inert without
   `--fetch-remote-attachments`. The per-attachment ten minutes above bounds one
