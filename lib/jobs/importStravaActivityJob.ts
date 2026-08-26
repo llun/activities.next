@@ -52,7 +52,7 @@ import { Visibility } from '@/lib/types/mastodon/visibility'
 import { getManufacturerKeyFromDeviceName } from '@/lib/utils/fitnessDeviceBrands'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
-import { getSafeImageDownloadUrl } from '@/lib/utils/safeImageDownloadUrl'
+import { safeImageFetch } from '@/lib/utils/safeImageDownload'
 import {
   SAFE_DOWNLOAD_MAX_BYTES,
   readResponseArrayBufferWithLimit
@@ -179,8 +179,11 @@ const attachStravaPhotosToStatus = async ({
     }
 
     try {
-      const photoUrl = await getSafeImageDownloadUrl(photo.url)
-      if (!photoUrl) {
+      // `safeImageFetch` re-runs the URL guard on every redirect hop. A bare
+      // `fetch` follows redirects by default, so guarding only `photo.url`
+      // left the request that actually went out unchecked.
+      const photoResponse = await safeImageFetch(photo.url)
+      if (!photoResponse) {
         logger.warn({
           message: 'Skipping Strava photo with unsafe URL',
           actorId,
@@ -190,7 +193,6 @@ const attachStravaPhotosToStatus = async ({
         continue
       }
 
-      const photoResponse = await fetch(photoUrl)
       if (!photoResponse.ok) {
         logger.warn({
           message: 'Failed to download Strava photo',

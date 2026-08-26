@@ -9,21 +9,22 @@ import {
   buildInstanceHosts,
   downloadRemoteImage,
   getAttachmentMediaHost,
+  getFileBuffer,
   getLocalStoragePath,
   parseArgs
 } from './backfillMediaBlurhash'
 
-vi.mock('@/lib/utils/safeImageDownloadUrl', () => ({
-  getSafeImageDownloadUrl: vi.fn()
+vi.mock('@/lib/utils/safeImageDownload', () => ({
+  safeImageFetch: vi.fn()
 }))
 
 vi.mock('@/lib/services/medias/imageAnalysis', () => ({
   analyzeImageBuffer: vi.fn()
 }))
 
-const { getSafeImageDownloadUrl } = await vi.importMock<
-  typeof import('@/lib/utils/safeImageDownloadUrl')
->('@/lib/utils/safeImageDownloadUrl')
+const { safeImageFetch } = await vi.importMock<
+  typeof import('@/lib/utils/safeImageDownload')
+>('@/lib/utils/safeImageDownload')
 
 const { analyzeImageBuffer } = await vi.importMock<
   typeof import('@/lib/services/medias/imageAnalysis')
@@ -88,25 +89,24 @@ describe('buildInstanceHosts', () => {
     expect(buildInstanceHosts({ host }).fallbackHost).toBe(expected)
   })
 
-  it('carries every trusted host into ownHosts', () => {
-    const { ownHosts } = buildInstanceHosts({
+  it('carries every trusted host into the rule list', () => {
+    const { ownHostRules } = buildInstanceHosts({
       host: 'llun.test',
       trustedHosts: ['https://alias.llun.test', 'other.test:443']
     })
-    expect([...ownHosts].sort()).toEqual([
-      'alias.llun.test',
+    expect(ownHostRules).toEqual([
       'llun.test',
-      'other.test'
+      'https://alias.llun.test',
+      'other.test:443'
     ])
   })
 
   it('drops empty host entries rather than matching an empty authority', () => {
-    const { ownHosts } = buildInstanceHosts({
+    const { ownHostRules } = buildInstanceHosts({
       host: 'llun.test',
       trustedHosts: ['', '   ']
     })
-    expect(ownHosts.has('')).toBe(false)
-    expect(ownHosts.size).toBe(1)
+    expect(ownHostRules).toEqual(['llun.test'])
   })
 })
 
@@ -115,7 +115,7 @@ describe('getLocalStoragePath', () => {
     expect(
       getLocalStoragePath(
         'https://llun.test/api/v1/files/medias/a.jpg',
-        HOSTS.ownHosts
+        HOSTS.ownHostRules
       )
     ).toBe('medias/a.jpg')
   })
@@ -124,7 +124,7 @@ describe('getLocalStoragePath', () => {
     expect(
       getLocalStoragePath(
         'https://alias.llun.test/api/v1/files/medias/a.jpg',
-        HOSTS.ownHosts
+        HOSTS.ownHostRules
       )
     ).toBe('medias/a.jpg')
   })
@@ -132,11 +132,73 @@ describe('getLocalStoragePath', () => {
   // The regression this guards: `/api/v1/files/` is this project's own route,
   // so every OTHER activities.next instance serves attachments under exactly
   // that path. A substring match called those local storage paths.
+  // `ACTIVITIES_TRUSTED_HOSTS` supports `*.example.com` entries everywhere else
+  // in the app, so a literal Set lookup silently disowned a wildcard-covered
+  // subdomain's own storage URLs.
+  it('recovers the stored path from a wildcard-trusted subdomain', () => {
+    const { ownHostRules } = buildInstanceHosts({
+      host: 'llun.test',
+      trustedHosts: ['*.llun.test']
+    })
+    expect(
+      getLocalStoragePath(
+        'https://tenant1.llun.test/api/v1/files/medias/a.jpg',
+        ownHostRules
+      )
+    ).toBe('medias/a.jpg')
+  })
+
+  it('still refuses a foreign host when a wildcard rule is configured', () => {
+    const { ownHostRules } = buildInstanceHosts({
+      host: 'llun.test',
+      trustedHosts: ['*.llun.test']
+    })
+    expect(
+      getLocalStoragePath(
+        'https://evil.example/api/v1/files/medias/a.jpg',
+        ownHostRules
+      )
+    ).toBeNull()
+  })
+
+  it('recognises a loopback host that normalizeHost refuses', () => {
+    const { ownHostRules } = buildInstanceHosts({ host: 'localhost:3000' })
+    expect(
+      getLocalStoragePath(
+        'http://localhost:3000/api/v1/files/medias/a.jpg',
+        ownHostRules
+      )
+    ).toBe('medias/a.jpg')
+  })
+
+  // `new URL` normalises a literal `../`, but a percent-encoded one survives
+  // it and decoding puts it back — so the check has to happen after decoding.
+  it.each([
+    {
+      description: 'rejects a percent-encoded traversal',
+      url: 'https://llun.test/api/v1/files/%2e%2e%2f%2e%2e%2fetc/passwd'
+    },
+    {
+      description: 'rejects an encoded-slash traversal',
+      url: 'https://llun.test/api/v1/files/..%2F..%2Fetc%2Fpasswd'
+    },
+    {
+      description: 'rejects a decoded absolute path',
+      url: 'https://llun.test/api/v1/files/%2Fetc%2Fpasswd'
+    },
+    {
+      description: 'rejects a host-relative traversal',
+      url: '/api/v1/files/../../../../etc/passwd'
+    }
+  ])('$description', ({ url }) => {
+    expect(getLocalStoragePath(url, HOSTS.ownHostRules)).toBeNull()
+  })
+
   it('returns null for the same path on a remote instance', () => {
     expect(
       getLocalStoragePath(
         'https://remote.example/api/v1/files/medias/a.jpg',
-        HOSTS.ownHosts
+        HOSTS.ownHostRules
       )
     ).toBeNull()
   })
@@ -145,14 +207,14 @@ describe('getLocalStoragePath', () => {
     expect(
       getLocalStoragePath(
         'https://remote.example/redirect?to=/api/v1/files/medias/a.jpg',
-        HOSTS.ownHosts
+        HOSTS.ownHostRules
       )
     ).toBeNull()
   })
 
   it('accepts a host-relative URL', () => {
     expect(
-      getLocalStoragePath('/api/v1/files/medias/a.jpg', HOSTS.ownHosts)
+      getLocalStoragePath('/api/v1/files/medias/a.jpg', HOSTS.ownHostRules)
     ).toBe('medias/a.jpg')
   })
 
@@ -160,7 +222,7 @@ describe('getLocalStoragePath', () => {
     expect(
       getLocalStoragePath(
         'https://llun.test/api/v1/files/medias/a.jpg?v=2',
-        HOSTS.ownHosts
+        HOSTS.ownHostRules
       )
     ).toBe('medias/a.jpg')
   })
@@ -169,7 +231,7 @@ describe('getLocalStoragePath', () => {
     expect(
       getLocalStoragePath(
         'https://llun.test/api/v1/files/medias/a%20b.jpg',
-        HOSTS.ownHosts
+        HOSTS.ownHostRules
       )
     ).toBe('medias/a b.jpg')
   })
@@ -185,7 +247,7 @@ describe('getLocalStoragePath', () => {
     },
     { description: 'returns null for an unparseable URL', url: 'not a url' }
   ])('$description', ({ url }) => {
-    expect(getLocalStoragePath(url, HOSTS.ownHosts)).toBeNull()
+    expect(getLocalStoragePath(url, HOSTS.ownHostRules)).toBeNull()
   })
 })
 
@@ -218,7 +280,7 @@ describe('getAttachmentMediaHost', () => {
 
 describe('downloadRemoteImage', () => {
   beforeEach(() => {
-    vi.mocked(getSafeImageDownloadUrl).mockReset()
+    vi.mocked(safeImageFetch).mockReset()
     vi.spyOn(console, 'warn').mockImplementation(() => undefined)
   })
 
@@ -226,63 +288,77 @@ describe('downloadRemoteImage', () => {
     vi.restoreAllMocks()
   })
 
-  it('returns null without fetching when the URL is refused by the guard', async () => {
-    vi.mocked(getSafeImageDownloadUrl).mockResolvedValue(null)
-    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+  const imageResponse = (
+    body: Uint8Array<ArrayBuffer>,
+    contentType = 'image/jpeg'
+  ) => new Response(body, { headers: { 'content-type': contentType } })
+
+  it('returns null when the guarded fetch refuses the URL', async () => {
+    vi.mocked(safeImageFetch).mockResolvedValue(null)
 
     expect(await downloadRemoteImage('http://169.254.169.254/x.jpg')).toBeNull()
-    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(safeImageFetch).toHaveBeenCalledWith('http://169.254.169.254/x.jpg')
   })
 
   it('returns null when the response is not an image', async () => {
-    const url = new URL('https://remote.example/x.jpg')
-    vi.mocked(getSafeImageDownloadUrl).mockResolvedValue(url)
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    vi.mocked(safeImageFetch).mockResolvedValue(
       new Response('<html></html>', {
         headers: { 'content-type': 'text/html; charset=utf-8' }
       })
     )
 
-    expect(await downloadRemoteImage(url.toString())).toBeNull()
+    expect(await downloadRemoteImage('https://remote.example/x.jpg')).toBeNull()
   })
 
   it('returns null on a non-ok response', async () => {
-    const url = new URL('https://remote.example/x.jpg')
-    vi.mocked(getSafeImageDownloadUrl).mockResolvedValue(url)
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    vi.mocked(safeImageFetch).mockResolvedValue(
       new Response('nope', { status: 404 })
     )
 
-    expect(await downloadRemoteImage(url.toString())).toBeNull()
+    expect(await downloadRemoteImage('https://remote.example/x.jpg')).toBeNull()
   })
 
   it('returns the bytes for an image response', async () => {
-    const url = new URL('https://remote.example/x.jpg')
-    vi.mocked(getSafeImageDownloadUrl).mockResolvedValue(url)
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(new Uint8Array([1, 2, 3]), {
-        headers: { 'content-type': 'image/jpeg' }
-      })
+    vi.mocked(safeImageFetch).mockResolvedValue(
+      imageResponse(new Uint8Array([1, 2, 3]))
     )
 
-    const buffer = await downloadRemoteImage(url.toString())
+    const buffer = await downloadRemoteImage('https://remote.example/x.jpg')
     expect(buffer && [...buffer]).toEqual([1, 2, 3])
   })
 
-  // `readResponseArrayBufferWithLimit` throws once the running total passes the
-  // cap, which is what stops a hostile row from being read into memory whole.
-  it('throws rather than buffering a body past the size cap', async () => {
-    const url = new URL('https://remote.example/huge.jpg')
-    vi.mocked(getSafeImageDownloadUrl).mockResolvedValue(url)
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(new Uint8Array(11 * 1024 * 1024), {
-        headers: { 'content-type': 'image/jpeg' }
-      })
+  it('returns null rather than an empty buffer for a zero-length body', async () => {
+    vi.mocked(safeImageFetch).mockResolvedValue(
+      imageResponse(new Uint8Array([]))
     )
 
-    await expect(downloadRemoteImage(url.toString())).rejects.toThrow(
-      /exceeds byte limit/
+    expect(await downloadRemoteImage('https://remote.example/x.jpg')).toBeNull()
+  })
+
+  // The cap is enforced inside `readResponseArrayBufferWithLimit`, which
+  // throws. `downloadRemoteImage` swallows that so one hostile row cannot end
+  // the sweep — its doc comment promises exactly this, so it is worth pinning.
+  it('returns null and warns instead of buffering a body past the size cap', async () => {
+    vi.mocked(safeImageFetch).mockResolvedValue(
+      imageResponse(new Uint8Array(11 * 1024 * 1024))
     )
+
+    expect(
+      await downloadRemoteImage('https://remote.example/huge.jpg')
+    ).toBeNull()
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('huge.jpg'),
+      expect.objectContaining({
+        message: expect.stringContaining('byte limit')
+      })
+    )
+  })
+
+  it('returns null and warns when the guarded fetch itself throws', async () => {
+    vi.mocked(safeImageFetch).mockRejectedValue(new Error('network down'))
+
+    expect(await downloadRemoteImage('https://remote.example/x.jpg')).toBeNull()
+    expect(console.warn).toHaveBeenCalled()
   })
 })
 
@@ -490,7 +566,7 @@ describe('backfillMediaBlurhash execution', () => {
       actorId: 'https://remote.example/users/them',
       mediaId: null,
       mediaType: 'image/jpeg',
-      url: 'https://remote.example/api/v1/files/../../secret.jpg',
+      url: 'https://remote.example/api/v1/files/secret.jpg',
       blurhash: null
     })
 
@@ -508,7 +584,7 @@ describe('backfillMediaBlurhash execution', () => {
   })
 
   it('skips the remote download entirely under --local-only', async () => {
-    vi.mocked(getSafeImageDownloadUrl).mockReset()
+    vi.mocked(safeImageFetch).mockReset()
 
     await db('attachments').insert({
       id: 'att-1',
@@ -531,14 +607,95 @@ describe('backfillMediaBlurhash execution', () => {
       HOSTS
     )
 
-    expect(getSafeImageDownloadUrl).not.toHaveBeenCalled()
+    expect(safeImageFetch).not.toHaveBeenCalled()
     const updated = await db('attachments').where('id', 'att-1').first()
     expect(updated.blurhash).toBeNull()
   })
 
+  // The whole `if (buffer) { analyzeImageBuffer(...) }` block could be turned
+  // into a no-op without failing anything: every other test in this block ends
+  // with `buffer === null`.
+  it('writes an analysed blurhash and focus back onto a local attachment', async () => {
+    await db('attachments').insert({
+      id: 'att-1',
+      statusId: 'status-1',
+      actorId: 'https://llun.test/users/test',
+      mediaId: null,
+      mediaType: 'image/jpeg',
+      url: 'https://llun.test/api/v1/files/medias/a.jpg',
+      blurhash: null,
+      focusX: null,
+      focusY: null
+    })
+
+    const mockStorage = {
+      getFile: vi
+        .fn()
+        .mockResolvedValue({ type: 'buffer', buffer: Buffer.from([1, 2, 3]) })
+    } as never
+    vi.mocked(analyzeImageBuffer).mockResolvedValue({
+      blurhash: 'ANALYSEDHASH',
+      focus: { x: 0.3, y: -0.4 }
+    })
+
+    await backfillAttachments(db, mockStorage, options(), HOSTS)
+
+    const updated = await db('attachments').where('id', 'att-1').first()
+    expect(updated.blurhash).toBe('ANALYSEDHASH')
+    expect(updated.focusX).toBe(0.3)
+    expect(updated.focusY).toBe(-0.4)
+  })
+
+  it('analyses a remote attachment through the download guard', async () => {
+    await db('attachments').insert({
+      id: 'att-1',
+      statusId: 'status-1',
+      actorId: 'https://remote.example/users/them',
+      mediaId: null,
+      mediaType: 'image/jpeg',
+      url: 'https://remote.example/media/photo.jpg',
+      blurhash: null
+    })
+
+    vi.mocked(safeImageFetch).mockResolvedValue(
+      new Response(new Uint8Array([9, 9, 9]), {
+        headers: { 'content-type': 'image/jpeg' }
+      })
+    )
+    vi.mocked(analyzeImageBuffer).mockResolvedValue({
+      blurhash: 'REMOTEHASH',
+      focus: null
+    })
+
+    const mockStorage = { getFile: vi.fn().mockResolvedValue(null) } as never
+    await backfillAttachments(db, mockStorage, options(), HOSTS)
+
+    const updated = await db('attachments').where('id', 'att-1').first()
+    expect(updated.blurhash).toBe('REMOTEHASH')
+  })
+
+  it('warns when a local attachment file is missing from storage', async () => {
+    await db('attachments').insert({
+      id: 'att-1',
+      statusId: 'status-1',
+      actorId: 'https://llun.test/users/test',
+      mediaId: null,
+      mediaType: 'image/jpeg',
+      url: 'https://llun.test/api/v1/files/medias/gone.jpg',
+      blurhash: null
+    })
+
+    const mockStorage = { getFile: vi.fn().mockResolvedValue(null) } as never
+    await backfillAttachments(db, mockStorage, options(), HOSTS)
+
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Could not read file buffer at medias/gone.jpg')
+    )
+  })
+
   it('runs a remote attachment URL through the download guard by default', async () => {
-    vi.mocked(getSafeImageDownloadUrl).mockReset()
-    vi.mocked(getSafeImageDownloadUrl).mockResolvedValue(null)
+    vi.mocked(safeImageFetch).mockReset()
+    vi.mocked(safeImageFetch).mockResolvedValue(null)
 
     await db('attachments').insert({
       id: 'att-1',
@@ -556,8 +713,102 @@ describe('backfillMediaBlurhash execution', () => {
 
     await backfillAttachments(db, mockStorage, options(), HOSTS)
 
-    expect(getSafeImageDownloadUrl).toHaveBeenCalledWith(
+    expect(safeImageFetch).toHaveBeenCalledWith(
       'https://remote.example/media/photo.jpg'
+    )
+  })
+})
+
+describe('getFileBuffer', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('returns the buffer a storage driver hands back directly', async () => {
+    const storage = {
+      getFile: vi
+        .fn()
+        .mockResolvedValue({ type: 'buffer', buffer: Buffer.from([7, 8]) })
+    } as never
+
+    const buffer = await getFileBuffer(storage, 'medias/a.jpg')
+    expect(buffer && [...buffer]).toEqual([7, 8])
+  })
+
+  it('returns null when the file is missing from storage', async () => {
+    const storage = { getFile: vi.fn().mockResolvedValue(null) } as never
+    expect(await getFileBuffer(storage, 'medias/a.jpg')).toBeNull()
+  })
+
+  // The S3 driver answers with a redirect to the configured CDN when one is
+  // set, so this branch is the only way an object-storage deployment reads a
+  // file at all — deleting it whole used to pass every test.
+  it('follows a storage redirect and returns the bytes', async () => {
+    const storage = {
+      getFile: vi.fn().mockResolvedValue({
+        type: 'redirect',
+        redirectUrl: 'https://cdn.example/medias/a.jpg'
+      })
+    } as never
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(new Uint8Array([4, 5, 6]))
+    )
+
+    const buffer = await getFileBuffer(storage, 'medias/a.jpg')
+    expect(buffer && [...buffer]).toEqual([4, 5, 6])
+  })
+
+  it('refuses to follow a redirect away from the storage URL', async () => {
+    const storage = {
+      getFile: vi.fn().mockResolvedValue({
+        type: 'redirect',
+        redirectUrl: 'https://cdn.example/medias/a.jpg'
+      })
+    } as never
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(new Uint8Array([1])))
+
+    await getFileBuffer(storage, 'medias/a.jpg')
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://cdn.example/medias/a.jpg',
+      expect.objectContaining({ redirect: 'error' })
+    )
+  })
+
+  it('returns null when the storage redirect answers non-ok', async () => {
+    const storage = {
+      getFile: vi.fn().mockResolvedValue({
+        type: 'redirect',
+        redirectUrl: 'https://cdn.example/medias/a.jpg'
+      })
+    } as never
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response('missing', { status: 404 })
+    )
+
+    expect(await getFileBuffer(storage, 'medias/a.jpg')).toBeNull()
+  })
+
+  // `PRESIGNED_ANALYSIS_MAX_BYTES` is 50 MB; a body past it must raise rather
+  // than be buffered whole.
+  it('throws rather than buffering a stored file past the cap', async () => {
+    const storage = {
+      getFile: vi.fn().mockResolvedValue({
+        type: 'redirect',
+        redirectUrl: 'https://cdn.example/huge.jpg'
+      })
+    } as never
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(new Uint8Array(51 * 1024 * 1024))
+    )
+
+    await expect(getFileBuffer(storage, 'huge.jpg')).rejects.toThrow(
+      /exceeds byte limit/
     )
   })
 })

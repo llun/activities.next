@@ -633,9 +633,9 @@ NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --local-only
 
 ### Remote attachment URLs
 
-An attachment federated to this instance carries a URL its remote author chose, so the script treats it as untrusted input reached from inside the deployment. Before any such URL is fetched it must be HTTPS, carry no credentials, and resolve to a public address — a URL naming the local network is skipped. The response must declare an `image/` content type, and the body is capped at 10 MB. Pass `--local-only` to skip these downloads entirely and backfill only from files this instance stores.
+An attachment federated to this instance carries a URL its remote author chose, so the script treats it as untrusted input reached from inside the deployment. Before any such URL is fetched it must be HTTPS, carry no credentials, and resolve to a public address — a URL naming the local network is skipped. **Every redirect hop is re-checked the same way**, because a public host answering `302` with a private `Location` would otherwise send the request somewhere the first check never saw; a chain longer than three hops is abandoned. The response must declare an `image/` content type, and the body is capped at 10 MB. Pass `--local-only` to skip these downloads entirely and backfill only from files this instance stores.
 
-A URL is treated as local storage only when its host is this instance's own (`ACTIVITIES_HOST` or one of `ACTIVITIES_TRUSTED_HOSTS`). Every other activities.next instance serves attachments under the same `/api/v1/files/` path, so the host is what tells the two apart.
+A URL is treated as local storage only when its host is this instance's own — `ACTIVITIES_HOST` or one of `ACTIVITIES_TRUSTED_HOSTS`, wildcard entries such as `*.example.com` included, matched the same way a request's `Host` header is. Every other activities.next instance serves attachments under the same `/api/v1/files/` path, so the host is what tells the two apart. A path that walks upwards once decoded is refused rather than handed to storage.
 
 ## Related Documentation
 

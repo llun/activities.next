@@ -10,10 +10,8 @@
  *   --batch-size   Number of rows to process per batch (default: 50)
  *   --dry-run      Analyze and print planned updates without modifying the database
  *   --force        Recompute the blurhash even on rows that already have one.
- *                  Focal points are only ever FILLED IN, never overwritten —
- *                  `PUT /api/v1/media/:id` lets an owner set one by hand and no
- *                  column records whether a stored point was set that way, so
- *                  recomputing would silently discard the owner's choice.
+ *                  Focal points are only ever filled in, never overwritten;
+ *                  `docs/maintenance.md` explains why.
  *   --local-only   Never fetch a remote attachment URL; only read files this
  *                  instance stores itself
  */
@@ -27,7 +25,12 @@ import { getMediaStorage } from '@/lib/services/medias'
 import { PRESIGNED_ANALYSIS_MAX_BYTES } from '@/lib/services/medias/constants'
 import { analyzeImageBuffer } from '@/lib/services/medias/imageAnalysis'
 import { getMediaFileUrl } from '@/lib/services/medias/mediaFileUrl'
-import { getSafeImageDownloadUrl } from '@/lib/utils/safeImageDownloadUrl'
+import {
+  getTrustedHostRules,
+  hostMatchesRule,
+  normalizeHost
+} from '@/lib/utils/host'
+import { safeImageFetch } from '@/lib/utils/safeImageDownload'
 import {
   SAFE_DOWNLOAD_MAX_BYTES,
   readResponseArrayBufferWithLimit
@@ -40,8 +43,7 @@ loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
 // one of THIS instance's hosts names a stored path (see `getMediaFileUrl`).
 const MEDIA_FILE_URL_PATH = '/api/v1/files/'
 
-// The remote branch reads an attachment URL a federating actor put on a note.
-// `AbortSignal.timeout` bounds the whole exchange including the body stream;
+// Bounds each download's whole exchange, body stream included;
 // `readResponseArrayBufferWithLimit` bounds how much of it is kept.
 const REMOTE_IMAGE_TIMEOUT_MS = 10_000
 
@@ -55,8 +57,10 @@ export interface CliOptions {
 export interface InstanceHosts {
   // Host used to build a media URL when the owning actor row cannot be read.
   fallbackHost: string
-  // Every authority this instance serves `/api/v1/files/` from.
-  ownHosts: ReadonlySet<string>
+  // Every authority this instance serves `/api/v1/files/` from, as the same
+  // rule list `isHostTrustedByRules` consumes — so a `*.example.com` entry
+  // matches the way it does everywhere else in the app.
+  ownHostRules: readonly string[]
 }
 
 export const parseArgs = (args: string[]): CliOptions => {
@@ -85,18 +89,34 @@ export const parseArgs = (args: string[]): CliOptions => {
 }
 
 /**
- * Canonicalises an authority for comparison. `new URL(...).host` already
- * lowercases the hostname and drops the scheme's own default port, so dropping
- * both default ports on each side is what makes a configured `example.com:443`
- * and a stored `https://example.com/...` compare equal.
+ * Whether a URL's authority is one this instance serves.
+ *
+ * `normalizeHost` + `hostMatchesRule` are the app's own matcher (the pair
+ * behind `isHostTrustedByRules`), so a wildcard `ACTIVITIES_TRUSTED_HOSTS`
+ * entry like `*.example.com` matches here exactly as it does for a request
+ * Host header. `isHostTrustedByRules` itself is not reused because
+ * `normalizeHost` deliberately answers null for loopback names, which would
+ * make a dev instance on `localhost:3000` fail to recognise its own storage
+ * URLs — so a loopback authority falls back to literal equality.
  */
-const canonicalAuthority = (value: string): string =>
-  value
-    .trim()
-    .replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
-    .replace(/[/?#].*$/, '')
-    .toLowerCase()
-    .replace(/:(?:80|443)$/, '')
+const isOwnAuthority = (
+  authority: string,
+  ownHostRules: readonly string[]
+): boolean => {
+  const normalizedHost = normalizeHost(authority, { allowWildcard: false })
+  if (normalizedHost) {
+    return ownHostRules.some((rule) => {
+      const normalizedRule = normalizeHost(rule)
+      return normalizedRule
+        ? hostMatchesRule(normalizedHost, normalizedRule)
+        : false
+    })
+  }
+
+  // Loopback: `normalizeHost` refused both sides, so compare them raw.
+  const candidate = authority.trim().toLowerCase()
+  return ownHostRules.some((rule) => rule.trim().toLowerCase() === candidate)
+}
 
 /**
  * The hosts this instance answers to. `trustedHosts` carries the extra domains
@@ -110,15 +130,21 @@ export const buildInstanceHosts = ({
 }: {
   host: string
   trustedHosts?: readonly string[] | null
-}): InstanceHosts => {
-  const fallbackHost = canonicalAuthority(host)
-  const ownHosts = new Set(
-    [host, ...(trustedHosts ?? [])]
-      .map(canonicalAuthority)
-      .filter((value) => value.length > 0)
-  )
-  return { fallbackHost, ownHosts }
-}
+}): InstanceHosts => ({
+  // Normalised the way `getMediaFileUrl` will consume it: the configured host
+  // may carry a scheme, a trailing path, or an explicit default port, none of
+  // which belong in a generated URL's authority.
+  fallbackHost: host
+    .trim()
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
+    .replace(/[/?#].*$/, '')
+    .toLowerCase()
+    .replace(/:(?:80|443)$/, ''),
+  ownHostRules: getTrustedHostRules({
+    host,
+    trustedHosts: trustedHosts ?? []
+  }).filter((rule) => rule.trim().length > 0)
+})
 
 /**
  * The host a stored media path is served from for this attachment.
@@ -154,58 +180,85 @@ export const getAttachmentMediaHost = (
  */
 const getOwnPathname = (
   rawUrl: string,
-  ownHosts: ReadonlySet<string>
+  ownHostRules: readonly string[]
 ): string | null => {
-  // A host-relative URL can only be served by this instance.
-  if (rawUrl.startsWith('/')) return rawUrl.split(/[?#]/)[0]
+  // A host-relative URL can only be served by this instance. Resolve it against
+  // a placeholder origin so `..` segments are normalised away exactly as they
+  // are on the absolute branch — reading it as a raw string was not.
+  if (rawUrl.startsWith('/')) {
+    try {
+      return new URL(rawUrl, 'https://placeholder.invalid').pathname
+    } catch {
+      return null
+    }
+  }
 
   try {
     const parsed = new URL(rawUrl)
-    if (!ownHosts.has(canonicalAuthority(parsed.host))) return null
-    return parsed.pathname
+    return isOwnAuthority(parsed.host, ownHostRules) ? parsed.pathname : null
   } catch {
     return null
   }
 }
 
+// A decoded segment that walks upwards, or an absolute decoded path, is never a
+// storage path. `new URL` normalises a LITERAL `../` out of the pathname, but a
+// percent-encoded one survives it and `decodeURIComponent` puts it back — so
+// the check has to happen after decoding. Both storage drivers refuse such a
+// path anyway; a maintenance sweep should not be asking them to.
+const isTraversingStoragePath = (storagePath: string) =>
+  storagePath.startsWith('/') ||
+  storagePath.split('/').some((segment) => segment === '..')
+
 export const getLocalStoragePath = (
   rawUrl: string,
-  ownHosts: ReadonlySet<string>
+  ownHostRules: readonly string[]
 ): string | null => {
-  const pathname = getOwnPathname(rawUrl, ownHosts)
+  const pathname = getOwnPathname(rawUrl, ownHostRules)
   if (!pathname?.startsWith(MEDIA_FILE_URL_PATH)) return null
 
   const encodedPath = pathname.slice(MEDIA_FILE_URL_PATH.length)
   if (!encodedPath) return null
 
+  let storagePath: string
   try {
-    return decodeURIComponent(encodedPath)
+    storagePath = decodeURIComponent(encodedPath)
   } catch {
-    return encodedPath
+    storagePath = encodedPath
   }
+
+  return isTraversingStoragePath(storagePath) ? null : storagePath
 }
 
 /**
  * Downloads a remote attachment image for analysis.
  *
  * The URL comes off a note a remote actor federated to us, so it is untrusted
- * input reached from INSIDE the deployment: the guard rejects a URL naming the
- * local network before the request is made, the content type must claim an
- * image, and the body is capped. Returns null (never throws) so one hostile row
- * cannot end the sweep.
+ * input reached from INSIDE the deployment: `safeImageFetch` refuses a URL
+ * naming the local network and re-checks every redirect hop, the content type
+ * must claim an image, and the body is capped.
+ *
+ * Genuinely returns null rather than throwing — an over-large body raises
+ * inside `readResponseArrayBufferWithLimit`, and swallowing it here keeps one
+ * hostile row from ending the sweep AND keeps the rejection as visible as the
+ * others.
  */
 export const downloadRemoteImage = async (
   rawUrl: string
 ): Promise<Buffer | null> => {
-  const safeUrl = await getSafeImageDownloadUrl(rawUrl)
-  if (!safeUrl) {
-    console.warn(`Skipping unsafe or non-HTTPS attachment URL: ${rawUrl}`)
+  let response: Response | null
+  try {
+    response = await safeImageFetch(rawUrl)
+  } catch (fetchError) {
+    console.warn(`Failed to download ${rawUrl}:`, fetchError)
     return null
   }
 
-  const response = await fetch(safeUrl, {
-    signal: AbortSignal.timeout(REMOTE_IMAGE_TIMEOUT_MS)
-  })
+  if (!response) {
+    console.warn(`Skipping unsafe, redirected or non-HTTPS URL: ${rawUrl}`)
+    return null
+  }
+
   if (!response.ok) {
     await response.body?.cancel().catch(() => undefined)
     console.warn(`Failed to download ${rawUrl}: HTTP ${response.status}`)
@@ -223,12 +276,17 @@ export const downloadRemoteImage = async (
     return null
   }
 
-  const arrayBuffer = await readResponseArrayBufferWithLimit(
-    response,
-    SAFE_DOWNLOAD_MAX_BYTES,
-    'Remote attachment image'
-  )
-  return arrayBuffer.byteLength > 0 ? Buffer.from(arrayBuffer) : null
+  try {
+    const arrayBuffer = await readResponseArrayBufferWithLimit(
+      response,
+      SAFE_DOWNLOAD_MAX_BYTES,
+      'Remote attachment image'
+    )
+    return arrayBuffer.byteLength > 0 ? Buffer.from(arrayBuffer) : null
+  } catch (readError) {
+    console.warn(`Skipping ${rawUrl}:`, readError)
+    return null
+  }
 }
 
 export const getFileBuffer = async (
@@ -240,8 +298,13 @@ export const getFileBuffer = async (
   if (fileOutput.type === 'buffer') return fileOutput.buffer
   if (fileOutput.type === 'redirect') {
     // Our own presigned URL rather than untrusted input, so no SSRF guard — but
-    // still capped, at the same ceiling the S3 driver analyses uploads under.
-    const res = await fetch(fileOutput.redirectUrl)
+    // still capped at the ceiling the S3 driver analyses uploads under, still
+    // timed out so a stalled CDN cannot hang the sweep, and still not followed
+    // anywhere: this URL is supposed to serve bytes, not redirect.
+    const res = await fetch(fileOutput.redirectUrl, {
+      redirect: 'error',
+      signal: AbortSignal.timeout(REMOTE_IMAGE_TIMEOUT_MS)
+    })
     if (res.ok) {
       return Buffer.from(
         await readResponseArrayBufferWithLimit(
@@ -453,10 +516,17 @@ export const backfillAttachments = async (
           let buffer: Buffer | null = null
           const targetPath = getLocalStoragePath(
             row.url,
-            instanceHosts.ownHosts
+            instanceHosts.ownHostRules
           )
           if (targetPath) {
             buffer = await getFileBuffer(storage, targetPath)
+            if (!buffer) {
+              // `backfillMedias` warns for the identical case; without this the
+              // local half of the sweep is the only silent one left.
+              console.warn(
+                `[attachments ${row.id}] Could not read file buffer at ${targetPath}`
+              )
+            }
           } else if (!options.localOnly) {
             buffer = await downloadRemoteImage(row.url)
           }
