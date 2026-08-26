@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { resolveStatusFromPath } from '@/app/(timeline)/[actor]/[status]/resolveStatusFromPath'
+import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -103,7 +104,11 @@ describe('GET /api/users/[username]/statuses/[statusId]', () => {
 
     const data = await response.json()
     expect(data).toMatchObject({
-      '@context': 'https://www.w3.org/ns/activitystreams',
+      // The Note context, not the bare ActivityStreams URL: this object
+      // carries `interactionPolicy` and may carry quote aliases and an
+      // attachment's blurhash/focalPoint, all of which a JSON-LD-processing
+      // receiver drops unless the terms are declared.
+      '@context': NOTE_ACTIVITY_CONTEXT,
       id: 'https://example.com/users/test/statuses/123',
       type: 'Note'
     })
