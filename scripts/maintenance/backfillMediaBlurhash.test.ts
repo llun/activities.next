@@ -873,47 +873,64 @@ describe('backfillMediaBlurhash execution', () => {
   )
 
   // The counts do NOT partition `processed`. A row whose `mediaId` resolves to
-  // nothing can still be repaired from its own image bytes, which is the norm
-  // for an invalid `mediaId` because nothing was ever deleted — the file behind
-  // `url` is still there. Pinned so the overlap reads as intended rather than
-  // being rediscovered as a bug, and so nobody "fixes" the summary into a
-  // partition it was never meant to be.
-  it('counts a warned attachment that the analysis step still repairs', async () => {
-    vi.mocked(analyzeImageBuffer).mockResolvedValue({
-      blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4',
-      focus: null
-    })
-
-    await db('attachments').insert({
-      id: 'att-1',
-      statusId: 'status-1',
-      actorId: 'https://llun.test/users/test',
+  // nothing can still be repaired from its own image bytes, so the warning and
+  // the repair have to be asserted TOGETHER — otherwise suppressing the warning
+  // for exactly the self-healing rows passes. Both branches get a case, because
+  // guarding one and not its twin leaves the same hole on the other side.
+  //
+  // Self-healing is reachable for a deleted media row too: the delete route
+  // removes the stored bytes best-effort and drops the row regardless (see
+  // `app/api/v1/accounts/media/[mediaId]/route.ts`), so the file behind `url`
+  // can outlive the `medias` row that named it.
+  it.each([
+    {
+      description: 'an invalid mediaId',
       mediaId: 'abc',
-      mediaType: 'image/jpeg',
-      url: 'https://llun.test/api/v1/files/medias/orig.jpg',
-      blurhash: null
-    })
+      expectedWarning: 'mediaId "abc" is not a media row id',
+      expectedSummary:
+        'Attachments complete: processed 1, updated 1, 0 whose media row is gone, 1 with an invalid mediaId'
+    },
+    {
+      description: 'a deleted media row',
+      mediaId: '404',
+      expectedWarning: 'media 404 no longer exists',
+      expectedSummary:
+        'Attachments complete: processed 1, updated 1, 1 whose media row is gone, 0 with an invalid mediaId'
+    }
+  ])(
+    'still warns for $description on a row it repairs',
+    async ({ mediaId, expectedWarning, expectedSummary }) => {
+      vi.mocked(analyzeImageBuffer).mockResolvedValue({
+        blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4',
+        focus: null
+      })
 
-    const mockStorage = {
-      getFile: vi
-        .fn()
-        .mockResolvedValue({ type: 'buffer', buffer: Buffer.from('image') })
-    } as never
-    await backfillAttachments(db, mockStorage, options(), HOSTS)
+      await db('attachments').insert({
+        id: 'att-1',
+        statusId: 'status-1',
+        actorId: 'https://llun.test/users/test',
+        mediaId,
+        mediaType: 'image/jpeg',
+        url: 'https://llun.test/api/v1/files/medias/orig.jpg',
+        blurhash: null
+      })
 
-    // Asserted alongside the repair, because the sibling `it.each` case only
-    // proves the warning fires on a row that does NOT self-heal. Without this,
-    // suppressing the warning for exactly the self-healing rows passes.
-    expect(console.warn).toHaveBeenCalledWith(
-      expect.stringContaining('mediaId "abc" is not a media row id')
-    )
-    expect(console.log).toHaveBeenCalledWith(
-      'Attachments complete: processed 1, updated 1, 0 whose media row is gone, 1 with an invalid mediaId'
-    )
+      const mockStorage = {
+        getFile: vi
+          .fn()
+          .mockResolvedValue({ type: 'buffer', buffer: Buffer.from('image') })
+      } as never
+      await backfillAttachments(db, mockStorage, options(), HOSTS)
 
-    const repaired = await db('attachments').where('id', 'att-1').first()
-    expect(repaired.blurhash).toBe('L6PZfSi_.AyE_3t7t7R**0o#DgR4')
-  })
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining(expectedWarning)
+      )
+      expect(console.log).toHaveBeenCalledWith(expectedSummary)
+
+      const repaired = await db('attachments').where('id', 'att-1').first()
+      expect(repaired.blurhash).toBe('L6PZfSi_.AyE_3t7t7R**0o#DgR4')
+    }
+  )
 
   // A NULL `mediaId` is how a federated attachment is stored — there is no
   // media row to miss — so both counts have to stay at zero or every remote
