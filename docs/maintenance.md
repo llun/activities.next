@@ -151,7 +151,13 @@ the configured host), `--actor-id`, or `--email` to select the actor.
 - `--skip-storage` — write only the JSON/CSV files, no media or fitness bytes
 - `--fetch-remote-attachments` — download attachments hosted on other servers
   into the archive too (by default their absolute URL is kept as-is, since
-  the export only owns the actor's own storage)
+  the export only owns the actor's own storage). These URLs come from the
+  posts themselves rather than from your configuration, so each download is
+  SSRF-guarded — non-HTTPS URLs and any host resolving to a loopback,
+  link-local or private address are refused, on every redirect hop — and
+  capped at the instance's maximum upload size. A refused or over-size
+  attachment is recorded as a warning in `manifest.json` and its absolute URL
+  is kept, exactly as if the flag had not been passed
 
 ### Archive layout
 

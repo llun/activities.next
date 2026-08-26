@@ -11,6 +11,7 @@ import { Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 import {
+  REMOTE_ATTACHMENT_MAX_BYTES,
   buildActorJson,
   buildExportActivity,
   buildFollowersCsv,
@@ -292,6 +293,88 @@ describe('registerAttachmentUrl', () => {
       ])
     }
   )
+
+  // `attachment.url` is whatever the account owner put on the status:
+  // `POST /api/v1/accounts/outbox` takes `PostBoxAttachment.url` as a bare
+  // `z.string()` and `createAttachment` writes it verbatim. Without a guard,
+  // `--fetch-remote-attachments` turned that into an outbound request from the
+  // machine running the export, with the response body written into the
+  // tarball the owner receives.
+  //
+  // These go through the REAL `safeImageFetch`, not a mock, so a revert of the
+  // guard fails them. `vitest.setup.ts` resolves every hostname to the public
+  // 93.184.216.34, which is why the tests above still reach the network.
+  it.each([
+    {
+      description: 'the cloud metadata address',
+      url: 'https://169.254.169.254/latest/meta-data/iam/x.webp'
+    },
+    {
+      description: 'a loopback address',
+      url: 'https://127.0.0.1/api/v1/files/ab/cd.webp'
+    },
+    {
+      description: 'a private network address',
+      url: 'https://10.0.0.5/api/v1/files/ab/cd.webp'
+    },
+    {
+      description: 'a localhost name',
+      url: 'https://localhost/api/v1/files/ab/cd.webp'
+    },
+    {
+      description: 'a plain HTTP URL',
+      url: 'http://other.example/api/v1/files/ab/cd.webp'
+    }
+  ])(
+    'refuses to fetch a remote attachment on $description',
+    async ({ url }) => {
+      fetchMock.doMock()
+
+      const { mediaPaths, urlToArchivePath, warnings } = await runRegister({
+        attachment: buildAttachment({ url }),
+        fetchRemoteAttachments: true
+      })
+
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect([...mediaPaths]).toEqual([])
+      expect(urlToArchivePath.has(url)).toBe(false)
+      expect(warnings).toEqual([`Refused unsafe remote attachment URL: ${url}`])
+    }
+  )
+
+  it('refuses a remote attachment larger than the byte cap', async () => {
+    const url = 'https://other.example/api/v1/files/ab/huge.webp'
+    const dir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'actor-archive-oversize-test-')
+    )
+
+    fetchMock.doMock()
+    fetchMock.mockResponseOnce(() =>
+      Promise.resolve({
+        body: 'x'.repeat(1024),
+        headers: { 'content-length': String(REMOTE_ATTACHMENT_MAX_BYTES + 1) },
+        status: 200
+      })
+    )
+
+    try {
+      const { urlToArchivePath, warnings } = await runRegister({
+        attachment: buildAttachment({ url }),
+        fetchRemoteAttachments: true,
+        stagingDir: dir
+      })
+
+      expect(urlToArchivePath.has(url)).toBe(false)
+      expect(warnings).toEqual([
+        `Failed to fetch remote attachment ${url}: Remote attachment exceeds byte limit of ${REMOTE_ATTACHMENT_MAX_BYTES} bytes`
+      ])
+      await expect(
+        fs.readdir(path.join(dir, 'media_attachments', 'remote'))
+      ).rejects.toThrow()
+    } finally {
+      await fs.rm(dir, { force: true, recursive: true })
+    }
+  })
 })
 
 describe('copyProfileImage', () => {

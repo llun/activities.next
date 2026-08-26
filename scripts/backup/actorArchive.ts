@@ -19,6 +19,7 @@ import { getDatabase } from '@/lib/database'
 import { encodeFavouriteCursor } from '@/lib/database/sql/utils/favouriteCursor'
 import { Database } from '@/lib/database/types'
 import { getEffectiveFitnessStorageConfig } from '@/lib/services/fitness-files'
+import { MAX_FILE_SIZE } from '@/lib/services/medias/constants'
 import { getMediaPathFromFileUrl } from '@/lib/services/medias/mediaFileUrl'
 import {
   AnnounceAction,
@@ -48,13 +49,15 @@ import { getLocalActorOutboxId } from '@/lib/utils/activitypubId'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 import { HostRuleConfig } from '@/lib/utils/host'
+import { safeImageFetch } from '@/lib/utils/safeImageDownload'
+import { readResponseArrayBufferWithLimit } from '@/lib/utils/streamLimit'
 
 import { printDatabaseBanner } from '../fitness/describeConnection'
 import {
+  PUBLIC_STORAGE_FETCH_TIMEOUT_MS,
   archiveStorage,
   buildStoragePlan,
   createTarArchive,
-  fetchPublicStorageResponse,
   getBooleanArg,
   getStringArg,
   loadEnvFile,
@@ -68,6 +71,12 @@ const DEFAULT_PAGE_SIZE = 100
 const MEDIA_ID_BATCH_SIZE = 100
 const MEDIA_ARCHIVE_DIR = 'media_attachments/files'
 const REMOTE_MEDIA_ARCHIVE_DIR = 'media_attachments/remote'
+/**
+ * How many bytes of a remote attachment the export will copy: the size this
+ * instance would itself accept for an upload. `readResponseArrayBufferWithLimit`
+ * buffers, so this is also the peak memory one attachment can cost.
+ */
+export const REMOTE_ATTACHMENT_MAX_BYTES = MAX_FILE_SIZE
 const FITNESS_ARCHIVE_DIR = 'fitness_files/files'
 
 export const EXPORT_ACTOR_USAGE = `Usage: NODE_ENV=production scripts/backup/exportActorArchive.ts \\
@@ -686,6 +695,22 @@ export const copyProfileImage = async ({
  * `/api/v1/files/` path this one serves, so without the host check its URL
  * became a local storage path that never resolved, and the download branch
  * below was never reached.
+ *
+ * The download runs through `safeImageFetch`, NOT the archive's own
+ * `fetchPublicStorageResponse`. `attachment.url` is attacker-controlled by the
+ * account owner — `POST /api/v1/accounts/outbox` takes `PostBoxAttachment.url`
+ * as a bare `z.string()` and `createAttachment` writes it verbatim — so a
+ * plain `fetch` here let an owner point the exporting machine at a
+ * link-local or internal address and receive the response body back inside
+ * their own tarball. `fetchPublicStorageResponse` keeps its plain `fetch`
+ * because its other caller builds URLs from the operator's own configured
+ * storage endpoint, which may legitimately be private-network or plain-http;
+ * the guard belongs on the untrusted input, not on the shared helper.
+ *
+ * `safeImageFetch` re-checks every redirect hop, and its timeout also bounds
+ * the body read, which the old 60s header-only timeout did not. The byte cap
+ * is separate and load-bearing: without it a hostile URL could stream an
+ * unbounded body into memory.
  */
 export const registerAttachmentUrl = async ({
   attachment,
@@ -722,10 +747,25 @@ export const registerAttachmentUrl = async ({
   }
 
   try {
-    const response = await fetchPublicStorageResponse(attachment.url)
-    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    const response = await safeImageFetch(attachment.url, {
+      timeoutMs: PUBLIC_STORAGE_FETCH_TIMEOUT_MS
+    })
+    if (!response) {
+      warnings.push(`Refused unsafe remote attachment URL: ${attachment.url}`)
+      return
+    }
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined)
+      throw new Error(`HTTP ${response.status}`)
+    }
 
-    const buffer = Buffer.from(await response.arrayBuffer())
+    const buffer = Buffer.from(
+      await readResponseArrayBufferWithLimit(
+        response,
+        REMOTE_ATTACHMENT_MAX_BYTES,
+        'Remote attachment'
+      )
+    )
     const hash = crypto
       .createHash('sha256')
       .update(attachment.url)
