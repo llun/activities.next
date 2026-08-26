@@ -3,7 +3,11 @@ import { FC, MouseEvent } from 'react'
 
 import { Media } from '@/lib/components/posts/media'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
-import { Attachment, isFitnessAttachment } from '@/lib/types/domain/attachment'
+import {
+  Attachment,
+  isFitnessAttachment,
+  isVisualAttachment
+} from '@/lib/types/domain/attachment'
 import { Status } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 import {
@@ -28,10 +32,6 @@ const getInitial = (value: string) => {
   // Spread to a code-point array so a leading emoji/surrogate pair isn't split.
   return trimmed ? [...trimmed][0].toUpperCase() : '?'
 }
-
-const isVisualMedia = (attachment: Attachment) =>
-  attachment.mediaType.startsWith('image') ||
-  attachment.mediaType.startsWith('video')
 
 interface MessageBubbleProps {
   host: string
@@ -83,13 +83,13 @@ export const MessageBubble: FC<MessageBubbleProps> = ({
   const actualStatus = getActualStatus(status)
   const actor = actualStatus.actor
   const authorName = actor?.name || actor?.username || ''
-  const mediaAttachments = actualStatus.attachments.filter(isVisualMedia)
+  const mediaAttachments = actualStatus.attachments.filter(isVisualAttachment)
   // Anything that is neither inline visual media nor the parsed fitness file
   // (e.g. audio, PDFs, generic documents) still needs to surface so it isn't
   // silently dropped from the bubble.
   const otherAttachments = actualStatus.attachments.filter(
     (attachment) =>
-      !isVisualMedia(attachment) && !isFitnessAttachment(attachment)
+      !isVisualAttachment(attachment) && !isFitnessAttachment(attachment)
   )
   const fitnessFile = actualStatus.fitness
   const hasText = htmlToPlainText(actualStatus.text ?? '').trim().length > 0
