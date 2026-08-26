@@ -539,10 +539,10 @@ attachment ref guard` is exactly that: it passed with the bug present until
   separator boundary, so a sibling directory whose name the root prefixes passes
   it — root `/srv/uploads` accepts `/srv/uploads-backup/x`. That form guarded an
   `fs.unlink` in `scripts/maintenance/cleanupMediaStorage.ts`, and it reads as
-  correct at a glance, which is why `storagePathCallSites.test.ts` greps for it
-  rather than trusting review — inline or with the root pulled into a variable
-  first, and scanning each file as one string, because a per-line grep is
-  defeated by prettier wrapping the call. Note the check is lexical either way: a symlink
+  correct at a glance, which is why `storagePathCallSites.test.ts` greps for the
+  inline spelling rather than trusting review. Pulling the resolved root into a
+  variable first carries the identical bug and is a known residual of that guard
+  — deciding it needs scope resolution — so review it by hand. Note the check is lexical either way: a symlink
   planted under a storage root defeats it, which is a documented residual, not
   something to paper over at the call site.
 - **A stored file with no `medias` row is unreachable**, so whatever fails
