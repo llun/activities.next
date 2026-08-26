@@ -151,22 +151,29 @@ const isRequireOfPathModule = (node) =>
   PATH_MODULES.has(node.arguments[0].value)
 
 // Node types that wrap an expression without changing the value it evaluates
-// to: an optional chain, and TypeScript's four assertion forms — `as`,
-// `satisfies`, `<T>x` and `!` — which are erased at runtime. All of them carry
-// the wrapped expression as `.expression`.
+// to: an optional chain, TypeScript's four assertion forms — `as`, `satisfies`,
+// `<T>x` and `!` — and a bare generic instantiation (`foo<T>`), all erased at
+// runtime. Each carries the wrapped expression as `.expression`.
 //
-// `TSInstantiationExpression` (a bare `foo<T>`) was in this set briefly and was
-// removed: `path.resolve` and `path.join` are not generic, so reaching it
-// around one takes a deliberate `as unknown as` cast to fake genericness, which
-// `yarn typecheck` rejects and a reviewer would stop for its own sake. It is
-// also not an assertion, so it did not belong under that description. Every
-// entry here is pinned by a fixture; add nothing that is not.
+// `TSInstantiationExpression` was removed from this set once, on the reasoning
+// that `path.resolve` and `path.join` are not generic so nothing could reach it
+// around one. Half true, and the wrong half was load-bearing: the direct
+// `path.resolve<string>` is indeed a TS2635, but
+// `(path.resolve as unknown as GenericResolver)<string>` compiles clean under
+// this repo's own `yarn typecheck` and, with the entry gone, both rules
+// reported nothing for the call. Measured, not argued — hence the fixture.
+//
+// Every entry here is pinned by a fixture that fails when it is removed. Add
+// nothing that is not: an unpinned entry is a claim the suite does not check,
+// which is how `TSTypeAssertion` sat here proving nothing while the docs
+// promised it.
 const TRANSPARENT_WRAPPERS = new Set([
   'ChainExpression',
   'TSAsExpression',
   'TSSatisfiesExpression',
   'TSNonNullExpression',
-  'TSTypeAssertion'
+  'TSTypeAssertion',
+  'TSInstantiationExpression'
 ])
 
 /**
