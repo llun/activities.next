@@ -812,13 +812,20 @@ null }` remains the precise "this retirement never happened" — it reopens the
   activity can fall inside, which drops its distance silently and for good. The
   bug reads as correct because for a single-period component the first and last
   period are the same row and the two formulations coincide.
-  **The route's check is not sufficient on its own, and each bound write
-  carries its own ordering predicate as well.** The route validates the periods
-  it READ; `updateFitnessGearComponent` resolves which period is last when it
-  WRITES, and a refit landing between the two appends one — so the bound lands
-  on a row the check never saw. Once a further refit buries that period in the
+  **The route's check is not sufficient on its own, and the write guards its
+  own ordering too.** The route validates the periods it READ;
+  `updateFitnessGearComponent` resolves which period is first or last when it
+  WRITES, and a refit landing between the two appends one — so a bound lands on
+  a row the check never saw. Once a further refit buries that period in the
   middle, nothing re-examines it, because only the first and last are ever
-  checked.
+  checked. How the write guards it depends on where the bounds land, and the
+  split is the whole subtlety: when they land on DIFFERENT rows each carries an
+  SQL predicate against the other end that row keeps, but when they land on the
+  SAME row — one period, which is every component never refitted — they are
+  written together and the ordering is settled in JS. Per-bound predicates
+  there would compare the new `addedAt` against the OLD `removedAt` the same
+  statement is about to replace, so a wholesale window move applied one half
+  and silently dropped the other behind a 200.
 - **Periods must never overlap, and `UNIQUE (componentId, installSequence)` is
   what enforces it against a race.** The rollup joins the periods and sums over
   them, so an activity inside two of them is counted twice — a permanently wrong
