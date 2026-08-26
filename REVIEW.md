@@ -538,6 +538,25 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
 - **Internal API CORS:** Next.js API routes exclusively consumed by the internal web client (e.g., via `lib/client.ts`) do not require `OPTIONS` handlers or CORS preflight configurations, even if they use `apiResponse` with `allowedMethods`.
 - **Conditional Object Spreading:** Spreading `null` in object literals (e.g., `...(cond ? { ... } : null)`) is a deliberate, consistent no-op pattern used to cleanly omit keys and should not be flagged as confusing or replaced with `{}`.
 
+## Status delete federation
+
+- The local delete commits **first**; `SendDeleteNoteJob` federates the
+  `Delete`/`Tombstone` afterwards. Flag any change that reintroduces inline
+  fan-out ahead of `database.deleteStatus`: that made the response wait on every
+  remote inbox, and put inbox resolution ahead of the delete, so an error while
+  collecting them abandoned the delete entirely. (A failing remote server was
+  never the trigger — both the sender and `getActorPerson` swallow and return.)
+- The job must **not** load the status: `database.deleteStatus` is a cascading
+  hard delete, so the audience travels in the job payload (`to`/`cc` captured
+  pre-delete) and `getFederatedStatusDeliveryInboxes` takes
+  `Pick<Status, 'to' | 'cc'>`. A "consistency" refactor onto `loadStatusAndActor`
+  silently stops delete federation — that is the live `sendUndoAnnounceJob` bug.
+- The dedup id must keep its `#delete` suffix; the bare status id collides with
+  `SendNoteJob`/`SendUpdateNoteJob` in the queue's global dedup window.
+- The activities `deleteStatus` sender never rejects (`postActivityToInbox`
+  swallows and returns `undefined`), so a per-inbox isolation test must mock the
+  sender, not the socket, or it asserts nothing.
+
 ## Link preview cards
 
 - A card is cached **per URL** in `link_previews` and mapped to a status by
