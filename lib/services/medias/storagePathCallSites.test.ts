@@ -11,23 +11,26 @@ import path from 'path'
 // of the CALLERS rather than of the driver.
 //
 // This guard reads source text, which bounds what it can honestly promise, and
-// the bound is the whole design. Two earlier versions tried to be cleverer and
-// were wrong in both directions: one tracked `this._config.path` and its
-// aliases and was defeated by a destructured rename, a nested call in the
-// argument list and — decisively — prettier wrapping the call across lines,
-// which made `prettier --write`, step 1 of the commit gate, able to disarm the
-// guard; the next added an extracted-variable heuristic that matched a bare
+// the bound is the whole design. Every earlier version of it was wrong in one
+// direction or the other, and each rewrite that reached for more cleverness
+// sprang a new leak: alias tracking was defeated by a destructured rename, by a
+// nested call in the argument list and by prettier wrapping the call across
+// lines (which made `prettier --write`, step 1 of the commit gate, able to
+// disarm the guard); a substring ban was defeated by `path['resolve']` and by a
+// renamed named import; an extracted-variable heuristic matched a bare
 // identifier with no scope awareness and failed on an unrelated
-// `const resolvedArchivePath = 'database.'` in `scripts/backup/productionArchive.ts`.
-// A false positive in a guard is worse than a missing one, because the fix is
-// to weaken the guard.
+// `const resolvedArchivePath = 'database.'` in `scripts/backup/productionArchive.ts`;
+// and a regex over the import line matched NOTHING when the import was wrapped,
+// passing vacuously. A false positive is worse than a gap, because the fix is
+// to weaken the guard — and a gap sold as completeness is worse than both.
 //
-// So each assertion below is scoped to what a text scan can decide correctly,
-// and the residual is named rather than papered over. Anything needing scope
-// resolution — following an identifier back to its declaration — belongs in an
-// AST rule in `lint/agentsRules.mjs` (`no-component-fetch` is the precedent for
-// a filename-scoped ban), which would also be immune to formatting by
-// construction. That is a follow-up, not something to fake here with a regex.
+// So this version does not chase the general case. It pins the ONE import shape
+// the drivers use, which makes the member-access bans below exhaustive for
+// them, and it scans with comments removed so documenting the rule in a driver
+// cannot trip it. What it does NOT do is follow an identifier to its
+// declaration; that is the residual, it is named here and in AGENTS.md, and its
+// home is an AST rule in `lint/agentsRules.mjs` (`no-component-fetch` is the
+// precedent), where formatting and aliasing are invisible by construction.
 
 const DRIVER_FILES = [
   'lib/services/medias/localFile.ts',
@@ -36,25 +39,24 @@ const DRIVER_FILES = [
 
 const SOURCE_ROOTS = ['app', 'lib', 'scripts']
 
-// Every way of reaching `path.resolve`/`path.join` from a module that imports
-// `path` as a default binding, which is what both drivers do. Banning the
-// member access alone is not enough: `path['resolve'](…)` and
-// `import { resolve as pathResolve } from 'path'` both walk straight past it,
-// and either reintroduces an unrooted resolve. Together with the import-shape
-// assertion below, these leave no spelling open in these two files.
+// With the import pinned below to exactly `import path from 'path'`, member
+// access is the only route to these functions, so banning it is exhaustive for
+// these two files. Computed access is banned because `path['resolve'](…)` is
+// otherwise a plain substring away.
 const BANNED_IN_DRIVERS = [
   { pattern: 'path.resolve', reason: 'resolves a path outside the helper' },
   { pattern: 'path.join', reason: 'builds a path outside the helper' },
-  {
-    pattern: 'path[',
-    reason: 'computed access can spell `path["resolve"]`'
-  }
+  { pattern: 'path[', reason: 'computed access can spell `path["resolve"]`' }
 ]
 
-// A default import is the only shape that keeps the bans above complete — a
-// named or namespace import hands out `resolve`/`join` under a name no
-// substring can predict.
-const PATH_IMPORT = /^import\s+(.+?)\s+from\s+['"](?:node:)?path['"]/gm
+// Pinning the import EXACTLY, rather than matching its shape, is deliberate: a
+// regex over the import line answered "no offenders" for a wrapped import, so
+// the assertion passed while the file called a bare `resolve(…)`. Counting
+// every reference to the module instead has no such blind spot — a second
+// import, a `require('path')`, a dynamic `import('path')` or a replacement of
+// the default import all move the count off one or drop the exact line.
+const ALLOWED_PATH_IMPORT = "import path from 'path'"
+const PATH_MODULE_REFERENCE = /['"](?:node:)?path['"]/g
 
 // The containment idiom the helper replaced, in the one spelling a text scan
 // can identify without guessing: the resolve written inline inside the
@@ -68,6 +70,17 @@ const PATH_IMPORT = /^import\s+(.+?)\s+from\s+['"](?:node:)?path['"]/gm
 // bug and is NOT caught. Deciding that needs to know which declaration a name
 // refers to, which is the AST rule's job, not this one's.
 const INLINE_CONTAINMENT = /\.startsWith\(\s*path\.(?:resolve|join)\(/g
+
+// Comments are stripped before scanning so that documenting this very rule in a
+// driver does not fail it — the landmine a reviewer walked onto by writing
+// "do not use path.resolve here" in a comment. Replaced with spaces rather than
+// removed so reported line numbers stay true. It does not parse strings, which
+// is a knowing simplification: a string literal holding `path.resolve` would be
+// a false positive, and no file has one.
+const stripComments = (source: string) =>
+  source
+    .replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n]/g, ' '))
+    .replace(/\/\/[^\n]*/g, (line) => ' '.repeat(line.length))
 
 const lineOf = (source: string, index: number) =>
   source.slice(0, index).split('\n').length
@@ -89,15 +102,16 @@ const readDriver = (relative: string) => {
 }
 
 describe('storage path call sites', () => {
-  it('imports path only as a default binding in the local storage drivers', () => {
+  it('reaches the path module only through one default import in the drivers', () => {
     const offenders = DRIVER_FILES.flatMap((relative) => {
       const source = readDriver(relative)
-      return [...source.matchAll(PATH_IMPORT)]
-        .filter(([, binding]) => !/^[A-Za-z_$][\w$]*$/.test(binding.trim()))
-        .map(
-          (match) =>
-            `${relative}:${lineOf(source, match.index)} — ${match[0].trim()} hands out resolve/join under a name the bans below cannot see`
-        )
+      const references = [...source.matchAll(PATH_MODULE_REFERENCE)]
+      if (source.includes(ALLOWED_PATH_IMPORT) && references.length === 1) {
+        return []
+      }
+      return [
+        `${relative} — must reach the path module through exactly one \`${ALLOWED_PATH_IMPORT}\`, found ${references.length} reference(s); a named, namespace, wrapped or dynamic import hands out resolve/join under a name the bans cannot see`
+      ]
     })
 
     expect(offenders).toEqual([])
@@ -105,7 +119,7 @@ describe('storage path call sites', () => {
 
   it('builds no path in a local storage driver outside the shared helper', () => {
     const offenders = DRIVER_FILES.flatMap((relative) => {
-      const source = readDriver(relative)
+      const source = stripComments(readDriver(relative))
       return BANNED_IN_DRIVERS.flatMap(({ pattern, reason }) => {
         const occurrences: number[] = []
         for (
@@ -133,7 +147,7 @@ describe('storage path call sites', () => {
     expect(files.length).toBeGreaterThan(100)
 
     const offenders = files.flatMap((file) => {
-      const source = fs.readFileSync(file, 'utf8')
+      const source = stripComments(fs.readFileSync(file, 'utf8'))
       const relative = path.relative(process.cwd(), file)
       return [...source.matchAll(INLINE_CONTAINMENT)].map(
         (match) =>
