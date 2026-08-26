@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { type Actor } from '@/lib/types/domain/actor'
 import { StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -110,7 +111,9 @@ describe('GET /api/users/[username]/statuses/[statusId]/replies', () => {
 
     const data = await response.json()
     expect(data).toMatchObject({
-      '@context': 'https://www.w3.org/ns/activitystreams',
+      // The collection embeds whole Note objects, so it needs the same term
+      // declarations the notes themselves go out under.
+      '@context': NOTE_ACTIVITY_CONTEXT,
       id: 'https://example.com/users/test/statuses/123/replies',
       type: 'Collection',
       totalItems: 3,

@@ -7,7 +7,10 @@ import {
   offlineDocumentLoader
 } from '@/lib/activities/jsonld'
 import { BaseNote, getContent, getLanguage } from '@/lib/activities/note'
-import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
+import {
+  NOTE_ACTIVITY_CONTEXT,
+  NOTE_CONTEXT_TERMS
+} from '@/lib/activities/noteContext'
 import { Like } from '@/lib/types/activitypub'
 
 const asRecord = (value: unknown) => value as Record<string, unknown>
@@ -801,6 +804,24 @@ describe('compactActivityPub note language handling', () => {
           focalPoint: [-0.5, 0.25]
         }
       ],
+      tag: [
+        {
+          type: 'Mention',
+          name: '@bob@remote.example',
+          href: 'https://remote.example/users/bob'
+        },
+        {
+          type: 'Hashtag',
+          name: '#cycling',
+          href: 'https://llun.test/tags/cycling'
+        },
+        {
+          type: 'Emoji',
+          id: 'https://llun.test/emojis/party',
+          name: ':party:',
+          icon: { type: 'Image', url: 'https://llun.test/emojis/party.png' }
+        }
+      ],
       quote: 'https://remote.example/notes/9',
       quoteUrl: 'https://remote.example/notes/9',
       interactionPolicy: {
@@ -829,6 +850,18 @@ describe('compactActivityPub note language handling', () => {
       const result = asRecord(await compactActivityPub(noteOnTheWire))
 
       expect(result[key]).toEqual(expected)
+    })
+
+    // Asserted on the context rather than on a round trip: `stripJsonLdArtifacts`
+    // recovers a blank-node `type`, so compacting through OUR reader keeps
+    // `Hashtag`/`Emoji` whether we declare them or not. A receiver without that
+    // recovery is the one that loses them, and the only thing this side can pin
+    // is that we declare each type we emit under the IRI we accept it as.
+    it.each([
+      ['Hashtag', 'as:Hashtag'],
+      ['Emoji', 'toot:Emoji']
+    ])('declares the %s type it writes onto a Note', (term, iri) => {
+      expect(NOTE_CONTEXT_TERMS[term as 'Hashtag' | 'Emoji']).toBe(iri)
     })
 
     // On every Note this instance emits, quoting or not, so losing it costs a

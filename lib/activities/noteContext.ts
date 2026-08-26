@@ -24,6 +24,15 @@ export const NOTE_CONTEXT_TERMS = {
   ...QUOTE_CONTEXT_TERMS,
 
   toot: 'http://joinmastodon.org/ns#',
+
+  // Tag TYPES a Note carries. Neither is in the bundled ActivityStreams
+  // context, so an undeclared one expands to a blank-node type: our own
+  // `stripJsonLdArtifacts` recovers that for a `type` value, but a receiver
+  // that does not is left with a tag it cannot classify — a hashtag that stops
+  // being a hashtag, a custom emoji that stops rendering. Same IRIs as the
+  // inbound aliases: a term we accept from peers is one we declare when we send.
+  Hashtag: 'as:Hashtag',
+  Emoji: 'toot:Emoji',
   // Attachment extensions. `focalPoint` is a two-number list, so it needs the
   // `@list` container or a processor reorders or unwraps it.
   blurhash: 'toot:blurhash',
