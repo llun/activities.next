@@ -1424,7 +1424,7 @@ describe('production archive scripts', () => {
       expect(redactStorageError(error, source)).toBe(expected)
     })
 
-    it('stops walking a cause cycle', () => {
+    it('terminates on a cause cycle', () => {
       const error = Object.assign(new Error('failed'), {
         cause: undefined as unknown
       })

@@ -1478,24 +1478,26 @@ export const archiveStorage = async (
         } catch (error) {
           if (!options.allowMissingStorage) throw error
 
-          // The console line keeps the driver's own message: it goes to the
-          // operator running the export, on their own machine, and never into
-          // the archive. Only the redacted form is written to the manifest.
-          // `inspect` rather than `String` for a non-Error throw — it renders a
-          // plain object as its contents instead of `[object Object]`, and it
-          // does not throw on a Symbol, which is the one value `String` would
-          // turn into a failed export from inside this catch.
-          const message =
-            error instanceof Error ? error.message : inspect(error)
-
           await fs.rm(archiveFilePath, { force: true })
           failedFiles.push({
             error: redactStorageError(error, entry.source),
             path: relativeFilePath
           })
+
+          // Rendering the message is the LAST thing this catch does, because it
+          // is the one step not guaranteed not to throw — `inspect` itself
+          // throws on a hostile `[util.inspect.custom]`, as `String` does on a
+          // null-prototype object. Nothing on this path throws a non-Error, so
+          // that branch is defensive only; keeping it last means a surprise
+          // there cannot cost the partial-file cleanup or the manifest entry
+          // above. The message goes to the operator running the export, on
+          // their own machine, and never into the archive — only the redacted
+          // form is written to the manifest. `inspect` over `String` so a plain
+          // object prints as its contents, not `[object Object]`.
           console.error(
             `Storage: failed to download ${entry.destination} file ` +
-              `${relativeFilePath}: ${message}`
+              `${relativeFilePath}: ` +
+              `${error instanceof Error ? error.message : inspect(error)}`
           )
           continue
         }
@@ -1639,7 +1641,13 @@ const getErrorHttpStatusCode = (level: Record<string, unknown>) => {
 
 // Reduces a storage-driver failure to what an operator can act on —
 // `getaddrinfo ENOTFOUND`, `copyfile ENOENT`, `NoSuchKey HTTP 404`, `HTTP 503`
-// — with no bucket, region, endpoint, hostname, address or local root in it.
+// — carrying no value in the SHAPE a bucket, region, endpoint, hostname,
+// address or local root takes. Shape is the bound, not content: a storage
+// server that writes its own error responses can put up to 64 arbitrary
+// `[A-Za-z][A-Za-z0-9_]*` characters into each token, so `activitynextprodmedia`
+// survives where `activitynext-prod-media` does not. That costs nothing — the
+// only actor who can do it already serves the file bytes going into the same
+// tarball.
 // Not "nothing that says where storage lives": `copyfile ENOENT` still implies
 // a local filesystem, which `source.kind` publishes anyway, and a vendor code
 // such as `XMinioStorageFull` names the storage SOFTWARE where `kind: 's3'`
@@ -1648,53 +1656,50 @@ const getErrorHttpStatusCode = (level: Record<string, unknown>) => {
 //
 // `unknown` is the honest answer for a failure that classifies itself only in
 // its message; the export console still printed that message in full.
+const UNKNOWN_STORAGE_ERROR = 'unknown'
+
 export const redactStorageError = (error: unknown, source: StorageSource) => {
-  // This runs inside the `catch` that lets `--allow-missing-storage` continue,
-  // so it must not be able to throw: a property read is not obviously safe on
-  // an arbitrary caught value, and a redactor that escapes its own catch would
-  // turn one tolerated missing file into a failed export.
+  // The whole body sits inside the try because this runs inside the
+  // `catch` that lets `--allow-missing-storage` continue: a property read
+  // is not obviously safe on an arbitrary caught value, and a redactor
+  // that escapes its own catch would turn one tolerated missing file into
+  // a failed export.
   try {
-    return describeStorageError(error, source)
+    const redactedValues = getRedactedStorageSourceValues(source)
+    const isSafeToken = (value: unknown): value is string =>
+      typeof value === 'string' &&
+      SAFE_ERROR_TOKEN_PATTERN.test(value) &&
+      !redactedValues.has(value.toLowerCase())
+
+    const chain = getErrorChain(error)
+    const parts: string[] = []
+
+    for (const { code, syscall } of chain) {
+      if (!isSafeToken(code)) continue
+      if (isSafeToken(syscall)) parts.push(syscall)
+      parts.push(code)
+      break
+    }
+
+    if (parts.length === 0) {
+      for (const { name } of chain) {
+        // `Error` is the name of every unclassified failure and says nothing
+        // `unknown` does not. `TypeError` and an S3 `Code` do.
+        if (!isSafeToken(name) || name === 'Error') continue
+        parts.push(name)
+        break
+      }
+    }
+
+    const httpStatusCode = chain
+      .map(getErrorHttpStatusCode)
+      .find((value) => value !== undefined)
+    if (httpStatusCode !== undefined) parts.push(`HTTP ${httpStatusCode}`)
+
+    return parts.length > 0 ? parts.join(' ') : UNKNOWN_STORAGE_ERROR
   } catch {
     return UNKNOWN_STORAGE_ERROR
   }
-}
-
-const UNKNOWN_STORAGE_ERROR = 'unknown'
-
-const describeStorageError = (error: unknown, source: StorageSource) => {
-  const redactedValues = getRedactedStorageSourceValues(source)
-  const isSafeToken = (value: unknown): value is string =>
-    typeof value === 'string' &&
-    SAFE_ERROR_TOKEN_PATTERN.test(value) &&
-    !redactedValues.has(value.toLowerCase())
-
-  const chain = getErrorChain(error)
-  const parts: string[] = []
-
-  for (const { code, syscall } of chain) {
-    if (!isSafeToken(code)) continue
-    if (isSafeToken(syscall)) parts.push(syscall)
-    parts.push(code)
-    break
-  }
-
-  if (parts.length === 0) {
-    for (const { name } of chain) {
-      // `Error` is the name of every unclassified failure and says nothing
-      // `unknown` does not. `TypeError` and an S3 `Code` do.
-      if (!isSafeToken(name) || name === 'Error') continue
-      parts.push(name)
-      break
-    }
-  }
-
-  const httpStatusCode = chain
-    .map(getErrorHttpStatusCode)
-    .find((value) => value !== undefined)
-  if (httpStatusCode !== undefined) parts.push(`HTTP ${httpStatusCode}`)
-
-  return parts.length > 0 ? parts.join(' ') : UNKNOWN_STORAGE_ERROR
 }
 
 const writeManifest = async (stagingDir: string, manifest: ArchiveManifest) => {
