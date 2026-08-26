@@ -1815,6 +1815,42 @@ system's `Attachments` component.
 - Known gap, unchanged by the move to a job: a cascaded reply subtree is deleted
   locally but only the top status's `Delete` federates.
 
+## Deleting Media a Post Uses
+
+- **The two media DELETE routes disagree on purpose, and neither is a bug.**
+  `DELETE /api/v1/media/:id` is the Mastodon-compatible one and refuses media
+  that a posted status already uses (`deleteMediaForAccount` answers `in-use`,
+  which the route turns into a 422), matching Mastodon's `in_usage_error`.
+  `DELETE /api/v1/accounts/media/:mediaId` is this instance's own, behind the
+  Settings → Media Storage delete button, and deliberately allows it: its
+  confirmation dialog promises "Posts containing this media will show a
+  placeholder image", and that promise is kept by `lib/components/posts/media.tsx`,
+  which holds the `<img>` at `opacity-0` until `onLoad` fires — a 404 never
+  fires it, so the BlurHash canvas underneath stays visible. Do not "reconcile"
+  the two by making the settings route 422; that revokes a shipped capability.
+- **Deleting a `medias` row therefore leaves `attachments.mediaId` pointing at a
+  row that is gone, and clearing it would be a regression, not a cleanup.** A
+  NULL `mediaId` is how a FEDERATED attachment is stored, and `updateNote` reads
+  exactly that to decide an attachment is not the owner's to replace
+  (`isReplaceableMediaAttachment`, `lib/database/sql/status.ts`). So nulling the
+  pointer would turn a broken attachment the author can still remove by editing
+  the post into one that can never be removed, and would destroy the only record
+  that the attachment was ever backed by local media. `lib/database/sql/status.test.ts`
+  → `clears only editable media while preserving legacy and fitness attachments`
+  pins the surviving-null behaviour. Deleting the attachment row alongside the
+  media is wrong for a different reason: it removes the placeholder the dialog
+  promises and silently rewrites a published status whose federated copies keep
+  the attachment.
+- **What a dangling pointer does cost is a maintenance sweep that cannot report
+  it.** `scripts/maintenance/backfillMediaBlurhash.ts` rebuilds an attachment's
+  BlurHash, focal point and `thumbnailUrl` from the linked `medias` row, and
+  `thumbnailUrl` has no other source — so a row whose media is gone is selected
+  (a host-relative `thumbnailUrl` matches the predicate), counted in
+  `processed`, never counted in `updated`, and re-selected by every later run.
+  It warns per row and reports the total, so an operator reading
+  "processed N, updated 0" can tell that cause from a no-op run. Any future
+  repair path over `attachments` owes the same signal.
+
 ## Better-auth Plugin Guidelines
 
 - **Do not register a better-auth plugin unless its required database tables exist** in the Knex migrations. The custom `knexAdapter` does not auto-create tables; missing tables will cause runtime errors.

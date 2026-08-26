@@ -807,6 +807,79 @@ describe('backfillMediaBlurhash execution', () => {
     )
   })
 
+  // Deleting a `medias` row leaves every `attachments.mediaId` that pointed at
+  // it dangling, and the sweep cannot repair such a row: the thumbnailUrl
+  // rebuild is the media block's alone, so a host-relative value stays
+  // host-relative and the row is re-selected by every later run. Before this
+  // warning the operator saw only "processed 1, updated 0".
+  it.each([
+    {
+      description: 'a mediaId whose media row is gone',
+      mediaId: '404',
+      expectedWarning: 'media 404 no longer exists'
+    },
+    {
+      description: 'a mediaId that is not a row id',
+      mediaId: 'abc',
+      expectedWarning: 'mediaId "abc" is not a media row id'
+    }
+  ])(
+    'warns and counts an attachment with $description',
+    async ({ mediaId, expectedWarning }) => {
+      await db('attachments').insert({
+        id: 'att-1',
+        statusId: 'status-1',
+        actorId: 'https://llun.test/users/test',
+        mediaId,
+        mediaType: 'image/jpeg',
+        url: 'https://llun.test/api/v1/files/medias/orig.jpg',
+        // Already set, so the direct-analysis fallback never runs and the media
+        // row is genuinely this row's only remaining source.
+        blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4',
+        thumbnailUrl: '/api/v1/files/medias/orig-thumbnail.jpg'
+      })
+
+      const mockStorage = { getFile: vi.fn().mockResolvedValue(null) } as never
+      await backfillAttachments(db, mockStorage, options(), HOSTS)
+
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining(expectedWarning)
+      )
+      expect(console.log).toHaveBeenCalledWith(
+        'Attachments complete: processed 1, updated 0, 1 with an unresolvable mediaId'
+      )
+
+      // The warning is not redundant with an update: the row really is left as
+      // it was, host-relative thumbnailUrl and all.
+      const untouched = await db('attachments').where('id', 'att-1').first()
+      expect(untouched.thumbnailUrl).toBe(
+        '/api/v1/files/medias/orig-thumbnail.jpg'
+      )
+    }
+  )
+
+  // A NULL `mediaId` is how a federated attachment is stored — there is no
+  // media row to miss — so the count has to stay at zero or every remote
+  // attachment on the instance reads as a gap.
+  it('counts no unresolvable mediaId for a federated attachment', async () => {
+    await db('attachments').insert({
+      id: 'att-1',
+      statusId: 'status-1',
+      actorId: 'https://remote.example/users/them',
+      mediaId: null,
+      mediaType: 'video/mp4',
+      url: 'https://remote.example/media/clip.mp4',
+      blurhash: null
+    })
+
+    const mockStorage = { getFile: vi.fn().mockResolvedValue(null) } as never
+    await backfillAttachments(db, mockStorage, options({ force: true }), HOSTS)
+
+    expect(console.log).toHaveBeenCalledWith(
+      'Attachments complete: processed 1, updated 0, 0 with an unresolvable mediaId'
+    )
+  })
+
   it('runs a remote attachment URL through the download guard by default', async () => {
     vi.mocked(safeImageFetch).mockReset()
     vi.mocked(safeImageFetch).mockResolvedValue(null)

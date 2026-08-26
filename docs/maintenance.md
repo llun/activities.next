@@ -631,6 +631,19 @@ NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --local-only
 
 Earlier versions of this script wrote `attachments.thumbnailUrl` as a host-relative path (`/api/v1/files/…`). That value is served to clients verbatim as Mastodon's `preview_url` and as a `<video>` poster, so it is unusable to any client not talking to this origin. A normal run now selects and repairs those rows as well as rows missing a blurhash — no flag needed — and rewrites them to the absolute URL the live upload path produces, on the owning actor's domain. An already-absolute value is left alone.
 
+### Attachments whose `medias` row was deleted
+
+Deleting a media file from **Settings → Media Storage** removes the `medias` row and its stored bytes, but leaves `attachments.mediaId` on any post that used it pointing at the row that is gone. That is intended — a `NULL` `mediaId` is how a federated attachment is stored, so clearing it would make the attachment un-removable by editing the post — and the post itself keeps rendering its BlurHash placeholder.
+
+Such a row cannot be repaired by this script: the BlurHash, focal point and `thumbnailUrl` it fills in all come from the linked `medias` row, and `thumbnailUrl` has no other source. Because a host-relative `thumbnailUrl` keeps matching the selection predicate, the row is re-read on every run and never updated. The script warns for each one and reports the total:
+
+```text
+[attachments 0f3c…] media 412 no longer exists; cannot restore blurhash, focus or thumbnailUrl from it
+Attachments complete: processed 1204, updated 0, 37 with an unresolvable mediaId
+```
+
+A non-zero count is not an error to act on — it is the number of posts whose media the owner deleted on purpose. It is there so a run that updated nothing is distinguishable from a run that had nothing to do. The author can drop the leftover attachment by editing the post.
+
 ### What `--force` does, and does not, recompute
 
 `--force` recomputes the **blurhash**, and re-derives `thumbnailUrl` from the linked `medias` row even when the stored value is already absolute. It does **not** recompute a **focal point** that is already stored: `PUT /api/v1/media/:id` lets an owner set one by hand, and no column records whether a stored point was set that way or detected automatically, so recomputing would silently discard the owner's choice. A missing focal point is still filled in, with or without the flag.
