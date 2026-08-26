@@ -102,6 +102,11 @@ export const GET = traceApiRoute(
       return activityPubResponse({
         req,
         data: {
+          // The Create objects come from toActivityPubObject, which emits
+          // the FEP-044f quote aliases, an attachment's blurhash/focalPoint,
+          // the Hashtag/Emoji tag types and a poll's votersCount; a receiver
+          // that compacts drops any term its context never defined. The note
+          // context declares all of them and supersets the quote one.
           '@context': NOTE_ACTIVITY_CONTEXT,
           id: `${getLocalActorOutboxId(actor.id)}?page=true`,
           type: 'OrderedCollectionPage',

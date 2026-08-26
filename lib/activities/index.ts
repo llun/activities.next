@@ -159,6 +159,8 @@ export const sendNote = async ({ currentActor, inbox, note }: SendNoteParams) =>
     },
     async (span) => {
       const activity: CreateStatus = {
+        // FEP-044f terms ride on every note, and so do the attachment and tag
+        // ones — see AGENTS.md, ActivityPub & JSON-LD.
         '@context': NOTE_ACTIVITY_CONTEXT,
         id: note.id,
         type: CreateAction,
@@ -203,6 +205,9 @@ export const sendUpdateNote = async ({
       }
 
       const activity: UpdateStatus = {
+        // Also the activity that re-federates a note once its quote is
+        // approved, so dropping the terms here hides the approval from the
+        // receiver.
         '@context': NOTE_ACTIVITY_CONTEXT,
         id: `${note.id}#updates/${Date.now()}`,
         type: UpdateAction,

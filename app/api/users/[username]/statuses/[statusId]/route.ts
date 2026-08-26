@@ -68,6 +68,10 @@ export const GET = traceApiRoute(
     if (contentType) {
       return activityPubResponse({
         req,
+        // The note context, not the bare AS2 url: toActivityPubObject emits
+        // the FEP-044f quote aliases, an attachment's blurhash/focalPoint, the
+        // Hashtag/Emoji tag types and a poll's votersCount, and a receiver that
+        // compacts the document drops any term its context never defined.
         data: { '@context': NOTE_ACTIVITY_CONTEXT, ...activityPubObject },
         contentType
       })

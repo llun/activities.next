@@ -112,7 +112,8 @@ describe('GET /api/users/[username]/statuses/[statusId]/replies', () => {
     const data = await response.json()
     expect(data).toMatchObject({
       // The collection embeds whole Note objects, so it needs the same term
-      // declarations the notes themselves go out under.
+      // declarations the notes themselves go out under — the FEP-044f quote
+      // aliases included, which the note context supersets.
       '@context': NOTE_ACTIVITY_CONTEXT,
       id: 'https://example.com/users/test/statuses/123/replies',
       type: 'Collection',

@@ -13,9 +13,10 @@ import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
  * activities.next instances federating lost the terms in both directions, and
  * Mastodon kept them only because it reads the JSON without processing it.
  *
- * `interactionPolicy` is on every Note this instance emits, so this is not a
- * quote-only or attachment-only concern — a plain text post loses who may
- * quote it.
+ * This is not a quote-only or attachment-only concern: `getNoteFromStatus`
+ * puts `interactionPolicy` on every Note it builds, quoting or not, so a plain
+ * text post loses who may quote it. It supersets `QUOTE_ACTIVITY_CONTEXT`, so
+ * a surface on this context also satisfies what the quote vocabulary requires.
  *
  * Mirrors the inbound aliases in `CANONICAL_CONTEXT`: a term we accept from
  * peers is a term we have to declare when we are the sender.

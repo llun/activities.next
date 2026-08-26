@@ -1,6 +1,10 @@
 import { normalizeActivityTypeToSportKey } from '@/lib/services/fitness-files/sportTypes'
 
-import { getActivityPresentation } from './activityPresentation'
+import {
+  buildActivityTypeLabels,
+  formatActivityTypeLabel,
+  getActivityPresentation
+} from './activityPresentation'
 
 describe('getActivityPresentation', () => {
   it.each([
@@ -282,5 +286,95 @@ describe('getActivityPresentation', () => {
       label: 'Constructor',
       emoji: '🏋️'
     })
+  })
+})
+
+describe('formatActivityTypeLabel', () => {
+  it.each([
+    { description: 'a single word', type: 'ride', expected: 'Ride' },
+    {
+      description: 'an underscored key',
+      type: 'gravel_ride',
+      expected: 'Gravel Ride'
+    },
+    {
+      description: 'a type already capitalised',
+      type: 'Ride',
+      expected: 'Ride'
+    },
+    {
+      description: 'an unmapped sport stored verbatim',
+      type: 'stand_up_paddling',
+      expected: 'Stand Up Paddling'
+    }
+  ])('names $description', ({ type, expected }) => {
+    expect(formatActivityTypeLabel(type)).toBe(expected)
+  })
+
+  it('keeps stored spellings the post caption folds together apart', () => {
+    // `ride` and `cycling` both caption "Cycling" — right for a post, wrong for
+    // a list whose two rows carry separate numbers and separate filters.
+    expect(getActivityPresentation('ride').label).toBe('Cycling')
+    expect(getActivityPresentation('cycling').label).toBe('Cycling')
+
+    expect(formatActivityTypeLabel('ride')).toBe('Ride')
+    expect(formatActivityTypeLabel('cycling')).toBe('Cycling')
+  })
+})
+
+describe('buildActivityTypeLabels', () => {
+  it('leaves labels that are already unique alone', () => {
+    expect(
+      Object.fromEntries(
+        buildActivityTypeLabels(['ride', 'gravel_ride', 'run', 'swimming'])
+      )
+    ).toEqual({
+      ride: 'Ride',
+      gravel_ride: 'Gravel Ride',
+      run: 'Run',
+      swimming: 'Swimming'
+    })
+  })
+
+  it.each([
+    { description: 'a lowercase and capitalised pair', types: ['run', 'Run'] },
+    { description: 'a capitalised Strava spelling', types: ['hike', 'Hike'] },
+    {
+      description: 'a separator difference that also case-folds',
+      types: ['gravel_ride', 'Gravel_Ride']
+    }
+  ])('qualifies $description', ({ types }) => {
+    // `formatActivityTypeLabel` capitalises, which is case-insensitive, so
+    // these collide however they were stored. Both are real: the canonical form
+    // is applied on write and older rows keep whatever Strava sent.
+    const labels = buildActivityTypeLabels(types)
+
+    expect(new Set(labels.values()).size).toBe(types.length)
+    for (const activityType of types) {
+      expect(labels.get(activityType)).toContain(`(${activityType})`)
+    }
+  })
+
+  it('qualifies only the colliding labels, not their neighbours', () => {
+    expect(
+      Object.fromEntries(buildActivityTypeLabels(['run', 'Run', 'ride']))
+    ).toEqual({
+      run: 'Run (run)',
+      Run: 'Run (Run)',
+      ride: 'Ride'
+    })
+  })
+
+  it('returns an empty map for no activity types', () => {
+    expect(buildActivityTypeLabels([]).size).toBe(0)
+  })
+
+  it('does not qualify a spelling that only looks similar', () => {
+    // Capitalising touches word-initial letters only, so `RIDE` survives as
+    // itself and does not collide with `ride`. Qualifying it would put a
+    // parenthetical on a label nothing is ambiguous with.
+    expect(
+      Object.fromEntries(buildActivityTypeLabels(['ride', 'RIDE']))
+    ).toEqual({ ride: 'Ride', RIDE: 'RIDE' })
   })
 })

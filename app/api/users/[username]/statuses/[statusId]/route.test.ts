@@ -104,12 +104,13 @@ describe('GET /api/users/[username]/statuses/[statusId]', () => {
 
     const data = await response.json()
     expect(data).toMatchObject({
-      // The Note context, not the bare ActivityStreams URL. This route builds
-      // its object with `toActivityPubObject`, so what it carries is an
-      // attachment's blurhash/focalPoint, the Hashtag and Emoji tag types, and
-      // `votersCount` on a poll — each dropped by a JSON-LD-processing receiver
-      // unless the term is declared. (`interactionPolicy` and the quote aliases
-      // come from `getNoteFromStatus`, which the federation paths use.)
+      // The note context, not the bare ActivityStreams URL. This route builds
+      // its object with `toActivityPubObject`, which carries the FEP-044f quote
+      // aliases, an attachment's blurhash/focalPoint, the Hashtag and Emoji tag
+      // types and `votersCount` on a poll — each dropped by a JSON-LD-processing
+      // receiver unless the term is declared. The note context supersets the
+      // quote one. (`interactionPolicy` is the one term only
+      // `getNoteFromStatus` adds, on the delivery paths.)
       '@context': NOTE_ACTIVITY_CONTEXT,
       id: 'https://example.com/users/test/statuses/123',
       type: 'Note'

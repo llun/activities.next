@@ -1,5 +1,6 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { sendUpdateNoteJob } from '@/lib/jobs/sendUpdateNoteJob'
 import { expectCall, mockRequests } from '@/lib/stub/activities'
@@ -56,6 +57,10 @@ describe('Send update note job', () => {
     })
 
     expectCall(fetchMock, 'https://somewhere.test/inbox', 'POST', {
+      // An Update is how a quoter re-federates its note once the quote is
+      // approved, so dropping the FEP-044f term definitions here is what would
+      // leave that approval invisible to a receiver that compacts.
+      '@context': QUOTE_ACTIVITY_CONTEXT,
       id: expect.stringMatching(status.id),
       type: 'Update',
       actor: actor1.id,
