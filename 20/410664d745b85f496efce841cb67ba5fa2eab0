@@ -1,0 +1,19 @@
+lib/utils/safeImageDownload.test.ts
+  s_a3b90525842071::t_001281103f56b6 455-478,494-495,504,511,518,521,526-534,536-543,548
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "20410664d745b85f496efce841cb67ba5fa2eab0",
+  "prompts": {},
+  "sessions": {
+    "s_a3b90525842071": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "029eb1cf-00b7-4f56-b1d3-679cd6f1e78c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
