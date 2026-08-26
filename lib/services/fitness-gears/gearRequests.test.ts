@@ -375,10 +375,13 @@ describe('getGearKindFieldError', () => {
 
 describe('getComponentPeriodBoundsError', () => {
   // Only the two `refitted` refusals below pin the bug this function was
-  // extracted for — the rest guard the surrounding behaviour, and pass against
-  // the derived-pair formulation too, because a single-period component makes
-  // the two formulations agree by construction. Worth stating so nobody reads a
-  // green run of the whole block as proof the refit case is covered.
+  // extracted for. Every other case passes against the derived-pair
+  // formulation too — the single-period ones because the first and last period
+  // are then the same row, so the two formulations agree by construction, and
+  // the remaining multi-period ones for their own reasons (an edit the correct
+  // check accepts anyway, or a bound neither formulation looks at). Worth
+  // stating so nobody reads a green run of the whole block as proof the refit
+  // case is covered.
   //
   // A part that has never been refitted: both bounds land on this one row.
   const singlePeriod = [
