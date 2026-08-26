@@ -811,34 +811,14 @@ describe('actor archive remote attachment cap', () => {
     )
   })
 
-  // Same shape of hazard, same reason it needs a source assertion: nothing in
-  // a result distinguishes a deadline stamped once for the run from one
-  // recomputed per attachment, and the second is no bound at all — every
-  // attachment would find the full budget ahead of it.
-  //
-  // WHERE it is stamped is the whole property, so asserting the expression
-  // merely EXISTS proves nothing: an earlier version of this test did exactly
-  // that, and moving the identical expression down into the status loop —
-  // rebuilding `remoteFetch` per attachment, which hands every attachment a
-  // full budget — left the whole suite green. The count pins it to one stamp,
-  // and the index comparison pins that one above the loop that spends it,
-  // which is the only place a per-attachment stamp could live.
-  it('stamps the budget deadline once, above the status walk that spends it', () => {
-    const stamps = [
-      ...SOURCE.matchAll(
-        /deadline:\s*Date\.now\(\)\s*\+\s*args\.remoteFetchBudgetSeconds\s*\*\s*1000\s*[,}]/g
-      )
-    ]
-    expect(stamps).toHaveLength(1)
-
-    // Asserted rather than assumed: were this marker renamed, `indexOf` would
-    // answer -1 and the comparison below would be trivially satisfiable.
-    const statusWalkIndex = SOURCE.indexOf(
-      'for await (const status of forEachActorStatus'
-    )
-    expect(statusWalkIndex).toBeGreaterThan(0)
-    expect(stamps[0].index).toBeLessThan(statusWalkIndex)
-  })
+  // "The deadline is stamped once per RUN, not once per attachment" is not
+  // asserted here any more. Three source-text spellings of that guard were
+  // tried and each was defeated in review by a different rewrite of the same
+  // bug — the last one a helper defined above the loop and called inside it,
+  // which is textually indistinguishable from the correct code. A regex can
+  // say where an expression is written, never how often it is evaluated, so
+  // that property is proved by running a whole export in
+  // `actorArchiveExport.test.ts` instead.
 
   // The property that makes an aggregate bound safe in a BACKUP tool: the
   // budget may decline to start work, never cancel work already started.
