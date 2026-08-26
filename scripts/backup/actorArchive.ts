@@ -783,6 +783,12 @@ export const registerAttachmentUrl = async ({
     // budget — and the caller cannot tell them apart, so the warning must not
     // name only the first. Reporting a 4-hop CDN chain as an unsafe address
     // sends the operator hunting a DNS problem that does not exist.
+    //
+    // One string for all three is also a security property, so do not split
+    // it: `getSafeImageDownloadUrl` resolves through `lookup(...).catch(=> [])`,
+    // which makes a hostname that does not exist and one that resolves to a
+    // private address refuse identically. A per-cause message would hand the
+    // account owner — who chose this URL — an oracle for internal DNS.
     if (!response) {
       warnings.push(
         `Refused remote attachment URL (unsafe address, non-HTTPS, or too many redirects): ${attachment.url}`
