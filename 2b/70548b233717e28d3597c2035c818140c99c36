@@ -1,0 +1,21 @@
+scripts/backup/actorArchive.test.ts
+  s_fda7ba9e961907::t_acaf6ea492a127 317-345,400-403,652-656,658
+AGENTS.md
+  s_fda7ba9e961907::t_c5a8ed3f3143b1 2314
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "2b70548b233717e28d3597c2035c818140c99c36",
+  "prompts": {},
+  "sessions": {
+    "s_fda7ba9e961907": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a7bf65c-4b6f-438f-ada5-421e7d954be1",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
