@@ -827,10 +827,12 @@ describe('backfillMediaBlurhash execution', () => {
         'Attachments complete: processed 1, updated 0, 1 whose media row is gone, 0 with an invalid mediaId'
     },
     {
-      // Reachable on SQLite only: `attachments.mediaId` is `integer` on
-      // PostgreSQL, so this INSERT fails there before the branch is reached.
-      // This file builds its own `better-sqlite3` database, so no
-      // `TEST_DATABASE_TYPE` setting exercises the PostgreSQL side.
+      // This spelling needs SQLite's `varchar` column; `attachments.mediaId`
+      // is `integer` on PostgreSQL, where the INSERT would fail first. The
+      // BRANCH is not SQLite-only though — `-5` and `0` store fine on
+      // PostgreSQL and `toMediaRowId` refuses them just the same. This file
+      // builds its own `better-sqlite3` database, so no `TEST_DATABASE_TYPE`
+      // exercises the PostgreSQL side either way.
       description: 'a mediaId that is not a row id',
       mediaId: 'abc',
       expectedWarning: 'mediaId "abc" is not a media row id',
@@ -899,6 +901,12 @@ describe('backfillMediaBlurhash execution', () => {
     } as never
     await backfillAttachments(db, mockStorage, options(), HOSTS)
 
+    // Asserted alongside the repair, because the sibling `it.each` case only
+    // proves the warning fires on a row that does NOT self-heal. Without this,
+    // suppressing the warning for exactly the self-healing rows passes.
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('mediaId "abc" is not a media row id')
+    )
     expect(console.log).toHaveBeenCalledWith(
       'Attachments complete: processed 1, updated 1, 0 whose media row is gone, 1 with an invalid mediaId'
     )

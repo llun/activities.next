@@ -451,11 +451,21 @@ export const backfillAttachments = async (
   let lastId = ''
   let totalProcessed = 0
   let totalUpdated = 0
-  // Two different reasons a `mediaId` resolves to nothing, deliberately NOT
-  // summed: one is the expected residue of an owner deleting their own media,
-  // the other is a pointer that was never valid. They call for opposite
-  // responses, so an operator has to be able to tell them apart from the
-  // summary line alone.
+  // Two reasons a `mediaId` resolves to nothing, deliberately NOT summed
+  // because they call for opposite responses, and an operator has to tell them
+  // apart from the summary line alone.
+  //
+  // A media row that is GONE is the expected residue of an owner deleting their
+  // own media. Nothing here can repair such a row — `thumbnailUrl` is rebuilt
+  // only from the media row's stored thumbnail path — and deleting a `medias`
+  // row deliberately does not clear the `attachments.mediaId` naming it, since
+  // a null `mediaId` marks a federated attachment (see AGENTS.md, "Deleting
+  // Media a Post Uses"). So these rows are permanent and re-selected forever;
+  // before they were counted in `processed` and reported nowhere.
+  //
+  // An INVALID one was never a row id, so nothing was deleted: it is a bad
+  // write, from the unvalidated `createAttachment` path AGENTS.md documents
+  // under "Database Compatibility Guidelines", and is worth investigating.
   let totalDeletedMedia = 0
   let totalInvalidMediaId = 0
 
@@ -550,30 +560,13 @@ export const backfillAttachments = async (
             )
           }
         } else if (rowId === undefined) {
-          // `toMediaRowId` refused the value, so it never named a row at all.
-          // Nothing was deleted here — this is a bad WRITE, and the repo has a
-          // known path for one: `createAttachment` does not validate `mediaId`
-          // (deliberately, so a bad id surfaces rather than being dropped) and
-          // `POST /api/v1/accounts/outbox` reaches it with an unvalidated
-          // `PostBoxAttachment.id`. On PostgreSQL that insert fails, because
-          // `attachments.mediaId` is `integer`; on SQLite it is `varchar` and
-          // the row lands. So this count is worth investigating, which is
-          // exactly why it is not summed with the one below.
+          // `toMediaRowId` refused the value, so it never named a row.
           totalInvalidMediaId += 1
           console.warn(
             `[attachments ${row.id}] mediaId ${JSON.stringify(row.mediaId)} is not a media row id; cannot restore blurhash, focus or thumbnailUrl from it`
           )
         } else {
-          // A real row id whose `medias` row is gone. Every field this block
-          // would have copied is unreachable, and `thumbnailUrl` has no other
-          // source at all, because rebuilding it needs the media row's stored
-          // thumbnail path. Deleting a `medias` row does not clear the
-          // `attachments.mediaId` pointing at it (nor should it: a null
-          // `mediaId` marks a federated attachment, and `updateNote` uses that
-          // to decide an attachment is not the owner's to replace), so these
-          // rows are permanent. Without this they were invisible: counted in
-          // `processed`, re-selected by every later run — a sweep reporting
-          // "processed N, updated 0" and no reason why.
+          // A real row id whose `medias` row is gone.
           totalDeletedMedia += 1
           console.warn(
             `[attachments ${row.id}] media ${row.mediaId} no longer exists; cannot restore blurhash, focus or thumbnailUrl from it`
@@ -652,11 +645,9 @@ export const backfillAttachments = async (
     }
   }
 
-  // Both counts are printed even when zero: the line exists to explain a run
-  // that updated nothing, and a `0` rules a cause out just as usefully as a
-  // non-zero value names it. They do NOT partition `processed` — a row counted
-  // here can still be updated from its own image bytes by the analysis step,
-  // which is common for an invalid `mediaId`, where nothing was ever deleted.
+  // Printed even when zero: a `0` rules a cause out as usefully as a non-zero
+  // value names it. The counts do NOT partition `processed` — a row counted
+  // here can still be repaired from its own image bytes below.
   console.log(
     `Attachments complete: processed ${totalProcessed}, updated ${totalUpdated}, ${totalDeletedMedia} whose media row is gone, ${totalInvalidMediaId} with an invalid mediaId`
   )

@@ -1818,57 +1818,40 @@ system's `Attachments` component.
 ## Deleting Media a Post Uses
 
 - **The two media DELETE routes disagree on purpose, and neither is a bug.**
-  `DELETE /api/v1/media/:id` is the Mastodon-compatible one and refuses media
-  that a posted status already uses (`deleteMediaForAccount` answers `in-use`,
-  which the route turns into a 422), matching Mastodon's `in_usage_error`.
-  `DELETE /api/v1/accounts/media/:mediaId` is this instance's own, behind the
-  Settings → Media Storage delete button, and deliberately allows it: its
-  confirmation dialog promises "Posts containing this media will show a
-  placeholder image". Do not "reconcile" the two by making the settings route
-  422; that revokes a shipped capability. **That promise is only kept for an
-  attachment that already carries a BlurHash**, though: `lib/components/posts/media.tsx`
-  holds the `<img>` at `opacity-0` until `onLoad` fires — which a 404 never
-  does, leaving the canvas visible — but ONLY inside its `if (blurhash)` branch.
-  A falsy BlurHash falls through to a bare `<img>` with no canvas behind it, so
-  a 404 there is a broken-image icon. Once the media row and its bytes are gone
-  the backfill sweep cannot compute one either, so such a row is permanently
-  placeholder-less. Do not read a broken-image report as handled by design.
+  `DELETE /api/v1/media/:id` is Mastodon-compatible and refuses media a posted
+  status uses (`deleteMediaForAccount` answers `in-use` → 422).
+  `DELETE /api/v1/accounts/media/:mediaId`, behind the Settings → Media Storage
+  button, deliberately allows it, promising "Posts containing this media will
+  show a placeholder image". Do not "reconcile" them by making the settings
+  route 422 — that revokes a shipped capability. **The promise holds only for an
+  attachment that already carries a BlurHash**: `lib/components/posts/media.tsx`
+  gates the `<img>` at `opacity-0` until `onLoad` (which a 404 never fires) ONLY
+  inside `if (blurhash)`; a falsy one falls through to a bare `<img>`, so a 404
+  is a broken-image icon, and once the bytes are gone nothing can compute one.
+  Do not dismiss a broken-image report as handled by design.
 - **Deleting a `medias` row therefore leaves `attachments.mediaId` pointing at a
   row that is gone, and clearing it would be a regression, not a cleanup.** A
-  NULL `mediaId` is how a FEDERATED attachment is stored, and `updateNote` reads
-  exactly that to decide an attachment is not the owner's to replace
-  (`isReplaceableMediaAttachment`, `lib/database/sql/status.ts`). So nulling the
-  pointer would turn a broken attachment the author can still remove by editing
-  the post into one that can never be removed, and would destroy the only record
-  that the attachment was ever backed by local media. `lib/database/sql/status.test.ts`
-  → `clears only editable media while preserving legacy and fitness attachments`
-  pins the surviving-null behaviour. Deleting the attachment row alongside the
-  media is wrong for a different reason: it removes the placeholder the dialog
-  promises and silently rewrites a published status whose federated copies keep
-  the attachment.
-- **What a dangling pointer does cost is a maintenance sweep that cannot report
-  it.** `scripts/maintenance/backfillMediaBlurhash.ts` rebuilds an attachment's
+  NULL `mediaId` is how a FEDERATED attachment is stored, and
+  `isReplaceableMediaAttachment` (`lib/database/sql/status.ts`) reads exactly
+  that to decide an attachment is not the owner's to replace. Nulling it would
+  turn a broken attachment the author can still remove by editing the post into
+  one that never can be, and destroy the only record that it was backed by local
+  media; `lib/database/sql/status.test.ts` → `clears only editable media while
+preserving legacy and fitness attachments` pins the surviving-null behaviour.
+  Deleting the attachment row instead removes the promised placeholder and
+  silently rewrites a published status whose federated copies keep it.
+- **The cost is a maintenance sweep that cannot report the gap.**
+  `scripts/maintenance/backfillMediaBlurhash.ts` rebuilds an attachment's
   BlurHash, focal point and `thumbnailUrl` from the linked `medias` row, and
-  `thumbnailUrl` has no other source — so a row whose media is gone is selected
-  (a host-relative `thumbnailUrl` matches the predicate), counted in
-  `processed`, and re-selected by every later run. It warns per row and reports
-  the count, so an operator reading "processed N, updated 0" can tell that cause
-  from a no-op run. Any future repair path over `attachments` owes the same
-  signal.
-- **The sweep reports TWO counts and never sums them, because they call for
-  opposite responses.** A `mediaId` that resolves to no `medias` row is the
-  expected residue of an owner deleting their own media — nothing to act on. A
-  `mediaId` `toMediaRowId` refuses was never a row id at all, which is a bad
-  WRITE, not a deletion: `createAttachment` does not validate `mediaId` (on
-  purpose, so a bad id surfaces rather than being silently dropped) and
-  `POST /api/v1/accounts/outbox` reaches it with an unvalidated
-  `PostBoxAttachment.id`. PostgreSQL rejects that insert because
-  `attachments.mediaId` is `integer`; SQLite stores it. Summing the two would
-  tell an operator to ignore evidence of that open bug. **Neither count
-  partitions `processed`** — a warned row can still be updated from its own
-  image bytes by the analysis step, which is the norm for an invalid `mediaId`
-  precisely because nothing was ever deleted and the file behind `url` is still
-  there.
+  `thumbnailUrl` has no other source — so such a row is selected, counted in
+  `processed`, and re-selected forever. It warns per row and reports **two
+  counts, never summed**: a gone media row is nothing to act on, while a
+  `mediaId` `toMediaRowId` refuses was never a row id, so nothing was deleted and
+  it is a bad WRITE from the unvalidated `createAttachment` path that **Database
+  Compatibility Guidelines** documents. Not SQLite-only — `-5` and `0` are valid
+  `integer`s PostgreSQL stores and `toMediaRowId` still refuses. **Neither count
+  partitions `processed`**: a warned row can still be repaired from its own image
+  bytes. Any future repair path over `attachments` owes the same signal.
 
 ## Better-auth Plugin Guidelines
 
