@@ -1,0 +1,41 @@
+scripts/maintenance/backfillMediaBlurhash.ts
+  s_3aef31ca22620f::t_5fa4683505f97a 136-141,144
+CLAUDE.md
+  s_3aef31ca22620f::t_58a7681a335c64 53
+lib/utils/host.ts
+  s_3aef31ca22620f::t_5fa4683505f97a 93-102,104,118-134,264-266,276-290
+AGENTS.md
+  s_3aef31ca22620f::t_58a7681a335c64 2281,2285-2286
+REVIEW.md
+  s_3aef31ca22620f::t_b218981da48297 551-578
+lib/services/auth/servedDomains.ts
+  s_3aef31ca22620f::t_5fa4683505f97a 17,22-26
+lib/services/auth/trustedOrigins.ts
+  s_3aef31ca22620f::t_5fa4683505f97a 20,22-56
+lib/services/auth/trustedOrigins.test.ts
+  s_3aef31ca22620f::t_5fa4683505f97a 4-61
+lib/utils/host.test.ts
+  s_3aef31ca22620f::t_5fa4683505f97a 252-310
+scripts/maintenance/backfillMediaBlurhash.test.ts
+  s_3aef31ca22620f::t_5fa4683505f97a 253-265
+lib/services/auth/servedDomains.test.ts
+  s_3aef31ca22620f::t_5fa4683505f97a 10-30
+lib/services/medias/mediaFileUrl.test.ts
+  s_3aef31ca22620f::t_5fa4683505f97a 232-239
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "c87bca50d27b5bef8a4d5f8c3ce35474096f721a",
+  "prompts": {},
+  "sessions": {
+    "s_3aef31ca22620f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c9b299cc-ec52-402d-a7a5-dd7991ecd229",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
