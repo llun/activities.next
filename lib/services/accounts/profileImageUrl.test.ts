@@ -93,6 +93,61 @@ describe('parseProfileImageUrl', () => {
     })
   })
 
+  describe('a value the actor already has stored', () => {
+    // `/settings` is one form around name, summary, both images and privacy,
+    // and `ImageUploadField` resubmits the stored URL untouched. Re-validating
+    // it would 422 the whole form for anyone carrying a URL stored before this
+    // rule existed, losing an unrelated name edit with no error UI.
+    const STALE = 'https://gravatar.example/avatar/abc.jpg'
+
+    it('reports no change rather than refusing it', () => {
+      expect(parseProfileImageUrl(STALE, config, STALE)).toEqual({
+        valid: true,
+        value: undefined
+      })
+    })
+
+    it('still refuses a DIFFERENT value that would not pass', () => {
+      expect(
+        parseProfileImageUrl(
+          'https://evil.example/api/v1/files/a.jpg',
+          config,
+          STALE
+        )
+      ).toEqual({ valid: false })
+    })
+
+    it('still clears when the field is submitted empty', () => {
+      // The stale value has to stay removable, not become sticky.
+      expect(parseProfileImageUrl('', config, STALE)).toEqual({
+        valid: true,
+        value: null
+      })
+    })
+
+    it('still accepts a new own-instance URL replacing it', () => {
+      expect(
+        parseProfileImageUrl(MEDIA_URL_PREFIX + 'new.jpg', config, STALE)
+      ).toEqual({
+        valid: true,
+        value: MEDIA_URL_PREFIX + 'new.jpg'
+      })
+    })
+
+    it('does not treat an empty stored value as a match for an empty submission', () => {
+      // Guards the `currentValue &&` truthiness check: with no image stored,
+      // an empty submission must still take the clear branch.
+      expect(parseProfileImageUrl('', config, '')).toEqual({
+        valid: true,
+        value: null
+      })
+      expect(parseProfileImageUrl('', config, null)).toEqual({
+        valid: true,
+        value: null
+      })
+    })
+  })
+
   it('leaves the stored image unchanged when the field is absent', () => {
     expect(parseProfileImageUrl(undefined, config)).toEqual({
       valid: true,

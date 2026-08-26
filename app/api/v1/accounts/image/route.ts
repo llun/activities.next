@@ -27,14 +27,25 @@ export const POST = traceApiRoute(
     // media this instance already stores. This route previously validated with
     // `z.string().url()`, which in Zod 4 accepts `javascript:`, `data:` and
     // `file:` URLs — so the shape check alone left the schemes worth refusing.
-    // A missing or empty value still clears the image, as it always has.
-    const iconUrl = parseProfileImageUrl(rawIconUrl, getConfig())
+    // A missing or empty value still clears the image, as it always has, and
+    // the stored value is passed so a form resubmitting one it did not change
+    // is treated as "no change" rather than re-validated.
+    const iconUrl = parseProfileImageUrl(
+      rawIconUrl,
+      getConfig(),
+      account.iconUrl
+    )
     if (!iconUrl.valid) return invalidImageUrl()
 
-    await database.updateAccountImage({
-      accountId: account.id,
-      iconUrl: iconUrl.value ?? null
-    })
+    // `undefined` means the submitted value is the one already stored, so
+    // there is nothing to write. `updateAccountImage` has no "no change" state
+    // — it always writes — and `undefined ?? null` would CLEAR the image.
+    if (iconUrl.value !== undefined) {
+      await database.updateAccountImage({
+        accountId: account.id,
+        iconUrl: iconUrl.value
+      })
+    }
 
     return Response.redirect(new URL('/account', req.url), 303)
   })

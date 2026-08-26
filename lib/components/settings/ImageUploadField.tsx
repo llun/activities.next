@@ -37,12 +37,21 @@ export const ImageUploadField: FC<ImageUploadFieldProps> = ({
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [isHovering, setIsHovering] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const uploadButtonRef = useRef<HTMLButtonElement>(null)
 
   const handleUploadClick = () => {
     fileInputRef.current?.click()
   }
 
   const handleRemoveClick = () => {
+    // Hand focus to Upload BEFORE clearing. Remove is rendered only while a
+    // value is set, so clearing unmounts the button that was just activated —
+    // and a focused element removed from the document drops focus to `<body>`,
+    // sending the next Tab back to the top of the page (WCAG 2.4.3). The
+    // media strip's chevrons have the same shape and are documented in
+    // AGENTS.md; their fix (leave the control out of the tab order) does not
+    // apply here, because Remove is the only way to clear the image.
+    uploadButtonRef.current?.focus()
     // Submitting an empty value is how both profile routes are told to clear
     // the stored image.
     setImageUrl('')
@@ -143,9 +152,17 @@ export const ImageUploadField: FC<ImageUploadFieldProps> = ({
           value={imageUrl}
           readOnly
           placeholder="No image uploaded yet"
-          className="flex-1"
+          // `Input` styles `disabled` but not `readOnly`, so without a muted
+          // surface this reads as a typeable box sitting under Name and
+          // Summary, which are. It stays `readOnly` rather than `disabled`
+          // because the preview above is a background-image `div` that
+          // assistive tech cannot see — this field is the only announced
+          // representation of which image is set, and `disabled` would drop it
+          // from the tab order.
+          className="flex-1 bg-muted"
         />
         <Button
+          ref={uploadButtonRef}
           type="button"
           variant="outline"
           size="icon"

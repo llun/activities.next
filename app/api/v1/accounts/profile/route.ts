@@ -54,9 +54,21 @@ export const POST = traceApiRoute(
     // submits both fields, so an empty one is the user clearing the image
     // rather than a partial update — `parseProfileImageUrl` answers null for it
     // and `updateActor` reads that as an explicit clear.
+    // The actor's stored values are passed so a form resubmitting one it did
+    // not change is treated as "no change" rather than re-validated — see
+    // `parseProfileImageUrl`, where the single settings form makes that
+    // load-bearing.
     const config = getConfig()
-    const iconUrl = parseProfileImageUrl(rawIconUrl, config)
-    const headerImageUrl = parseProfileImageUrl(rawHeaderImageUrl, config)
+    const iconUrl = parseProfileImageUrl(
+      rawIconUrl,
+      config,
+      currentActor.iconUrl
+    )
+    const headerImageUrl = parseProfileImageUrl(
+      rawHeaderImageUrl,
+      config,
+      currentActor.headerImageUrl
+    )
     if (!iconUrl.valid || !headerImageUrl.valid) {
       return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
     }

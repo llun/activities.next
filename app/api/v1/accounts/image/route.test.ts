@@ -4,7 +4,11 @@ import { POST } from './route'
 
 const MEDIA_URL = 'https://llun.test/api/v1/files/a1b2c3d4e5f60718.jpg'
 
-const mockCurrentActor = {
+const mockCurrentActor: {
+  id: string
+  domain: string
+  account: { id: string; iconUrl?: string | null }
+} = {
   id: 'https://llun.test/users/llun',
   domain: 'llun.test',
   account: { id: 'account-1' }
@@ -44,6 +48,7 @@ describe('POST /api/v1/accounts/image', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockDatabase.updateAccountImage.mockResolvedValue(undefined)
+    delete mockCurrentActor.account.iconUrl
   })
 
   const post = (fields: Record<string, string>) => {
@@ -92,6 +97,41 @@ describe('POST /api/v1/accounts/image', () => {
       'https://llun.test/account?error=Invalid+image+URL'
     )
     expect(mockDatabase.updateAccountImage).not.toHaveBeenCalled()
+  })
+
+  it('accepts a media URL on a trusted alias host', async () => {
+    const aliasUrl = 'https://alias.llun.test/api/v1/files/abc.jpg'
+    await post({ iconUrl: aliasUrl })
+
+    expect(mockDatabase.updateAccountImage).toHaveBeenCalledWith({
+      accountId: 'account-1',
+      iconUrl: aliasUrl
+    })
+  })
+
+  describe('a URL the account already has stored', () => {
+    const STALE = 'https://gravatar.example/avatar/abc.jpg'
+
+    it('writes nothing rather than refusing or clearing it', async () => {
+      // `undefined` means "already stored". `updateAccountImage` always
+      // writes, so it must be skipped — passing the value through would clear
+      // the image the form was resubmitting unchanged.
+      mockCurrentActor.account.iconUrl = STALE
+      const response = await post({ iconUrl: STALE })
+
+      expect(response.headers.get('location')).toBe('https://llun.test/account')
+      expect(mockDatabase.updateAccountImage).not.toHaveBeenCalled()
+    })
+
+    it('still lets the stale URL be cleared', async () => {
+      mockCurrentActor.account.iconUrl = STALE
+      await post({ iconUrl: '' })
+
+      expect(mockDatabase.updateAccountImage).toHaveBeenCalledWith({
+        accountId: 'account-1',
+        iconUrl: null
+      })
+    })
   })
 
   it.each<{ description: string; fields: Record<string, string> }>([

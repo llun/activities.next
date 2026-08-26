@@ -57,6 +57,37 @@ describe('ImageUploadField', () => {
     expect(getSubmittedValue(container, 'iconUrl')).toBe('')
   })
 
+  it('moves focus to Upload when Remove unmounts itself', () => {
+    // Remove renders only while a value is set, so clearing unmounts the
+    // button that was just activated. A focused element removed from the
+    // document drops focus to `<body>`, which sends the next Tab back to the
+    // top of the page (WCAG 2.4.3).
+    renderField(MEDIA_URL)
+
+    const removeButton = screen.getByRole('button', {
+      name: 'Remove Icon image'
+    })
+    removeButton.focus()
+    expect(document.activeElement).toBe(removeButton)
+
+    fireEvent.click(removeButton)
+
+    expect(
+      screen.queryByRole('button', { name: 'Remove Icon image' })
+    ).not.toBeInTheDocument()
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Upload Icon image' })
+    )
+  })
+
+  it('gives the read-only field a muted surface', () => {
+    // `Input` styles `disabled` but not `readOnly`, so an unmuted box reads as
+    // typeable beside the genuinely editable Name and Summary fields.
+    renderField(MEDIA_URL)
+
+    expect(screen.getByLabelText('Icon image')).toHaveClass('bg-muted')
+  })
+
   it('offers no remove button when no image is set', () => {
     renderField(null)
 

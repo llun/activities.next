@@ -5,7 +5,12 @@ import { POST } from './route'
 const MEDIA_URL = 'https://llun.test/api/v1/files/a1b2c3d4e5f60718.jpg'
 const HEADER_MEDIA_URL = 'https://llun.test/api/v1/files/0718a1b2c3d4e5f6.jpg'
 
-const mockCurrentActor = {
+const mockCurrentActor: {
+  id: string
+  domain: string
+  iconUrl?: string
+  headerImageUrl?: string
+} = {
   id: 'https://llun.test/users/llun',
   domain: 'llun.test'
 }
@@ -44,6 +49,8 @@ describe('POST /api/v1/accounts/profile', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockDatabase.updateActor.mockResolvedValue(null)
+    delete mockCurrentActor.iconUrl
+    delete mockCurrentActor.headerImageUrl
   })
 
   const createRequest = (fields: Record<string, string>) => {
@@ -144,6 +151,64 @@ describe('POST /api/v1/accounts/profile', () => {
       expect(params).not.toHaveProperty('iconUrl')
       expect(params).not.toHaveProperty('headerImageUrl')
     })
+  })
+
+  describe('a URL the actor already has stored', () => {
+    // `/settings` is ONE form around name, summary, both images and privacy,
+    // and `ImageUploadField` resubmits the stored URL untouched. Without this,
+    // an actor carrying a URL stored before this rule existed could not save
+    // anything on the page — editing only their display name would 422 the
+    // whole form and lose the edit to a bare JSON body with no error UI.
+    const STALE = 'https://gravatar.example/avatar/abc.jpg'
+
+    it('lets an unrelated field be saved without touching the image', async () => {
+      mockCurrentActor.iconUrl = STALE
+      const response = await post({ name: 'New name', iconUrl: STALE })
+
+      expect(response.status).toBe(307)
+      const params = mockDatabase.updateActor.mock.calls[0][0]
+      expect(params).toMatchObject({ name: 'New name' })
+      expect(params).not.toHaveProperty('iconUrl')
+    })
+
+    it('still refuses a different unacceptable URL', async () => {
+      mockCurrentActor.iconUrl = STALE
+      const response = await post({
+        iconUrl: 'https://evil.example/api/v1/files/a.jpg'
+      })
+
+      expect(response.status).toBe(422)
+      expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+    })
+
+    it('still lets the stale URL be cleared', async () => {
+      mockCurrentActor.iconUrl = STALE
+      await post({ iconUrl: '' })
+
+      expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+        expect.objectContaining({ iconUrl: null })
+      )
+    })
+  })
+
+  it('accepts a media URL on a trusted alias host', async () => {
+    // A multi-domain instance mints media URLs on the OWNING actor's domain,
+    // so the route has to hand `getConfig()`'s trustedHosts to the validator.
+    const aliasUrl = 'https://alias.llun.test/api/v1/files/abc.jpg'
+    await post({ iconUrl: aliasUrl })
+
+    expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({ iconUrl: aliasUrl })
+    )
+  })
+
+  it('clears one image while setting the other', async () => {
+    mockCurrentActor.headerImageUrl = HEADER_MEDIA_URL
+    await post({ iconUrl: MEDIA_URL, headerImageUrl: '' })
+
+    expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+      expect.objectContaining({ iconUrl: MEDIA_URL, headerImageUrl: null })
+    )
   })
 
   describe('fields the settings form does not own', () => {

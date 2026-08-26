@@ -53,12 +53,35 @@ const REFUSED: ProfileImageUrlResult = { valid: false }
  */
 export const parseProfileImageUrl = (
   value: string | null | undefined,
-  config: HostRuleConfig
+  config: HostRuleConfig,
+  currentValue?: string | null
 ): ProfileImageUrlResult => {
   if (value === undefined) return { valid: true, value: undefined }
   if (value === null) return { valid: true, value: null }
 
   const trimmed = value.trim()
+
+  // A client echoing back the value already stored is not proposing a new one,
+  // so it is not re-validated — the same "existing rows are left alone" rule
+  // this module's contract states, enforced at the one place a stored value
+  // comes back in.
+  //
+  // This is load-bearing, not an optimisation. `/settings` is a SINGLE form
+  // around name, summary, both images and the privacy switch, and
+  // `ImageUploadField` seeds its hidden input from the stored URL and
+  // resubmits it untouched. An actor carrying a URL stored before this rule
+  // existed — which the field's old `https://example.com/avatar.jpg`
+  // placeholder actively invited — would otherwise 422 the WHOLE form while
+  // editing only their display name, losing that edit to a bare JSON body with
+  // no error UI, and with no way to save anything on the page again until they
+  // worked out that the image had to be removed first.
+  //
+  // It gives away nothing: a NEW value still has to pass, and clearing still
+  // works, so the stale value stays reachable and removable rather than sticky.
+  if (currentValue && trimmed === currentValue) {
+    return { valid: true, value: undefined }
+  }
+
   if (trimmed === '') return { valid: true, value: null }
 
   if (trimmed.length > MAX_PROFILE_IMAGE_URL_LENGTH) return REFUSED
