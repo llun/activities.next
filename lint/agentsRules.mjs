@@ -151,15 +151,22 @@ const isRequireOfPathModule = (node) =>
   PATH_MODULES.has(node.arguments[0].value)
 
 // Node types that wrap an expression without changing the value it evaluates
-// to: an optional chain, and TypeScript's assertions, which are erased at
-// runtime. All of them carry the wrapped expression as `.expression`.
+// to: an optional chain, and TypeScript's four assertion forms — `as`,
+// `satisfies`, `<T>x` and `!` — which are erased at runtime. All of them carry
+// the wrapped expression as `.expression`.
+//
+// `TSInstantiationExpression` (a bare `foo<T>`) was in this set briefly and was
+// removed: `path.resolve` and `path.join` are not generic, so reaching it
+// around one takes a deliberate `as unknown as` cast to fake genericness, which
+// `yarn typecheck` rejects and a reviewer would stop for its own sake. It is
+// also not an assertion, so it did not belong under that description. Every
+// entry here is pinned by a fixture; add nothing that is not.
 const TRANSPARENT_WRAPPERS = new Set([
   'ChainExpression',
   'TSAsExpression',
   'TSSatisfiesExpression',
   'TSNonNullExpression',
-  'TSTypeAssertion',
-  'TSInstantiationExpression'
+  'TSTypeAssertion'
 ])
 
 /**

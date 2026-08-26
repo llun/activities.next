@@ -383,6 +383,9 @@ describe('agents oxlint plugin', () => {
           '  return fullPath.startsWith(root)',
           '}',
           '',
+          'export const angleCast = (base: string, fullPath: string) =>',
+          '  fullPath.startsWith(<string>path.resolve(base))',
+          '',
           '// Both halves again through an optional chain, which oxlint wraps in',
           '// a ChainExpression the predicates have to look through.',
           'export const optionalInline = (base: string, fullPath: string) =>',
@@ -416,8 +419,9 @@ describe('agents oxlint plugin', () => {
     ).toEqual([
       'lib/services/medias/containment.ts:15 agents(no-resolved-path-prefix-check)',
       'lib/services/medias/containment.ts:19 agents(no-resolved-path-prefix-check)',
-      'lib/services/medias/containment.ts:25 agents(no-resolved-path-prefix-check)',
-      'lib/services/medias/containment.ts:29 agents(no-resolved-path-prefix-check)',
+      'lib/services/medias/containment.ts:23 agents(no-resolved-path-prefix-check)',
+      'lib/services/medias/containment.ts:28 agents(no-resolved-path-prefix-check)',
+      'lib/services/medias/containment.ts:32 agents(no-resolved-path-prefix-check)',
       'lib/services/medias/containment.ts:4 agents(no-resolved-path-prefix-check)',
       'lib/services/medias/containment.ts:8 agents(no-resolved-path-prefix-check)'
     ])
