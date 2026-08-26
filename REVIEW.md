@@ -593,7 +593,7 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   It was applied in the emoji and reaction pickers while defined nowhere, so
   defining it would have removed their only cue.
 
-## Status delete federation
+## Status delete & unboost federation
 
 - The local delete commits **first**; `SendDeleteNoteJob` federates the
   `Delete`/`Tombstone` afterwards. Flag any change that reintroduces inline
@@ -601,13 +601,19 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   remote inbox, and put inbox resolution ahead of the delete, so an error while
   collecting them abandoned the delete entirely. (A failing remote server was
   never the trigger — both the sender and `getActorPerson` swallow and return.)
-- The job must **not** load the status: `database.deleteStatus` is a cascading
-  hard delete, so the audience travels in the job payload (`to`/`cc` captured
-  pre-delete) and `getFederatedStatusDeliveryInboxes` takes
-  `Pick<Status, 'to' | 'cc'>`. A "consistency" refactor onto `loadStatusAndActor`
-  silently stops delete federation — that is the live `sendUndoAnnounceJob` bug.
-- The dedup id must keep its `#delete` suffix; the bare status id collides with
-  `SendNoteJob`/`SendUpdateNoteJob` in the queue's global dedup window.
+- Neither job may load the status it federates: `database.deleteStatus` is a
+  cascading hard delete, so the data travels in the payload — `to`/`cc` for the
+  `Delete`, plus `originalStatusId`/`createdAt` for the `Undo`, all captured
+  pre-delete. `getFederatedStatusDeliveryInboxes` takes `Pick<Status, 'to' | 'cc'>`
+  and the `undoAnnounce` sender takes a matching narrowed `announce`. A
+  "consistency" refactor onto `loadStatusAndActor` silently stops federation —
+  that is precisely how `sendUndoAnnounceJob` shipped broken.
+- Dedup ids keep their `#delete` / `#undo` suffix; the bare status id collides
+  with `SendNoteJob`/`SendUpdateNoteJob`/`SendAnnounceJob` in the queue's global
+  dedup window.
+- `sendUndoAnnounceJob` and `sendAnnounceJob` must resolve inboxes the same way
+  (`getFollowersInbox` + `filterFederatedUrls`), or an unboost reaches a
+  different audience than the boost did.
 - The activities `deleteStatus` sender never rejects (`postActivityToInbox`
   swallows and returns `undefined`), so a per-inbox isolation test must mock the
   sender, not the socket, or it asserts nothing.
