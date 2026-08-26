@@ -2056,6 +2056,124 @@ describe('FitnessGearDatabase', () => {
         )
       })
 
+      // Clearing one bound while moving the other, on a component with a
+      // single period — so both land on the same row and neither can be
+      // checked against the other's stored value. An open side cannot invert
+      // anything, which is why the guard is two negations; written as
+      // `addedAt && removedAt && ...` it reads the same and is not, skipping
+      // the write whenever either bound is cleared. That rewrite passes every
+      // other test in this file.
+      it.each([
+        {
+          description: 'moving the added date while clearing the removal date',
+          addedAt: new Date('2026-06-01T00:00:00.000Z'),
+          removedAt: null,
+          expectedAddedAt: Date.parse('2026-06-01T00:00:00.000Z'),
+          expectedRemovedAt: undefined
+        },
+        {
+          description: 'clearing the added date while setting a removal date',
+          addedAt: null,
+          removedAt: new Date('2026-06-01T00:00:00.000Z'),
+          expectedAddedAt: undefined,
+          expectedRemovedAt: Date.parse('2026-06-01T00:00:00.000Z')
+        },
+        {
+          description: 'clearing both bounds at once',
+          addedAt: null,
+          removedAt: null,
+          expectedAddedAt: undefined,
+          expectedRemovedAt: undefined
+        }
+      ])(
+        'applies $description on a single period',
+        async ({ addedAt, removedAt, expectedAddedAt, expectedRemovedAt }) => {
+          const bike = await database.createFitnessGear({
+            actorId: actors.extra.id,
+            kind: 'bike',
+            name: `Component open side bike ${String(addedAt)}${String(removedAt)}`
+          })
+          const component = await database.createFitnessGearComponent({
+            gearId: bike.id,
+            actorId: actors.extra.id,
+            componentType: 'Chain',
+            addedAt: new Date('2026-01-01T00:00:00.000Z'),
+            removedAt: new Date('2026-03-01T00:00:00.000Z')
+          })
+
+          const updated = await database.updateFitnessGearComponent({
+            id: component!.id,
+            gearId: bike.id,
+            actorId: actors.extra.id,
+            addedAt,
+            removedAt
+          })
+
+          expect(updated?.periods).toHaveLength(1)
+          expect(updated?.periods[0].addedAt).toEqual(expectedAddedAt)
+          expect(updated?.periods[0].removedAt).toEqual(expectedRemovedAt)
+        }
+      )
+
+      // Three periods: the joint-write branch must NOT fire (first and last are
+      // different rows), and the middle period is unreachable from this edit
+      // and must come through untouched — it is the one nothing re-examines.
+      it('edits only the outer periods of a twice-refitted component', async () => {
+        const bike = await database.createFitnessGear({
+          actorId: actors.extra.id,
+          kind: 'bike',
+          name: 'Component three period bike'
+        })
+        const component = await database.createFitnessGearComponent({
+          gearId: bike.id,
+          actorId: actors.extra.id,
+          componentType: 'Chain',
+          addedAt: new Date('2026-01-01T00:00:00.000Z'),
+          removedAt: new Date('2026-02-01T00:00:00.000Z')
+        })
+        await database.refitFitnessGearComponent({
+          id: component!.id,
+          gearId: bike.id,
+          actorId: actors.extra.id
+        })
+        await database.retireFitnessGearComponent({
+          id: component!.id,
+          gearId: bike.id,
+          actorId: actors.extra.id
+        })
+        await database.refitFitnessGearComponent({
+          id: component!.id,
+          gearId: bike.id,
+          actorId: actors.extra.id
+        })
+
+        const before = await database.getFitnessGearComponents({
+          gearId: bike.id,
+          actorId: actors.extra.id
+        })
+        expect(before[0].periods).toHaveLength(3)
+        const middleBefore = before[0].periods[1]
+
+        const updated = await database.updateFitnessGearComponent({
+          id: component!.id,
+          gearId: bike.id,
+          actorId: actors.extra.id,
+          addedAt: new Date('2025-12-01T00:00:00.000Z'),
+          removedAt: new Date('2026-12-01T00:00:00.000Z')
+        })
+
+        expect(updated?.periods).toHaveLength(3)
+        expect(updated?.periods[0].addedAt).toEqual(
+          Date.parse('2025-12-01T00:00:00.000Z')
+        )
+        expect(updated?.periods[2].removedAt).toEqual(
+          Date.parse('2026-12-01T00:00:00.000Z')
+        )
+        // Untouched, both ends.
+        expect(updated?.periods[1].addedAt).toEqual(middleBefore.addedAt)
+        expect(updated?.periods[1].removedAt).toEqual(middleBefore.removedAt)
+      })
+
       // `removedAt: null` remains the precise way to say "this retirement never
       // happened" — it reopens the LAST period rather than opening another one,
       // which is exactly the difference from a refit.

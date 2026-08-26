@@ -1028,6 +1028,19 @@ export const FitnessGearSQLDatabaseMixin = (
           const addedAt = params.addedAt ?? null
           const removedAt = params.removedAt ?? null
           // Nothing stored is consulted, so the ordering is settled here.
+          //
+          // Either bound being null means "open on that side", which cannot
+          // invert anything — hence the two negations rather than the
+          // `addedAt && removedAt && removedAt > addedAt` this reads like. That
+          // rewrite is not equivalent: it skips the write whenever a bound is
+          // cleared, so clearing one while moving the other silently applies
+          // neither, behind a 200.
+          //
+          // The skip is a floor, not the guard callers should rely on: it
+          // refuses an inverted pair rather than writing one, but says nothing
+          // about it. The route answers 422 first, through the shared
+          // `getComponentPeriodBoundsError`, and a future caller reaching this
+          // method some other way needs to do the same.
           if (!addedAt || !removedAt || removedAt > addedAt) {
             await trx('fitness_gear_component_periods')
               .where('id', first.id)
