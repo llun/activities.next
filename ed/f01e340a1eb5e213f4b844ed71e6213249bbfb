@@ -1,0 +1,39 @@
+scripts/maintenance/backfillMediaBlurhash.test.ts
+  s_a3b90525842071::t_ea8c15e6f0fdbc 8,20-23,28-31,562-696
+  s_a3b90525842071::t_5e2a55d1db54e6 116-119
+  s_a3b90525842071::t_277db49261989a 4,6-7,9-19,24-27,32-35,42-43,46-48,51-52,58-106,108-115,120-285,293-295,337-339,341-345,363,366,374,376,383-561
+  s_a3b90525842071::t_352f8129f5bb56 5,340
+docs/maintenance.md
+  s_a3b90525842071::t_4c40aee981f1b8 612,623,625-627,630-638
+  s_a3b90525842071::t_30ea3fcabb0fe8 639
+lib/jobs/importStravaActivityJob.ts
+  s_a3b90525842071::t_e028c8c8495134 182
+  s_a3b90525842071::t_5e2a55d1db54e6 55
+lib/utils/safeImageDownloadUrl.test.ts
+  s_a3b90525842071::t_425a2d65f12d26 1-12,15-174
+  s_a3b90525842071::t_5e2a55d1db54e6 13-14
+lib/utils/safeImageDownloadUrl.ts
+  s_a3b90525842071::t_5e2a55d1db54e6 102-104
+  s_a3b90525842071::t_2534770b9a5c9e 1-101,105-110
+scripts/maintenance/backfillMediaBlurhash.ts
+  s_a3b90525842071::t_d581b5202dad27 315-318,320-341
+  s_a3b90525842071::t_5e5fcbad6fe595 124-146,437
+  s_a3b90525842071::t_21ca061a24097a 7,12-18,23,27,29-34,39-47,52-59,66,74-75,84-123,147-154,156-159,170,176-231,242-243,246-252,254,319,357-358,369,416-419,425-428,431-436,438-439,444-451,454-458,460-461,479-480,525-530,532,536
+  s_a3b90525842071::t_ab3cdae08a9bb0 155,160-169,171-175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "edf01e340a1eb5e213f4b844ed71e6213249bbfb",
+  "prompts": {},
+  "sessions": {
+    "s_a3b90525842071": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "029eb1cf-00b7-4f56-b1d3-679cd6f1e78c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
