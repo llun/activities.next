@@ -1,0 +1,23 @@
+app/api/v1/fitness/gear/[id]/components/[componentId]/route.ts
+  s_eacd0c3a89f5e1::t_6a52ac1446a07d 67-76
+lib/services/fitness-gears/gearRequests.test.ts
+  s_eacd0c3a89f5e1::t_8d36a2affc39f8 377-382
+app/api/v1/fitness/gear/[id]/components/[componentId]/route.test.ts
+  s_eacd0c3a89f5e1::t_6a52ac1446a07d 304,307,326,329
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "c9e44e78c386229713fad57a00d7c1e5f13fd8f4",
+  "prompts": {},
+  "sessions": {
+    "s_eacd0c3a89f5e1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4cf735c2-2b90-40eb-8be8-b59706ebd921",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
