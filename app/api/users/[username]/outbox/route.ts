@@ -1,3 +1,4 @@
+import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import type { Database } from '@/lib/database/types'
 import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
@@ -101,7 +102,7 @@ export const GET = traceApiRoute(
       return activityPubResponse({
         req,
         data: {
-          '@context': ACTIVITY_STREAM_URL,
+          '@context': NOTE_ACTIVITY_CONTEXT,
           id: `${getLocalActorOutboxId(actor.id)}?page=true`,
           type: 'OrderedCollectionPage',
           partOf: getLocalActorOutboxId(actor.id),

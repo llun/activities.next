@@ -1,3 +1,4 @@
+import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { buildBaseURL } from '@/lib/config'
 import {
   OnlyLocalUserGuard,
@@ -17,7 +18,6 @@ import {
   activityPubResponse,
   negotiateActivityPubContentType
 } from '@/lib/utils/activityPubContentNegotiation'
-import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
 import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -68,7 +68,7 @@ export const GET = traceApiRoute(
     if (contentType) {
       return activityPubResponse({
         req,
-        data: { '@context': ACTIVITY_STREAM_URL, ...activityPubObject },
+        data: { '@context': NOTE_ACTIVITY_CONTEXT, ...activityPubObject },
         contentType
       })
     }

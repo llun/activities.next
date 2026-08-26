@@ -12,6 +12,7 @@ import { FollowRequest } from '@/lib/activities/followAction'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { compactActivityPub } from '@/lib/activities/jsonld'
 import { LikeStatus } from '@/lib/activities/likeAction'
+import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
 import {
   REACTION_CONTEXT,
@@ -158,7 +159,7 @@ export const sendNote = async ({ currentActor, inbox, note }: SendNoteParams) =>
     },
     async (span) => {
       const activity: CreateStatus = {
-        '@context': ACTIVITY_STREAM_URL,
+        '@context': NOTE_ACTIVITY_CONTEXT,
         id: note.id,
         type: CreateAction,
         actor: note.attributedTo,
@@ -202,7 +203,7 @@ export const sendUpdateNote = async ({
       }
 
       const activity: UpdateStatus = {
-        '@context': ACTIVITY_STREAM_URL,
+        '@context': NOTE_ACTIVITY_CONTEXT,
         id: `${note.id}#updates/${Date.now()}`,
         type: UpdateAction,
         actor: note.attributedTo,

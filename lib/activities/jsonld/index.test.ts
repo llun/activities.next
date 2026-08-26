@@ -7,6 +7,7 @@ import {
   offlineDocumentLoader
 } from '@/lib/activities/jsonld'
 import { BaseNote, getContent, getLanguage } from '@/lib/activities/note'
+import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { Like } from '@/lib/types/activitypub'
 
 const asRecord = (value: unknown) => value as Record<string, unknown>
@@ -775,5 +776,75 @@ describe('compactActivityPub note language handling', () => {
 
     expect(getContent(note)).toBe('<p>hello</p>')
     expect(getLanguage(note)).toBe('th')
+  })
+
+  // Round-trips a Note through the wire the way a receiving instance sees it:
+  // serialised under the context this instance sends, then compacted by the
+  // same processor our own inbox runs. Under the bare ActivityStreams context
+  // every one of these terms expands to a blank node and is dropped, so this is
+  // the only test that can catch the outbound context regressing.
+  describe('terms this instance emits on a Note', () => {
+    const noteOnTheWire = {
+      '@context': NOTE_ACTIVITY_CONTEXT,
+      id: 'https://llun.test/users/test1/statuses/1',
+      type: 'Note',
+      attributedTo: 'https://llun.test/users/test1',
+      content: 'hello',
+      published: '2026-01-01T00:00:00Z',
+      attachment: [
+        {
+          type: 'Document',
+          mediaType: 'image/png',
+          url: 'https://llun.test/api/v1/files/medias/one.png',
+          name: 'a photo',
+          blurhash: 'LEHV6nWB2yk8pyo0adR*',
+          focalPoint: [-0.5, 0.25]
+        }
+      ],
+      quote: 'https://remote.example/notes/9',
+      quoteUrl: 'https://remote.example/notes/9',
+      interactionPolicy: {
+        canQuote: {
+          automaticApproval: ['https://www.w3.org/ns/activitystreams#Public'],
+          manualApproval: []
+        }
+      }
+    }
+
+    it('keeps the attachment blurhash and focal point through compaction', async () => {
+      const result = asRecord(await compactActivityPub(noteOnTheWire))
+      const attachment = asRecord(
+        (result.attachment as Record<string, unknown>[])[0]
+      )
+
+      expect(attachment.blurhash).toBe('LEHV6nWB2yk8pyo0adR*')
+      // Ordered, so an `@list` container rather than a plain set: x then y.
+      expect(attachment.focalPoint).toEqual([-0.5, 0.25])
+    })
+
+    it.each([
+      ['quote', 'https://remote.example/notes/9'],
+      ['quoteUrl', 'https://remote.example/notes/9']
+    ])('keeps %s through compaction', async (key, expected) => {
+      const result = asRecord(await compactActivityPub(noteOnTheWire))
+
+      expect(result[key]).toEqual(expected)
+    })
+
+    // On every Note this instance emits, quoting or not, so losing it costs a
+    // plain text post its quote policy.
+    it('keeps the interaction policy through compaction', async () => {
+      const result = asRecord(await compactActivityPub(noteOnTheWire))
+
+      // The public collection comes back as the compact alias, which is what
+      // compaction does to it everywhere (`toRecipientArray` canonicalises it
+      // back) — the point here is that the policy survives at all.
+      expect(result.interactionPolicy).toEqual({
+        canQuote: {
+          automaticApproval: ['as:Public'],
+          manualApproval: []
+        }
+      })
+    })
   })
 })
