@@ -1,6 +1,9 @@
 import type { BaseNote } from '@/lib/activities/note'
 import type { Database } from '@/lib/database/types'
-import { verifyRemoteQuote } from '@/lib/services/quotes/verifyRemoteQuote'
+import {
+  verifyQuoteAuthorizationStamp,
+  verifyRemoteQuote
+} from '@/lib/services/quotes/verifyRemoteQuote'
 import type { Status } from '@/lib/types/domain/status'
 
 vi.mock('@/lib/utils/request', () => ({ request: vi.fn() }))
@@ -218,4 +221,111 @@ describe('verifyRemoteQuote', () => {
     })
     expect(state).toBe('pending')
   })
+})
+
+describe('verifyQuoteAuthorizationStamp', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const check = async (
+    overrides: {
+      stampUri?: string
+      quotingStatusId?: string
+      quotedStatusId?: string
+    } = {}
+  ) =>
+    verifyQuoteAuthorizationStamp({
+      database,
+      stampUri: overrides.stampUri ?? STAMP_URI,
+      quotedAuthorId: QUOTED_AUTHOR_ID,
+      quotingStatusId: overrides.quotingStatusId ?? QUOTING_NOTE_ID,
+      quotedStatusId: overrides.quotedStatusId ?? QUOTED_STATUS_ID
+    })
+
+  const mockStamp = async (
+    response: { statusCode: number; body: string } | Error
+  ) => {
+    const { request } = await vi.importMock<
+      typeof import('@/lib/utils/request')
+    >('@/lib/utils/request')
+    if (response instanceof Error) {
+      vi.mocked(request).mockRejectedValue(response)
+      return request
+    }
+    vi.mocked(request).mockResolvedValue(
+      response as unknown as Awaited<ReturnType<typeof request>>
+    )
+    return request
+  }
+
+  it('verifies a stamp whose three fields match this exact edge', async () => {
+    await mockStamp({ statusCode: 200, body: validStampBody() })
+    await expect(check()).resolves.toBe('verified')
+  })
+
+  it('refuses a stamp uri outside the quoted author authority without fetching', async () => {
+    const request = await mockStamp({ statusCode: 200, body: validStampBody() })
+    await expect(
+      check({ stampUri: 'https://evil.example/quote_authorizations/1' })
+    ).resolves.toBe('mismatch')
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      description: 'the stamp id is hosted elsewhere',
+      overrides: { id: 'https://evil.example/quote_authorizations/1' }
+    },
+    {
+      description: 'it was issued by someone other than the quoted author',
+      overrides: { attributedTo: 'https://llun.test/users/someone-else' }
+    },
+    {
+      description: 'it authorizes a different quoting note',
+      overrides: {
+        interactingObject: 'https://remote.example/users/quoter/statuses/other'
+      }
+    },
+    {
+      description: 'it targets a different quoted status',
+      overrides: {
+        interactionTarget: 'https://llun.test/users/target/statuses/other'
+      }
+    }
+  ])('reports a mismatch when $description', async ({ overrides }) => {
+    await mockStamp({ statusCode: 200, body: validStampBody(overrides) })
+    await expect(check()).resolves.toBe('mismatch')
+  })
+
+  it.each([
+    {
+      description: 'the stamp answers non-200',
+      response: { statusCode: 404, body: '' }
+    },
+    {
+      description: 'the body does not parse',
+      response: { statusCode: 200, body: 'not json' }
+    },
+    {
+      description: 'the document is not a QuoteAuthorization',
+      response: {
+        statusCode: 200,
+        body: JSON.stringify({ id: STAMP_URI, type: 'Note' })
+      }
+    },
+    {
+      description: 'the request throws',
+      response: new Error('network down')
+    }
+  ])(
+    'reports unavailable — not a mismatch — when $description',
+    async ({ response }) => {
+      // The distinction is load-bearing: a caller that collapses these drops a
+      // legitimate stamp on one transient failure, and the quote edge has
+      // already moved past the state where it could be supplied again.
+      await mockStamp(response)
+      await expect(check()).resolves.toBe('unavailable')
+    }
+  )
 })

@@ -1,20 +1,21 @@
+import {
+  getInteractionPolicyFields,
+  getQuoteNoteFields
+} from '@/lib/activities/quoteNoteFields'
 import { getConfig } from '@/lib/config'
 import { MAX_FEDERATION_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
-import { getEffectiveQuoteApprovalPolicy } from '@/lib/services/quotes/quotePolicy'
 import { Note } from '@/lib/types/activitypub'
 import {
   getDocumentFromAttachment,
   isFitnessAttachment
 } from '@/lib/types/domain/attachment'
 import {
-  QuoteApprovalPolicy,
   Status,
   StatusType,
   getOriginalStatus,
   hasStatusBeenEdited
 } from '@/lib/types/domain/status'
 import { getEmojiFromTag, getMentionFromTag } from '@/lib/types/domain/tag'
-import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 
@@ -30,18 +31,10 @@ export const getNoteFromStatus = (
   if (actualStatus.type === StatusType.enum.Poll) return null
   const includeUpdated = options.includeUpdated ?? hasStatusBeenEdited(status)
 
-  // Quote emission (FEP-044f). Advertise the quote target while the edge is live
-  // (pending/accepted) via all compat aliases; the hosted stamp uri only when
-  // accepted. Always advertise who may quote THIS status via interactionPolicy.
-  const quoteEdge = actualStatus.quote
-  const emitQuoteTarget =
-    quoteEdge &&
-    (quoteEdge.state === 'pending' || quoteEdge.state === 'accepted')
-  const quoteTargetId = emitQuoteTarget ? quoteEdge.quotedStatusId : undefined
-  const quoteAuthorization =
-    quoteEdge?.state === 'accepted'
-      ? (quoteEdge.authorizationUri ?? undefined)
-      : undefined
+  // Quote emission (FEP-044f), shared with the AP GET/outbox/replies surfaces so
+  // a delivered note and a fetched one describe the same quote. Always advertise
+  // who may quote THIS status via interactionPolicy.
+  const quoteFields = getQuoteNoteFields(actualStatus.quote)
 
   return Note.parse({
     id: actualStatus.id,
@@ -72,38 +65,10 @@ export const getNoteFromStatus = (
         getNoteFromStatus(Status.parse(reply))
       )
     },
-    // Quote target, written under every compat alias (Mastodon `quote`/
-    // `quoteUrl`, Fedibird `quoteUri`, Misskey `_misskey_quote`).
-    ...(quoteTargetId
-      ? {
-          quote: quoteTargetId,
-          quoteUrl: quoteTargetId,
-          quoteUri: quoteTargetId,
-          _misskey_quote: quoteTargetId
-        }
-      : null),
-    ...(quoteAuthorization ? { quoteAuthorization } : null),
-    interactionPolicy: {
-      canQuote: buildCanQuote(
-        getEffectiveQuoteApprovalPolicy(actualStatus),
-        actualStatus.actorId
-      )
-    },
+    ...quoteFields,
+    ...getInteractionPolicyFields(actualStatus),
     ...(includeUpdated
       ? { updated: getISOTimeUTC(actualStatus.updatedAt) }
       : null)
   })
-}
-
-// Advertise the audiences that may quote a status. `public` → the public
-// collection; `followers` → the author's followers collection; `nobody` → only
-// the author. Manual-approval queues are not modelled, so manualApproval is [].
-const buildCanQuote = (policy: QuoteApprovalPolicy, actorId: string) => {
-  const automaticApproval =
-    policy === 'public'
-      ? [ACTIVITY_STREAM_PUBLIC]
-      : policy === 'followers'
-        ? [`${actorId}/followers`]
-        : [actorId]
-  return { automaticApproval, manualApproval: [] as string[] }
 }

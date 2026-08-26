@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { type Actor } from '@/lib/types/domain/actor'
 import { StatusType } from '@/lib/types/domain/status'
@@ -151,6 +152,10 @@ describe('GET /api/users/[username]/outbox', () => {
     )
 
     const data = await response.json()
+    // The page branch embeds Create objects from toActivityPubObject, which
+    // emits the FEP-044f quote aliases; the non-page branch above carries no
+    // objects, which is why only this one moved off the bare AS2 context.
+    expect(data['@context']).toEqual(QUOTE_ACTIVITY_CONTEXT)
 
     expect(data.orderedItems[0]).toMatchObject({
       id: `${status.id}/activity`,

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { resolveStatusFromPath } from '@/app/(timeline)/[actor]/[status]/resolveStatusFromPath'
+import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -103,7 +104,10 @@ describe('GET /api/users/[username]/statuses/[statusId]', () => {
 
     const data = await response.json()
     expect(data).toMatchObject({
-      '@context': 'https://www.w3.org/ns/activitystreams',
+      // QUOTE_ACTIVITY_CONTEXT, not the bare AS2 url: the note carries FEP-044f
+      // terms, and a receiver that compacts drops any term the document's own
+      // context never defined.
+      '@context': QUOTE_ACTIVITY_CONTEXT,
       id: 'https://example.com/users/test/statuses/123',
       type: 'Note'
     })

@@ -69,6 +69,24 @@ const InboundQuoteRequest = z
     actor: z.string()
   })
   .passthrough()
+// FEP-044f: the quoted author settles our QuoteRequest with an Accept/Reject
+// whose `object` is that QuoteRequest — embedded, or as a bare id after
+// compaction — and never a Follow. The shared Accept/Reject schemas model only
+// the follow handshake (`object: Follow`), so without this lenient member the
+// union rejects a quote response with a 400 and `handleQuoteResponse` below is
+// never consulted, leaving every approved outbound quote stuck as `pending`.
+// Listed after Accept/Reject so a follow handshake keeps the strict parse (and
+// its narrowed type) rather than falling into the passthrough member. That is a
+// readability preference, not a correctness requirement: the `safeParse`
+// re-narrowing in each branch below recovers the strict shape either way,
+// because a passthrough parse preserves `object` verbatim.
+const InboundQuoteResponse = z
+  .object({
+    id: z.string(),
+    type: z.enum(['Accept', 'Reject']),
+    actor: z.string()
+  })
+  .passthrough()
 const ReferenceUndo = z
   .object({
     id: z.string(),
@@ -87,6 +105,7 @@ const ReferenceUndo = z
 const Activity = z.union([
   Accept,
   Reject,
+  InboundQuoteResponse,
   Follow,
   Block,
   EmojiReact,
@@ -216,7 +235,8 @@ export const POST = traceApiRoute(
                 if (
                   await handleQuoteResponse({
                     database,
-                    activity: compactedActivity
+                    activity: compactedActivity,
+                    verifiedSenderActorId: context.verifiedSenderActorId
                   })
                 ) {
                   return apiResponse({
@@ -226,7 +246,27 @@ export const POST = traceApiRoute(
                     responseStatusCode: 202
                   })
                 }
-                const follow = await acceptFollowRequest({ activity, database })
+                // Not a quote response: fall through to the follow handshake,
+                // which needs the strict Accept(Follow) shape the lenient
+                // quote-response member above does not carry.
+                const acceptFollow = Accept.safeParse(activity)
+                if (!acceptFollow.success) {
+                  logAcceptedWithoutSideEffects({
+                    activity,
+                    reason:
+                      'Accept of an object that is neither a Follow nor a known QuoteRequest'
+                  })
+                  return apiResponse({
+                    req,
+                    allowedMethods: CORS_HEADERS,
+                    data: DEFAULT_202,
+                    responseStatusCode: 202
+                  })
+                }
+                const follow = await acceptFollowRequest({
+                  activity: acceptFollow.data,
+                  database
+                })
                 if (!follow)
                   return apiResponse({
                     req,
@@ -245,7 +285,8 @@ export const POST = traceApiRoute(
                 if (
                   await handleQuoteResponse({
                     database,
-                    activity: compactedActivity
+                    activity: compactedActivity,
+                    verifiedSenderActorId: context.verifiedSenderActorId
                   })
                 ) {
                   return apiResponse({
@@ -255,7 +296,24 @@ export const POST = traceApiRoute(
                     responseStatusCode: 202
                   })
                 }
-                const follow = await rejectFollowRequest({ activity, database })
+                const rejectFollow = Reject.safeParse(activity)
+                if (!rejectFollow.success) {
+                  logAcceptedWithoutSideEffects({
+                    activity,
+                    reason:
+                      'Reject of an object that is neither a Follow nor a known QuoteRequest'
+                  })
+                  return apiResponse({
+                    req,
+                    allowedMethods: CORS_HEADERS,
+                    data: DEFAULT_202,
+                    responseStatusCode: 202
+                  })
+                }
+                const follow = await rejectFollowRequest({
+                  activity: rejectFollow.data,
+                  database
+                })
                 if (!follow)
                   return apiResponse({
                     req,
