@@ -1,15 +1,9 @@
 import { z } from 'zod'
 
-import { isFederationSigningActorUsername } from '@/lib/services/federation/instanceActor'
+import { localUsernameSchema } from '@/lib/services/accounts/localUsername'
 
 export const CreateAccountRequest = z.object({
-  username: z
-    .string()
-    .regex(/\w+/)
-    .trim()
-    .refine((username) => !isFederationSigningActorUsername(username), {
-      message: 'Username is reserved'
-    }),
+  username: localUsernameSchema,
   name: z.string().trim().max(255).optional(),
   // Normalized to lowercase so casing never creates duplicate accounts or
   // desyncs from case-insensitive lookups. Trim first, then lowercase, then
