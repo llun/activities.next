@@ -807,6 +807,252 @@ describe('backfillMediaBlurhash execution', () => {
     )
   })
 
+  // Deleting a `medias` row leaves every `attachments.mediaId` that pointed at
+  // it dangling, and the sweep cannot repair such a row: the thumbnailUrl
+  // rebuild is the media block's alone, so a host-relative value stays
+  // host-relative and the row is re-selected by every later run. Before this
+  // warning the operator saw only "processed 1, updated 0".
+  //
+  // The two causes are counted SEPARATELY on purpose. A deleted media row is
+  // the expected residue of an owner deleting their own media; a `mediaId` that
+  // was never a row id is a bad write (`createAttachment` does not validate it,
+  // and `POST /api/v1/accounts/outbox` reaches it unvalidated) and is worth
+  // investigating. Summing them would tell an operator to ignore the second.
+  it.each([
+    {
+      description: 'a mediaId whose media row is gone',
+      mediaId: '404',
+      expectedWarning: 'media 404 no longer exists',
+      expectedSummary:
+        'Attachments complete: processed 1, updated 0, 1 whose media row is gone, 0 with an invalid mediaId'
+    },
+    {
+      // This spelling needs SQLite's `varchar` column; `attachments.mediaId`
+      // is `integer` on PostgreSQL, where the INSERT would fail first. The
+      // BRANCH is not SQLite-only though — `-5` and `0` store fine on
+      // PostgreSQL and `toMediaRowId` refuses them just the same. This file
+      // builds its own `better-sqlite3` database, so no `TEST_DATABASE_TYPE`
+      // exercises the PostgreSQL side either way.
+      description: 'a mediaId that is not a row id',
+      mediaId: 'abc',
+      expectedWarning: 'mediaId "abc" is not a media row id',
+      expectedSummary:
+        'Attachments complete: processed 1, updated 0, 0 whose media row is gone, 1 with an invalid mediaId'
+    }
+  ])(
+    'warns and counts an attachment with $description',
+    async ({ mediaId, expectedWarning, expectedSummary }) => {
+      await db('attachments').insert({
+        id: 'att-1',
+        statusId: 'status-1',
+        actorId: 'https://llun.test/users/test',
+        mediaId,
+        mediaType: 'image/jpeg',
+        url: 'https://llun.test/api/v1/files/medias/orig.jpg',
+        // Already set, so the direct-analysis fallback never runs and the media
+        // row is genuinely this row's only remaining source.
+        blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4',
+        thumbnailUrl: '/api/v1/files/medias/orig-thumbnail.jpg'
+      })
+
+      const mockStorage = { getFile: vi.fn().mockResolvedValue(null) } as never
+      await backfillAttachments(db, mockStorage, options(), HOSTS)
+
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining(expectedWarning)
+      )
+      expect(console.log).toHaveBeenCalledWith(expectedSummary)
+
+      // The warning is not redundant with an update: the row really is left as
+      // it was, host-relative thumbnailUrl and all.
+      const untouched = await db('attachments').where('id', 'att-1').first()
+      expect(untouched.thumbnailUrl).toBe(
+        '/api/v1/files/medias/orig-thumbnail.jpg'
+      )
+    }
+  )
+
+  // The counts do NOT partition `processed`. A row whose `mediaId` resolves to
+  // nothing can still be repaired from its own image bytes, so the warning and
+  // the repair have to be asserted TOGETHER — otherwise suppressing the warning
+  // for exactly the self-healing rows passes. Both branches get a case, because
+  // guarding one and not its twin leaves the same hole on the other side.
+  //
+  // Self-healing is reachable for a deleted media row too: the delete route
+  // removes the stored bytes best-effort and drops the row regardless (see
+  // `app/api/v1/accounts/media/[mediaId]/route.ts`), so the file behind `url`
+  // can outlive the `medias` row that named it.
+  it.each([
+    {
+      description: 'an invalid mediaId',
+      mediaId: 'abc',
+      expectedWarning: 'mediaId "abc" is not a media row id',
+      expectedSummary:
+        'Attachments complete: processed 1, updated 1, 0 whose media row is gone, 1 with an invalid mediaId'
+    },
+    {
+      description: 'a deleted media row',
+      mediaId: '404',
+      expectedWarning: 'media 404 no longer exists',
+      expectedSummary:
+        'Attachments complete: processed 1, updated 1, 1 whose media row is gone, 0 with an invalid mediaId'
+    }
+  ])(
+    'still warns for $description on a row it repairs',
+    async ({ mediaId, expectedWarning, expectedSummary }) => {
+      vi.mocked(analyzeImageBuffer).mockResolvedValue({
+        blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4',
+        focus: null
+      })
+
+      await db('attachments').insert({
+        id: 'att-1',
+        statusId: 'status-1',
+        actorId: 'https://llun.test/users/test',
+        mediaId,
+        mediaType: 'image/jpeg',
+        url: 'https://llun.test/api/v1/files/medias/orig.jpg',
+        blurhash: null
+      })
+
+      const mockStorage = {
+        getFile: vi
+          .fn()
+          .mockResolvedValue({ type: 'buffer', buffer: Buffer.from('image') })
+      } as never
+      await backfillAttachments(db, mockStorage, options(), HOSTS)
+
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining(expectedWarning)
+      )
+      expect(console.log).toHaveBeenCalledWith(expectedSummary)
+
+      const repaired = await db('attachments').where('id', 'att-1').first()
+      expect(repaired.blurhash).toBe('L6PZfSi_.AyE_3t7t7R**0o#DgR4')
+    }
+  )
+
+  // `--dry-run` is the first command `docs/maintenance.md` tells an operator to
+  // run, so the diagnostic has to survive it: the gate covers the UPDATE, not
+  // the counting, and `totalUpdated` deliberately counts what WOULD be written.
+  // The row has to be one that genuinely diverges, or the update block is never
+  // entered and "without writing" asserts nothing — stripping the gate to an
+  // unconditional write passed a fixture that could not reach it.
+  it('counts a row it would write under --dry-run without writing it', async () => {
+    vi.mocked(analyzeImageBuffer).mockResolvedValue({
+      blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4',
+      focus: null
+    })
+
+    await db('attachments').insert({
+      id: 'att-1',
+      statusId: 'status-1',
+      actorId: 'https://llun.test/users/test',
+      mediaId: '404',
+      mediaType: 'image/jpeg',
+      url: 'https://llun.test/api/v1/files/medias/one.jpg',
+      blurhash: null
+    })
+
+    const mockStorage = {
+      getFile: vi
+        .fn()
+        .mockResolvedValue({ type: 'buffer', buffer: Buffer.from('image') })
+    } as never
+    await backfillAttachments(db, mockStorage, options({ dryRun: true }), HOSTS)
+
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('[attachments att-1] media 404 no longer exists')
+    )
+    expect(console.log).toHaveBeenCalledWith(
+      'Attachments complete: processed 1, updated 1, 1 whose media row is gone, 0 with an invalid mediaId'
+    )
+
+    const untouched = await db('attachments').where('id', 'att-1').first()
+    expect(untouched.blurhash).toBeNull()
+  })
+
+  // The warning is per ROW and each counter lives outside the batch loop, so
+  // pinning either needs two rows OF THE SAME CAUSE spread over two batches.
+  // Two rows with different causes does not do it: each counter only ever
+  // reaches one, so collapsing the warning to one call per cause suppresses
+  // nothing and the mutation passes.
+  it.each([
+    {
+      description: 'a deleted media row',
+      mediaIds: ['404', '405'],
+      expectedWarnings: [
+        '[attachments att-1] media 404 no longer exists',
+        '[attachments att-2] media 405 no longer exists'
+      ],
+      expectedSummary:
+        'Attachments complete: processed 2, updated 0, 2 whose media row is gone, 0 with an invalid mediaId'
+    },
+    {
+      description: 'an invalid mediaId',
+      mediaIds: ['nope', 'nah'],
+      expectedWarnings: [
+        '[attachments att-1] mediaId "nope" is not a media row id',
+        '[attachments att-2] mediaId "nah" is not a media row id'
+      ],
+      expectedSummary:
+        'Attachments complete: processed 2, updated 0, 0 whose media row is gone, 2 with an invalid mediaId'
+    }
+  ])(
+    'warns per row and accumulates $description across batches',
+    async ({ mediaIds, expectedWarnings, expectedSummary }) => {
+      await db('attachments').insert(
+        mediaIds.map((mediaId, index) => ({
+          id: `att-${index + 1}`,
+          statusId: 'status-1',
+          actorId: 'https://llun.test/users/test',
+          mediaId,
+          mediaType: 'image/jpeg',
+          url: `https://llun.test/api/v1/files/medias/${index}.jpg`,
+          blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4',
+          thumbnailUrl: `/api/v1/files/medias/${index}-thumbnail.jpg`
+        }))
+      )
+
+      const mockStorage = { getFile: vi.fn().mockResolvedValue(null) } as never
+      await backfillAttachments(
+        db,
+        mockStorage,
+        options({ batchSize: 1 }),
+        HOSTS
+      )
+
+      for (const expectedWarning of expectedWarnings) {
+        expect(console.warn).toHaveBeenCalledWith(
+          expect.stringContaining(expectedWarning)
+        )
+      }
+      expect(console.log).toHaveBeenCalledWith(expectedSummary)
+    }
+  )
+
+  // A NULL `mediaId` is how a federated attachment is stored — there is no
+  // media row to miss — so both counts have to stay at zero or every remote
+  // attachment on the instance reads as a gap.
+  it('counts neither cause for a federated attachment', async () => {
+    await db('attachments').insert({
+      id: 'att-1',
+      statusId: 'status-1',
+      actorId: 'https://remote.example/users/them',
+      mediaId: null,
+      mediaType: 'video/mp4',
+      url: 'https://remote.example/media/clip.mp4',
+      blurhash: null
+    })
+
+    const mockStorage = { getFile: vi.fn().mockResolvedValue(null) } as never
+    await backfillAttachments(db, mockStorage, options({ force: true }), HOSTS)
+
+    expect(console.log).toHaveBeenCalledWith(
+      'Attachments complete: processed 1, updated 0, 0 whose media row is gone, 0 with an invalid mediaId'
+    )
+  })
+
   it('runs a remote attachment URL through the download guard by default', async () => {
     vi.mocked(safeImageFetch).mockReset()
     vi.mocked(safeImageFetch).mockResolvedValue(null)

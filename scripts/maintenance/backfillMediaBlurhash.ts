@@ -451,6 +451,26 @@ export const backfillAttachments = async (
   let lastId = ''
   let totalProcessed = 0
   let totalUpdated = 0
+  // Two reasons a `mediaId` resolves to nothing, deliberately NOT summed
+  // because they call for opposite responses, and an operator has to tell them
+  // apart from the summary line alone.
+  //
+  // A media row that is GONE is the expected residue of an owner deleting their
+  // own media. Its `thumbnailUrl` is unrecoverable — that rebuild reads the
+  // media row's stored thumbnail path and has no other source — though the
+  // BlurHash can still come from the attachment's own bytes below, because the
+  // delete route drops the row even when the storage delete failed. Deleting a
+  // `medias` row deliberately does not clear the `attachments.mediaId` naming
+  // it, since a null `mediaId` marks a federated attachment (see AGENTS.md,
+  // "Deleting Media a Post Uses"), so a row that cannot self-heal that way is
+  // re-selected forever; before this it was counted in `processed` and reported
+  // nowhere.
+  //
+  // An INVALID one was never a row id, so nothing was deleted: it is a bad
+  // write, from the unvalidated `createAttachment` path AGENTS.md documents
+  // under "Database Compatibility Guidelines", and is worth investigating.
+  let totalDeletedMedia = 0
+  let totalInvalidMediaId = 0
 
   while (true) {
     let query = db('attachments')
@@ -542,6 +562,18 @@ export const backfillAttachments = async (
               media.thumbnail
             )
           }
+        } else if (rowId === undefined) {
+          // `toMediaRowId` refused the value, so it never named a row.
+          totalInvalidMediaId += 1
+          console.warn(
+            `[attachments ${row.id}] mediaId ${JSON.stringify(row.mediaId)} is not a media row id; cannot restore blurhash, focus or thumbnailUrl from it`
+          )
+        } else {
+          // A real row id whose `medias` row is gone.
+          totalDeletedMedia += 1
+          console.warn(
+            `[attachments ${row.id}] media ${row.mediaId} no longer exists; cannot restore blurhash, focus or thumbnailUrl from it`
+          )
         }
       }
 
@@ -616,8 +648,11 @@ export const backfillAttachments = async (
     }
   }
 
+  // Printed even when zero: a `0` rules a cause out as usefully as a non-zero
+  // value names it. The counts do NOT partition `processed` — a row counted
+  // here can still be repaired from its own image bytes below.
   console.log(
-    `Attachments complete: processed ${totalProcessed}, updated ${totalUpdated}`
+    `Attachments complete: processed ${totalProcessed}, updated ${totalUpdated}, ${totalDeletedMedia} whose media row is gone, ${totalInvalidMediaId} with an invalid mediaId`
   )
 }
 

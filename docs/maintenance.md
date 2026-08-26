@@ -631,6 +631,25 @@ NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --local-only
 
 Earlier versions of this script wrote `attachments.thumbnailUrl` as a host-relative path (`/api/v1/files/…`). That value is served to clients verbatim as Mastodon's `preview_url` and as a `<video>` poster, so it is unusable to any client not talking to this origin. A normal run now selects and repairs those rows as well as rows missing a blurhash — no flag needed — and rewrites them to the absolute URL the live upload path produces, on the owning actor's domain. An already-absolute value is left alone.
 
+### Attachments whose `mediaId` resolves to nothing
+
+Deleting a media file from **Settings → Media Storage** removes the `medias` row and its stored bytes, but leaves `attachments.mediaId` on any post that used it pointing at the row that is gone. That is intended — a `NULL` `mediaId` is how a federated attachment is stored, so clearing it would make the attachment un-removable by editing the post.
+
+Such a row cannot be repaired from its media: the BlurHash, focal point and `thumbnailUrl` all come from the linked `medias` row, and `thumbnailUrl` has no other source. Because a host-relative `thumbnailUrl` keeps matching the selection predicate, the row is re-read on every run. The script warns for each one and reports two separate counts:
+
+```text
+[attachments 0f3c…] media 412 no longer exists; cannot restore blurhash, focus or thumbnailUrl from it
+[attachments 91ab…] mediaId "wat" is not a media row id; cannot restore blurhash, focus or thumbnailUrl from it
+Attachments complete: processed 1204, updated 6, 37 whose media row is gone, 2 with an invalid mediaId
+```
+
+The two are never summed, because they mean different things:
+
+- **`whose media row is gone`** — a real row id whose `medias` row was deleted. Not an error to act on; it is the residue of owners deleting their own media. The author can drop the leftover attachment by editing the post.
+- **`with an invalid mediaId`** — a value that was never a row id at all. Nothing was deleted here, so this is a bad **write** and is worth investigating: `createAttachment` does not validate `mediaId` (deliberately, so a bad id surfaces instead of being silently dropped) and `POST /api/v1/accounts/outbox` reaches it with an unvalidated attachment id. This is not SQLite-only. SQLite's `varchar` column accepts any string, but `-5` and `0` are valid `integer` values PostgreSQL stores happily and the id guard still refuses, so a non-zero count is possible on either backend.
+
+Neither count partitions `processed`. A warned row can still appear in `updated`: the script falls back to analysing the image behind the attachment's own `url`. That is the norm for an invalid `mediaId`, because nothing was deleted, but it happens for a gone media row too — the delete route removes the stored bytes best-effort and drops the row regardless, so the file can outlive the row that named it. Only `thumbnailUrl` is unrecoverable either way.
+
 ### What `--force` does, and does not, recompute
 
 `--force` recomputes the **blurhash**, and re-derives `thumbnailUrl` from the linked `medias` row even when the stored value is already absolute. It does **not** recompute a **focal point** that is already stored: `PUT /api/v1/media/:id` lets an owner set one by hand, and no column records whether a stored point was set that way or detected automatically, so recomputing would silently discard the owner's choice. A missing focal point is still filled in, with or without the flag.
