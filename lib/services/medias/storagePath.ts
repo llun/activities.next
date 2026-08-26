@@ -1,5 +1,7 @@
 import path from 'path'
 
+import { logger } from '@/lib/utils/logger'
+
 /**
  * The absolute path `filePath` names inside `storageRootPath`, or null when it
  * escapes that root.
@@ -13,6 +15,14 @@ import path from 'path'
  *
  * The root itself resolves to itself rather than to null; only a path that
  * leaves the root is refused.
+ *
+ * The check is LEXICAL — it never calls `fs.realpath` — so a symlink planted
+ * inside the root and pointing outside it resolves to a path that passes. That
+ * is a residual rather than a regression (both predecessors were lexical too)
+ * and nothing here creates symlinks in either storage root: the Strava archive
+ * reader decompresses entries into memory rather than onto disk, so there is no
+ * zip-slip route to plant one. Anything that gains the ability to create a link
+ * under a storage root needs this to become a `realpath` comparison.
  */
 export const resolveStorageFilePath = (
   storageRootPath: string,
@@ -25,6 +35,15 @@ export const resolveStorageFilePath = (
     : `${storageRoot}${path.sep}`
 
   if (fullPath !== storageRoot && !fullPath.startsWith(storageRootPrefix)) {
+    // The refusal is unreachable from today's callers, which is exactly why it
+    // is worth a line: this check exists for a caller nobody has written yet
+    // and for a row that should not hold what it holds. Without it the only
+    // symptom is a delete that quietly did nothing, or a read shaped like a 404.
+    logger.warn({
+      message: 'Refused a storage path outside the storage root',
+      storageRootPath,
+      filePath
+    })
     return null
   }
 

@@ -530,10 +530,19 @@ attachment ref guard` is exactly that: it passed with the bug present until
   silent: the read or the unlink lands somewhere else on disk. Watch for the
   read-only variant of this — `LocalFileStorage.getFile` carried the check while
   `deleteFile` beside it had none, which made containment an invariant of the
-  callers rather than of the driver. `resolveStorageFilePath` returns null;
-  `assertStorageFilePath` throws, for a write with nothing sensible to return.
-  Object storage is a different question: an S3 key has no filesystem root to
-  escape.
+  callers rather than of the driver. `resolveStorageFilePath` returns null (and
+  logs the refusal); `assertStorageFilePath` throws, for a write with nothing
+  sensible to return. Object storage is a different question: an S3 key has no
+  filesystem root to escape.
+- **Reject a hand-rolled containment check, and reject `startsWith` against a
+  bare resolved root.** `fullPath.startsWith(path.resolve(base))` has no
+  separator boundary, so a sibling directory whose name the root prefixes passes
+  it — root `/srv/uploads` accepts `/srv/uploads-backup/x`. That form guarded an
+  `fs.unlink` in `scripts/maintenance/cleanupMediaStorage.ts`, and it reads as
+  correct at a glance, which is why `storagePathCallSites.test.ts` greps for it
+  rather than trusting review. Note the check is lexical either way: a symlink
+  planted under a storage root defeats it, which is a documented residual, not
+  something to paper over at the call site.
 - **A stored file with no `medias` row is unreachable**, so whatever fails
   after a write must reclaim it — only `scripts/maintenance/cleanupMediaStorage.ts`
   can find it otherwise. Equally, do not report a storage failure as a

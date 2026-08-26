@@ -144,6 +144,34 @@ describe('LocalFileStorage.deleteFile', () => {
     await expect(createStorage().deleteFile(outsidePath)).resolves.toBe(false)
     await expect(fs.readFile(outsidePath, 'utf8')).resolves.toBe('secret-data')
   })
+
+  // Sits directly beside the refusal above and returns the opposite boolean for
+  // a path that is also not there, so pin which is which: a missing file inside
+  // the root is already-deleted, a path outside it is refused.
+  it('reports a missing file inside the media root as already deleted', async () => {
+    await expect(createStorage().deleteFile('never-stored.png')).resolves.toBe(
+      true
+    )
+  })
+
+  // `ACTIVITIES_MEDIA_STORAGE_PATH` defaults to `./uploads`, so a root relative
+  // to the working directory is the shipped configuration, not a curiosity.
+  it('confines paths under a storage root configured relatively', async () => {
+    const relativeRoot = path.relative(process.cwd(), mediaRoot)
+    expect(path.isAbsolute(relativeRoot)).toBe(false)
+    const storage = new LocalFileStorage(
+      { type: MediaStorageType.LocalFile, path: relativeRoot },
+      'llun.test',
+      {} as Database
+    )
+    await fs.writeFile(path.join(mediaRoot, 'avatar.png'), 'image-data')
+
+    await expect(storage.deleteFile('avatar.png')).resolves.toBe(true)
+    await expect(
+      storage.deleteFile(path.join('nested', '..', '..', 'secret.png'))
+    ).resolves.toBe(false)
+    await expect(fs.readFile(outsidePath, 'utf8')).resolves.toBe('secret-data')
+  })
 })
 
 describe('LocalFileStorage image output format', () => {

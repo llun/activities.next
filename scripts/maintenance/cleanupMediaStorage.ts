@@ -27,6 +27,7 @@ import {
   MediaStorageType
 } from '@/lib/config/mediaStorage'
 import { getEffectiveFitnessStorageConfig } from '@/lib/services/fitness-files'
+import { resolveStorageFilePath } from '@/lib/services/medias/storagePath'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
 
 async function getAllMediaPathsFromDatabase(
@@ -263,9 +264,14 @@ async function listS3Files(
 }
 
 async function deleteLocalFile(basePath: string, filePath: string) {
-  const fullPath = path.resolve(basePath, filePath)
-  // Ensure the resolved path is within the base path (prevent directory traversal)
-  if (!fullPath.startsWith(path.resolve(basePath))) {
+  // The same containment rule the storage drivers apply, from the same module.
+  // The check this replaced compared against a bare `path.resolve(basePath)`,
+  // which a sibling directory the root's name prefixes passes: a base of
+  // `/srv/uploads` accepted `../uploads-backup/x`. `resolveStorageFilePath`
+  // carries the separator boundary that closes it. The local throw stays so the
+  // operator running this still learns which path was refused.
+  const fullPath = resolveStorageFilePath(basePath, filePath)
+  if (!fullPath) {
     throw new Error(`Invalid file path: ${filePath}`)
   }
   await fs.unlink(fullPath)
