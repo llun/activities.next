@@ -1650,8 +1650,14 @@ system's `Attachments` component.
   an `aspect-ratio` box, which leaves the ratio to be re-derived from a clamped
   axis and is resolved inconsistently across browsers.
 - **Two or more pictures are a fixed-height (`STRIP_ROW_HEIGHT`) scrolling row**,
-  each item as wide as its own ratio makes it. Three details are load-bearing
+  each item as wide as its own ratio makes it. Four details are load-bearing
   and must not be "cleaned up":
+  - `flex-none` on each item is what makes the strip overflow at all. Without it
+    the default `flex-shrink` squeezes every item to fit, so
+    `scrollWidth === clientWidth` forever: no chevrons, no fade, no peek, no
+    scrolling, and every photo cropped. The whole feature turns off silently,
+    which is why a test pins the class — jsdom lays nothing out, so nothing else
+    at that level can carry the rule.
   - `STRIP_ITEM_MAX_WIDTH` (78%) means no item can fill the strip, so the next
     one always peeks past the edge. That peek is what says "this scrolls" on a
     touch screen, where the back chevron never appears at all and the forward
@@ -1670,7 +1676,13 @@ system's `Attachments` component.
   actually carries. Strip images therefore pass `loading="lazy"` to `Media` —
   a photo dump was 4 requests and is now one per photo. A **lone** picture
   deliberately does not: an in-viewport lazy image is fetched at lower priority,
-  which is the wrong trade for the post's largest element.
+  which is the wrong trade for the post's largest element. `loading` is an
+  image-only attribute, so `Media` turns it into `preload="none"` for a video —
+  but **only one carrying a `poster`**. A posterless video's sole pre-playback
+  frame comes from the `#t=0.01` source fragment, which needs metadata to
+  decode, and the strip hides its controls, so deferring one leaves a bare empty
+  box. Federated video always lands there: `thumbnailUrl` is written on the
+  local-upload path alone.
 - **The edge fade is a `mask-image`, not a background gradient.** Posts render on
   four different surfaces — `bg-card` when framed, `bg-background` on the status
   detail, `bg-muted/30` for an ancestor row, and the page itself when unframed —
@@ -1696,11 +1708,15 @@ system's `Attachments` component.
   `MessageBubble`'s media cells carry `focus-visible:ring-inset` over the same
   full-bleed image shape, so their indicator is invisible too — a pre-existing
   bug, not a precedent to copy.)
-- **The chevrons sit outside the tab order (`tabIndex={-1}`).** They duplicate no
-  function — every picture is a focusable button and focusing one scrolls it
-  into view — and each is unmounted by the very scroll it performs, so a focused
-  one drops focus to `<body>` on its last press and sends the next Tab back to
-  the top of the page.
+- **Keeping the chevrons out of the tab order takes BOTH `tabIndex={-1}` and a
+  mousedown guard.** They duplicate no function — every picture is a focusable
+  button and focusing one scrolls it into view — and each is unmounted by the
+  very scroll it performs, so a chevron holding focus drops it to `<body>` on
+  its last press and sends the next Tab back to the top of the page (WCAG
+  2.4.3). `tabindex="-1"` removes an element from the SEQUENTIAL order only; it
+  stays click-focusable, and Chrome and Firefox focus a `<button>` on click, so
+  `preventFocusOnPress` cancels the default on mousedown to close the mouse
+  path. Deleting either half reopens the failure.
 - **Every picture button carries an explicit `aria-label`.** `Media` names an
   image from its `alt`, but `attachment.name` is a required string that
   federation writes as `attachment.name || ''`, so an undescribed photo left the

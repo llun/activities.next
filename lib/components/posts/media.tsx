@@ -31,10 +31,11 @@ interface Props {
    * It reaches a video as `preload="none"`, since `loading` is an image-only
    * attribute: left alone a `<video>` defaults to fetching `metadata`, so a
    * strip of twenty clips is twenty range requests for videos nobody has
-   * scrolled to. The `poster` is fetched either way — nothing declarative
-   * defers it — but that is one image request each, the same as a photo, and
-   * the strip's videos hide their controls anyway, so losing the preloaded
-   * duration costs nothing here.
+   * scrolled to. That only applies to a video carrying a `poster`, though —
+   * see the `preload` line below. The poster itself is fetched either way,
+   * nothing declarative defers it, but that is one image request each, the
+   * same as a photo, and the strip hides its controls anyway, so losing the
+   * preloaded duration costs nothing.
    */
   loading?: 'lazy' | 'eager'
   onClick?: (event: MouseEvent) => void
@@ -148,7 +149,13 @@ export const Media: FC<Props> = ({
         width={width}
         height={height}
         poster={poster}
-        preload={loading === 'lazy' ? 'none' : undefined}
+        // Only skip the fetch when there is a poster to paint instead. With no
+        // poster this element's ONLY way to show anything before playback is
+        // the `#t=0.01` fragment below, which needs metadata to decode a frame
+        // — and the strip hides its controls, so `preload="none"` would leave a
+        // bare empty box. Federated video always lands here: `thumbnailUrl` is
+        // written on the local-upload path alone.
+        preload={loading === 'lazy' && poster ? 'none' : undefined}
         controls={showVideoControl}
         onClick={(event) => {
           // Don't play the video here

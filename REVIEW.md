@@ -548,15 +548,20 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   this for every surface that renders a post. A lone picture keeps its own
   aspect ratio and hugs the post's left edge, scaled by WIDTH; the branch this
   replaced cropped every portrait photo to a full-width 16:9.
-- Three details of the strip are load-bearing and a "cleanup" that drops any of
-  them is a regression: `STRIP_ITEM_MAX_WIDTH` (78%) so the next item always
+- Four details of the strip are load-bearing and a "cleanup" that drops any of
+  them is a regression: `flex-none` on each item, without which they shrink to
+  fit and nothing ever overflows (the whole feature turns off silently);
+  `STRIP_ITEM_MAX_WIDTH` (78%) so the next item always
   peeks — that peek is what says "this scrolls" on a touch screen, where the
   back chevron never appears at all; `scroll-snap-type: x proximity`, never `mandatory`, which pulls the
   peek flush the moment the scroll settles; and the forward chevron staying
   visible while the back one appears on hover only.
 - **There is no item cap and no `+N` overlay** — scrolling reaches everything —
   so anything the strip renders unboundedly needs a deferral: images pass
-  `loading="lazy"`, videos `preload="none"` (`loading` is image-only). A lone picture or video is
+  `loading="lazy"`, videos `preload="none"` (`loading` is image-only) — but only
+  a video carrying a `poster`. A posterless one shows nothing at all when
+  deferred, since its only pre-playback frame comes from the `#t=0.01` fragment,
+  and federated video never has a poster. A lone picture or video is
   deliberately eager, being the post's largest element. Re-adding a cap hides
   media the post actually carries.
 - The edge fade is a **`mask-image`**, not a background gradient: posts render

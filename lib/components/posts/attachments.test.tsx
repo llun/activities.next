@@ -480,9 +480,40 @@ describe('Attachments', () => {
       expect(container.querySelector('video')).toBeInTheDocument()
     })
 
-    it('defers a strip video the way it defers a strip image', () => {
+    it('defers a strip video that has a poster to paint instead', () => {
       // `loading` is image-only, so an unbounded strip of videos would
       // otherwise be one metadata range request per clip.
+      const { container } = render(
+        <Attachments
+          status={buildNoteStatus([
+            buildAttachment({
+              mediaType: 'video/mp4',
+              width: 800,
+              height: 600,
+              thumbnailUrl: 'https://activities.local/media/poster-1.jpg'
+            }),
+            buildAttachment({
+              mediaType: 'video/mp4',
+              width: 800,
+              height: 600,
+              thumbnailUrl: 'https://activities.local/media/poster-2.jpg'
+            })
+          ])}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      const videos = Array.from(container.querySelectorAll('video'))
+      expect(videos).toHaveLength(2)
+      videos.forEach((video) =>
+        expect(video).toHaveAttribute('preload', 'none')
+      )
+    })
+
+    it('does not defer a posterless strip video, which would show nothing', () => {
+      // Federated video never carries a thumbnail — only the local-upload path
+      // writes one — so its sole pre-playback frame comes from the `#t=0.01`
+      // fragment, which needs metadata. Deferring it leaves an empty box.
       const { container } = render(
         <Attachments
           status={buildNoteStatus([
@@ -499,9 +530,7 @@ describe('Attachments', () => {
 
       const videos = Array.from(container.querySelectorAll('video'))
       expect(videos).toHaveLength(2)
-      videos.forEach((video) =>
-        expect(video).toHaveAttribute('preload', 'none')
-      )
+      videos.forEach((video) => expect(video).not.toHaveAttribute('preload'))
     })
 
     it('does not defer a lone video, the largest element on the post', () => {
