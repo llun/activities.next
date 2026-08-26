@@ -1,0 +1,21 @@
+lib/database/sql/fitnessGear.ts
+  s_eacd0c3a89f5e1::t_f252e049853679 1004-1045,1050,1065
+lib/database/sql/fitnessGear.test.ts
+  s_eacd0c3a89f5e1::t_7d1b2dd66e9f76 2022-2058
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "e899da1780c36643c459faecb2b644986fca181d",
+  "prompts": {},
+  "sessions": {
+    "s_eacd0c3a89f5e1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4cf735c2-2b90-40eb-8be8-b59706ebd921",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
