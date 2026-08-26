@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
-import { resetActorPublicStatusCountCacheForTests } from '@/lib/services/statuses/actorPublicStatusCount'
+import { resetActorPublicStatusesCountCacheForTests } from '@/lib/services/statuses/actorPublicStatusesCount'
 import { type Actor } from '@/lib/types/domain/actor'
 import { StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -103,7 +103,7 @@ describe('GET /api/users/[username]/outbox', () => {
     // every case here, so they are one key in the count cache: without this
     // reset the first case's count would be served to all the others, well
     // inside its TTL.
-    resetActorPublicStatusCountCacheForTests()
+    resetActorPublicStatusesCountCacheForTests()
   })
 
   it('negotiates collection responses with the shared ActivityPub helper', async () => {

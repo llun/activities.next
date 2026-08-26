@@ -3,7 +3,7 @@ import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import type { Database } from '@/lib/database/types'
 import { OnlyLocalUserGuard } from '@/lib/services/guards/OnlyLocalUserGuard'
 import { isStatusPubliclyReadable } from '@/lib/services/statusAccess'
-import { getCachedActorPublicStatusCount } from '@/lib/services/statuses/actorPublicStatusCount'
+import { getCachedActorPublicStatusesCount } from '@/lib/services/statuses/actorPublicStatusesCount'
 import {
   AnnounceAction,
   CreateAction
@@ -53,7 +53,7 @@ export const GET = traceApiRoute(
       const pageParam = url.searchParams.get('page')
       if (!pageParam) {
         const outboxId = getLocalActorOutboxId(actor.id)
-        const totalItems = await getCachedActorPublicStatusCount(
+        const totalItems = await getCachedActorPublicStatusesCount(
           database,
           actor.id
         )

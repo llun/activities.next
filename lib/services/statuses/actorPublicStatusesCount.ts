@@ -12,9 +12,12 @@ import { Database } from '@/lib/database/types'
 // root fetches in 11 minutes each recomputed the count and queued behind one
 // another on a 1-vCPU instance, taking the query's average wall time to 899ms
 // against ~150ms of real work — the executions were waiting for CPU, not doing
-// more of it. This bounds the recomputation to once per actor per TTL, and the
-// `Cache-Control` the outbox root now sends keeps most of the burst from
-// reaching the origin at all.
+// more of it. This holds each actor's count for a TTL, and the `Cache-Control`
+// the outbox root now sends keeps most of a burst from reaching the origin at
+// all. Note what it does NOT do: there is no in-flight dedup, so concurrent
+// misses for one actor all run the query — the entry is only written once the
+// query resolves. The CDN is what absorbs a burst; a sub-TTL stampede is a
+// different, unmeasured failure mode.
 //
 // Keyed per database instance so the production singleton is cached while each
 // test's throwaway database resolves independently, and per actor because one
@@ -23,7 +26,7 @@ import { Database } from '@/lib/database/types'
 // A count that lags by up to a minute is within what an ActivityPub collection
 // promises: `totalItems` already cannot be exact the moment another actor edits
 // or deletes a status this one boosted.
-export const ACTOR_PUBLIC_STATUS_COUNT_TTL_MS = 60_000
+export const ACTOR_PUBLIC_STATUSES_COUNT_TTL_MS = 60_000
 
 // The entries expire but nothing sweeps them, and a public outbox is fetched
 // for whichever actors remote servers ask about. Bound the map so a long-lived
@@ -55,6 +58,15 @@ const setBoundedEntry = (
   entries.set(actorId, entry)
 }
 
+const getActorEntries = (database: Database) => {
+  const entries = cacheByDatabase.get(database)
+  if (entries) return entries
+
+  const actorEntries = new Map<string, CacheEntry>()
+  cacheByDatabase.set(database, actorEntries)
+  return actorEntries
+}
+
 /**
  * `database.getActorStatusesCount({ actorId, publicOnly: true })` behind a
  * per-actor TTL cache.
@@ -62,12 +74,20 @@ const setBoundedEntry = (
  * Errors are not cached: a rejection propagates before anything is written, so
  * the next caller retries rather than being served a failure for a minute.
  */
-export const getCachedActorPublicStatusCount = async (
+export const getCachedActorPublicStatusesCount = async (
   database: Database,
   actorId: string
 ): Promise<number> => {
-  const entries = cacheByDatabase.get(database)
-  const entry = entries?.get(actorId)
+  // The map is created and published BEFORE the query, so every caller racing
+  // on a cold database key mutates the one map instead of each building its own
+  // and the last to finish replacing the rest. Reading it before the `await`
+  // and writing it after dropped a concurrently-computed entry for a DIFFERENT
+  // actor — not a wrong count, but a lost one, so that actor recomputed on its
+  // next request well inside the TTL. Publishing an empty map costs nothing:
+  // only `setBoundedEntry` below puts anything in it, and a reader that finds
+  // it empty simply misses.
+  const entries = getActorEntries(database)
+  const entry = entries.get(actorId)
   if (entry && entry.expiresAt > Date.now()) return entry.count
 
   const count = await database.getActorStatusesCount({
@@ -75,29 +95,33 @@ export const getCachedActorPublicStatusCount = async (
     publicOnly: true
   })
 
-  const actorEntries = entries ?? new Map<string, CacheEntry>()
-  setBoundedEntry(actorEntries, actorId, {
+  setBoundedEntry(entries, actorId, {
     count,
-    expiresAt: Date.now() + ACTOR_PUBLIC_STATUS_COUNT_TTL_MS
+    expiresAt: Date.now() + ACTOR_PUBLIC_STATUSES_COUNT_TTL_MS
   })
-  cacheByDatabase.set(database, actorEntries)
   return count
 }
 
-export const resetActorPublicStatusCountCacheForTests = () => {
+export const resetActorPublicStatusesCountCacheForTests = () => {
   if (!process.env.VITEST) {
-    throw new Error('resetActorPublicStatusCountCacheForTests is test-only')
+    throw new Error('resetActorPublicStatusesCountCacheForTests is test-only')
   }
 
   cacheByDatabase = new WeakMap()
 }
 
-export const getActorPublicStatusCountCacheSizeForTests = (
+// The cached actor ids in insertion order — oldest first, which is the order
+// `setBoundedEntry` evicts in. Returning the ids rather than a count is what
+// lets a test assert WHICH actor was evicted; a size alone passes against an
+// eviction that drops the wrong one.
+export const getActorPublicStatusesCountCachedActorIdsForTests = (
   database: Database
 ) => {
   if (!process.env.VITEST) {
-    throw new Error('getActorPublicStatusCountCacheSizeForTests is test-only')
+    throw new Error(
+      'getActorPublicStatusesCountCachedActorIdsForTests is test-only'
+    )
   }
 
-  return cacheByDatabase.get(database)?.size ?? 0
+  return [...(cacheByDatabase.get(database)?.keys() ?? [])]
 }
