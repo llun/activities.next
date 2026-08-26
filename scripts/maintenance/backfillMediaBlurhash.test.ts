@@ -932,6 +932,56 @@ describe('backfillMediaBlurhash execution', () => {
     }
   )
 
+  // `--dry-run` is the first command `docs/maintenance.md` tells an operator to
+  // run, so the diagnostic has to survive it — the dry-run gate covers the
+  // UPDATE, not the counting. Two affected rows in one batch, because the
+  // warning is per ROW: collapsing it to one call per run reports only the
+  // first id, which is indistinguishable from correct behaviour in any
+  // single-row fixture.
+  it('names every affected row under --dry-run without writing', async () => {
+    await db('attachments').insert([
+      {
+        id: 'att-1',
+        statusId: 'status-1',
+        actorId: 'https://llun.test/users/test',
+        mediaId: '404',
+        mediaType: 'image/jpeg',
+        url: 'https://llun.test/api/v1/files/medias/one.jpg',
+        blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4',
+        thumbnailUrl: '/api/v1/files/medias/one-thumbnail.jpg'
+      },
+      {
+        id: 'att-2',
+        statusId: 'status-1',
+        actorId: 'https://llun.test/users/test',
+        mediaId: '405',
+        mediaType: 'image/jpeg',
+        url: 'https://llun.test/api/v1/files/medias/two.jpg',
+        blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4',
+        thumbnailUrl: '/api/v1/files/medias/two-thumbnail.jpg'
+      }
+    ])
+
+    const mockStorage = { getFile: vi.fn().mockResolvedValue(null) } as never
+    await backfillAttachments(db, mockStorage, options({ dryRun: true }), HOSTS)
+
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('[attachments att-1] media 404 no longer exists')
+    )
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('[attachments att-2] media 405 no longer exists')
+    )
+    expect(console.log).toHaveBeenCalledWith(
+      'Attachments complete: processed 2, updated 0, 2 whose media row is gone, 0 with an invalid mediaId'
+    )
+
+    const rows = await db('attachments').orderBy('id', 'asc')
+    expect(rows.map((row) => row.thumbnailUrl)).toEqual([
+      '/api/v1/files/medias/one-thumbnail.jpg',
+      '/api/v1/files/medias/two-thumbnail.jpg'
+    ])
+  })
+
   // A NULL `mediaId` is how a federated attachment is stored — there is no
   // media row to miss — so both counts have to stay at zero or every remote
   // attachment on the instance reads as a gap.

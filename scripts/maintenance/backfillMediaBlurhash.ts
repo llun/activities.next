@@ -456,12 +456,15 @@ export const backfillAttachments = async (
   // apart from the summary line alone.
   //
   // A media row that is GONE is the expected residue of an owner deleting their
-  // own media. Nothing here can repair such a row — `thumbnailUrl` is rebuilt
-  // only from the media row's stored thumbnail path — and deleting a `medias`
-  // row deliberately does not clear the `attachments.mediaId` naming it, since
-  // a null `mediaId` marks a federated attachment (see AGENTS.md, "Deleting
-  // Media a Post Uses"). So these rows are permanent and re-selected forever;
-  // before they were counted in `processed` and reported nowhere.
+  // own media. Its `thumbnailUrl` is unrecoverable — that rebuild reads the
+  // media row's stored thumbnail path and has no other source — though the
+  // BlurHash can still come from the attachment's own bytes below, because the
+  // delete route drops the row even when the storage delete failed. Deleting a
+  // `medias` row deliberately does not clear the `attachments.mediaId` naming
+  // it, since a null `mediaId` marks a federated attachment (see AGENTS.md,
+  // "Deleting Media a Post Uses"), so a row that cannot self-heal that way is
+  // re-selected forever; before this it was counted in `processed` and reported
+  // nowhere.
   //
   // An INVALID one was never a row id, so nothing was deleted: it is a bad
   // write, from the unvalidated `createAttachment` path AGENTS.md documents

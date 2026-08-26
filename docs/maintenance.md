@@ -648,7 +648,7 @@ The two are never summed, because they mean different things:
 - **`whose media row is gone`** — a real row id whose `medias` row was deleted. Not an error to act on; it is the residue of owners deleting their own media. The author can drop the leftover attachment by editing the post.
 - **`with an invalid mediaId`** — a value that was never a row id at all. Nothing was deleted here, so this is a bad **write** and is worth investigating: `createAttachment` does not validate `mediaId` (deliberately, so a bad id surfaces instead of being silently dropped) and `POST /api/v1/accounts/outbox` reaches it with an unvalidated attachment id. This is not SQLite-only. SQLite's `varchar` column accepts any string, but `-5` and `0` are valid `integer` values PostgreSQL stores happily and the id guard still refuses, so a non-zero count is possible on either backend.
 
-Neither count partitions `processed`. A warned row can still appear in `updated`: the script falls back to analysing the image behind the attachment's own `url`, which usually still exists for an invalid `mediaId` precisely because nothing was deleted.
+Neither count partitions `processed`. A warned row can still appear in `updated`: the script falls back to analysing the image behind the attachment's own `url`. That is the norm for an invalid `mediaId`, because nothing was deleted, but it happens for a gone media row too — the delete route removes the stored bytes best-effort and drops the row regardless, so the file can outlive the row that named it. Only `thumbnailUrl` is unrecoverable either way.
 
 ### What `--force` does, and does not, recompute
 
