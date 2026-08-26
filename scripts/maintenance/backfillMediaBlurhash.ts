@@ -24,7 +24,10 @@ import { toMediaRowId } from '@/lib/database/sql/media'
 import { getMediaStorage } from '@/lib/services/medias'
 import { PRESIGNED_ANALYSIS_MAX_BYTES } from '@/lib/services/medias/constants'
 import { analyzeImageBuffer } from '@/lib/services/medias/imageAnalysis'
-import { getMediaFileUrl } from '@/lib/services/medias/mediaFileUrl'
+import {
+  getMediaFileUrl,
+  isTraversingStoragePath
+} from '@/lib/services/medias/mediaFileUrl'
 import {
   getTrustedHostRules,
   hostMatchesRule,
@@ -227,15 +230,6 @@ const getOwnPathname = (
     return null
   }
 }
-
-// A decoded segment that walks upwards, or an absolute decoded path, is never a
-// storage path. `new URL` normalises a LITERAL `../` out of the pathname, but a
-// percent-encoded one survives it and `decodeURIComponent` puts it back — so
-// the check has to happen after decoding. Both storage drivers refuse such a
-// path anyway; a maintenance sweep should not be asking them to.
-const isTraversingStoragePath = (storagePath: string) =>
-  storagePath.startsWith('/') ||
-  storagePath.split('/').some((segment) => segment === '..')
 
 export const getLocalStoragePath = (
   rawUrl: string,

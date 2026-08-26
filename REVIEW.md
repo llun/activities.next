@@ -522,6 +522,32 @@ attachment ref guard` is exactly that: it passed with the bug present until
   loopback development hosts, which `isHostTrustedByRules` alone rejects.
   `getAttachmentMediaPath` is not this check: it never returns null and is for
   URLs this instance just produced.
+- **The path it recovers must also be refused when it walks upwards, is
+  absolute, or carries a NUL byte — and that check runs AFTER decoding**
+  (`isTraversingStoragePath`, shared with the blurhash backfill; do not fork
+  it). `new URL()` resolves dot segments only where the separators are literal
+  slashes, so `https://<our-host>/api/v1/files/..%2f..%2fsecrets/env` reaches
+  the decoder still spelled `..%2f` and comes back as `../../secrets/env`; the
+  host-relative branch parses no URL at all, so a plain
+  `/api/v1/files/../../secrets/env` is never normalised either.
+  `copyProfileImage` joined that onto the staging directory and copied whatever
+  it found into the archive as `avatar.<ext>`, and `iconUrl` is a bare
+  `z.string()` any signed-in user can set — so this was a live arbitrary-file
+  read, not a hardening exercise. Refuse only a segment that RESOLVES to `..`:
+  `ab/..cd.webp` is an ordinary stored file name. Cover Windows too — `\` is a
+  separator, `C:` is absolute, and Win32 strips a component's trailing dots and
+  spaces carrying two or more dots, since Windows normalises trailing dots away
+  and Node's own `path.win32` does not model that. Refusing the whole shape is
+  deliberately wider than what Win32 actually collapses — no stored path is
+  named out of dots, so over-refusing costs nothing and does not depend on
+  getting the platform's rules exactly right.
+- **Do not answer "the storage driver will reject it".** `LocalFileStorage.getFile`
+  does make a containment check; `S3FileStorage.getFile` makes none — a
+  traversing key is merely inert there, and with a CDN `hostname` configured it
+  is string-concatenated into a redirect URL. Any new step that turns a stored
+  path into a filesystem read should still resolve and confirm containment for
+  itself, the way `copyProfileImage` and `createMediaTempFilePath` do — a
+  signature taking a bare path says nothing about where the path came from.
 - **A stored file with no `medias` row is unreachable**, so whatever fails
   after a write must reclaim it — only `scripts/maintenance/cleanupMediaStorage.ts`
   can find it otherwise. Equally, do not report a storage failure as a
