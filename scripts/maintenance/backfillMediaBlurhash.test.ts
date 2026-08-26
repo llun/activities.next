@@ -437,6 +437,12 @@ describe('backfillMediaBlurhash execution', () => {
   beforeEach(async () => {
     vi.spyOn(console, 'log').mockImplementation(() => undefined)
     vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    // `vi.restoreAllMocks()` in `afterEach` only iterates the spies `vi.spyOn`
+    // registered, so it never reaches a `vi.fn()` created inside a `vi.mock`
+    // factory. Without these two, every test in this block inherits whatever
+    // its predecessor last told these mocks to return.
+    vi.mocked(analyzeImageBuffer).mockReset()
+    vi.mocked(safeImageFetch).mockReset()
 
     db = knex({
       client: 'better-sqlite3',
@@ -725,8 +731,6 @@ describe('backfillMediaBlurhash execution', () => {
   })
 
   it('skips the remote download entirely under --local-only', async () => {
-    vi.mocked(safeImageFetch).mockReset()
-
     await db('attachments').insert({
       id: 'att-1',
       statusId: 'status-1',
@@ -1058,6 +1062,90 @@ describe('backfillMediaBlurhash execution', () => {
     }
   )
 
+  // `options.batchSize` bounds the SELECT, and nothing observed the paging. At
+  // fixture scale one 50-row batch and several 1-row batches produce identical
+  // writes, identical warnings and identical counters — the accumulation case
+  // above runs at a batch size of one on two rows and passes either way — so
+  // hardcoding the limit was invisible to the whole file. Counting the SELECTs
+  // is what tells the two apart.
+  it('pages the attachment scan at the requested batch size', async () => {
+    await db('attachments').insert(
+      [1, 2, 3].map((index) => ({
+        id: `att-${index}`,
+        statusId: 'status-1',
+        actorId: 'https://remote.example/users/them',
+        mediaId: null,
+        // Not an image, so no row reaches the analysis fallback and the sweep
+        // is nothing but the paging under test.
+        mediaType: 'video/mp4',
+        url: 'https://remote.example/media/clip.mp4',
+        blurhash: null
+      }))
+    )
+
+    // `limit` is what narrows this to the PAGING query. Matching every SELECT
+    // against the table counts any other one the loop might later issue — a
+    // per-batch diagnostic count inflated this to 8 — while a limit clause is
+    // exactly what the assertion is about, and a mutation that drops `.limit()`
+    // altogether still fails, on zero matches rather than four.
+    const selects: string[] = []
+    db.on('query', ({ sql }: { sql: string }) => {
+      if (
+        sql.startsWith('select') &&
+        sql.includes('attachments') &&
+        sql.includes('limit')
+      ) {
+        selects.push(sql)
+      }
+    })
+
+    const mockStorage = { getFile: vi.fn().mockResolvedValue(null) } as never
+    await backfillAttachments(db, mockStorage, options({ batchSize: 1 }), HOSTS)
+
+    // One SELECT per row, plus the empty one that ends the loop. A limit that
+    // ignores the option reads all three rows in a single batch and stops at
+    // two.
+    expect(selects).toHaveLength(4)
+  })
+
+  // If you extend the paging coverage: a mutation that stops `lastId` advancing
+  // does not fail, it HANGS well past the 30s `testTimeout`. better-sqlite3 is
+  // a synchronous driver, so the awaits inside the sweep's `while (true)`
+  // settle on the microtask queue and the loop never yields to the timer phase
+  // the watchdog lives in. Kill such a run rather than waiting it out.
+
+  // The summary is a SUMMARY: one line, after the batch loop. Every other
+  // assertion on it is `toHaveBeenCalledWith`, which asks only whether the line
+  // was ever logged — and the last row carries the correct cumulative totals —
+  // so moving the log into either loop passed. Two rows at a batch size of one
+  // separate all three placements: per row and per batch each log twice.
+  it('logs the attachments summary once, as the last line of the sweep', async () => {
+    await db('attachments').insert(
+      [1, 2].map((index) => ({
+        id: `att-${index}`,
+        statusId: 'status-1',
+        actorId: 'https://remote.example/users/them',
+        mediaId: null,
+        mediaType: 'video/mp4',
+        url: 'https://remote.example/media/clip.mp4',
+        blurhash: null
+      }))
+    )
+
+    const mockStorage = { getFile: vi.fn().mockResolvedValue(null) } as never
+    await backfillAttachments(db, mockStorage, options({ batchSize: 1 }), HOSTS)
+
+    const expectedSummary =
+      'Attachments complete: processed 2, updated 0, 0 whose media row is gone, 0 with an invalid mediaId'
+    const logged = vi
+      .mocked(console.log)
+      .mock.calls.map((call) => String(call[0]))
+    expect(
+      logged.filter((line) => line.startsWith('Attachments complete:'))
+    ).toEqual([expectedSummary])
+    expect(logged.at(-1)).toBe(expectedSummary)
+  })
+
   // A NULL `mediaId` is how a federated attachment is stored — there is no
   // media row to miss — so both counts have to stay at zero or every remote
   // attachment on the instance reads as a gap.
@@ -1081,7 +1169,6 @@ describe('backfillMediaBlurhash execution', () => {
   })
 
   it('runs a remote attachment URL through the download guard by default', async () => {
-    vi.mocked(safeImageFetch).mockReset()
     vi.mocked(safeImageFetch).mockResolvedValue(null)
 
     await db('attachments').insert({
@@ -1103,6 +1190,25 @@ describe('backfillMediaBlurhash execution', () => {
     expect(safeImageFetch).toHaveBeenCalledWith(
       'https://remote.example/media/photo.jpg'
     )
+  })
+
+  // A guard on the fixture rather than on the script, placed last so it runs
+  // after the tests that dirty these mocks — `beforeEach` reruns regardless, so
+  // placement is what gives the guard a failing case rather than a passing one.
+  // The leak it guards: `vi.restoreAllMocks()` never reaches a `vi.fn()` a
+  // `vi.mock` factory created, so without the reset above these two carry their
+  // implementation and their call history across the whole block, and two tests
+  // here used to work around that with a local `mockReset()`. Nothing depended
+  // on the leak, but a test written against either mock's DEFAULT behaviour
+  // would silently inherit a neighbour's. `sequence.shuffle` is not configured;
+  // a shuffled run degrades this to a vacuous pass, never a false failure.
+  it('starts every test with the module mocks reset', () => {
+    expect(vi.mocked(analyzeImageBuffer).mock.calls).toHaveLength(0)
+    expect(
+      vi.mocked(analyzeImageBuffer).getMockImplementation()
+    ).toBeUndefined()
+    expect(vi.mocked(safeImageFetch).mock.calls).toHaveLength(0)
+    expect(vi.mocked(safeImageFetch).getMockImplementation()).toBeUndefined()
   })
 })
 
@@ -1276,6 +1382,36 @@ describe('backfillMedias', () => {
     expect(updated.blurhash).toBe('FRESHHASH')
     expect(updated.focusX).toBe(0.5)
     expect(updated.focusY).toBe(-0.25)
+  })
+
+  // `--dry-run` is the first command `docs/maintenance.md` tells an operator to
+  // run, and nothing exercised this half of the gate — collapsing it to an
+  // unconditional write passed the whole file. The row has to be one that
+  // genuinely diverges, or the update block is never reached and "without
+  // writing" asserts nothing; the `backfillAttachments` case is the model.
+  it('counts a media row it would write under --dry-run without writing it', async () => {
+    await insertMedia({ blurhash: null, focusX: null, focusY: null })
+    vi.mocked(analyzeImageBuffer).mockResolvedValue({
+      blurhash: 'FRESHHASH',
+      focus: { x: 0.5, y: -0.25 }
+    })
+
+    await backfillMedias(db, storage(), options({ dryRun: true }))
+
+    const untouched = await db('medias').where('id', 1).first()
+    expect(untouched.blurhash).toBeNull()
+    expect(untouched.focusX).toBeNull()
+    expect(untouched.focusY).toBeNull()
+
+    const logged = vi
+      .mocked(console.log)
+      .mock.calls.map((call) => String(call[0]))
+    expect(logged).toContain(
+      '[DRY RUN] [medias 1] would update {"blurhash":"FRESHHASH","focusX":0.5,"focusY":-0.25}'
+    )
+    // `totalUpdated` deliberately counts what WOULD be written, so the summary
+    // still reports the size of the pending repair.
+    expect(logged).toContain('Medias complete: processed 1, updated 1')
   })
 
   // --force re-reads rows that already have a blurhash. When the recomputed
