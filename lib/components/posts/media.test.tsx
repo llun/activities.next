@@ -99,6 +99,66 @@ describe('Media', () => {
     expect(canvas.className).toContain('opacity-0')
   })
 
+  // The `ref` callback's `node.complete && node.naturalWidth > 0` branch. A
+  // cached image is already complete before React attaches `onLoad`, so
+  // without it the placeholder would sit at full opacity over a picture that
+  // is already painted.
+  it('reveals a cached image that was already complete on mount', () => {
+    const attachmentWithBlurhash: Attachment = {
+      ...baseAttachment,
+      blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4'
+    }
+
+    vi.spyOn(HTMLImageElement.prototype, 'complete', 'get').mockReturnValue(
+      true
+    )
+    vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockReturnValue(
+      800
+    )
+
+    render(<Media attachment={attachmentWithBlurhash} />)
+
+    expect(screen.getByRole('img')).toHaveClass('opacity-100')
+    expect(screen.getByTestId('blurhash-canvas')).toHaveClass('opacity-0')
+    vi.restoreAllMocks()
+  })
+
+  // There is no `onError`, so a picture that never loads leaves `isLoaded`
+  // false: the `<img>` stays transparent and the blurhash stays painted. That
+  // is a reasonable end state — a blur beats a broken-image icon — but it is
+  // the fall-through rather than a decision, and it is worth pinning either
+  // way so a future `onError` is a deliberate change.
+  it('leaves the placeholder painted when the image fails to load', () => {
+    const attachmentWithBlurhash: Attachment = {
+      ...baseAttachment,
+      blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4'
+    }
+
+    render(<Media attachment={attachmentWithBlurhash} />)
+    fireEvent.error(screen.getByRole('img'))
+
+    expect(screen.getByTestId('blurhash-canvas')).toHaveClass('opacity-100')
+    expect(screen.getByRole('img')).toHaveClass('opacity-0')
+  })
+
+  // Federation does not have to send dimensions. Without them there is no
+  // `aspect-ratio` on the wrapper, so the absolutely-positioned canvas has no
+  // height to fill and the placeholder collapses.
+  it('renders a blurhash attachment that carries no dimensions', () => {
+    const attachmentWithoutSize: Attachment = {
+      ...baseAttachment,
+      width: undefined,
+      height: undefined,
+      blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4'
+    }
+
+    const { container } = render(<Media attachment={attachmentWithoutSize} />)
+
+    expect(screen.getByTestId('blurhash-canvas')).toBeInTheDocument()
+    const wrapper = container.firstElementChild as HTMLElement
+    expect(wrapper.style.aspectRatio).toBe('')
+  })
+
   it('renders video with poster and focal point object position', () => {
     const videoAttachment: Attachment = {
       ...baseAttachment,

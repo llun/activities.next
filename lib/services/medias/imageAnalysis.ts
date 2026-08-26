@@ -1,4 +1,4 @@
-import { encode } from 'blurhash'
+import { encode, isBlurhashValid } from 'blurhash'
 import sharp from 'sharp'
 
 import { FocalPoint, clampFocalPoint } from '@/lib/utils/focalPoint'
@@ -21,9 +21,29 @@ const BLURHASH_COMPONENTS_Y = 4
 // Standard blurhash format regex: base83 characters, length 6 to 100
 const BLURHASH_REGEX = /^[0-9a-zA-Z#$%*+,\-.:;=?@[\]^_{|}~]{6,100}$/
 
+/**
+ * Whether a string is a blurhash this instance will store and hand to `decode`.
+ *
+ * BOTH checks are load-bearing and neither subsumes the other.
+ *
+ * The regex covers the base83 alphabet, which `isBlurhashValid` does not look
+ * at — a string of the right length containing `!`, a backslash or a space
+ * passes it, and `decode` then happily returns pixels for characters that are
+ * not in the alphabet at all.
+ *
+ * `isBlurhashValid` covers the structure, which the regex cannot see: the
+ * required length is `4 + 2 * componentX * componentY`, derived from the size
+ * flag in the first character, so `'aaaaaa'` is well-formed base83 of a legal
+ * length and still throws `blurhash length mismatch: length is 6 but it should
+ * be 14`. That is what a charset-only check let through — a value a remote
+ * actor puts on a federated note, stored by `createNoteJob`, that throws every
+ * time a client renders the post.
+ */
 export const isValidBlurhash = (hash?: string | null): boolean => {
   if (!hash || typeof hash !== 'string') return false
-  return BLURHASH_REGEX.test(hash.trim())
+  const trimmed = hash.trim()
+  if (!BLURHASH_REGEX.test(trimmed)) return false
+  return isBlurhashValid(trimmed).result
 }
 
 /**
