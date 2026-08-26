@@ -1,3 +1,4 @@
+import { readFileSync } from 'fs'
 import fs from 'fs/promises'
 import fetchMock from 'jest-fetch-mock'
 import os from 'os'
@@ -6,11 +7,14 @@ import path from 'path'
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { MAX_FEDERATION_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
+import { MAX_FILE_SIZE } from '@/lib/services/medias/constants'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { safeImageFetch } from '@/lib/utils/safeImageDownload'
 
 import {
+  REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS,
   buildActorJson,
   buildExportActivity,
   buildFollowersCsv,
@@ -26,6 +30,15 @@ import {
   parseExportActorArgs,
   registerAttachmentUrl
 } from './actorArchive'
+
+// A spy that CALLS THROUGH: the refusal tests below must exercise the real
+// address policy — a mock would prove only the wiring and would still pass
+// against a plain `fetch`. This only makes the call arguments assertable.
+vi.mock('@/lib/utils/safeImageDownload', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/utils/safeImageDownload')>()
+  return { ...actual, safeImageFetch: vi.fn(actual.safeImageFetch) }
+})
 
 const buildAttachment = (overrides: Partial<Attachment> = {}): Attachment => ({
   id: 'attachment-1',
@@ -126,15 +139,23 @@ describe('parseExportActorArgs', () => {
 describe('registerAttachmentUrl', () => {
   const hostConfig = { host: 'example.test', trustedHosts: ['alias.example'] }
 
+  // The cap is a parameter, not a module constant, so a test can pin a tiny
+  // one and stream a real body past it — the streaming accumulator is
+  // unreachable at a realistic 200 MiB cap.
   const runRegister = async ({
     attachment,
     fetchRemoteAttachments = false,
+    maxAttachmentBytes = MAX_FILE_SIZE,
     stagingDir = '/nonexistent'
   }: {
     attachment: Attachment
     fetchRemoteAttachments?: boolean
+    maxAttachmentBytes?: number
     stagingDir?: string
   }) => {
+    const remoteFetch = fetchRemoteAttachments
+      ? { maxBytes: maxAttachmentBytes }
+      : null
     const mediaPaths = new Set<string>()
     const mediaIds = new Set<string>()
     const urlToArchivePath = new Map<string, string>()
@@ -142,10 +163,10 @@ describe('registerAttachmentUrl', () => {
 
     await registerAttachmentUrl({
       attachment,
-      fetchRemoteAttachments,
       hostConfig,
       mediaPaths,
       mediaIds,
+      remoteFetch,
       urlToArchivePath,
       stagingDir,
       warnings
@@ -244,10 +265,10 @@ describe('registerAttachmentUrl', () => {
     const register = (mediaId: string) =>
       registerAttachmentUrl({
         attachment: buildAttachment({ url, mediaId }),
-        fetchRemoteAttachments: false,
         hostConfig,
         mediaPaths,
         mediaIds,
+        remoteFetch: null,
         urlToArchivePath,
         stagingDir: '/nonexistent',
         warnings
@@ -292,6 +313,191 @@ describe('registerAttachmentUrl', () => {
       ])
     }
   )
+
+  // The non-OK branch drains the body before throwing. Nothing else asserts
+  // it: the streamLimit tests cover the byte-cap refusal paths, which are
+  // different code. Left undrained, a host answering every request with an
+  // error holds one connection per attachment until the deadline fires.
+  //
+  // This is the one test that stubs `safeImageFetch` outright rather than
+  // calling through, because it needs a body whose `cancel` it can observe.
+  it('drains the body of a non-OK remote attachment response', async () => {
+    const url = 'https://other.example/api/v1/files/ab/notfound.webp'
+    const cancel = vi.fn().mockResolvedValue(undefined)
+
+    vi.mocked(safeImageFetch).mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      body: { cancel }
+    } as unknown as Response)
+
+    const { urlToArchivePath, warnings } = await runRegister({
+      attachment: buildAttachment({ url }),
+      fetchRemoteAttachments: true
+    })
+
+    expect(cancel).toHaveBeenCalled()
+    expect(urlToArchivePath.has(url)).toBe(false)
+    expect(warnings).toEqual([
+      `Failed to fetch remote attachment ${url}: HTTP 404`
+    ])
+  })
+
+  // `attachment.url` is whatever the account owner put on the status:
+  // `POST /api/v1/accounts/outbox` takes `PostBoxAttachment.url` as a bare
+  // `z.string()` and `createAttachment` writes it verbatim. Without a guard,
+  // `--fetch-remote-attachments` turned that into an outbound request from the
+  // machine running the export, with the response body written into the
+  // tarball the owner receives.
+  //
+  // These go through the REAL `safeImageFetch`, not a mock, so a revert of the
+  // guard fails them. None of them reaches DNS: the three IP literals take the
+  // `isIP` branch, `localhost` is caught by the hostname-name check before the
+  // lookup, and the `http://` row is refused on protocol before the hostname
+  // is parsed at all. The global `node:dns/promises` mock in `vitest.setup.ts`
+  // (every hostname resolves to the public 93.184.216.34) is what keeps the
+  // hostname-based tests ABOVE reaching the mocked network — not these.
+  it.each([
+    {
+      description: 'the cloud metadata address',
+      url: 'https://169.254.169.254/latest/meta-data/iam/x.webp'
+    },
+    {
+      description: 'a loopback address',
+      url: 'https://127.0.0.1/api/v1/files/ab/cd.webp'
+    },
+    {
+      description: 'a private network address',
+      url: 'https://10.0.0.5/api/v1/files/ab/cd.webp'
+    },
+    {
+      description: 'a localhost name',
+      url: 'https://localhost/api/v1/files/ab/cd.webp'
+    },
+    {
+      description: 'a plain HTTP URL',
+      url: 'http://other.example/api/v1/files/ab/cd.webp'
+    }
+  ])(
+    'refuses to fetch a remote attachment on $description',
+    async ({ url }) => {
+      fetchMock.doMock()
+
+      const { mediaPaths, urlToArchivePath, warnings } = await runRegister({
+        attachment: buildAttachment({ url }),
+        fetchRemoteAttachments: true
+      })
+
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect([...mediaPaths]).toEqual([])
+      expect(urlToArchivePath.has(url)).toBe(false)
+      expect(warnings).toEqual([
+        `Refused remote attachment URL (unsafe address, non-HTTPS, or too many redirects): ${url}`
+      ])
+    }
+  )
+
+  // Three cases, because `readResponseArrayBufferWithLimit` has two
+  // independent refusal paths and the declared-length one alone is worth
+  // little: a hostile host simply omits or understates `content-length`, so
+  // the streaming accumulator gets both of those shapes. Proved distinct by
+  // disabling only the header short-circuit — the streamed case still fails,
+  // the declared-length case stops failing.
+  it.each([
+    {
+      description: 'a declared content-length over the cap',
+      // Small real body, huge declared length: only the header is consulted.
+      buildResponse: (maxAttachmentBytes: number) => ({
+        body: 'x'.repeat(8),
+        headers: { 'content-length': String(maxAttachmentBytes + 1) },
+        status: 200
+      })
+    },
+    {
+      description: 'a streamed body over the cap with no content-length',
+      // No declared length at all, so the byte accumulator is the only thing
+      // standing between a hostile host and an unbounded read.
+      buildResponse: (maxAttachmentBytes: number) => ({
+        body: 'x'.repeat(maxAttachmentBytes * 4),
+        status: 200
+      })
+    },
+    {
+      description: 'a streamed body over the cap understating content-length',
+      buildResponse: (maxAttachmentBytes: number) => ({
+        body: 'x'.repeat(maxAttachmentBytes * 4),
+        headers: { 'content-length': '8' },
+        status: 200
+      })
+    }
+  ])(
+    'refuses a remote attachment exceeding the byte cap on $description',
+    async ({ buildResponse }) => {
+      const maxAttachmentBytes = 64
+      const url = 'https://other.example/api/v1/files/ab/huge.webp'
+      const dir = await fs.mkdtemp(
+        path.join(os.tmpdir(), 'actor-archive-oversize-test-')
+      )
+
+      fetchMock.doMock()
+      fetchMock.mockResponseOnce(() =>
+        Promise.resolve(buildResponse(maxAttachmentBytes))
+      )
+
+      try {
+        const { urlToArchivePath, warnings } = await runRegister({
+          attachment: buildAttachment({ url }),
+          fetchRemoteAttachments: true,
+          maxAttachmentBytes,
+          stagingDir: dir
+        })
+
+        expect(urlToArchivePath.has(url)).toBe(false)
+        expect(warnings).toEqual([
+          `Failed to fetch remote attachment ${url}: Remote attachment exceeds byte limit of ${maxAttachmentBytes} bytes`
+        ])
+        await expect(
+          fs.readdir(path.join(dir, 'media_attachments', 'remote'))
+        ).rejects.toThrow()
+      } finally {
+        await fs.rm(dir, { force: true, recursive: true })
+      }
+    }
+  )
+
+  // Nothing about the timeout is visible in a result, so a revert to the old
+  // 60s — which bounded the body read and silently dropped large attachments —
+  // passed every other test in this file. Same for the overall deadline: drop
+  // it and each hop simply restarts the clock.
+  it('bounds a remote attachment fetch by both a per-hop timeout and an overall deadline', async () => {
+    // A URL unique to this test, and a cleared spy: the shared spy accumulates
+    // across the file, and an earlier test issues an identical call — so
+    // without both, this assertion is satisfied by residue and passes even if
+    // its own subject never runs.
+    const url = 'https://other.example/api/v1/files/ab/deadline.webp'
+    vi.mocked(safeImageFetch).mockClear()
+
+    fetchMock.doMock()
+    fetchMock.mockResponseOnce('remote-bytes', { status: 200 })
+
+    const dir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'actor-archive-timeout-test-')
+    )
+    try {
+      await runRegister({
+        attachment: buildAttachment({ url }),
+        fetchRemoteAttachments: true,
+        stagingDir: dir
+      })
+
+      expect(vi.mocked(safeImageFetch)).toHaveBeenCalledWith(url, {
+        timeoutMs: REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS,
+        signal: expect.any(AbortSignal)
+      })
+    } finally {
+      await fs.rm(dir, { force: true, recursive: true })
+    }
+  })
 })
 
 describe('copyProfileImage', () => {
@@ -412,6 +618,55 @@ describe('copyProfileImage', () => {
       })
     ).toBeNull()
     expect(warnings).toEqual([])
+  })
+})
+
+// `exportActorArchive` resolves the remote-attachment byte cap from the
+// `media.maxFileSize` server setting and threads it into
+// `registerAttachmentUrl`. Reverting that to the compile-time `MAX_FILE_SIZE`
+// constant is INVISIBLE to every test above: the cap arrives as a parameter, so
+// those tests pass whatever they like and still pass, and nothing drives
+// `exportActorArchive` end to end (it wants a database, a staging directory and
+// a tar writer).
+//
+// The revert is not hypothetical — it is what the first version of this code
+// did, and it refused remote attachments this instance's own upload path would
+// have accepted, because `MAX_FILE_SIZE` is only the DEFAULT for a setting an
+// admin may raise to `MAX_CONFIGURABLE_FILE_SIZE` (1 GiB).
+//
+// Both assertions are deliberately formatting-independent: an earlier version
+// matched the exact shape of the ternary, which prettier could rewrite for
+// reasons having nothing to do with behaviour.
+describe('actor archive remote attachment cap', () => {
+  const SOURCE = readFileSync(
+    path.join(process.cwd(), 'scripts', 'backup', 'actorArchive.ts'),
+    'utf-8'
+  )
+
+  it('resolves the cap from the media.maxFileSize server setting', () => {
+    // Asserting the call is PRESENT is not enough — it must be the thing
+    // assigned. A revert can keep the call and discard its result
+    // (`(await getMaxMediaUploadSize(database), 10 * 1024 * 1024)`), which
+    // hardcodes a cap while looking correct to a presence check. Matching the
+    // assignment is still formatting-tolerant: `\s*` absorbs a prettier wrap.
+    // Anchored on the closing brace: `toMatch` is a substring search, so
+    // without it anything appended to the call survives — `await
+    // getMaxMediaUploadSize(database) / 100`, the sort of "leave headroom"
+    // arithmetic someone adds without meaning to revert anything, would make
+    // the effective cap 1% of the setting and still match.
+    expect(SOURCE).toMatch(
+      /maxBytes:\s*await getMaxMediaUploadSize\(database\)\s*}/
+    )
+  })
+
+  it('does not import the compile-time upload size constant', () => {
+    // The brace list is matched across newlines on purpose: prettier wraps an
+    // import past 80 characters, which is exactly the shape a reintroduced
+    // `MAX_FILE_SIZE` would take arriving beside another symbol from the same
+    // module — and a single-line-only pattern would pass straight over it.
+    expect(SOURCE).not.toMatch(
+      /import\s*\{[^}]*\bMAX_FILE_SIZE\b[^}]*\}\s*from '@\/lib\/services\/medias\/constants'/
+    )
   })
 })
 

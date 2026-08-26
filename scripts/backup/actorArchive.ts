@@ -20,6 +20,7 @@ import { encodeFavouriteCursor } from '@/lib/database/sql/utils/favouriteCursor'
 import { Database } from '@/lib/database/types'
 import { getEffectiveFitnessStorageConfig } from '@/lib/services/fitness-files'
 import { getMediaPathFromFileUrl } from '@/lib/services/medias/mediaFileUrl'
+import { getMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
 import {
   AnnounceAction,
   CreateAction
@@ -48,13 +49,14 @@ import { getLocalActorOutboxId } from '@/lib/utils/activitypubId'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 import { HostRuleConfig } from '@/lib/utils/host'
+import { safeImageFetch } from '@/lib/utils/safeImageDownload'
+import { readResponseArrayBufferWithLimit } from '@/lib/utils/streamLimit'
 
 import { printDatabaseBanner } from '../fitness/describeConnection'
 import {
   archiveStorage,
   buildStoragePlan,
   createTarArchive,
-  fetchPublicStorageResponse,
   getBooleanArg,
   getStringArg,
   loadEnvFile,
@@ -68,6 +70,26 @@ const DEFAULT_PAGE_SIZE = 100
 const MEDIA_ID_BATCH_SIZE = 100
 const MEDIA_ARCHIVE_DIR = 'media_attachments/files'
 const REMOTE_MEDIA_ARCHIVE_DIR = 'media_attachments/remote'
+/**
+ * How long ONE remote attachment may take in total — every redirect hop, its
+ * headers and its body — enforced as an overall deadline passed to
+ * `safeImageFetch` alongside the same value as its per-hop timeout.
+ *
+ * Deliberately much larger than `PUBLIC_STORAGE_FETCH_TIMEOUT_MS`, because a
+ * timeout that bounds the body is also a throughput floor: at 60s, reaching
+ * even the default 200 MiB cap would have required a sustained 3.5 MB/s, so a
+ * large federated video on an ordinary link would have been dropped from the
+ * archive that used to contain it — silent data loss in a backup. Ten minutes
+ * puts that floor near 350 KB/s at the default cap.
+ *
+ * It has to be a DEADLINE and not just a per-hop timeout, because these URLs
+ * are owner-supplied and the export walks them one after another with no cap
+ * on how many a status carries: per-hop alone, a host stalling at every hop
+ * costs this times `MAX_SAFE_IMAGE_REDIRECTS + 1`, and an account facing a ban
+ * or a legal request — exactly when this flag gets used — could plant enough
+ * of them to stall the export for days.
+ */
+export const REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS = 600_000
 const FITNESS_ARCHIVE_DIR = 'fitness_files/files'
 
 export const EXPORT_ACTOR_USAGE = `Usage: NODE_ENV=production scripts/backup/exportActorArchive.ts \\
@@ -686,22 +708,52 @@ export const copyProfileImage = async ({
  * `/api/v1/files/` path this one serves, so without the host check its URL
  * became a local storage path that never resolved, and the download branch
  * below was never reached.
+ *
+ * The download runs through `safeImageFetch`, NOT the archive's own
+ * `fetchPublicStorageResponse`. `attachment.url` is attacker-controlled by the
+ * account owner — `POST /api/v1/accounts/outbox` takes `PostBoxAttachment.url`
+ * as a bare `z.string()` and `createAttachment` writes it verbatim — so a
+ * plain `fetch` here let an owner point the exporting machine at a
+ * link-local or internal address and receive the response body back inside
+ * their own tarball. `fetchPublicStorageResponse` keeps its plain `fetch`
+ * because its other caller builds URLs from the operator's own configured
+ * storage endpoint, which may legitimately be private-network or plain-http;
+ * the guard belongs on the untrusted input, not on the shared helper.
+ *
+ * `safeImageFetch` re-checks every redirect hop, and its timeout also bounds
+ * the body read, which the old header-only timeout did not — see
+ * `REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS` for why that means a much larger value
+ * than the archive used before. The byte cap is separate and load-bearing:
+ * without it a hostile URL could stream an unbounded body into memory.
+ *
+ * `remoteFetch` carries the byte cap and doubles as the on/off switch, so the
+ * two cannot disagree. They were separate — a boolean plus a number the caller
+ * set to 0 when unused — and 0 is a live cap meaning "refuse everything", kept
+ * harmless only by an early return two screens above the read. As one value
+ * that state is unrepresentable.
+ *
+ * The cap is a parameter rather than a constant because what matters is the
+ * RESOLVED `media.maxFileSize` server setting, which an admin may raise to 1
+ * GiB — reading the compile-time `MAX_FILE_SIZE` default instead would refuse a
+ * remote attachment this instance's own upload path would accept.
+ * `readResponseArrayBufferWithLimit` buffers, so the cap is also the peak
+ * memory one attachment can cost.
  */
 export const registerAttachmentUrl = async ({
   attachment,
-  fetchRemoteAttachments,
   hostConfig,
   mediaPaths,
   mediaIds,
+  remoteFetch,
   urlToArchivePath,
   stagingDir,
   warnings
 }: {
   attachment: Attachment
-  fetchRemoteAttachments: boolean
   hostConfig: HostRuleConfig
   mediaPaths: Set<string>
   mediaIds: Set<string>
+  remoteFetch: { maxBytes: number } | null
   urlToArchivePath: Map<string, string>
   stagingDir: string
   warnings: string[]
@@ -716,16 +768,45 @@ export const registerAttachmentUrl = async ({
     return
   }
 
-  if (!fetchRemoteAttachments) {
+  if (!remoteFetch) {
     warnings.push(`Remote attachment kept as absolute URL: ${attachment.url}`)
     return
   }
 
   try {
-    const response = await fetchPublicStorageResponse(attachment.url)
-    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    const response = await safeImageFetch(attachment.url, {
+      timeoutMs: REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS,
+      signal: AbortSignal.timeout(REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS)
+    })
+    // `safeImageFetch` answers null for three different reasons — a refused
+    // URL, a redirect carrying no usable `Location`, and exhausting its hop
+    // budget — and the caller cannot tell them apart, so the warning must not
+    // name only the first. Reporting a 4-hop CDN chain as an unsafe address
+    // sends the operator hunting a DNS problem that does not exist.
+    //
+    // One string for all three is also a security property, so do not split
+    // it: `getSafeImageDownloadUrl` resolves through `lookup(...).catch(=> [])`,
+    // which makes a hostname that does not exist and one that resolves to a
+    // private address refuse identically. A per-cause message would hand the
+    // account owner — who chose this URL — an oracle for internal DNS.
+    if (!response) {
+      warnings.push(
+        `Refused remote attachment URL (unsafe address, non-HTTPS, or too many redirects): ${attachment.url}`
+      )
+      return
+    }
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined)
+      throw new Error(`HTTP ${response.status}`)
+    }
 
-    const buffer = Buffer.from(await response.arrayBuffer())
+    const buffer = Buffer.from(
+      await readResponseArrayBufferWithLimit(
+        response,
+        remoteFetch.maxBytes,
+        'Remote attachment'
+      )
+    )
     const hash = crypto
       .createHash('sha256')
       .update(attachment.url)
@@ -776,6 +857,14 @@ export const exportActorArchive = async (
     path.join(os.tmpdir(), 'activitynext-actor-archive-')
   )
 
+  // Resolved once for the whole export rather than per attachment: it is a
+  // database read behind a 15s cache, and the cap must not shift mid-run. Only
+  // the remote-download branch reads it, so an export without that flag — the
+  // default — should not pay for the lookup at all.
+  const remoteFetch = args.fetchRemoteAttachments
+    ? { maxBytes: await getMaxMediaUploadSize(database) }
+    : null
+
   const warnings: string[] = []
   const mediaPaths = new Set<string>()
   const fitnessPaths = new Set<string>()
@@ -803,10 +892,10 @@ export const exportActorArchive = async (
         for (const attachment of status.attachments) {
           await registerAttachmentUrl({
             attachment,
-            fetchRemoteAttachments: args.fetchRemoteAttachments,
             hostConfig: config,
             mediaPaths,
             mediaIds,
+            remoteFetch,
             urlToArchivePath,
             stagingDir,
             warnings

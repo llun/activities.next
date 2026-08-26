@@ -149,9 +149,28 @@ the configured host), `--actor-id`, or `--email` to select the actor.
   referenced media or fitness file is missing from storage; failures are
   recorded per-file in the archive's `manifest.json`
 - `--skip-storage` — write only the JSON/CSV files, no media or fitness bytes
+  from this instance's own storage. It does **not** suppress
+  `--fetch-remote-attachments`; pass neither flag for an archive with no media
+  bytes at all
 - `--fetch-remote-attachments` — download attachments hosted on other servers
   into the archive too (by default their absolute URL is kept as-is, since
-  the export only owns the actor's own storage)
+  the export only owns the actor's own storage). These URLs come from the
+  posts themselves rather than from your configuration, so each download is
+  SSRF-guarded — non-HTTPS URLs and any host resolving to a loopback,
+  link-local or private address are refused, re-checked on every redirect hop,
+  with at most 3 hops followed — and capped at the resolved
+  `media.maxFileSize` server setting, the same ceiling an upload to this
+  instance gets. One attachment gets 10 minutes in total — covering every hop,
+  the body as well as the headers — so a slow host cannot restart the clock by
+  redirecting. A refused or over-size attachment is recorded as a warning in
+  `manifest.json` and its absolute URL is kept, exactly as if the flag had not
+  been passed. Two caveats worth knowing before you use it on a hostile
+  account: the ten minutes and the size cap bound each attachment
+  individually, not the export as a whole, so a large history of deliberately
+  slow URLs can make the run take a long time (interrupt it and re-run without
+  the flag); and a downloaded file's extension comes from the URL rather than
+  from its contents, so treat an extracted archive's
+  `media_attachments/remote/` as untrusted rather than serving it over HTTP
 
 ### Archive layout
 
