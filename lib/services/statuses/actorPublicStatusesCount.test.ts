@@ -248,4 +248,40 @@ describe('getCachedActorPublicStatusesCount', () => {
     )
     expect(getActorStatusesCount).toHaveBeenCalledTimes(2)
   })
+
+  // A query can outlive its own TTL and reject after a later miss has already
+  // cached a good count. Its cleanup must recognise it is no longer the cached
+  // entry and leave the successor alone.
+  it('does not let a late failure evict the entry that replaced it', async () => {
+    let failSlowQuery = (_: Error) => {}
+    const slowQuery = new Promise<number>((_, reject) => {
+      failSlowQuery = reject
+    })
+    const getActorStatusesCount = vi
+      .fn<() => Promise<number>>()
+      .mockReturnValueOnce(slowQuery)
+      .mockResolvedValue(555)
+    const database = { getActorStatusesCount } as unknown as Database
+
+    const failing = getCachedActorPublicStatusesCount(database, ACTOR_ID)
+    const rejection = expect(failing).rejects.toThrow('database is down')
+
+    // The slow query is still running when its entry expires, so the next
+    // caller starts a fresh one and caches that instead.
+    vi.advanceTimersByTime(ACTOR_PUBLIC_STATUSES_COUNT_TTL_MS + 1)
+    expect(await getCachedActorPublicStatusesCount(database, ACTOR_ID)).toBe(
+      555
+    )
+
+    failSlowQuery(new Error('database is down'))
+    await rejection
+
+    expect(getActorPublicStatusesCountCachedActorIdsForTests(database)).toEqual(
+      [ACTOR_ID]
+    )
+    expect(await getCachedActorPublicStatusesCount(database, ACTOR_ID)).toBe(
+      555
+    )
+    expect(getActorStatusesCount).toHaveBeenCalledTimes(2)
+  })
 })

@@ -43,6 +43,13 @@ export const ACTOR_PUBLIC_STATUSES_COUNT_TTL_MS = 60_000
 // The entries expire but nothing sweeps them, and a public outbox is fetched
 // for whichever actors remote servers ask about. Bound the map so a long-lived
 // process cannot accumulate one entry per actor it has ever served.
+//
+// An entry is inserted while its query still runs, so at capacity a pending one
+// can be evicted, and a later miss for that actor then starts a second query
+// rather than joining the first. Reaching that needs 512 OTHER actors queried
+// inside one ~150ms count — far past anything this cache was built for, and the
+// cost is a duplicate query, never a wrong count — so it is left alone rather
+// than pinned open with a second map of in-flight queries.
 export const MAX_CACHED_ACTORS = 512
 
 type CacheEntry = {
