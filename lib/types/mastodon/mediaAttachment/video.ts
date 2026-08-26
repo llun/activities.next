@@ -16,6 +16,11 @@ export const Video = BaseMediaAttachment.extend({
       height: z.number(),
       aspect: z.number().describe('Aspect ratio of the video (width/height)'),
 
+      // Focal point of the preview frame, each axis in [-1.0, 1.0]. Mastodon
+      // sets one on a video the same way it does on an image — the upload path
+      // stores it for video preview frames, so it has to serialise here too.
+      focus: z.object({ x: z.number(), y: z.number() }).optional(),
+
       audio_encode: z.string().nullish(),
       audio_bitrate: z.string().nullish(),
       audio_channels: z.string().nullish(),

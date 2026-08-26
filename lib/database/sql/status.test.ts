@@ -3465,7 +3465,12 @@ describe('StatusDatabase', () => {
               url: 'https://example.com/new.png',
               width: 640,
               height: 480,
-              name: 'new.png'
+              name: 'new.png',
+              // Resolved from the media row by the action layer; the database
+              // method takes the snapshot already resolved.
+              blurhash: null,
+              focus: null,
+              thumbnailUrl: null
             }
           ]
         })
@@ -3541,7 +3546,12 @@ describe('StatusDatabase', () => {
               url: 'https://example.com/new.png',
               width: 640,
               height: 480,
-              name: 'new.png'
+              name: 'new.png',
+              // Resolved from the media row by the action layer; the database
+              // method takes the snapshot already resolved.
+              blurhash: null,
+              focus: null,
+              thumbnailUrl: null
             }
           ]
         })
@@ -3679,7 +3689,12 @@ describe('StatusDatabase', () => {
               url: 'https://example.com/existing.jpg',
               width: 320,
               height: 240,
-              name: 'existing.jpg'
+              name: 'existing.jpg',
+              // Resolved from the media row by the action layer; the database
+              // method takes the snapshot already resolved.
+              blurhash: null,
+              focus: null,
+              thumbnailUrl: null
             },
             {
               type: 'upload',
@@ -3688,7 +3703,12 @@ describe('StatusDatabase', () => {
               url: 'https://example.com/new.png',
               width: 640,
               height: 480,
-              name: 'new.png'
+              name: 'new.png',
+              // Resolved from the media row by the action layer; the database
+              // method takes the snapshot already resolved.
+              blurhash: null,
+              focus: null,
+              thumbnailUrl: null
             }
           ]
         })
@@ -3791,7 +3811,12 @@ describe('StatusDatabase', () => {
               url: 'https://example.com/kept.jpg',
               width: 320,
               height: 240,
-              name: 'new alt'
+              name: 'new alt',
+              // Resolved from the media row by the action layer; the database
+              // method takes the snapshot already resolved.
+              blurhash: null,
+              focus: null,
+              thumbnailUrl: null
             }
           ]
         })

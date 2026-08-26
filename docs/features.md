@@ -55,7 +55,7 @@ This document tracks the implemented and planned features for Activity.next.
 
 - ✅ **SQL database support** — SQLite and PostgreSQL, with MySQL-compatible Knex configuration paths
 - ✅ **Media upload** — Upload images and video to local filesystem, S3, or S3-compatible object storage
-- ✅ **Blurhash & smart focal points** — Automatic server-side blurhash placeholder generation and saliency-based smart focal point detection on uploaded images and video preview frames, with client-overridable focal points, inbound ActivityPub focal point/blurhash parsing, and timeline blurhash placeholder canvas rendering
+- ✅ **Blurhash & smart focal points** — Automatic server-side blurhash placeholder generation and saliency-based smart focal point detection on uploaded images and video preview frames, with client-overridable focal points, inbound ActivityPub focal point/blurhash parsing, and timeline blurhash placeholder canvas rendering. Every path that attaches media carries them — composing, editing a posted status (including a focal point moved from a Mastodon client), route map images, and Strava photo and archive imports — and both image and video attachments serialise `meta.focus`
 - ✅ **Media management** — Browse, view, and delete uploaded media from the settings page with storage usage display
 - ✅ **Profile media gallery** — Browse a user's public media posts from profile tabs
 - ✅ **Fitness file storage** — Upload .fit, .gpx, and .tcx activity files

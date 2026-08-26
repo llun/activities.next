@@ -75,6 +75,43 @@ describe('getMastodonStatus', () => {
       expect(logger.warn).toHaveBeenCalled()
     })
 
+    // The opposite of the two above: a status carrying an attachment this
+    // instance cannot fully describe must still serialise. `audio/mp4` is an
+    // accepted upload with no stored duration for Mastodon's `Audio` shape, and
+    // while such an attachment came back as a bare `null` the closing
+    // `Mastodon.Status.parse` rejected the whole entity — so one audio clip
+    // dropped the post out of every timeline as "un-hydratable" while the web
+    // UI still showed it.
+    it('serializes a status carrying an attachment it cannot fully describe', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/post-with-audio-attachment`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Ride recording',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: 'audio/mp4',
+        url: 'https://llun.test/api/v1/files/medias/recording.m4a',
+        name: 'Ride audio'
+      })
+      const status = (await database.getStatus({ statusId })) as Status
+
+      const result = await getMastodonStatuses(database, [status])
+
+      expect(result).toHaveLength(1)
+      expect(result[0].media_attachments).toHaveLength(1)
+      expect(result[0].media_attachments[0]).toMatchObject({
+        type: 'unknown',
+        description: 'Ride audio'
+      })
+      expect(logger.warn).not.toHaveBeenCalled()
+    })
+
     it('skips a status whose serialization throws and keeps the good one', async () => {
       const goodStatus = (await database.getStatus({
         statusId: `${ACTOR1_ID}/statuses/post-1`

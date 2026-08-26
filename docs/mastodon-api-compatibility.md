@@ -43,13 +43,36 @@ product or security decision, not a gap to be closed.
   written before the [Public ID Backfill](./maintenance.md#public-id-backfill),
   or a remote actor this instance does not store, such as a mention of an
   unknown account — keeps emitting the legacy colon form, so a client can still
-  encounter both shapes. Notification, report, filter, and media ids are their
+  encounter both shapes. Notification, report, and filter ids are their
   own UUIDs and are unaffected — but a status or account these entities
   _reference_ is still a status or account id, and carries the `publicId` like
   any other: a filter's `status_id`, a `FilterResult`'s `status_matches`, a
   report's `status_ids`, a notification group's `status_id`. Nothing about
   federation changed: what is sent to and received from remote servers is still
   the ActivityPub URI.
+
+- **An attachment has two client-visible ids.** `POST /api/v2/media` answers
+  with the numeric `medias` row id, while a status's `media_attachments[].id`
+  is the attachment row's own UUID — Mastodon has one id where this instance
+  has two, because a media upload and its use on a post are separate rows here.
+  `PUT /api/v1/statuses/:id` accepts **either** form in `media_ids` and
+  `media_attributes[][id]`, resolving the UUID through the status's own
+  attachments, so a client that only ever saw the status (a focal-point drag in
+  Elk or Ivory) works. Everything else still wants the upload id: `POST
+/api/v1/statuses`, `POST /api/v1/accounts/outbox` and `PUT /api/v1/media/:id`
+  have no status to resolve against. **Delete-and-redraft is the known gap** —
+  the client re-posts the ids it read off the deleted status, and by then the
+  attachment rows are gone, so those UUIDs resolve to nothing and the create
+  answers 422.
+- **An attachment this instance cannot describe is `type: "unknown"`, never a
+  `null` entry.** An `audio/mp4` upload has no stored duration and a remote GIF
+  no `gifv` metadata, so neither fills Mastodon's `Audio`/`Gifv` shape; both are
+  served as `unknown`, carrying the id, url, description and blurhash. This is
+  not cosmetic: `media_attachments` is an array of MediaAttachment, so a `null`
+  entry failed the entity's own validation and took the entire status off the
+  API — dropped from timelines as un-hydratable, an error on a single-status
+  GET — while the web UI still rendered it. The id matters as much as the type:
+  an entry a client cannot name is one it cannot preserve through an edit.
 
 - **OAuth access tokens expire after 7 days.** Mastodon access tokens do not
   expire by default. Activity.next issues short-lived access tokens (7 days)

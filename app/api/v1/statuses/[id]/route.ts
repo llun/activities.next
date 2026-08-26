@@ -26,7 +26,10 @@ import { FocusSchema } from '@/lib/services/medias/types'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { validateStatusContentLimits } from '@/lib/services/statuses/contentLimits'
-import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
+import {
+  getAttachmentsFromMediaIds,
+  resolveStatusAttachmentMediaIds
+} from '@/lib/services/statuses/mediaIds'
 import { parseStatusRequestBody } from '@/lib/services/statuses/parseStatusRequestBody'
 import { Scope } from '@/lib/types/database/operations'
 import { isFitnessAttachment } from '@/lib/types/domain/attachment'
@@ -345,6 +348,28 @@ export const PUT = traceApiRoute(
           })
         }
 
+        // A client can only hand back the ids this status published, and
+        // `media_attachments[].id` is the ATTACHMENT row's uuid while every
+        // media path addresses the `medias` row id. Resolve both inputs
+        // through the status's own attachments so a third-party client's edit
+        // reaches the same row the composer's does; an id that is already a
+        // media id passes through untouched.
+        // Deduped again after resolution, not only on the raw ids above: two
+        // ids a client sent for one attachment — the uuid it read off the
+        // status and the media id it uploaded with — collapse to one row here.
+        // Nothing downstream double-attaches today (a uuid only resolves for
+        // media already on this status, so the pair lands in the kept set
+        // rather than the inserted one), so this keeps the resolved list
+        // well-formed rather than fixing a live duplicate.
+        const resolvedMediaIds =
+          mediaIds === undefined
+            ? undefined
+            : [
+                ...new Set(
+                  resolveStatusAttachmentMediaIds(existingStatus, mediaIds)
+                )
+              ]
+
         // Apply per-attachment metadata edits (Mastodon media_attributes[])
         // before resolving attachments so the refreshed description/focus flow
         // into the status's attachment rows below. Reuses the same updateMedia
@@ -359,9 +384,13 @@ export const PUT = traceApiRoute(
               responseStatusCode: 422
             })
           }
-          for (const attribute of mediaAttributes) {
+          const resolvedAttributeIds = resolveStatusAttachmentMediaIds(
+            existingStatus,
+            mediaAttributes.map((attribute) => attribute.id)
+          )
+          for (const [index, attribute] of mediaAttributes.entries()) {
             const updatedMedia = await database.updateMedia({
-              mediaId: attribute.id,
+              mediaId: resolvedAttributeIds[index],
               accountId: account.id,
               ...(attribute.description !== undefined
                 ? { description: attribute.description }
@@ -384,7 +413,7 @@ export const PUT = traceApiRoute(
         // media_attributes without media_ids re-resolves the status's current
         // media set so the updated metadata is copied onto the attachment rows.
         const attachmentMediaIds =
-          mediaIds ??
+          resolvedMediaIds ??
           (mediaAttributes !== undefined && mediaAttributes.length > 0
             ? existingStatus.attachments
                 .filter(
