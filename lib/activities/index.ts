@@ -464,10 +464,20 @@ export const deleteStatus = async ({
     }
   )
 
+// Exactly the fields the Undo activity below is built from. Narrowed from
+// StatusAnnounce so SendUndoAnnounceJob can pass data captured before the
+// Announce row was hard-deleted, rather than a Status it can no longer load.
+type UndoAnnounceTarget = Pick<
+  StatusAnnounce,
+  'id' | 'actorId' | 'createdAt' | 'to' | 'cc'
+> & {
+  originalStatus: Pick<Status, 'id'>
+}
+
 interface UndoAnnounceParams {
   currentActor: Actor
   inbox: string
-  announce: StatusAnnounce
+  announce: UndoAnnounceTarget
 }
 export const undoAnnounce = async ({
   currentActor,

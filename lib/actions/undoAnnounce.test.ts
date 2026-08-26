@@ -7,6 +7,7 @@ import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'
 import { Actor } from '@/lib/types/domain/actor'
+import { StatusAnnounce } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 // Mock the queue
@@ -44,21 +45,40 @@ describe('Undo Announce action', () => {
 
   describe('userUndoAnnounce', () => {
     it('deletes announce status and publishes to queue', async () => {
+      const deleteSpy = vi.spyOn(database, 'deleteStatus')
       const status = await userUndoAnnounce({
         currentActor: actor2,
         statusId: `${actor2.id}/statuses/announce-1`,
         database
       })
 
+      const announce = status as StatusAnnounce
       expect(getQueue().publish).toHaveBeenCalledTimes(1)
       expect(getQueue().publish).toHaveBeenCalledWith({
-        id: getHashFromString(status!.id),
+        id: getHashFromString(`${announce.id}#undo`),
         name: SEND_UNDO_ANNOUNCE_JOB_NAME,
         data: JobData.parse({
           actorId: actor2.id,
-          statusId: status!.id
+          statusId: announce.id,
+          originalStatusId: announce.originalStatus.id,
+          to: announce.to,
+          cc: announce.cc,
+          createdAt: announce.createdAt
         })
       })
+
+      // The job resolves everything from that payload precisely because the
+      // row is already gone when it runs.
+      const publishOrder = vi.mocked(getQueue().publish).mock
+        .invocationCallOrder[0]
+      expect(deleteSpy.mock.invocationCallOrder[0]).toBeLessThan(publishOrder)
+      deleteSpy.mockRestore()
+
+      // SendAnnounceJob publishes under getHashFromString(status.id) and the
+      // queue deduplicates on this id across job names, so reusing it makes a
+      // boost followed by an unboost drop the Undo entirely.
+      const published = vi.mocked(getQueue().publish).mock.calls[0][0]
+      expect(published.id).not.toBe(getHashFromString(announce.id))
     })
 
     it('returns null when status does not exist', async () => {

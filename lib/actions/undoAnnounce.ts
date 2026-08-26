@@ -30,11 +30,22 @@ export const userUndoAnnounce = async ({
 
     await database.deleteStatus({ statusId })
     await getQueue().publish({
-      id: getHashFromString(status.id),
+      // Suffixed to match the activity id the job emits (`<id>#undo`). The
+      // boost job publishes under the bare status id and the queue
+      // deduplicates on this id ACROSS job names, so without the suffix a
+      // boost followed by an unboost inside the dedup window drops the Undo.
+      id: getHashFromString(`${status.id}#undo`),
       name: SEND_UNDO_ANNOUNCE_JOB_NAME,
       data: {
         actorId: currentActor.id,
-        statusId: status.id
+        statusId: status.id,
+        // Captured before the delete above, because it is a hard delete: by
+        // the time the job runs the Announce row is gone, so everything the
+        // Undo activity is built from has to travel in the payload.
+        originalStatusId: status.originalStatus.id,
+        to: status.to,
+        cc: status.cc,
+        createdAt: status.createdAt
       }
     })
 

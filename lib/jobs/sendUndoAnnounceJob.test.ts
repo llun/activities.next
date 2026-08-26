@@ -1,18 +1,23 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { JOBS } from '@/lib/jobs'
 import { SEND_UNDO_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { sendUndoAnnounceJob } from '@/lib/jobs/sendUndoAnnounceJob'
-import { mockRequests } from '@/lib/stub/activities'
+import { expectCall, mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
-import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR1_FOLLOWER_URL, seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 enableFetchMocks()
 
+const FOLLOWERS_SHARED_INBOX = 'https://somewhere.test/inbox'
+
 describe('sendUndoAnnounceJob', () => {
   const database = getTestSQLDatabase()
-  let actor1: Actor | undefined
+  let actor1: Actor | null = null
 
   beforeAll(async () => {
     await database.migrate()
@@ -33,112 +38,83 @@ describe('sendUndoAnnounceJob', () => {
     mockRequests(fetchMock)
   })
 
-  it('does nothing when status is not found', async () => {
-    if (!actor1) fail('Actor1 is required')
-
-    await expect(
-      sendUndoAnnounceJob(database, {
-        id: 'job-1',
-        name: SEND_UNDO_ANNOUNCE_JOB_NAME,
-        data: {
-          actorId: actor1.id,
-          statusId: 'https://nonexistent.test/statuses/missing'
-        }
-      })
-    ).resolves.toBeUndefined()
+  it('is registered under its job name', () => {
+    expect(JOBS[SEND_UNDO_ANNOUNCE_JOB_NAME]).toBe(sendUndoAnnounceJob)
   })
 
-  it('does nothing when actor is not found', async () => {
+  // The Announce row is ALWAYS gone by the time this job runs - userUndoAnnounce
+  // hard-deletes it before publishing - so the ids below are deliberately absent
+  // from the database. Seeding the announce here (as this test used to) makes
+  // the job pass against code that always fails in production.
+  it('sends the undo for an announce that no longer exists', async () => {
     if (!actor1) fail('Actor1 is required')
-
-    const statusId = `${actor1.id}/statuses/for-undo-test-${Date.now()}`
-    await database.createNote({
-      id: statusId,
-      url: statusId,
-      actorId: actor1.id,
-      to: ['https://www.w3.org/ns/activitystreams#Public'],
-      cc: [],
-      text: 'Test status',
-      createdAt: Date.now()
-    })
-
-    await expect(
-      sendUndoAnnounceJob(database, {
-        id: 'job-2',
-        name: SEND_UNDO_ANNOUNCE_JOB_NAME,
-        data: {
-          actorId: 'https://nonexistent.test/users/nobody',
-          statusId
-        }
-      })
-    ).resolves.toBeUndefined()
-  })
-
-  it('does nothing when status is not an announce', async () => {
-    if (!actor1) fail('Actor1 is required')
-
-    const statusId = `${actor1.id}/statuses/note-not-announce-${Date.now()}`
-    await database.createNote({
-      id: statusId,
-      url: statusId,
-      actorId: actor1.id,
-      to: ['https://www.w3.org/ns/activitystreams#Public'],
-      cc: [],
-      text: 'This is a note, not an announce',
-      createdAt: Date.now()
-    })
-
-    await expect(
-      sendUndoAnnounceJob(database, {
-        id: 'job-3',
-        name: SEND_UNDO_ANNOUNCE_JOB_NAME,
-        data: {
-          actorId: actor1.id,
-          statusId
-        }
-      })
-    ).resolves.toBeUndefined()
-  })
-
-  it('sends undo announce to follower inboxes', async () => {
-    if (!actor1) fail('Actor1 is required')
-
-    // Create original status
-    const originalStatusId = `${actor1.id}/statuses/original-for-undo-${Date.now()}`
-    await database.createNote({
-      id: originalStatusId,
-      url: originalStatusId,
-      actorId: actor1.id,
-      to: ['https://www.w3.org/ns/activitystreams#Public'],
-      cc: [],
-      text: 'Original content',
-      createdAt: Date.now()
-    })
-
-    // Create announce
-    const announceId = `${actor1.id}/statuses/announce-to-undo-${Date.now()}`
-    await database.createAnnounce({
-      id: announceId,
-      actorId: actor1.id,
-      to: ['https://www.w3.org/ns/activitystreams#Public'],
-      cc: [],
-      originalStatusId,
-      createdAt: Date.now()
-    })
+    const announceId = `${actor1.id}/statuses/announce-already-deleted`
+    const originalStatusId = 'https://somewhere.test/actors/friend/statuses/1'
+    const createdAt = 1700000000000
 
     await sendUndoAnnounceJob(database, {
-      id: 'job-4',
+      id: 'job-id',
       name: SEND_UNDO_ANNOUNCE_JOB_NAME,
       data: {
         actorId: actor1.id,
-        statusId: announceId
+        statusId: announceId,
+        originalStatusId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [ACTOR1_FOLLOWER_URL],
+        createdAt
       }
     })
 
-    expect(
-      fetchMock.mock.calls.some(
-        (call) => call[0] === 'https://somewhere.test/inbox'
-      )
-    ).toBe(true)
+    expectCall(fetchMock, FOLLOWERS_SHARED_INBOX, 'POST', {
+      id: `${announceId}#undo`,
+      type: 'Undo',
+      actor: actor1.id,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      object: {
+        id: `${announceId}/activity`,
+        type: 'Announce',
+        actor: actor1.id,
+        published: getISOTimeUTC(createdAt),
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [ACTOR1_FOLLOWER_URL],
+        object: originalStatusId
+      }
+    })
+  })
+
+  it('does nothing if actor is not found', async () => {
+    await sendUndoAnnounceJob(database, {
+      id: 'job-id',
+      name: SEND_UNDO_ANNOUNCE_JOB_NAME,
+      data: {
+        actorId: 'https://llun.test/users/not-exist-actor',
+        statusId: 'https://llun.test/users/not-exist-actor/statuses/announce-1',
+        originalStatusId: 'https://somewhere.test/actors/friend/statuses/1',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        createdAt: 1700000000000
+      }
+    })
+
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a payload missing the announce data it can no longer look up', async () => {
+    if (!actor1) fail('Actor1 is required')
+
+    // The pre-fix payload shape. It must fail loudly rather than federate an
+    // Undo with an undefined boosted status.
+    await expect(
+      sendUndoAnnounceJob(database, {
+        id: 'job-id',
+        name: SEND_UNDO_ANNOUNCE_JOB_NAME,
+        data: {
+          actorId: actor1.id,
+          statusId: `${actor1.id}/statuses/announce-legacy`
+        }
+      })
+    ).rejects.toThrow()
+
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })
