@@ -52,9 +52,14 @@ const runOxlint = (
 ): string[] => {
   let stdout: string
   try {
+    // `--threads=1`: every case here lints a handful of tiny fixtures, where
+    // oxlint's default fan-out buys nothing, and this runs inside a parallel
+    // Vitest suite — a subprocess taking a core per CPU on each of several
+    // workers oversubscribes the machine and destabilises timing-sensitive
+    // tests elsewhere in the run.
     stdout = execFileSync(
       OXLINT,
-      ['-c', configPath, '--format', 'json', target],
+      ['-c', configPath, '--format', 'json', '--threads=1', target],
       { cwd: directory, encoding: 'utf-8' }
     )
   } catch (error) {
@@ -226,13 +231,18 @@ describe('agents oxlint plugin', () => {
   // beat alias tracking, `path['resolve']` beat a substring ban, and
   // `prettier --write` — step 1 of the commit gate — beat a single-line regex
   // by wrapping the call. An AST rule resolves the callee through scope, so
-  // all five are the same node to it and formatting is invisible.
+  // they are all the same node to it and formatting is invisible.
+  //
+  // The list is also the list AGENTS.md claims is caught, and every entry is
+  // asserted here rather than taken on trust: emptying `PLATFORM_NAMESPACES`
+  // or stubbing `isRequireOfPathModule` used to leave this file green.
   it('flags every spelling of a path builder in a local storage driver', () => {
     const driver = [
       "import path from 'path'",
       "import { resolve as pathResolve } from 'node:path'",
       '',
       'const { join } = path',
+      "const requiredPath = require('node:path')",
       '',
       'export class Driver {',
       "  private _config = { path: './uploads' }",
@@ -251,6 +261,35 @@ describe('agents oxlint plugin', () => {
       '',
       '  destructured(filePath: string) {',
       '    return join(this._config.path, filePath)',
+      '  }',
+      '',
+      '  optional(filePath: string) {',
+      '    return path?.resolve(this._config.path, filePath)',
+      '  }',
+      '',
+      '  // An optional chain in a VALUE position, which oxlint wraps in a',
+      '  // ChainExpression — invisible until the predicates unwrapped it, while',
+      '  // the inline call above was always caught.',
+      '  aliasedOptional(filePath: string) {',
+      '    const build = path?.resolve',
+      '    return build(this._config.path, filePath)',
+      '  }',
+      '',
+      '  // A rename chain. Each hop costs one unit of MAX_ALIAS_DEPTH; while a',
+      '  // hop cost two, this exact shape went unflagged.',
+      '  chainedRename(filePath: string) {',
+      '    const p = path',
+      '    const build = p.resolve',
+      '    const resolvePath = build',
+      '    return resolvePath(this._config.path, filePath)',
+      '  }',
+      '',
+      '  platform(filePath: string) {',
+      '    return path.posix.join(this._config.path, filePath)',
+      '  }',
+      '',
+      '  viaRequire(filePath: string) {',
+      '    return requiredPath.resolve(this._config.path, filePath)',
       '  }',
       '',
       '  wrapped(filePath: string) {',
@@ -282,16 +321,26 @@ describe('agents oxlint plugin', () => {
         'lib/services/medias/localFile.test.ts': driver
       })
     ).toEqual([
-      'lib/services/fitness-files/localFile.ts:10 agents(no-storage-path-builder)',
-      'lib/services/fitness-files/localFile.ts:14 agents(no-storage-path-builder)',
-      'lib/services/fitness-files/localFile.ts:18 agents(no-storage-path-builder)',
-      'lib/services/fitness-files/localFile.ts:22 agents(no-storage-path-builder)',
-      'lib/services/fitness-files/localFile.ts:26 agents(no-storage-path-builder)',
-      'lib/services/medias/localFile.ts:10 agents(no-storage-path-builder)',
-      'lib/services/medias/localFile.ts:14 agents(no-storage-path-builder)',
-      'lib/services/medias/localFile.ts:18 agents(no-storage-path-builder)',
-      'lib/services/medias/localFile.ts:22 agents(no-storage-path-builder)',
-      'lib/services/medias/localFile.ts:26 agents(no-storage-path-builder)'
+      'lib/services/fitness-files/localFile.ts:11 agents(no-storage-path-builder)',
+      'lib/services/fitness-files/localFile.ts:15 agents(no-storage-path-builder)',
+      'lib/services/fitness-files/localFile.ts:19 agents(no-storage-path-builder)',
+      'lib/services/fitness-files/localFile.ts:23 agents(no-storage-path-builder)',
+      'lib/services/fitness-files/localFile.ts:27 agents(no-storage-path-builder)',
+      'lib/services/fitness-files/localFile.ts:35 agents(no-storage-path-builder)',
+      'lib/services/fitness-files/localFile.ts:44 agents(no-storage-path-builder)',
+      'lib/services/fitness-files/localFile.ts:48 agents(no-storage-path-builder)',
+      'lib/services/fitness-files/localFile.ts:52 agents(no-storage-path-builder)',
+      'lib/services/fitness-files/localFile.ts:56 agents(no-storage-path-builder)',
+      'lib/services/medias/localFile.ts:11 agents(no-storage-path-builder)',
+      'lib/services/medias/localFile.ts:15 agents(no-storage-path-builder)',
+      'lib/services/medias/localFile.ts:19 agents(no-storage-path-builder)',
+      'lib/services/medias/localFile.ts:23 agents(no-storage-path-builder)',
+      'lib/services/medias/localFile.ts:27 agents(no-storage-path-builder)',
+      'lib/services/medias/localFile.ts:35 agents(no-storage-path-builder)',
+      'lib/services/medias/localFile.ts:44 agents(no-storage-path-builder)',
+      'lib/services/medias/localFile.ts:48 agents(no-storage-path-builder)',
+      'lib/services/medias/localFile.ts:52 agents(no-storage-path-builder)',
+      'lib/services/medias/localFile.ts:56 agents(no-storage-path-builder)'
     ])
   })
 
@@ -310,6 +359,16 @@ describe('agents oxlint plugin', () => {
           '',
           'export const extracted = (base: string, fullPath: string) => {',
           '  const root = path.resolve(base)',
+          '  return fullPath.startsWith(root)',
+          '}',
+          '',
+          '// Both halves again through an optional chain, which oxlint wraps in',
+          '// a ChainExpression the predicates have to look through.',
+          'export const optionalInline = (base: string, fullPath: string) =>',
+          '  fullPath.startsWith(path?.resolve(base))',
+          '',
+          'export const optionalExtracted = (base: string, fullPath: string) => {',
+          '  const root = path?.resolve(base)',
           '  return fullPath.startsWith(root)',
           '}',
           '',
@@ -334,6 +393,8 @@ describe('agents oxlint plugin', () => {
         ].join('\n')
       })
     ).toEqual([
+      'lib/services/medias/containment.ts:14 agents(no-resolved-path-prefix-check)',
+      'lib/services/medias/containment.ts:18 agents(no-resolved-path-prefix-check)',
       'lib/services/medias/containment.ts:4 agents(no-resolved-path-prefix-check)',
       'lib/services/medias/containment.ts:8 agents(no-resolved-path-prefix-check)'
     ])
@@ -394,6 +455,19 @@ describe('repo lint configuration', () => {
     expect(lintWithRepoConfig(SCRIPTS_CONFIG, 'scripts', fixture)).toEqual([
       'scripts/maintenance/cleanupMediaStorage.ts:3 agents(no-resolved-path-prefix-check)'
     ])
+  })
+
+  it('fails a lint run that matched no files rather than reporting none', () => {
+    // The failure that made the deleted text scan worse than nothing was a
+    // guard reporting no offenders because it had looked at nothing. Here that
+    // would be a target every ignore pattern excludes, so `runOxlint` refuses
+    // an empty run instead of returning an empty list — asserted, because a
+    // guard nothing exercises is a guard nobody knows is broken.
+    expect(() =>
+      lintWithRepoConfig(SCRIPTS_CONFIG, 'scripts', {
+        'scripts/README.md': '# not a file oxlint lints\n'
+      })
+    ).toThrow(/produced no report for scripts/)
   })
 
   it('runs the scripts lint pass from yarn lint', () => {

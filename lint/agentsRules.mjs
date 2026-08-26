@@ -61,9 +61,12 @@ const PATH_BUILDERS = new Set(['resolve', 'join'])
 
 const PLATFORM_NAMESPACES = new Set(['posix', 'win32'])
 
-// How far an alias chain is followed — `const p = path`, `const r = p.resolve`.
-// A cap rather than a visited set: a chain is a declaration chain, so it cannot
-// cycle, and this only bounds how patient the rule is.
+// How many alias hops are followed — `const p = path`, `const r = p.resolve`,
+// and three more. ONE unit per hop, in every predicate below; a helper that
+// delegates within the same hop passes `depth` through rather than adding to
+// it, so the number here means what it says. A cap rather than a visited set:
+// a chain is a declaration chain, so it cannot cycle, and this only bounds how
+// patient the rule is.
 const MAX_ALIAS_DEPTH = 5
 
 /**
@@ -148,12 +151,28 @@ const isRequireOfPathModule = (node) =>
   PATH_MODULES.has(node.arguments[0].value)
 
 /**
+ * The expression a `ChainExpression` wraps, or the node itself.
+ *
+ * Oxlint wraps the OUTERMOST node of an optional chain, so `path?.resolve`
+ * arrives as a ChainExpression rather than as the MemberExpression inside it —
+ * and every predicate below switches on the node type. An inline
+ * `path?.resolve(x)` was never affected, because there the wrapper is around
+ * the CALL and the rule reads its `callee`; what was invisible is the chain in
+ * a VALUE position, `const r = path?.resolve` or
+ * `full.startsWith(path?.resolve(base))`. Seeing through an alias is the whole
+ * job of these rules, so the wrapper cannot be allowed to end the walk.
+ */
+const unwrapChain = (node) =>
+  node.type === 'ChainExpression' ? node.expression : node
+
+/**
  * Whether an expression evaluates to the `path` module itself — the default or
  * namespace import, a `require('path')`, an alias of either, or one of the
  * module's `posix` / `win32` sub-namespaces.
  */
-const isPathModuleExpression = (node, sourceCode, depth = 0) => {
+const isPathModuleExpression = (rawNode, sourceCode, depth = 0) => {
   if (depth > MAX_ALIAS_DEPTH) return false
+  const node = unwrapChain(rawNode)
   if (node.type === 'MemberExpression') {
     const property = staticPropertyName(node)
     return (
@@ -220,15 +239,22 @@ const isPathBuilderDefinition = (definition, sourceCode, depth) => {
     return (
       key !== null &&
       PATH_BUILDERS.has(key) &&
-      isPathModuleExpression(declarator.init, sourceCode, depth + 1)
+      isPathModuleExpression(declarator.init, sourceCode, depth)
     )
   }
-  return isPathBuilderExpression(declarator.init, sourceCode, depth + 1)
+  // `depth` is passed through, not incremented: `isPathBuilderExpression`
+  // already spent a unit on the identifier-to-definition edge, and charging a
+  // second one here made every rename cost TWO units of a budget documented as
+  // counting renames — so a three-step chain fell off a cap of five, one step
+  // past this rule's own worked example, while the sibling rule's
+  // `isBuiltPathExpression` (which recurses into itself) tolerated four.
+  return isPathBuilderExpression(declarator.init, sourceCode, depth)
 }
 
 /** Whether an expression evaluates to the `path.resolve` / `path.join` function. */
-const isPathBuilderExpression = (node, sourceCode, depth = 0) => {
+const isPathBuilderExpression = (rawNode, sourceCode, depth = 0) => {
   if (depth > MAX_ALIAS_DEPTH) return false
+  const node = unwrapChain(rawNode)
   if (node.type === 'MemberExpression') {
     const property = staticPropertyName(node)
     return (
@@ -246,9 +272,13 @@ const isPathBuilderExpression = (node, sourceCode, depth = 0) => {
 }
 
 /** Whether a call node is a `path.resolve` / `path.join` call, however spelled. */
-const isPathBuilderCall = (node, sourceCode) =>
-  node.type === 'CallExpression' &&
-  isPathBuilderExpression(node.callee, sourceCode)
+const isPathBuilderCall = (rawNode, sourceCode) => {
+  const node = unwrapChain(rawNode)
+  return (
+    node.type === 'CallExpression' &&
+    isPathBuilderExpression(node.callee, sourceCode)
+  )
+}
 
 /**
  * Whether an expression IS a built path — the call written inline, or an
@@ -263,8 +293,9 @@ const isPathBuilderCall = (node, sourceCode) =>
  * has a `const resolvedArchivePath = 'database.'` whose name suggests a
  * resolved path and whose initialiser is a string.
  */
-const isBuiltPathExpression = (node, sourceCode, depth = 0) => {
+const isBuiltPathExpression = (rawNode, sourceCode, depth = 0) => {
   if (depth > MAX_ALIAS_DEPTH) return false
+  const node = unwrapChain(rawNode)
   if (node.type === 'CallExpression') return isPathBuilderCall(node, sourceCode)
   if (node.type !== 'Identifier') return false
   const definition = resolveIdentifierDefinition(sourceCode, node)
