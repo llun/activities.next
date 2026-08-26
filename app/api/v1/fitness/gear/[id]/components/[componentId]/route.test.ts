@@ -301,8 +301,10 @@ describe('Fitness gear component item API', () => {
         }),
         params
       )
+      const data = await response.json()
 
       expect(response.status).toBe(422)
+      expect(data.error).toBe('removedAt must be after addedAt')
       expect(mockDb.updateFitnessGearComponent).not.toHaveBeenCalled()
     })
 
@@ -321,8 +323,10 @@ describe('Fitness gear component item API', () => {
         }),
         params
       )
+      const data = await response.json()
 
       expect(response.status).toBe(422)
+      expect(data.error).toBe('removedAt must be after addedAt')
       expect(mockDb.updateFitnessGearComponent).not.toHaveBeenCalled()
     })
 

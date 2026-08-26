@@ -64,12 +64,16 @@ export const PATCH = traceApiRoute(
       )
       if (!existing) return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
 
-      const boundsError = getComponentPeriodBoundsError(existing.periods, {
-        ...('addedAt' in parsed.data ? { addedAt: parsed.data.addedAt } : {}),
-        ...('removedAt' in parsed.data
-          ? { removedAt: parsed.data.removedAt }
-          : {})
-      })
+      // `parsed.data` is handed over whole rather than rebuilt: the schema's
+      // `.nullish()` sits OUTERMOST, so a key absent from the body is absent
+      // here too and an explicit null arrives present-and-null — which is
+      // exactly the presence the check reads. Reconstructing that with
+      // conditional spreads only restates it, and the fields it would leave out
+      // are ones the check never looks at.
+      const boundsError = getComponentPeriodBoundsError(
+        existing.periods,
+        parsed.data
+      )
       if (boundsError) {
         return apiResponse({
           req,
