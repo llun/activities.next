@@ -452,11 +452,30 @@ describe('default fetch redirect behaviour', () => {
 
 // Three rounds of review each found this guard's address policy disagreeing
 // with `safeRemoteFetch`'s, because it was a hand-rolled second copy. It now
-// delegates, and this pins that: the two must answer identically for every
-// form either of them has ever cared about.
-describe('address policy parity with safeRemoteFetch', () => {
-  const ADDRESSES = [
-    // loopback / unspecified / private v4
+// delegates to the shared one.
+//
+// Asserting `isRestrictedDownloadAddress(a) === isUnsafeAddress(a)` would be
+// `f(x) === f(x)` while that delegation stands — it goes red only if someone
+// re-introduces a local implementation, which is a useful tripwire but pins
+// nothing about the policy itself. So the answers are written out instead:
+// every form either implementation has ever cared about, with the value it
+// must produce.
+describe('address policy', () => {
+  // The only addresses in this table that may be fetched. Everything else is
+  // some flavour of local, private, reserved, or a tunnel form carrying one.
+  const SAFE_ADDRESSES = [
+    '93.184.216.34',
+    '1.1.1.1',
+    '2606:2800:220::1',
+    // Embedded-IPv4 forms whose payload is PUBLIC. Blanket-blocking these
+    // prefixes refused every origin on a DNS64/NAT64 deployment.
+    '::ffff:93.184.216.34',
+    '::93.184.216.34',
+    '64:ff9b::5db8:d822'
+  ]
+
+  const UNSAFE_ADDRESSES = [
+    // IPv4: unspecified, loopback, private, CGNAT, link-local, reserved
     '0.0.0.0',
     '127.0.0.1',
     '10.1.2.3',
@@ -472,10 +491,8 @@ describe('address policy parity with safeRemoteFetch', () => {
     '203.0.113.1',
     '224.0.0.1',
     '240.0.0.1',
-    // public v4
-    '93.184.216.34',
-    '1.1.1.1',
-    // v6 ranges
+    // IPv6: unspecified, loopback, discard, unique-local, link-local,
+    // multicast, documentation
     '::',
     '::1',
     '100::1',
@@ -484,37 +501,49 @@ describe('address policy parity with safeRemoteFetch', () => {
     'fe80::1',
     'ff00::1',
     '2001:db8::1',
+    // IPv6 tunnel and translation prefixes
     '2001::1',
     '2001:10::1',
     '2001:20::1',
     '2001:1f::1',
     '2001:2f:ffff::1',
     '2002:7f00:1::',
-    '2606:2800:220::1',
-    // embedded-IPv4 forms, private and public
+    // Embedded-IPv4 forms whose payload is PRIVATE
     '::ffff:127.0.0.1',
     '::ffff:169.254.169.254',
-    '::ffff:93.184.216.34',
     '::127.0.0.1',
-    '::93.184.216.34',
     '64:ff9b::a9fe:a9fe',
-    '64:ff9b::5db8:d822',
     '64:ff9b:1::a9fe:a9fe',
     '64:ff9b:1:ffff::1',
-    // bracketed and cased spellings
+    // Spellings that must normalise before the policy sees them
     '[::1]',
     '::FFFF:127.0.0.1',
-    // not an address at all
+    // Fails closed on anything that is not an address at all
     'not-an-address',
     ''
   ]
 
-  it.each(ADDRESSES.map((address) => ({ address })))(
-    'agrees on $address',
+  it.each(SAFE_ADDRESSES.map((address) => ({ address })))(
+    'allows $address',
     ({ address }) => {
+      expect(isRestrictedDownloadAddress(address)).toBe(false)
+    }
+  )
+
+  it.each(UNSAFE_ADDRESSES.map((address) => ({ address })))(
+    'refuses $address',
+    ({ address }) => {
+      expect(isRestrictedDownloadAddress(address)).toBe(true)
+    }
+  )
+
+  // The tripwire the parity assertion was reaching for: a re-introduced local
+  // copy would answer these the way the old BlockList did, and differ.
+  it('answers identically to the shared policy it delegates to', () => {
+    for (const address of [...SAFE_ADDRESSES, ...UNSAFE_ADDRESSES]) {
       expect(isRestrictedDownloadAddress(address)).toBe(
         isUnsafeAddress(address)
       )
     }
-  )
+  })
 })
