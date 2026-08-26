@@ -1,0 +1,35 @@
+docs/fitness-file-storage.md
+  s_a3b90525842071::t_728cc08b2513b7 358-359
+app/(timeline)/fitness/strava/StravaSettingsForm.test.tsx
+  s_a3b90525842071::t_728cc08b2513b7 36-43,57-58,60-61,67-69
+  s_a3b90525842071::t_31ad5e73889f42 1-35,44-56,59,62-66,70-102
+lib/jobs/importStravaActivityJob.ts
+  s_a3b90525842071::t_d172c23cc43799 48,390-392,394-399
+lib/services/strava/defaultVisibility.ts
+  s_a3b90525842071::t_cd41bb179cdcc5 1-40
+app/(timeline)/fitness/strava/StravaSettingsForm.tsx
+  s_a3b90525842071::t_788d5c709810f1 245-249,256-276
+lib/services/strava/defaultVisibility.test.ts
+  s_a3b90525842071::t_2bbd7facb85c8b 2-7,10-11,16-33,38-40,44-102
+  s_a3b90525842071::t_ba4f579eaa11ee 1,8-9,12-15
+  s_a3b90525842071::t_728cc08b2513b7 34-37,41-43
+app/api/v1/webhooks/strava/[webhookToken]/route.ts
+  s_a3b90525842071::t_0fb1ac2f426831 7
+  s_a3b90525842071::t_d172c23cc43799 165-168
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "8aa019eae571042c5fbac24bdc7953723a044613",
+  "prompts": {},
+  "sessions": {
+    "s_a3b90525842071": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "029eb1cf-00b7-4f56-b1d3-679cd6f1e78c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
