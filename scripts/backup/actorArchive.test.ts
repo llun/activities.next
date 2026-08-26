@@ -314,6 +314,35 @@ describe('registerAttachmentUrl', () => {
     }
   )
 
+  // The non-OK branch drains the body before throwing. Nothing else asserts
+  // it: the streamLimit tests cover the byte-cap refusal paths, which are
+  // different code. Left undrained, a host answering every request with an
+  // error holds one connection per attachment until the deadline fires.
+  //
+  // This is the one test that stubs `safeImageFetch` outright rather than
+  // calling through, because it needs a body whose `cancel` it can observe.
+  it('drains the body of a non-OK remote attachment response', async () => {
+    const url = 'https://other.example/api/v1/files/ab/notfound.webp'
+    const cancel = vi.fn().mockResolvedValue(undefined)
+
+    vi.mocked(safeImageFetch).mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      body: { cancel }
+    } as unknown as Response)
+
+    const { urlToArchivePath, warnings } = await runRegister({
+      attachment: buildAttachment({ url }),
+      fetchRemoteAttachments: true
+    })
+
+    expect(cancel).toHaveBeenCalled()
+    expect(urlToArchivePath.has(url)).toBe(false)
+    expect(warnings).toEqual([
+      `Failed to fetch remote attachment ${url}: HTTP 404`
+    ])
+  })
+
   // `attachment.url` is whatever the account owner put on the status:
   // `POST /api/v1/accounts/outbox` takes `PostBoxAttachment.url` as a bare
   // `z.string()` and `createAttachment` writes it verbatim. Without a guard,
@@ -368,9 +397,10 @@ describe('registerAttachmentUrl', () => {
     }
   )
 
-  // Two cases, because `readResponseArrayBufferWithLimit` has two independent
-  // refusal paths and the declared-length one alone is worth little: a hostile
-  // host simply omits or understates `content-length`. Proved distinct by
+  // Three cases, because `readResponseArrayBufferWithLimit` has two
+  // independent refusal paths and the declared-length one alone is worth
+  // little: a hostile host simply omits or understates `content-length`, so
+  // the streaming accumulator gets both of those shapes. Proved distinct by
   // disabling only the header short-circuit — the streamed case still fails,
   // the declared-length case stops failing.
   it.each([
@@ -619,8 +649,13 @@ describe('actor archive remote attachment cap', () => {
     // (`(await getMaxMediaUploadSize(database), 10 * 1024 * 1024)`), which
     // hardcodes a cap while looking correct to a presence check. Matching the
     // assignment is still formatting-tolerant: `\s*` absorbs a prettier wrap.
+    // Anchored on the closing brace: `toMatch` is a substring search, so
+    // without it anything appended to the call survives — `await
+    // getMaxMediaUploadSize(database) / 100`, the sort of "leave headroom"
+    // arithmetic someone adds without meaning to revert anything, would make
+    // the effective cap 1% of the setting and still match.
     expect(SOURCE).toMatch(
-      /maxBytes:\s*await getMaxMediaUploadSize\(database\)/
+      /maxBytes:\s*await getMaxMediaUploadSize\(database\)\s*}/
     )
   })
 
