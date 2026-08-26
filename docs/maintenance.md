@@ -157,8 +157,9 @@ the configured host), `--actor-id`, or `--email` to select the actor.
   link-local or private address are refused, re-checked on every redirect hop,
   with at most 3 hops followed — and capped at the resolved
   `media.maxFileSize` server setting, the same ceiling an upload to this
-  instance gets. Each hop is allowed 10 minutes, covering the body as well as
-  the headers. A refused or over-size attachment is recorded as a warning in
+  instance gets. One attachment gets 10 minutes in total — covering every hop,
+  the body as well as the headers — so a slow host cannot restart the clock by
+  redirecting. A refused or over-size attachment is recorded as a warning in
   `manifest.json` and its absolute URL is kept, exactly as if the flag had not
   been passed
 

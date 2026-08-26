@@ -726,30 +726,34 @@ export const copyProfileImage = async ({
  * than the archive used before. The byte cap is separate and load-bearing:
  * without it a hostile URL could stream an unbounded body into memory.
  *
- * `maxAttachmentBytes` is a parameter rather than a constant because the cap
- * that matters is the RESOLVED `media.maxFileSize` server setting, which an
- * admin may raise to 1 GiB — reading the compile-time `MAX_FILE_SIZE` default
- * instead would refuse a remote attachment this instance's own upload path
- * would accept. `readResponseArrayBufferWithLimit` buffers, so whatever is
- * passed is also the peak memory one attachment can cost.
+ * `remoteFetch` carries the byte cap and doubles as the on/off switch, so the
+ * two cannot disagree. They were separate — a boolean plus a number the caller
+ * set to 0 when unused — and 0 is a live cap meaning "refuse everything", kept
+ * harmless only by an early return two screens above the read. As one value
+ * that state is unrepresentable.
+ *
+ * The cap is a parameter rather than a constant because what matters is the
+ * RESOLVED `media.maxFileSize` server setting, which an admin may raise to 1
+ * GiB — reading the compile-time `MAX_FILE_SIZE` default instead would refuse a
+ * remote attachment this instance's own upload path would accept.
+ * `readResponseArrayBufferWithLimit` buffers, so the cap is also the peak
+ * memory one attachment can cost.
  */
 export const registerAttachmentUrl = async ({
   attachment,
-  fetchRemoteAttachments,
   hostConfig,
-  maxAttachmentBytes,
   mediaPaths,
   mediaIds,
+  remoteFetch,
   urlToArchivePath,
   stagingDir,
   warnings
 }: {
   attachment: Attachment
-  fetchRemoteAttachments: boolean
   hostConfig: HostRuleConfig
-  maxAttachmentBytes: number
   mediaPaths: Set<string>
   mediaIds: Set<string>
+  remoteFetch: { maxBytes: number } | null
   urlToArchivePath: Map<string, string>
   stagingDir: string
   warnings: string[]
@@ -764,7 +768,7 @@ export const registerAttachmentUrl = async ({
     return
   }
 
-  if (!fetchRemoteAttachments) {
+  if (!remoteFetch) {
     warnings.push(`Remote attachment kept as absolute URL: ${attachment.url}`)
     return
   }
@@ -793,7 +797,7 @@ export const registerAttachmentUrl = async ({
     const buffer = Buffer.from(
       await readResponseArrayBufferWithLimit(
         response,
-        maxAttachmentBytes,
+        remoteFetch.maxBytes,
         'Remote attachment'
       )
     )
@@ -851,9 +855,9 @@ export const exportActorArchive = async (
   // database read behind a 15s cache, and the cap must not shift mid-run. Only
   // the remote-download branch reads it, so an export without that flag — the
   // default — should not pay for the lookup at all.
-  const maxAttachmentBytes = args.fetchRemoteAttachments
-    ? await getMaxMediaUploadSize(database)
-    : 0
+  const remoteFetch = args.fetchRemoteAttachments
+    ? { maxBytes: await getMaxMediaUploadSize(database) }
+    : null
 
   const warnings: string[] = []
   const mediaPaths = new Set<string>()
@@ -882,11 +886,10 @@ export const exportActorArchive = async (
         for (const attachment of status.attachments) {
           await registerAttachmentUrl({
             attachment,
-            fetchRemoteAttachments: args.fetchRemoteAttachments,
             hostConfig: config,
-            maxAttachmentBytes,
             mediaPaths,
             mediaIds,
+            remoteFetch,
             urlToArchivePath,
             stagingDir,
             warnings

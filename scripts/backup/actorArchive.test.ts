@@ -1,3 +1,4 @@
+import { readFileSync } from 'fs'
 import fs from 'fs/promises'
 import fetchMock from 'jest-fetch-mock'
 import os from 'os'
@@ -152,6 +153,9 @@ describe('registerAttachmentUrl', () => {
     maxAttachmentBytes?: number
     stagingDir?: string
   }) => {
+    const remoteFetch = fetchRemoteAttachments
+      ? { maxBytes: maxAttachmentBytes }
+      : null
     const mediaPaths = new Set<string>()
     const mediaIds = new Set<string>()
     const urlToArchivePath = new Map<string, string>()
@@ -159,11 +163,10 @@ describe('registerAttachmentUrl', () => {
 
     await registerAttachmentUrl({
       attachment,
-      fetchRemoteAttachments,
       hostConfig,
-      maxAttachmentBytes,
       mediaPaths,
       mediaIds,
+      remoteFetch,
       urlToArchivePath,
       stagingDir,
       warnings
@@ -262,11 +265,10 @@ describe('registerAttachmentUrl', () => {
     const register = (mediaId: string) =>
       registerAttachmentUrl({
         attachment: buildAttachment({ url, mediaId }),
-        fetchRemoteAttachments: false,
         hostConfig,
-        maxAttachmentBytes: MAX_FILE_SIZE,
         mediaPaths,
         mediaIds,
+        remoteFetch: null,
         urlToArchivePath,
         stagingDir: '/nonexistent',
         warnings
@@ -438,7 +440,12 @@ describe('registerAttachmentUrl', () => {
   // passed every other test in this file. Same for the overall deadline: drop
   // it and each hop simply restarts the clock.
   it('bounds a remote attachment fetch by both a per-hop timeout and an overall deadline', async () => {
-    const url = 'https://other.example/api/v1/files/ab/cd.webp'
+    // A URL unique to this test, and a cleared spy: the shared spy accumulates
+    // across the file, and an earlier test issues an identical call — so
+    // without both, this assertion is satisfied by residue and passes even if
+    // its own subject never runs.
+    const url = 'https://other.example/api/v1/files/ab/deadline.webp'
+    vi.mocked(safeImageFetch).mockClear()
 
     fetchMock.doMock()
     fetchMock.mockResponseOnce('remote-bytes', { status: 200 })
@@ -581,6 +588,43 @@ describe('copyProfileImage', () => {
       })
     ).toBeNull()
     expect(warnings).toEqual([])
+  })
+})
+
+// `exportActorArchive` resolves the remote-attachment byte cap from the
+// `media.maxFileSize` server setting and threads it into
+// `registerAttachmentUrl`. Reverting that to the compile-time `MAX_FILE_SIZE`
+// constant is INVISIBLE to every test above: the cap arrives as a parameter, so
+// those tests pass whatever they like and still pass, and nothing drives
+// `exportActorArchive` end to end (it wants a database, a staging directory and
+// a tar writer).
+//
+// The revert is not hypothetical — it is what the first version of this code
+// did, and it refused remote attachments this instance's own upload path would
+// have accepted, because `MAX_FILE_SIZE` is only the DEFAULT for a setting an
+// admin may raise to `MAX_CONFIGURABLE_FILE_SIZE` (1 GiB).
+//
+// Both assertions are deliberately formatting-independent: an earlier version
+// matched the exact shape of the ternary, which prettier could rewrite for
+// reasons having nothing to do with behaviour.
+describe('actor archive remote attachment cap', () => {
+  const SOURCE = readFileSync(
+    path.join(process.cwd(), 'scripts', 'backup', 'actorArchive.ts'),
+    'utf-8'
+  )
+
+  it('resolves the cap from the media.maxFileSize server setting', () => {
+    expect(SOURCE).toContain('getMaxMediaUploadSize(database)')
+  })
+
+  it('does not import the compile-time upload size constant', () => {
+    // The brace list is matched across newlines on purpose: prettier wraps an
+    // import past 80 characters, which is exactly the shape a reintroduced
+    // `MAX_FILE_SIZE` would take arriving beside another symbol from the same
+    // module — and a single-line-only pattern would pass straight over it.
+    expect(SOURCE).not.toMatch(
+      /import\s*\{[^}]*\bMAX_FILE_SIZE\b[^}]*\}\s*from '@\/lib\/services\/medias\/constants'/
+    )
   })
 })
 
