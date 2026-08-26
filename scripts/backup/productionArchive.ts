@@ -1484,16 +1484,11 @@ export const archiveStorage = async (
             path: relativeFilePath
           })
 
-          // Rendering the message is the LAST thing this catch does, because it
-          // is the one step not guaranteed not to throw — `inspect` itself
-          // throws on a hostile `[util.inspect.custom]`, as `String` does on a
-          // null-prototype object. Nothing on this path throws a non-Error, so
-          // that branch is defensive only; keeping it last means a surprise
-          // there cannot cost the partial-file cleanup or the manifest entry
-          // above. The message goes to the operator running the export, on
-          // their own machine, and never into the archive — only the redacted
-          // form is written to the manifest. `inspect` over `String` so a plain
-          // object prints as its contents, not `[object Object]`.
+          // The message goes to the operator's own console, never into the
+          // archive — only the redacted form reaches the manifest. Nothing on
+          // this path throws a non-Error, so `inspect` is defensive only; were
+          // it ever to throw, the export unwinds and its `finally` deletes the
+          // whole staging directory, so no ordering of these lines contains it.
           console.error(
             `Storage: failed to download ${entry.destination} file ` +
               `${relativeFilePath}: ` +
@@ -1532,22 +1527,14 @@ export const archiveStorage = async (
   return storageManifests
 }
 
-// Manifest redaction. The manifest travels inside the tarball, so it
-// deliberately says nothing about WHERE production storage lives:
-// `redactStorageSource` keeps `kind` and `prefix` and drops the bucket, region,
-// endpoint, CDN hostname and local root.
-//
-// `failedFiles[].error` sits directly beside it in the same manifest and used
-// to carry the driver's message verbatim, which put back exactly what the line
-// above had removed. An export run with `--allow-missing-storage` against a
-// private-network MinIO landed `getaddrinfo ENOTFOUND minio.internal` in the
-// tarball; the local driver landed `ENOENT: ... copyfile '/srv/uploads/...'`.
-//
-// Both halves therefore answer to one policy: only allowlisted, shape-checked
-// fields survive. For an error that is its syscall, code, name and HTTP status
-// — never its message. A message is free text a driver interpolates whatever it
-// likes into, so scrubbing one is a guess about what we thought to look for,
-// while an allowlist is a guarantee.
+// Manifest redaction. The manifest travels inside the tarball, so it withholds
+// where production storage lives — and `failedFiles[].error` beside it used to
+// put that straight back as the driver's verbatim message. Both halves answer
+// to one policy: only allowlisted, shape-checked fields survive, which for an
+// error means its syscall, code, name and HTTP status and never its message.
+// Scrubbing free text is a guess about the forms we thought of; an allowlist is
+// a guarantee. See AGENTS.md, "The archive manifest withholds where storage
+// lives", for what leaked and why the rule reads as it does.
 
 // The fields `redactStorageSource` keeps.
 const STORAGE_SOURCE_MANIFEST_FIELDS: readonly string[] = ['kind', 'prefix']
@@ -1559,13 +1546,16 @@ const redactStorageSource = (source: StorageSource) => ({
 
 // Every string `redactStorageSource` drops, lowercased. Deriving it from the
 // source rather than listing the fields again keeps one definition of "what is
-// sensitive about a storage source", so a field added to `StorageSource` later
-// is withheld from both halves without anyone remembering this one.
+// sensitive about a storage source", so a STRING field added to `StorageSource`
+// later is withheld from both halves without anyone remembering this one. A
+// non-string one is not: the filter below skips it, so a nested
+// `credentials: { accessKeyId }` would never reach this set, and an access key
+// id passes the shape check cleanly. `StorageSource` is all-string today; give
+// this set a way to see any field that is not.
 //
 // Whole values only. It is the second line of defence, for a single-label value
-// the shape check below cannot tell from an error code — a Docker-network
-// `hostname: 'minio'`, a bucket named `activitynext`. Anything with a dot, dash
-// or colon in it is already refused by shape.
+// the shape check below cannot tell from an error code; anything carrying a
+// dot, dash or colon is already refused by shape.
 const getRedactedStorageSourceValues = (source: StorageSource) =>
   new Set(
     Object.entries(source)
@@ -1642,17 +1632,10 @@ const getErrorHttpStatusCode = (level: Record<string, unknown>) => {
 // Reduces a storage-driver failure to what an operator can act on —
 // `getaddrinfo ENOTFOUND`, `copyfile ENOENT`, `NoSuchKey HTTP 404`, `HTTP 503`
 // — carrying no value in the SHAPE a bucket, region, endpoint, hostname,
-// address or local root takes. Shape is the bound, not content: a storage
-// server that writes its own error responses can put up to 64 arbitrary
-// `[A-Za-z][A-Za-z0-9_]*` characters into each token, so `activitynextprodmedia`
-// survives where `activitynext-prod-media` does not. That costs nothing — the
-// only actor who can do it already serves the file bytes going into the same
-// tarball.
-// Not "nothing that says where storage lives": `copyfile ENOENT` still implies
-// a local filesystem, which `source.kind` publishes anyway, and a vendor code
-// such as `XMinioStorageFull` names the storage SOFTWARE where `kind: 's3'`
-// said only S3-compatible. That fingerprint is the price of a code an operator
-// can act on, and it is worth paying — it is just not nothing.
+// address or local root takes. Two deliberate limits come with that: the token
+// pattern above bounds form and not content, and a vendor code such as
+// `XMinioStorageFull` still names the storage software. Both are the price of
+// a code an operator can act on; AGENTS.md argues the trade.
 //
 // `unknown` is the honest answer for a failure that classifies itself only in
 // its message; the export console still printed that message in full.
