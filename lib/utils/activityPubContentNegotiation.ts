@@ -106,11 +106,13 @@ export const activityPubResponse = ({
   data,
   contentType,
   allowedMethods = [HttpMethod.enum.GET],
-  // Extra response headers, for the one caller that needs `Cache-Control`. They
-  // are ADDED to this function's own two, never substituted for them: `Headers`
-  // appends a repeated name rather than replacing it, so passing `Content-Type`
-  // or `Vary` here corrupts the negotiated value into a comma-joined list
-  // instead of overriding it. Pass `contentType` to choose the content type.
+  // Extra response headers. They are ADDED to this function's own two, never
+  // substituted for them, because `Headers` appends a repeated name rather than
+  // replacing it. That cuts both ways: `Vary` is a list header, so a caller
+  // naming what else its response varies by correctly joins the `Accept` below
+  // — the outbox root does this for the headers that pick its actor — while
+  // `Content-Type` is single-valued and a second one corrupts it into
+  // `a/b, c/d`. Pass `contentType` to choose the content type.
   additionalHeaders = []
 }: {
   req: NextRequest

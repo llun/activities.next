@@ -303,10 +303,35 @@ describe('GET /api/users/[username]/outbox', () => {
     expect(response.headers.get('cache-control')).toBe(
       'public, max-age=60, s-maxage=60'
     )
-    expect(response.headers.get('vary')).toBe('Accept')
   })
 
-  it('does not let shared caches hold an outbox page', async () => {
+  // The actor this route resolves comes from these headers, so a shared cache
+  // must key on them or it will serve one domain's collection for another's.
+  it('declares the headers that choose which actor the collection describes', async () => {
+    const response = await GET(
+      new NextRequest('https://example.com/api/users/test/outbox', {
+        headers: { accept: 'application/activity+json' }
+      }),
+      { params: Promise.resolve({ username: 'test' }) }
+    )
+
+    const vary =
+      response.headers
+        .get('vary')
+        ?.split(',')
+        .map((value) => value.trim().toLowerCase()) ?? []
+    expect(vary).toEqual(
+      expect.arrayContaining([
+        'accept',
+        'x-activity-next-host',
+        'x-forwarded-host',
+        'host',
+        'origin'
+      ])
+    )
+  })
+
+  it('tells shared caches not to hold an outbox page at all', async () => {
     const response = await GET(
       new NextRequest('https://example.com/api/users/test/outbox?page=true', {
         headers: { accept: 'application/activity+json' }
@@ -314,7 +339,7 @@ describe('GET /api/users/[username]/outbox', () => {
       { params: Promise.resolve({ username: 'test' }) }
     )
 
-    expect(response.headers.get('cache-control')).toBeNull()
+    expect(response.headers.get('cache-control')).toBe('no-store')
   })
 
   it('counts the actor public statuses once across repeated collection requests', async () => {

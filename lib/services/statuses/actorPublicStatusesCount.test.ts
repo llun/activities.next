@@ -207,4 +207,44 @@ describe('getCachedActorPublicStatusesCount', () => {
     )
     expect(getActorStatusesCount).not.toHaveBeenCalled()
   })
+
+  it('runs one query for a burst of concurrent misses on one actor', async () => {
+    const { database, getActorStatusesCount } = mockDatabase([1938, 2000])
+
+    const counts = await Promise.all(
+      Array.from({ length: 25 }, () =>
+        getCachedActorPublicStatusesCount(database, ACTOR_ID)
+      )
+    )
+
+    expect(counts).toEqual(Array(25).fill(1938))
+    expect(getActorStatusesCount).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not hold a failed query against the actors waiting on it', async () => {
+    const { database, getActorStatusesCount } = mockDatabase(1938)
+    getActorStatusesCount.mockRejectedValueOnce(new Error('database is down'))
+
+    const results = await Promise.allSettled(
+      Array.from({ length: 3 }, () =>
+        getCachedActorPublicStatusesCount(database, ACTOR_ID)
+      )
+    )
+
+    // Every waiter sees the failure rather than hanging on a promise that is
+    // never replaced, and none of them cached it.
+    expect(results.map((result) => result.status)).toEqual([
+      'rejected',
+      'rejected',
+      'rejected'
+    ])
+    expect(getActorStatusesCount).toHaveBeenCalledTimes(1)
+    expect(
+      getActorPublicStatusesCountCachedActorIdsForTests(database)
+    ).toHaveLength(0)
+
+    expect(await getCachedActorPublicStatusesCount(database, ACTOR_ID)).toBe(
+      1938
+    )
+  })
 })
