@@ -1,4 +1,4 @@
-import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
+import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import {
   OnlyLocalUserGuard,
   OnlyLocalUserGuardHandle
@@ -61,8 +61,10 @@ export const GET = traceApiRoute(
       req,
       data: {
         // The items come from toActivityPubObject, which emits the FEP-044f
-        // quote aliases; a receiver that compacts drops any undefined term.
-        '@context': QUOTE_ACTIVITY_CONTEXT,
+        // quote aliases, an attachment's blurhash/focalPoint, the Hashtag/Emoji
+        // tag types and a poll's votersCount; a receiver that compacts drops
+        // any undefined term. The note context declares all of them.
+        '@context': NOTE_ACTIVITY_CONTEXT,
         id: `${status.id}/replies`,
         type: 'Collection',
         totalItems: totalReplies,

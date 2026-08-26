@@ -12,6 +12,7 @@ import { FollowRequest } from '@/lib/activities/followAction'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { compactActivityPub } from '@/lib/activities/jsonld'
 import { LikeStatus } from '@/lib/activities/likeAction'
+import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
 import {
   REACTION_CONTEXT,
@@ -158,8 +159,9 @@ export const sendNote = async ({ currentActor, inbox, note }: SendNoteParams) =>
     },
     async (span) => {
       const activity: CreateStatus = {
-        // FEP-044f terms ride on every note — see AGENTS.md, ActivityPub & JSON-LD.
-        '@context': QUOTE_ACTIVITY_CONTEXT,
+        // FEP-044f terms ride on every note, and so do the attachment and tag
+        // ones — see AGENTS.md, ActivityPub & JSON-LD.
+        '@context': NOTE_ACTIVITY_CONTEXT,
         id: note.id,
         type: CreateAction,
         actor: note.attributedTo,
@@ -203,9 +205,10 @@ export const sendUpdateNote = async ({
       }
 
       const activity: UpdateStatus = {
-        // Also the activity that re-federates a note once its quote is approved,
-        // so dropping the terms here hides the approval from the receiver.
-        '@context': QUOTE_ACTIVITY_CONTEXT,
+        // Also the activity that re-federates a note once its quote is
+        // approved, so dropping the terms here hides the approval from the
+        // receiver.
+        '@context': NOTE_ACTIVITY_CONTEXT,
         id: `${note.id}#updates/${Date.now()}`,
         type: UpdateAction,
         actor: note.attributedTo,
@@ -248,7 +251,10 @@ export const sendQuoteRequest = async ({
     { actorId: currentActor.id, inbox },
     async (span) => {
       const activity = {
-        '@context': QUOTE_ACTIVITY_CONTEXT,
+        // The Note context, not the quote-only one: `instrument` is a whole
+        // Note built by `getNoteFromStatus`, so it carries the attachment and
+        // tag terms too. The Accept/Reject/Delete below echo only ids.
+        '@context': NOTE_ACTIVITY_CONTEXT,
         id: quoteRequestId,
         type: 'QuoteRequest',
         actor: currentActor.id,

@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { resolveStatusFromPath } from '@/app/(timeline)/[actor]/[status]/resolveStatusFromPath'
-import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
+import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -104,10 +104,13 @@ describe('GET /api/users/[username]/statuses/[statusId]', () => {
 
     const data = await response.json()
     expect(data).toMatchObject({
-      // QUOTE_ACTIVITY_CONTEXT, not the bare AS2 url: the note carries FEP-044f
-      // terms, and a receiver that compacts drops any term the document's own
-      // context never defined.
-      '@context': QUOTE_ACTIVITY_CONTEXT,
+      // The note context, not the bare ActivityStreams URL. This route builds
+      // its object with `toActivityPubObject`, which carries `interactionPolicy`
+      // and the FEP-044f quote aliases (both through `quoteNoteFields`), an
+      // attachment's blurhash/focalPoint, the Hashtag and Emoji tag types and
+      // `votersCount` on a poll — each dropped by a JSON-LD-processing receiver
+      // unless the term is declared. The note context supersets the quote one.
+      '@context': NOTE_ACTIVITY_CONTEXT,
       id: 'https://example.com/users/test/statuses/123',
       type: 'Note'
     })

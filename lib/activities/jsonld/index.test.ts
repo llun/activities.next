@@ -7,6 +7,10 @@ import {
   offlineDocumentLoader
 } from '@/lib/activities/jsonld'
 import { BaseNote, getContent, getLanguage } from '@/lib/activities/note'
+import {
+  NOTE_ACTIVITY_CONTEXT,
+  NOTE_CONTEXT_TERMS
+} from '@/lib/activities/noteContext'
 import { Like } from '@/lib/types/activitypub'
 
 const asRecord = (value: unknown) => value as Record<string, unknown>
@@ -775,5 +779,114 @@ describe('compactActivityPub note language handling', () => {
 
     expect(getContent(note)).toBe('<p>hello</p>')
     expect(getLanguage(note)).toBe('th')
+  })
+
+  // Round-trips a Note through the wire the way a receiving instance sees it:
+  // serialised under the context this instance sends, then compacted by the
+  // same processor our own inbox runs. Under the bare ActivityStreams context
+  // every one of these terms expands to a blank node and is dropped, so this is
+  // the only test that can catch the outbound context regressing.
+  describe('terms this instance emits on a Note', () => {
+    const noteOnTheWire = {
+      '@context': NOTE_ACTIVITY_CONTEXT,
+      id: 'https://llun.test/users/test1/statuses/1',
+      type: 'Note',
+      attributedTo: 'https://llun.test/users/test1',
+      content: 'hello',
+      published: '2026-01-01T00:00:00Z',
+      attachment: [
+        {
+          type: 'Document',
+          mediaType: 'image/png',
+          url: 'https://llun.test/api/v1/files/medias/one.png',
+          name: 'a photo',
+          blurhash: 'LEHV6nWB2yk8pyo0adR*',
+          focalPoint: [-0.5, 0.25]
+        }
+      ],
+      tag: [
+        {
+          type: 'Mention',
+          name: '@bob@remote.example',
+          href: 'https://remote.example/users/bob'
+        },
+        {
+          type: 'Hashtag',
+          name: '#cycling',
+          href: 'https://llun.test/tags/cycling'
+        },
+        {
+          type: 'Emoji',
+          id: 'https://llun.test/emojis/party',
+          name: ':party:',
+          icon: { type: 'Image', url: 'https://llun.test/emojis/party.png' }
+        }
+      ],
+      quote: 'https://remote.example/notes/9',
+      quoteUrl: 'https://remote.example/notes/9',
+      quoteUri: 'https://remote.example/notes/9',
+      _misskey_quote: 'https://remote.example/notes/9',
+      quoteAuthorization: 'https://llun.test/authorizations/1',
+      interactionPolicy: {
+        canQuote: {
+          automaticApproval: ['https://www.w3.org/ns/activitystreams#Public'],
+          manualApproval: []
+        }
+      }
+    }
+
+    it('keeps the attachment blurhash and focal point through compaction', async () => {
+      const result = asRecord(await compactActivityPub(noteOnTheWire))
+      const attachment = asRecord(
+        (result.attachment as Record<string, unknown>[])[0]
+      )
+
+      expect(attachment.blurhash).toBe('LEHV6nWB2yk8pyo0adR*')
+      // Ordered, so an `@list` container rather than a plain set: x then y.
+      expect(attachment.focalPoint).toEqual([-0.5, 0.25])
+    })
+
+    // Every compat alias `getNoteFromStatus` writes, not just the two Mastodon
+    // reads: a receiver keying on the Fedibird or Misskey spelling loses the
+    // quote edge entirely if only its own alias drops.
+    it.each([
+      ['quote', 'https://remote.example/notes/9'],
+      ['quoteUrl', 'https://remote.example/notes/9'],
+      ['quoteUri', 'https://remote.example/notes/9'],
+      ['_misskey_quote', 'https://remote.example/notes/9'],
+      ['quoteAuthorization', 'https://llun.test/authorizations/1']
+    ])('keeps %s through compaction', async (key, expected) => {
+      const result = asRecord(await compactActivityPub(noteOnTheWire))
+
+      expect(result[key]).toEqual(expected)
+    })
+
+    // Asserted on the context rather than on a round trip: `stripJsonLdArtifacts`
+    // recovers a blank-node `type`, so compacting through OUR reader keeps
+    // `Hashtag`/`Emoji` whether we declare them or not. A receiver without that
+    // recovery is the one that loses them, and the only thing this side can pin
+    // is that we declare each type we emit under the IRI we accept it as.
+    it.each([
+      ['Hashtag', 'as:Hashtag'],
+      ['Emoji', 'toot:Emoji']
+    ])('declares the %s type it writes onto a Note', (term, iri) => {
+      expect(NOTE_CONTEXT_TERMS[term as 'Hashtag' | 'Emoji']).toBe(iri)
+    })
+
+    // On every Note this instance emits, quoting or not, so losing it costs a
+    // plain text post its quote policy.
+    it('keeps the interaction policy through compaction', async () => {
+      const result = asRecord(await compactActivityPub(noteOnTheWire))
+
+      // The public collection comes back as the compact alias, which is what
+      // compaction does to it everywhere (`toRecipientArray` canonicalises it
+      // back) — the point here is that the policy survives at all.
+      expect(result.interactionPolicy).toEqual({
+        canQuote: {
+          automaticApproval: ['as:Public'],
+          manualApproval: []
+        }
+      })
+    })
   })
 })
