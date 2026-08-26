@@ -12,11 +12,14 @@ import { FitnessStorageFileConfig } from '@/lib/config/fitnessStorage'
 import { Database } from '@/lib/database/types'
 import { sanitizeStoredFileName } from '@/lib/services/medias/fileName'
 import { checkQuotaAvailable } from '@/lib/services/medias/quota'
+import {
+  assertStorageFilePath,
+  resolveStorageFilePath
+} from '@/lib/services/medias/storagePath'
 import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 
 import { QuotaExceededError } from './errors'
-import { assertFitnessStoragePath, resolveFitnessStoragePath } from './path'
 import {
   FitnessFileUploadSchema,
   FitnessStorage,
@@ -65,7 +68,7 @@ export class LocalFileFitnessStorage implements FitnessStorage {
   }
 
   async getFile(filePath: string) {
-    const fullPath = resolveFitnessStoragePath(this._config.path, filePath)
+    const fullPath = resolveStorageFilePath(this._config.path, filePath)
     if (!fullPath) {
       return null
     }
@@ -95,7 +98,7 @@ export class LocalFileFitnessStorage implements FitnessStorage {
 
   async deleteFile(filePath: string): Promise<boolean> {
     try {
-      const fullPath = resolveFitnessStoragePath(this._config.path, filePath)
+      const fullPath = resolveStorageFilePath(this._config.path, filePath)
       if (!fullPath) {
         return false
       }
@@ -149,7 +152,7 @@ export class LocalFileFitnessStorage implements FitnessStorage {
     const randomPrefix = crypto.randomBytes(8).toString('hex')
     const timeDirectory = format(currentTime, 'yyyy-MM-dd')
     const fileName = `${timeDirectory}/${randomPrefix}${ext}`
-    const filePath = assertFitnessStoragePath(this._config.path, fileName)
+    const filePath = assertStorageFilePath(this._config.path, fileName)
     await fs.mkdir(path.dirname(filePath), { recursive: true })
 
     // Save file using a stream to avoid buffering large files in memory.

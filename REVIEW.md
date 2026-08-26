@@ -522,6 +522,18 @@ attachment ref guard` is exactly that: it passed with the bug present until
   loopback development hosts, which `isHostTrustedByRules` alone rejects.
   `getAttachmentMediaPath` is not this check: it never returns null and is for
   URLs this instance just produced.
+- **A stored path is confined to the storage root by
+  `resolveStorageFilePath` / `assertStorageFilePath`
+  (`lib/services/medias/storagePath`), on every filesystem path a local driver
+  builds — read, delete and write alike.** A bare `path.resolve(root, filePath)`
+  walks out of the root given `../` or an absolute path, and the escape is
+  silent: the read or the unlink lands somewhere else on disk. Watch for the
+  read-only variant of this — `LocalFileStorage.getFile` carried the check while
+  `deleteFile` beside it had none, which made containment an invariant of the
+  callers rather than of the driver. `resolveStorageFilePath` returns null;
+  `assertStorageFilePath` throws, for a write with nothing sensible to return.
+  Object storage is a different question: an S3 key has no filesystem root to
+  escape.
 - **A stored file with no `medias` row is unreachable**, so whatever fails
   after a write must reclaim it — only `scripts/maintenance/cleanupMediaStorage.ts`
   can find it otherwise. Equally, do not report a storage failure as a
