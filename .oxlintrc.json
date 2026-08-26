@@ -34,6 +34,10 @@
     "test-config.js"
   ],
   "rules": {
+    // A containment check must have a separator boundary; see
+    // `.oxlintrc.scripts.json` for how `scripts/**` — ignored above, and where
+    // the one real instance of this bug was found — is covered too.
+    "agents/no-resolved-path-prefix-check": "error",
     "constructor-super": "error",
     "for-direction": "error",
     "getter-return": "error",
@@ -193,6 +197,26 @@
       "rules": {
         "agents/api-response-helpers": "error",
         "agents/zod-safe-parse": "error"
+      }
+    },
+    {
+      // Every filesystem path a LOCAL STORAGE DRIVER builds goes through
+      // resolveStorageFilePath/assertStorageFilePath (AGENTS.md → A stored path
+      // is confined to the storage root). `agents/no-storage-path-builder`
+      // resolves the callee through scope, so a renamed import, a destructured
+      // `const { resolve } = path`, `path['resolve']` and a prettier-wrapped
+      // call are all the same node to it — the shapes that defeated the raw-text
+      // guard this replaced. Both drivers still call `path.extname`/`dirname`,
+      // which READ a path rather than build one and are not restricted.
+      //
+      // The list is exact rather than a glob so a driver that moves fails
+      // loudly: lint/agentsRules.test.ts asserts each file named here exists.
+      "files": [
+        "lib/services/medias/localFile.ts",
+        "lib/services/fitness-files/localFile.ts"
+      ],
+      "rules": {
+        "agents/no-storage-path-builder": "error"
       }
     },
     {
