@@ -16,7 +16,7 @@ import {
 } from '@/lib/activities/note'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLinkPreview'
-import { isValidBlurhash } from '@/lib/services/medias/imageAnalysis'
+import { normalizeBlurhash } from '@/lib/services/medias/imageAnalysis'
 import {
   persistInboundQuoteEdge,
   resolveInboundQuotedStatus
@@ -221,10 +221,10 @@ export const createNoteJob = createJobHandle(
       addStatusToTimelines(database, status),
       ...attachments.map(async (attachment, index) => {
         if (attachment.type !== 'Document') return
-        const blurhash =
-          attachment.blurhash && isValidBlurhash(attachment.blurhash)
-            ? attachment.blurhash
-            : null
+        // Store what the normalizer returns, not the value it was handed:
+        // it validates the trimmed form, so a padded hash approved here and
+        // persisted verbatim would fail `decode` on every render.
+        const blurhash = normalizeBlurhash(attachment.blurhash)
         const focus =
           attachment.focalPoint &&
           isValidFocalPoint(attachment.focalPoint[0], attachment.focalPoint[1])
