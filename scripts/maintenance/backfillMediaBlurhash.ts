@@ -46,6 +46,11 @@ const MEDIA_FILE_URL_PATH = '/api/v1/files/'
 // Only ever used to resolve a host-relative URL; a resolved URL that still
 // carries this authority is one that brought none of its own.
 const PLACEHOLDER_HOST = 'placeholder.invalid'
+
+// A `thumbnailUrl` an earlier version of this script wrote: the stored path
+// under the files route with no scheme or authority in front of it.
+const isHostRelativeMediaUrl = (value: string | null | undefined) =>
+  Boolean(value?.startsWith(MEDIA_FILE_URL_PATH))
 const PLACEHOLDER_ORIGIN = `https://${PLACEHOLDER_HOST}`
 
 // Bounds each download's whole exchange, body stream included;
@@ -465,7 +470,16 @@ export const backfillAttachments = async (
       .limit(options.batchSize)
 
     if (!options.force) {
-      query = query.whereNull('blurhash')
+      // `whereNull('blurhash')` alone never revisits a row this script has
+      // already processed — and an earlier version set the blurhash and a
+      // HOST-RELATIVE thumbnailUrl in the same pass, so the rows most in need
+      // of the absolute-URL repair are exactly the ones it would skip. Select
+      // those too, or the fix never reaches the data it exists for.
+      query = query.where((builder) =>
+        builder
+          .whereNull('blurhash')
+          .orWhere('thumbnailUrl', 'like', `${MEDIA_FILE_URL_PATH}%`)
+      )
     }
 
     const rows = await query
@@ -513,7 +527,12 @@ export const backfillAttachments = async (
           }
           if (media.focusX !== null && focusX === null) focusX = media.focusX
           if (media.focusY !== null && focusY === null) focusY = media.focusY
-          if (media.thumbnail && (options.force || !thumbnailUrl)) {
+          if (
+            media.thumbnail &&
+            (options.force ||
+              !thumbnailUrl ||
+              isHostRelativeMediaUrl(thumbnailUrl))
+          ) {
             // Absolute, like every live path: `thumbnailUrl` is served to
             // clients as Mastodon's `preview_url` (and as a <video> poster)
             // verbatim, so a host-relative value is unusable to a native client

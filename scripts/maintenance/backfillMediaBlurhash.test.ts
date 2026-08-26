@@ -598,6 +598,78 @@ describe('backfillMediaBlurhash execution', () => {
     expect(updated.blurhash).toBe('STALEHASHSTALEHASH')
   })
 
+  // An earlier version of this script wrote the blurhash and a HOST-RELATIVE
+  // thumbnailUrl in the same pass. Those rows are precisely the ones the
+  // absolute-URL fix exists for, and `whereNull('blurhash')` would never
+  // revisit them — so a plain re-run left every one of them broken.
+  it('repairs a relative thumbnailUrl an earlier run wrote, without --force', async () => {
+    await db('medias').insert({
+      id: 1,
+      actorId: 'actor-1',
+      original: 'medias/orig.jpg',
+      originalMimeType: 'image/jpeg',
+      thumbnail: 'medias/orig-thumbnail.jpg',
+      blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4'
+    })
+
+    await db('attachments').insert({
+      id: 'att-1',
+      statusId: 'status-1',
+      actorId: 'https://llun.test/users/test',
+      mediaId: '1',
+      mediaType: 'image/jpeg',
+      url: 'https://llun.test/api/v1/files/medias/orig.jpg',
+      // Both already set by the earlier run.
+      blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4',
+      thumbnailUrl: '/api/v1/files/medias/orig-thumbnail.jpg'
+    })
+
+    const mockStorage = {
+      getFile: vi.fn().mockResolvedValue(null)
+    } as never
+
+    await backfillAttachments(db, mockStorage, options(), HOSTS)
+
+    const updated = await db('attachments').where('id', 'att-1').first()
+    expect(updated.thumbnailUrl).toBe(
+      'https://llun.test/api/v1/files/medias/orig-thumbnail.jpg'
+    )
+  })
+
+  it('leaves an already-absolute thumbnailUrl alone without --force', async () => {
+    await db('medias').insert({
+      id: 1,
+      actorId: 'actor-1',
+      original: 'medias/orig.jpg',
+      originalMimeType: 'image/jpeg',
+      thumbnail: 'medias/orig-thumbnail.jpg',
+      blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4'
+    })
+
+    await db('attachments').insert({
+      id: 'att-1',
+      statusId: 'status-1',
+      actorId: 'https://llun.test/users/test',
+      mediaId: '1',
+      mediaType: 'image/jpeg',
+      url: 'https://llun.test/api/v1/files/medias/orig.jpg',
+      blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4',
+      thumbnailUrl:
+        'https://cdn.llun.test/api/v1/files/medias/orig-thumbnail.jpg'
+    })
+
+    const mockStorage = {
+      getFile: vi.fn().mockResolvedValue(null)
+    } as never
+
+    await backfillAttachments(db, mockStorage, options(), HOSTS)
+
+    const updated = await db('attachments').where('id', 'att-1').first()
+    expect(updated.thumbnailUrl).toBe(
+      'https://cdn.llun.test/api/v1/files/medias/orig-thumbnail.jpg'
+    )
+  })
+
   // A remote instance runs this same code, so its attachment URLs carry exactly
   // the `/api/v1/files/` path. Reading one out of OUR storage is both wrong and
   // a way to make the sweep look at a path the remote actor chose.
@@ -838,7 +910,13 @@ describe('getFileBuffer', () => {
 
   // `PRESIGNED_ANALYSIS_MAX_BYTES` is 50 MB; a body past it must raise rather
   // than be buffered whole.
-  it('throws rather than buffering a stored file past the cap', async () => {
+  //
+  // The oversize is DECLARED in `content-length` rather than materialised:
+  // `readResponseArrayBufferWithLimit` refuses on the header before reading a
+  // byte, and an actual 51 MB body made the mutation that removes the cap OOM
+  // the whole Vitest worker — which in CI reads as infrastructure flakiness
+  // rather than as this guard regressing.
+  it('refuses a stored file that declares a size past the cap', async () => {
     const storage = {
       getFile: vi.fn().mockResolvedValue({
         type: 'redirect',
@@ -846,7 +924,9 @@ describe('getFileBuffer', () => {
       })
     } as never
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(new Uint8Array(51 * 1024 * 1024))
+      new Response(new Uint8Array([1, 2, 3]), {
+        headers: { 'content-length': String(51 * 1024 * 1024) }
+      })
     )
 
     await expect(getFileBuffer(storage, 'huge.jpg')).rejects.toThrow(
