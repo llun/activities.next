@@ -67,10 +67,12 @@ const runOxlint = (
     stdout = (error as { stdout?: string }).stdout ?? ''
   }
 
-  // oxlint prints `No files found` instead of JSON when every file in the
-  // target is ignored. Nothing here should ever lint an empty tree — a run
-  // that did would report no offenders for the wrong reason — so this is a
-  // failure rather than an empty result.
+  // When every file in the target is ignored, oxlint prints `No files found to
+  // lint.` and THEN an empty, perfectly valid report — so the JSON is there to
+  // be parsed, and parsing it is the mistake. Nothing here should ever lint an
+  // empty tree; a run that did would report no offenders for the wrong reason,
+  // which is the failure that made the raw-text guard these rules replaced
+  // worse than nothing. Refuse the run rather than skipping to the first `{`.
   if (!stdout.trimStart().startsWith('{')) {
     throw new Error(`oxlint produced no report for ${target}: ${stdout.trim()}`)
   }
@@ -284,6 +286,12 @@ describe('agents oxlint plugin', () => {
       '    return resolvePath(this._config.path, filePath)',
       '  }',
       '',
+      '  // A non-null assertion is the other wrapper node that does not change',
+      '  // a value, and it lands on the OBJECT rather than around the member.',
+      '  nonNull(filePath: string) {',
+      '    return path!.resolve(this._config.path, filePath)',
+      '  }',
+      '',
       '  platform(filePath: string) {',
       '    return path.posix.join(this._config.path, filePath)',
       '  }',
@@ -328,9 +336,10 @@ describe('agents oxlint plugin', () => {
       'lib/services/fitness-files/localFile.ts:27 agents(no-storage-path-builder)',
       'lib/services/fitness-files/localFile.ts:35 agents(no-storage-path-builder)',
       'lib/services/fitness-files/localFile.ts:44 agents(no-storage-path-builder)',
-      'lib/services/fitness-files/localFile.ts:48 agents(no-storage-path-builder)',
-      'lib/services/fitness-files/localFile.ts:52 agents(no-storage-path-builder)',
-      'lib/services/fitness-files/localFile.ts:56 agents(no-storage-path-builder)',
+      'lib/services/fitness-files/localFile.ts:50 agents(no-storage-path-builder)',
+      'lib/services/fitness-files/localFile.ts:54 agents(no-storage-path-builder)',
+      'lib/services/fitness-files/localFile.ts:58 agents(no-storage-path-builder)',
+      'lib/services/fitness-files/localFile.ts:62 agents(no-storage-path-builder)',
       'lib/services/medias/localFile.ts:11 agents(no-storage-path-builder)',
       'lib/services/medias/localFile.ts:15 agents(no-storage-path-builder)',
       'lib/services/medias/localFile.ts:19 agents(no-storage-path-builder)',
@@ -338,9 +347,10 @@ describe('agents oxlint plugin', () => {
       'lib/services/medias/localFile.ts:27 agents(no-storage-path-builder)',
       'lib/services/medias/localFile.ts:35 agents(no-storage-path-builder)',
       'lib/services/medias/localFile.ts:44 agents(no-storage-path-builder)',
-      'lib/services/medias/localFile.ts:48 agents(no-storage-path-builder)',
-      'lib/services/medias/localFile.ts:52 agents(no-storage-path-builder)',
-      'lib/services/medias/localFile.ts:56 agents(no-storage-path-builder)'
+      'lib/services/medias/localFile.ts:50 agents(no-storage-path-builder)',
+      'lib/services/medias/localFile.ts:54 agents(no-storage-path-builder)',
+      'lib/services/medias/localFile.ts:58 agents(no-storage-path-builder)',
+      'lib/services/medias/localFile.ts:62 agents(no-storage-path-builder)'
     ])
   })
 

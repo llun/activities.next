@@ -151,19 +151,31 @@ const isRequireOfPathModule = (node) =>
   PATH_MODULES.has(node.arguments[0].value)
 
 /**
- * The expression a `ChainExpression` wraps, or the node itself.
+ * The expression inside the wrapper nodes that do not change a value: an
+ * optional chain (`ChainExpression`) and a non-null assertion
+ * (`TSNonNullExpression`, `path!`).
  *
- * Oxlint wraps the OUTERMOST node of an optional chain, so `path?.resolve`
- * arrives as a ChainExpression rather than as the MemberExpression inside it —
- * and every predicate below switches on the node type. An inline
- * `path?.resolve(x)` was never affected, because there the wrapper is around
- * the CALL and the rule reads its `callee`; what was invisible is the chain in
- * a VALUE position, `const r = path?.resolve` or
- * `full.startsWith(path?.resolve(base))`. Seeing through an alias is the whole
- * job of these rules, so the wrapper cannot be allowed to end the walk.
+ * Every predicate below switches on the node type, so a wrapper ends the walk —
+ * and seeing through an alias is the whole job of these rules. The two wrappers
+ * arrive in different positions, which is why unwrapping has to be a loop
+ * rather than a check at one site: oxlint wraps the OUTERMOST node of an
+ * optional chain, so `path?.resolve` is a ChainExpression around the member,
+ * while `path!.resolve` is a plain member whose OBJECT is the wrapper. An
+ * inline `path?.resolve(x)` was never affected either way, because there the
+ * chain wraps the CALL and the rule reads its `callee`; what was invisible is
+ * the wrapper in a VALUE position — `const r = path?.resolve`,
+ * `full.startsWith(path?.resolve(base))`, `path!.resolve(base, x)`.
  */
-const unwrapChain = (node) =>
-  node.type === 'ChainExpression' ? node.expression : node
+const unwrapWrappers = (node) => {
+  let current = node
+  while (
+    current.type === 'ChainExpression' ||
+    current.type === 'TSNonNullExpression'
+  ) {
+    current = current.expression
+  }
+  return current
+}
 
 /**
  * Whether an expression evaluates to the `path` module itself — the default or
@@ -172,7 +184,7 @@ const unwrapChain = (node) =>
  */
 const isPathModuleExpression = (rawNode, sourceCode, depth = 0) => {
   if (depth > MAX_ALIAS_DEPTH) return false
-  const node = unwrapChain(rawNode)
+  const node = unwrapWrappers(rawNode)
   if (node.type === 'MemberExpression') {
     const property = staticPropertyName(node)
     return (
@@ -254,7 +266,7 @@ const isPathBuilderDefinition = (definition, sourceCode, depth) => {
 /** Whether an expression evaluates to the `path.resolve` / `path.join` function. */
 const isPathBuilderExpression = (rawNode, sourceCode, depth = 0) => {
   if (depth > MAX_ALIAS_DEPTH) return false
-  const node = unwrapChain(rawNode)
+  const node = unwrapWrappers(rawNode)
   if (node.type === 'MemberExpression') {
     const property = staticPropertyName(node)
     return (
@@ -273,7 +285,7 @@ const isPathBuilderExpression = (rawNode, sourceCode, depth = 0) => {
 
 /** Whether a call node is a `path.resolve` / `path.join` call, however spelled. */
 const isPathBuilderCall = (rawNode, sourceCode) => {
-  const node = unwrapChain(rawNode)
+  const node = unwrapWrappers(rawNode)
   return (
     node.type === 'CallExpression' &&
     isPathBuilderExpression(node.callee, sourceCode)
@@ -295,7 +307,7 @@ const isPathBuilderCall = (rawNode, sourceCode) => {
  */
 const isBuiltPathExpression = (rawNode, sourceCode, depth = 0) => {
   if (depth > MAX_ALIAS_DEPTH) return false
-  const node = unwrapChain(rawNode)
+  const node = unwrapWrappers(rawNode)
   if (node.type === 'CallExpression') return isPathBuilderCall(node, sourceCode)
   if (node.type !== 'Identifier') return false
   const definition = resolveIdentifierDefinition(sourceCode, node)
