@@ -246,7 +246,10 @@ export const sendQuoteRequest = async ({
     { actorId: currentActor.id, inbox },
     async (span) => {
       const activity = {
-        '@context': QUOTE_ACTIVITY_CONTEXT,
+        // The Note context, not the quote-only one: `instrument` is a whole
+        // Note built by `getNoteFromStatus`, so it carries the attachment and
+        // tag terms too. The Accept/Reject/Delete below echo only ids.
+        '@context': NOTE_ACTIVITY_CONTEXT,
         id: quoteRequestId,
         type: 'QuoteRequest',
         actor: currentActor.id,

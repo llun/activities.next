@@ -38,12 +38,13 @@ export const NOTE_CONTEXT_TERMS = {
   blurhash: 'toot:blurhash',
   focalPoint: { '@id': 'toot:focalPoint', '@container': '@list' },
 
-  // Declared ahead of use, the way Mastodon's own outbound context carries the
-  // full vocabulary: nothing emits these on a Note today (a content warning
-  // federates as `summary`, and polls do not go through `getNoteFromStatus`),
-  // so whoever adds them does not have to rediscover this file.
-  sensitive: 'as:sensitive',
-  votersCount: 'toot:votersCount'
+  // `votersCount` is emitted: `toActivityPubObject` puts it on a poll Question,
+  // which the status route and the replies collection both serve. `sensitive`
+  // is declared ahead of use — a content warning federates as `summary` today —
+  // the way Mastodon's own outbound context carries its full vocabulary, so
+  // whoever adds it does not have to rediscover this file.
+  votersCount: 'toot:votersCount',
+  sensitive: 'as:sensitive'
 } as const
 
 /**

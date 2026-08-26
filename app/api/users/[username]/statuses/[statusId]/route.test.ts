@@ -104,10 +104,12 @@ describe('GET /api/users/[username]/statuses/[statusId]', () => {
 
     const data = await response.json()
     expect(data).toMatchObject({
-      // The Note context, not the bare ActivityStreams URL: this object
-      // carries `interactionPolicy` and may carry quote aliases and an
-      // attachment's blurhash/focalPoint, all of which a JSON-LD-processing
-      // receiver drops unless the terms are declared.
+      // The Note context, not the bare ActivityStreams URL. This route builds
+      // its object with `toActivityPubObject`, so what it carries is an
+      // attachment's blurhash/focalPoint, the Hashtag and Emoji tag types, and
+      // `votersCount` on a poll — each dropped by a JSON-LD-processing receiver
+      // unless the term is declared. (`interactionPolicy` and the quote aliases
+      // come from `getNoteFromStatus`, which the federation paths use.)
       '@context': NOTE_ACTIVITY_CONTEXT,
       id: 'https://example.com/users/test/statuses/123',
       type: 'Note'

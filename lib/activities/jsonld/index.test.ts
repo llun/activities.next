@@ -824,6 +824,9 @@ describe('compactActivityPub note language handling', () => {
       ],
       quote: 'https://remote.example/notes/9',
       quoteUrl: 'https://remote.example/notes/9',
+      quoteUri: 'https://remote.example/notes/9',
+      _misskey_quote: 'https://remote.example/notes/9',
+      quoteAuthorization: 'https://llun.test/authorizations/1',
       interactionPolicy: {
         canQuote: {
           automaticApproval: ['https://www.w3.org/ns/activitystreams#Public'],
@@ -843,9 +846,15 @@ describe('compactActivityPub note language handling', () => {
       expect(attachment.focalPoint).toEqual([-0.5, 0.25])
     })
 
+    // Every compat alias `getNoteFromStatus` writes, not just the two Mastodon
+    // reads: a receiver keying on the Fedibird or Misskey spelling loses the
+    // quote edge entirely if only its own alias drops.
     it.each([
       ['quote', 'https://remote.example/notes/9'],
-      ['quoteUrl', 'https://remote.example/notes/9']
+      ['quoteUrl', 'https://remote.example/notes/9'],
+      ['quoteUri', 'https://remote.example/notes/9'],
+      ['_misskey_quote', 'https://remote.example/notes/9'],
+      ['quoteAuthorization', 'https://llun.test/authorizations/1']
     ])('keeps %s through compaction', async (key, expected) => {
       const result = asRecord(await compactActivityPub(noteOnTheWire))
 
