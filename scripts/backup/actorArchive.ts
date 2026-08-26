@@ -19,8 +19,8 @@ import { getDatabase } from '@/lib/database'
 import { encodeFavouriteCursor } from '@/lib/database/sql/utils/favouriteCursor'
 import { Database } from '@/lib/database/types'
 import { getEffectiveFitnessStorageConfig } from '@/lib/services/fitness-files'
-import { MAX_FILE_SIZE } from '@/lib/services/medias/constants'
 import { getMediaPathFromFileUrl } from '@/lib/services/medias/mediaFileUrl'
+import { getMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
 import {
   AnnounceAction,
   CreateAction
@@ -54,7 +54,6 @@ import { readResponseArrayBufferWithLimit } from '@/lib/utils/streamLimit'
 
 import { printDatabaseBanner } from '../fitness/describeConnection'
 import {
-  PUBLIC_STORAGE_FETCH_TIMEOUT_MS,
   archiveStorage,
   buildStoragePlan,
   createTarArchive,
@@ -72,11 +71,20 @@ const MEDIA_ID_BATCH_SIZE = 100
 const MEDIA_ARCHIVE_DIR = 'media_attachments/files'
 const REMOTE_MEDIA_ARCHIVE_DIR = 'media_attachments/remote'
 /**
- * How many bytes of a remote attachment the export will copy: the size this
- * instance would itself accept for an upload. `readResponseArrayBufferWithLimit`
- * buffers, so this is also the peak memory one attachment can cost.
+ * How long ONE hop of a remote attachment download may take, headers and body
+ * together — `safeImageFetch` keeps its `AbortSignal.timeout` live for the
+ * whole read, where the archive's old 60s timer was cleared the moment headers
+ * arrived and left the body untimed.
+ *
+ * Deliberately much larger than `PUBLIC_STORAGE_FETCH_TIMEOUT_MS`, because a
+ * timeout that bounds the body is also a throughput floor: at 60s, reaching
+ * even the default 200 MiB cap would have required a sustained 3.5 MB/s, so a
+ * large federated video on an ordinary link would have been dropped from the
+ * archive that used to contain it. Ten minutes puts that floor near 350 KB/s
+ * at the default cap. It still bounds a slow-drip host, which unbounded did
+ * not.
  */
-export const REMOTE_ATTACHMENT_MAX_BYTES = MAX_FILE_SIZE
+export const REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS = 600_000
 const FITNESS_ARCHIVE_DIR = 'fitness_files/files'
 
 export const EXPORT_ACTOR_USAGE = `Usage: NODE_ENV=production scripts/backup/exportActorArchive.ts \\
@@ -708,14 +716,23 @@ export const copyProfileImage = async ({
  * the guard belongs on the untrusted input, not on the shared helper.
  *
  * `safeImageFetch` re-checks every redirect hop, and its timeout also bounds
- * the body read, which the old 60s header-only timeout did not. The byte cap
- * is separate and load-bearing: without it a hostile URL could stream an
- * unbounded body into memory.
+ * the body read, which the old header-only timeout did not — see
+ * `REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS` for why that means a much larger value
+ * than the archive used before. The byte cap is separate and load-bearing:
+ * without it a hostile URL could stream an unbounded body into memory.
+ *
+ * `maxAttachmentBytes` is a parameter rather than a constant because the cap
+ * that matters is the RESOLVED `media.maxFileSize` server setting, which an
+ * admin may raise to 1 GiB — reading the compile-time `MAX_FILE_SIZE` default
+ * instead would refuse a remote attachment this instance's own upload path
+ * would accept. `readResponseArrayBufferWithLimit` buffers, so whatever is
+ * passed is also the peak memory one attachment can cost.
  */
 export const registerAttachmentUrl = async ({
   attachment,
   fetchRemoteAttachments,
   hostConfig,
+  maxAttachmentBytes,
   mediaPaths,
   mediaIds,
   urlToArchivePath,
@@ -725,6 +742,7 @@ export const registerAttachmentUrl = async ({
   attachment: Attachment
   fetchRemoteAttachments: boolean
   hostConfig: HostRuleConfig
+  maxAttachmentBytes: number
   mediaPaths: Set<string>
   mediaIds: Set<string>
   urlToArchivePath: Map<string, string>
@@ -748,10 +766,17 @@ export const registerAttachmentUrl = async ({
 
   try {
     const response = await safeImageFetch(attachment.url, {
-      timeoutMs: PUBLIC_STORAGE_FETCH_TIMEOUT_MS
+      timeoutMs: REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS
     })
+    // `safeImageFetch` answers null for three different reasons — a refused
+    // URL, a redirect carrying no usable `Location`, and exhausting its hop
+    // budget — and the caller cannot tell them apart, so the warning must not
+    // name only the first. Reporting a 4-hop CDN chain as an unsafe address
+    // sends the operator hunting a DNS problem that does not exist.
     if (!response) {
-      warnings.push(`Refused unsafe remote attachment URL: ${attachment.url}`)
+      warnings.push(
+        `Refused remote attachment URL (unsafe address, non-HTTPS, or too many redirects): ${attachment.url}`
+      )
       return
     }
     if (!response.ok) {
@@ -762,7 +787,7 @@ export const registerAttachmentUrl = async ({
     const buffer = Buffer.from(
       await readResponseArrayBufferWithLimit(
         response,
-        REMOTE_ATTACHMENT_MAX_BYTES,
+        maxAttachmentBytes,
         'Remote attachment'
       )
     )
@@ -816,6 +841,10 @@ export const exportActorArchive = async (
     path.join(os.tmpdir(), 'activitynext-actor-archive-')
   )
 
+  // Resolved once for the whole export rather than per attachment: it is a
+  // database read behind a 15s cache, and the cap must not shift mid-run.
+  const maxAttachmentBytes = await getMaxMediaUploadSize(database)
+
   const warnings: string[] = []
   const mediaPaths = new Set<string>()
   const fitnessPaths = new Set<string>()
@@ -845,6 +874,7 @@ export const exportActorArchive = async (
             attachment,
             fetchRemoteAttachments: args.fetchRemoteAttachments,
             hostConfig: config,
+            maxAttachmentBytes,
             mediaPaths,
             mediaIds,
             urlToArchivePath,

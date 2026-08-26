@@ -135,11 +135,20 @@ export const readResponseArrayBufferWithLimit = async (
   maxBytes = SAFE_DOWNLOAD_MAX_BYTES,
   label = 'Response body'
 ): Promise<ArrayBuffer> => {
-  const safeContentLength = getSafeResponseContentLength(
-    response,
-    maxBytes,
-    label
-  )
+  let safeContentLength: number | null
+  try {
+    safeContentLength = getSafeResponseContentLength(response, maxBytes, label)
+  } catch (error) {
+    // A declared length over the cap means the body is never read — so cancel
+    // it rather than leaving the connection open until the caller's timeout
+    // fires. A host answering every request with a huge `content-length`
+    // would otherwise strand one socket per refusal, and a caller looping over
+    // attacker-supplied URLs refuses each in milliseconds: hundreds of
+    // dangling sockets, up to EMFILE. The streaming branch below already
+    // cancels its reader; this is the same duty on the other refusal path.
+    await response.body?.cancel().catch(() => undefined)
+    throw error
+  }
 
   if (!response.body || typeof response.body.getReader !== 'function') {
     if (safeContentLength === null) {

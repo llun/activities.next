@@ -154,10 +154,13 @@ the configured host), `--actor-id`, or `--email` to select the actor.
   the export only owns the actor's own storage). These URLs come from the
   posts themselves rather than from your configuration, so each download is
   SSRF-guarded — non-HTTPS URLs and any host resolving to a loopback,
-  link-local or private address are refused, on every redirect hop — and
-  capped at the instance's maximum upload size. A refused or over-size
-  attachment is recorded as a warning in `manifest.json` and its absolute URL
-  is kept, exactly as if the flag had not been passed
+  link-local or private address are refused, re-checked on every redirect hop,
+  with at most 3 hops followed — and capped at the resolved
+  `media.maxFileSize` server setting, the same ceiling an upload to this
+  instance gets. Each hop is allowed 10 minutes, covering the body as well as
+  the headers. A refused or over-size attachment is recorded as a warning in
+  `manifest.json` and its absolute URL is kept, exactly as if the flag had not
+  been passed
 
 ### Archive layout
 

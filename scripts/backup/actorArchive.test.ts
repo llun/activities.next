@@ -6,12 +6,15 @@ import path from 'path'
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { MAX_FEDERATION_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
+import {
+  MAX_CONFIGURABLE_FILE_SIZE,
+  MAX_FILE_SIZE
+} from '@/lib/services/medias/constants'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 import {
-  REMOTE_ATTACHMENT_MAX_BYTES,
   buildActorJson,
   buildExportActivity,
   buildFollowersCsv,
@@ -127,13 +130,18 @@ describe('parseExportActorArgs', () => {
 describe('registerAttachmentUrl', () => {
   const hostConfig = { host: 'example.test', trustedHosts: ['alias.example'] }
 
+  // The cap is a parameter, not a module constant, so a test can pin a tiny
+  // one and stream a real body past it — the streaming accumulator is
+  // unreachable at a realistic 200 MiB cap.
   const runRegister = async ({
     attachment,
     fetchRemoteAttachments = false,
+    maxAttachmentBytes = MAX_FILE_SIZE,
     stagingDir = '/nonexistent'
   }: {
     attachment: Attachment
     fetchRemoteAttachments?: boolean
+    maxAttachmentBytes?: number
     stagingDir?: string
   }) => {
     const mediaPaths = new Set<string>()
@@ -145,6 +153,7 @@ describe('registerAttachmentUrl', () => {
       attachment,
       fetchRemoteAttachments,
       hostConfig,
+      maxAttachmentBytes,
       mediaPaths,
       mediaIds,
       urlToArchivePath,
@@ -247,6 +256,7 @@ describe('registerAttachmentUrl', () => {
         attachment: buildAttachment({ url, mediaId }),
         fetchRemoteAttachments: false,
         hostConfig,
+        maxAttachmentBytes: MAX_FILE_SIZE,
         mediaPaths,
         mediaIds,
         urlToArchivePath,
@@ -302,8 +312,12 @@ describe('registerAttachmentUrl', () => {
   // tarball the owner receives.
   //
   // These go through the REAL `safeImageFetch`, not a mock, so a revert of the
-  // guard fails them. `vitest.setup.ts` resolves every hostname to the public
-  // 93.184.216.34, which is why the tests above still reach the network.
+  // guard fails them. None of them reaches DNS: the three IP literals take the
+  // `isIP` branch, `localhost` is caught by the hostname-name check before the
+  // lookup, and the `http://` row is refused on protocol before the hostname
+  // is parsed at all. The global `node:dns/promises` mock in `vitest.setup.ts`
+  // (every hostname resolves to the public 93.184.216.34) is what keeps the
+  // hostname-based tests ABOVE reaching the mocked network — not these.
   it.each([
     {
       description: 'the cloud metadata address',
@@ -338,39 +352,103 @@ describe('registerAttachmentUrl', () => {
       expect(fetchMock).not.toHaveBeenCalled()
       expect([...mediaPaths]).toEqual([])
       expect(urlToArchivePath.has(url)).toBe(false)
-      expect(warnings).toEqual([`Refused unsafe remote attachment URL: ${url}`])
+      expect(warnings).toEqual([
+        `Refused remote attachment URL (unsafe address, non-HTTPS, or too many redirects): ${url}`
+      ])
     }
   )
 
-  it('refuses a remote attachment larger than the byte cap', async () => {
-    const url = 'https://other.example/api/v1/files/ab/huge.webp'
+  // Two cases, because `readResponseArrayBufferWithLimit` has two independent
+  // refusal paths and the declared-length one alone is worth little: a hostile
+  // host simply omits or understates `content-length`. Proved distinct by
+  // disabling only the header short-circuit — the streamed case still fails,
+  // the declared-length case stops failing.
+  it.each([
+    {
+      description: 'a declared content-length over the cap',
+      // Small real body, huge declared length: only the header is consulted.
+      buildResponse: (maxAttachmentBytes: number) => ({
+        body: 'x'.repeat(8),
+        headers: { 'content-length': String(maxAttachmentBytes + 1) },
+        status: 200
+      })
+    },
+    {
+      description: 'a streamed body over the cap with no content-length',
+      // No declared length at all, so the byte accumulator is the only thing
+      // standing between a hostile host and an unbounded read.
+      buildResponse: (maxAttachmentBytes: number) => ({
+        body: 'x'.repeat(maxAttachmentBytes * 4),
+        status: 200
+      })
+    },
+    {
+      description: 'a streamed body over the cap understating content-length',
+      buildResponse: (maxAttachmentBytes: number) => ({
+        body: 'x'.repeat(maxAttachmentBytes * 4),
+        headers: { 'content-length': '8' },
+        status: 200
+      })
+    }
+  ])(
+    'refuses a remote attachment exceeding the byte cap on $description',
+    async ({ buildResponse }) => {
+      const maxAttachmentBytes = 64
+      const url = 'https://other.example/api/v1/files/ab/huge.webp'
+      const dir = await fs.mkdtemp(
+        path.join(os.tmpdir(), 'actor-archive-oversize-test-')
+      )
+
+      fetchMock.doMock()
+      fetchMock.mockResponseOnce(() =>
+        Promise.resolve(buildResponse(maxAttachmentBytes))
+      )
+
+      try {
+        const { urlToArchivePath, warnings } = await runRegister({
+          attachment: buildAttachment({ url }),
+          fetchRemoteAttachments: true,
+          maxAttachmentBytes,
+          stagingDir: dir
+        })
+
+        expect(urlToArchivePath.has(url)).toBe(false)
+        expect(warnings).toEqual([
+          `Failed to fetch remote attachment ${url}: Remote attachment exceeds byte limit of ${maxAttachmentBytes} bytes`
+        ])
+        await expect(
+          fs.readdir(path.join(dir, 'media_attachments', 'remote'))
+        ).rejects.toThrow()
+      } finally {
+        await fs.rm(dir, { force: true, recursive: true })
+      }
+    }
+  )
+
+  // The cap is the RESOLVED `media.maxFileSize`, which an admin may raise well
+  // above the `MAX_FILE_SIZE` default. Reading the default instead refused a
+  // remote attachment this instance's own upload path would accept.
+  it('copies an attachment larger than the default cap when the resolved cap allows it', async () => {
+    const url = 'https://other.example/api/v1/files/ab/big.webp'
     const dir = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'actor-archive-oversize-test-')
+      path.join(os.tmpdir(), 'actor-archive-raised-cap-test-')
     )
 
     fetchMock.doMock()
-    fetchMock.mockResponseOnce(() =>
-      Promise.resolve({
-        body: 'x'.repeat(1024),
-        headers: { 'content-length': String(REMOTE_ATTACHMENT_MAX_BYTES + 1) },
-        status: 200
-      })
-    )
+    fetchMock.mockResponseOnce('remote-bytes', { status: 200 })
 
     try {
       const { urlToArchivePath, warnings } = await runRegister({
         attachment: buildAttachment({ url }),
         fetchRemoteAttachments: true,
+        maxAttachmentBytes: MAX_CONFIGURABLE_FILE_SIZE,
         stagingDir: dir
       })
 
-      expect(urlToArchivePath.has(url)).toBe(false)
-      expect(warnings).toEqual([
-        `Failed to fetch remote attachment ${url}: Remote attachment exceeds byte limit of ${REMOTE_ATTACHMENT_MAX_BYTES} bytes`
-      ])
-      await expect(
-        fs.readdir(path.join(dir, 'media_attachments', 'remote'))
-      ).rejects.toThrow()
+      expect(warnings).toEqual([])
+      expect(urlToArchivePath.get(url)).toMatch(
+        /^media_attachments\/remote\/[0-9a-f]{16}\.webp$/
+      )
     } finally {
       await fs.rm(dir, { force: true, recursive: true })
     }
