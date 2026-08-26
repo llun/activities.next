@@ -1485,10 +1485,13 @@ export const archiveStorage = async (
           })
 
           // The message goes to the operator's own console, never into the
-          // archive — only the redacted form reaches the manifest. Nothing on
-          // this path throws a non-Error, so `inspect` is defensive only; were
-          // it ever to throw, the export unwinds and its `finally` deletes the
-          // whole staging directory, so no ordering of these lines contains it.
+          // archive — only the redacted form reaches the manifest, which is why
+          // this console line is the one place the driver's own words survive.
+          // `inspect` rather than `String` so a thrown non-Error prints as its
+          // contents instead of `[object Object]`; nothing on this path throws
+          // one, so that branch is defensive, and were `inspect` itself to
+          // throw the export unwinds and its `finally` deletes the whole
+          // staging directory — no ordering of these lines contains that.
           console.error(
             `Storage: failed to download ${entry.destination} file ` +
               `${relativeFilePath}: ` +
@@ -1580,6 +1583,10 @@ const getRedactedStorageSourceValues = (source: StorageSource) =>
 // exception has no value of its own. So do not relax this filter for `code` or
 // `syscall` on the belief that they are libuv constants — on that path they are
 // untrusted input, and the shape check is the only thing bounding them.
+//
+// Bounding their FORM rather than their content is enough, and deliberately so:
+// the only actor who can choose these tokens is the storage server itself, and
+// it already serves the file bytes going into the same tarball.
 const SAFE_ERROR_TOKEN_PATTERN = /^[A-Za-z][A-Za-z0-9_]{0,63}$/
 
 // `fetch` reports a DNS failure as `TypeError: fetch failed` and hangs the real
@@ -1633,9 +1640,9 @@ const getErrorHttpStatusCode = (level: Record<string, unknown>) => {
 // `getaddrinfo ENOTFOUND`, `copyfile ENOENT`, `NoSuchKey HTTP 404`, `HTTP 503`
 // — carrying no value in the SHAPE a bucket, region, endpoint, hostname,
 // address or local root takes. Two deliberate limits come with that: the token
-// pattern above bounds form and not content, and a vendor code such as
-// `XMinioStorageFull` still names the storage software. Both are the price of
-// a code an operator can act on; AGENTS.md argues the trade.
+// pattern above bounds form and not content — argued there — and a vendor code
+// such as `XMinioStorageFull` still names the storage software, which AGENTS.md
+// argues. Both are the price of a code an operator can act on.
 //
 // `unknown` is the honest answer for a failure that classifies itself only in
 // its message; the export console still printed that message in full.
