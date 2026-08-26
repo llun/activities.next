@@ -76,11 +76,21 @@ export const parseProfileImageUrl = (
   // no error UI, and with no way to save anything on the page again until they
   // worked out that the image had to be removed first.
   //
-  // An empty submission is ALWAYS a clear, and it is decided first. A stored
-  // value that is nothing but whitespace is truthy but trims to '', so it would
-  // otherwise collide with the empty submission Remove sends and be read as
-  // "unchanged" — leaving the one control that can clear it a silent no-op,
-  // since the field is read-only and nothing else writes it.
+  // An EXACT echo is decided first, before anything is trimmed. A field the
+  // user never touched submits the stored value byte for byte, while Remove
+  // submits the empty string exactly — the only two ways a trimmed-empty
+  // submission arises, and they mean opposite things once the stored value is a
+  // legacy one that is nothing but whitespace. Trimming before telling them
+  // apart made a save that never touched the image silently write null over it.
+  if (currentValue && value === currentValue) {
+    return { valid: true, value: undefined }
+  }
+
+  // Then an empty submission is ALWAYS a clear. A whitespace-only stored value
+  // is truthy but trims to '', so ordered after the trimmed match below it
+  // would swallow the empty submission Remove sends and leave the one control
+  // that can clear such a row a silent no-op — the field is read-only, and
+  // nothing else writes it.
   if (trimmed === '') return { valid: true, value: null }
 
   // It gives away nothing: a NEW value still has to pass, and clearing still

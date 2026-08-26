@@ -149,6 +149,31 @@ describe('parseProfileImageUrl', () => {
       })
     })
 
+    it('matches when the submission is the side carrying whitespace', () => {
+      // This does NOT guard the `currentValue.trim()` on the comparison's
+      // right-hand side — the submitted value has been trimmed since long
+      // before that — which is why it was once deleted as redundant. What it
+      // guards is the LEFT-hand side reading `trimmed` rather than the raw
+      // `value`: that mutation survives every other test in this file, and
+      // refuses a padded resubmission of a stored value as though it were a
+      // new remote URL, 422-ing the whole settings form.
+      expect(parseProfileImageUrl(`  ${STALE}  `, config, STALE)).toEqual({
+        valid: true,
+        value: undefined
+      })
+    })
+
+    it('leaves a whitespace-only stored value alone when the field is untouched', () => {
+      // An untouched field echoes the stored value byte for byte. Trimming
+      // before distinguishing that from Remove's literal empty string made a
+      // save that never touched the image write null over it — an unrequested
+      // write on an unrelated form submission.
+      expect(parseProfileImageUrl('   ', config, '   ')).toEqual({
+        valid: true,
+        value: undefined
+      })
+    })
+
     it('clears a stored value that is only whitespace', () => {
       // Such a value is truthy but trims to '', so it collides with the empty
       // submission Remove sends. Read as "unchanged", the one control that can
