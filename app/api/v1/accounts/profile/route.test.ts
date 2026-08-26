@@ -262,11 +262,29 @@ describe('POST /api/v1/accounts/profile', () => {
       )
     })
 
-    it('updates the post line limit', async () => {
-      await post({ postLineLimit: '10' })
+    it.each([
+      { description: '10 lines', submitted: '10', expected: 10 },
+      // "No limit" is a real option in the select, and it is the one valid
+      // value that is falsy — a truthiness guard on the raw string silently
+      // stops persisting it.
+      { description: 'no limit', submitted: '0', expected: 0 }
+    ])(
+      'updates the post line limit to $description',
+      async ({ submitted, expected }) => {
+        await post({ postLineLimit: submitted })
 
-      expect(mockDatabase.updateActor).toHaveBeenCalledWith(
-        expect.objectContaining({ postLineLimit: 10 })
+        expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+          expect.objectContaining({ postLineLimit: expected })
+        )
+      }
+    )
+
+    it('redirects back to the settings page it was submitted from', async () => {
+      const response = await post({ name: 'New name' })
+
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe(
+        'https://llun.test/settings'
       )
     })
   })

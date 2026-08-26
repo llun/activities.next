@@ -67,11 +67,32 @@ describe('POST /api/v1/accounts/image', () => {
   it('stores a media URL this instance serves', async () => {
     const response = await post({ iconUrl: MEDIA_URL })
 
+    expect(response.status).toBe(303)
     expect(response.headers.get('location')).toBe('https://llun.test/account')
     expect(mockDatabase.updateAccountImage).toHaveBeenCalledWith({
       accountId: 'account-1',
       iconUrl: MEDIA_URL
     })
+  })
+
+  it('refuses a file uploaded into the URL field', async () => {
+    // `formData.get` answers `string | File | null`, and this route parses the
+    // body itself rather than through Zod, so the non-string case is refused
+    // here or it reaches the validator as an object.
+    const form = new FormData()
+    form.append('iconUrl', new File(['x'], 'avatar.png', { type: 'image/png' }))
+    const req = new NextRequest('https://llun.test/api/v1/accounts/image', {
+      method: 'POST',
+      headers: { origin: 'https://llun.test' },
+      body: form
+    })
+
+    const response = await POST(req, { params: Promise.resolve({}) })
+
+    expect(response.headers.get('location')).toBe(
+      'https://llun.test/account?error=Invalid+image+URL'
+    )
+    expect(mockDatabase.updateAccountImage).not.toHaveBeenCalled()
   })
 
   it.each([
