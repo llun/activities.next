@@ -163,6 +163,26 @@ describe('parseProfileImageUrl', () => {
       })
     })
 
+    it.each([
+      { description: 'null', stored: null },
+      { description: 'undefined', stored: undefined }
+    ])(
+      'validates a new submission when the stored value is $description',
+      ({ stored }) => {
+        // `accounts.iconUrl` is a nullable column and the domain type carries the
+        // DB's `null` through, so this is the state of every account that has
+        // never set an avatar — the most common path through the image route.
+        // Guarding on `currentValue !== undefined` instead of truthiness would
+        // reach `.trim()` on that null and 500 the first upload.
+        expect(
+          parseProfileImageUrl(MEDIA_URL_PREFIX + 'abc.jpg', config, stored)
+        ).toEqual({
+          valid: true,
+          value: MEDIA_URL_PREFIX + 'abc.jpg'
+        })
+      }
+    )
+
     it('leaves a whitespace-only stored value alone when the field is untouched', () => {
       // An untouched field echoes the stored value byte for byte. Trimming
       // before distinguishing that from Remove's literal empty string made a
@@ -226,6 +246,20 @@ describe('parseProfileImageUrl', () => {
       },
       { description: 'a file: URL', value: 'file:///etc/passwd' },
       { description: 'an ftp: URL', value: 'ftp://llun.test/a.jpg' },
+      // These are the cases that pin the protocol allowlist ON ITS OWN. Every
+      // other scheme case above also fails the host or path check, so deleting
+      // the allowlist entirely leaves them all passing — `new URL` gives ftp:
+      // and ws: a real authority, unlike javascript: or data:, so one carrying
+      // our own host and a media-shaped path sails through
+      // `getMediaPathFromFileUrl` unopposed.
+      {
+        description: 'an ftp: URL that is otherwise one of ours',
+        value: 'ftp://llun.test/api/v1/files/abc.jpg'
+      },
+      {
+        description: 'a ws: URL that is otherwise one of ours',
+        value: 'ws://llun.test/api/v1/files/abc.jpg'
+      },
       // The whole point of the host check: every other activities.next
       // instance serves its attachments under this exact path.
       {

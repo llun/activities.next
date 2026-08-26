@@ -78,10 +78,13 @@ export const parseProfileImageUrl = (
   //
   // An EXACT echo is decided first, before anything is trimmed. A field the
   // user never touched submits the stored value byte for byte, while Remove
-  // submits the empty string exactly — the only two ways a trimmed-empty
-  // submission arises, and they mean opposite things once the stored value is a
-  // legacy one that is nothing but whitespace. Trimming before telling them
-  // apart made a save that never touched the image silently write null over it.
+  // submits the empty string exactly — the two ways the settings form produces
+  // a trimmed-empty submission, and they mean opposite things once the stored
+  // value is a legacy one that is nothing but whitespace. Trimming before
+  // telling them apart made a save that never touched the image silently write
+  // null over it. Any OTHER whitespace-only submission — a tab, a newline, a
+  // different run of spaces — is not a provable echo and clears below, which is
+  // the conservative reading.
   if (currentValue && value === currentValue) {
     return { valid: true, value: undefined }
   }
