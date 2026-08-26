@@ -1,0 +1,34 @@
+lib/components/posts/BlurhashCanvas.test.tsx
+  s_a3b90525842071::t_d23259948cf0be 10-17,62-63
+lib/jobs/createNoteJob.test.ts
+  s_a3b90525842071::t_faf9c3665d4b63 1,1386-1423
+  s_a3b90525842071::t_f74798bddc4ac9 1424
+lib/services/medias/imageAnalysis.ts
+  s_a3b90525842071::t_af1ba490017350 21-27,30-40,45,53,57-58,60-61
+lib/jobs/createNoteJob.ts
+  s_a3b90525842071::t_0bdccfeeb31f65 19,224-227
+lib/services/medias/imageAnalysis.test.ts
+  s_a3b90525842071::t_76a1949daeacb3 1,9,13-22,26-30,33-40,46,76,81,87-91,106-119,125-128,134,154,167,245
+  s_a3b90525842071::t_3cd901d7094b68 41-45,47-51,98-101,120-124,129-133,135-136
+  s_a3b90525842071::t_9770399235746c 52
+lib/components/posts/media.test.tsx
+  s_a3b90525842071::t_3cd901d7094b68 137-169
+  s_a3b90525842071::t_553da7564bce8a 6,33-40,110-117,135
+  s_a3b90525842071::t_43ce56d6ef54f0 136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "9f516bf7d9924f86de0f8e664f5ff9a6527a53e6",
+  "prompts": {},
+  "sessions": {
+    "s_a3b90525842071": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "029eb1cf-00b7-4f56-b1d3-679cd6f1e78c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
