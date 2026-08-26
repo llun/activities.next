@@ -509,6 +509,19 @@ attachment ref guard` is exactly that: it passed with the bug present until
   (`medias/thumbnailInput` validates a supplied thumbnail; `medias/fileName`
   handles supplied names), and a change to one driver's `saveFile` needs the
   matching test in **both** `localFile.test.ts` and `S3StorageFile.test.ts`.
+- **A `/api/v1/files/` URL is only ours if its HOST says so — parse it with
+  `getMediaPathFromFileUrl` (`lib/services/medias/mediaFileUrl`), never a bare
+  path prefix check.** That route is this project's own, so every other
+  activities.next instance serves its attachment URLs under exactly the same
+  path. Matching on the path alone reads a remote instance's URL as a local
+  storage path, which then misses in storage and — where the caller treats
+  "not local" as "fetch it over HTTP instead" — skips the branch that would
+  have retrieved the file correctly. The host question itself is
+  `isOwnInstanceHost` (`lib/utils/host`), which covers `ACTIVITIES_TRUSTED_HOSTS`
+  (a multi-domain instance mints media URLs on the OWNING actor's domain) and
+  loopback development hosts, which `isHostTrustedByRules` alone rejects.
+  `getAttachmentMediaPath` is not this check: it never returns null and is for
+  URLs this instance just produced.
 - **A stored file with no `medias` row is unreachable**, so whatever fails
   after a write must reclaim it — only `scripts/maintenance/cleanupMediaStorage.ts`
   can find it otherwise. Equally, do not report a storage failure as a
