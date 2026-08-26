@@ -14,11 +14,16 @@ export type ServedDomain = {
 // be a chooser option.
 const toHostname = (value: string): string | null => {
   const trimmed = value.trim()
-  if (!trimmed || trimmed.includes('*')) return null
+  if (!trimmed) return null
   try {
     const url = new URL(
       trimmed.includes('://') ? trimmed : `https://${trimmed}`
     )
+    // Checked on the PARSED hostname, not the raw value: the parser percent
+    // decodes the authority and applies IDNA mapping, so `%2aexample.com` and
+    // a fullwidth `＊example.com` only become a `*` here — a raw check let
+    // both through as concrete-looking domains.
+    if (url.hostname.includes('*')) return null
     return url.hostname.replace(/\.$/, '') || null
   } catch {
     return null

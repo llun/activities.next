@@ -133,10 +133,15 @@ const isOwnAuthority = (
   // `https://*.<trusted-domain>/api/v1/files/<path>` match the rule's own
   // spelling and read an attacker-chosen path straight out of local storage.
   const candidate = authority.trim().toLowerCase()
-  if (!candidate || candidate.startsWith('*.')) return false
+  // `includes`, not `startsWith('*.')`: a rule is only a wildcard in the
+  // documented `*.example.com` spelling, so `*example.com`, `cdn.*` and
+  // `foo.*.example.com` reach here as LITERAL rules carrying a `*` — and
+  // `new URL()` percent-decodes `%2a` in an authority, so a federated
+  // attachment URL can spell one exactly and be read out of local storage.
+  if (!candidate || candidate.includes('*')) return false
   return ownHostRules.some((rule) => {
     const normalizedRule = rule.trim().toLowerCase()
-    return !normalizedRule.startsWith('*.') && normalizedRule === candidate
+    return !normalizedRule.includes('*') && normalizedRule === candidate
   })
 }
 

@@ -229,6 +229,14 @@ describe('getMediaPathFromFileUrl', () => {
       description: 'a path carrying a NUL byte',
       url: 'https://llun.test/api/v1/files/ab%00.webp',
       expected: null
+    },
+    // A wildcard trusted-host rule is not a literal authority. `new URL()`
+    // accepts `*` in a host, so comparing the rule against itself let a URL
+    // spelling it pass as ours.
+    {
+      description: 'a URL whose authority is spelled as the wildcard rule',
+      url: 'https://*.cdn.llun.test/api/v1/files/ab/cd.webp',
+      expected: null
     }
   ])('$description', ({ url, expected }) => {
     expect(getMediaPathFromFileUrl(url, config)).toBe(expected)

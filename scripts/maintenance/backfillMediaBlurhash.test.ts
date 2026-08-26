@@ -250,6 +250,19 @@ describe('getLocalStoragePath', () => {
     expect(getLocalStoragePath(url, HOSTS.ownHostRules)).toBeNull()
   })
 
+  // Only `*.example.com` is a wildcard. Every other spelling reaches
+  // `isOwnAuthority` as a LITERAL rule carrying a `*`, and `new URL()`
+  // percent-decodes `%2a`, so a federated attachment URL could spell one
+  // exactly and have this sweep read the named path out of local storage.
+  it.each([
+    { description: 'a wildcard missing its dot', rule: '*cdn.llun.test' },
+    { description: 'a trailing wildcard label', rule: 'cdn.*' },
+    { description: 'a wildcard in the middle', rule: 'foo.*.cdn.llun.test' }
+  ])('refuses an authority spelled as $description', ({ rule }) => {
+    const url = `https://${rule.replaceAll('*', '%2a')}/api/v1/files/media/a.webp`
+    expect(getLocalStoragePath(url, ['llun.test', rule])).toBeNull()
+  })
+
   it('returns null for the same path on a remote instance', () => {
     expect(
       getLocalStoragePath(
