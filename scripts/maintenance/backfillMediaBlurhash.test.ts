@@ -976,8 +976,7 @@ describe('backfillMediaBlurhash execution', () => {
   // pinning either needs two rows OF THE SAME CAUSE spread over two batches.
   // Two rows with different causes does not do it: each counter only ever
   // reaches one, so collapsing the warning to one call per cause suppresses
-  // nothing and the mutation passes — which is exactly what happened to the
-  // first version of this test.
+  // nothing and the mutation passes.
   it.each([
     {
       description: 'a deleted media row',
