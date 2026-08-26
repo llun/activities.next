@@ -8,13 +8,16 @@ import {
 
 // getContentSecurityPolicy and getProxyHostConfig each memoize, so a test that
 // changes ACTIVITIES_HOST must clear BOTH caches to observe the effect.
-const getDirectiveSources = (name: string) =>
-  getContentSecurityPolicy()
+const getSourcesFrom = (policy: string, name: string) =>
+  policy
     .split(';')
     .map((directive) => directive.trim())
     .find((directive) => directive.startsWith(`${name} `))
     ?.split(/\s+/)
     .slice(1) ?? []
+
+const getDirectiveSources = (name: string) =>
+  getSourcesFrom(getContentSecurityPolicy(), name)
 
 const getImageSources = () => getDirectiveSources('img-src')
 
@@ -84,12 +87,7 @@ describe('getContentSecurityPolicy map providers', () => {
   })
 
   const getEmbedDirectiveSources = (name: string) =>
-    getEmbedContentSecurityPolicy()
-      .split(';')
-      .map((directive) => directive.trim())
-      .find((directive) => directive.startsWith(`${name} `))
-      ?.split(/\s+/)
-      .slice(1) ?? []
+    getSourcesFrom(getEmbedContentSecurityPolicy(), name)
 
   it('allows the keyless MapLibre + OpenFreeMap sources when no Mapbox token is set', () => {
     resetContentSecurityPolicyCacheForTests()
@@ -172,8 +170,92 @@ describe('getContentSecurityPolicy map providers', () => {
       expect(getSources('connect-src')).not.toContain('https://api.mapbox.com')
     }
 
-    expect(getContentSecurityPolicy()).not.toContain('frame-src')
+    // No map provider adds a framing source: the only origin this app frames
+    // is the fixed YouTube player host, and workers stay on worker-src.
+    expect(getDirectiveSources('frame-src')).toEqual([
+      'https://www.youtube-nocookie.com'
+    ])
     expect(getContentSecurityPolicy()).not.toContain('child-src')
+  })
+})
+
+describe('getContentSecurityPolicy frame-src', () => {
+  beforeEach(() => {
+    resetContentSecurityPolicyCacheForTests()
+  })
+
+  afterEach(() => {
+    resetContentSecurityPolicyCacheForTests()
+  })
+
+  const getFrameSources = (policy: string) =>
+    getSourcesFrom(policy, 'frame-src')
+
+  // The click-to-play player in a link preview card is the only frame this app
+  // renders, and it is always built on the cookie-light host — so that one
+  // origin is the whole directive. `'self'` is deliberately absent: nothing in
+  // the app frames itself.
+  it('allows only the YouTube player host', () => {
+    expect(getFrameSources(getContentSecurityPolicy())).toEqual([
+      'https://www.youtube-nocookie.com'
+    ])
+  })
+
+  it('allows the same single host for the embed policy', () => {
+    expect(getFrameSources(getEmbedContentSecurityPolicy())).toEqual([
+      'https://www.youtube-nocookie.com'
+    ])
+  })
+
+  // frame-src is the directive that governs frames; child-src is its obsolete
+  // fallback and adding it would only widen what worker-src already answers.
+  it('does not fall back to child-src', () => {
+    expect(getContentSecurityPolicy()).not.toContain('child-src')
+    expect(getEmbedContentSecurityPolicy()).not.toContain('child-src')
+  })
+})
+
+describe('getContentSecurityPolicy img-src youtube poster', () => {
+  const originalRemoteMediaDomains =
+    process.env.ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS
+
+  beforeEach(() => {
+    resetContentSecurityPolicyCacheForTests()
+  })
+
+  afterEach(() => {
+    if (originalRemoteMediaDomains === undefined) {
+      delete process.env.ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS
+    } else {
+      process.env.ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS =
+        originalRemoteMediaDomains
+    }
+    resetContentSecurityPolicyCacheForTests()
+  })
+
+  it('allows the poster host by default', () => {
+    expect(getImageSources()).toContain('https://i.ytimg.com')
+  })
+
+  // The poster is not federated media an operator is choosing to trust — it is
+  // a fixed host belonging to a first-party feature — so narrowing the remote
+  // media allowlist must not blank the thumbnail of every video card.
+  it.each([
+    {
+      description: 'keeps the poster host when remote media is fully blocked',
+      allowRemoteMediaDomains: '[]'
+    },
+    {
+      description: 'keeps the poster host when remote media is narrowed',
+      allowRemoteMediaDomains: JSON.stringify(['remote-cdn.example.com'])
+    }
+  ])('$description', ({ allowRemoteMediaDomains }) => {
+    process.env.ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS = allowRemoteMediaDomains
+    resetContentSecurityPolicyCacheForTests()
+
+    const imageSources = getImageSources()
+    expect(imageSources).toContain('https://i.ytimg.com')
+    expect(imageSources).not.toContain('https:')
   })
 })
 

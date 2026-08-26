@@ -118,7 +118,10 @@ product or security decision, not a gap to be closed.
   in `Status.card`. Two fields are always empty, deliberately: `html` and
   `embed_url` (this server does not consume oEmbed, and emitting remote-authored
   markup for clients to inject buys nothing), and `blurhash` is null because
-  thumbnails are served from the origin rather than stored locally. A boost
+  thumbnails are served from the origin rather than stored locally. The
+  first-party web UI's YouTube player is no exception to that: it derives its
+  embed URL in the browser from `card.url`, so a client reading these two fields
+  still sees them empty. A boost
   (`reblog`) carries `card: null` at the top level; the card is on the wrapped
   status. Fetching can be turned off entirely by an admin under
   Admin → Network → Link previews, in which case `card` stays null for new
