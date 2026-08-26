@@ -231,6 +231,20 @@ describe('getLocalStoragePath', () => {
     {
       description: 'rejects a host-relative traversal',
       url: '/api/v1/files/../../../../etc/passwd'
+    },
+    // The traversal rule is shared with `getMediaPathFromFileUrl`, so this
+    // sweep refuses the Windows spellings its own copy used to let through.
+    {
+      description: 'rejects an encoded-backslash traversal',
+      url: 'https://llun.test/api/v1/files/..%5c..%5csecrets'
+    },
+    {
+      description: 'rejects a Windows drive-letter path',
+      url: 'https://llun.test/api/v1/files/C:%5CWindows%5Cwin.ini'
+    },
+    {
+      description: 'rejects a path carrying a NUL byte',
+      url: 'https://llun.test/api/v1/files/ab%00.webp'
     }
   ])('$description', ({ url }) => {
     expect(getLocalStoragePath(url, HOSTS.ownHostRules)).toBeNull()

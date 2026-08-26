@@ -15,6 +15,7 @@ import {
   buildExportActivity,
   buildFollowersCsv,
   buildFollowingCsv,
+  copyProfileImage,
   createOrderedCollectionWriter,
   csvEscape,
   forEachActorStatus,
@@ -291,6 +292,127 @@ describe('registerAttachmentUrl', () => {
       ])
     }
   )
+})
+
+describe('copyProfileImage', () => {
+  // The archive root sits inside a wider temp root so a traversal out of it
+  // has somewhere real to land: `media_attachments/files` is two levels below
+  // the staging directory, so `../../../secrets/env` resolves to a file the
+  // archive must never contain.
+  const withArchiveRoot = async (
+    run: (paths: { stagingDir: string; secretPath: string }) => Promise<void>
+  ) => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'actor-archive-profile-test-')
+    )
+    const stagingDir = path.join(root, 'staging')
+    const secretPath = path.join(root, 'secrets', 'env')
+
+    try {
+      await fs.mkdir(stagingDir, { recursive: true })
+      await fs.mkdir(path.dirname(secretPath), { recursive: true })
+      await fs.writeFile(secretPath, 'ACTIVITIES_SECRET=hunter2')
+      await run({ stagingDir, secretPath })
+    } finally {
+      await fs.rm(root, { force: true, recursive: true })
+    }
+  }
+
+  it('copies a profile image stored inside the archive media directory', async () => {
+    await withArchiveRoot(async ({ stagingDir }) => {
+      const source = path.join(stagingDir, getArchiveMediaPath('ab/cd.webp'))
+      await fs.mkdir(path.dirname(source), { recursive: true })
+      await fs.writeFile(source, 'avatar-bytes')
+
+      const warnings: string[] = []
+      const fileName = await copyProfileImage({
+        stagingDir,
+        storagePath: 'ab/cd.webp',
+        fileNamePrefix: 'avatar',
+        warnings
+      })
+
+      expect(fileName).toBe('avatar.webp')
+      expect(
+        await fs.readFile(path.join(stagingDir, 'avatar.webp'), 'utf-8')
+      ).toBe('avatar-bytes')
+      expect(warnings).toEqual([])
+    })
+  })
+
+  // `getMediaPathFromFileUrl` refuses a `..` segment before one can reach
+  // here, but this is the step that turns a stored path into a file read off
+  // the operator's machine, so it answers the question for itself.
+  it.each([
+    {
+      description: 'traverses out of the media dir',
+      buildStoragePath: () => '../../../secrets/env'
+    },
+    {
+      description: 'is exactly one level up',
+      buildStoragePath: () => '..'
+    },
+    {
+      description: 'is absolute and outside',
+      buildStoragePath: (secretPath: string) => secretPath
+    }
+  ])(
+    'refuses a profile image whose stored path $description',
+    async ({ buildStoragePath }) => {
+      await withArchiveRoot(async ({ stagingDir, secretPath }) => {
+        const storagePath = buildStoragePath(secretPath)
+        const warnings: string[] = []
+
+        const fileName = await copyProfileImage({
+          stagingDir,
+          storagePath,
+          fileNamePrefix: 'avatar',
+          warnings
+        })
+
+        expect(fileName).toBeNull()
+        expect(warnings).toEqual([
+          `Refused avatar image path outside the archive media directory: ${storagePath}`
+        ])
+        // The assertion that matters: the secret was not read into the archive
+        // under the `.bin` fallback name an extension-less path produces.
+        await expect(
+          fs.readFile(path.join(stagingDir, 'avatar.bin'), 'utf-8')
+        ).rejects.toThrow()
+      })
+    }
+  )
+
+  it('warns without copying when the stored path names no file', async () => {
+    await withArchiveRoot(async ({ stagingDir }) => {
+      const warnings: string[] = []
+
+      const fileName = await copyProfileImage({
+        stagingDir,
+        storagePath: 'ab/missing.webp',
+        fileNamePrefix: 'header',
+        warnings
+      })
+
+      expect(fileName).toBeNull()
+      expect(warnings).toEqual([
+        'Could not copy header image from storage: ab/missing.webp'
+      ])
+    })
+  })
+
+  it('returns null without warning when there is no stored path', async () => {
+    const warnings: string[] = []
+    expect(
+      await copyProfileImage({
+        stagingDir: '/nonexistent',
+        storagePath: null,
+        fileNamePrefix: 'avatar',
+        warnings
+      })
+    ).toBeNull()
+    expect(warnings).toEqual([])
+  })
 })
 
 describe('getArchiveMediaPath / getArchiveFitnessPath', () => {
