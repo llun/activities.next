@@ -222,6 +222,79 @@ describe('registerAttachmentUrl', () => {
       await fs.rm(dir, { force: true, recursive: true })
     }
   })
+
+  it('does not re-register a URL already resolved to an archive path', async () => {
+    // `mediaPaths`/`mediaIds` are Sets, so adding the same value twice is
+    // invisible either way — use a different `mediaId` per call so a second,
+    // non-memoized registration would show up as a second Set entry.
+    const url = 'https://example.test/api/v1/files/ab/cd.webp'
+    const mediaPaths = new Set<string>()
+    const mediaIds = new Set<string>()
+    const urlToArchivePath = new Map<string, string>()
+    const warnings: string[] = []
+
+    await registerAttachmentUrl({
+      attachment: buildAttachment({ url, mediaId: 'media-1' }),
+      fetchRemoteAttachments: false,
+      hostConfig,
+      mediaPaths,
+      mediaIds,
+      urlToArchivePath,
+      stagingDir: '/nonexistent',
+      warnings
+    })
+    await registerAttachmentUrl({
+      attachment: buildAttachment({ url, mediaId: 'media-2' }),
+      fetchRemoteAttachments: false,
+      hostConfig,
+      mediaPaths,
+      mediaIds,
+      urlToArchivePath,
+      stagingDir: '/nonexistent',
+      warnings
+    })
+
+    expect([...mediaIds]).toEqual(['media-1'])
+    expect([...mediaPaths]).toEqual(['ab/cd.webp'])
+    expect(warnings).toEqual([])
+  })
+
+  it.each([
+    {
+      description: 'a non-OK HTTP response',
+      setupMock: () => fetchMock.mockResponseOnce('', { status: 404 }),
+      expectedMessage: 'HTTP 404'
+    },
+    {
+      description: 'a rejected fetch',
+      setupMock: () => fetchMock.mockRejectOnce(new Error('network fail')),
+      expectedMessage: 'network fail'
+    }
+  ])(
+    'warns and leaves no archive path when fetching a remote attachment fails on $description',
+    async ({ setupMock, expectedMessage }) => {
+      const url = 'https://other.example/api/v1/files/ab/cd.webp'
+
+      fetchMock.doMock()
+      setupMock()
+
+      try {
+        const { mediaPaths, urlToArchivePath, warnings } = await runRegister({
+          attachment: buildAttachment({ url }),
+          fetchRemoteAttachments: true
+        })
+
+        expect([...mediaPaths]).toEqual([])
+        expect(urlToArchivePath.has(url)).toBe(false)
+        expect(warnings).toEqual([
+          `Failed to fetch remote attachment ${url}: ${expectedMessage}`
+        ])
+      } finally {
+        fetchMock.resetMocks()
+        fetchMock.dontMock()
+      }
+    }
+  )
 })
 
 describe('getArchiveMediaPath / getArchiveFitnessPath', () => {

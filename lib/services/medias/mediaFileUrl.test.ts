@@ -89,6 +89,11 @@ describe('getMediaPathFromFileUrl', () => {
       expected: null
     },
     {
+      description: 'a foreign host carrying a path that is not the media route',
+      url: 'https://other.example/some/path.jpg',
+      expected: null
+    },
+    {
       description: 'a host that only shares a suffix with a trusted host',
       url: 'https://evil-llun.test/api/v1/files/ab/cd.webp',
       expected: null
