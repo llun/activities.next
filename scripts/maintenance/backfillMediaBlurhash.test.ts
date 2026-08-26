@@ -812,20 +812,34 @@ describe('backfillMediaBlurhash execution', () => {
   // rebuild is the media block's alone, so a host-relative value stays
   // host-relative and the row is re-selected by every later run. Before this
   // warning the operator saw only "processed 1, updated 0".
+  //
+  // The two causes are counted SEPARATELY on purpose. A deleted media row is
+  // the expected residue of an owner deleting their own media; a `mediaId` that
+  // was never a row id is a bad write (`createAttachment` does not validate it,
+  // and `POST /api/v1/accounts/outbox` reaches it unvalidated) and is worth
+  // investigating. Summing them would tell an operator to ignore the second.
   it.each([
     {
       description: 'a mediaId whose media row is gone',
       mediaId: '404',
-      expectedWarning: 'media 404 no longer exists'
+      expectedWarning: 'media 404 no longer exists',
+      expectedSummary:
+        'Attachments complete: processed 1, updated 0, 1 whose media row is gone, 0 with an invalid mediaId'
     },
     {
+      // Reachable on SQLite only: `attachments.mediaId` is `integer` on
+      // PostgreSQL, so this INSERT fails there before the branch is reached.
+      // This file builds its own `better-sqlite3` database, so no
+      // `TEST_DATABASE_TYPE` setting exercises the PostgreSQL side.
       description: 'a mediaId that is not a row id',
       mediaId: 'abc',
-      expectedWarning: 'mediaId "abc" is not a media row id'
+      expectedWarning: 'mediaId "abc" is not a media row id',
+      expectedSummary:
+        'Attachments complete: processed 1, updated 0, 0 whose media row is gone, 1 with an invalid mediaId'
     }
   ])(
     'warns and counts an attachment with $description',
-    async ({ mediaId, expectedWarning }) => {
+    async ({ mediaId, expectedWarning, expectedSummary }) => {
       await db('attachments').insert({
         id: 'att-1',
         statusId: 'status-1',
@@ -845,9 +859,7 @@ describe('backfillMediaBlurhash execution', () => {
       expect(console.warn).toHaveBeenCalledWith(
         expect.stringContaining(expectedWarning)
       )
-      expect(console.log).toHaveBeenCalledWith(
-        'Attachments complete: processed 1, updated 0, 1 with an unresolvable mediaId'
-      )
+      expect(console.log).toHaveBeenCalledWith(expectedSummary)
 
       // The warning is not redundant with an update: the row really is left as
       // it was, host-relative thumbnailUrl and all.
@@ -858,10 +870,47 @@ describe('backfillMediaBlurhash execution', () => {
     }
   )
 
+  // The counts do NOT partition `processed`. A row whose `mediaId` resolves to
+  // nothing can still be repaired from its own image bytes, which is the norm
+  // for an invalid `mediaId` because nothing was ever deleted — the file behind
+  // `url` is still there. Pinned so the overlap reads as intended rather than
+  // being rediscovered as a bug, and so nobody "fixes" the summary into a
+  // partition it was never meant to be.
+  it('counts a warned attachment that the analysis step still repairs', async () => {
+    vi.mocked(analyzeImageBuffer).mockResolvedValue({
+      blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4',
+      focus: null
+    })
+
+    await db('attachments').insert({
+      id: 'att-1',
+      statusId: 'status-1',
+      actorId: 'https://llun.test/users/test',
+      mediaId: 'abc',
+      mediaType: 'image/jpeg',
+      url: 'https://llun.test/api/v1/files/medias/orig.jpg',
+      blurhash: null
+    })
+
+    const mockStorage = {
+      getFile: vi
+        .fn()
+        .mockResolvedValue({ type: 'buffer', buffer: Buffer.from('image') })
+    } as never
+    await backfillAttachments(db, mockStorage, options(), HOSTS)
+
+    expect(console.log).toHaveBeenCalledWith(
+      'Attachments complete: processed 1, updated 1, 0 whose media row is gone, 1 with an invalid mediaId'
+    )
+
+    const repaired = await db('attachments').where('id', 'att-1').first()
+    expect(repaired.blurhash).toBe('L6PZfSi_.AyE_3t7t7R**0o#DgR4')
+  })
+
   // A NULL `mediaId` is how a federated attachment is stored — there is no
-  // media row to miss — so the count has to stay at zero or every remote
+  // media row to miss — so both counts have to stay at zero or every remote
   // attachment on the instance reads as a gap.
-  it('counts no unresolvable mediaId for a federated attachment', async () => {
+  it('counts neither cause for a federated attachment', async () => {
     await db('attachments').insert({
       id: 'att-1',
       statusId: 'status-1',
@@ -876,7 +925,7 @@ describe('backfillMediaBlurhash execution', () => {
     await backfillAttachments(db, mockStorage, options({ force: true }), HOSTS)
 
     expect(console.log).toHaveBeenCalledWith(
-      'Attachments complete: processed 1, updated 0, 0 with an unresolvable mediaId'
+      'Attachments complete: processed 1, updated 0, 0 whose media row is gone, 0 with an invalid mediaId'
     )
   })
 

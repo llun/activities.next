@@ -451,7 +451,13 @@ export const backfillAttachments = async (
   let lastId = ''
   let totalProcessed = 0
   let totalUpdated = 0
-  let totalUnresolvedMedia = 0
+  // Two different reasons a `mediaId` resolves to nothing, deliberately NOT
+  // summed: one is the expected residue of an owner deleting their own media,
+  // the other is a pointer that was never valid. They call for opposite
+  // responses, so an operator has to be able to tell them apart from the
+  // summary line alone.
+  let totalDeletedMedia = 0
+  let totalInvalidMediaId = 0
 
   while (true) {
     let query = db('attachments')
@@ -543,22 +549,34 @@ export const backfillAttachments = async (
               media.thumbnail
             )
           }
+        } else if (rowId === undefined) {
+          // `toMediaRowId` refused the value, so it never named a row at all.
+          // Nothing was deleted here — this is a bad WRITE, and the repo has a
+          // known path for one: `createAttachment` does not validate `mediaId`
+          // (deliberately, so a bad id surfaces rather than being dropped) and
+          // `POST /api/v1/accounts/outbox` reaches it with an unvalidated
+          // `PostBoxAttachment.id`. On PostgreSQL that insert fails, because
+          // `attachments.mediaId` is `integer`; on SQLite it is `varchar` and
+          // the row lands. So this count is worth investigating, which is
+          // exactly why it is not summed with the one below.
+          totalInvalidMediaId += 1
+          console.warn(
+            `[attachments ${row.id}] mediaId ${JSON.stringify(row.mediaId)} is not a media row id; cannot restore blurhash, focus or thumbnailUrl from it`
+          )
         } else {
-          // The row names a media row that cannot be read, so every field this
-          // block would have copied is unreachable — and `thumbnailUrl` has no
-          // other source at all, because rebuilding it needs the media row's
-          // stored thumbnail path. Deleting a `medias` row does not clear the
+          // A real row id whose `medias` row is gone. Every field this block
+          // would have copied is unreachable, and `thumbnailUrl` has no other
+          // source at all, because rebuilding it needs the media row's stored
+          // thumbnail path. Deleting a `medias` row does not clear the
           // `attachments.mediaId` pointing at it (nor should it: a null
           // `mediaId` marks a federated attachment, and `updateNote` uses that
           // to decide an attachment is not the owner's to replace), so these
           // rows are permanent. Without this they were invisible: counted in
-          // `processed`, absent from `updated`, re-selected by every later run
-          // — a sweep reporting "processed N, updated 0" and no reason why.
-          totalUnresolvedMedia += 1
+          // `processed`, re-selected by every later run — a sweep reporting
+          // "processed N, updated 0" and no reason why.
+          totalDeletedMedia += 1
           console.warn(
-            rowId === undefined
-              ? `[attachments ${row.id}] mediaId ${JSON.stringify(row.mediaId)} is not a media row id; cannot restore blurhash, focus or thumbnailUrl from it`
-              : `[attachments ${row.id}] media ${row.mediaId} no longer exists; cannot restore blurhash, focus or thumbnailUrl from it`
+            `[attachments ${row.id}] media ${row.mediaId} no longer exists; cannot restore blurhash, focus or thumbnailUrl from it`
           )
         }
       }
@@ -634,11 +652,13 @@ export const backfillAttachments = async (
     }
   }
 
-  // The unresolved count is printed even when it is zero: the line exists to
-  // explain a run that updated nothing, and a `0` rules this cause out just as
-  // usefully as a non-zero value names it.
+  // Both counts are printed even when zero: the line exists to explain a run
+  // that updated nothing, and a `0` rules a cause out just as usefully as a
+  // non-zero value names it. They do NOT partition `processed` — a row counted
+  // here can still be updated from its own image bytes by the analysis step,
+  // which is common for an invalid `mediaId`, where nothing was ever deleted.
   console.log(
-    `Attachments complete: processed ${totalProcessed}, updated ${totalUpdated}, ${totalUnresolvedMedia} with an unresolvable mediaId`
+    `Attachments complete: processed ${totalProcessed}, updated ${totalUpdated}, ${totalDeletedMedia} whose media row is gone, ${totalInvalidMediaId} with an invalid mediaId`
   )
 }
 
