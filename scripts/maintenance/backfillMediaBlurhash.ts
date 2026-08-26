@@ -43,6 +43,11 @@ loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
 // one of THIS instance's hosts names a stored path (see `getMediaFileUrl`).
 const MEDIA_FILE_URL_PATH = '/api/v1/files/'
 
+// Only ever used to resolve a host-relative URL; a resolved URL that still
+// carries this authority is one that brought none of its own.
+const PLACEHOLDER_HOST = 'placeholder.invalid'
+const PLACEHOLDER_ORIGIN = `https://${PLACEHOLDER_HOST}`
+
 // Bounds each download's whole exchange, body stream included;
 // `readResponseArrayBufferWithLimit` bounds how much of it is kept.
 const REMOTE_IMAGE_TIMEOUT_MS = 10_000
@@ -193,12 +198,18 @@ const getOwnPathname = (
 ): string | null => {
   // A host-relative URL can only be served by this instance. Resolve it against
   // a placeholder origin so `..` segments are normalised away exactly as they
-  // are on the absolute branch — reading it as a raw string was not. A
-  // PROTOCOL-relative `//host/...` is excluded: it carries its own authority,
-  // which the placeholder origin would silently discard.
-  if (rawUrl.startsWith('/') && !rawUrl.startsWith('//')) {
+  // are on the absolute branch — reading it as a raw string was not.
+  //
+  // Whether it kept that origin is what decides it, NOT the leading characters:
+  // a raw `!startsWith('//')` test is defeated because the WHATWG parser grows
+  // an authority out of inputs that do not begin with `//` — it reads `\` as
+  // `/` for a special scheme, and strips tab, LF and CR from the input before
+  // parsing at all, so `/\evil.example/…` and `/<TAB>/evil.example/…` are both
+  // protocol-relative.
+  if (rawUrl.startsWith('/')) {
     try {
-      return new URL(rawUrl, 'https://placeholder.invalid').pathname
+      const resolved = new URL(rawUrl, PLACEHOLDER_ORIGIN)
+      return resolved.host === PLACEHOLDER_HOST ? resolved.pathname : null
     } catch {
       return null
     }

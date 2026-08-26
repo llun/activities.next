@@ -11,6 +11,7 @@ import {
   safeImageFetch
 } from './safeImageDownload'
 import { DEFAULT_SAFE_REMOTE_FETCH_MAX_REDIRECTS } from './safeRemoteFetch'
+import { isUnsafeAddress } from './unsafeAddress'
 
 // `node:dns/promises` is already mocked globally in `vitest.setup.ts`; this
 // just takes a typed handle on that mock.
@@ -132,6 +133,14 @@ describe('isRestrictedDownloadAddress', () => {
       address: '64:ff9b:1::a9fe:a9fe'
     },
     { description: 'rejects a 6to4 loopback', address: '2002:7f00:1::' },
+    {
+      description: 'rejects the 6to4 relay anycast range',
+      address: '192.88.99.1'
+    },
+    {
+      description: 'rejects the RFC 6666 discard prefix',
+      address: '100::1'
+    },
     { description: 'rejects a Teredo address', address: '2001::1' },
     { description: 'rejects an ORCHID address', address: '2001:10::1' },
     { description: 'rejects an ORCHIDv2 address', address: '2001:20::1' }
@@ -139,9 +148,28 @@ describe('isRestrictedDownloadAddress', () => {
     expect(isRestrictedDownloadAddress(address)).toBe(true)
   })
 
+  // NAT64 and the IPv4-compatible range carry an IPv4 destination. Blocking the
+  // whole prefix would refuse every public IPv4-only origin on a DNS64/NAT64
+  // deployment, so the embedded address is what decides — the same call
+  // `safeRemoteFetch` makes.
   it.each([
     { description: 'allows a public IPv4 address', address: '93.184.216.34' },
-    { description: 'allows a public IPv6 address', address: '2606:2800:220::1' }
+    {
+      description: 'allows a public IPv6 address',
+      address: '2606:2800:220::1'
+    },
+    {
+      description: 'allows a NAT64 address embedding a public IPv4',
+      address: '64:ff9b::5db8:d822'
+    },
+    {
+      description: 'allows an IPv4-compatible address embedding a public IPv4',
+      address: '::93.184.216.34'
+    },
+    {
+      description: 'allows an IPv4-mapped address embedding a public IPv4',
+      address: '::ffff:93.184.216.34'
+    }
   ])('$description', ({ address }) => {
     expect(isRestrictedDownloadAddress(address)).toBe(false)
   })
@@ -420,4 +448,73 @@ describe('default fetch redirect behaviour', () => {
     expect(manual.headers.get('location')).toBe(`${internal}/secret`)
     await manual.body?.cancel()
   })
+})
+
+// Three rounds of review each found this guard's address policy disagreeing
+// with `safeRemoteFetch`'s, because it was a hand-rolled second copy. It now
+// delegates, and this pins that: the two must answer identically for every
+// form either of them has ever cared about.
+describe('address policy parity with safeRemoteFetch', () => {
+  const ADDRESSES = [
+    // loopback / unspecified / private v4
+    '0.0.0.0',
+    '127.0.0.1',
+    '10.1.2.3',
+    '172.16.0.1',
+    '192.168.1.1',
+    '169.254.169.254',
+    '100.64.0.1',
+    '192.0.0.1',
+    '192.0.2.1',
+    '192.88.99.1',
+    '198.18.0.1',
+    '198.51.100.1',
+    '203.0.113.1',
+    '224.0.0.1',
+    '240.0.0.1',
+    // public v4
+    '93.184.216.34',
+    '1.1.1.1',
+    // v6 ranges
+    '::',
+    '::1',
+    '100::1',
+    'fc00::1',
+    'fd00::1',
+    'fe80::1',
+    'ff00::1',
+    '2001:db8::1',
+    '2001::1',
+    '2001:10::1',
+    '2001:20::1',
+    '2001:1f::1',
+    '2001:2f:ffff::1',
+    '2002:7f00:1::',
+    '2606:2800:220::1',
+    // embedded-IPv4 forms, private and public
+    '::ffff:127.0.0.1',
+    '::ffff:169.254.169.254',
+    '::ffff:93.184.216.34',
+    '::127.0.0.1',
+    '::93.184.216.34',
+    '64:ff9b::a9fe:a9fe',
+    '64:ff9b::5db8:d822',
+    '64:ff9b:1::a9fe:a9fe',
+    '64:ff9b:1:ffff::1',
+    // bracketed and cased spellings
+    '[::1]',
+    '::FFFF:127.0.0.1',
+    // not an address at all
+    'not-an-address',
+    ''
+  ]
+
+  it.each(ADDRESSES.map((address) => ({ address })))(
+    'agrees on $address',
+    ({ address }) => {
+      expect(isRestrictedDownloadAddress(address)).toBe(
+        isUnsafeAddress(address)
+      )
+    }
+  )
 })

@@ -1,5 +1,7 @@
 import { lookup } from 'node:dns/promises'
-import { BlockList, isIP } from 'node:net'
+import { isIP } from 'node:net'
+
+import { isUnsafeAddress, normalizeHostname } from '@/lib/utils/unsafeAddress'
 
 /**
  * Downloading an image from a URL this instance did not choose — a Strava photo
@@ -13,6 +15,11 @@ import { BlockList, isIP } from 'node:net'
  * what lives here: callers pair `safeImageFetch` with a content-type check and
  * `readResponseArrayBufferWithLimit` for the byte cap.
  *
+ * The address policy itself is NOT reimplemented here — `isUnsafeAddress` from
+ * `@/lib/utils/unsafeAddress` is the one implementation, shared with
+ * `safeRemoteFetch`. A hand-rolled `BlockList` copy lived here briefly and
+ * diverged from it in five places within three rounds of review.
+ *
  * Residual risk, accepted and documented rather than closed: the guard resolves
  * the hostname and `fetch` resolves it again, so a DNS record that flips
  * between the two resolutions wins the race. `safeRemoteFetch` pins the
@@ -20,56 +27,11 @@ import { BlockList, isIP } from 'node:net'
  * binary-mode entry point on `createSafeRemoteFetch`, which is a larger change
  * than these two callers justify.
  */
-const RESTRICTED_ADDRESS_BLOCK_LIST = new BlockList()
-
-RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('0.0.0.0', 8)
-RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('10.0.0.0', 8)
-RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('100.64.0.0', 10)
-RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('127.0.0.0', 8)
-RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('169.254.0.0', 16)
-RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('172.16.0.0', 12)
-RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('192.0.0.0', 24)
-RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('192.0.2.0', 24)
-RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('192.168.0.0', 16)
-RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('198.18.0.0', 15)
-RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('198.51.100.0', 24)
-RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('203.0.113.0', 24)
-RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('224.0.0.0', 4)
-RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('240.0.0.0', 4)
-RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('::', 128, 'ipv6')
-RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('::1', 128, 'ipv6')
-RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('fc00::', 7, 'ipv6')
-RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('fe80::', 10, 'ipv6')
-RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('ff00::', 8, 'ipv6')
-RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('2001:db8::', 32, 'ipv6')
-// Forms that carry an IPv4 destination inside an IPv6 address. `BlockList`
-// resolves the IPv4-MAPPED form (`::ffff:a.b.c.d`) against the IPv4 rules
-// above on its own, but not these — so without them, stripping the brackets
-// off a literal made `https://[64:ff9b::a9fe:a9fe]/` reach 169.254.169.254 on
-// any host with a NAT64 gateway. `safeRemoteFetch` rejects every one of these
-// explicitly; this is the BlockList spelling of the same list.
-RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('::', 96, 'ipv6') // IPv4-compatible
-RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('64:ff9b::', 96, 'ipv6') // NAT64
-RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('64:ff9b:1::', 48, 'ipv6') // RFC 8215
-RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('2001::', 32, 'ipv6') // Teredo
-RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('2001:10::', 28, 'ipv6') // ORCHID
-RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('2001:20::', 28, 'ipv6') // ORCHIDv2
-RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('2002::', 16, 'ipv6') // 6to4
-
 // Same ceiling `safeRemoteFetch` applies (DEFAULT_SAFE_REMOTE_FETCH_MAX_REDIRECTS).
 export const MAX_SAFE_IMAGE_REDIRECTS = 3
 export const DEFAULT_SAFE_IMAGE_TIMEOUT_MS = 10_000
 
 const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308])
-
-// `new URL(...).hostname` keeps the brackets on an IPv6 literal, and `isIP`
-// answers 0 for a bracketed address — which would send every IPv6 literal down
-// the DNS branch, where resolving an address rather than a name fails and the
-// empty-result check rejects it. That failed closed, but it also meant the
-// blocklist never actually evaluated an IPv6 literal, so `[::1]` was refused
-// for the wrong reason. `safeRemoteFetch` strips the same way.
-const stripIpv6Brackets = (hostname: string) =>
-  hostname.replace(/^\[/, '').replace(/\]$/, '')
 
 export const isRestrictedDownloadHostname = (hostname: string) => {
   return (
@@ -81,18 +43,8 @@ export const isRestrictedDownloadHostname = (hostname: string) => {
   )
 }
 
-export const isRestrictedDownloadAddress = (address: string) => {
-  const family = isIP(address)
-  // `isIP` answers 0 for anything it cannot parse. Fail closed.
-  if (family === 0) {
-    return true
-  }
-
-  return RESTRICTED_ADDRESS_BLOCK_LIST.check(
-    address,
-    family === 6 ? 'ipv6' : 'ipv4'
-  )
-}
+export const isRestrictedDownloadAddress = (address: string) =>
+  isUnsafeAddress(address)
 
 /**
  * Returns the parsed URL when it is safe to download from, or `null` when it is
@@ -113,7 +65,11 @@ export const getSafeImageDownloadUrl = async (rawUrl: string) => {
     return null
   }
 
-  const hostname = stripIpv6Brackets(url.hostname.trim().toLowerCase())
+  // `new URL(...).hostname` keeps the brackets on an IPv6 literal, and `isIP`
+  // answers 0 for a bracketed address — which would send every IPv6 literal
+  // down the DNS branch, where resolving an address rather than a name fails.
+  // `normalizeHostname` strips them the way the address policy expects.
+  const hostname = normalizeHostname(url.hostname.trim())
   if (!hostname || isRestrictedDownloadHostname(hostname)) {
     return null
   }

@@ -167,10 +167,24 @@ describe('getLocalStoragePath', () => {
 
   // A protocol-relative URL carries its own authority; resolving it against a
   // placeholder origin silently discarded it and made any host look local.
-  it('refuses a protocol-relative URL on a foreign host', () => {
+  // A raw `!startsWith('//')` test is not enough: the WHATWG parser reads `\`
+  // as `/` for a special scheme and strips tab/LF/CR before parsing, so all of
+  // these grow an authority without beginning with `//`.
+  it.each([
+    { description: 'refuses a protocol-relative URL', prefix: '//' },
+    { description: 'refuses a backslash authority', prefix: '/\\' },
+    { description: 'refuses a doubled backslash authority', prefix: '/\\\\' },
+    { description: 'refuses a tab-smuggled authority', prefix: '/\t/' },
+    { description: 'refuses a newline-smuggled authority', prefix: '/\n/' },
+    {
+      description: 'refuses a carriage-return-smuggled authority',
+      prefix: '/\r/'
+    },
+    { description: 'refuses a tab-plus-backslash authority', prefix: '/\t\\' }
+  ])('$description', ({ prefix }) => {
     expect(
       getLocalStoragePath(
-        '//evil.example/api/v1/files/medias/a.jpg',
+        `${prefix}evil.example/api/v1/files/medias/a.jpg`,
         HOSTS.ownHostRules
       )
     ).toBeNull()
