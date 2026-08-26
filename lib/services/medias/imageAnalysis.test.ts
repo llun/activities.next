@@ -3,6 +3,7 @@ import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
 
 import {
+  BLURHASH_REGEX,
   analyzeImageBuffer,
   computeBlurhash,
   computeSmartFocus,
@@ -73,7 +74,7 @@ describe('imageAnalysis', () => {
       }
     ])('rejects a hash $description', ({ blurhash, requiredLength }) => {
       // The premise: legal charset, legal length, and still undecodable.
-      expect(blurhash).toMatch(/^[0-9a-zA-Z#$%*+,\-.:;=?@[\]^_{|}~]{6,166}$/)
+      expect(blurhash).toMatch(BLURHASH_REGEX)
       expect(() => decode(blurhash, 32, 32)).toThrow(
         new RegExp(`should be ${requiredLength}`)
       )

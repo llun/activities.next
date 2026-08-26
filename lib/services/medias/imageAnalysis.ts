@@ -24,7 +24,7 @@ const BLURHASH_COMPONENTS_Y = 4
 // two characters short of a 7x7 hash — so a remote encoding at more than 48
 // components had its blurhash dropped even though `decode` reads it fine. The
 // column is `varchar(255)`, so the widest legal hash still fits.
-const BLURHASH_REGEX = /^[0-9a-zA-Z#$%*+,\-.:;=?@[\]^_{|}~]{6,166}$/
+export const BLURHASH_REGEX = /^[0-9a-zA-Z#$%*+,\-.:;=?@[\]^_{|}~]{6,166}$/
 
 /**
  * The form of a blurhash this instance stores, or null when the value is not
@@ -42,7 +42,7 @@ const BLURHASH_REGEX = /^[0-9a-zA-Z#$%*+,\-.:;=?@[\]^_{|}~]{6,166}$/
  * BOTH checks are load-bearing and neither subsumes the other.
  *
  * The regex covers the base83 alphabet, which `isBlurhashValid` does not look
- * at - a string of the right length containing `!`, a backslash or a space
+ * at — a string of the right length containing `!`, a backslash or a space
  * passes it, and `decode` then happily returns pixels for characters that are
  * not in the alphabet at all.
  *
@@ -50,7 +50,7 @@ const BLURHASH_REGEX = /^[0-9a-zA-Z#$%*+,\-.:;=?@[\]^_{|}~]{6,166}$/
  * required length is `4 + 2 * componentX * componentY`, derived from the size
  * flag in the first character, so `'aaaaaa'` is well-formed base83 of a legal
  * length and still throws `blurhash length mismatch: length is 6 but it should
- * be 14`. That is what a charset-only check let through - a value a remote
+ * be 14`. That is what a charset-only check let through — a value a remote
  * actor puts on a federated note, stored by `createNoteJob`, that throws every
  * time a client renders the post.
  */

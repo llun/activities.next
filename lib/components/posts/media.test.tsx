@@ -111,10 +111,13 @@ describe('Media', () => {
   // without a complete/naturalWidth check the placeholder would sit at full
   // opacity over a picture that is already painted.
   //
-  // This covers the mount `useEffect`, NOT the `ref` callback: refs attach
-  // before effects fire, but the effect reads the same two getters through
-  // `imgRef.current` and reaches the same result, so deleting the callback's
-  // copy leaves this test green. The test below pins the callback itself.
+  // On mount BOTH guards reach that result, so this test pins neither on its
+  // own — deleting either one alone leaves it green. The inline `ref` arrow is
+  // a new function every render, so React reattaches it constantly and it can
+  // only ever set `isLoaded` true; the effect reads the same two getters
+  // through `imgRef.current` but re-runs only when the url changes, and is the
+  // only one that can set it back to false. The two tests below isolate them:
+  // one holds the url steady, the other changes it.
   it('reveals a cached image that was already complete on mount', () => {
     const attachmentWithBlurhash: Attachment = {
       ...baseAttachment,
@@ -167,6 +170,42 @@ describe('Media', () => {
 
     expect(screen.getByRole('img')).toHaveClass('opacity-100')
     expect(screen.getByTestId('blurhash-canvas')).toHaveClass('opacity-0')
+  })
+
+  // The effect's `else` branch, which nothing else can reach: the ref callback
+  // only ever sets `isLoaded` true. Without the reset, swapping in a new url
+  // would show the incoming picture at full opacity before it had loaded,
+  // wearing the previous image's "loaded" state.
+  it('repaints the placeholder when the attachment url changes', () => {
+    let complete = true
+    let naturalWidth = 800
+    vi.spyOn(HTMLImageElement.prototype, 'complete', 'get').mockImplementation(
+      () => complete
+    )
+    vi.spyOn(
+      HTMLImageElement.prototype,
+      'naturalWidth',
+      'get'
+    ).mockImplementation(() => naturalWidth)
+
+    const attachment: Attachment = {
+      ...baseAttachment,
+      blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4'
+    }
+
+    const { rerender } = render(<Media attachment={attachment} />)
+    expect(screen.getByRole('img')).toHaveClass('opacity-100')
+
+    complete = false
+    naturalWidth = 0
+    rerender(
+      <Media
+        attachment={{ ...attachment, url: 'https://example.com/other.jpg' }}
+      />
+    )
+
+    expect(screen.getByRole('img')).toHaveClass('opacity-0')
+    expect(screen.getByTestId('blurhash-canvas')).toHaveClass('opacity-100')
   })
 
   // There is no `onError`, so a picture that never loads leaves `isLoaded`
