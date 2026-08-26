@@ -15,6 +15,8 @@ app/api/v1/admin/custom_emojis/route.test.ts
   s_d2df71bacfecc4::t_80e1eda934884a 38,40-41,89-90,268-273,276-295,369-410
   s_d2df71bacfecc4::t_d5acfab189f764 48-52,296-306,310,312-317,319-320,334,338,346
   s_d2df71bacfecc4::t_5d90413da876f5 344
+CLAUDE.md
+  s_d2df71bacfecc4::t_d3c37743ab663e 53
 ---
 {
   "schema_version": "authorship/3.0.0",
