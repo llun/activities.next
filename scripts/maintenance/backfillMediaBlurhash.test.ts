@@ -1164,13 +1164,19 @@ describe('backfillMediaBlurhash execution', () => {
     )
   })
 
-  // A guard on the fixture rather than on the script, and it runs LAST on
-  // purpose: it asserts the `beforeEach` reset cleaned up after every test
-  // above that dirtied these mocks. Delete that reset and this fails, because
+  // A guard on the fixture rather than on the script. Position is not what
+  // makes it PASS — `beforeEach` reruns before every test, so with the reset
+  // above in place these assertions hold wherever the test sits. Position is
+  // what gives it a FAILING case: delete that reset and a guard running first
+  // would find only `safeImageFetch` dirty, leaked from the
+  // `downloadRemoteImage` block, while `analyzeImageBuffer` is still
+  // untouched. Running last is what catches both, because
   // `vi.restoreAllMocks()` never reaches a `vi.fn()` a `vi.mock` factory
   // created — two tests here used to carry their own `mockReset()` for exactly
   // that reason. Nothing depended on the leak, but a test written against
   // either mock's DEFAULT behaviour would silently inherit a neighbour's.
+  // `sequence.shuffle` is not configured, so this order is deterministic; a
+  // shuffled run degrades the guard to a vacuous pass, never a false failure.
   it('starts every test with the module mocks reset', () => {
     expect(vi.mocked(analyzeImageBuffer).mock.calls).toHaveLength(0)
     expect(
@@ -1358,7 +1364,7 @@ describe('backfillMedias', () => {
   // unconditional write passed the whole file. The row has to be one that
   // genuinely diverges, or the update block is never reached and "without
   // writing" asserts nothing; the `backfillAttachments` case is the model.
-  it('counts a row it would write under --dry-run without writing it', async () => {
+  it('counts a media row it would write under --dry-run without writing it', async () => {
     await insertMedia({ blurhash: null, focusX: null, focusY: null })
     vi.mocked(analyzeImageBuffer).mockResolvedValue({
       blurhash: 'FRESHHASH',
