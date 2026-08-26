@@ -1,0 +1,19 @@
+app/(timeline)/fitness/gear/[id]/GearComponentsCard.test.tsx
+  s_a3b90525842071::t_67d61955154ffc 107-108,397-401,447-450
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "e0e415ac352acf358bf998aae4983beca7aa519c",
+  "prompts": {},
+  "sessions": {
+    "s_a3b90525842071": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "029eb1cf-00b7-4f56-b1d3-679cd6f1e78c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
