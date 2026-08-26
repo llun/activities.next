@@ -1976,6 +1976,29 @@ preserving legacy and fitness attachments` pins the surviving-null behaviour.
   is separately `vi.mock`'d, and forces a type-erasing double-cast. `vi.importMock`
   **is** a valid, documented Vitest API — some review bots incorrectly claim it
   does not exist; do not "fix" it on their say-so.
+- **`vi.restoreAllMocks()` does not reset a `vi.fn()` a `vi.mock` factory
+  created.** It only iterates the spies `vi.spyOn` registered, so a module
+  mocked as `vi.mock('@/path', () => ({ fn: vi.fn() }))` carries whatever the
+  last test told it to return — implementation AND call history — for the rest
+  of the file, however thorough the `afterEach` looks. Reset each such export
+  explicitly in `beforeEach` (`vi.mocked(fn).mockReset()`). Nothing fails while
+  the leak happens to be harmless, which is exactly the problem: the next test
+  written against the mock's DEFAULT behaviour silently inherits a neighbour's
+  `mockResolvedValue`, and the tests that did notice carry a lone
+  `vi.mocked(fn).mockReset()` at the top as a local work-around instead of
+  fixing the hook. `scripts/maintenance/backfillMediaBlurhash.test.ts` is the
+  worked example, and pins the reset with a guard test placed last in the block
+  so it runs after the tests that dirty the mocks.
+- **`toHaveBeenCalledWith` asks whether a call ever happened, never whether it
+  was the only one.** A once-per-run summary asserted that way is equally
+  satisfied by one logged per row, because the last row carries the correct
+  cumulative totals — so "once" has to be pinned by filtering
+  `vi.mocked(console.log).mock.calls` and asserting the resulting list with
+  `toEqual`, over a fixture large enough that the wrong placement logs twice
+  (two rows at `batchSize: 1` separates per-row, per-batch and after-the-loop).
+  The same gap hides a hardcoded page size: at fixture scale one 50-row batch
+  and several 1-row batches write the same rows and log the same counters, so
+  paging is only observable by counting the SELECTs off knex's `query` event.
 - **To control when an awaited call settles, import `createDeferred` from
   `@/lib/testing/deferred` — do not hand-roll another promise-with-exposed-resolve
   helper.** The same eight lines had been reimplemented in four test files under

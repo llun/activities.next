@@ -477,6 +477,21 @@ attachment ref guard` is exactly that: it passed with the bug present until
   twice and expects one query reads two and proves nothing either way. Scopes are
   sequential: React's dispatcher is a single mutable global, so a nested or
   concurrent scope throws instead of pretending to isolate.
+- **`vi.restoreAllMocks()` does not reset a `vi.fn()` a `vi.mock` factory
+  created** — it only iterates the spies `vi.spyOn` registered. A module mocked
+  as `vi.mock('@/path', () => ({ fn: vi.fn() }))` keeps its implementation and
+  its call history across the whole file, so reset each export explicitly in
+  `beforeEach`. A lone `vi.mocked(fn).mockReset()` at the top of one test is the
+  tell: that test noticed the leak and worked around it instead of fixing the
+  hook.
+- **`toHaveBeenCalledWith` is "was ever called", not "was the only call".** A
+  once-per-run summary asserted that way passes when it is logged once per row,
+  because the last row's cumulative totals are correct. Pin the count by
+  filtering `mock.calls` and asserting the list with `toEqual`, over a fixture
+  where the wrong placement logs twice. Same blind spot for a hardcoded page
+  size: at fixture scale one big batch and several small ones are
+  indistinguishable by result, so paging needs the SELECTs counted off knex's
+  `query` event.
 - Tests run on **Vitest** (`vi.*`, not `jest.*`). To read a mocked module and
   configure it, prefer **`vi.importMock<T>('@/path')`** over
   `(await import('@/path')) as unknown as T`. `vi.importMock` is purpose-built,
