@@ -101,6 +101,13 @@ describe('GearComponentsCard', () => {
     mockRetireFitnessGearComponent.mockResolvedValue(
       createComponent({ removedAt: Date.UTC(2025, 5, 1) })
     )
+    // Without this default the unretire tests pass only on a neighbour's
+    // leaked implementation: `vi.clearAllMocks()` resets call history and
+    // leaves implementations in place, so whichever test last set one on this
+    // mock decides what the next test sees. Shuffled seeds 3, 8 and 10 failed.
+    mockUpdateFitnessGearComponent.mockResolvedValue(
+      createComponent({ removedAt: null })
+    )
   })
 
   it('renders the header with the installed count', () => {
@@ -416,6 +423,24 @@ describe('GearComponentsCard', () => {
 
     expect(await screen.findByText('Component not found')).toBeInTheDocument()
     expect(onChanged).not.toHaveBeenCalled()
+  })
+
+  // jsdom does no layout, so the wrap can only be asserted as the class that
+  // produces it. Below GEAR_TABLE_SNAP_WIDTH `dataColumnStyle` returns a FIXED
+  // panel, and an overhang there eats the value from the right and cannot be
+  // scrolled to under `x mandatory` — so a retired row's two actions must be
+  // able to wrap rather than spill.
+  it('lets the retired row actions wrap instead of overflowing', () => {
+    renderCard([createComponent({ removedAt: Date.UTC(2025, 5, 1) })])
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show 1 retired component' })
+    )
+
+    const actions = screen
+      .getByRole('button', { name: 'Unretire Chain' })
+      .closest('div')
+    expect(actions).toHaveClass('flex-wrap')
   })
 
   it('offers both unretire and delete on a retired row', () => {

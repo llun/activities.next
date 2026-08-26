@@ -216,10 +216,16 @@ export const GearComponentsCard: FC<Props> = ({
     }
   }
 
-  // Clearing `removedAt` reopens the install window, so the part resumes
-  // accruing distance from wherever it was added — the retire is undone, not
-  // recorded and reversed. The PATCH route already accepts `removedAt: null`;
-  // nothing in the UI called it before, which made a mis-retire permanent.
+  // Clearing `removedAt` reopens the ORIGINAL `[addedAt, now)` window. A
+  // component has one window and no per-period history, so this is not the
+  // mirror of Retire: undoing a retire seconds later credits nothing extra,
+  // but undoing one from last season credits every activity ridden while the
+  // part sat retired — and re-retiring does NOT take that back, because it
+  // only closes the window at the new now. Verified against the rollup query.
+  //
+  // Unretire is still unarmed. Arming it would add friction to the misclick
+  // this exists to recover from without preventing the misattribution, which
+  // the UI cannot distinguish from a legitimate refit anyway.
   const handleUnretire = async (componentId: string) => {
     setError(null)
     // The row is about to offer Retire instead of Delete; carrying an arm
@@ -603,7 +609,6 @@ export const GearComponentsCard: FC<Props> = ({
             // delete on the first click after the next "Show ...".
             onClick={() => {
               setShowRetired((current) => !current)
-              setConfirmingActionId(null)
               setConfirmingActionId(null)
             }}
           >
