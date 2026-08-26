@@ -5,7 +5,7 @@ type NormalizeHostOptions = {
   allowWildcard?: boolean
 }
 
-type HostRuleConfig = {
+export type HostRuleConfig = {
   host?: string | null
   trustedHosts?: readonly string[] | null
 }
@@ -199,6 +199,55 @@ export const isHostTrustedByRules = (
   return normalizeHostRules(rules).some((rule) =>
     hostMatchesRule(normalizedHost, rule)
   )
+}
+
+/**
+ * Reduces a host value to a comparable authority: no scheme, no path, lower
+ * case, and without either default port. Configured hosts are documented as
+ * bare authorities, but an operator may still write `https://example.com/` or
+ * `example.com:443`, while `new URL(...).host` has already dropped the port its
+ * own scheme implies.
+ *
+ * Dropping BOTH ports is deliberate rather than scheme-aware: the value may be
+ * a bare authority carrying no scheme to consult, and the only authority a
+ * blanket strip can newly equate is our own hostname on the other default port
+ * — a host this instance answers to either way. It does mean the exact pass
+ * accepts `example.com:80` where `hostMatchesRule` (which treats only `:443`
+ * as implied) would not; the passes are a union, and this is the half that
+ * decides.
+ */
+const canonicalAuthority = (value: string | undefined | null): string => {
+  if (!value) return ''
+  return getAuthority(value.trim())
+    .toLowerCase()
+    .replace(/:(?:80|443)$/, '')
+}
+
+/**
+ * Whether an authority — a `host` or `host:port`, the shape `new URL(...).host`
+ * reports — is one this instance serves: the configured host, or any
+ * `ACTIVITIES_TRUSTED_HOSTS` entry. Use it to decide whether a stored absolute
+ * URL points back at us.
+ *
+ * `isHostTrustedByRules` alone is not that question. It answers the narrower
+ * one — may an inbound `X-Forwarded-Host` be believed — and `normalizeHost`
+ * deliberately rejects loopback names for it, so on a `localhost:3000`
+ * development instance it says no to the instance's own host. Comparing
+ * canonical authorities first covers that case and every exact `host:port`
+ * match; deferring to the rules matcher after it adds the wildcard entries
+ * (`*.example.com`) that only that matcher understands.
+ */
+export const isOwnInstanceHost = (
+  host: string | undefined | null,
+  config: HostRuleConfig
+): boolean => {
+  const authority = canonicalAuthority(host)
+  if (!authority) return false
+
+  const rules = getTrustedHostRules(config)
+  if (rules.some((rule) => canonicalAuthority(rule) === authority)) return true
+
+  return isHostTrustedByRules(host, rules)
 }
 
 export const selectHeaderHost = (
