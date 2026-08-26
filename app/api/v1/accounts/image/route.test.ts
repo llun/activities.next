@@ -109,17 +109,17 @@ describe('POST /api/v1/accounts/image', () => {
     })
   })
 
-  it('sets the first avatar on an account that has never had one', () => {
+  it('sets the first avatar on an account that has never had one', async () => {
     // `accounts.iconUrl` is nullable and the domain type carries the DB's
     // `null` through, so this — not `undefined` — is the state of every new
     // account. It is the most common path through this route, and a stored-value
     // guard that dereferenced the null instead of testing truthiness would 500.
     mockCurrentActor.account.iconUrl = null
-    return post({ iconUrl: MEDIA_URL }).then(() => {
-      expect(mockDatabase.updateAccountImage).toHaveBeenCalledWith({
-        accountId: 'account-1',
-        iconUrl: MEDIA_URL
-      })
+    await post({ iconUrl: MEDIA_URL })
+
+    expect(mockDatabase.updateAccountImage).toHaveBeenCalledWith({
+      accountId: 'account-1',
+      iconUrl: MEDIA_URL
     })
   })
 

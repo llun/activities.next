@@ -24,6 +24,57 @@ export type ProfileImageUrlResult =
 
 const REFUSED: ProfileImageUrlResult = { valid: false }
 
+type SubmissionOutcome = 'unchanged' | 'clear' | 'candidate'
+
+/**
+ * What a non-null submission is asking for, before any of it is validated.
+ *
+ * `unchanged` skips validation deliberately: a client echoing back the value
+ * already stored is not proposing a new one, which is the "existing rows are
+ * left alone" rule this module's contract states, enforced at the one place a
+ * stored value comes back in. It gives nothing away — a value that differs at
+ * all takes the `candidate` path and has to pass every check, and an empty
+ * submission still clears — so a stale row stays removable rather than sticky.
+ *
+ * That matters because `/settings` is a SINGLE form around name, summary, both
+ * images and the privacy switch, and `ImageUploadField` seeds its hidden input
+ * from the stored URL and resubmits it untouched. Re-validating it would 422
+ * the WHOLE form for an actor carrying a URL stored before this rule existed —
+ * which the field's old `https://example.com/avatar.jpg` placeholder actively
+ * invited — losing an unrelated name edit to a bare JSON body with no error UI.
+ *
+ * **The three tests must run in exactly this order.** Each guards a case the
+ * other two collide on, because a legacy stored value can be nothing but
+ * whitespace — truthy, yet trimming to the same `''` an empty submission does:
+ *
+ * 1. An EXACT echo, compared before anything is trimmed. An untouched field
+ *    submits the stored value byte for byte; Remove submits `''` exactly. Trim
+ *    first and those two become indistinguishable, and a save that never
+ *    touched the image writes `null` over such a row.
+ * 2. Then an empty submission, which is ALWAYS a clear. Order it after the
+ *    trimmed match and that match swallows Remove, leaving the only control
+ *    that can clear such a row a silent no-op — the field is read-only, and
+ *    nothing else writes it.
+ * 3. Then a trimmed match, so incidental whitespace on either side still counts
+ *    as an echo. Everything this validator stores is trimmed, but the rows it
+ *    protects predate it and nothing on the read path trims, so a copy-paste
+ *    that carried a space is stored and resubmitted with it.
+ *
+ * Any other whitespace-only submission — a tab, a newline, a different run of
+ * spaces — is not a provable echo and clears, which is the conservative
+ * reading.
+ */
+const classifySubmission = (
+  value: string,
+  trimmed: string,
+  currentValue?: string | null
+): SubmissionOutcome => {
+  if (currentValue && value === currentValue) return 'unchanged'
+  if (trimmed === '') return 'clear'
+  if (currentValue && trimmed === currentValue.trim()) return 'unchanged'
+  return 'candidate'
+}
+
 /**
  * The value to store for a profile image URL a client submitted, or a refusal.
  *
@@ -61,53 +112,9 @@ export const parseProfileImageUrl = (
 
   const trimmed = value.trim()
 
-  // A client echoing back the value already stored is not proposing a new one,
-  // so it is not re-validated — the same "existing rows are left alone" rule
-  // this module's contract states, enforced at the one place a stored value
-  // comes back in.
-  //
-  // This is load-bearing, not an optimisation. `/settings` is a SINGLE form
-  // around name, summary, both images and the privacy switch, and
-  // `ImageUploadField` seeds its hidden input from the stored URL and
-  // resubmits it untouched. An actor carrying a URL stored before this rule
-  // existed — which the field's old `https://example.com/avatar.jpg`
-  // placeholder actively invited — would otherwise 422 the WHOLE form while
-  // editing only their display name, losing that edit to a bare JSON body with
-  // no error UI, and with no way to save anything on the page again until they
-  // worked out that the image had to be removed first.
-  //
-  // An EXACT echo is decided first, before anything is trimmed. A field the
-  // user never touched submits the stored value byte for byte, while Remove
-  // submits the empty string exactly — the two ways the settings form produces
-  // a trimmed-empty submission, and they mean opposite things once the stored
-  // value is a legacy one that is nothing but whitespace. Trimming before
-  // telling them apart made a save that never touched the image silently write
-  // null over it. Any OTHER whitespace-only submission — a tab, a newline, a
-  // different run of spaces — is not a provable echo and clears below, which is
-  // the conservative reading.
-  if (currentValue && value === currentValue) {
-    return { valid: true, value: undefined }
-  }
-
-  // Then an empty submission is ALWAYS a clear. A whitespace-only stored value
-  // is truthy but trims to '', so ordered after the trimmed match below it
-  // would swallow the empty submission Remove sends and leave the one control
-  // that can clear such a row a silent no-op — the field is read-only, and
-  // nothing else writes it.
-  if (trimmed === '') return { valid: true, value: null }
-
-  // It gives away nothing: a NEW value still has to pass, and clearing still
-  // works, so the stale value stays reachable and removable rather than sticky.
-  //
-  // Both sides are trimmed. Everything this validator STORES is already
-  // trimmed, but the values it is protecting predate it: the old field was a
-  // free-text box parsed by a bare `z.string()`, and nothing on the read path
-  // trims either, so a copy-paste that carried a trailing space is stored and
-  // resubmitted with it. Comparing a trimmed submission against a raw stored
-  // value missed exactly those rows and left them bricking the form.
-  if (currentValue && trimmed === currentValue.trim()) {
-    return { valid: true, value: undefined }
-  }
+  const outcome = classifySubmission(value, trimmed, currentValue)
+  if (outcome === 'unchanged') return { valid: true, value: undefined }
+  if (outcome === 'clear') return { valid: true, value: null }
 
   if (trimmed.length > MAX_PROFILE_IMAGE_URL_LENGTH) return REFUSED
 
