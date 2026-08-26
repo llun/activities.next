@@ -5,11 +5,18 @@ app/api/v1/admin/custom_emojis/route.test.ts
   s_d2df71bacfecc4::t_07aa65f1c80e5e 368
   s_d2df71bacfecc4::t_d5acfab189f764 48-52,296-306,310,312-317,319-320,334,338,346
   s_d2df71bacfecc4::t_cf561b31fd35b8 307-309,311
+  s_d2df71bacfecc4::t_5d90413da876f5 344
+  s_d2df71bacfecc4::t_1f9b24ef3063c7 321-331,341-343
 app/api/v1/admin/custom_emojis/route.ts
   s_d2df71bacfecc4::t_9c86fa9188571b 4,10,25
   s_d2df71bacfecc4::t_85f7870077523e 187-192,201,203-211
   s_d2df71bacfecc4::t_c662a2dde95b24 185-186,202
   s_d2df71bacfecc4::t_debdef279b9df6 158,162,196-200
+  s_d2df71bacfecc4::t_1f9b24ef3063c7 193-195
+AGENTS.md
+  s_d2df71bacfecc4::t_edfc546cb528a0 2285
+CLAUDE.md
+  s_d2df71bacfecc4::t_e0f399fe44faee 53
 ---
 {
   "schema_version": "authorship/3.0.0",
