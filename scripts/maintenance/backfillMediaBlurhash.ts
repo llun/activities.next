@@ -25,14 +25,11 @@ import { getMediaStorage } from '@/lib/services/medias'
 import { PRESIGNED_ANALYSIS_MAX_BYTES } from '@/lib/services/medias/constants'
 import { analyzeImageBuffer } from '@/lib/services/medias/imageAnalysis'
 import {
+  MEDIA_FILE_URL_PATH,
   getMediaFileUrl,
-  isTraversingStoragePath
+  getMediaPathFromFileUrl
 } from '@/lib/services/medias/mediaFileUrl'
-import {
-  getTrustedHostRules,
-  hostMatchesRule,
-  normalizeHost
-} from '@/lib/utils/host'
+import { HostRuleConfig, getCanonicalAuthority } from '@/lib/utils/host'
 import { safeImageFetch } from '@/lib/utils/safeImageDownload'
 import {
   SAFE_DOWNLOAD_MAX_BYTES,
@@ -42,19 +39,10 @@ import {
 const projectDir = process.cwd()
 loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
 
-// Both storage drivers serve their files from this route, so a URL under it on
-// one of THIS instance's hosts names a stored path (see `getMediaFileUrl`).
-const MEDIA_FILE_URL_PATH = '/api/v1/files/'
-
-// Only ever used to resolve a host-relative URL; a resolved URL that still
-// carries this authority is one that brought none of its own.
-const PLACEHOLDER_HOST = 'placeholder.invalid'
-
 // A `thumbnailUrl` an earlier version of this script wrote: the stored path
 // under the files route with no scheme or authority in front of it.
 const isHostRelativeMediaUrl = (value: string | null | undefined) =>
   Boolean(value?.startsWith(MEDIA_FILE_URL_PATH))
-const PLACEHOLDER_ORIGIN = `https://${PLACEHOLDER_HOST}`
 
 // Bounds each download's whole exchange, body stream included;
 // `readResponseArrayBufferWithLimit` bounds how much of it is kept.
@@ -70,10 +58,9 @@ export interface CliOptions {
 export interface InstanceHosts {
   // Host used to build a media URL when the owning actor row cannot be read.
   fallbackHost: string
-  // Every authority this instance serves `/api/v1/files/` from, as the same
-  // rule list `isHostTrustedByRules` consumes — so a `*.example.com` entry
-  // matches the way it does everywhere else in the app.
-  ownHostRules: readonly string[]
+  // The configured host plus `ACTIVITIES_TRUSTED_HOSTS`, in the shape
+  // `getMediaPathFromFileUrl` consumes to decide whether a stored URL is ours.
+  hostConfig: HostRuleConfig
 }
 
 export const parseArgs = (args: string[]): CliOptions => {
@@ -102,75 +89,21 @@ export const parseArgs = (args: string[]): CliOptions => {
 }
 
 /**
- * Whether a URL's authority is one this instance serves.
- *
- * `normalizeHost` + `hostMatchesRule` are the app's own matcher (the pair
- * behind `isHostTrustedByRules`), so a wildcard `ACTIVITIES_TRUSTED_HOSTS`
- * entry like `*.example.com` matches a real subdomain here as it does for a
- * request Host header. `isHostTrustedByRules` itself is not reused because
- * `normalizeHost` deliberately answers null for loopback names, which would
- * make a dev instance on `localhost:3000` fail to recognise its own storage
- * URLs — so a loopback authority falls back to literal equality.
- */
-const isOwnAuthority = (
-  authority: string,
-  ownHostRules: readonly string[]
-): boolean => {
-  const normalizedHost = normalizeHost(authority, { allowWildcard: false })
-  if (normalizedHost) {
-    return ownHostRules.some((rule) => {
-      const normalizedRule = normalizeHost(rule)
-      return normalizedRule
-        ? hostMatchesRule(normalizedHost, normalizedRule)
-        : false
-    })
-  }
-
-  // `normalizeHost` refused this authority. That is mostly loopback, which it
-  // rejects by design, so compare those raw — but a `*.`-prefixed rule is a
-  // PATTERN, never a host, and `new URL` happily parses `*` in an authority.
-  // Comparing it literally let a federated attachment url of
-  // `https://*.<trusted-domain>/api/v1/files/<path>` match the rule's own
-  // spelling and read an attacker-chosen path straight out of local storage.
-  const candidate = authority.trim().toLowerCase()
-  // `includes`, not `startsWith('*.')`: a rule is only a wildcard in the
-  // documented `*.example.com` spelling, so `*example.com`, `cdn.*` and
-  // `foo.*.example.com` reach here as LITERAL rules carrying a `*` — and
-  // `new URL()` percent-decodes `%2a` in an authority, so a federated
-  // attachment URL can spell one exactly and be read out of local storage.
-  if (!candidate || candidate.includes('*')) return false
-  return ownHostRules.some((rule) => {
-    const normalizedRule = rule.trim().toLowerCase()
-    return !normalizedRule.includes('*') && normalizedRule === candidate
-  })
-}
-
-/**
  * The hosts this instance answers to. `trustedHosts` carries the extra domains
  * a multi-domain deployment serves, and `actors.domain` may be any of them —
  * so a stored `/api/v1/files/` URL is "ours" on any of them, not just on the
  * configured primary.
  */
-export const buildInstanceHosts = ({
-  host,
-  trustedHosts
-}: {
-  host: string
-  trustedHosts?: readonly string[] | null
-}): InstanceHosts => ({
+export const buildInstanceHosts = (config: HostRuleConfig): InstanceHosts => ({
   // Normalised the way `getMediaFileUrl` will consume it: the configured host
   // may carry a scheme, a trailing path, or an explicit default port, none of
-  // which belong in a generated URL's authority.
-  fallbackHost: host
-    .trim()
-    .replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
-    .replace(/[/?#].*$/, '')
-    .toLowerCase()
-    .replace(/:(?:80|443)$/, ''),
-  ownHostRules: getTrustedHostRules({
-    host,
-    trustedHosts: trustedHosts ?? []
-  }).filter((rule) => rule.trim().length > 0)
+  // which belong in a generated URL's authority. That is exactly what the
+  // matcher normalises a candidate authority to, so it is the matcher's own
+  // helper rather than a second spelling of it.
+  fallbackHost: getCanonicalAuthority(config.host),
+  // Narrowed to the host facts on purpose: `main` hands this the whole app
+  // config, and everything downstream only ever asks it the one question.
+  hostConfig: { host: config.host, trustedHosts: config.trustedHosts }
 })
 
 /**
@@ -194,66 +127,6 @@ export const getAttachmentMediaHost = (
   } catch {
     return fallbackHost
   }
-}
-
-/**
- * Recovers the stored path from an attachment URL, or null when the URL is not
- * one of ours.
- *
- * The host check is the point: `/api/v1/files/` is this project's own route, so
- * every OTHER activities.next instance serves attachment URLs with exactly that
- * path. Matching on the path alone treated a remote instance's URL as a local
- * storage path, which then missed in storage and skipped the row.
- */
-const getOwnPathname = (
-  rawUrl: string,
-  ownHostRules: readonly string[]
-): string | null => {
-  // A host-relative URL can only be served by this instance. Resolve it against
-  // a placeholder origin so `..` segments are normalised away exactly as they
-  // are on the absolute branch — reading it as a raw string was not.
-  //
-  // Whether it kept that origin is what decides it, NOT the leading characters:
-  // a raw `!startsWith('//')` test is defeated because the WHATWG parser grows
-  // an authority out of inputs that do not begin with `//` — it reads `\` as
-  // `/` for a special scheme, and strips tab, LF and CR from the input before
-  // parsing at all, so `/\evil.example/…` and `/<TAB>/evil.example/…` are both
-  // protocol-relative.
-  if (rawUrl.startsWith('/')) {
-    try {
-      const resolved = new URL(rawUrl, PLACEHOLDER_ORIGIN)
-      return resolved.host === PLACEHOLDER_HOST ? resolved.pathname : null
-    } catch {
-      return null
-    }
-  }
-
-  try {
-    const parsed = new URL(rawUrl)
-    return isOwnAuthority(parsed.host, ownHostRules) ? parsed.pathname : null
-  } catch {
-    return null
-  }
-}
-
-export const getLocalStoragePath = (
-  rawUrl: string,
-  ownHostRules: readonly string[]
-): string | null => {
-  const pathname = getOwnPathname(rawUrl, ownHostRules)
-  if (!pathname?.startsWith(MEDIA_FILE_URL_PATH)) return null
-
-  const encodedPath = pathname.slice(MEDIA_FILE_URL_PATH.length)
-  if (!encodedPath) return null
-
-  let storagePath: string
-  try {
-    storagePath = decodeURIComponent(encodedPath)
-  } catch {
-    storagePath = encodedPath
-  }
-
-  return isTraversingStoragePath(storagePath) ? null : storagePath
 }
 
 /**
@@ -586,9 +459,9 @@ export const backfillAttachments = async (
       if (shouldAnalyze) {
         try {
           let buffer: Buffer | null = null
-          const targetPath = getLocalStoragePath(
+          const targetPath = getMediaPathFromFileUrl(
             row.url,
-            instanceHosts.ownHostRules
+            instanceHosts.hostConfig
           )
           if (targetPath) {
             buffer = await getFileBuffer(storage, targetPath)

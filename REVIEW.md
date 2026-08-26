@@ -574,10 +574,11 @@ attachment ref guard` is exactly that: it passed with the bug present until
   authority matched exactly — now refuses any parsed hostname still containing
   one, reading the `*.` marker off the AUTHORITY so a scheme-prefixed rule
   still expands.
-- **Four consumers of `ACTIVITIES_TRUSTED_HOSTS` apply that refusal, each on
-  the PARSED hostname** — `normalizeHost`, `isOwnAuthority`'s loopback
-  fallback, `buildTrustedOrigins` and `toHostname` — because each reads a
-  misplaced wildcard differently. `buildTrustedOrigins` hands it to
+- **Three consumers of `ACTIVITIES_TRUSTED_HOSTS` apply that refusal, each on
+  the PARSED hostname** — `normalizeHost`, `buildTrustedOrigins` and
+  `toHostname` — because each reads a misplaced wildcard differently. A fourth,
+  `isOwnAuthority` in the blurhash backfill, was deleted by #1570: that sweep
+  asks `isOwnInstanceHost` now and inherits its guards. `buildTrustedOrigins` hands it to
   better-auth, which globs any pattern containing `*`, so `*example.com`
   trusted `evilexample.com` for the auth Origin check and for
   `callbackURL`/`redirectTo` — an open redirect carrying auth callbacks.
