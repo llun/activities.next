@@ -148,6 +148,34 @@ describe('getLocalStoragePath', () => {
     ).toBe('medias/a.jpg')
   })
 
+  // `new URL` parses `*` in an authority, and `normalizeHost` refuses a
+  // wildcard, so the literal-equality fallback used to compare the authority
+  // against the wildcard RULE's own spelling and call it ours — letting a
+  // federated attachment url read an attacker-chosen path out of local storage.
+  it('refuses an authority that is literally the wildcard pattern', () => {
+    const { ownHostRules } = buildInstanceHosts({
+      host: 'llun.test',
+      trustedHosts: ['*.llun.test']
+    })
+    expect(
+      getLocalStoragePath(
+        'https://*.llun.test/api/v1/files/other/actors/private.jpg',
+        ownHostRules
+      )
+    ).toBeNull()
+  })
+
+  // A protocol-relative URL carries its own authority; resolving it against a
+  // placeholder origin silently discarded it and made any host look local.
+  it('refuses a protocol-relative URL on a foreign host', () => {
+    expect(
+      getLocalStoragePath(
+        '//evil.example/api/v1/files/medias/a.jpg',
+        HOSTS.ownHostRules
+      )
+    ).toBeNull()
+  })
+
   it('still refuses a foreign host when a wildcard rule is configured', () => {
     const { ownHostRules } = buildInstanceHosts({
       host: 'llun.test',

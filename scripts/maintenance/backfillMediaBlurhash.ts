@@ -93,8 +93,8 @@ export const parseArgs = (args: string[]): CliOptions => {
  *
  * `normalizeHost` + `hostMatchesRule` are the app's own matcher (the pair
  * behind `isHostTrustedByRules`), so a wildcard `ACTIVITIES_TRUSTED_HOSTS`
- * entry like `*.example.com` matches here exactly as it does for a request
- * Host header. `isHostTrustedByRules` itself is not reused because
+ * entry like `*.example.com` matches a real subdomain here as it does for a
+ * request Host header. `isHostTrustedByRules` itself is not reused because
  * `normalizeHost` deliberately answers null for loopback names, which would
  * make a dev instance on `localhost:3000` fail to recognise its own storage
  * URLs — so a loopback authority falls back to literal equality.
@@ -113,9 +113,18 @@ const isOwnAuthority = (
     })
   }
 
-  // Loopback: `normalizeHost` refused both sides, so compare them raw.
+  // `normalizeHost` refused this authority. That is mostly loopback, which it
+  // rejects by design, so compare those raw — but a `*.`-prefixed rule is a
+  // PATTERN, never a host, and `new URL` happily parses `*` in an authority.
+  // Comparing it literally let a federated attachment url of
+  // `https://*.<trusted-domain>/api/v1/files/<path>` match the rule's own
+  // spelling and read an attacker-chosen path straight out of local storage.
   const candidate = authority.trim().toLowerCase()
-  return ownHostRules.some((rule) => rule.trim().toLowerCase() === candidate)
+  if (!candidate || candidate.startsWith('*.')) return false
+  return ownHostRules.some((rule) => {
+    const normalizedRule = rule.trim().toLowerCase()
+    return !normalizedRule.startsWith('*.') && normalizedRule === candidate
+  })
 }
 
 /**
@@ -184,8 +193,10 @@ const getOwnPathname = (
 ): string | null => {
   // A host-relative URL can only be served by this instance. Resolve it against
   // a placeholder origin so `..` segments are normalised away exactly as they
-  // are on the absolute branch — reading it as a raw string was not.
-  if (rawUrl.startsWith('/')) {
+  // are on the absolute branch — reading it as a raw string was not. A
+  // PROTOCOL-relative `//host/...` is excluded: it carries its own authority,
+  // which the placeholder origin would silently discard.
+  if (rawUrl.startsWith('/') && !rawUrl.startsWith('//')) {
     try {
       return new URL(rawUrl, 'https://placeholder.invalid').pathname
     } catch {

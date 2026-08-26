@@ -185,7 +185,7 @@ const attachStravaPhotosToStatus = async ({
       const photoResponse = await safeImageFetch(photo.url)
       if (!photoResponse) {
         logger.warn({
-          message: 'Skipping Strava photo with unsafe URL',
+          message: 'Skipping Strava photo: download refused',
           actorId,
           stravaActivityId,
           photoUrl: photo.url

@@ -10,6 +10,7 @@ import {
   isRestrictedDownloadHostname,
   safeImageFetch
 } from './safeImageDownload'
+import { DEFAULT_SAFE_REMOTE_FETCH_MAX_REDIRECTS } from './safeRemoteFetch'
 
 // `node:dns/promises` is already mocked globally in `vitest.setup.ts`; this
 // just takes a typed handle on that mock.
@@ -58,6 +59,22 @@ describe('isRestrictedDownloadHostname', () => {
   })
 })
 
+// The loop test asserts `MAX_SAFE_IMAGE_REDIRECTS + 1` fetches, which proves
+// the loop obeys the cap but not that the cap is small — widening it to 100
+// would keep every test green. The comment on the constant says it tracks
+// `safeRemoteFetch`'s ceiling, so pin that claim.
+describe('MAX_SAFE_IMAGE_REDIRECTS', () => {
+  it('tracks the ceiling safeRemoteFetch applies', () => {
+    expect(MAX_SAFE_IMAGE_REDIRECTS).toBe(
+      DEFAULT_SAFE_REMOTE_FETCH_MAX_REDIRECTS
+    )
+  })
+
+  it('stays a small number', () => {
+    expect(MAX_SAFE_IMAGE_REDIRECTS).toBe(3)
+  })
+})
+
 describe('isRestrictedDownloadAddress', () => {
   it.each([
     { description: 'rejects IPv4 loopback', address: '127.0.0.1' },
@@ -81,6 +98,43 @@ describe('isRestrictedDownloadAddress', () => {
       description: 'fails closed on an unparseable address',
       address: 'not-an-address'
     }
+  ])('$description', ({ address }) => {
+    expect(isRestrictedDownloadAddress(address)).toBe(true)
+  })
+
+  // Stripping the brackets off a literal handed the decision to the BlockList.
+  // It resolves the IPv4-MAPPED form against the IPv4 rules on its own, but not
+  // these — so each needs its own subnet or a literal reaches the address it
+  // encodes on any host with the matching gateway.
+  it.each([
+    {
+      description: 'rejects an IPv4-mapped loopback',
+      address: '::ffff:127.0.0.1'
+    },
+    {
+      description: 'rejects an IPv4-mapped metadata address',
+      address: '::ffff:169.254.169.254'
+    },
+    {
+      description: 'rejects an IPv4-compatible loopback',
+      address: '::127.0.0.1'
+    },
+    {
+      description: 'rejects an IPv4-compatible loopback in hex form',
+      address: '::7f00:1'
+    },
+    {
+      description: 'rejects a well-known NAT64 metadata address',
+      address: '64:ff9b::a9fe:a9fe'
+    },
+    {
+      description: 'rejects an RFC 8215 local-use NAT64 address',
+      address: '64:ff9b:1::a9fe:a9fe'
+    },
+    { description: 'rejects a 6to4 loopback', address: '2002:7f00:1::' },
+    { description: 'rejects a Teredo address', address: '2001::1' },
+    { description: 'rejects an ORCHID address', address: '2001:10::1' },
+    { description: 'rejects an ORCHIDv2 address', address: '2001:20::1' }
   ])('$description', ({ address }) => {
     expect(isRestrictedDownloadAddress(address)).toBe(true)
   })

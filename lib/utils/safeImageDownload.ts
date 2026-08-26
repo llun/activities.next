@@ -42,6 +42,19 @@ RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('fc00::', 7, 'ipv6')
 RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('fe80::', 10, 'ipv6')
 RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('ff00::', 8, 'ipv6')
 RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('2001:db8::', 32, 'ipv6')
+// Forms that carry an IPv4 destination inside an IPv6 address. `BlockList`
+// resolves the IPv4-MAPPED form (`::ffff:a.b.c.d`) against the IPv4 rules
+// above on its own, but not these — so without them, stripping the brackets
+// off a literal made `https://[64:ff9b::a9fe:a9fe]/` reach 169.254.169.254 on
+// any host with a NAT64 gateway. `safeRemoteFetch` rejects every one of these
+// explicitly; this is the BlockList spelling of the same list.
+RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('::', 96, 'ipv6') // IPv4-compatible
+RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('64:ff9b::', 96, 'ipv6') // NAT64
+RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('64:ff9b:1::', 48, 'ipv6') // RFC 8215
+RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('2001::', 32, 'ipv6') // Teredo
+RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('2001:10::', 28, 'ipv6') // ORCHID
+RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('2001:20::', 28, 'ipv6') // ORCHIDv2
+RESTRICTED_ADDRESS_BLOCK_LIST.addSubnet('2002::', 16, 'ipv6') // 6to4
 
 // Same ceiling `safeRemoteFetch` applies (DEFAULT_SAFE_REMOTE_FETCH_MAX_REDIRECTS).
 export const MAX_SAFE_IMAGE_REDIRECTS = 3
