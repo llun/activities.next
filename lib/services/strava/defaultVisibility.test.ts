@@ -87,16 +87,21 @@ describe('resolveStravaDefaultVisibility', () => {
     )
   })
 
-  // The webhook route has no activity id to hand; the key should be absent
+  // The webhook route has no activity id to hand; the key should be ABSENT
   // rather than present-and-undefined.
+  //
+  // Asserted on the payload's own keys, not with
+  // `not.objectContaining({ stravaActivityId: expect.anything() })` — that
+  // passes either way, because `expect.anything()` does not match `undefined`,
+  // so a present-but-undefined key satisfies the negation just as an absent
+  // one does.
   it('omits the activity id when the caller has none', () => {
     resolveStravaDefaultVisibility({
       storedVisibility: 'nonsense',
       actorId: 'https://llun.test/users/test'
     })
 
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.not.objectContaining({ stravaActivityId: expect.anything() })
-    )
+    const [payload] = vi.mocked(logger.warn).mock.calls[0]
+    expect(Object.keys(payload as object)).not.toContain('stravaActivityId')
   })
 })

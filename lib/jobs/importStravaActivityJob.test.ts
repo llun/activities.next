@@ -552,6 +552,67 @@ describe('importStravaActivityJob', () => {
     )
   })
 
+  // `fitness_settings.defaultVisibility` is a plain varchar whose row mapper
+  // asserts rather than parses, so a value the write path would have rejected
+  // can still be read back. This arm — no queued visibility — is the one every
+  // retry and repair path takes.
+  it('falls back to private when the stored defaultVisibility is not a visibility', async () => {
+    database.getFitnessSettings.mockResolvedValueOnce({
+      id: 'fitness-settings-1',
+      actorId: 'actor-1',
+      serviceType: 'strava',
+      accessToken: 'access-token',
+      defaultVisibility: 'followers-only' as never,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    })
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-invalid-visibility',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '124'
+      }
+    })
+
+    expect(mockImportFitnessFiles).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({
+        visibility: Visibility.enum.private
+      }),
+      { deferProcessJobPublishes: true }
+    )
+  })
+
+  it('falls back to private when no defaultVisibility is stored at all', async () => {
+    database.getFitnessSettings.mockResolvedValueOnce({
+      id: 'fitness-settings-1',
+      actorId: 'actor-1',
+      serviceType: 'strava',
+      accessToken: 'access-token',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    })
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-unset-visibility',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '124'
+      }
+    })
+
+    expect(mockImportFitnessFiles).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({
+        visibility: Visibility.enum.private
+      }),
+      { deferProcessJobPublishes: true }
+    )
+  })
+
   it('imports via fitness pipeline using TCX format as the preferred format', async () => {
     mockGetStravaActivity.mockResolvedValueOnce({
       id: 125,

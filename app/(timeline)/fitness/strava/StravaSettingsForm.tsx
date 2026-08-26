@@ -247,12 +247,10 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
               understates its scope. The archive upload below is the one import
               path that does NOT read it. */}
           <Label>Automatic import visibility</Label>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <VisibilitySelector
-              visibility={defaultVisibility}
-              onVisibilityChange={setDefaultVisibility}
-            />
-          </div>
+          <VisibilitySelector
+            visibility={defaultVisibility}
+            onVisibilityChange={setDefaultVisibility}
+          />
           <p className="text-[0.8rem] text-muted-foreground">
             Every activity imported from Strava is posted at this visibility —
             including ones you marked &quot;Only you&quot; or
@@ -266,7 +264,7 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
             <div className="rounded-md bg-yellow-50 p-3 dark:bg-yellow-950">
               <p
                 role="alert"
-                className="text-sm text-yellow-600 dark:text-yellow-400"
+                className="text-sm text-yellow-800 dark:text-yellow-200"
               >
                 Anyone on the fediverse can read these posts. An activity you
                 marked &quot;Only you&quot; on Strava will still be posted for
@@ -305,7 +303,7 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
 
         {isConfigured && !isConnected && (
           <div className="rounded-md bg-yellow-50 p-3 dark:bg-yellow-950">
-            <p className="text-sm text-yellow-600 dark:text-yellow-400">
+            <p className="text-sm text-yellow-800 dark:text-yellow-200">
               Credentials saved but not connected. Please reconnect.
             </p>
           </div>
