@@ -289,5 +289,188 @@ describe('Update note action', () => {
         notifications.filter((n) => n.statusId === quotingId)
       ).toHaveLength(0)
     })
+
+    // The attachment row snapshots the media row's BlurHash, focal point and
+    // thumbnail, and every reader (the Mastodon serializer, the timeline's
+    // Media component) serves that snapshot rather than the media row. An edit
+    // that rewrote only the alt text left a focal point a client had just
+    // dragged unreadable on the status.
+    describe('attachment media snapshot', () => {
+      const createOwnedMedia = async ({
+        path,
+        blurhash,
+        focus
+      }: {
+        path: string
+        blurhash?: string
+        focus?: { x: number; y: number }
+      }) => {
+        if (!actor1) fail('Actor1 is required')
+        const media = await database.createMedia({
+          actorId: actor1.id,
+          original: {
+            path,
+            bytes: 5000,
+            mimeType: 'image/png',
+            metaData: { width: 800, height: 600 }
+          },
+          thumbnail: {
+            path: `${path}-thumbnail.webp`,
+            bytes: 500,
+            mimeType: 'image/webp',
+            metaData: { width: 200, height: 150 }
+          },
+          ...(blurhash ? { blurhash } : {}),
+          ...(focus ? { focus } : {})
+        })
+        if (!media) fail('Media is required')
+        return media
+      }
+
+      const attachmentInput = (mediaId: string, name: string) => ({
+        type: 'upload' as const,
+        id: mediaId,
+        mediaType: 'image/png',
+        url: `https://llun.test/api/v1/files/${mediaId}.png`,
+        width: 800,
+        height: 600,
+        name
+      })
+
+      it('copies the media snapshot onto an attachment added by the edit', async () => {
+        if (!actor1) fail('Actor1 is required')
+        const statusId = `${actor1.id}/statuses/post-edit-add-attachment`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: actor1.id,
+          text: 'before the edit',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+        const media = await createOwnedMedia({
+          path: 'medias/edit-added.png',
+          blurhash: 'LEHV6nWB2yk8pyo0adR*',
+          focus: { x: -0.5, y: 0.25 }
+        })
+
+        await updateNoteFromUserInput({
+          statusId,
+          currentActor: actor1,
+          database,
+          attachments: [attachmentInput(media.id, 'added in the edit')],
+          publish: false
+        })
+
+        const attachments = await database.getAttachments({ statusId })
+        expect(attachments).toHaveLength(1)
+        expect(attachments[0]).toMatchObject({
+          mediaId: media.id,
+          blurhash: 'LEHV6nWB2yk8pyo0adR*',
+          focus: { x: -0.5, y: 0.25 },
+          thumbnailUrl: expect.stringContaining(
+            'medias/edit-added.png-thumbnail.webp'
+          )
+        })
+      })
+
+      it('refreshes the snapshot of a kept attachment when the media focus changes', async () => {
+        if (!actor1) fail('Actor1 is required')
+        const statusId = `${actor1.id}/statuses/post-edit-keep-attachment`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: actor1.id,
+          text: 'before the edit',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+        const media = await createOwnedMedia({
+          path: 'medias/edit-kept.png',
+          blurhash: 'LEHV6nWB2yk8pyo0adR*',
+          focus: { x: 0, y: 0 }
+        })
+        await database.createAttachment({
+          actorId: actor1.id,
+          statusId,
+          mediaType: 'image/png',
+          url: `https://llun.test/api/v1/files/${media.id}.png`,
+          width: 800,
+          height: 600,
+          name: 'unchanged alt text',
+          mediaId: media.id,
+          blurhash: 'LEHV6nWB2yk8pyo0adR*',
+          focus: { x: 0, y: 0 },
+          thumbnailUrl: `https://llun.test/api/v1/files/medias/edit-kept.png-thumbnail.webp`
+        })
+
+        // What PUT /api/v1/statuses/:id does for media_attributes[][focus]
+        // before it resolves the attachments.
+        await database.updateMedia({
+          mediaId: media.id,
+          accountId: actor1.account?.id ?? '',
+          focus: { x: 0.75, y: -0.75 }
+        })
+
+        await updateNoteFromUserInput({
+          statusId,
+          currentActor: actor1,
+          database,
+          attachments: [attachmentInput(media.id, 'unchanged alt text')],
+          publish: false
+        })
+
+        const attachments = await database.getAttachments({ statusId })
+        expect(attachments).toHaveLength(1)
+        expect(attachments[0].focus).toEqual({ x: 0.75, y: -0.75 })
+      })
+
+      it('leaves an untouched attachment row alone', async () => {
+        if (!actor1) fail('Actor1 is required')
+        const statusId = `${actor1.id}/statuses/post-edit-untouched-attachment`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: actor1.id,
+          text: 'before the edit',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+        const media = await createOwnedMedia({
+          path: 'medias/edit-untouched.png',
+          blurhash: 'LEHV6nWB2yk8pyo0adR*'
+        })
+        const thumbnailUrl =
+          'https://llun.test/api/v1/files/medias/edit-untouched.png-thumbnail.webp'
+        await database.createAttachment({
+          actorId: actor1.id,
+          statusId,
+          mediaType: 'image/png',
+          url: `https://llun.test/api/v1/files/${media.id}.png`,
+          width: 800,
+          height: 600,
+          name: 'unchanged alt text',
+          mediaId: media.id,
+          blurhash: 'LEHV6nWB2yk8pyo0adR*',
+          thumbnailUrl
+        })
+        const [before] = await database.getAttachments({ statusId })
+
+        await updateNoteFromUserInput({
+          statusId,
+          currentActor: actor1,
+          database,
+          text: 'after the edit',
+          attachments: [attachmentInput(media.id, 'unchanged alt text')],
+          publish: false
+        })
+
+        const [after] = await database.getAttachments({ statusId })
+        expect(after.id).toEqual(before.id)
+        expect(after.updatedAt).toEqual(before.updatedAt)
+        expect(after.blurhash).toEqual('LEHV6nWB2yk8pyo0adR*')
+        expect(after.thumbnailUrl).toEqual(thumbnailUrl)
+      })
+    })
   })
 })

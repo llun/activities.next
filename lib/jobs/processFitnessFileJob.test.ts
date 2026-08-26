@@ -9,6 +9,7 @@ import { processFitnessFileJob } from '@/lib/jobs/processFitnessFileJob'
 import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import { FITNESS_FILE_ROUTE_SOURCE_VERSION } from '@/lib/services/fitness-files/fileRouteCache'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
+import { ROUTE_MAP_ATTACHMENT_NAME } from '@/lib/services/fitness-files/mapAttachments'
 import type { FitnessActivityData } from '@/lib/services/fitness-files/parseFitnessFile'
 import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
 import { isRetriableFitnessFile } from '@/lib/services/fitness-files/retryImports'
@@ -396,6 +397,44 @@ describe('processFitnessFileJob', () => {
         description: 'Route map'
       }
     }
+
+    // The route map is one of this instance's biggest media producers, and the
+    // attachment row is what every reader serves — so the placeholder and
+    // focal point `saveMedia` just computed have to land on it, not only on
+    // the media row one join away.
+    it('copies the stored map media snapshot onto the attachment', async () => {
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: ''
+      })
+      const storedMap = await storeMapMedia('medias/route-map-snapshot.webp')
+      mockGenerateMapImage.mockResolvedValue(Buffer.from('png-map-image'))
+      mockSaveMedia.mockResolvedValue({
+        ...storedMap,
+        blurhash: 'LEHV6nWB2yk8pyo0adR*',
+        preview_url: 'https://llun.test/api/v1/files/medias/map-thumbnail.webp',
+        meta: {
+          ...storedMap.meta,
+          small: { width: 200, height: 150, size: '200x150', aspect: 1.33 },
+          focus: { x: 0.25, y: -0.5 }
+        }
+      })
+
+      await processFitnessFileJob(database, {
+        id: 'job-map-attachment-snapshot',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      const attachments = await database.getAttachments({ statusId })
+      const mapAttachment = attachments.find(
+        (attachment) => attachment.name === ROUTE_MAP_ATTACHMENT_NAME
+      )
+      expect(mapAttachment).toMatchObject({
+        blurhash: 'LEHV6nWB2yk8pyo0adR*',
+        focus: { x: 0.25, y: -0.5 },
+        thumbnailUrl: 'https://llun.test/api/v1/files/medias/map-thumbnail.webp'
+      })
+    })
 
     // A map failure is a degraded success, not a dead import: the activity
     // arrived, so the file stays `completed` — anything else hides a good

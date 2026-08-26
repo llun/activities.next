@@ -10,7 +10,11 @@ import {
 import { Account } from '@/lib/types/domain/account'
 import { Actor, ActorType } from '@/lib/types/domain/actor'
 import { ActorDomainBlock } from '@/lib/types/domain/actorDomainBlock'
-import { Attachment, PostBoxAttachment } from '@/lib/types/domain/attachment'
+import {
+  Attachment,
+  AttachmentMediaMetadata,
+  PostBoxAttachment
+} from '@/lib/types/domain/attachment'
 import { Block } from '@/lib/types/domain/block'
 import { Bookmark } from '@/lib/types/domain/bookmark'
 import {
@@ -528,9 +532,20 @@ type BaseStatusParams = {
   statusId: string
 }
 
+/**
+ * An attachment resolved for an edit: the client's media reference plus the
+ * `medias` snapshot the attachment row carries (see `AttachmentMediaMetadata`).
+ *
+ * The three snapshot fields are REQUIRED, not optional, so a caller cannot
+ * quietly hand `updateNote` a bare `PostBoxAttachment` and blank the
+ * placeholder and focal point of every attachment it rewrites — the edit path
+ * has to resolve them from the owner's own media rows first.
+ */
+export type UpdateNoteAttachment = PostBoxAttachment & AttachmentMediaMetadata
+
 export type UpdateNoteParams = Pick<CreateNoteParams, 'text' | 'summary'> &
   BaseStatusParams & {
-    attachments?: PostBoxAttachment[]
+    attachments?: UpdateNoteAttachment[]
     // Omit to preserve the existing value; provide to overwrite.
     sensitive?: boolean
     language?: string | null

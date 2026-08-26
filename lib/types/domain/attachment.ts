@@ -55,6 +55,26 @@ export const Attachment = z.object({
 
 export type Attachment = z.infer<typeof Attachment>
 
+/**
+ * The columns an `attachments` row snapshots from the `medias` row it points
+ * at: the BlurHash placeholder, the focal point, and the stored thumbnail's
+ * public URL.
+ *
+ * The snapshot is what every reader actually serves — `getMastodonAttachment`
+ * below and the timeline's `Media` component both read the attachment row, not
+ * the media row — so any path that writes an attachment has to fill these in
+ * or the post renders without a placeholder and serialises `blurhash: null`.
+ *
+ * Every field is required rather than optional so a new write path cannot
+ * quietly omit one. `@/lib/services/medias/attachmentMediaMetadata` resolves
+ * them.
+ */
+export interface AttachmentMediaMetadata {
+  blurhash: string | null
+  focus: { x: number; y: number } | null
+  thumbnailUrl: string | null
+}
+
 const getPathnameFromUrl = (value: string) => {
   try {
     return new URL(value, 'https://local.invalid').pathname.toLowerCase()
@@ -145,6 +165,7 @@ export const getMastodonAttachment = (attachment: Attachment) => {
         width: attachment.width ?? 0,
         height: attachment.height ?? 0,
         aspect: (attachment.width ?? 0) / (attachment.height ?? 1),
+        ...(attachment.focus ? { focus: attachment.focus } : {}),
 
         original: {
           width: attachment.width ?? 0,
@@ -156,5 +177,24 @@ export const getMastodonAttachment = (attachment: Attachment) => {
       blurhash: attachment.blurhash ?? null
     })
   }
-  return null
+  // Everything else — an `audio/mp4` upload, a remote GIF — is Mastodon's
+  // `unknown` type rather than a `null` entry, and the difference is the whole
+  // post rather than one attachment. `media_attachments` is
+  // `MediaAttachment.array()`, so a `null` failed `getMastodonStatus`'s closing
+  // `Mastodon.Status.parse`: `getMastodonStatuses` dropped the status from the
+  // page as un-hydratable and a single-status GET errored, which took a post
+  // carrying one audio clip off the API entirely while the web UI still
+  // rendered it. `unknown` carries the id, url, description and blurhash
+  // without claiming dimensions or a duration this row does not store — and
+  // carrying an id is also what lets an editing client name the attachment
+  // instead of dropping it.
+  return Mastodon.MediaTypes.Unknown.parse({
+    id: attachment.id,
+    url: attachment.url,
+    preview_url: attachment.thumbnailUrl ?? null,
+    remote_url: null,
+    description: attachment.name,
+    type: 'unknown',
+    blurhash: attachment.blurhash ?? null
+  })
 }

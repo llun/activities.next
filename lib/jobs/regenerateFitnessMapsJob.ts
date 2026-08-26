@@ -24,6 +24,7 @@ import {
   getVisibleSegments
 } from '@/lib/services/fitness-files/privacy'
 import { saveMedia } from '@/lib/services/medias'
+import { getSavedMediaAttachmentMetadata } from '@/lib/services/medias/attachmentMediaMetadata'
 import { getQueue } from '@/lib/services/queue'
 import { StatusType } from '@/lib/types/domain/status'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
@@ -234,7 +235,8 @@ export const regenerateFitnessMapsJob = createJobHandle(
               width: storedMap.meta.original.width,
               height: storedMap.meta.original.height,
               name: ROUTE_MAP_ATTACHMENT_NAME,
-              mediaId: storedMap.id
+              mediaId: storedMap.id,
+              ...getSavedMediaAttachmentMetadata(storedMap)
             })
 
             await database.updateFitnessFileActivityData(fitnessFileId, {
