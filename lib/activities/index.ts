@@ -158,7 +158,8 @@ export const sendNote = async ({ currentActor, inbox, note }: SendNoteParams) =>
     },
     async (span) => {
       const activity: CreateStatus = {
-        '@context': ACTIVITY_STREAM_URL,
+        // FEP-044f terms ride on every note — see AGENTS.md, ActivityPub & JSON-LD.
+        '@context': QUOTE_ACTIVITY_CONTEXT,
         id: note.id,
         type: CreateAction,
         actor: note.attributedTo,
@@ -202,7 +203,9 @@ export const sendUpdateNote = async ({
       }
 
       const activity: UpdateStatus = {
-        '@context': ACTIVITY_STREAM_URL,
+        // Also the activity that re-federates a note once its quote is approved,
+        // so dropping the terms here hides the approval from the receiver.
+        '@context': QUOTE_ACTIVITY_CONTEXT,
         id: `${note.id}#updates/${Date.now()}`,
         type: UpdateAction,
         actor: note.attributedTo,

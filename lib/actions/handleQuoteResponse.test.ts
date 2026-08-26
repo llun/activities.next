@@ -3,6 +3,12 @@ import type { Database } from '@/lib/database/types'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
 
+const mockVerifyStamp = vi.fn()
+vi.mock('@/lib/services/quotes/verifyRemoteQuote', () => ({
+  verifyQuoteAuthorizationStamp: (...params: unknown[]) =>
+    mockVerifyStamp(...params)
+}))
+
 vi.mock('@/lib/services/queue', () => ({
   getQueue: vi.fn().mockReturnValue({
     publish: vi.fn().mockResolvedValue(undefined)
@@ -19,17 +25,20 @@ const STAMP_URI = 'https://target.example/users/alice/quote_authorizations/abc'
 const makeDatabase = (
   overrides: Partial<{
     edge: { statusId: string; quotedStatusId: string } | null
+    edgeState: string
     updateSpy: ReturnType<typeof vi.fn>
   }> = {}
 ): Database =>
   ({
-    getStatusQuoteByQuoteRequestId: vi
-      .fn()
-      .mockResolvedValue(
-        overrides.edge === undefined
-          ? { statusId: QUOTING_STATUS_ID, quotedStatusId: QUOTED_STATUS_ID }
-          : overrides.edge
-      ),
+    getStatusQuoteByQuoteRequestId: vi.fn().mockResolvedValue(
+      overrides.edge === undefined
+        ? {
+            statusId: QUOTING_STATUS_ID,
+            quotedStatusId: QUOTED_STATUS_ID,
+            state: overrides.edgeState ?? 'pending'
+          }
+        : overrides.edge
+    ),
     updateStatusQuoteState:
       overrides.updateSpy ?? vi.fn().mockResolvedValue(null),
     getStatus: vi.fn().mockImplementation(({ statusId }) =>
@@ -45,13 +54,17 @@ const makeDatabase = (
   }) as unknown as Database
 
 describe('handleQuoteResponse', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockVerifyStamp.mockResolvedValue('verified')
+  })
 
   it('accepts a matching outbound quote from the quoted authority, storing the stamp and re-federating', async () => {
     const updateSpy = vi.fn().mockResolvedValue(null)
     const database = makeDatabase({ updateSpy })
     const handled = await handleQuoteResponse({
       database,
+      verifiedSenderActorId: QUOTED_AUTHOR,
       activity: {
         type: 'Accept',
         actor: QUOTED_AUTHOR,
@@ -76,6 +89,7 @@ describe('handleQuoteResponse', () => {
     const database = makeDatabase({ updateSpy })
     const handled = await handleQuoteResponse({
       database,
+      verifiedSenderActorId: QUOTED_AUTHOR,
       activity: {
         type: 'Reject',
         actor: QUOTED_AUTHOR,
@@ -96,6 +110,7 @@ describe('handleQuoteResponse', () => {
     const database = makeDatabase({ updateSpy })
     const handled = await handleQuoteResponse({
       database,
+      verifiedSenderActorId: 'https://evil.example/users/mallory',
       activity: {
         type: 'Accept',
         actor: 'https://evil.example/users/mallory',
@@ -108,11 +123,116 @@ describe('handleQuoteResponse', () => {
     expect(updateSpy).not.toHaveBeenCalled()
   })
 
+  it("does not store a result disproved as this edge's stamp", async () => {
+    // A stamp that was read and does not authorize THIS edge — a real
+    // QuoteAuthorization naming a different quoting note, say. Only a definitive
+    // disproof drops it; a stamp that merely could not be read is kept (see the
+    // test below), because failing to read a document does not disprove it.
+    mockVerifyStamp.mockResolvedValue('mismatch')
+    const updateSpy = vi.fn().mockResolvedValue(null)
+    const database = makeDatabase({ updateSpy })
+
+    await handleQuoteResponse({
+      database,
+      verifiedSenderActorId: QUOTED_AUTHOR,
+      activity: {
+        type: 'Accept',
+        actor: QUOTED_AUTHOR,
+        object: QUOTE_REQUEST_ID,
+        result: `${QUOTED_AUTHOR}/quote_authorizations/for-another-note`
+      }
+    })
+
+    // Still accepted — it simply carries no stamp to re-federate.
+    expect(updateSpy).toHaveBeenCalledWith({
+      statusId: QUOTING_STATUS_ID,
+      state: 'accepted',
+      authorizationUri: undefined
+    })
+  })
+
+  it('keeps a stamp the check could not read, rather than dropping it forever', async () => {
+    // `unavailable` is not a disproof. This edge goes pending -> accepted here
+    // and `accepted -> accepted` is a no-op, so no later Accept could ever
+    // supply the stamp: dropping it on one transient 503 would strip
+    // quoteAuthorization from every federated copy of the note permanently and
+    // leave receivers rendering an approved quote as unapproved.
+    mockVerifyStamp.mockResolvedValue('unavailable')
+    const updateSpy = vi.fn().mockResolvedValue(null)
+    const database = makeDatabase({ updateSpy })
+
+    await handleQuoteResponse({
+      database,
+      verifiedSenderActorId: QUOTED_AUTHOR,
+      activity: {
+        type: 'Accept',
+        actor: QUOTED_AUTHOR,
+        object: QUOTE_REQUEST_ID,
+        result: STAMP_URI
+      }
+    })
+
+    expect(updateSpy).toHaveBeenCalledWith({
+      statusId: QUOTING_STATUS_ID,
+      state: 'accepted',
+      authorizationUri: STAMP_URI
+    })
+  })
+
+  it('does not re-fetch the stamp for an Accept replayed against a settled edge', async () => {
+    // Nothing to settle, and the state machine would discard the write — but a
+    // verified quoted author could otherwise replay one Accept indefinitely and
+    // make us re-fetch on each, inline in the inbox request.
+    const updateSpy = vi.fn().mockResolvedValue(null)
+    const database = makeDatabase({ updateSpy, edgeState: 'accepted' })
+
+    const handled = await handleQuoteResponse({
+      database,
+      verifiedSenderActorId: QUOTED_AUTHOR,
+      activity: {
+        type: 'Accept',
+        actor: QUOTED_AUTHOR,
+        object: QUOTE_REQUEST_ID,
+        result: STAMP_URI
+      }
+    })
+
+    expect(handled).toBe(true)
+    expect(mockVerifyStamp).not.toHaveBeenCalled()
+    expect(updateSpy).not.toHaveBeenCalled()
+    expect(getQueue().publish).not.toHaveBeenCalled()
+  })
+
+  it('verifies the stamp against this edge, not merely its host', async () => {
+    const database = makeDatabase({})
+
+    await handleQuoteResponse({
+      database,
+      verifiedSenderActorId: QUOTED_AUTHOR,
+      activity: {
+        type: 'Accept',
+        actor: QUOTED_AUTHOR,
+        object: QUOTE_REQUEST_ID,
+        result: STAMP_URI
+      }
+    })
+
+    expect(mockVerifyStamp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stampUri: STAMP_URI,
+        quotedAuthorId: QUOTED_AUTHOR,
+        quotingStatusId: QUOTING_STATUS_ID,
+        quotedStatusId: QUOTED_STATUS_ID
+      })
+    )
+  })
+
   it('does not store a stamp hosted on a foreign authority', async () => {
     const updateSpy = vi.fn().mockResolvedValue(null)
     const database = makeDatabase({ updateSpy })
     await handleQuoteResponse({
       database,
+      verifiedSenderActorId: QUOTED_AUTHOR,
       activity: {
         type: 'Accept',
         actor: QUOTED_AUTHOR,
@@ -142,6 +262,7 @@ describe('handleQuoteResponse', () => {
     } as unknown as Database
     const handled = await handleQuoteResponse({
       database,
+      verifiedSenderActorId: 'https://target.example/users/mallory',
       activity: {
         type: 'Accept',
         actor: 'https://target.example/users/mallory',
@@ -154,11 +275,68 @@ describe('handleQuoteResponse', () => {
     expect(updateSpy).not.toHaveBeenCalled()
   })
 
+  it.each([
+    { type: 'Accept' as const, extra: { result: STAMP_URI } },
+    { type: 'Reject' as const, extra: {} }
+  ])(
+    'refuses a $type whose document claims the quoted author but was signed by someone else',
+    async ({ type, extra }) => {
+      // The inbox guard verifies `actor` on the RAW body, but what reaches here
+      // is the COMPACTED document, and a sender-supplied JSON-LD context can
+      // alias `actor` onto a value that was never signed for: a document signed
+      // by mallory can compact to `actor: alice`. Authorizing on that field let
+      // any federatable actor settle someone else's pending quote, so the
+      // comparison must use the signature-verified sender instead.
+      const updateSpy = vi.fn().mockResolvedValue(null)
+      const database = makeDatabase({ updateSpy })
+
+      const handled = await handleQuoteResponse({
+        database,
+        verifiedSenderActorId: 'https://evil.example/users/mallory',
+        activity: {
+          type,
+          actor: QUOTED_AUTHOR,
+          object: QUOTE_REQUEST_ID,
+          ...extra
+        }
+      })
+
+      expect(handled).toBe(false)
+      expect(updateSpy).not.toHaveBeenCalled()
+      expect(getQueue().publish).not.toHaveBeenCalled()
+    }
+  )
+
+  it('accepts when the verified sender matches the quoted author despite a mismatched document actor', async () => {
+    // The mirror of the case above: the signature is what authorizes, so a
+    // document whose `actor` compacted to something else does not block a
+    // genuine approval from the quoted author.
+    const updateSpy = vi.fn().mockResolvedValue(null)
+    const database = makeDatabase({ updateSpy })
+
+    const handled = await handleQuoteResponse({
+      database,
+      verifiedSenderActorId: QUOTED_AUTHOR,
+      activity: {
+        type: 'Accept',
+        actor: 'https://somewhere.example/users/someone',
+        object: QUOTE_REQUEST_ID,
+        result: STAMP_URI
+      }
+    })
+
+    expect(handled).toBe(true)
+    expect(updateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ state: 'accepted' })
+    )
+  })
+
   it('returns false when no outbound quote matches (falls through to follow handling)', async () => {
     const updateSpy = vi.fn()
     const database = makeDatabase({ edge: null, updateSpy })
     const handled = await handleQuoteResponse({
       database,
+      verifiedSenderActorId: QUOTED_AUTHOR,
       activity: {
         type: 'Accept',
         actor: QUOTED_AUTHOR,
@@ -176,6 +354,7 @@ describe('handleQuoteResponse', () => {
     await expect(
       handleQuoteResponse({
         database,
+        verifiedSenderActorId: QUOTED_AUTHOR,
         activity: {
           type: 'Follow',
           actor: QUOTED_AUTHOR,

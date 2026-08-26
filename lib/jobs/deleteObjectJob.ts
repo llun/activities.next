@@ -40,8 +40,27 @@ export const deleteObjectJob = createJobHandle(
       // the stamp). Host equality is not enough on a multi-user instance — a
       // co-resident of the quoted author would otherwise be able to revoke
       // someone else's authorized quote — so resolve the exact author and fail
-      // closed if it cannot be resolved. Runs before the actor/status delete
-      // paths; a status/actor id never matches a stored stamp uri.
+      // closed if it cannot be resolved.
+      //
+      // This branch is purely ADDITIVE: it never returns, on either outcome. A
+      // stored `authorizationUri` is remote-supplied and only ever same-host
+      // checked, so an id naming a real actor or status CAN sit in that column
+      // — planted, or a peer simply echoing the quoted status in an Accept's
+      // `result`. Consuming the activity here would swallow that object's own
+      // legitimate Delete forever, and no retry could ever get past it. Falling
+      // through costs nothing: a genuine stamp uri names no actor or status, so
+      // every path below is a no-op for it, and each is independently scoped to
+      // the verified sender.
+      // Set when this Delete really was a quote revocation. The fall-through
+      // below must still RUN — a planted id names a real actor or status that
+      // deserves its delete — while the two paths a legitimate revocation
+      // actually reaches must not REPORT it as junk: the string path (where the
+      // value compared IS the stamp uri, so a mismatch is structurally
+      // guaranteed) and the terminal branch (where the FEP-044f object shape
+      // parses as neither Tombstone nor Announce). This is NOT a blanket rule:
+      // the Announce branch deliberately still reports — see its own comment —
+      // because no legitimate revocation shape can reach it.
+      let revokedQuote = false
       const stampUri = getStampUri(data)
       if (stampUri) {
         const edge = await database.getStatusQuoteByAuthorizationUri({
@@ -69,16 +88,19 @@ export const deleteObjectJob = createJobHandle(
               state: 'revoked'
             })
             span.setAttribute('revokedQuoteStatusId', edge.statusId)
+            revokedQuote = true
           } else {
             span.setAttribute('quoteRevocationSenderMismatch', true)
           }
-          return
         }
       }
 
       if (typeof data === 'string') {
         if (!actorMatchesVerifiedSender(data, message)) {
-          span.setAttribute('senderMismatch', true)
+          // Not a mismatch when we just revoked: `senderMismatch` means someone
+          // tried to delete something they do not own, and the quoted author
+          // deleting their own stamp is the opposite of that.
+          if (!revokedQuote) span.setAttribute('senderMismatch', true)
           return
         }
 
@@ -106,6 +128,12 @@ export const deleteObjectJob = createJobHandle(
       if (announceResult.success) {
         const announce = announceResult.data
         if (!actorMatchesVerifiedSender(announce.actor, message)) {
+          // Reported unconditionally, unlike the string path above: an Announce
+          // is a boost and never a stamp, so no legitimate revocation shape
+          // reaches here. Arriving with `revokedQuote` set means someone stored
+          // a third party's Announce id as an authorizationUri and is now
+          // deleting an object they do not own — precisely the case the
+          // attribute exists to surface.
           span.setAttribute('senderMismatch', true)
           return
         }
@@ -118,6 +146,12 @@ export const deleteObjectJob = createJobHandle(
         return
       }
 
+      // A revocation that reached here is not invalid data: the FEP-044f shape
+      // `{ id, type: 'QuoteAuthorization' }` — what our own sendQuoteRevoke
+      // emits — is neither a Tombstone nor an Announce, so without this every
+      // successful revocation would record an exception on its span and read as
+      // a job failure in tracing.
+      if (revokedQuote) return
       span.recordException(new Error('Invalid data'))
       span.setAttribute('data', JSON.stringify(data))
     })
