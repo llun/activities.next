@@ -114,5 +114,10 @@ describe('Media', () => {
     expect(video).toBeInTheDocument()
     expect(video).toHaveAttribute('poster', 'https://example.com/thumb.jpg')
     expect(video).toHaveStyle({ objectPosition: '75% 75%' })
+    // A poster alone must not defer the fetch. Only a strip item asks for that,
+    // by passing `loading="lazy"`; every other caller — the lightbox, which
+    // shows controls, and the lone-video branch — omits it and keeps the
+    // element's own `metadata` default.
+    expect(video).not.toHaveAttribute('preload')
   })
 })

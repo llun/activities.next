@@ -541,6 +541,58 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
 - **Internal API CORS:** Next.js API routes exclusively consumed by the internal web client (e.g., via `lib/client.ts`) do not require `OPTIONS` handlers or CORS preflight configurations, even if they use `apiResponse` with `allowedMethods`.
 - **Conditional Object Spreading:** Spreading `null` in object literals (e.g., `...(cond ? { ... } : null)`) is a deliberate, consistent no-op pattern used to cleanly omit keys and should not be flagged as confusing or replaced with `{}`.
 
+## Post media layout
+
+- A status's media is **one attachment at its own size, or a horizontally
+  scrollable strip — never a grid.** `lib/components/posts/attachments.tsx` owns
+  this for every surface that renders a post. A lone picture keeps its own
+  aspect ratio and hugs the post's left edge, scaled by WIDTH; the branch this
+  replaced cropped every portrait photo to a full-width 16:9.
+- Four details of the strip are load-bearing and a "cleanup" that drops any of
+  them is a regression: `flex-none` on each item, without which they shrink to
+  fit and nothing ever overflows (the whole feature turns off silently);
+  `STRIP_ITEM_MAX_WIDTH` (78%) so the next item always
+  peeks — that peek is what says "this scrolls" on a touch screen, where the
+  back chevron never appears at all; `scroll-snap-type: x proximity`, never `mandatory`, which pulls the
+  peek flush the moment the scroll settles; and the forward chevron staying
+  visible while the back one appears on hover only.
+- **There is no item cap and no `+N` overlay** — scrolling reaches everything —
+  so anything the strip renders unboundedly needs a deferral: images pass
+  `loading="lazy"`, videos `preload="none"` (`loading` is image-only) — but only
+  a video carrying a `poster`. A posterless one shows nothing at all when
+  deferred, since its only pre-playback frame comes from the `#t=0.01` fragment,
+  and federated video never has a poster. A lone picture or video is
+  deliberately eager, being the post's largest element. Re-adding a cap hides
+  media the post actually carries.
+- The edge fade is a **`mask-image`**, not a background gradient: posts render
+  on four surfaces (`bg-card`, `bg-background`, `bg-muted/30`, unframed) and a
+  fade painted in one token is wrong on the other three and in dark mode
+  everywhere.
+- **Filtering is layout-only.** `isVisualAttachment` picks what gets a picture
+  box and `isAudibleAttachment` what becomes an inline player; a `.fit` file or
+  PDF is skipped rather than rendering an empty box. But the lightbox is handed
+  exactly the pictures on screen, indexed into THAT list — passing the raw
+  array gives `MediasModal` a blank slide and a wrong "n of m". Anything asking
+  "do I have media to show" asks `isRenderableAttachment`, never
+  `attachments.length` (`post.tsx`'s link-preview suppression does).
+- **A stored dimension of `0` means "unknown", not "zero pixels"** — several
+  media-storage paths persist `metaData.width ?? 0` — so every read goes through
+  `getMediaGeometry`, which also clamps pathological shapes and falls back to a
+  4:3 box so blurhash has something to reserve.
+- **A strip item's focus indicator is an `outline` with a NEGATIVE offset.** An
+  outset ring is clipped by the strip's own `overflow-x-auto`, and an inset ring
+  is invisible — an inset `box-shadow` paints beneath content and the button's
+  only child is an opaque image. This has been got wrong twice; the class string
+  is pinned by a test.
+- `useMediaStripScroll` measures the strip's own container, never a viewport
+  breakpoint, through a **callback** ref because the strip is conditional. Its
+  `contentKey` must describe item WIDTHS, not their count: the observer watches
+  the container, which does not resize when an edit swaps a panorama for a
+  portrait.
+- `no-scrollbar` belongs only on a row that carries its own overflow affordance.
+  It was applied in the emoji and reaction pickers while defined nowhere, so
+  defining it would have removed their only cue.
+
 ## Status delete federation
 
 - The local delete commits **first**; `SendDeleteNoteJob` federates the

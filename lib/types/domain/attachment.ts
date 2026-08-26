@@ -92,6 +92,32 @@ const hasFitnessExtension = (value: string) => {
   )
 }
 
+/**
+ * The two media kinds that carry their own geometry and can therefore be laid
+ * out in a picture box: an image or a video. Audio has controls rather than a
+ * frame, and a fitness file or a PDF has nothing to render at all, so both are
+ * kept out of the picture layouts and handled separately by their surface.
+ */
+export const isVisualAttachment = (attachment: Pick<Attachment, 'mediaType'>) =>
+  attachment.mediaType.startsWith('image') ||
+  attachment.mediaType.startsWith('video')
+
+/** Media that plays but has no frame — an `<audio controls>` element. */
+export const isAudibleAttachment = (
+  attachment: Pick<Attachment, 'mediaType'>
+) => attachment.mediaType.startsWith('audio')
+
+/**
+ * Whether `lib/components/posts/media.tsx` will produce an element for this
+ * attachment at all. It renders image, video and audio and returns `null` for
+ * everything else, so a fitness `.fit` file or a PDF placed in a media layout
+ * is an empty box. Keep this in step with `Media`'s branches: a surface asking
+ * whether it has any media to show must ask this, not `attachments.length`.
+ */
+export const isRenderableAttachment = (
+  attachment: Pick<Attachment, 'mediaType'>
+) => isVisualAttachment(attachment) || isAudibleAttachment(attachment)
+
 export const isFitnessAttachment = (
   attachment: Pick<Attachment, 'mediaType' | 'url' | 'name'>
 ) => {

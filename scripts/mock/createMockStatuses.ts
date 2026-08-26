@@ -107,7 +107,7 @@ async function createMockStatuses() {
     text: string
     timeOffset?: number
     imageOffset: number
-    imageSize: { width: number; height: number }
+    imageSize: (index: number) => { width: number; height: number }
     attachmentName: (index: number) => string
   }) => {
     const createdAt = Date.now() + timeOffset // Future/recent so it sorts to the top
@@ -128,7 +128,8 @@ async function createMockStatuses() {
     const statusUrl = publicId
       ? `https://${author.domain}/${getMention(author)}/${publicId}`
       : id
-    const body = local ? `${text} (${imageCount} images)` : text
+    const imageLabel = `${imageCount} image${imageCount === 1 ? '' : 's'}`
+    const body = local ? `${text} (${imageLabel})` : text
 
     const status = await database.createNote({
       id,
@@ -142,13 +143,14 @@ async function createMockStatuses() {
     })
 
     for (let index = 0; index < imageCount; index += 1) {
+      const { width, height } = imageSize(index)
       await database.createAttachment({
         actorId: author.id,
         statusId: id,
         mediaType: 'image/jpeg',
         url: attachmentImages[(index + imageOffset) % attachmentImages.length],
-        width: imageSize.width,
-        height: imageSize.height,
+        width,
+        height,
         name: attachmentName(index)
       })
     }
@@ -161,16 +163,40 @@ async function createMockStatuses() {
 
     console.log(
       local
-        ? `Created status with ${imageCount} images: "${text}"`
+        ? `Created status with ${imageLabel}: "${text}"`
         : `Created external status for ${author.username}: "${text}"`
     )
   }
 
-  // Local multi-image statuses (recent timeOffsets so they appear at the top).
+  // The shapes the post media layout branches on: a lone attachment renders at
+  // its own aspect ratio, and two or more become a fixed-height scrollable
+  // strip whose items are each as wide as their own ratio makes them. Seeding
+  // only one shape hides both behaviours, so these deliberately mix.
+  const landscape = { width: 800, height: 600 }
+  const portrait = { width: 600, height: 900 }
+  const panorama = { width: 1200, height: 500 }
+  const square = { width: 700, height: 700 }
+  const mixedSizes = [landscape, portrait, panorama, square]
+  const sameSize = (size: { width: number; height: number }) => () => size
+
+  // Local statuses (recent timeOffsets so they appear at the top).
   const localStatuses = [
+    {
+      imageCount: 1,
+      text: 'A single landscape photo.',
+      timeOffset: 500,
+      imageSize: sameSize(landscape)
+    },
+    {
+      imageCount: 1,
+      text: 'A single portrait photo.',
+      timeOffset: 700,
+      imageOffset: 1,
+      imageSize: sameSize(portrait)
+    },
     { imageCount: 2, text: 'Checking out 2 cool photos!', timeOffset: 1000 },
     { imageCount: 3, text: 'Here are 3 amazing shots.', timeOffset: 2000 },
-    { imageCount: 4, text: 'A grid of 4 images.', timeOffset: 3000 },
+    { imageCount: 4, text: 'A row of 4 images.', timeOffset: 3000 },
     { imageCount: 7, text: 'Photo dump! 7 images.', timeOffset: 4000 }
   ]
   for (const spec of localStatuses) {
@@ -178,7 +204,7 @@ async function createMockStatuses() {
       author: actor,
       local: true,
       imageOffset: 0,
-      imageSize: { width: 800, height: 600 },
+      imageSize: (index) => mixedSizes[index % mixedSizes.length],
       attachmentName: (index) => `Image ${index + 1} for status`,
       ...spec
     })
@@ -207,13 +233,13 @@ async function createMockStatuses() {
       author: record,
       local: false,
       imageOffset: 2,
-      imageSize: { width: 1000, height: 750 },
+      imageSize: sameSize({ width: 1000, height: 750 }),
       attachmentName: (index) => `External image ${index + 1}`,
       ...spec
     })
   }
 
-  console.log('✅ Multi-image mock statuses created successfully!')
+  console.log('✅ Mock statuses with media created successfully!')
   process.exit(0)
 }
 

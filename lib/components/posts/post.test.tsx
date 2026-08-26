@@ -2176,6 +2176,70 @@ describe('Post', () => {
       expect(screen.queryByText('A linked article')).not.toBeInTheDocument()
     })
 
+    // It yields to media the post actually SHOWS, which is not the same as the
+    // post having attachments: `Attachments` skips anything `Media` renders as
+    // nothing, so a bare `attachments.length` would yield the card to a block
+    // that never appears.
+    it('does not yield to an attachment nothing can render', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{
+            ...status,
+            summary: null,
+            linkPreview,
+            attachments: [
+              {
+                id: 'attachment-fit',
+                actorId: status.actorId,
+                statusId: status.id,
+                type: 'Document',
+                mediaType: 'application/vnd.ant.fit',
+                url: 'https://activities.local/ride.fit',
+                name: 'ride.fit',
+                createdAt: currentTime,
+                updatedAt: currentTime
+              }
+            ]
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(screen.getByText('A linked article')).toBeInTheDocument()
+    })
+
+    it('yields to an audio attachment, which does render', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{
+            ...status,
+            summary: null,
+            linkPreview,
+            attachments: [
+              {
+                id: 'attachment-audio',
+                actorId: status.actorId,
+                statusId: status.id,
+                type: 'Document',
+                mediaType: 'audio/mpeg',
+                url: 'https://activities.local/track.mp3',
+                name: '',
+                createdAt: currentTime,
+                updatedAt: currentTime
+              }
+            ]
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(screen.queryByText('A linked article')).not.toBeInTheDocument()
+    })
+
     it('yields to a quoted post', () => {
       render(
         <Post

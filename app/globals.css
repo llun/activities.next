@@ -232,6 +232,27 @@
   .safe-area-pb {
     padding-bottom: env(safe-area-inset-bottom, 0);
   }
+
+  /* Hides the scrollbar on a strip that carries its OWN affordances — today
+     only the post media strip, whose partly-visible next item, edge fade and
+     chevrons all say "there is more here". The content stays reachable by
+     wheel, swipe, keyboard focus and those controls; only the bar is hidden.
+
+     Do not apply it to a row that has none of that. This class was applied in
+     the emoji and reaction pickers' category rows for a long time while being
+     defined NOWHERE (Tailwind v4 has no such built-in), so it silently did
+     nothing; defining it for the media strip would have taken the scrollbar —
+     their only overflow cue — off both. On an instance with custom emoji the
+     reaction picker's row is 9 tabs in a 270px scrollport, so the last one
+     would have become invisible with nothing to hint at it. Both were switched
+     back to a plain scrollbar rather than quietly inheriting this. */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Markdown content styles for PostBox preview and Status display */
