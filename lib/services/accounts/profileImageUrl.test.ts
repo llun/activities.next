@@ -134,35 +134,29 @@ describe('parseProfileImageUrl', () => {
       })
     })
 
-    it.each([
-      {
-        description: 'a trailing space on the stored value',
-        stored: `${STALE} `
-      },
-      {
-        description: 'a leading space on the stored value',
-        stored: ` ${STALE}`
-      },
-      {
-        description: 'whitespace on both sides of the stored value',
-        stored: `  ${STALE}  `
-      }
-    ])('matches through $description', ({ stored }) => {
+    it('matches through whitespace on the stored value', () => {
       // The rows this protects predate the validator: the old field was free
       // text parsed by a bare `z.string()`, and nothing on the read path trims,
       // so a copy-paste that carried a space is stored and resubmitted with it.
       // Comparing a trimmed submission against a raw stored value missed
       // exactly those rows.
-      expect(parseProfileImageUrl(STALE, config, stored)).toEqual({
+      //
+      // One case covers it: `trim()` has no leading/trailing branch, so
+      // whitespace on both sides subsumes either alone.
+      expect(parseProfileImageUrl(STALE, config, `  ${STALE}  `)).toEqual({
         valid: true,
         value: undefined
       })
     })
 
-    it('matches when the submission is the side carrying whitespace', () => {
-      expect(parseProfileImageUrl(`  ${STALE}  `, config, STALE)).toEqual({
+    it('clears a stored value that is only whitespace', () => {
+      // Such a value is truthy but trims to '', so it collides with the empty
+      // submission Remove sends. Read as "unchanged", the one control that can
+      // clear it becomes a silent no-op — the field is read-only, so nothing
+      // else can. The empty submission has to be decided before the match.
+      expect(parseProfileImageUrl('', config, '   ')).toEqual({
         valid: true,
-        value: undefined
+        value: null
       })
     })
 

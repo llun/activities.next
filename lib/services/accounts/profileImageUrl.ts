@@ -76,8 +76,16 @@ export const parseProfileImageUrl = (
   // no error UI, and with no way to save anything on the page again until they
   // worked out that the image had to be removed first.
   //
+  // An empty submission is ALWAYS a clear, and it is decided first. A stored
+  // value that is nothing but whitespace is truthy but trims to '', so it would
+  // otherwise collide with the empty submission Remove sends and be read as
+  // "unchanged" — leaving the one control that can clear it a silent no-op,
+  // since the field is read-only and nothing else writes it.
+  if (trimmed === '') return { valid: true, value: null }
+
   // It gives away nothing: a NEW value still has to pass, and clearing still
   // works, so the stale value stays reachable and removable rather than sticky.
+  //
   // Both sides are trimmed. Everything this validator STORES is already
   // trimmed, but the values it is protecting predate it: the old field was a
   // free-text box parsed by a bare `z.string()`, and nothing on the read path
@@ -87,8 +95,6 @@ export const parseProfileImageUrl = (
   if (currentValue && trimmed === currentValue.trim()) {
     return { valid: true, value: undefined }
   }
-
-  if (trimmed === '') return { valid: true, value: null }
 
   if (trimmed.length > MAX_PROFILE_IMAGE_URL_LENGTH) return REFUSED
 
