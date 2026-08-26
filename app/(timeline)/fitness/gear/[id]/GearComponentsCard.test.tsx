@@ -104,7 +104,8 @@ describe('GearComponentsCard', () => {
     // Without this default the unretire tests pass only on a neighbour's
     // leaked implementation: `vi.clearAllMocks()` resets call history and
     // leaves implementations in place, so whichever test last set one on this
-    // mock decides what the next test sees. Shuffled seeds 3, 8 and 10 failed.
+    // mock decides what the next test sees — including the rejection from
+    // "surfaces an unretire failure". Remove it and `--sequence.shuffle` fails.
     mockUpdateFitnessGearComponent.mockResolvedValue(
       createComponent({ removedAt: null })
     )
@@ -393,8 +394,11 @@ describe('GearComponentsCard', () => {
     expect(onChanged).toHaveBeenCalled()
   })
 
-  // Unlike Retire and Delete, Unretire is not armed: it restores state rather
-  // than destroying it, and a stray click is undone by one more click.
+  // Unretire is not armed. It is NOT the mirror of Retire — see the comment on
+  // `handleUnretire`: a delayed unretire credits every activity ridden while
+  // the part sat retired, and re-retiring does not take that back. It stays
+  // unarmed because arming adds friction to the misclick without preventing
+  // the misattribution.
   it('unretires on a single click', async () => {
     renderCard([createComponent({ removedAt: Date.UTC(2025, 5, 1) })])
 
@@ -440,7 +444,10 @@ describe('GearComponentsCard', () => {
     const actions = screen
       .getByRole('button', { name: 'Unretire Chain' })
       .closest('div')
-    expect(actions).toHaveClass('flex-wrap')
+    // Both tokens: `flex-wrap` does nothing without `display: flex`, and the
+    // enclosing `<td>` carries `whitespace-nowrap`, so a block container puts
+    // the two buttons on one line and overhangs the panel instead of wrapping.
+    expect(actions).toHaveClass('flex', 'flex-wrap')
   })
 
   it('offers both unretire and delete on a retired row', () => {
