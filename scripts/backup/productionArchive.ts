@@ -1385,8 +1385,14 @@ const downloadPublicStorageFile = async ({
   )
 
   if (!response.ok) {
-    throw new Error(
-      `Failed to download ${key} from public storage: HTTP ${response.status}`
+    // The status is attached as well as interpolated. The message is for the
+    // operator's console; only a structured field survives `redactStorageError`
+    // into the manifest.
+    throw Object.assign(
+      new Error(
+        `Failed to download ${key} from public storage: HTTP ${response.status}`
+      ),
+      { httpStatusCode: response.status }
     )
   }
 
@@ -1470,17 +1476,21 @@ export const archiveStorage = async (
                   source: entry.source
                 })
         } catch (error) {
-          const nodeError = error as Error
           if (!options.allowMissingStorage) throw error
+
+          // The console line keeps the driver's own message: it goes to the
+          // operator running the export, on their own machine, and never into
+          // the archive. Only the redacted form is written to the manifest.
+          const message = error instanceof Error ? error.message : String(error)
 
           await fs.rm(archiveFilePath, { force: true })
           failedFiles.push({
-            error: nodeError.message,
+            error: redactStorageError(error, entry.source),
             path: relativeFilePath
           })
           console.error(
             `Storage: failed to download ${entry.destination} file ` +
-              `${relativeFilePath}: ${nodeError.message}`
+              `${relativeFilePath}: ${message}`
           )
           continue
         }
@@ -1515,10 +1525,147 @@ export const archiveStorage = async (
   return storageManifests
 }
 
+// Manifest redaction. The manifest travels inside the tarball, so it
+// deliberately says nothing about WHERE production storage lives:
+// `redactStorageSource` keeps `kind` and `prefix` and drops the bucket, region,
+// endpoint, CDN hostname and local root.
+//
+// `failedFiles[].error` sits directly beside it in the same manifest and used
+// to carry the driver's message verbatim, which put back exactly what the line
+// above had removed. An export run with `--allow-missing-storage` against a
+// private-network MinIO landed `getaddrinfo ENOTFOUND minio.internal` in the
+// tarball; the local driver landed `ENOENT: ... copyfile '/srv/uploads/...'`.
+//
+// Both halves therefore answer to one policy: only allowlisted, shape-checked
+// fields survive. For an error that is its syscall, code, name and HTTP status
+// — never its message. A message is free text a driver interpolates whatever it
+// likes into, so scrubbing one is a guess about what we thought to look for,
+// while an allowlist is a guarantee.
+
+// The fields `redactStorageSource` keeps.
+const STORAGE_SOURCE_MANIFEST_FIELDS: readonly string[] = ['kind', 'prefix']
+
 const redactStorageSource = (source: StorageSource) => ({
   kind: source.kind,
   ...(source.prefix ? { prefix: source.prefix } : null)
 })
+
+/**
+ * Every string `redactStorageSource` drops, lowercased. Deriving it from the
+ * source rather than listing the fields again keeps one definition of "what is
+ * sensitive about a storage source", so a field added to `StorageSource` later
+ * is withheld from both halves without anyone remembering this one.
+ *
+ * Whole values only. It is the second line of defence, for a single-label value
+ * the shape check below cannot tell from an error code — a Docker-network
+ * `hostname: 'minio'`, a bucket named `activitynext`. Anything with a dot, dash
+ * or colon in it is already refused by shape.
+ */
+const getRedactedStorageSourceValues = (source: StorageSource) =>
+  new Set(
+    Object.entries(source)
+      .filter(
+        ([key, value]) =>
+          typeof value === 'string' &&
+          !STORAGE_SOURCE_MANIFEST_FIELDS.includes(key)
+      )
+      .map(([, value]) => String(value).toLowerCase())
+  )
+
+/**
+ * Error codes, error names and libuv syscalls are single bare words —
+ * `ENOTFOUND`, `NoSuchKey`, `getaddrinfo`. A dot, dash, colon, slash or space
+ * means it is not one, which is what keeps `minio.internal`, `10.4.2.11`,
+ * `https://minio.internal:9000` and `activitynext-prod-media` out by SHAPE
+ * rather than by pattern-matching for the forms we happened to think of. An S3
+ * error `name` is whatever `Code` the storage server sent, so it is untrusted
+ * input like any other.
+ */
+const SAFE_ERROR_TOKEN_PATTERN = /^[A-Za-z][A-Za-z0-9_]{0,63}$/
+
+// `fetch` reports a DNS failure as `TypeError: fetch failed` and hangs the real
+// error off `cause`, so the code worth reporting is rarely on the top level.
+const MAX_ERROR_CAUSE_DEPTH = 5
+
+const getErrorChain = (error: unknown) => {
+  const chain: Record<string, unknown>[] = []
+  let current = error
+
+  while (
+    chain.length < MAX_ERROR_CAUSE_DEPTH &&
+    typeof current === 'object' &&
+    current !== null
+  ) {
+    const level = current as Record<string, unknown>
+    if (chain.includes(level)) break
+    chain.push(level)
+    current = level.cause
+  }
+
+  return chain
+}
+
+const getErrorHttpStatusCode = (level: Record<string, unknown>) => {
+  const metadata = level.$metadata
+  const candidates = [
+    typeof metadata === 'object' && metadata !== null
+      ? (metadata as Record<string, unknown>).httpStatusCode
+      : undefined,
+    level.httpStatusCode,
+    level.statusCode,
+    level.status
+  ]
+
+  return candidates.find(
+    (value): value is number =>
+      typeof value === 'number' &&
+      Number.isInteger(value) &&
+      value >= 100 &&
+      value <= 599
+  )
+}
+
+/**
+ * Reduces a storage-driver failure to what an operator can act on —
+ * `getaddrinfo ENOTFOUND`, `copyfile ENOENT`, `NoSuchKey HTTP 404`, `HTTP 503`
+ * — and nothing that says where storage lives. `unknown` is the honest answer
+ * for a failure that classifies itself only in its message; the export console
+ * still printed that message in full.
+ */
+export const redactStorageError = (error: unknown, source: StorageSource) => {
+  const redactedValues = getRedactedStorageSourceValues(source)
+  const isSafeToken = (value: unknown): value is string =>
+    typeof value === 'string' &&
+    SAFE_ERROR_TOKEN_PATTERN.test(value) &&
+    !redactedValues.has(value.toLowerCase())
+
+  const chain = getErrorChain(error)
+  const parts: string[] = []
+
+  for (const { code, syscall } of chain) {
+    if (!isSafeToken(code)) continue
+    if (isSafeToken(syscall)) parts.push(syscall)
+    parts.push(code)
+    break
+  }
+
+  if (parts.length === 0) {
+    for (const { name } of chain) {
+      // `Error` is the name of every unclassified failure and says nothing
+      // `unknown` does not. `TypeError` and an S3 `Code` do.
+      if (!isSafeToken(name) || name === 'Error') continue
+      parts.push(name)
+      break
+    }
+  }
+
+  const httpStatusCode = chain
+    .map(getErrorHttpStatusCode)
+    .find((value) => value !== undefined)
+  if (httpStatusCode !== undefined) parts.push(`HTTP ${httpStatusCode}`)
+
+  return parts.length > 0 ? parts.join(' ') : 'unknown'
+}
 
 const writeManifest = async (stagingDir: string, manifest: ArchiveManifest) => {
   await fs.writeFile(
