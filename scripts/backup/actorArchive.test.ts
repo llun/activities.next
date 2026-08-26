@@ -154,9 +154,9 @@ describe('registerAttachmentUrl', () => {
   }
 
   // `vitest.setup.ts` enables the fetch mock but leaves it passing through, so
-  // the two tests that reach the download branch opt in with `doMock()`. One
-  // teardown covers them both, and unlike a `finally` it also runs when an
-  // assertion throws.
+  // the tests that reach the download branch opt in with `doMock()`. One
+  // teardown covers all of them, including a later one that opts in without
+  // cleaning up after itself.
   afterEach(() => {
     fetchMock.resetMocks()
     fetchMock.dontMock()
