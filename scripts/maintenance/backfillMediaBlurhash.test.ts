@@ -10,7 +10,6 @@ import {
   downloadRemoteImage,
   getAttachmentMediaHost,
   getFileBuffer,
-  getLocalStoragePath,
   parseArgs
 } from './backfillMediaBlurhash'
 
@@ -63,260 +62,31 @@ describe('backfillMediaBlurhash parseArgs', () => {
 })
 
 describe('buildInstanceHosts', () => {
-  it.each([
-    {
-      description: 'strips a scheme from the configured host',
-      host: 'https://llun.test',
-      expected: 'llun.test'
-    },
-    {
-      description: 'strips a trailing path',
-      host: 'llun.test/',
-      expected: 'llun.test'
-    },
-    { description: 'lowercases', host: 'LLUN.test', expected: 'llun.test' },
-    {
-      description: 'drops an explicit https default port',
-      host: 'llun.test:443',
-      expected: 'llun.test'
-    },
-    {
-      description: 'keeps a non-default port',
-      host: 'localhost:3000',
-      expected: 'localhost:3000'
-    }
-  ])('$description', ({ host, expected }) => {
-    expect(buildInstanceHosts({ host }).fallbackHost).toBe(expected)
-  })
-
-  it('carries every trusted host into the rule list', () => {
-    const { ownHostRules } = buildInstanceHosts({
-      host: 'llun.test',
-      trustedHosts: ['https://alias.llun.test', 'other.test:443']
-    })
-    expect(ownHostRules).toEqual([
-      'llun.test',
-      'https://alias.llun.test',
-      'other.test:443'
-    ])
-  })
-
-  it('drops empty host entries rather than matching an empty authority', () => {
-    const { ownHostRules } = buildInstanceHosts({
-      host: 'llun.test',
-      trustedHosts: ['', '   ']
-    })
-    expect(ownHostRules).toEqual(['llun.test'])
-  })
-})
-
-describe('getLocalStoragePath', () => {
-  it('recovers the stored path from a URL on the configured host', () => {
+  // The full normalisation table lives with `getCanonicalAuthority` in
+  // `lib/utils/host.test.ts`; this only pins that the fallback host is run
+  // through it, since `getMediaFileUrl` puts the result in an authority.
+  it('normalises the configured host into a bare authority', () => {
     expect(
-      getLocalStoragePath(
-        'https://llun.test/api/v1/files/medias/a.jpg',
-        HOSTS.ownHostRules
-      )
-    ).toBe('medias/a.jpg')
+      buildInstanceHosts({ host: 'https://LLUN.test:443/' }).fallbackHost
+    ).toBe('llun.test')
   })
 
-  it('recovers the stored path from a URL on a trusted alias host', () => {
+  it('keeps a non-default port so a dev instance mints its own URLs', () => {
+    expect(buildInstanceHosts({ host: 'localhost:3000' }).fallbackHost).toBe(
+      'localhost:3000'
+    )
+  })
+
+  // `actors.domain` on a multi-domain instance may be any trusted host, so a
+  // stored `/api/v1/files/` URL is ours on any of them — the media parser only
+  // knows that if the whole list reaches it.
+  it('carries the configured and trusted hosts through to the media parser', () => {
     expect(
-      getLocalStoragePath(
-        'https://alias.llun.test/api/v1/files/medias/a.jpg',
-        HOSTS.ownHostRules
-      )
-    ).toBe('medias/a.jpg')
-  })
-
-  // The regression this guards: `/api/v1/files/` is this project's own route,
-  // so every OTHER activities.next instance serves attachments under exactly
-  // that path. A substring match called those local storage paths.
-  // `ACTIVITIES_TRUSTED_HOSTS` supports `*.example.com` entries everywhere else
-  // in the app, so a literal Set lookup silently disowned a wildcard-covered
-  // subdomain's own storage URLs.
-  it('recovers the stored path from a wildcard-trusted subdomain', () => {
-    const { ownHostRules } = buildInstanceHosts({
-      host: 'llun.test',
-      trustedHosts: ['*.llun.test']
-    })
-    expect(
-      getLocalStoragePath(
-        'https://tenant1.llun.test/api/v1/files/medias/a.jpg',
-        ownHostRules
-      )
-    ).toBe('medias/a.jpg')
-  })
-
-  // `new URL` parses `*` in an authority, and `normalizeHost` refuses a
-  // wildcard, so the literal-equality fallback used to compare the authority
-  // against the wildcard RULE's own spelling and call it ours — letting a
-  // federated attachment url read an attacker-chosen path out of local storage.
-  it('refuses an authority that is literally the wildcard pattern', () => {
-    const { ownHostRules } = buildInstanceHosts({
-      host: 'llun.test',
-      trustedHosts: ['*.llun.test']
-    })
-    expect(
-      getLocalStoragePath(
-        'https://*.llun.test/api/v1/files/other/actors/private.jpg',
-        ownHostRules
-      )
-    ).toBeNull()
-  })
-
-  // A protocol-relative URL carries its own authority; resolving it against a
-  // placeholder origin silently discarded it and made any host look local.
-  // A raw `!startsWith('//')` test is not enough: the WHATWG parser reads `\`
-  // as `/` for a special scheme and strips tab/LF/CR before parsing, so all of
-  // these grow an authority without beginning with `//`.
-  it.each([
-    { description: 'refuses a protocol-relative URL', prefix: '//' },
-    { description: 'refuses a backslash authority', prefix: '/\\' },
-    { description: 'refuses a doubled backslash authority', prefix: '/\\\\' },
-    { description: 'refuses a tab-smuggled authority', prefix: '/\t/' },
-    { description: 'refuses a newline-smuggled authority', prefix: '/\n/' },
-    {
-      description: 'refuses a carriage-return-smuggled authority',
-      prefix: '/\r/'
-    },
-    { description: 'refuses a tab-plus-backslash authority', prefix: '/\t\\' }
-  ])('$description', ({ prefix }) => {
-    expect(
-      getLocalStoragePath(
-        `${prefix}evil.example/api/v1/files/medias/a.jpg`,
-        HOSTS.ownHostRules
-      )
-    ).toBeNull()
-  })
-
-  it('still refuses a foreign host when a wildcard rule is configured', () => {
-    const { ownHostRules } = buildInstanceHosts({
-      host: 'llun.test',
-      trustedHosts: ['*.llun.test']
-    })
-    expect(
-      getLocalStoragePath(
-        'https://evil.example/api/v1/files/medias/a.jpg',
-        ownHostRules
-      )
-    ).toBeNull()
-  })
-
-  it('recognises a loopback host that normalizeHost refuses', () => {
-    const { ownHostRules } = buildInstanceHosts({ host: 'localhost:3000' })
-    expect(
-      getLocalStoragePath(
-        'http://localhost:3000/api/v1/files/medias/a.jpg',
-        ownHostRules
-      )
-    ).toBe('medias/a.jpg')
-  })
-
-  // `new URL` normalises a literal `../`, but a percent-encoded one survives
-  // it and decoding puts it back — so the check has to happen after decoding.
-  it.each([
-    {
-      description: 'rejects a percent-encoded traversal',
-      url: 'https://llun.test/api/v1/files/%2e%2e%2f%2e%2e%2fetc/passwd'
-    },
-    {
-      description: 'rejects an encoded-slash traversal',
-      url: 'https://llun.test/api/v1/files/..%2F..%2Fetc%2Fpasswd'
-    },
-    {
-      description: 'rejects a decoded absolute path',
-      url: 'https://llun.test/api/v1/files/%2Fetc%2Fpasswd'
-    },
-    {
-      description: 'rejects a host-relative traversal',
-      url: '/api/v1/files/../../../../etc/passwd'
-    },
-    // The traversal rule is shared with `getMediaPathFromFileUrl`, so this
-    // sweep refuses the Windows spellings its own copy used to let through.
-    {
-      description: 'rejects an encoded-backslash traversal',
-      url: 'https://llun.test/api/v1/files/..%5c..%5csecrets'
-    },
-    {
-      description: 'rejects a Windows drive-letter path',
-      url: 'https://llun.test/api/v1/files/C:%5CWindows%5Cwin.ini'
-    },
-    {
-      description: 'rejects a path carrying a NUL byte',
-      url: 'https://llun.test/api/v1/files/ab%00.webp'
-    }
-  ])('$description', ({ url }) => {
-    expect(getLocalStoragePath(url, HOSTS.ownHostRules)).toBeNull()
-  })
-
-  // Only `*.example.com` is a wildcard. Every other spelling reaches
-  // `isOwnAuthority` as a LITERAL rule carrying a `*`, and `new URL()`
-  // percent-decodes `%2a`, so a federated attachment URL could spell one
-  // exactly and have this sweep read the named path out of local storage.
-  it.each([
-    { description: 'a wildcard missing its dot', rule: '*cdn.llun.test' },
-    { description: 'a trailing wildcard label', rule: 'cdn.*' },
-    { description: 'a wildcard in the middle', rule: 'foo.*.cdn.llun.test' }
-  ])('refuses an authority spelled as $description', ({ rule }) => {
-    const url = `https://${rule.replaceAll('*', '%2a')}/api/v1/files/media/a.webp`
-    expect(getLocalStoragePath(url, ['llun.test', rule])).toBeNull()
-  })
-
-  it('returns null for the same path on a remote instance', () => {
-    expect(
-      getLocalStoragePath(
-        'https://remote.example/api/v1/files/medias/a.jpg',
-        HOSTS.ownHostRules
-      )
-    ).toBeNull()
-  })
-
-  it('returns null when the path only appears inside a query string', () => {
-    expect(
-      getLocalStoragePath(
-        'https://remote.example/redirect?to=/api/v1/files/medias/a.jpg',
-        HOSTS.ownHostRules
-      )
-    ).toBeNull()
-  })
-
-  it('accepts a host-relative URL', () => {
-    expect(
-      getLocalStoragePath('/api/v1/files/medias/a.jpg', HOSTS.ownHostRules)
-    ).toBe('medias/a.jpg')
-  })
-
-  it('ignores a query string on our own URL', () => {
-    expect(
-      getLocalStoragePath(
-        'https://llun.test/api/v1/files/medias/a.jpg?v=2',
-        HOSTS.ownHostRules
-      )
-    ).toBe('medias/a.jpg')
-  })
-
-  it('decodes a percent-encoded path', () => {
-    expect(
-      getLocalStoragePath(
-        'https://llun.test/api/v1/files/medias/a%20b.jpg',
-        HOSTS.ownHostRules
-      )
-    ).toBe('medias/a b.jpg')
-  })
-
-  it.each([
-    {
-      description: 'returns null for another route on our host',
-      url: 'https://llun.test/api/v1/statuses/1'
-    },
-    {
-      description: 'returns null for an empty stored path',
-      url: 'https://llun.test/api/v1/files/'
-    },
-    { description: 'returns null for an unparseable URL', url: 'not a url' }
-  ])('$description', ({ url }) => {
-    expect(getLocalStoragePath(url, HOSTS.ownHostRules)).toBeNull()
+      buildInstanceHosts({
+        host: 'llun.test',
+        trustedHosts: ['alias.llun.test']
+      }).hostConfig
+    ).toEqual({ host: 'llun.test', trustedHosts: ['alias.llun.test'] })
   })
 })
 
@@ -714,6 +484,60 @@ describe('backfillMediaBlurhash execution', () => {
       mediaId: null,
       mediaType: 'image/jpeg',
       url: 'https://remote.example/api/v1/files/secret.jpg',
+      blurhash: null
+    })
+
+    const getFile = vi.fn().mockResolvedValue(null)
+    const mockStorage = { getFile } as never
+
+    await backfillAttachments(
+      db,
+      mockStorage,
+      options({ localOnly: true }),
+      HOSTS
+    )
+
+    expect(getFile).not.toHaveBeenCalled()
+  })
+
+  // Wiring for the rest of `getMediaPathFromFileUrl`'s rules, which are proved
+  // in `lib/services/medias/mediaFileUrl.test.ts`: the trusted-host list has to
+  // reach it, and its answer has to be what the sweep asks storage for.
+  it('reads a wildcard-trusted subdomain URL out of local storage', async () => {
+    await db('attachments').insert({
+      id: 'att-1',
+      statusId: 'status-1',
+      actorId: 'https://tenant1.llun.test/users/test',
+      mediaId: null,
+      mediaType: 'image/jpeg',
+      url: 'https://tenant1.llun.test/api/v1/files/medias/a.jpg',
+      blurhash: null
+    })
+
+    const getFile = vi.fn().mockResolvedValue(null)
+    const mockStorage = { getFile } as never
+
+    await backfillAttachments(
+      db,
+      mockStorage,
+      options({ localOnly: true }),
+      buildInstanceHosts({ host: 'llun.test', trustedHosts: ['*.llun.test'] })
+    )
+
+    expect(getFile).toHaveBeenCalledWith('medias/a.jpg')
+  })
+
+  // A percent-encoded `../` survives the pathname normalisation that removes a
+  // literal one, and decoding puts it back. Neither storage driver should be
+  // asked to walk out of its own root.
+  it('does not ask storage for a path that walks out of it', async () => {
+    await db('attachments').insert({
+      id: 'att-1',
+      statusId: 'status-1',
+      actorId: 'https://llun.test/users/test',
+      mediaId: null,
+      mediaType: 'image/jpeg',
+      url: 'https://llun.test/api/v1/files/%2e%2e%2f%2e%2e%2fetc/passwd',
       blurhash: null
     })
 

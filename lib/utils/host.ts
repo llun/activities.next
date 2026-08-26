@@ -191,6 +191,15 @@ export const getTrustedHostRules = (config: HostRuleConfig): string[] => [
   ...(config.trustedHosts ?? [])
 ]
 
+/**
+ * The configured host as a request should see it. NOT an authority for
+ * comparing against — that is `getCanonicalAuthority`. This one falls back to
+ * the RAW value whenever `normalizeHost` refuses it, which includes every
+ * loopback name and every malformed one, so it can hand back something
+ * unlowercased, untrimmed, or carrying a path. `selectHeaderHost` wants that
+ * (it is echoing a configured value back, not deciding trust); a security
+ * comparison must not use it.
+ */
 export const getConfiguredHost = (host: string | undefined | null) =>
   normalizeHost(host) ?? host ?? ''
 
@@ -241,8 +250,14 @@ export const isHostTrustedByRules = (
  * accepts `example.com:80` where `hostMatchesRule` (which treats only `:443`
  * as implied) would not; the passes are a union, and this is the half that
  * decides.
+ *
+ * Also the shape `getMediaFileUrl` consumes, which is why it is exported: the
+ * configured host is the fallback authority a stored media URL is minted on,
+ * and it has to be normalised the same way the comparison normalises it.
  */
-const canonicalAuthority = (value: string | undefined | null): string => {
+export const getCanonicalAuthority = (
+  value: string | undefined | null
+): string => {
   if (!value) return ''
   return getAuthority(value.trim())
     .toLowerCase()
@@ -269,7 +284,7 @@ export const isOwnInstanceHost = (
   host: string | undefined | null,
   config: HostRuleConfig
 ): boolean => {
-  const authority = canonicalAuthority(host)
+  const authority = getCanonicalAuthority(host)
   if (!authority) return false
 
   const rules = getTrustedHostRules(config)
@@ -283,7 +298,7 @@ export const isOwnInstanceHost = (
   // refusing a misplaced `*` covers the rules pass, not this one.
   if (
     rules.some(
-      (rule) => !rule.includes('*') && canonicalAuthority(rule) === authority
+      (rule) => !rule.includes('*') && getCanonicalAuthority(rule) === authority
     )
   ) {
     return true

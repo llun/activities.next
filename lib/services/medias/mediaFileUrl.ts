@@ -1,8 +1,10 @@
 import { HostRuleConfig, isOwnInstanceHost } from '@/lib/utils/host'
 
 // Both storage drivers serve their files from this route, so a URL under it on
-// one of THIS instance's hosts names a stored media path.
-const MEDIA_FILE_URL_PATH = '/api/v1/files/'
+// one of THIS instance's hosts names a stored media path. Exported for the one
+// caller asking a narrower question than "is this ours" — whether a stored
+// value is a host-relative media URL an earlier backfill wrote.
+export const MEDIA_FILE_URL_PATH = '/api/v1/files/'
 
 const isLocalHost = (host: string) =>
   host.startsWith('localhost') ||
@@ -80,10 +82,13 @@ const isUpwardSegment = (segment: string) =>
  * Only a segment that resolves to `..` is refused, so `ab/..cd.webp` stays an
  * ordinary stored file name.
  *
- * Exported because `scripts/maintenance/backfillMediaBlurhash.ts` recovers the
- * same kind of path behind its own host check and has to apply the same rule.
- * Its host matcher is deliberately STRICTER than `isOwnInstanceHost` and is
- * not interchangeable with it — only this half is shared.
+ * Exported because callers that recover such a path by another route have to
+ * apply the same rule — `scripts/backup/actorArchive.ts` confirms containment
+ * again at `copyProfileImage`, where the path becomes a file read.
+ *
+ * `scripts/maintenance/backfillMediaBlurhash.ts` used to be the other one, and
+ * is not any more: #1570 moved its host half onto `getMediaPathFromFileUrl`
+ * too, so it now gets this check by calling that rather than by importing this.
  */
 export const isTraversingStoragePath = (storagePath: string) =>
   /^([/\\]|[A-Za-z]:)/.test(storagePath) ||
