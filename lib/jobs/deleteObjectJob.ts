@@ -52,10 +52,14 @@ export const deleteObjectJob = createJobHandle(
       // every path below is a no-op for it, and each is independently scoped to
       // the verified sender.
       // Set when this Delete really was a quote revocation. The fall-through
-      // below must still RUN (a planted id names a real actor or status that
-      // deserves its delete), but it must not REPORT: a stamp uri matches no
-      // actor and parses as no Tombstone, so every path reads it as junk and
-      // would otherwise mark the feature's happy path as an error.
+      // below must still RUN — a planted id names a real actor or status that
+      // deserves its delete — while the two paths a legitimate revocation
+      // actually reaches must not REPORT it as junk: the string path (where the
+      // value compared IS the stamp uri, so a mismatch is structurally
+      // guaranteed) and the terminal branch (where the FEP-044f object shape
+      // parses as neither Tombstone nor Announce). This is NOT a blanket rule:
+      // the Announce branch deliberately still reports — see its own comment —
+      // because no legitimate revocation shape can reach it.
       let revokedQuote = false
       const stampUri = getStampUri(data)
       if (stampUri) {
