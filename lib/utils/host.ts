@@ -203,10 +203,18 @@ export const isHostTrustedByRules = (
 
 /**
  * Reduces a host value to a comparable authority: no scheme, no path, lower
- * case, and without the port the scheme implies anyway. Configured hosts are
- * documented as bare authorities, but an operator may still write
- * `https://example.com/`, and `new URL(...).host` has already dropped a default
- * port on the other side of the comparison.
+ * case, and without either default port. Configured hosts are documented as
+ * bare authorities, but an operator may still write `https://example.com/` or
+ * `example.com:443`, while `new URL(...).host` has already dropped the port its
+ * own scheme implies.
+ *
+ * Dropping BOTH ports is deliberate rather than scheme-aware: the value may be
+ * a bare authority carrying no scheme to consult, and the only authority a
+ * blanket strip can newly equate is our own hostname on the other default port
+ * — a host this instance answers to either way. It does mean the exact pass
+ * accepts `example.com:80` where `hostMatchesRule` (which treats only `:443`
+ * as implied) would not; the passes are a union, and this is the half that
+ * decides.
  */
 const canonicalAuthority = (value: string | undefined | null): string => {
   if (!value) return ''

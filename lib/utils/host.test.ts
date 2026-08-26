@@ -207,6 +207,11 @@ describe('isOwnInstanceHost', () => {
       expected: true
     },
     {
+      description: 'the configured host with the default HTTP port',
+      host: 'llun.test:80',
+      expected: true
+    },
+    {
       description: 'the configured host on another port',
       host: 'llun.test:8443',
       expected: false
