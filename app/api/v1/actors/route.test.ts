@@ -184,4 +184,25 @@ describe('POST /api/v1/actors', () => {
 
     expect(response.status).toBe(400)
   })
+
+  // This route used to check only length, so it was the looser of the two ways
+  // to mint a local actor. A username is an unencoded path segment of the
+  // actor's canonical id and a path segment is percent-DECODED on the way back
+  // in, so `%6eull` would resolve to whoever owns `null`.
+  it.each([['%6eull'], ['%6Eull'], ['nul%6c'], ['a%2Fb'], ['a/b']])(
+    'rejects the username %j, which would decode to another actor id',
+    async (username) => {
+      mockGetConfig.mockReturnValue({
+        host: 'llun.test',
+        allowEmails: [],
+        allowActorDomains: ['llun.test']
+      })
+
+      const response = await POST(createRequest({ username }), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(400)
+    }
+  )
 })
