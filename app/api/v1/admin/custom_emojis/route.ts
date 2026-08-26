@@ -1,11 +1,13 @@
 import { NextRequest } from 'next/server'
 
 import { CreateCustomEmojiRequest } from '@/app/api/v1/admin/custom_emojis/schema'
+import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { AdminApiGuard } from '@/lib/services/guards/AdminApiGuard'
 import { deleteMediaFile, saveMedia } from '@/lib/services/medias'
 import { ACCEPTED_IMAGE_TYPES } from '@/lib/services/medias/constants'
+import { getMediaPathFromFileUrl } from '@/lib/services/medias/mediaFileUrl'
 import { FileSchema } from '@/lib/services/medias/types'
 import { exceedsMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
 import { toAdminCustomEmoji } from '@/lib/types/domain/customEmoji'
@@ -20,6 +22,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [
@@ -152,11 +155,11 @@ export const POST = traceApiRoute(
       // so remove it best-effort. Re-query to tell a genuine duplicate (→ 422)
       // apart from a transient error (→ 500) instead of always blaming the
       // shortcode.
-      await deleteSavedMedia(database, saved.url)
+      await deleteSavedMedia(database, saved.url, parsed.data.shortcode)
       logger.warn({
         message: 'Failed to create custom emoji after media upload',
         shortcode: parsed.data.shortcode,
-        error
+        err: toLoggableError(error)
       })
       const duplicate = await database
         .getCustomEmojiByShortcode(parsed.data.shortcode)
@@ -179,18 +182,31 @@ export const POST = traceApiRoute(
   })
 )
 
-// Best-effort cleanup of a media file given its public URL
-// (`.../api/v1/files/<path>`). Storage-specific URL shapes other than the local
-// file backend are ignored; failures are swallowed since this is cleanup only.
-const deleteSavedMedia = async (database: Database, url: string) => {
-  try {
-    const { pathname } = new URL(url)
-    const marker = '/api/v1/files/'
-    const index = pathname.indexOf(marker)
-    if (index === -1) return
-    const path = pathname.slice(index + marker.length)
-    if (path) await deleteMediaFile(database, decodeURIComponent(path))
-  } catch {
-    // ignore cleanup failures
-  }
+// Best-effort cleanup of the media file this route just saved.
+//
+// The path comes back through the shared, host-aware `getMediaPathFromFileUrl`
+// (AGENTS.md, "A stored media URL is only ours if the host says so"). Its null
+// is the point at a call site that ends in an unlink: `getAttachmentMediaPath`
+// fits this input too and never returns null, but it falls back to the whole
+// pathname, which is the wrong default for a delete. The host check is
+// redundant here rather than load-bearing — `saved.url` was minted from
+// `getConfig().host` — and simply costs nothing. Its `isTraversingStoragePath`
+// half is not redundant: `deleteMediaFile` resolves the path against the
+// storage root and unlinks it, with no containment check of its own.
+const deleteSavedMedia = async (
+  database: Database,
+  url: string,
+  shortcode: string
+) => {
+  const path = getMediaPathFromFileUrl(url, getConfig())
+  if (!path) return
+  // Cleanup is best effort, but a failure here orphans the stored file, so it
+  // cannot be silent.
+  await deleteMediaFile(database, path).catch((error) =>
+    logger.warn({
+      message: 'Failed to remove orphaned media after custom emoji insert',
+      shortcode,
+      err: toLoggableError(error)
+    })
+  )
 }

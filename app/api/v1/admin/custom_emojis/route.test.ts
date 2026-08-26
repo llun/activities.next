@@ -35,14 +35,21 @@ vi.mock('@/lib/utils/getActorFromSession', () => ({
 }))
 
 const mockSaveMedia = vi.fn()
+const mockDeleteMediaFile = vi.fn()
 vi.mock('@/lib/services/medias', () => ({
-  saveMedia: (...args: unknown[]) => mockSaveMedia(...args)
+  saveMedia: (...args: unknown[]) => mockSaveMedia(...args),
+  deleteMediaFile: (...args: unknown[]) => mockDeleteMediaFile(...args)
 }))
 
 vi.mock('@/lib/config', () => ({
   getBaseURL: () => 'https://llun.test',
   getConfig: () => ({
     host: 'llun.test',
+    // A multi-domain instance mints media URLs on the owning actor's domain, so
+    // the cleanup's host check has to accept a trusted host as well as the
+    // primary one. Without an entry here, dropping `trustedHosts` from
+    // `getTrustedHostRules` passes every case in this file.
+    trustedHosts: ['second.example'],
     allowEmails: [],
     mediaStorage: { maxFileSize: 1_000_000 }
   })
@@ -79,6 +86,8 @@ describe('/api/v1/admin/custom_emojis', () => {
     mockDatabase.getAllServerSettings.mockReset()
     mockDatabase.getAllServerSettings.mockResolvedValue([])
     mockSaveMedia.mockReset()
+    mockDeleteMediaFile.mockReset()
+    mockDeleteMediaFile.mockResolvedValue(true)
     // The resolver caches per database instance, and this mock is shared across
     // the file, so drop the cached view between cases.
     invalidateServerSettingsCache(mockDatabase as unknown as Database)
@@ -254,5 +263,149 @@ describe('/api/v1/admin/custom_emojis', () => {
     })
     expect(response.status).toBe(422)
     expect(mockSaveMedia).not.toHaveBeenCalled()
+  })
+  it('removes the orphaned media when the emoji insert fails', async () => {
+    mockDatabase.getCustomEmojiByShortcode
+      .mockResolvedValueOnce(null)
+      // Re-queried after the failure to tell a genuine duplicate from a
+      // transient error.
+      .mockResolvedValueOnce({ id: 'existing' })
+    // The shape `saveMedia` returns: both storage backends build it through
+    // `getMediaAttachment`, so it is always `/api/v1/files/<path>` on our own
+    // host. The path is percent-encoded here so the decode is covered too.
+    mockSaveMedia.mockResolvedValue({
+      url: 'https://llun.test/api/v1/files/medias/blob%20cat.png'
+    })
+    mockDatabase.createCustomEmoji.mockRejectedValue(new Error('duplicate key'))
+
+    const form = new FormData()
+    form.set('shortcode', 'blobcat')
+    form.set('image', makeImage())
+
+    const response = await POST(makeMultipartRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(422)
+    expect(mockDeleteMediaFile).toHaveBeenCalledWith(
+      mockDatabase,
+      'medias/blob cat.png'
+    )
+  })
+
+  it('removes media minted on a trusted secondary domain', async () => {
+    mockDatabase.getCustomEmojiByShortcode.mockResolvedValue(null)
+    mockSaveMedia.mockResolvedValue({
+      url: 'https://second.example/api/v1/files/medias/blobcat.png'
+    })
+    mockDatabase.createCustomEmoji.mockRejectedValue(new Error('connection'))
+
+    const form = new FormData()
+    form.set('shortcode', 'blobcat')
+    form.set('image', makeImage())
+
+    const response = await POST(makeMultipartRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(500)
+    expect(mockDeleteMediaFile).toHaveBeenCalledWith(
+      mockDatabase,
+      'medias/blobcat.png'
+    )
+  })
+
+  // The cleanup path ends in an unlink, so it has to refuse anything it cannot
+  // prove names one of our own storage paths.
+  //
+  // Two of these are regression guards against the hand-rolled parse this
+  // replaced. It searched the pathname with `indexOf` and never looked at the
+  // host, so it deleted a local file named by somebody else's URL; and it left
+  // `..%2f..%2f` encoded through `new URL` — which does not decode `%2f` — then
+  // decoded it, handing `../../etc/passwd` to the unlink. That second one is
+  // refused now only because #1569 put `isTraversingStoragePath` inside the
+  // shared parser, which is the argument for recovering the path there rather
+  // than at the call site. The literal dot-segment case is the one that refuses
+  // under both spellings, and not for a traversal reason: `new URL` normalises
+  // that pathname to `/api/etc/passwd`, so it no longer starts with the media
+  // route.
+  it.each([
+    {
+      description: 'a host that is not ours',
+      url: 'https://other.example/api/v1/files/medias/blobcat.png'
+    },
+    {
+      description: 'a path with dot segments',
+      url: 'https://llun.test/api/v1/files/../../etc/passwd'
+    },
+    {
+      description: 'an encoded traversal',
+      url: 'https://llun.test/api/v1/files/..%2f..%2fetc/passwd'
+    },
+    {
+      description: 'a URL off the media route',
+      url: 'https://llun.test/some/other/place.png'
+    }
+  ])(
+    'touches no storage when the stored URL is $description',
+    async ({ url }) => {
+      mockDatabase.getCustomEmojiByShortcode.mockResolvedValue(null)
+      mockSaveMedia.mockResolvedValue({ url })
+      mockDatabase.createCustomEmoji.mockRejectedValue(new Error('connection'))
+
+      const form = new FormData()
+      form.set('shortcode', 'blobcat')
+      form.set('image', makeImage())
+
+      const response = await POST(makeMultipartRequest(form), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(500)
+      expect(mockDeleteMediaFile).not.toHaveBeenCalled()
+    }
+  )
+
+  it('still removes the orphaned media when the insert fails for a transient reason', async () => {
+    mockDatabase.getCustomEmojiByShortcode.mockResolvedValue(null)
+    mockSaveMedia.mockResolvedValue({
+      url: 'https://llun.test/api/v1/files/medias/blobcat.png'
+    })
+    mockDatabase.createCustomEmoji.mockRejectedValue(new Error('connection'))
+
+    const form = new FormData()
+    form.set('shortcode', 'blobcat')
+    form.set('image', makeImage())
+
+    const response = await POST(makeMultipartRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(500)
+    expect(mockDeleteMediaFile).toHaveBeenCalledWith(
+      mockDatabase,
+      'medias/blobcat.png'
+    )
+  })
+
+  it('answers 500 when the orphaned media cannot be removed', async () => {
+    mockDatabase.getCustomEmojiByShortcode.mockResolvedValue(null)
+    mockSaveMedia.mockResolvedValue({
+      url: 'https://llun.test/api/v1/files/medias/blobcat.png'
+    })
+    mockDatabase.createCustomEmoji.mockRejectedValue(new Error('connection'))
+    // Cleanup is best effort: a storage that throws must not turn the insert
+    // failure into an unhandled rejection.
+    mockDeleteMediaFile.mockRejectedValue(new Error('storage unreachable'))
+
+    const form = new FormData()
+    form.set('shortcode', 'blobcat')
+    form.set('image', makeImage())
+
+    const response = await POST(makeMultipartRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(500)
   })
 })
