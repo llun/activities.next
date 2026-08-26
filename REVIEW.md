@@ -548,6 +548,34 @@ attachment ref guard` is exactly that: it passed with the bug present until
   path into a filesystem read should still resolve and confirm containment for
   itself, the way `copyProfileImage` and `createMediaTempFilePath` do — a
   signature taking a bare path says nothing about where the path came from.
+- **A wildcard trusted-host entry is not a literal authority, and the check
+  belongs AFTER parsing.** `new URL()` accepts `*` in a host, so an
+  exact-authority comparison against the rule's own spelling let
+  `https://*.cdn.example/api/v1/files/<path>` pass as ours. Both of
+  `isOwnInstanceHost`'s passes need a guard: the exact pass reads RAW rules so
+  it skips any rule containing `*`, and `normalizeHost` — which recognised the
+  documented `*.example.com` form only on the raw value, leaving `*example.com`,
+  `cdn.*` and `foo.*.example.com` as literal hostnames a `%2a`-spelled
+  authority matched exactly — now refuses any parsed hostname still containing
+  one, reading the `*.` marker off the AUTHORITY so a scheme-prefixed rule
+  still expands.
+- **Four consumers of `ACTIVITIES_TRUSTED_HOSTS` apply that refusal, each on
+  the PARSED hostname** — `normalizeHost`, `isOwnAuthority`'s loopback
+  fallback, `buildTrustedOrigins` and `toHostname` — because each reads a
+  misplaced wildcard differently. `buildTrustedOrigins` hands it to
+  better-auth, which globs any pattern containing `*`, so `*example.com`
+  trusted `evilexample.com` for the auth Origin check and for
+  `callbackURL`/`redirectTo` — an open redirect carrying auth callbacks.
+  **Check after parsing, never before: the parser is what MAKES the `*`.** It
+  percent-decodes the authority, applies IDNA mapping and strips tab/CR/LF, so
+  `%2aexample.com` and a fullwidth `＊example.com` sail past a raw check — which
+  buys nothing anyway, since a literal `*example.com` parses to a hostname
+  carrying the same `*`. Where a guard reads `hostname` but emits `origin`, it
+  must also require a web scheme: `blob:` derives its origin from the inner URL
+  in its PATH and reports an empty host, the one scheme where the two disagree.
+  `getAllowedOrigins` in the Apple Maps token route is a fifth consumer that
+  deliberately does not filter — whether MapKit globs `*` is unverified, so
+  establish that before sweeping it.
 - **A stored file with no `medias` row is unreachable**, so whatever fails
   after a write must reclaim it — only `scripts/maintenance/cleanupMediaStorage.ts`
   can find it otherwise. Equally, do not report a storage failure as a
