@@ -34,6 +34,7 @@ import {
   resolvePublicIdsByIds
 } from '@/lib/database/sql/utils/publicIdLookup'
 import { selectHashtagTagsByStatusIds } from '@/lib/database/sql/utils/status'
+import { findActorRowByUsername } from '@/lib/database/sql/utils/usernameMatch'
 import {
   FEDERATION_SIGNING_ACTOR_TYPE,
   FEDERATION_SIGNING_ACTOR_USERNAME,
@@ -420,10 +421,13 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
   },
 
   async getActorFromUsername({ username, domain }: GetActorFromUsernameParams) {
-    const persistedActor = await database<SQLActor>('actors')
-      .where('username', username)
-      .andWhere('domain', domain)
-      .first()
+    // Case-insensitive: a handle reaches this from a URL path, a mention, a
+    // WebFinger resource and a search box, and none of them control casing.
+    // See findActorRowByUsername for why the exact match is still tried first.
+    const persistedActor = await findActorRowByUsername(database, {
+      username,
+      domain
+    })
     if (!persistedActor) return null
 
     const [account, counters] = await database.transaction(async (trx) => {

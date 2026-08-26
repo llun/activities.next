@@ -45,6 +45,19 @@ export const LOCAL_USERNAME_MAX_LENGTH = 50
 export const localUsernameSchema = z
   .string()
   .trim()
+  // Lowercased rather than refused, so `Alice` registers as `alice` instead of
+  // becoming a second actor indistinguishable from `alice` to every
+  // case-insensitive client. The pattern below still names `A-Z` because it
+  // describes what a caller may SEND; by the time it runs there is none left.
+  //
+  // Ordering is load-bearing twice over. Folding before the reserved-name
+  // refine closes a bypass: `isFederationSigningActorUsername` is a
+  // case-sensitive `startsWith('__instance__')`, so `__INSTANCE__` passed the
+  // check and minted a confusable neighbour of the instance actor. And folding
+  // before `.max()` is what keeps the length check on the value actually
+  // stored, since a fold can change a string's length (`İ` folds to two code
+  // units).
+  .toLowerCase()
   .min(1)
   .max(LOCAL_USERNAME_MAX_LENGTH)
   .regex(LOCAL_USERNAME_PATTERN, {

@@ -103,6 +103,57 @@ describe('OnlyLocalUserGuard', () => {
     })
   })
 
+  // The ActivityPub surface this guard fronts — actor document, inbox, outbox,
+  // followers, following, statuses, collections — used to resolve by rebuilding
+  // the actor id from the path segment, which could only ever match one
+  // spelling. `/@user`, WebFinger, mentions and account lookup all fold casing,
+  // so this one answering `/api/users/Test1` and 404ing `/api/users/test1` was
+  // the odd one out.
+  describe('with a differently-cased username in the path', () => {
+    it.each([
+      { description: 'all uppercase', username: 'TEST1' },
+      { description: 'a leading capital', username: 'Test1' }
+    ])(
+      'resolves a local actor asked for in $description',
+      async ({ username }) => {
+        const guard = OnlyLocalUserGuard(mockHandler)
+        const req = createRequest()
+        const response = await guard(req, {
+          params: Promise.resolve({ username })
+        })
+
+        expect(response.status).toBe(200)
+        expect(mockHandler).toHaveBeenCalled()
+      }
+    )
+
+    it('resolves the headless instance actor in any casing when allowed', async () => {
+      await database.getFederationSigningActor()
+
+      const guard = OnlyLocalUserGuard(mockHandler, {
+        allowFederationSigningActor: true
+      })
+      const req = createRequest(TEST_DOMAIN)
+      const response = await guard(req, {
+        params: Promise.resolve({ username: '__INSTANCE__' })
+      })
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
+    })
+
+    it('still binds the actor to the requested host', async () => {
+      const guard = OnlyLocalUserGuard(mockHandler)
+      const req = createRequest('someone.else.test')
+      const response = await guard(req, {
+        params: Promise.resolve({ username: 'TEST1' })
+      })
+
+      expect(response.status).toBe(404)
+      expect(mockHandler).not.toHaveBeenCalled()
+    })
+  })
+
   describe('with invalid user', () => {
     it('returns 404 when user not found', async () => {
       const guard = OnlyLocalUserGuard(mockHandler)

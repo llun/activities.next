@@ -9,6 +9,7 @@ import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { getLocalActorId } from '@/lib/utils/activitypubId'
 import { logger } from '@/lib/utils/logger'
 import { isEmailAllowed, normalizeEmail } from '@/lib/utils/normalizeEmail'
+import { normalizeUsername } from '@/lib/utils/normalizeUsername'
 import { generateKeyPair } from '@/lib/utils/signature'
 
 const BCRYPT_ROUND = 10
@@ -32,7 +33,7 @@ export interface RegisterAccountParams {
 
 export const registerAccount = async ({
   database,
-  username,
+  username: rawUsername,
   email: rawEmail,
   password,
   name
@@ -49,6 +50,10 @@ export const registerAccount = async ({
   // same canonical (lowercased) address — even when this service is called
   // directly rather than through the request schema. See normalizeEmail.
   const email = normalizeEmail(rawEmail)
+  // Same reasoning for the username, and the same reason to do it here rather
+  // than trust the request schema: the taken-check, the insert and the actor id
+  // returned below must all see one canonical handle. See normalizeUsername.
+  const username = normalizeUsername(rawUsername)
   const domain = config.host
 
   if (!isEmailAllowed(settings.registrations.allowEmails, email)) {

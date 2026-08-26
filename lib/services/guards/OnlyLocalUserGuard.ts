@@ -4,7 +4,6 @@ import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
 import { isFederationSigningActor } from '@/lib/services/federation/instanceActor'
 import { Actor } from '@/lib/types/domain/actor'
-import { getLocalActorId } from '@/lib/utils/activitypubId'
 import { apiErrorResponse } from '@/lib/utils/response'
 
 import { headerHost } from './headerHost'
@@ -36,8 +35,21 @@ export const OnlyLocalUserGuard =
 
     const { username } = await query.params
     const host = headerHost(req.headers)
-    const id = getLocalActorId({ domain: host, username })
-    const actor = await database.getActorFromId({ id })
+    // Resolved by username rather than by rebuilding the actor id from the path
+    // segment, so this surface folds casing the same way `/@user`, WebFinger,
+    // mentions and account lookup now do. Rebuilding the id could only ever
+    // match one spelling, which left the entire ActivityPub surface — actor
+    // document, inbox, outbox, followers, following, statuses, collections —
+    // answering `/api/users/Alice` and 404ing `/api/users/alice`.
+    //
+    // The host binding is unchanged: matching `domain` against `headerHost` is
+    // the same constraint as requiring the id to have been minted on this host,
+    // because both are written from one value in `createAccount` /
+    // `createActorForAccount`. A remote actor still cannot match it.
+    const actor = await database.getActorFromUsername({
+      username,
+      domain: host
+    })
     const isAllowedActor =
       actor?.account ||
       (options.allowFederationSigningActor && isFederationSigningActor(actor))

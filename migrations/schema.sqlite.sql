@@ -280,3 +280,4 @@ CREATE INDEX `fitness_gear_component_periods_component_id_idx` on `fitness_gear_
 CREATE UNIQUE INDEX `fitness_gear_component_periods_sequence_unique` on `fitness_gear_component_periods` (`componentId`, `installSequence`);
 CREATE TABLE IF NOT EXISTS "fitness_gear_components" (`id` varchar(255), `gearId` varchar(255) NOT NULL, `componentType` varchar(255) NOT NULL, `brand` varchar(255) NULL, `model` varchar(255) NULL, `serviceDistanceMeters` float NULL, `lastAlertedDistanceMeters` float NULL, `createdAt` datetime NOT NULL, `updatedAt` datetime NOT NULL, `deletedAt` datetime NULL, FOREIGN KEY (`gearId`) REFERENCES `fitness_gears` (`id`) ON DELETE CASCADE, PRIMARY KEY (`id`));
 CREATE INDEX `fitness_gear_components_gear_id_idx` on `fitness_gear_components` (`gearId`);
+CREATE INDEX "actors_lower_username_domain_idx" ON "actors" (lower("username"), "domain");

@@ -1733,6 +1733,8 @@ CREATE INDEX actors_domain_last_status_at_idx ON public.actors USING btree (doma
 
 CREATE INDEX actors_local_idx ON public.actors USING btree (id) WHERE ("privateKey" IS NOT NULL);
 
+CREATE INDEX actors_lower_username_domain_idx ON public.actors USING btree (lower((username)::text), domain);
+
 CREATE INDEX "attachmentsIndex" ON public.attachments USING btree ("statusId", "createdAt", "updatedAt");
 
 CREATE INDEX "attachments_actorId_idx" ON public.attachments USING btree ("actorId");
