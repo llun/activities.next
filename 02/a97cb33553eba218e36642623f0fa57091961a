@@ -1,0 +1,21 @@
+app/calloutContrast.test.ts
+  s_a3b90525842071::t_fda20f53431c80 66-73
+lib/services/strava/defaultVisibility.test.ts
+  s_a3b90525842071::t_fda20f53431c80 104-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "02a97cb33553eba218e36642623f0fa57091961a",
+  "prompts": {},
+  "sessions": {
+    "s_a3b90525842071": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "029eb1cf-00b7-4f56-b1d3-679cd6f1e78c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
