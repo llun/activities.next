@@ -1,0 +1,22 @@
+scripts/backup/productionArchive.ts
+  s_071afcfb37111b::t_51a928c5cc41da 1488-1494
+  s_071afcfb37111b::t_6088d32ae06add 1586-1589,1643-1645
+AGENTS.md
+  s_071afcfb37111b::t_351140577bc7a3 2328
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "0563b488b1c0ea723d1b9d596495ad152777d434",
+  "prompts": {},
+  "sessions": {
+    "s_071afcfb37111b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ef2b7898-3f36-4aca-8c01-abbf3a5e0354",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
