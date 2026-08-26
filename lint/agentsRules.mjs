@@ -158,7 +158,11 @@ const isRequireOfPathModule = (node) =>
 // `TSInstantiationExpression` was removed from this set once, on the reasoning
 // that `path.resolve` and `path.join` are not generic so nothing could reach it
 // around one. Half true, and the wrong half was load-bearing: the direct
-// `path.resolve<string>` is indeed a TS2635, but
+// `path.resolve<string>` is indeed a TS2635 — under THIS repo's
+// `tsconfig.typecheck.json`, the only config whose verdict matters here. A
+// narrowed ad-hoc tsconfig reports TS2558 for the same line instead, because
+// it pulls a different set of `@types/node` overloads into scope, and a
+// review round already tried to "correct" the code on that basis. But
 // `(path.resolve as unknown as GenericResolver)<string>` compiles clean under
 // this repo's own `yarn typecheck` and, with the entry gone, both rules
 // reported nothing for the call. Measured, not argued — hence the fixture.
