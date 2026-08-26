@@ -933,54 +933,104 @@ describe('backfillMediaBlurhash execution', () => {
   )
 
   // `--dry-run` is the first command `docs/maintenance.md` tells an operator to
-  // run, so the diagnostic has to survive it — the dry-run gate covers the
-  // UPDATE, not the counting. Two affected rows in one batch, because the
-  // warning is per ROW: collapsing it to one call per run reports only the
-  // first id, which is indistinguishable from correct behaviour in any
-  // single-row fixture.
-  it('names every affected row under --dry-run without writing', async () => {
-    await db('attachments').insert([
-      {
-        id: 'att-1',
-        statusId: 'status-1',
-        actorId: 'https://llun.test/users/test',
-        mediaId: '404',
-        mediaType: 'image/jpeg',
-        url: 'https://llun.test/api/v1/files/medias/one.jpg',
-        blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4',
-        thumbnailUrl: '/api/v1/files/medias/one-thumbnail.jpg'
-      },
-      {
-        id: 'att-2',
-        statusId: 'status-1',
-        actorId: 'https://llun.test/users/test',
-        mediaId: '405',
-        mediaType: 'image/jpeg',
-        url: 'https://llun.test/api/v1/files/medias/two.jpg',
-        blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4',
-        thumbnailUrl: '/api/v1/files/medias/two-thumbnail.jpg'
-      }
-    ])
+  // run, so the diagnostic has to survive it: the gate covers the UPDATE, not
+  // the counting, and `totalUpdated` deliberately counts what WOULD be written.
+  // The row has to be one that genuinely diverges, or the update block is never
+  // entered and "without writing" asserts nothing — stripping the gate to an
+  // unconditional write passed a fixture that could not reach it.
+  it('counts a row it would write under --dry-run without writing it', async () => {
+    vi.mocked(analyzeImageBuffer).mockResolvedValue({
+      blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4',
+      focus: null
+    })
 
-    const mockStorage = { getFile: vi.fn().mockResolvedValue(null) } as never
+    await db('attachments').insert({
+      id: 'att-1',
+      statusId: 'status-1',
+      actorId: 'https://llun.test/users/test',
+      mediaId: '404',
+      mediaType: 'image/jpeg',
+      url: 'https://llun.test/api/v1/files/medias/one.jpg',
+      blurhash: null
+    })
+
+    const mockStorage = {
+      getFile: vi
+        .fn()
+        .mockResolvedValue({ type: 'buffer', buffer: Buffer.from('image') })
+    } as never
     await backfillAttachments(db, mockStorage, options({ dryRun: true }), HOSTS)
 
     expect(console.warn).toHaveBeenCalledWith(
       expect.stringContaining('[attachments att-1] media 404 no longer exists')
     )
-    expect(console.warn).toHaveBeenCalledWith(
-      expect.stringContaining('[attachments att-2] media 405 no longer exists')
-    )
     expect(console.log).toHaveBeenCalledWith(
-      'Attachments complete: processed 2, updated 0, 2 whose media row is gone, 0 with an invalid mediaId'
+      'Attachments complete: processed 1, updated 1, 1 whose media row is gone, 0 with an invalid mediaId'
     )
 
-    const rows = await db('attachments').orderBy('id', 'asc')
-    expect(rows.map((row) => row.thumbnailUrl)).toEqual([
-      '/api/v1/files/medias/one-thumbnail.jpg',
-      '/api/v1/files/medias/two-thumbnail.jpg'
-    ])
+    const untouched = await db('attachments').where('id', 'att-1').first()
+    expect(untouched.blurhash).toBeNull()
   })
+
+  // The warning is per ROW and each counter lives outside the batch loop, so
+  // pinning either needs two rows OF THE SAME CAUSE spread over two batches.
+  // Two rows with different causes does not do it: each counter only ever
+  // reaches one, so collapsing the warning to one call per cause suppresses
+  // nothing and the mutation passes — which is exactly what happened to the
+  // first version of this test.
+  it.each([
+    {
+      description: 'a deleted media row',
+      mediaIds: ['404', '405'],
+      expectedWarnings: [
+        '[attachments att-1] media 404 no longer exists',
+        '[attachments att-2] media 405 no longer exists'
+      ],
+      expectedSummary:
+        'Attachments complete: processed 2, updated 0, 2 whose media row is gone, 0 with an invalid mediaId'
+    },
+    {
+      description: 'an invalid mediaId',
+      mediaIds: ['nope', 'nah'],
+      expectedWarnings: [
+        '[attachments att-1] mediaId "nope" is not a media row id',
+        '[attachments att-2] mediaId "nah" is not a media row id'
+      ],
+      expectedSummary:
+        'Attachments complete: processed 2, updated 0, 0 whose media row is gone, 2 with an invalid mediaId'
+    }
+  ])(
+    'warns per row and accumulates $description across batches',
+    async ({ mediaIds, expectedWarnings, expectedSummary }) => {
+      await db('attachments').insert(
+        mediaIds.map((mediaId, index) => ({
+          id: `att-${index + 1}`,
+          statusId: 'status-1',
+          actorId: 'https://llun.test/users/test',
+          mediaId,
+          mediaType: 'image/jpeg',
+          url: `https://llun.test/api/v1/files/medias/${index}.jpg`,
+          blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4',
+          thumbnailUrl: `/api/v1/files/medias/${index}-thumbnail.jpg`
+        }))
+      )
+
+      const mockStorage = { getFile: vi.fn().mockResolvedValue(null) } as never
+      await backfillAttachments(
+        db,
+        mockStorage,
+        options({ batchSize: 1 }),
+        HOSTS
+      )
+
+      for (const expectedWarning of expectedWarnings) {
+        expect(console.warn).toHaveBeenCalledWith(
+          expect.stringContaining(expectedWarning)
+        )
+      }
+      expect(console.log).toHaveBeenCalledWith(expectedSummary)
+    }
+  )
 
   // A NULL `mediaId` is how a federated attachment is stored — there is no
   // media row to miss — so both counts have to stay at zero or every remote
