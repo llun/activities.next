@@ -38,12 +38,11 @@ export const isFederationSigningActorUsername = (username: string) =>
 // as `__instance__archive`. Narrowing `isValidFederationSigningSQLActor` or
 // `isFederationSigningActor` onto this form would stop such an adopted signer
 // validating at all — silently ending federation signing on that instance. The
-// guard stays correct across that split because its reserved-name test carries
-// `!isFederationSigningActor(actor)` as a second conjunct — that, not anything
-// earlier in the guard, is what keeps a genuine signer served. Do not delete it
-// as redundant: on the 7 call sites that omit `allowFederationSigningActor` an
-// adopted signer is already refused earlier, so the two checks are not
-// interchangeable either.
+// guard stays correct across that split because an adopted signer's name is
+// outside THIS predicate, so its reserved-name test simply does not fire. See
+// `OnlyLocalUserGuard` for which of its checks carries which case; do not
+// restate that reasoning here, and do not assume either check is redundant with
+// the other — both are required to serve the genuine signer.
 export const isFederationSigningActorIdUsername = (username: string) =>
   /^__instance__([1-9]\d*)?$/.test(username)
 

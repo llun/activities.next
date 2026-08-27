@@ -210,9 +210,9 @@ describe('OnlyLocalUserGuard', () => {
     // The guard reserves exactly the names the minter can EMIT — bare
     // `__instance__` and `__instance__<n>` for n >= 1 — not the loose
     // `__instance__` PREFIX the mint refine reserves, and NOT
-    // `__instance__<digits>` either: the two zero-index rows below ARE digits
-    // and are deliberately served, because the index is an interpolated JS
-    // number that never carries a leading zero.
+    // `__instance__<digits>` either: the zero and leading-zero rows below ARE
+    // digits and are deliberately served, because the index is an
+    // interpolated JS number that never carries a leading zero.
     //
     // A legacy account named `__instance__archive` —
     // registerable before that refine existed — owns an id

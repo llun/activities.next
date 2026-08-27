@@ -88,10 +88,24 @@ export const OnlyLocalUserGuard =
     // or as `__instance__<digits>` (`__instance__0` and `__instance__007` are
     // deliberately not reserved — the minter cannot emit them).
     //
-    // The second conjunct is what keeps the GENUINE signer served here, on the
-    // routes that opt into it. It is not redundant with the `isAllowedActor`
-    // check above: 7 of this guard's call sites do not pass
-    // `allowFederationSigningActor`, so an adopted signer 404s there already.
+    // BOTH checks are required to serve the genuine signer, and neither
+    // subsumes the other:
+    //
+    //  - `isAllowedActor` above. An accountless signer has a falsy
+    //    `actor.account`, so it reaches the handler only through that line's
+    //    `allowFederationSigningActor && isFederationSigningActor(actor)`
+    //    disjunct. Delete it and the signer 404s before ever getting here, on
+    //    the 9 of this guard's 14 invocations that opt in. (The other 5 —
+    //    `quote_authorizations/[id]` and the four `statuses/[statusId]/*` —
+    //    refuse it there deliberately.)
+    //  - The `!isFederationSigningActor(actor)` conjunct below. It is what
+    //    stops THIS test 404ing a signer whose name the minter can emit
+    //    (`__instance__`, `__instance__<n>`).
+    //
+    // Note the conjunct does no work for an ADOPTED signer sitting outside the
+    // mintable set, such as `__instance__archive`: the first conjunct is false
+    // there, so `&&` short-circuits and this test never reaches it. That case
+    // is carried by the predicate's precision, not by this line.
     if (
       isFederationSigningActorIdUsername(normalizeUsername(username)) &&
       !isFederationSigningActor(actor)
