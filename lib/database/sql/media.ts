@@ -351,11 +351,13 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
   // `toMediaRowId` — coercing would silently drop the link rather than surface
   // the caller's bad id. Almost every caller hands over an id read back out of
   // `medias`, but `POST /api/v1/accounts/outbox` does not: its
-  // `PostBoxAttachment.id` is a bare `z.string()` that reaches
-  // `lib/actions/createNote.ts` unvalidated, so a malformed id fails this
-  // insert on PostgreSQL (`attachments.mediaId` is `integer` there) AFTER the
-  // status row is already committed. That endpoint needs its own validation —
-  // it is a separate bug from the lookup guard above, tracked separately.
+  // `PostBoxAttachment.id` is a bare `z.string()`. That endpoint now shape-
+  // checks the id against `toMediaRowId` before it writes anything, so a
+  // malformed one is a 422 rather than an `invalid input syntax for type
+  // integer` raised here AFTER `createNote` had committed the status row.
+  // The guard belongs at the route, not here: it is the last point at which
+  // the request can be refused before a write, and `createNote.ts` opens no
+  // transaction to roll one back.
   async createAttachment({
     actorId,
     statusId,
