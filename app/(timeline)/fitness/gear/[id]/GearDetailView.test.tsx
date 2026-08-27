@@ -19,6 +19,7 @@ import type {
   GearComponentEntity,
   GearEntity
 } from '@/lib/services/fitness-gears/gearEntities'
+import { createDeferred } from '@/lib/testing/deferred'
 import { ActorProfile } from '@/lib/types/domain/actor'
 
 import type { GearActivityFeedContext } from './GearActivitiesFeed'
@@ -424,13 +425,8 @@ describe('GearDetailView', () => {
   })
 
   it('disables the retire button while the change is in flight', async () => {
-    let resolveRetire: (gear: GearEntity) => void = () => {}
-    mockSetFitnessGearRetired.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveRetire = resolve
-        })
-    )
+    const deferred = createDeferred<GearEntity>()
+    mockSetFitnessGearRetired.mockImplementation(() => deferred.promise)
     render(<GearDetailView gearId="gear-1" feed={feed} />)
 
     const retire = await screen.findByRole('button', { name: 'Retire' })
@@ -438,7 +434,7 @@ describe('GearDetailView', () => {
 
     await waitFor(() => expect(retire).toBeDisabled())
 
-    resolveRetire(createGear({ retiredAt: Date.UTC(2026, 0, 1) }))
+    deferred.resolve(createGear({ retiredAt: Date.UTC(2026, 0, 1) }))
     await waitFor(() => expect(mockGetFitnessGearList).toHaveBeenCalledTimes(2))
   })
 
@@ -451,15 +447,10 @@ describe('GearDetailView', () => {
         removedAt: Date.UTC(2025, 5, 1)
       })
     ])
-    let resolveRefetch: (gears: GearEntity[]) => void = () => {}
+    const deferred = createDeferred<GearEntity[]>()
     mockGetFitnessGearList
       .mockResolvedValueOnce([createGear()])
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            resolveRefetch = resolve
-          })
-      )
+      .mockImplementationOnce(() => deferred.promise)
     render(<GearDetailView gearId="gear-1" feed={feed} />)
 
     // Expand the retired rows: the child's own state is what a remount loses.
@@ -475,7 +466,7 @@ describe('GearDetailView', () => {
     expect(screen.getByText('Chain')).toBeInTheDocument()
     expect(screen.getByText('Cassette')).toBeInTheDocument()
 
-    resolveRefetch([createGear({ retiredAt: Date.UTC(2026, 0, 1) })])
+    deferred.resolve([createGear({ retiredAt: Date.UTC(2026, 0, 1) })])
     await screen.findByRole('button', { name: 'Unretire' })
   })
 

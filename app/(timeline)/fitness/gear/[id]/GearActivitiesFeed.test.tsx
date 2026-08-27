@@ -8,6 +8,7 @@ import {
   type GearActivityStatusesPage,
   getFitnessGearActivities
 } from '@/lib/client'
+import { createDeferred } from '@/lib/testing/deferred'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 
@@ -544,19 +545,15 @@ describe('GearActivitiesFeed', () => {
       renderFeed()
       await screen.findByRole('button', { name: 'Load more' })
 
-      let resolvePage: (value: GearActivityStatusesPage) => void = () => {}
-      mockGetFitnessGearActivities.mockReturnValueOnce(
-        new Promise<GearActivityStatusesPage>((resolve) => {
-          resolvePage = resolve
-        })
-      )
+      const deferred = createDeferred<GearActivityStatusesPage>()
+      mockGetFitnessGearActivities.mockReturnValueOnce(deferred.promise)
       act(() => scrollSentinelIntoView())
       act(() => scrollSentinelIntoView())
 
       expect(mockGetFitnessGearActivities).toHaveBeenCalledTimes(2)
 
       await act(async () => {
-        resolvePage(
+        deferred.resolve(
           page({ statuses: [createStatus('status-2', 'Evening ride')] })
         )
       })
@@ -564,18 +561,14 @@ describe('GearActivitiesFeed', () => {
     })
 
     it('is not armed while the first page is still loading', async () => {
-      let resolveFirst: (value: GearActivityStatusesPage) => void = () => {}
-      mockGetFitnessGearActivities.mockReturnValueOnce(
-        new Promise<GearActivityStatusesPage>((resolve) => {
-          resolveFirst = resolve
-        })
-      )
+      const deferred = createDeferred<GearActivityStatusesPage>()
+      mockGetFitnessGearActivities.mockReturnValueOnce(deferred.promise)
       renderFeed()
 
       expect(observe).not.toHaveBeenCalled()
 
       await act(async () => {
-        resolveFirst(
+        deferred.resolve(
           page({
             statuses: [createStatus('status-1', 'Morning ride')],
             hasMore: true,
@@ -593,10 +586,7 @@ describe('GearActivitiesFeed', () => {
     // `key`, so navigating between two gear pages swaps `gearId` on the SAME
     // instance rather than remounting.
     const renderThenSwitch = async () => {
-      let resolveStale: (value: GearActivityStatusesPage) => void = () => {}
-      const stalePage = new Promise<GearActivityStatusesPage>((resolve) => {
-        resolveStale = resolve
-      })
+      const stalePage = createDeferred<GearActivityStatusesPage>()
 
       mockGetFitnessGearActivities.mockResolvedValueOnce(
         page({
@@ -609,7 +599,7 @@ describe('GearActivitiesFeed', () => {
       const loadMore = await screen.findByRole('button', { name: 'Load more' })
 
       // "Load more" on gear A, still in flight when the gear changes.
-      mockGetFitnessGearActivities.mockReturnValueOnce(stalePage)
+      mockGetFitnessGearActivities.mockReturnValueOnce(stalePage.promise)
       fireEvent.click(loadMore)
 
       mockGetFitnessGearActivities.mockResolvedValueOnce(
@@ -633,10 +623,10 @@ describe('GearActivitiesFeed', () => {
         expect(screen.getByText('Gear B ride')).toBeInTheDocument()
       )
 
-      resolveStale(
+      stalePage.resolve(
         page({ statuses: [createStatus('a-2', 'Stale ride')], hasMore: true })
       )
-      await waitFor(() => expect(stalePage).resolves.toBeDefined())
+      await waitFor(() => expect(stalePage.promise).resolves.toBeDefined())
       return view
     }
 
@@ -717,12 +707,8 @@ describe('GearActivitiesFeed', () => {
       const view = renderFeed()
       await screen.findByRole('alert')
 
-      let resolveNext: (value: GearActivityStatusesPage) => void = () => {}
-      mockGetFitnessGearActivities.mockReturnValueOnce(
-        new Promise<GearActivityStatusesPage>((resolve) => {
-          resolveNext = resolve
-        })
-      )
+      const deferred = createDeferred<GearActivityStatusesPage>()
+      mockGetFitnessGearActivities.mockReturnValueOnce(deferred.promise)
       view.rerender(
         <GearActivitiesFeed
           gearId="gear-2"
@@ -738,7 +724,9 @@ describe('GearActivitiesFeed', () => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 
       await act(async () => {
-        resolveNext(page({ statuses: [createStatus('b-1', 'Gear B ride')] }))
+        deferred.resolve(
+          page({ statuses: [createStatus('b-1', 'Gear B ride')] })
+        )
       })
       expect(screen.getByText('Gear B ride')).toBeInTheDocument()
     })
@@ -758,19 +746,15 @@ describe('GearActivitiesFeed', () => {
       const view = renderFeed()
       const loadMore = await screen.findByRole('button', { name: 'Load more' })
 
-      let resolveWalk: (value: GearActivityStatusesPage) => void = () => {}
-      mockGetFitnessGearActivities.mockReturnValueOnce(
-        new Promise<GearActivityStatusesPage>((resolve) => {
-          resolveWalk = resolve
-        })
-      )
+      const deferred = createDeferred<GearActivityStatusesPage>()
+      mockGetFitnessGearActivities.mockReturnValueOnce(deferred.promise)
       fireEvent.click(loadMore)
       expect(mockGetFitnessGearActivities).toHaveBeenCalledTimes(2)
 
       view.unmount()
       await act(async () => {
         // A postless page, which is what would otherwise keep the walk going.
-        resolveWalk(page({ hasMore: true, nextOffset: 40 }))
+        deferred.resolve(page({ hasMore: true, nextOffset: 40 }))
       })
 
       expect(mockGetFitnessGearActivities).toHaveBeenCalledTimes(2)

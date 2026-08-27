@@ -1,5 +1,6 @@
 import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { Database } from '@/lib/database/types'
+import { createDeferred } from '@/lib/testing/deferred'
 import { Actor } from '@/lib/types/domain/actor'
 
 import {
@@ -165,12 +166,9 @@ describe('refreshKnownRemoteActor', () => {
 
   it('shares a single in-flight refresh across concurrent requests', async () => {
     const refreshedActor = { ...remoteActor, name: 'Refreshed' }
-    let resolveRefresh: (value: Actor) => void = () => {}
+    const deferred = createDeferred<Actor>()
     ;(recordActorIfNeeded as jest.Mock).mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveRefresh = resolve
-        })
+      () => deferred.promise
     )
 
     const first = refreshKnownRemoteActor({
@@ -181,7 +179,7 @@ describe('refreshKnownRemoteActor', () => {
       database: mockDatabase,
       actor: remoteActor
     })
-    resolveRefresh(refreshedActor)
+    deferred.resolve(refreshedActor)
 
     await expect(first).resolves.toBe(refreshedActor)
     await expect(second).resolves.toBe(refreshedActor)

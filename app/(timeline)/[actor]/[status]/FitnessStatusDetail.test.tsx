@@ -20,6 +20,7 @@ import {
   updateFitnessFileGear
 } from '@/lib/client'
 import type { GearEntity } from '@/lib/services/fitness-gears/gearEntities'
+import { createDeferred } from '@/lib/testing/deferred'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusNote } from '@/lib/types/domain/status'
 import { loadMaplibreModule } from '@/lib/utils/maplibre'
@@ -2243,16 +2244,8 @@ describe('FitnessStatusDetail', () => {
       mockGetFitnessGearList.mockResolvedValue([
         buildGear({ id: 'gear-bike', name: 'Moots' })
       ])
-      let resolveUpdate: (file: {
-        id: string
-        gearId: string | null
-      }) => void = () => {}
-      mockUpdateFitnessFileGear.mockImplementation(
-        () =>
-          new Promise((resolve) => {
-            resolveUpdate = resolve
-          })
-      )
+      const deferred = createDeferred<{ id: string; gearId: string | null }>()
+      mockUpdateFitnessFileGear.mockImplementation(() => deferred.promise)
 
       renderDetail()
 
@@ -2274,7 +2267,7 @@ describe('FitnessStatusDetail', () => {
         'true'
       )
 
-      resolveUpdate({ id: 'fit-1', gearId: 'gear-bike' })
+      deferred.resolve({ id: 'fit-1', gearId: 'gear-bike' })
       await waitFor(() =>
         expect(
           within(menu).getByRole('menuitem', { name: 'Change gear' })
@@ -2323,13 +2316,8 @@ describe('FitnessStatusDetail', () => {
       // The status payload's single file is what renders first; the real list
       // arrives from `getFitnessFilesByStatus`, and here it lands while the
       // gear PATCH is still open.
-      let resolveFiles: (files: StatusFitnessFileItem[]) => void = () => {}
-      mockGetFitnessFilesByStatus.mockImplementation(
-        () =>
-          new Promise((resolve) => {
-            resolveFiles = resolve
-          })
-      )
+      const fileList = createDeferred<StatusFitnessFileItem[]>()
+      mockGetFitnessFilesByStatus.mockImplementation(() => fileList.promise)
       mockGetFitnessGearList.mockResolvedValue([
         buildGear({ id: 'gear-bike', name: 'Moots' })
       ])
@@ -2347,7 +2335,7 @@ describe('FitnessStatusDetail', () => {
       await expectGearLinkText('Moots')
 
       await act(async () => {
-        resolveFiles([
+        fileList.resolve([
           buildFitnessFile(),
           buildFitnessFile({
             id: 'fit-2',

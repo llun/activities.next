@@ -6,6 +6,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { FC } from 'react'
 
 import { bookmarkStatus, undoBookmarkStatus } from '@/lib/client'
+import { createDeferred } from '@/lib/testing/deferred'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
 
 import { BookmarkButton } from './bookmark-button'
@@ -134,11 +135,8 @@ describe('BookmarkButton', () => {
 
   it('auto-dismisses bookmark errors after a short delay', async () => {
     vi.useFakeTimers()
-    let resolveBookmark: (value: boolean) => void = () => {}
-    const bookmarkPromise = new Promise<boolean>((resolve) => {
-      resolveBookmark = resolve
-    })
-    ;(bookmarkStatus as jest.Mock).mockReturnValue(bookmarkPromise)
+    const deferred = createDeferred<boolean>()
+    ;(bookmarkStatus as jest.Mock).mockReturnValue(deferred.promise)
 
     try {
       render(<BookmarkAction status={status} />)
@@ -146,8 +144,8 @@ describe('BookmarkButton', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Bookmark' }))
 
       await act(async () => {
-        resolveBookmark(false)
-        await bookmarkPromise
+        deferred.resolve(false)
+        await deferred.promise
       })
 
       expect(screen.getByRole('alert')).toHaveTextContent(

@@ -9,6 +9,7 @@ import {
   useNavPreferences
 } from '@/lib/components/layout/nav-preferences-context'
 import { DEFAULT_NAV_ORDER } from '@/lib/services/navigation/navPreferences'
+import { createDeferred } from '@/lib/testing/deferred'
 
 const mockUpdate = vi.fn()
 vi.mock('@/lib/client', () => ({
@@ -101,13 +102,8 @@ describe('NavPreferencesProvider', () => {
   })
 
   it('coalesces edits made while a save is in flight into one trailing write', async () => {
-    let resolveFirst: (value: boolean) => void = () => {}
-    mockUpdate.mockImplementationOnce(
-      () =>
-        new Promise<boolean>((resolve) => {
-          resolveFirst = resolve
-        })
-    )
+    const deferred = createDeferred<boolean>()
+    mockUpdate.mockImplementationOnce(() => deferred.promise)
 
     renderStore()
     click('hide favorites')
@@ -117,7 +113,7 @@ describe('NavPreferencesProvider', () => {
     // Only the first request has gone out so far.
     expect(mockUpdate).toHaveBeenCalledTimes(1)
     await act(async () => {
-      resolveFirst(true)
+      deferred.resolve(true)
     })
 
     await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(2))
@@ -128,13 +124,8 @@ describe('NavPreferencesProvider', () => {
   })
 
   it('sends an edit that undoes an in-flight change', async () => {
-    let resolveFirst: (value: boolean) => void = () => {}
-    mockUpdate.mockImplementationOnce(
-      () =>
-        new Promise<boolean>((resolve) => {
-          resolveFirst = resolve
-        })
-    )
+    const deferred = createDeferred<boolean>()
+    mockUpdate.mockImplementationOnce(() => deferred.promise)
 
     renderStore()
     click('hide favorites')
@@ -143,7 +134,7 @@ describe('NavPreferencesProvider', () => {
     click('show favorites')
 
     await act(async () => {
-      resolveFirst(true)
+      deferred.resolve(true)
     })
 
     await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(2))
@@ -197,19 +188,14 @@ describe('NavPreferencesProvider', () => {
   })
 
   it('still saves an edit made after a failure that a later save recovered from', async () => {
-    let resolveFirst: (value: boolean) => void = () => {}
-    mockUpdate.mockImplementationOnce(
-      () =>
-        new Promise<boolean>((resolve) => {
-          resolveFirst = resolve
-        })
-    )
+    const deferred = createDeferred<boolean>()
+    mockUpdate.mockImplementationOnce(() => deferred.promise)
 
     renderStore()
     click('hide favorites')
     click('hide bookmarks')
     await act(async () => {
-      resolveFirst(false)
+      deferred.resolve(false)
     })
     // The trailing save carries both hides and succeeds.
     await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(2))
@@ -221,22 +207,17 @@ describe('NavPreferencesProvider', () => {
   })
 
   it('does not let a gesture that changed nothing undo a reset in flight', async () => {
-    let resolveReset: (value: boolean) => void = () => {}
+    const deferred = createDeferred<boolean>()
     renderStore({ order: ['settings', 'timeline'] })
 
-    mockUpdate.mockImplementationOnce(
-      () =>
-        new Promise<boolean>((resolve) => {
-          resolveReset = resolve
-        })
-    )
+    mockUpdate.mockImplementationOnce(() => deferred.promise)
     click('reset')
     // A row picked up and dropped where it started, while the reset is still
     // in flight: it must not queue today's order over the reset's empty lists.
     click('commit')
 
     await act(async () => {
-      resolveReset(true)
+      deferred.resolve(true)
     })
     await act(async () => {})
 
@@ -268,37 +249,27 @@ describe('NavPreferencesProvider', () => {
   })
 
   it('keeps a reset queued behind an unrelated save that settles first', async () => {
-    let resolveHide: (value: boolean) => void = () => {}
+    const deferred = createDeferred<boolean>()
     renderStore({ order: ['settings', 'timeline'] })
 
-    mockUpdate.mockImplementationOnce(
-      () =>
-        new Promise<boolean>((resolve) => {
-          resolveHide = resolve
-        })
-    )
+    mockUpdate.mockImplementationOnce(() => deferred.promise)
     click('hide favorites')
     // Queued behind the hide, so the hide landing must not be taken as the
     // account having settled what the reset is still owed.
     click('reset')
 
     await act(async () => {
-      resolveHide(true)
+      deferred.resolve(true)
     })
     await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(2))
     expect(mockUpdate).toHaveBeenLastCalledWith({ navOrder: [], navHidden: [] })
   })
 
   it('still clears the stored lists when an edit made after a reset is undone', async () => {
-    let resolveReset: (value: boolean) => void = () => {}
+    const deferred = createDeferred<boolean>()
     renderStore({ order: ['settings', 'timeline'] })
 
-    mockUpdate.mockImplementationOnce(
-      () =>
-        new Promise<boolean>((resolve) => {
-          resolveReset = resolve
-        })
-    )
+    mockUpdate.mockImplementationOnce(() => deferred.promise)
     click('reset')
     // An edit supersedes the reset, then the user takes it back. The navigation
     // is once again what reset produced, so the account should end up with the
@@ -307,7 +278,7 @@ describe('NavPreferencesProvider', () => {
     click('show favorites')
 
     await act(async () => {
-      resolveReset(true)
+      deferred.resolve(true)
     })
     await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(2))
     expect(mockUpdate).toHaveBeenLastCalledWith({ navOrder: [], navHidden: [] })
