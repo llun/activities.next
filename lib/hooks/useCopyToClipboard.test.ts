@@ -3,6 +3,8 @@
  */
 import { act, renderHook, waitFor } from '@testing-library/react'
 
+import { createDeferred } from '@/lib/testing/deferred'
+
 import { useCopyToClipboard } from './useCopyToClipboard'
 
 const setClipboard = (writeText: ReturnType<typeof vi.fn> | undefined) => {
@@ -83,13 +85,8 @@ describe('useCopyToClipboard', () => {
   })
 
   it('does not flip copied when it unmounts while the write is in flight', async () => {
-    let resolveWrite: (() => void) | undefined
-    const writeText = vi.fn(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveWrite = resolve
-        })
-    )
+    const deferred = createDeferred<void>()
+    const writeText = vi.fn(() => deferred.promise)
     setClipboard(writeText)
 
     const { result, unmount } = renderHook(() => useCopyToClipboard())
@@ -100,7 +97,7 @@ describe('useCopyToClipboard', () => {
     // Unmount before the clipboard write resolves, then let it resolve.
     unmount()
     await act(async () => {
-      resolveWrite?.()
+      deferred.resolve()
       await copyPromise
     })
     // The guard skips setCopied after unmount — no act warning, no late update.

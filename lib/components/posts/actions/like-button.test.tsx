@@ -5,6 +5,7 @@ import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 
 import { likeStatus, undoLikeStatus } from '@/lib/client'
+import { createDeferred } from '@/lib/testing/deferred'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
 
@@ -69,11 +70,8 @@ describe('LikeButton', () => {
   })
 
   it('disables while liking to avoid duplicate requests', async () => {
-    let resolveLike: (value: boolean) => void = () => {}
-    const likePromise = new Promise<boolean>((resolve) => {
-      resolveLike = resolve
-    })
-    ;(likeStatus as jest.Mock).mockReturnValue(likePromise)
+    const deferred = createDeferred<boolean>()
+    ;(likeStatus as jest.Mock).mockReturnValue(deferred.promise)
 
     render(<LikeButton currentActor={currentActor} status={status} />)
 
@@ -85,8 +83,8 @@ describe('LikeButton', () => {
     expect(likeStatus).toHaveBeenCalledTimes(1)
 
     await act(async () => {
-      resolveLike(true)
-      await likePromise
+      deferred.resolve(true)
+      await deferred.promise
     })
 
     expect(screen.getByRole('button', { name: 'Unlike, 1 like' })).toBeEnabled()

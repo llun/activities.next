@@ -950,12 +950,8 @@ describe('PostBox edit media', () => {
   })
 
   it('ignores reentrant submits while edit media upload is in flight', async () => {
-    let resolveUpdate: (value: Awaited<ReturnType<typeof updateNote>>) => void
-    updateNoteMock.mockReturnValue(
-      new Promise((resolve) => {
-        resolveUpdate = resolve
-      })
-    )
+    const deferred = createDeferred<Awaited<ReturnType<typeof updateNote>>>()
+    updateNoteMock.mockReturnValue(deferred.promise)
 
     const { container } = render(
       <PostBox
@@ -1000,7 +996,7 @@ describe('PostBox edit media', () => {
     })
 
     await act(async () => {
-      resolveUpdate!({
+      deferred.resolve({
         content: '<p>Original post text</p>',
         spoilerText: '',
         mediaAttachments: [],

@@ -5,6 +5,7 @@ import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { getRemoteFollowUrl } from '@/lib/client'
+import { type Deferred, createDeferred } from '@/lib/testing/deferred'
 
 import { RemoteFollowDialog } from './remote-follow-dialog'
 
@@ -125,12 +126,8 @@ describe('RemoteFollowDialog', () => {
   })
 
   it('does not navigate when the dialog is dismissed while the lookup is in flight', async () => {
-    let resolveLookup: (url: string) => void = () => undefined
-    getRemoteFollowUrlMock.mockReturnValue(
-      new Promise<string>((resolve) => {
-        resolveLookup = resolve
-      })
-    )
+    const deferred = createDeferred<string>()
+    getRemoteFollowUrlMock.mockReturnValue(deferred.promise)
     render(<RemoteFollowDialog targetHandle="local@llun.test" />)
     openDialog()
 
@@ -146,19 +143,15 @@ describe('RemoteFollowDialog', () => {
     })
 
     await act(async () => {
-      resolveLookup('https://remote.test/authorize_interaction?uri=x')
+      deferred.resolve('https://remote.test/authorize_interaction?uri=x')
     })
 
     expect(assign).not.toHaveBeenCalled()
   })
 
   it('leaves the form usable after a dismissed lookup resolves', async () => {
-    let resolveLookup: (url: string) => void = () => undefined
-    getRemoteFollowUrlMock.mockReturnValue(
-      new Promise<string>((resolve) => {
-        resolveLookup = resolve
-      })
-    )
+    const deferred = createDeferred<string>()
+    getRemoteFollowUrlMock.mockReturnValue(deferred.promise)
     render(<RemoteFollowDialog targetHandle="local@llun.test" />)
     openDialog()
 
@@ -170,7 +163,7 @@ describe('RemoteFollowDialog', () => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     })
     await act(async () => {
-      resolveLookup('https://remote.test/authorize_interaction?uri=x')
+      deferred.resolve('https://remote.test/authorize_interaction?uri=x')
     })
 
     openDialog()
@@ -182,12 +175,8 @@ describe('RemoteFollowDialog', () => {
   it('does not navigate when a dismissed lookup settles after the dialog is reopened', async () => {
     // Reopening to retry is the natural next move after giving up, and it must
     // not revive the lookup that was walked away from.
-    let resolveLookup: (url: string) => void = () => undefined
-    getRemoteFollowUrlMock.mockReturnValue(
-      new Promise<string>((resolve) => {
-        resolveLookup = resolve
-      })
-    )
+    const deferred = createDeferred<string>()
+    getRemoteFollowUrlMock.mockReturnValue(deferred.promise)
     render(<RemoteFollowDialog targetHandle="local@llun.test" />)
     openDialog()
 
@@ -203,7 +192,7 @@ describe('RemoteFollowDialog', () => {
     await screen.findByLabelText('Your address')
 
     await act(async () => {
-      resolveLookup('https://abandoned.test/authorize_interaction?uri=x')
+      deferred.resolve('https://abandoned.test/authorize_interaction?uri=x')
     })
 
     expect(assign).not.toHaveBeenCalled()
@@ -213,12 +202,12 @@ describe('RemoteFollowDialog', () => {
   })
 
   it('sends the visitor to the retried address, not the abandoned one', async () => {
-    const settle: Record<string, (url: string) => void> = {}
+    const pending: Record<string, Deferred<string>> = {}
     getRemoteFollowUrlMock.mockImplementation(
-      ({ account }: { account: string }) =>
-        new Promise<string>((resolve) => {
-          settle[account] = resolve
-        })
+      ({ account }: { account: string }) => {
+        pending[account] = createDeferred<string>()
+        return pending[account].promise
+      }
     )
     render(<RemoteFollowDialog targetHandle="local@llun.test" />)
     openDialog()
@@ -238,14 +227,14 @@ describe('RemoteFollowDialog', () => {
 
     // The abandoned lookup finishes first and must lose.
     await act(async () => {
-      settle['typo@wrong.test'](
+      pending['typo@wrong.test'].resolve(
         'https://wrong.test/authorize_interaction?uri=x'
       )
     })
     expect(assign).not.toHaveBeenCalled()
 
     await act(async () => {
-      settle['visitor@correct.test'](
+      pending['visitor@correct.test'].resolve(
         'https://correct.test/authorize_interaction?uri=x'
       )
     })
@@ -294,12 +283,8 @@ describe('RemoteFollowDialog', () => {
   it('does not navigate when the page is left while the lookup is in flight', async () => {
     // Radix pushes no history entry, so a browser or Android system Back
     // unmounts this without ever closing the dialog.
-    let resolveLookup: (url: string) => void = () => undefined
-    getRemoteFollowUrlMock.mockReturnValue(
-      new Promise<string>((resolve) => {
-        resolveLookup = resolve
-      })
-    )
+    const deferred = createDeferred<string>()
+    getRemoteFollowUrlMock.mockReturnValue(deferred.promise)
     const view = render(<RemoteFollowDialog targetHandle="local@llun.test" />)
     openDialog()
 
@@ -309,7 +294,7 @@ describe('RemoteFollowDialog', () => {
 
     view.unmount()
     await act(async () => {
-      resolveLookup('https://abandoned.test/authorize_interaction?uri=x')
+      deferred.resolve('https://abandoned.test/authorize_interaction?uri=x')
     })
 
     expect(assign).not.toHaveBeenCalled()

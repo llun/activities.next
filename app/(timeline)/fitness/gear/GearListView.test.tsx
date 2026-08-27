@@ -12,6 +12,7 @@ import {
 
 import { createFitnessGear, getFitnessGearList } from '@/lib/client'
 import type { GearEntity } from '@/lib/services/fitness-gears/gearEntities'
+import { createDeferred } from '@/lib/testing/deferred'
 
 import { GearListView } from './GearListView'
 
@@ -278,7 +279,7 @@ describe('GearListView', () => {
 
   it('keeps the sections rendered while a refetch is in flight', async () => {
     mockCreateFitnessGear.mockResolvedValue(createGear())
-    let resolveRefetch: (gears: GearEntity[]) => void = () => {}
+    const deferred = createDeferred<GearEntity[]>()
     mockGetFitnessGearList
       .mockResolvedValueOnce([
         createGear(),
@@ -288,12 +289,7 @@ describe('GearListView', () => {
           retiredAt: Date.UTC(2023, 4, 1)
         })
       ])
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            resolveRefetch = resolve
-          })
-      )
+      .mockImplementationOnce(() => deferred.promise)
     render(<GearListView />)
 
     // The expanded retired list is the state a "Loading..." swap would lose.
@@ -310,7 +306,7 @@ describe('GearListView', () => {
     expect(screen.getByRole('link', { name: 'Rocket' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Old racer' })).toBeInTheDocument()
 
-    resolveRefetch([createGear()])
+    deferred.resolve([createGear()])
     await waitFor(() =>
       expect(
         screen.queryByRole('link', { name: 'Old racer' })

@@ -9,6 +9,7 @@ import {
   TILE_EXTENT
 } from '@/lib/services/fitness-files/heatmapTiles/constants'
 import { encodeTile } from '@/lib/services/fitness-files/heatmapTiles/tileCodec'
+import { createDeferred } from '@/lib/testing/deferred'
 
 import {
   MAX_TILES_PER_VIEW,
@@ -187,16 +188,11 @@ describe('useHeatmapTiles', () => {
   })
 
   it('keeps the previous geometry while the next viewport loads', async () => {
-    let release: (value: FitnessRouteHeatmapTileBatch) => void = () => {}
+    const deferred = createDeferred<FitnessRouteHeatmapTileBatch>()
     const fetchTiles = vi
       .fn()
       .mockImplementationOnce(async ({ tiles }) => batchOf(tiles))
-      .mockImplementationOnce(
-        () =>
-          new Promise<FitnessRouteHeatmapTileBatch>((resolve) => {
-            release = resolve
-          })
-      )
+      .mockImplementationOnce(() => deferred.promise)
     const { result } = renderHook(() =>
       useHeatmapTiles({ tileSource, fetchTiles })
     )
@@ -216,7 +212,7 @@ describe('useHeatmapTiles', () => {
 
     // Blanking here would read as breakage rather than loading.
     expect(result.current.runs).toBe(before)
-    act(() => release({ version: 3, tiles: {} }))
+    act(() => deferred.resolve({ version: 3, tiles: {} }))
   })
 
   it('restarts the view when the pyramid is rebuilt mid-load, rather than assembling half of it', async () => {

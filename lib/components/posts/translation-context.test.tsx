@@ -9,6 +9,7 @@ import {
   getTranslationLanguages,
   translateStatus
 } from '@/lib/client'
+import { type Deferred, createDeferred } from '@/lib/testing/deferred'
 import { Translation } from '@/lib/types/mastodon/translation'
 
 import { useStatusTranslation } from './translation-context'
@@ -42,12 +43,12 @@ describe('useStatusTranslation', () => {
   })
 
   it('ignores an out-of-order response from a superseded target', async () => {
-    const resolvers: Record<string, (value: Translation) => void> = {}
+    const pending: Record<string, Deferred<Translation>> = {}
     ;(translateStatus as jest.Mock).mockImplementation(
-      ({ language }: { language: string }) =>
-        new Promise<Translation>((resolve) => {
-          resolvers[language] = resolve
-        })
+      ({ language }: { language: string }) => {
+        pending[language] = createDeferred<Translation>()
+        return pending[language].promise
+      }
     )
 
     const { result } = renderHook(() => useStatusTranslation('id-1', 'de'))
@@ -59,11 +60,11 @@ describe('useStatusTranslation', () => {
     expect(result.current.state).toBe('loading')
 
     // The superseded English request resolves last; it must not flip the UI.
-    act(() => resolvers.en(makeTranslation('en')))
+    act(() => pending.en.resolve(makeTranslation('en')))
     expect(result.current.state).toBe('loading')
 
     // The latest target (Spanish) wins and drives the visible state.
-    act(() => resolvers.es(makeTranslation('es')))
+    act(() => pending.es.resolve(makeTranslation('es')))
     await waitFor(() => expect(result.current.state).toBe('translated'))
     expect(result.current.target).toBe('es')
     expect(result.current.translation?.language).toBe('es')

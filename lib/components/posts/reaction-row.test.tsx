@@ -11,6 +11,7 @@ import {
   ReactionState,
   useReactionState
 } from '@/lib/components/posts/useReactionState'
+import { createDeferred } from '@/lib/testing/deferred'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote, StatusPoll } from '@/lib/types/domain/status'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
@@ -364,12 +365,8 @@ describe('ReactionRow', () => {
   })
 
   it('marks every chip busy while a reaction write is in flight', async () => {
-    let resolveRequest: (value: unknown) => void = () => {}
-    mockReactToStatus.mockReturnValue(
-      new Promise((resolve) => {
-        resolveRequest = resolve
-      })
-    )
+    const deferred = createDeferred<unknown>()
+    mockReactToStatus.mockReturnValue(deferred.promise)
 
     render(
       <Reactions
@@ -393,7 +390,7 @@ describe('ReactionRow', () => {
     fireEvent.click(other)
     expect(mockReactToStatus).toHaveBeenCalledTimes(1)
 
-    resolveRequest({ ok: true, reactions: [{ ...fire, count: 3, me: true }] })
+    deferred.resolve({ ok: true, reactions: [{ ...fire, count: 3, me: true }] })
     await waitFor(() =>
       expect(screen.getByLabelText('Remove 🔥 reaction, 3')).toHaveAttribute(
         'aria-disabled',
