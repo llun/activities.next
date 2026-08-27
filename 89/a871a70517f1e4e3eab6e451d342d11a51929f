@@ -1,0 +1,21 @@
+scripts/maintenance/backfillMediaBlurhash.test.ts
+  s_7ce6976d8cf0f9::t_bf05fc5abd447c 4-12
+AGENTS.md
+  s_7ce6976d8cf0f9::t_bf05fc5abd447c 2069
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "89a871a70517f1e4e3eab6e451d342d11a51929f",
+  "prompts": {},
+  "sessions": {
+    "s_7ce6976d8cf0f9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "634620f0-5c29-43c1-9cf4-35b968bc7e7a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
