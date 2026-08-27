@@ -162,15 +162,33 @@ the configured host), `--actor-id`, or `--email` to select the actor.
   `media.maxFileSize` server setting, the same ceiling an upload to this
   instance gets. One attachment gets 10 minutes in total — covering every hop,
   the body as well as the headers — so a slow host cannot restart the clock by
-  redirecting. A refused or over-size attachment is recorded as a warning in
-  `manifest.json` and its absolute URL is kept, exactly as if the flag had not
-  been passed. Two caveats worth knowing before you use it on a hostile
-  account: the ten minutes and the size cap bound each attachment
-  individually, not the export as a whole, so a large history of deliberately
-  slow URLs can make the run take a long time (interrupt it and re-run without
-  the flag); and a downloaded file's extension comes from the URL rather than
-  from its contents, so treat an extracted archive's
-  `media_attachments/remote/` as untrusted rather than serving it over HTTP
+  redirecting, and the run as a whole stops starting new downloads once
+  `--remote-fetch-budget` is spent. A refused, over-size or budget-skipped
+  attachment is recorded as a warning in `manifest.json` and its absolute URL
+  is kept, exactly as if the flag had not been passed. Two caveats worth
+  knowing before you use it on a hostile account: the size cap bounds each
+  attachment on its own and nothing bounds their total, so a large history can
+  still fill the temporary directory the archive is staged in even though
+  `--remote-fetch-budget` now bounds how long the run takes; and a downloaded
+  file's extension comes from the URL rather than from its contents, so treat
+  an extracted archive's `media_attachments/remote/` as untrusted rather than
+  serving it over HTTP
+- `--remote-fetch-budget <seconds>` — how long the export may go on **starting**
+  remote attachment downloads (default 3600). Inert without
+  `--fetch-remote-attachments`. The per-attachment ten minutes above bounds one
+  download; this bounds their sum, which otherwise ran to days for an account
+  whose posts point at hosts that drip bytes just under that ceiling — the case
+  you are most likely to meet, since the flag gets used for bans, moderation
+  actions and legal requests. Exhausting it costs nothing that was already
+  running: a download in flight always finishes, and every attachment reached
+  afterwards simply keeps its absolute URL and is warned about, exactly as if
+  the flag had not been passed. The archive records how many were skipped that
+  way as its own `manifest.json` warning, distinct from a download that
+  actually failed, so re-running with a larger budget is an informed choice.
+  Because nothing is aborted mid-flight, the real ceiling is the budget plus
+  the ten minutes the last attachment to start may still take. A budget must be
+  a positive whole number of seconds; pass a very large one to go back to
+  effectively no limit
 
 ### Archive layout
 

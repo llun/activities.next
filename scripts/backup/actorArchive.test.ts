@@ -19,6 +19,7 @@ import {
   buildExportActivity,
   buildFollowersCsv,
   buildFollowingCsv,
+  buildRemoteFetchBudgetWarning,
   copyProfileImage,
   createOrderedCollectionWriter,
   csvEscape,
@@ -108,7 +109,8 @@ describe('parseExportActorArgs', () => {
       pageSize: 100,
       allowMissingStorage: false,
       skipStorage: false,
-      fetchRemoteAttachments: false
+      fetchRemoteAttachments: false,
+      remoteFetchBudgetSeconds: 3600
     })
   })
 
@@ -118,14 +120,16 @@ describe('parseExportActorArgs', () => {
       '--page-size=25',
       '--allow-missing-storage',
       '--skip-storage',
-      '--fetch-remote-attachments'
+      '--fetch-remote-attachments',
+      '--remote-fetch-budget=900'
     ])
     expect(args).toMatchObject({
       actorId: 'https://example.test/users/alice',
       pageSize: 25,
       allowMissingStorage: true,
       skipStorage: true,
-      fetchRemoteAttachments: true
+      fetchRemoteAttachments: true,
+      remoteFetchBudgetSeconds: 900
     })
   })
 
@@ -133,6 +137,24 @@ describe('parseExportActorArgs', () => {
     expect(() =>
       parseExportActorArgs(['--username', 'alice', '--page-size', 'nope'])
     ).toThrow()
+  })
+
+  // Zero is the interesting row: it is a live budget meaning "start nothing",
+  // so reading it as "unbounded" would restore the very stall this bounds.
+  it.each([
+    { description: 'a non-numeric value', value: 'nope' },
+    { description: 'zero', value: '0' },
+    { description: 'a negative value', value: '-1' },
+    { description: 'a fractional value', value: '1.5' }
+  ])('throws on $description for --remote-fetch-budget', ({ value }) => {
+    expect(() =>
+      parseExportActorArgs([
+        '--username',
+        'alice',
+        '--remote-fetch-budget',
+        value
+      ])
+    ).toThrow(/--remote-fetch-budget/)
   })
 })
 
@@ -146,22 +168,26 @@ describe('registerAttachmentUrl', () => {
     attachment,
     fetchRemoteAttachments = false,
     maxAttachmentBytes = MAX_FILE_SIZE,
+    // Far enough ahead that every test which is not about the budget is
+    // unaffected by it.
+    deadline = Date.now() + 60_000,
     stagingDir = '/nonexistent'
   }: {
     attachment: Attachment
     fetchRemoteAttachments?: boolean
     maxAttachmentBytes?: number
+    deadline?: number
     stagingDir?: string
   }) => {
     const remoteFetch = fetchRemoteAttachments
-      ? { maxBytes: maxAttachmentBytes }
+      ? { maxBytes: maxAttachmentBytes, deadline }
       : null
     const mediaPaths = new Set<string>()
     const mediaIds = new Set<string>()
     const urlToArchivePath = new Map<string, string>()
     const warnings: string[] = []
 
-    await registerAttachmentUrl({
+    const result = await registerAttachmentUrl({
       attachment,
       hostConfig,
       mediaPaths,
@@ -172,7 +198,7 @@ describe('registerAttachmentUrl', () => {
       warnings
     })
 
-    return { mediaPaths, mediaIds, urlToArchivePath, warnings }
+    return { mediaPaths, mediaIds, urlToArchivePath, result, warnings }
   }
 
   // `vitest.setup.ts` enables the fetch mock but leaves it passing through, so
@@ -498,6 +524,132 @@ describe('registerAttachmentUrl', () => {
       await fs.rm(dir, { force: true, recursive: true })
     }
   })
+
+  // The per-attachment deadline above bounds ONE attachment; these bound the
+  // export. Ten minutes times an actor's whole history is still days, and the
+  // URLs are owner-supplied, so a run started because of a ban or a legal
+  // request is exactly the one an owner has an interest in stalling.
+  it('keeps a remote attachment as an absolute URL once the fetch budget is exhausted', async () => {
+    const url = 'https://other.example/api/v1/files/ab/late.webp'
+    // Mocked and armed with a usable response on purpose: the assertions below
+    // have to fail loudly if the download happens anyway, rather than passing
+    // because the network was unreachable.
+    fetchMock.doMock()
+    fetchMock.mockResponse('remote-bytes', { status: 200 })
+    vi.mocked(safeImageFetch).mockClear()
+
+    const { mediaPaths, urlToArchivePath, result, warnings } =
+      await runRegister({
+        attachment: buildAttachment({ url }),
+        fetchRemoteAttachments: true,
+        deadline: Date.now() - 1
+      })
+
+    // Not merely "no bytes written": the guard has to run before the request
+    // is issued, so that a hostile host is never given a connection to stall.
+    expect(vi.mocked(safeImageFetch)).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect([...mediaPaths]).toEqual([])
+    // No archive path, so `resolveArchivePath` falls back to the URL itself —
+    // the same outcome as never passing `--fetch-remote-attachments`.
+    expect(urlToArchivePath.has(url)).toBe(false)
+    expect(result).toEqual({ budgetExhausted: true })
+    expect(warnings).toEqual([
+      `Remote attachment fetch budget exhausted, kept as absolute URL: ${url}`
+    ])
+  })
+
+  // Ordering, and the reason the check sits below the local-storage branch: a
+  // path this instance already holds costs no network, so an exhausted budget
+  // must not start dropping the actor's OWN media from their archive.
+  it('still archives a locally stored attachment once the fetch budget is exhausted', async () => {
+    const url = 'https://example.test/api/v1/files/ab/cd.webp'
+
+    const { mediaPaths, mediaIds, urlToArchivePath, result, warnings } =
+      await runRegister({
+        attachment: buildAttachment({ url, mediaId: 'media-1' }),
+        fetchRemoteAttachments: true,
+        deadline: Date.now() - 1
+      })
+
+    expect([...mediaPaths]).toEqual(['ab/cd.webp'])
+    expect([...mediaIds]).toEqual(['media-1'])
+    expect(urlToArchivePath.get(url)).toBe('media_attachments/files/ab/cd.webp')
+    expect(result).toEqual({})
+    expect(warnings).toEqual([])
+  })
+
+  // The half that makes the budget safe to have at all. An aggregate bound
+  // implemented as an abort — the shape that WOULD trade a stall for silent
+  // data loss — passes the two tests above and fails this one.
+  it('completes a download already in flight when the budget expires, and starts no more', async () => {
+    const started = 'https://other.example/api/v1/files/ab/started.webp'
+    const later = 'https://other.example/api/v1/files/ab/later.webp'
+    const dir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'actor-archive-budget-test-')
+    )
+
+    // The clock is offset rather than frozen, so it still advances normally
+    // and nothing else in the stack sees time stand still. The mocked response
+    // jumps that offset past the deadline WHILE the first download is running,
+    // which is the moment the guard has to get right — driving it by hand
+    // rather than by real elapsed time is what keeps this from being a race.
+    const realNow = Date.now.bind(Date)
+    const deadline = realNow() + 60_000
+    let offsetMs = 0
+    const nowSpy = vi
+      .spyOn(Date, 'now')
+      .mockImplementation(() => realNow() + offsetMs)
+
+    fetchMock.doMock()
+    fetchMock.mockResponse(() => {
+      offsetMs = 120_000
+      return Promise.resolve({ body: 'remote-bytes', status: 200 })
+    })
+
+    const mediaPaths = new Set<string>()
+    const mediaIds = new Set<string>()
+    const urlToArchivePath = new Map<string, string>()
+    const warnings: string[] = []
+    // Not `runRegister`: both calls have to share one budget, and that helper
+    // allocates a fresh one per call.
+    const register = (url: string) =>
+      registerAttachmentUrl({
+        attachment: buildAttachment({ url }),
+        hostConfig,
+        mediaPaths,
+        mediaIds,
+        remoteFetch: { maxBytes: MAX_FILE_SIZE, deadline },
+        urlToArchivePath,
+        stagingDir: dir,
+        warnings
+      })
+
+    try {
+      const first = await register(started)
+      expect(Date.now()).toBeGreaterThan(deadline)
+      const second = await register(later)
+
+      expect(first).toEqual({})
+      const relativePath = urlToArchivePath.get(started)
+      expect(relativePath).toMatch(
+        /^media_attachments\/remote\/[0-9a-f]{16}\.webp$/
+      )
+      expect(await fs.readFile(path.join(dir, relativePath!), 'utf-8')).toBe(
+        'remote-bytes'
+      )
+
+      expect(second).toEqual({ budgetExhausted: true })
+      expect(urlToArchivePath.has(later)).toBe(false)
+      expect(warnings).toEqual([
+        `Remote attachment fetch budget exhausted, kept as absolute URL: ${later}`
+      ])
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    } finally {
+      nowSpy.mockRestore()
+      await fs.rm(dir, { force: true, recursive: true })
+    }
+  })
 })
 
 describe('copyProfileImage', () => {
@@ -655,7 +807,40 @@ describe('actor archive remote attachment cap', () => {
     // arithmetic someone adds without meaning to revert anything, would make
     // the effective cap 1% of the setting and still match.
     expect(SOURCE).toMatch(
-      /maxBytes:\s*await getMaxMediaUploadSize\(database\)\s*}/
+      /maxBytes:\s*await getMaxMediaUploadSize\(database\)\s*[,}]/
+    )
+  })
+
+  // "The deadline is stamped once per RUN, not once per attachment" is not
+  // asserted here any more. Three source-text spellings of that guard were
+  // tried and each was defeated in review by a different rewrite of the same
+  // bug — the last one a helper defined above the loop and called inside it,
+  // which is textually indistinguishable from the correct code. A regex can
+  // say where an expression is written, never how often it is evaluated, so
+  // that property is proved by running a whole export in
+  // `actorArchiveExport.test.ts` instead.
+
+  // The property that makes an aggregate bound safe in a BACKUP tool: the
+  // budget may decline to start work, never cancel work already started.
+  //
+  // It is asserted against the source because the alternative cannot be
+  // asserted deterministically. An implementation that hands the deadline to
+  // `safeImageFetch` as an abort signal only misbehaves once real time
+  // elapses, so catching it behaviourally would mean a test that sleeps past a
+  // real deadline and races the machine it runs on. The structural property is
+  // exact instead: `remoteFetch.deadline` is read once, by the start gate.
+  // Wiring it into the fetch needs a second read, and replacing the gate with
+  // one fails the pattern below.
+  //
+  // It depends on that exact spelling, so a behaviour-preserving refactor —
+  // destructuring `const { deadline } = remoteFetch` above the gate — fails it
+  // too. That is the price of the guard rather than a bug in it; `matchAll` is
+  // used so such a failure reads as "expected [] to have length 1" instead of
+  // a `TypeError` from `String.match`'s null.
+  it('never turns the budget deadline into an abort signal', () => {
+    expect([...SOURCE.matchAll(/remoteFetch\.deadline/g)]).toHaveLength(1)
+    expect(SOURCE).toMatch(
+      /if\s*\(Date\.now\(\)\s*>=\s*remoteFetch\.deadline\)/
     )
   })
 
@@ -668,6 +853,48 @@ describe('actor archive remote attachment cap', () => {
       /import\s*\{[^}]*\bMAX_FILE_SIZE\b[^}]*\}\s*from '@\/lib\/services\/medias\/constants'/
     )
   })
+})
+
+describe('buildRemoteFetchBudgetWarning', () => {
+  // A clean run must not carry a line saying its budget was fine — an
+  // always-present warning is one an operator stops reading.
+  it.each([{ skipped: 0 }, { skipped: -1 }])(
+    'reports nothing when $skipped attachments were skipped',
+    ({ skipped }) => {
+      expect(
+        buildRemoteFetchBudgetWarning({ skipped, budgetSeconds: 3600 })
+      ).toBeNull()
+    }
+  )
+
+  // The count and the remedy are the point of the line: the operator has to be
+  // able to tell a truncated run from failed downloads, and know that
+  // re-running with a larger budget is what answers it.
+  it.each([
+    {
+      description: 'one attachment',
+      skipped: 1,
+      expected:
+        'Remote attachment fetch budget of 900s was exhausted; ' +
+        '1 remote attachment kept as absolute URLs. ' +
+        'Re-run with a larger --remote-fetch-budget to fetch them.'
+    },
+    {
+      description: 'several attachments',
+      skipped: 12,
+      expected:
+        'Remote attachment fetch budget of 900s was exhausted; ' +
+        '12 remote attachments kept as absolute URLs. ' +
+        'Re-run with a larger --remote-fetch-budget to fetch them.'
+    }
+  ])(
+    'names the count and the remedy for $description',
+    ({ skipped, expected }) => {
+      expect(
+        buildRemoteFetchBudgetWarning({ skipped, budgetSeconds: 900 })
+      ).toBe(expected)
+    }
+  )
 })
 
 describe('getArchiveMediaPath / getArchiveFitnessPath', () => {
