@@ -16,6 +16,7 @@ import {
   AccountSessions,
   SessionActor
 } from '@/app/(timeline)/account/sessions/AccountSessions'
+import { createDeferred } from '@/lib/testing/deferred'
 
 const deleteSession = vi.fn()
 const revokeOtherSessions = vi.fn()
@@ -302,13 +303,8 @@ describe('AccountSessions', () => {
   })
 
   it('disables every revoke control while a request is in flight', async () => {
-    let resolveRevoke: (value: boolean) => void = () => {}
-    revokeOtherSessions.mockImplementationOnce(
-      () =>
-        new Promise<boolean>((resolve) => {
-          resolveRevoke = resolve
-        })
-    )
+    const deferred = createDeferred<boolean>()
+    revokeOtherSessions.mockImplementationOnce(() => deferred.promise)
     // A current session + one other (drives "Revoke all others") and an app
     // whose Revoke button stays mounted while the revoke-all is in flight.
     renderSessions({ sessions: oneOther, apps: [apps[0]] })
@@ -331,7 +327,7 @@ describe('AccountSessions', () => {
     fireEvent.click(appRevoke())
     expect(revokeConnectedApp).not.toHaveBeenCalled()
 
-    resolveRevoke(true)
+    deferred.resolve(true)
     await waitFor(() => expect(appRevoke()).not.toBeDisabled())
   })
 

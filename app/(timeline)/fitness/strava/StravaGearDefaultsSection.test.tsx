@@ -13,6 +13,7 @@ import {
 
 import { getFitnessGearList, updateFitnessGear } from '@/lib/client'
 import type { GearEntity } from '@/lib/services/fitness-gears/gearEntities'
+import { createDeferred } from '@/lib/testing/deferred'
 
 import {
   StravaGearDefaultsSection,
@@ -363,12 +364,8 @@ describe('StravaGearDefaultsSection', () => {
       defaultSports: []
     })
     mockGetFitnessGearList.mockResolvedValue([moots, giant])
-    let resolveSave: (gear: GearEntity) => void = () => {}
-    mockUpdateFitnessGear.mockReturnValue(
-      new Promise<GearEntity>((resolve) => {
-        resolveSave = resolve
-      })
-    )
+    const deferred = createDeferred<GearEntity>()
+    mockUpdateFitnessGear.mockReturnValue(deferred.promise)
 
     const elsewhere = document.createElement('button')
     elsewhere.textContent = 'Somewhere else'
@@ -386,7 +383,7 @@ describe('StravaGearDefaultsSection', () => {
 
     elsewhere.focus()
     await act(async () => {
-      resolveSave(giant)
+      deferred.resolve(giant)
     })
 
     expect(elsewhere).toHaveFocus()
@@ -464,12 +461,8 @@ describe('StravaGearDefaultsSection', () => {
       defaultSports: []
     })
     mockGetFitnessGearList.mockResolvedValue([moots, giant])
-    let resolveSave: (gear: GearEntity) => void = () => {}
-    mockUpdateFitnessGear.mockReturnValue(
-      new Promise<GearEntity>((resolve) => {
-        resolveSave = resolve
-      })
-    )
+    const deferred = createDeferred<GearEntity>()
+    mockUpdateFitnessGear.mockReturnValue(deferred.promise)
 
     render(<StravaGearDefaultsSection />)
 
@@ -487,7 +480,7 @@ describe('StravaGearDefaultsSection', () => {
     ).not.toHaveFocus()
 
     await act(async () => {
-      resolveSave(giant)
+      deferred.resolve(giant)
     })
 
     await waitFor(() =>

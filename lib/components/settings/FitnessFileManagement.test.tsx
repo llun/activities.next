@@ -4,6 +4,8 @@
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
+import { createDeferred } from '@/lib/testing/deferred'
+
 import { FitnessFileManagement } from './FitnessFileManagement'
 
 vi.mock('next/navigation', () => ({
@@ -209,11 +211,9 @@ describe('FitnessFileManagement', () => {
     })
 
     it('disables every retry button while a retry is in flight', async () => {
-      let resolveFetch: (value: unknown) => void = () => undefined
+      const deferred = createDeferred<unknown>()
       vi.spyOn(global, 'fetch').mockReturnValue(
-        new Promise((resolve) => {
-          resolveFetch = resolve
-        }) as unknown as Promise<Response>
+        deferred.promise as unknown as Promise<Response>
       )
 
       const baseFile = {
@@ -268,7 +268,7 @@ describe('FitnessFileManagement', () => {
         screen.getByRole('button', { name: 'Retry import' })
       ).toBeDisabled()
 
-      resolveFetch({
+      deferred.resolve({
         ok: true,
         json: async () => ({ batchId: 'strava-activity:A', retried: 1 })
       })

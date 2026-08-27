@@ -8,6 +8,7 @@ import { FC } from 'react'
 import { ReactionButton } from '@/lib/components/posts/actions/reaction-button'
 import { ReactionRow } from '@/lib/components/posts/reaction-row'
 import { useReactionState } from '@/lib/components/posts/useReactionState'
+import { createDeferred } from '@/lib/testing/deferred'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote } from '@/lib/types/domain/status'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
@@ -184,12 +185,8 @@ describe('ReactionButton', () => {
   })
 
   it('keeps focus on the trigger across a picker-driven reaction', async () => {
-    let resolveRequest: (value: unknown) => void = () => {}
-    mockReactToStatus.mockReturnValue(
-      new Promise((resolve) => {
-        resolveRequest = resolve
-      })
-    )
+    const deferred = createDeferred<unknown>()
+    mockReactToStatus.mockReturnValue(deferred.promise)
 
     render(<Reactions currentActor={currentActor} status={statusWith([])} />)
     fireEvent.click(trigger())
@@ -206,7 +203,7 @@ describe('ReactionButton', () => {
     // in flight — disabling it here would blur it and reset the user's tab
     // position to the top of the document.
     await waitFor(() => expect(trigger()).toHaveFocus())
-    resolveRequest({ ok: true, reactions: [{ ...fire, count: 1, me: true }] })
+    deferred.resolve({ ok: true, reactions: [{ ...fire, count: 1, me: true }] })
     await waitFor(() => expect(mockReactToStatus).toHaveBeenCalledTimes(1))
     expect(trigger()).toHaveFocus()
   })

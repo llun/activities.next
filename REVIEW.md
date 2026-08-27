@@ -577,6 +577,16 @@ attachment ref guard` is exactly that: it passed with the bug present until
   always yields the mock; bare `await import()` returns the real module unless it
   is separately `vi.mock`'d. (Some review bots wrongly flag `vi.importMock` as
   non-existent — it is a valid, documented Vitest API.)
+- **But "always yields the mock" stops holding once a factory AWAITS
+  `importOriginal()`** — the shape a partial mock takes whenever one export has
+  to stay real. Then `vi.importMock` measurably returns the **original**
+  module: the export is real, callable, and a different object from the mock
+  the module under test received, so `vi.mocked()` on it configures and asserts
+  nothing while calling it runs the real implementation. Flag a `vi.importMock`
+  whose factory awaits `importOriginal()`; the static import is the mock there.
+  Do not flag it merely for being `async` — a factory that never calls
+  `importOriginal` returns the mock like any sync one, so that heuristic
+  over-reports.
 
 ## Stored media
 
@@ -709,6 +719,36 @@ attachment ref guard` is exactly that: it passed with the bug present until
   `MediaValidationError`: that is a 422 the client will not retry, and
   `handleSyncMediaUpload` deliberately logs nothing for it. Validate input
   first, then let a genuine fault stay a logged 500.
+- **A blurhash is the one media field a remote actor supplies directly, and
+  `normalizeBlurhash` (`lib/services/medias/imageAnalysis.ts`) decides its
+  stored form.** It returns the string to persist or null, never a boolean,
+  because it trims before deciding: the predicate it replaced validated
+  `hash.trim()` while `createNoteJob` stored the untrimmed original, so a padded
+  hash from a federated note was persisted in a form `decode` throws on and
+  re-served to clients verbatim. Reject any new caller that tests the value and
+  then stores its own argument. Both halves of the check are load-bearing —
+  `BLURHASH_REGEX` covers the base83 alphabet `isBlurhashValid` ignores, and
+  `isBlurhashValid` covers the structure the regex cannot see, that the length
+  must be `4 + 2 * componentX * componentY` for the size flag in the value's own
+  first character, which is why `'aaaaaa'` is legal base83 of a legal length and
+  still throws.
+- **Fixing a write path does not repair the rows it already wrote.** Ask, for
+  any validation added to an inbound field, what happens to the values already
+  stored — here nothing re-validates on read and
+  `lib/types/domain/attachment.ts` re-serves the stored string verbatim, so a
+  bad value keeps leaving the instance. The repair is
+  `scripts/maintenance/backfillMediaBlurhash.ts --revalidate`, a MODE rather
+  than a widening of the default selection: a bad federated hash matches neither
+  branch of that sweep's `blurhash IS NULL OR thumbnailUrl LIKE …` predicate,
+  and `--force` reaches it only by re-downloading every attachment in the
+  instance. It reads no image bytes, refuses to run beside `--force`, and
+  reports repaired/cleared/untouched separately — those three DO partition its
+  scan, unlike `backfillAttachments`' two counts. Clearing an undecodable hash
+  is deliberate: `lib/components/posts/media.tsx` gates the `<img>` behind the
+  blurhash canvas only when `blurhash` is truthy, so a NULL falls through to a
+  bare `<img>` while an undecodable value paints an empty box. It does not
+  weaken the deleted-media placeholder promise, which rests on a hash a client
+  can actually paint.
 
 ## Docs hygiene
 

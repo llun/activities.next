@@ -7,6 +7,7 @@ import { ReactNode } from 'react'
 
 import { CollectionMember } from '@/app/(timeline)/collections/CollectionEditor'
 import { getCollectionFeed, getCollectionTimeline } from '@/lib/client'
+import { createDeferred } from '@/lib/testing/deferred'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
 import { CollectionEntity } from '@/lib/types/mastodon/collection'
@@ -212,11 +213,8 @@ describe('CollectionDetail', () => {
   it('ignores a stale load-more response that resolves after a projection switch', async () => {
     // Hold the owner-feed load-more request open so it resolves AFTER the
     // projection switch — the requestId guard must drop its (now stale) result.
-    let resolveOwner: (value: unknown) => void = () => {}
-    const ownerPending = new Promise((resolve) => {
-      resolveOwner = resolve
-    })
-    ;(getCollectionTimeline as jest.Mock).mockReturnValue(ownerPending)
+    const ownerPending = createDeferred<unknown>()
+    ;(getCollectionTimeline as jest.Mock).mockReturnValue(ownerPending.promise)
 
     render(
       <CollectionDetail
@@ -236,7 +234,7 @@ describe('CollectionDetail', () => {
 
     // Now let the stale owner request resolve — it must NOT be applied.
     await act(async () => {
-      resolveOwner({
+      ownerPending.resolve({
         statuses: [{ id: 'owner-stale' }],
         nextMaxStatusId: null,
         prevMinStatusId: null

@@ -12,6 +12,7 @@ import {
 } from '@testing-library/react'
 
 import { getBlocks, unblock } from '@/lib/client'
+import { createDeferred } from '@/lib/testing/deferred'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 
 import { BlocksList } from './BlocksList'
@@ -69,12 +70,8 @@ describe('BlocksList', () => {
   })
 
   it('tracks pending unblock requests per account and clears loading on failure', async () => {
-    let resolveUnblock: (value: null) => void = () => undefined
-    unblockMock.mockReturnValueOnce(
-      new Promise<null>((resolve) => {
-        resolveUnblock = resolve
-      })
-    )
+    const deferred = createDeferred<null>()
+    unblockMock.mockReturnValueOnce(deferred.promise)
 
     render(
       <BlocksList accounts={[firstAccount, secondAccount]} nextMaxId={null} />
@@ -97,7 +94,7 @@ describe('BlocksList', () => {
     ).toBeEnabled()
 
     await act(async () => {
-      resolveUnblock(null)
+      deferred.resolve(null)
     })
 
     expect(await screen.findByRole('alert')).toHaveTextContent(

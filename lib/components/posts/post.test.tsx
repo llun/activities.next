@@ -19,6 +19,7 @@ import {
   likeStatus,
   reactToStatus
 } from '@/lib/client'
+import { createDeferred } from '@/lib/testing/deferred'
 import type { ActorProfile } from '@/lib/types/domain/actor'
 import {
   StatusAnnounce,
@@ -816,11 +817,8 @@ describe('Post', () => {
   })
 
   it('keeps pending like action state when the same status receives updated counts', async () => {
-    let resolveLike: (value: boolean) => void = () => {}
-    const likePromise = new Promise<boolean>((resolve) => {
-      resolveLike = resolve
-    })
-    ;(likeStatus as jest.Mock).mockReturnValue(likePromise)
+    const deferred = createDeferred<boolean>()
+    ;(likeStatus as jest.Mock).mockReturnValue(deferred.promise)
     const otherActor = {
       ...status.actor!,
       id: 'https://activities.local/users/other',
@@ -861,8 +859,8 @@ describe('Post', () => {
     expect(likeStatus).toHaveBeenCalledTimes(1)
 
     await act(async () => {
-      resolveLike(true)
-      await likePromise
+      deferred.resolve(true)
+      await deferred.promise
     })
 
     expect(
@@ -1927,12 +1925,8 @@ describe('Post', () => {
 
     it('disables the menu items whose write is already in flight', async () => {
       observeWidth(320)
-      let settleBookmark: (value: boolean) => void = () => {}
-      ;(bookmarkStatus as jest.Mock).mockReturnValue(
-        new Promise<boolean>((resolve) => {
-          settleBookmark = resolve
-        })
-      )
+      const bookmark = createDeferred<boolean>()
+      ;(bookmarkStatus as jest.Mock).mockReturnValue(bookmark.promise)
       ;(reactToStatus as jest.Mock).mockReturnValue(new Promise(() => {}))
       render(
         <Post
@@ -1973,7 +1967,7 @@ describe('Post', () => {
       // menu: Radix `aria-hidden`s the rest of the document while it is up, so
       // reopening would not find the ⋯ trigger.
       await act(async () => {
-        settleBookmark(true)
+        bookmark.resolve(true)
       })
       expect(
         within(menu).getByRole('menuitem', { name: 'Remove bookmark' })

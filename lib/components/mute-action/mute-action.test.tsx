@@ -12,6 +12,7 @@ import {
 } from '@testing-library/react'
 
 import { mute, unmute } from '@/lib/client'
+import { createDeferred } from '@/lib/testing/deferred'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
 
 import { MuteAction } from './mute-action'
@@ -171,13 +172,8 @@ describe('MuteAction', () => {
   })
 
   it('keeps the dialog open and disables Cancel while a mute is in flight', async () => {
-    let resolveMute: (value: MastodonRelationship | null) => void = () =>
-      undefined
-    muteMock.mockReturnValueOnce(
-      new Promise<MastodonRelationship | null>((resolve) => {
-        resolveMute = resolve
-      })
-    )
+    const deferred = createDeferred<MastodonRelationship | null>()
+    muteMock.mockReturnValueOnce(deferred.promise)
 
     render(
       <MuteAction
@@ -205,7 +201,7 @@ describe('MuteAction', () => {
     ).toBeInTheDocument()
 
     await act(async () => {
-      resolveMute(relationship({ muting: true }))
+      deferred.resolve(relationship({ muting: true }))
     })
 
     await screen.findByRole('button', { name: 'Unmute' })

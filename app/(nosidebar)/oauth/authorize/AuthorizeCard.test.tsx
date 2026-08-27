@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
+import { createDeferred } from '@/lib/testing/deferred'
 import { Actor } from '@/lib/types/domain/actor'
 import { Client } from '@/lib/types/oauth2/client'
 
@@ -294,12 +295,8 @@ describe('AuthorizeCard', () => {
   })
 
   it('shows a denying label on the deny button only while denial is in flight', async () => {
-    let resolveFetch: (value: unknown) => void = () => {}
-    ;(global.fetch as jest.Mock).mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveFetch = resolve
-      })
-    )
+    const deferred = createDeferred<unknown>()
+    ;(global.fetch as jest.Mock).mockReturnValueOnce(deferred.promise)
 
     render(
       <AuthorizeCard
@@ -325,7 +322,7 @@ describe('AuthorizeCard', () => {
     expect(approveButton).toBeInTheDocument()
     expect(approveButton).toBeDisabled()
 
-    resolveFetch({
+    deferred.resolve({
       ok: true,
       json: async () => ({
         url: 'https://phanpy.local/?error=access_denied&state=return-state'
@@ -338,16 +335,12 @@ describe('AuthorizeCard', () => {
   })
 
   it('shows an approving label on the approve button only while approval is in flight', async () => {
-    let resolveFetch: (value: unknown) => void = () => {}
+    const deferred = createDeferred<unknown>()
     ;(global.fetch as jest.Mock)
       // persistSelectedActor() posts to /api/v1/actors/switch first.
       .mockResolvedValueOnce({ ok: true, json: async () => ({}) })
       // The consent request stays pending so the loading label is observable.
-      .mockReturnValueOnce(
-        new Promise((resolve) => {
-          resolveFetch = resolve
-        })
-      )
+      .mockReturnValueOnce(deferred.promise)
 
     render(
       <AuthorizeCard
@@ -373,7 +366,7 @@ describe('AuthorizeCard', () => {
     expect(denyButton).toBeInTheDocument()
     expect(denyButton).toBeDisabled()
 
-    resolveFetch({
+    deferred.resolve({
       ok: true,
       json: async () => ({
         url: 'https://phanpy.local/?code=auth-code&state=return-state'

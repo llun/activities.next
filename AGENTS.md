@@ -1937,7 +1937,10 @@ preserving legacy and fitness attachments` pins the surviving-null behaviour.
   Compatibility Guidelines** documents. Not SQLite-only — `-5` and `0` are valid
   `integer`s PostgreSQL stores and `toMediaRowId` still refuses. **Neither count
   partitions `processed`**: a warned row can still be repaired from its own image
-  bytes. Any future repair path over `attachments` owes the same signal.
+  bytes. Any future repair path over `attachments` owes the same signal. Do not
+  confuse these two with the THREE the same script's `--revalidate` mode reports
+  (repaired/cleared/untouched), which do partition their own scan — different
+  pass, different question, and the shapes are deliberately unalike.
 
 ## Better-auth Plugin Guidelines
 
@@ -2062,6 +2065,22 @@ preserving legacy and fitness attachments` pins the surviving-null behaviour.
   is separately `vi.mock`'d, and forces a type-erasing double-cast. `vi.importMock`
   **is** a valid, documented Vitest API — some review bots incorrectly claim it
   does not exist; do not "fix" it on their say-so.
+- **"Always returns the mock" stops holding the moment a factory AWAITS
+  `importOriginal()`** — which is exactly what keeping part of a module real
+  requires. The trigger is that call, **not** the factory being async, and the
+  difference matters because the wrong rule sends you to a static import you do
+  not need: measured across all four shapes, a sync factory, an async one with
+  no `importOriginal` parameter, and an async one that takes it and never calls
+  it all return the factory's result; only awaiting it diverges. Then
+  `vi.importMock` hands back the **original** module — the export comes back
+  real, callable, and a DIFFERENT object from the one the module under test was
+  given, so `vi.mocked()` on it configures nothing and asserts nothing, and
+  calling it runs the real implementation. Worse than a missing binding,
+  because it looks right. Read a partial mock — the
+  `{ ...(await importOriginal()), fn: vi.fn() }` shape — through a plain static
+  import, which does resolve to the mock.
+  `scripts/maintenance/backfillMediaBlurhash.test.ts` has one of each: a sync
+  factory read with `vi.importMock`, and four awaiting ones read statically.
 - **`vi.restoreAllMocks()` does not reset a `vi.fn()` a `vi.mock` factory
   created.** It only iterates the spies `vi.spyOn` registered, so a module
   mocked as `vi.mock('@/path', () => ({ fn: vi.fn() }))` carries whatever the
@@ -2384,6 +2403,13 @@ A full sub-agent review round yields no new actionable comments, or you have run
 - **Every entry of `ACCEPTED_FILE_TYPES` must have a mapping in `EXTENSION_BY_CONTENT_TYPE`.** A type without one falls through to the supplied name, which is the hole this module closes; `fileName.test.ts` asserts the map covers the list.
 - In `lib/services/fitness-files/`, only the stored name is sanitized. `getFitnessFileType` keeps reading the **raw** name: the 200-byte cap can truncate a long name past its extension, and that function throws when neither the name nor the MIME type identifies a type. Its return is one of four literals and is the only part of a supplied name that reaches a storage path.
 - Covered by `lib/services/medias/fileName.test.ts` plus entry-point regression tests in the `S3StorageFile.test.ts` / `localFile.test.ts` of both `medias/` and `fitness-files/`.
+
+### A federated blurhash is untrusted input, and the residue is repaired by a mode of its own
+
+- **A blurhash is the one media field a remote actor supplies directly, and `normalizeBlurhash` (`lib/services/medias/imageAnalysis.ts`) is what decides its stored form.** It returns the string to persist or null, never a boolean, because the check normalises before deciding: the predicate it replaced compared `hash.trim()` while `createNoteJob` stored the untrimmed original, so a whitespace-padded hash on a federated note was approved on the trimmed copy and written in a form `decode` throws on (`length is 29 but it should be 28`). Both halves of the check are load-bearing and neither subsumes the other — `BLURHASH_REGEX` covers the base83 alphabet, which `isBlurhashValid` never looks at, and `isBlurhashValid` covers the structure the regex cannot see, that the length must be `4 + 2 * componentX * componentY` for the size flag in the value's own first character, which is why `'aaaaaa'` is well-formed base83 of a legal length and still throws. `createNoteJob` is the only path that stores a peer-supplied hash; every other writer, `medias.blurhash` included, gets one from `computeBlurhash`, i.e. from `encode`, so it is canonical by construction.
+- **Fixing a write path does not repair the rows it already wrote, and here nothing re-validates on read** — `lib/types/domain/attachment.ts` re-serves the stored string verbatim to third-party clients as Mastodon's `blurhash` and as a `Document`'s `blurhash`, so a bad value keeps leaving the instance. `scripts/maintenance/backfillMediaBlurhash.ts --revalidate` is the repair, and it is a mode rather than a widening of the default selection for a measurable reason: the default sweep selects `blurhash IS NULL OR thumbnailUrl LIKE '/api/v1/files/%'` and a bad federated hash matches neither branch, while `--force` reaches it only by re-downloading and recomputing **every** attachment in the instance. The repair needs no bytes at all — a padded hash is trimmed, an unsalvageable one cleared — so the mode runs before the storage and host checks and stays usable on an instance whose storage is unreachable, and passing `--force` beside it is an error rather than a silent precedence.
+- **It reports three counts — repaired, cleared, untouched — and unlike the two in `backfillAttachments` these DO partition the scan.** They are still not summed, because they call for different responses: a repair is complete, an untouched row was never broken, and a cleared one has lost its placeholder until an ordinary run recomputes it from the image. That is the one direction the two modes compose in: `--revalidate` clears what it cannot fix, and those rows then match the default run's `blurhash IS NULL` selection. Selection is `blurhash IS NOT NULL` with **no `mediaType` filter** — a video attachment carries its poster frame's hash, and the default sweep's analysis step only ever reads `image/*`, so this is the only pass that reaches one.
+- **Clearing is safe and is strictly better than leaving the value.** `lib/components/posts/media.tsx` gates the `<img>` at `opacity-0` until `onLoad` behind a canvas ONLY when `blurhash` is truthy, and `BlurhashCanvas` swallows a failed `decode` into an empty canvas — so an undecodable hash is an empty box, where a NULL one falls through to a bare `<img>`. It does not weaken the placeholder promise in **Deleting Media a Post Uses**: that promise rests on the attachment carrying a hash a client can PAINT, and a value `decode` refuses never painted one.
 
 ### A stored media URL is only ours if the host says so
 
