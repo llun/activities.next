@@ -698,6 +698,8 @@ The two are never summed, because they mean different things:
 
 Neither count partitions `processed`. A warned row can still appear in `updated`: the script falls back to analysing the image behind the attachment's own `url`. That is the norm for an invalid `mediaId`, because nothing was deleted, but it happens for a gone media row too — the delete route removes the stored bytes best-effort and drops the row regardless, so the file can outlive the row that named it. Only `thumbnailUrl` is unrecoverable either way.
 
+These two are not the three that [`--revalidate` reports](#repairing-blurhashes-already-stored) further down. That is a different pass answering a different question, and its `repaired`/`cleared`/`untouched` **do** add up to the rows it scanned.
+
 ### What `--force` does, and does not, recompute
 
 `--force` recomputes the **blurhash**, and re-derives `thumbnailUrl` from the linked `medias` row even when the stored value is already absolute. It does **not** recompute a **focal point** that is already stored: `PUT /api/v1/media/:id` lets an owner set one by hand, and no column records whether a stored point was set that way or detected automatically, so recomputing would silently discard the owner's choice. A missing focal point is still filled in, with or without the flag.

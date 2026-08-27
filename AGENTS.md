@@ -1923,7 +1923,10 @@ preserving legacy and fitness attachments` pins the surviving-null behaviour.
   Compatibility Guidelines** documents. Not SQLite-only — `-5` and `0` are valid
   `integer`s PostgreSQL stores and `toMediaRowId` still refuses. **Neither count
   partitions `processed`**: a warned row can still be repaired from its own image
-  bytes. Any future repair path over `attachments` owes the same signal.
+  bytes. Any future repair path over `attachments` owes the same signal. Do not
+  confuse these two with the THREE the same script's `--revalidate` mode reports
+  (repaired/cleared/untouched), which do partition their own scan — different
+  pass, different question, and the shapes are deliberately unalike.
 
 ## Better-auth Plugin Guidelines
 
@@ -2048,6 +2051,18 @@ preserving legacy and fitness attachments` pins the surviving-null behaviour.
   is separately `vi.mock`'d, and forces a type-erasing double-cast. `vi.importMock`
   **is** a valid, documented Vitest API — some review bots incorrectly claim it
   does not exist; do not "fix" it on their say-so.
+- **"Always returns the mock" holds for a SYNC factory only.** Measured: give
+  `vi.mock` an ASYNC factory — which is exactly what reaching `importOriginal`
+  to keep part of a module real requires — and `vi.importMock` hands back the
+  **original** module instead. The export comes back real, callable, and a
+  DIFFERENT object from the one the module under test was given, so
+  `vi.mocked()` on it configures nothing and asserts nothing, and calling it
+  runs the real implementation. That is worse than a missing binding, because
+  it looks right. Read a partially-mocked module — the
+  `{ ...(await importOriginal()), fn: vi.fn() }` shape — through a plain static
+  import, which does resolve to the mock.
+  `scripts/maintenance/backfillMediaBlurhash.test.ts` has one of each: a sync
+  factory read with `vi.importMock`, and three async ones read statically.
 - **`vi.restoreAllMocks()` does not reset a `vi.fn()` a `vi.mock` factory
   created.** It only iterates the spies `vi.spyOn` registered, so a module
   mocked as `vi.mock('@/path', () => ({ fn: vi.fn() }))` carries whatever the
