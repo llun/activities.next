@@ -609,14 +609,22 @@ attachment ref guard` is exactly that: it passed with the bug present until
   separator boundary, so a sibling directory whose name the root prefixes passes
   it — root `/srv/uploads` accepts `/srv/uploads-backup/x`. That form guarded an
   `fs.unlink` in `scripts/maintenance/cleanupMediaStorage.ts`, and it reads as
-  correct at a glance, which is why `storagePathCallSites.test.ts` greps for the
-  inline spelling. That guard catches the obvious spelling and nothing subtler —
-  a resolved root pulled into a variable first, a destructured `resolve`, an
-  optional-chained `path?.resolve`, a renamed import or a helper resolving on a
-  driver's behalf all carry the identical bug and all pass it — so review those
-  by hand until the AST rule lands. Note the check is lexical either way: a symlink
-  planted under a storage root defeats it, which is a documented residual, not
-  something to paper over at the call site.
+  correct at a glance. Two Oxlint rules in `lint/agentsRules.mjs` now decide
+  this on the AST: `agents/no-storage-path-builder` in the two local drivers and
+  `agents/no-resolved-path-prefix-check` everywhere, `scripts/**` included via
+  the second `yarn lint` pass. Because they resolve names through scope, a
+  renamed import, a destructured `resolve`, `path['resolve']`, `path?.resolve`
+  and a root pulled into a variable first are all caught — so what is left for a
+  reviewer is narrower and worth knowing: a helper that resolves on a driver's
+  behalf, a path built by string concatenation, and a binding imported from
+  another module. Do not answer any of those with a raw-text Vitest scan; that
+  is what these rules replaced, and it was wrong in both directions. **Treat an
+  `oxlint-disable` comment naming either rule as a finding in itself** — a lint
+  rule can be silenced with a comment where the text scan could not be, and
+  nothing reports that the suppression was used. Note the
+  check is lexical either way: a symlink planted under a storage root defeats
+  it, which is a documented residual, not something to paper over at the call
+  site.
 - **A stored file with no `medias` row is unreachable**, so whatever fails
   after a write must reclaim it — only `scripts/maintenance/cleanupMediaStorage.ts`
   can find it otherwise. Equally, do not report a storage failure as a
