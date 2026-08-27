@@ -154,13 +154,20 @@ change doesn't touch.
   Note `getExactAccountIds` in `lib/database/sql/search/` DOES fold domain, so
   search and lookup disagree on `alice@Example.COM` — pre-existing.
 - The folded arm folds CASE only. It uses a bare `toLowerCase()`, never
-  `normalizeUsername`, which also trims: trimming compared a trimmed input
-  against an untrimmed column, so `/users/%20alice%20` served a whole actor
-  surface at an unbounded family of shared-cache keys.
-- A reserved username is reserved case-INSENSITIVELY. `OnlyLocalUserGuard` 404s
-  any segment folding to one unless the actor IS the genuine signing actor —
+  `normalizeUsername`, which also trims: a trimmed input compared against an
+  untrimmed column is asymmetric and can only ADD matches, which is how
+  `/users/%20alice%20` served a whole actor surface. Shared-cache keys are not
+  the reason — case folding creates URL variants regardless.
+- `OnlyLocalUserGuard` 404s a segment folding to a username this instance could
+  MINT a signer on (`isFederationSigningActorIdUsername`,
+  `/^__instance__([1-9]\d*)?$/`) unless the actor IS the genuine signing actor —
   without that, a legacy `__INSTANCE__` account answered at
-  `getFederationSigningActorId(domain)`.
+  `getFederationSigningActorId(domain)`. **Do not widen it to the
+  `isFederationSigningActorUsername` prefix the mint refine uses**, which
+  de-federates a legacy `__instance__archive` or `__instance__0` account; and do
+  not narrow the loose form onto the precise one, because
+  `getExistingHeadlessActor` adopts any headless `__instance__%` Service row as
+  the signer and validates it loosely.
 - Remote usernames are stored verbatim — a remote server mints its own ids.
   WebFinger answers with the **stored** casing, so an echoed `subject` is the
   canonical handle.

@@ -216,7 +216,16 @@ describe('OnlyLocalUserGuard', () => {
     // deliveries, and no dereference of its already-federated statuses.
     it.each([
       { description: 'a non-numeric suffix', username: '__instance__archive' },
-      { description: 'an underscore suffix', username: '__instance___backup' }
+      { description: 'an underscore suffix', username: '__instance___backup' },
+      // The index is an interpolated JS number, so the minter emits bare
+      // `__instance__` for 0 and never `__instance__0`. A `\d*` predicate
+      // refused this one anyway, de-federating it for a name that cannot
+      // collide with any signer.
+      {
+        description: 'a zero index the minter never emits',
+        username: '__instance__0'
+      },
+      { description: 'a leading-zero index', username: '__instance__007' }
     ])(
       'still serves a legacy account whose name merely begins __instance__ ($description)',
       async ({ username }) => {
@@ -263,8 +272,7 @@ describe('OnlyLocalUserGuard', () => {
       {
         description: 'requested in the stored casing',
         requested: '__INSTANCE__'
-      },
-      { description: 'an indexed signing username', requested: '__instance__1' }
+      }
     ])(
       '404s a legacy __INSTANCE__ account $description',
       async ({ requested }) => {
@@ -278,6 +286,61 @@ describe('OnlyLocalUserGuard', () => {
         expect(mockHandler).not.toHaveBeenCalled()
       }
     )
+  })
+
+  // An INDEXED signing username. Separate from the `__INSTANCE__` block because
+  // it needs its own seeded row: asserting a 404 for `__instance__1` with no
+  // such actor present proves nothing — it takes the pre-existing "actor not
+  // found" branch and passes with the reserved-name check deleted entirely.
+  describe('with a squatter at an indexed instance-actor username', () => {
+    beforeAll(async () => {
+      const accountId = await database.createAccount({
+        email: 'indexed@squat.test',
+        username: 'indexedholder',
+        domain: 'llun.test',
+        passwordHash: 'hash',
+        privateKey: 'privateKey',
+        publicKey: 'publicKey'
+      })
+      const id = 'https://llun.test/users/__instance__2'
+      await instance('actors').insert({
+        id,
+        username: '__instance__2',
+        domain: 'llun.test',
+        accountId,
+        publicId: 'indexed-squatter-id-0000000000000000',
+        type: 'Person',
+        publicKey: 'publicKey',
+        privateKey: 'privateKey',
+        settings: JSON.stringify({
+          followersUrl: `${id}/followers`,
+          inboxUrl: `${id}/inbox`,
+          sharedInboxUrl: 'https://llun.test/inbox'
+        }),
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+    })
+
+    it('confirms the indexed squatter resolves as a local account actor', async () => {
+      const actor = await database.getActorFromUsername({
+        username: '__instance__2',
+        domain: 'llun.test'
+      })
+      expect(actor?.id).toBe('https://llun.test/users/__instance__2')
+      expect(actor?.account).toBeTruthy()
+    })
+
+    it('404s it, because __instance__<digits> is a mintable signing id', async () => {
+      const guard = OnlyLocalUserGuard(mockHandler)
+      const req = createRequest()
+      const response = await guard(req, {
+        params: Promise.resolve({ username: '__instance__2' })
+      })
+
+      expect(response.status).toBe(404)
+      expect(mockHandler).not.toHaveBeenCalled()
+    })
   })
 
   describe('with invalid user', () => {

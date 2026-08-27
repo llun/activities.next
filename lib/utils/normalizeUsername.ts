@@ -19,10 +19,19 @@
  *    the same rule as a Zod `.trim().toLowerCase()` chain, and
  *    `localUsername.test.ts` pins the two against each other.
  *
- * So a new rule added here (the standing example is stripping a trailing dot)
- * reaches the mint paths and NOTHING else. That is the mint/lookup split this
- * whole feature exists to close, so adding one means updating the fold in
- * `findActorRowByUsername` and the schema deliberately, not by inheritance.
+ * And it has exactly one caller that is neither a mint nor a lookup:
+ * `OnlyLocalUserGuard` folds the requested path segment with it before asking
+ * `isFederationSigningActorIdUsername` whether that segment names the instance
+ * actor's URI. That is an ACCESS-CONTROL decision, so a rule added here changes
+ * it. The standing example makes that concrete: teach this function to strip a
+ * trailing dot and `__instance__.` starts folding to `__instance__`, changing
+ * which requests are treated as addressing the reserved slot.
+ *
+ * So the callers are: two mint paths, one reserved-name check, and nothing
+ * else. A new rule reaches those three and does NOT propagate to the lookup or
+ * the schema — updating those is deliberate work, not inheritance. Enumerate
+ * the call sites before changing this; do not trust a summary of them,
+ * including this one.
  */
 export const normalizeUsername = (username: string): string =>
   username.trim().toLowerCase()
