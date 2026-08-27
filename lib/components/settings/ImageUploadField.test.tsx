@@ -2,9 +2,10 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { uploadAttachment } from '@/lib/client'
+import { createDeferred } from '@/lib/testing/deferred'
 
 import { ImageUploadField } from './ImageUploadField'
 
@@ -120,12 +121,8 @@ describe('ImageUploadField', () => {
     // pass with the fix removed. The blur is driven explicitly instead, and
     // what is actually under test is the restoration: focus sitting on the body
     // when an upload finishes is returned to Upload.
-    let resolveUpload: (value: UploadResult) => void = () => {}
-    vi.mocked(uploadAttachment).mockReturnValue(
-      new Promise<UploadResult>((resolve) => {
-        resolveUpload = resolve
-      })
-    )
+    const deferred = createDeferred<UploadResult>()
+    vi.mocked(uploadAttachment).mockReturnValue(deferred.promise)
 
     const { container } = renderField(null)
     const fileInput =
@@ -138,25 +135,29 @@ describe('ImageUploadField', () => {
     // leaves behind when it disables the button that held it.
     expect(document.activeElement).toBe(document.body)
 
-    resolveUpload(uploadResult)
+    deferred.resolve(uploadResult)
 
     await waitFor(() =>
       expect(getSubmittedValue(container, 'iconUrl')).toBe(MEDIA_URL)
     )
-    expect(document.activeElement).toBe(
-      screen.getByRole('button', { name: 'Upload Icon image' })
+    // Retried rather than asserted once, because the value landing does not
+    // mean the focus effect has run. React mutates the DOM during the commit
+    // and flushes passive effects afterwards, and `waitFor` polls a
+    // MutationObserver — so the hidden input's new value is observable in
+    // between, and a bare assertion here read `<body>` on CI while passing
+    // every time locally.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Upload Icon image' })
+      )
     )
   })
 
   it('leaves focus alone when the user moved elsewhere during an upload', async () => {
     // The effect only reclaims focus that fell to the body, so someone who
     // tabbed on while the upload ran is not yanked back to it.
-    let resolveUpload: (value: UploadResult) => void = () => {}
-    vi.mocked(uploadAttachment).mockReturnValue(
-      new Promise<UploadResult>((resolve) => {
-        resolveUpload = resolve
-      })
-    )
+    const deferred = createDeferred<UploadResult>()
+    vi.mocked(uploadAttachment).mockReturnValue(deferred.promise)
 
     const { container } = renderField(null)
     const elsewhere = document.createElement('button')
@@ -170,11 +171,17 @@ describe('ImageUploadField', () => {
     })
 
     elsewhere.focus()
-    resolveUpload(uploadResult)
+    deferred.resolve(uploadResult)
 
     await waitFor(() =>
       expect(getSubmittedValue(container, 'iconUrl')).toBe(MEDIA_URL)
     )
+    // Retrying is no use for an assertion that nothing happened — it passes on
+    // the first poll — so this needs a barrier instead, and the value landing
+    // is not one for the reason above. Without flushing the effect the test
+    // still passes with the `document.body` guard deleted, i.e. it stops
+    // guarding anything on exactly the runs where the timing bites.
+    await act(async () => {})
     expect(document.activeElement).toBe(elsewhere)
     elsewhere.remove()
   })
