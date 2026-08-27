@@ -499,15 +499,16 @@ attachment ref guard` is exactly that: it passed with the bug present until
   always yields the mock; bare `await import()` returns the real module unless it
   is separately `vi.mock`'d. (Some review bots wrongly flag `vi.importMock` as
   non-existent — it is a valid, documented Vitest API.)
-- **But "always yields the mock" is true only of a SYNC factory.** With an
-  async factory — what `importOriginal` requires, so a partial mock always has
-  one — `vi.importMock` measurably returns the **original** module: the export
-  is real, callable, and a different object from the mock the module under test
-  received, so `vi.mocked()` on it configures and asserts nothing while calling
-  it runs the real implementation. Flag any `vi.importMock` paired with an
-  `async (importOriginal) => ...` factory; the static import is the mock there.
-  Not a hypothetical — that is the shape a partial mock takes whenever one
-  export has to stay real.
+- **But "always yields the mock" stops holding once a factory AWAITS
+  `importOriginal()`** — the shape a partial mock takes whenever one export has
+  to stay real. Then `vi.importMock` measurably returns the **original**
+  module: the export is real, callable, and a different object from the mock
+  the module under test received, so `vi.mocked()` on it configures and asserts
+  nothing while calling it runs the real implementation. Flag a `vi.importMock`
+  whose factory awaits `importOriginal()`; the static import is the mock there.
+  Do not flag it merely for being `async` — a factory that never calls
+  `importOriginal` returns the mock like any sync one, so that heuristic
+  over-reports.
 
 ## Stored media
 

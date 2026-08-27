@@ -2051,18 +2051,22 @@ preserving legacy and fitness attachments` pins the surviving-null behaviour.
   is separately `vi.mock`'d, and forces a type-erasing double-cast. `vi.importMock`
   **is** a valid, documented Vitest API — some review bots incorrectly claim it
   does not exist; do not "fix" it on their say-so.
-- **"Always returns the mock" holds for a SYNC factory only.** Measured: give
-  `vi.mock` an ASYNC factory — which is exactly what reaching `importOriginal`
-  to keep part of a module real requires — and `vi.importMock` hands back the
-  **original** module instead. The export comes back real, callable, and a
-  DIFFERENT object from the one the module under test was given, so
-  `vi.mocked()` on it configures nothing and asserts nothing, and calling it
-  runs the real implementation. That is worse than a missing binding, because
-  it looks right. Read a partially-mocked module — the
+- **"Always returns the mock" stops holding the moment a factory AWAITS
+  `importOriginal()`** — which is exactly what keeping part of a module real
+  requires. The trigger is that call, **not** the factory being async, and the
+  difference matters because the wrong rule sends you to a static import you do
+  not need: measured across all four shapes, a sync factory, an async one with
+  no `importOriginal` parameter, and an async one that takes it and never calls
+  it all return the factory's result; only awaiting it diverges. Then
+  `vi.importMock` hands back the **original** module — the export comes back
+  real, callable, and a DIFFERENT object from the one the module under test was
+  given, so `vi.mocked()` on it configures nothing and asserts nothing, and
+  calling it runs the real implementation. Worse than a missing binding,
+  because it looks right. Read a partial mock — the
   `{ ...(await importOriginal()), fn: vi.fn() }` shape — through a plain static
   import, which does resolve to the mock.
   `scripts/maintenance/backfillMediaBlurhash.test.ts` has one of each: a sync
-  factory read with `vi.importMock`, and three async ones read statically.
+  factory read with `vi.importMock`, and three awaiting ones read statically.
 - **`vi.restoreAllMocks()` does not reset a `vi.fn()` a `vi.mock` factory
   created.** It only iterates the spies `vi.spyOn` registered, so a module
   mocked as `vi.mock('@/path', () => ({ fn: vi.fn() }))` carries whatever the

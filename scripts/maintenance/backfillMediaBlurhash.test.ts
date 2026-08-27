@@ -2,14 +2,16 @@ import knex, { Knex } from 'knex'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // These four are read back through the static import, never `vi.importMock`.
-// Reaching `importOriginal` forces a factory to be async, and for an async
-// factory `vi.importMock` hands back the ORIGINAL module — the export comes
-// back real, callable, and a DIFFERENT object from the mock the module under
-// test was given, so `vi.mocked(...)` on it configures nothing and asserts
-// nothing. That is worse than a missing binding, because it looks right and
-// silently runs the real implementation. `safeImageFetch` below keeps
-// `vi.importMock` because its factory is sync, where the call does return the
-// factory's result.
+// The trigger is a factory AWAITING `importOriginal()` — which is what keeping
+// part of a module real requires — and not the factory being async: measured,
+// a sync factory, an async one with no `importOriginal` parameter, and an async
+// one that takes it and never calls it all hand back the factory's result,
+// which is why `safeImageFetch` below keeps `vi.importMock`. Await it and
+// `vi.importMock` returns the ORIGINAL module instead: the export comes back
+// real, callable, and a DIFFERENT object from the mock the module under test
+// was given, so `vi.mocked(...)` on it configures nothing and asserts nothing.
+// Worse than a missing binding, because it looks right and silently runs the
+// real implementation.
 import { getConfig } from '@/lib/config'
 import { getDatabase, getKnex } from '@/lib/database'
 import { getMediaStorage } from '@/lib/services/medias'
