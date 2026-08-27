@@ -712,9 +712,15 @@ That fix covers new writes only. Rows written before it keep their broken value,
 # See what would change
 NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --revalidate --dry-run
 
-# Apply it
-NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --revalidate
+# Apply it, keeping a record of what was rewritten or cleared
+NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --revalidate 2>&1 | tee blurhash-revalidate.log
 ```
+
+Run `--dry-run` first, and capture the output of the run that applies. The
+per-row line is the **only** record of a value this pass clears: nothing else in
+the deployment retains it, and a cleared hash is recoverable only by a later
+ordinary run recomputing it from the image — which needs the attachment's URL to
+still be reachable, and for an old federated post it often is not.
 
 ```text
 [attachments 4f1c…] blurhash "  L6PZfSi_.AyE_3t7t7R**0o#DgR4\n" is stored padded; rewriting it as "L6PZfSi_.AyE_3t7t7R**0o#DgR4"

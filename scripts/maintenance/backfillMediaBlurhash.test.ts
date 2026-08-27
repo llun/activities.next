@@ -4,6 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // Statically imported rather than read back with `vi.importMock`, which returns
 // an empty namespace for this module's mock: the factory has to be async to
 // reach `importOriginal`, and only the mocked binding is wanted here anyway.
+import { getConfig } from '@/lib/config'
+import { getDatabase, getKnex } from '@/lib/database'
+import { getMediaStorage } from '@/lib/services/medias'
 import { analyzeImageBuffer } from '@/lib/services/medias/imageAnalysis'
 
 import {
@@ -15,6 +18,7 @@ import {
   downloadRemoteImage,
   getAttachmentMediaHost,
   getFileBuffer,
+  main,
   parseArgs,
   revalidateAttachmentBlurhashes
 } from './backfillMediaBlurhash'
@@ -32,6 +36,25 @@ vi.mock('@/lib/services/medias/imageAnalysis', async (importOriginal) => ({
     typeof import('@/lib/services/medias/imageAnalysis')
   >()),
   analyzeImageBuffer: vi.fn()
+}))
+
+// `main`'s three module boundaries. Only the entry points it calls are
+// replaced — everything else in each module stays real, so nothing outside
+// the `main` block below changes behaviour.
+vi.mock('@/lib/database', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/database')>()),
+  getKnex: vi.fn(),
+  getDatabase: vi.fn()
+}))
+
+vi.mock('@/lib/services/medias', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/services/medias')>()),
+  getMediaStorage: vi.fn()
+}))
+
+vi.mock('@/lib/config', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/config')>()),
+  getConfig: vi.fn()
 }))
 
 const { safeImageFetch } = await vi.importMock<
@@ -1426,17 +1449,23 @@ describe('revalidateAttachmentBlurhashes', () => {
   // summary is logged once per row — the final row carries correct cumulative
   // totals.
   it('reports repaired, cleared and untouched separately, once', async () => {
+    // Every count is a different number on purpose. At one repaired and one
+    // cleared the summary reads the same whichever way round the two counters
+    // are, so swapping them — at the increment or in the template — passed.
     await insertAttachment({ id: 'att-1', blurhash: `${VALID_BLURHASH} ` })
     await insertAttachment({ id: 'att-2', blurhash: STRUCTURAL_BLURHASH })
-    await insertAttachment({ id: 'att-3', blurhash: VALID_BLURHASH })
+    await insertAttachment({ id: 'att-3', blurhash: CHARSET_BLURHASH })
+    await insertAttachment({ id: 'att-4', blurhash: VALID_BLURHASH })
+    await insertAttachment({ id: 'att-5', blurhash: VALID_BLURHASH })
+    await insertAttachment({ id: 'att-6', blurhash: VALID_BLURHASH })
     // Never selected: a missing blurhash is the backfill's job, and this pass
     // has no way to produce one.
-    await insertAttachment({ id: 'att-4', blurhash: null })
+    await insertAttachment({ id: 'att-7', blurhash: null })
 
     await revalidateAttachmentBlurhashes(db, options({ batchSize: 1 }))
 
     const expectedSummary =
-      'Blurhash revalidation complete: scanned 3, repaired 1, cleared 1, left 1 untouched'
+      'Blurhash revalidation complete: scanned 6, repaired 1, cleared 2, left 3 untouched'
     const logged = vi
       .mocked(console.log)
       .mock.calls.map((call) => String(call[0]))
@@ -1446,7 +1475,7 @@ describe('revalidateAttachmentBlurhashes', () => {
       )
     ).toEqual([expectedSummary])
     expect(logged.at(-1)).toBe(expectedSummary)
-    expect(await blurhashOf('att-4')).toBeNull()
+    expect(await blurhashOf('att-7')).toBeNull()
   })
 
   it('names the row and the stored value on every repair and clear', async () => {
@@ -1583,5 +1612,105 @@ describe('revalidateAttachmentBlurhashes', () => {
 
     expect(await blurhashOf('att-1')).toBeNull()
     expect(await blurhashOf('att-2')).toBe(VALID_BLURHASH)
+  })
+})
+
+// `main` is the CLI entrypoint and was untested before this block existed, on
+// both sides of the diff — but two of the promises it makes are new and are
+// stated in the script's own header comment, so nothing else pins them:
+// `--revalidate` refuses to run beside `--force`, and it short-circuits BEFORE
+// the storage and host checks, which is what keeps it usable on an instance
+// whose storage backend is unreachable. Deleting the guard block outright left
+// all 64 other tests in this file passing.
+describe('main', () => {
+  let db: Knex
+  let originalArgv: string[]
+
+  const runWith = (...args: string[]) => {
+    process.argv = ['node', 'backfillMediaBlurhash.ts', ...args]
+    return main()
+  }
+
+  beforeEach(async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    originalArgv = process.argv
+    // Created inside a `vi.mock` factory, so `vi.restoreAllMocks()` never
+    // reaches these — reset each one explicitly or a test inherits whatever
+    // its predecessor left configured.
+    vi.mocked(getKnex).mockReset()
+    vi.mocked(getDatabase).mockReset()
+    vi.mocked(getMediaStorage).mockReset()
+    vi.mocked(getConfig).mockReset()
+
+    db = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: { filename: ':memory:' }
+    })
+    await db.schema.createTable('attachments', (table) => {
+      table.string('id').primary()
+      table.string('mediaType')
+      table.string('url')
+      table.string('blurhash').nullable()
+    })
+    vi.mocked(getKnex).mockReturnValue(db)
+  })
+
+  afterEach(async () => {
+    process.argv = originalArgv
+    // `main` destroys it in its own `finally`; knex tolerates a second call,
+    // and this covers the paths that throw before reaching `main` at all.
+    await db.destroy()
+    vi.restoreAllMocks()
+  })
+
+  it('refuses --revalidate beside --force, before opening a connection', async () => {
+    await expect(runWith('--revalidate', '--force')).rejects.toThrow(
+      '--revalidate and --force are separate jobs; run them one at a time'
+    )
+    // Refused early enough that there is no pool to leak.
+    expect(getKnex).not.toHaveBeenCalled()
+  })
+
+  it('revalidates without asking for a storage backend or a host', async () => {
+    await db('attachments').insert({
+      id: 'att-1',
+      mediaType: 'image/jpeg',
+      url: 'https://remote.example/media/photo.jpg',
+      blurhash: 'aaaaaa'
+    })
+
+    await runWith('--revalidate')
+
+    // The whole reason the branch sits above those two checks: neither is
+    // reachable without configured storage, and this pass needs neither.
+    expect(getMediaStorage).not.toHaveBeenCalled()
+    expect(getConfig).not.toHaveBeenCalled()
+    // Asserted through the summary rather than by re-reading the row, because
+    // `main` has already destroyed the connection by the time this runs.
+    const logged = vi
+      .mocked(console.log)
+      .mock.calls.map((call) => String(call[0]))
+    expect(logged).toContain(
+      'Blurhash revalidation complete: scanned 1, repaired 0, cleared 1, left 0 untouched'
+    )
+  })
+
+  // The other direction: a short-circuit that swallowed the ordinary run would
+  // pass the test above and silently stop backfilling anything.
+  it('still requires the storage backend when not revalidating', async () => {
+    vi.mocked(getDatabase).mockReturnValue({} as never)
+    vi.mocked(getMediaStorage).mockReturnValue(null as never)
+    const destroy = vi.spyOn(db, 'destroy')
+
+    await expect(runWith('--dry-run')).rejects.toThrow(
+      'Media storage backend is not configured'
+    )
+
+    expect(getMediaStorage).toHaveBeenCalled()
+    // The startup checks now sit inside the `try` whose `finally` destroys the
+    // connection; before, a throw here leaked the pool.
+    expect(destroy).toHaveBeenCalled()
   })
 })
