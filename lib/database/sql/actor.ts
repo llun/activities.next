@@ -557,14 +557,17 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     username,
     domain
   }: GetActorFromUsernameParams) {
-    const result = await database<SQLActor>('actors')
-      .where('username', username)
-      .andWhere('domain', domain)
-      .select('id')
-      .first<{ id: string }>()
-    if (!result) return null
+    // Folds casing for the same reason `getActorFromUsername` does. The two
+    // differ only in return shape, so a caller would reasonably assume they
+    // resolve identically — and today this one has no production caller, which
+    // makes it the cheapest possible moment to stop them diverging.
+    const persistedActor = await findActorRowByUsername(database, {
+      username,
+      domain
+    })
+    if (!persistedActor) return null
 
-    return this.getMastodonActor(result.id)
+    return this.getMastodonActor(persistedActor.id)
   },
 
   async getActorFromId({ id }: GetActorFromIdParams) {

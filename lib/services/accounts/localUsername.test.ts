@@ -2,6 +2,7 @@ import {
   LOCAL_USERNAME_MAX_LENGTH,
   localUsernameSchema
 } from '@/lib/services/accounts/localUsername'
+import { normalizeUsername } from '@/lib/utils/normalizeUsername'
 
 const parse = (username: string) => localUsernameSchema.safeParse(username)
 
@@ -96,6 +97,24 @@ describe('localUsernameSchema', () => {
       expect(parse(username).success).toBe(false)
     }
   )
+
+  // The schema folds with Zod's own `.trim().toLowerCase()` rather than by
+  // calling `normalizeUsername`, mirroring how the email schemas relate to
+  // `normalizeEmail`. That means the mint-time rule has TWO spellings, and
+  // nothing else makes them agree: teach `normalizeUsername` to strip a
+  // trailing dot and `registerAccount`/`createAccount` would follow while this
+  // schema kept validating the unstripped name. This is the pin.
+  it.each([
+    { description: 'a plain name', username: 'alice' },
+    { description: 'mixed case', username: 'MixedCase' },
+    { description: 'all caps', username: 'ALICE' },
+    { description: 'surrounding whitespace', username: '  Alice  ' },
+    { description: 'dots and dashes', username: 'A.b-C_d' }
+  ])('agrees with normalizeUsername on $description', ({ username }) => {
+    const result = parse(username)
+    expect(result.success).toBe(true)
+    expect(result.success && result.data).toBe(normalizeUsername(username))
+  })
 
   it('accepts a name at the length limit and rejects one past it', () => {
     expect(parse('a'.repeat(LOCAL_USERNAME_MAX_LENGTH)).success).toBe(true)

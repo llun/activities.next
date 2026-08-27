@@ -2,7 +2,6 @@ import { Knex } from 'knex'
 
 import { isMySQLClient } from '@/lib/database/sql/utils/knex'
 import { SQLActor } from '@/lib/types/database/rows'
-import { normalizeUsername } from '@/lib/utils/normalizeUsername'
 
 /**
  * Resolves `(username, domain)` to an actor row case-insensitively.
@@ -32,10 +31,28 @@ import { normalizeUsername } from '@/lib/utils/normalizeUsername'
  * that claimed the name first is both a defensible winner and a stable one.
  * `.first()` alone would be neither.
  *
- * `domain` matching is left case-sensitive. Callers already lowercase it
- * (`parseAccountHandle`), and WebFinger carries its own exact-then-lowercased
- * domain fallback; folding it here would silently change which host a handle
- * resolves on, which is not this helper's question.
+ * `domain` matching is left case-sensitive, which is what it already was before
+ * this helper existed — folding it is a separate change, with its own index
+ * implications, and it is not this helper's question. Do NOT read that as
+ * "callers normalize it first": `parseAccountHandle` does, but
+ * `app/api/v1/accounts/lookup/route.ts` has its own locally-shadowed
+ * `parseAccountHandle` that does not, and
+ * `app/(timeline)/[actor]/[status]/resolveStatusFromPath.ts` splits the segment
+ * inline with no normalization at all. `getWebFingerResponse` carries its own
+ * exact-then-lowercased domain fallback precisely because that is not a
+ * guarantee. Note `getExactAccountIds` in `lib/database/sql/search/` DOES fold
+ * domain, so search and lookup disagree on `alice@Example.COM` — pre-existing,
+ * and not something this helper can fix on its own.
+ *
+ * The fold is `toLowerCase()` and NOT `normalizeUsername`, even though that is
+ * the mint-side spelling of the same idea. `normalizeUsername` also trims, and
+ * trimming here would fold whitespace as well as case — against an untrimmed
+ * `lower(username)`, so asymmetrically. `GET /users/%20alice%20` decodes to
+ * `' alice '`, and a trimming fold served alice's actor document, inbox, outbox
+ * and followers there; the outbox root sends
+ * `Cache-Control: public, max-age=60, s-maxage=60`, so every spelling was its
+ * own shared-cache key for one identical body. A caller that wants whitespace
+ * tolerance trims before asking, which `parseAccountHandle` already does.
  *
  * MySQL takes the exact arm only, and that is not a gap. Its default collations
  * (`utf8mb4_0900_ai_ci` and friends) are case-insensitive, so `username = ?`
@@ -58,7 +75,7 @@ export const findActorRowByUsername = async (
   if (exactMatch || isMySQLClient(database)) return exactMatch
 
   return database<SQLActor>('actors')
-    .whereRaw('lower(??) = ?', ['username', normalizeUsername(username)])
+    .whereRaw('lower(??) = ?', ['username', username.toLowerCase()])
     .andWhere('domain', domain)
     .orderBy('createdAt', 'asc')
     .orderBy('id', 'asc')

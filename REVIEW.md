@@ -111,9 +111,11 @@ change doesn't touch.
   `findActorRowByUsername` (`lib/database/sql/utils/usernameMatch.ts`).
 - Normalization is layered like email's: `localUsernameSchema`,
   `registerAccount`, **and** `createAccount`/`createActorForAccount`. The last is
-  the one that matters — it is the only place a local actor row is written, and
-  it normalizes into a variable that feeds both the `username` column and
-  `getLocalActorId`, so the column and the id cannot drift.
+  the one that matters — it is where the column and the id are
+  derived from one variable and so cannot drift. It is NOT the only place a local
+  actor row is written — `getFederationSigningActor` inserts its own — and the
+  schema's fold is a SECOND spelling of the rule (Zod's `.trim().toLowerCase()`,
+  not a `normalizeUsername` call), pinned against it by `localUsername.test.ts`.
 - The fold in `localUsernameSchema` runs **before** the reserved-name refine and
   before `.max()`. `isFederationSigningActorUsername` is a case-sensitive
   `startsWith('__instance__')`, so folding afterwards let `__INSTANCE__` mint a
@@ -144,10 +146,24 @@ change doesn't touch.
   id matches exactly one spelling — which is how `/api/users/alice` came to 404
   while every human-facing surface folded. Matching `domain` against
   `headerHost` preserves the host binding.
-- `domain` matching inside the lookup stays exact (callers lowercase it;
-  WebFinger has its own domain fallback), and remote usernames are stored
-  verbatim — a remote server mints its own ids. WebFinger answers with the
-  **stored** casing, so an echoed `subject` is the canonical handle.
+- `domain` matching inside the lookup stays exact — but NOT because callers
+  normalize it. `app/api/v1/accounts/lookup/route.ts` has its own
+  locally-shadowed `parseAccountHandle` that does not lowercase domain, and
+  `resolveStatusFromPath.ts` splits the segment inline with none; WebFinger
+  carries its own domain fallback precisely because that is not a guarantee.
+  Note `getExactAccountIds` in `lib/database/sql/search/` DOES fold domain, so
+  search and lookup disagree on `alice@Example.COM` — pre-existing.
+- The folded arm folds CASE only. It uses a bare `toLowerCase()`, never
+  `normalizeUsername`, which also trims: trimming compared a trimmed input
+  against an untrimmed column, so `/users/%20alice%20` served a whole actor
+  surface at an unbounded family of shared-cache keys.
+- A reserved username is reserved case-INSENSITIVELY. `OnlyLocalUserGuard` 404s
+  any segment folding to one unless the actor IS the genuine signing actor —
+  without that, a legacy `__INSTANCE__` account answered at
+  `getFederationSigningActorId(domain)`.
+- Remote usernames are stored verbatim — a remote server mints its own ids.
+  WebFinger answers with the **stored** casing, so an echoed `subject` is the
+  canonical handle.
 
 ## Database & migrations
 

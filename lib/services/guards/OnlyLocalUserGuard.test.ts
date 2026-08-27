@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
 import { FEDERATION_SIGNING_ACTOR_USERNAME } from '@/lib/services/federation/instanceActor'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
@@ -9,7 +9,8 @@ import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { OnlyLocalUserGuard } from './OnlyLocalUserGuard'
 
 // Mock database getter
-let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+let mockDatabase:
+  ReturnType<typeof getTestSQLDatabaseWithInstance>['database'] | null = null
 vi.mock('@/lib/database', async () => ({
   getDatabase: () => mockDatabase
 }))
@@ -29,7 +30,7 @@ vi.mock('@/lib/config', async () => {
 })
 
 describe('OnlyLocalUserGuard', () => {
-  const database = getTestSQLDatabase()
+  const { database, instance } = getTestSQLDatabaseWithInstance()
 
   beforeAll(async () => {
     await database.migrate()
@@ -152,6 +153,79 @@ describe('OnlyLocalUserGuard', () => {
       expect(response.status).toBe(404)
       expect(mockHandler).not.toHaveBeenCalled()
     })
+  })
+
+  // Resolving by username is what made this reachable. `__INSTANCE__` was
+  // registerable before the reserved-name refine folded casing, and the folded
+  // arm then answers a request for `__instance__` with that account's actor —
+  // at `getFederationSigningActorId(domain)` itself, and past the
+  // `actor.account` check even without `allowFederationSigningActor`. The old
+  // id-rebuild could not reach that state.
+  describe('with a squatter at the reserved instance-actor username', () => {
+    const SQUATTER_ID = 'https://llun.test/users/__INSTANCE__'
+
+    beforeAll(async () => {
+      const accountId = await database.createAccount({
+        email: 'squatter@squat.test',
+        username: 'squatter',
+        domain: 'llun.test',
+        passwordHash: 'hash',
+        privateKey: 'privateKey',
+        publicKey: 'publicKey'
+      })
+      // Written through raw knex on purpose: every mint path refuses a reserved
+      // name AND lowercases, so only a row predating both can look like this.
+      // It must carry an accountId, or the guard's pre-existing
+      // `actor?.account` check would 404 it and this suite would prove nothing.
+      await instance('actors').insert({
+        id: SQUATTER_ID,
+        username: '__INSTANCE__',
+        domain: 'llun.test',
+        accountId,
+        publicId: 'squatter-public-id-000000000000000000',
+        type: 'Person',
+        publicKey: 'publicKey',
+        privateKey: 'privateKey',
+        settings: JSON.stringify({
+          followersUrl: `${SQUATTER_ID}/followers`,
+          inboxUrl: `${SQUATTER_ID}/inbox`,
+          sharedInboxUrl: 'https://llun.test/inbox'
+        }),
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+    })
+
+    it('confirms the squatter is a local account actor', async () => {
+      // Guards the guard test: without an account the 404 below would come from
+      // the pre-existing `actor?.account` check and assert nothing new.
+      const actor = await database.getActorFromUsername({
+        username: '__INSTANCE__',
+        domain: 'llun.test'
+      })
+      expect(actor?.id).toBe(SQUATTER_ID)
+      expect(actor?.account).toBeTruthy()
+    })
+
+    it.each([
+      { description: 'requested in lowercase', requested: '__instance__' },
+      {
+        description: 'requested in the stored casing',
+        requested: '__INSTANCE__'
+      }
+    ])(
+      '404s a legacy __INSTANCE__ account $description',
+      async ({ requested }) => {
+        const guard = OnlyLocalUserGuard(mockHandler)
+        const req = createRequest()
+        const response = await guard(req, {
+          params: Promise.resolve({ username: requested })
+        })
+
+        expect(response.status).toBe(404)
+        expect(mockHandler).not.toHaveBeenCalled()
+      }
+    )
   })
 
   describe('with invalid user', () => {

@@ -120,6 +120,30 @@ describe('case-insensitive actor username lookup', () => {
         expect(actor?.id).toBe(`https://${TEST_DOMAIN}/users/Alice`)
       }))
 
+    // The folded arm folds CASE, not whitespace. `normalizeUsername` trims as
+    // well as lowercases, and using it here compared a trimmed input against an
+    // untrimmed `lower(username)` — so `/users/%20alice%20`, which decodes to
+    // `' alice '`, served alice's whole ActivityPub surface at an unbounded
+    // family of URLs, each its own key in the outbox root's 60s shared cache.
+    it.each([
+      { description: 'leading and trailing spaces', lookup: '  alice  ' },
+      { description: 'a leading space', lookup: ' alice' },
+      { description: 'a trailing space', lookup: 'alice ' },
+      { description: 'a tab', lookup: '\talice' },
+      { description: 'padding around a different casing', lookup: '  ALICE  ' }
+    ])('does not resolve a username padded with $description', ({ lookup }) =>
+      withFreshDatabase(async (database) => {
+        await createActorWithRawUsername(database, 'alice')
+
+        expect(
+          await database.getActorFromUsername({
+            username: lookup,
+            domain: TEST_DOMAIN
+          })
+        ).toBeNull()
+      })
+    )
+
     // SQL `lower()` and JS `toLowerCase()` do not fold the same alphabet:
     // SQLite's builtin is ASCII-only while `toLowerCase()` is Unicode-aware, so
     // a single folded query would compare `Фёдор` against `фёдор` and miss a

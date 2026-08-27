@@ -2,8 +2,12 @@ import { NextRequest } from 'next/server'
 
 import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
-import { isFederationSigningActor } from '@/lib/services/federation/instanceActor'
+import {
+  isFederationSigningActor,
+  isFederationSigningActorUsername
+} from '@/lib/services/federation/instanceActor'
 import { Actor } from '@/lib/types/domain/actor'
+import { normalizeUsername } from '@/lib/utils/normalizeUsername'
 import { apiErrorResponse } from '@/lib/utils/response'
 
 import { headerHost } from './headerHost'
@@ -54,6 +58,29 @@ export const OnlyLocalUserGuard =
       actor?.account ||
       (options.allowFederationSigningActor && isFederationSigningActor(actor))
     if (!actor || !isAllowedActor) {
+      return apiErrorResponse(404)
+    }
+
+    // A reserved username is reserved case-INSENSITIVELY, and only the genuine
+    // instance actor may answer at one.
+    //
+    // Resolving by username is what makes this necessary. The reserved-name
+    // refine used to be a case-sensitive `startsWith`, so an actor named
+    // `__INSTANCE__` was registerable, and the folded arm now resolves the
+    // request for `__instance__` to it — serving a user-owned Person document,
+    // inbox, outbox and followers at `getFederationSigningActorId(domain)`
+    // itself, until `getFederationSigningActor()` first runs on that domain and
+    // the exact arm takes the id back. The old id-rebuild could not reach that
+    // state, and `actor.account` being truthy means the check above waves the
+    // squatter through even without `allowFederationSigningActor`.
+    //
+    // Gated on the REQUESTED segment, not on the resolved row: the question is
+    // who may answer at this URI, and a legacy row is exactly what cannot be
+    // trusted to describe itself here.
+    if (
+      isFederationSigningActorUsername(normalizeUsername(username)) &&
+      !isFederationSigningActor(actor)
+    ) {
       return apiErrorResponse(404)
     }
 
