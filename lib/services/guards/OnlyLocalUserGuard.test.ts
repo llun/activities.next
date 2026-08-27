@@ -207,12 +207,64 @@ describe('OnlyLocalUserGuard', () => {
       expect(actor?.account).toBeTruthy()
     })
 
+    // The guard tests the REAL signing-actor usernames (`__instance__` and
+    // `__instance__<digits>`), not the loose `__instance__` PREFIX the mint
+    // refine reserves. A legacy account named `__instance__archive` —
+    // registerable before that refine existed — owns an id
+    // `getFederationSigningActorId` cannot produce at any index, so 404ing it
+    // would silently de-federate a working actor: no actor document, no inbox
+    // deliveries, and no dereference of its already-federated statuses.
+    it.each([
+      { description: 'a non-numeric suffix', username: '__instance__archive' },
+      { description: 'an underscore suffix', username: '__instance___backup' }
+    ])(
+      'still serves a legacy account whose name merely begins __instance__ ($description)',
+      async ({ username }) => {
+        const accountId = await database.createAccount({
+          email: `${username}@legacy.test`,
+          username: `holder${username}`,
+          domain: 'llun.test',
+          passwordHash: 'hash',
+          privateKey: 'privateKey',
+          publicKey: 'publicKey'
+        })
+        const id = `https://llun.test/users/${username}`
+        await instance('actors').insert({
+          id,
+          username,
+          domain: 'llun.test',
+          accountId,
+          publicId: `legacy${username}`.padEnd(36, '0').slice(0, 36),
+          type: 'Person',
+          publicKey: 'publicKey',
+          privateKey: 'privateKey',
+          settings: JSON.stringify({
+            followersUrl: `${id}/followers`,
+            inboxUrl: `${id}/inbox`,
+            sharedInboxUrl: 'https://llun.test/inbox'
+          }),
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+
+        const guard = OnlyLocalUserGuard(mockHandler)
+        const req = createRequest()
+        const response = await guard(req, {
+          params: Promise.resolve({ username })
+        })
+
+        expect(response.status).toBe(200)
+        expect(mockHandler).toHaveBeenCalled()
+      }
+    )
+
     it.each([
       { description: 'requested in lowercase', requested: '__instance__' },
       {
         description: 'requested in the stored casing',
         requested: '__INSTANCE__'
-      }
+      },
+      { description: 'an indexed signing username', requested: '__instance__1' }
     ])(
       '404s a legacy __INSTANCE__ account $description',
       async ({ requested }) => {

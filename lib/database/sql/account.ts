@@ -107,10 +107,15 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
   }: CreateAccountParams) {
     const normalizedEmail = normalizeEmail(email)
     // Normalized here as well as in the request schema for the same reason
-    // emails are: this is the one place a local actor is minted, so a caller
-    // that forgets cannot produce a mixed-case handle. It matters more than it
-    // does for email — `username` is interpolated into `actorId` below, so the
-    // column and the ActivityPub id are derived from one value and cannot drift.
+    // emails are: a caller reaching this method directly cannot produce a
+    // mixed-case handle. It matters more than it does for email — `username` is
+    // interpolated into `actorId` below, so the column and the ActivityPub id
+    // are derived from one value and cannot drift.
+    //
+    // NOT the only place a local actor row is written: `createActorForAccount`
+    // is the second account-facing mint path, and `getFederationSigningActor`
+    // (`actor.ts`) inserts its own row bypassing both. Each has to make this
+    // one-variable argument for itself.
     const username = normalizeUsername(rawUsername)
     const accountId = crypto.randomUUID()
     const actorId = getLocalActorId({ domain, username })

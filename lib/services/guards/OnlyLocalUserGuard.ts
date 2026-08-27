@@ -4,7 +4,7 @@ import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
 import {
   isFederationSigningActor,
-  isFederationSigningActorUsername
+  isFederationSigningActorIdUsername
 } from '@/lib/services/federation/instanceActor'
 import { Actor } from '@/lib/types/domain/actor'
 import { normalizeUsername } from '@/lib/utils/normalizeUsername'
@@ -77,8 +77,14 @@ export const OnlyLocalUserGuard =
     // Gated on the REQUESTED segment, not on the resolved row: the question is
     // who may answer at this URI, and a legacy row is exactly what cannot be
     // trusted to describe itself here.
+    //
+    // `isFederationSigningActorIdUsername`, NOT the loose prefix test the mint
+    // refine uses. Only `__instance__` and `__instance__<digits>` can ever be a
+    // signing-actor id, so the prefix form would de-federate a legacy
+    // `__instance__archive` account — 404ing an actor document and inbox that
+    // work on `main` today.
     if (
-      isFederationSigningActorUsername(normalizeUsername(username)) &&
+      isFederationSigningActorIdUsername(normalizeUsername(username)) &&
       !isFederationSigningActor(actor)
     ) {
       return apiErrorResponse(404)

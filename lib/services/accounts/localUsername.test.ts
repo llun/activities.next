@@ -109,7 +109,12 @@ describe('localUsernameSchema', () => {
     { description: 'mixed case', username: 'MixedCase' },
     { description: 'all caps', username: 'ALICE' },
     { description: 'surrounding whitespace', username: '  Alice  ' },
-    { description: 'dots and dashes', username: 'A.b-C_d' }
+    { description: 'dots and dashes', username: 'A.b-C_d' },
+    // `LOCAL_USERNAME_PATTERN` allows a trailing dot, and this is the exact
+    // divergence the comment above names — teach `normalizeUsername` to strip
+    // one and only a fixture ending in one can notice. Without this row that
+    // scenario passed.
+    { description: 'a trailing dot', username: 'Alice.' }
   ])('agrees with normalizeUsername on $description', ({ username }) => {
     const result = parse(username)
     expect(result.success).toBe(true)

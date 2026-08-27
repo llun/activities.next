@@ -46,13 +46,23 @@ import { SQLActor } from '@/lib/types/database/rows'
  *
  * The fold is `toLowerCase()` and NOT `normalizeUsername`, even though that is
  * the mint-side spelling of the same idea. `normalizeUsername` also trims, and
- * trimming here would fold whitespace as well as case — against an untrimmed
- * `lower(username)`, so asymmetrically. `GET /users/%20alice%20` decodes to
- * `' alice '`, and a trimming fold served alice's actor document, inbox, outbox
- * and followers there; the outbox root sends
- * `Cache-Control: public, max-age=60, s-maxage=60`, so every spelling was its
- * own shared-cache key for one identical body. A caller that wants whitespace
- * tolerance trims before asking, which `parseAccountHandle` already does.
+ * a trim here is not a fold at all: it compares a TRIMMED input against an
+ * UNTRIMMED `lower(username)`, so the relation is asymmetric — `' alice '`
+ * found `alice`, while `alice` could never find a stored `'alice '`. An
+ * asymmetric match can only ever ADD rows the exact arm would not have found,
+ * which is how `GET /users/%20alice%20` came to serve alice's actor document,
+ * inbox, outbox and followers.
+ *
+ * (An earlier version of this comment justified the fix by the outbox root's
+ * `Cache-Control: public, max-age=60, s-maxage=60` turning each spelling into
+ * its own shared-cache key. That is true but NOT load-bearing: case folding is
+ * this helper's whole point, so `/users/AlIcE/outbox` and its siblings remain
+ * distinct cacheable URLs regardless. The asymmetry above is the real reason,
+ * and the origin cost per variant is small because
+ * `getCachedActorPublicStatusesCount` memoizes per `actorId`, not per URL.)
+ *
+ * A caller wanting whitespace tolerance trims before asking, which
+ * `parseAccountHandle` and `getWebFingerResponse` already do.
  *
  * MySQL takes the exact arm only, and that is not a gap. Its default collations
  * (`utf8mb4_0900_ai_ci` and friends) are case-insensitive, so `username = ?`
