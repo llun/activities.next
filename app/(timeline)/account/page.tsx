@@ -114,7 +114,6 @@ const Page = async ({
             fieldName="iconUrl"
             currentUrl={account.iconUrl || null}
             label="Profile image"
-            placeholder="https://example.com/avatar.jpg"
             previewType="thumbnail"
           />
           {error && <p className="text-sm text-destructive">{error}</p>}

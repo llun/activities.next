@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { getConfig } from '@/lib/config'
+import { parseProfileImageUrl } from '@/lib/services/accounts/profileImageUrl'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import {
@@ -9,19 +11,18 @@ import {
 import { HTTP_STATUS, apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
+// The settings form's own fields, and nothing else. `publicKey`,
+// `followersUrl`, `inboxUrl` and `sharedInboxUrl` were accepted here as free
+// strings and passed straight to `updateActor`, which persists all four — so
+// any signed-in user could rewrite the public key and inbox endpoints their own
+// actor publishes. No form has ever sent them; Zod strips them as unknown keys.
 const ProfileRequest = z.object({
   name: z.string().optional(),
   summary: z.string().optional(),
   iconUrl: z.string().optional(),
   headerImageUrl: z.string().optional(),
   manuallyApprovesFollowers: z.string().optional(),
-  postLineLimit: z.string().optional(),
-
-  publicKey: z.string().optional(),
-
-  followersUrl: z.string().optional(),
-  inboxUrl: z.string().optional(),
-  sharedInboxUrl: z.string().optional()
+  postLineLimit: z.string().optional()
 })
 
 export const POST = traceApiRoute(
@@ -44,8 +45,34 @@ export const POST = traceApiRoute(
     const {
       manuallyApprovesFollowers: rawValue,
       postLineLimit: rawPostLineLimit,
+      iconUrl: rawIconUrl,
+      headerImageUrl: rawHeaderImageUrl,
       ...safeParsed
     } = parsed.data
+
+    // Only a URL shaped like one this instance serves its own media from — a
+    // host and path check, not a lookup. The form always
+    // submits both fields, so an empty one is the user clearing the image
+    // rather than a partial update — `parseProfileImageUrl` answers null for it
+    // and `updateActor` reads that as an explicit clear.
+    // The actor's stored values are passed so a form resubmitting one it did
+    // not change is treated as "no change" rather than re-validated — see
+    // `parseProfileImageUrl`, where the single settings form makes that
+    // load-bearing.
+    const config = getConfig()
+    const iconUrl = parseProfileImageUrl(
+      rawIconUrl,
+      config,
+      currentActor.iconUrl
+    )
+    const headerImageUrl = parseProfileImageUrl(
+      rawHeaderImageUrl,
+      config,
+      currentActor.headerImageUrl
+    )
+    if (!iconUrl.valid || !headerImageUrl.valid) {
+      return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+    }
 
     let manuallyApprovesFollowers: boolean | undefined
     if (rawValue === 'on') {
@@ -68,6 +95,10 @@ export const POST = traceApiRoute(
     await database.updateActor({
       actorId: currentActor.id,
       ...safeParsed,
+      ...(iconUrl.value !== undefined ? { iconUrl: iconUrl.value } : null),
+      ...(headerImageUrl.value !== undefined
+        ? { headerImageUrl: headerImageUrl.value }
+        : null),
       ...(manuallyApprovesFollowers !== undefined
         ? { manuallyApprovesFollowers }
         : null),
