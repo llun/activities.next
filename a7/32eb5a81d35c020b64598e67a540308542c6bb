@@ -1,0 +1,47 @@
+lib/services/accounts/localUsername.test.ts
+  s_5c05e157b3e02d::t_a586ab78feb40f 113-117
+  s_5c05e157b3e02d::t_241370f3e1e308 5,101-112
+  s_5c05e157b3e02d::t_30a8c1d91c77f5 118
+lib/services/accounts/localUsername.ts
+  s_5c05e157b3e02d::t_e2b2dbbd70abea 53-68
+lib/database/sql/actor.ts
+  s_5c05e157b3e02d::t_f125b5d613a8b4 560-568,570
+lib/services/guards/OnlyLocalUserGuard.ts
+  s_5c05e157b3e02d::t_7bbbcfce5fea32 5-8,10
+  s_5c05e157b3e02d::t_ac503e8de96340 64-86
+CLAUDE.md
+  s_5c05e157b3e02d::t_c8adef31658383 134
+lib/services/guards/OnlyLocalUserGuard.test.ts
+  s_5c05e157b3e02d::t_63fc3b904f2512 12-13,216-223,225-228
+  s_5c05e157b3e02d::t_9b849c64c2d2d9 3,33,165-167,169,176-182,184-186,188-204,206-208
+  s_5c05e157b3e02d::t_7f7b55ae89f39d 158-164,168,170-175,183,187,205,209-215,224,229-230
+lib/database/sql/utils/usernameMatch.ts
+  s_5c05e157b3e02d::t_d831e382b45591 47-55
+  s_5c05e157b3e02d::t_ac503e8de96340 78
+  s_5c05e157b3e02d::t_9d9d323057e2f7 34-45
+  s_5c05e157b3e02d::t_134535cbd7ac13 46
+lib/services/accounts/registerAccount.test.ts
+  s_5c05e157b3e02d::t_6525296b8df95f 414-441
+REVIEW.md
+  s_5c05e157b3e02d::t_14740c7f4fed90 114-118,149-166
+lib/database/sql/utils/usernameMatch.test.ts
+  s_5c05e157b3e02d::t_504df35adc0184 123-146
+AGENTS.md
+  s_5c05e157b3e02d::t_4638a2f0ea90a2 174-177,179,181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "a732eb5a81d35c020b64598e67a540308542c6bb",
+  "prompts": {},
+  "sessions": {
+    "s_5c05e157b3e02d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1c386ef-32f2-4ca1-8042-fe368c055720",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
