@@ -2066,7 +2066,7 @@ preserving legacy and fitness attachments` pins the surviving-null behaviour.
   `{ ...(await importOriginal()), fn: vi.fn() }` shape — through a plain static
   import, which does resolve to the mock.
   `scripts/maintenance/backfillMediaBlurhash.test.ts` has one of each: a sync
-  factory read with `vi.importMock`, and three awaiting ones read statically.
+  factory read with `vi.importMock`, and four awaiting ones read statically.
 - **`vi.restoreAllMocks()` does not reset a `vi.fn()` a `vi.mock` factory
   created.** It only iterates the spies `vi.spyOn` registered, so a module
   mocked as `vi.mock('@/path', () => ({ fn: vi.fn() }))` carries whatever the
