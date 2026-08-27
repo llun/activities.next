@@ -96,8 +96,13 @@ export const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
   if (status.type !== StatusType.enum.Announce) return null
   const actorName =
     getActorDisplayName(status.actor) || getActorIdMention(status.actorId)
-  // Undefined when the boost actor id carries no usable handle (an opaque
-  // `did:`/UUID username) — the same case `ActorInfo` renders as plain text.
+  // Undefined when there is no boost actor row and the actor id also carries
+  // no usable handle (an opaque `did:`/UUID username) — the case `ActorInfo`
+  // renders as plain text too, when it likewise has no actor to link.
+  // `ActorInfo`'s actor-present branch renders a link unconditionally, so it
+  // does not share this fallback: a present actor whose username normalises
+  // to empty still links from here (see `getActorProfileHref`'s own comment)
+  // but renders a broken link there.
   const profileHref = getActorProfileHref(status.actor, status.actorId)
 
   return (
