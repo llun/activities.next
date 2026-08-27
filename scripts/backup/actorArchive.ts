@@ -20,6 +20,7 @@ import { encodeFavouriteCursor } from '@/lib/database/sql/utils/favouriteCursor'
 import { Database } from '@/lib/database/types'
 import { getEffectiveFitnessStorageConfig } from '@/lib/services/fitness-files'
 import { getMediaPathFromFileUrl } from '@/lib/services/medias/mediaFileUrl'
+import { resolveStorageFilePath } from '@/lib/services/medias/storagePath'
 import { getMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
 import {
   AnnounceAction,
@@ -68,7 +69,7 @@ const DEFAULT_ENV_FILE = '.env.production'
 const DEFAULT_OUTPUT_DIR = 'backups/actor-archives'
 const DEFAULT_PAGE_SIZE = 100
 const MEDIA_ID_BATCH_SIZE = 100
-const MEDIA_ARCHIVE_DIR = 'media_attachments/files'
+export const MEDIA_ARCHIVE_DIR = 'media_attachments/files'
 const REMOTE_MEDIA_ARCHIVE_DIR = 'media_attachments/remote'
 /**
  * How long ONE remote attachment may take in total — every redirect hop, its
@@ -718,7 +719,6 @@ export const copyProfileImage = async ({
   const extension = path.extname(storagePath) || '.bin'
   const fileName = `${fileNamePrefix}${extension}`
   const mediaDir = path.resolve(stagingDir, MEDIA_ARCHIVE_DIR)
-  const source = path.resolve(mediaDir, storagePath)
 
   // `getMediaPathFromFileUrl` already refuses a `..` segment, so nothing
   // should arrive here that escapes. This is the step that turns a stored path
@@ -726,20 +726,15 @@ export const copyProfileImage = async ({
   // says nothing about where the path came from — so it confirms containment
   // for itself rather than trusting a caller three hundred lines away, the
   // same reason `createMediaTempFilePath` asserts its own result is still
-  // under `tmpdir()`. Resolving rather than joining is what lets an absolute
-  // path be seen as outside instead of being silently reinterpreted as a
-  // relative one.
+  // under `tmpdir()`.
   //
-  // The last disjunct is Windows-only and cannot be covered by a test here:
-  // between two absolute paths POSIX always answers with a relative string,
-  // and only a win32 CROSS-DRIVE pair (`C:\staging` to `D:\secrets`) makes
-  // `path.relative` hand back an absolute path of its own.
-  const relativePath = path.relative(mediaDir, source)
-  if (
-    relativePath === '..' ||
-    relativePath.startsWith(`..${path.sep}`) ||
-    path.isAbsolute(relativePath)
-  ) {
+  // Through the shared helper: "does this resolve inside that root?" is the
+  // storage drivers' question too, and AGENTS.md ("A stored path is confined
+  // to the storage root") records why this call site stopped spelling its own
+  // answer. The warning stays local so the archive keeps telling its operator
+  // which image it dropped and why.
+  const source = resolveStorageFilePath(mediaDir, storagePath)
+  if (!source) {
     warnings.push(
       `Refused ${fileNamePrefix} image path outside the archive media directory: ${storagePath}`
     )
