@@ -366,6 +366,38 @@ describe('getWebFingerResponse', () => {
     })
   })
 
+  // Folding happens one layer down, in `getActorFromUsername`. What WebFinger
+  // itself owns is the answer: `subject` and the profile-page alias are built
+  // from the actor's STORED username, so a client that echoes the subject back
+  // gets the canonical handle rather than whatever casing it happened to ask
+  // with. Passing the resource's casing straight through here would let two
+  // spellings of one account circulate as two handles.
+  it('answers with the stored casing, not the requested casing', async () => {
+    mockDatabase.getActorFromUsername.mockResolvedValue({
+      id: 'https://example.com/users/MixedCase',
+      username: 'MixedCase',
+      domain: 'example.com',
+      privateKey: 'some-private-key'
+    })
+
+    const result = await getWebFingerResponse({
+      database: mockDatabase as unknown as Database,
+      resource: 'acct:MIXEDCASE@example.com'
+    })
+
+    expect(mockDatabase.getActorFromUsername).toHaveBeenCalledWith({
+      username: 'MIXEDCASE',
+      domain: 'example.com'
+    })
+    expect(result).toMatchObject({
+      subject: 'acct:MixedCase@example.com',
+      aliases: [
+        'https://example.com/@MixedCase',
+        'https://example.com/users/MixedCase'
+      ]
+    })
+  })
+
   it('advertises the remote follow template from the instance base url', async () => {
     mockDatabase.getActorFromUsername.mockResolvedValue({
       id: 'https://example.com/users/test',

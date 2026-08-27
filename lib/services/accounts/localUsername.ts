@@ -45,6 +45,28 @@ export const LOCAL_USERNAME_MAX_LENGTH = 50
 export const localUsernameSchema = z
   .string()
   .trim()
+  // Lowercased rather than refused, so `Alice` registers as `alice` instead of
+  // becoming a second actor indistinguishable from `alice` to every
+  // case-insensitive client. The pattern below still names `A-Z` because it
+  // describes what a caller may SEND; by the time it runs there is none left.
+  //
+  // Folding before the reserved-name refine is load-bearing:
+  // `isFederationSigningActorUsername` is a case-sensitive
+  // `startsWith('__instance__')`, so `__INSTANCE__` passed the check and minted
+  // a confusable neighbour of the instance actor. (`OnlyLocalUserGuard` refuses
+  // such a legacy row at that URI; this is what stops new ones.)
+  //
+  // Sitting before `.max()` is defensive only, NOT load-bearing — an earlier
+  // version of this comment claimed otherwise. A fold can lengthen a string,
+  // but the only mapping that does is `İ` -> `i` + U+0307, and U+0307 is not in
+  // `LOCAL_USERNAME_PATTERN`, so the regex refuses any such input wherever
+  // `.max()` sits; ASCII folding is length-preserving.
+  //
+  // This fold is Zod's own `.trim().toLowerCase()` rather than a call to
+  // `normalizeUsername`, mirroring how the email schemas relate to
+  // `normalizeEmail`. That makes it a SECOND spelling of the mint-time rule, so
+  // `localUsername.test.ts` pins the two against each other.
+  .toLowerCase()
   .min(1)
   .max(LOCAL_USERNAME_MAX_LENGTH)
   .regex(LOCAL_USERNAME_PATTERN, {

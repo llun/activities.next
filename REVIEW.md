@@ -101,6 +101,84 @@ change doesn't touch.
   not parse backend-specific constraint names or messages, which differ across
   SQLite and PostgreSQL.
 
+## Actor usernames
+
+- A local username is the last path segment of the actor's ActivityPub id
+  (`getLocalActorId` → `https://<domain>/users/<username>`, and every local
+  status id is `${actorId}/statuses/${n}`), so casing is an identity question,
+  not a cosmetic one. Every local mint lowercases through `normalizeUsername`
+  (`lib/utils/normalizeUsername.ts`) and every lookup folds through
+  `findActorRowByUsername` (`lib/database/sql/utils/usernameMatch.ts`).
+- Normalization is layered like email's: `localUsernameSchema`,
+  `registerAccount`, **and** `createAccount`/`createActorForAccount`. The last is
+  the one that matters — it is where the column and the id are
+  derived from one variable and so cannot drift. It is NOT the only place a local
+  actor row is written — `getFederationSigningActor` inserts its own — and the
+  schema's fold is a SECOND spelling of the rule (Zod's `.trim().toLowerCase()`,
+  not a `normalizeUsername` call), pinned against it by `localUsername.test.ts`.
+- The fold in `localUsernameSchema` runs **before** the reserved-name refine and
+  before `.max()`. `isFederationSigningActorUsername` is a case-sensitive
+  `startsWith('__instance__')`, so folding afterwards let `__INSTANCE__` mint a
+  confusable neighbour of the instance actor; and a fold can change a string's
+  length. Sitting before `.max()` is defensive ONLY, not load-bearing: the one
+  lengthening mapping is `İ` → `i` + U+0307, and U+0307 is outside
+  `LOCAL_USERNAME_PATTERN`, so the regex refuses any input whose fold changes
+  length wherever `.max()` sits (verified: both `İ` and a 50-char name plus `İ`
+  fail the pattern raw and folded). `AGENTS.md` and the code comment say the
+  same; do not "reconcile" them back to the load-bearing claim, which round 1 of
+  #1592 removed as false and which survived here only because that round fixed
+  two of the three copies.
+- The lookup is **exact-match first, then folded — never a lone
+  `lower(username) = ?`.** Two reasons, both load-bearing: SQL `lower()` and JS
+  `toLowerCase()` fold different alphabets (SQLite's builtin is ASCII-only, so a
+  fold-only query stops finding a stored `Фёдор`), and local actors minted before
+  normalization keep their casing — they are deliberately not migrated, since
+  their ids are already federated — so an instance can hold both `Alice` and
+  `alice` and `/@Alice` must not resolve to `alice`. The folded arm orders by
+  `createdAt`, `id` so an unmatched casing resolves to whoever claimed the name
+  first rather than to whatever the index yields.
+- `isUsernameExists` folds too — that is what refuses a new `alice` beside an
+  existing `Alice`. The DB unique index stays case-sensitive on purpose: a
+  functional UNIQUE index would refuse to build on an instance that already holds
+  a colliding pair. Note the TOCTOU rule above still holds and is not weakened by
+  this, because every new local actor is lowercase, so a race is a
+  lowercase-vs-lowercase collision the existing unique index still catches.
+- **MySQL is skipped in both halves** — the migration creates no index and the
+  folded arm never runs. Its default collations already fold (so does its unique
+  index, so a colliding pair cannot exist there), the DDL is not portable to it
+  or to MariaDB, and running the folded query anyway would scan `actors` on every 404. A `_bin`/`_cs` collation gives that backend case-sensitive usernames,
+  which is the behaviour it had before, not a new regression.
+- `OnlyLocalUserGuard` resolves by username, never by rebuilding the actor id
+  from the path segment. It fronts the whole ActivityPub surface, and a rebuilt
+  id matches exactly one spelling — which is how `/api/users/alice` came to 404
+  while every human-facing surface folded. Matching `domain` against
+  `headerHost` preserves the host binding.
+- `domain` matching inside the lookup stays exact — but NOT because callers
+  normalize it. `app/api/v1/accounts/lookup/route.ts` has its own
+  locally-shadowed `parseAccountHandle` that does not lowercase domain, and
+  `resolveStatusFromPath.ts` splits the segment inline with none; WebFinger
+  carries its own domain fallback precisely because that is not a guarantee.
+  Note `getExactAccountIds` in `lib/database/sql/search/` DOES fold domain, so
+  search and lookup disagree on `alice@Example.COM` — pre-existing.
+- The folded arm folds CASE only. It uses a bare `toLowerCase()`, never
+  `normalizeUsername`, which also trims: a trimmed input compared against an
+  untrimmed column is asymmetric and can only ADD matches, which is how
+  `/users/%20alice%20` served a whole actor surface. Shared-cache keys are not
+  the reason — case folding creates URL variants regardless.
+- `OnlyLocalUserGuard` 404s a segment folding to a username this instance could
+  MINT a signer on (`isFederationSigningActorIdUsername`,
+  `/^__instance__([1-9]\d*)?$/`) unless the actor IS the genuine signing actor —
+  without that, a legacy `__INSTANCE__` account answered at
+  `getFederationSigningActorId(domain)`. **Do not widen it to the
+  `isFederationSigningActorUsername` prefix the mint refine uses**, which
+  de-federates a legacy `__instance__archive` or `__instance__0` account; and do
+  not narrow the loose form onto the precise one, because
+  `getExistingHeadlessActor` adopts any headless `__instance__%` Service row as
+  the signer and validates it loosely.
+- Remote usernames are stored verbatim — a remote server mints its own ids.
+  WebFinger answers with the **stored** casing, so an echoed `subject` is the
+  canonical handle.
+
 ## Database & migrations
 
 - Queries use the Knex query builder, not raw SQL, unless unavoidable. Operations

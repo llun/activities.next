@@ -411,6 +411,34 @@ describe('registerAccount', () => {
     )
   })
 
+  // The mirror of the email test above. This service is reachable directly, not
+  // only through `CreateAccountRequest` — which already lowercases — so without
+  // this the `normalizeUsername` call here could be deleted with every test
+  // still green. The actor id is asserted alongside the column because the
+  // username is interpolated into it: normalizing one and not the other is the
+  // failure this guards.
+  it('normalizes a mixed-case username to lowercase before the existence checks and insert', async () => {
+    const result = await registerAccount({
+      database: mockDatabase as unknown as Database,
+      username: '  MixedCase  ',
+      email: 'mixed@example.com',
+      password: 'password123'
+    })
+
+    expect(result.type).toBe('success')
+    expect(result).toMatchObject({
+      username: 'mixedcase',
+      actorId: 'https://llun.test/users/mixedcase'
+    })
+    expect(mockDatabase.isUsernameExists).toHaveBeenCalledWith({
+      username: 'mixedcase',
+      domain: 'llun.test'
+    })
+    expect(mockDatabase.createAccount).toHaveBeenCalledWith(
+      expect.objectContaining({ username: 'mixedcase' })
+    )
+  })
+
   it('still returns success if email sending fails', async () => {
     vi.mocked(getConfig).mockReturnValue({
       host: 'llun.test',

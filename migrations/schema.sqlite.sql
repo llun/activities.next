@@ -275,6 +275,7 @@ CREATE UNIQUE INDEX `oauthresource_identifier_unique` on `oauthResource` (`ident
 CREATE TABLE `oauthClientResource` (`id` varchar(255), `clientId` varchar(255) not null, `resourceId` varchar(255) not null, `metadata` text null, `createdAt` datetime default CURRENT_TIMESTAMP, foreign key(`clientId`) references `oauthClient`(`clientId`) on delete CASCADE, foreign key(`resourceId`) references `oauthResource`(`identifier`) on delete CASCADE, primary key (`id`));
 CREATE TABLE `oauthClientAssertion` (`id` varchar(255), `expiresAt` datetime not null, primary key (`id`));
 CREATE INDEX `statuses_announce_original_actor_idx` on `statuses` (`type`, `originalStatusId`, `actorId`);
+CREATE INDEX "actors_lower_username_domain_idx" ON "actors" (lower("username"), "domain");
 CREATE TABLE `fitness_gear_component_periods` (`id` varchar(255), `componentId` varchar(255) not null, `installSequence` integer not null, `addedAt` datetime null, `removedAt` datetime null, `createdAt` datetime not null, `updatedAt` datetime not null, foreign key(`componentId`) references `fitness_gear_components`(`id`) on delete CASCADE, primary key (`id`));
 CREATE INDEX `fitness_gear_component_periods_component_id_idx` on `fitness_gear_component_periods` (`componentId`);
 CREATE UNIQUE INDEX `fitness_gear_component_periods_sequence_unique` on `fitness_gear_component_periods` (`componentId`, `installSequence`);
