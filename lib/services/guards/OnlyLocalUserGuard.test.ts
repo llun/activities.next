@@ -182,7 +182,7 @@ describe('OnlyLocalUserGuard', () => {
         username: '__INSTANCE__',
         domain: 'llun.test',
         accountId,
-        publicId: 'squatter-public-id-000000000000000000',
+        publicId: 'squatter-public-id-00000000000000000',
         type: 'Person',
         publicKey: 'publicKey',
         privateKey: 'privateKey',
@@ -207,9 +207,14 @@ describe('OnlyLocalUserGuard', () => {
       expect(actor?.account).toBeTruthy()
     })
 
-    // The guard tests the REAL signing-actor usernames (`__instance__` and
-    // `__instance__<digits>`), not the loose `__instance__` PREFIX the mint
-    // refine reserves. A legacy account named `__instance__archive` —
+    // The guard reserves exactly the names the minter can EMIT — bare
+    // `__instance__` and `__instance__<n>` for n >= 1 — not the loose
+    // `__instance__` PREFIX the mint refine reserves, and NOT
+    // `__instance__<digits>` either: the two zero-index rows below ARE digits
+    // and are deliberately served, because the index is an interpolated JS
+    // number that never carries a leading zero.
+    //
+    // A legacy account named `__instance__archive` —
     // registerable before that refine existed — owns an id
     // `getFederationSigningActorId` cannot produce at any index, so 404ing it
     // would silently de-federate a working actor: no actor document, no inbox
@@ -331,7 +336,7 @@ describe('OnlyLocalUserGuard', () => {
       expect(actor?.account).toBeTruthy()
     })
 
-    it('404s it, because __instance__<digits> is a mintable signing id', async () => {
+    it('404s it, because __instance__2 is a name the minter can emit', async () => {
       const guard = OnlyLocalUserGuard(mockHandler)
       const req = createRequest()
       const response = await guard(req, {

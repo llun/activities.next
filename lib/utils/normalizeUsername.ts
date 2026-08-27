@@ -27,11 +27,18 @@
  * trailing dot and `__instance__.` starts folding to `__instance__`, changing
  * which requests are treated as addressing the reserved slot.
  *
- * So the callers are: two mint paths, one reserved-name check, and nothing
- * else. A new rule reaches those three and does NOT propagate to the lookup or
- * the schema — updating those is deliberate work, not inheritance. Enumerate
- * the call sites before changing this; do not trust a summary of them,
- * including this one.
+ * So the callers are FOUR: three on the mint side — `createAccount` and
+ * `createActorForAccount` in `lib/database/sql/account.ts`, plus
+ * `registerAccount`, which is its own layer precisely so a direct service call
+ * cannot bypass the schema — and the guard's reserved-name check. A new rule
+ * reaches those four and does NOT propagate to the lookup or the schema;
+ * updating those is deliberate work, not inheritance.
+ *
+ * Enumerate the call sites with grep before changing this. Do not trust a
+ * summary of them, including this one: an earlier revision of this very
+ * paragraph said "two mint paths ... and nothing else" and missed
+ * `registerAccount`, whose folded value is what feeds `isUsernameExists` and
+ * the `ERR_TAKEN` decision.
  */
 export const normalizeUsername = (username: string): string =>
   username.trim().toLowerCase()

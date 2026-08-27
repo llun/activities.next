@@ -79,10 +79,19 @@ export const OnlyLocalUserGuard =
     // trusted to describe itself here.
     //
     // `isFederationSigningActorIdUsername`, NOT the loose prefix test the mint
-    // refine uses. Only `__instance__` and `__instance__<digits>` can ever be a
-    // signing-actor id, so the prefix form would de-federate a legacy
-    // `__instance__archive` account — 404ing an actor document and inbox that
-    // work on `main` today.
+    // refine uses: it matches exactly the names this instance can MINT a signer
+    // on, so the prefix form would de-federate a legacy `__instance__archive`
+    // account — 404ing an actor document and inbox that work on `main` today.
+    // See that helper for the exact set and for why the two predicates must not
+    // be unified; do NOT restate it here, and in particular do not read it as
+    // "every signing-actor id" (an ADOPTED headless signer can sit outside it)
+    // or as `__instance__<digits>` (`__instance__0` and `__instance__007` are
+    // deliberately not reserved — the minter cannot emit them).
+    //
+    // The second conjunct is what keeps the GENUINE signer served here, on the
+    // routes that opt into it. It is not redundant with the `isAllowedActor`
+    // check above: 7 of this guard's call sites do not pass
+    // `allowFederationSigningActor`, so an adopted signer 404s there already.
     if (
       isFederationSigningActorIdUsername(normalizeUsername(username)) &&
       !isFederationSigningActor(actor)
