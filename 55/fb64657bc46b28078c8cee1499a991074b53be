@@ -1,0 +1,20 @@
+lib/components/settings/ImageUploadField.test.tsx
+  s_3fe1bca77589e8::t_a5c2ced9badfdb 5
+  s_3fe1bca77589e8::t_633fabd94ddec6 146-155,186-191
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "55fb64657bc46b28078c8cee1499a991074b53be",
+  "prompts": {},
+  "sessions": {
+    "s_3fe1bca77589e8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "caf3da96-473b-4fd9-a737-45cd4a8e4924",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
