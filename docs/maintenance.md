@@ -654,6 +654,8 @@ NODE_ENV=development ./scripts/mock/createMockStatuses.ts
 
 The `backfillMediaBlurhash.ts` script scans existing `medias` and `attachments` records that lack a `blurhash` or focal point coordinates, computes them from stored files / URLs, and updates the database. It also fills in a missing `attachments.thumbnailUrl` from the linked `medias` row.
 
+It has a second, separate mode: `--revalidate` re-checks the blurhashes **already** stored on `attachments` and repairs or clears the ones no client can decode, reading no image bytes at all. See [Repairing blurhashes already stored](#repairing-blurhashes-already-stored).
+
 ### Usage
 
 ```bash
@@ -668,6 +670,9 @@ NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --force
 
 # Never fetch a remote attachment URL — only read files this instance stores
 NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --local-only
+
+# Repair blurhashes already stored, without reading a single image byte
+NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --revalidate
 ```
 
 ### Repairing thumbnail URLs written by earlier versions
@@ -696,6 +701,41 @@ Neither count partitions `processed`. A warned row can still appear in `updated`
 ### What `--force` does, and does not, recompute
 
 `--force` recomputes the **blurhash**, and re-derives `thumbnailUrl` from the linked `medias` row even when the stored value is already absolute. It does **not** recompute a **focal point** that is already stored: `PUT /api/v1/media/:id` lets an owner set one by hand, and no column records whether a stored point was set that way or detected automatically, so recomputing would silently discard the owner's choice. A missing focal point is still filled in, with or without the flag.
+
+### Repairing blurhashes already stored
+
+A blurhash is the one piece of media metadata a remote actor hands us directly: it rides on a federated note's attachment and is persisted as given. Before the write path was fixed, the validator tested `hash.trim()` while the caller stored the untrimmed original, so a whitespace-padded hash was approved and written in a form `decode` throws on (`blurhash length mismatch: length is 29 but it should be 28`). A structurally invalid one got through too — right alphabet, right length, but not the length the size flag in its own first character demands, `aaaaaa` being the canonical example — because the check never ran the blurhash package's `isBlurhashValid`.
+
+That fix covers new writes only. Rows written before it keep their broken value, nothing re-validates on read, and the stored string is re-served verbatim to third-party clients as Mastodon's `blurhash` and as an ActivityPub `Document`'s `blurhash`. `--revalidate` is the repair pass for those rows:
+
+```bash
+# See what would change
+NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --revalidate --dry-run
+
+# Apply it
+NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --revalidate
+```
+
+```text
+[attachments 4f1c…] blurhash "  L6PZfSi_.AyE_3t7t7R**0o#DgR4\n" is stored padded; rewriting it as "L6PZfSi_.AyE_3t7t7R**0o#DgR4"
+[attachments 91ab…] blurhash "aaaaaa" is not one `decode` can read; clearing it
+Blurhash revalidation complete: scanned 1204, repaired 2, cleared 37, left 1165 untouched
+```
+
+Three counts, reported separately:
+
+- **`repaired`** — the stored hash was padded around an otherwise good value and has been rewritten to the trimmed form. Nothing else is lost; this is a complete fix.
+- **`cleared`** — the hash could not be salvaged, so the column is now `NULL`. That attachment has no placeholder until something computes one from the image itself.
+- **`untouched`** — already the canonical form. Left byte-for-byte alone.
+
+**Clearing is deliberate, and is better than leaving the value.** `lib/components/posts/media.tsx` holds the `<img>` at `opacity-0` behind a blurhash canvas until the image loads, but only when the attachment has a truthy `blurhash`; a failed `decode` leaves that canvas empty, so an undecodable hash renders an empty box, while a `NULL` one falls through to a plain `<img>`. It does not weaken the placeholder promise described under [Attachments whose `mediaId` resolves to nothing](#attachments-whose-mediaid-resolves-to-nothing) — that promise rests on the attachment carrying a hash a client can actually paint, and a value `decode` refuses never painted one.
+
+Notes on how this mode differs from the rest of the script:
+
+- **It is not `--force`, and the two refuse to run together.** `--force` recomputes a blurhash from the image and costs a download per attachment; this reads no bytes, so it needs neither the storage backend nor the network and stays usable on an instance whose storage is unreachable. Passing both is an error rather than a silent precedence.
+- **It replaces the backfill passes for that run**, rather than running alongside them. The two compose across runs in one direction: `--revalidate` clears what it cannot fix, and those rows then match the normal run's `blurhash IS NULL` selection, so a later ordinary run is what recomputes them from the image where the bytes are still available.
+- **It selects on `blurhash IS NOT NULL` and ignores `mediaType`.** A video attachment carries the blurhash of its poster frame, and the ordinary sweep only ever analyses `image/*`, so this is the only pass that reaches one.
+- **`medias.blurhash` is out of scope.** Every value in that column is produced locally by `computeBlurhash`, so it is canonical by construction; no path stores a peer-supplied hash there.
 
 ### Remote attachment URLs
 
