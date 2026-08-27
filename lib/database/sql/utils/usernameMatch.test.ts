@@ -162,6 +162,103 @@ describe('case-insensitive actor username lookup', () => {
       }))
   })
 
+  // `getMastodonActorFromUsername` differs from `getActorFromUsername` only in
+  // return shape, so it goes through the same helper — but nothing proved it.
+  // A mutation reverting it to its old raw exact-match query left the whole
+  // suite green, because its only callers are pre-existing exact-case fixtures.
+  describe('getMastodonActorFromUsername', () => {
+    it.each([
+      { description: 'the stored spelling', lookup: 'MixedCase' },
+      { description: 'all lowercase', lookup: 'mixedcase' },
+      { description: 'all uppercase', lookup: 'MIXEDCASE' }
+    ])('folds casing the same way, asked with $description', ({ lookup }) =>
+      withFreshDatabase(async (database) => {
+        await createActorWithRawUsername(database, 'MixedCase')
+
+        const actor = await database.getMastodonActorFromUsername({
+          username: lookup,
+          domain: TEST_DOMAIN
+        })
+
+        expect(actor).not.toBeNull()
+        expect(actor?.username).toBe('MixedCase')
+      })
+    )
+
+    it('still refuses a username that is genuinely absent', () =>
+      withFreshDatabase(async (database) => {
+        await createActorWithRawUsername(database, 'MixedCase')
+
+        expect(
+          await database.getMastodonActorFromUsername({
+            username: 'someoneelse',
+            domain: TEST_DOMAIN
+          })
+        ).toBeNull()
+      }))
+  })
+
+  // `domain` is deliberately NOT folded — the helper's docblock calls that a
+  // separate change with its own index implications. The `does not fold across
+  // domains` cases above cannot prove it: they use a DIFFERENT domain, so they
+  // pass whether or not domain is case-folded. Only a same-domain case variant
+  // distinguishes the two, and a mutation folding `domain` alongside `username`
+  // left the whole suite green without these.
+  describe('domain matching stays case-sensitive', () => {
+    it.each([
+      { description: 'uppercased', lookup: TEST_DOMAIN.toUpperCase() },
+      {
+        description: 'capitalised',
+        lookup: TEST_DOMAIN.charAt(0).toUpperCase() + TEST_DOMAIN.slice(1)
+      }
+    ])('getActorFromUsername misses a $description domain', ({ lookup }) =>
+      withFreshDatabase(async (database) => {
+        await createActorWithRawUsername(database, 'alice')
+
+        expect(
+          await database.getActorFromUsername({
+            username: 'alice',
+            domain: lookup
+          })
+        ).toBeNull()
+      })
+    )
+
+    it('and the folded arm does not fold it either', () =>
+      withFreshDatabase(async (database) => {
+        // Username case differs, so the exact arm misses and the FOLDED arm is
+        // what answers — the arm a domain fold would live in.
+        await createActorWithRawUsername(database, 'Alice')
+
+        expect(
+          await database.getActorFromUsername({
+            username: 'alice',
+            domain: TEST_DOMAIN.toUpperCase()
+          })
+        ).toBeNull()
+        // Same lookup with the exact domain still resolves, proving the miss
+        // above is the domain and not the casing fold.
+        expect(
+          await database.getActorFromUsername({
+            username: 'alice',
+            domain: TEST_DOMAIN
+          })
+        ).not.toBeNull()
+      }))
+
+    it('isUsernameExists does not fold domain either', () =>
+      withFreshDatabase(async (database) => {
+        await createActorWithRawUsername(database, 'alice')
+
+        expect(
+          await database.isUsernameExists({
+            username: 'alice',
+            domain: TEST_DOMAIN.toUpperCase()
+          })
+        ).toBe(false)
+      }))
+  })
+
   describe('isUsernameExists', () => {
     it.each([
       { description: 'the stored spelling', lookup: 'MixedCase' },
