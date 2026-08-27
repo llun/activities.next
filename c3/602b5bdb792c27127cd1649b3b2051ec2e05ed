@@ -3,6 +3,7 @@ AGENTS.md
   s_3f35ed36536e83::t_affecb1c877b36 2331
   s_3f35ed36536e83::t_ad4d7635747ac7 2332
   s_3f35ed36536e83::t_2075aefd8e97af 2330
+  s_3f35ed36536e83::t_77da1f0eac726a 2345
 scripts/backup/actorArchive.ts
   s_3f35ed36536e83::t_3ccce199cedb7f 732-735
   s_3f35ed36536e83::t_3a62dea7337eec 23,729,736-737
@@ -16,6 +17,8 @@ scripts/backup/actorArchive.test.ts
   s_3f35ed36536e83::t_54d0a5c344568e 54
 app/api/v1/files/[...pathname]/route.ts
   s_3f35ed36536e83::t_95a023035708f3 23-33
+CLAUDE.md
+  s_3f35ed36536e83::t_1b4e2c1e648d4d 55,58
 ---
 {
   "schema_version": "authorship/3.0.0",
