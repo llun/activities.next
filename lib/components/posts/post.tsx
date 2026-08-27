@@ -38,9 +38,9 @@ import { Actions } from './actions/actions'
 import {
   ActorAvatar,
   ActorInfo,
+  getActorDisplayName,
   getActorIdMention,
-  getActorProfileHref,
-  getDisplayUsername
+  getActorProfileHref
 } from './actor'
 import { Attachments, OnMediaSelectedHandle } from './attachments'
 import { CollapsibleContent } from './collapsible-content'
@@ -95,9 +95,7 @@ interface BoostStatusProps {
 export const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
   if (status.type !== StatusType.enum.Announce) return null
   const actorName =
-    status.actor?.name ||
-    (status.actor && getDisplayUsername(status.actor.username)) ||
-    getActorIdMention(status.actorId)
+    getActorDisplayName(status.actor) || getActorIdMention(status.actorId)
   // Undefined when the boost actor id carries no usable handle (an opaque
   // `did:`/UUID username) — the same case `ActorInfo` renders as plain text.
   const profileHref = getActorProfileHref(status.actor, status.actorId)

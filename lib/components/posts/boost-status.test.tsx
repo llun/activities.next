@@ -110,18 +110,46 @@ describe('BoostStatus', () => {
     )
   })
 
-  it('normalises a malformed federated username before rendering it as the link text', () => {
+  it.each([
+    { case: 'a leading @', username: '@booster' },
+    { case: 'an embedded @', username: 'booster@attacker.example' }
+  ])(
+    'normalises a malformed federated username ($case) before rendering it as the link text',
+    ({ username }) => {
+      render(
+        <BoostStatus
+          status={{
+            ...boost,
+            actor: { ...booster, name: '', username }
+          }}
+        />
+      )
+
+      const link = screen.getByRole('link', { name: 'booster' })
+      expect(link).toHaveAttribute('href', '/@booster@remote.example')
+    }
+  )
+
+  it('derives the link text and href from the same actor id when the username normalises to empty', () => {
     render(
       <BoostStatus
         status={{
           ...boost,
-          actor: { ...booster, name: '', username: '@booster' }
+          actor: { ...booster, name: '', username: '@' }
         }}
       />
     )
 
-    const link = screen.getByRole('link', { name: 'booster' })
+    const link = screen.getByRole('link', { name: '@booster@remote.example' })
     expect(link).toHaveAttribute('href', '/@booster@remote.example')
+  })
+
+  it('gives the booster link at-rest contrast against the muted row it sits in', () => {
+    render(<BoostStatus status={boost} />)
+
+    expect(screen.getByRole('link', { name: 'Booster' })).toHaveClass(
+      'text-foreground'
+    )
   })
 
   it('links the handle recovered from the actor id when the profile is absent', () => {

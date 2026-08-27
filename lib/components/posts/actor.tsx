@@ -30,7 +30,7 @@ const getInitials = (value: string) =>
     .toUpperCase()
     .slice(0, 2)
 
-export const getDisplayUsername = (username: string) =>
+const getDisplayUsername = (username: string) =>
   username.replace(/^@+/, '').split('@')[0]
 
 const getActorMention = (actor: ActorProfile) =>
@@ -151,15 +151,21 @@ const getActorIdHandle = (actorId: string, statusUrl?: string | null) =>
 
 // The profile page an actor links to. Callers that need only the href — the
 // avatar below, and the boosted-by line in `post.tsx` — share this instead of
-// re-deriving it. Undefined when the actor id carries no usable handle (an
-// opaque `did:`/UUID username), which is the case those callers render as
-// plain text rather than as a link to nowhere.
+// re-deriving it. Falls through to the actor-id path when the actor is
+// present but its username normalises to empty (e.g. a federated
+// `preferredUsername` of just `@` characters), so the href is never built
+// from a mention with an empty local part — otherwise undefined when the
+// actor id also carries no usable handle (an opaque `did:`/UUID username),
+// which is the case those callers render as plain text rather than as a link
+// to nowhere.
 export const getActorProfileHref = (
   actor?: ActorProfile | null,
   actorId?: string,
   statusUrl?: string | null
 ): string | undefined => {
-  if (actor) return `/${getActorMention(actor)}`
+  if (actor && getDisplayUsername(actor.username)) {
+    return `/${getActorMention(actor)}`
+  }
   if (!actorId) return undefined
   return getActorIdParts(actorId, statusUrl).href
 }
@@ -171,6 +177,17 @@ export const getActorIdMention = (
   const { handle, domain } = getActorIdParts(actorId, statusUrl)
   return `${handle}${domain}`
 }
+
+// The name a caller shows beside (or instead of) `getActorProfileHref`'s
+// destination — the one composition (`name || getDisplayUsername(username)`)
+// `ActorAvatar`'s initials and `ActorInfo`'s display name already use inline.
+// Undefined when there is no actor to name, mirroring `getActorProfileHref`'s
+// own `undefined` for "nothing to link"; a caller with a fallback of its own
+// (`BoostStatus` reads the actor id instead) chains it with `||`.
+export const getActorDisplayName = (
+  actor?: ActorProfile | null
+): string | undefined =>
+  actor ? actor.name || getDisplayUsername(actor.username) : undefined
 
 // Both author links below opt out of prefetching. `<Link>` prefetches on
 // viewport entry, and every post renders two of them, so scrolling a feed fired
