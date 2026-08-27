@@ -149,6 +149,21 @@ const getActorIdParts = (
 const getActorIdHandle = (actorId: string, statusUrl?: string | null) =>
   getActorIdParts(actorId, statusUrl).handle
 
+// The profile page an actor links to. Callers that need only the href — the
+// avatar below, and the boosted-by line in `post.tsx` — share this instead of
+// re-deriving it. Undefined when the actor id carries no usable handle (an
+// opaque `did:`/UUID username), which is the case those callers render as
+// plain text rather than as a link to nowhere.
+export const getActorProfileHref = (
+  actor?: ActorProfile | null,
+  actorId?: string,
+  statusUrl?: string | null
+): string | undefined => {
+  if (actor) return `/${getActorMention(actor)}`
+  if (!actorId) return undefined
+  return getActorIdParts(actorId, statusUrl).href
+}
+
 export const getActorIdMention = (
   actorId: string,
   statusUrl?: string | null
@@ -167,9 +182,7 @@ export const getActorIdMention = (
 export const ActorAvatar: FC<Props> = ({ actor, actorId, statusUrl }) => {
   if (!actor && !actorId) return null
 
-  const href = actor
-    ? `/${getActorMention(actor)}`
-    : getActorIdParts(actorId || '', statusUrl).href
+  const href = getActorProfileHref(actor, actorId, statusUrl)
   const initials = actor
     ? getInitials(actor.name || getDisplayUsername(actor.username) || '')
     : getInitials(getActorIdHandle(actorId || '', statusUrl))

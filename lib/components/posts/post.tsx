@@ -3,6 +3,7 @@
 import { formatDistance } from 'date-fns'
 import _ from 'lodash'
 import { Activity, ExternalLink, Repeat2 } from 'lucide-react'
+import Link from 'next/link'
 import { FC } from 'react'
 
 import { FitnessStatGrid } from '@/lib/components/fitness/FitnessStatGrid'
@@ -34,7 +35,12 @@ import {
 
 import { BrandedDeviceLink } from './BrandedDeviceLink'
 import { Actions } from './actions/actions'
-import { ActorAvatar, ActorInfo, getActorIdMention } from './actor'
+import {
+  ActorAvatar,
+  ActorInfo,
+  getActorIdMention,
+  getActorProfileHref
+} from './actor'
 import { Attachments, OnMediaSelectedHandle } from './attachments'
 import { CollapsibleContent } from './collapsible-content'
 import { ContentWarning } from './content-warning'
@@ -91,11 +97,35 @@ export const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
     status.actor?.name ||
     status.actor?.username ||
     getActorIdMention(status.actorId)
+  // Undefined when the boost actor id carries no usable handle (an opaque
+  // `did:`/UUID username) — the same case `ActorInfo` renders as plain text.
+  const profileHref = getActorProfileHref(status.actor, status.actorId)
 
   return (
     <div className="flex items-center gap-2 mb-1 text-sm text-muted-foreground ml-12">
       <Repeat2 className="size-4" />
-      <span>Boosted by {actorName}</span>
+      <span>
+        Boosted by{' '}
+        {profileHref ? (
+          // The third actor link in this header, and it carries what the two
+          // in `actor.tsx` carry: `prefetch={false}`, because a feed renders
+          // this row once per boost and `/@user@domain` is a fully dynamic
+          // route that federates out for a remote actor this instance has not
+          // persisted (see "Link prefetching in feeds" in AGENTS.md), and the
+          // same click guard, so opening a profile never doubles as a click on
+          // whatever surface embeds the post.
+          <Link
+            href={profileHref}
+            prefetch={false}
+            className="font-medium hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {actorName}
+          </Link>
+        ) : (
+          actorName
+        )}
+      </span>
     </div>
   )
 }
