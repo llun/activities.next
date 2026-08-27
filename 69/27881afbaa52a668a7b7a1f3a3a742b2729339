@@ -1,0 +1,40 @@
+REVIEW.md
+  s_5c05e157b3e02d::t_c547074d01b409 157-163,165-170
+CLAUDE.md
+  s_5c05e157b3e02d::t_16c6d05fa3e0e8 134
+lib/utils/normalizeUsername.ts
+  s_5c05e157b3e02d::t_d82b1c40260767 22-34
+lib/services/federation/instanceActor.ts
+  s_5c05e157b3e02d::t_25ae18a46e01c4 16-20,22-43
+  s_de87c2a5ef964b::t_8af0492f3de9f7 45
+lib/services/guards/OnlyLocalUserGuard.test.ts
+  s_5c05e157b3e02d::t_18168fb286ee0f 219-228
+  s_5c05e157b3e02d::t_bcb1c41e676c1b 275,291-343
+  s_5c05e157b3e02d::t_768f19efa76160 344-345
+AGENTS.md
+  s_5c05e157b3e02d::t_c547074d01b409 177,179
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "6927881afbaa52a668a7b7a1f3a3a742b2729339",
+  "prompts": {},
+  "sessions": {
+    "s_5c05e157b3e02d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1c386ef-32f2-4ca1-8042-fe368c055720",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_de87c2a5ef964b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "86499a5a-b738-4afb-910f-3deae1bbf5ff",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
