@@ -11,9 +11,11 @@ import { MAX_FILE_SIZE } from '@/lib/services/medias/constants'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { logger } from '@/lib/utils/logger'
 import { safeImageFetch } from '@/lib/utils/safeImageDownload'
 
 import {
+  MEDIA_ARCHIVE_DIR,
   REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS,
   buildActorJson,
   buildExportActivity,
@@ -40,6 +42,15 @@ vi.mock('@/lib/utils/safeImageDownload', async (importOriginal) => {
     await importOriginal<typeof import('@/lib/utils/safeImageDownload')>()
   return { ...actual, safeImageFetch: vi.fn(actual.safeImageFetch) }
 })
+
+vi.mock('@/lib/utils/logger', () => ({
+  logger: {
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn()
+  }
+}))
 
 const buildAttachment = (overrides: Partial<Attachment> = {}): Attachment => ({
   id: 'attachment-1',
@@ -653,6 +664,19 @@ describe('registerAttachmentUrl', () => {
 })
 
 describe('copyProfileImage', () => {
+  // The media directory a stored path is confined to, computed the way
+  // `copyProfileImage` computes it. The literal behind the constant stays
+  // pinned separately, by the `getArchiveMediaPath` tests below.
+  const archiveMediaDir = (stagingDir: string) =>
+    path.resolve(stagingDir, MEDIA_ARCHIVE_DIR)
+
+  // `vi.mock` builds this `vi.fn()` once for the whole file and neither
+  // `clearAllMocks` nor `restoreAllMocks` runs between these tests, so its
+  // calls would otherwise accumulate across the cases below.
+  beforeEach(() => {
+    vi.mocked(logger.warn).mockClear()
+  })
+
   // The archive root sits inside a wider temp root so a traversal out of it
   // has somewhere real to land: `media_attachments/files` is two levels below
   // the staging directory, so `../../../secrets/env` resolves to a file the
@@ -698,9 +722,10 @@ describe('copyProfileImage', () => {
     })
   })
 
-  // `getMediaPathFromFileUrl` refuses a `..` segment before one can reach
-  // here, but this is the step that turns a stored path into a file read off
-  // the operator's machine, so it answers the question for itself.
+  // As `copyProfileImage`'s own comment explains, `getMediaPathFromFileUrl`
+  // refuses a `..` segment before one can reach it. These cases exercise the
+  // local re-check it makes anyway, through the shared
+  // `resolveStorageFilePath`.
   it.each([
     {
       description: 'traverses out of the media dir',
@@ -713,6 +738,14 @@ describe('copyProfileImage', () => {
     {
       description: 'is absolute and outside',
       buildStoragePath: (secretPath: string) => secretPath
+    },
+    {
+      // The one case of the four a prefix compare with no separator boundary
+      // would still let through, so it is what would catch such a check being
+      // inlined here again. `storagePath.test.ts` pins that for the helper;
+      // nothing pinned it for this call site.
+      description: 'names a sibling the media dir prefixes',
+      buildStoragePath: () => '../files-backup/x'
     }
   ])(
     'refuses a profile image whose stored path $description',
@@ -737,6 +770,15 @@ describe('copyProfileImage', () => {
         await expect(
           fs.readFile(path.join(stagingDir, 'avatar.bin'), 'utf-8')
         ).rejects.toThrow()
+        // And the refusal came from the shared helper. That is the half no
+        // result can show: the hand-rolled `path.relative` check this replaced
+        // returns the same null and pushes the same warning for every case
+        // here, so its log is the only observable difference between the two.
+        expect(logger.warn).toHaveBeenCalledWith({
+          message: 'Refused a storage path outside the storage root',
+          storageRootPath: archiveMediaDir(stagingDir),
+          filePath: storagePath
+        })
       })
     }
   )
