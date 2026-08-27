@@ -5,6 +5,7 @@ import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { uploadAttachment } from '@/lib/client'
+import { createDeferred } from '@/lib/testing/deferred'
 
 import { ImageUploadField } from './ImageUploadField'
 
@@ -120,12 +121,8 @@ describe('ImageUploadField', () => {
     // pass with the fix removed. The blur is driven explicitly instead, and
     // what is actually under test is the restoration: focus sitting on the body
     // when an upload finishes is returned to Upload.
-    let resolveUpload: (value: UploadResult) => void = () => {}
-    vi.mocked(uploadAttachment).mockReturnValue(
-      new Promise<UploadResult>((resolve) => {
-        resolveUpload = resolve
-      })
-    )
+    const deferred = createDeferred<UploadResult>()
+    vi.mocked(uploadAttachment).mockReturnValue(deferred.promise)
 
     const { container } = renderField(null)
     const fileInput =
@@ -138,7 +135,7 @@ describe('ImageUploadField', () => {
     // leaves behind when it disables the button that held it.
     expect(document.activeElement).toBe(document.body)
 
-    resolveUpload(uploadResult)
+    deferred.resolve(uploadResult)
 
     await waitFor(() =>
       expect(getSubmittedValue(container, 'iconUrl')).toBe(MEDIA_URL)
@@ -159,12 +156,8 @@ describe('ImageUploadField', () => {
   it('leaves focus alone when the user moved elsewhere during an upload', async () => {
     // The effect only reclaims focus that fell to the body, so someone who
     // tabbed on while the upload ran is not yanked back to it.
-    let resolveUpload: (value: UploadResult) => void = () => {}
-    vi.mocked(uploadAttachment).mockReturnValue(
-      new Promise<UploadResult>((resolve) => {
-        resolveUpload = resolve
-      })
-    )
+    const deferred = createDeferred<UploadResult>()
+    vi.mocked(uploadAttachment).mockReturnValue(deferred.promise)
 
     const { container } = renderField(null)
     const elsewhere = document.createElement('button')
@@ -178,7 +171,7 @@ describe('ImageUploadField', () => {
     })
 
     elsewhere.focus()
-    resolveUpload(uploadResult)
+    deferred.resolve(uploadResult)
 
     await waitFor(() =>
       expect(getSubmittedValue(container, 'iconUrl')).toBe(MEDIA_URL)
