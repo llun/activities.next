@@ -120,7 +120,14 @@ change doesn't touch.
   before `.max()`. `isFederationSigningActorUsername` is a case-sensitive
   `startsWith('__instance__')`, so folding afterwards let `__INSTANCE__` mint a
   confusable neighbour of the instance actor; and a fold can change a string's
-  length (`İ` → two code units), so `.max()` must read the stored value.
+  length. Sitting before `.max()` is defensive ONLY, not load-bearing: the one
+  lengthening mapping is `İ` → `i` + U+0307, and U+0307 is outside
+  `LOCAL_USERNAME_PATTERN`, so the regex refuses any input whose fold changes
+  length wherever `.max()` sits (verified: both `İ` and a 50-char name plus `İ`
+  fail the pattern raw and folded). `AGENTS.md` and the code comment say the
+  same; do not "reconcile" them back to the load-bearing claim, which round 1 of
+  #1592 removed as false and which survived here only because that round fixed
+  two of the three copies.
 - The lookup is **exact-match first, then folded — never a lone
   `lower(username) = ?`.** Two reasons, both load-bearing: SQL `lower()` and JS
   `toLowerCase()` fold different alphabets (SQLite's builtin is ASCII-only, so a
