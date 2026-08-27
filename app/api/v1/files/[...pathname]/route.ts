@@ -20,7 +20,17 @@ export const GET = traceApiRoute(
       Array.isArray(pathname) ? pathname.join('/') : pathname
     )
 
-    // POSIX hosts do not treat Windows drive paths as absolute.
+    // A client's own path reaches a storage driver here: the segments below go
+    // to `getMedia`, which hands them to `LocalFileStorage.getFile`. Other
+    // callers pass the driver a path they did not take from a request — see
+    // "A stored path is confined to the storage root" in AGENTS.md, which
+    // keeps that inventory — so this refusal is the check for THIS input. The
+    // driver's own `resolveStorageFilePath` does not make it redundant: an
+    // absolute path resolves outside the storage root, which that helper
+    // answers with a null, and the route below turns a null into the
+    // placeholder image — a miss served for a read it should never have made.
+    // POSIX hosts do not treat Windows drive paths as absolute, hence the
+    // second test.
     if (path.isAbsolute(normalizedPath) || /^[a-zA-Z]:/.test(normalizedPath)) {
       return apiErrorResponse(404)
     }

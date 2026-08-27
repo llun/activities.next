@@ -10,7 +10,6 @@ import {
   downloadRemoteImage,
   getAttachmentMediaHost,
   getFileBuffer,
-  getLocalStoragePath,
   parseArgs
 } from './backfillMediaBlurhash'
 
@@ -63,233 +62,31 @@ describe('backfillMediaBlurhash parseArgs', () => {
 })
 
 describe('buildInstanceHosts', () => {
-  it.each([
-    {
-      description: 'strips a scheme from the configured host',
-      host: 'https://llun.test',
-      expected: 'llun.test'
-    },
-    {
-      description: 'strips a trailing path',
-      host: 'llun.test/',
-      expected: 'llun.test'
-    },
-    { description: 'lowercases', host: 'LLUN.test', expected: 'llun.test' },
-    {
-      description: 'drops an explicit https default port',
-      host: 'llun.test:443',
-      expected: 'llun.test'
-    },
-    {
-      description: 'keeps a non-default port',
-      host: 'localhost:3000',
-      expected: 'localhost:3000'
-    }
-  ])('$description', ({ host, expected }) => {
-    expect(buildInstanceHosts({ host }).fallbackHost).toBe(expected)
-  })
-
-  it('carries every trusted host into the rule list', () => {
-    const { ownHostRules } = buildInstanceHosts({
-      host: 'llun.test',
-      trustedHosts: ['https://alias.llun.test', 'other.test:443']
-    })
-    expect(ownHostRules).toEqual([
-      'llun.test',
-      'https://alias.llun.test',
-      'other.test:443'
-    ])
-  })
-
-  it('drops empty host entries rather than matching an empty authority', () => {
-    const { ownHostRules } = buildInstanceHosts({
-      host: 'llun.test',
-      trustedHosts: ['', '   ']
-    })
-    expect(ownHostRules).toEqual(['llun.test'])
-  })
-})
-
-describe('getLocalStoragePath', () => {
-  it('recovers the stored path from a URL on the configured host', () => {
+  // The full normalisation table lives with `getCanonicalAuthority` in
+  // `lib/utils/host.test.ts`; this only pins that the fallback host is run
+  // through it, since `getMediaFileUrl` puts the result in an authority.
+  it('normalises the configured host into a bare authority', () => {
     expect(
-      getLocalStoragePath(
-        'https://llun.test/api/v1/files/medias/a.jpg',
-        HOSTS.ownHostRules
-      )
-    ).toBe('medias/a.jpg')
+      buildInstanceHosts({ host: 'https://LLUN.test:443/' }).fallbackHost
+    ).toBe('llun.test')
   })
 
-  it('recovers the stored path from a URL on a trusted alias host', () => {
+  it('keeps a non-default port so a dev instance mints its own URLs', () => {
+    expect(buildInstanceHosts({ host: 'localhost:3000' }).fallbackHost).toBe(
+      'localhost:3000'
+    )
+  })
+
+  // `actors.domain` on a multi-domain instance may be any trusted host, so a
+  // stored `/api/v1/files/` URL is ours on any of them — the media parser only
+  // knows that if the whole list reaches it.
+  it('carries the configured and trusted hosts through to the media parser', () => {
     expect(
-      getLocalStoragePath(
-        'https://alias.llun.test/api/v1/files/medias/a.jpg',
-        HOSTS.ownHostRules
-      )
-    ).toBe('medias/a.jpg')
-  })
-
-  // The regression this guards: `/api/v1/files/` is this project's own route,
-  // so every OTHER activities.next instance serves attachments under exactly
-  // that path. A substring match called those local storage paths.
-  // `ACTIVITIES_TRUSTED_HOSTS` supports `*.example.com` entries everywhere else
-  // in the app, so a literal Set lookup silently disowned a wildcard-covered
-  // subdomain's own storage URLs.
-  it('recovers the stored path from a wildcard-trusted subdomain', () => {
-    const { ownHostRules } = buildInstanceHosts({
-      host: 'llun.test',
-      trustedHosts: ['*.llun.test']
-    })
-    expect(
-      getLocalStoragePath(
-        'https://tenant1.llun.test/api/v1/files/medias/a.jpg',
-        ownHostRules
-      )
-    ).toBe('medias/a.jpg')
-  })
-
-  // `new URL` parses `*` in an authority, and `normalizeHost` refuses a
-  // wildcard, so the literal-equality fallback used to compare the authority
-  // against the wildcard RULE's own spelling and call it ours — letting a
-  // federated attachment url read an attacker-chosen path out of local storage.
-  it('refuses an authority that is literally the wildcard pattern', () => {
-    const { ownHostRules } = buildInstanceHosts({
-      host: 'llun.test',
-      trustedHosts: ['*.llun.test']
-    })
-    expect(
-      getLocalStoragePath(
-        'https://*.llun.test/api/v1/files/other/actors/private.jpg',
-        ownHostRules
-      )
-    ).toBeNull()
-  })
-
-  // A protocol-relative URL carries its own authority; resolving it against a
-  // placeholder origin silently discarded it and made any host look local.
-  // A raw `!startsWith('//')` test is not enough: the WHATWG parser reads `\`
-  // as `/` for a special scheme and strips tab/LF/CR before parsing, so all of
-  // these grow an authority without beginning with `//`.
-  it.each([
-    { description: 'refuses a protocol-relative URL', prefix: '//' },
-    { description: 'refuses a backslash authority', prefix: '/\\' },
-    { description: 'refuses a doubled backslash authority', prefix: '/\\\\' },
-    { description: 'refuses a tab-smuggled authority', prefix: '/\t/' },
-    { description: 'refuses a newline-smuggled authority', prefix: '/\n/' },
-    {
-      description: 'refuses a carriage-return-smuggled authority',
-      prefix: '/\r/'
-    },
-    { description: 'refuses a tab-plus-backslash authority', prefix: '/\t\\' }
-  ])('$description', ({ prefix }) => {
-    expect(
-      getLocalStoragePath(
-        `${prefix}evil.example/api/v1/files/medias/a.jpg`,
-        HOSTS.ownHostRules
-      )
-    ).toBeNull()
-  })
-
-  it('still refuses a foreign host when a wildcard rule is configured', () => {
-    const { ownHostRules } = buildInstanceHosts({
-      host: 'llun.test',
-      trustedHosts: ['*.llun.test']
-    })
-    expect(
-      getLocalStoragePath(
-        'https://evil.example/api/v1/files/medias/a.jpg',
-        ownHostRules
-      )
-    ).toBeNull()
-  })
-
-  it('recognises a loopback host that normalizeHost refuses', () => {
-    const { ownHostRules } = buildInstanceHosts({ host: 'localhost:3000' })
-    expect(
-      getLocalStoragePath(
-        'http://localhost:3000/api/v1/files/medias/a.jpg',
-        ownHostRules
-      )
-    ).toBe('medias/a.jpg')
-  })
-
-  // `new URL` normalises a literal `../`, but a percent-encoded one survives
-  // it and decoding puts it back — so the check has to happen after decoding.
-  it.each([
-    {
-      description: 'rejects a percent-encoded traversal',
-      url: 'https://llun.test/api/v1/files/%2e%2e%2f%2e%2e%2fetc/passwd'
-    },
-    {
-      description: 'rejects an encoded-slash traversal',
-      url: 'https://llun.test/api/v1/files/..%2F..%2Fetc%2Fpasswd'
-    },
-    {
-      description: 'rejects a decoded absolute path',
-      url: 'https://llun.test/api/v1/files/%2Fetc%2Fpasswd'
-    },
-    {
-      description: 'rejects a host-relative traversal',
-      url: '/api/v1/files/../../../../etc/passwd'
-    }
-  ])('$description', ({ url }) => {
-    expect(getLocalStoragePath(url, HOSTS.ownHostRules)).toBeNull()
-  })
-
-  it('returns null for the same path on a remote instance', () => {
-    expect(
-      getLocalStoragePath(
-        'https://remote.example/api/v1/files/medias/a.jpg',
-        HOSTS.ownHostRules
-      )
-    ).toBeNull()
-  })
-
-  it('returns null when the path only appears inside a query string', () => {
-    expect(
-      getLocalStoragePath(
-        'https://remote.example/redirect?to=/api/v1/files/medias/a.jpg',
-        HOSTS.ownHostRules
-      )
-    ).toBeNull()
-  })
-
-  it('accepts a host-relative URL', () => {
-    expect(
-      getLocalStoragePath('/api/v1/files/medias/a.jpg', HOSTS.ownHostRules)
-    ).toBe('medias/a.jpg')
-  })
-
-  it('ignores a query string on our own URL', () => {
-    expect(
-      getLocalStoragePath(
-        'https://llun.test/api/v1/files/medias/a.jpg?v=2',
-        HOSTS.ownHostRules
-      )
-    ).toBe('medias/a.jpg')
-  })
-
-  it('decodes a percent-encoded path', () => {
-    expect(
-      getLocalStoragePath(
-        'https://llun.test/api/v1/files/medias/a%20b.jpg',
-        HOSTS.ownHostRules
-      )
-    ).toBe('medias/a b.jpg')
-  })
-
-  it.each([
-    {
-      description: 'returns null for another route on our host',
-      url: 'https://llun.test/api/v1/statuses/1'
-    },
-    {
-      description: 'returns null for an empty stored path',
-      url: 'https://llun.test/api/v1/files/'
-    },
-    { description: 'returns null for an unparseable URL', url: 'not a url' }
-  ])('$description', ({ url }) => {
-    expect(getLocalStoragePath(url, HOSTS.ownHostRules)).toBeNull()
+      buildInstanceHosts({
+        host: 'llun.test',
+        trustedHosts: ['alias.llun.test']
+      }).hostConfig
+    ).toEqual({ host: 'llun.test', trustedHosts: ['alias.llun.test'] })
   })
 })
 
@@ -410,6 +207,12 @@ describe('backfillMediaBlurhash execution', () => {
   beforeEach(async () => {
     vi.spyOn(console, 'log').mockImplementation(() => undefined)
     vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    // `vi.restoreAllMocks()` in `afterEach` only iterates the spies `vi.spyOn`
+    // registered, so it never reaches a `vi.fn()` created inside a `vi.mock`
+    // factory. Without these two, every test in this block inherits whatever
+    // its predecessor last told these mocks to return.
+    vi.mocked(analyzeImageBuffer).mockReset()
+    vi.mocked(safeImageFetch).mockReset()
 
     db = knex({
       client: 'better-sqlite3',
@@ -697,9 +500,61 @@ describe('backfillMediaBlurhash execution', () => {
     expect(getFile).not.toHaveBeenCalled()
   })
 
-  it('skips the remote download entirely under --local-only', async () => {
-    vi.mocked(safeImageFetch).mockReset()
+  // Wiring for the rest of `getMediaPathFromFileUrl`'s rules, which are proved
+  // in `lib/services/medias/mediaFileUrl.test.ts`: the trusted-host list has to
+  // reach it, and its answer has to be what the sweep asks storage for.
+  it('reads a wildcard-trusted subdomain URL out of local storage', async () => {
+    await db('attachments').insert({
+      id: 'att-1',
+      statusId: 'status-1',
+      actorId: 'https://tenant1.llun.test/users/test',
+      mediaId: null,
+      mediaType: 'image/jpeg',
+      url: 'https://tenant1.llun.test/api/v1/files/medias/a.jpg',
+      blurhash: null
+    })
 
+    const getFile = vi.fn().mockResolvedValue(null)
+    const mockStorage = { getFile } as never
+
+    await backfillAttachments(
+      db,
+      mockStorage,
+      options({ localOnly: true }),
+      buildInstanceHosts({ host: 'llun.test', trustedHosts: ['*.llun.test'] })
+    )
+
+    expect(getFile).toHaveBeenCalledWith('medias/a.jpg')
+  })
+
+  // A percent-encoded `../` survives the pathname normalisation that removes a
+  // literal one, and decoding puts it back. Neither storage driver should be
+  // asked to walk out of its own root.
+  it('does not ask storage for a path that walks out of it', async () => {
+    await db('attachments').insert({
+      id: 'att-1',
+      statusId: 'status-1',
+      actorId: 'https://llun.test/users/test',
+      mediaId: null,
+      mediaType: 'image/jpeg',
+      url: 'https://llun.test/api/v1/files/%2e%2e%2f%2e%2e%2fetc/passwd',
+      blurhash: null
+    })
+
+    const getFile = vi.fn().mockResolvedValue(null)
+    const mockStorage = { getFile } as never
+
+    await backfillAttachments(
+      db,
+      mockStorage,
+      options({ localOnly: true }),
+      HOSTS
+    )
+
+    expect(getFile).not.toHaveBeenCalled()
+  })
+
+  it('skips the remote download entirely under --local-only', async () => {
     await db('attachments').insert({
       id: 'att-1',
       statusId: 'status-1',
@@ -807,8 +662,337 @@ describe('backfillMediaBlurhash execution', () => {
     )
   })
 
+  // Deleting a `medias` row leaves every `attachments.mediaId` that pointed at
+  // it dangling, and the sweep cannot repair such a row: the thumbnailUrl
+  // rebuild is the media block's alone, so a host-relative value stays
+  // host-relative and the row is re-selected by every later run. Before this
+  // warning the operator saw only "processed 1, updated 0".
+  //
+  // The two causes are counted SEPARATELY on purpose. A deleted media row is
+  // the expected residue of an owner deleting their own media; a `mediaId` that
+  // was never a row id is a bad write (`createAttachment` does not validate it,
+  // and `POST /api/v1/accounts/outbox` reaches it unvalidated) and is worth
+  // investigating. Summing them would tell an operator to ignore the second.
+  it.each([
+    {
+      description: 'a mediaId whose media row is gone',
+      mediaId: '404',
+      expectedWarning: 'media 404 no longer exists',
+      expectedSummary:
+        'Attachments complete: processed 1, updated 0, 1 whose media row is gone, 0 with an invalid mediaId'
+    },
+    {
+      // This spelling needs SQLite's `varchar` column; `attachments.mediaId`
+      // is `integer` on PostgreSQL, where the INSERT would fail first. The
+      // BRANCH is not SQLite-only though — `-5` and `0` store fine on
+      // PostgreSQL and `toMediaRowId` refuses them just the same. This file
+      // builds its own `better-sqlite3` database, so no `TEST_DATABASE_TYPE`
+      // exercises the PostgreSQL side either way.
+      description: 'a mediaId that is not a row id',
+      mediaId: 'abc',
+      expectedWarning: 'mediaId "abc" is not a media row id',
+      expectedSummary:
+        'Attachments complete: processed 1, updated 0, 0 whose media row is gone, 1 with an invalid mediaId'
+    }
+  ])(
+    'warns and counts an attachment with $description',
+    async ({ mediaId, expectedWarning, expectedSummary }) => {
+      await db('attachments').insert({
+        id: 'att-1',
+        statusId: 'status-1',
+        actorId: 'https://llun.test/users/test',
+        mediaId,
+        mediaType: 'image/jpeg',
+        url: 'https://llun.test/api/v1/files/medias/orig.jpg',
+        // Already set, so the direct-analysis fallback never runs and the media
+        // row is genuinely this row's only remaining source.
+        blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4',
+        thumbnailUrl: '/api/v1/files/medias/orig-thumbnail.jpg'
+      })
+
+      const mockStorage = { getFile: vi.fn().mockResolvedValue(null) } as never
+      await backfillAttachments(db, mockStorage, options(), HOSTS)
+
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining(expectedWarning)
+      )
+      expect(console.log).toHaveBeenCalledWith(expectedSummary)
+
+      // The warning is not redundant with an update: the row really is left as
+      // it was, host-relative thumbnailUrl and all.
+      const untouched = await db('attachments').where('id', 'att-1').first()
+      expect(untouched.thumbnailUrl).toBe(
+        '/api/v1/files/medias/orig-thumbnail.jpg'
+      )
+    }
+  )
+
+  // The counts do NOT partition `processed`. A row whose `mediaId` resolves to
+  // nothing can still be repaired from its own image bytes, so the warning and
+  // the repair have to be asserted TOGETHER — otherwise suppressing the warning
+  // for exactly the self-healing rows passes. Both branches get a case, because
+  // guarding one and not its twin leaves the same hole on the other side.
+  //
+  // Self-healing is reachable for a deleted media row too: the delete route
+  // removes the stored bytes best-effort and drops the row regardless (see
+  // `app/api/v1/accounts/media/[mediaId]/route.ts`), so the file behind `url`
+  // can outlive the `medias` row that named it.
+  it.each([
+    {
+      description: 'an invalid mediaId',
+      mediaId: 'abc',
+      expectedWarning: 'mediaId "abc" is not a media row id',
+      expectedSummary:
+        'Attachments complete: processed 1, updated 1, 0 whose media row is gone, 1 with an invalid mediaId'
+    },
+    {
+      description: 'a deleted media row',
+      mediaId: '404',
+      expectedWarning: 'media 404 no longer exists',
+      expectedSummary:
+        'Attachments complete: processed 1, updated 1, 1 whose media row is gone, 0 with an invalid mediaId'
+    }
+  ])(
+    'still warns for $description on a row it repairs',
+    async ({ mediaId, expectedWarning, expectedSummary }) => {
+      vi.mocked(analyzeImageBuffer).mockResolvedValue({
+        blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4',
+        focus: null
+      })
+
+      await db('attachments').insert({
+        id: 'att-1',
+        statusId: 'status-1',
+        actorId: 'https://llun.test/users/test',
+        mediaId,
+        mediaType: 'image/jpeg',
+        url: 'https://llun.test/api/v1/files/medias/orig.jpg',
+        blurhash: null
+      })
+
+      const mockStorage = {
+        getFile: vi
+          .fn()
+          .mockResolvedValue({ type: 'buffer', buffer: Buffer.from('image') })
+      } as never
+      await backfillAttachments(db, mockStorage, options(), HOSTS)
+
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining(expectedWarning)
+      )
+      expect(console.log).toHaveBeenCalledWith(expectedSummary)
+
+      const repaired = await db('attachments').where('id', 'att-1').first()
+      expect(repaired.blurhash).toBe('L6PZfSi_.AyE_3t7t7R**0o#DgR4')
+    }
+  )
+
+  // `--dry-run` is the first command `docs/maintenance.md` tells an operator to
+  // run, so the diagnostic has to survive it: the gate covers the UPDATE, not
+  // the counting, and `totalUpdated` deliberately counts what WOULD be written.
+  // The row has to be one that genuinely diverges, or the update block is never
+  // entered and "without writing" asserts nothing — stripping the gate to an
+  // unconditional write passed a fixture that could not reach it.
+  it('counts a row it would write under --dry-run without writing it', async () => {
+    vi.mocked(analyzeImageBuffer).mockResolvedValue({
+      blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4',
+      focus: null
+    })
+
+    await db('attachments').insert({
+      id: 'att-1',
+      statusId: 'status-1',
+      actorId: 'https://llun.test/users/test',
+      mediaId: '404',
+      mediaType: 'image/jpeg',
+      url: 'https://llun.test/api/v1/files/medias/one.jpg',
+      blurhash: null
+    })
+
+    const mockStorage = {
+      getFile: vi
+        .fn()
+        .mockResolvedValue({ type: 'buffer', buffer: Buffer.from('image') })
+    } as never
+    await backfillAttachments(db, mockStorage, options({ dryRun: true }), HOSTS)
+
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('[attachments att-1] media 404 no longer exists')
+    )
+    expect(console.log).toHaveBeenCalledWith(
+      'Attachments complete: processed 1, updated 1, 1 whose media row is gone, 0 with an invalid mediaId'
+    )
+
+    const untouched = await db('attachments').where('id', 'att-1').first()
+    expect(untouched.blurhash).toBeNull()
+  })
+
+  // The warning is per ROW and each counter lives outside the batch loop, so
+  // pinning either needs two rows OF THE SAME CAUSE spread over two batches.
+  // Two rows with different causes does not do it: each counter only ever
+  // reaches one, so collapsing the warning to one call per cause suppresses
+  // nothing and the mutation passes.
+  it.each([
+    {
+      description: 'a deleted media row',
+      mediaIds: ['404', '405'],
+      expectedWarnings: [
+        '[attachments att-1] media 404 no longer exists',
+        '[attachments att-2] media 405 no longer exists'
+      ],
+      expectedSummary:
+        'Attachments complete: processed 2, updated 0, 2 whose media row is gone, 0 with an invalid mediaId'
+    },
+    {
+      description: 'an invalid mediaId',
+      mediaIds: ['nope', 'nah'],
+      expectedWarnings: [
+        '[attachments att-1] mediaId "nope" is not a media row id',
+        '[attachments att-2] mediaId "nah" is not a media row id'
+      ],
+      expectedSummary:
+        'Attachments complete: processed 2, updated 0, 0 whose media row is gone, 2 with an invalid mediaId'
+    }
+  ])(
+    'warns per row and accumulates $description across batches',
+    async ({ mediaIds, expectedWarnings, expectedSummary }) => {
+      await db('attachments').insert(
+        mediaIds.map((mediaId, index) => ({
+          id: `att-${index + 1}`,
+          statusId: 'status-1',
+          actorId: 'https://llun.test/users/test',
+          mediaId,
+          mediaType: 'image/jpeg',
+          url: `https://llun.test/api/v1/files/medias/${index}.jpg`,
+          blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4',
+          thumbnailUrl: `/api/v1/files/medias/${index}-thumbnail.jpg`
+        }))
+      )
+
+      const mockStorage = { getFile: vi.fn().mockResolvedValue(null) } as never
+      await backfillAttachments(
+        db,
+        mockStorage,
+        options({ batchSize: 1 }),
+        HOSTS
+      )
+
+      for (const expectedWarning of expectedWarnings) {
+        expect(console.warn).toHaveBeenCalledWith(
+          expect.stringContaining(expectedWarning)
+        )
+      }
+      expect(console.log).toHaveBeenCalledWith(expectedSummary)
+    }
+  )
+
+  // `options.batchSize` bounds the SELECT, and nothing observed the paging. At
+  // fixture scale one 50-row batch and several 1-row batches produce identical
+  // writes, identical warnings and identical counters — the accumulation case
+  // above runs at a batch size of one on two rows and passes either way — so
+  // hardcoding the limit was invisible to the whole file. Counting the SELECTs
+  // is what tells the two apart.
+  it('pages the attachment scan at the requested batch size', async () => {
+    await db('attachments').insert(
+      [1, 2, 3].map((index) => ({
+        id: `att-${index}`,
+        statusId: 'status-1',
+        actorId: 'https://remote.example/users/them',
+        mediaId: null,
+        // Not an image, so no row reaches the analysis fallback and the sweep
+        // is nothing but the paging under test.
+        mediaType: 'video/mp4',
+        url: 'https://remote.example/media/clip.mp4',
+        blurhash: null
+      }))
+    )
+
+    // `limit` is what narrows this to the PAGING query. Matching every SELECT
+    // against the table counts any other one the loop might later issue — a
+    // per-batch diagnostic count inflated this to 8 — while a limit clause is
+    // exactly what the assertion is about, and a mutation that drops `.limit()`
+    // altogether still fails, on zero matches rather than four.
+    const selects: string[] = []
+    db.on('query', ({ sql }: { sql: string }) => {
+      if (
+        sql.startsWith('select') &&
+        sql.includes('attachments') &&
+        sql.includes('limit')
+      ) {
+        selects.push(sql)
+      }
+    })
+
+    const mockStorage = { getFile: vi.fn().mockResolvedValue(null) } as never
+    await backfillAttachments(db, mockStorage, options({ batchSize: 1 }), HOSTS)
+
+    // One SELECT per row, plus the empty one that ends the loop. A limit that
+    // ignores the option reads all three rows in a single batch and stops at
+    // two.
+    expect(selects).toHaveLength(4)
+  })
+
+  // If you extend the paging coverage: a mutation that stops `lastId` advancing
+  // does not fail, it HANGS well past the 30s `testTimeout`. better-sqlite3 is
+  // a synchronous driver, so the awaits inside the sweep's `while (true)`
+  // settle on the microtask queue and the loop never yields to the timer phase
+  // the watchdog lives in. Kill such a run rather than waiting it out.
+
+  // The summary is a SUMMARY: one line, after the batch loop. Every other
+  // assertion on it is `toHaveBeenCalledWith`, which asks only whether the line
+  // was ever logged — and the last row carries the correct cumulative totals —
+  // so moving the log into either loop passed. Two rows at a batch size of one
+  // separate all three placements: per row and per batch each log twice.
+  it('logs the attachments summary once, as the last line of the sweep', async () => {
+    await db('attachments').insert(
+      [1, 2].map((index) => ({
+        id: `att-${index}`,
+        statusId: 'status-1',
+        actorId: 'https://remote.example/users/them',
+        mediaId: null,
+        mediaType: 'video/mp4',
+        url: 'https://remote.example/media/clip.mp4',
+        blurhash: null
+      }))
+    )
+
+    const mockStorage = { getFile: vi.fn().mockResolvedValue(null) } as never
+    await backfillAttachments(db, mockStorage, options({ batchSize: 1 }), HOSTS)
+
+    const expectedSummary =
+      'Attachments complete: processed 2, updated 0, 0 whose media row is gone, 0 with an invalid mediaId'
+    const logged = vi
+      .mocked(console.log)
+      .mock.calls.map((call) => String(call[0]))
+    expect(
+      logged.filter((line) => line.startsWith('Attachments complete:'))
+    ).toEqual([expectedSummary])
+    expect(logged.at(-1)).toBe(expectedSummary)
+  })
+
+  // A NULL `mediaId` is how a federated attachment is stored — there is no
+  // media row to miss — so both counts have to stay at zero or every remote
+  // attachment on the instance reads as a gap.
+  it('counts neither cause for a federated attachment', async () => {
+    await db('attachments').insert({
+      id: 'att-1',
+      statusId: 'status-1',
+      actorId: 'https://remote.example/users/them',
+      mediaId: null,
+      mediaType: 'video/mp4',
+      url: 'https://remote.example/media/clip.mp4',
+      blurhash: null
+    })
+
+    const mockStorage = { getFile: vi.fn().mockResolvedValue(null) } as never
+    await backfillAttachments(db, mockStorage, options({ force: true }), HOSTS)
+
+    expect(console.log).toHaveBeenCalledWith(
+      'Attachments complete: processed 1, updated 0, 0 whose media row is gone, 0 with an invalid mediaId'
+    )
+  })
+
   it('runs a remote attachment URL through the download guard by default', async () => {
-    vi.mocked(safeImageFetch).mockReset()
     vi.mocked(safeImageFetch).mockResolvedValue(null)
 
     await db('attachments').insert({
@@ -830,6 +1014,25 @@ describe('backfillMediaBlurhash execution', () => {
     expect(safeImageFetch).toHaveBeenCalledWith(
       'https://remote.example/media/photo.jpg'
     )
+  })
+
+  // A guard on the fixture rather than on the script, placed last so it runs
+  // after the tests that dirty these mocks — `beforeEach` reruns regardless, so
+  // placement is what gives the guard a failing case rather than a passing one.
+  // The leak it guards: `vi.restoreAllMocks()` never reaches a `vi.fn()` a
+  // `vi.mock` factory created, so without the reset above these two carry their
+  // implementation and their call history across the whole block, and two tests
+  // here used to work around that with a local `mockReset()`. Nothing depended
+  // on the leak, but a test written against either mock's DEFAULT behaviour
+  // would silently inherit a neighbour's. `sequence.shuffle` is not configured;
+  // a shuffled run degrades this to a vacuous pass, never a false failure.
+  it('starts every test with the module mocks reset', () => {
+    expect(vi.mocked(analyzeImageBuffer).mock.calls).toHaveLength(0)
+    expect(
+      vi.mocked(analyzeImageBuffer).getMockImplementation()
+    ).toBeUndefined()
+    expect(vi.mocked(safeImageFetch).mock.calls).toHaveLength(0)
+    expect(vi.mocked(safeImageFetch).getMockImplementation()).toBeUndefined()
   })
 })
 
@@ -1003,6 +1206,36 @@ describe('backfillMedias', () => {
     expect(updated.blurhash).toBe('FRESHHASH')
     expect(updated.focusX).toBe(0.5)
     expect(updated.focusY).toBe(-0.25)
+  })
+
+  // `--dry-run` is the first command `docs/maintenance.md` tells an operator to
+  // run, and nothing exercised this half of the gate — collapsing it to an
+  // unconditional write passed the whole file. The row has to be one that
+  // genuinely diverges, or the update block is never reached and "without
+  // writing" asserts nothing; the `backfillAttachments` case is the model.
+  it('counts a media row it would write under --dry-run without writing it', async () => {
+    await insertMedia({ blurhash: null, focusX: null, focusY: null })
+    vi.mocked(analyzeImageBuffer).mockResolvedValue({
+      blurhash: 'FRESHHASH',
+      focus: { x: 0.5, y: -0.25 }
+    })
+
+    await backfillMedias(db, storage(), options({ dryRun: true }))
+
+    const untouched = await db('medias').where('id', 1).first()
+    expect(untouched.blurhash).toBeNull()
+    expect(untouched.focusX).toBeNull()
+    expect(untouched.focusY).toBeNull()
+
+    const logged = vi
+      .mocked(console.log)
+      .mock.calls.map((call) => String(call[0]))
+    expect(logged).toContain(
+      '[DRY RUN] [medias 1] would update {"blurhash":"FRESHHASH","focusX":0.5,"focusY":-0.25}'
+    )
+    // `totalUpdated` deliberately counts what WOULD be written, so the summary
+    // still reports the size of the pending repair.
+    expect(logged).toContain('Medias complete: processed 1, updated 1')
   })
 
   // --force re-reads rows that already have a blurhash. When the recomputed

@@ -17,6 +17,7 @@ import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import { toDomainAccount } from '@/lib/database/sql/utils/toDomainAccount'
+import { findActorRowByUsername } from '@/lib/database/sql/utils/usernameMatch'
 import {
   AccountDatabase,
   ChangePasswordParams,
@@ -61,6 +62,7 @@ import {
   getLocalActorSharedInboxId
 } from '@/lib/utils/activitypubId'
 import { normalizeEmail } from '@/lib/utils/normalizeEmail'
+import { normalizeUsername } from '@/lib/utils/normalizeUsername'
 import { generatePublicId } from '@/lib/utils/publicId'
 
 // better-auth 1.7 resolves a credential row by `issuer` as well as `providerId`
@@ -87,17 +89,15 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
   },
 
   async isUsernameExists({ username, domain }: IsUsernameExistsParams) {
-    const response = await database('actors')
-      .where('username', username)
-      .andWhere('domain', domain)
-      .count<{ count: string }>('id as count')
-      .first()
-    return parseInt(response?.count ?? '0', 10) > 0
+    // Case-insensitive, so an existing `Alice` refuses a new `alice`. Without
+    // this the two creation paths would mint a second actor whose handle is
+    // indistinguishable from the first one's to every case-insensitive client.
+    return Boolean(await findActorRowByUsername(database, { username, domain }))
   },
 
   async createAccount({
     email,
-    username,
+    username: rawUsername,
     name,
     passwordHash,
     verificationCode,
@@ -106,6 +106,17 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     publicKey
   }: CreateAccountParams) {
     const normalizedEmail = normalizeEmail(email)
+    // Normalized here as well as in the request schema for the same reason
+    // emails are: a caller reaching this method directly cannot produce a
+    // mixed-case handle. It matters more than it does for email — `username` is
+    // interpolated into `actorId` below, so the column and the ActivityPub id
+    // are derived from one value and cannot drift.
+    //
+    // NOT the only place a local actor row is written: `createActorForAccount`
+    // is the second account-facing mint path, and `getFederationSigningActor`
+    // (`actor.ts`) inserts its own row bypassing both. Each has to make this
+    // one-variable argument for itself.
+    const username = normalizeUsername(rawUsername)
     const accountId = crypto.randomUUID()
     const actorId = getLocalActorId({ domain, username })
     const currentTime = new Date()
@@ -425,11 +436,14 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
 
   async createActorForAccount({
     accountId,
-    username,
+    username: rawUsername,
     domain,
     privateKey,
     publicKey
   }: CreateActorForAccountParams): Promise<string> {
+    // See createAccount: the local mint paths normalize so the stored username
+    // and the actor id it is interpolated into always agree.
+    const username = normalizeUsername(rawUsername)
     const actorId = getLocalActorId({ domain, username })
     const currentTime = new Date()
 

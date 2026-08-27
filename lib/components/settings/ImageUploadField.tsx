@@ -1,7 +1,7 @@
 'use client'
 
-import { Loader2, Upload } from 'lucide-react'
-import { FC, SyntheticEvent, useRef, useState } from 'react'
+import { Loader2, Upload, X } from 'lucide-react'
+import { FC, SyntheticEvent, useEffect, useRef, useState } from 'react'
 
 import { uploadAttachment } from '@/lib/client'
 import { useInstanceLimits } from '@/lib/components/instance-limits'
@@ -20,7 +20,6 @@ interface ImageUploadFieldProps {
   fieldName: 'iconUrl' | 'headerImageUrl'
   currentUrl: string | null
   label: string
-  placeholder: string
   previewType: 'thumbnail' | 'landscape'
 }
 
@@ -28,7 +27,6 @@ export const ImageUploadField: FC<ImageUploadFieldProps> = ({
   fieldName,
   currentUrl,
   label,
-  placeholder,
   previewType
 }) => {
   // The instance's configured upload cap (admin setting media.maxFileSize), so
@@ -39,9 +37,48 @@ export const ImageUploadField: FC<ImageUploadFieldProps> = ({
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [isHovering, setIsHovering] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const uploadButtonRef = useRef<HTMLButtonElement>(null)
+  const wasUploadingRef = useRef(false)
+
+  // The other half of the same WCAG 2.4.3 problem `handleRemoveClick` solves.
+  // Both buttons are `disabled` while an upload runs, and disabling the element
+  // that currently holds focus drops it to `<body>` — activating Upload leaves
+  // focus on Upload (clicking a `display: none` file input moves nothing), so
+  // every upload, successful or failed, stranded a keyboard user at the top of
+  // the page. Restoring afterwards has to wait for the re-render that clears
+  // `disabled`, since focus does not stick to a still-disabled button. Only
+  // reclaimed when focus actually fell to the body, so a user who moved on
+  // during the upload is not yanked back.
+  useEffect(() => {
+    const finished = wasUploadingRef.current && !isUploading
+    wasUploadingRef.current = isUploading
+    if (!finished) return
+    if (document.activeElement === document.body) {
+      uploadButtonRef.current?.focus()
+    }
+  }, [isUploading])
 
   const handleUploadClick = () => {
     fileInputRef.current?.click()
+  }
+
+  const handleRemoveClick = () => {
+    // Hand focus to Upload. Remove is rendered only while a value is set, so
+    // clearing unmounts the button that was just activated — and a focused
+    // element removed from the document drops focus to `<body>`, sending the
+    // next Tab back to the top of the page (WCAG 2.4.3). The media strip's
+    // chevrons have the same shape and are documented in AGENTS.md; their fix
+    // (leave the control out of the tab order) does not apply here, because
+    // Remove is the only way to clear the image.
+    //
+    // React batches the state update below, so the unmount happens after this
+    // handler returns and the call would work after it too. It sits first so
+    // the handoff does not depend on that batching.
+    uploadButtonRef.current?.focus()
+    // Submitting an empty value is how both profile routes are told to clear
+    // the stored image.
+    setImageUrl('')
+    setUploadError(null)
   }
 
   const handleFileSelect = async (
@@ -127,22 +164,41 @@ export const ImageUploadField: FC<ImageUploadFieldProps> = ({
         </div>
       )}
 
-      {/* Input field with upload button */}
+      {/* The field is read-only because the routes behind it only accept a URL
+          on this instance's own media path, which is exactly what the upload
+          button produces. A typeable box would invite a remote URL that
+          the server refuses. */}
       <div className="flex gap-2">
         <Input
           type="text"
           id={fieldName}
           value={imageUrl}
-          onChange={(e) => setImageUrl(e.target.value)}
-          placeholder={placeholder}
-          className="flex-1"
+          readOnly
+          placeholder="No image uploaded yet"
+          // `Input` styles `disabled` but not `readOnly`, so without a muted
+          // surface this reads as a typeable box sitting under Name and
+          // Summary, which are. It stays `readOnly` rather than `disabled`
+          // because the preview above is a background-image `div` that
+          // assistive tech cannot see — this field is the only announced
+          // representation of which image is set, and `disabled` would drop it
+          // from the tab order.
+          //
+          // `dark:bg-muted` is required, not redundant. `Input`'s own base
+          // carries `dark:bg-input/30`, and this project compiles the dark
+          // variant as `&:is(.dark *)` — `:is()` takes its most specific
+          // argument's specificity, so that base rule outranks a bare
+          // `bg-muted` and the field stayed indistinguishable in dark mode.
+          // Naming the same variant lets `twMerge` drop the base instead.
+          className="flex-1 bg-muted dark:bg-muted"
         />
         <Button
+          ref={uploadButtonRef}
           type="button"
           variant="outline"
           size="icon"
           onClick={handleUploadClick}
           disabled={isUploading}
+          aria-label={isUploading ? `Uploading ${label}` : `Upload ${label}`}
         >
           {isUploading ? (
             <Loader2 className="size-4 animate-spin" />
@@ -150,6 +206,18 @@ export const ImageUploadField: FC<ImageUploadFieldProps> = ({
             <Upload className="size-4" />
           )}
         </Button>
+        {imageUrl && (
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={handleRemoveClick}
+            disabled={isUploading}
+            aria-label={`Remove ${label}`}
+          >
+            <X className="size-4" />
+          </Button>
+        )}
       </div>
 
       {/* Hidden file input */}

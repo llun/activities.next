@@ -48,7 +48,8 @@ describe('evaluateGearServiceReminders', () => {
       actorId: string,
       gearId: string,
       suffix: string,
-      distanceMeters: number
+      distanceMeters: number,
+      activityStartTime = new Date('2026-05-01T08:00:00.000Z')
     ) => {
       const file = await db.createFitnessFile({
         actorId,
@@ -60,7 +61,7 @@ describe('evaluateGearServiceReminders', () => {
       })
       await db.updateFitnessFileActivityData(file!.id, {
         activityType: 'cycling',
-        activityStartTime: new Date('2026-05-01T08:00:00.000Z'),
+        activityStartTime,
         totalDistanceMeters: distanceMeters
       })
       await db.updateFitnessFileProcessingStatus(file!.id, 'completed')
@@ -305,6 +306,58 @@ describe('evaluateGearServiceReminders', () => {
           gearIds: [shoes.id]
         })
       ).resolves.toBeUndefined()
+    })
+
+    // Refitting used to make a component's total JUMP by everything ridden
+    // while it was off the bike, and since reminders are evaluated on write the
+    // crossing that jump created fired on the very next processed activity.
+    // With install periods the total does not move, so there is no crossing.
+    it('does not fire a crossing invented by refitting a part', async () => {
+      const bike = await database.createFitnessGear({
+        actorId: actors.followRequester.id,
+        kind: 'bike',
+        name: 'Refit reminder bike'
+      })
+      const component = await database.createFitnessGearComponent({
+        gearId: bike.id,
+        actorId: actors.followRequester.id,
+        componentType: 'Chain',
+        addedAt: new Date('2026-01-01T00:00:00.000Z'),
+        removedAt: new Date('2026-02-01T00:00:00.000Z'),
+        serviceDistanceMeters: 100_000
+      })
+
+      // Well under the threshold while the chain was fitted...
+      await addRide(
+        database,
+        actors.followRequester.id,
+        bike.id,
+        'refit-fitted',
+        50_000,
+        new Date('2026-01-15T08:00:00.000Z')
+      )
+      // ...and far over it on the rides the chain was not there for.
+      await addRide(
+        database,
+        actors.followRequester.id,
+        bike.id,
+        'refit-gap',
+        120_000,
+        new Date('2026-02-15T08:00:00.000Z')
+      )
+
+      await database.refitFitnessGearComponent({
+        id: component!.id,
+        gearId: bike.id,
+        actorId: actors.followRequester.id
+      })
+      await evaluateGearServiceReminders({
+        database,
+        actorId: actors.followRequester.id,
+        gearIds: [bike.id]
+      })
+
+      expect(createNotificationWithPolicy).not.toHaveBeenCalled()
     })
   })
 })

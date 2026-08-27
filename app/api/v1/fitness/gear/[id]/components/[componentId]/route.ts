@@ -1,5 +1,8 @@
 import { toGearComponentEntity } from '@/lib/services/fitness-gears/gearEntities'
-import { UpdateGearComponentRequest } from '@/lib/services/fitness-gears/gearRequests'
+import {
+  UpdateGearComponentRequest,
+  getComponentPeriodBoundsError
+} from '@/lib/services/fitness-gears/gearRequests'
 import { rejectComponentsForDevice } from '@/lib/services/fitness-gears/gearRouteGuards'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import {
@@ -45,12 +48,12 @@ export const PATCH = traceApiRoute(
     if (rejection) return rejection
 
     // The schema's own `removedAt > addedAt` rule can only see this request, so
-    // a partial PATCH that moves one end of the install window has to be
-    // checked against the stored other end — the same way the gear PATCH one
-    // directory up validates its kind-scoped fields against the stored gear.
-    // Left to the schema alone, `PATCH { removedAt }` earlier than the stored
-    // `addedAt` writes a window no activity can ever fall inside: the component
-    // reads 0 km on every surface and its service reminder can never fire.
+    // a partial PATCH that moves one end of an install period has to be checked
+    // against the stored other end — delegated to a named function beside the
+    // schemas, the same way the gear PATCH one directory up hands its
+    // kind-scoped fields to `getGearKindFieldError`. Which period each bound
+    // lands on is the whole subtlety, and it is worth being able to test on its
+    // own rather than only through this route.
     if ('addedAt' in parsed.data || 'removedAt' in parsed.data) {
       const components = await database.getFitnessGearComponents({
         gearId: id,
@@ -61,20 +64,21 @@ export const PATCH = traceApiRoute(
       )
       if (!existing) return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
 
-      const addedAt =
-        'addedAt' in parsed.data
-          ? (parsed.data.addedAt ?? null)
-          : (existing.addedAt ?? null)
-      const removedAt =
-        'removedAt' in parsed.data
-          ? (parsed.data.removedAt ?? null)
-          : (existing.removedAt ?? null)
-
-      if (addedAt !== null && removedAt !== null && removedAt <= addedAt) {
+      // `parsed.data` is handed over whole rather than rebuilt: the schema's
+      // `.nullish()` sits OUTERMOST, so a key absent from the body is absent
+      // here too and an explicit null arrives present-and-null — which is
+      // exactly the presence the check reads. Reconstructing that with
+      // conditional spreads only restates it, and the fields it would leave out
+      // are ones the check never looks at.
+      const boundsError = getComponentPeriodBoundsError(
+        existing.periods,
+        parsed.data
+      )
+      if (boundsError) {
         return apiResponse({
           req,
           allowedMethods: [],
-          data: { error: 'removedAt must be after addedAt' },
+          data: { error: boundsError },
           responseStatusCode: 422
         })
       }

@@ -101,6 +101,84 @@ change doesn't touch.
   not parse backend-specific constraint names or messages, which differ across
   SQLite and PostgreSQL.
 
+## Actor usernames
+
+- A local username is the last path segment of the actor's ActivityPub id
+  (`getLocalActorId` → `https://<domain>/users/<username>`, and every local
+  status id is `${actorId}/statuses/${n}`), so casing is an identity question,
+  not a cosmetic one. Every local mint lowercases through `normalizeUsername`
+  (`lib/utils/normalizeUsername.ts`) and every lookup folds through
+  `findActorRowByUsername` (`lib/database/sql/utils/usernameMatch.ts`).
+- Normalization is layered like email's: `localUsernameSchema`,
+  `registerAccount`, **and** `createAccount`/`createActorForAccount`. The last is
+  the one that matters — it is where the column and the id are
+  derived from one variable and so cannot drift. It is NOT the only place a local
+  actor row is written — `getFederationSigningActor` inserts its own — and the
+  schema's fold is a SECOND spelling of the rule (Zod's `.trim().toLowerCase()`,
+  not a `normalizeUsername` call), pinned against it by `localUsername.test.ts`.
+- The fold in `localUsernameSchema` runs **before** the reserved-name refine and
+  before `.max()`. `isFederationSigningActorUsername` is a case-sensitive
+  `startsWith('__instance__')`, so folding afterwards let `__INSTANCE__` mint a
+  confusable neighbour of the instance actor; and a fold can change a string's
+  length. Sitting before `.max()` is defensive ONLY, not load-bearing: the one
+  lengthening mapping is `İ` → `i` + U+0307, and U+0307 is outside
+  `LOCAL_USERNAME_PATTERN`, so the regex refuses any input whose fold changes
+  length wherever `.max()` sits (verified: both `İ` and a 50-char name plus `İ`
+  fail the pattern raw and folded). `AGENTS.md` and the code comment say the
+  same; do not "reconcile" them back to the load-bearing claim, which round 1 of
+  #1592 removed as false and which survived here only because that round fixed
+  two of the three copies.
+- The lookup is **exact-match first, then folded — never a lone
+  `lower(username) = ?`.** Two reasons, both load-bearing: SQL `lower()` and JS
+  `toLowerCase()` fold different alphabets (SQLite's builtin is ASCII-only, so a
+  fold-only query stops finding a stored `Фёдор`), and local actors minted before
+  normalization keep their casing — they are deliberately not migrated, since
+  their ids are already federated — so an instance can hold both `Alice` and
+  `alice` and `/@Alice` must not resolve to `alice`. The folded arm orders by
+  `createdAt`, `id` so an unmatched casing resolves to whoever claimed the name
+  first rather than to whatever the index yields.
+- `isUsernameExists` folds too — that is what refuses a new `alice` beside an
+  existing `Alice`. The DB unique index stays case-sensitive on purpose: a
+  functional UNIQUE index would refuse to build on an instance that already holds
+  a colliding pair. Note the TOCTOU rule above still holds and is not weakened by
+  this, because every new local actor is lowercase, so a race is a
+  lowercase-vs-lowercase collision the existing unique index still catches.
+- **MySQL is skipped in both halves** — the migration creates no index and the
+  folded arm never runs. Its default collations already fold (so does its unique
+  index, so a colliding pair cannot exist there), the DDL is not portable to it
+  or to MariaDB, and running the folded query anyway would scan `actors` on every 404. A `_bin`/`_cs` collation gives that backend case-sensitive usernames,
+  which is the behaviour it had before, not a new regression.
+- `OnlyLocalUserGuard` resolves by username, never by rebuilding the actor id
+  from the path segment. It fronts the whole ActivityPub surface, and a rebuilt
+  id matches exactly one spelling — which is how `/api/users/alice` came to 404
+  while every human-facing surface folded. Matching `domain` against
+  `headerHost` preserves the host binding.
+- `domain` matching inside the lookup stays exact — but NOT because callers
+  normalize it. `app/api/v1/accounts/lookup/route.ts` has its own
+  locally-shadowed `parseAccountHandle` that does not lowercase domain, and
+  `resolveStatusFromPath.ts` splits the segment inline with none; WebFinger
+  carries its own domain fallback precisely because that is not a guarantee.
+  Note `getExactAccountIds` in `lib/database/sql/search/` DOES fold domain, so
+  search and lookup disagree on `alice@Example.COM` — pre-existing.
+- The folded arm folds CASE only. It uses a bare `toLowerCase()`, never
+  `normalizeUsername`, which also trims: a trimmed input compared against an
+  untrimmed column is asymmetric and can only ADD matches, which is how
+  `/users/%20alice%20` served a whole actor surface. Shared-cache keys are not
+  the reason — case folding creates URL variants regardless.
+- `OnlyLocalUserGuard` 404s a segment folding to a username this instance could
+  MINT a signer on (`isFederationSigningActorIdUsername`,
+  `/^__instance__([1-9]\d*)?$/`) unless the actor IS the genuine signing actor —
+  without that, a legacy `__INSTANCE__` account answered at
+  `getFederationSigningActorId(domain)`. **Do not widen it to the
+  `isFederationSigningActorUsername` prefix the mint refine uses**, which
+  de-federates a legacy `__instance__archive` or `__instance__0` account; and do
+  not narrow the loose form onto the precise one, because
+  `getExistingHeadlessActor` adopts any headless `__instance__%` Service row as
+  the signer and validates it loosely.
+- Remote usernames are stored verbatim — a remote server mints its own ids.
+  WebFinger answers with the **stored** casing, so an echoed `subject` is the
+  canonical handle.
+
 ## Database & migrations
 
 - Queries use the Knex query builder, not raw SQL, unless unavoidable. Operations
@@ -477,6 +555,21 @@ attachment ref guard` is exactly that: it passed with the bug present until
   twice and expects one query reads two and proves nothing either way. Scopes are
   sequential: React's dispatcher is a single mutable global, so a nested or
   concurrent scope throws instead of pretending to isolate.
+- **`vi.restoreAllMocks()` does not reset a `vi.fn()` a `vi.mock` factory
+  created** — it only iterates the spies `vi.spyOn` registered. A module mocked
+  as `vi.mock('@/path', () => ({ fn: vi.fn() }))` keeps its implementation and
+  its call history across the whole file, so reset each export explicitly in
+  `beforeEach`. A lone `vi.mocked(fn).mockReset()` at the top of one test is the
+  tell: that test noticed the leak and worked around it instead of fixing the
+  hook.
+- **`toHaveBeenCalledWith` is "was ever called", not "was the only call".** A
+  once-per-run summary asserted that way passes when it is logged once per row,
+  because the last row's cumulative totals are correct. Pin the count by
+  filtering `mock.calls` and asserting the list with `toEqual`, over a fixture
+  where the wrong placement logs twice. Same blind spot for a hardcoded page
+  size: at fixture scale one big batch and several small ones are
+  indistinguishable by result, so paging needs the SELECTs counted off knex's
+  `query` event.
 - Tests run on **Vitest** (`vi.*`, not `jest.*`). To read a mocked module and
   configure it, prefer **`vi.importMock<T>('@/path')`** over
   `(await import('@/path')) as unknown as T`. `vi.importMock` is purpose-built,
@@ -522,6 +615,94 @@ attachment ref guard` is exactly that: it passed with the bug present until
   loopback development hosts, which `isHostTrustedByRules` alone rejects.
   `getAttachmentMediaPath` is not this check: it never returns null and is for
   URLs this instance just produced.
+- **The path it recovers must also be refused when it walks upwards, is
+  absolute, or carries a NUL byte — and that check runs AFTER decoding**
+  (`isTraversingStoragePath`, shared with the blurhash backfill; do not fork
+  it). `new URL()` resolves dot segments only where the separators are literal
+  slashes, so `https://<our-host>/api/v1/files/..%2f..%2fsecrets/env` reaches
+  the decoder still spelled `..%2f` and comes back as `../../secrets/env`; the
+  host-relative branch parses no URL at all, so a plain
+  `/api/v1/files/../../secrets/env` is never normalised either.
+  `copyProfileImage` joined that onto the staging directory and copied whatever
+  it found into the archive as `avatar.<ext>`, and `iconUrl` is a bare
+  `z.string()` any signed-in user can set — so this was a live arbitrary-file
+  read, not a hardening exercise. Refuse only a segment that RESOLVES to `..`:
+  `ab/..cd.webp` is an ordinary stored file name. Cover Windows too — `\` is a
+  separator, `C:` is absolute, and Win32 strips a component's trailing dots and
+  spaces carrying two or more dots, since Windows normalises trailing dots away
+  and Node's own `path.win32` does not model that. Refusing the whole shape is
+  deliberately wider than what Win32 actually collapses — no stored path is
+  named out of dots, so over-refusing costs nothing and does not depend on
+  getting the platform's rules exactly right.
+- **Do not answer "the storage driver will reject it".** `LocalFileStorage.getFile`
+  does make a containment check; `S3FileStorage.getFile` makes none — a
+  traversing key is merely inert there, and with a CDN `hostname` configured it
+  is string-concatenated into a redirect URL. Any new step that turns a stored
+  path into a filesystem read should still resolve and confirm containment for
+  itself, the way `copyProfileImage` and `createMediaTempFilePath` do — a
+  signature taking a bare path says nothing about where the path came from.
+- **A wildcard trusted-host entry is not a literal authority, and the check
+  belongs AFTER parsing.** `new URL()` accepts `*` in a host, so an
+  exact-authority comparison against the rule's own spelling let
+  `https://*.cdn.example/api/v1/files/<path>` pass as ours. Both of
+  `isOwnInstanceHost`'s passes need a guard: the exact pass reads RAW rules so
+  it skips any rule containing `*`, and `normalizeHost` — which recognised the
+  documented `*.example.com` form only on the raw value, leaving `*example.com`,
+  `cdn.*` and `foo.*.example.com` as literal hostnames a `%2a`-spelled
+  authority matched exactly — now refuses any parsed hostname still containing
+  one, reading the `*.` marker off the AUTHORITY so a scheme-prefixed rule
+  still expands.
+- **Three consumers of `ACTIVITIES_TRUSTED_HOSTS` apply that refusal, each on
+  the PARSED hostname** — `normalizeHost`, `buildTrustedOrigins` and
+  `toHostname` — because each reads a misplaced wildcard differently. A fourth,
+  `isOwnAuthority` in the blurhash backfill, was deleted by #1570: that sweep
+  asks `isOwnInstanceHost` now and inherits its guards. `buildTrustedOrigins` hands it to
+  better-auth, which globs any pattern containing `*`, so `*example.com`
+  trusted `evilexample.com` for the auth Origin check and for
+  `callbackURL`/`redirectTo` — an open redirect carrying auth callbacks.
+  **Check after parsing, never before: the parser is what MAKES the `*`.** It
+  percent-decodes the authority, applies IDNA mapping and strips tab/CR/LF, so
+  `%2aexample.com` and a fullwidth `＊example.com` sail past a raw check — which
+  buys nothing anyway, since a literal `*example.com` parses to a hostname
+  carrying the same `*`. Where a guard reads `hostname` but emits `origin`, it
+  must also require a web scheme: `blob:` derives its origin from the inner URL
+  in its PATH and reports an empty host, the one scheme where the two disagree.
+  `getAllowedOrigins` in the Apple Maps token route is a fifth consumer that
+  deliberately does not filter — whether MapKit globs `*` is unverified, so
+  establish that before sweeping it.
+- **A stored path is confined to the storage root by
+  `resolveStorageFilePath` / `assertStorageFilePath`
+  (`lib/services/medias/storagePath`), on every filesystem path a local driver
+  builds — read, delete and write alike.** A bare `path.resolve(root, filePath)`
+  walks out of the root given `../` or an absolute path, and the escape is
+  silent: the read or the unlink lands somewhere else on disk. Watch for the
+  read-only variant of this — `LocalFileStorage.getFile` carried the check while
+  `deleteFile` beside it had none, which made containment an invariant of the
+  callers rather than of the driver. `resolveStorageFilePath` returns null (and
+  logs the refusal); `assertStorageFilePath` throws, for a write with nothing
+  sensible to return. Object storage is a different question: an S3 key has no
+  filesystem root to escape.
+- **Reject a hand-rolled containment check, and reject `startsWith` against a
+  bare resolved root.** `fullPath.startsWith(path.resolve(base))` has no
+  separator boundary, so a sibling directory whose name the root prefixes passes
+  it — root `/srv/uploads` accepts `/srv/uploads-backup/x`. That form guarded an
+  `fs.unlink` in `scripts/maintenance/cleanupMediaStorage.ts`, and it reads as
+  correct at a glance. Two Oxlint rules in `lint/agentsRules.mjs` now decide
+  this on the AST: `agents/no-storage-path-builder` in the two local drivers and
+  `agents/no-resolved-path-prefix-check` everywhere, `scripts/**` included via
+  the second `yarn lint` pass. Because they resolve names through scope, a
+  renamed import, a destructured `resolve`, `path['resolve']`, `path?.resolve`
+  and a root pulled into a variable first are all caught — so what is left for a
+  reviewer is narrower and worth knowing: a helper that resolves on a driver's
+  behalf, a path built by string concatenation, and a binding imported from
+  another module. Do not answer any of those with a raw-text Vitest scan; that
+  is what these rules replaced, and it was wrong in both directions. **Treat an
+  `oxlint-disable` comment naming either rule as a finding in itself** — a lint
+  rule can be silenced with a comment where the text scan could not be, and
+  nothing reports that the suppression was used. Note the
+  check is lexical either way: a symlink planted under a storage root defeats
+  it, which is a documented residual, not something to paper over at the call
+  site.
 - **A stored file with no `medias` row is unreachable**, so whatever fails
   after a write must reclaim it — only `scripts/maintenance/cleanupMediaStorage.ts`
   can find it otherwise. Equally, do not report a storage failure as a

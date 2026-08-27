@@ -1,3 +1,4 @@
+import { decode } from 'blurhash'
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
@@ -1381,6 +1382,45 @@ describe('createNoteJob', () => {
       expect(attachments).toHaveLength(1)
       expect(attachments[0].blurhash).toBeUndefined()
       expect(attachments[0].focus).toBeUndefined()
+    })
+
+    // The validator compares the trimmed form, so a padded hash was approved
+    // and then persisted verbatim — `decode` threw on every render and the
+    // padded value was federated on to third-party clients as-is.
+    it('stores a padded blurhash in the form decode can read', async () => {
+      const hash = 'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
+      const noteId = `https://${actor1!.domain}/notes/attachment-padded-test-${Date.now()}`
+      const note = {
+        ...MockMastodonActivityPubNote({
+          id: noteId,
+          from: actor1!.id,
+          content: '<p>Photo with a padded blurhash</p>'
+        }),
+        attachment: [
+          {
+            type: 'Document',
+            mediaType: 'image/jpeg',
+            url: 'https://somewhere.test/media/photo3.jpg',
+            width: 1200,
+            height: 800,
+            name: 'A photo',
+            blurhash: `  ${hash}\n`
+          }
+        ]
+      }
+
+      await createNoteJob(database, {
+        id: 'id-attachment-padded',
+        name: CREATE_NOTE_JOB_NAME,
+        data: note,
+        verifiedSenderActorId: actor1!.id
+      })
+
+      const attachments = await database.getAttachments({ statusId: noteId })
+      expect(attachments).toHaveLength(1)
+      const stored = attachments[0].blurhash
+      expect(stored).toBe(hash)
+      expect(() => decode(stored as string, 32, 32)).not.toThrow()
     })
   })
 })

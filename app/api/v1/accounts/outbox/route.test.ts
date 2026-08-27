@@ -48,10 +48,13 @@ vi.mock('next/headers', () => ({
   })
 }))
 
+// `attachments.mediaId` is `integer` on PostgreSQL, so a fixture id has to be
+// a value the column can actually hold — `media-0` never could, and only
+// SQLite's dynamic typing let it pass.
 const buildAttachments = (count: number) =>
   Array.from({ length: count }, (_, index) => ({
     type: 'upload' as const,
-    id: `media-${index}`,
+    id: `${index + 1}`,
     mediaType: 'image/png',
     url: `https://test.llun.dev/medias/${index}.png`,
     width: 100,
@@ -364,6 +367,103 @@ describe('POST /api/v1/accounts/outbox', () => {
     }
     // The create action is stubbed, so assert on what the gate forwarded
     // rather than on the response status.
+    expect(mockCreateNoteFromUserInput).toHaveBeenCalledWith(
+      expect.objectContaining({ attachments })
+    )
+  })
+
+  // `createNoteFromUserInput` hands `attachment.id` to
+  // `database.createAttachment` as `mediaId`, and `attachments.mediaId` is
+  // `integer` on PostgreSQL. Nothing between the route and that insert coerces
+  // it, so a malformed id used to raise `invalid input syntax for type integer`
+  // — a 500 rather than a 422, and raised AFTER `database.createNote` had
+  // already committed the status row, since `createNote.ts` opens no
+  // transaction. The user got an error and a published status whose media had
+  // silently vanished. SQLite's dynamic typing simply stored the junk, which is
+  // why CI (`TEST_DATABASE_TYPE=sqlite`) never saw it.
+  //
+  // The gate is asserted BEFORE the status code: the point is that the create
+  // action is never reached, not merely that the response says 422.
+  it.each([
+    { description: 'a non-numeric id', id: 'abc' },
+    // Accepted by PostgreSQL 16+ as a non-decimal integer literal, so this one
+    // silently resolved a DIFFERENT row than the id names rather than erroring.
+    { description: 'a hexadecimal id', id: '0x10' },
+    { description: 'an exponent id', id: '1e3' },
+    { description: 'an id past the integer ceiling', id: '2147483648' },
+    { description: 'a signed id', id: '+12' },
+    { description: 'a padded id', id: ' 12 ' },
+    { description: 'an empty id', id: '' },
+    { description: 'a negative id', id: '-1' },
+    { description: 'a zero id', id: '0' }
+  ])('rejects a note carrying $description', async ({ id }) => {
+    const req = new NextRequest('http://localhost/api/v1/accounts/outbox', {
+      method: 'POST',
+      body: JSON.stringify({
+        type: 'note',
+        message: 'a note with media',
+        attachments: [
+          {
+            type: 'upload',
+            id,
+            mediaType: 'image/png',
+            url: 'https://test.llun.dev/medias/1.png',
+            width: 100,
+            height: 100
+          }
+        ]
+      }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      }
+    })
+
+    const res = await POST(req, { params: Promise.resolve({}) })
+
+    expect(mockCreateNoteFromUserInput).not.toHaveBeenCalled()
+    expect(res.status).toBe(422)
+    await expect(res.json()).resolves.toEqual({
+      error: 'Unprocessable entity'
+    })
+  })
+
+  // The spellings a real client sends. `0012` is what a zero-padded id looks
+  // like, and `12.0` is kept because SQLite's `varchar` `attachments.mediaId`
+  // can genuinely hold that form for an id bound as a JS number.
+  it.each([
+    { description: 'a plain row id', id: '12' },
+    { description: 'a zero-padded row id', id: '0012' },
+    { description: 'a trailing-zero-fraction row id', id: '12.0' }
+  ])('accepts a note carrying $description', async ({ id }) => {
+    const attachments = [
+      {
+        type: 'upload' as const,
+        id,
+        mediaType: 'image/png',
+        url: 'https://test.llun.dev/medias/1.png',
+        width: 100,
+        height: 100
+      }
+    ]
+    const req = new NextRequest('http://localhost/api/v1/accounts/outbox', {
+      method: 'POST',
+      body: JSON.stringify({
+        type: 'note',
+        message: 'a note with media',
+        attachments
+      }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      }
+    })
+
+    await POST(req, { params: Promise.resolve({}) })
+
+    // The create action is stubbed, so assert on what the gate forwarded — and
+    // that it forwarded the id UNCHANGED, since the guard validates the shape
+    // rather than normalising it.
     expect(mockCreateNoteFromUserInput).toHaveBeenCalledWith(
       expect.objectContaining({ attachments })
     )

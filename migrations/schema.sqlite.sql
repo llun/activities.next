@@ -249,8 +249,6 @@ CREATE INDEX `status_reactions_status_created` on `status_reactions` (`statusId`
 CREATE INDEX `status_reactions_actor` on `status_reactions` (`actorId`);
 CREATE UNIQUE INDEX `statuses_publicid_unique` on `statuses` (`publicId`);
 CREATE UNIQUE INDEX `actors_publicid_unique` on `actors` (`publicId`);
-CREATE TABLE `fitness_gear_components` (`id` varchar(255), `gearId` varchar(255) not null, `componentType` varchar(255) not null, `brand` varchar(255) null, `model` varchar(255) null, `addedAt` datetime null, `removedAt` datetime null, `serviceDistanceMeters` float null, `lastAlertedDistanceMeters` float null, `createdAt` datetime not null, `updatedAt` datetime not null, `deletedAt` datetime null, foreign key(`gearId`) references `fitness_gears`(`id`) on delete CASCADE, primary key (`id`));
-CREATE INDEX `fitness_gear_components_gear_id_idx` on `fitness_gear_components` (`gearId`);
 CREATE INDEX `fitness_files_gear_id_idx` on `fitness_files` (`gearId`);
 CREATE TABLE IF NOT EXISTS "fitness_gears" (`id` varchar(255), `actorId` varchar(255) NOT NULL, `kind` varchar(255) NOT NULL, `name` varchar(255) NOT NULL, `brand` varchar(255) NULL, `model` varchar(255) NULL, `bikeType` varchar(255) NULL, `weightKilograms` float NULL, `defaultSports` text NULL, `alertDistanceMeters` float NULL, `lastAlertedDistanceMeters` float NULL, `notes` text NULL, `retiredAt` datetime NULL, `createdAt` datetime NOT NULL, `updatedAt` datetime NOT NULL, `deletedAt` datetime NULL, `deviceKey` varchar(255) null, `productUrl` varchar(255) null, FOREIGN KEY (`actorId`) REFERENCES `actors` (`id`) ON DELETE CASCADE, PRIMARY KEY (`id`));
 CREATE INDEX `fitness_gears_actor_id_idx` on `fitness_gears` (`actorId`);
@@ -277,3 +275,9 @@ CREATE UNIQUE INDEX `oauthresource_identifier_unique` on `oauthResource` (`ident
 CREATE TABLE `oauthClientResource` (`id` varchar(255), `clientId` varchar(255) not null, `resourceId` varchar(255) not null, `metadata` text null, `createdAt` datetime default CURRENT_TIMESTAMP, foreign key(`clientId`) references `oauthClient`(`clientId`) on delete CASCADE, foreign key(`resourceId`) references `oauthResource`(`identifier`) on delete CASCADE, primary key (`id`));
 CREATE TABLE `oauthClientAssertion` (`id` varchar(255), `expiresAt` datetime not null, primary key (`id`));
 CREATE INDEX `statuses_announce_original_actor_idx` on `statuses` (`type`, `originalStatusId`, `actorId`);
+CREATE INDEX "actors_lower_username_domain_idx" ON "actors" (lower("username"), "domain");
+CREATE TABLE `fitness_gear_component_periods` (`id` varchar(255), `componentId` varchar(255) not null, `installSequence` integer not null, `addedAt` datetime null, `removedAt` datetime null, `createdAt` datetime not null, `updatedAt` datetime not null, foreign key(`componentId`) references `fitness_gear_components`(`id`) on delete CASCADE, primary key (`id`));
+CREATE INDEX `fitness_gear_component_periods_component_id_idx` on `fitness_gear_component_periods` (`componentId`);
+CREATE UNIQUE INDEX `fitness_gear_component_periods_sequence_unique` on `fitness_gear_component_periods` (`componentId`, `installSequence`);
+CREATE TABLE IF NOT EXISTS "fitness_gear_components" (`id` varchar(255), `gearId` varchar(255) NOT NULL, `componentType` varchar(255) NOT NULL, `brand` varchar(255) NULL, `model` varchar(255) NULL, `serviceDistanceMeters` float NULL, `lastAlertedDistanceMeters` float NULL, `createdAt` datetime NOT NULL, `updatedAt` datetime NOT NULL, `deletedAt` datetime NULL, FOREIGN KEY (`gearId`) REFERENCES `fitness_gears` (`id`) ON DELETE CASCADE, PRIMARY KEY (`id`));
+CREATE INDEX `fitness_gear_components_gear_id_idx` on `fitness_gear_components` (`gearId`);

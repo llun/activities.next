@@ -12,6 +12,17 @@ import {
 } from '@/lib/services/fitness-files/testUtils'
 import { Actor } from '@/lib/types/domain/actor'
 
+// `resolveStorageFilePath` warns when it refuses a path, and the containment
+// test below deliberately makes it refuse twice.
+vi.mock('@/lib/utils/logger', () => ({
+  logger: {
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn()
+  }
+}))
+
 describe('LocalFileFitnessStorage path containment', () => {
   let tempParent: string
   let storageRoot: string

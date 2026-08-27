@@ -1,0 +1,25 @@
+{
+  // `scripts/**` is in the main config's `ignorePatterns`: the tree is
+  // deliberately not linted (AGENTS.md → Build, Test, and Development
+  // Commands), and un-ignoring it there would put ~50 rules onto files that
+  // have never satisfied them.
+  //
+  // One rule has to reach it anyway. `agents/no-resolved-path-prefix-check`
+  // replaces a raw-text scan that covered `app/`, `lib/` AND `scripts/`, and
+  // `scripts/maintenance/cleanupMediaStorage.ts` is where the real
+  // missing-separator-boundary bug was found and fixed — dropping the tree
+  // would narrow coverage to close a hole. So `yarn lint` runs oxlint a second
+  // time with this config, which enables that one rule and nothing else.
+  //
+  // Keep this file minimal: anything added here starts linting the whole
+  // scripts tree.
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": [],
+  "jsPlugins": ["./lint/agentsRules.mjs"],
+  "categories": {
+    "correctness": "off"
+  },
+  "rules": {
+    "agents/no-resolved-path-prefix-check": "error"
+  }
+}

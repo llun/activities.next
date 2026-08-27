@@ -34,6 +34,7 @@ import {
   resolvePublicIdsByIds
 } from '@/lib/database/sql/utils/publicIdLookup'
 import { selectHashtagTagsByStatusIds } from '@/lib/database/sql/utils/status'
+import { findActorRowByUsername } from '@/lib/database/sql/utils/usernameMatch'
 import {
   FEDERATION_SIGNING_ACTOR_TYPE,
   FEDERATION_SIGNING_ACTOR_USERNAME,
@@ -420,10 +421,13 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
   },
 
   async getActorFromUsername({ username, domain }: GetActorFromUsernameParams) {
-    const persistedActor = await database<SQLActor>('actors')
-      .where('username', username)
-      .andWhere('domain', domain)
-      .first()
+    // Case-insensitive: a handle reaches this from a URL path, a mention, a
+    // WebFinger resource and a search box, and none of them control casing.
+    // See findActorRowByUsername for why the exact match is still tried first.
+    const persistedActor = await findActorRowByUsername(database, {
+      username,
+      domain
+    })
     if (!persistedActor) return null
 
     const [account, counters] = await database.transaction(async (trx) => {
@@ -553,14 +557,17 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     username,
     domain
   }: GetActorFromUsernameParams) {
-    const result = await database<SQLActor>('actors')
-      .where('username', username)
-      .andWhere('domain', domain)
-      .select('id')
-      .first<{ id: string }>()
-    if (!result) return null
+    // Folds casing for the same reason `getActorFromUsername` does. The two
+    // differ only in return shape, so a caller would reasonably assume they
+    // resolve identically — and today this one has no production caller, which
+    // makes it the cheapest possible moment to stop them diverging.
+    const persistedActor = await findActorRowByUsername(database, {
+      username,
+      domain
+    })
+    if (!persistedActor) return null
 
-    return this.getMastodonActor(result.id)
+    return this.getMastodonActor(persistedActor.id)
   },
 
   async getActorFromId({ id }: GetActorFromIdParams) {

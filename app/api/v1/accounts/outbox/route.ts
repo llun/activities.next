@@ -6,6 +6,7 @@
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { createPollFromUserInput } from '@/lib/actions/createPoll'
 import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
+import { toMediaRowId } from '@/lib/database/sql/media'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { resolveQuoteForCreate } from '@/lib/services/quotes/resolveQuoteForCreate'
@@ -102,6 +103,39 @@ export const POST = traceApiRoute(
             attachments &&
             attachments.length > MAX_STORED_MEDIA_ATTACHMENTS
           ) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: ERROR_422,
+              responseStatusCode: 422
+            })
+          }
+          // Every entry's `id` becomes `attachments.mediaId`, which is
+          // `integer` on PostgreSQL and `varchar(255)` on SQLite. Nothing
+          // between here and that insert coerces it — `createAttachment`
+          // WRITES `mediaId` rather than comparing it, and is deliberately
+          // unguarded so a bad id surfaces instead of silently dropping the
+          // link — so a malformed id raised `invalid input syntax for type
+          // integer` and turned this into a 500. Worse, `createNote.ts` opens
+          // no transaction: `database.createNote` has already committed the
+          // status row by the time the attachment insert runs, so the author
+          // got an error AND a published status whose media had vanished.
+          //
+          // Validating here rather than in `createNoteFromUserInput` is the
+          // point — this is the last place a bad request can be refused before
+          // anything is written. SQLite's dynamic typing stores the junk
+          // happily, which is why CI (`TEST_DATABASE_TYPE=sqlite`) never saw
+          // this and why the guard is asserted at the route rather than
+          // through a backend-specific insert.
+          //
+          // `toMediaRowId` is the repo's one answer to "is this string a media
+          // row id", shared with every lookup in `lib/database/sql/media.ts`,
+          // so the route cannot drift from what the column will accept. The id
+          // is only shape-checked, never rewritten: the resolved number is
+          // discarded and the original string is forwarded untouched, because
+          // whether the row EXISTS (and belongs to this actor) is
+          // `resolveAttachmentMediaMetadata`'s question, not this one.
+          if (attachments?.some(({ id }) => toMediaRowId(id) === null)) {
             return apiResponse({
               req,
               allowedMethods: CORS_HEADERS,

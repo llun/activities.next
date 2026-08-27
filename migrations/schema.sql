@@ -438,14 +438,22 @@ CREATE TABLE public.fitness_files (
     "deviceGearId" character varying(255)
 );
 
+CREATE TABLE public.fitness_gear_component_periods (
+    id character varying(255) NOT NULL,
+    "componentId" character varying(255) NOT NULL,
+    "installSequence" integer NOT NULL,
+    "addedAt" timestamp with time zone,
+    "removedAt" timestamp with time zone,
+    "createdAt" timestamp with time zone NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL
+);
+
 CREATE TABLE public.fitness_gear_components (
     id character varying(255) NOT NULL,
     "gearId" character varying(255) NOT NULL,
     "componentType" character varying(255) NOT NULL,
     brand character varying(255),
     model character varying(255),
-    "addedAt" timestamp with time zone,
-    "removedAt" timestamp with time zone,
     "serviceDistanceMeters" real,
     "lastAlertedDistanceMeters" real,
     "createdAt" timestamp with time zone NOT NULL,
@@ -1456,6 +1464,12 @@ ALTER TABLE ONLY public.fitness_file_routes
 ALTER TABLE ONLY public.fitness_files
     ADD CONSTRAINT fitness_files_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.fitness_gear_component_periods
+    ADD CONSTRAINT fitness_gear_component_periods_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.fitness_gear_component_periods
+    ADD CONSTRAINT fitness_gear_component_periods_sequence_unique UNIQUE ("componentId", "installSequence");
+
 ALTER TABLE ONLY public.fitness_gear_components
     ADD CONSTRAINT fitness_gear_components_pkey PRIMARY KEY (id);
 
@@ -1719,6 +1733,8 @@ CREATE INDEX actors_domain_last_status_at_idx ON public.actors USING btree (doma
 
 CREATE INDEX actors_local_idx ON public.actors USING btree (id) WHERE ("privateKey" IS NOT NULL);
 
+CREATE INDEX actors_lower_username_domain_idx ON public.actors USING btree (lower((username)::text), domain);
+
 CREATE INDEX "attachmentsIndex" ON public.attachments USING btree ("statusId", "createdAt", "updatedAt");
 
 CREATE INDEX "attachments_actorId_idx" ON public.attachments USING btree ("actorId");
@@ -1790,6 +1806,8 @@ CREATE INDEX fitness_files_gear_id_idx ON public.fitness_files USING btree ("gea
 CREATE INDEX fitness_files_import_batch_id_idx ON public.fitness_files USING btree ("importBatchId");
 
 CREATE INDEX fitness_files_status_id_idx ON public.fitness_files USING btree ("statusId");
+
+CREATE INDEX fitness_gear_component_periods_component_id_idx ON public.fitness_gear_component_periods USING btree ("componentId");
 
 CREATE INDEX fitness_gear_components_gear_id_idx ON public.fitness_gear_components USING btree ("gearId");
 
@@ -1978,6 +1996,9 @@ ALTER TABLE ONLY public.fitness_files
 
 ALTER TABLE ONLY public.fitness_files
     ADD CONSTRAINT fitness_files_statusid_foreign FOREIGN KEY ("statusId") REFERENCES public.statuses(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY public.fitness_gear_component_periods
+    ADD CONSTRAINT fitness_gear_component_periods_componentid_foreign FOREIGN KEY ("componentId") REFERENCES public.fitness_gear_components(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY public.fitness_gear_components
     ADD CONSTRAINT fitness_gear_components_gearid_foreign FOREIGN KEY ("gearId") REFERENCES public.fitness_gears(id) ON DELETE CASCADE;

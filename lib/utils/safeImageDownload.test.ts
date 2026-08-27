@@ -313,6 +313,42 @@ describe('safeImageFetch redirect handling', () => {
       headers: { 'content-type': 'image/jpeg' }
     })
 
+  // A caller's `signal` is COMBINED with each hop's own timeout, never
+  // substituted for it. Both halves are invisible in a result — the archive
+  // passes the same value for both, so `signal ?? hopTimeout` and dropping
+  // `signal` from the composite each leave every other test in the repo green
+  // while silently removing one of the two bounds.
+  it('aborts a hop when the caller signal fires, keeping the per-hop timeout', async () => {
+    fetchMock.mockResolvedValue(imageResponse())
+    const controller = new AbortController()
+
+    await safeImageFetch('https://images.example/a.jpg', {
+      // Long enough that only the caller's signal can be responsible.
+      timeoutMs: 60_000,
+      signal: controller.signal
+    })
+
+    const signal = fetchMock.mock.calls[0][1].signal as AbortSignal
+    expect(signal.aborted).toBe(false)
+    controller.abort()
+    expect(signal.aborted).toBe(true)
+  })
+
+  it('aborts a hop when the per-hop timeout fires, even with a live caller signal', async () => {
+    fetchMock.mockResolvedValue(imageResponse())
+    // Never aborts on its own, so only the hop timeout can trip the composite.
+    const controller = new AbortController()
+
+    await safeImageFetch('https://images.example/a.jpg', {
+      timeoutMs: 5,
+      signal: controller.signal
+    })
+
+    const signal = fetchMock.mock.calls[0][1].signal as AbortSignal
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    expect(signal.aborted).toBe(true)
+  })
+
   // The load-bearing option. `fetch` defaults to `redirect: 'follow'`, which
   // would carry the request to a target the guard never inspected — so each hop
   // must be requested in manual mode for the loop below to mean anything.

@@ -149,9 +149,46 @@ the configured host), `--actor-id`, or `--email` to select the actor.
   referenced media or fitness file is missing from storage; failures are
   recorded per-file in the archive's `manifest.json`
 - `--skip-storage` — write only the JSON/CSV files, no media or fitness bytes
+  from this instance's own storage. It does **not** suppress
+  `--fetch-remote-attachments`; pass neither flag for an archive with no media
+  bytes at all
 - `--fetch-remote-attachments` — download attachments hosted on other servers
   into the archive too (by default their absolute URL is kept as-is, since
-  the export only owns the actor's own storage)
+  the export only owns the actor's own storage). These URLs come from the
+  posts themselves rather than from your configuration, so each download is
+  SSRF-guarded — non-HTTPS URLs and any host resolving to a loopback,
+  link-local or private address are refused, re-checked on every redirect hop,
+  with at most 3 hops followed — and capped at the resolved
+  `media.maxFileSize` server setting, the same ceiling an upload to this
+  instance gets. One attachment gets 10 minutes in total — covering every hop,
+  the body as well as the headers — so a slow host cannot restart the clock by
+  redirecting, and the run as a whole stops starting new downloads once
+  `--remote-fetch-budget` is spent. A refused, over-size or budget-skipped
+  attachment is recorded as a warning in `manifest.json` and its absolute URL
+  is kept, exactly as if the flag had not been passed. Two caveats worth
+  knowing before you use it on a hostile account: the size cap bounds each
+  attachment on its own and nothing bounds their total, so a large history can
+  still fill the temporary directory the archive is staged in even though
+  `--remote-fetch-budget` now bounds how long the run takes; and a downloaded
+  file's extension comes from the URL rather than from its contents, so treat
+  an extracted archive's `media_attachments/remote/` as untrusted rather than
+  serving it over HTTP
+- `--remote-fetch-budget <seconds>` — how long the export may go on **starting**
+  remote attachment downloads (default 3600). Inert without
+  `--fetch-remote-attachments`. The per-attachment ten minutes above bounds one
+  download; this bounds their sum, which otherwise ran to days for an account
+  whose posts point at hosts that drip bytes just under that ceiling — the case
+  you are most likely to meet, since the flag gets used for bans, moderation
+  actions and legal requests. Exhausting it costs nothing that was already
+  running: a download in flight always finishes, and every attachment reached
+  afterwards simply keeps its absolute URL and is warned about, exactly as if
+  the flag had not been passed. The archive records how many were skipped that
+  way as its own `manifest.json` warning, distinct from a download that
+  actually failed, so re-running with a larger budget is an informed choice.
+  Because nothing is aborted mid-flight, the real ceiling is the budget plus
+  the ten minutes the last attachment to start may still take. A budget must be
+  a positive whole number of seconds; pass a very large one to go back to
+  effectively no limit
 
 ### Archive layout
 
@@ -527,6 +564,12 @@ carrying an explicit `Z`/offset — a bare local datetime is rejected, because
 JavaScript would read it in the running machine's zone and silently shift every
 activity by hours. The whole file is validated before anything is written.
 
+A component's `addedAt`/`removedAt` seed its **first install period** — the
+import creates one period per component and never a second. A part that came off
+and went back on is refitted from the gear's own page afterwards, which opens a
+new period rather than reopening the first (see **Gear Tracking** in
+`docs/fitness-file-storage.md`).
+
 `scripts/fitness/convertStravaExportToGearImport.ts` builds the `assignments`
 half from a Strava export. The export's `activities.csv` records which gear each
 activity used against a UTC timestamp, but `components.csv` carries no dates at
@@ -630,6 +673,25 @@ NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --local-only
 ### Repairing thumbnail URLs written by earlier versions
 
 Earlier versions of this script wrote `attachments.thumbnailUrl` as a host-relative path (`/api/v1/files/…`). That value is served to clients verbatim as Mastodon's `preview_url` and as a `<video>` poster, so it is unusable to any client not talking to this origin. A normal run now selects and repairs those rows as well as rows missing a blurhash — no flag needed — and rewrites them to the absolute URL the live upload path produces, on the owning actor's domain. An already-absolute value is left alone.
+
+### Attachments whose `mediaId` resolves to nothing
+
+Deleting a media file from **Settings → Media Storage** removes the `medias` row and its stored bytes, but leaves `attachments.mediaId` on any post that used it pointing at the row that is gone. That is intended — a `NULL` `mediaId` is how a federated attachment is stored, so clearing it would make the attachment un-removable by editing the post.
+
+Such a row cannot be repaired from its media: the BlurHash, focal point and `thumbnailUrl` all come from the linked `medias` row, and `thumbnailUrl` has no other source. Because a host-relative `thumbnailUrl` keeps matching the selection predicate, the row is re-read on every run. The script warns for each one and reports two separate counts:
+
+```text
+[attachments 0f3c…] media 412 no longer exists; cannot restore blurhash, focus or thumbnailUrl from it
+[attachments 91ab…] mediaId "wat" is not a media row id; cannot restore blurhash, focus or thumbnailUrl from it
+Attachments complete: processed 1204, updated 6, 37 whose media row is gone, 2 with an invalid mediaId
+```
+
+The two are never summed, because they mean different things:
+
+- **`whose media row is gone`** — a real row id whose `medias` row was deleted. Not an error to act on; it is the residue of owners deleting their own media. The author can drop the leftover attachment by editing the post.
+- **`with an invalid mediaId`** — a value that was never a row id at all. Nothing was deleted here, so this is a bad **write** and is worth investigating: `createAttachment` does not validate `mediaId` (deliberately, so a bad id surfaces instead of being silently dropped) and `POST /api/v1/accounts/outbox` reaches it with an unvalidated attachment id. This is not SQLite-only. SQLite's `varchar` column accepts any string, but `-5` and `0` are valid `integer` values PostgreSQL stores happily and the id guard still refuses, so a non-zero count is possible on either backend.
+
+Neither count partitions `processed`. A warned row can still appear in `updated`: the script falls back to analysing the image behind the attachment's own `url`. That is the norm for an invalid `mediaId`, because nothing was deleted, but it happens for a gone media row too — the delete route removes the stored bytes best-effort and drops the row regardless, so the file can outlive the row that named it. Only `thumbnailUrl` is unrecoverable either way.
 
 ### What `--force` does, and does not, recompute
 

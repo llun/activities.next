@@ -90,9 +90,18 @@ export const normalizeHost = (
 ): string | null => {
   const firstHost = value?.split(',')[0]?.trim()
   if (!firstHost || firstHost.startsWith('0.0.0.0')) return null
-  const hasWildcard = firstHost.startsWith('*.')
+  // The wildcard marker sits on the AUTHORITY, which an operator may write
+  // behind a scheme. Reading it off the raw value missed
+  // `https://*.edge.example.com`, which used to work only by accident: it fell
+  // through as a literal hostname that `getHostParts` then re-read as a
+  // wildcard. The `*` refusal below closes that accident, so the marker has to
+  // be recognised properly here or a scheme-prefixed wildcard rule stops
+  // matching its own subdomains.
+  const scheme = /^[a-z][a-z0-9+.-]*:\/\//i.exec(firstHost)?.[0] ?? ''
+  const authority = firstHost.slice(scheme.length)
+  const hasWildcard = authority.startsWith('*.')
   if (hasWildcard && !allowWildcard) return null
-  const hostToParse = hasWildcard ? firstHost.slice(2) : firstHost
+  const hostToParse = hasWildcard ? `${scheme}${authority.slice(2)}` : firstHost
   if (!hasOnlyAuthority(hostToParse)) return null
   if (isSocketStyleHost(hostToParse)) return null
 
@@ -106,6 +115,23 @@ export const normalizeHost = (
     )
     const hostname = url.hostname.replace(/\.$/, '')
     if (isLocalHostname(hostname)) return null
+    // `hasWildcard` recognises only the documented `*.example.com` form, so
+    // every other spelling — `*example.com` (a plausible typo of it), `cdn.*`,
+    // `foo.*.example.com` — survives as a LITERAL hostname carrying a `*`,
+    // which `hostMatchesRule` then compares literally. `new URL()` percent
+    // decodes `%2a` in an authority, so a caller can spell that authority
+    // exactly and be believed. A misplaced wildcard is an operator typo rather
+    // than a host, so refusing it leaves the rule matching nothing instead of
+    // matching one attacker-chosen authority. Nothing legitimate reaches this
+    // line with a `*` — the documented form has already had its prefix
+    // stripped off `hostToParse`.
+    //
+    // Note the rule is dropped SILENTLY HERE: `normalizeHostRules` flat-maps
+    // the null away, and this is a per-request path behind a cache, so it is
+    // the wrong place to log from. `buildTrustedOrigins` is the one consumer
+    // that does warn about a misplaced wildcard, so that is where an operator
+    // sees the typo.
+    if (hostname.includes('*')) return null
 
     const normalizedHost = explicitPort
       ? `${hostname}:${explicitPort}`
@@ -165,6 +191,15 @@ export const getTrustedHostRules = (config: HostRuleConfig): string[] => [
   ...(config.trustedHosts ?? [])
 ]
 
+/**
+ * The configured host as a request should see it. NOT an authority for
+ * comparing against — that is `getCanonicalAuthority`. This one falls back to
+ * the RAW value whenever `normalizeHost` refuses it, which includes every
+ * loopback name and every malformed one, so it can hand back something
+ * unlowercased, untrimmed, or carrying a path. `selectHeaderHost` wants that
+ * (it is echoing a configured value back, not deciding trust); a security
+ * comparison must not use it.
+ */
 export const getConfiguredHost = (host: string | undefined | null) =>
   normalizeHost(host) ?? host ?? ''
 
@@ -215,8 +250,14 @@ export const isHostTrustedByRules = (
  * accepts `example.com:80` where `hostMatchesRule` (which treats only `:443`
  * as implied) would not; the passes are a union, and this is the half that
  * decides.
+ *
+ * Also the shape `getMediaFileUrl` consumes, which is why it is exported: the
+ * configured host is the fallback authority a stored media URL is minted on,
+ * and it has to be normalised the same way the comparison normalises it.
  */
-const canonicalAuthority = (value: string | undefined | null): string => {
+export const getCanonicalAuthority = (
+  value: string | undefined | null
+): string => {
   if (!value) return ''
   return getAuthority(value.trim())
     .toLowerCase()
@@ -235,17 +276,33 @@ const canonicalAuthority = (value: string | undefined | null): string => {
  * development instance it says no to the instance's own host. Comparing
  * canonical authorities first covers that case and every exact `host:port`
  * match; deferring to the rules matcher after it adds the wildcard entries
- * (`*.example.com`) that only that matcher understands.
+ * (`*.example.com`) that only that matcher understands. The exact pass skips
+ * wildcard rules for that reason: compared literally, `*.example.com` would
+ * match a URL whose authority is spelled exactly that.
  */
 export const isOwnInstanceHost = (
   host: string | undefined | null,
   config: HostRuleConfig
 ): boolean => {
-  const authority = canonicalAuthority(host)
+  const authority = getCanonicalAuthority(host)
   if (!authority) return false
 
   const rules = getTrustedHostRules(config)
-  if (rules.some((rule) => canonicalAuthority(rule) === authority)) return true
+  // A wildcard entry is never a literal authority. `new URL()` accepts `*` in
+  // a host, so comparing `*.cdn.example` against itself would let a URL
+  // spelling that authority pass as one of ours — the hole
+  // `scripts/maintenance/backfillMediaBlurhash.ts` documents closing for its
+  // own matcher. Wildcards belong to the rules pass below, which expands them.
+  //
+  // This pass reads the RAW rules, so it needs its own skip: `normalizeHost`
+  // refusing a misplaced `*` covers the rules pass, not this one.
+  if (
+    rules.some(
+      (rule) => !rule.includes('*') && getCanonicalAuthority(rule) === authority
+    )
+  ) {
+    return true
+  }
 
   return isHostTrustedByRules(host, rules)
 }

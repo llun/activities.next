@@ -20,6 +20,8 @@ import { encodeFavouriteCursor } from '@/lib/database/sql/utils/favouriteCursor'
 import { Database } from '@/lib/database/types'
 import { getEffectiveFitnessStorageConfig } from '@/lib/services/fitness-files'
 import { getMediaPathFromFileUrl } from '@/lib/services/medias/mediaFileUrl'
+import { resolveStorageFilePath } from '@/lib/services/medias/storagePath'
+import { getMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
 import {
   AnnounceAction,
   CreateAction
@@ -48,13 +50,14 @@ import { getLocalActorOutboxId } from '@/lib/utils/activitypubId'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 import { HostRuleConfig } from '@/lib/utils/host'
+import { safeImageFetch } from '@/lib/utils/safeImageDownload'
+import { readResponseArrayBufferWithLimit } from '@/lib/utils/streamLimit'
 
 import { printDatabaseBanner } from '../fitness/describeConnection'
 import {
   archiveStorage,
   buildStoragePlan,
   createTarArchive,
-  fetchPublicStorageResponse,
   getBooleanArg,
   getStringArg,
   loadEnvFile,
@@ -66,8 +69,47 @@ const DEFAULT_ENV_FILE = '.env.production'
 const DEFAULT_OUTPUT_DIR = 'backups/actor-archives'
 const DEFAULT_PAGE_SIZE = 100
 const MEDIA_ID_BATCH_SIZE = 100
-const MEDIA_ARCHIVE_DIR = 'media_attachments/files'
+export const MEDIA_ARCHIVE_DIR = 'media_attachments/files'
 const REMOTE_MEDIA_ARCHIVE_DIR = 'media_attachments/remote'
+/**
+ * How long ONE remote attachment may take in total — every redirect hop, its
+ * headers and its body — enforced as an overall deadline passed to
+ * `safeImageFetch` alongside the same value as its per-hop timeout.
+ *
+ * Deliberately much larger than `PUBLIC_STORAGE_FETCH_TIMEOUT_MS`, because a
+ * timeout that bounds the body is also a throughput floor: at 60s, reaching
+ * even the default 200 MiB cap would have required a sustained 3.5 MB/s, so a
+ * large federated video on an ordinary link would have been dropped from the
+ * archive that used to contain it — silent data loss in a backup. Ten minutes
+ * puts that floor near 350 KB/s at the default cap.
+ *
+ * It has to be a DEADLINE and not just a per-hop timeout, because these URLs
+ * are owner-supplied and the export walks them one after another with no cap
+ * on how many a status carries: per-hop alone, a host stalling at every hop
+ * costs this times `MAX_SAFE_IMAGE_REDIRECTS + 1`. Their SUM is bounded
+ * separately, by `DEFAULT_REMOTE_FETCH_BUDGET_SECONDS`; this one is per
+ * attachment, and because the budget never aborts a download it has already
+ * started, the two add up at the tail of a run.
+ */
+export const REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS = 600_000
+/**
+ * How long the export as a whole may keep STARTING remote attachment
+ * downloads, in seconds. Overridable with `--remote-fetch-budget`.
+ *
+ * `REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS` bounds one attachment; nothing bounded
+ * their sum, and an actor's history is not capped the way a single status is.
+ * The URLs are owner-supplied, so an account facing a ban or a legal request —
+ * exactly when `--fetch-remote-attachments` gets used — could plant enough
+ * hosts dripping bytes just under the per-attachment ceiling to stall the run
+ * for days.
+ *
+ * An hour is generous for the legitimate case rather than tuned to the hostile
+ * one: a local actor's own attachments are normally in this instance's own
+ * storage, so the remote branch is the exception, and an ordinary attachment
+ * costs a second or two. What matters more than the number is that exhausting
+ * it loses nothing — see `registerAttachmentUrl`.
+ */
+const DEFAULT_REMOTE_FETCH_BUDGET_SECONDS = 3600
 const FITNESS_ARCHIVE_DIR = 'fitness_files/files'
 
 export const EXPORT_ACTOR_USAGE = `Usage: NODE_ENV=production scripts/backup/exportActorArchive.ts \\
@@ -77,7 +119,8 @@ export const EXPORT_ACTOR_USAGE = `Usage: NODE_ENV=production scripts/backup/exp
   [--page-size 100] \\
   [--allow-missing-storage] \\
   [--skip-storage] \\
-  [--fetch-remote-attachments]`
+  [--fetch-remote-attachments] \\
+  [--remote-fetch-budget 3600]`
 
 export interface ExportActorArchiveArgs {
   username?: string
@@ -90,6 +133,11 @@ export interface ExportActorArchiveArgs {
   allowMissingStorage: boolean
   skipStorage: boolean
   fetchRemoteAttachments: boolean
+  /**
+   * Seconds the export may go on STARTING remote attachment downloads. Inert
+   * without `--fetch-remote-attachments`.
+   */
+  remoteFetchBudgetSeconds: number
 }
 
 export const parseExportActorArgs = (
@@ -117,6 +165,24 @@ export const parseExportActorArgs = (
     throw new Error(`Invalid value for --page-size: ${pageSizeArg}`)
   }
 
+  const budgetArg = getStringArg(
+    parsed,
+    'remote-fetch-budget',
+    String(DEFAULT_REMOTE_FETCH_BUDGET_SECONDS)
+  )!
+  const remoteFetchBudgetSeconds = Number(budgetArg)
+  // Rejecting zero rather than reading it as "no budget" is deliberate: zero
+  // is a live value meaning "start nothing", and an operator who wants the old
+  // unbounded behaviour can say so out loud with a large number.
+  if (
+    !Number.isInteger(remoteFetchBudgetSeconds) ||
+    remoteFetchBudgetSeconds <= 0
+  ) {
+    throw new Error(
+      `Invalid value for --remote-fetch-budget: ${budgetArg}. Expected a positive whole number of seconds.`
+    )
+  }
+
   return {
     username,
     domain: getStringArg(parsed, 'domain'),
@@ -127,7 +193,8 @@ export const parseExportActorArgs = (
     pageSize,
     allowMissingStorage: getBooleanArg(parsed, 'allow-missing-storage'),
     skipStorage: getBooleanArg(parsed, 'skip-storage'),
-    fetchRemoteAttachments: getBooleanArg(parsed, 'fetch-remote-attachments')
+    fetchRemoteAttachments: getBooleanArg(parsed, 'fetch-remote-attachments'),
+    remoteFetchBudgetSeconds
   }
 }
 
@@ -166,6 +233,19 @@ export const getArchiveFitnessPath = (storagePath: string) =>
   `${FITNESS_ARCHIVE_DIR}/${storagePath}`
 
 export type UrlToArchivePath = (url: string) => string
+
+/**
+ * What the caller needs to know about one call to `registerAttachmentUrl`.
+ *
+ * Only the budget case is reported, and only because a truncated run has to be
+ * tellable apart from a run whose downloads genuinely failed: every other
+ * terminal state already says everything it needs to in `warnings`. It is an
+ * object rather than a bare boolean so both the return and the call site name
+ * the bit rather than leaving its meaning in a comment.
+ */
+export interface AttachmentRegistrationResult {
+  budgetExhausted?: boolean
+}
 
 /**
  * Shapes one status as the Create/Announce activity the ActivityPub outbox
@@ -618,7 +698,12 @@ const relocateStorageDir = async (
   await fs.rename(source, destination)
 }
 
-const copyProfileImage = async ({
+/**
+ * Copies one profile image out of the archive's media directory to the
+ * archive root, where the Mastodon format expects `avatar.<ext>` /
+ * `header.<ext>`.
+ */
+export const copyProfileImage = async ({
   stagingDir,
   storagePath,
   fileNamePrefix,
@@ -633,7 +718,28 @@ const copyProfileImage = async ({
 
   const extension = path.extname(storagePath) || '.bin'
   const fileName = `${fileNamePrefix}${extension}`
-  const source = path.join(stagingDir, MEDIA_ARCHIVE_DIR, storagePath)
+  const mediaDir = path.resolve(stagingDir, MEDIA_ARCHIVE_DIR)
+
+  // `getMediaPathFromFileUrl` already refuses a `..` segment, so nothing
+  // should arrive here that escapes. This is the step that turns a stored path
+  // into a file read off the operator's machine, though, and its signature
+  // says nothing about where the path came from — so it confirms containment
+  // for itself rather than trusting a caller three hundred lines away, the
+  // same reason `createMediaTempFilePath` asserts its own result is still
+  // under `tmpdir()`.
+  //
+  // Through the shared helper: "does this resolve inside that root?" is the
+  // storage drivers' question too, and AGENTS.md ("A stored path is confined
+  // to the storage root") records why this call site stopped spelling its own
+  // answer. The warning stays local so the archive keeps telling its operator
+  // which image it dropped and why.
+  const source = resolveStorageFilePath(mediaDir, storagePath)
+  if (!source) {
+    warnings.push(
+      `Refused ${fileNamePrefix} image path outside the archive media directory: ${storagePath}`
+    )
+    return null
+  }
 
   try {
     await fs.copyFile(source, path.join(stagingDir, fileName))
@@ -654,46 +760,127 @@ const copyProfileImage = async ({
  * `/api/v1/files/` path this one serves, so without the host check its URL
  * became a local storage path that never resolved, and the download branch
  * below was never reached.
+ *
+ * The download runs through `safeImageFetch`, NOT the archive's own
+ * `fetchPublicStorageResponse`. `attachment.url` is attacker-controlled by the
+ * account owner — `POST /api/v1/accounts/outbox` takes `PostBoxAttachment.url`
+ * as a bare `z.string()` and `createAttachment` writes it verbatim — so a
+ * plain `fetch` here let an owner point the exporting machine at a
+ * link-local or internal address and receive the response body back inside
+ * their own tarball. `fetchPublicStorageResponse` keeps its plain `fetch`
+ * because its other caller builds URLs from the operator's own configured
+ * storage endpoint, which may legitimately be private-network or plain-http;
+ * the guard belongs on the untrusted input, not on the shared helper.
+ *
+ * `safeImageFetch` re-checks every redirect hop, and its timeout also bounds
+ * the body read, which the old header-only timeout did not — see
+ * `REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS` for why that means a much larger value
+ * than the archive used before. The byte cap is separate and load-bearing:
+ * without it a hostile URL could stream an unbounded body into memory.
+ *
+ * `remoteFetch` carries the byte cap and doubles as the on/off switch, so the
+ * two cannot disagree. They were separate — a boolean plus a number the caller
+ * set to 0 when unused — and 0 is a live cap meaning "refuse everything", kept
+ * harmless only by an early return two screens above the read. As one value
+ * that state is unrepresentable.
+ *
+ * The cap is a parameter rather than a constant because what matters is the
+ * RESOLVED `media.maxFileSize` server setting, which an admin may raise to 1
+ * GiB — reading the compile-time `MAX_FILE_SIZE` default instead would refuse a
+ * remote attachment this instance's own upload path would accept.
+ * `readResponseArrayBufferWithLimit` buffers, so the cap is also the peak
+ * memory one attachment can cost.
+ *
+ * `deadline` is the export-wide budget, and it gates only whether a download
+ * may START. Once it has passed, the attachment takes the same
+ * warn-and-keep-the-absolute-URL path this function already takes for a
+ * refused, over-size or failed one — which is exactly the behaviour of not
+ * passing `--fetch-remote-attachments` at all, applied to the tail of the run.
+ * Nothing in flight is ever aborted, so the budget cannot cost the archive a
+ * download it had already begun; the price is that the last attachment to
+ * start may still run for `REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS` past the
+ * deadline. The argument this replaced — that an aggregate bound must trade a
+ * stall for silent data loss, which is worse in a backup — was a false
+ * dichotomy: a bound that only declines to start new work loses nothing.
  */
 export const registerAttachmentUrl = async ({
   attachment,
-  fetchRemoteAttachments,
   hostConfig,
   mediaPaths,
   mediaIds,
+  remoteFetch,
   urlToArchivePath,
   stagingDir,
   warnings
 }: {
   attachment: Attachment
-  fetchRemoteAttachments: boolean
   hostConfig: HostRuleConfig
   mediaPaths: Set<string>
   mediaIds: Set<string>
+  remoteFetch: { maxBytes: number; deadline: number } | null
   urlToArchivePath: Map<string, string>
   stagingDir: string
   warnings: string[]
-}) => {
-  if (urlToArchivePath.has(attachment.url)) return
+}): Promise<AttachmentRegistrationResult> => {
+  if (urlToArchivePath.has(attachment.url)) return {}
 
   const storagePath = getMediaPathFromFileUrl(attachment.url, hostConfig)
   if (storagePath) {
     mediaPaths.add(storagePath)
     urlToArchivePath.set(attachment.url, getArchiveMediaPath(storagePath))
     if (attachment.mediaId) mediaIds.add(attachment.mediaId)
-    return
+    return {}
   }
 
-  if (!fetchRemoteAttachments) {
+  if (!remoteFetch) {
     warnings.push(`Remote attachment kept as absolute URL: ${attachment.url}`)
-    return
+    return {}
+  }
+
+  // Below the local-storage branch on purpose: a path this instance already
+  // holds costs no network at all, so an exhausted budget must not stop the
+  // archive collecting it.
+  if (Date.now() >= remoteFetch.deadline) {
+    warnings.push(
+      `Remote attachment fetch budget exhausted, kept as absolute URL: ${attachment.url}`
+    )
+    return { budgetExhausted: true }
   }
 
   try {
-    const response = await fetchPublicStorageResponse(attachment.url)
-    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    const response = await safeImageFetch(attachment.url, {
+      timeoutMs: REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS,
+      signal: AbortSignal.timeout(REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS)
+    })
+    // `safeImageFetch` answers null for three different reasons — a refused
+    // URL, a redirect carrying no usable `Location`, and exhausting its hop
+    // budget — and the caller cannot tell them apart, so the warning must not
+    // name only the first. Reporting a 4-hop CDN chain as an unsafe address
+    // sends the operator hunting a DNS problem that does not exist.
+    //
+    // One string for all three is also a security property, so do not split
+    // it: `getSafeImageDownloadUrl` resolves through `lookup(...).catch(=> [])`,
+    // which makes a hostname that does not exist and one that resolves to a
+    // private address refuse identically. A per-cause message would hand the
+    // account owner — who chose this URL — an oracle for internal DNS.
+    if (!response) {
+      warnings.push(
+        `Refused remote attachment URL (unsafe address, non-HTTPS, or too many redirects): ${attachment.url}`
+      )
+      return {}
+    }
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined)
+      throw new Error(`HTTP ${response.status}`)
+    }
 
-    const buffer = Buffer.from(await response.arrayBuffer())
+    const buffer = Buffer.from(
+      await readResponseArrayBufferWithLimit(
+        response,
+        remoteFetch.maxBytes,
+        'Remote attachment'
+      )
+    )
     const hash = crypto
       .createHash('sha256')
       .update(attachment.url)
@@ -712,6 +899,34 @@ export const registerAttachmentUrl = async ({
       `Failed to fetch remote attachment ${attachment.url}: ${message}`
     )
   }
+
+  return {}
+}
+
+/**
+ * The one line in `manifest.json` that says the run ran out of time rather
+ * than that its downloads failed — the first is answered by re-running with a
+ * larger budget, the second is not, and an operator reading a wall of
+ * per-attachment warnings cannot tell them apart otherwise.
+ *
+ * Separated from the export so the operator-facing wording and the "only when
+ * something was actually skipped" rule are testable without standing up a
+ * database, storage and a tar writer, the way this file's other small builders
+ * are.
+ */
+export const buildRemoteFetchBudgetWarning = ({
+  skipped,
+  budgetSeconds
+}: {
+  skipped: number
+  budgetSeconds: number
+}): string | null => {
+  if (skipped <= 0) return null
+  return (
+    `Remote attachment fetch budget of ${budgetSeconds}s was exhausted; ` +
+    `${skipped} remote attachment${skipped === 1 ? '' : 's'} kept as absolute URLs. ` +
+    'Re-run with a larger --remote-fetch-budget to fetch them.'
+  )
 }
 
 const createArchiveTimestamp = () =>
@@ -744,6 +959,26 @@ export const exportActorArchive = async (
     path.join(os.tmpdir(), 'activitynext-actor-archive-')
   )
 
+  // Resolved once for the whole export rather than per attachment: it is a
+  // database read behind a 15s cache, and the cap must not shift mid-run. Only
+  // the remote-download branch reads it, so an export without that flag — the
+  // default — should not pay for the lookup at all.
+  //
+  // The deadline is stamped here, immediately before the status walk that
+  // issues every download, and it is wall-clock rather than a meter of time
+  // spent inside fetches. Metering only the fetches would leave the run
+  // unbounded again the moment the slowness came from anywhere else, and what
+  // an operator needs bounded is when the export ends, not how its time was
+  // spent. The cost of that choice is that database paging and edit-history
+  // reads in the same loop also draw on the budget.
+  const remoteFetch = args.fetchRemoteAttachments
+    ? {
+        maxBytes: await getMaxMediaUploadSize(database),
+        deadline: Date.now() + args.remoteFetchBudgetSeconds * 1000
+      }
+    : null
+  let remoteFetchBudgetSkipped = 0
+
   const warnings: string[] = []
   const mediaPaths = new Set<string>()
   const fitnessPaths = new Set<string>()
@@ -769,16 +1004,17 @@ export const exportActorArchive = async (
 
       if (status.type !== StatusType.enum.Announce) {
         for (const attachment of status.attachments) {
-          await registerAttachmentUrl({
+          const { budgetExhausted } = await registerAttachmentUrl({
             attachment,
-            fetchRemoteAttachments: args.fetchRemoteAttachments,
             hostConfig: config,
             mediaPaths,
             mediaIds,
+            remoteFetch,
             urlToArchivePath,
             stagingDir,
             warnings
           })
+          if (budgetExhausted) remoteFetchBudgetSkipped += 1
         }
 
         if (hasStatusBeenEdited(status)) {
@@ -796,6 +1032,12 @@ export const exportActorArchive = async (
       )
     }
     await outboxWriter.close()
+
+    const budgetWarning = buildRemoteFetchBudgetWarning({
+      skipped: remoteFetchBudgetSkipped,
+      budgetSeconds: args.remoteFetchBudgetSeconds
+    })
+    if (budgetWarning) warnings.push(budgetWarning)
 
     // Thumbnails aren't referenced by any URL on the status, so they only
     // enter the archive by resolving each attachment's mediaId.

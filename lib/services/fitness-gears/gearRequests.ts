@@ -181,6 +181,72 @@ export const UpdateFitnessFileGearRequest = z.object({
 })
 
 /**
+ * Whether a date edit would invert one of a component's install periods.
+ *
+ * Each bound has to be checked against the other end OF THE PERIOD IT LANDS ON:
+ * `addedAt` moves the FIRST period's start and `removedAt` the LAST period's
+ * end. The component's own `addedAt`/`removedAt` are DERIVED from those two
+ * different periods, so validating a request against that derived pair compares
+ * bounds that do not belong together the moment a part has been refitted, and
+ * lets `[May 1, Feb 15)` through — a period no activity can fall inside, which
+ * drops its distance from every surface permanently and silently behind a 200.
+ * It reads as correct because for a single-period component the first and last
+ * period are the same row and the two formulations coincide exactly.
+ *
+ * That collapse is also why this is expressed per PERIOD rather than per field:
+ * when both bounds land on the same row, that row has to be checked against
+ * BOTH new values, not one new and one stored — otherwise moving a window
+ * wholesale is refused for crossing the bound it is itself replacing.
+ *
+ * Only the outermost periods are reachable, and that is enough: a refit always
+ * opens at `now`, later than the period it just closed, so a new `addedAt` that
+ * clears its own period's end clears every later period too, and symmetrically
+ * for the last period's `removedAt`.
+ *
+ * `changes` uses the same presence semantics as the update params — an absent
+ * key leaves that bound alone.
+ *
+ * Returns an error message for the 422 body, or null when the edit is ordered.
+ */
+export const getComponentPeriodBoundsError = (
+  periods: readonly {
+    addedAt?: number | null
+    removedAt?: number | null
+  }[],
+  changes: { addedAt?: number | null; removedAt?: number | null }
+): string | null => {
+  // A component always has at least one period — `createFitnessGearComponent`
+  // inserts the pair in one transaction and the migration backfilled one per
+  // existing row. Answering "nothing to invert" rather than indexing into an
+  // empty array keeps a corrupt row a 200 no-op instead of a 500, which is what
+  // the write itself does with it too.
+  if (periods.length === 0) return null
+
+  const lastIndex = periods.length - 1
+  const boundsAfterWrite = (index: number) => {
+    const period = periods[index]
+    return {
+      addedAt:
+        index === 0 && 'addedAt' in changes
+          ? (changes.addedAt ?? null)
+          : (period.addedAt ?? null),
+      removedAt:
+        index === lastIndex && 'removedAt' in changes
+          ? (changes.removedAt ?? null)
+          : (period.removedAt ?? null)
+    }
+  }
+
+  // The same index twice when there is one period, which is the collapse above.
+  const inverted = [0, lastIndex].some((index) => {
+    const { addedAt, removedAt } = boundsAfterWrite(index)
+    return addedAt !== null && removedAt !== null && removedAt <= addedAt
+  })
+
+  return inverted ? 'removedAt must be after addedAt' : null
+}
+
+/**
  * Bikes and shoes carry different fields, and each sport belongs to exactly one
  * kind. Rejecting a mismatch keeps a shoes row from growing a frame type and
  * stops "Ride" being set as the default sport of a pair of trainers, which the

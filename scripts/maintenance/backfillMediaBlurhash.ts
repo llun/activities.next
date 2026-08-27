@@ -24,12 +24,12 @@ import { toMediaRowId } from '@/lib/database/sql/media'
 import { getMediaStorage } from '@/lib/services/medias'
 import { PRESIGNED_ANALYSIS_MAX_BYTES } from '@/lib/services/medias/constants'
 import { analyzeImageBuffer } from '@/lib/services/medias/imageAnalysis'
-import { getMediaFileUrl } from '@/lib/services/medias/mediaFileUrl'
 import {
-  getTrustedHostRules,
-  hostMatchesRule,
-  normalizeHost
-} from '@/lib/utils/host'
+  MEDIA_FILE_URL_PATH,
+  getMediaFileUrl,
+  getMediaPathFromFileUrl
+} from '@/lib/services/medias/mediaFileUrl'
+import { HostRuleConfig, getCanonicalAuthority } from '@/lib/utils/host'
 import { safeImageFetch } from '@/lib/utils/safeImageDownload'
 import {
   SAFE_DOWNLOAD_MAX_BYTES,
@@ -39,19 +39,10 @@ import {
 const projectDir = process.cwd()
 loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
 
-// Both storage drivers serve their files from this route, so a URL under it on
-// one of THIS instance's hosts names a stored path (see `getMediaFileUrl`).
-const MEDIA_FILE_URL_PATH = '/api/v1/files/'
-
-// Only ever used to resolve a host-relative URL; a resolved URL that still
-// carries this authority is one that brought none of its own.
-const PLACEHOLDER_HOST = 'placeholder.invalid'
-
 // A `thumbnailUrl` an earlier version of this script wrote: the stored path
 // under the files route with no scheme or authority in front of it.
 const isHostRelativeMediaUrl = (value: string | null | undefined) =>
   Boolean(value?.startsWith(MEDIA_FILE_URL_PATH))
-const PLACEHOLDER_ORIGIN = `https://${PLACEHOLDER_HOST}`
 
 // Bounds each download's whole exchange, body stream included;
 // `readResponseArrayBufferWithLimit` bounds how much of it is kept.
@@ -67,10 +58,9 @@ export interface CliOptions {
 export interface InstanceHosts {
   // Host used to build a media URL when the owning actor row cannot be read.
   fallbackHost: string
-  // Every authority this instance serves `/api/v1/files/` from, as the same
-  // rule list `isHostTrustedByRules` consumes — so a `*.example.com` entry
-  // matches the way it does everywhere else in the app.
-  ownHostRules: readonly string[]
+  // The configured host plus `ACTIVITIES_TRUSTED_HOSTS`, in the shape
+  // `getMediaPathFromFileUrl` consumes to decide whether a stored URL is ours.
+  hostConfig: HostRuleConfig
 }
 
 export const parseArgs = (args: string[]): CliOptions => {
@@ -99,70 +89,21 @@ export const parseArgs = (args: string[]): CliOptions => {
 }
 
 /**
- * Whether a URL's authority is one this instance serves.
- *
- * `normalizeHost` + `hostMatchesRule` are the app's own matcher (the pair
- * behind `isHostTrustedByRules`), so a wildcard `ACTIVITIES_TRUSTED_HOSTS`
- * entry like `*.example.com` matches a real subdomain here as it does for a
- * request Host header. `isHostTrustedByRules` itself is not reused because
- * `normalizeHost` deliberately answers null for loopback names, which would
- * make a dev instance on `localhost:3000` fail to recognise its own storage
- * URLs — so a loopback authority falls back to literal equality.
- */
-const isOwnAuthority = (
-  authority: string,
-  ownHostRules: readonly string[]
-): boolean => {
-  const normalizedHost = normalizeHost(authority, { allowWildcard: false })
-  if (normalizedHost) {
-    return ownHostRules.some((rule) => {
-      const normalizedRule = normalizeHost(rule)
-      return normalizedRule
-        ? hostMatchesRule(normalizedHost, normalizedRule)
-        : false
-    })
-  }
-
-  // `normalizeHost` refused this authority. That is mostly loopback, which it
-  // rejects by design, so compare those raw — but a `*.`-prefixed rule is a
-  // PATTERN, never a host, and `new URL` happily parses `*` in an authority.
-  // Comparing it literally let a federated attachment url of
-  // `https://*.<trusted-domain>/api/v1/files/<path>` match the rule's own
-  // spelling and read an attacker-chosen path straight out of local storage.
-  const candidate = authority.trim().toLowerCase()
-  if (!candidate || candidate.startsWith('*.')) return false
-  return ownHostRules.some((rule) => {
-    const normalizedRule = rule.trim().toLowerCase()
-    return !normalizedRule.startsWith('*.') && normalizedRule === candidate
-  })
-}
-
-/**
  * The hosts this instance answers to. `trustedHosts` carries the extra domains
  * a multi-domain deployment serves, and `actors.domain` may be any of them —
  * so a stored `/api/v1/files/` URL is "ours" on any of them, not just on the
  * configured primary.
  */
-export const buildInstanceHosts = ({
-  host,
-  trustedHosts
-}: {
-  host: string
-  trustedHosts?: readonly string[] | null
-}): InstanceHosts => ({
+export const buildInstanceHosts = (config: HostRuleConfig): InstanceHosts => ({
   // Normalised the way `getMediaFileUrl` will consume it: the configured host
   // may carry a scheme, a trailing path, or an explicit default port, none of
-  // which belong in a generated URL's authority.
-  fallbackHost: host
-    .trim()
-    .replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
-    .replace(/[/?#].*$/, '')
-    .toLowerCase()
-    .replace(/:(?:80|443)$/, ''),
-  ownHostRules: getTrustedHostRules({
-    host,
-    trustedHosts: trustedHosts ?? []
-  }).filter((rule) => rule.trim().length > 0)
+  // which belong in a generated URL's authority. That is exactly what the
+  // matcher normalises a candidate authority to, so it is the matcher's own
+  // helper rather than a second spelling of it.
+  fallbackHost: getCanonicalAuthority(config.host),
+  // Narrowed to the host facts on purpose: `main` hands this the whole app
+  // config, and everything downstream only ever asks it the one question.
+  hostConfig: { host: config.host, trustedHosts: config.trustedHosts }
 })
 
 /**
@@ -186,75 +127,6 @@ export const getAttachmentMediaHost = (
   } catch {
     return fallbackHost
   }
-}
-
-/**
- * Recovers the stored path from an attachment URL, or null when the URL is not
- * one of ours.
- *
- * The host check is the point: `/api/v1/files/` is this project's own route, so
- * every OTHER activities.next instance serves attachment URLs with exactly that
- * path. Matching on the path alone treated a remote instance's URL as a local
- * storage path, which then missed in storage and skipped the row.
- */
-const getOwnPathname = (
-  rawUrl: string,
-  ownHostRules: readonly string[]
-): string | null => {
-  // A host-relative URL can only be served by this instance. Resolve it against
-  // a placeholder origin so `..` segments are normalised away exactly as they
-  // are on the absolute branch — reading it as a raw string was not.
-  //
-  // Whether it kept that origin is what decides it, NOT the leading characters:
-  // a raw `!startsWith('//')` test is defeated because the WHATWG parser grows
-  // an authority out of inputs that do not begin with `//` — it reads `\` as
-  // `/` for a special scheme, and strips tab, LF and CR from the input before
-  // parsing at all, so `/\evil.example/…` and `/<TAB>/evil.example/…` are both
-  // protocol-relative.
-  if (rawUrl.startsWith('/')) {
-    try {
-      const resolved = new URL(rawUrl, PLACEHOLDER_ORIGIN)
-      return resolved.host === PLACEHOLDER_HOST ? resolved.pathname : null
-    } catch {
-      return null
-    }
-  }
-
-  try {
-    const parsed = new URL(rawUrl)
-    return isOwnAuthority(parsed.host, ownHostRules) ? parsed.pathname : null
-  } catch {
-    return null
-  }
-}
-
-// A decoded segment that walks upwards, or an absolute decoded path, is never a
-// storage path. `new URL` normalises a LITERAL `../` out of the pathname, but a
-// percent-encoded one survives it and `decodeURIComponent` puts it back — so
-// the check has to happen after decoding. Both storage drivers refuse such a
-// path anyway; a maintenance sweep should not be asking them to.
-const isTraversingStoragePath = (storagePath: string) =>
-  storagePath.startsWith('/') ||
-  storagePath.split('/').some((segment) => segment === '..')
-
-export const getLocalStoragePath = (
-  rawUrl: string,
-  ownHostRules: readonly string[]
-): string | null => {
-  const pathname = getOwnPathname(rawUrl, ownHostRules)
-  if (!pathname?.startsWith(MEDIA_FILE_URL_PATH)) return null
-
-  const encodedPath = pathname.slice(MEDIA_FILE_URL_PATH.length)
-  if (!encodedPath) return null
-
-  let storagePath: string
-  try {
-    storagePath = decodeURIComponent(encodedPath)
-  } catch {
-    storagePath = encodedPath
-  }
-
-  return isTraversingStoragePath(storagePath) ? null : storagePath
 }
 
 /**
@@ -451,6 +323,26 @@ export const backfillAttachments = async (
   let lastId = ''
   let totalProcessed = 0
   let totalUpdated = 0
+  // Two reasons a `mediaId` resolves to nothing, deliberately NOT summed
+  // because they call for opposite responses, and an operator has to tell them
+  // apart from the summary line alone.
+  //
+  // A media row that is GONE is the expected residue of an owner deleting their
+  // own media. Its `thumbnailUrl` is unrecoverable — that rebuild reads the
+  // media row's stored thumbnail path and has no other source — though the
+  // BlurHash can still come from the attachment's own bytes below, because the
+  // delete route drops the row even when the storage delete failed. Deleting a
+  // `medias` row deliberately does not clear the `attachments.mediaId` naming
+  // it, since a null `mediaId` marks a federated attachment (see AGENTS.md,
+  // "Deleting Media a Post Uses"), so a row that cannot self-heal that way is
+  // re-selected forever; before this it was counted in `processed` and reported
+  // nowhere.
+  //
+  // An INVALID one was never a row id, so nothing was deleted: it is a bad
+  // write, from the unvalidated `createAttachment` path AGENTS.md documents
+  // under "Database Compatibility Guidelines", and is worth investigating.
+  let totalDeletedMedia = 0
+  let totalInvalidMediaId = 0
 
   while (true) {
     let query = db('attachments')
@@ -542,6 +434,18 @@ export const backfillAttachments = async (
               media.thumbnail
             )
           }
+        } else if (rowId === undefined) {
+          // `toMediaRowId` refused the value, so it never named a row.
+          totalInvalidMediaId += 1
+          console.warn(
+            `[attachments ${row.id}] mediaId ${JSON.stringify(row.mediaId)} is not a media row id; cannot restore blurhash, focus or thumbnailUrl from it`
+          )
+        } else {
+          // A real row id whose `medias` row is gone.
+          totalDeletedMedia += 1
+          console.warn(
+            `[attachments ${row.id}] media ${row.mediaId} no longer exists; cannot restore blurhash, focus or thumbnailUrl from it`
+          )
         }
       }
 
@@ -555,9 +459,9 @@ export const backfillAttachments = async (
       if (shouldAnalyze) {
         try {
           let buffer: Buffer | null = null
-          const targetPath = getLocalStoragePath(
+          const targetPath = getMediaPathFromFileUrl(
             row.url,
-            instanceHosts.ownHostRules
+            instanceHosts.hostConfig
           )
           if (targetPath) {
             buffer = await getFileBuffer(storage, targetPath)
@@ -616,8 +520,11 @@ export const backfillAttachments = async (
     }
   }
 
+  // Printed even when zero: a `0` rules a cause out as usefully as a non-zero
+  // value names it. The counts do NOT partition `processed` — a row counted
+  // here can still be repaired from its own image bytes below.
   console.log(
-    `Attachments complete: processed ${totalProcessed}, updated ${totalUpdated}`
+    `Attachments complete: processed ${totalProcessed}, updated ${totalUpdated}, ${totalDeletedMedia} whose media row is gone, ${totalInvalidMediaId} with an invalid mediaId`
   )
 }
 

@@ -1,4 +1,4 @@
-import { encode } from 'blurhash'
+import { encode, isBlurhashValid } from 'blurhash'
 import sharp from 'sharp'
 
 import { FocalPoint, clampFocalPoint } from '@/lib/utils/focalPoint'
@@ -18,12 +18,47 @@ const BLURHASH_MAX_DIMENSION = 32
 const BLURHASH_COMPONENTS_X = 4
 const BLURHASH_COMPONENTS_Y = 4
 
-// Standard blurhash format regex: base83 characters, length 6 to 100
-const BLURHASH_REGEX = /^[0-9a-zA-Z#$%*+,\-.:;=?@[\]^_{|}~]{6,100}$/
+// The base83 alphabet, and the length a well-formed blurhash can occupy: the
+// shortest is 1x1 (`4 + 2 * 1 * 1` = 6) and the longest 9x9 (`4 + 2 * 9 * 9` =
+// 166), 9 being the most components `encode` accepts. The cap used to be 100 —
+// two characters short of a 7x7 hash — so a remote encoding at more than 48
+// components had its blurhash dropped even though `decode` reads it fine. The
+// column is `varchar(255)`, so the widest legal hash still fits.
+export const BLURHASH_REGEX = /^[0-9a-zA-Z#$%*+,\-.:;=?@[\]^_{|}~]{6,166}$/
 
-export const isValidBlurhash = (hash?: string | null): boolean => {
-  if (!hash || typeof hash !== 'string') return false
-  return BLURHASH_REGEX.test(hash.trim())
+/**
+ * The form of a blurhash this instance stores, or null when the value is not
+ * one `decode` can read.
+ *
+ * Returning the string rather than a boolean is load-bearing. The check has
+ * always compared `hash.trim()`, but `createNoteJob` stored the value it was
+ * handed, so a federated hash padded with whitespace validated on the trimmed
+ * copy and was persisted untrimmed. `decode` then threw on every render
+ * (`length is 29 but it should be 28`), the blur placeholder rendered as an
+ * empty canvas, and the padded value was served on to third-party clients
+ * verbatim. A predicate cannot say "and store this instead", so callers store
+ * what this returns.
+ *
+ * BOTH checks are load-bearing and neither subsumes the other.
+ *
+ * The regex covers the base83 alphabet, which `isBlurhashValid` does not look
+ * at — a string of the right length containing `!`, a backslash or a space
+ * passes it, and `decode` then happily returns pixels for characters that are
+ * not in the alphabet at all.
+ *
+ * `isBlurhashValid` covers the structure, which the regex cannot see: the
+ * required length is `4 + 2 * componentX * componentY`, derived from the size
+ * flag in the first character, so `'aaaaaa'` is well-formed base83 of a legal
+ * length and still throws `blurhash length mismatch: length is 6 but it should
+ * be 14`. That is what a charset-only check let through — a value a remote
+ * actor puts on a federated note, stored by `createNoteJob`, that throws every
+ * time a client renders the post.
+ */
+export const normalizeBlurhash = (hash?: string | null): string | null => {
+  if (!hash || typeof hash !== 'string') return null
+  const trimmed = hash.trim()
+  if (!BLURHASH_REGEX.test(trimmed)) return null
+  return isBlurhashValid(trimmed).result ? trimmed : null
 }
 
 /**

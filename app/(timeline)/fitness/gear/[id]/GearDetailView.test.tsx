@@ -83,21 +83,32 @@ const createGear = (overrides: Partial<GearEntity> = {}): GearEntity => ({
   ...overrides
 })
 
+// `periods` defaults to the single period the derived `addedAt`/`removedAt`
+// describe, so a fixture that only sets those two stays self-consistent. A test
+// about install history passes `periods` explicitly.
 const createComponent = (
   overrides: Partial<GearComponentEntity> = {}
-): GearComponentEntity => ({
-  id: 'component-1',
-  gearId: 'gear-1',
-  componentType: 'Chain',
-  brand: 'Shimano',
-  model: 'HG701',
-  addedAt: Date.UTC(2024, 0, 15),
-  removedAt: null,
-  serviceDistanceMeters: null,
-  distanceMeters: 2450000,
-  activityCount: 82,
-  ...overrides
-})
+): GearComponentEntity => {
+  const component = {
+    id: 'component-1',
+    gearId: 'gear-1',
+    componentType: 'Chain',
+    brand: 'Shimano',
+    model: 'HG701',
+    addedAt: Date.UTC(2024, 0, 15),
+    removedAt: null,
+    serviceDistanceMeters: null,
+    distanceMeters: 2450000,
+    activityCount: 82,
+    ...overrides
+  }
+  return {
+    ...component,
+    periods: overrides.periods ?? [
+      { addedAt: component.addedAt, removedAt: component.removedAt }
+    ]
+  }
+}
 
 const FIXED_CURRENT_TIME = new Date('2026-06-01T10:00:00.000Z').getTime()
 
