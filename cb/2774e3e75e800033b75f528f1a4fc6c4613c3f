@@ -1,0 +1,38 @@
+AGENTS.md
+  s_3f35ed36536e83::t_0cb9a09f3d2ad4 2307,2321-2323
+  s_3f35ed36536e83::t_affecb1c877b36 2316
+  s_3f35ed36536e83::t_ad4d7635747ac7 2317
+  s_3f35ed36536e83::t_2075aefd8e97af 2315
+scripts/backup/actorArchive.ts
+  s_3f35ed36536e83::t_3ccce199cedb7f 653-656
+  s_3f35ed36536e83::t_3a62dea7337eec 23,650,657-658
+  s_3f35ed36536e83::t_05669088bbff1a 70,652
+CLAUDE.md
+  s_3f35ed36536e83::t_2075aefd8e97af 56
+  s_3f35ed36536e83::t_0cb9a09f3d2ad4 54
+scripts/backup/actorArchive.test.ts
+  s_3f35ed36536e83::t_3ccce199cedb7f 385-388
+  s_3f35ed36536e83::t_2e1ca44ef93438 367-370
+  s_3f35ed36536e83::t_0134884a51bdd5 12,32-39
+  s_3f35ed36536e83::t_f3fd834a58a943 15,309-311,313,383-384,389-390
+  s_3f35ed36536e83::t_5747385777536f 312,314-321,415-423
+  s_3f35ed36536e83::t_54d0a5c344568e 40
+app/api/v1/files/[...pathname]/route.ts
+  s_3f35ed36536e83::t_95a023035708f3 23-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "cb2774e3e75e800033b75f528f1a4fc6c4613c3f",
+  "prompts": {},
+  "sessions": {
+    "s_3f35ed36536e83": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d4aa7473-150b-4909-9586-8c1c8de015e6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
