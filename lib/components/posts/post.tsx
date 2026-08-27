@@ -39,7 +39,8 @@ import {
   ActorAvatar,
   ActorInfo,
   getActorIdMention,
-  getActorProfileHref
+  getActorProfileHref,
+  getDisplayUsername
 } from './actor'
 import { Attachments, OnMediaSelectedHandle } from './attachments'
 import { CollapsibleContent } from './collapsible-content'
@@ -95,7 +96,7 @@ export const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
   if (status.type !== StatusType.enum.Announce) return null
   const actorName =
     status.actor?.name ||
-    status.actor?.username ||
+    (status.actor && getDisplayUsername(status.actor.username)) ||
     getActorIdMention(status.actorId)
   // Undefined when the boost actor id carries no usable handle (an opaque
   // `did:`/UUID username) — the same case `ActorInfo` renders as plain text.
@@ -117,7 +118,7 @@ export const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
           <Link
             href={profileHref}
             prefetch={false}
-            className="font-medium hover:underline"
+            className="font-medium text-foreground hover:underline"
             onClick={(e) => e.stopPropagation()}
           >
             {actorName}

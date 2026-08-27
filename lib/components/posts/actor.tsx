@@ -30,7 +30,7 @@ const getInitials = (value: string) =>
     .toUpperCase()
     .slice(0, 2)
 
-const getDisplayUsername = (username: string) =>
+export const getDisplayUsername = (username: string) =>
   username.replace(/^@+/, '').split('@')[0]
 
 const getActorMention = (actor: ActorProfile) =>

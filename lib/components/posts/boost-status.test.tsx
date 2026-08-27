@@ -110,6 +110,20 @@ describe('BoostStatus', () => {
     )
   })
 
+  it('normalises a malformed federated username before rendering it as the link text', () => {
+    render(
+      <BoostStatus
+        status={{
+          ...boost,
+          actor: { ...booster, name: '', username: '@booster' }
+        }}
+      />
+    )
+
+    const link = screen.getByRole('link', { name: 'booster' })
+    expect(link).toHaveAttribute('href', '/@booster@remote.example')
+  })
+
   it('links the handle recovered from the actor id when the profile is absent', () => {
     render(
       <BoostStatus
