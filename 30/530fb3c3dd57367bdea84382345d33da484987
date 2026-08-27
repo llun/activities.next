@@ -1,0 +1,37 @@
+scripts/maintenance/backfillMediaBlurhash.test.ts
+  s_7ce6976d8cf0f9::t_390068197d2cc6 1586-1587
+  s_7ce6976d8cf0f9::t_70ba856340a4d8 1514
+  s_7ce6976d8cf0f9::t_8968ff7989301c 18-19,26-33
+  s_7ce6976d8cf0f9::t_d5c5afbbfe9ac3 4-8
+  s_7ce6976d8cf0f9::t_f4e7041ec92e82 52-53,62-63,70-79
+  s_7ce6976d8cf0f9::t_7afdc471ca0441 1501-1503,1505-1510,1513
+  s_7ce6976d8cf0f9::t_18802258c0d3bc 1395,1400,1405,1410
+  s_7ce6976d8cf0f9::t_a02ed8078cc93a 1326-1394,1396-1399,1401-1404,1406-1409,1411-1500,1504,1511-1512,1515-1585
+  s_7ce6976d8cf0f9::t_87496660547a1e 286,1170
+scripts/maintenance/backfillMediaBlurhash.ts
+  s_7ce6976d8cf0f9::t_be50dc15affedc 641
+  s_7ce6976d8cf0f9::t_815f562f0bd5f5 8,18-22,32-35,65,81,91-92,101
+  s_7ce6976d8cf0f9::t_749aa582ad68e2 544-597,599-640,642-647,651,653-667,669-698
+AGENTS.md
+  s_7ce6976d8cf0f9::t_76217de004d426 2374-2380
+CLAUDE.md
+  s_7ce6976d8cf0f9::t_b58b1a818dc5be 57-58
+docs/maintenance.md
+  s_7ce6976d8cf0f9::t_771fec0a68a0ad 657-658,673-675,705-739
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "30530fb3c3dd57367bdea84382345d33da484987",
+  "prompts": {},
+  "sessions": {
+    "s_7ce6976d8cf0f9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "634620f0-5c29-43c1-9cf4-35b968bc7e7a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
