@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { uploadAttachment } from '@/lib/client'
 
@@ -143,8 +143,16 @@ describe('ImageUploadField', () => {
     await waitFor(() =>
       expect(getSubmittedValue(container, 'iconUrl')).toBe(MEDIA_URL)
     )
-    expect(document.activeElement).toBe(
-      screen.getByRole('button', { name: 'Upload Icon image' })
+    // Retried rather than asserted once, because the value landing does not
+    // mean the focus effect has run. React mutates the DOM during the commit
+    // and flushes passive effects afterwards, and `waitFor` polls a
+    // MutationObserver — so the hidden input's new value is observable in
+    // between, and a bare assertion here read `<body>` on CI while passing
+    // every time locally.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Upload Icon image' })
+      )
     )
   })
 
@@ -175,6 +183,12 @@ describe('ImageUploadField', () => {
     await waitFor(() =>
       expect(getSubmittedValue(container, 'iconUrl')).toBe(MEDIA_URL)
     )
+    // Retrying is no use for an assertion that nothing happened — it passes on
+    // the first poll — so this needs a barrier instead, and the value landing
+    // is not one for the reason above. Without flushing the effect the test
+    // still passes with the `document.body` guard deleted, i.e. it stops
+    // guarding anything on exactly the runs where the timing bites.
+    await act(async () => {})
     expect(document.activeElement).toBe(elsewhere)
     elsewhere.remove()
   })
