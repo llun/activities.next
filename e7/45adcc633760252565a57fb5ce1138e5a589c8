@@ -1,0 +1,23 @@
+REVIEW.md
+  s_7ce6976d8cf0f9::t_c7848ef8b6f48c 502-511
+AGENTS.md
+  s_7ce6976d8cf0f9::t_c7848ef8b6f48c 2054-2065,2069
+scripts/maintenance/backfillMediaBlurhash.test.ts
+  s_7ce6976d8cf0f9::t_c7848ef8b6f48c 5-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "e745adcc633760252565a57fb5ce1138e5a589c8",
+  "prompts": {},
+  "sessions": {
+    "s_7ce6976d8cf0f9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "634620f0-5c29-43c1-9cf4-35b968bc7e7a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
