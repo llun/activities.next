@@ -1,6 +1,20 @@
 import knex, { Knex } from 'knex'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+// These four are read back through the static import, never `vi.importMock`:
+// each of their factories awaits `importOriginal()` to keep the rest of its
+// module real, and for such a factory `vi.importMock` hands back the ORIGINAL
+// module. The export then comes back real, callable, and a DIFFERENT object
+// from the mock the module under test was given, so `vi.mocked(...)` on it
+// configures nothing and asserts nothing — worse than a missing binding,
+// because it looks right. `safeImageFetch` below keeps `vi.importMock` because
+// its factory never calls `importOriginal`. Full rule and the measurements
+// behind it: AGENTS.md, "Testing Guidelines".
+import { getConfig } from '@/lib/config'
+import { getDatabase, getKnex } from '@/lib/database'
+import { getMediaStorage } from '@/lib/services/medias'
+import { analyzeImageBuffer } from '@/lib/services/medias/imageAnalysis'
+
 import {
   CliOptions,
   InstanceHosts,
@@ -10,24 +24,49 @@ import {
   downloadRemoteImage,
   getAttachmentMediaHost,
   getFileBuffer,
-  parseArgs
+  main,
+  parseArgs,
+  revalidateAttachmentBlurhashes
 } from './backfillMediaBlurhash'
 
 vi.mock('@/lib/utils/safeImageDownload', () => ({
   safeImageFetch: vi.fn()
 }))
 
-vi.mock('@/lib/services/medias/imageAnalysis', () => ({
+// Only `analyzeImageBuffer` is replaced. `normalizeBlurhash` stays REAL: it is
+// the whole subject of the revalidation pass, and a stubbed one would prove the
+// wiring while leaving every judgement about which hashes `decode` can read
+// unasserted.
+vi.mock('@/lib/services/medias/imageAnalysis', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('@/lib/services/medias/imageAnalysis')
+  >()),
   analyzeImageBuffer: vi.fn()
+}))
+
+// `main`'s three module boundaries. Only the entry points it calls are
+// replaced — everything else in each module stays real, so nothing outside
+// the `main` block below changes behaviour. They are read back through the
+// static imports above, for the reason given there.
+vi.mock('@/lib/database', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/database')>()),
+  getKnex: vi.fn(),
+  getDatabase: vi.fn()
+}))
+
+vi.mock('@/lib/services/medias', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/services/medias')>()),
+  getMediaStorage: vi.fn()
+}))
+
+vi.mock('@/lib/config', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/config')>()),
+  getConfig: vi.fn()
 }))
 
 const { safeImageFetch } = await vi.importMock<
   typeof import('@/lib/utils/safeImageDownload')
 >('@/lib/utils/safeImageDownload')
-
-const { analyzeImageBuffer } = await vi.importMock<
-  typeof import('@/lib/services/medias/imageAnalysis')
->('@/lib/services/medias/imageAnalysis')
 
 const HOSTS: InstanceHosts = buildInstanceHosts({
   host: 'llun.test',
@@ -40,7 +79,8 @@ describe('backfillMediaBlurhash parseArgs', () => {
       batchSize: 50,
       dryRun: false,
       force: false,
-      localOnly: false
+      localOnly: false,
+      revalidate: false
     })
 
     expect(
@@ -49,14 +89,24 @@ describe('backfillMediaBlurhash parseArgs', () => {
       batchSize: 100,
       dryRun: true,
       force: true,
-      localOnly: true
+      localOnly: true,
+      revalidate: false
     })
 
     expect(parseArgs(['--batch-size', '25'])).toEqual({
       batchSize: 25,
       dryRun: false,
       force: false,
-      localOnly: false
+      localOnly: false,
+      revalidate: false
+    })
+
+    expect(parseArgs(['--revalidate', '--dry-run'])).toEqual({
+      batchSize: 50,
+      dryRun: true,
+      force: false,
+      localOnly: false,
+      revalidate: true
     })
   })
 })
@@ -263,6 +313,7 @@ describe('backfillMediaBlurhash execution', () => {
     dryRun: false,
     force: false,
     localOnly: false,
+    revalidate: false,
     ...overrides
   })
 
@@ -932,6 +983,45 @@ describe('backfillMediaBlurhash execution', () => {
     expect(selects).toHaveLength(4)
   })
 
+  // Companion to the test above, which cannot see this: at a batch size of one
+  // `rows[0]` and `rows[rows.length - 1]` are the same row, so a cursor that
+  // advances to the FIRST row of the batch instead of the last passed every
+  // test in this file. Three rows at a batch size of two separate them, and
+  // --force removes the selection predicate so nothing else hides a trailing
+  // cursor — the middle row is re-read and `processed` reads 5 instead of 3.
+  it('advances the cursor past the last row of each batch', async () => {
+    await db('attachments').insert(
+      [1, 2, 3].map((index) => ({
+        id: `att-${index}`,
+        statusId: 'status-1',
+        actorId: 'https://remote.example/users/them',
+        mediaId: null,
+        // Not an image, so nothing reaches the analysis fallback and no row is
+        // written — the scan is the only thing under test.
+        mediaType: 'video/mp4',
+        url: 'https://remote.example/media/clip.mp4',
+        blurhash: 'KEPTHASH'
+      }))
+    )
+
+    const mockStorage = { getFile: vi.fn().mockResolvedValue(null) } as never
+    await backfillAttachments(
+      db,
+      mockStorage,
+      options({ force: true, batchSize: 2 }),
+      HOSTS
+    )
+
+    const logged = vi
+      .mocked(console.log)
+      .mock.calls.map((call) => String(call[0]))
+    expect(
+      logged.filter((line) => line.startsWith('Attachments complete:'))
+    ).toEqual([
+      'Attachments complete: processed 3, updated 0, 0 whose media row is gone, 0 with an invalid mediaId'
+    ])
+  })
+
   // If you extend the paging coverage: a mutation that stops `lastId` advancing
   // does not fail, it HANGS well past the 30s `testTimeout`. better-sqlite3 is
   // a synchronous driver, so the awaits inside the sweep's `while (true)`
@@ -1146,6 +1236,7 @@ describe('backfillMedias', () => {
     dryRun: false,
     force: false,
     localOnly: false,
+    revalidate: false,
     ...overrides
   })
 
@@ -1299,5 +1390,455 @@ describe('backfillMedias', () => {
       .mocked(console.log)
       .mock.calls.map((call) => String(call[0]))
     expect(logged).toContain('Medias complete: processed 1, updated 0')
+  })
+
+  // The cursor must advance to the LAST row of the batch. Every other paging
+  // test in this file runs at a batch size of one, where `rows[0]` and
+  // `rows[rows.length - 1]` are the same row, so an off-by-one that leaves the
+  // cursor trailing is invisible to all of them — it survived the whole suite.
+  // Three rows at a batch size of two is the smallest fixture that separates
+  // them, and --force is what keeps it honest: without a filtering predicate,
+  // nothing removes an already-scanned row from the next batch, so a trailing
+  // cursor re-reads the middle row and `processed` reads 5 instead of 3.
+  it('advances the cursor past the last row of each batch', async () => {
+    for (const id of [1, 2, 3]) {
+      await insertMedia({ id, blurhash: 'SAMEHASH', focusX: 0.1, focusY: 0.2 })
+    }
+    vi.mocked(analyzeImageBuffer).mockResolvedValue({
+      blurhash: 'SAMEHASH',
+      focus: { x: 0.1, y: 0.2 }
+    })
+
+    await backfillMedias(db, storage(), options({ force: true, batchSize: 2 }))
+
+    const logged = vi
+      .mocked(console.log)
+      .mock.calls.map((call) => String(call[0]))
+    expect(logged).toContain('Medias complete: processed 3, updated 0')
+  })
+
+  // The other half of the same blind spot, and the one the cursor test above
+  // cannot see: three rows read as one batch of 50 or as two batches of two
+  // produce identical writes and an identical `processed`. Counting the SELECTs
+  // that carry a `limit` is what separates them, the way both sibling loops are
+  // already covered.
+  it('pages the medias scan at the requested batch size', async () => {
+    for (const id of [1, 2, 3]) {
+      await insertMedia({ id, blurhash: 'SAMEHASH', focusX: 0.1, focusY: 0.2 })
+    }
+    vi.mocked(analyzeImageBuffer).mockResolvedValue({
+      blurhash: 'SAMEHASH',
+      focus: { x: 0.1, y: 0.2 }
+    })
+
+    const selects: string[] = []
+    db.on('query', ({ sql }: { sql: string }) => {
+      if (
+        sql.startsWith('select') &&
+        sql.includes('medias') &&
+        sql.includes('limit')
+      ) {
+        selects.push(sql)
+      }
+    })
+
+    await backfillMedias(db, storage(), options({ force: true, batchSize: 1 }))
+
+    // One SELECT per row, plus the empty one that ends the loop.
+    expect(selects).toHaveLength(4)
+  })
+})
+
+// `normalizeBlurhash` is REAL in this file (see the mock factory at the top),
+// so these assert what `decode` can actually read rather than what a stub was
+// told to say. The three fixtures are the three outcomes:
+//   - VALID_BLURHASH        canonical, left alone
+//   - `'aaaaaa'`            legal base83 of a legal length, but not the length
+//                           its own size flag demands — the case a charset-only
+//                           check let through
+//   - CHARSET_BLURHASH      passes the blurhash package's own `isBlurhashValid`
+//                           and still carries a character outside base83
+describe('revalidateAttachmentBlurhashes', () => {
+  let db: Knex
+
+  const VALID_BLURHASH = 'L6PZfSi_.AyE_3t7t7R**0o#DgR4'
+  const CHARSET_BLURHASH = 'L6PZfSi_.AyE_3t7t7R**0o#Dg!4'
+  const STRUCTURAL_BLURHASH = 'aaaaaa'
+
+  const options = (overrides: Partial<CliOptions> = {}): CliOptions => ({
+    batchSize: 50,
+    dryRun: false,
+    force: false,
+    localOnly: false,
+    revalidate: true,
+    ...overrides
+  })
+
+  beforeEach(async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    db = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: { filename: ':memory:' }
+    })
+
+    await db.schema.createTable('attachments', (table) => {
+      table.string('id').primary()
+      table.string('statusId')
+      table.string('actorId')
+      table.string('mediaId').nullable()
+      table.string('mediaType')
+      table.string('url')
+      table.string('blurhash').nullable()
+    })
+  })
+
+  afterEach(async () => {
+    await db.destroy()
+    vi.restoreAllMocks()
+  })
+
+  const insertAttachment = (row: Record<string, unknown>) =>
+    db('attachments').insert({
+      statusId: 'status-1',
+      actorId: 'https://remote.example/users/them',
+      mediaId: null,
+      mediaType: 'image/jpeg',
+      url: 'https://remote.example/media/photo.jpg',
+      ...row
+    })
+
+  const blurhashOf = async (id: string) =>
+    (await db('attachments').where('id', id).first()).blurhash
+
+  it.each([
+    {
+      description: 'trims a padded hash back to the form decode reads',
+      stored: `  ${VALID_BLURHASH}\n`,
+      expected: VALID_BLURHASH
+    },
+    {
+      description: 'clears a hash whose length contradicts its size flag',
+      stored: STRUCTURAL_BLURHASH,
+      expected: null
+    },
+    {
+      description: 'clears a hash carrying a character outside base83',
+      stored: CHARSET_BLURHASH,
+      expected: null
+    },
+    {
+      description: 'leaves a canonical hash exactly as stored',
+      stored: VALID_BLURHASH,
+      expected: VALID_BLURHASH
+    }
+  ])('$description', async ({ stored, expected }) => {
+    await insertAttachment({ id: 'att-1', blurhash: stored })
+
+    await revalidateAttachmentBlurhashes(db, options())
+
+    expect(await blurhashOf('att-1')).toBe(expected)
+  })
+
+  // The three counts are the whole point of the pass: a repaired row is fixed,
+  // a cleared one has lost its placeholder until a later backfill recomputes
+  // one from the image bytes, and an untouched one was never broken. Merged
+  // into a single "processed" number an operator cannot tell those apart.
+  // Asserted as the only `Blurhash revalidation complete:` line, and as the
+  // last line of the run, because `toHaveBeenCalledWith` alone passes when the
+  // summary is logged once per row — the final row carries correct cumulative
+  // totals.
+  it('reports repaired, cleared and untouched separately, once', async () => {
+    // Every count is a different number on purpose. At one repaired and one
+    // cleared the summary reads the same whichever way round the two counters
+    // are, so swapping them — at the increment or in the template — passed.
+    await insertAttachment({ id: 'att-1', blurhash: `${VALID_BLURHASH} ` })
+    await insertAttachment({ id: 'att-2', blurhash: STRUCTURAL_BLURHASH })
+    await insertAttachment({ id: 'att-3', blurhash: CHARSET_BLURHASH })
+    await insertAttachment({ id: 'att-4', blurhash: VALID_BLURHASH })
+    await insertAttachment({ id: 'att-5', blurhash: VALID_BLURHASH })
+    await insertAttachment({ id: 'att-6', blurhash: VALID_BLURHASH })
+    // Never selected: a missing blurhash is the backfill's job, and this pass
+    // has no way to produce one.
+    await insertAttachment({ id: 'att-7', blurhash: null })
+
+    await revalidateAttachmentBlurhashes(db, options({ batchSize: 1 }))
+
+    const expectedSummary =
+      'Blurhash revalidation complete: scanned 6, repaired 1, cleared 2, left 3 untouched'
+    const logged = vi
+      .mocked(console.log)
+      .mock.calls.map((call) => String(call[0]))
+    expect(
+      logged.filter((line) =>
+        line.startsWith('Blurhash revalidation complete:')
+      )
+    ).toEqual([expectedSummary])
+    expect(logged.at(-1)).toBe(expectedSummary)
+    expect(await blurhashOf('att-7')).toBeNull()
+  })
+
+  it('names the row and the stored value on every repair and clear', async () => {
+    await insertAttachment({ id: 'att-1', blurhash: `${VALID_BLURHASH} ` })
+    await insertAttachment({ id: 'att-2', blurhash: STRUCTURAL_BLURHASH })
+
+    await revalidateAttachmentBlurhashes(db, options())
+
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `[attachments att-1] blurhash ${JSON.stringify(`${VALID_BLURHASH} `)} is stored padded`
+      )
+    )
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `[attachments att-2] blurhash "${STRUCTURAL_BLURHASH}" is not one \`decode\` can read`
+      )
+    )
+  })
+
+  it('counts a row it would change under --dry-run without writing it', async () => {
+    await insertAttachment({ id: 'att-1', blurhash: `${VALID_BLURHASH} ` })
+    await insertAttachment({ id: 'att-2', blurhash: STRUCTURAL_BLURHASH })
+
+    await revalidateAttachmentBlurhashes(db, options({ dryRun: true }))
+
+    expect(await blurhashOf('att-1')).toBe(`${VALID_BLURHASH} `)
+    expect(await blurhashOf('att-2')).toBe(STRUCTURAL_BLURHASH)
+    const logged = vi
+      .mocked(console.log)
+      .mock.calls.map((call) => String(call[0]))
+    expect(logged).toContain(
+      'Blurhash revalidation complete: scanned 2, repaired 1, cleared 1, left 0 untouched'
+    )
+  })
+
+  // The backfill's own analysis step is gated on `mediaType` starting with
+  // `image`, so a video attachment's poster-frame hash is a value only this
+  // pass can reach.
+  it('repairs a video attachment, which the backfill never analyses', async () => {
+    await insertAttachment({
+      id: 'att-1',
+      mediaType: 'video/mp4',
+      url: 'https://remote.example/media/clip.mp4',
+      blurhash: `\t${VALID_BLURHASH}`
+    })
+
+    await revalidateAttachmentBlurhashes(db, options())
+
+    expect(await blurhashOf('att-1')).toBe(VALID_BLURHASH)
+  })
+
+  // Reading no image bytes is the reason this is its own mode rather than part
+  // of --force: it takes neither a storage driver nor a network call, and there
+  // is no argument to hand it one. Pinned on the global `fetch`, which a repair
+  // implemented by re-downloading the image would reach.
+  it('reads no image bytes at all', async () => {
+    // `globalThis.fetch` is still a spy here, carrying the calls the
+    // `getFileBuffer` block made — `vi.spyOn` hands back the existing spy when
+    // the property is already one, and `vi.restoreAllMocks()` demonstrably does
+    // not detach this one. Clearing is what makes the assertion about THIS
+    // pass. The stub answers rather than rejecting so a regression fails on the
+    // assertion below instead of on a real request leaving the test run.
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 500 }))
+    fetchSpy.mockClear()
+    await insertAttachment({ id: 'att-1', blurhash: STRUCTURAL_BLURHASH })
+
+    await revalidateAttachmentBlurhashes(db, options())
+
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(await blurhashOf('att-1')).toBeNull()
+  })
+
+  // Same blind spot the backfill's paging test documents: at fixture scale a
+  // single 50-row batch and three 1-row batches write the same rows and log the
+  // same counts, so a hardcoded limit is invisible to every other assertion
+  // here. Counting the SELECTs carrying a `limit` is what separates them.
+  //
+  // If you extend this: a mutation that stops `lastId` advancing HANGS rather
+  // than failing — better-sqlite3 is synchronous, so the `while (true)` loop
+  // never yields to the timer phase the test watchdog lives in. Kill such a run
+  // rather than waiting it out.
+  it('pages the scan at the requested batch size', async () => {
+    for (const index of [1, 2, 3]) {
+      await insertAttachment({ id: `att-${index}`, blurhash: VALID_BLURHASH })
+    }
+
+    const selects: string[] = []
+    db.on('query', ({ sql }: { sql: string }) => {
+      if (
+        sql.startsWith('select') &&
+        sql.includes('attachments') &&
+        sql.includes('limit')
+      ) {
+        selects.push(sql)
+      }
+    })
+
+    await revalidateAttachmentBlurhashes(db, options({ batchSize: 1 }))
+
+    // One SELECT per row, plus the empty one that ends the loop.
+    expect(selects).toHaveLength(4)
+  })
+
+  // The cursor's direction, which the batch-size test above cannot see: at a
+  // batch size of one both ends of the batch are the same row. All-canonical
+  // rows are what make this honest — nothing is written, so no row drops out
+  // of `blurhash IS NOT NULL` on its own and only the cursor decides what the
+  // next batch reads. A cursor left on the FIRST row re-scans the middle one
+  // and `scanned` reads 5. The `--dry-run` test happens to catch this too, but
+  // by accident of never writing; this one is aimed at it.
+  it('advances the cursor past the last row of each batch', async () => {
+    for (const index of [1, 2, 3]) {
+      await insertAttachment({ id: `att-${index}`, blurhash: VALID_BLURHASH })
+    }
+
+    await revalidateAttachmentBlurhashes(db, options({ batchSize: 2 }))
+
+    const logged = vi
+      .mocked(console.log)
+      .mock.calls.map((call) => String(call[0]))
+    expect(
+      logged.filter((line) =>
+        line.startsWith('Blurhash revalidation complete:')
+      )
+    ).toEqual([
+      'Blurhash revalidation complete: scanned 3, repaired 0, cleared 0, left 3 untouched'
+    ])
+  })
+
+  // Keyset paging over a predicate the pass itself invalidates: every cleared
+  // row drops out of `blurhash IS NOT NULL`, so an OFFSET — or any re-read of
+  // the same window — would skip the row that slid into the gap. Two full
+  // batches of clearable rows is the smallest fixture that catches it.
+  it('does not skip rows as it clears them out of its own predicate', async () => {
+    const ids = [1, 2, 3, 4].map((index) => `att-${index}`)
+    for (const id of ids) {
+      await insertAttachment({ id, blurhash: STRUCTURAL_BLURHASH })
+    }
+
+    await revalidateAttachmentBlurhashes(db, options({ batchSize: 2 }))
+
+    const remaining = await db('attachments').whereNotNull('blurhash')
+    expect(remaining).toEqual([])
+    const logged = vi
+      .mocked(console.log)
+      .mock.calls.map((call) => String(call[0]))
+    expect(logged).toContain(
+      'Blurhash revalidation complete: scanned 4, repaired 0, cleared 4, left 0 untouched'
+    )
+  })
+
+  it('writes only the row it is repairing', async () => {
+    await insertAttachment({ id: 'att-1', blurhash: STRUCTURAL_BLURHASH })
+    await insertAttachment({ id: 'att-2', blurhash: VALID_BLURHASH })
+
+    await revalidateAttachmentBlurhashes(db, options())
+
+    expect(await blurhashOf('att-1')).toBeNull()
+    expect(await blurhashOf('att-2')).toBe(VALID_BLURHASH)
+  })
+})
+
+// `main` is the CLI entrypoint and was untested before this block existed, on
+// both sides of the diff — but two of the promises it makes are new and are
+// stated in the script's own header comment, so nothing else pins them:
+// `--revalidate` refuses to run beside `--force`, and it short-circuits BEFORE
+// the storage and host checks, which is what keeps it usable on an instance
+// whose storage backend is unreachable. Deleting the guard block outright left
+// all 64 other tests in this file passing.
+describe('main', () => {
+  let db: Knex
+  let originalArgv: string[]
+
+  const runWith = (...args: string[]) => {
+    process.argv = ['node', 'backfillMediaBlurhash.ts', ...args]
+    return main()
+  }
+
+  beforeEach(async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    originalArgv = process.argv
+    // Created inside a `vi.mock` factory, so `vi.restoreAllMocks()` never
+    // reaches these — reset each one explicitly or a test inherits whatever
+    // its predecessor left configured.
+    vi.mocked(getKnex).mockReset()
+    vi.mocked(getDatabase).mockReset()
+    vi.mocked(getMediaStorage).mockReset()
+    vi.mocked(getConfig).mockReset()
+
+    db = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: { filename: ':memory:' }
+    })
+    await db.schema.createTable('attachments', (table) => {
+      table.string('id').primary()
+      table.string('mediaType')
+      table.string('url')
+      table.string('blurhash').nullable()
+    })
+    vi.mocked(getKnex).mockReturnValue(db)
+  })
+
+  afterEach(async () => {
+    process.argv = originalArgv
+    // `main` destroys it in its own `finally`; knex tolerates a second call,
+    // and this covers the paths that throw before reaching `main` at all.
+    await db.destroy()
+    vi.restoreAllMocks()
+  })
+
+  it('refuses --revalidate beside --force, before opening a connection', async () => {
+    await expect(runWith('--revalidate', '--force')).rejects.toThrow(
+      '--revalidate and --force are separate jobs; run them one at a time'
+    )
+    // Refused early enough that there is no pool to leak.
+    expect(getKnex).not.toHaveBeenCalled()
+  })
+
+  it('revalidates without asking for a storage backend or a host', async () => {
+    await db('attachments').insert({
+      id: 'att-1',
+      mediaType: 'image/jpeg',
+      url: 'https://remote.example/media/photo.jpg',
+      blurhash: 'aaaaaa'
+    })
+
+    await runWith('--revalidate')
+
+    // The whole reason the branch sits above those two checks: neither is
+    // reachable without configured storage, and this pass needs neither.
+    expect(getMediaStorage).not.toHaveBeenCalled()
+    expect(getConfig).not.toHaveBeenCalled()
+    // Asserted through the summary rather than by re-reading the row, because
+    // `main` has already destroyed the connection by the time this runs.
+    const logged = vi
+      .mocked(console.log)
+      .mock.calls.map((call) => String(call[0]))
+    expect(logged).toContain(
+      'Blurhash revalidation complete: scanned 1, repaired 0, cleared 1, left 0 untouched'
+    )
+  })
+
+  // The other direction: a short-circuit that swallowed the ordinary run would
+  // pass the test above and silently stop backfilling anything.
+  it('still requires the storage backend when not revalidating', async () => {
+    vi.mocked(getDatabase).mockReturnValue({} as never)
+    vi.mocked(getMediaStorage).mockReturnValue(null as never)
+    const destroy = vi.spyOn(db, 'destroy')
+
+    await expect(runWith('--dry-run')).rejects.toThrow(
+      'Media storage backend is not configured'
+    )
+
+    expect(getMediaStorage).toHaveBeenCalled()
+    // The startup checks now sit inside the `try` whose `finally` destroys the
+    // connection; before, a throw here leaked the pool.
+    expect(destroy).toHaveBeenCalled()
   })
 })

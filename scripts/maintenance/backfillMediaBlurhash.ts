@@ -5,6 +5,7 @@
  *
  * Usage:
  *   NODE_ENV=production scripts/maintenance/backfillMediaBlurhash.ts [--dry-run] [--batch-size 50] [--force] [--local-only]
+ *   NODE_ENV=production scripts/maintenance/backfillMediaBlurhash.ts --revalidate [--dry-run] [--batch-size 50]
  *
  * Options:
  *   --batch-size   Number of rows to process per batch (default: 50)
@@ -14,6 +15,11 @@
  *                  `docs/maintenance.md` explains why.
  *   --local-only   Never fetch a remote attachment URL; only read files this
  *                  instance stores itself
+ *   --revalidate   Run the stored-blurhash repair pass INSTEAD of the backfill:
+ *                  re-check every `attachments.blurhash` already in the table
+ *                  and rewrite or clear the ones `decode` cannot read. Reads no
+ *                  image bytes at all, so it needs neither storage nor network.
+ *                  Refuses to run together with --force.
  */
 import { loadEnvConfig } from '@next/env'
 import { Knex } from 'knex'
@@ -23,7 +29,10 @@ import { getDatabase, getKnex } from '@/lib/database'
 import { toMediaRowId } from '@/lib/database/sql/media'
 import { getMediaStorage } from '@/lib/services/medias'
 import { PRESIGNED_ANALYSIS_MAX_BYTES } from '@/lib/services/medias/constants'
-import { analyzeImageBuffer } from '@/lib/services/medias/imageAnalysis'
+import {
+  analyzeImageBuffer,
+  normalizeBlurhash
+} from '@/lib/services/medias/imageAnalysis'
 import {
   MEDIA_FILE_URL_PATH,
   getMediaFileUrl,
@@ -53,6 +62,7 @@ export interface CliOptions {
   dryRun: boolean
   force: boolean
   localOnly: boolean
+  revalidate: boolean
 }
 
 export interface InstanceHosts {
@@ -68,6 +78,7 @@ export const parseArgs = (args: string[]): CliOptions => {
   let dryRun = false
   let force = false
   let localOnly = false
+  let revalidate = false
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]
@@ -77,6 +88,8 @@ export const parseArgs = (args: string[]): CliOptions => {
       force = true
     } else if (arg === '--local-only') {
       localOnly = true
+    } else if (arg === '--revalidate') {
+      revalidate = true
     } else if (arg.startsWith('--batch-size=')) {
       batchSize = parseInt(arg.split('=')[1], 10) || 50
     } else if (arg === '--batch-size') {
@@ -85,7 +98,7 @@ export const parseArgs = (args: string[]): CliOptions => {
     }
   }
 
-  return { batchSize, dryRun, force, localOnly }
+  return { batchSize, dryRun, force, localOnly, revalidate }
 }
 
 /**
@@ -528,28 +541,161 @@ export const backfillAttachments = async (
   )
 }
 
-export const main = async () => {
-  const options = parseArgs(process.argv.slice(2))
-  const db = getKnex()
-  const database = getDatabase()
-  if (!database) {
-    throw new Error('Database connection failed')
-  }
-  const storage = getMediaStorage(database)
-  if (!storage) {
-    throw new Error('Media storage backend is not configured')
-  }
+/**
+ * Re-checks the blurhashes ALREADY stored on `attachments` and repairs them in
+ * place, reading no image bytes at all.
+ *
+ * A blurhash is the one media field a remote actor supplies directly: it
+ * arrives on a federated note's attachment and `createNoteJob` persists it.
+ * Before #1577 the validator compared `hash.trim()` while the caller stored the
+ * untrimmed original, so a whitespace-padded hash was approved and written in a
+ * form `decode` throws on (`length is 29 but it should be 28`); a structurally
+ * invalid one — right alphabet, right length, wrong length for the size flag in
+ * its own first character, `'aaaaaa'` being the canonical example — was
+ * accepted too, because the charset check never ran the blurhash package's
+ * `isBlurhashValid`. That fix covers the WRITE path only. The rows already
+ * written stay broken, nothing re-validates on read, and
+ * `lib/types/domain/attachment.ts` re-serves the stored value verbatim to
+ * third-party clients as Mastodon's `blurhash` and as a Document's `blurhash`.
+ *
+ * The repair needs no bytes, which is what makes this its own mode rather than
+ * part of --force: a padded hash only has to be trimmed, and an unsalvageable
+ * one only has to be cleared. --force answers a different question — recompute
+ * this from the image — and costs a download per attachment.
+ *
+ * Clearing is safe, and is strictly better than leaving the value in place:
+ * with a truthy blurhash `lib/components/posts/media.tsx` holds the `<img>` at
+ * `opacity-0` until `onLoad`, behind a canvas a failed `decode` leaves empty,
+ * so an undecodable hash shows an empty box where a NULL one falls through to a
+ * bare `<img>`. It does not weaken the deleted-media placeholder promise in
+ * AGENTS.md, "Deleting Media a Post Uses": that promise rests on the attachment
+ * carrying a blurhash a client can actually PAINT, and a value `decode` refuses
+ * never painted one.
+ *
+ * `medias.blurhash` is deliberately out of scope. Every value in that column
+ * comes from `computeBlurhash`, i.e. from the blurhash package's own `encode`,
+ * so it is canonical by construction; no path stores a peer-supplied hash
+ * there.
+ */
+export const revalidateAttachmentBlurhashes = async (
+  db: Knex,
+  options: CliOptions
+) => {
+  console.log('--- Revalidating stored attachment blurhashes ---')
+  let lastId = ''
+  let totalScanned = 0
+  // Reported separately, and NOT merged into one "processed" number, because
+  // they call for different responses: `repaired` is residue this pass fully
+  // fixed, while `cleared` is an attachment that has now lost its placeholder
+  // until something recomputes one from the image bytes — a later run WITHOUT
+  // --revalidate, which selects `blurhash IS NULL`, is what tries that.
+  //
+  // Unlike the two counts `backfillAttachments` reports, these three DO
+  // partition `scanned`: every row lands in exactly one of them.
+  let totalRepaired = 0
+  let totalCleared = 0
+  let totalUntouched = 0
 
-  const config = getConfig()
-  const instanceHosts = buildInstanceHosts(config)
-  if (!instanceHosts.fallbackHost) {
-    throw new Error('ACTIVITIES_HOST is not configured')
+  while (true) {
+    // `blurhash IS NOT NULL` on purpose: a row missing one is the BACKFILL's
+    // job, and this pass has no way to produce a hash. There is no `mediaType`
+    // filter either — a video attachment carries the blurhash of its poster
+    // frame, and the backfill's analysis step skips non-images, so this is the
+    // only pass that reaches one.
+    const rows = await db('attachments')
+      .select('id', 'blurhash')
+      .whereNotNull('blurhash')
+      .where('id', '>', lastId)
+      .orderBy('id', 'asc')
+      .limit(options.batchSize)
+
+    if (rows.length === 0) break
+    // Keyset paging, so a row this batch just cleared out of the predicate
+    // cannot shift the rows still to come.
+    lastId = String(rows[rows.length - 1].id)
+
+    for (const row of rows) {
+      totalScanned += 1
+      const stored = row.blurhash
+      const normalized = normalizeBlurhash(stored)
+      if (normalized === stored) {
+        totalUntouched += 1
+        continue
+      }
+
+      const prefix = options.dryRun ? '[DRY RUN] ' : ''
+      if (normalized === null) {
+        totalCleared += 1
+        console.warn(
+          `${prefix}[attachments ${row.id}] blurhash ${JSON.stringify(stored)} is not one \`decode\` can read; ${options.dryRun ? 'would clear' : 'clearing'} it`
+        )
+      } else {
+        // The only difference `normalizeBlurhash` can make to a hash it keeps
+        // is stripping surrounding whitespace — it returns the trimmed string
+        // or null — so a repair is always exactly that.
+        totalRepaired += 1
+        console.log(
+          `${prefix}[attachments ${row.id}] blurhash ${JSON.stringify(stored)} is stored padded; ${options.dryRun ? 'would rewrite' : 'rewriting'} it as ${JSON.stringify(normalized)}`
+        )
+      }
+
+      if (!options.dryRun) {
+        await db('attachments')
+          .where('id', row.id)
+          .update({ blurhash: normalized })
+      }
+    }
   }
 
   console.log(
-    `Starting media blurhash backfill (dryRun=${options.dryRun}, force=${options.force}, localOnly=${options.localOnly})...`
+    `Blurhash revalidation complete: scanned ${totalScanned}, repaired ${totalRepaired}, cleared ${totalCleared}, left ${totalUntouched} untouched`
   )
+}
+
+export const main = async () => {
+  const options = parseArgs(process.argv.slice(2))
+  // The two modes answer opposite questions — "recompute this from the image"
+  // against "repair what is already stored, touching no image" — and serving
+  // both off one invocation would make the cheap one's promise untrue. Refused
+  // rather than silently ordered, so an operator who asked for both finds out.
+  if (options.revalidate && options.force) {
+    throw new Error(
+      '--revalidate and --force are separate jobs; run them one at a time'
+    )
+  }
+
+  const db = getKnex()
   try {
+    if (options.revalidate) {
+      // Deliberately reached before the storage and host checks below: this
+      // pass reads no bytes and mints no URL, so it stays usable on an instance
+      // whose storage backend is unreachable or unconfigured.
+      console.log(
+        `Starting stored blurhash revalidation (dryRun=${options.dryRun})...`
+      )
+      await revalidateAttachmentBlurhashes(db, options)
+      console.log('Revalidation finished successfully.')
+      return
+    }
+
+    const database = getDatabase()
+    if (!database) {
+      throw new Error('Database connection failed')
+    }
+    const storage = getMediaStorage(database)
+    if (!storage) {
+      throw new Error('Media storage backend is not configured')
+    }
+
+    const config = getConfig()
+    const instanceHosts = buildInstanceHosts(config)
+    if (!instanceHosts.fallbackHost) {
+      throw new Error('ACTIVITIES_HOST is not configured')
+    }
+
+    console.log(
+      `Starting media blurhash backfill (dryRun=${options.dryRun}, force=${options.force}, localOnly=${options.localOnly})...`
+    )
     await backfillMedias(db, storage, options)
     await backfillAttachments(db, storage, options, instanceHosts)
     console.log('Backfill finished successfully.')
