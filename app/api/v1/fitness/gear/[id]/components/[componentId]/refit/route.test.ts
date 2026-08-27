@@ -27,7 +27,7 @@ vi.mock('@/lib/config', () => ({
 type MockDatabase = Pick<
   Database,
   | 'getFitnessGear'
-  | 'retireFitnessGearComponent'
+  | 'refitFitnessGearComponent'
   | 'getFitnessGearComponentDistanceRollups'
   | 'getAccountFromEmail'
   | 'getActorsForAccount'
@@ -106,10 +106,10 @@ const bikeGear: FitnessGear = {
   updatedAt: 1000
 }
 
-describe('Fitness gear component retire API', () => {
+describe('Fitness gear component refit API', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
     getFitnessGear: vi.fn(),
-    retireFitnessGearComponent: vi.fn(),
+    refitFitnessGearComponent: vi.fn(),
     getFitnessGearComponentDistanceRollups: vi.fn(),
     getAccountFromEmail: vi.fn(),
     getActorsForAccount: vi.fn(),
@@ -136,11 +136,34 @@ describe('Fitness gear component retire API', () => {
     params: Promise.resolve({ id: 'gear-1', componentId: 'component-1' })
   }
   const url =
-    'http://llun.test/api/v1/fitness/gear/gear-1/components/component-1/retire'
+    'http://llun.test/api/v1/fitness/gear/gear-1/components/component-1/refit'
 
-  it('returns the retired component', async () => {
-    mockDb.retireFitnessGearComponent.mockResolvedValue(
-      component({ removedAt: 1700 })
+  // The refitted component reads as fitted again — `removedAt` is the LAST
+  // period's end — and carries both periods, so the client can show the gap.
+  it('returns the refitted component with its install history', async () => {
+    mockDb.refitFitnessGearComponent.mockResolvedValue(
+      component({
+        addedAt: 1000,
+        periods: [
+          {
+            id: 'period-1',
+            componentId: 'component-1',
+            installSequence: 1,
+            addedAt: 1000,
+            removedAt: 1700,
+            createdAt: 1000,
+            updatedAt: 1700
+          },
+          {
+            id: 'period-2',
+            componentId: 'component-1',
+            installSequence: 2,
+            addedAt: 9000,
+            createdAt: 9000,
+            updatedAt: 9000
+          }
+        ]
+      })
     )
 
     const response = await POST(
@@ -155,9 +178,14 @@ describe('Fitness gear component retire API', () => {
     expect(response.status).toBe(200)
     expect(data.component).toMatchObject({
       id: 'component-1',
-      removedAt: 1700
+      addedAt: 1000,
+      removedAt: null,
+      periods: [
+        { addedAt: 1000, removedAt: 1700 },
+        { addedAt: 9000, removedAt: null }
+      ]
     })
-    expect(mockDb.retireFitnessGearComponent).toHaveBeenCalledWith({
+    expect(mockDb.refitFitnessGearComponent).toHaveBeenCalledWith({
       id: 'component-1',
       gearId: 'gear-1',
       actorId: ACTOR1_ID
@@ -165,10 +193,10 @@ describe('Fitness gear component retire API', () => {
   })
 
   it.each([
-    { description: 'the component was already retired' },
+    { description: 'the part is already fitted' },
     { description: 'the gear belongs to someone else' }
   ])('answers 404 when $description', async () => {
-    mockDb.retireFitnessGearComponent.mockResolvedValue(null)
+    mockDb.refitFitnessGearComponent.mockResolvedValue(null)
 
     const response = await POST(
       new NextRequest(url, {
@@ -199,7 +227,7 @@ describe('Fitness gear component retire API', () => {
 
     expect(response.status).toBe(422)
     expect(data.error).toBe('A recording device has no components')
-    expect(mockDb.retireFitnessGearComponent).not.toHaveBeenCalled()
+    expect(mockDb.refitFitnessGearComponent).not.toHaveBeenCalled()
   })
 
   it('returns 400 for invalid JSON body', async () => {
@@ -215,6 +243,6 @@ describe('Fitness gear component retire API', () => {
       params
     )
     expect(response.status).toBe(400)
-    expect(mockDb.retireFitnessGearComponent).not.toHaveBeenCalled()
+    expect(mockDb.refitFitnessGearComponent).not.toHaveBeenCalled()
   })
 })

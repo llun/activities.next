@@ -15,8 +15,8 @@ import { useGearTableColumns } from '@/app/(timeline)/fitness/gear/useGearTableC
 import {
   createFitnessGearComponent,
   deleteFitnessGearComponent,
-  retireFitnessGearComponent,
-  updateFitnessGearComponent
+  refitFitnessGearComponent,
+  retireFitnessGearComponent
 } from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
 import { Card } from '@/lib/components/ui/card'
@@ -70,6 +70,51 @@ const CELL_WRAP = 'wrap-anywhere'
 
 type AddedMode = 'beginning' | 'date'
 
+/**
+ * One line per install period, so a part that came off and went back on shows
+ * the gap rather than collapsing to a single window. The Added and Retired
+ * columns are read as a pair: line N of one and line N of the other are the two
+ * ends of the same period.
+ *
+ * A component with one period — every row that existed before install history,
+ * and every part that has never been refitted — renders exactly the single line
+ * it always did.
+ */
+const PeriodDates: FC<{
+  component: GearComponentEntity
+  bound: 'addedAt' | 'removedAt'
+}> = ({ component, bound }) => {
+  const emptyLabel = bound === 'addedAt' ? 'Since beginning' : '—'
+  // A component with no periods is not a shape the API produces; falling back
+  // to the derived pair keeps the cell from rendering empty if one ever is.
+  const periods = component.periods.length
+    ? component.periods
+    : [{ addedAt: component.addedAt, removedAt: component.removedAt }]
+
+  return (
+    <>
+      {periods.map((period, index) => (
+        <div key={index}>
+          {/* Which line belongs to which period is carried by POSITION, and
+              position is exactly what a screen reader drops: it reads out every
+              Added date, then every Retired date, with nothing saying that the
+              second of one goes with the second of the other. Numbering the
+              lines restores the pairing, and only where there is a pairing to
+              restore — a component with one period, which is every part that
+              has never been refitted, announces exactly the bare date it
+              always did. */}
+          {periods.length > 1 && (
+            <span className="sr-only">{`Install ${index + 1}: `}</span>
+          )}
+          {period[bound] === null || period[bound] === undefined
+            ? emptyLabel
+            : formatGearDate(period[bound] as number)}
+        </div>
+      ))}
+    </>
+  )
+}
+
 const WearBar: FC<{ component: GearComponentEntity }> = ({ component }) => {
   const wear = getWearState(
     component.distanceMeters,
@@ -122,13 +167,13 @@ export const GearComponentsCard: FC<Props> = ({
   const [pendingActionId, setPendingActionId] = useState<string | null>(null)
   // A second click on the same row's Retire or Delete confirms it — cheaper
   // than a dialog, and still not a single misclick. Retire arms too: it is not
-  // destructive the way Delete is, since the Unretire beside it puts the row
-  // back, but it closes the install window, so a stray click silently stops the
+  // destructive the way Delete is, since the Refit beside it puts the row back,
+  // but it closes the open install period, so a stray click silently stops the
   // part accruing distance and it takes reading the table closely to notice.
   //
   // ONE id, not one per action: a row offers exactly one confirmable action and
   // `component.removedAt` decides which, so a single id makes "armed for the
-  // action this row no longer offers" unrepresentable. With two, unretiring a
+  // action this row no longer offers" unrepresentable. With two, refitting a
   // row armed for Delete left that arm set, and retiring it again brought the
   // Delete button back already armed — a one-click delete, which is the hazard
   // the disarm rules exist to prevent.
@@ -216,32 +261,31 @@ export const GearComponentsCard: FC<Props> = ({
     }
   }
 
-  // Clearing `removedAt` reopens the ORIGINAL `[addedAt, now)` window. A
-  // component has one window and no per-period history, so this is not the
-  // mirror of Retire: undoing a retire seconds later credits nothing extra,
-  // but undoing one from last season credits every activity ridden while the
-  // part sat retired — and re-retiring does NOT take that back, because it
-  // only closes the window at the new now. Verified against the rollup query.
+  // Refit, not Unretire: it opens a NEW install period starting today and
+  // leaves the closed one alone. This used to clear `removedAt`, which reopened
+  // the ORIGINAL window — undoing a retire from last season then credited the
+  // part every activity ridden while it sat off the bike, and re-retiring could
+  // not take that back, because it only closed the window at the new today.
+  // A new period costs the gap instead: seconds for a misclick, and the truth
+  // for a part that really did spend a season on the shelf.
   //
-  // Unretire is still unarmed. Arming it would add friction to the misclick
-  // this exists to recover from without preventing the misattribution, which
-  // the UI cannot distinguish from a legitimate refit anyway.
-  const handleUnretire = async (componentId: string) => {
+  // Still unarmed, for the reason it always was: arming it would add friction
+  // to the misclick this exists to recover from. What has changed is that a
+  // stray click is now cheap in BOTH directions.
+  const handleRefit = async (componentId: string) => {
     setError(null)
     // The row is about to offer Retire instead of Delete; carrying an arm
     // across that flip is what the single id exists to prevent.
     setConfirmingActionId(null)
     setPendingActionId(componentId)
     try {
-      await updateFitnessGearComponent(gearId, componentId, {
-        removedAt: null
-      })
+      await refitFitnessGearComponent(gearId, componentId)
       onChanged()
-    } catch (unretireError) {
+    } catch (refitError) {
       setError(
-        unretireError instanceof Error
-          ? unretireError.message
-          : 'Failed to unretire component.'
+        refitError instanceof Error
+          ? refitError.message
+          : 'Failed to refit component.'
       )
     } finally {
       setPendingActionId(null)
@@ -508,9 +552,7 @@ export const GearComponentsCard: FC<Props> = ({
                       )}
                       style={dataColumnStyle(112)}
                     >
-                      {component.addedAt
-                        ? formatGearDate(component.addedAt)
-                        : 'Since beginning'}
+                      <PeriodDates component={component} bound="addedAt" />
                     </td>
                     <td
                       className={cn(
@@ -519,9 +561,7 @@ export const GearComponentsCard: FC<Props> = ({
                       )}
                       style={dataColumnStyle(88)}
                     >
-                      {component.removedAt
-                        ? formatGearDate(component.removedAt)
-                        : '—'}
+                      <PeriodDates component={component} bound="removedAt" />
                     </td>
                     <td
                       className="px-3 py-2.5 pr-4 text-right align-top whitespace-nowrap"
@@ -535,11 +575,11 @@ export const GearComponentsCard: FC<Props> = ({
                               type="button"
                               variant="ghost"
                               className="text-primary-text"
-                              aria-label={`Unretire ${component.componentType}`}
+                              aria-label={`Refit ${component.componentType}`}
                               disabled={isPending}
-                              onClick={() => handleUnretire(component.id)}
+                              onClick={() => handleRefit(component.id)}
                             >
-                              Unretire
+                              Refit
                             </Button>
                             <Button
                               size="sm"

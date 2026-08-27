@@ -2781,6 +2781,28 @@ export const retireFitnessGearComponent = async (
   return data.component
 }
 
+/**
+ * Puts a retired part back on by opening a new install period at today, rather
+ * than reopening the closed one — which is why it is its own endpoint and not a
+ * `PATCH { removedAt: null }`.
+ */
+export const refitFitnessGearComponent = async (
+  gearId: string,
+  componentId: string
+): Promise<GearComponentEntity> => {
+  const response = await fetch(
+    `/api/v1/fitness/gear/${encodeURIComponent(gearId)}/components/${encodeURIComponent(componentId)}/refit`,
+    {
+      method: 'POST'
+    }
+  )
+  if (!response.ok) {
+    throw new Error(await parseApiError(response, 'Failed to refit component.'))
+  }
+  const data = (await response.json()) as { component: GearComponentEntity }
+  return data.component
+}
+
 export const updateFitnessFileGear = async (
   fitnessFileId: string,
   gearId: string | null

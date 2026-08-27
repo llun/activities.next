@@ -564,6 +564,12 @@ carrying an explicit `Z`/offset — a bare local datetime is rejected, because
 JavaScript would read it in the running machine's zone and silently shift every
 activity by hours. The whole file is validated before anything is written.
 
+A component's `addedAt`/`removedAt` seed its **first install period** — the
+import creates one period per component and never a second. A part that came off
+and went back on is refitted from the gear's own page afterwards, which opens a
+new period rather than reopening the first (see **Gear Tracking** in
+`docs/fitness-file-storage.md`).
+
 `scripts/fitness/convertStravaExportToGearImport.ts` builds the `assignments`
 half from a Strava export. The export's `activities.csv` records which gear each
 activity used against a UTC timestamp, but `components.csv` carries no dates at

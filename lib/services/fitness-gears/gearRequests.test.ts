@@ -4,6 +4,7 @@ import {
   UpdateFitnessFileGearRequest,
   UpdateGearComponentRequest,
   UpdateGearRequest,
+  getComponentPeriodBoundsError,
   getGearKindFieldError
 } from '@/lib/services/fitness-gears/gearRequests'
 
@@ -369,5 +370,123 @@ describe('getGearKindFieldError', () => {
     }
   ])('accepts $description', ({ kind, fields }) => {
     expect(getGearKindFieldError(kind, fields)).toBeNull()
+  })
+})
+
+describe('getComponentPeriodBoundsError', () => {
+  // Only the two `refitted` refusals below pin the bug this function was
+  // extracted for. Every other case passes against the derived-pair
+  // formulation too — the single-period ones because the first and last period
+  // are then the same row, so the two formulations agree by construction, and
+  // the remaining multi-period ones for their own reasons (an edit the correct
+  // check accepts anyway, or a bound neither formulation looks at). Worth
+  // stating so nobody reads a green run of the whole block as proof the refit
+  // case is covered.
+  //
+  // A part that has never been refitted: both bounds land on this one row.
+  const singlePeriod = [
+    { addedAt: Date.UTC(2026, 0, 1), removedAt: Date.UTC(2026, 2, 1) }
+  ]
+  // Refitted: `addedAt` lands on the first row, `removedAt` on the second, and
+  // the component's own derived pair (Jan 1, null) belongs to neither.
+  const refitted = [
+    { addedAt: Date.UTC(2026, 0, 1), removedAt: Date.UTC(2026, 2, 1) },
+    { addedAt: Date.UTC(2026, 4, 1), removedAt: null }
+  ]
+
+  it.each([
+    {
+      description: 'a removal date before the last period’s own start',
+      periods: refitted,
+      changes: { removedAt: Date.UTC(2026, 1, 15) }
+    },
+    {
+      description: 'an added date after the first period’s own end',
+      periods: refitted,
+      changes: { addedAt: Date.UTC(2026, 7, 1) }
+    },
+    {
+      description: 'a removal date equal to the added date',
+      periods: singlePeriod,
+      changes: {
+        addedAt: Date.UTC(2026, 5, 1),
+        removedAt: Date.UTC(2026, 5, 1)
+      }
+    },
+    {
+      description: 'a removal date before the stored added date',
+      periods: singlePeriod,
+      changes: { removedAt: Date.UTC(2025, 0, 1) }
+    }
+  ])('refuses $description', ({ periods, changes }) => {
+    expect(getComponentPeriodBoundsError(periods, changes)).toEqual(
+      'removedAt must be after addedAt'
+    )
+  })
+
+  it.each([
+    {
+      description: 'an edit inside the first period’s own bounds',
+      periods: refitted,
+      changes: { addedAt: Date.UTC(2026, 1, 1) }
+    },
+    {
+      description: 'a removal date after the last period’s own start',
+      periods: refitted,
+      changes: { removedAt: Date.UTC(2026, 6, 1) }
+    },
+    {
+      // Both bounds land on the same row, so that row has to be judged on BOTH
+      // new values — against one new and one stored, this is refused for
+      // crossing the very bound it replaces.
+      description: 'moving a single period wholesale past its old window',
+      periods: singlePeriod,
+      changes: {
+        addedAt: Date.UTC(2026, 3, 1),
+        removedAt: Date.UTC(2026, 8, 1)
+      }
+    },
+    {
+      description: 'clearing the removal date',
+      periods: singlePeriod,
+      changes: { removedAt: null }
+    },
+    {
+      description: 'clearing the added date',
+      periods: singlePeriod,
+      changes: { addedAt: null }
+    },
+    {
+      description: 'a change that mentions neither bound',
+      periods: refitted,
+      changes: {}
+    }
+  ])('accepts $description', ({ periods, changes }) => {
+    expect(getComponentPeriodBoundsError(periods, changes)).toBeNull()
+  })
+
+  // Nothing creates a component without a period, so this is about what the
+  // shape does if one ever appears: answer "nothing to invert", the way the
+  // write itself no-ops, rather than indexing into an empty array and 500ing.
+  it('answers null for a component carrying no periods', () => {
+    expect(
+      getComponentPeriodBoundsError([], { removedAt: Date.UTC(2026, 0, 1) })
+    ).toBeNull()
+  })
+
+  // A middle period is unreachable from this edit, and stays untouched by it.
+  it('ignores a period that is neither the first nor the last', () => {
+    const threePeriods = [
+      { addedAt: Date.UTC(2026, 0, 1), removedAt: Date.UTC(2026, 1, 1) },
+      { addedAt: Date.UTC(2026, 2, 1), removedAt: Date.UTC(2026, 3, 1) },
+      { addedAt: Date.UTC(2026, 4, 1), removedAt: null }
+    ]
+
+    expect(
+      getComponentPeriodBoundsError(threePeriods, {
+        addedAt: Date.UTC(2025, 11, 1),
+        removedAt: Date.UTC(2026, 6, 1)
+      })
+    ).toBeNull()
   })
 })
