@@ -1,0 +1,33 @@
+lib/services/guards/OnlyLocalUserGuard.test.ts
+  s_5c05e157b3e02d::t_364d063fed6617 210-260,266-267
+lib/services/guards/OnlyLocalUserGuard.ts
+  s_5c05e157b3e02d::t_7ac3b3a6c8746d 7,87
+  s_5c05e157b3e02d::t_6b3b53ffa42ddb 80-85
+lib/services/federation/instanceActor.ts
+  s_5c05e157b3e02d::t_6b3b53ffa42ddb 10-12,16-29
+  s_5c05e157b3e02d::t_ab79f4a7fb9d8e 30
+lib/services/accounts/localUsername.test.ts
+  s_5c05e157b3e02d::t_1d4cafe95d09d0 112-117
+lib/utils/normalizeUsername.ts
+  s_5c05e157b3e02d::t_44976e5304cffa 2,4-6,9-20,22-25
+lib/database/sql/account.ts
+  s_5c05e157b3e02d::t_44976e5304cffa 110-118
+lib/database/sql/utils/usernameMatch.ts
+  s_5c05e157b3e02d::t_b4f7662dc96789 49-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "5b8e187223ccbbd9fe307a17cb11bff83c2193b1",
+  "prompts": {},
+  "sessions": {
+    "s_5c05e157b3e02d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1c386ef-32f2-4ca1-8042-fe368c055720",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
