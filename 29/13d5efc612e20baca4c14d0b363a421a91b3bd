@@ -1,0 +1,25 @@
+lib/services/federation/instanceActor.ts
+  s_5c05e157b3e02d::t_8f4d2e68a57219 41-45
+AGENTS.md
+  s_5c05e157b3e02d::t_8f4d2e68a57219 179
+lib/services/guards/OnlyLocalUserGuard.test.ts
+  s_5c05e157b3e02d::t_8f4d2e68a57219 213-215
+lib/services/guards/OnlyLocalUserGuard.ts
+  s_5c05e157b3e02d::t_8f4d2e68a57219 91-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "2913d5efc612e20baca4c14d0b363a421a91b3bd",
+  "prompts": {},
+  "sessions": {
+    "s_5c05e157b3e02d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1c386ef-32f2-4ca1-8042-fe368c055720",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
