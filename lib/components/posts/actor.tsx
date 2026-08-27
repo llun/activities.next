@@ -181,9 +181,9 @@ export const getActorIdMention = (
 // The name a caller shows beside (or instead of) `getActorProfileHref`'s
 // destination: `name || getDisplayUsername(username)`. `ActorAvatar`'s
 // initials and `ActorInfo`'s display name compute this same composition
-// inline today rather than calling this helper — converting them is a
-// separate, larger change (a degenerate username needs a third fallback
-// branch there, plus its own test matrix) and is out of scope here.
+// inline today rather than calling this helper: converging them needs a
+// third fallback branch there for a degenerate username, plus its own
+// test matrix, so they still duplicate it.
 // Undefined when there is no actor to name, mirroring `getActorProfileHref`'s
 // own `undefined` for "nothing to link"; a caller with a fallback of its own
 // (`BoostStatus` reads the actor id instead) chains it with `||`.
