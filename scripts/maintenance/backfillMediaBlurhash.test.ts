@@ -983,6 +983,45 @@ describe('backfillMediaBlurhash execution', () => {
     expect(selects).toHaveLength(4)
   })
 
+  // Companion to the test above, which cannot see this: at a batch size of one
+  // `rows[0]` and `rows[rows.length - 1]` are the same row, so a cursor that
+  // advances to the FIRST row of the batch instead of the last passed every
+  // test in this file. Three rows at a batch size of two separate them, and
+  // --force removes the selection predicate so nothing else hides a trailing
+  // cursor — the middle row is re-read and `processed` reads 5 instead of 3.
+  it('advances the cursor past the last row of each batch', async () => {
+    await db('attachments').insert(
+      [1, 2, 3].map((index) => ({
+        id: `att-${index}`,
+        statusId: 'status-1',
+        actorId: 'https://remote.example/users/them',
+        mediaId: null,
+        // Not an image, so nothing reaches the analysis fallback and no row is
+        // written — the scan is the only thing under test.
+        mediaType: 'video/mp4',
+        url: 'https://remote.example/media/clip.mp4',
+        blurhash: 'KEPTHASH'
+      }))
+    )
+
+    const mockStorage = { getFile: vi.fn().mockResolvedValue(null) } as never
+    await backfillAttachments(
+      db,
+      mockStorage,
+      options({ force: true, batchSize: 2 }),
+      HOSTS
+    )
+
+    const logged = vi
+      .mocked(console.log)
+      .mock.calls.map((call) => String(call[0]))
+    expect(
+      logged.filter((line) => line.startsWith('Attachments complete:'))
+    ).toEqual([
+      'Attachments complete: processed 3, updated 0, 0 whose media row is gone, 0 with an invalid mediaId'
+    ])
+  })
+
   // If you extend the paging coverage: a mutation that stops `lastId` advancing
   // does not fail, it HANGS well past the 30s `testTimeout`. better-sqlite3 is
   // a synchronous driver, so the awaits inside the sweep's `while (true)`
@@ -1352,6 +1391,62 @@ describe('backfillMedias', () => {
       .mock.calls.map((call) => String(call[0]))
     expect(logged).toContain('Medias complete: processed 1, updated 0')
   })
+
+  // The cursor must advance to the LAST row of the batch. Every other paging
+  // test in this file runs at a batch size of one, where `rows[0]` and
+  // `rows[rows.length - 1]` are the same row, so an off-by-one that leaves the
+  // cursor trailing is invisible to all of them — it survived the whole suite.
+  // Three rows at a batch size of two is the smallest fixture that separates
+  // them, and --force is what keeps it honest: without a filtering predicate,
+  // nothing removes an already-scanned row from the next batch, so a trailing
+  // cursor re-reads the middle row and `processed` reads 5 instead of 3.
+  it('advances the cursor past the last row of each batch', async () => {
+    for (const id of [1, 2, 3]) {
+      await insertMedia({ id, blurhash: 'SAMEHASH', focusX: 0.1, focusY: 0.2 })
+    }
+    vi.mocked(analyzeImageBuffer).mockResolvedValue({
+      blurhash: 'SAMEHASH',
+      focus: { x: 0.1, y: 0.2 }
+    })
+
+    await backfillMedias(db, storage(), options({ force: true, batchSize: 2 }))
+
+    const logged = vi
+      .mocked(console.log)
+      .mock.calls.map((call) => String(call[0]))
+    expect(logged).toContain('Medias complete: processed 3, updated 0')
+  })
+
+  // The other half of the same blind spot, and the one the cursor test above
+  // cannot see: three rows read as one batch of 50 or as two batches of two
+  // produce identical writes and an identical `processed`. Counting the SELECTs
+  // that carry a `limit` is what separates them, the way both sibling loops are
+  // already covered.
+  it('pages the medias scan at the requested batch size', async () => {
+    for (const id of [1, 2, 3]) {
+      await insertMedia({ id, blurhash: 'SAMEHASH', focusX: 0.1, focusY: 0.2 })
+    }
+    vi.mocked(analyzeImageBuffer).mockResolvedValue({
+      blurhash: 'SAMEHASH',
+      focus: { x: 0.1, y: 0.2 }
+    })
+
+    const selects: string[] = []
+    db.on('query', ({ sql }: { sql: string }) => {
+      if (
+        sql.startsWith('select') &&
+        sql.includes('medias') &&
+        sql.includes('limit')
+      ) {
+        selects.push(sql)
+      }
+    })
+
+    await backfillMedias(db, storage(), options({ force: true, batchSize: 1 }))
+
+    // One SELECT per row, plus the empty one that ends the loop.
+    expect(selects).toHaveLength(4)
+  })
 })
 
 // `normalizeBlurhash` is REAL in this file (see the mock factory at the top),
@@ -1587,6 +1682,32 @@ describe('revalidateAttachmentBlurhashes', () => {
 
     // One SELECT per row, plus the empty one that ends the loop.
     expect(selects).toHaveLength(4)
+  })
+
+  // The cursor's direction, which the batch-size test above cannot see: at a
+  // batch size of one both ends of the batch are the same row. All-canonical
+  // rows are what make this honest — nothing is written, so no row drops out
+  // of `blurhash IS NOT NULL` on its own and only the cursor decides what the
+  // next batch reads. A cursor left on the FIRST row re-scans the middle one
+  // and `scanned` reads 5. The `--dry-run` test happens to catch this too, but
+  // by accident of never writing; this one is aimed at it.
+  it('advances the cursor past the last row of each batch', async () => {
+    for (const index of [1, 2, 3]) {
+      await insertAttachment({ id: `att-${index}`, blurhash: VALID_BLURHASH })
+    }
+
+    await revalidateAttachmentBlurhashes(db, options({ batchSize: 2 }))
+
+    const logged = vi
+      .mocked(console.log)
+      .mock.calls.map((call) => String(call[0]))
+    expect(
+      logged.filter((line) =>
+        line.startsWith('Blurhash revalidation complete:')
+      )
+    ).toEqual([
+      'Blurhash revalidation complete: scanned 3, repaired 0, cleared 0, left 3 untouched'
+    ])
   })
 
   // Keyset paging over a predicate the pass itself invalidates: every cleared
