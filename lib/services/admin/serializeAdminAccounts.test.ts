@@ -66,9 +66,6 @@ describe('hydrateAdminAccounts', () => {
       expect(entity?.email).toBe(`${LOCAL_USERNAME}@${TEST_DOMAIN}`)
       expect(entity?.suspended).toBe(true)
       expect(entity?.approved).toBe(true)
-      // Remote actors have no registration state; pinned because the
-      // pending-confirmation narrowing changed how this value is derived.
-      expect(entity?.confirmed).toBe(true)
       expect(entity?.confirmed).toBe(true)
       expect(entity?.role?.name).toBe('Admin')
       // The admin entity id and the embedded public Account id are the same
@@ -155,6 +152,12 @@ describe('hydrateAdminAccounts', () => {
       expect(entity?.role).toBeNull()
       // Remote actors have no registration state; treated as approved.
       expect(entity?.approved).toBe(true)
+      // Remote actors have no registration state, so they report confirmed for
+      // the same reason they report approved. This is the ONLY test that
+      // reaches the accountless branch of `confirmed`, and round 1 silently
+      // flipped its value from false to true — pinned so a third change is a
+      // decision rather than a side effect.
+      expect(entity?.confirmed).toBe(true)
       expect(entity?.suspended).toBe(false)
     })
   })

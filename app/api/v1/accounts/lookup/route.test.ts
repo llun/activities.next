@@ -114,6 +114,48 @@ describe('GET /api/v1/accounts/lookup', () => {
     expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
   })
 
+  it('does not remotely resolve for a token whose account is unconfirmed', async () => {
+    // `OptionalOAuthGuard` downgrades an unconfirmed token to the anonymous
+    // path — it still INVOKES the handler, with `currentActor: null`. This
+    // route's authorization flag is set from that actor, never from the fact
+    // that the handler ran: reading the invocation let an account nobody has
+    // verified make this instance issue WebFinger lookups and signed remote
+    // fetches at addresses of its choosing. `POST /api/v1/apps` is
+    // unauthenticated and registration hands out a token, so that is reachable
+    // by an anonymous party.
+    mockGetActorFromUsername.mockResolvedValue(null)
+    mockStoredToken.mockResolvedValue({
+      expiresAt: new Date(Date.now() + 60_000),
+      referenceId: 'https://llun.test/users/oauth-user',
+      scopes: 'read'
+    })
+    mockGetActorFromId.mockResolvedValue({
+      ...oauthActor,
+      account: {
+        id: 'account-1',
+        email: 'pending@llun.test',
+        verificationCode: 'pending-confirmation-code',
+        twoFactorEnabled: false,
+        createdAt: 1,
+        updatedAt: 1
+      }
+    })
+    mockGetWebfingerSelf.mockResolvedValue('https://remote.test/users/person')
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/lookup?acct=person@remote.test&resolve=true',
+        { headers: { Authorization: 'Bearer unconfirmed-token' } }
+      )
+    )
+
+    // Answered exactly as an anonymous request is, and — the assertion that
+    // matters — no outbound federation was triggered. A status-only assertion
+    // would not distinguish the fix.
+    expect(response.status).toBe(404)
+    expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
+  })
+
   it('allows bearer tokens with read scope to remotely resolve accounts', async () => {
     const actor = { id: 'https://remote.test/users/person' }
     const account = {

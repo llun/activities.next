@@ -19,10 +19,31 @@ const createAccountsTable = async (database: knex.Knex) => {
   })
 }
 
-// `20260320072514_better_auth_columns`' own timestamp: rows older than this
-// predate the backfill that wrongly marked them verified.
-const BEFORE_BACKFILL = new Date('2026-01-01T00:00:00Z')
-const AFTER_BACKFILL = new Date('2026-08-01T00:00:00Z')
+const BACKFILL = '20260320072514_better_auth_columns.js'
+
+// The migration reads the real knex ledger to learn when the backfill ran, so
+// the fixture builds one. `batch` is the whole signal: a backfill sharing the
+// pass in flight means it ran moments ago and its `emailVerified` cannot be
+// trusted to mean anyone has been signing in.
+const createMigrationLedger = async (
+  database: knex.Knex,
+  { backfillBatch, latestBatch }: { backfillBatch: number; latestBatch: number }
+) => {
+  await database.schema.createTable('knex_migrations', (table) => {
+    table.increments('id')
+    table.string('name')
+    table.integer('batch')
+    table.timestamp('migration_time')
+  })
+  await database('knex_migrations').insert([
+    { name: BACKFILL, batch: backfillBatch, migration_time: new Date() },
+    {
+      name: 'later_migration.js',
+      batch: latestBatch,
+      migration_time: new Date()
+    }
+  ])
+}
 
 describe('clear stale verification codes migration', () => {
   let database: knex.Knex
@@ -34,6 +55,7 @@ describe('clear stale verification codes migration', () => {
       connection: { filename: ':memory:' }
     })
     await createAccountsTable(database)
+    await createMigrationLedger(database, { backfillBatch: 1, latestBatch: 2 })
   })
 
   afterEach(async () => {
@@ -53,7 +75,7 @@ describe('clear stale verification codes migration', () => {
       email: `${id}@llun.test`,
       verificationCode: values.verificationCode,
       emailVerified: values.emailVerified,
-      createdAt: values.createdAt ?? BEFORE_BACKFILL
+      createdAt: values.createdAt ?? new Date('2026-01-01T00:00:00Z')
     })
   }
 
@@ -78,25 +100,71 @@ describe('clear stale verification codes migration', () => {
     expect(await readCode('legacy-pending')).toBe('')
   })
 
-  it('leaves a pending registration newer than the backfill alone', async () => {
-    // The case `emailVerified = false` cannot catch. knex applies pending
-    // migrations in timestamp order in ONE `yarn migrate`, so on a database
-    // that predates `20260320072514` — a restore from a pre-March dump, a
-    // staging copy, an operator catching up — that backfill runs moments
-    // before this migration and marks a registration made minutes earlier as
-    // verified. Without the `createdAt` bound this would then destroy a code
-    // that is genuinely live: the account is silently confirmed without anyone
-    // proving the address, and the link already sitting in the user's inbox is
-    // dead forever.
+  it('clears a code for an account created inside the deploy gap', async () => {
+    // The cohort an earlier revision lost. It bounded on `createdAt` against
+    // this migration's SIBLING FILENAME timestamp — the instant `migrate:make`
+    // ran on the author's machine, which no deployment coincides with; that
+    // migration was merged eleven hours later. Every account registered between
+    // the two was skipped and, since #1613, locked out with no way back. What
+    // matters is when the backfill RAN here, which is what the ledger says.
+    await insertAccount('registered-during-deploy-gap', {
+      verificationCode: 'stale-code',
+      emailVerified: true,
+      createdAt: new Date('2026-03-20T12:00:00Z')
+    })
+
+    await migration.up(database)
+
+    expect(await readCode('registered-during-deploy-gap')).toBe('')
+  })
+
+  it('does nothing when the backfill ran in the same pass', async () => {
+    // knex applies pending migrations in timestamp order in ONE `yarn migrate`,
+    // so on a database that predates `20260320072514` — a restore from a
+    // pre-March dump, a staging copy, an operator catching up — that backfill
+    // runs moments before this migration and marks a registration made minutes
+    // earlier as verified. Clearing then would destroy a code that is genuinely
+    // live: the account silently confirmed with nobody proving the address, and
+    // the link already in the user's inbox dead forever. Nothing is lost by
+    // skipping, because `emailVerified` was only just populated there, so
+    // nobody has been relying on it to sign in.
+    await database('knex_migrations')
+      .where('name', BACKFILL)
+      .update({ batch: 2 })
     await insertAccount('caught-up-instance', {
       verificationCode: 'live-code',
-      emailVerified: true,
-      createdAt: AFTER_BACKFILL
+      emailVerified: true
     })
 
     await migration.up(database)
 
     expect(await readCode('caught-up-instance')).toBe('live-code')
+  })
+
+  it('does nothing when the backfill never ran here', async () => {
+    await database('knex_migrations').where('name', BACKFILL).delete()
+    await insertAccount('no-backfill', {
+      verificationCode: 'live-code',
+      emailVerified: true
+    })
+
+    await migration.up(database)
+
+    expect(await readCode('no-backfill')).toBe('live-code')
+  })
+
+  it('does nothing on a database with no migration ledger', async () => {
+    // A database built straight from the schema dump: nothing to infer, and no
+    // accounts to repair.
+    await database.schema.dropTable('knex_migrations')
+    await insertAccount('dump-built', {
+      verificationCode: 'live-code',
+      emailVerified: true
+    })
+
+    await migration.up(database)
+
+    expect(await readCode('dump-built')).toBe('live-code')
   })
 
   it('leaves a genuinely pending registration gated', async () => {

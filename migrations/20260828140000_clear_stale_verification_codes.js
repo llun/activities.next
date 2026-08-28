@@ -20,43 +20,54 @@
  * This grants nothing new. It aligns `verificationCode` with the
  * `emailVerified` that has governed sign-in for these accounts since March.
  *
- * `createdAt` is what bounds it, and the bound is load-bearing rather than
- * belt-and-braces. `emailVerified = false` is NOT sufficient on its own: knex
- * applies pending migrations in timestamp order within a single `yarn migrate`,
- * so on a database that predates `20260320072514` — an operator catching up
- * after a gap, a restore from a pre-March dump, a staging copy — that backfill
- * and this migration run in the SAME pass. The backfill would set
- * `emailVerified = true` on a registration made minutes earlier (its
- * `verifiedAt` being non-null by the column default), and this migration would
- * then destroy a confirmation code that is genuinely live: the account is
- * silently marked confirmed without anyone proving the address, and the link
- * already in the user's inbox is dead forever, because `verifyAccount` matches
- * on a code that no longer exists.
+ * What bounds it is WHEN THE BACKFILL ACTUALLY RAN on this database, read from
+ * `knex_migrations`, not any timestamp baked in here. Two hazards pull in
+ * opposite directions and only that reading separates them.
  *
- * Restricting to rows created before that backfill was authored keeps this to
- * the cohort it describes. A pending registration newer than the cutoff keeps
- * its code and stays gated on such an instance, which is the correct answer for
- * it.
+ * If the backfill runs in the SAME pass as this migration — a database that
+ * predates it: a restore from a pre-March dump, a staging copy, an operator
+ * catching up — then knex applies both in one `yarn migrate`, and the backfill
+ * marks a registration made minutes earlier as verified on the strength of the
+ * column default. Clearing then would destroy a code that is genuinely live:
+ * the account silently confirmed with nobody proving the address, and the link
+ * already in the user's inbox dead forever. So this skips entirely there — and
+ * nothing is lost by skipping, because on such a database `emailVerified` was
+ * only just populated, so nobody has been relying on it to sign in.
+ *
+ * If the backfill ran in an EARLIER pass, everything it marked has been signing
+ * in ever since, and clearing preserves exactly that access.
+ *
+ * An earlier revision compared `createdAt` against this migration's sibling
+ * FILENAME timestamp. That is the instant `migrate:make` ran on the author's
+ * machine, which no deployment ever coincides with — that migration was merged
+ * eleven hours later — so every account registered inside an operator's deploy
+ * gap was missed and locked out, which is the failure this whole file exists to
+ * prevent.
  *
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
 export const up = async function (knex) {
-  // The timestamp of `20260320072514_better_auth_columns`, whose backfill is
-  // the only thing that can have produced `emailVerified = true` alongside a
-  // live code. An account created after it reached `emailVerified` through
-  // `createAccount` or `verifyAccount`, both of which are correct.
-  const BACKFILL_RAN_AT = new Date('2026-03-20T07:25:14Z')
+  const BACKFILL = '20260320072514_better_auth_columns.js'
+
+  // A database built straight from the schema dump has no migration ledger and
+  // no accounts to repair, so there is nothing to do and nothing to infer.
+  if (!(await knex.schema.hasTable('knex_migrations'))) return
+
+  const backfill = await knex('knex_migrations').where('name', BACKFILL).first()
+  if (!backfill) return
+
+  // knex writes a migration's ledger row as it completes, so a backfill that
+  // ran earlier in THIS pass already carries the batch this pass is using.
+  const latest = await knex('knex_migrations').max('batch as batch').first()
+  if (latest && backfill.batch === latest.batch) return
 
   // A literal `true` is safe on both backends: knex binds it per driver, and
   // the column only ever holds a real boolean (PostgreSQL) or 0/1 (SQLite).
-  // `whereNot('verificationCode', '')` does not match NULL — SQL three-valued
-  // logic — so `whereNotNull` is what keeps a null-code row out of the match
-  // rather than being redundant with it.
+  // No `whereNotNull` is needed — `NULL = ''` is NULL and `NOT NULL` is NULL,
+  // so three-valued logic already excludes a null code from the match.
   await knex('accounts')
     .where('emailVerified', true)
-    .where('createdAt', '<', BACKFILL_RAN_AT)
-    .whereNotNull('verificationCode')
     .whereNot('verificationCode', '')
     .update({ verificationCode: '' })
 }

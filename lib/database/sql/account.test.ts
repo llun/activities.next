@@ -241,7 +241,7 @@ describe('AccountDatabase', () => {
         await database.updateAccountEmail({
           accountId,
           email: newEmail,
-          verificationCode: null
+          verificationCode: ''
         })
 
         const account = await database.getAccountFromId({ id: accountId })
@@ -496,7 +496,7 @@ describe('AccountDatabase', () => {
         await database.updateAccountEmail({
           accountId,
           email: newEmail,
-          verificationCode: null
+          verificationCode: ''
         })
 
         const account = await database.getAccountFromId({ id: accountId })

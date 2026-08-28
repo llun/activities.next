@@ -1265,6 +1265,26 @@ describe('OAuthGuard', () => {
       )
     })
 
+    test('downgrades an unconfirmed cookie session too, not just a bearer token', async () => {
+      // The disposition is applied on BOTH halves of
+      // `resolveAuthenticatedContext`, and removing it from the session half
+      // alone left every other test in this file passing. These routes are
+      // reached from the website's own cookie session, and an account can hold
+      // a working session while still pending — see the pre-2026-03-20 cohort.
+      mockGetServerSession.mockResolvedValue({ user: { email: PENDING_EMAIL } })
+
+      const guard = OptionalOAuthGuard([Scope.enum.read], mockHandler)
+      const response = await guard(createRequest(), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ currentActor: null })
+      )
+    })
+
     test('still refuses a suspended actor on the same guard', async () => {
       // The carve-out is confirmation-only. Suspension IS global in Mastodon,
       // and `isActorModerationBlocked` keeps running here.

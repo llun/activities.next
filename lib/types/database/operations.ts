@@ -421,8 +421,12 @@ export type UpdateAccountEmailParams = {
   // — silently restoring the vulnerability. A code proves control of the
   // address it was sent to and nothing else, so the two move together or the
   // type refuses. Pass the account's existing code where the address is not
-  // actually changing.
-  verificationCode: string | null
+  // actually changing. Not nullable either: written unconditionally, a null
+  // would CLEAR the code and thereby mark the account confirmed, since
+  // `isAccountConfirmationPending` is `Boolean(verificationCode)`. An account
+  // with nothing outstanding already holds `''`, which says the same thing
+  // without the footgun.
+  verificationCode: string
 }
 export type UpdateAccountNameParams = {
   accountId: string
