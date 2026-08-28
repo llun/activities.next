@@ -83,8 +83,9 @@ export const serializeAdminAccounts = ({
         // `accounts.verifiedAt` carries DEFAULT CURRENT_TIMESTAMP, so it is
         // non-null for every account written before that was worked around and
         // reported `confirmed: true` for exactly the accounts a moderator would
-        // be looking at BECAUSE they cannot sign in. A pending
-        // `verificationCode` is what the guards refuse on.
+        // be looking at BECAUSE they cannot sign in. What the guards refuse
+        // on is an outstanding `verificationCode` that `emailVerified` does
+        // not override — the same pair, so this field and the gate agree.
         // Remote actors have no registration state, so they are reported
         // confirmed for the same reason the line below reports them approved —
         // stated explicitly rather than falling out of an empty object.

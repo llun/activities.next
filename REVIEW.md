@@ -535,8 +535,9 @@ change doesn't touch.
   `OptionalOAuthGuard`'s anonymous downgrade is a different option and does not
   count against this.
 - Do not "unify" this with better-auth's `emailAndPassword.requireEmailVerification`,
-  which reads a different column (`accounts.emailVerified`, not on the domain
-  `Account`) and covers credential sign-in only. That gate is why the cookie
+  which covers credential sign-in only — but DO read the same column it reads.
+  `emailVerified` is on the domain `Account` precisely so the two gates agree;
+  removing it re-locks out the backfilled cohort. That gate is why the cookie
   path was never open **for an account registered after 2026-03-20** — older
   ones were marked `emailVerified` by that migration's backfill and have been
   signing in ever since, which is the cohort

@@ -202,6 +202,32 @@ describe('AccountDatabase', () => {
         ).toMatchObject({ id: accountId })
       })
 
+      it('clears emailVerified when the address is re-pointed', async () => {
+        // The cohort shape: an account that IS marked verified. Starting from a
+        // pending account cannot test this — `emailVerified` is already false
+        // there, so the assertion passes whether or not the write clears it.
+        // Creating without a code is what `createAccount` marks verified.
+        const { accountId } = await createTestAccount()
+        const before = await database.getAccountFromId({ id: accountId })
+        expect(before?.emailVerified).toBeTrue()
+
+        const newEmail = `repointed-${crypto.randomUUID()}@${TEST_DOMAIN}`
+        await database.updateAccountEmail({
+          accountId,
+          email: newEmail,
+          verificationCode: `code-${crypto.randomUUID()}`
+        })
+
+        // Cleared for the same reason the code is rotated: the flag proves
+        // control of the address it was set for. Left standing, the backfilled
+        // cohort — which is NOT pending, since the predicate reads this column
+        // — could re-point to an arbitrary address and keep an
+        // `email_verified: true` OIDC claim for it.
+        const account = await database.getAccountFromId({ id: accountId })
+        expect(account?.email).toEqual(newEmail)
+        expect(account?.emailVerified).toBeFalse()
+      })
+
       it('leaves verifiedAt null while a confirmation is outstanding', async () => {
         // `accounts.verifiedAt` carries DEFAULT CURRENT_TIMESTAMP
         // (20230824181927_add_accounts_verification), so omitting the column —

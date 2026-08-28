@@ -423,7 +423,8 @@ export type UpdateAccountEmailParams = {
   // type refuses. Pass the account's existing code where the address is not
   // actually changing. Not nullable either: written unconditionally, a null
   // would CLEAR the code and thereby mark the account confirmed, since
-  // `isAccountConfirmationPending` is `Boolean(verificationCode)`. An account
+  // `isAccountConfirmationPending` requires a non-empty code to hold anything
+  // pending. An account
   // with nothing outstanding already holds `''`, which says the same thing
   // without the footgun.
   verificationCode: string

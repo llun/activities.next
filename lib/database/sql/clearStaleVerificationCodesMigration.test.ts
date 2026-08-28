@@ -27,7 +27,7 @@ const BACKFILL = '20260320072514_better_auth_columns.js'
 // trusted to mean anyone has been signing in.
 const createMigrationLedger = async (
   database: knex.Knex,
-  { backfillBatch, latestBatch }: { backfillBatch: number; latestBatch: number }
+  { ranAt }: { ranAt: Date }
 ) => {
   await database.schema.createTable('knex_migrations', (table) => {
     table.increments('id')
@@ -35,18 +35,9 @@ const createMigrationLedger = async (
     table.integer('batch')
     table.timestamp('migration_time')
   })
-  // `migration_time` is aged past the migration's recency window by default:
-  // the repair is aimed at a backfill that ran months ago, and a fixture
-  // stamped `now()` would silently take the skip instead of exercising the
-  // clear.
-  const longAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
   await database('knex_migrations').insert([
-    { name: BACKFILL, batch: backfillBatch, migration_time: longAgo },
-    {
-      name: 'later_migration.js',
-      batch: latestBatch,
-      migration_time: longAgo
-    }
+    { name: BACKFILL, batch: 1, migration_time: ranAt },
+    { name: 'later_migration.js', batch: 7, migration_time: ranAt }
   ])
 }
 
@@ -60,11 +51,12 @@ describe('clear stale verification codes migration', () => {
       connection: { filename: ':memory:' }
     })
     await createAccountsTable(database)
-    // Batches deliberately do NOT equal the rows' auto-increment ids (1 and 2):
-    // with batches 1 and 7, reading `max('id')` in place of `max('batch')`
-    // yields a different answer, so the aggregate's column is pinned rather
-    // than coincidentally right.
-    await createMigrationLedger(database, { backfillBatch: 1, latestBatch: 7 })
+    // Aged well past the migration's recency window: the repair is aimed at a
+    // backfill that ran months ago, and a fixture stamped `now()` would take
+    // the skip instead of exercising the clear.
+    await createMigrationLedger(database, {
+      ranAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+    })
   })
 
   afterEach(async () => {
@@ -131,15 +123,13 @@ describe('clear stale verification codes migration', () => {
     // knex applies pending migrations in timestamp order in ONE `yarn migrate`,
     // so on a database that predates `20260320072514` — a restore from a
     // pre-March dump, a staging copy, an operator catching up — that backfill
-    // runs moments before this migration and marks a registration made minutes
-    // earlier as verified. Clearing then would destroy a code that is genuinely
-    // live: the account silently confirmed with nobody proving the address, and
-    // the link already in the user's inbox dead forever. Nothing is lost by
-    // skipping, because `emailVerified` was only just populated there, so
-    // nobody has been relying on it to sign in.
+    // runs moments before this migration. Its `emailVerified` proves nothing
+    // there, and clearing would destroy a code that is genuinely live: the link
+    // already in the user's inbox dies, since `verifyAccount` matches on the
+    // code alone.
     await database('knex_migrations')
       .where('name', BACKFILL)
-      .update({ batch: 7 })
+      .update({ migration_time: new Date() })
     await insertAccount('caught-up-instance', {
       verificationCode: 'live-code',
       emailVerified: true
@@ -150,23 +140,27 @@ describe('clear stale verification codes migration', () => {
     expect(await readCode('caught-up-instance')).toBe('live-code')
   })
 
-  it('does nothing when the backfill ran recently in a different batch', async () => {
-    // `batch` identifies a migrate INVOCATION, not an upgrade: a catch-up run
-    // that is interrupted and resumed leaves the backfill in one batch and this
-    // migration in the next, so the batch test alone does not fire even though
-    // the backfill ran minutes earlier. The clock does not care how the run was
-    // split.
+  it.each([
+    { description: 'a null migration_time', migrationTime: null },
+    {
+      description: 'an unparseable migration_time',
+      migrationTime: 'not-a-date'
+    }
+  ])('does nothing given $description', async ({ migrationTime }) => {
+    // The bound acts only on proof. Without a readable stamp there is no way to
+    // tell a backfill that ran moments ago from one that ran months ago, and
+    // the expensive mistake is destroying a live code.
     await database('knex_migrations')
       .where('name', BACKFILL)
-      .update({ migration_time: new Date() })
-    await insertAccount('interrupted-catch-up', {
+      .update({ migration_time: migrationTime })
+    await insertAccount('unreadable-stamp', {
       verificationCode: 'live-code',
       emailVerified: true
     })
 
     await migration.up(database)
 
-    expect(await readCode('interrupted-catch-up')).toBe('live-code')
+    expect(await readCode('unreadable-stamp')).toBe('live-code')
   })
 
   it('does nothing when the backfill never ran here', async () => {

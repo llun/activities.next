@@ -843,6 +843,16 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         // strength of the old one having been received. Unconditional: the
         // parameter is required precisely so this cannot be skipped.
         verificationCode,
+        // `emailVerified` is cleared for exactly the same reason, and clearing
+        // it is what keeps the rotation meaningful for the cohort
+        // `20260320072514_better_auth_columns` wrongly marked verified. Those
+        // rows are NOT pending (`isAccountConfirmationPending` reads this
+        // column), so without this a re-point moved their address to an
+        // arbitrary one while they stayed verified — and `userinfo`'s
+        // `email_verified` claim then asserted an address nobody had proven, to
+        // any OIDC relying party that links accounts on it. The flag proves
+        // control of the address it was set for, so it does not outlive it.
+        emailVerified: false,
         updatedAt: currentTime
       })
   },
