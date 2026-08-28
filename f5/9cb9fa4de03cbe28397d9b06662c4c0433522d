@@ -1,0 +1,55 @@
+app/api/v1/emails/confirmations/route.test.ts
+  s_801e94c1cd7091::t_b685210401bc74 243-244,249,253-257,259,262,264,281-282,305-306,370-371
+  s_801e94c1cd7091::t_56b59d729473c0 156-205
+  s_801e94c1cd7091::t_d43da23fd40ca6 248
+lib/database/sql/account.ts
+  s_801e94c1cd7091::t_f273c2b675b2e8 831-832,839-844
+app/api/v1/emails/confirmations/route.ts
+  s_801e94c1cd7091::t_7a4563b747ad6f 9,116-129,137-138,168-171,190-195,199
+  s_801e94c1cd7091::t_4db8381957539c 130-136,139
+lib/services/guards/OAuthGuard.ts
+  s_801e94c1cd7091::t_de88076798d429 593-605
+  s_801e94c1cd7091::t_d43da23fd40ca6 563-564
+lib/services/admin/serializeAdminAccounts.ts
+  s_801e94c1cd7091::t_de88076798d429 82-88
+  s_801e94c1cd7091::t_7ee421a01c5f42 5
+lib/services/guards/types.ts
+  s_801e94c1cd7091::t_d43da23fd40ca6 45-54
+lib/services/admin/serializeAdminAccounts.test.ts
+  s_801e94c1cd7091::t_494f5edd4c0f25 77-105
+lib/services/auth/canCreateSessionForAccount.ts
+  s_801e94c1cd7091::t_a79950aa09fe7e 30-34
+AGENTS.md
+  s_801e94c1cd7091::t_26801e2ecd217f 2021,2023,2027-2028
+app/api/v1/accounts/route.ts
+  s_801e94c1cd7091::t_d43da23fd40ca6 131-133
+lib/services/guards/OAuthGuard.test.ts
+  s_801e94c1cd7091::t_22724f9253b791 14,1218-1309
+  s_801e94c1cd7091::t_af84ce7e436ada 1310-1311
+REVIEW.md
+  s_801e94c1cd7091::t_26801e2ecd217f 501-503,505-511,513-518
+lib/database/sql/clearStaleVerificationCodesMigration.test.ts
+  s_801e94c1cd7091::t_1622705d0c0cd8 16
+  s_801e94c1cd7091::t_5bc7ae234a240a 114
+  s_801e94c1cd7091::t_b5ce48933aa266 1-15,17-113,115-118
+migrations/20260828140000_clear_stale_verification_codes.js
+  s_801e94c1cd7091::t_99d66e38b1e4cc 1-47
+lib/types/database/operations.ts
+  s_801e94c1cd7091::t_f273c2b675b2e8 418-421
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "f59cb9fa4de03cbe28397d9b06662c4c0433522d",
+  "prompts": {},
+  "sessions": {
+    "s_801e94c1cd7091": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ec5dc893-542e-48be-a5e8-04c97a90d907",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
