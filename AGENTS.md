@@ -1,5 +1,7 @@
 # Repository Guidelines
 
+> **Always read `AGENTS.md` at the start of any task** and follow it for all project rules. If `AGENTS.override.md` is also present in the checkout, read it as well — it takes precedence over `AGENTS.md` wherever the two conflict. Treat `AGENTS.override.md` as a layer applied on top of `AGENTS.md`, not a full replacement.
+
 ## Definition of Done (read this first)
 
 Every change, however small, is done only when ALL of these hold:
@@ -22,7 +24,7 @@ For the most common task shapes, follow the step-by-step **Task Recipes** sectio
 - `docs/` includes setup and database-specific guides; `scripts/` includes repo utilities; `lint/` holds the local Oxlint JS plugin (`agentsRules.mjs`) that carries the AGENTS.md conventions Oxlint cannot express natively, plus its guard test.
   - **`docs/` is for durable, general-purpose reference documentation only** (setup, architecture, environment variables, feature guides). **Do NOT add** implementation plans, design docs, task/PR-specific writeups, gap analyses, before/after screenshots, or any other artifact tied to a single change or pull request. Those belong in the PR description or issue tracker, not the repo. Do not create `docs/plans/`, `docs/specs/`, `docs/pr-screenshots/`, or similar scratch directories.
   - `scripts/` is organized as `mock/`, `maintenance/`, `fitness/`, and `backup/`. Every script runs through the `scripts/run.cjs` bootstrap (`node scripts/run.cjs <script>.ts`), which is also wired into each script's shebang; `yarn search:reindex` is the packaged entry point for `scripts/maintenance/rebuildSearchIndex.ts`. `scripts/` is neither linted nor prettier-checked in CI (see below) — verify scripts by running them.
-- **`AGENTS.md` and `CLAUDE.md` are the only agent instruction files.** `AGENTS.md` is canonical. `CLAUDE.md` is the condensed reminder list loaded at task start, and cites sections of `AGENTS.md` as ``See **Section Name** in `AGENTS.md`.`` so any rule it shortens can be read in full. Per-tool variants are deliberately not kept here — `.cursor/rules/agents.mdc`, `GEMINI.md` and `.github/copilot-instructions.md` each existed and were removed. Do not add another: point the tool at `AGENTS.md` instead, because a fourth partial copy goes stale on its own schedule and nothing reads it often enough to notice.
+- **`AGENTS.md` is canonical; `CLAUDE.md` is a symlink to `AGENTS.md`.** `CLAUDE.md` exists as a symbolic link pointing to `AGENTS.md` so that tools looking for either file read the exact same instructions without duplication or drift. Per-tool variants are deliberately not kept here — `.cursor/rules/agents.mdc`, `GEMINI.md` and `.github/copilot-instructions.md` each existed and were removed. Do not add another: point tools or symlinks at `AGENTS.md`.
 - `proxy.ts` at the repo root is the Next.js middleware entrypoint (Next 16's rename of `middleware.ts`) — do **not** add a `middleware.ts`. It runs in the Edge runtime: import helpers via direct sub-paths (e.g. `@/lib/utils/http-headers/csp`), never barrels that transitively pull Node-only dependencies such as `@/lib/config`. It owns the ActivityPub content-negotiation rewrites and CSP header injection.
 - Configuration files live at the repo root (for example `.env.example`, `knexfile.js`, and framework/tooling configs).
 - `.gitignore` intentionally ignores several files agents commonly create: `docker-compose.yml`, `scripts/*.js`, `plans/`, `PR_DESCRIPTION.md`, `VERIFICATION_SUMMARY.md`, `AGENTS.override.md`, all `*.sql` (except the two `!migrations/schema*.sql` negations), `*.sqlite3`/`*.sqlite`, and `.env*` variants. If a file you added is missing from `git status`, check `git status --ignored` before assuming the add failed.
@@ -2303,8 +2305,8 @@ each ends with the Definition of Done gate.
   - Knex migrations → regenerate both schema dumps (see Database Backends & Local Setup)
   - `scripts/` utilities added or changed → `docs/maintenance.md` (and the feature guide that lists them)
   - Deployment, Docker, or runtime-config changes → `README.md`, `docs/setup.md`, and the database setup guides
-  - New or changed coding conventions and patterns → the matching `AGENTS.md` section, the `REVIEW.md` checklist, and (when agents need it at task start) the `CLAUDE.md` key reminders
-  - Changes to AGENTS.md rules themselves → `CLAUDE.md` (see **Project Structure & Module Organization** for what that file is) and the PR checklist in `.github/PULL_REQUEST_TEMPLATE.md`
+  - New or changed coding conventions and patterns → the matching `AGENTS.md` section and the `REVIEW.md` checklist
+  - Changes to AGENTS.md rules themselves → `AGENTS.md` (which `CLAUDE.md` symlinks to) and the PR checklist in `.github/PULL_REQUEST_TEMPLATE.md`
 - Keep `docs/` durable and general-purpose (see Project Structure): update the reference docs in place; do not add change-specific writeups.
 
 ## Commit & Pull Request Guidelines
