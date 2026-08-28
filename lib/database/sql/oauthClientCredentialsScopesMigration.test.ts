@@ -249,12 +249,17 @@ describe('backfill oauth client credentials scopes migration', () => {
     expect(await readScopes('client')).toBe(JSON.stringify(['read', 'write']))
   })
 
-  // The single-page case above cannot see the thing that actually makes a null-id
-  // row dangerous: SQLite sorts NULL first under the migration's `orderBy('id')`,
-  // so such a row occupies one slot of EVERY page until the real rows run out.
-  // A future switch from re-querying `whereNull` to an `id > lastId` cursor would
-  // reintroduce a lock-holding spin that the two-row test would not notice.
-  it('keeps paging past a null-id row that recurs on every page', async () => {
+  // What this adds over the two-row case above is the PARTIALLY WRITABLE FULL
+  // PAGE: SQLite sorts NULL first under the migration's `orderBy('id')`, so page
+  // one is exactly `BATCH_SIZE` rows of which only 499 can be written, and the
+  // loop still has to advance and finish. The two-row case already kills both
+  // guards on its own — it is not the weaker of the pair, and neither should be
+  // dropped as redundant: it is the one that proves termination, and the exact
+  // counts here are what pin the paging shape.
+  //
+  // Note the null row costs no extra page at this size (3 SELECTs either way,
+  // measured) — it is skipped within a page, not paged around.
+  it('keeps paging past a null-id row on a partially writable full page', async () => {
     const rows = Array.from({ length: 501 }, (_, index) => ({
       id: `client-${String(index).padStart(4, '0')}`,
       scopes: JSON.stringify(['read']),
@@ -273,11 +278,18 @@ describe('backfill oauth client credentials scopes migration', () => {
       clientCredentialsScopes: null
     })
 
+    // The budget is what keeps a regression from spinning: better-sqlite3 is
+    // synchronous, so a non-terminating loop starves the event loop and vitest's
+    // own timeout can never fire. It bounds the damage; the exact counts below
+    // are the actual assertion.
     const STATEMENT_BUDGET = 20
-    let statements = 0
-    database.on('query', () => {
-      statements += 1
-      if (statements > STATEMENT_BUDGET) {
+    const selects: string[] = []
+    const updates: string[] = []
+    database.on('query', ({ sql }: { sql: string }) => {
+      const statement = sql.trimStart().toLowerCase()
+      if (statement.startsWith('select')) selects.push(sql)
+      if (statement.startsWith('update')) updates.push(sql)
+      if (selects.length + updates.length > STATEMENT_BUDGET) {
         throw new Error(
           `migration issued more than ${STATEMENT_BUDGET} statements; it is not terminating`
         )
@@ -286,6 +298,15 @@ describe('backfill oauth client credentials scopes migration', () => {
 
     await expect(migration.up(database)).resolves.toBeUndefined()
 
+    // Snapshot before the assertions below, which the listener also sees.
+    const pages = selects.length
+    const writes = updates.length
+
+    // A full page writing 499 of its 500 rows, then a 3-row page writing 2, then
+    // the page that is only the unwritable row and ends the loop.
+    expect(pages).toBe(3)
+    expect(writes).toBe(2)
+
     // Every real row repaired; the one left is the row with no id, which no
     // `whereIn('id', …)` can ever address.
     await expect(
@@ -293,6 +314,11 @@ describe('backfill oauth client credentials scopes migration', () => {
         remaining: '*'
       })
     ).resolves.toEqual([{ remaining: 1 }])
+    await expect(
+      database('oauthClient').whereNotNull('clientCredentialsScopes').count({
+        repaired: '*'
+      })
+    ).resolves.toEqual([{ repaired: 501 }])
   })
 
   // The migration cannot import the helper the registration path uses — it runs

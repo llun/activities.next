@@ -24,9 +24,15 @@
 // The ceiling written is the application's own registered scopes, minus the
 // scopes better-auth reserves for user-delegated grants. That restores what 1.6
 // granted and matches Mastodon, where an app token carries the scopes the
-// application registered with — and is deliberately stricter than 1.6 in the one
-// case where a client omits `scope`, which 1.6 answered with its registered
-// scopes verbatim, reserved ones included.
+// application registered with.
+//
+// It is deliberately STRICTER than 1.6 rather than a replay of it, and the rule
+// is the useful form: the ceiling is derived only from the client's OWN recorded
+// scopes, so anywhere 1.6 reached past those, this does not. 1.6 reached past
+// them in two ways — it skipped its reserved-scope filter when the client
+// omitted `scope`, and it fell back to the server's entire scope vocabulary for
+// a client with no scopes recorded (`client.scopes ?? opts.scopes`), which for a
+// scope-less legacy row meant a token carrying everything this server knows.
 //
 // Kept in sync with `toClientCredentialsScopes` in
 // `lib/services/oauth/clientCredentialsScopes.ts`, which this file cannot import:

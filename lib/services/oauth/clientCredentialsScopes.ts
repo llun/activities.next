@@ -31,8 +31,9 @@
 //
 // 1.6 is not a stronger precedent here than 1.7: its rejection sat inside the
 // same `if (requestedScopes)` conditional, so it too granted a registered
-// `openid` verbatim when the client omitted `scope`. This filter matches 1.6 for
-// an explicitly requested scope and is deliberately stricter for an omitted one.
+// `openid` verbatim when the client omitted `scope`. Reproducing 1.6 is
+// therefore not the goal — a ceiling built only from what the client itself
+// registered is stricter wherever 1.6 reached past that, which is the intent.
 //
 // `offline_access` is not part of this server's scope vocabulary; it is listed
 // because better-auth reserves it, so adding it to `Scope` later cannot quietly
