@@ -173,7 +173,7 @@ describe('AccountDatabase', () => {
       it('rotates the verification code in the same write as the email', async () => {
         // The security-critical half of the re-point fix, and the only place
         // it is exercised against a real database: the confirmations route
-        // test mocks `updateAccountEmail` entirely, so it can only prove the
+        // test mocks `repointUnconfirmedAccountEmail` entirely, so it can only prove the
         // route ASKS for rotation, never that the write performs it. Dropping
         // the parameter in the mixin left that whole suite green.
         const verificationCode = `pending-${crypto.randomUUID()}`
@@ -181,7 +181,7 @@ describe('AccountDatabase', () => {
         const newEmail = `repointed-${crypto.randomUUID()}@${TEST_DOMAIN}`
         const rotated = `rotated-${crypto.randomUUID()}`
 
-        await database.updateAccountEmail({
+        await database.repointUnconfirmedAccountEmail({
           accountId,
           email: newEmail,
           verificationCode: rotated
@@ -212,7 +212,7 @@ describe('AccountDatabase', () => {
         expect(before?.emailVerified).toBeTrue()
 
         const newEmail = `repointed-${crypto.randomUUID()}@${TEST_DOMAIN}`
-        await database.updateAccountEmail({
+        await database.repointUnconfirmedAccountEmail({
           accountId,
           email: newEmail,
           verificationCode: `code-${crypto.randomUUID()}`
@@ -264,7 +264,7 @@ describe('AccountDatabase', () => {
         const { accountId } = await createTestAccount()
         const newEmail = `updated-${crypto.randomUUID()}@${TEST_DOMAIN}`
 
-        await database.updateAccountEmail({
+        await database.repointUnconfirmedAccountEmail({
           accountId,
           email: newEmail,
           verificationCode: ''
@@ -514,12 +514,12 @@ describe('AccountDatabase', () => {
         expect(found?.id).toEqual(accountId)
       })
 
-      it('stores a lowercased email when updateAccountEmail is given mixed case', async () => {
+      it('stores a lowercased email when repointUnconfirmedAccountEmail is given mixed case', async () => {
         const { accountId } = await createTestAccount()
         const suffix = crypto.randomUUID().slice(0, 8)
         const newEmail = `Updated.${suffix}@${TEST_DOMAIN}`
 
-        await database.updateAccountEmail({
+        await database.repointUnconfirmedAccountEmail({
           accountId,
           email: newEmail,
           verificationCode: ''

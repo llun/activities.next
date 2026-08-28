@@ -37,13 +37,13 @@ import {
   IsAccountExistsParams,
   IsUsernameExistsParams,
   LinkAccountWithProviderParams,
+  RepointUnconfirmedAccountEmailParams,
   RequestEmailChangeParams,
   RequestPasswordResetParams,
   ResetPasswordWithCodeParams,
   SetDefaultActorParams,
   SetSessionActorParams,
   UnlinkAccountFromProviderParams,
-  UpdateAccountEmailParams,
   UpdateAccountImageParams,
   UpdateAccountNameParams,
   UpdateAccountSessionParams,
@@ -826,11 +826,11 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     })
   },
 
-  async updateAccountEmail({
+  async repointUnconfirmedAccountEmail({
     accountId,
     email,
     verificationCode
-  }: UpdateAccountEmailParams): Promise<void> {
+  }: RepointUnconfirmedAccountEmailParams): Promise<void> {
     const currentTime = new Date()
     await database('accounts')
       .where('id', accountId)
@@ -843,16 +843,18 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         // strength of the old one having been received. Unconditional: the
         // parameter is required precisely so this cannot be skipped.
         verificationCode,
-        // `emailVerified` is cleared for exactly the same reason, and clearing
-        // it is what keeps the rotation meaningful for the cohort
-        // `20260320072514_better_auth_columns` wrongly marked verified. Those
-        // rows are NOT pending (`isAccountConfirmationPending` reads this
-        // column), so without this a re-point moved their address to an
-        // arbitrary one while they stayed verified — and `userinfo`'s
-        // `email_verified` claim then asserted an address nobody had proven, to
-        // any OIDC relying party that links accounts on it. The flag proves
-        // control of the address it was set for, so it does not outlive it.
+        // Every other proof about the OLD address goes with it, for the same
+        // reason. `emailVerified` is the one that matters most: a
+        // backfilled-cohort row is NOT pending
+        // (`isAccountConfirmationPending` reads it), so leaving it set let such
+        // an account re-point to an arbitrary address and stay verified, and
+        // the id_token then asserted `email_verified: true` for an address
+        // nobody had proven. `verifiedAt` and `emailVerifiedAt` are cleared
+        // alongside it so no surface can answer that question differently —
+        // `verifyAccount` restores both when the new address is confirmed.
         emailVerified: false,
+        verifiedAt: null,
+        emailVerifiedAt: null,
         updatedAt: currentTime
       })
   },

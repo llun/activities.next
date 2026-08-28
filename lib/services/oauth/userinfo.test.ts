@@ -29,6 +29,10 @@ const makeAccount = (overrides: Partial<Account> = {}): Account => {
     // actor's URL id so the `sub = account.id` assertions are meaningful.
     id: 'lfpCbM75O9OcBmxgq9JI',
     email: 'test@example.com',
+    // The claim is built from `emailVerified`; `emailVerifiedAt` is kept on the
+    // fixture because other assertions read the account shape, not because it
+    // decides this.
+    emailVerified: true,
     emailVerifiedAt: now,
     createdAt: now,
     updatedAt: now,
@@ -164,6 +168,7 @@ describe('getUserInfo', () => {
     const account = makeAccount({
       id: 'account-1',
       email: 'test@example.com',
+      emailVerified: true,
       emailVerifiedAt: Date.now()
     })
 
@@ -197,10 +202,18 @@ describe('getUserInfo', () => {
     expect(userInfo).not.toHaveProperty('email_verified')
   })
 
-  it('returns email_verified true when verifiedAt is set', () => {
+  it('reports email_verified false for an account whose only signal is verifiedAt', () => {
+    // This test asserted `true` until the claim moved off `verifiedAt`.
+    // `accounts.verifiedAt` carries DEFAULT CURRENT_TIMESTAMP, so it is
+    // non-null for every account ever written and proves nothing — reading it
+    // here asserted a verified address to every OIDC relying party for accounts
+    // that had never confirmed one. It is the same defect that made
+    // `canCreateSessionForAccount`'s check a no-op for two years, and this was
+    // the last surface still trusting it.
     const account = makeAccount({
       id: 'account-3',
-      email: 'verified@example.com',
+      email: 'defaulted@example.com',
+      emailVerified: false,
       emailVerifiedAt: null,
       verifiedAt: Date.now()
     })
@@ -212,32 +225,18 @@ describe('getUserInfo', () => {
       scopes: ['openid', 'email']
     })
 
-    expect(userInfo.email).toBe('verified@example.com')
-    expect(userInfo.email_verified).toBe(true)
+    expect(userInfo.email).toBe('defaulted@example.com')
+    expect(userInfo.email_verified).toBe(false)
   })
 
-  it('returns email_verified true when emailVerifiedAt is set', () => {
+  it('reports email_verified from emailVerified, agreeing with the id_token', () => {
+    // `lib/services/auth/auth.ts` builds the id_token's claim from
+    // `emailVerified`, and better-auth's own userinfo resolves the same column.
+    // One fact, one column, three surfaces.
     const account = makeAccount({
       id: 'account-4',
       email: 'verified@example.com',
-      emailVerifiedAt: Date.now(),
-      verifiedAt: undefined
-    })
-
-    const userInfo = getUserInfo({
-      actor: makeActor({ account }),
-      account,
-      issuer: ISSUER,
-      scopes: ['openid', 'email']
-    })
-
-    expect(userInfo.email_verified).toBe(true)
-  })
-
-  it('returns email_verified false when neither verifiedAt nor emailVerifiedAt is set', () => {
-    const account = makeAccount({
-      id: 'account-2',
-      email: 'unverified@example.com',
+      emailVerified: true,
       emailVerifiedAt: null,
       verifiedAt: undefined
     })
@@ -249,7 +248,29 @@ describe('getUserInfo', () => {
       scopes: ['openid', 'email']
     })
 
-    expect(userInfo.email).toBe('unverified@example.com')
+    expect(userInfo.email_verified).toBe(true)
+  })
+
+  it('reports email_verified false once a re-point clears the flag', () => {
+    // The shape `repointUnconfirmedAccountEmail` leaves behind. A
+    // backfilled-cohort account that moves its address must not carry its old
+    // verification to the new one.
+    const account = makeAccount({
+      id: 'account-5',
+      email: 'repointed@example.com',
+      emailVerified: false,
+      emailVerifiedAt: null,
+      verifiedAt: null
+    })
+
+    const userInfo = getUserInfo({
+      actor: makeActor({ account }),
+      account,
+      issuer: ISSUER,
+      scopes: ['openid', 'email']
+    })
+
+    expect(userInfo.email).toBe('repointed@example.com')
     expect(userInfo.email_verified).toBe(false)
   })
 })

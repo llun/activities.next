@@ -41,7 +41,7 @@ type MockDatabase = Pick<
   Database,
   | 'getAccountFromEmail'
   | 'getActorsForAccount'
-  | 'updateAccountEmail'
+  | 'repointUnconfirmedAccountEmail'
   | 'requestEmailChange'
   | 'isAccountExists'
 >
@@ -99,7 +99,7 @@ describe('POST /api/v1/emails/confirmations', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
     getAccountFromEmail: vi.fn(),
     getActorsForAccount: vi.fn(),
-    updateAccountEmail: vi.fn(),
+    repointUnconfirmedAccountEmail: vi.fn(),
     requestEmailChange: vi.fn(),
     isAccountExists: vi.fn()
   }
@@ -130,7 +130,7 @@ describe('POST /api/v1/emails/confirmations', () => {
       }
     })
     mockSendMail.mockResolvedValue(undefined)
-    mockDb.updateAccountEmail.mockResolvedValue(undefined)
+    mockDb.repointUnconfirmedAccountEmail.mockResolvedValue(undefined)
     mockDb.requestEmailChange.mockResolvedValue(undefined)
     mockDb.isAccountExists.mockResolvedValue(false)
     setAccount(buildAccount(PENDING_CODE))
@@ -166,8 +166,8 @@ describe('POST /api/v1/emails/confirmations', () => {
 
     expect(response.status).toBe(200)
 
-    expect(mockDb.updateAccountEmail).toHaveBeenCalledTimes(1)
-    const [updateArgs] = mockDb.updateAccountEmail.mock.calls
+    expect(mockDb.repointUnconfirmedAccountEmail).toHaveBeenCalledTimes(1)
+    const [updateArgs] = mockDb.repointUnconfirmedAccountEmail.mock.calls
     expect(updateArgs[0].email).toBe('new-email@llun.test')
     const rotated = updateArgs[0].verificationCode
     expect(rotated).toEqual(expect.any(String))
@@ -195,7 +195,7 @@ describe('POST /api/v1/emails/confirmations', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(mockDb.updateAccountEmail).not.toHaveBeenCalled()
+    expect(mockDb.repointUnconfirmedAccountEmail).not.toHaveBeenCalled()
     expect(mockSendMail).toHaveBeenCalledTimes(1)
     const [mailArgs] = mockSendMail.mock.calls
     expect(mailArgs[0].content.text).toContain(
@@ -237,15 +237,16 @@ describe('POST /api/v1/emails/confirmations', () => {
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({})
 
-    expect(mockDb.updateAccountEmail).toHaveBeenCalledTimes(1)
-    expect(mockDb.updateAccountEmail).toHaveBeenCalledWith({
+    expect(mockDb.repointUnconfirmedAccountEmail).toHaveBeenCalledTimes(1)
+    expect(mockDb.repointUnconfirmedAccountEmail).toHaveBeenCalledWith({
       accountId: 'account-1',
       email: 'new-email@llun.test',
       verificationCode: expect.any(String)
     })
     expect(mockDb.requestEmailChange).not.toHaveBeenCalled()
 
-    const rotated = mockDb.updateAccountEmail.mock.calls[0][0].verificationCode
+    const rotated =
+      mockDb.repointUnconfirmedAccountEmail.mock.calls[0][0].verificationCode
 
     expect(mockSendMail).toHaveBeenCalledTimes(1)
     const [mailArgs] = mockSendMail.mock.calls
@@ -276,7 +277,7 @@ describe('POST /api/v1/emails/confirmations', () => {
     expect(mockDb.isAccountExists).toHaveBeenCalledWith({
       email: 'new-email@llun.test'
     })
-    expect(mockDb.updateAccountEmail).toHaveBeenCalledWith({
+    expect(mockDb.repointUnconfirmedAccountEmail).toHaveBeenCalledWith({
       accountId: 'account-1',
       email: 'new-email@llun.test',
       verificationCode: expect.any(String)
@@ -300,7 +301,7 @@ describe('POST /api/v1/emails/confirmations', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(mockDb.updateAccountEmail).toHaveBeenCalledWith({
+    expect(mockDb.repointUnconfirmedAccountEmail).toHaveBeenCalledWith({
       accountId: 'account-1',
       email: 'allowed@llun.test',
       verificationCode: expect.any(String)
@@ -327,7 +328,7 @@ describe('POST /api/v1/emails/confirmations', () => {
     await expect(response.json()).resolves.toEqual({
       error: 'Email is not allowed on this server'
     })
-    expect(mockDb.updateAccountEmail).not.toHaveBeenCalled()
+    expect(mockDb.repointUnconfirmedAccountEmail).not.toHaveBeenCalled()
     expect(mockSendMail).not.toHaveBeenCalled()
   })
 
@@ -345,7 +346,7 @@ describe('POST /api/v1/emails/confirmations', () => {
     expect(mockDb.isAccountExists).toHaveBeenCalledWith({
       email: 'taken@llun.test'
     })
-    expect(mockDb.updateAccountEmail).not.toHaveBeenCalled()
+    expect(mockDb.repointUnconfirmedAccountEmail).not.toHaveBeenCalled()
     expect(mockSendMail).not.toHaveBeenCalled()
   })
 
@@ -365,7 +366,7 @@ describe('POST /api/v1/emails/confirmations', () => {
     const response = await POST(request, { params: Promise.resolve({}) })
 
     expect(response.status).toBe(200)
-    expect(mockDb.updateAccountEmail).toHaveBeenCalledWith({
+    expect(mockDb.repointUnconfirmedAccountEmail).toHaveBeenCalledWith({
       accountId: 'account-1',
       email: 'form-email@llun.test',
       verificationCode: expect.any(String)
@@ -376,8 +377,8 @@ describe('POST /api/v1/emails/confirmations', () => {
 
   it('returns 422 when a concurrent claim races onto the unique-email constraint', async () => {
     // Pre-check passes (the racing request committed after it), so the
-    // collision only surfaces when updateAccountEmail hits the DB constraint.
-    mockDb.updateAccountEmail.mockRejectedValueOnce(
+    // collision only surfaces when repointUnconfirmedAccountEmail hits the DB constraint.
+    mockDb.repointUnconfirmedAccountEmail.mockRejectedValueOnce(
       Object.assign(new Error('UNIQUE constraint failed: accounts.email'), {
         code: 'SQLITE_CONSTRAINT_UNIQUE'
       })
@@ -403,7 +404,7 @@ describe('POST /api/v1/emails/confirmations', () => {
     const data = await response.json()
     expect(data.error).toBe('Validation failed')
     expect(data.details.email).toBeDefined()
-    expect(mockDb.updateAccountEmail).not.toHaveBeenCalled()
+    expect(mockDb.repointUnconfirmedAccountEmail).not.toHaveBeenCalled()
     expect(mockDb.requestEmailChange).not.toHaveBeenCalled()
     expect(mockSendMail).not.toHaveBeenCalled()
   })
@@ -414,7 +415,7 @@ describe('POST /api/v1/emails/confirmations', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(mockDb.updateAccountEmail).not.toHaveBeenCalled()
+    expect(mockDb.repointUnconfirmedAccountEmail).not.toHaveBeenCalled()
     const [mailArgs] = mockSendMail.mock.calls
     expect(mailArgs[0].to).toEqual([seedActor1.email])
   })

@@ -55,9 +55,11 @@
 export const up = async function (knex) {
   const BACKFILL = '20260320072514_better_auth_columns.js'
 
-  // knex creates the ledger before running anything, so this only fires for a
-  // database built straight from a schema dump — which has no accounts to
-  // repair either.
+  // Unreachable through the knex migrator, which calls `ensureTable` before
+  // running anything — a schema-dump-built database gets an EMPTY ledger, and
+  // it is the `!backfill` guard below that catches that. Kept because this
+  // reads the ledger as ordinary data, so it must not throw if some other
+  // caller ever runs it without one.
   if (!(await knex.schema.hasTable('knex_migrations'))) return
 
   const backfill = await knex('knex_migrations').where('name', BACKFILL).first()

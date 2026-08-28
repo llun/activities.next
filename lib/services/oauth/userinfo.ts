@@ -67,8 +67,15 @@ export const getUserInfo = ({
     ...(includeEmail && email != null
       ? {
           email,
-          email_verified:
-            account.verifiedAt != null || account.emailVerifiedAt != null
+          // `emailVerified`, NOT `verifiedAt`. `accounts.verifiedAt` carries
+          // DEFAULT CURRENT_TIMESTAMP, so it is non-null for every account ever
+          // written and asserts nothing — the same defect that made
+          // `canCreateSessionForAccount`'s check a no-op for two years. This is
+          // the last surface that trusted it, and it disagreed with the
+          // id_token (`lib/services/auth/auth.ts`) and better-auth's own
+          // userinfo, both of which read `emailVerified`. Three claims about
+          // one fact now come from one column.
+          email_verified: account.emailVerified
         }
       : {})
   }

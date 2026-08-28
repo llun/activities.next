@@ -1,7 +1,10 @@
 import crypto from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import {
+  getTestSQLDatabase,
+  getTestSQLDatabaseWithInstance
+} from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Scope } from '@/lib/types/database/operations'
@@ -107,7 +110,9 @@ describe('getTokenFromHeader', () => {
 })
 
 describe('OAuthGuard', () => {
-  const database = getTestSQLDatabase()
+  // `instance` is needed to force the backfilled-cohort row shape, which
+  // `createAccount` cannot produce.
+  const { database, instance } = getTestSQLDatabaseWithInstance()
 
   beforeAll(async () => {
     await database.migrate()
@@ -1209,6 +1214,71 @@ describe('OAuthGuard', () => {
         createRequest({ Authorization: 'Bearer confirmed-token' }),
         { params: Promise.resolve({}) }
       )
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
+    })
+  })
+
+  describe('the 2026-03-20 backfilled cohort', () => {
+    // The one shape the pure-unit predicate tests cannot reach: a row where
+    // `verificationCode` is set AND `emailVerified` is true, driven all the way
+    // through `getActorFromId` -> `Actor.parse` -> `isActorConfirmationPending`.
+    // Without this, a regression in the DOMAIN-TYPE half of the fix — the Zod
+    // field, or either row-to-domain mapper dropping `emailVerified` — would
+    // ship with every predicate test still green, and would lock out accounts
+    // that have been signing in for months with no way back.
+    const COHORT_EMAIL = 'backfilled-cohort@llun.test'
+    const COHORT_USERNAME = 'backfilledcohort'
+    const COHORT_ACTOR_ID = `https://llun.test/users/${COHORT_USERNAME}`
+
+    beforeAll(async () => {
+      await database.createAccount({
+        domain: 'llun.test',
+        email: COHORT_EMAIL,
+        username: COHORT_USERNAME,
+        passwordHash: 'cohort-password-hash',
+        privateKey: 'cohort-private-key',
+        publicKey: 'cohort-public-key',
+        verificationCode: 'code-the-backfill-left-behind'
+      })
+      // What `20260320072514_better_auth_columns` did to every row of its era:
+      // marked verified while the code stayed put. `createAccount` cannot
+      // produce this state, which is exactly why it has to be forced here.
+      await instance('accounts')
+        .where('email', COHORT_EMAIL)
+        .update({ emailVerified: true })
+    })
+
+    test('serves a bearer token for a cohort account', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+      mockStoredTokens.set(hashToken('cohort-token'), {
+        token: hashToken('cohort-token'),
+        referenceId: COHORT_ACTOR_ID,
+        clientId: 'client-app-1',
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read'])
+      })
+
+      const guard = OAuthGuard([Scope.enum.read], mockHandler)
+      const response = await guard(
+        createRequest({ Authorization: 'Bearer cohort-token' }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
+    })
+
+    test('serves a cookie session for a cohort account', async () => {
+      // The other mapper. `getActorsForAccount` goes through
+      // `toDomainAccount`, not `getActor`, so both need proving.
+      mockGetServerSession.mockResolvedValue({ user: { email: COHORT_EMAIL } })
+
+      const guard = OAuthGuard([Scope.enum.read], mockHandler)
+      const response = await guard(createRequest(), {
+        params: Promise.resolve({})
+      })
 
       expect(response.status).toBe(200)
       expect(mockHandler).toHaveBeenCalled()

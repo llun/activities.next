@@ -412,21 +412,26 @@ export type ChangePasswordParams = {
   accountId: string
   newPasswordHash: string
 }
-export type UpdateAccountEmailParams = {
+export type RepointUnconfirmedAccountEmailParams = {
   accountId: string
   email: string
-  // REQUIRED, not optional: re-pointing an account's address must invalidate
-  // the confirmation code already mailed to the previous one, and an optional
-  // field lets a future caller omit it with no type error and no failing test
-  // — silently restoring the vulnerability. A code proves control of the
-  // address it was sent to and nothing else, so the two move together or the
-  // type refuses. Pass the account's existing code where the address is not
-  // actually changing. Not nullable either: written unconditionally, a null
-  // would CLEAR the code and thereby mark the account confirmed, since
-  // `isAccountConfirmationPending` requires a non-empty code to hold anything
-  // pending. An account
-  // with nothing outstanding already holds `''`, which says the same thing
-  // without the footgun.
+  // A freshly minted code for the NEW address.
+  //
+  // This method is for one job — moving an account that is still awaiting
+  // confirmation onto a different address — and it is named for that job
+  // because the write is only correct there. It replaces every proof the
+  // account had about its OLD address: the code, `emailVerified`, `verifiedAt`
+  // and `emailVerifiedAt` all move together, because each of them proves
+  // control of the address it was set for and none may outlive it.
+  //
+  // So do NOT reach for this to change a CONFIRMED account's address. It would
+  // strip that account's verification and leave it unable to sign in
+  // (`requireEmailVerification` reads `emailVerified`) and unable to resend
+  // (`POST /api/v1/emails/confirmations` requires an outstanding code) — an
+  // unrecoverable state that nothing flags, because
+  // `isAccountConfirmationPending` reads a code that is no longer set. The
+  // confirmed-user flow is `requestEmailChange`/`verifyEmailChange`, which
+  // proves the new address before moving anything.
   verificationCode: string
 }
 export type UpdateAccountNameParams = {
@@ -498,7 +503,9 @@ export interface AccountDatabase {
     params: ResetPasswordWithCodeParams
   ): Promise<Account | null>
   changePassword(params: ChangePasswordParams): Promise<void>
-  updateAccountEmail(params: UpdateAccountEmailParams): Promise<void>
+  repointUnconfirmedAccountEmail(
+    params: RepointUnconfirmedAccountEmailParams
+  ): Promise<void>
   updateAccountName(params: UpdateAccountNameParams): Promise<void>
   updateAccountImage(params: UpdateAccountImageParams): Promise<void>
 }

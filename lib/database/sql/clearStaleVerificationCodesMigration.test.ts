@@ -21,10 +21,12 @@ const createAccountsTable = async (database: knex.Knex) => {
 
 const BACKFILL = '20260320072514_better_auth_columns.js'
 
-// The migration reads the real knex ledger to learn when the backfill ran, so
-// the fixture builds one. `batch` is the whole signal: a backfill sharing the
-// pass in flight means it ran moments ago and its `emailVerified` cannot be
-// trusted to mean anyone has been signing in.
+// The migration reads the real knex ledger to learn WHEN the backfill ran, so
+// the fixture builds one. `migration_time` is the whole signal — a backfill
+// stamped moments ago ran in this same pass, so its `emailVerified` cannot be
+// trusted to mean anyone has been signing in. The `batch` column is written
+// only because knex writes it; nothing reads it, and the migration header
+// records why comparing batches was wrong twice.
 const createMigrationLedger = async (
   database: knex.Knex,
   { ranAt }: { ranAt: Date }
@@ -139,6 +141,41 @@ describe('clear stale verification codes migration', () => {
 
     expect(await readCode('caught-up-instance')).toBe('live-code')
   })
+
+  it.each([
+    {
+      description: 'just inside the window, 23 hours old',
+      hoursAgo: 23,
+      expected: 'live-code'
+    },
+    {
+      description: 'just outside it, 25 hours old',
+      hoursAgo: 25,
+      expected: ''
+    }
+  ])(
+    "pins the window's magnitude: $description",
+    async ({ hoursAgo, expected }) => {
+      // The other tests only exercise "90 days ago" and "just now", which
+      // proves a recency check exists and points the right way but says nothing
+      // about its size. A missing `* 1000` — 24 * 60 * 60 is 86 SECONDS, a
+      // classic and very plausible edit — survives those two extremes cleanly.
+      // These two straddle the real boundary, so it does not survive these.
+      await database('knex_migrations')
+        .where('name', BACKFILL)
+        .update({
+          migration_time: new Date(Date.now() - hoursAgo * 60 * 60 * 1000)
+        })
+      await insertAccount('boundary', {
+        verificationCode: 'live-code',
+        emailVerified: true
+      })
+
+      await migration.up(database)
+
+      expect(await readCode('boundary')).toBe(expected)
+    }
+  )
 
   it.each([
     { description: 'a null migration_time', migrationTime: null },

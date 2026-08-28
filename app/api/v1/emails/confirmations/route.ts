@@ -166,7 +166,7 @@ export const POST = traceApiRoute(
 
         try {
           verificationCode = crypto.randomBytes(32).toString('base64url')
-          await database.updateAccountEmail({
+          await database.repointUnconfirmedAccountEmail({
             accountId: account.id,
             email: newEmail,
             verificationCode
