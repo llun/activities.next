@@ -195,11 +195,15 @@ describe('Post', () => {
       />
     )
 
-    expect(screen.getByText('Boosted by Booster')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Original' })).toBeInTheDocument()
-    expect(
-      screen.queryByRole('link', { name: 'Booster' })
-    ).not.toBeInTheDocument()
+    const boostLink = screen.getByRole('link', { name: 'Booster' })
+    expect(boostLink).toHaveAttribute('href', '/@booster@remote.example')
+    expect(boostLink.parentElement).toHaveTextContent('Boosted by Booster')
+    // The post header stays the boosted post's author: the booster's link is a
+    // separate one, to a different profile.
+    expect(screen.getByRole('link', { name: 'Original' })).toHaveAttribute(
+      'href',
+      '/@original@origin.example'
+    )
   })
 
   it('falls back to the boost actor id when the actor profile is absent', () => {
@@ -216,9 +220,13 @@ describe('Post', () => {
       />
     )
 
-    expect(
-      screen.getByText('Boosted by @booster@remote.example')
-    ).toBeInTheDocument()
+    const boostLink = screen.getByRole('link', {
+      name: '@booster@remote.example'
+    })
+    expect(boostLink).toHaveAttribute('href', '/@booster@remote.example')
+    expect(boostLink.parentElement).toHaveTextContent(
+      'Boosted by @booster@remote.example'
+    )
   })
 
   it('normalizes prefixed remote actor usernames in post handles', () => {
