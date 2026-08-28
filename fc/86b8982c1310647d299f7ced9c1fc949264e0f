@@ -1,0 +1,24 @@
+migrations/20260828140000_clear_stale_verification_codes.js
+  s_801e94c1cd7091::t_47b1f0a54c35da 18-23
+app/api/v1/emails/confirmations/route.ts
+  s_801e94c1cd7091::t_1725846103deb9 88-91
+AGENTS.md
+  s_801e94c1cd7091::t_47b1f0a54c35da 2024,2031
+  s_801e94c1cd7091::t_07ad3a02b469a2 2021
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "fc86b8982c1310647d299f7ced9c1fc949264e0f",
+  "prompts": {},
+  "sessions": {
+    "s_801e94c1cd7091": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ec5dc893-542e-48be-a5e8-04c97a90d907",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
