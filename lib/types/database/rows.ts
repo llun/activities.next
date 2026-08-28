@@ -153,6 +153,9 @@ export interface SQLAccount {
   emailChangeCode?: string | null
   emailChangeCodeExpiresAt?: number | Date | null
   emailVerifiedAt?: number | Date | null
+  // better-auth's verification flag: 0/1 on SQLite, a real boolean on
+  // PostgreSQL.
+  emailVerified?: boolean | number | null
   twoFactorEnabled?: boolean | number | null
   role?: string | null
 

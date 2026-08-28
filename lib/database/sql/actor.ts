@@ -753,6 +753,12 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
             twoFactorEnabled:
               sqlAccount.twoFactorEnabled != null
                 ? Boolean(sqlAccount.twoFactorEnabled)
+                : false,
+            // Coerced for the same reason `twoFactorEnabled` is: SQLite hands
+            // back 0/1, which `z.boolean()` rejects.
+            emailVerified:
+              sqlAccount.emailVerified != null
+                ? Boolean(sqlAccount.emailVerified)
                 : false
           })
         }

@@ -494,8 +494,13 @@ change doesn't touch.
 
 ## Unconfirmed accounts & app tokens
 
-- A check for "has this account confirmed its e-mail" reads `verificationCode`,
-  never `verifiedAt`. `accounts.verifiedAt` carries `DEFAULT CURRENT_TIMESTAMP`
+- A check for "has this account confirmed its e-mail" reads `verificationCode`
+  AND `emailVerified`, never `verifiedAt`. The second column is what
+  grandfathers the accounts `20260320072514_better_auth_columns` wrongly marked
+  verified — better-auth's `requireEmailVerification` has been letting them sign
+  in ever since, so honouring it here grants nothing new and locks nobody out.
+  A repair keyed on when a migration ran is NOT a substitute: two attempts at
+  that bound shipped wrong in opposite directions. `accounts.verifiedAt` carries `DEFAULT CURRENT_TIMESTAMP`
   (`20230824181927_add_accounts_verification`), so a pending registration gets a
   timestamp anyway and a `verifiedAt` test is a **no-op that reads as a working
   gate**. The column has carried that default since 2023-08-24; every check

@@ -35,12 +35,17 @@ const createMigrationLedger = async (
     table.integer('batch')
     table.timestamp('migration_time')
   })
+  // `migration_time` is aged past the migration's recency window by default:
+  // the repair is aimed at a backfill that ran months ago, and a fixture
+  // stamped `now()` would silently take the skip instead of exercising the
+  // clear.
+  const longAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
   await database('knex_migrations').insert([
-    { name: BACKFILL, batch: backfillBatch, migration_time: new Date() },
+    { name: BACKFILL, batch: backfillBatch, migration_time: longAgo },
     {
       name: 'later_migration.js',
       batch: latestBatch,
-      migration_time: new Date()
+      migration_time: longAgo
     }
   ])
 }
@@ -55,7 +60,11 @@ describe('clear stale verification codes migration', () => {
       connection: { filename: ':memory:' }
     })
     await createAccountsTable(database)
-    await createMigrationLedger(database, { backfillBatch: 1, latestBatch: 2 })
+    // Batches deliberately do NOT equal the rows' auto-increment ids (1 and 2):
+    // with batches 1 and 7, reading `max('id')` in place of `max('batch')`
+    // yields a different answer, so the aggregate's column is pinned rather
+    // than coincidentally right.
+    await createMigrationLedger(database, { backfillBatch: 1, latestBatch: 7 })
   })
 
   afterEach(async () => {
@@ -130,7 +139,7 @@ describe('clear stale verification codes migration', () => {
     // nobody has been relying on it to sign in.
     await database('knex_migrations')
       .where('name', BACKFILL)
-      .update({ batch: 2 })
+      .update({ batch: 7 })
     await insertAccount('caught-up-instance', {
       verificationCode: 'live-code',
       emailVerified: true
@@ -139,6 +148,25 @@ describe('clear stale verification codes migration', () => {
     await migration.up(database)
 
     expect(await readCode('caught-up-instance')).toBe('live-code')
+  })
+
+  it('does nothing when the backfill ran recently in a different batch', async () => {
+    // `batch` identifies a migrate INVOCATION, not an upgrade: a catch-up run
+    // that is interrupted and resumed leaves the backfill in one batch and this
+    // migration in the next, so the batch test alone does not fire even though
+    // the backfill ran minutes earlier. The clock does not care how the run was
+    // split.
+    await database('knex_migrations')
+      .where('name', BACKFILL)
+      .update({ migration_time: new Date() })
+    await insertAccount('interrupted-catch-up', {
+      verificationCode: 'live-code',
+      emailVerified: true
+    })
+
+    await migration.up(database)
+
+    expect(await readCode('interrupted-catch-up')).toBe('live-code')
   })
 
   it('does nothing when the backfill never ran here', async () => {

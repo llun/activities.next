@@ -20,29 +20,37 @@
  * This grants nothing new. It aligns `verificationCode` with the
  * `emailVerified` that has governed sign-in for these accounts since March.
  *
- * What bounds it is WHEN THE BACKFILL ACTUALLY RAN on this database, read from
- * `knex_migrations`, not any timestamp baked in here. Two hazards pull in
- * opposite directions and only that reading separates them.
+ * THIS MIGRATION IS A TIDY-UP, NOT THE MECHANISM. The cohort is grandfathered
+ * by `isAccountConfirmationPending`, which reads `emailVerified` alongside
+ * `verificationCode` and so never holds a backfilled account pending in the
+ * first place. That is exact and needs no notion of when anything ran. What is
+ * left here is bringing the two columns into agreement, so a reader of the row
+ * is not misled by a code that no longer gates anything.
  *
- * If the backfill runs in the SAME pass as this migration — a database that
- * predates it: a restore from a pre-March dump, a staging copy, an operator
- * catching up — then knex applies both in one `yarn migrate`, and the backfill
- * marks a registration made minutes earlier as verified on the strength of the
- * column default. Clearing then would destroy a code that is genuinely live:
- * the account silently confirmed with nobody proving the address, and the link
- * already in the user's inbox dead forever. So this skips entirely there — and
- * nothing is lost by skipping, because on such a database `emailVerified` was
- * only just populated, so nobody has been relying on it to sign in.
+ * Because of that, the bound below no longer decides whether anyone keeps
+ * access — it only decides whether a stale row gets tidied. It is still
+ * deliberately conservative, because clearing a code that IS live destroys a
+ * confirmation link sitting in someone's inbox, and that is not undoable.
  *
- * If the backfill ran in an EARLIER pass, everything it marked has been signing
- * in ever since, and clearing preserves exactly that access.
+ * Two conditions skip, and they cover the same hazard by different routes:
  *
- * An earlier revision compared `createdAt` against this migration's sibling
- * FILENAME timestamp. That is the instant `migrate:make` ran on the author's
- * machine, which no deployment ever coincides with — that migration was merged
- * eleven hours later — so every account registered inside an operator's deploy
- * gap was missed and locked out, which is the failure this whole file exists to
- * prevent.
+ *   - The backfill shares this pass's batch. knex applies pending migrations in
+ *     one `yarn migrate`, so on a database predating it the backfill runs
+ *     moments before this one and its `emailVerified` proves nothing.
+ *   - The backfill ran recently by the clock. `batch` identifies an INVOCATION,
+ *     not an upgrade: a catch-up run that is interrupted and resumed puts the
+ *     backfill in one batch and this migration in the next, and the batch test
+ *     alone then fails to fire. The clock does not care how the run was split.
+ *
+ * Two earlier revisions tried to bound this by time alone and both were wrong.
+ * One compared `createdAt` against this file's own SIBLING FILENAME timestamp —
+ * the instant `migrate:make` ran on the author's machine, which no deployment
+ * coincides with — and skipped every account registered in an operator's deploy
+ * gap. The next used `batch` alone, which reads as "same pass" but is also true
+ * whenever this migration is simply FIRST in a new pass, because knex writes a
+ * migration's ledger row only after its own `up` resolves — so it skipped every
+ * instance that had caught up in one earlier pass, which is the common case.
+ * Neither would matter now; both are recorded so a third attempt is not made.
  *
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
@@ -59,8 +67,24 @@ export const up = async function (knex) {
 
   // knex writes a migration's ledger row as it completes, so a backfill that
   // ran earlier in THIS pass already carries the batch this pass is using.
+  // NOTE this is also true when this migration is merely FIRST in a new pass,
+  // which is why the clock check below is not redundant with it.
   const latest = await knex('knex_migrations').max('batch as batch').first()
   if (latest && backfill.batch === latest.batch) return
+
+  // A day is far longer than any single migrate pass and far shorter than the
+  // months this repair is actually aimed at, so it separates them without
+  // needing either to be measured precisely.
+  const RECENTLY_MS = 24 * 60 * 60 * 1000
+  const ranAt = backfill.migration_time
+    ? new Date(backfill.migration_time).getTime()
+    : null
+  if (
+    ranAt !== null &&
+    !Number.isNaN(ranAt) &&
+    Date.now() - ranAt < RECENTLY_MS
+  )
+    return
 
   // A literal `true` is safe on both backends: knex binds it per driver, and
   // the column only ever holds a real boolean (PostgreSQL) or 0/1 (SQLite).

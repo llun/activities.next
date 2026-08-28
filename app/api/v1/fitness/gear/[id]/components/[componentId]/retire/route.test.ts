@@ -48,6 +48,7 @@ const account = {
   email: seedActor1.email,
   defaultActorId: ACTOR1_ID,
   twoFactorEnabled: false,
+  emailVerified: true,
   createdAt: 1000,
   updatedAt: 1000
 }
