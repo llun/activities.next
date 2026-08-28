@@ -4,12 +4,14 @@ import knex, { Knex } from 'knex'
 import { getSQLDatabase } from '@/lib/database/sql'
 import { type SQLActorDatabase } from '@/lib/database/sql/actor'
 import { CounterKey } from '@/lib/database/sql/utils/counter'
-import { SQLITE_MAX_BINDINGS } from '@/lib/database/sql/utils/knex'
+import {
+  SQLITE_MAX_BINDINGS,
+  getWhereInBatchSize
+} from '@/lib/database/sql/utils/knex'
 import {
   databaseBeforeAll,
   getTestDatabaseTable,
-  getTestSQLDatabase,
-  getTestSQLDatabaseWithInstance
+  getTestDatabaseWithInstance
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
 import {
@@ -36,30 +38,6 @@ import {
   isPublicId
 } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
-
-const withFreshDatabase = async (
-  test: (database: Database) => Promise<void>
-) => {
-  const database = getTestSQLDatabase()
-  await database.migrate()
-  try {
-    await test(database)
-  } finally {
-    await database.destroy()
-  }
-}
-
-const withFreshDatabaseAndInstance = async (
-  test: (database: Database, instance: Knex) => Promise<void>
-) => {
-  const { database, instance } = getTestSQLDatabaseWithInstance()
-  await database.migrate()
-  try {
-    await test(database, instance)
-  } finally {
-    await database.destroy()
-  }
-}
 
 const createSigningAccount = async (
   database: Database,
@@ -94,7 +72,26 @@ describe('ActorDatabase', () => {
     await Promise.all(table.map((item) => item[1].destroy()))
   })
 
-  describe.each(table)('%s', (_, database) => {
+  describe.each(table)('%s', (backendName, database) => {
+    const withFreshDatabase = async (
+      test: (database: Database, instance: Knex) => Promise<void>
+    ) => {
+      const {
+        database: freshDatabase,
+        instance,
+        prepare
+      } = getTestDatabaseWithInstance(true, backendName)
+      await prepare()
+      await freshDatabase.migrate()
+      try {
+        await test(freshDatabase, instance)
+      } finally {
+        await freshDatabase.destroy()
+      }
+    }
+
+    const withFreshDatabaseAndInstance = withFreshDatabase
+
     // publicIds are minted at insert and random per run, so expectations read
     // them back off the stored row instead of hard-coding a literal.
     const getActorPublicId = async (actorId: string) => {
@@ -156,19 +153,6 @@ describe('ActorDatabase', () => {
     })
 
     describe('publicId', () => {
-      const withFreshDatabase = async (
-        test: (database: Database, instance: Knex) => Promise<void>
-      ) => {
-        const { database: freshDatabase, instance } =
-          getTestSQLDatabaseWithInstance()
-        await freshDatabase.migrate()
-        try {
-          await test(freshDatabase, instance)
-        } finally {
-          await freshDatabase.destroy()
-        }
-      }
-
       it('mints a v7 publicId at createActor whose timestamp matches createdAt', async () => {
         await withFreshDatabase(async (freshDatabase) => {
           const actorId = `https://${TEST_DOMAIN}/users/public-id-create-actor`
@@ -398,12 +382,12 @@ describe('ActorDatabase', () => {
           const bindingCounts = queries
             .filter(
               ({ sql }) =>
-                sql.includes('from `actors`') && sql.includes('`id` in')
+                /from [`"]actors[`"]/.test(sql) && /[`"]id[`"] in/.test(sql)
             )
             .map(({ bindings }) => bindings.length)
           expect(bindingCounts.length).toBeGreaterThan(1)
           expect(Math.max(...bindingCounts)).toBeLessThanOrEqual(
-            SQLITE_MAX_BINDINGS
+            getWhereInBatchSize(instance)
           )
           expect(map.size).toBe(1)
           expect(map.get(actorId)).toBeTruthy()
