@@ -36,6 +36,12 @@ const getDisplayUsername = (username: string) =>
 const getActorMention = (actor: ActorProfile) =>
   `@${getDisplayUsername(actor.username)}@${actor.domain}`
 
+// The actor's own mention is only usable while its username normalises to
+// something: `@@domain` is a handle `parseAccountHandle` rejects, so an actor
+// with a degenerate `preferredUsername` has no mention to offer here.
+const getUsableActorMention = (actor?: ActorProfile | null): string | null =>
+  actor && getDisplayUsername(actor.username) ? getActorMention(actor) : null
+
 const getProfileHandleFromParts = (parts: string[]) => {
   const profileIndex = parts.indexOf('profile')
   const profileHandle = parts[profileIndex + 1]
@@ -156,16 +162,16 @@ const getActorIdHandle = (actorId: string, statusUrl?: string | null) =>
 // federated `preferredUsername` of just `@` characters), so the href is never
 // built from a mention with an empty local part — otherwise undefined when the
 // actor id also carries no usable handle (an opaque `did:`/UUID username),
-// which is the case those callers render as plain text rather than as a link
-// to nowhere.
+// which is the case those callers render as unlinked content rather than a
+// link to nowhere: plain text in `ActorInfo` and `BoostStatus`, an unlinked
+// avatar (image or initials) in `ActorAvatar`.
 export const getActorProfileHref = (
   actor?: ActorProfile | null,
   actorId?: string,
   statusUrl?: string | null
 ): string | undefined => {
-  if (actor && getDisplayUsername(actor.username)) {
-    return `/${getActorMention(actor)}`
-  }
+  const mention = getUsableActorMention(actor)
+  if (mention) return `/${mention}`
   if (!actorId) return undefined
   return getActorIdParts(actorId, statusUrl).href
 }
@@ -229,13 +235,16 @@ export const ActorInfo: FC<Props> = ({ actor, actorId, statusUrl }) => {
 
   const href = getActorProfileHref(actor, actorId, statusUrl)
   // The actor's own mention is only usable while its username normalises to
-  // something: `@@domain` is a handle `parseAccountHandle` rejects, and the
-  // name beside it would be empty too. So an actor with a degenerate
-  // `preferredUsername` is named from the actor id instead — the same place
-  // `getActorProfileHref` has already sent the link, and the same parts the
-  // no-actor case has always used.
-  const mention =
-    actor && getDisplayUsername(actor.username) ? getActorMention(actor) : null
+  // something: `@@domain` is a handle `parseAccountHandle` rejects. So an
+  // actor with a degenerate `preferredUsername` gets its mention (and href)
+  // from the actor id instead — the same tuple `getActorProfileHref` has
+  // already sent the link to, and the same parts the no-actor case has
+  // always used. The *name* is a separate fallback chain that checks the
+  // actor's own `name` first (see `getActorDisplayName`), so a named actor
+  // keeps its name as the link text even though the mention beneath it
+  // switched to the actor id; only an actor with neither a name nor a usable
+  // username is named from the actor-id handle too.
+  const mention = getUsableActorMention(actor)
   const idParts = mention ? null : getActorIdParts(actorId || '', statusUrl)
   const name = getActorDisplayName(actor) || idParts?.handle || ''
   const mutedHandle = mention ?? idParts?.domain ?? ''

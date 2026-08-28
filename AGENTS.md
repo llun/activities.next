@@ -1721,23 +1721,31 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   own. There is deliberately no prop for hiding one of the menu's own items;
   that is the per-page drift this whole section exists to prevent.
 - **Every author link in a post derives its href from `getActorProfileHref`
-  (`lib/components/posts/actor.tsx`), and each one degrades to plain text
-  where that answers `undefined`.** The three are the avatar (`ActorAvatar`),
-  the display name (`ActorInfo`) and the boosted-by line (`BoostStatus` in
-  `post.tsx`). A federated `preferredUsername` is a bare `z.string()` that
-  `recordActorIfNeeded` writes verbatim, so it can normalise to nothing — and
-  the mention built from one that does, `@@domain`, is a handle
-  `parseAccountHandle` rejects. `ActorInfo` therefore does **not** simply
-  render `getActorDisplayName(actor)` and `getActorMention(actor)`: when the
-  username normalises to empty it names the actor from the actor id instead,
-  the same three-part `handle`/`domain`/`href` the no-actor case has always
-  used, so its text and its destination stay in step with the avatar beside
-  it. Before this was shared, the avatar linked to `/@booster@domain` while
-  the display name right next to it linked to `/@@domain` — a 404 — with
-  **empty** link text, because `name || getDisplayUsername(username)` is `''`
-  for the same actor. Covered by the matrix in
-  `lib/components/posts/actor.test.tsx`; every case there passes against the
-  old code except the degenerate-username ones.
+  (`lib/components/posts/actor.tsx`), and each one degrades to unlinked
+  content where that answers `undefined`.** The three are the avatar
+  (`ActorAvatar`), the display name (`ActorInfo`) and the boosted-by line
+  (`BoostStatus` in `post.tsx`) — `ActorInfo` and `BoostStatus` fall back to
+  plain text, `ActorAvatar` falls back to an unlinked wrapper around the same
+  avatar (image or initials) it would otherwise link. A federated
+  `preferredUsername` is a bare `z.string()` that `recordActorIfNeeded` writes
+  verbatim, so it can normalise to nothing — and the mention built from one
+  that does, `@@domain`, is a handle `parseAccountHandle` rejects. `ActorInfo`
+  therefore does **not** simply render `getActorDisplayName(actor)` and
+  `getActorMention(actor)`: when the username normalises to empty, the
+  mention — and so both the href and the muted handle beside the name — falls
+  back to the actor id's `handle`/`domain`/`href` tuple, the same one the
+  no-actor case has always used, so the link's destination stays in step with
+  the avatar beside it. The name is a separate fallback chain,
+  `getActorDisplayName(actor) || idParts?.handle || ''`, that checks the
+  actor's own `name` first: a named actor with a degenerate username keeps its
+  name as the link text even though the mention under it switched to the
+  actor id, and only an actor with neither a name nor a usable username is
+  named from the actor-id handle too. Before this was shared, the avatar
+  linked to `/@booster@domain` while the display name right next to it linked
+  to `/@@domain` — a 404 — with **empty** link text, because
+  `name || getDisplayUsername(username)` is `''` for the same actor. Covered
+  by the matrix in `lib/components/posts/actor.test.tsx`; every case there
+  passes against the old code except the degenerate-username ones.
 
 ### Post media layout (`attachments.tsx`)
 
