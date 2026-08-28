@@ -12,6 +12,7 @@ import crypto from 'crypto'
 import type { Knex } from 'knex'
 
 import { getKnex } from '@/lib/database'
+import { toClientCredentialsScopes } from '@/lib/services/oauth/clientCredentialsScopes'
 import { Scope } from '@/lib/types/database/operations'
 import { withSpan } from '@/lib/utils/trace'
 
@@ -219,6 +220,13 @@ export const createApplication = async (
           clientSecret: hashedSecret,
           name: request.client_name,
           scopes: JSON.stringify(parsedScopes),
+          // The `client_credentials` ceiling better-auth 1.7 requires before it
+          // will issue this application an app-level token. Stored as a
+          // JSON-array string like `scopes`; better-auth's adapter parses
+          // `string[]` fields back into arrays on read.
+          clientCredentialsScopes: JSON.stringify(
+            toClientCredentialsScopes(parsedScopes)
+          ),
           redirectUris: JSON.stringify(redirectUris),
           // Stored as a JSON-array string to match `redirectUris`; better-auth's
           // adapter JSON-parses `string[]` fields back into arrays on read.

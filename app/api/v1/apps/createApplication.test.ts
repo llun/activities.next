@@ -179,6 +179,42 @@ describe('createApplication', () => {
     ])
   })
 
+  test('it records the client_credentials ceiling the app token grant needs', async () => {
+    // better-auth denies the client_credentials grant outright when this column
+    // is missing or empty, and a Mastodon client asks for an app token before it
+    // offers to sign a user in — so a registration without it cannot log anyone
+    // in. `openid`/`email` are dropped because better-auth reserves them for
+    // grants that delegate a user, and an app token has none.
+    const response = (await createApplication({
+      client_name: 'clientCredentialsScopesClient',
+      redirect_uris: 'https://test.llun.dev/apps/redirect',
+      scopes: 'read write follow push openid email',
+      website: 'https://test.llun.dev'
+    })) as SuccessResponse
+
+    expect(response.type).toBe('success')
+
+    const dbClient = await knexDatabase('oauthClient')
+      .where({ id: response.id })
+      .first()
+    expect(JSON.parse(dbClient.clientCredentialsScopes)).toEqual([
+      'read',
+      'write',
+      'follow',
+      'push'
+    ])
+    // The registered scopes themselves are unchanged: the OIDC scopes stay
+    // available to the authorization code grant, where a user does exist.
+    expect(JSON.parse(dbClient.scopes)).toEqual([
+      'read',
+      'write',
+      'follow',
+      'push',
+      'openid',
+      'email'
+    ])
+  })
+
   test('it accepts the full set of documented Mastodon scopes', async () => {
     // The compatibility contract: a client may request any scope Mastodon
     // documents. Registration must succeed and persist them verbatim, or the
