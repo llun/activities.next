@@ -77,4 +77,18 @@ describe('post author links', () => {
       'false'
     )
   })
+
+  it('falls back the avatar link to the actor-id-derived href when the actor username normalises to empty', () => {
+    render(
+      <ActorAvatar
+        actor={{ ...actor, username: '@' }}
+        actorId="https://remote.example/users/booster"
+      />
+    )
+
+    expect(screen.getByRole('link')).toHaveAttribute(
+      'href',
+      '/@booster@remote.example'
+    )
+  })
 })
