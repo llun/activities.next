@@ -234,16 +234,10 @@ export const ActorInfo: FC<Props> = ({ actor, actorId, statusUrl }) => {
   if (!actor && !actorId) return null
 
   const href = getActorProfileHref(actor, actorId, statusUrl)
-  // The actor's own mention is only usable while its username normalises to
-  // something: `@@domain` is a handle `parseAccountHandle` rejects. So an
-  // actor with a degenerate `preferredUsername` gets its mention (and href)
-  // from the actor id instead — the same tuple `getActorProfileHref` has
-  // already sent the link to, and the same parts the no-actor case has
-  // always used. The *name* is a separate fallback chain that checks the
-  // actor's own `name` first (see `getActorDisplayName`), so a named actor
-  // keeps its name as the link text even though the mention beneath it
-  // switched to the actor id; only an actor with neither a name nor a usable
-  // username is named from the actor-id handle too.
+  // `name` and `mention` are independent fallback chains, so they can
+  // disagree: a named actor whose username normalises to empty keeps its own
+  // name while its mention and href come from the actor id. See "Status Posts
+  // & Actions" in AGENTS.md.
   const mention = getUsableActorMention(actor)
   const idParts = mention ? null : getActorIdParts(actorId || '', statusUrl)
   const name = getActorDisplayName(actor) || idParts?.handle || ''
