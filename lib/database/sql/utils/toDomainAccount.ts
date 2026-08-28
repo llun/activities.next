@@ -33,6 +33,10 @@ export const toDomainAccount = (row: SQLAccount): Account =>
       : { approvedAt: null }),
     twoFactorEnabled:
       row.twoFactorEnabled != null ? Boolean(row.twoFactorEnabled) : false,
+    // Coerced for the same reason `twoFactorEnabled` is: SQLite hands back 0/1,
+    // which `z.boolean()` rejects.
+    emailVerified:
+      row.emailVerified != null ? Boolean(row.emailVerified) : false,
     createdAt: getCompatibleTime(row.createdAt),
     updatedAt: getCompatibleTime(row.updatedAt)
   })

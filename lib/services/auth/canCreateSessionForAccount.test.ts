@@ -27,6 +27,24 @@ describe('isAccountConfirmationPending', () => {
         'ignores verifiedAt, which the column default fills in even for a pending account',
       account: { verificationCode: 'pending-code', verifiedAt: 1 },
       expected: true
+    },
+    {
+      description:
+        'reports the 2026-03-20 backfilled cohort as confirmed, so the gate does not lock out an account that has been signing in for months',
+      account: { verificationCode: 'stale-code', emailVerified: true },
+      expected: false
+    },
+    {
+      description:
+        'accepts SQLite integer truthiness, since a raw row reaches this from serializeAdminAccounts',
+      account: { verificationCode: 'stale-code', emailVerified: 1 },
+      expected: false
+    },
+    {
+      description:
+        'still gates a genuinely pending registration, whose emailVerified is false',
+      account: { verificationCode: 'live-code', emailVerified: false },
+      expected: true
     }
   ])('$description', ({ account, expected }) => {
     expect(isAccountConfirmationPending(account)).toBe(expected)
@@ -44,11 +62,24 @@ describe('canCreateSessionForAccount', () => {
       description: 'rejects an account still awaiting e-mail confirmation',
       account: {
         verificationCode: 'pending-code',
+        emailVerified: false,
         verifiedAt: 1,
         approvedAt: 1,
         disabledAt: null
       },
       expected: false
+    },
+    {
+      description:
+        'allows the backfilled cohort, which better-auth has been letting sign in all along',
+      account: {
+        verificationCode: 'stale-code',
+        emailVerified: true,
+        verifiedAt: 1,
+        approvedAt: 1,
+        disabledAt: null
+      },
+      expected: true
     },
     {
       description: 'rejects a disabled account',

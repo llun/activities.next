@@ -494,16 +494,36 @@ change doesn't touch.
 
 ## Unconfirmed accounts & app tokens
 
-- A check for "has this account confirmed its e-mail" reads `verificationCode`,
-  never `verifiedAt`. `accounts.verifiedAt` carries `DEFAULT CURRENT_TIMESTAMP`
+- A check for "has this account confirmed its e-mail" reads `verificationCode`
+  AND `emailVerified`, never `verifiedAt`. The second column is what
+  grandfathers the accounts `20260320072514_better_auth_columns` wrongly marked
+  verified — better-auth's `requireEmailVerification` has been letting them sign
+  in ever since, so honouring it here grants nothing new and locks nobody out.
+  A repair keyed on when a migration ran is NOT a substitute: two attempts at
+  that bound shipped wrong in opposite directions. `accounts.verifiedAt` carries `DEFAULT CURRENT_TIMESTAMP`
   (`20230824181927_add_accounts_verification`), so a pending registration gets a
   timestamp anyway and a `verifiedAt` test is a **no-op that reads as a working
-  gate** — which is what `canCreateSessionForAccount` shipped for two years.
+  gate**. The column has carried that default since 2023-08-24; every check
+  written against it since has been inert, `canCreateSessionForAccount`'s
+  included.
   `createAccount` writes an explicit `verifiedAt: null` now, but rows written
-  before that still carry the default.
-- Every authenticated surface refuses an unconfirmed account with 403
+  before that still carry the default. The same trap bit
+  `20260320072514_better_auth_columns`, whose `whereNotNull('verifiedAt')`
+  backfill consequently set `emailVerified = true` on every account of that
+  era, pending ones included — which is why `20260828140000_clear_stale_verification_codes`
+  exists and why `serializeAdminAccounts`' `confirmed` field had to stop reading
+  `verifiedAt` too.
+- Every MANDATORY authenticated surface refuses an unconfirmed account with 403
   (`isActorConfirmationPending` in `lib/services/guards/OAuthGuard.ts`), matching
-  Mastodon's `require_user!`. The reason it matters:
+  Mastodon's `require_user!`. `OptionalOAuthGuard` deliberately does NOT — it
+  DOWNGRADES such a token to the anonymous path
+  (`unconfirmedAccountDisposition: 'anonymous'`). Refusing made presenting a
+  valid token FAIL a public read that succeeds with no Authorization header at
+  all; accepting the actor would let an unverified account read DMs addressed
+  to it and drive outbound federation via `resolve=true`, which Mastodon does
+  not permit either — its search controller applies `require_user!`, so
+  `authorize_if_got_token!` is only a partial model here. Suspension is
+  different and stays global in both codebases. The reason it matters:
   `POST /api/v1/accounts` returns a real user access token at registration and
   `POST /api/v1/apps` is unauthenticated, so a token that works before
   confirmation lets an anonymous party script usable accounts.
@@ -512,10 +532,17 @@ change doesn't touch.
   confirmation e-mail, which Mastodon exempts too. A second consumer needs the
   same argument. It relaxes confirmation only: `isActorModerationBlocked` still
   runs, so a suspended actor or disabled account is refused there as well.
+  `OptionalOAuthGuard`'s anonymous downgrade is a different option and does not
+  count against this.
 - Do not "unify" this with better-auth's `emailAndPassword.requireEmailVerification`,
-  which reads a different column (`accounts.emailVerified`, not on the domain
-  `Account`) and covers credential sign-in only. That gate is why the cookie path
-  was never open and this is a token-path fix.
+  which covers credential sign-in only — but DO read the same column it reads.
+  `emailVerified` is on the domain `Account` precisely so the two gates agree;
+  removing it re-locks out the backfilled cohort. That gate is why the cookie
+  path was never open **for an account registered after 2026-03-20** — older
+  ones were marked `emailVerified` by that migration's backfill and have been
+  signing in ever since, which is the cohort
+  `20260828140000_clear_stale_verification_codes` exists for. Do not repeat the
+  unqualified form of this claim.
 - A handler that needs to know whether a bearer token is an **app**
   (`client_credentials`) token reads `userId`, never `currentActor`.
   `OAuthAppGuard` also leaves `currentActor` null when it merely fails to resolve

@@ -6,10 +6,12 @@
 // resend (or redirect) its confirmation email. It therefore authenticates with
 // OAuthGuard (Bearer token, with a cookie-session fallback for the web UI) and
 // requires a `write` scope, rather than the cookie-only AuthenticatedGuard.
+import crypto from 'node:crypto'
 import { z } from 'zod'
 
 import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import { sendConfirmationEmail } from '@/lib/services/accounts/sendConfirmationEmail'
+import { isAccountConfirmationPending } from '@/lib/services/auth/canCreateSessionForAccount'
 import {
   OAuthGuardAnyScope,
   corsErrorResponse
@@ -67,10 +69,30 @@ export const POST = traceApiRoute(
         })
       }
 
-      // `verificationCode` is the pending-confirmation token set at registration
-      // when email is configured; it is cleared (to '') once the account
-      // verifies. An empty/null code means the e-mail is already confirmed.
-      if (!account.verificationCode) {
+      // The SAME predicate the guards, `canCreateSessionForAccount`, the admin
+      // `confirmed` field and the OIDC claim use — deliberately not the raw
+      // `verificationCode` column this used to read.
+      //
+      // The two disagree for the cohort `20260320072514_better_auth_columns`
+      // marked verified while their code stayed set, and on an instance where
+      // `20260828140000` skipped (it runs in the same pass as that backfill on
+      // a pre-March restore, staging copy or catch-up, and nothing re-runs it)
+      // that disagreement is permanent. Reading the raw column made this route
+      // treat such an account as awaiting confirmation while every other
+      // surface treated it as confirmed — and this route is bearer-reachable
+      // with `write`, while the flow that actually PROVES a new address
+      // (`POST /api/v1/accounts/email`) is cookie-and-same-origin only. So an
+      // ordinary Mastodon client token could re-point a confirmed account's
+      // address to one it controls, locking the owner out of sign-in and every
+      // guard, receiving the fresh code, and taking the account over through
+      // password reset. Mastodon gates its own equivalent on the same question
+      // — `Api::V1::Emails::ConfirmationsController` applies
+      // `require_user_not_confirmed!` — so a confirmed account cannot re-point
+      // through it there either.
+      //
+      // A genuinely pending account is unaffected: `code && !emailVerified` is
+      // still true for it.
+      if (!isAccountConfirmationPending(account)) {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
@@ -112,11 +134,25 @@ export const POST = traceApiRoute(
       const newEmail = parsed.data.email
 
       // Optional `email` param updates the unconfirmed account's address
-      // directly before resending. Because the account is still unconfirmed we
-      // just point the existing verificationCode at the new address —
-      // verifyAccount then confirms the new email when the link is clicked.
-      // (This is distinct from the confirmed-user email-change flow in
-      // accounts/email, which uses the pending-change machinery.)
+      // directly before resending. (This is distinct from the confirmed-user
+      // email-change flow in accounts/email, which uses the pending-change
+      // machinery.)
+      //
+      // The code is ROTATED with the address rather than carried across, and
+      // so is every other proof about the old one — see
+      // `RepointUnconfirmedAccountEmailParams` for why.
+      //
+      //
+      // Rotation happens only where the address actually CHANGES, which is the
+      // same condition that performs the write. A plain resend to the same
+      // address stores nothing, so rotating there would mail a code the row
+      // does not hold and turn every resend into a dead link.
+      //
+      // `verificationCode` starts as the stored one and is reassigned only
+      // inside that branch, immediately beside the write that persists it —
+      // the value sent and the value stored are the same binding, so they
+      // cannot drift apart.
+      let verificationCode = account.verificationCode
       if (newEmail && newEmail !== account.email) {
         // Honor the server's allow-list so the email param can't be used to
         // sidestep the same restriction enforced at registration.
@@ -144,9 +180,11 @@ export const POST = traceApiRoute(
         }
 
         try {
-          await database.updateAccountEmail({
+          verificationCode = crypto.randomBytes(32).toString('base64url')
+          await database.repointUnconfirmedAccountEmail({
             accountId: account.id,
-            email: newEmail
+            email: newEmail,
+            verificationCode
           })
         } catch (error) {
           // The pre-check above covers the common case, but a concurrent
@@ -168,7 +206,7 @@ export const POST = traceApiRoute(
       try {
         await sendConfirmationEmail({
           recipient,
-          verificationCode: account.verificationCode
+          verificationCode
         })
       } catch {
         logger.error({ to: recipient }, `Fail to send email`)

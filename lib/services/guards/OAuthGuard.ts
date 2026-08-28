@@ -313,9 +313,9 @@ const resolveTokenContext = async ({
   }
 }
 
-// Endpoints that must still reach an account awaiting confirmation opt in with
-// `allowUnconfirmedAccount`. There is exactly one — resending its own
-// confirmation e-mail — and Mastodon carves out the same endpoint
+// Endpoints that must still reach an account awaiting confirmation AS ITSELF
+// opt in with `allowUnconfirmedAccount`. There is exactly one — resending its
+// own confirmation e-mail — and Mastodon carves out the same endpoint
 // (`Api::V1::Emails::ConfirmationsController` never calls `require_user!`).
 // Blocking it everywhere would make the pending state unrecoverable for a
 // client that lost the e-mail. It relaxes the confirmation test and NOTHING
@@ -323,17 +323,27 @@ const resolveTokenContext = async ({
 // `isActorModerationBlocked` runs regardless.
 type AccountStateOptions = { allowUnconfirmedAccount?: boolean }
 
+// What an optional-auth route does with a token whose account has not confirmed
+// its address. `reject` (the default, and what every mandatory guard wants) is
+// the 403 above. `anonymous` drops the actor and lets the request continue as if
+// no token had been sent, which is what `OptionalOAuthGuard` needs: refusing
+// there made presenting a valid token FAIL a public read that succeeds with no
+// Authorization header at all.
+type UnconfirmedAccountDisposition = 'reject' | 'anonymous'
+
 const resolveAuthenticatedContext = async <P>({
   req,
   context,
   scopes,
   matchMode,
-  allowUnconfirmedAccount = false
+  allowUnconfirmedAccount = false,
+  unconfirmedAccountDisposition = 'reject'
 }: {
   req: NextRequest
   context: AppRouterParams<P>
   scopes: Scope[]
   matchMode: ScopeMatchMode
+  unconfirmedAccountDisposition?: UnconfirmedAccountDisposition
 } & AccountStateOptions): Promise<
   | { authenticated: true; context: GuardContext<P> }
   | { authenticated: false; response?: Response }
@@ -383,6 +393,12 @@ const resolveAuthenticatedContext = async <P>({
         }
       }
       if (!allowUnconfirmedAccount && isActorConfirmationPending(parsedActor)) {
+        // No `response` on the anonymous disposition: that is the same shape a
+        // missing session returns, which is exactly what makes the caller fall
+        // through to its unauthenticated path.
+        if (unconfirmedAccountDisposition === 'anonymous') {
+          return { authenticated: false }
+        }
         return {
           authenticated: false,
           response: rejectBearer('account_unconfirmed', 403)
@@ -422,6 +438,9 @@ const resolveAuthenticatedContext = async <P>({
     return { authenticated: false, response: apiErrorResponse(403) }
   }
   if (!allowUnconfirmedAccount && isActorConfirmationPending(currentActor)) {
+    if (unconfirmedAccountDisposition === 'anonymous') {
+      return { authenticated: false }
+    }
     return { authenticated: false, response: apiErrorResponse(403) }
   }
 
@@ -560,11 +579,8 @@ export const OAuthAppGuard =
       grantedScopes,
       database,
       params: context.params,
-      // The account the token was issued for, forwarded so a handler can ask
-      // "is this a genuine app token?" directly. `currentActor` cannot answer
-      // it: this guard also leaves it null when it merely FAILS to resolve an
-      // actor for a user-delegated token (see `resolveAccountActorId`), which
-      // is indistinguishable from an app token when read as one.
+      // See `AuthenticatedAppApiHandle`'s `userId` field for why this, and not
+      // `currentActor`, is what tells an app token from a user token.
       userId
     })
   }
@@ -593,7 +609,13 @@ export const OptionalOAuthGuard =
       req,
       context,
       scopes,
-      matchMode: options.matchMode ?? 'all'
+      matchMode: options.matchMode ?? 'all',
+      // Served WITHOUT its identity — neither refused nor accepted as itself.
+      // Both alternatives are wrong here and the full argument lives in
+      // AGENTS.md's "An Unconfirmed Account May Not Act"; the short of it is
+      // that refusing makes a valid token fail a read that succeeds with no
+      // token, and accepting hands an unverified account real capability.
+      unconfirmedAccountDisposition: 'anonymous'
     })
 
     if (result.authenticated) {
