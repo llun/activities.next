@@ -1720,6 +1720,24 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   in the row a moment ago, so they stay nearest it) and **before** the menu's
   own. There is deliberately no prop for hiding one of the menu's own items;
   that is the per-page drift this whole section exists to prevent.
+- **Every author link in a post derives its href from `getActorProfileHref`
+  (`lib/components/posts/actor.tsx`), and each one degrades to plain text
+  where that answers `undefined`.** The three are the avatar (`ActorAvatar`),
+  the display name (`ActorInfo`) and the boosted-by line (`BoostStatus` in
+  `post.tsx`). A federated `preferredUsername` is a bare `z.string()` that
+  `recordActorIfNeeded` writes verbatim, so it can normalise to nothing — and
+  the mention built from one that does, `@@domain`, is a handle
+  `parseAccountHandle` rejects. `ActorInfo` therefore does **not** simply
+  render `getActorDisplayName(actor)` and `getActorMention(actor)`: when the
+  username normalises to empty it names the actor from the actor id instead,
+  the same three-part `handle`/`domain`/`href` the no-actor case has always
+  used, so its text and its destination stay in step with the avatar beside
+  it. Before this was shared, the avatar linked to `/@booster@domain` while
+  the display name right next to it linked to `/@@domain` — a 404 — with
+  **empty** link text, because `name || getDisplayUsername(username)` is `''`
+  for the same actor. Covered by the matrix in
+  `lib/components/posts/actor.test.tsx`; every case there passes against the
+  old code except the degenerate-username ones.
 
 ### Post media layout (`attachments.tsx`)
 
