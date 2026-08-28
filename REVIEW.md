@@ -514,8 +514,9 @@ change doesn't touch.
   exists and why `serializeAdminAccounts`' `confirmed` field had to stop reading
   `verifiedAt` too.
 - Every MANDATORY authenticated surface refuses an unconfirmed account with 403
-  (`isActorConfirmationPending` in `lib/services/guards/OAuthGuard.ts`), matching
-  Mastodon's `require_user!`. `OptionalOAuthGuard` deliberately does NOT — it
+  (`isActorConfirmationPending` in `lib/services/guards/OAuthGuard.ts` and
+  `lib/services/guards/AuthenticatedGuard.ts`), matching Mastodon's
+  `require_user!`. `OptionalOAuthGuard` deliberately does NOT — it
   DOWNGRADES such a token to the anonymous path
   (`unconfirmedAccountDisposition: 'anonymous'`). Refusing made presenting a
   valid token FAIL a public read that succeeds with no Authorization header at
@@ -527,11 +528,13 @@ change doesn't touch.
   `POST /api/v1/accounts` returns a real user access token at registration and
   `POST /api/v1/apps` is unauthenticated, so a token that works before
   confirmation lets an anonymous party script usable accounts.
-- `allowUnconfirmedAccount` has exactly one consumer,
+- `allowUnconfirmedAccount` (supported in `OAuthGuard` and
+  `AuthenticatedGuard` options) has exactly one active route consumer,
   `POST /api/v1/emails/confirmations` — the endpoint that resends the
   confirmation e-mail, which Mastodon exempts too. A second consumer needs the
   same argument. It relaxes confirmation only: `isActorModerationBlocked` still
-  runs, so a suspended actor or disabled account is refused there as well.
+  runs in both guards, so a suspended actor or disabled account is refused there
+  as well.
   `OptionalOAuthGuard`'s anonymous downgrade is a different option and does not
   count against this.
 - Do not "unify" this with better-auth's `emailAndPassword.requireEmailVerification`,
