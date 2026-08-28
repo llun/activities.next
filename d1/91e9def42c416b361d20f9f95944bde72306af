@@ -1,0 +1,42 @@
+lib/types/database/operations.ts
+  s_801e94c1cd7091::t_c9017a758c09ca 418-425
+lib/database/sql/account.ts
+  s_801e94c1cd7091::t_c9017a758c09ca 843-845
+lib/services/admin/serializeAdminAccounts.test.ts
+  s_801e94c1cd7091::t_fce970b1f34fd1 69-71,85-91,101-103
+app/api/v1/emails/confirmations/route.ts
+  s_801e94c1cd7091::t_7057bc7077c32b 131-141,168,172
+lib/services/guards/OAuthGuard.ts
+  s_801e94c1cd7091::t_e721f0a6170269 316-318,326-333,339-340,346,396-401,441-443,613-634
+lib/services/admin/serializeAdminAccounts.ts
+  s_801e94c1cd7091::t_7057bc7077c32b 88-91
+lib/database/sql/account.test.ts
+  s_801e94c1cd7091::t_203c3bbb1a5671 173-204,241-245,496-500
+lib/services/guards/OAuthGuard.test.ts
+  s_801e94c1cd7091::t_bf4fc5344bbb93 1238-1245,1262-1265
+AGENTS.md
+  s_801e94c1cd7091::t_07244567c465ee 2024-2025,2029
+migrations/20260828140000_clear_stale_verification_codes.js
+  s_801e94c1cd7091::t_c9017a758c09ca 21-39,45-55,58
+REVIEW.md
+  s_801e94c1cd7091::t_4ca4cc74f9a623 514-520,530-531,534-539
+lib/database/sql/clearStaleVerificationCodesMigration.test.ts
+  s_801e94c1cd7091::t_72070ee0114f56 18,22-26,45-49,55-56,81-99
+  s_801e94c1cd7091::t_b469aa8a0a0622 100-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "d191e9def42c416b361d20f9f95944bde72306af",
+  "prompts": {},
+  "sessions": {
+    "s_801e94c1cd7091": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ec5dc893-542e-48be-a5e8-04c97a90d907",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
