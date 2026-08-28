@@ -97,9 +97,9 @@ export const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
   const actorName =
     getActorDisplayName(status.actor) || getActorIdMention(status.actorId)
   // Can be undefined — see `getActorProfileHref`'s doc comment for exactly
-  // when, since it is not simply "no boost actor row". `ActorInfo`'s
-  // actor-present branch links unconditionally instead of falling back, so
-  // it does not share this behaviour.
+  // when, since it is not simply "no boost actor row". `ActorInfo` reads the
+  // same helper for the header author and degrades to plain text the same way,
+  // so the two links in a boosted post's header agree on what is linkable.
   const profileHref = getActorProfileHref(status.actor, status.actorId)
 
   return (

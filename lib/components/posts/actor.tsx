@@ -36,6 +36,12 @@ const getDisplayUsername = (username: string) =>
 const getActorMention = (actor: ActorProfile) =>
   `@${getDisplayUsername(actor.username)}@${actor.domain}`
 
+// The actor's own mention is only usable while its username normalises to
+// something: `@@domain` is a handle `parseAccountHandle` rejects, so an actor
+// with a degenerate `preferredUsername` has no mention to offer here.
+const getUsableActorMention = (actor?: ActorProfile | null): string | null =>
+  actor && getDisplayUsername(actor.username) ? getActorMention(actor) : null
+
 const getProfileHandleFromParts = (parts: string[]) => {
   const profileIndex = parts.indexOf('profile')
   const profileHandle = parts[profileIndex + 1]
@@ -149,23 +155,23 @@ const getActorIdParts = (
 const getActorIdHandle = (actorId: string, statusUrl?: string | null) =>
   getActorIdParts(actorId, statusUrl).handle
 
-// The profile page an actor links to. Callers that need only the href — the
-// avatar below, and the boosted-by line in `post.tsx` — share this instead of
-// re-deriving it. Falls through to the actor-id path when the actor is
-// present but its username normalises to empty (e.g. a federated
-// `preferredUsername` of just `@` characters), so the href is never built
-// from a mention with an empty local part — otherwise undefined when the
+// The profile page an actor links to, shared by every author link in a post —
+// the avatar below, `ActorInfo`'s display name, and the boosted-by line in
+// `post.tsx` — instead of each re-deriving it. Falls through to the actor-id
+// path when the actor is present but its username normalises to empty (e.g. a
+// federated `preferredUsername` of just `@` characters), so the href is never
+// built from a mention with an empty local part — otherwise undefined when the
 // actor id also carries no usable handle (an opaque `did:`/UUID username),
-// which is the case those callers render as plain text rather than as a link
-// to nowhere.
+// which is the case those callers render as unlinked content rather than a
+// link to nowhere: plain text in `ActorInfo` and `BoostStatus`, an unlinked
+// avatar (image or initials) in `ActorAvatar`.
 export const getActorProfileHref = (
   actor?: ActorProfile | null,
   actorId?: string,
   statusUrl?: string | null
 ): string | undefined => {
-  if (actor && getDisplayUsername(actor.username)) {
-    return `/${getActorMention(actor)}`
-  }
+  const mention = getUsableActorMention(actor)
+  if (mention) return `/${mention}`
   if (!actorId) return undefined
   return getActorIdParts(actorId, statusUrl).href
 }
@@ -179,14 +185,13 @@ export const getActorIdMention = (
 }
 
 // The name a caller shows beside (or instead of) `getActorProfileHref`'s
-// destination: `name || getDisplayUsername(username)`. `ActorAvatar`'s
-// initials and `ActorInfo`'s display name compute this same composition
-// inline today rather than calling this helper: converging them needs a
-// third fallback branch there for a degenerate username, plus its own
-// test matrix, so they still duplicate it.
+// destination: `name || getDisplayUsername(username)`.
 // Undefined when there is no actor to name, mirroring `getActorProfileHref`'s
-// own `undefined` for "nothing to link"; a caller with a fallback of its own
-// (`BoostStatus` reads the actor id instead) chains it with `||`.
+// own `undefined` for "nothing to link". It is empty — not undefined — for an
+// actor that exists but has neither a name nor a username that normalises to
+// anything, so every caller needs a fallback of its own and chains it with
+// `||`: `BoostStatus` and `ActorInfo` read the actor id, `ActorAvatar` draws
+// no initials.
 export const getActorDisplayName = (
   actor?: ActorProfile | null
 ): string | undefined =>
@@ -204,7 +209,7 @@ export const ActorAvatar: FC<Props> = ({ actor, actorId, statusUrl }) => {
 
   const href = getActorProfileHref(actor, actorId, statusUrl)
   const initials = actor
-    ? getInitials(actor.name || getDisplayUsername(actor.username) || '')
+    ? getInitials(getActorDisplayName(actor) || '')
     : getInitials(getActorIdHandle(actorId || '', statusUrl))
 
   const avatar = (
@@ -228,44 +233,31 @@ export const ActorAvatar: FC<Props> = ({ actor, actorId, statusUrl }) => {
 export const ActorInfo: FC<Props> = ({ actor, actorId, statusUrl }) => {
   if (!actor && !actorId) return null
 
-  if (!actor) {
-    const { handle, domain, href } = getActorIdParts(actorId || '', statusUrl)
-    return (
-      <div
-        className="flex min-w-0 max-w-full items-center gap-1"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {href ? (
-          <Link
-            href={href}
-            prefetch={false}
-            className="font-semibold hover:underline truncate"
-          >
-            {handle}
-          </Link>
-        ) : (
-          <span className="font-semibold truncate">{handle}</span>
-        )}
-        <span className="text-muted-foreground truncate">{domain}</span>
-      </div>
-    )
-  }
+  const href = getActorProfileHref(actor, actorId, statusUrl)
+  // `name` and `mention` are independent fallback chains and can disagree.
+  // See "Status Posts & Actions" in AGENTS.md for the case breakdown.
+  const mention = getUsableActorMention(actor)
+  const idParts = mention ? null : getActorIdParts(actorId || '', statusUrl)
+  const name = getActorDisplayName(actor) || idParts?.handle || ''
+  const mutedHandle = mention ?? idParts?.domain ?? ''
 
   return (
     <div
       className="flex min-w-0 max-w-full items-center gap-1"
       onClick={(e) => e.stopPropagation()}
     >
-      <Link
-        href={`/${getActorMention(actor)}`}
-        prefetch={false}
-        className="font-semibold hover:underline truncate"
-      >
-        {actor.name || getDisplayUsername(actor.username)}
-      </Link>
-      <span className="text-muted-foreground truncate">
-        {getActorMention(actor)}
-      </span>
+      {href ? (
+        <Link
+          href={href}
+          prefetch={false}
+          className="font-semibold hover:underline truncate"
+        >
+          {name}
+        </Link>
+      ) : (
+        <span className="font-semibold truncate">{name}</span>
+      )}
+      <span className="text-muted-foreground truncate">{mutedHandle}</span>
     </div>
   )
 }
