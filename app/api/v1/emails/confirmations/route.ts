@@ -128,15 +128,17 @@ export const POST = traceApiRoute(
       // confirmed-user flow next door already mints a fresh code per address
       // for the same reason.
       //
-      // Gated on the address actually CHANGING, matching the write below: a
-      // plain resend to the same address stores nothing, so rotating there
-      // would mail a code the row does not hold and every resend would deliver
-      // a dead link.
-      const isEmailChanging = Boolean(newEmail) && newEmail !== account.email
-      const rotatedVerificationCode = isEmailChanging
-        ? crypto.randomBytes(32).toString('base64url')
-        : null
-      if (isEmailChanging && newEmail) {
+      // Rotation happens only where the address actually CHANGES, which is the
+      // same condition that performs the write. A plain resend to the same
+      // address stores nothing, so rotating there would mail a code the row
+      // does not hold and turn every resend into a dead link.
+      //
+      // `verificationCode` starts as the stored one and is reassigned only
+      // inside that branch, immediately beside the write that persists it —
+      // the value sent and the value stored are the same binding, so they
+      // cannot drift apart.
+      let verificationCode = account.verificationCode
+      if (newEmail && newEmail !== account.email) {
         // Honor the server's allow-list so the email param can't be used to
         // sidestep the same restriction enforced at registration.
         const { registrations } = await getResolvedServerSettings(database)
@@ -163,12 +165,11 @@ export const POST = traceApiRoute(
         }
 
         try {
+          verificationCode = crypto.randomBytes(32).toString('base64url')
           await database.updateAccountEmail({
             accountId: account.id,
             email: newEmail,
-            ...(rotatedVerificationCode
-              ? { verificationCode: rotatedVerificationCode }
-              : null)
+            verificationCode
           })
         } catch (error) {
           // The pre-check above covers the common case, but a concurrent
@@ -187,12 +188,6 @@ export const POST = traceApiRoute(
       }
 
       const recipient = newEmail ?? account.email
-      // Send whichever code the account now holds: the rotated one when the
-      // address moved, the stored one when this is a plain resend. Mailing
-      // `account.verificationCode` unconditionally would send the code the
-      // rotation just replaced, so every re-point would deliver a dead link.
-      const verificationCode =
-        rotatedVerificationCode ?? account.verificationCode
       try {
         await sendConfirmationEmail({
           recipient,

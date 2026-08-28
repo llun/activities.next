@@ -415,10 +415,14 @@ export type ChangePasswordParams = {
 export type UpdateAccountEmailParams = {
   accountId: string
   email: string
-  // Re-pointing an account's address must invalidate any confirmation code
-  // already mailed to the previous one, so the caller passes a freshly minted
-  // code to store in the same write. See the confirmations route.
-  verificationCode?: string
+  // REQUIRED, not optional: re-pointing an account's address must invalidate
+  // the confirmation code already mailed to the previous one, and an optional
+  // field lets a future caller omit it with no type error and no failing test
+  // — silently restoring the vulnerability. A code proves control of the
+  // address it was sent to and nothing else, so the two move together or the
+  // type refuses. Pass the account's existing code where the address is not
+  // actually changing.
+  verificationCode: string | null
 }
 export type UpdateAccountNameParams = {
   accountId: string

@@ -840,8 +840,9 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         // confirmation code proves control of the address it was mailed to and
         // nothing else — `verifyAccount` matches on the code alone — so a code
         // that outlives a change of address confirms the new one on the
-        // strength of the old one having been received.
-        ...(verificationCode ? { verificationCode } : null),
+        // strength of the old one having been received. Unconditional: the
+        // parameter is required precisely so this cannot be skipped.
+        verificationCode,
         updatedAt: currentTime
       })
   },

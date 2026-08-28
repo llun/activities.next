@@ -15,8 +15,14 @@ const createAccountsTable = async (database: knex.Knex) => {
     table.string('verificationCode')
     table.timestamp('verifiedAt').defaultTo(database.fn.now())
     table.boolean('emailVerified').defaultTo(false)
+    table.timestamp('createdAt')
   })
 }
+
+// `20260320072514_better_auth_columns`' own timestamp: rows older than this
+// predate the backfill that wrongly marked them verified.
+const BEFORE_BACKFILL = new Date('2026-01-01T00:00:00Z')
+const AFTER_BACKFILL = new Date('2026-08-01T00:00:00Z')
 
 describe('clear stale verification codes migration', () => {
   let database: knex.Knex
@@ -36,13 +42,18 @@ describe('clear stale verification codes migration', () => {
 
   const insertAccount = async (
     id: string,
-    values: { verificationCode: string | null; emailVerified: boolean }
+    values: {
+      verificationCode: string | null
+      emailVerified: boolean
+      createdAt?: Date
+    }
   ) => {
     await database('accounts').insert({
       id,
       email: `${id}@llun.test`,
       verificationCode: values.verificationCode,
-      emailVerified: values.emailVerified
+      emailVerified: values.emailVerified,
+      createdAt: values.createdAt ?? BEFORE_BACKFILL
     })
   }
 
@@ -65,6 +76,27 @@ describe('clear stale verification codes migration', () => {
     await migration.up(database)
 
     expect(await readCode('legacy-pending')).toBe('')
+  })
+
+  it('leaves a pending registration newer than the backfill alone', async () => {
+    // The case `emailVerified = false` cannot catch. knex applies pending
+    // migrations in timestamp order in ONE `yarn migrate`, so on a database
+    // that predates `20260320072514` — a restore from a pre-March dump, a
+    // staging copy, an operator catching up — that backfill runs moments
+    // before this migration and marks a registration made minutes earlier as
+    // verified. Without the `createdAt` bound this would then destroy a code
+    // that is genuinely live: the account is silently confirmed without anyone
+    // proving the address, and the link already sitting in the user's inbox is
+    // dead forever.
+    await insertAccount('caught-up-instance', {
+      verificationCode: 'live-code',
+      emailVerified: true,
+      createdAt: AFTER_BACKFILL
+    })
+
+    await migration.up(database)
+
+    expect(await readCode('caught-up-instance')).toBe('live-code')
   })
 
   it('leaves a genuinely pending registration gated', async () => {

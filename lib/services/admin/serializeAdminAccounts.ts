@@ -85,7 +85,10 @@ export const serializeAdminAccounts = ({
         // reported `confirmed: true` for exactly the accounts a moderator would
         // be looking at BECAUSE they cannot sign in. A pending
         // `verificationCode` is what the guards refuse on.
-        confirmed: !isAccountConfirmationPending(account ?? {}),
+        // Remote actors have no registration state, so they are reported
+        // confirmed for the same reason the line below reports them approved —
+        // stated explicitly rather than falling out of an empty object.
+        confirmed: account ? !isAccountConfirmationPending(account) : true,
         // Remote actors have no registration state; treat them as approved.
         approved: account ? Boolean(account.approvedAt) : true,
         disabled: Boolean(account?.disabledAt),

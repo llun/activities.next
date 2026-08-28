@@ -66,6 +66,9 @@ describe('hydrateAdminAccounts', () => {
       expect(entity?.email).toBe(`${LOCAL_USERNAME}@${TEST_DOMAIN}`)
       expect(entity?.suspended).toBe(true)
       expect(entity?.approved).toBe(true)
+      // Remote actors have no registration state; pinned because the
+      // pending-confirmation narrowing changed how this value is derived.
+      expect(entity?.confirmed).toBe(true)
       expect(entity?.confirmed).toBe(true)
       expect(entity?.role?.name).toBe('Admin')
       // The admin entity id and the embedded public Account id are the same
@@ -79,7 +82,13 @@ describe('hydrateAdminAccounts', () => {
     // DEFAULT CURRENT_TIMESTAMP and so was non-null for every account — so it
     // answered `true` for exactly the accounts a moderator would be looking at
     // because they cannot sign in.
-    await withDatabase(async ({ database }) => {
+    //
+    // The fixture FORCES `verifiedAt` non-null rather than letting
+    // `createAccount` write its explicit null. Without that it reproduces
+    // nothing: a null `verifiedAt` makes the old expression and the new one
+    // agree, so the test passed against the very implementation it exists to
+    // reject. A legacy row is the only shape that separates them.
+    await withDatabase(async ({ database, instance }) => {
       await database.createAccount({
         email: `${LOCAL_USERNAME}@${TEST_DOMAIN}`,
         username: LOCAL_USERNAME,
@@ -89,6 +98,9 @@ describe('hydrateAdminAccounts', () => {
         publicKey: 'public',
         verificationCode: 'pending-confirmation-code'
       })
+      await instance('accounts')
+        .where('email', `${LOCAL_USERNAME}@${TEST_DOMAIN}`)
+        .update({ verifiedAt: new Date() })
 
       const publicIds = await database.getActorPublicIds({
         actorIds: [LOCAL_ACTOR_ID]

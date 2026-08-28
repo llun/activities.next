@@ -1235,12 +1235,14 @@ describe('OAuthGuard', () => {
       })
     })
 
-    test('serves a request carrying an unconfirmed account token', async () => {
-      // Mastodon's counterpart is `authorize_if_got_token!`, which validates
-      // the token and scope and never calls `require_user!`; only
-      // `require_not_suspended!` is global. Applying the confirmation gate here
-      // made presenting a valid token FAIL a request that succeeds with no
-      // Authorization header at all.
+    test('serves an unconfirmed account token as anonymous, not as itself', async () => {
+      // Two failure modes bracket this, and asserting only the 200 catches
+      // neither of them properly. Refusing made a valid token FAIL a read that
+      // succeeds with no Authorization header. Accepting the actor would hand
+      // an unverified account its identity — enough to read direct messages
+      // addressed to it and to drive outbound federation through
+      // `resolve=true`. So `currentActor` is asserted explicitly: a handler
+      // that received the pending actor would still answer 200 here.
       mockGetServerSession.mockResolvedValue(null)
       mockStoredTokens.set(hashToken('optional-unconfirmed-token'), {
         token: hashToken('optional-unconfirmed-token'),
@@ -1257,7 +1259,10 @@ describe('OAuthGuard', () => {
       )
 
       expect(response.status).toBe(200)
-      expect(mockHandler).toHaveBeenCalled()
+      expect(mockHandler).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ currentActor: null })
+      )
     })
 
     test('still refuses a suspended actor on the same guard', async () => {

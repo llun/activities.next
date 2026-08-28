@@ -313,9 +313,9 @@ const resolveTokenContext = async ({
   }
 }
 
-// Endpoints that must still reach an account awaiting confirmation opt in with
-// `allowUnconfirmedAccount`. There is exactly one — resending its own
-// confirmation e-mail — and Mastodon carves out the same endpoint
+// Endpoints that must still reach an account awaiting confirmation AS ITSELF
+// opt in with `allowUnconfirmedAccount`. There is exactly one — resending its
+// own confirmation e-mail — and Mastodon carves out the same endpoint
 // (`Api::V1::Emails::ConfirmationsController` never calls `require_user!`).
 // Blocking it everywhere would make the pending state unrecoverable for a
 // client that lost the e-mail. It relaxes the confirmation test and NOTHING
@@ -323,17 +323,27 @@ const resolveTokenContext = async ({
 // `isActorModerationBlocked` runs regardless.
 type AccountStateOptions = { allowUnconfirmedAccount?: boolean }
 
+// What an optional-auth route does with a token whose account has not confirmed
+// its address. `reject` (the default, and what every mandatory guard wants) is
+// the 403 above. `anonymous` drops the actor and lets the request continue as if
+// no token had been sent, which is what `OptionalOAuthGuard` needs: refusing
+// there made presenting a valid token FAIL a public read that succeeds with no
+// Authorization header at all.
+type UnconfirmedAccountDisposition = 'reject' | 'anonymous'
+
 const resolveAuthenticatedContext = async <P>({
   req,
   context,
   scopes,
   matchMode,
-  allowUnconfirmedAccount = false
+  allowUnconfirmedAccount = false,
+  unconfirmedAccountDisposition = 'reject'
 }: {
   req: NextRequest
   context: AppRouterParams<P>
   scopes: Scope[]
   matchMode: ScopeMatchMode
+  unconfirmedAccountDisposition?: UnconfirmedAccountDisposition
 } & AccountStateOptions): Promise<
   | { authenticated: true; context: GuardContext<P> }
   | { authenticated: false; response?: Response }
@@ -383,6 +393,12 @@ const resolveAuthenticatedContext = async <P>({
         }
       }
       if (!allowUnconfirmedAccount && isActorConfirmationPending(parsedActor)) {
+        // No `response` on the anonymous disposition: that is the same shape a
+        // missing session returns, which is exactly what makes the caller fall
+        // through to its unauthenticated path.
+        if (unconfirmedAccountDisposition === 'anonymous') {
+          return { authenticated: false }
+        }
         return {
           authenticated: false,
           response: rejectBearer('account_unconfirmed', 403)
@@ -422,6 +438,9 @@ const resolveAuthenticatedContext = async <P>({
     return { authenticated: false, response: apiErrorResponse(403) }
   }
   if (!allowUnconfirmedAccount && isActorConfirmationPending(currentActor)) {
+    if (unconfirmedAccountDisposition === 'anonymous') {
+      return { authenticated: false }
+    }
     return { authenticated: false, response: apiErrorResponse(403) }
   }
 
@@ -591,18 +610,28 @@ export const OptionalOAuthGuard =
       context,
       scopes,
       matchMode: options.matchMode ?? 'all',
-      // Optional-auth routes do NOT apply the confirmation gate, and this is
-      // the one place the moderation check and the confirmation check
-      // deliberately diverge. Mastodon's equivalent of this guard is
-      // `authorize_if_got_token!`, which validates the token and scope and
-      // never calls `require_user!`; only `require_not_suspended!` is applied
-      // globally, which is what `isActorModerationBlocked` mirrors. Without
-      // this, presenting a valid-but-unconfirmed token to a public endpoint
-      // (`timelines/public`, `statuses/:id`, search, …) answered a hard 403,
-      // where sending NO Authorization header at all succeeded — a token made
-      // the request fail. Everything that actually requires a user still runs
-      // through the mandatory guards, which do apply the gate.
-      allowUnconfirmedAccount: true
+      // An unconfirmed account is served here, but WITHOUT its identity: the
+      // request continues down the anonymous path. Two failures bracket this
+      // choice and only this disposition avoids both.
+      //
+      // Rejecting (the mandatory guards' behaviour) made presenting a valid
+      // token FAIL a public read — `timelines/public`, `statuses/:id`, search
+      // — that succeeds with no Authorization header at all. A token must not
+      // make a request worse than sending none.
+      //
+      // Accepting it as `currentActor` gives an account nobody has verified
+      // two capabilities that are not merely "public reads": it can read
+      // direct messages addressed to it (`canActorReadSingleStatus`'s
+      // `isDirectRecipient`), and `search`/`accounts/lookup` with
+      // `resolve=true` gate on a non-null actor, so it can drive outbound
+      // WebFinger and signed remote fetches from this instance. Mastodon is
+      // not a precedent for granting those: its search controller applies
+      // `require_user!`, so an unconfirmed account never reaches `resolve`
+      // there at all.
+      //
+      // Suspension is a different question and stays global — the moderation
+      // check runs above this and still refuses.
+      unconfirmedAccountDisposition: 'anonymous'
     })
 
     if (result.authenticated) {
