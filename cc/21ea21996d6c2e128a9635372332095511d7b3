@@ -1,0 +1,40 @@
+lib/services/oauth/userinfo.ts
+  s_801e94c1cd7091::t_2af07ca9566083 73-77
+app/api/v1/emails/confirmations/route.ts
+  s_801e94c1cd7091::t_f328f6f7da922e 14,72-93
+  s_801e94c1cd7091::t_f46ba21acb658f 139-142
+lib/services/auth/canCreateSessionForAccount.ts
+  s_801e94c1cd7091::t_4312893296e1f9 45,52,56-63
+  s_801e94c1cd7091::t_d9f87d7098c719 34-40
+lib/services/guards/OAuthGuard.ts
+  s_801e94c1cd7091::t_d9f87d7098c719 613-617
+app/api/v1/accounts/lookup/route.ts
+  s_801e94c1cd7091::t_fe13a35f8dfa6f 15-16,126-133,135-140,143-144
+  s_801e94c1cd7091::t_f46ba21acb658f 21,141-142
+app/api/v1/emails/confirmations/route.test.ts
+  s_801e94c1cd7091::t_b9847c45535f21 66-69,73,210-231
+  s_801e94c1cd7091::t_edfe88188558c6 232-233
+app/api/v1/accounts/lookup/route.test.ts
+  s_801e94c1cd7091::t_1485519fbdeeea 64-85,91,311,402,430
+  s_801e94c1cd7091::t_5ea7955033b850 244-294
+lib/database/sql/account.ts
+  s_801e94c1cd7091::t_f46ba21acb658f 839-841,843-848
+lib/services/oauth/userinfo.test.ts
+  s_801e94c1cd7091::t_2af07ca9566083 211-212
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "cc21ea21996d6c2e128a9635372332095511d7b3",
+  "prompts": {},
+  "sessions": {
+    "s_801e94c1cd7091": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ec5dc893-542e-48be-a5e8-04c97a90d907",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
