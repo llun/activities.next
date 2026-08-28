@@ -181,9 +181,11 @@ export const databaseBeforeAll = async (table: TestDatabaseTable) => {
  * pg environment variables without ever opening a PostgreSQL connection. Use
  * this instead wherever the SQL under test has to agree across backends.
  */
-export const getTestDatabaseWithInstance = (isolated = false) => {
-  const type = process.env.TEST_DATABASE_TYPE
-  if (type !== 'pg') {
+export const getTestDatabaseWithInstance = (
+  isolated = false,
+  backend = process.env.TEST_DATABASE_TYPE
+) => {
+  if (backend !== 'pg') {
     const { database, instance } = getTestSQLDatabaseWithInstance()
     return { database, instance, prepare: noop as PrepareFunction }
   }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
@@ -14,7 +14,8 @@ vi.mock('@/lib/services/auth/getSession', () => ({
 }))
 
 // Mock database getter
-let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+let mockDatabase:
+  ReturnType<typeof getTestSQLDatabaseWithInstance>['database'] | null = null
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
@@ -46,7 +47,7 @@ vi.mock('@/lib/config', () => ({
 }))
 
 describe('AuthenticatedGuard', () => {
-  const database = getTestSQLDatabase()
+  const { database, instance } = getTestSQLDatabaseWithInstance()
 
   beforeAll(async () => {
     await database.migrate()
@@ -287,6 +288,228 @@ describe('AuthenticatedGuard', () => {
 
       expect(handler).toHaveBeenCalled()
       expect(capturedActor?.id).toBe(primaryActor.id)
+    })
+  })
+
+  describe('moderation blocked actors and accounts', () => {
+    let primaryActor: Actor
+
+    beforeAll(async () => {
+      const actor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      if (!actor) throw new Error('Actor not found')
+      primaryActor = actor
+    })
+
+    it('returns 403 for a suspended actor on a session created before suspension', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      await database.setActorSuspended({
+        actorId: primaryActor.id,
+        suspended: true
+      })
+
+      try {
+        const guard = AuthenticatedGuard(mockHandler)
+        const req = createRequest()
+        const response = await guard(req, { params: Promise.resolve({}) })
+
+        expect(response.status).toBe(403)
+        await expect(response.json()).resolves.toEqual({ error: 'Forbidden' })
+        expect(mockHandler).not.toHaveBeenCalled()
+      } finally {
+        await database.setActorSuspended({
+          actorId: primaryActor.id,
+          suspended: false
+        })
+      }
+    })
+
+    it('returns 403 for a disabled account on a session created before disablement', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      await database.setAccountDisabled({
+        accountId: primaryActor.account!.id,
+        disabled: true
+      })
+
+      try {
+        const guard = AuthenticatedGuard(mockHandler)
+        const req = createRequest()
+        const response = await guard(req, { params: Promise.resolve({}) })
+
+        expect(response.status).toBe(403)
+        await expect(response.json()).resolves.toEqual({ error: 'Forbidden' })
+        expect(mockHandler).not.toHaveBeenCalled()
+      } finally {
+        await database.setAccountDisabled({
+          accountId: primaryActor.account!.id,
+          disabled: false
+        })
+      }
+    })
+
+    it('allows silenced actors to proceed', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      await database.setActorSilenced({
+        actorId: primaryActor.id,
+        silenced: true
+      })
+
+      try {
+        const guard = AuthenticatedGuard(mockHandler)
+        const req = createRequest()
+        const response = await guard(req, { params: Promise.resolve({}) })
+
+        expect(response.status).toBe(200)
+        expect(mockHandler).toHaveBeenCalled()
+      } finally {
+        await database.setActorSilenced({
+          actorId: primaryActor.id,
+          silenced: false
+        })
+      }
+    })
+  })
+
+  describe('unconfirmed accounts', () => {
+    const PENDING_EMAIL = 'pending-auth-guard@llun.test'
+    const PENDING_USERNAME = 'pendingauthguard'
+    let pendingActorId: string
+    let pendingAccountId: string
+
+    beforeAll(async () => {
+      pendingAccountId = await database.createAccount({
+        domain: 'llun.test',
+        email: PENDING_EMAIL,
+        username: PENDING_USERNAME,
+        passwordHash: 'pending-password-hash',
+        privateKey: 'pending-private-key',
+        publicKey: 'pending-public-key',
+        verificationCode: 'pending-auth-guard-code'
+      })
+      const actor = await database.getActorFromEmail({ email: PENDING_EMAIL })
+      if (!actor?.account) throw new Error('Pending actor account not found')
+      pendingActorId = actor.id
+    })
+
+    it('returns 403 for an unconfirmed account session', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: PENDING_EMAIL }
+      })
+
+      const guard = AuthenticatedGuard(mockHandler)
+      const req = createRequest()
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(403)
+      await expect(response.json()).resolves.toEqual({ error: 'Forbidden' })
+      expect(mockHandler).not.toHaveBeenCalled()
+    })
+
+    it('admits an unconfirmed account when allowUnconfirmedAccount is true', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: PENDING_EMAIL }
+      })
+
+      const guard = AuthenticatedGuard(mockHandler, {
+        allowUnconfirmedAccount: true
+      })
+      const req = createRequest()
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
+    })
+
+    it('still refuses a suspended actor when allowUnconfirmedAccount is true', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: PENDING_EMAIL }
+      })
+      await database.setActorSuspended({
+        actorId: pendingActorId,
+        suspended: true
+      })
+
+      try {
+        const guard = AuthenticatedGuard(mockHandler, {
+          allowUnconfirmedAccount: true
+        })
+        const req = createRequest()
+        const response = await guard(req, { params: Promise.resolve({}) })
+
+        expect(response.status).toBe(403)
+        expect(mockHandler).not.toHaveBeenCalled()
+      } finally {
+        await database.setActorSuspended({
+          actorId: pendingActorId,
+          suspended: false
+        })
+      }
+    })
+
+    it('still refuses a disabled account when allowUnconfirmedAccount is true', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: PENDING_EMAIL }
+      })
+      await database.setAccountDisabled({
+        accountId: pendingAccountId,
+        disabled: true
+      })
+
+      try {
+        const guard = AuthenticatedGuard(mockHandler, {
+          allowUnconfirmedAccount: true
+        })
+        const req = createRequest()
+        const response = await guard(req, { params: Promise.resolve({}) })
+
+        expect(response.status).toBe(403)
+        expect(mockHandler).not.toHaveBeenCalled()
+      } finally {
+        await database.setAccountDisabled({
+          accountId: pendingAccountId,
+          disabled: false
+        })
+      }
+    })
+  })
+
+  describe('the 2026-03-20 backfilled cohort', () => {
+    const COHORT_EMAIL = 'cohort-auth-guard@llun.test'
+    const COHORT_USERNAME = 'cohortauthguard'
+
+    beforeAll(async () => {
+      await database.createAccount({
+        domain: 'llun.test',
+        email: COHORT_EMAIL,
+        username: COHORT_USERNAME,
+        passwordHash: 'cohort-password-hash',
+        privateKey: 'cohort-private-key',
+        publicKey: 'cohort-public-key',
+        verificationCode: 'stale-verification-code'
+      })
+      await instance('accounts')
+        .where('email', COHORT_EMAIL)
+        .update({ emailVerified: true })
+    })
+
+    it('admits a backfilled cohort account with outstanding verification code and emailVerified true', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: COHORT_EMAIL }
+      })
+
+      const guard = AuthenticatedGuard(mockHandler)
+      const req = createRequest()
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
     })
   })
 })
