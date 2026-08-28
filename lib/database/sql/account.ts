@@ -37,13 +37,13 @@ import {
   IsAccountExistsParams,
   IsUsernameExistsParams,
   LinkAccountWithProviderParams,
+  RepointUnconfirmedAccountEmailParams,
   RequestEmailChangeParams,
   RequestPasswordResetParams,
   ResetPasswordWithCodeParams,
   SetDefaultActorParams,
   SetSessionActorParams,
   UnlinkAccountFromProviderParams,
-  UpdateAccountEmailParams,
   UpdateAccountImageParams,
   UpdateAccountNameParams,
   UpdateAccountSessionParams,
@@ -826,15 +826,29 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     })
   },
 
-  async updateAccountEmail({
+  async repointUnconfirmedAccountEmail({
     accountId,
-    email
-  }: UpdateAccountEmailParams): Promise<void> {
+    email,
+    verificationCode
+  }: RepointUnconfirmedAccountEmailParams): Promise<void> {
     const currentTime = new Date()
     await database('accounts')
       .where('id', accountId)
       .update({
         email: normalizeEmail(email),
+        // Written in the SAME statement as the address they belong to — see
+        // `RepointUnconfirmedAccountEmailParams` for why all four move
+        // together, and for what this method must not be used for.
+        verificationCode,
+        // Local nuance not in that type doc: `verifyAccount` restores
+        // `verifiedAt` and `emailVerified` when the new address is confirmed,
+        // but NOT `emailVerifiedAt` — only `verifyEmailChange` writes that one
+        // — so an account that had previously changed its address loses the
+        // `/account` "Verified" badge until it next completes that flow, which
+        // it can do with the address it already holds.
+        emailVerified: false,
+        verifiedAt: null,
+        emailVerifiedAt: null,
         updatedAt: currentTime
       })
   },

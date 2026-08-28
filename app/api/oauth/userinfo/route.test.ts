@@ -45,6 +45,9 @@ const makeAccount = (overrides: Partial<Account> = {}): Account => {
   return {
     id: 'account-abc-123',
     email: 'test@example.com',
+    // `email_verified` is built from `emailVerified`, not from the
+    // default-filled `verifiedAt` this fixture used to rely on.
+    emailVerified: true,
     emailVerifiedAt: now,
     createdAt: now,
     updatedAt: now,

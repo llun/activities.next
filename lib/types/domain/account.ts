@@ -15,6 +15,11 @@ export const Account = z.object({
   emailChangeCodeExpiresAt: z.number().nullish(),
   emailVerifiedAt: z.number().nullish(),
   twoFactorEnabled: z.boolean().default(false),
+  // better-auth's own verification column — the one that has actually gated
+  // credential sign-in since 2026-03-20. On the domain object because
+  // `isAccountConfirmationPending` reads it alongside `verificationCode`; see
+  // that function for why neither column answers on its own.
+  emailVerified: z.boolean().default(false),
   role: z.string().nullish(),
   // Moderation/registration state (Admin moderation API). Nullable epoch-ms
   // timestamps; optional so existing Account.parse call sites stay valid.

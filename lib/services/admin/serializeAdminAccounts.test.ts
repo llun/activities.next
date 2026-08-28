@@ -74,6 +74,44 @@ describe('hydrateAdminAccounts', () => {
     })
   })
 
+  it('reports an account awaiting e-mail confirmation as unconfirmed', async () => {
+    // `confirmed` used to read `verifiedAt`, which carries
+    // DEFAULT CURRENT_TIMESTAMP and so was non-null for every account — so it
+    // answered `true` for exactly the accounts a moderator would be looking at
+    // because they cannot sign in.
+    //
+    // The fixture FORCES `verifiedAt` non-null rather than letting
+    // `createAccount` write its explicit null. Without that it reproduces
+    // nothing: a null `verifiedAt` makes the old expression and the new one
+    // agree, so the test passed against the very implementation it exists to
+    // reject. A legacy row is the only shape that separates them.
+    await withDatabase(async ({ database, instance }) => {
+      await database.createAccount({
+        email: `${LOCAL_USERNAME}@${TEST_DOMAIN}`,
+        username: LOCAL_USERNAME,
+        domain: TEST_DOMAIN,
+        passwordHash: 'hash',
+        privateKey: 'private',
+        publicKey: 'public',
+        verificationCode: 'pending-confirmation-code'
+      })
+      await instance('accounts')
+        .where('email', `${LOCAL_USERNAME}@${TEST_DOMAIN}`)
+        .update({ verifiedAt: new Date() })
+
+      const publicIds = await database.getActorPublicIds({
+        actorIds: [LOCAL_ACTOR_ID]
+      })
+      const publicId = publicIds.get(LOCAL_ACTOR_ID) as string
+      const records = await database.getAdminAccounts({ limit: 100 })
+      const entities = await hydrateAdminAccounts(database, records)
+      const entity = byId(entities, publicId)
+
+      expect(entity).toBeDefined()
+      expect(entity?.confirmed).toBe(false)
+    })
+  })
+
   it('falls back to the legacy id for an actor that predates the backfill', async () => {
     await withDatabase(async ({ database, instance }) => {
       await database.createAccount({
@@ -114,6 +152,12 @@ describe('hydrateAdminAccounts', () => {
       expect(entity?.role).toBeNull()
       // Remote actors have no registration state; treated as approved.
       expect(entity?.approved).toBe(true)
+      // Remote actors have no registration state, so they report confirmed for
+      // the same reason they report approved. This is the ONLY test that
+      // reaches the accountless branch of `confirmed`, and round 1 silently
+      // flipped its value from false to true — pinned so a third change is a
+      // decision rather than a side effect.
+      expect(entity?.confirmed).toBe(true)
       expect(entity?.suspended).toBe(false)
     })
   })

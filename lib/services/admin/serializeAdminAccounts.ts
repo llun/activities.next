@@ -2,6 +2,7 @@ import { getConfig } from '@/lib/config'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { Database } from '@/lib/database/types'
 import { DEFAULT_ROLE } from '@/lib/services/accounts/credentialAccount'
+import { isAccountConfirmationPending } from '@/lib/services/auth/canCreateSessionForAccount'
 import { Mastodon } from '@/lib/types/activitypub'
 import {
   AdminAccountIp,
@@ -78,7 +79,17 @@ export const serializeAdminAccounts = ({
         locale: null,
         invite_request: null,
         role,
-        confirmed: Boolean(account?.verifiedAt || account?.emailVerifiedAt),
+        // Read the same signal the auth guards do, not `verifiedAt`:
+        // `accounts.verifiedAt` carries DEFAULT CURRENT_TIMESTAMP, so it is
+        // non-null for every account written before that was worked around and
+        // reported `confirmed: true` for exactly the accounts a moderator would
+        // be looking at BECAUSE they cannot sign in. What the guards refuse
+        // on is an outstanding `verificationCode` that `emailVerified` does
+        // not override — the same pair, so this field and the gate agree.
+        // Remote actors have no registration state, so they are reported
+        // confirmed for the same reason the line below reports them approved —
+        // stated explicitly rather than falling out of an empty object.
+        confirmed: account ? !isAccountConfirmationPending(account) : true,
         // Remote actors have no registration state; treat them as approved.
         approved: account ? Boolean(account.approvedAt) : true,
         disabled: Boolean(account?.disabledAt),
