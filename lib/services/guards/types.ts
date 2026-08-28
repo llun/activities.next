@@ -40,6 +40,11 @@ export type AuthenticatedAppApiHandle<P> = (
     currentActor: Actor | null
     client: Client | null
     grantedScopes: string[]
+    // The account the token was issued for; null for a genuine app
+    // (client_credentials) token. This — not `currentActor` — is what tells the
+    // two apart: the guard also leaves `currentActor` null for a user-delegated
+    // token whose actor it could not resolve.
+    userId: string | null
     params: Promise<P>
   }
 ) => Promise<Response> | Response

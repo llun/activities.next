@@ -23,7 +23,12 @@ export const Account = z.object({
 
   createdAt: z.number(),
   updatedAt: z.number(),
-  verifiedAt: z.number().optional()
+  // Nullish, not optional: an account awaiting e-mail confirmation genuinely
+  // has no `verifiedAt`, and both row-to-domain mappers hand the column
+  // through as a literal `null` (`getActor` writes one; `toDomainAccount`
+  // spreads the raw row). Under `z.number().optional()` that threw, so the
+  // first request by an unconfirmed actor 500'd instead of loading.
+  verifiedAt: z.number().nullish()
 })
 
 export type Account = z.infer<typeof Account>

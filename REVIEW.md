@@ -492,6 +492,40 @@ change doesn't touch.
   `errorCallbackURL` per flow as well — `onAPIError.errorURL` is only the default
   for provider-callback failures.
 
+## Unconfirmed accounts & app tokens
+
+- A check for "has this account confirmed its e-mail" reads `verificationCode`,
+  never `verifiedAt`. `accounts.verifiedAt` carries `DEFAULT CURRENT_TIMESTAMP`
+  (`20230824181927_add_accounts_verification`), so a pending registration gets a
+  timestamp anyway and a `verifiedAt` test is a **no-op that reads as a working
+  gate** — which is what `canCreateSessionForAccount` shipped for two years.
+  `createAccount` writes an explicit `verifiedAt: null` now, but rows written
+  before that still carry the default.
+- Every authenticated surface refuses an unconfirmed account with 403
+  (`isActorConfirmationPending` in `lib/services/guards/OAuthGuard.ts`), matching
+  Mastodon's `require_user!`. The reason it matters:
+  `POST /api/v1/accounts` returns a real user access token at registration and
+  `POST /api/v1/apps` is unauthenticated, so a token that works before
+  confirmation lets an anonymous party script usable accounts.
+- `allowUnconfirmedAccount` has exactly one consumer,
+  `POST /api/v1/emails/confirmations` — the endpoint that resends the
+  confirmation e-mail, which Mastodon exempts too. A second consumer needs the
+  same argument. It relaxes confirmation only: `isActorModerationBlocked` still
+  runs, so a suspended actor or disabled account is refused there as well.
+- Do not "unify" this with better-auth's `emailAndPassword.requireEmailVerification`,
+  which reads a different column (`accounts.emailVerified`, not on the domain
+  `Account`) and covers credential sign-in only. That gate is why the cookie path
+  was never open and this is a token-path fix.
+- A handler that needs to know whether a bearer token is an **app**
+  (`client_credentials`) token reads `userId`, never `currentActor`.
+  `OAuthAppGuard` also leaves `currentActor` null when it merely fails to resolve
+  an actor for a user-delegated token (no grant `referenceId`, and every actor on
+  the account pending deletion), which is how a user was accepted as an app and
+  could mint accounts.
+- `Account.verifiedAt` stays `.nullish()` and `SQLAccount.verifiedAt` nullable:
+  both row-to-domain mappers pass a literal `null` through, so `.optional()`
+  makes `Actor.parse` throw and the first request by an unconfirmed actor 500s.
+
 ## Emails
 
 - Every email is built by a `build<Name>Email(params): RenderedEmail` module in

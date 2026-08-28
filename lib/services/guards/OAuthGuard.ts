@@ -4,6 +4,7 @@ import { NextRequest } from 'next/server'
 
 import { getBaseURL } from '@/lib/config'
 import { getDatabase, getKnex } from '@/lib/database'
+import { isAccountConfirmationPending } from '@/lib/services/auth/canCreateSessionForAccount'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { oauthLogger } from '@/lib/services/oauth/logging'
 import { Scope } from '@/lib/types/database/operations'
@@ -95,6 +96,24 @@ export const isBearerAuthorizationHeader = (
 // domain Actor, so this adds no query to the hot auth path.
 export const isActorModerationBlocked = (actor: Actor): boolean =>
   Boolean(actor.suspendedAt) || Boolean(actor.account?.disabledAt)
+
+// An account whose confirmation e-mail has not been clicked yet may not act
+// through a credential, which is the same answer Mastodon's `require_user!`
+// gives ("Your login is missing a confirmed e-mail address", 403) before any
+// API call runs. It matters because `POST /api/v1/accounts` hands out a real
+// user access token the moment an account is registered: without this, an
+// anonymous party holding only an app token can mint fully usable accounts for
+// addresses nobody has proven they control.
+//
+// Reads a column already present on the loaded domain Actor, so this adds no
+// query to the hot auth path. An actor with no account is left alone — the same
+// direction `isActorModerationBlocked` fails in, and the only accountless local
+// actor is the federation signing actor, which never authenticates.
+export const isActorConfirmationPending = (actor: Actor): boolean => {
+  const { account } = actor
+  if (!account) return false
+  return isAccountConfirmationPending(account)
+}
 
 type ScopeMatchMode = 'all' | 'any'
 
@@ -294,17 +313,28 @@ const resolveTokenContext = async ({
   }
 }
 
+// Endpoints that must still reach an account awaiting confirmation opt in with
+// `allowUnconfirmedAccount`. There is exactly one — resending its own
+// confirmation e-mail — and Mastodon carves out the same endpoint
+// (`Api::V1::Emails::ConfirmationsController` never calls `require_user!`).
+// Blocking it everywhere would make the pending state unrecoverable for a
+// client that lost the e-mail. It relaxes the confirmation test and NOTHING
+// else: a suspended actor or a disabled account is still refused, because
+// `isActorModerationBlocked` runs regardless.
+type AccountStateOptions = { allowUnconfirmedAccount?: boolean }
+
 const resolveAuthenticatedContext = async <P>({
   req,
   context,
   scopes,
-  matchMode
+  matchMode,
+  allowUnconfirmedAccount = false
 }: {
   req: NextRequest
   context: AppRouterParams<P>
   scopes: Scope[]
   matchMode: ScopeMatchMode
-}): Promise<
+} & AccountStateOptions): Promise<
   | { authenticated: true; context: GuardContext<P> }
   | { authenticated: false; response?: Response }
 > => {
@@ -352,6 +382,12 @@ const resolveAuthenticatedContext = async <P>({
           response: rejectBearer('actor_moderation_blocked', 403)
         }
       }
+      if (!allowUnconfirmedAccount && isActorConfirmationPending(parsedActor)) {
+        return {
+          authenticated: false,
+          response: rejectBearer('account_unconfirmed', 403)
+        }
+      }
 
       return {
         authenticated: true,
@@ -385,6 +421,9 @@ const resolveAuthenticatedContext = async <P>({
   if (isActorModerationBlocked(currentActor)) {
     return { authenticated: false, response: apiErrorResponse(403) }
   }
+  if (!allowUnconfirmedAccount && isActorConfirmationPending(currentActor)) {
+    return { authenticated: false, response: apiErrorResponse(403) }
+  }
 
   return {
     authenticated: true,
@@ -399,14 +438,15 @@ const createOAuthGuard =
     handle: AuthenticatedApiHandle<P>,
     options: {
       errorResponse?: (req: NextRequest, statusCode: StatusCode) => Response
-    } = {}
+    } & AccountStateOptions = {}
   ) =>
   async (req: NextRequest, context: AppRouterParams<P>) => {
     const result = await resolveAuthenticatedContext({
       req,
       context,
       scopes,
-      matchMode
+      matchMode,
+      allowUnconfirmedAccount: options.allowUnconfirmedAccount
     })
     if (!result.authenticated) {
       const response = result.response ?? apiErrorResponse(401)
@@ -446,7 +486,7 @@ export const OAuthAppGuard =
     options: {
       errorResponse?: (req: NextRequest, statusCode: StatusCode) => Response
       matchMode?: ScopeMatchMode
-    } = {}
+    } & AccountStateOptions = {}
   ) =>
   async (req: NextRequest, context: AppRouterParams<P>) => {
     const fail = (response: Response) =>
@@ -491,6 +531,12 @@ export const OAuthAppGuard =
         if (isActorModerationBlocked(currentActor)) {
           return fail(rejectBearer('actor_moderation_blocked', 403))
         }
+        if (
+          !options.allowUnconfirmedAccount &&
+          isActorConfirmationPending(currentActor)
+        ) {
+          return fail(rejectBearer('account_unconfirmed', 403))
+        }
       }
 
       // Resolve the owning client by id (an indexed primary-key lookup) rather
@@ -513,7 +559,13 @@ export const OAuthAppGuard =
       client,
       grantedScopes,
       database,
-      params: context.params
+      params: context.params,
+      // The account the token was issued for, forwarded so a handler can ask
+      // "is this a genuine app token?" directly. `currentActor` cannot answer
+      // it: this guard also leaves it null when it merely FAILS to resolve an
+      // actor for a user-delegated token (see `resolveAccountActorId`), which
+      // is indistinguishable from an app token when read as one.
+      userId
     })
   }
 

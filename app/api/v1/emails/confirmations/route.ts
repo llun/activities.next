@@ -25,7 +25,18 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 
-const guardOptions = { errorResponse: corsErrorResponse(CORS_HEADERS) }
+// The one endpoint an account awaiting confirmation must still reach: it is
+// how that account gets its confirmation e-mail resent, so refusing it for
+// being unconfirmed makes the state unrecoverable. Mastodon carves out the
+// same endpoint — `Api::V1::Emails::ConfirmationsController` never calls
+// `require_user!`. The opt-out relaxes the confirmation test only: a suspended
+// actor or a disabled account is still refused here, and the handler below
+// still requires a pending `verificationCode`, so a confirmed account gets 403
+// rather than a pointless resend.
+const guardOptions = {
+  errorResponse: corsErrorResponse(CORS_HEADERS),
+  allowUnconfirmedAccount: true
+}
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
