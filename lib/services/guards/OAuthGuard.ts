@@ -610,27 +610,11 @@ export const OptionalOAuthGuard =
       context,
       scopes,
       matchMode: options.matchMode ?? 'all',
-      // An unconfirmed account is served here, but WITHOUT its identity: the
-      // request continues down the anonymous path. Two failures bracket this
-      // choice and only this disposition avoids both.
-      //
-      // Rejecting (the mandatory guards' behaviour) made presenting a valid
-      // token FAIL a public read — `timelines/public`, `statuses/:id`, search
-      // — that succeeds with no Authorization header at all. A token must not
-      // make a request worse than sending none.
-      //
-      // Accepting it as `currentActor` gives an account nobody has verified
-      // two capabilities that are not merely "public reads": it can read
-      // direct messages addressed to it (`canActorReadSingleStatus`'s
-      // `isDirectRecipient`), and `search`/`accounts/lookup` with
-      // `resolve=true` gate on a non-null actor, so it can drive outbound
-      // WebFinger and signed remote fetches from this instance. Mastodon is
-      // not a precedent for granting those: its search controller applies
-      // `require_user!`, so an unconfirmed account never reaches `resolve`
-      // there at all.
-      //
-      // Suspension is a different question and stays global — the moderation
-      // check runs above this and still refuses.
+      // Served WITHOUT its identity — neither refused nor accepted as itself.
+      // Both alternatives are wrong here and the full argument lives in
+      // AGENTS.md's "An Unconfirmed Account May Not Act"; the short of it is
+      // that refusing makes a valid token fail a read that succeeds with no
+      // token, and accepting hands an unverified account real capability.
       unconfirmedAccountDisposition: 'anonymous'
     })
 

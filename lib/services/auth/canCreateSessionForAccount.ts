@@ -31,28 +31,36 @@ type SessionAccountState = {
  * refuses exactly them, with no way back: the resend endpoint needs a
  * credential, and the credential is what is being refused.
  *
- * So an account better-auth already treats as verified is not held pending here
- * either. That grants nothing new — it is the gate that has actually been
- * governing those sign-ins — and unlike a repair keyed on when a migration ran,
- * it needs no timestamp, no ledger reading and no guess about an operator's
- * deploy schedule. Two attempts at that guess were wrong in opposite directions
- * before this replaced them as the mechanism.
+ * So an account better-auth already treats as verified is not held pending
+ * here either. That grants nothing new — it is the gate that has actually been
+ * governing those sign-ins. Why this predicate, rather than a repair keyed on
+ * when a migration ran, is the mechanism: see AGENTS.md's "An Unconfirmed
+ * Account May Not Act" and the header of
+ * `20260828140000_clear_stale_verification_codes`, which records the attempts
+ * that got that bound wrong.
  *
  * `verifiedAt` is deliberately NOT consulted here. It is the column the default
  * ruined; any check keyed on it reads as a working gate and fires for nobody.
  */
-export const isAccountConfirmationPending = (
+export const isAccountConfirmationPending = <
   // Deliberately narrower than `SessionAccountState`: this reads two columns,
   // so it asks for two. That lets a caller holding a raw SQL row — where the
   // timestamps are `Date` rather than epoch ms, and `emailVerified` is 0/1
   // rather than a boolean — pass it without a cast. `serializeAdminAccounts` is
   // that caller, which is why `emailVerified` is typed loosely enough to accept
   // SQLite's integer.
-  account: {
+  TAccount extends {
     verificationCode?: string | null
     emailVerified?: boolean | number | null
   }
-): boolean => Boolean(account.verificationCode) && !account.emailVerified
+>(
+  account: TAccount
+  // A type guard, not a plain boolean: "pending" means the code is a non-empty
+  // string, and a caller that has just checked this needs to USE that code —
+  // the confirmations route mails it. Without the narrowing that route would
+  // need a cast, which is how a `null` slips back in later.
+): account is TAccount & { verificationCode: string } =>
+  Boolean(account.verificationCode) && !account.emailVerified
 
 export const canCreateSessionForAccount = (
   account: SessionAccountState

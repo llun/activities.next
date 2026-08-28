@@ -61,11 +61,34 @@ vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
+// A session viewer is resolved to an ACTOR and state-checked, not trusted for
+// merely having a session — so these tests have to supply one.
+const mockGetActorFromSession = vi.fn()
+vi.mock('@/lib/utils/getActorFromSession', () => ({
+  getActorFromSession: (...args: unknown[]) => mockGetActorFromSession(...args)
+}))
+
+const sessionViewer = {
+  id: 'https://llun.test/users/viewer',
+  username: 'viewer',
+  domain: 'llun.test',
+  account: {
+    id: 'account-viewer',
+    email: 'user@llun.test',
+    verificationCode: '',
+    emailVerified: true,
+    twoFactorEnabled: false,
+    createdAt: 1,
+    updatedAt: 1
+  }
+}
+
 describe('GET /api/v1/accounts/lookup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetRefreshRemoteActorStateForTesting()
     mockGetServerSession.mockResolvedValue(null)
+    mockGetActorFromSession.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue(null)
   })
 
@@ -218,6 +241,57 @@ describe('GET /api/v1/accounts/lookup', () => {
     expect(await response.json()).toEqual(account)
   })
 
+  it('does not remotely resolve for a session whose account is unconfirmed', async () => {
+    // A session is not re-validated after it is created, so a cohort account
+    // that signs in and then re-points its own address — which makes it
+    // pending — kept driving outbound WebFinger and signed remote fetches here
+    // through the session it already held. The bearer branch withholds exactly
+    // that capability from a pending account; this branch has to agree.
+    mockGetActorFromUsername.mockResolvedValue(null)
+    mockGetServerSession.mockResolvedValue({
+      user: { email: 'user@llun.test' }
+    })
+    mockGetActorFromSession.mockResolvedValue({
+      ...sessionViewer,
+      account: {
+        ...sessionViewer.account,
+        verificationCode: 'pending-confirmation-code',
+        emailVerified: false
+      }
+    })
+    mockGetWebfingerSelf.mockResolvedValue('https://remote.test/users/person')
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/lookup?acct=person@remote.test&resolve=true'
+      )
+    )
+
+    expect(response.status).toBe(404)
+    expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
+  })
+
+  it('does not remotely resolve for a session whose actor is suspended', async () => {
+    mockGetActorFromUsername.mockResolvedValue(null)
+    mockGetServerSession.mockResolvedValue({
+      user: { email: 'user@llun.test' }
+    })
+    mockGetActorFromSession.mockResolvedValue({
+      ...sessionViewer,
+      suspendedAt: Date.now()
+    })
+    mockGetWebfingerSelf.mockResolvedValue('https://remote.test/users/person')
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/lookup?acct=person@remote.test&resolve=true'
+      )
+    )
+
+    expect(response.status).toBe(404)
+    expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
+  })
+
   it('refreshes a known remote actor for session viewers before serialization', async () => {
     const storedActor = {
       id: 'https://remote.test/users/person',
@@ -234,6 +308,7 @@ describe('GET /api/v1/accounts/lookup', () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: 'user@llun.test' }
     })
+    mockGetActorFromSession.mockResolvedValue(sessionViewer)
     mockRecordActorIfNeeded.mockResolvedValue(refreshedActor)
     mockGetMastodonActorFromId.mockResolvedValue(account)
 
@@ -324,6 +399,7 @@ describe('GET /api/v1/accounts/lookup', () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: 'user@llun.test' }
     })
+    mockGetActorFromSession.mockResolvedValue(sessionViewer)
     mockGetMastodonActorFromId.mockResolvedValue(account)
 
     const response = await GET(
@@ -351,6 +427,7 @@ describe('GET /api/v1/accounts/lookup', () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: 'user@llun.test' }
     })
+    mockGetActorFromSession.mockResolvedValue(sessionViewer)
     mockRecordActorIfNeeded.mockRejectedValue(new Error('remote down'))
     mockGetMastodonActorFromId.mockResolvedValue(account)
 

@@ -63,10 +63,14 @@ vi.mock('next/headers', () => ({
 
 const PENDING_CODE = 'pending-verification-code'
 
-const buildAccount = (verificationCode: string | null) => ({
+const buildAccount = (
+  verificationCode: string | null,
+  emailVerified = false
+) => ({
   id: 'account-1',
   email: seedActor1.email,
   verificationCode,
+  emailVerified,
   defaultActorId: ACTOR1_ID,
   createdAt: Date.now(),
   updatedAt: Date.now()
@@ -201,6 +205,30 @@ describe('POST /api/v1/emails/confirmations', () => {
     expect(mailArgs[0].content.text).toContain(
       `https://llun.test/auth/confirmation?verificationCode=${PENDING_CODE}`
     )
+  })
+
+  it('returns 403 for a backfilled-cohort account, which every other surface treats as confirmed', async () => {
+    // `20260320072514_better_auth_columns` marked this cohort verified while
+    // their code stayed set, and `20260828140000` skips on an instance where
+    // that backfill ran in the same pass — a pre-March restore, a staging copy,
+    // a catch-up — so the state is permanent there.
+    //
+    // This route used to gate on the raw `verificationCode`, so it alone read
+    // such an account as awaiting confirmation while the guards,
+    // `canCreateSessionForAccount`, the admin `confirmed` field and the OIDC
+    // claim all read it as confirmed. It is bearer-reachable with `write`,
+    // and the flow that actually PROVES an address is cookie-only — so a
+    // Mastodon client token could re-point a confirmed account's e-mail to one
+    // it controls and take the account over through password reset.
+    setAccount(buildAccount(PENDING_CODE, true))
+
+    const response = await POST(makeRequest({ email: 'attacker@llun.test' }), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(403)
+    expect(mockDb.repointUnconfirmedAccountEmail).not.toHaveBeenCalled()
+    expect(mockSendMail).not.toHaveBeenCalled()
   })
 
   it('returns 403 when the account has already confirmed its email', async () => {

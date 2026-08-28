@@ -11,6 +11,7 @@ import { z } from 'zod'
 
 import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import { sendConfirmationEmail } from '@/lib/services/accounts/sendConfirmationEmail'
+import { isAccountConfirmationPending } from '@/lib/services/auth/canCreateSessionForAccount'
 import {
   OAuthGuardAnyScope,
   corsErrorResponse
@@ -68,10 +69,28 @@ export const POST = traceApiRoute(
         })
       }
 
-      // `verificationCode` is the pending-confirmation token set at registration
-      // when email is configured; it is cleared (to '') once the account
-      // verifies. An empty/null code means the e-mail is already confirmed.
-      if (!account.verificationCode) {
+      // The SAME predicate the guards, `canCreateSessionForAccount`, the admin
+      // `confirmed` field and the OIDC claim use — deliberately not the raw
+      // `verificationCode` column this used to read.
+      //
+      // The two disagree for the cohort `20260320072514_better_auth_columns`
+      // marked verified while their code stayed set, and on an instance where
+      // `20260828140000` skipped (it runs in the same pass as that backfill on
+      // a pre-March restore, staging copy or catch-up, and nothing re-runs it)
+      // that disagreement is permanent. Reading the raw column made this route
+      // treat such an account as awaiting confirmation while every other
+      // surface treated it as confirmed — and this route is bearer-reachable
+      // with `write`, while the flow that actually PROVES a new address
+      // (`POST /api/v1/accounts/email`) is cookie-and-same-origin only. So an
+      // ordinary Mastodon client token could re-point a confirmed account's
+      // address to one it controls, locking the owner out of sign-in and every
+      // guard, receiving the fresh code, and taking the account over through
+      // password reset — from a scope Mastodon's `write` does not grant, since
+      // Mastodon has no API for changing an account e-mail at all.
+      //
+      // A genuinely pending account is unaffected: `code && !emailVerified` is
+      // still true for it.
+      if (!isAccountConfirmationPending(account)) {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
@@ -117,16 +136,10 @@ export const POST = traceApiRoute(
       // email-change flow in accounts/email, which uses the pending-change
       // machinery.)
       //
-      // The code is ROTATED with the address rather than carried across.
-      // `verifyAccount` matches on the code alone, with no binding to the
-      // address it was mailed to, so a code that survives a re-point confirms
-      // the NEW address on the strength of the OLD one having been received:
-      // register with an address you control, re-point to someone else's, then
-      // click the link you were already sent. That yields a confirmed account —
-      // and an OIDC `email_verified: true` claim (lib/services/oauth/userinfo.ts)
-      // — for an address the holder never proved they control. The
-      // confirmed-user flow next door already mints a fresh code per address
-      // for the same reason.
+      // The code is ROTATED with the address rather than carried across, and
+      // so is every other proof about the old one — see
+      // `RepointUnconfirmedAccountEmailParams` for why.
+      //
       //
       // Rotation happens only where the address actually CHANGES, which is the
       // same condition that performs the write. A plain resend to the same

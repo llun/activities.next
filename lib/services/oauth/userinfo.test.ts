@@ -208,7 +208,8 @@ describe('getUserInfo', () => {
     // non-null for every account ever written and proves nothing — reading it
     // here asserted a verified address to every OIDC relying party for accounts
     // that had never confirmed one. It is the same defect that made
-    // `canCreateSessionForAccount`'s check a no-op for two years, and this was
+    // `canCreateSessionForAccount`'s check a no-op for as long as that helper
+    // has existed, and this was
     // the last surface still trusting it.
     const account = makeAccount({
       id: 'account-3',

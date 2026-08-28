@@ -836,35 +836,16 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       .where('id', accountId)
       .update({
         email: normalizeEmail(email),
-        // Written in the SAME statement as the address it belongs to. A
-        // confirmation code proves control of the address it was mailed to and
-        // nothing else — `verifyAccount` matches on the code alone — so a code
-        // that outlives a change of address confirms the new one on the
-        // strength of the old one having been received. Unconditional: the
-        // parameter is required precisely so this cannot be skipped.
+        // Written in the SAME statement as the address they belong to — see
+        // `RepointUnconfirmedAccountEmailParams` for why all four move
+        // together, and for what this method must not be used for.
         verificationCode,
-        // Every other proof about the OLD address goes with it, for the same
-        // reason. `emailVerified` is the one that matters most: a
-        // backfilled-cohort row is NOT pending
-        // (`isAccountConfirmationPending` reads it), so leaving it set let such
-        // an account re-point to an arbitrary address and stay verified, and
-        // the id_token then asserted `email_verified: true` for an address
-        // nobody had proven. `verifiedAt` and `emailVerifiedAt` are cleared
-        // alongside it so no surface can answer that question differently.
-        //
-        // `verifyAccount` restores `verifiedAt` and `emailVerified` when the
-        // new address is confirmed. It does NOT restore `emailVerifiedAt` —
-        // only `verifyEmailChange` ever writes that column — so an account
-        // that had previously used the change-address flow loses the
-        // "Verified" badge on `/account` (its one reader) until it next
-        // completes a change-address flow — which it can do with the address it
-        // already holds, since the conflict probe excludes the account itself.
-        // Clearing it anyway is the lesser of two wrongs: left
-        // standing, that badge would assert the NEW, unproven address is
-        // verified. Making `verifyAccount` stamp it would fix both, and is a
-        // deliberate separate change — the badge is currently absent for every
-        // normally-registered account, so turning it on is user-visible well
-        // beyond this fix.
+        // Local nuance not in that type doc: `verifyAccount` restores
+        // `verifiedAt` and `emailVerified` when the new address is confirmed,
+        // but NOT `emailVerifiedAt` — only `verifyEmailChange` writes that one
+        // — so an account that had previously changed its address loses the
+        // `/account` "Verified" badge until it next completes that flow, which
+        // it can do with the address it already holds.
         emailVerified: false,
         verifiedAt: null,
         emailVerifiedAt: null,

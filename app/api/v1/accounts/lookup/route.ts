@@ -12,10 +12,13 @@ import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import {
   OptionalOAuthGuard,
   corsErrorResponse,
+  isActorConfirmationPending,
+  isActorModerationBlocked,
   isBearerAuthorizationHeader
 } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { Scope } from '@/lib/types/database/operations'
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
@@ -120,8 +123,25 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
     if (cachedRemoteFetchAuth) return cachedRemoteFetchAuth
     let auth: RemoteFetchAuth
     if (!hasBearerAuthorization) {
+      // Resolve the ACTOR and apply the same state checks a guard would, rather
+      // than trusting the mere existence of a session. A session is not
+      // re-validated after it is created, so a cohort account that signs in and
+      // then re-points its own address — which makes it pending — kept driving
+      // outbound WebFinger and signed remote fetches here through the session
+      // it already held, which is exactly the capability this route's bearer
+      // branch withholds from a pending account. The same gap let a suspended
+      // account's lingering session through.
       const session = await getServerAuthSession()
-      auth = { authorized: Boolean(session?.user?.email) }
+      const sessionActor = session?.user?.email
+        ? await getActorFromSession(database, session)
+        : null
+      auth = {
+        authorized: Boolean(
+          sessionActor &&
+          !isActorModerationBlocked(sessionActor) &&
+          !isActorConfirmationPending(sessionActor)
+        )
+      }
     } else {
       const bearerAuth = await authorizeBearerRemoteLookup(req)
       auth = bearerAuth.authorized
