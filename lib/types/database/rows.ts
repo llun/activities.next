@@ -164,7 +164,11 @@ export interface SQLAccount {
 
   createdAt: number | Date
   updatedAt: number | Date
-  verifiedAt?: number | Date
+  // Nullable: `createAccount` writes an explicit null while the registration's
+  // confirmation e-mail is outstanding. The column's `DEFAULT CURRENT_TIMESTAMP`
+  // means rows written before that always carry a value, which is exactly why
+  // the default cannot be relied on to mean "confirmed".
+  verifiedAt?: number | Date | null
 }
 
 export interface SQLDomainFederationRule {

@@ -170,6 +170,21 @@ describe('AccountDatabase', () => {
         })
       })
 
+      it('leaves verifiedAt null while a confirmation is outstanding', async () => {
+        // `accounts.verifiedAt` carries DEFAULT CURRENT_TIMESTAMP
+        // (20230824181927_add_accounts_verification), so omitting the column —
+        // which is what createAccount used to do for a pending registration —
+        // silently produced a verified-looking account and made
+        // canCreateSessionForAccount's verifiedAt test a permanent no-op. The
+        // insert writes an explicit null for that reason.
+        const verificationCode = `pending-${crypto.randomUUID()}`
+        const { accountId } = await createTestAccount({ verificationCode })
+
+        const account = await database.getAccountFromId({ id: accountId })
+        expect(account).toMatchObject({ id: accountId, verificationCode })
+        expect(account?.verifiedAt).toBeNil()
+      })
+
       it('verifies account with verification code', async () => {
         const verificationCode = `verify-${crypto.randomUUID()}`
         const { accountId } = await createTestAccount({ verificationCode })

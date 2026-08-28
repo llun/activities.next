@@ -126,11 +126,18 @@ const RegisterApiRequest = CreateAccountRequest.extend({
 // returns a user access token bound to it (Mastodon's documented behavior).
 // Requires `write:accounts` (satisfied by the aggregate `write`) and an app
 // (client_credentials) token: a user-bound token must not mint another
-// account's token, so a token carrying an actor is rejected with 403.
+// account's token, so a token issued for a user is rejected with 403.
+//
+// "Issued for a user" is `userId`, NOT `currentActor`: OAuthAppGuard leaves
+// `currentActor` null whenever it cannot RESOLVE an actor, which includes a
+// user-delegated token whose grant recorded no reference and whose account has
+// no selectable actor (every actor pending deletion — see `selectAccountActor`
+// and `resolveAccountActorId`). Read as an app token, that user could mint
+// accounts. A genuine client_credentials token has no user at all.
 const registerViaApi = OAuthAppGuard(
   [Scope.enum['write:accounts']],
-  async (req, { client, currentActor, grantedScopes, database }) => {
-    if (currentActor || !client) {
+  async (req, { client, userId, grantedScopes, database }) => {
+    if (userId !== null || !client) {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,

@@ -356,7 +356,10 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
   const CLIENT_ID = 'register-api-client'
   const APP_TOKEN = 'app-token-value'
   const USER_TOKEN = 'user-token-value'
+  const ACTORLESS_USER_TOKEN = 'actorless-user-token-value'
   const NEW_USERNAME = 'newbie'
+  const PENDING_USERNAME = 'pendingnewbie'
+  const ACTORLESS_USERNAME = 'actorlessuser'
 
   const apiKnex = knex({
     client: 'better-sqlite3',
@@ -367,6 +370,9 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
 
   let accountId: string
   let actorId: string
+  let pendingAccountId: string
+  let pendingActorId: string
+  let actorlessAccountId: string
 
   const insertToken = async ({
     token,
@@ -416,10 +422,54 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
     })
     actorId = actor!.id
 
+    // A second account whose confirmation e-mail has not been clicked yet.
+    // registerAccount is mocked in this suite, so the pending state has to come
+    // from a real row for the guard to read it back.
+    pendingAccountId = await apiDatabase.createAccount({
+      domain: DOMAIN,
+      email: 'pending@llun.test',
+      username: PENDING_USERNAME,
+      passwordHash: 'hashed-password',
+      verificationCode: 'pending-confirmation-code',
+      privateKey: 'private-key',
+      publicKey: 'public-key'
+    })
+    pendingActorId = `https://${DOMAIN}/users/${PENDING_USERNAME}`
+
+    // An account that owns no selectable actor: every actor it has is pending
+    // deletion, which is what makes `resolveAccountActorId` answer null.
+    actorlessAccountId = await apiDatabase.createAccount({
+      domain: DOMAIN,
+      email: 'actorless@llun.test',
+      username: ACTORLESS_USERNAME,
+      passwordHash: 'hashed-password',
+      verificationCode: null,
+      privateKey: 'private-key',
+      publicKey: 'public-key'
+    })
+    await apiDatabase.scheduleActorDeletion({
+      actorId: `https://${DOMAIN}/users/${ACTORLESS_USERNAME}`,
+      scheduledAt: new Date(Date.now() + 86_400_000)
+    })
+
     // App (client_credentials) token: no bound actor.
     await insertToken({ token: APP_TOKEN, referenceId: null })
     // User-bound token: delegates the newly created actor.
     await insertToken({ token: USER_TOKEN, referenceId: actorId })
+    // A user-delegated token whose grant recorded no actor reference AND whose
+    // account has no selectable actor. `OAuthAppGuard` leaves `currentActor`
+    // null for it, which is indistinguishable from a genuine app token unless
+    // the handler asks about the user.
+    await apiKnex('oauthAccessToken').insert({
+      id: `token-${ACTORLESS_USER_TOKEN}`,
+      token: hashToken(ACTORLESS_USER_TOKEN),
+      clientId: CLIENT_ID,
+      userId: actorlessAccountId,
+      referenceId: null,
+      scopes: JSON.stringify([Scope.enum.read, Scope.enum.write]),
+      expiresAt: new Date(Date.now() + 3_600_000),
+      createdAt: new Date()
+    })
   })
 
   afterAll(async () => {
@@ -572,5 +622,46 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
       `username=${NEW_USERNAME}&email=newbie@llun.test&password=password123&agreement=true`
     )
     expect(res.status).toBe(403)
+  })
+
+  it('returns 403 for a user token whose account has no selectable actor', async () => {
+    // The app-token gate used to read `currentActor`, which OAuthAppGuard also
+    // leaves null when it merely FAILS to resolve an actor — so a delegated
+    // user token whose grant recorded no reference and whose actors are all
+    // pending deletion was accepted as an app token and could mint accounts.
+    const res = await postRegister(
+      ACTORLESS_USER_TOKEN,
+      `username=${NEW_USERNAME}&email=newbie@llun.test&password=password123&agreement=true`
+    )
+    expect(res.status).toBe(403)
+    expect(registerAccount).not.toHaveBeenCalled()
+  })
+
+  it('issues a token that is refused until the new account confirms its e-mail', async () => {
+    // Mastodon returns the token here and 403s every user-requiring call until
+    // the address is confirmed; the token must not be a working credential for
+    // an address nobody has proven they control.
+    vi.mocked(registerAccount).mockResolvedValueOnce({
+      type: 'success',
+      accountId: pendingAccountId,
+      username: PENDING_USERNAME,
+      actorId: pendingActorId
+    })
+
+    const res = await postRegister(
+      APP_TOKEN,
+      `username=${PENDING_USERNAME}&email=pending@llun.test&password=password123&agreement=true`
+    )
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.access_token).toEqual(expect.any(String))
+
+    const verify = await verifyCredentials(
+      new NextRequest('https://llun.test/api/v1/accounts/verify_credentials', {
+        headers: { Authorization: `Bearer ${data.access_token}` }
+      }),
+      { params: Promise.resolve({}) }
+    )
+    expect(verify.status).toBe(403)
   })
 })
