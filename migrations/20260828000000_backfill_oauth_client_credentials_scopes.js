@@ -21,18 +21,18 @@
 // already installed permanently unable to log in, so the existing rows have to
 // be repaired.
 //
-// The ceiling written is the application's own registered scopes, minus the
-// scopes better-auth reserves for user-delegated grants. That restores what 1.6
-// granted and matches Mastodon, where an app token carries the scopes the
-// application registered with.
+// For a row eligible for the grant, the ceiling written is what
+// `toClientCredentialsScopes` would return — the client's own recorded scopes
+// minus the reserved ones — which is why this file's copy of the reserved list
+// has to stay in step with it. `resolveClientCredentialsScopes` below is NOT
+// just that helper, though: it first refuses public clients and clients not
+// registered for the grant, writing `[]` for them. Those gates are this file's
+// own and have no counterpart in the helper, so do not delete them as drift.
 //
-// It is deliberately STRICTER than 1.6 rather than a replay of it, and the rule
-// is the useful form: the ceiling is derived only from the client's OWN recorded
-// scopes, so anywhere 1.6 reached past those, this does not. 1.6 reached past
-// them in two ways — it skipped its reserved-scope filter when the client
-// omitted `scope`, and it fell back to the server's entire scope vocabulary for
-// a client with no scopes recorded (`client.scopes ?? opts.scopes`), which for a
-// scope-less legacy row meant a token carrying everything this server knows.
+// It is narrower than 1.6 rather than a replay of it: 1.6 read
+// `client.scopes ?? opts.scopes`, so a row with no scopes recorded was granted
+// this server's ENTIRE vocabulary, and 1.6's own reserved-scope rejection was
+// skipped whenever the client omitted `scope`.
 //
 // Kept in sync with `toClientCredentialsScopes` in
 // `lib/services/oauth/clientCredentialsScopes.ts`, which this file cannot import:

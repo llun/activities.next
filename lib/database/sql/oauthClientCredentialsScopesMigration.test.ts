@@ -345,6 +345,19 @@ describe('backfill oauth client credentials scopes migration', () => {
       }))
     )
 
+    // The header claims parity for EVERY eligible row, and a row whose `scopes`
+    // needs the delimiter-separated parse reaches the shared filter by a
+    // different route. Stored as a raw string rather than JSON so the parse is
+    // the thing under test.
+    const delimiterSeparated = ['read', 'write', 'follow']
+    await database('oauthClient').insert({
+      id: 'client-delimited',
+      scopes: delimiterSeparated.join(' '),
+      grantTypes: MASTODON_GRANT_TYPES,
+      tokenEndpointAuthMethod: 'client_secret_post',
+      clientCredentialsScopes: null
+    })
+
     await migration.up(database)
 
     const migrated = await Promise.all(
@@ -354,6 +367,9 @@ describe('backfill oauth client credentials scopes migration', () => {
       scopeSets.map((scopes) =>
         JSON.stringify(toClientCredentialsScopes(scopes))
       )
+    )
+    expect(await readScopes('client-delimited')).toBe(
+      JSON.stringify(toClientCredentialsScopes(delimiterSeparated))
     )
   })
 })

@@ -8,14 +8,12 @@
 // when it is missing or empty, so the value has to be written at registration
 // time or every app token request answers `unauthorized_client`.
 //
-// The ceiling is the application's own registered scopes, which restores what
-// 1.6 granted and matches Mastodon: an app token there carries the scopes the
-// application registered with. It is not a byte-for-byte replay of 1.6 — see the
-// note on the reserved scopes below, where it is deliberately stricter — but it
-// is never a wider authority than the client already had. In this codebase an
-// app token is narrower still, because only `OAuthAppGuard` accepts one
-// (apps/verify_credentials and Mastodon's API account registration). Every other
-// guard requires an actor, which an actor-less app token never resolves.
+// The ceiling keeps the client's own recorded scopes and nothing from server
+// configuration, minus the reserved scopes below. That matches Mastodon, where
+// an app token carries the scopes the application registered with, and it is
+// narrower than 1.6 on both counts — see the note on the reserved scopes, and
+// 1.6's `client.scopes ?? opts.scopes`, which handed a client with no scopes
+// recorded this server's entire vocabulary.
 
 // Scopes better-auth reserves for grants that delegate a user. An app token has
 // no user, so a token carrying one would name a subject that does not exist.
@@ -27,13 +25,11 @@
 // bypasses with a direct knex insert; and its token-endpoint filter runs only
 // when the client sends an explicit `scope` parameter — with `scope` omitted the
 // stored ceiling is granted verbatim (`requestedScopes = [...clientCredentialsScopes]`).
-// So a stored `openid` would be handed straight back on a token.
-//
-// 1.6 is not a stronger precedent here than 1.7: its rejection sat inside the
-// same `if (requestedScopes)` conditional, so it too granted a registered
-// `openid` verbatim when the client omitted `scope`. Reproducing 1.6 is
-// therefore not the goal — a ceiling built only from what the client itself
-// registered is stricter wherever 1.6 reached past that, which is the intent.
+// So a stored `openid` would be handed straight back on a token. 1.6 is no
+// precedent for skipping it either: its own rejection sat inside that same
+// conditional. Nor is keeping only the client's own scopes sufficient on its
+// own, since a registered `openid` is one of them — `clientCredentialsScopes.test.ts`
+// pins that as `denies the grant for an OpenID-only client`.
 //
 // `offline_access` is not part of this server's scope vocabulary; it is listed
 // because better-auth reserves it, so adding it to `Scope` later cannot quietly
