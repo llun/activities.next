@@ -234,10 +234,8 @@ export const ActorInfo: FC<Props> = ({ actor, actorId, statusUrl }) => {
   if (!actor && !actorId) return null
 
   const href = getActorProfileHref(actor, actorId, statusUrl)
-  // `name` and `mention` are independent fallback chains, so they can
-  // disagree: a named actor whose username normalises to empty keeps its own
-  // name while its mention and href come from the actor id. See "Status Posts
-  // & Actions" in AGENTS.md.
+  // `name` and `mention` are independent fallback chains and can disagree.
+  // See "Status Posts & Actions" in AGENTS.md for the case breakdown.
   const mention = getUsableActorMention(actor)
   const idParts = mention ? null : getActorIdParts(actorId || '', statusUrl)
   const name = getActorDisplayName(actor) || idParts?.handle || ''
