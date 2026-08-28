@@ -146,8 +146,17 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         email: normalizedEmail,
         name: name || null,
         passwordHash,
+        // `verifiedAt` is written EXPLICITLY as null for a pending
+        // registration. Omitting it does not leave the column unset: it carries
+        // `DEFAULT CURRENT_TIMESTAMP` (20230824181927_add_accounts_verification),
+        // so the database stamped `now()` on every account that was still
+        // awaiting confirmation and `canCreateSessionForAccount`'s `verifiedAt`
+        // test could never fire. Credential sign-in was still refused —
+        // better-auth's own `requireEmailVerification` reads `emailVerified`,
+        // which this branch correctly leaves false — so this repairs a
+        // defence-in-depth check rather than an open door.
         ...(verificationCode
-          ? { verificationCode }
+          ? { verificationCode, verifiedAt: null }
           : { verifiedAt: currentTime, emailVerified: true }),
         // No approval-required registration mode exists yet (Admin moderation
         // API, Decision 4): every account is approved at creation, so the
