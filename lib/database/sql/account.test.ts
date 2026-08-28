@@ -228,6 +228,41 @@ describe('AccountDatabase', () => {
         expect(account?.emailVerified).toBeFalse()
       })
 
+      it('clears every other proof about the old address too', async () => {
+        // `verifiedAt` and `emailVerifiedAt` go with the address for the same
+        // reason the code and the flag do. Nothing covered these two: reverting
+        // both writes left the whole `lib/database/sql`, `lib/services/oauth`,
+        // `lib/services/auth` and `lib/services/guards` tree green, so a
+        // refactor of the `.update()` call could drop them silently.
+        //
+        // The fixture has to EARN a non-null `emailVerifiedAt` — only
+        // `verifyEmailChange` writes it, so a plain account has none and the
+        // assertion would pass against a write that never cleared anything.
+        const { accountId } = await createTestAccount()
+        const changedEmail = `changed-${crypto.randomUUID()}@${TEST_DOMAIN}`
+        const emailChangeCode = `change-${crypto.randomUUID()}`
+        await database.requestEmailChange({
+          accountId,
+          newEmail: changedEmail,
+          emailChangeCode
+        })
+        await database.verifyEmailChange({ accountId, emailChangeCode })
+
+        const before = await database.getAccountFromId({ id: accountId })
+        expect(before?.verifiedAt).toBeNumber()
+        expect(before?.emailVerifiedAt).toBeNumber()
+
+        await database.repointUnconfirmedAccountEmail({
+          accountId,
+          email: `repointed-${crypto.randomUUID()}@${TEST_DOMAIN}`,
+          verificationCode: `code-${crypto.randomUUID()}`
+        })
+
+        const after = await database.getAccountFromId({ id: accountId })
+        expect(after?.verifiedAt).toBeNil()
+        expect(after?.emailVerifiedAt).toBeNil()
+      })
+
       it('leaves verifiedAt null while a confirmation is outstanding', async () => {
         // `accounts.verifiedAt` carries DEFAULT CURRENT_TIMESTAMP
         // (20230824181927_add_accounts_verification), so omitting the column —
