@@ -40,16 +40,21 @@ const USER_DELEGATED_SCOPES = new Set([
 ])
 
 // Rows are read in bounded pages rather than all at once: registrations are
-// never deleted, so this table only grows. Every row a page reads is written,
-// so the `IS NULL` predicate strictly shrinks and the loop terminates.
+// never deleted, so this table only grows. Every row a page reads is written —
+// see the `row.id == null` skip below for the one case that would not be — so
+// the `IS NULL` predicate strictly shrinks and the loop terminates.
 const BATCH_SIZE = 500
 
 // `oauthClient.scopes` and `.grantTypes` hold JSON-array strings, which is what
 // better-auth's adapter writes and what `createApplication` and the original
-// `clients` import wrote. A driver that hands back a parsed array is accepted
-// too, and so is the space/comma-separated spelling `lib/database/sql/oauth.ts`
-// already tolerates on these columns — reading one of those as a single opaque
-// scope would silently deny a client the grant.
+// `clients` import wrote — the app itself reads `oauthClient.scopes` with a bare
+// `JSON.parse` (`getCompatibleJSON`), so nothing on the read path tolerates any
+// other spelling. The array and delimiter-separated branches below are therefore
+// belt-and-braces for a legacy or hand-edited row this one-shot backfill cannot
+// re-examine later, not a shape the schema is known to hold. Reading
+// `'read write'` as one opaque scope would not deny the grant — the ceiling
+// would be non-empty, so better-auth accepts it and then rejects the client's
+// real request with `invalid_scope`, which is harder to diagnose than a denial.
 const parseStoredList = (raw) => {
   if (Array.isArray(raw)) return raw.map(String)
   if (typeof raw !== 'string') return []
@@ -102,11 +107,22 @@ export const up = async function (knex) {
     // per distinct value instead of one per row.
     const idsByValue = new Map()
     for (const row of rows) {
+      // `whereIn('id', [null])` matches nothing, so a row with no id would be
+      // re-read on every pass and the loop would never end. Nothing writes such
+      // a row — `id` is NOT NULL on PostgreSQL, and every insert generates one —
+      // but SQLite permits NULL in a non-INTEGER primary key, and a migration
+      // that spins holds the knex migration lock for as long as it runs. Skip it
+      // so the rest of the page still makes progress.
+      if (row.id == null) continue
       const value = JSON.stringify(resolveClientCredentialsScopes(row))
       const ids = idsByValue.get(value)
       if (ids) ids.push(row.id)
       else idsByValue.set(value, [row.id])
     }
+
+    // Every row on this page was skipped, so no later page can make progress
+    // either — the predicate would return the same rows forever.
+    if (idsByValue.size === 0) return
 
     for (const [value, ids] of idsByValue) {
       await knex('oauthClient')

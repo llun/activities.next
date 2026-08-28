@@ -17,10 +17,17 @@
 // actor-less app token never resolves.
 
 // Scopes better-auth reserves for grants that delegate a user. An app token has
-// no user, so a token carrying one would name a subject that does not exist —
-// the plugin refuses them both when a ceiling is assigned and when one is
-// requested at the token endpoint, and 1.6 refused them at request time too. A
-// ceiling containing one would therefore be a value better-auth itself rejects.
+// no user, so a token carrying one would name a subject that does not exist.
+//
+// This filter is the ONLY thing enforcing that on this write path — do not
+// delete it as redundant with better-auth's own checks, because neither of them
+// runs here. The plugin's assign-time validator (`validateClientCredentialsScopes`)
+// lives inside its own registration and update endpoints, which `createApplication`
+// bypasses with a direct knex insert; and its token-endpoint filter runs only
+// when the client sends an explicit `scope` parameter — with `scope` omitted the
+// stored ceiling is granted verbatim (`requestedScopes = [...clientCredentialsScopes]`).
+// So a stored `openid` would be handed straight back on a token. better-auth 1.6
+// did reject these at request time, which is the behaviour being reproduced.
 //
 // `offline_access` is not part of this server's scope vocabulary; it is listed
 // because better-auth reserves it, so adding it to `Scope` later cannot quietly
@@ -29,8 +36,10 @@
 // Kept in sync with the identical list in
 // `migrations/20260828000000_backfill_oauth_client_credentials_scopes.js`, which
 // cannot import this module: migrations run through the plain `knex` CLI with no
-// TypeScript loader and no path aliases. `clientCredentialsScopes.test.ts` pins
-// the two against each other.
+// TypeScript loader and no path aliases. The test that pins the two against each
+// other is `lib/database/sql/oauthClientCredentialsScopesMigration.test.ts`
+// ("agrees with the helper the registration path uses") — this module's own test
+// exercises only this copy and would stay green while the migration's drifted.
 const USER_DELEGATED_SCOPES = new Set([
   'openid',
   'profile',
