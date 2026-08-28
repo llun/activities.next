@@ -22,9 +22,11 @@
 // be repaired.
 //
 // The ceiling written is the application's own registered scopes, minus the
-// scopes better-auth reserves for user-delegated grants. That reproduces the 1.6
-// policy exactly and matches Mastodon, where an app token carries the scopes the
-// application registered with.
+// scopes better-auth reserves for user-delegated grants. That restores what 1.6
+// granted and matches Mastodon, where an app token carries the scopes the
+// application registered with — and is deliberately stricter than 1.6 in the one
+// case where a client omits `scope`, which 1.6 answered with its registered
+// scopes verbatim, reserved ones included.
 //
 // Kept in sync with `toClientCredentialsScopes` in
 // `lib/services/oauth/clientCredentialsScopes.ts`, which this file cannot import:

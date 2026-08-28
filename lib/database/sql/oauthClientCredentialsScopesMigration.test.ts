@@ -202,12 +202,6 @@ describe('backfill oauth client credentials scopes migration', () => {
     ).resolves.toEqual([{ remaining: 0 }])
   })
 
-  // `whereIn('id', [null])` matches nothing, so a row with no id would be read
-  // on every pass and never written — the loop's termination argument rests on
-  // every read row being written. Nothing writes such a row (`id` is NOT NULL on
-  // PostgreSQL) but SQLite permits it in a non-INTEGER primary key, and a
-  // migration that spins holds the knex migration lock for as long as it runs.
-  // Without the skip this test hangs rather than failing.
   // A row with no id is invisible to `whereIn('id', …)`, so it is read on every
   // pass and never written — which breaks the loop's termination argument that
   // every row a page reads is written. Nothing writes such a row (`id` is NOT
@@ -253,6 +247,52 @@ describe('backfill oauth client credentials scopes migration', () => {
     await expect(migration.up(database)).resolves.toBeUndefined()
 
     expect(await readScopes('client')).toBe(JSON.stringify(['read', 'write']))
+  })
+
+  // The single-page case above cannot see the thing that actually makes a null-id
+  // row dangerous: SQLite sorts NULL first under the migration's `orderBy('id')`,
+  // so such a row occupies one slot of EVERY page until the real rows run out.
+  // A future switch from re-querying `whereNull` to an `id > lastId` cursor would
+  // reintroduce a lock-holding spin that the two-row test would not notice.
+  it('keeps paging past a null-id row that recurs on every page', async () => {
+    const rows = Array.from({ length: 501 }, (_, index) => ({
+      id: `client-${String(index).padStart(4, '0')}`,
+      scopes: JSON.stringify(['read']),
+      grantTypes: MASTODON_GRANT_TYPES,
+      tokenEndpointAuthMethod: 'client_secret_post',
+      clientCredentialsScopes: null
+    }))
+    for (let index = 0; index < rows.length; index += 100) {
+      await database('oauthClient').insert(rows.slice(index, index + 100))
+    }
+    await database('oauthClient').insert({
+      id: null,
+      scopes: JSON.stringify(['read']),
+      grantTypes: MASTODON_GRANT_TYPES,
+      tokenEndpointAuthMethod: 'client_secret_post',
+      clientCredentialsScopes: null
+    })
+
+    const STATEMENT_BUDGET = 20
+    let statements = 0
+    database.on('query', () => {
+      statements += 1
+      if (statements > STATEMENT_BUDGET) {
+        throw new Error(
+          `migration issued more than ${STATEMENT_BUDGET} statements; it is not terminating`
+        )
+      }
+    })
+
+    await expect(migration.up(database)).resolves.toBeUndefined()
+
+    // Every real row repaired; the one left is the row with no id, which no
+    // `whereIn('id', …)` can ever address.
+    await expect(
+      database('oauthClient').whereNull('clientCredentialsScopes').count({
+        remaining: '*'
+      })
+    ).resolves.toEqual([{ remaining: 1 }])
   })
 
   // The migration cannot import the helper the registration path uses — it runs
