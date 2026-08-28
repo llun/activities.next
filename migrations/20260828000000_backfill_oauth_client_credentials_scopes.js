@@ -1,0 +1,132 @@
+// Backfills `oauthClient.clientCredentialsScopes` for applications registered
+// before the column was written.
+//
+// better-auth 1.6 validated a `client_credentials` request against the client's
+// registered `scopes`. 1.7 moved that decision to this separate, server-owned
+// column and denies the grant outright when it is missing or empty:
+//
+//   400 {"error":"unauthorized_client",
+//        "error_description":"client has no authorized client_credentials scopes"}
+//
+// The column arrived with the 1.7 schema migration and nothing ever wrote it, so
+// every application registered through `POST /api/v1/apps` — every Mastodon
+// client on the instance — has NULL. A native client asks for an app-level token
+// before it offers to sign a user in (Ivory does, with the credentials the
+// registration just handed it), so that 400 stops the login before it starts.
+//
+// `createApplication` writes the column from here on, but a Mastodon client
+// persists its client_id/client_secret indefinitely and only re-registers when
+// its stored copy is missing — the same reason registrations are never garbage
+// collected. Fixing the write path alone would therefore leave every client
+// already installed permanently unable to log in, so the existing rows have to
+// be repaired.
+//
+// The ceiling written is the application's own registered scopes, minus the
+// scopes better-auth reserves for user-delegated grants. That reproduces the 1.6
+// policy exactly and matches Mastodon, where an app token carries the scopes the
+// application registered with.
+//
+// Kept in sync with `toClientCredentialsScopes` in
+// `lib/services/oauth/clientCredentialsScopes.ts`, which this file cannot import:
+// migrations run through the plain `knex` CLI, with no TypeScript loader and no
+// path aliases. `oauthClientCredentialsScopesMigration.test.ts` pins the two
+// against each other.
+
+const USER_DELEGATED_SCOPES = new Set([
+  'openid',
+  'profile',
+  'email',
+  'offline_access'
+])
+
+// Rows are read in bounded pages rather than all at once: registrations are
+// never deleted, so this table only grows. Every row a page reads is written,
+// so the `IS NULL` predicate strictly shrinks and the loop terminates.
+const BATCH_SIZE = 500
+
+// `oauthClient.scopes` and `.grantTypes` hold JSON-array strings, which is what
+// better-auth's adapter writes and what `createApplication` and the original
+// `clients` import wrote. A driver that hands back a parsed array is accepted
+// too, and so is the space/comma-separated spelling `lib/database/sql/oauth.ts`
+// already tolerates on these columns — reading one of those as a single opaque
+// scope would silently deny a client the grant.
+const parseStoredList = (raw) => {
+  if (Array.isArray(raw)) return raw.map(String)
+  if (typeof raw !== 'string') return []
+  const trimmed = raw.trim()
+  if (!trimmed) return []
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (Array.isArray(parsed)) return parsed.map(String)
+    } catch {
+      // Fall through to delimiter splitting.
+    }
+  }
+  return trimmed.split(/[\s,]+/).filter(Boolean)
+}
+
+// The ceiling for one client. Empty is a meaningful, correct value — better-auth
+// reads it as "this client may not use the client_credentials grant" — and it is
+// what a client that cannot use the grant must be given, so that the row stops
+// matching the `IS NULL` predicate and the loop makes progress.
+const resolveClientCredentialsScopes = (row) => {
+  // A public client is refused the grant by better-auth regardless, and
+  // assigning one a ceiling is a combination it rejects as invalid metadata.
+  if (row.tokenEndpointAuthMethod === 'none') return []
+  if (!parseStoredList(row.grantTypes).includes('client_credentials')) return []
+  return [
+    ...new Set(
+      parseStoredList(row.scopes).filter(
+        (scope) => !USER_DELEGATED_SCOPES.has(scope)
+      )
+    )
+  ]
+}
+
+/**
+ * @param { import("knex").Knex } knex
+ * @returns { Promise<void> }
+ */
+export const up = async function (knex) {
+  for (;;) {
+    const rows = await knex('oauthClient')
+      .whereNull('clientCredentialsScopes')
+      .select('id', 'scopes', 'grantTypes', 'tokenEndpointAuthMethod')
+      .orderBy('id')
+      .limit(BATCH_SIZE)
+    if (rows.length === 0) return
+
+    // Most clients on an instance register with the same handful of scopes, so
+    // group the page by the value each row resolves to and write one statement
+    // per distinct value instead of one per row.
+    const idsByValue = new Map()
+    for (const row of rows) {
+      const value = JSON.stringify(resolveClientCredentialsScopes(row))
+      const ids = idsByValue.get(value)
+      if (ids) ids.push(row.id)
+      else idsByValue.set(value, [row.id])
+    }
+
+    for (const [value, ids] of idsByValue) {
+      await knex('oauthClient')
+        .whereIn('id', ids)
+        .update({ clientCredentialsScopes: value })
+    }
+  }
+}
+
+/**
+ * Irreversible by design. Restoring NULL would reinstate the bug this repairs,
+ * and the column carries no information that predates this migration — the rows
+ * it fills held NULL because nothing had ever written them. Rolling the code
+ * back to better-auth 1.6 makes the column unread rather than wrong, so there is
+ * nothing a rollback needs to undo. Implemented as a no-op so rolling back later
+ * migrations does not fail on this one.
+ *
+ * @param { import("knex").Knex } _knex
+ * @returns { Promise<void> }
+ */
+export const down = async function (_knex) {
+  // No-op: see above.
+}
