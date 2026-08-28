@@ -4,11 +4,13 @@ import crypto from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
+import { createApplication } from '@/app/api/v1/apps/createApplication'
+import type { SuccessResponse } from '@/app/api/v1/apps/types'
 import { getSQLDatabase } from '@/lib/database/sql'
 import { Database } from '@/lib/database/types'
 
-// Every Mastodon client signs in through this flow, and until now nothing
-// exercised it: `app/(nosidebar)/oauth/token/route.test.ts` mocks `getAuth`, so
+// Every Mastodon client signs in through these grants, and until now nothing
+// exercised them: `app/(nosidebar)/oauth/token/route.test.ts` mocks `getAuth`, so
 // the whole better-auth OAuth surface was untested. A better-auth 1.7 upgrade
 // consequently shipped a green suite while approving consent 500'd on every
 // request — the plugin had started writing `oauthConsent.requestedUserInfoClaims`
@@ -19,6 +21,11 @@ import { Database } from '@/lib/database/types'
 // exchange the code. Each step's DB writes are what the assertions are really
 // about, which is why the flow is followed all the way to an access token
 // rather than stopping at the first 200.
+//
+// The `client_credentials` grant is driven the same way, and for the same
+// reason: the 1.7 upgrade moved its scope ceiling to a column nothing wrote, so
+// every app token request started coming back `unauthorized_client` with the
+// suite still green.
 const HOST = 'test.example.com'
 const BASE_URL = `https://${HOST}`
 const EMAIL = 'oauth-flow@example.com'
@@ -65,7 +72,7 @@ const hashClientSecret = (secret: string) =>
     .replace(/\//g, '_')
     .replace(/=+$/, '')
 
-describe('OAuth provider authorization code flow', () => {
+describe('OAuth provider token grants', () => {
   let database: Knex
   const jar: Record<string, string> = {}
 
@@ -227,5 +234,60 @@ describe('OAuth provider authorization code flow', () => {
 
     const stored = await database('oauthAccessToken').first()
     expect(stored).toBeDefined()
+  })
+
+  // A Mastodon client asks for an app-level token before any user is involved:
+  // Ivory posts `grant_type=client_credentials` with the credentials
+  // `POST /api/v1/apps` just handed it, and only then offers to sign a user in.
+  // better-auth 1.7 gates that grant on a server-owned `clientCredentialsScopes`
+  // ceiling — a column 1.6 did not have and which the registration path has to
+  // populate, or the request comes back `400 unauthorized_client` and the client
+  // never reaches the sign-in step. So this registers through the real
+  // production path rather than inserting a row, because the row that path
+  // writes is exactly what the regression was about.
+  it('issues an app token for a client registered through /api/v1/apps', async () => {
+    const registration = await createApplication({
+      client_name: 'Client Credentials Test',
+      redirect_uris: 'com.example.app:/request_token/callback',
+      scopes: 'read write follow push'
+    })
+    expect(registration.type).toBe('success')
+    const application = registration as SuccessResponse
+
+    const token = await call('/oauth2/token', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        // The production proxy strips `cookie` before forwarding, so this grant
+        // is authenticated by the client credentials alone. Sending none also
+        // keeps the test independent of the session the flow above left behind.
+        cookie: ''
+      },
+      // The parameters Ivory sends, `redirect_uri` included — it posts the same
+      // body it would for an authorization code exchange.
+      body: new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: application.client_id,
+        client_secret: application.client_secret,
+        redirect_uri: 'com.example.app:/request_token/callback',
+        scope: 'read write follow push'
+      }).toString()
+    })
+    expect(token.status).toBe(200)
+
+    const tokenBody = JSON.parse(token.text) as {
+      access_token?: string
+      scope?: string
+    }
+    expect(tokenBody.access_token).toBeTruthy()
+    expect(tokenBody.scope).toBe('read write follow push')
+
+    // An app token carries no user, which is what `OAuthAppGuard` reads to tell
+    // one apart from a user-delegated token.
+    const stored = await database('oauthAccessToken')
+      .where('clientId', application.client_id)
+      .first()
+    expect(stored).toBeDefined()
+    expect(stored?.userId ?? null).toBeNull()
   })
 })
