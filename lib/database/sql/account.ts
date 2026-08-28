@@ -856,8 +856,10 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         // new address is confirmed. It does NOT restore `emailVerifiedAt` —
         // only `verifyEmailChange` ever writes that column — so an account
         // that had previously used the change-address flow loses the
-        // "Verified" badge on `/account` (its one reader) permanently once it
-        // re-points. Clearing it anyway is the lesser of two wrongs: left
+        // "Verified" badge on `/account` (its one reader) until it next
+        // completes a change-address flow — which it can do with the address it
+        // already holds, since the conflict probe excludes the account itself.
+        // Clearing it anyway is the lesser of two wrongs: left
         // standing, that badge would assert the NEW, unproven address is
         // verified. Making `verifyAccount` stamp it would fix both, and is a
         // deliberate separate change — the badge is currently absent for every
