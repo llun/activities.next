@@ -15,10 +15,12 @@
  * `isAccountConfirmationPending`, which reads `emailVerified` alongside
  * `verificationCode` and so never holds a backfilled account pending in the
  * first place. That is exact and needs no notion of when anything ran. What is
- * left here is bringing the two columns into agreement, because there IS still a
- * reader of the raw column: `app/api/v1/emails/confirmations/route.ts` gates on
- * `account.verificationCode` directly, so until the row is tidied it keeps
- * offering a resend to an account the guards already treat as confirmed.
+ * left here is bringing the two columns into agreement so a reader of the row
+ * is not misled by a code that no longer gates anything. Nothing reads the raw
+ * column as a pending test any more — the confirmations route did until it was
+ * moved onto `isAccountConfirmationPending`, which is what closed the
+ * disagreement this migration would otherwise have had to close by itself. So
+ * an instance where the bound below skips is left tidy-less, not exposed.
  *
  * So the bound below decides only whether a stale row is tidied, never whether
  * anyone keeps access. It stays conservative anyway, because clearing a code

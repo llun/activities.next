@@ -85,8 +85,10 @@ export const POST = traceApiRoute(
       // ordinary Mastodon client token could re-point a confirmed account's
       // address to one it controls, locking the owner out of sign-in and every
       // guard, receiving the fresh code, and taking the account over through
-      // password reset — from a scope Mastodon's `write` does not grant, since
-      // Mastodon has no API for changing an account e-mail at all.
+      // password reset. Mastodon gates its own equivalent on the same question
+      // — `Api::V1::Emails::ConfirmationsController` applies
+      // `require_user_not_confirmed!` — so a confirmed account cannot re-point
+      // through it there either.
       //
       // A genuinely pending account is unaffected: `code && !emailVerified` is
       // still true for it.
