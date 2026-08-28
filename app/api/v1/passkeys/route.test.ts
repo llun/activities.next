@@ -20,7 +20,15 @@ vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-let mockActor: { account: { id: string } | null } | null = null
+let mockActor: {
+  account: {
+    id: string
+    disabledAt?: number | null
+    verificationCode?: string | null
+    emailVerified?: boolean
+  } | null
+  suspendedAt?: number | null
+} | null = null
 vi.mock('@/lib/utils/getActorFromSession', () => ({
   getActorFromSession: () => Promise.resolve(mockActor)
 }))
@@ -156,6 +164,45 @@ describe('GET /api/v1/passkeys', () => {
     const response = await GET(createRequest(), { params: Promise.resolve({}) })
     const body = await response.json()
 
+    expect(response.status).toBe(200)
     expect(body[0].createdAt).toBe('2026-06-01T10:11:12.000Z')
+  })
+
+  it('returns 403 when actor is suspended', async () => {
+    mockActor = {
+      account: { id: 'account-1' },
+      suspendedAt: Date.now()
+    }
+
+    const response = await GET(createRequest(), { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({ error: 'Forbidden' })
+  })
+
+  it('returns 403 when account is disabled', async () => {
+    mockActor = {
+      account: { id: 'account-1', disabledAt: Date.now() }
+    }
+
+    const response = await GET(createRequest(), { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({ error: 'Forbidden' })
+  })
+
+  it('returns 403 when account confirmation is pending', async () => {
+    mockActor = {
+      account: {
+        id: 'account-1',
+        verificationCode: 'pending-code',
+        emailVerified: false
+      }
+    }
+
+    const response = await GET(createRequest(), { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({ error: 'Forbidden' })
   })
 })

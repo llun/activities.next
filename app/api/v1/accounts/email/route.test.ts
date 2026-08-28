@@ -219,4 +219,74 @@ describe('POST /api/v1/accounts/email', () => {
     })
     expect(mockDb.requestEmailChange).not.toHaveBeenCalled()
   })
+
+  it('returns 403 when actor is suspended', async () => {
+    mockDb.getActorsForAccount.mockResolvedValue([
+      { ...actor, suspendedAt: Date.now() }
+    ])
+
+    const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
+      method: 'POST',
+      body: JSON.stringify({ newEmail: 'new-email@llun.test' }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://llun.test'
+      }
+    })
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({ error: 'Forbidden' })
+    expect(mockDb.requestEmailChange).not.toHaveBeenCalled()
+  })
+
+  it('returns 403 when account is disabled', async () => {
+    mockDb.getActorsForAccount.mockResolvedValue([
+      { ...actor, account: { ...account, disabledAt: Date.now() } }
+    ])
+
+    const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
+      method: 'POST',
+      body: JSON.stringify({ newEmail: 'new-email@llun.test' }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://llun.test'
+      }
+    })
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({ error: 'Forbidden' })
+    expect(mockDb.requestEmailChange).not.toHaveBeenCalled()
+  })
+
+  it('returns 403 when account confirmation is pending', async () => {
+    mockDb.getActorsForAccount.mockResolvedValue([
+      {
+        ...actor,
+        account: {
+          ...account,
+          verificationCode: 'pending-code',
+          emailVerified: false
+        }
+      }
+    ])
+
+    const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
+      method: 'POST',
+      body: JSON.stringify({ newEmail: 'new-email@llun.test' }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://llun.test'
+      }
+    })
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({ error: 'Forbidden' })
+    expect(mockDb.requestEmailChange).not.toHaveBeenCalled()
+  })
 })

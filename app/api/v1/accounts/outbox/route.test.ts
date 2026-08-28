@@ -38,8 +38,9 @@ vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
+const mockGetActorFromSession = vi.fn()
 vi.mock('@/lib/utils/getActorFromSession', () => ({
-  getActorFromSession: vi.fn().mockResolvedValue(seedActor1)
+  getActorFromSession: (...args: unknown[]) => mockGetActorFromSession(...args)
 }))
 
 vi.mock('next/headers', () => ({
@@ -61,6 +62,14 @@ const buildAttachments = (count: number) =>
     height: 100
   }))
 
+const testAccount = {
+  id: 'account-1',
+  email: seedActor1.email,
+  defaultActorId: 'https://test.llun.dev/users/test1',
+  createdAt: Date.now(),
+  updatedAt: Date.now()
+}
+
 describe('POST /api/v1/accounts/outbox', () => {
   beforeEach(() => {
     mockCreateNoteFromUserInput.mockReset()
@@ -79,6 +88,7 @@ describe('POST /api/v1/accounts/outbox', () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
+    mockGetActorFromSession.mockResolvedValue(seedActor1)
     mockDatabase.getAllServerSettings.mockReset()
     mockDatabase.getAllServerSettings.mockResolvedValue([])
     // The resolver caches per database instance, and this mock is shared across
@@ -498,14 +508,87 @@ describe('POST /api/v1/accounts/outbox', () => {
       expect.objectContaining({ attachments })
     )
   })
+
+  it('returns 403 when actor is suspended', async () => {
+    mockGetActorFromSession.mockResolvedValueOnce({
+      ...seedActor1,
+      account: testAccount,
+      suspendedAt: Date.now()
+    })
+
+    const req = new NextRequest('http://localhost/api/v1/accounts/outbox', {
+      method: 'POST',
+      body: JSON.stringify({ type: 'note', message: 'hello' }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      }
+    })
+
+    const res = await POST(req, { params: Promise.resolve({}) })
+
+    expect(res.status).toBe(403)
+    await expect(res.json()).resolves.toEqual({ error: 'Forbidden' })
+    expect(mockCreateNoteFromUserInput).not.toHaveBeenCalled()
+  })
+
+  it('returns 403 when account is disabled', async () => {
+    mockGetActorFromSession.mockResolvedValueOnce({
+      ...seedActor1,
+      account: { ...testAccount, disabledAt: Date.now() }
+    })
+
+    const req = new NextRequest('http://localhost/api/v1/accounts/outbox', {
+      method: 'POST',
+      body: JSON.stringify({ type: 'note', message: 'hello' }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      }
+    })
+
+    const res = await POST(req, { params: Promise.resolve({}) })
+
+    expect(res.status).toBe(403)
+    await expect(res.json()).resolves.toEqual({ error: 'Forbidden' })
+    expect(mockCreateNoteFromUserInput).not.toHaveBeenCalled()
+  })
+
+  it('returns 403 when account confirmation is pending', async () => {
+    mockGetActorFromSession.mockResolvedValueOnce({
+      ...seedActor1,
+      account: {
+        ...testAccount,
+        verificationCode: 'pending-code',
+        emailVerified: false
+      }
+    })
+
+    const req = new NextRequest('http://localhost/api/v1/accounts/outbox', {
+      method: 'POST',
+      body: JSON.stringify({ type: 'note', message: 'hello' }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      }
+    })
+
+    const res = await POST(req, { params: Promise.resolve({}) })
+
+    expect(res.status).toBe(403)
+    await expect(res.json()).resolves.toEqual({ error: 'Forbidden' })
+    expect(mockCreateNoteFromUserInput).not.toHaveBeenCalled()
+  })
 })
 
 describe('DELETE /api/v1/accounts/outbox', () => {
   beforeEach(() => {
+    mockDeleteStatusFromUserInput.mockReset()
     mockCreatePollFromUserInput.mockReset()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
+    mockGetActorFromSession.mockResolvedValue(seedActor1)
   })
 
   it('returns 400 for invalid JSON', async () => {
@@ -544,5 +627,79 @@ describe('DELETE /api/v1/accounts/outbox', () => {
     expect(mockDeleteStatusFromUserInput).toHaveBeenCalledWith(
       expect.objectContaining({ statusId, currentActor: seedActor1 })
     )
+  })
+
+  it('returns 403 when actor is suspended', async () => {
+    mockGetActorFromSession.mockResolvedValueOnce({
+      ...seedActor1,
+      account: testAccount,
+      suspendedAt: Date.now()
+    })
+
+    const statusId = 'https://test.llun.dev/users/test1/statuses/delete-me'
+    const req = new NextRequest('http://localhost/api/v1/accounts/outbox', {
+      method: 'DELETE',
+      body: JSON.stringify({ statusId }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      }
+    })
+
+    const res = await DELETE(req, { params: Promise.resolve({}) })
+
+    expect(res.status).toBe(403)
+    await expect(res.json()).resolves.toEqual({ error: 'Forbidden' })
+    expect(mockDeleteStatusFromUserInput).not.toHaveBeenCalled()
+  })
+
+  it('returns 403 when account is disabled', async () => {
+    mockGetActorFromSession.mockResolvedValueOnce({
+      ...seedActor1,
+      account: { ...testAccount, disabledAt: Date.now() }
+    })
+
+    const statusId = 'https://test.llun.dev/users/test1/statuses/delete-me'
+    const req = new NextRequest('http://localhost/api/v1/accounts/outbox', {
+      method: 'DELETE',
+      body: JSON.stringify({ statusId }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      }
+    })
+
+    const res = await DELETE(req, { params: Promise.resolve({}) })
+
+    expect(res.status).toBe(403)
+    await expect(res.json()).resolves.toEqual({ error: 'Forbidden' })
+    expect(mockDeleteStatusFromUserInput).not.toHaveBeenCalled()
+  })
+
+  it('returns 403 when account confirmation is pending', async () => {
+    mockGetActorFromSession.mockResolvedValueOnce({
+      ...seedActor1,
+      account: {
+        ...testAccount,
+        verificationCode: 'pending-code',
+        emailVerified: false
+      }
+    })
+
+    const statusId = 'https://test.llun.dev/users/test1/statuses/delete-me'
+    const req = new NextRequest('http://localhost/api/v1/accounts/outbox', {
+      method: 'DELETE',
+      body: JSON.stringify({ statusId }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      }
+    })
+
+    const res = await DELETE(req, { params: Promise.resolve({}) })
+
+    expect(res.status).toBe(403)
+    await expect(res.json()).resolves.toEqual({ error: 'Forbidden' })
+    expect(mockDeleteStatusFromUserInput).not.toHaveBeenCalled()
   })
 })
