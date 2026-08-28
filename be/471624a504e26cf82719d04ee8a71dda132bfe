@@ -1,0 +1,30 @@
+AGENTS.md
+  h_580a04e334fef4 2021
+app/api/v1/accounts/connected-apps/[clientId]/route.test.ts
+  h_580a04e334fef4 123-174
+app/api/v1/accounts/email/route.test.ts
+  h_580a04e334fef4 222-291
+app/api/v1/accounts/outbox/route.test.ts
+  h_580a04e334fef4 41,43,65-72,91,511-581,586,591,631-704
+app/api/v1/accounts/password/route.test.ts
+  h_580a04e334fef4 163-250
+app/api/v1/passkeys/route.test.ts
+  h_580a04e334fef4 23-31,167,170-207
+lib/services/guards/AuthenticatedGuard.test.ts
+  h_580a04e334fef4 3,17-18,50,293-514
+lib/services/guards/AuthenticatedGuard.ts
+  h_580a04e334fef4 8-11,16-19,21-24,44-54
+REVIEW.md
+  h_580a04e334fef4 517-519,531-532,536-537
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "be471624a504e26cf82719d04ee8a71dda132bfe",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
