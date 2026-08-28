@@ -1,0 +1,26 @@
+lib/database/sql/oauthClientCredentialsScopesMigration.test.ts
+  s_573a4f61d609a9::t_ecc0050de95dcf 348-360,371-372
+  s_573a4f61d609a9::t_ade4913d9a7198 373
+AGENTS.md
+  s_573a4f61d609a9::t_92feb986a40809 1996-1997
+lib/services/oauth/clientCredentialsScopes.ts
+  s_573a4f61d609a9::t_ecc0050de95dcf 11-16,28-32
+migrations/20260828000000_backfill_oauth_client_credentials_scopes.js
+  s_573a4f61d609a9::t_18e0b016e89fc1 24-30,32-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "e49d0ee0c0794f0fe93e0e26830b5f135acf1663",
+  "prompts": {},
+  "sessions": {
+    "s_573a4f61d609a9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d903a10c-deef-49cb-ae5b-2198fabb750e",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
