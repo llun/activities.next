@@ -828,13 +828,20 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
 
   async updateAccountEmail({
     accountId,
-    email
+    email,
+    verificationCode
   }: UpdateAccountEmailParams): Promise<void> {
     const currentTime = new Date()
     await database('accounts')
       .where('id', accountId)
       .update({
         email: normalizeEmail(email),
+        // Written in the SAME statement as the address it belongs to. A
+        // confirmation code proves control of the address it was mailed to and
+        // nothing else — `verifyAccount` matches on the code alone — so a code
+        // that outlives a change of address confirms the new one on the
+        // strength of the old one having been received.
+        ...(verificationCode ? { verificationCode } : null),
         updatedAt: currentTime
       })
   },

@@ -74,6 +74,35 @@ describe('hydrateAdminAccounts', () => {
     })
   })
 
+  it('reports an account awaiting e-mail confirmation as unconfirmed', async () => {
+    // `confirmed` used to read `verifiedAt`, which carries
+    // DEFAULT CURRENT_TIMESTAMP and so was non-null for every account — so it
+    // answered `true` for exactly the accounts a moderator would be looking at
+    // because they cannot sign in.
+    await withDatabase(async ({ database }) => {
+      await database.createAccount({
+        email: `${LOCAL_USERNAME}@${TEST_DOMAIN}`,
+        username: LOCAL_USERNAME,
+        domain: TEST_DOMAIN,
+        passwordHash: 'hash',
+        privateKey: 'private',
+        publicKey: 'public',
+        verificationCode: 'pending-confirmation-code'
+      })
+
+      const publicIds = await database.getActorPublicIds({
+        actorIds: [LOCAL_ACTOR_ID]
+      })
+      const publicId = publicIds.get(LOCAL_ACTOR_ID) as string
+      const records = await database.getAdminAccounts({ limit: 100 })
+      const entities = await hydrateAdminAccounts(database, records)
+      const entity = byId(entities, publicId)
+
+      expect(entity).toBeDefined()
+      expect(entity?.confirmed).toBe(false)
+    })
+  })
+
   it('falls back to the legacy id for an actor that predates the backfill', async () => {
     await withDatabase(async ({ database, instance }) => {
       await database.createAccount({

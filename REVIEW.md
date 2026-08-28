@@ -498,12 +498,24 @@ change doesn't touch.
   never `verifiedAt`. `accounts.verifiedAt` carries `DEFAULT CURRENT_TIMESTAMP`
   (`20230824181927_add_accounts_verification`), so a pending registration gets a
   timestamp anyway and a `verifiedAt` test is a **no-op that reads as a working
-  gate** — which is what `canCreateSessionForAccount` shipped for two years.
+  gate**. The column has carried that default since 2023-08-24; every check
+  written against it since has been inert, `canCreateSessionForAccount`'s
+  included.
   `createAccount` writes an explicit `verifiedAt: null` now, but rows written
-  before that still carry the default.
-- Every authenticated surface refuses an unconfirmed account with 403
+  before that still carry the default. The same trap bit
+  `20260320072514_better_auth_columns`, whose `whereNotNull('verifiedAt')`
+  backfill consequently set `emailVerified = true` on every account of that
+  era, pending ones included — which is why `20260828140000_clear_stale_verification_codes`
+  exists and why `serializeAdminAccounts`' `confirmed` field had to stop reading
+  `verifiedAt` too.
+- Every MANDATORY authenticated surface refuses an unconfirmed account with 403
   (`isActorConfirmationPending` in `lib/services/guards/OAuthGuard.ts`), matching
-  Mastodon's `require_user!`. The reason it matters:
+  Mastodon's `require_user!`. `OptionalOAuthGuard` deliberately does NOT — it
+  passes `allowUnconfirmedAccount: true`, because Mastodon's counterpart
+  (`authorize_if_got_token!`) validates the token and never calls
+  `require_user!`. Gating it there made presenting a valid token FAIL a public
+  read that succeeds with no Authorization header at all. Suspension is
+  different and stays global in both codebases. The reason it matters:
   `POST /api/v1/accounts` returns a real user access token at registration and
   `POST /api/v1/apps` is unauthenticated, so a token that works before
   confirmation lets an anonymous party script usable accounts.

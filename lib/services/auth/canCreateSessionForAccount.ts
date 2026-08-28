@@ -27,7 +27,11 @@ type SessionAccountState = {
  * at all.
  */
 export const isAccountConfirmationPending = (
-  account: SessionAccountState
+  // Deliberately narrower than `SessionAccountState`: this reads one column, so
+  // it asks for one column. That lets a caller holding a raw SQL row — where
+  // the timestamps are `Date`, not epoch ms — use it without a cast.
+  // `serializeAdminAccounts` is that caller.
+  account: { verificationCode?: string | null }
 ): boolean => Boolean(account.verificationCode)
 
 export const canCreateSessionForAccount = (

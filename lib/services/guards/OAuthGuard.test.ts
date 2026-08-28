@@ -11,6 +11,7 @@ import {
   OAuthAppGuard,
   OAuthGuard,
   OAuthGuardAnyScope,
+  OptionalOAuthGuard,
   getTokenFromHeader
 } from './OAuthGuard'
 
@@ -1211,6 +1212,100 @@ describe('OAuthGuard', () => {
 
       expect(response.status).toBe(200)
       expect(mockHandler).toHaveBeenCalled()
+    })
+  })
+
+  describe('OptionalOAuthGuard and unconfirmed accounts', () => {
+    // This guard fronts the public-facing reads — `timelines/public`,
+    // `statuses/:id`, `accounts/:id/statuses`, search — where a token is
+    // optional. It had NO test coverage at all before this block.
+    const PENDING_EMAIL = 'optional-pending@llun.test'
+    const PENDING_USERNAME = 'optionalpending'
+    const PENDING_ACTOR_ID = `https://llun.test/users/${PENDING_USERNAME}`
+
+    beforeAll(async () => {
+      await database.createAccount({
+        domain: 'llun.test',
+        email: PENDING_EMAIL,
+        username: PENDING_USERNAME,
+        passwordHash: 'pending-password-hash',
+        privateKey: 'pending-private-key',
+        publicKey: 'pending-public-key',
+        verificationCode: 'optional-pending-code'
+      })
+    })
+
+    test('serves a request carrying an unconfirmed account token', async () => {
+      // Mastodon's counterpart is `authorize_if_got_token!`, which validates
+      // the token and scope and never calls `require_user!`; only
+      // `require_not_suspended!` is global. Applying the confirmation gate here
+      // made presenting a valid token FAIL a request that succeeds with no
+      // Authorization header at all.
+      mockGetServerSession.mockResolvedValue(null)
+      mockStoredTokens.set(hashToken('optional-unconfirmed-token'), {
+        token: hashToken('optional-unconfirmed-token'),
+        referenceId: PENDING_ACTOR_ID,
+        clientId: 'client-app-1',
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read'])
+      })
+
+      const guard = OptionalOAuthGuard([Scope.enum.read], mockHandler)
+      const response = await guard(
+        createRequest({ Authorization: 'Bearer optional-unconfirmed-token' }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
+    })
+
+    test('still refuses a suspended actor on the same guard', async () => {
+      // The carve-out is confirmation-only. Suspension IS global in Mastodon,
+      // and `isActorModerationBlocked` keeps running here.
+      mockGetServerSession.mockResolvedValue(null)
+      mockStoredTokens.set(hashToken('optional-suspended-token'), {
+        token: hashToken('optional-suspended-token'),
+        referenceId: PENDING_ACTOR_ID,
+        clientId: 'client-app-1',
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read'])
+      })
+      await database.setActorSuspended({
+        actorId: PENDING_ACTOR_ID,
+        suspended: true
+      })
+
+      try {
+        const guard = OptionalOAuthGuard([Scope.enum.read], mockHandler)
+        const response = await guard(
+          createRequest({ Authorization: 'Bearer optional-suspended-token' }),
+          { params: Promise.resolve({}) }
+        )
+
+        expect(response.status).toBe(403)
+        expect(mockHandler).not.toHaveBeenCalled()
+      } finally {
+        await database.setActorSuspended({
+          actorId: PENDING_ACTOR_ID,
+          suspended: false
+        })
+      }
+    })
+
+    test('falls through to the anonymous path with no token', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const guard = OptionalOAuthGuard([Scope.enum.read], mockHandler)
+      const response = await guard(createRequest(), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ currentActor: null })
+      )
     })
   })
 

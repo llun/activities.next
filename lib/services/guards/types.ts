@@ -42,8 +42,16 @@ export type AuthenticatedAppApiHandle<P> = (
     grantedScopes: string[]
     // The account the token was issued for; null for a genuine app
     // (client_credentials) token. This — not `currentActor` — is what tells the
-    // two apart: the guard also leaves `currentActor` null for a user-delegated
-    // token whose actor it could not resolve.
+    // two apart, and it is the single owner of that rule: the other two sites
+    // that care point here rather than restating it.
+    //
+    // `OAuthAppGuard` leaves `currentActor` null in two unrelated cases: a real
+    // app token, which has no user; and a user-delegated token whose actor it
+    // merely FAILED to resolve — the grant recorded no `referenceId` and
+    // `resolveAccountActorId` found no selectable actor, which happens when
+    // every actor the account owns is pending deletion (`selectAccountActor`
+    // skips those). Reading `currentActor` conflates them, and that let a user
+    // be accepted as an app and mint accounts.
     userId: string | null
     params: Promise<P>
   }

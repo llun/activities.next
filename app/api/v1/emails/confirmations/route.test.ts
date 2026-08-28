@@ -153,6 +153,56 @@ describe('POST /api/v1/emails/confirmations', () => {
     expect(mockDb.requestEmailChange).not.toHaveBeenCalled()
   })
 
+  it('rotates the verification code when the address is re-pointed', async () => {
+    // `verifyAccount` matches on the code alone, with no binding to the address
+    // it was mailed to. Carrying the old code across a re-point therefore lets
+    // whoever received it confirm an address they do not control: register with
+    // your own, re-point to someone else's, click the link you already have.
+    // The account ends up confirmed — and asserted `email_verified: true` over
+    // OIDC — for an address nobody proved they hold.
+    const response = await POST(makeRequest({ email: 'new-email@llun.test' }), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+
+    expect(mockDb.updateAccountEmail).toHaveBeenCalledTimes(1)
+    const [updateArgs] = mockDb.updateAccountEmail.mock.calls
+    expect(updateArgs[0].email).toBe('new-email@llun.test')
+    const rotated = updateArgs[0].verificationCode
+    expect(rotated).toEqual(expect.any(String))
+    expect(rotated).not.toBe(PENDING_CODE)
+    expect(rotated).toHaveLength(43)
+
+    // The address change and the code that confirms it are one write, so no
+    // window exists in which the row holds the new address and the old code.
+    expect(mockSendMail).toHaveBeenCalledTimes(1)
+    const [mailArgs] = mockSendMail.mock.calls
+    expect(mailArgs[0].to).toEqual(['new-email@llun.test'])
+    expect(mailArgs[0].content.text).toContain(
+      `https://llun.test/auth/confirmation?verificationCode=${rotated}`
+    )
+    // The superseded code must not travel with it.
+    expect(mailArgs[0].content.text).not.toContain(PENDING_CODE)
+  })
+
+  it('does not rotate the code on a plain resend to the same address', async () => {
+    // Rotation is gated on the address actually changing, matching the write.
+    // Rotating here would mail a code the row does not hold, so every resend
+    // would deliver a dead link.
+    const response = await POST(makeRequest({ email: seedActor1.email }), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    expect(mockDb.updateAccountEmail).not.toHaveBeenCalled()
+    expect(mockSendMail).toHaveBeenCalledTimes(1)
+    const [mailArgs] = mockSendMail.mock.calls
+    expect(mailArgs[0].content.text).toContain(
+      `https://llun.test/auth/confirmation?verificationCode=${PENDING_CODE}`
+    )
+  })
+
   it('returns 403 when the account has already confirmed its email', async () => {
     setAccount(buildAccount(null))
 
@@ -190,21 +240,28 @@ describe('POST /api/v1/emails/confirmations', () => {
     expect(mockDb.updateAccountEmail).toHaveBeenCalledTimes(1)
     expect(mockDb.updateAccountEmail).toHaveBeenCalledWith({
       accountId: 'account-1',
-      email: 'new-email@llun.test'
+      email: 'new-email@llun.test',
+      verificationCode: expect.any(String)
     })
     expect(mockDb.requestEmailChange).not.toHaveBeenCalled()
+
+    const rotated = mockDb.updateAccountEmail.mock.calls[0][0].verificationCode
 
     expect(mockSendMail).toHaveBeenCalledTimes(1)
     const [mailArgs] = mockSendMail.mock.calls
     expect(mailArgs[0].to).toEqual(['new-email@llun.test'])
-    // The resent link must carry the existing verificationCode so clicking it
-    // confirms the NEW address rather than stranding it.
+    // The resent link carries the code stored alongside the NEW address, so
+    // clicking it confirms that address rather than stranding it. It is a
+    // FRESH code: the previous one proved control of the previous address
+    // only, and `verifyAccount` matches on the code with no binding to the
+    // address it was mailed to.
     expect(mailArgs[0].content.text).toContain(
-      `https://llun.test/auth/confirmation?verificationCode=${PENDING_CODE}`
+      `https://llun.test/auth/confirmation?verificationCode=${rotated}`
     )
     expect(mailArgs[0].content.html).toContain(
-      `https://llun.test/auth/confirmation?verificationCode=${PENDING_CODE}`
+      `https://llun.test/auth/confirmation?verificationCode=${rotated}`
     )
+    expect(mailArgs[0].content.text).not.toContain(PENDING_CODE)
   })
 
   it('normalizes a mixed-case new email param to lowercase before updating', async () => {
@@ -221,7 +278,8 @@ describe('POST /api/v1/emails/confirmations', () => {
     })
     expect(mockDb.updateAccountEmail).toHaveBeenCalledWith({
       accountId: 'account-1',
-      email: 'new-email@llun.test'
+      email: 'new-email@llun.test',
+      verificationCode: expect.any(String)
     })
     const [mailArgs] = mockSendMail.mock.calls
     expect(mailArgs[0].to).toEqual(['new-email@llun.test'])
@@ -244,7 +302,8 @@ describe('POST /api/v1/emails/confirmations', () => {
     expect(response.status).toBe(200)
     expect(mockDb.updateAccountEmail).toHaveBeenCalledWith({
       accountId: 'account-1',
-      email: 'allowed@llun.test'
+      email: 'allowed@llun.test',
+      verificationCode: expect.any(String)
     })
   })
 
@@ -308,7 +367,8 @@ describe('POST /api/v1/emails/confirmations', () => {
     expect(response.status).toBe(200)
     expect(mockDb.updateAccountEmail).toHaveBeenCalledWith({
       accountId: 'account-1',
-      email: 'form-email@llun.test'
+      email: 'form-email@llun.test',
+      verificationCode: expect.any(String)
     })
     const [mailArgs] = mockSendMail.mock.calls
     expect(mailArgs[0].to).toEqual(['form-email@llun.test'])

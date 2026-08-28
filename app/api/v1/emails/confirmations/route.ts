@@ -6,6 +6,7 @@
 // resend (or redirect) its confirmation email. It therefore authenticates with
 // OAuthGuard (Bearer token, with a cookie-session fallback for the web UI) and
 // requires a `write` scope, rather than the cookie-only AuthenticatedGuard.
+import crypto from 'node:crypto'
 import { z } from 'zod'
 
 import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
@@ -112,12 +113,30 @@ export const POST = traceApiRoute(
       const newEmail = parsed.data.email
 
       // Optional `email` param updates the unconfirmed account's address
-      // directly before resending. Because the account is still unconfirmed we
-      // just point the existing verificationCode at the new address —
-      // verifyAccount then confirms the new email when the link is clicked.
-      // (This is distinct from the confirmed-user email-change flow in
-      // accounts/email, which uses the pending-change machinery.)
-      if (newEmail && newEmail !== account.email) {
+      // directly before resending. (This is distinct from the confirmed-user
+      // email-change flow in accounts/email, which uses the pending-change
+      // machinery.)
+      //
+      // The code is ROTATED with the address rather than carried across.
+      // `verifyAccount` matches on the code alone, with no binding to the
+      // address it was mailed to, so a code that survives a re-point confirms
+      // the NEW address on the strength of the OLD one having been received:
+      // register with an address you control, re-point to someone else's, then
+      // click the link you were already sent. That yields a confirmed account —
+      // and an OIDC `email_verified: true` claim (lib/services/oauth/userinfo.ts)
+      // — for an address the holder never proved they control. The
+      // confirmed-user flow next door already mints a fresh code per address
+      // for the same reason.
+      //
+      // Gated on the address actually CHANGING, matching the write below: a
+      // plain resend to the same address stores nothing, so rotating there
+      // would mail a code the row does not hold and every resend would deliver
+      // a dead link.
+      const isEmailChanging = Boolean(newEmail) && newEmail !== account.email
+      const rotatedVerificationCode = isEmailChanging
+        ? crypto.randomBytes(32).toString('base64url')
+        : null
+      if (isEmailChanging && newEmail) {
         // Honor the server's allow-list so the email param can't be used to
         // sidestep the same restriction enforced at registration.
         const { registrations } = await getResolvedServerSettings(database)
@@ -146,7 +165,10 @@ export const POST = traceApiRoute(
         try {
           await database.updateAccountEmail({
             accountId: account.id,
-            email: newEmail
+            email: newEmail,
+            ...(rotatedVerificationCode
+              ? { verificationCode: rotatedVerificationCode }
+              : null)
           })
         } catch (error) {
           // The pre-check above covers the common case, but a concurrent
@@ -165,10 +187,16 @@ export const POST = traceApiRoute(
       }
 
       const recipient = newEmail ?? account.email
+      // Send whichever code the account now holds: the rotated one when the
+      // address moved, the stored one when this is a plain resend. Mailing
+      // `account.verificationCode` unconditionally would send the code the
+      // rotation just replaced, so every re-point would deliver a dead link.
+      const verificationCode =
+        rotatedVerificationCode ?? account.verificationCode
       try {
         await sendConfirmationEmail({
           recipient,
-          verificationCode: account.verificationCode
+          verificationCode
         })
       } catch {
         logger.error({ to: recipient }, `Fail to send email`)

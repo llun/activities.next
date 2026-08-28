@@ -560,11 +560,8 @@ export const OAuthAppGuard =
       grantedScopes,
       database,
       params: context.params,
-      // The account the token was issued for, forwarded so a handler can ask
-      // "is this a genuine app token?" directly. `currentActor` cannot answer
-      // it: this guard also leaves it null when it merely FAILS to resolve an
-      // actor for a user-delegated token (see `resolveAccountActorId`), which
-      // is indistinguishable from an app token when read as one.
+      // See `AuthenticatedAppApiHandle`'s `userId` field for why this, and not
+      // `currentActor`, is what tells an app token from a user token.
       userId
     })
   }
@@ -593,7 +590,19 @@ export const OptionalOAuthGuard =
       req,
       context,
       scopes,
-      matchMode: options.matchMode ?? 'all'
+      matchMode: options.matchMode ?? 'all',
+      // Optional-auth routes do NOT apply the confirmation gate, and this is
+      // the one place the moderation check and the confirmation check
+      // deliberately diverge. Mastodon's equivalent of this guard is
+      // `authorize_if_got_token!`, which validates the token and scope and
+      // never calls `require_user!`; only `require_not_suspended!` is applied
+      // globally, which is what `isActorModerationBlocked` mirrors. Without
+      // this, presenting a valid-but-unconfirmed token to a public endpoint
+      // (`timelines/public`, `statuses/:id`, search, …) answered a hard 403,
+      // where sending NO Authorization header at all succeeded — a token made
+      // the request fail. Everything that actually requires a user still runs
+      // through the mandatory guards, which do apply the gate.
+      allowUnconfirmedAccount: true
     })
 
     if (result.authenticated) {
