@@ -120,4 +120,56 @@ describe('DELETE /api/v1/accounts/connected-apps/[clientId]', () => {
     expect(response.status).toBe(400)
     expect(mockDb.revokeAccountConnectedApp).not.toHaveBeenCalled()
   })
+
+  it('returns 403 when actor is suspended', async () => {
+    mockDb.getActorsForAccount.mockResolvedValue([
+      { ...actor, suspendedAt: Date.now() }
+    ])
+
+    const response = await DELETE(
+      buildRequest('http://llun.test/api/v1/accounts/connected-apps/ice-cubes'),
+      { params: Promise.resolve({ clientId: 'ice-cubes' }) }
+    )
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({ error: 'Forbidden' })
+    expect(mockDb.revokeAccountConnectedApp).not.toHaveBeenCalled()
+  })
+
+  it('returns 403 when account is disabled', async () => {
+    mockDb.getActorsForAccount.mockResolvedValue([
+      { ...actor, account: { ...account, disabledAt: Date.now() } }
+    ])
+
+    const response = await DELETE(
+      buildRequest('http://llun.test/api/v1/accounts/connected-apps/ice-cubes'),
+      { params: Promise.resolve({ clientId: 'ice-cubes' }) }
+    )
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({ error: 'Forbidden' })
+    expect(mockDb.revokeAccountConnectedApp).not.toHaveBeenCalled()
+  })
+
+  it('returns 403 when account confirmation is pending', async () => {
+    mockDb.getActorsForAccount.mockResolvedValue([
+      {
+        ...actor,
+        account: {
+          ...account,
+          verificationCode: 'pending-code',
+          emailVerified: false
+        }
+      }
+    ])
+
+    const response = await DELETE(
+      buildRequest('http://llun.test/api/v1/accounts/connected-apps/ice-cubes'),
+      { params: Promise.resolve({ clientId: 'ice-cubes' }) }
+    )
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({ error: 'Forbidden' })
+    expect(mockDb.revokeAccountConnectedApp).not.toHaveBeenCalled()
+  })
 })
