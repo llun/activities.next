@@ -1,0 +1,14 @@
+lib/services/guards/ActivityPubVerifyGuard.test.ts
+  h_580a04e334fef4 857-911
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "bda92462065f6d3fe127024fa41555849e2fcf14",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
