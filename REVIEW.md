@@ -519,7 +519,7 @@ change doesn't touch.
   `lib/services/guards/AdminApiGuard.ts`), matching Mastodon's
   `require_user!`. `OptionalOAuthGuard` deliberately does NOT — it
   DOWNGRADES such a token to the anonymous path
-  (`unconfirmedAccountDisposition: 'anonymous'`). Refusing made presenting a
+  (`unconfirmedAccount: 'anonymous'`). Refusing made presenting a
   valid token FAIL a public read that succeeds with no Authorization header at
   all; accepting the actor would let an unverified account read DMs addressed
   to it and drive outbound federation via `resolve=true`, which Mastodon does
@@ -529,15 +529,15 @@ change doesn't touch.
   `POST /api/v1/accounts` returns a real user access token at registration and
   `POST /api/v1/apps` is unauthenticated, so a token that works before
   confirmation lets an anonymous party script usable accounts.
-- `allowUnconfirmedAccount` (supported in `OAuthGuard` and
+- `unconfirmedAccount: 'allow'` (supported in `OAuthGuard` and
   `AuthenticatedGuard` options) has exactly one active route consumer,
   `POST /api/v1/emails/confirmations` — the endpoint that resends the
   confirmation e-mail, which Mastodon exempts too. A second consumer needs the
   same argument. It relaxes confirmation only: `isActorModerationBlocked` still
   runs in both guards, so a suspended actor or disabled account is refused there
   as well.
-  `OptionalOAuthGuard`'s anonymous downgrade is a different option and does not
-  count against this.
+  `OptionalOAuthGuard`'s `unconfirmedAccount: 'anonymous'` downgrade is a
+  different disposition and does not count against this.
 - `allowModerationBlocked` (supported in `AuthenticatedGuard` options) is
   reserved for restrictive revocation endpoints (`accounts/sessions`,
   `accounts/sessions/[token]`, `accounts/connected-apps/[clientId]`) so an owner

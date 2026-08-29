@@ -37,7 +37,7 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 // rather than a pointless resend.
 const guardOptions = {
   errorResponse: corsErrorResponse(CORS_HEADERS),
-  allowUnconfirmedAccount: true
+  unconfirmedAccount: 'allow' as const
 }
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
