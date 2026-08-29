@@ -10,6 +10,7 @@ import { deleteObjectJob } from './deleteObjectJob'
 import { emojiReactionJob } from './emojiReactionJob'
 import { fetchLinkPreviewJob } from './fetchLinkPreviewJob'
 import { fetchRemoteStatusJob } from './fetchRemoteStatusJob'
+import { forwardActivityJob } from './forwardActivityJob'
 import { generateFitnessRouteHeatmapJob } from './generateFitnessRouteHeatmapJob'
 import { handleQuoteRequestJob } from './handleQuoteRequestJob'
 import { importFitnessFilesJob } from './importFitnessFilesJob'
@@ -26,6 +27,7 @@ import {
   EMOJI_REACTION_JOB_NAME,
   FETCH_LINK_PREVIEW_JOB_NAME,
   FETCH_REMOTE_STATUS_JOB_NAME,
+  FORWARD_ACTIVITY_JOB_NAME,
   GENERATE_FITNESS_HEATMAP_JOB_NAME,
   GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME,
   HANDLE_QUOTE_REQUEST_JOB_NAME,
@@ -113,5 +115,6 @@ export const JOBS: Record<string, JobHandle> = {
   [PUBLISH_SCHEDULED_STATUS_JOB_NAME]: publishScheduledStatusJob,
   [INGEST_COLLECTION_MEMBER_JOB_NAME]: ingestCollectionMemberJob,
   [EMOJI_REACTION_JOB_NAME]: emojiReactionJob,
-  [FETCH_LINK_PREVIEW_JOB_NAME]: fetchLinkPreviewJob
+  [FETCH_LINK_PREVIEW_JOB_NAME]: fetchLinkPreviewJob,
+  [FORWARD_ACTIVITY_JOB_NAME]: forwardActivityJob
 }

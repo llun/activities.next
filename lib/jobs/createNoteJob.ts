@@ -14,9 +14,16 @@ import {
   getSummary,
   getTags
 } from '@/lib/activities/note'
+import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
+import {
+  getForwardingTargetLocalActorIds,
+  resolveForwardingInboxes,
+  shouldForwardActivity
+} from '@/lib/services/federation/forwardingDelivery'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLinkPreview'
 import { normalizeBlurhash } from '@/lib/services/medias/imageAnalysis'
+import { getQueue } from '@/lib/services/queue'
 import {
   persistInboundQuoteEdge,
   resolveInboundQuotedStatus
@@ -29,6 +36,7 @@ import {
   PageContent,
   VideoContent
 } from '@/lib/types/activitypub'
+import { CreateAction } from '@/lib/types/activitypub/activities'
 import { StatusType } from '@/lib/types/domain/status'
 import {
   normalizeActivityPubContent,
@@ -36,9 +44,10 @@ import {
   toRecipientArray
 } from '@/lib/utils/activitypub'
 import { isValidFocalPoint } from '@/lib/utils/focalPoint'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import { createJobHandle } from './createJobHandle'
-import { CREATE_NOTE_JOB_NAME } from './names'
+import { CREATE_NOTE_JOB_NAME, FORWARD_ACTIVITY_JOB_NAME } from './names'
 import { actorMatchesVerifiedSender } from './verifiedSender'
 
 export const createNoteJob = createJobHandle(
@@ -256,5 +265,58 @@ export const createNoteJob = createJobHandle(
     // in-process queue this runs the third-party fetch inline, and an inbound
     // post should not wait on someone else's server to become visible here.
     await syncStatusLinkPreview({ database, status })
+
+    // Outbound Inbox Forwarding (W3C ActivityPub §7.1.2):
+    // Fan out verified public replies and mentions of local users to their followers.
+    if (
+      shouldForwardActivity({
+        message,
+        authorActorId: actorId,
+        activityId: note.id,
+        to: note.to,
+        cc: note.cc
+      })
+    ) {
+      const targetLocalActorIds = await getForwardingTargetLocalActorIds({
+        database,
+        inReplyTo: note.inReplyTo,
+        tags: note.tag,
+        to: note.to,
+        cc: note.cc
+      })
+
+      if (targetLocalActorIds.length > 0) {
+        const inboxes = await resolveForwardingInboxes({
+          database,
+          targetLocalActorIds,
+          authorActorId: actorId,
+          to: note.to,
+          cc: note.cc
+        })
+
+        if (inboxes.length > 0) {
+          const createActivity = {
+            '@context': NOTE_ACTIVITY_CONTEXT,
+            id: `${note.id}#activity`,
+            type: CreateAction,
+            actor: note.attributedTo,
+            published: note.published,
+            to: note.to,
+            cc: note.cc,
+            object: note
+          }
+
+          await getQueue().publish({
+            id: `${getHashFromString(note.id)}#forward`,
+            name: FORWARD_ACTIVITY_JOB_NAME,
+            data: {
+              activity: createActivity,
+              inboxes,
+              localActorId: targetLocalActorIds[0]
+            }
+          })
+        }
+      }
+    }
   }
 )
