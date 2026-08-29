@@ -95,3 +95,4 @@ AGENTS.override.md
 
 # Git worktrees
 .worktrees/
+.aider*
