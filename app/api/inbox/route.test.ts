@@ -333,7 +333,7 @@ describe('POST /api/inbox', () => {
     )
   })
 
-  it('rejects Create Note activities whose inner object actor does not match the verified sender', async () => {
+  it('acknowledges with 202 without queueing when Create Note inner object actor does not match the verified sender', async () => {
     const actor = 'https://allowed.test/users/a'
     mockCanFederateWithDomain.mockResolvedValue(true)
     mockVerifiedSenderActorId = actor
@@ -353,7 +353,26 @@ describe('POST /api/inbox', () => {
       params: Promise.resolve({})
     })
 
-    expect(response.status).toBe(404)
+    expect(response.status).toBe(202)
+    expect(mockPublish).not.toHaveBeenCalled()
+  })
+
+  it('acknowledges with 202 without queueing when activity type is unsupported', async () => {
+    const actor = 'https://allowed.test/users/a'
+    mockCanFederateWithDomain.mockResolvedValue(true)
+    mockVerifiedSenderActorId = actor
+    mockActivityBody = {
+      id: `${actor}/activities/unsupported-1`,
+      type: 'Dislike',
+      actor,
+      object: `${actor}/statuses/1`
+    }
+
+    const response = await POST(createRequest(actor), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(202)
     expect(mockPublish).not.toHaveBeenCalled()
   })
 })
