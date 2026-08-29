@@ -424,6 +424,12 @@ export type RepointUnconfirmedAccountEmailParams = {
   // and `emailVerifiedAt` all move together, because each of them proves
   // control of the address it was set for and none may outlive it.
   //
+  // The UPDATE is predicated on the account still being pending
+  // (`verificationCode` non-empty and not marked `emailVerified`), so an
+  // account confirmed concurrently is not re-pointed. The re-read account is
+  // returned so the caller can distinguish "no such account" (null) from
+  // "no longer pending" (isAccountConfirmationPending false).
+  //
   // So do NOT reach for this to change a CONFIRMED account's address. It would
   // strip that account's verification and leave it unable to sign in
   // (`requireEmailVerification` reads `emailVerified`) and unable to resend
@@ -505,7 +511,7 @@ export interface AccountDatabase {
   changePassword(params: ChangePasswordParams): Promise<void>
   repointUnconfirmedAccountEmail(
     params: RepointUnconfirmedAccountEmailParams
-  ): Promise<void>
+  ): Promise<Account | null>
   updateAccountName(params: UpdateAccountNameParams): Promise<void>
   updateAccountImage(params: UpdateAccountImageParams): Promise<void>
 }

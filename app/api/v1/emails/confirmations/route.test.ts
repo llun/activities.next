@@ -134,7 +134,13 @@ describe('POST /api/v1/emails/confirmations', () => {
       }
     })
     mockSendMail.mockResolvedValue(undefined)
-    mockDb.repointUnconfirmedAccountEmail.mockResolvedValue(undefined)
+    mockDb.repointUnconfirmedAccountEmail.mockImplementation(
+      async ({ accountId, email, verificationCode }) => ({
+        ...buildAccount(verificationCode, false),
+        id: accountId,
+        email
+      })
+    )
     mockDb.requestEmailChange.mockResolvedValue(undefined)
     mockDb.isAccountExists.mockResolvedValue(false)
     setAccount(buildAccount(PENDING_CODE))
@@ -475,6 +481,37 @@ describe('POST /api/v1/emails/confirmations', () => {
     await expect(response.json()).resolves.toEqual({})
     expect(mockSendMail).not.toHaveBeenCalled()
   })
+
+  it('returns 403 when repointing an account that is no longer pending confirmation', async () => {
+    mockDb.repointUnconfirmedAccountEmail.mockResolvedValue(
+      buildAccount(null, true)
+    )
+
+    const response = await POST(makeRequest({ email: 'new-email@llun.test' }), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({
+      error:
+        'This method is only available while the e-mail is awaiting confirmation'
+    })
+    expect(mockSendMail).not.toHaveBeenCalled()
+  })
+
+  it('returns 404 when repointing an account that does not exist in the database', async () => {
+    mockDb.repointUnconfirmedAccountEmail.mockResolvedValue(null)
+
+    const response = await POST(makeRequest({ email: 'new-email@llun.test' }), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(404)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Account not found'
+    })
+    expect(mockSendMail).not.toHaveBeenCalled()
+  })
 })
 
 // Exercises the route's documented primary path: a freshly-registered client
@@ -493,10 +530,14 @@ describe('POST /api/v1/emails/confirmations with a Bearer token', () => {
   })
   const apiDatabase: Database = getSQLDatabase(apiKnex)
 
-  const bearerRequest = (token: string) =>
+  const bearerRequest = (token: string, body?: unknown) =>
     new NextRequest('https://llun.test/api/v1/emails/confirmations', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` }
+      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {})
+      }
     })
 
   beforeAll(async () => {
@@ -578,5 +619,68 @@ describe('POST /api/v1/emails/confirmations with a Bearer token', () => {
 
     expect(response.status).toBe(401)
     expect(mockSendMail).not.toHaveBeenCalled()
+  })
+
+  it('refuses to repoint and returns 403 when confirmation lands between guard read and database write', async () => {
+    const RACE_USERNAME = 'racepending'
+    const RACE_USER_TOKEN = 'race-user-token-value'
+    const raceAccountId = await apiDatabase.createAccount({
+      domain: DOMAIN,
+      email: 'racepending@llun.test',
+      username: RACE_USERNAME,
+      name: 'Race Pending',
+      passwordHash: 'hashed-password',
+      verificationCode: 'race-pending-code',
+      privateKey: 'private-key-race',
+      publicKey: 'public-key-race'
+    })
+    const raceActor = await apiDatabase.getActorFromUsername({
+      username: RACE_USERNAME,
+      domain: DOMAIN
+    })
+    await apiKnex('oauthAccessToken').insert({
+      id: 'race-token-row',
+      token: hashToken(RACE_USER_TOKEN),
+      clientId: CLIENT_ID,
+      userId: raceAccountId,
+      referenceId: raceActor!.id,
+      scopes: JSON.stringify([Scope.enum.read, Scope.enum.write]),
+      expiresAt: new Date(Date.now() + 3_600_000),
+      createdAt: new Date()
+    })
+
+    // Intercept during route execution (after guard reads the pending account)
+    // to simulate a concurrent confirmation landing before the UPDATE statement.
+    const origIsAccountExists = apiDatabase.isAccountExists.bind(apiDatabase)
+    vi.spyOn(apiDatabase, 'isAccountExists').mockImplementation(
+      async (params) => {
+        await apiDatabase.verifyAccount({
+          verificationCode: 'race-pending-code'
+        })
+        return origIsAccountExists(params)
+      }
+    )
+
+    const response = await POST(
+      bearerRequest(RACE_USER_TOKEN, { email: 'hijacked@llun.test' }),
+      {
+        params: Promise.resolve({})
+      }
+    )
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({
+      error:
+        'This method is only available while the e-mail is awaiting confirmation'
+    })
+    expect(mockSendMail).not.toHaveBeenCalled()
+
+    // The database row must NOT have been overwritten by the race.
+    const accountInDb = await apiDatabase.getAccountFromId({
+      id: raceAccountId
+    })
+    expect(accountInDb?.email).toBe('racepending@llun.test')
+    expect(accountInDb?.emailVerified).toBeTrue()
+    expect(accountInDb?.verificationCode).toBe('')
   })
 })
