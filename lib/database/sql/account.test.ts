@@ -239,6 +239,34 @@ describe('AccountDatabase', () => {
         expect(result).toBeNull()
       })
 
+      it('restores all verification proofs when a repointed address is confirmed', async () => {
+        const initialCode = `pending-${crypto.randomUUID()}`
+        const { accountId } = await createTestAccount({
+          verificationCode: initialCode
+        })
+        const rotatedCode = `code-${crypto.randomUUID()}`
+        const repointed = await database.repointUnconfirmedAccountEmail({
+          accountId,
+          email: `repointed-${crypto.randomUUID()}@${TEST_DOMAIN}`,
+          verificationCode: rotatedCode
+        })
+
+        expect(repointed?.emailVerified).toBeFalse()
+        expect(repointed?.verifiedAt).toBeNil()
+        expect(repointed?.emailVerifiedAt).toBeNil()
+
+        const confirmed = await database.verifyAccount({
+          verificationCode: rotatedCode
+        })
+        expect(confirmed).toMatchObject({
+          id: accountId,
+          verificationCode: '',
+          verifiedAt: expect.toBeNumber(),
+          emailVerified: true,
+          emailVerifiedAt: expect.toBeNumber()
+        })
+      })
+
       it('leaves verifiedAt null while a confirmation is outstanding', async () => {
         // `accounts.verifiedAt` carries DEFAULT CURRENT_TIMESTAMP
         // (20230824181927_add_accounts_verification), so omitting the column —
@@ -262,7 +290,9 @@ describe('AccountDatabase', () => {
         expect(verified).toMatchObject({
           id: accountId,
           verificationCode: '',
-          verifiedAt: expect.toBeNumber()
+          verifiedAt: expect.toBeNumber(),
+          emailVerified: true,
+          emailVerifiedAt: expect.toBeNumber()
         })
 
         const invalid = await database.verifyAccount({
