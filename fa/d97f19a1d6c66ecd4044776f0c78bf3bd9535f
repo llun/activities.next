@@ -1,0 +1,48 @@
+.env.example
+  h_580a04e334fef4 67-70
+docs/architecture.md
+  h_580a04e334fef4 191,202-219
+docs/environment-variables.md
+  h_580a04e334fef4 377
+lib/activities/index.ts
+  h_580a04e334fef4 1112-1141
+lib/config/federation.test.ts
+  h_580a04e334fef4 1-34
+lib/config/federation.ts
+  h_580a04e334fef4 1-2
+lib/jobs/createNoteJob.test.ts
+  h_580a04e334fef4 7-11,1430-1571
+lib/jobs/createNoteJob.ts
+  h_580a04e334fef4 17-22,26,39,47,50,268-320
+lib/jobs/deleteObjectJob.test.ts
+  h_580a04e334fef4 5-9,529-608
+lib/jobs/deleteObjectJob.ts
+  h_580a04e334fef4 1-7,9,15,19,127-186
+lib/jobs/forwardActivityJob.test.ts
+  h_580a04e334fef4 1-142
+lib/jobs/forwardActivityJob.ts
+  h_580a04e334fef4 1-76
+lib/jobs/index.ts
+  h_580a04e334fef4 13,30,118-119
+lib/jobs/names.ts
+  h_580a04e334fef4 38
+lib/jobs/updateNoteJob.test.ts
+  h_580a04e334fef4 6-10,12,825-917
+lib/jobs/updateNoteJob.ts
+  h_580a04e334fef4 9-14,18,27,33,38-42,177-229
+lib/services/federation/forwardingDelivery.test.ts
+  h_580a04e334fef4 1-363
+lib/services/federation/forwardingDelivery.ts
+  h_580a04e334fef4 1-242
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "fad97f19a1d6c66ecd4044776f0c78bf3bd9535f",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
