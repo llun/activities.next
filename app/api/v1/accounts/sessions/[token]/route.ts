@@ -41,7 +41,12 @@ export const DELETE = traceApiRoute(
         })
 
       if (accountSession.account.id !== currentActor.account?.id) {
-        throw new Error('Invalid token')
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
       }
 
       await database.deleteAccountSession({ token })

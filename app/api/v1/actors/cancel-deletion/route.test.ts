@@ -247,4 +247,15 @@ describe('POST /api/v1/actors/cancel-deletion', () => {
     expect(response.status).toBe(401)
     expect(mockDb.cancelActorDeletion).not.toHaveBeenCalled()
   })
+
+  it('returns 401 when account cannot be resolved from session', async () => {
+    mockDb.getAccountFromEmail.mockResolvedValue(null as never)
+
+    const response = await POST(buildRequest({ actorId: 'actor-b' }), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(401)
+    expect(mockDb.cancelActorDeletion).not.toHaveBeenCalled()
+  })
 })

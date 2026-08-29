@@ -160,6 +160,21 @@ describe('DELETE /api/v1/accounts/sessions/[token]', () => {
     expect(mockDb.deleteAccountSession).not.toHaveBeenCalled()
   })
 
+  it('returns 404 when session belongs to another account', async () => {
+    mockDb.getAccountSession.mockResolvedValue({
+      token: 'other-session-token',
+      account: { id: 'other-account-id' }
+    } as never)
+
+    const response = await DELETE(buildRequest(), {
+      params: Promise.resolve({ token: 'other-session-token' })
+    })
+
+    expect(response.status).toBe(404)
+    await expect(response.json()).resolves.toEqual({ error: 'Not Found' })
+    expect(mockDb.deleteAccountSession).not.toHaveBeenCalled()
+  })
+
   it('returns 400 when token param is empty', async () => {
     const response = await DELETE(buildRequest(), {
       params: Promise.resolve({ token: '' })
