@@ -1,8 +1,12 @@
 import { NextRequest } from 'next/server'
 
 import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
-import { HANDLE_QUOTE_REQUEST_JOB_NAME } from '@/lib/jobs/names'
+import {
+  HANDLE_QUOTE_REQUEST_JOB_NAME,
+  PROCESS_FORWARDED_ACTIVITY_JOB_NAME
+} from '@/lib/jobs/names'
 import { setupRecordingTracer } from '@/lib/testing/recordingTracer'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import { POST } from './route'
 
@@ -229,6 +233,7 @@ describe('POST /api/users/[username]/inbox', () => {
     harness = setupRecordingTracer()
     vi.clearAllMocks()
     mockForwarded = false
+    mockPublish.mockReset()
     mockActor = {
       id: 'https://activities.local/users/llun',
       username: 'llun',
@@ -1207,6 +1212,127 @@ describe('POST /api/users/[username]/inbox', () => {
       'inbox.activity_id': 'https://remote.test/users/alice/follows/1',
       'inbox.activity_type': 'Follow',
       'inbox.activity_object_id': 'https://activities.local/users/llun'
+    })
+  })
+
+  describe('forwarded activity handling', () => {
+    const author = 'https://writing.example/users/ninetiger'
+
+    it('routes a forwarded Create to the forwarded-activity job', async () => {
+      mockCanFederateWithDomain.mockResolvedValue(true)
+      mockForwarded = true
+      const activityId = `${author}/statuses/1/activity`
+      mockActivityBody = {
+        id: activityId,
+        type: 'Create',
+        actor: author,
+        object: {
+          id: `${author}/statuses/1`,
+          type: 'Note',
+          attributedTo: author
+        }
+      }
+
+      const response = await POST(
+        new NextRequest('https://activities.local/api/users/llun/inbox', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(mockActivityBody)
+        }),
+        { params: Promise.resolve({ username: 'llun' }) }
+      )
+
+      expect(response.status).toBe(202)
+      expect(mockPublish).toHaveBeenCalledTimes(1)
+      expect(mockPublish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: PROCESS_FORWARDED_ACTIVITY_JOB_NAME,
+          id: getHashFromString(`${activityId}#forwarded`)
+        })
+      )
+      expect(mockPublish.mock.calls[0][0]).not.toHaveProperty(
+        'verifiedSenderActorId'
+      )
+    })
+
+    it('never applies a forwarded Follow', async () => {
+      mockCanFederateWithDomain.mockResolvedValue(true)
+      mockForwarded = true
+      mockActivityBody = {
+        id: 'https://remote.test/users/mallory/activities/1',
+        type: 'Follow',
+        actor: 'https://remote.test/users/mallory',
+        object: 'https://activities.local/users/llun'
+      }
+
+      const response = await POST(
+        new NextRequest('https://activities.local/api/users/llun/inbox', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(mockActivityBody)
+        }),
+        { params: Promise.resolve({ username: 'llun' }) }
+      )
+
+      expect(response.status).toBe(202)
+      expect(mockCreateFollower).not.toHaveBeenCalled()
+      expect(mockPublish).not.toHaveBeenCalled()
+    })
+
+    it('never treats a forwarded Accept as a relay handshake', async () => {
+      mockActor = {
+        id: 'https://activities.local/users/__instance__',
+        username: '__instance__',
+        type: 'Service',
+        privateKey: 'private-key'
+      }
+      mockForwarded = true
+      mockActivityBody = {
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: 'https://relay.example/activities/accept',
+        type: 'Accept',
+        actor: 'https://relay.example/actor',
+        object: 'https://activities.local/relay-follow-1'
+      }
+
+      const response = await POST(
+        new NextRequest(
+          'https://activities.local/api/users/__instance__/inbox',
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(mockActivityBody)
+          }
+        ),
+        { params: Promise.resolve({ username: '__instance__' }) }
+      )
+
+      expect(response.status).toBe(202)
+      expect(mockAcceptRelayRequest).not.toHaveBeenCalled()
+      expect(mockPublish).not.toHaveBeenCalled()
+    })
+
+    it('drops a forwarded activity from a non-federatable author domain', async () => {
+      mockCanFederateWithDomain.mockResolvedValue(false)
+      mockForwarded = true
+      mockActivityBody = {
+        id: 'https://blocked.test/activities/1',
+        type: 'Create',
+        actor: 'https://blocked.test/users/blocked',
+        object: 'https://blocked.test/statuses/1'
+      }
+
+      const response = await POST(
+        new NextRequest('https://activities.local/api/users/llun/inbox', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(mockActivityBody)
+        }),
+        { params: Promise.resolve({ username: 'llun' }) }
+      )
+
+      expect(response.status).toBe(202)
+      expect(mockPublish).not.toHaveBeenCalled()
     })
   })
 })
