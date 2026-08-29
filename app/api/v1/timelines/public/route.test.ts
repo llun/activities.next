@@ -1,6 +1,9 @@
 import { NextRequest } from 'next/server'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import {
+  getTestSQLDatabase,
+  getTestSQLDatabaseWithInstance
+} from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { statusPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -17,8 +20,11 @@ vi.mock('@/lib/services/auth/getSession', () => ({
 }))
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+let mockKnex:
+  ReturnType<typeof getTestSQLDatabaseWithInstance>['instance'] | null = null
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase
+  getDatabase: () => mockDatabase,
+  getKnex: () => mockKnex
 }))
 
 vi.mock('next/headers', () => ({
@@ -38,11 +44,12 @@ vi.mock('@/lib/config', () => ({
     allowEmails: [],
     host: 'llun.test',
     secretPhase: 'test-secret'
-  })
+  }),
+  getBaseURL: () => 'https://llun.test'
 }))
 
 describe('GET /api/v1/timelines/public', () => {
-  const database = getTestSQLDatabase()
+  const { database, instance } = getTestSQLDatabaseWithInstance()
   let publicStatus: Status
 
   beforeAll(async () => {
@@ -57,6 +64,7 @@ describe('GET /api/v1/timelines/public', () => {
       text: 'public timeline post'
     })
     mockDatabase = database
+    mockKnex = instance
   })
 
   afterAll(async () => {
@@ -387,6 +395,26 @@ describe('GET /api/v1/timelines/public', () => {
       expect(link).toContain('rel="next"')
       expect(link).toContain('remote=true')
       expect(link).not.toContain('local=true')
+    })
+
+    it('returns 200 OK as anonymous when an invalid or expired bearer token is sent (matching Mastodon)', async () => {
+      vi.spyOn(database, 'getTimeline').mockResolvedValue([publicStatus])
+
+      const req = new NextRequest('https://llun.test/api/v1/timelines/public', {
+        headers: {
+          Authorization: 'Bearer expired-or-invalid-token'
+        }
+      })
+
+      const response = await GET(req, {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.map((status: { id: string }) => status.id)).toEqual([
+        await statusPublicId(database, publicStatus.id)
+      ])
     })
   })
 })

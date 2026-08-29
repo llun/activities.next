@@ -194,7 +194,37 @@ describe('GET /api/v1/accounts/:id/media', () => {
   // The guard's own rejection paths return a bare apiErrorResponse, which
   // carries no CORS headers; a cross-origin caller would see an opaque browser
   // failure rather than the JSON error. `errorResponse` is what restores them.
-  it('keeps CORS headers on a guard-rejected response', async () => {
+  it('keeps CORS headers on a guard-rejected response (e.g. suspended actor)', async () => {
+    mockStoredToken.mockResolvedValue({
+      expiresAt: new Date(Date.now() + 60_000),
+      referenceId: ACTOR1_ID,
+      scopes: 'read'
+    })
+    await database.setActorSuspended({
+      actorId: ACTOR1_ID,
+      suspended: true
+    })
+
+    try {
+      const response = await GET(
+        new NextRequest(
+          `https://llun.test/api/v1/accounts/${urlToId(ACTOR1_ID)}/media`,
+          { method: 'GET', headers: { Authorization: 'Bearer suspended' } }
+        ),
+        { params: Promise.resolve({ id: urlToId(ACTOR1_ID) }) }
+      )
+
+      expect(response.status).toBe(403)
+      expect(response.headers.get('Access-Control-Allow-Origin')).toBeTruthy()
+    } finally {
+      await database.setActorSuspended({
+        actorId: ACTOR1_ID,
+        suspended: false
+      })
+    }
+  })
+
+  it('serves public media when an expired bearer token is provided (matching Mastodon)', async () => {
     mockStoredToken.mockResolvedValue({
       expiresAt: new Date(Date.now() - 60_000),
       referenceId: ACTOR1_ID,
@@ -203,14 +233,17 @@ describe('GET /api/v1/accounts/:id/media', () => {
 
     const response = await GET(
       new NextRequest(
-        `https://llun.test/api/v1/accounts/${urlToId(ACTOR1_ID)}/media`,
+        `https://llun.test/api/v1/accounts/${urlToId(ACTOR1_ID)}/media?limit=50`,
         { method: 'GET', headers: { Authorization: 'Bearer expired' } }
       ),
       { params: Promise.resolve({ id: urlToId(ACTOR1_ID) }) }
     )
 
-    expect(response.status).toBe(401)
-    expect(response.headers.get('Access-Control-Allow-Origin')).toBeTruthy()
+    expect(response.status).toBe(200)
+    const urls = await mediaUrls(response)
+    expect(urls).toContain(PUBLIC_MEDIA_URL)
+    expect(urls).not.toContain(FOLLOWERS_MEDIA_URL)
+    expect(urls).not.toContain(DIRECT_MEDIA_URL)
   })
 
   it('serves the owner their own private attachments', async () => {
