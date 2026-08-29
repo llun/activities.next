@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
 
+import { PROCESS_FORWARDED_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
 import { setupRecordingTracer } from '@/lib/testing/recordingTracer'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import { POST } from './route'
 
@@ -120,6 +122,7 @@ describe('POST /api/inbox', () => {
     mockConsumeRequestBody = false
     mockVerifiedSenderActorId = 'https://allowed.test/users/a'
     mockForwarded = false
+    mockPublish.mockReset()
     mockGetRelayByActorId.mockResolvedValue(null)
     mockGetModerationStatesForActors.mockResolvedValue(new Map())
   })
@@ -464,5 +467,113 @@ describe('POST /api/inbox', () => {
     expect(mockLogger.error.mock.calls[0][0].err.message).toBe(
       'queue publish failed'
     )
+  })
+
+  describe('forwarded activity handling', () => {
+    const author = 'https://writing.example/users/ninetiger'
+    const forwarder = 'https://mstdn.social/users/grickle'
+
+    it('routes a forwarded Create to the forwarded-activity job', async () => {
+      mockCanFederateWithDomain.mockResolvedValue(true)
+      mockVerifiedSenderActorId = forwarder
+      mockForwarded = true
+      const activityId = `${author}/statuses/1/activity`
+      mockActivityBody = {
+        id: activityId,
+        type: 'Create',
+        actor: author,
+        object: {
+          id: `${author}/statuses/1`,
+          type: 'Note',
+          attributedTo: author
+        }
+      }
+
+      const response = await POST(createRequest(author), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(202)
+      expect(mockPublish).toHaveBeenCalledTimes(1)
+      expect(mockPublish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: PROCESS_FORWARDED_ACTIVITY_JOB_NAME,
+          id: getHashFromString(`${activityId}#forwarded`)
+        })
+      )
+      expect(mockPublish.mock.calls[0][0]).not.toHaveProperty(
+        'verifiedSenderActorId'
+      )
+    })
+
+    it('routes a forwarded Delete to the forwarded-activity job', async () => {
+      mockCanFederateWithDomain.mockResolvedValue(true)
+      mockVerifiedSenderActorId = forwarder
+      mockForwarded = true
+      const activityId = `${author}/statuses/1/delete`
+      mockActivityBody = {
+        id: activityId,
+        type: 'Delete',
+        actor: author,
+        object: `${author}/statuses/1`
+      }
+
+      const response = await POST(createRequest(author), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(202)
+      expect(mockPublish).toHaveBeenCalledTimes(1)
+      expect(mockPublish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: PROCESS_FORWARDED_ACTIVITY_JOB_NAME,
+          id: getHashFromString(`${activityId}#forwarded`)
+        })
+      )
+      expect(mockPublish.mock.calls[0][0]).not.toHaveProperty(
+        'verifiedSenderActorId'
+      )
+    })
+
+    it('acknowledges and drops a forwarded Announce', async () => {
+      mockCanFederateWithDomain.mockResolvedValue(true)
+      mockVerifiedSenderActorId = forwarder
+      mockForwarded = true
+      mockActivityBody = {
+        id: `${author}/statuses/1/announce`,
+        type: 'Announce',
+        actor: author,
+        object: `${author}/statuses/1`
+      }
+
+      const response = await POST(createRequest(author), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(202)
+      expect(mockPublish).not.toHaveBeenCalled()
+    })
+
+    it('still rejects a forwarded delivery from a non-federatable domain', async () => {
+      mockCanFederateWithDomain.mockResolvedValue(false)
+      mockVerifiedSenderActorId = forwarder
+      mockForwarded = true
+      mockActivityBody = {
+        id: `${author}/statuses/1/activity`,
+        type: 'Create',
+        actor: author,
+        object: {
+          id: `${author}/statuses/1`,
+          type: 'Note'
+        }
+      }
+
+      const response = await POST(createRequest(author), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(403)
+      expect(mockPublish).not.toHaveBeenCalled()
+    })
   })
 })
