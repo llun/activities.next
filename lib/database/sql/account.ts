@@ -291,6 +291,8 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
   },
 
   async verifyAccount({ verificationCode }: VerifyAccountParams) {
+    if (!verificationCode) return null
+
     const account = await database<SQLAccount>('accounts')
       .where('verificationCode', verificationCode)
       .first()
@@ -301,6 +303,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       verificationCode: '',
       verifiedAt: currentTime,
       emailVerified: true,
+      emailVerifiedAt: currentTime,
       updatedAt: currentTime
     })
     return this.getAccountFromId({ id: account.id })
@@ -851,11 +854,10 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         // together, and for what this method must not be used for.
         verificationCode,
         // Local nuance not in that type doc: `verifyAccount` restores
-        // `verifiedAt` and `emailVerified` when the new address is confirmed,
-        // but NOT `emailVerifiedAt` — only `verifyEmailChange` writes that one
-        // — so an account that had previously changed its address loses the
-        // `/account` "Verified" badge until it next completes that flow, which
-        // it can do with the address it already holds.
+        // `verifiedAt`, `emailVerified`, and `emailVerifiedAt` when the new
+        // address is confirmed, so an account that re-points an unconfirmed
+        // address recovers every verification proof — including the `/account`
+        // "Verified" badge — upon confirmation.
         emailVerified: false,
         verifiedAt: null,
         emailVerifiedAt: null,
