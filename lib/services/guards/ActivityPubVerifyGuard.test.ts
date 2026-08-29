@@ -854,5 +854,60 @@ describe('ActivityPubVerifySenderGuard', () => {
       expect(typeof keyIdAttr).toBe('string')
       expect((keyIdAttr as string).length).toBe(500)
     })
+
+    it('skips undefined extra attributes without stamping them on the span', async () => {
+      mockGetSenderPublicKeyDetails.mockResolvedValue({
+        owner: null,
+        publicKey: ''
+      })
+      mockVerify.mockResolvedValue(false)
+
+      const handler = vi.fn()
+      const guard = ActivityPubVerifySenderGuard(handler)
+
+      const response = await runGuardInSpan(
+        guard,
+        createSignedPostRequest({
+          body: {
+            id: 'https://remote.test/users/alice/activities/1',
+            type: 'Follow',
+            actor: 'https://remote.test/users/alice'
+          }
+        })
+      )
+
+      expect(response.status).toBe(400)
+      expect(harness.recordedSpans).toHaveLength(1)
+      expect('inbox.key_owner' in harness.recordedSpans[0].attributes).toBe(
+        false
+      )
+    })
+
+    it('does not set attributes when the active span is not recording', async () => {
+      const handler = vi.fn()
+      const guard = ActivityPubVerifySenderGuard(handler)
+
+      const setAttributeSpy = vi.fn()
+      const nonRecordingSpan = {
+        isRecording: () => false,
+        setAttribute: setAttributeSpy,
+        setStatus: vi.fn()
+      }
+
+      vi.spyOn(trace, 'getActiveSpan').mockReturnValue(
+        nonRecordingSpan as never
+      )
+
+      const response = await guard(
+        new NextRequest('https://activities.local/api/inbox', {
+          method: 'POST',
+          headers: { host: 'activities.local' }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(400)
+      expect(setAttributeSpy).not.toHaveBeenCalled()
+    })
   })
 })
