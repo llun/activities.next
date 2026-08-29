@@ -44,8 +44,42 @@ describe('logger configuration and GCP formatters', () => {
     expect(bindings.serviceContext?.version).toBe(VERSION)
   })
 
-  it('formats severity and Error Reporting type when running in GCP', async () => {
-    process.env.K_SERVICE = 'test-service'
+  it('respects LOG_LEVEL environment variable', async () => {
+    process.env.LOG_LEVEL = 'debug'
+
+    const { logger } = await import('@/lib/utils/logger')
+    expect(logger.level).toBe('debug')
+  })
+
+  it('formats standard level object when not running in GCP', async () => {
+    delete process.env.K_SERVICE
+    delete process.env.GOOGLE_CLOUD_PROJECT
+    const logs: string[] = []
+
+    const { getLoggerOptions } = await import('@/lib/utils/logger')
+    const destination = {
+      write(chunk: string) {
+        logs.push(chunk)
+      }
+    }
+    const testLogger = pino(getLoggerOptions(), destination)
+
+    testLogger.warn('Non-GCP warning')
+    const warnEntry = JSON.parse(logs[0])
+    expect(warnEntry.level).toBe('warn')
+    expect(warnEntry.severity).toBeUndefined()
+    expect(warnEntry['@type']).toBeUndefined()
+
+    testLogger.error('Non-GCP error')
+    const errorEntry = JSON.parse(logs[1])
+    expect(errorEntry.level).toBe('error')
+    expect(errorEntry.severity).toBeUndefined()
+    expect(errorEntry['@type']).toBeUndefined()
+  })
+
+  it('formats severity and Error Reporting type when running in GCP via K_SERVICE or GOOGLE_CLOUD_PROJECT', async () => {
+    process.env.GOOGLE_CLOUD_PROJECT = 'my-gcp-project'
+    delete process.env.K_SERVICE
     const logs: string[] = []
 
     const { getLoggerOptions } = await import('@/lib/utils/logger')
