@@ -26,6 +26,7 @@ import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { isRecord } from '@/lib/utils/typeGuards'
 
+import { getForwardedJobMessage } from './getForwardedJobMessage'
 import { getJobMessage } from './getJobMessage'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
@@ -35,7 +36,10 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 export const POST = traceApiRoute(
   'sharedInbox',
   ActivityPubVerifySenderGuard(
-    async (request, { activityBody, database, verifiedSenderActorId }) => {
+    async (
+      request,
+      { activityBody, database, forwarded, verifiedSenderActorId }
+    ) => {
       try {
         // Canonicalise the activity (and its embedded object) via JSON-LD
         // compaction before matching on `type`/`object.type`, so dialect
@@ -91,6 +95,31 @@ export const POST = traceApiRoute(
           actorIds: [verifiedSenderActorId]
         })
         if (senderStates.get(verifiedSenderActorId)?.suspendedAt) {
+          return apiResponse({
+            req: request,
+            allowedMethods: CORS_HEADERS,
+            data: DEFAULT_202,
+            responseStatusCode: 202
+          })
+        }
+
+        // A FORWARDED delivery (HTTP signer !== activity actor — AP §7.1.2
+        // inbox forwarding, e.g. Mastodon fanning a reply's Create/Delete out
+        // to the thread owner's followers) carries an unverified payload. It
+        // must never reach the payload-trusting pipeline below; route it to
+        // the origin re-fetch job instead, and answer 202 either way —
+        // Mastodon treats a 4xx here as an unsalvageable delivery failure.
+        if (forwarded) {
+          const forwardedJobMessage = getForwardedJobMessage(activity)
+          if (forwardedJobMessage) {
+            await getQueue().publish(forwardedJobMessage)
+          } else {
+            annotateInboxRejection('forwarded_activity_dropped', {
+              activity_id: activity.id,
+              activity_type: activity.type,
+              sender_actor_id: verifiedSenderActorId
+            })
+          }
           return apiResponse({
             req: request,
             allowedMethods: CORS_HEADERS,

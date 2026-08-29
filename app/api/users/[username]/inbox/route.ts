@@ -1,6 +1,7 @@
 import { trace } from '@opentelemetry/api'
 import { z } from 'zod'
 
+import { getForwardedJobMessage } from '@/app/api/inbox/getForwardedJobMessage'
 import { getJobMessage } from '@/app/api/inbox/getJobMessage'
 import { acceptFollowRequest } from '@/lib/actions/acceptFollowRequest'
 import {
@@ -172,6 +173,53 @@ export const POST = traceApiRoute(
       OnlyLocalUserGuard(
         async (database, actor, req) => {
           try {
+            // A FORWARDED delivery (HTTP signer !== activity actor — AP
+            // §7.1.2 inbox forwarding) carries an unverified payload; no
+            // handler below may act on it. Status-level activities go to the
+            // origin re-fetch job; everything else — Follow, Accept/Reject
+            // (including relay handshakes), Like, Undo — is acknowledged and
+            // dropped, matching Mastodon's handling of non-LD-signed
+            // forwards.
+            if (context.forwarded) {
+              const compactedForwarded = await compactActivityPub(
+                context.activityBody
+              )
+              const forwardedActor =
+                isRecord(compactedForwarded) &&
+                typeof compactedForwarded.actor === 'string'
+                  ? compactedForwarded.actor
+                  : null
+              if (
+                forwardedActor &&
+                (await canFederateWithDomain(database, forwardedActor))
+              ) {
+                const forwardedJobMessage = isRecord(compactedForwarded)
+                  ? getForwardedJobMessage(
+                      compactedForwarded as unknown as StatusActivity
+                    )
+                  : null
+                if (forwardedJobMessage) {
+                  await getQueue().publish(forwardedJobMessage)
+                } else {
+                  logAcceptedWithoutSideEffects({
+                    activity: compactedForwarded as {
+                      id?: string
+                      type: string
+                      actor?: string
+                    },
+                    reason:
+                      'forwarded activity without an origin verification path'
+                  })
+                }
+              }
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: DEFAULT_202,
+                responseStatusCode: 202
+              })
+            }
+
             if (isFederationSigningActor(actor)) {
               // The instance/federation signing actor only ever sends relay
               // Follows, so an Accept/Reject delivered here is a relay handshake

@@ -98,3 +98,28 @@ export const annotateInboxRejection = (
     // Tracing failures must never alter response handling
   }
 }
+
+/**
+ * Stamps a forwarded (accepted, signer !== activity actor) delivery onto the
+ * request's span. Attributes only — a forwarded delivery is not a rejection,
+ * so it must not read as one in traces.
+ */
+export const annotateInboxForwarded = ({
+  verifiedSender,
+  activityActor
+}: {
+  verifiedSender: string
+  activityActor?: string
+}): void => {
+  try {
+    const span = trace.getActiveSpan()
+    if (!span || !span.isRecording()) return
+    span.setAttribute('inbox.forwarded', true)
+    span.setAttribute('inbox.verified_sender', bound(verifiedSender))
+    if (activityActor) {
+      span.setAttribute('inbox.activity_actor', bound(activityActor))
+    }
+  } catch {
+    // Tracing failures must never alter response handling
+  }
+}

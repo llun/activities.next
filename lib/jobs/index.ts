@@ -34,6 +34,7 @@ import {
   IMPORT_STRAVA_ARCHIVE_JOB_NAME,
   INGEST_COLLECTION_MEMBER_JOB_NAME,
   PROCESS_FITNESS_FILE_JOB_NAME,
+  PROCESS_FORWARDED_ACTIVITY_JOB_NAME,
   PUBLISH_SCHEDULED_STATUS_JOB_NAME,
   REGENERATE_FITNESS_MAPS_JOB_NAME,
   RELAY_ANNOUNCE_JOB_NAME,
@@ -54,6 +55,7 @@ import {
   UPDATE_POLL_JOB_NAME
 } from './names'
 import { processFitnessFileJob } from './processFitnessFileJob'
+import { processForwardedActivityJob } from './processForwardedActivityJob'
 import { publishScheduledStatusJob } from './publishScheduledStatusJob'
 import { regenerateFitnessMapsJob } from './regenerateFitnessMapsJob'
 import { sendAnnounceJob } from './sendAnnounceJob'
@@ -90,6 +92,7 @@ export const JOBS: Record<string, JobHandle> = {
   [GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME]: generateFitnessRouteHeatmapJob,
   [GENERATE_FITNESS_HEATMAP_JOB_NAME]: generateFitnessRouteHeatmapJob,
   [PROCESS_FITNESS_FILE_JOB_NAME]: processFitnessFileJob,
+  [PROCESS_FORWARDED_ACTIVITY_JOB_NAME]: processForwardedActivityJob,
   [REGENERATE_FITNESS_MAPS_JOB_NAME]: regenerateFitnessMapsJob,
   [IMPORT_FITNESS_FILES_JOB_NAME]: importFitnessFilesJob,
   [IMPORT_STRAVA_ACTIVITY_JOB_NAME]: importStravaActivityJob,
