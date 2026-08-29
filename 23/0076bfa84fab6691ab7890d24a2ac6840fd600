@@ -1,0 +1,36 @@
+AGENTS.md
+  h_580a04e334fef4 2025-2026
+REVIEW.md
+  h_580a04e334fef4 540-550
+app/api/v1/accounts/connected-apps/[clientId]/route.test.ts
+  h_580a04e334fef4 124,134-140,143,153-159
+app/api/v1/accounts/connected-apps/[clientId]/route.ts
+  h_580a04e334fef4 26-42,46,48-50
+app/api/v1/accounts/sessions/[token]/route.test.ts
+  h_580a04e334fef4 1-171
+app/api/v1/accounts/sessions/[token]/route.ts
+  h_580a04e334fef4 22-41,43-47,51,53-55
+app/api/v1/accounts/sessions/route.test.ts
+  h_580a04e334fef4 102-156
+app/api/v1/accounts/sessions/route.ts
+  h_580a04e334fef4 17-34,38,40-42
+app/api/v1/actors/cancel-deletion/route.test.ts
+  h_580a04e334fef4 1-250
+app/api/v1/actors/cancel-deletion/route.ts
+  h_580a04e334fef4 1,4-9,17-18,25-31,33-40,44-47,54,64,72,85,94,105,111
+lib/services/guards/AuthenticatedGuard.test.ts
+  h_580a04e334fef4 378-429,533-548
+lib/services/guards/AuthenticatedGuard.ts
+  h_580a04e334fef4 18,45-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "230076bfa84fab6691ab7890d24a2ac6840fd600",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
