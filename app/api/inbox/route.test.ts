@@ -17,6 +17,7 @@ const mockDefaultActivityBody = Symbol('defaultActivityBody')
 let mockActivityBody: unknown = mockDefaultActivityBody
 let mockConsumeRequestBody = false
 let mockVerifiedSenderActorId = 'https://allowed.test/users/a'
+let mockForwarded = false
 
 const { mockLogger } = vi.hoisted(() => ({
   mockLogger: {
@@ -45,6 +46,7 @@ vi.mock('@/lib/services/guards/ActivityPubVerifyGuard', () => ({
         context: {
           activityBody: unknown
           database: typeof mockDatabase
+          forwarded: boolean
           params: Promise<{}>
           verifiedSenderActorId: string
         }
@@ -66,6 +68,7 @@ vi.mock('@/lib/services/guards/ActivityPubVerifyGuard', () => ({
       return handle(req, {
         activityBody,
         database: mockDatabase,
+        forwarded: mockForwarded,
         params: context.params,
         verifiedSenderActorId: mockVerifiedSenderActorId
       })
@@ -116,6 +119,7 @@ describe('POST /api/inbox', () => {
     mockActivityBody = mockDefaultActivityBody
     mockConsumeRequestBody = false
     mockVerifiedSenderActorId = 'https://allowed.test/users/a'
+    mockForwarded = false
     mockGetRelayByActorId.mockResolvedValue(null)
     mockGetModerationStatesForActors.mockResolvedValue(new Map())
   })

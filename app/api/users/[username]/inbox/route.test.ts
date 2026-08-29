@@ -31,6 +31,7 @@ const mockDatabase = {
 const mockDefaultActivityBody = Symbol('defaultActivityBody')
 let mockActivityBody: unknown = mockDefaultActivityBody
 let mockConsumeRequestBody = false
+let mockForwarded = false
 type MockActor = {
   id: string
   username: string
@@ -76,6 +77,7 @@ vi.mock('@/lib/services/guards/ActivityPubVerifyGuard', () => ({
         context: {
           activityBody: unknown
           database: typeof mockDatabase
+          forwarded: boolean
           params: Promise<{ username: string }>
           verifiedSenderActorId: string
         }
@@ -108,6 +110,7 @@ vi.mock('@/lib/services/guards/ActivityPubVerifyGuard', () => ({
       return handle(req, {
         activityBody,
         database: mockDatabase,
+        forwarded: mockForwarded,
         params: context.params,
         verifiedSenderActorId: 'https://remote.test/users/alice'
       })
@@ -225,6 +228,7 @@ describe('POST /api/users/[username]/inbox', () => {
   beforeEach(() => {
     harness = setupRecordingTracer()
     vi.clearAllMocks()
+    mockForwarded = false
     mockActor = {
       id: 'https://activities.local/users/llun',
       username: 'llun',
