@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
   MAIN_SHA: ${{ github.event.client_payload.main_sha }}
 
 jobs:
@@ -32,8 +32,8 @@ jobs:
             exit 1
           fi
 
-          if [ -z "${CLAUDE_API_KEY}" ]; then
-            echo "Missing secrets.CLAUDE_API_KEY" >&2
+          if [ -z "${GEMINI_API_KEY}" ]; then
+            echo "Missing secrets.GEMINI_API_KEY" >&2
             exit 1
           fi
 
@@ -93,157 +93,54 @@ jobs:
           echo "git merge failed before conflict resolution" >&2
           exit 1
 
-      # anthropics/claude-code-action runs on Bun and installs it itself, through
-      # a bundled `oven-sh/setup-bun` step that pulls the binary off the GitHub
-      # release CDN. Two syncs on 2026-08-12 (runs 31638242964 and 31639748162)
-      # died right there: `@actions/tool-cache` gave up after three attempts,
-      # in ~37s and ~31s respectively — the first run failed all three with
-      # `socket hang up`, the second mixed in an `Unexpected HTTP response:
-      # 503`, so this is CDN flakiness generally rather than one error. Every
-      # substantive step of the composite action was then skipped, and its
-      # `Post buffered inline comments` step — which still ran, being an
-      # ordinary step carrying `if: always()`, not a post-step — invoked `bun`
-      # and hit `command not found`. That is the exit code 127 those runs
-      # report; the failed download is the cause. (The other `Install Bun`
-      # entry, logged
-      # `outcome=skipped` under `Post job cleanup`, is setup-bun's cache-save
-      # post-step. It is declared `post-if: success()`, so it skipped only
-      # because the job had already failed — it is not the step that failed.)
-      #
-      # Installing Bun here and passing the path via `path_to_bun_executable`
-      # disables the action's internal install outright, since that step carries
-      # `if: inputs.path_to_bun_executable == ''`, and puts the download on a
-      # retry budget we control. A bare `oven-sh/setup-bun` pre-step would also
-      # have avoided a second download — setup-bun reuses an existing
-      # `~/.bun/bin/bun` of a matching version before it consults its cache, so
-      # `no-cache: true` does not force a re-download — but it would have run
-      # the same untunable `@actions/tool-cache` retry policy that failed here,
-      # relocating the flake rather than removing it.
-      #
-      # `--retry-all-errors` is the flag that matters: a mid-transfer reset is
-      # CURLE_RECV_ERROR/CURLE_PARTIAL_FILE, outside curl's default set of
-      # retryable errors, so without it the extra attempts never fire for this
-      # exact failure.
-      #
-      # Both time bounds are deliberate. curl resets `--max-time` on every retry
-      # and a server's `Retry-After` can push a wait past `--retry-delay`, so
-      # neither caps the loop: `--retry-max-time` is what stops curl starting
-      # further attempts, and `timeout-minutes` is the backstop. Without them a
-      # CDN that accepts the connection and then stalls — a different failure
-      # from the ones seen here — could spend ~31 minutes of the job's
-      # 45-minute budget on this step alone. Whichever way that lands is worse
-      # than failing fast: exhaust the attempts and the sync has burnt the
-      # window to report what the old code reported in ~37s, or succeed on a
-      # late attempt and the merge step inherits too little of the budget to
-      # finish, dying on the job cap rather than its own.
-      #
-      # BUN_VERSION tracks the `bun-version` that claude-code-action pins in its
-      # own action.yml; the drift check below warns when they diverge, because
-      # `@v1` moves and the action pins deliberately to dodge Bun regressions.
-      # BUN_SHA256 is that release's `bun-linux-x64.zip` entry from its
-      # SHASUMS256.txt and must be updated together with the version. The
-      # artifact is hardcoded to the non-baseline linux-x64 build to match
-      # `runs-on: ubuntu-latest`; a runner without AVX2, or an arm64 one, needs
-      # a different archive (`-baseline`, `-aarch64`) and its own checksum.
-      - name: Install Bun
-        id: bun
+      - name: Set up Python
         if: steps.synced.outputs.skip == 'false'
-        timeout-minutes: 6
-        shell: bash
-        env:
-          BUN_VERSION: '1.3.14'
-          BUN_SHA256: '951ee2aee855f08595aeec6225226a298d3fea83a3dcd6465c09cbccdf7e848f'
-        run: |
-          bun_root="${RUNNER_TEMP}/bun"
-          mkdir -p "${bun_root}"
-
-          curl \
-            --fail --location --silent --show-error \
-            --retry 5 --retry-delay 10 --retry-all-errors \
-            --retry-max-time 120 --connect-timeout 15 --max-time 120 \
-            --output "${bun_root}/bun.zip" \
-            "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64.zip"
-
-          echo "${BUN_SHA256}  ${bun_root}/bun.zip" | sha256sum --check --quiet
-
-          unzip -q "${bun_root}/bun.zip" -d "${bun_root}"
-
-          bun_bin="${bun_root}/bun-linux-x64/bun"
-          chmod +x "${bun_bin}"
-          "${bun_bin}" --version
-
-          echo "path=${bun_bin}" >> "${GITHUB_OUTPUT}"
-
-          # Best effort: a mismatch is not fatal, it just means someone should
-          # look. Never let this check fail the install it is annotating.
-          #
-          # awk deliberately reads to EOF instead of `exit`ing on the first
-          # match, which sits ~200 lines into a 23KB response. Leaving early
-          # closes the pipe while curl is still writing, curl exits 23, and
-          # `pipefail` then hands the `||` below a failed pipeline — so the
-          # version it just extracted is thrown away. This is a race on how
-          # much curl has flushed, not a size threshold, so it fails at a rate
-          # that varies run to run rather than never or always: three samples
-          # of 20 real fetches discarded 14, 9 and 12 of them, where reading to
-          # EOF gave 20/20 every time. Left as `exit` the check would have
-          # looked healthy and simply gone quiet for whole runs at a time.
-          action_bun_version="$(
-            curl --fail --location --silent --show-error --max-time 30 \
-              'https://raw.githubusercontent.com/anthropics/claude-code-action/v1/action.yml' |
-              awk '/^[[:space:]]*bun-version:/ && !found { print $2; found = 1 }'
-          )" || action_bun_version=''
-
-          if [ -n "${action_bun_version}" ] &&
-            [ "${action_bun_version}" != "${BUN_VERSION}" ]; then
-            echo "::warning::claude-code-action@v1 now pins Bun" \
-              "${action_bun_version}, but this workflow installs" \
-              "${BUN_VERSION}. Update BUN_VERSION and BUN_SHA256 in" \
-              ".github/workflows/sync-main-to-oltp.yml."
-          fi
-
-      - name: Resolve and validate merge with Claude
-        if: steps.synced.outputs.skip == 'false'
-        uses: anthropics/claude-code-action@v1
-        timeout-minutes: 30
+        uses: actions/setup-python@v5
         with:
-          anthropic_api_key: ${{ env.CLAUDE_API_KEY }}
-          path_to_bun_executable: ${{ steps.bun.outputs.path }}
-          allowed_bots: github-actions
-          prompt: |
-            Resolve and validate a sync from `main` into `oltp`.
+          python-version: '3.12'
+
+      - name: Install Aider
+        if: steps.synced.outputs.skip == 'false'
+        shell: bash
+        run: pip install aider-chat
+
+      - name: Resolve and validate merge with Gemini
+        if: steps.synced.outputs.skip == 'false'
+        timeout-minutes: 30
+        env:
+          GEMINI_API_KEY: ${{ env.GEMINI_API_KEY }}
+        run: |
+          aider \
+            --model gemini/gemini-3.7-flash \
+            --no-auto-commits \
+            --yes \
+            --message "
+            Resolve and validate a sync from \`main\` into \`oltp\`.
 
             Context:
-            - Read and follow the repository's `AGENTS.md` file before making
-              any changes.
-            - The current local branch is `oltp-sync`.
-            - It was created from `origin/oltp`.
-            - A `git merge --no-commit --no-ff ${{ env.MAIN_SHA }}` has already
-              been attempted.
+            - Read and follow the repository's \`AGENTS.md\` file before making any changes.
+            - The current local branch is \`oltp-sync\`.
+            - It was created from \`origin/oltp\`.
+            - A \`git merge --no-commit --no-ff ${{ env.MAIN_SHA }}\` has already been attempted.
 
             Requirements:
             - Resolve any merge conflicts or merge-related code issues.
             - Keep changes scoped to the merge.
-            - Run `yarn install`, `yarn lint`, `yarn run prettier --check`,
-              `yarn typecheck`, and `yarn build`.
+            - Run \`yarn install\`, \`yarn lint\`, \`yarn run prettier --check\`, \`yarn typecheck\`, and \`yarn build\`.
             - Make the minimum changes needed for those commands to pass.
             - Do not create commits.
             - Do not push.
             - Do not open a pull request.
-            - Leave the repository in a merge-in-progress state with no
-              unmerged files so the workflow can create the final merge commit.
+            - Leave the repository in a merge-in-progress state with no unmerged files so the workflow can create the final merge commit.
             - If you cannot reach that state, stop and fail.
-          claude_args: |
-            --model claude-sonnet-5
-            --effort low
-            --dangerously-skip-permissions
-            --max-turns 40
+            "
 
       - name: Verify merge is still pending
         if: steps.synced.outputs.skip == 'false'
         shell: bash
         run: |
           if git ls-files -u | grep -q .; then
-            echo "Unmerged files remain after Claude finished" >&2
+            echo "Unmerged files remain after Gemini finished" >&2
             git status --short
             exit 1
           fi
