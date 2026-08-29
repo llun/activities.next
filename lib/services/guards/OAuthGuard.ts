@@ -314,36 +314,38 @@ const resolveTokenContext = async ({
 }
 
 // Endpoints that must still reach an account awaiting confirmation AS ITSELF
-// opt in with `allowUnconfirmedAccount`. There is exactly one — resending its
+// opt in with `unconfirmedAccount: 'allow'`. There is exactly one — resending its
 // own confirmation e-mail — and Mastodon carves out the same endpoint
 // (`Api::V1::Emails::ConfirmationsController` never calls `require_user!`).
 // Blocking it everywhere would make the pending state unrecoverable for a
 // client that lost the e-mail. It relaxes the confirmation test and NOTHING
 // else: a suspended actor or a disabled account is still refused, because
 // `isActorModerationBlocked` runs regardless.
-type AccountStateOptions = { allowUnconfirmedAccount?: boolean }
+//
+// What an endpoint does with an account that has not confirmed its address:
+// - `reject` (the default, and what every mandatory guard wants): 403.
+// - `allow`: reaches the handler as itself (for the confirmation-resend endpoint).
+// - `anonymous`: drops the actor and lets the request continue as if no token
+//   had been sent, which is what `OptionalOAuthGuard` needs: refusing there made
+//   presenting a valid token FAIL a public read that succeeds with no
+//   Authorization header at all.
+export type UnconfirmedAccountDisposition = 'reject' | 'allow' | 'anonymous'
 
-// What an optional-auth route does with a token whose account has not confirmed
-// its address. `reject` (the default, and what every mandatory guard wants) is
-// the 403 above. `anonymous` drops the actor and lets the request continue as if
-// no token had been sent, which is what `OptionalOAuthGuard` needs: refusing
-// there made presenting a valid token FAIL a public read that succeeds with no
-// Authorization header at all.
-type UnconfirmedAccountDisposition = 'reject' | 'anonymous'
+export type AccountStateOptions = {
+  unconfirmedAccount?: UnconfirmedAccountDisposition
+}
 
 const resolveAuthenticatedContext = async <P>({
   req,
   context,
   scopes,
   matchMode,
-  allowUnconfirmedAccount = false,
-  unconfirmedAccountDisposition = 'reject'
+  unconfirmedAccount = 'reject'
 }: {
   req: NextRequest
   context: AppRouterParams<P>
   scopes: Scope[]
   matchMode: ScopeMatchMode
-  unconfirmedAccountDisposition?: UnconfirmedAccountDisposition
 } & AccountStateOptions): Promise<
   | { authenticated: true; context: GuardContext<P> }
   | { authenticated: false; response?: Response }
@@ -392,16 +394,18 @@ const resolveAuthenticatedContext = async <P>({
           response: rejectBearer('actor_moderation_blocked', 403)
         }
       }
-      if (!allowUnconfirmedAccount && isActorConfirmationPending(parsedActor)) {
+      if (isActorConfirmationPending(parsedActor)) {
         // No `response` on the anonymous disposition: that is the same shape a
         // missing session returns, which is exactly what makes the caller fall
         // through to its unauthenticated path.
-        if (unconfirmedAccountDisposition === 'anonymous') {
+        if (unconfirmedAccount === 'anonymous') {
           return { authenticated: false }
         }
-        return {
-          authenticated: false,
-          response: rejectBearer('account_unconfirmed', 403)
+        if (unconfirmedAccount === 'reject') {
+          return {
+            authenticated: false,
+            response: rejectBearer('account_unconfirmed', 403)
+          }
         }
       }
 
@@ -437,11 +441,13 @@ const resolveAuthenticatedContext = async <P>({
   if (isActorModerationBlocked(currentActor)) {
     return { authenticated: false, response: apiErrorResponse(403) }
   }
-  if (!allowUnconfirmedAccount && isActorConfirmationPending(currentActor)) {
-    if (unconfirmedAccountDisposition === 'anonymous') {
+  if (isActorConfirmationPending(currentActor)) {
+    if (unconfirmedAccount === 'anonymous') {
       return { authenticated: false }
     }
-    return { authenticated: false, response: apiErrorResponse(403) }
+    if (unconfirmedAccount === 'reject') {
+      return { authenticated: false, response: apiErrorResponse(403) }
+    }
   }
 
   return {
@@ -465,7 +471,7 @@ const createOAuthGuard =
       context,
       scopes,
       matchMode,
-      allowUnconfirmedAccount: options.allowUnconfirmedAccount
+      unconfirmedAccount: options.unconfirmedAccount
     })
     if (!result.authenticated) {
       const response = result.response ?? apiErrorResponse(401)
@@ -551,7 +557,7 @@ export const OAuthAppGuard =
           return fail(rejectBearer('actor_moderation_blocked', 403))
         }
         if (
-          !options.allowUnconfirmedAccount &&
+          options.unconfirmedAccount !== 'allow' &&
           isActorConfirmationPending(currentActor)
         ) {
           return fail(rejectBearer('account_unconfirmed', 403))
@@ -615,7 +621,7 @@ export const OptionalOAuthGuard =
       // AGENTS.md's "An Unconfirmed Account May Not Act"; the short of it is
       // that refusing makes a valid token fail a read that succeeds with no
       // token, and accepting hands an unverified account real capability.
-      unconfirmedAccountDisposition: 'anonymous'
+      unconfirmedAccount: 'anonymous'
     })
 
     if (result.authenticated) {
