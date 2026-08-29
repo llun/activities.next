@@ -1,0 +1,16 @@
+app/api/inbox/route.test.ts
+  h_580a04e334fef4 3,5,125,471-578
+app/api/inbox/route.ts
+  h_580a04e334fef4 29,39-42,106-130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "21a866615be5cf09e655d923b88c02f2ebf1db41",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
