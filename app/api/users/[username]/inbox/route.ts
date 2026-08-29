@@ -206,6 +206,10 @@ export const POST = traceApiRoute(
                 : context.verifiedSenderActorId
 
             if (!(await canFederateWithDomain(database, activityActor))) {
+              annotateInboxRejection('domain_not_federatable', {
+                actor_id: activityActor,
+                sender_actor_id: context.verifiedSenderActorId
+              })
               return apiResponse({
                 req,
                 allowedMethods: CORS_HEADERS,
@@ -328,13 +332,18 @@ export const POST = traceApiRoute(
                   activity: acceptFollow.data,
                   database
                 })
-                if (!follow)
+                if (!follow) {
+                  annotateInboxRejection('follow_request_not_found', {
+                    activity_id: activity.id,
+                    sender_actor_id: context.verifiedSenderActorId
+                  })
                   return apiResponse({
                     req,
                     allowedMethods: CORS_HEADERS,
                     data: ERROR_404,
                     responseStatusCode: 404
                   })
+                }
                 return apiResponse({
                   req,
                   allowedMethods: CORS_HEADERS,
@@ -375,13 +384,18 @@ export const POST = traceApiRoute(
                   activity: rejectFollow.data,
                   database
                 })
-                if (!follow)
+                if (!follow) {
+                  annotateInboxRejection('follow_request_not_found', {
+                    activity_id: activity.id,
+                    sender_actor_id: context.verifiedSenderActorId
+                  })
                   return apiResponse({
                     req,
                     allowedMethods: CORS_HEADERS,
                     data: ERROR_404,
                     responseStatusCode: 404
                   })
+                }
                 return apiResponse({
                   req,
                   allowedMethods: CORS_HEADERS,
@@ -394,13 +408,18 @@ export const POST = traceApiRoute(
                   followRequest: activity as FollowRequest,
                   database
                 })
-                if (!follow)
+                if (!follow) {
+                  annotateInboxRejection('follow_creation_failed', {
+                    activity_id: activity.id,
+                    sender_actor_id: context.verifiedSenderActorId
+                  })
                   return apiResponse({
                     req,
                     allowedMethods: CORS_HEADERS,
                     data: ERROR_404,
                     responseStatusCode: 404
                   })
+                }
                 return apiResponse({
                   req,
                   allowedMethods: CORS_HEADERS,
@@ -414,13 +433,18 @@ export const POST = traceApiRoute(
                   activity,
                   targetActorId: actor.id
                 })
-                if (!block)
+                if (!block) {
+                  annotateInboxRejection('block_failed', {
+                    activity_id: activity.id,
+                    sender_actor_id: context.verifiedSenderActorId
+                  })
                   return apiResponse({
                     req,
                     allowedMethods: CORS_HEADERS,
                     data: ERROR_404,
                     responseStatusCode: 404
                   })
+                }
                 return apiResponse({
                   req,
                   allowedMethods: CORS_HEADERS,
@@ -486,6 +510,10 @@ export const POST = traceApiRoute(
                 const undoFollow = Follow.safeParse(undoObject)
                 if (undoFollow.success) {
                   if (!actorIdsMatch(activity.actor, undoFollow.data.actor)) {
+                    annotateInboxRejection('sender_actor_mismatch', {
+                      verified_sender: activity.actor,
+                      activity_actor: undoFollow.data.actor
+                    })
                     return apiResponse({
                       req,
                       allowedMethods: CORS_HEADERS,
@@ -501,13 +529,18 @@ export const POST = traceApiRoute(
                       object: undoFollow.data
                     } as UndoFollow
                   })
-                  if (!result)
+                  if (!result) {
+                    annotateInboxRejection('undo_follow_not_found', {
+                      activity_id: activity.id,
+                      sender_actor_id: context.verifiedSenderActorId
+                    })
                     return apiResponse({
                       req,
                       allowedMethods: CORS_HEADERS,
                       data: ERROR_404,
                       responseStatusCode: 404
                     })
+                  }
                   return apiResponse({
                     req,
                     allowedMethods: CORS_HEADERS,
@@ -567,6 +600,10 @@ export const POST = traceApiRoute(
                 const undoBlock = Block.safeParse(undoObject)
                 if (undoBlock.success) {
                   if (!actorIdsMatch(activity.actor, undoBlock.data.actor)) {
+                    annotateInboxRejection('sender_actor_mismatch', {
+                      verified_sender: activity.actor,
+                      activity_actor: undoBlock.data.actor
+                    })
                     return apiResponse({
                       req,
                       allowedMethods: CORS_HEADERS,
@@ -581,13 +618,18 @@ export const POST = traceApiRoute(
                     object: undoBlock.data,
                     targetActorId: actor.id
                   })
-                  if (!result)
+                  if (!result) {
+                    annotateInboxRejection('undo_block_not_found', {
+                      activity_id: activity.id,
+                      sender_actor_id: context.verifiedSenderActorId
+                    })
                     return apiResponse({
                       req,
                       allowedMethods: CORS_HEADERS,
                       data: ERROR_404,
                       responseStatusCode: 404
                     })
+                  }
                   return apiResponse({
                     req,
                     allowedMethods: CORS_HEADERS,
