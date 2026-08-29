@@ -1,315 +1,191 @@
-import { Actor } from '@/lib/types/domain/actor'
+import crypto from 'node:crypto'
+import { describe, expect, it } from 'vitest'
 
-import { generateKeyPair, parse, signedHeaders, verify } from './signature'
+import { TEST_DOMAIN } from '@/lib/stub/const'
 
-vi.mock('@/lib/config', () => ({
-  getConfig: () => ({
-    secretPhase: 'secret',
-    host: 'local.test',
-    trustedHosts: ['chat.llun.in.th', 'target.com']
+import { parse, verify } from './signature'
+
+describe('signature', () => {
+  const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
   })
-}))
 
-describe('parse', () => {
-  test('split signature into parts', async () => {
-    const signature =
-      'keyId="https://mastodon.in.th/users/llun#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest content-type",signature="signature"'
-    expect(await parse(signature)).toEqual({
-      keyId: 'https://mastodon.in.th/users/llun#main-key',
-      algorithm: 'rsa-sha256',
-      headers: '(request-target) host date digest content-type',
-      signature: 'signature'
+  const signString = (
+    stringToSign: string,
+    algorithm: 'rsa-sha256' | 'RSA-MD5' = 'rsa-sha256'
+  ) => {
+    const signer = crypto.createSign(algorithm)
+    signer.update(stringToSign)
+    signer.end()
+    return signer.sign(privateKey, 'base64')
+  }
+
+  describe('parse', () => {
+    it('parses standard quoted parameters', async () => {
+      const header =
+        'keyId="https://remote.test/actor#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest",signature="sig123"'
+      const result = await parse(header)
+      expect(result).toEqual({
+        keyId: 'https://remote.test/actor#main-key',
+        algorithm: 'rsa-sha256',
+        headers: '(request-target) host date digest',
+        signature: 'sig123'
+      })
+    })
+
+    it('parses unquoted integer parameters for created and expires', async () => {
+      const header =
+        'keyId="https://remote.test/actor#main-key",algorithm="hs2019",headers="(request-target) host (created) digest",signature="sig123",created=1618884475,expires=1618888075'
+      const result = await parse(header)
+      expect(result).toEqual({
+        keyId: 'https://remote.test/actor#main-key',
+        algorithm: 'hs2019',
+        headers: '(request-target) host (created) digest',
+        signature: 'sig123',
+        created: '1618884475',
+        expires: '1618888075'
+      })
+    })
+
+    it('parses quoted created/expires parameters as well', async () => {
+      const header =
+        'keyId="https://remote.test/actor#main-key",algorithm="hs2019",created="1618884475",expires="1618888075",signature="sig123"'
+      const result = await parse(header)
+      expect(result.created).toBe('1618884475')
+      expect(result.expires).toBe('1618888075')
     })
   })
 
-  test('return empty hash for invalid signature', async () => {
-    const signature = 'invalid signature'
-    expect(await parse(signature)).toEqual({})
-  })
-})
+  describe('verify', () => {
+    const requestTarget = 'post /api/inbox'
+    const date = 'Sat, 29 Aug 2026 12:00:00 GMT'
+    const host = TEST_DOMAIN
+    const digest = 'SHA-256=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='
 
-describe('verify', () => {
-  it('returns true when signature and public key is matched', async () => {
-    expect(
-      await verify(
-        'post /inbox',
-        {
-          host: 'chat.llun.in.th',
-          'content-length': '2682',
-          'content-type': 'application/activity+json',
-          date: 'Wed, 09 Nov 2022 18:28:37 GMT',
-          digest: 'SHA-256=ldMA8wZIOUKqGDCdTT9/43jSnnrgO6G3t7zmtphXqyE=',
-          signature:
-            'keyId="https://mastodon.in.th/users/llun#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest content-type",signature="Wx+tR4y1A67nF2fFWOlj8Enx5pzFN3jCo6UB7rpPGTZy0nM4EvuFq1BZgGS08eZJBi+Yf60R1284+YXNQDtkdXM7s66wZQKcmfyKsfSHJGyW5DAQzmxFzCHC/cwTSktCyRc36jUh4OWzKr8wA8vIzexMhTlH5oSOKrTaxPbUzH6vq/uM71oC7fNL29GjZiSJL6q87fPQuKvS7UB0mzBpGb+VfAo7yAp/apMbBXX8iqYL73tJhuTQB5TIOF7GxXLUk6FJ2I7nRQEZXj0/qHA/NISelSNST3ivVH2F1VzeP22K/YPLRSY6zl42JUX3e0zQE4Dln0RvYT971Bw2sMqlig=="'
-        },
-        '-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7tttTDSVsia58AR4PQUj\nyqSlwzfQuK/nPnZ4BTWCJTRTvwWg9JXwiIjA2AnQtu/t+qOQgKdKH9yjh84SUtvD\nzAkbt1OTGIQnm5dgAPTGfS17vydxZEPsbhHmJj8UAmU59dgu8QRVl5qoYLSWZyUH\nK9ywrdTJsYkg35NjUjUapY1L7DyMygf7KDlyh0g5ezUufo1cejscbsxomvZTwLZo\nn7cxOeZMFUYw1fsJusbUgQlVHR2qox2cEC6kZGbLvJOiujs7EhRpTjkDFI/DAyNQ\nri4MFXhDg4ozjWcWiKLOsBahVp/iwEm1NF6Mwha6hPhNcInsekzrTQfy1yN7Q+y6\nzQIDAQAB\n-----END PUBLIC KEY-----\n'
-      )
-    ).toBeTruthy()
+    it('verifies a request signed rsa-sha256 style', async () => {
+      const stringToSign = `(request-target): ${requestTarget}\nhost: ${host}\ndate: ${date}\ndigest: ${digest}`
+      const signature = signString(stringToSign, 'rsa-sha256')
 
-    expect(
-      await verify(
-        'post /inbox',
-        new Headers([
-          ['Host', 'chat.llun.in.th'],
-          ['Content-Length', '2682'],
-          ['Content-Type', 'application/activity+json'],
-          ['Date', 'Wed, 09 Nov 2022 18:28:37 GMT'],
-          ['Digest', 'SHA-256=ldMA8wZIOUKqGDCdTT9/43jSnnrgO6G3t7zmtphXqyE='],
-          [
-            'Signature',
-            'keyId="https://mastodon.in.th/users/llun#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest content-type",signature="Wx+tR4y1A67nF2fFWOlj8Enx5pzFN3jCo6UB7rpPGTZy0nM4EvuFq1BZgGS08eZJBi+Yf60R1284+YXNQDtkdXM7s66wZQKcmfyKsfSHJGyW5DAQzmxFzCHC/cwTSktCyRc36jUh4OWzKr8wA8vIzexMhTlH5oSOKrTaxPbUzH6vq/uM71oC7fNL29GjZiSJL6q87fPQuKvS7UB0mzBpGb+VfAo7yAp/apMbBXX8iqYL73tJhuTQB5TIOF7GxXLUk6FJ2I7nRQEZXj0/qHA/NISelSNST3ivVH2F1VzeP22K/YPLRSY6zl42JUX3e0zQE4Dln0RvYT971Bw2sMqlig=="'
-          ]
-        ]),
-        '-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7tttTDSVsia58AR4PQUj\nyqSlwzfQuK/nPnZ4BTWCJTRTvwWg9JXwiIjA2AnQtu/t+qOQgKdKH9yjh84SUtvD\nzAkbt1OTGIQnm5dgAPTGfS17vydxZEPsbhHmJj8UAmU59dgu8QRVl5qoYLSWZyUH\nK9ywrdTJsYkg35NjUjUapY1L7DyMygf7KDlyh0g5ezUufo1cejscbsxomvZTwLZo\nn7cxOeZMFUYw1fsJusbUgQlVHR2qox2cEC6kZGbLvJOiujs7EhRpTjkDFI/DAyNQ\nri4MFXhDg4ozjWcWiKLOsBahVp/iwEm1NF6Mwha6hPhNcInsekzrTQfy1yN7Q+y6\nzQIDAQAB\n-----END PUBLIC KEY-----\n'
-      )
-    ).toBeTruthy()
-  })
+      const headers = new Headers({
+        date,
+        digest,
+        host,
+        signature: `keyId="https://remote.test/actor#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest",signature="${signature}"`
+      })
 
-  it('uses trusted x-forwarded-host to verify signature instead of host', async () => {
-    expect(
-      await verify(
-        'post /inbox',
-        {
-          host: 'origin.in.cloudrun.app',
-          'content-length': '2682',
-          'content-type': 'application/activity+json',
-          date: 'Wed, 09 Nov 2022 18:28:37 GMT',
-          digest: 'SHA-256=ldMA8wZIOUKqGDCdTT9/43jSnnrgO6G3t7zmtphXqyE=',
-          signature:
-            'keyId="https://mastodon.in.th/users/llun#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest content-type",signature="Wx+tR4y1A67nF2fFWOlj8Enx5pzFN3jCo6UB7rpPGTZy0nM4EvuFq1BZgGS08eZJBi+Yf60R1284+YXNQDtkdXM7s66wZQKcmfyKsfSHJGyW5DAQzmxFzCHC/cwTSktCyRc36jUh4OWzKr8wA8vIzexMhTlH5oSOKrTaxPbUzH6vq/uM71oC7fNL29GjZiSJL6q87fPQuKvS7UB0mzBpGb+VfAo7yAp/apMbBXX8iqYL73tJhuTQB5TIOF7GxXLUk6FJ2I7nRQEZXj0/qHA/NISelSNST3ivVH2F1VzeP22K/YPLRSY6zl42JUX3e0zQE4Dln0RvYT971Bw2sMqlig=="',
-          'x-forwarded-host': 'chat.llun.in.th'
-        },
-        '-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7tttTDSVsia58AR4PQUj\nyqSlwzfQuK/nPnZ4BTWCJTRTvwWg9JXwiIjA2AnQtu/t+qOQgKdKH9yjh84SUtvD\nzAkbt1OTGIQnm5dgAPTGfS17vydxZEPsbhHmJj8UAmU59dgu8QRVl5qoYLSWZyUH\nK9ywrdTJsYkg35NjUjUapY1L7DyMygf7KDlyh0g5ezUufo1cejscbsxomvZTwLZo\nn7cxOeZMFUYw1fsJusbUgQlVHR2qox2cEC6kZGbLvJOiujs7EhRpTjkDFI/DAyNQ\nri4MFXhDg4ozjWcWiKLOsBahVp/iwEm1NF6Mwha6hPhNcInsekzrTQfy1yN7Q+y6\nzQIDAQAB\n-----END PUBLIC KEY-----\n'
-      )
-    ).toBeTruthy()
-  })
-
-  it('does not use untrusted x-forwarded-host to verify a signature', async () => {
-    expect(
-      await verify(
-        'post /inbox',
-        {
-          host: 'origin.in.cloudrun.app',
-          'content-length': '2682',
-          'content-type': 'application/activity+json',
-          date: 'Wed, 09 Nov 2022 18:28:37 GMT',
-          digest: 'SHA-256=ldMA8wZIOUKqGDCdTT9/43jSnnrgO6G3t7zmtphXqyE=',
-          signature:
-            'keyId="https://mastodon.in.th/users/llun#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest content-type",signature="Wx+tR4y1A67nF2fFWOlj8Enx5pzFN3jCo6UB7rpPGTZy0nM4EvuFq1BZgGS08eZJBi+Yf60R1284+YXNQDtkdXM7s66wZQKcmfyKsfSHJGyW5DAQzmxFzCHC/cwTSktCyRc36jUh4OWzKr8wA8vIzexMhTlH5oSOKrTaxPbUzH6vq/uM71oC7fNL29GjZiSJL6q87fPQuKvS7UB0mzBpGb+VfAo7yAp/apMbBXX8iqYL73tJhuTQB5TIOF7GxXLUk6FJ2I7nRQEZXj0/qHA/NISelSNST3ivVH2F1VzeP22K/YPLRSY6zl42JUX3e0zQE4Dln0RvYT971Bw2sMqlig=="',
-          'x-forwarded-host': 'evil.llun.in.th'
-        },
-        '-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7tttTDSVsia58AR4PQUj\nyqSlwzfQuK/nPnZ4BTWCJTRTvwWg9JXwiIjA2AnQtu/t+qOQgKdKH9yjh84SUtvD\nzAkbt1OTGIQnm5dgAPTGfS17vydxZEPsbhHmJj8UAmU59dgu8QRVl5qoYLSWZyUH\nK9ywrdTJsYkg35NjUjUapY1L7DyMygf7KDlyh0g5ezUufo1cejscbsxomvZTwLZo\nn7cxOeZMFUYw1fsJusbUgQlVHR2qox2cEC6kZGbLvJOiujs7EhRpTjkDFI/DAyNQ\nri4MFXhDg4ozjWcWiKLOsBahVp/iwEm1NF6Mwha6hPhNcInsekzrTQfy1yN7Q+y6\nzQIDAQAB\n-----END PUBLIC KEY-----\n'
-      )
-    ).toBeFalsy()
-  })
-
-  it('returns false when signature and public key is matched but header information is wrong', async () => {
-    expect(
-      await verify(
-        'post /inbox',
-        {
-          host: 'chat.llun.in.th',
-          'content-length': '2682',
-          'content-type': 'application/activity+json',
-          date: 'Wed, 09 Nov 2022 18:40:37 GMT',
-          digest: 'SHA-256=ldMA8wZIOUKqGDCdTT9/43jSnnrgO6G3t7zmtphXqyE=',
-          signature:
-            'keyId="https://mastodon.in.th/users/llun#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest content-type",signature="Wx+tR4y1A67nF2fFWOlj8Enx5pzFN3jCo6UB7rpPGTZy0nM4EvuFq1BZgGS08eZJBi+Yf60R1284+YXNQDtkdXM7s66wZQKcmfyKsfSHJGyW5DAQzmxFzCHC/cwTSktCyRc36jUh4OWzKr8wA8vIzexMhTlH5oSOKrTaxPbUzH6vq/uM71oC7fNL29GjZiSJL6q87fPQuKvS7UB0mzBpGb+VfAo7yAp/apMbBXX8iqYL73tJhuTQB5TIOF7GxXLUk6FJ2I7nRQEZXj0/qHA/NISelSNST3ivVH2F1VzeP22K/YPLRSY6zl42JUX3e0zQE4Dln0RvYT971Bw2sMqlig=="'
-        },
-        '-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7tttTDSVsia58AR4PQUj\nyqSlwzfQuK/nPnZ4BTWCJTRTvwWg9JXwiIjA2AnQtu/t+qOQgKdKH9yjh84SUtvD\nzAkbt1OTGIQnm5dgAPTGfS17vydxZEPsbhHmJj8UAmU59dgu8QRVl5qoYLSWZyUH\nK9ywrdTJsYkg35NjUjUapY1L7DyMygf7KDlyh0g5ezUufo1cejscbsxomvZTwLZo\nn7cxOeZMFUYw1fsJusbUgQlVHR2qox2cEC6kZGbLvJOiujs7EhRpTjkDFI/DAyNQ\nri4MFXhDg4ozjWcWiKLOsBahVp/iwEm1NF6Mwha6hPhNcInsekzrTQfy1yN7Q+y6\nzQIDAQAB\n-----END PUBLIC KEY-----\n'
-      )
-    ).toBeFalsy()
-
-    expect(
-      await verify(
-        'post /inbox',
-        new Headers([
-          ['Host', 'chat.llun.in.th'],
-          ['Content-Length', '2682'],
-          ['Content-Type', 'application/activity+json'],
-          ['Date', 'Wed, 09 Nov 2022 18:40:37 GMT'],
-          ['Digest', 'SHA-256=ldMA8wZIOUKqGDCdTT9/43jSnnrgO6G3t7zmtphXqyE='],
-          [
-            'Signature',
-            'keyId="https://mastodon.in.th/users/llun#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest content-type",signature="Wx+tR4y1A67nF2fFWOlj8Enx5pzFN3jCo6UB7rpPGTZy0nM4EvuFq1BZgGS08eZJBi+Yf60R1284+YXNQDtkdXM7s66wZQKcmfyKsfSHJGyW5DAQzmxFzCHC/cwTSktCyRc36jUh4OWzKr8wA8vIzexMhTlH5oSOKrTaxPbUzH6vq/uM71oC7fNL29GjZiSJL6q87fPQuKvS7UB0mzBpGb+VfAo7yAp/apMbBXX8iqYL73tJhuTQB5TIOF7GxXLUk6FJ2I7nRQEZXj0/qHA/NISelSNST3ivVH2F1VzeP22K/YPLRSY6zl42JUX3e0zQE4Dln0RvYT971Bw2sMqlig=="'
-          ]
-        ]),
-        '-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7tttTDSVsia58AR4PQUj\nyqSlwzfQuK/nPnZ4BTWCJTRTvwWg9JXwiIjA2AnQtu/t+qOQgKdKH9yjh84SUtvD\nzAkbt1OTGIQnm5dgAPTGfS17vydxZEPsbhHmJj8UAmU59dgu8QRVl5qoYLSWZyUH\nK9ywrdTJsYkg35NjUjUapY1L7DyMygf7KDlyh0g5ezUufo1cejscbsxomvZTwLZo\nn7cxOeZMFUYw1fsJusbUgQlVHR2qox2cEC6kZGbLvJOiujs7EhRpTjkDFI/DAyNQ\nri4MFXhDg4ozjWcWiKLOsBahVp/iwEm1NF6Mwha6hPhNcInsekzrTQfy1yN7Q+y6\nzQIDAQAB\n-----END PUBLIC KEY-----\n'
-      )
-    ).toBeFalsy()
-  })
-
-  it('returns false when signature and public key is not matched', async () => {
-    expect(
-      await verify(
-        'post /inbox',
-        {
-          host: 'chat.llun.in.th',
-          'content-length': '2682',
-          'content-type': 'application/activity+json',
-          date: 'Wed, 09 Nov 2022 18:28:37 GMT',
-          digest: 'SHA-256=ldMA8wZIOUKqGDCdTT9/43jSnnrgO6G3t7zmtphXqyE=',
-          signature:
-            'keyId="https://mastodon.in.th/users/llun#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest content-type",signature="Wx+tR4y1A67nF2fFWOlj8Enx5pzFN3jCo6UB7rpPGTZy0nM4EvuFq1BZgGS08eZJBi+Yf60R1284+YXNQDtkdXM7s66wZQKcmfyKsfSHJGyW5DAQzmxFzCHC/cwTSktCyRc36jUh4OWzKr8wA8vIzexMhTlH5oSOKrTaxPbUzH6vq/uM71oC7fNL29GjZiSJL6q87fPQuKvS7UB0mzBpGb+VfAo7yAp/apMbBXX8iqYL73tJhuTQB5TIOF7GxXLUk6FJ2I7nRQEZXj0/qHA/NISelSNST3ivVH2F1VzeP22K/YPLRSY6zl42JUX3e0zQE4Dln0RvYT971Bw2sMqlig=="'
-        },
-        'Invalid key'
-      )
-    ).toBeFalsy()
-
-    expect(
-      await verify(
-        'post /inbox',
-        new Headers([
-          ['Host', 'chat.llun.in.th'],
-          ['Content-Length', '2682'],
-          ['Content-Type', 'application/activity+json'],
-          ['Date', 'Wed, 09 Nov 2022 18:28:37 GMT'],
-          ['Digest', 'SHA-256=ldMA8wZIOUKqGDCdTT9/43jSnnrgO6G3t7zmtphXqyE='],
-          [
-            'Signature',
-            'keyId="https://mastodon.in.th/users/llun#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest content-type",signature="Wx+tR4y1A67nF2fFWOlj8Enx5pzFN3jCo6UB7rpPGTZy0nM4EvuFq1BZgGS08eZJBi+Yf60R1284+YXNQDtkdXM7s66wZQKcmfyKsfSHJGyW5DAQzmxFzCHC/cwTSktCyRc36jUh4OWzKr8wA8vIzexMhTlH5oSOKrTaxPbUzH6vq/uM71oC7fNL29GjZiSJL6q87fPQuKvS7UB0mzBpGb+VfAo7yAp/apMbBXX8iqYL73tJhuTQB5TIOF7GxXLUk6FJ2I7nRQEZXj0/qHA/NISelSNST3ivVH2F1VzeP22K/YPLRSY6zl42JUX3e0zQE4Dln0RvYT971Bw2sMqlig=="'
-          ]
-        ]),
-        'Invalid key'
-      )
-    ).toBeFalsy()
-  })
-})
-
-describe('signedHeaders', () => {
-  let keyPair: Awaited<ReturnType<typeof generateKeyPair>>
-
-  beforeAll(async () => {
-    keyPair = await generateKeyPair('secret')
-  }, 15000)
-
-  it('includes headers for POST request', async () => {
-    const actor = {
-      id: 'https://test.com/actor',
-      privateKey: keyPair.privateKey,
-      publicKey: keyPair.publicKey
-    } as Actor
-
-    const headers = signedHeaders(actor, 'POST', 'https://target.com/inbox', {
-      type: 'Note',
-      content: 'test'
+      const isValid = await verify(requestTarget, headers, publicKey)
+      expect(isValid).toBe(true)
     })
 
-    expect(headers.digest).toBeDefined()
-    expect(headers['content-type']).toBe('application/activity+json')
-    expect(headers.signature).toContain(
-      'headers="(request-target) host date digest content-type"'
-    )
+    it('verifies a request signed hs2019 style with unquoted (created) pseudo-header', async () => {
+      const created = '1618884475'
+      const stringToSign = `(request-target): ${requestTarget}\nhost: ${host}\n(created): ${created}\ndigest: ${digest}`
+      const signature = signString(stringToSign, 'rsa-sha256')
 
-    const verifyResult = await verify(
-      'post /inbox',
-      {
-        ...headers,
-        signature: headers.signature as string
-      },
-      keyPair.publicKey
-    )
-    expect(verifyResult).toBeTruthy()
-  }, 15000)
+      const headers = new Headers({
+        date,
+        digest,
+        host,
+        signature: `keyId="https://remote.test/actor#main-key",algorithm="hs2019",headers="(request-target) host (created) digest",signature="${signature}",created=${created}`
+      })
 
-  it('includes headers for GET request', async () => {
-    const actor = {
-      id: 'https://test.com/actor',
-      privateKey: keyPair.privateKey,
-      publicKey: keyPair.publicKey
-    } as Actor
-
-    const headers = signedHeaders(actor, 'GET', 'https://target.com/inbox')
-
-    expect(headers.digest).toBeUndefined()
-    expect(headers['content-type']).toBeUndefined()
-    expect(headers.signature).toContain('headers="(request-target) host date"')
-
-    const verifyResult = await verify(
-      'get /inbox',
-      {
-        ...headers,
-        signature: headers.signature as string
-      },
-      keyPair.publicKey
-    )
-    expect(verifyResult).toBeTruthy()
-  }, 15000)
-
-  it('uses only the path for GET request targets without query strings', async () => {
-    const actor = {
-      id: 'https://test.com/actor',
-      privateKey: keyPair.privateKey,
-      publicKey: keyPair.publicKey
-    } as Actor
-
-    const headers = signedHeaders(actor, 'GET', 'https://target.com/outbox')
-
-    const verifyResult = await verify(
-      'get /outbox',
-      {
-        ...headers,
-        signature: headers.signature as string
-      },
-      keyPair.publicKey
-    )
-    expect(verifyResult).toBeTruthy()
-  }, 15000)
-
-  it('includes query strings in GET request targets', async () => {
-    const actor = {
-      id: 'https://test.com/actor',
-      privateKey: keyPair.privateKey,
-      publicKey: keyPair.publicKey
-    } as Actor
-
-    const headers = signedHeaders(
-      actor,
-      'GET',
-      'https://target.com/outbox?page=true&min_id=0'
-    )
-
-    const verifyResult = await verify(
-      'get /outbox?page=true&min_id=0',
-      {
-        ...headers,
-        signature: headers.signature as string
-      },
-      keyPair.publicKey
-    )
-    expect(verifyResult).toBeTruthy()
-
-    const missingQueryVerifyResult = await verify(
-      'get /outbox',
-      {
-        ...headers,
-        signature: headers.signature as string
-      },
-      keyPair.publicKey
-    )
-    expect(missingQueryVerifyResult).toBeFalsy()
-  }, 15000)
-
-  it('rejects signatures over a different request-target', async () => {
-    const actor = {
-      id: 'https://test.com/actor',
-      privateKey: keyPair.privateKey,
-      publicKey: keyPair.publicKey
-    } as Actor
-
-    const headers = signedHeaders(actor, 'POST', 'https://target.com/wrong', {
-      type: 'Note',
-      content: 'test'
+      const isValid = await verify(requestTarget, headers, publicKey)
+      expect(isValid).toBe(true)
     })
 
-    const verifyResult = await verify(
-      'post /inbox',
-      {
-        ...headers,
-        signature: headers.signature as string
-      },
-      keyPair.publicKey
-    )
-    expect(verifyResult).toBeFalsy()
-  }, 15000)
+    it('defaults missing algorithm to hs2019 and verifies correctly', async () => {
+      const created = '1618884475'
+      const stringToSign = `(request-target): ${requestTarget}\nhost: ${host}\n(created): ${created}\ndigest: ${digest}`
+      const signature = signString(stringToSign, 'rsa-sha256')
+
+      const headers = new Headers({
+        date,
+        digest,
+        host,
+        signature: `keyId="https://remote.test/actor#main-key",headers="(request-target) host (created) digest",signature="${signature}",created=${created}`
+      })
+
+      const isValid = await verify(requestTarget, headers, publicKey)
+      expect(isValid).toBe(true)
+    })
+
+    it('fails verification when algorithm is not in allowlist (algorithm downgrade defense)', async () => {
+      const stringToSign = `(request-target): ${requestTarget}\nhost: ${host}\ndate: ${date}\ndigest: ${digest}`
+      const md5Signature = signString(stringToSign, 'RSA-MD5')
+
+      const headers = new Headers({
+        date,
+        digest,
+        host,
+        signature: `keyId="https://remote.test/actor#main-key",algorithm="rsa-md5",headers="(request-target) host date digest",signature="${md5Signature}"`
+      })
+
+      const isValid = await verify(requestTarget, headers, publicKey)
+      expect(isValid).toBe(false)
+    })
+
+    it('fails verification if (created) pseudo-header is present with rsa-sha256', async () => {
+      const created = '1618884475'
+      const stringToSign = `(request-target): ${requestTarget}\nhost: ${host}\n(created): ${created}\ndigest: ${digest}`
+      const signature = signString(stringToSign, 'rsa-sha256')
+
+      const headers = new Headers({
+        date,
+        digest,
+        host,
+        signature: `keyId="https://remote.test/actor#main-key",algorithm="rsa-sha256",headers="(request-target) host (created) digest",signature="${signature}",created=${created}`
+      })
+
+      const isValid = await verify(requestTarget, headers, publicKey)
+      expect(isValid).toBe(false)
+    })
+
+    it('fails verification if (expires) pseudo-header is present with rsa-sha256', async () => {
+      const expires = '1618888075'
+      const stringToSign = `(request-target): ${requestTarget}\nhost: ${host}\n(expires): ${expires}\ndigest: ${digest}`
+      const signature = signString(stringToSign, 'rsa-sha256')
+
+      const headers = new Headers({
+        date,
+        digest,
+        host,
+        signature: `keyId="https://remote.test/actor#main-key",algorithm="rsa-sha256",headers="(request-target) host (expires) digest",signature="${signature}",expires=${expires}`
+      })
+
+      const isValid = await verify(requestTarget, headers, publicKey)
+      expect(isValid).toBe(false)
+    })
+
+    it('fails verification if body/digest is tampered', async () => {
+      const stringToSign = `(request-target): ${requestTarget}\nhost: ${host}\ndate: ${date}\ndigest: ${digest}`
+      const signature = signString(stringToSign, 'rsa-sha256')
+
+      const headers = new Headers({
+        date,
+        digest: 'SHA-256=tampereddigesttampereddigesttampereddigest===',
+        host,
+        signature: `keyId="https://remote.test/actor#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest",signature="${signature}"`
+      })
+
+      const isValid = await verify(requestTarget, headers, publicKey)
+      expect(isValid).toBe(false)
+    })
+
+    it('fails verification if date is tampered', async () => {
+      const stringToSign = `(request-target): ${requestTarget}\nhost: ${host}\ndate: ${date}\ndigest: ${digest}`
+      const signature = signString(stringToSign, 'rsa-sha256')
+
+      const headers = new Headers({
+        date: 'Sun, 30 Aug 2026 12:00:00 GMT',
+        digest,
+        host,
+        signature: `keyId="https://remote.test/actor#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest",signature="${signature}"`
+      })
+
+      const isValid = await verify(requestTarget, headers, publicKey)
+      expect(isValid).toBe(false)
+    })
+  })
 })

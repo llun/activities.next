@@ -1,6 +1,7 @@
 import { trace } from '@opentelemetry/api'
 import { z } from 'zod'
 
+import { getJobMessage } from '@/app/api/inbox/getJobMessage'
 import { acceptFollowRequest } from '@/lib/actions/acceptFollowRequest'
 import {
   acceptRelayRequest,
@@ -20,6 +21,7 @@ import { rejectFollowRequest } from '@/lib/actions/rejectFollowRequest'
 import { undoFollowRequest } from '@/lib/actions/undoFollowRequest'
 import { FollowRequest } from '@/lib/activities/followAction'
 import { compactActivityPub } from '@/lib/activities/jsonld'
+import { StatusActivity } from '@/lib/activities/statusAction'
 import { UndoFollow } from '@/lib/activities/undoFollow'
 import { HANDLE_QUOTE_REQUEST_JOB_NAME } from '@/lib/jobs/names'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
@@ -46,35 +48,15 @@ import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
   DEFAULT_202,
-  ERROR_400,
   ERROR_403,
   ERROR_404,
+  ERROR_500,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 import { isRecord } from '@/lib/utils/typeGuards'
-
-const readActivityType = (activity: unknown): string | string[] | undefined => {
-  if (!isRecord(activity)) return undefined
-  const type = activity.type
-  if (typeof type === 'string') return type
-  if (
-    Array.isArray(type) &&
-    type.every((item): item is string => typeof item === 'string')
-  ) {
-    return type
-  }
-  return undefined
-}
-
-const readActivityId = (activity: unknown): string | undefined => {
-  if (!isRecord(activity)) return undefined
-  const id = activity.id
-  if (typeof id === 'string') return id
-  return undefined
-}
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 const GracefullyAcceptedActivity = z
@@ -217,23 +199,13 @@ export const POST = traceApiRoute(
             const compactedActivity = await compactActivityPub(
               context.activityBody
             )
-            const parsed = Activity.safeParse(compactedActivity)
-            if (!parsed.success) {
-              annotateInboxRejection('unsupported_activity_shape', {
-                activity_type: readActivityType(compactedActivity),
-                activity_id: readActivityId(compactedActivity),
-                sender_actor_id: context.verifiedSenderActorId
-              })
-              return apiResponse({
-                req,
-                allowedMethods: CORS_HEADERS,
-                data: ERROR_400,
-                responseStatusCode: 400
-              })
-            }
+            const activityActor =
+              isRecord(compactedActivity) &&
+              typeof compactedActivity.actor === 'string'
+                ? compactedActivity.actor
+                : context.verifiedSenderActorId
 
-            const activity = parsed.data
-            if (!(await canFederateWithDomain(database, activity.actor))) {
+            if (!(await canFederateWithDomain(database, activityActor))) {
               return apiResponse({
                 req,
                 allowedMethods: CORS_HEADERS,
@@ -256,6 +228,66 @@ export const POST = traceApiRoute(
                 responseStatusCode: 202
               })
             }
+
+            // Peers may deliver status-level activities (Create, Update, Delete,
+            // Announce, Undo of Announce) to personal inboxes. Route them through
+            // the shared job queue just like the shared inbox does.
+            const isStatusLevelActivity =
+              isRecord(compactedActivity) &&
+              (compactedActivity.type === 'Create' ||
+                compactedActivity.type === 'Update' ||
+                compactedActivity.type === 'Delete' ||
+                compactedActivity.type === 'Announce' ||
+                (compactedActivity.type === 'Undo' &&
+                  isRecord(compactedActivity.object) &&
+                  compactedActivity.object.type === 'Announce'))
+
+            if (isStatusLevelActivity) {
+              const jobMessage = getJobMessage(
+                compactedActivity as unknown as StatusActivity,
+                context.verifiedSenderActorId
+              )
+              if (jobMessage) {
+                await getQueue().publish(jobMessage)
+              } else {
+                logAcceptedWithoutSideEffects({
+                  activity: compactedActivity as {
+                    id?: string
+                    type: string
+                    actor?: string
+                  },
+                  reason: 'unmatched status activity'
+                })
+              }
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: DEFAULT_202,
+                responseStatusCode: 202
+              })
+            }
+
+            const parsed = Activity.safeParse(compactedActivity)
+            if (!parsed.success) {
+              logAcceptedWithoutSideEffects({
+                activity: isRecord(compactedActivity)
+                  ? (compactedActivity as {
+                      id?: string
+                      type: string
+                      actor?: string
+                    })
+                  : { type: 'unknown' },
+                reason: 'unsupported activity shape'
+              })
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: DEFAULT_202,
+                responseStatusCode: 202
+              })
+            }
+
+            const activity = parsed.data
 
             switch (activity.type) {
               case 'Accept': {
@@ -620,8 +652,8 @@ export const POST = traceApiRoute(
             return apiResponse({
               req,
               allowedMethods: CORS_HEADERS,
-              data: ERROR_400,
-              responseStatusCode: 400
+              data: ERROR_500,
+              responseStatusCode: 500
             })
           }
         },
