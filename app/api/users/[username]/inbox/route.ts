@@ -31,7 +31,10 @@ import {
   OnlyLocalUserGuard,
   OnlyLocalUserGuardParams
 } from '@/lib/services/guards/OnlyLocalUserGuard'
-import { annotateInboxRejection } from '@/lib/services/guards/inboxRejectionTrace'
+import {
+  annotateInboxRejection,
+  getActivityTraceAttributes
+} from '@/lib/services/guards/inboxRejectionTrace'
 import { getQueue } from '@/lib/services/queue'
 import {
   Accept,
@@ -208,7 +211,8 @@ export const POST = traceApiRoute(
             if (!(await canFederateWithDomain(database, activityActor))) {
               annotateInboxRejection('domain_not_federatable', {
                 actor_id: activityActor,
-                sender_actor_id: context.verifiedSenderActorId
+                sender_actor_id: context.verifiedSenderActorId,
+                ...getActivityTraceAttributes(compactedActivity)
               })
               return apiResponse({
                 req,
@@ -334,8 +338,8 @@ export const POST = traceApiRoute(
                 })
                 if (!follow) {
                   annotateInboxRejection('follow_request_not_found', {
-                    activity_id: activity.id,
-                    sender_actor_id: context.verifiedSenderActorId
+                    sender_actor_id: context.verifiedSenderActorId,
+                    ...getActivityTraceAttributes(activity)
                   })
                   return apiResponse({
                     req,
@@ -386,8 +390,8 @@ export const POST = traceApiRoute(
                 })
                 if (!follow) {
                   annotateInboxRejection('follow_request_not_found', {
-                    activity_id: activity.id,
-                    sender_actor_id: context.verifiedSenderActorId
+                    sender_actor_id: context.verifiedSenderActorId,
+                    ...getActivityTraceAttributes(activity)
                   })
                   return apiResponse({
                     req,
@@ -410,8 +414,8 @@ export const POST = traceApiRoute(
                 })
                 if (!follow) {
                   annotateInboxRejection('follow_creation_failed', {
-                    activity_id: activity.id,
-                    sender_actor_id: context.verifiedSenderActorId
+                    sender_actor_id: context.verifiedSenderActorId,
+                    ...getActivityTraceAttributes(activity)
                   })
                   return apiResponse({
                     req,
@@ -435,8 +439,8 @@ export const POST = traceApiRoute(
                 })
                 if (!block) {
                   annotateInboxRejection('block_failed', {
-                    activity_id: activity.id,
-                    sender_actor_id: context.verifiedSenderActorId
+                    sender_actor_id: context.verifiedSenderActorId,
+                    ...getActivityTraceAttributes(activity)
                   })
                   return apiResponse({
                     req,
@@ -512,6 +516,7 @@ export const POST = traceApiRoute(
                   if (!actorIdsMatch(activity.actor, undoFollow.data.actor)) {
                     annotateInboxRejection('sender_actor_mismatch', {
                       verified_sender: activity.actor,
+                      ...getActivityTraceAttributes(activity),
                       activity_actor: undoFollow.data.actor
                     })
                     return apiResponse({
@@ -531,8 +536,8 @@ export const POST = traceApiRoute(
                   })
                   if (!result) {
                     annotateInboxRejection('undo_follow_not_found', {
-                      activity_id: activity.id,
-                      sender_actor_id: context.verifiedSenderActorId
+                      sender_actor_id: context.verifiedSenderActorId,
+                      ...getActivityTraceAttributes(activity)
                     })
                     return apiResponse({
                       req,
@@ -602,6 +607,7 @@ export const POST = traceApiRoute(
                   if (!actorIdsMatch(activity.actor, undoBlock.data.actor)) {
                     annotateInboxRejection('sender_actor_mismatch', {
                       verified_sender: activity.actor,
+                      ...getActivityTraceAttributes(activity),
                       activity_actor: undoBlock.data.actor
                     })
                     return apiResponse({
@@ -620,8 +626,8 @@ export const POST = traceApiRoute(
                   })
                   if (!result) {
                     annotateInboxRejection('undo_block_not_found', {
-                      activity_id: activity.id,
-                      sender_actor_id: context.verifiedSenderActorId
+                      sender_actor_id: context.verifiedSenderActorId,
+                      ...getActivityTraceAttributes(activity)
                     })
                     return apiResponse({
                       req,
@@ -684,7 +690,9 @@ export const POST = traceApiRoute(
               error instanceof Error ? error : new Error(String(error))
             span?.recordException(err)
             annotateInboxRejection('handler_exception', {
-              sender_actor_id: context.verifiedSenderActorId
+              sender_actor_id: context.verifiedSenderActorId,
+              ...getActivityTraceAttributes(context.activityBody),
+              error: err.message
             })
             logger.error({
               err: toLoggableError(error),
