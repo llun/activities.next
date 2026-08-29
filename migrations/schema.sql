@@ -45,7 +45,7 @@ CREATE TABLE public.accounts (
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     "passwordHash" character varying(255),
     "verificationCode" character varying(255),
-    "verifiedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    "verifiedAt" timestamp with time zone,
     "defaultActorId" character varying(255),
     "emailChangePending" character varying(255),
     "emailChangeCode" character varying(255),
@@ -2068,4 +2068,3 @@ ALTER TABLE ONLY public.status_pins
 
 ALTER TABLE ONLY public."twoFactor"
     ADD CONSTRAINT twofactor_userid_foreign FOREIGN KEY ("userId") REFERENCES public.accounts(id) ON DELETE CASCADE;
-
