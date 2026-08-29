@@ -239,7 +239,10 @@ describe('POST /api/inbox', () => {
     expect(harness.recordedSpans[0].attributes).toMatchObject({
       'inbox.reject_reason': 'domain_not_federatable',
       'inbox.actor_id': 'https://blocked.test/users/a',
-      'inbox.sender_actor_id': 'https://allowed.test/users/a'
+      'inbox.sender_actor_id': 'https://allowed.test/users/a',
+      'inbox.activity_id': 'https://blocked.test/users/a/activities/create-1',
+      'inbox.activity_type': 'Create',
+      'inbox.activity_object_id': 'https://blocked.test/users/a/statuses/1'
     })
   })
 
@@ -423,6 +426,7 @@ describe('POST /api/inbox', () => {
       'inbox.reject_reason': 'unsupported_activity_shape',
       'inbox.activity_id': `${actor}/activities/unsupported-1`,
       'inbox.activity_type': 'Dislike',
+      'inbox.activity_object_id': `${actor}/statuses/1`,
       'inbox.sender_actor_id': actor
     })
   })
@@ -440,7 +444,10 @@ describe('POST /api/inbox', () => {
     expect(harness.recordedSpans[0].name).toBe('api.sharedInbox')
     expect(harness.recordedSpans[0].attributes).toMatchObject({
       'inbox.reject_reason': 'handler_exception',
-      'inbox.sender_actor_id': 'https://allowed.test/users/a'
+      'inbox.sender_actor_id': 'https://allowed.test/users/a',
+      'inbox.activity_id': 'https://allowed.test/users/a/activities/create-1',
+      'inbox.activity_type': 'Create',
+      'inbox.error': 'queue publish failed'
     })
     expect(harness.recordedSpans[0].exception).toEqual(
       new Error('queue publish failed')
