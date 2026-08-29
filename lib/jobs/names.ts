@@ -1,6 +1,7 @@
 export const CREATE_ANNOUNCE_JOB_NAME = 'CreateAnnounceJob'
 export const CREATE_NOTE_JOB_NAME = 'CreateNoteJob'
 export const RELAY_ANNOUNCE_JOB_NAME = 'RelayAnnounceJob'
+export const PROCESS_FORWARDED_ACTIVITY_JOB_NAME = 'ProcessForwardedActivityJob'
 export const CREATE_POLL_JOB_NAME = 'CreatePollJob'
 export const CREATE_POLL_VOTE_JOB_NAME = 'CreatePollVoteJob'
 export const UPDATE_NOTE_JOB_NAME = 'UpdateNoteJob'
