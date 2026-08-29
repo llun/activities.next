@@ -1,8 +1,5 @@
 CREATE TABLE `knex_migrations` (`id` integer not null primary key autoincrement, `name` varchar(255), `batch` integer, `migration_time` datetime);
 CREATE TABLE `knex_migrations_lock` (`index` integer not null primary key autoincrement, `is_locked` integer);
-CREATE TABLE `accounts` (`id` varchar(255), `email` varchar(255), `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, `passwordHash` varchar(255), `verificationCode` varchar(255), `verifiedAt` datetime default CURRENT_TIMESTAMP, `defaultActorId` varchar(255) null, `emailChangePending` varchar(255), `emailChangeCode` varchar(255), `emailChangeCodeExpiresAt` datetime, `emailVerifiedAt` datetime, `passwordResetCode` varchar(255), `passwordResetCodeExpiresAt` datetime, `name` varchar(255) null, `image` text null, `emailVerified` boolean default '0', `iconUrl` varchar(255) null, `role` text null default null, `twoFactorEnabled` boolean not null default '0', `disabledAt` datetime null, `approvedAt` datetime null, primary key (`id`));
-CREATE UNIQUE INDEX `accounts_email_unique` on `accounts` (`email`);
-CREATE INDEX `accountsIndex` on `accounts` (`email`, `createdAt`, `updatedAt`);
 CREATE TABLE `follows` (`id` varchar(255), `actorId` varchar(255), `actorHost` varchar(255), `targetActorId` varchar(255), `targetActorHost` varchar(255), `status` varchar(255), `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, `inbox` varchar(255), `sharedInbox` varchar(255), `reblogs` boolean not null default '1', `notify` boolean not null default '0', `languages` text null, primary key (`id`));
 CREATE INDEX `followsIndex` on `follows` (`actorId`, `actorHost`, `targetActorId`, `targetActorHost`, `status`, `createdAt`, `updatedAt`);
 CREATE TABLE `attachments` (`id` varchar(255), `statusId` varchar(255), `url` varchar(255), `mediaType` varchar(255), `type` varchar(255), `width` integer, `height` integer, `name` text, `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, `actorId` varchar(255), `mediaId` varchar(255), `blurhash` varchar(255) null, `focusX` float null, `focusY` float null, `thumbnailUrl` varchar(255) null, primary key (`id`));
@@ -24,7 +21,6 @@ CREATE INDEX `sessions_accountId_token_idx` on `sessions` (`accountId`, `token`)
 CREATE INDEX `status_history_statusId_idx` on `status_history` (`statusId`, `createdAt`, `updatedAt`);
 CREATE INDEX `statuses_actorId_idx` on `statuses` (`actorId`, `createdAt`, `updatedAt`);
 CREATE INDEX `tags_statusId_type_idx` on `tags` (`statusId`, `type`, `createdAt`, `updatedAt`);
-CREATE INDEX `verificationCodeIndex` on `accounts` (`verificationCode`);
 CREATE INDEX `attachments_actorId_idx` on `attachments` (`actorId`);
 CREATE TABLE IF NOT EXISTS "clients" (`id` varchar(255), "name" varchar(255), `secret` varchar(255), `redirectUris` text, `scopes` text, `website` varchar(255), `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, primary key (`id`));
 CREATE UNIQUE INDEX `applications_clientname_unique` on "clients" ("name");
@@ -54,7 +50,6 @@ CREATE INDEX `statusesUrlHashIndex` on `statuses` (`urlHash`);
 CREATE INDEX `actors_accountId_idx` on `actors` (`accountId`);
 CREATE INDEX `attachments_mediaId_idx` on `attachments` (`mediaId`);
 CREATE INDEX `recipients_type_actor_created_status_idx` on `recipients` (`type`, `actorId`, `createdAt`, `statusId`);
-CREATE INDEX `passwordResetCodeIndex` on `accounts` (`passwordResetCode`);
 CREATE TABLE `fitness_files` (`id` varchar(255), `actorId` varchar(255) not null, `statusId` varchar(255), `path` varchar(255) not null, `fileName` varchar(255) not null, `fileType` varchar(255) not null, `mimeType` varchar(255) not null, `bytes` bigint not null, `description` text, `hasMapData` boolean default '0', `mapImagePath` varchar(255), `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, `deletedAt` datetime, `processingStatus` varchar(255) default 'pending', `totalDistanceMeters` float, `totalDurationSeconds` float, `elevationGainMeters` float, `activityType` varchar(255), `activityStartTime` datetime, `isPrimary` boolean not null default '1', `importBatchId` varchar(255), `importStatus` varchar(255), `importError` text, `deviceManufacturer` varchar(255), `deviceName` varchar(255), `sourceUrl` text, `movingTimeSeconds` float, `mapImageEmailPath` varchar(255), `mapError` text, `gearId` varchar(255) null, `deviceGearId` varchar(255) null, foreign key(`actorId`) references `actors`(`id`) on delete CASCADE, foreign key(`statusId`) references `statuses`(`id`) on delete SET NULL, primary key (`id`));
 CREATE INDEX `fitness_files_actor_id_idx` on `fitness_files` (`actorId`);
 CREATE INDEX `fitness_files_status_id_idx` on `fitness_files` (`statusId`);
@@ -281,3 +276,8 @@ CREATE INDEX `fitness_gear_component_periods_component_id_idx` on `fitness_gear_
 CREATE UNIQUE INDEX `fitness_gear_component_periods_sequence_unique` on `fitness_gear_component_periods` (`componentId`, `installSequence`);
 CREATE TABLE IF NOT EXISTS "fitness_gear_components" (`id` varchar(255), `gearId` varchar(255) NOT NULL, `componentType` varchar(255) NOT NULL, `brand` varchar(255) NULL, `model` varchar(255) NULL, `serviceDistanceMeters` float NULL, `lastAlertedDistanceMeters` float NULL, `createdAt` datetime NOT NULL, `updatedAt` datetime NOT NULL, `deletedAt` datetime NULL, FOREIGN KEY (`gearId`) REFERENCES `fitness_gears` (`id`) ON DELETE CASCADE, PRIMARY KEY (`id`));
 CREATE INDEX `fitness_gear_components_gear_id_idx` on `fitness_gear_components` (`gearId`);
+CREATE TABLE IF NOT EXISTS "accounts" (`id` varchar(255), `email` varchar(255), `createdAt` datetime DEFAULT CURRENT_TIMESTAMP, `updatedAt` datetime DEFAULT CURRENT_TIMESTAMP, `passwordHash` varchar(255), `verificationCode` varchar(255), `verifiedAt` datetime, `defaultActorId` varchar(255) NULL, `emailChangePending` varchar(255), `emailChangeCode` varchar(255), `emailChangeCodeExpiresAt` datetime, `emailVerifiedAt` datetime, `passwordResetCode` varchar(255), `passwordResetCodeExpiresAt` datetime, `name` varchar(255) NULL, `image` text NULL, `emailVerified` boolean DEFAULT '0', `iconUrl` varchar(255) NULL, `role` text NULL DEFAULT null, `twoFactorEnabled` boolean NOT NULL DEFAULT '0', `disabledAt` datetime NULL, `approvedAt` datetime NULL, PRIMARY KEY (`id`));
+CREATE UNIQUE INDEX `accounts_email_unique` on `accounts` (`email`);
+CREATE INDEX `accountsIndex` on `accounts` (`email`, `createdAt`, `updatedAt`);
+CREATE INDEX `verificationCodeIndex` on `accounts` (`verificationCode`);
+CREATE INDEX `passwordResetCodeIndex` on `accounts` (`passwordResetCode`);
