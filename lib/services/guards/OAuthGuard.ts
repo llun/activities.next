@@ -22,6 +22,11 @@ import {
 } from '@/lib/utils/response'
 import { selectAccountActor } from '@/lib/utils/selectAccountActor'
 
+import {
+  annotateAuthAnonymous,
+  annotateAuthRejection,
+  annotateAuthSuccess
+} from './authTrace'
 import { hasSameOriginProof } from './sameOriginProof'
 import { hasGrantedScope } from './scopeHierarchy'
 import {
@@ -122,9 +127,18 @@ type ScopeMatchMode = 'all' | 'any'
 // token, a revoked one, a scope mismatch and a grant with no actor all look
 // identical. Record which check fired — never the token — so raising
 // `LOG_LEVEL` to debug is enough to diagnose one.
-const rejectBearer = (reason: string, statusCode: StatusCode) => {
+const rejectBearer = (
+  reason: string,
+  statusCode: StatusCode,
+  extra: Record<string, string | number | boolean | string[] | undefined> = {}
+) => {
+  annotateAuthRejection(reason, {
+    auth_type: 'bearer',
+    status: statusCode,
+    ...extra
+  })
   oauthLogger.debug(
-    { endpoint: 'guard', reason, status: statusCode },
+    { endpoint: 'guard', reason, status: statusCode, ...extra },
     `Bearer token rejected with ${statusCode}`
   )
   return apiErrorResponse(statusCode)
@@ -242,7 +256,10 @@ const resolveTokenContext = async ({
       if (!hasRequiredScopes({ grantedScopes: jwtScopes, scopes, matchMode })) {
         return {
           valid: false,
-          response: rejectBearer('insufficient_scope', 401)
+          response: rejectBearer('insufficient_scope', 401, {
+            required_scopes: scopes,
+            granted_scopes: jwtScopes
+          })
         }
       }
     }
@@ -280,7 +297,10 @@ const resolveTokenContext = async ({
       ) {
         return {
           valid: false,
-          response: rejectBearer('insufficient_scope', 401)
+          response: rejectBearer('insufficient_scope', 401, {
+            required_scopes: scopes,
+            granted_scopes: storedScopes
+          })
         }
       }
     }
@@ -391,7 +411,9 @@ const resolveAuthenticatedContext = async <P>({
       if (isActorModerationBlocked(parsedActor)) {
         return {
           authenticated: false,
-          response: rejectBearer('actor_moderation_blocked', 403)
+          response: rejectBearer('actor_moderation_blocked', 403, {
+            actor_id: parsedActor.id
+          })
         }
       }
       if (isActorConfirmationPending(parsedActor)) {
@@ -404,10 +426,20 @@ const resolveAuthenticatedContext = async <P>({
         if (unconfirmedAccount === 'reject') {
           return {
             authenticated: false,
-            response: rejectBearer('account_unconfirmed', 403)
+            response: rejectBearer('account_unconfirmed', 403, {
+              actor_id: parsedActor.id
+            })
           }
         }
       }
+
+      annotateAuthSuccess({
+        authType: 'bearer',
+        actorId: parsedActor.id,
+        clientId,
+        userId,
+        grantedScopes
+      })
 
       return {
         authenticated: true,
@@ -431,17 +463,35 @@ const resolveAuthenticatedContext = async <P>({
   }
 
   if (!hasSameOriginProof(req)) {
+    annotateAuthRejection('csrf_failed', {
+      auth_type: 'session',
+      status: 403
+    })
     return { authenticated: false, response: apiErrorResponse(403) }
   }
 
   const currentActor = await getActorFromSession(database, session)
   if (!currentActor) {
+    annotateAuthRejection('session_actor_not_found', {
+      auth_type: 'session',
+      status: 401
+    })
     return { authenticated: false, response: apiErrorResponse(401) }
   }
   if (isActorModerationBlocked(currentActor)) {
+    annotateAuthRejection('actor_moderation_blocked', {
+      auth_type: 'session',
+      status: 403,
+      actor_id: currentActor.id
+    })
     return { authenticated: false, response: apiErrorResponse(403) }
   }
   if (isActorConfirmationPending(currentActor)) {
+    annotateAuthRejection('account_unconfirmed', {
+      auth_type: 'session',
+      status: 403,
+      actor_id: currentActor.id
+    })
     if (unconfirmedAccount === 'anonymous') {
       return { authenticated: false }
     }
@@ -449,6 +499,11 @@ const resolveAuthenticatedContext = async <P>({
       return { authenticated: false, response: apiErrorResponse(403) }
     }
   }
+
+  annotateAuthSuccess({
+    authType: 'session',
+    actorId: currentActor.id
+  })
 
   return {
     authenticated: true,
@@ -474,6 +529,12 @@ const createOAuthGuard =
       unconfirmedAccount: options.unconfirmedAccount
     })
     if (!result.authenticated) {
+      if (!result.response) {
+        annotateAuthRejection('missing_credentials', {
+          status: 401,
+          required_scopes: scopes
+        })
+      }
       const response = result.response ?? apiErrorResponse(401)
       // Let CORS-enabled routes attach their allowed-method CORS headers to the
       // guard's 401/403/500 responses so cross-origin clients can read the
@@ -521,6 +582,10 @@ export const OAuthAppGuard =
 
     const authorizationToken = req.headers.get('Authorization')
     if (!isBearerAuthorizationHeader(authorizationToken)) {
+      annotateAuthRejection('missing_authorization_header', {
+        auth_type: 'bearer',
+        status: 401
+      })
       return fail(apiErrorResponse(401))
     }
 
@@ -579,6 +644,14 @@ export const OAuthAppGuard =
       return fail(apiErrorResponse(500))
     }
 
+    annotateAuthSuccess({
+      authType: 'bearer',
+      actorId: currentActor?.id ?? null,
+      clientId: client?.id ?? clientId,
+      userId,
+      grantedScopes
+    })
+
     return handle(req, {
       currentActor,
       client,
@@ -619,7 +692,7 @@ export const OptionalOAuthGuard =
       // Served WITHOUT its identity — neither refused nor accepted as itself.
       // Both alternatives are wrong here and the full argument lives in
       // AGENTS.md's "An Unconfirmed Account May Not Act"; the short of it is
-      // that refusing makes a valid token fail a read that succeeds with no
+      // that refusing made a valid token fail a read that succeeds with no
       // token, and accepting hands an unverified account real capability.
       unconfirmedAccount: 'anonymous'
     })
@@ -629,9 +702,19 @@ export const OptionalOAuthGuard =
     }
 
     if (result.response) {
-      return options.errorResponse
-        ? options.errorResponse(req, result.response.status as StatusCode)
-        : result.response
+      // Refuse moderation-blocked (suspended) actors with 403, and propagate server errors (500).
+      if (result.response.status === 403 || result.response.status >= 500) {
+        return options.errorResponse
+          ? options.errorResponse(req, result.response.status as StatusCode)
+          : result.response
+      }
+      // For 401 (invalid/expired/unrecognized token or no session actor),
+      // downgrade to anonymous rather than failing a public read that
+      // succeeds with no Authorization header at all (matching Mastodon's
+      // authorize_if_got_token! behavior).
+      annotateAuthAnonymous({ downgraded: true })
+    } else {
+      annotateAuthAnonymous({ downgraded: false })
     }
 
     const database = getDatabase()

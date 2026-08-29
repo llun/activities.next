@@ -29,7 +29,7 @@ describe('traceApiRoute', () => {
     vi.restoreAllMocks()
   })
 
-  it('wraps a successful route handler with tracing', async () => {
+  it('wraps a successful route handler with tracing and sets HTTP attributes', async () => {
     const handler = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ success: true }), {
         status: 200
@@ -37,12 +37,31 @@ describe('traceApiRoute', () => {
     )
 
     const wrapped = traceApiRoute('testRoute', handler)
-    const req = new NextRequest('http://localhost/api/test')
+    const req = new NextRequest('http://localhost/api/test?limit=100', {
+      headers: {
+        'user-agent': 'TestAgent/1.0'
+      }
+    })
     const context = { params: Promise.resolve({}) }
 
     const response = await wrapped(req, context)
 
     expect(handler).toHaveBeenCalledWith(req, context)
+    expect(mockSpan.setAttribute).toHaveBeenCalledWith(
+      'http.request.method',
+      'GET'
+    )
+    expect(mockSpan.setAttribute).toHaveBeenCalledWith('url.path', '/api/test')
+    expect(mockSpan.setAttribute).toHaveBeenCalledWith('url.query', 'limit=100')
+    expect(mockSpan.setAttribute).toHaveBeenCalledWith(
+      'user_agent.original',
+      'TestAgent/1.0'
+    )
+    expect(mockSpan.setAttribute).toHaveBeenCalledWith(
+      'http.response.status_code',
+      200
+    )
+    expect(mockSpan.setAttribute).toHaveBeenCalledWith('http.status_code', 200)
     expect(mockSpan.setStatus).toHaveBeenCalledWith({
       code: SpanStatusCode.OK
     })
