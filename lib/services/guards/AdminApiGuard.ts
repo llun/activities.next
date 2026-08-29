@@ -2,12 +2,18 @@ import { NextRequest } from 'next/server'
 
 import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
+import { isAccountConfirmationPending } from '@/lib/services/auth/canCreateSessionForAccount'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { Scope } from '@/lib/types/database/operations'
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { HTTP_STATUS, apiResponse } from '@/lib/utils/response'
 
+import {
+  isActorConfirmationPending,
+  isActorModerationBlocked
+} from './OAuthGuard'
 import { hasSameOriginProof } from './sameOriginProof'
 import { AppRouterParams } from './types'
 
@@ -117,6 +123,39 @@ export const AdminApiGuard =
           responseStatusCode: HTTP_STATUS.FORBIDDEN
         })
       }
+
+      if (Boolean(admin.disabledAt) || isAccountConfirmationPending(admin)) {
+        return apiResponse({
+          req,
+          allowedMethods,
+          data: { error: 'Forbidden' },
+          responseStatusCode: HTTP_STATUS.FORBIDDEN
+        })
+      }
+
+      const currentActor =
+        typeof database.getAccountFromEmail === 'function'
+          ? await getActorFromSession(database, session)
+          : null
+      if (currentActor) {
+        if (isActorModerationBlocked(currentActor)) {
+          return apiResponse({
+            req,
+            allowedMethods,
+            data: { error: 'Forbidden' },
+            responseStatusCode: HTTP_STATUS.FORBIDDEN
+          })
+        }
+        if (isActorConfirmationPending(currentActor)) {
+          return apiResponse({
+            req,
+            allowedMethods,
+            data: { error: 'Forbidden' },
+            responseStatusCode: HTTP_STATUS.FORBIDDEN
+          })
+        }
+      }
+
       return handle(req, {
         database,
         params: context.params,
@@ -138,7 +177,8 @@ export const AdminApiGuard =
       })
     }
 
-    const { OAuthGuardAnyScope } = await import('./OAuthGuard')
+    const { OAuthGuardAnyScope, corsErrorResponse } =
+      await import('./OAuthGuard')
     return OAuthGuardAnyScope<P>(
       getRequiredOAuthScopes(req.method, options),
       async (oauthReq, { currentActor, database: oauthDatabase, params }) => {
@@ -159,6 +199,7 @@ export const AdminApiGuard =
             actorId: currentActor.id
           }
         })
-      }
+      },
+      { errorResponse: corsErrorResponse(allowedMethods) }
     )(req, context)
   }

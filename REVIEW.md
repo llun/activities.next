@@ -514,8 +514,9 @@ change doesn't touch.
   exists and why `serializeAdminAccounts`' `confirmed` field had to stop reading
   `verifiedAt` too.
 - Every MANDATORY authenticated surface refuses an unconfirmed account with 403
-  (`isActorConfirmationPending` in `lib/services/guards/OAuthGuard.ts` and
-  `lib/services/guards/AuthenticatedGuard.ts`), matching Mastodon's
+  (`isActorConfirmationPending` in `lib/services/guards/OAuthGuard.ts`,
+  `lib/services/guards/AuthenticatedGuard.ts`, and
+  `lib/services/guards/AdminApiGuard.ts`), matching Mastodon's
   `require_user!`. `OptionalOAuthGuard` deliberately does NOT — it
   DOWNGRADES such a token to the anonymous path
   (`unconfirmedAccountDisposition: 'anonymous'`). Refusing made presenting a
