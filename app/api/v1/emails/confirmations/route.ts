@@ -37,7 +37,7 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 // rather than a pointless resend.
 const guardOptions = {
   errorResponse: corsErrorResponse(CORS_HEADERS),
-  allowUnconfirmedAccount: true
+  unconfirmedAccount: 'allow' as const
 }
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
@@ -181,11 +181,32 @@ export const POST = traceApiRoute(
 
         try {
           verificationCode = crypto.randomBytes(32).toString('base64url')
-          await database.repointUnconfirmedAccountEmail({
+          const updatedAccount = await database.repointUnconfirmedAccountEmail({
             accountId: account.id,
             email: newEmail,
             verificationCode
           })
+
+          if (!updatedAccount) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: { error: 'Account not found' },
+              responseStatusCode: HTTP_STATUS.NOT_FOUND
+            })
+          }
+
+          if (!isAccountConfirmationPending(updatedAccount)) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: {
+                error:
+                  'This method is only available while the e-mail is awaiting confirmation'
+              },
+              responseStatusCode: HTTP_STATUS.FORBIDDEN
+            })
+          }
         } catch (error) {
           // The pre-check above covers the common case, but a concurrent
           // claim of the same address can still race onto the unique

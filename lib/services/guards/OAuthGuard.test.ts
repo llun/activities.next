@@ -1144,7 +1144,26 @@ describe('OAuthGuard', () => {
       expect(mockHandler).not.toHaveBeenCalled()
     })
 
-    test('allowUnconfirmedAccount lets the confirmation-resend endpoint through', async () => {
+    test('unconfirmedAccount: "allow" lets a delegated unconfirmed actor through OAuthAppGuard', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+      storePendingToken('unconfirmed-app-guard-allow-token')
+
+      const guard = OAuthAppGuard([Scope.enum.read], mockHandler, {
+        matchMode: 'any',
+        unconfirmedAccount: 'allow'
+      })
+      const response = await guard(
+        createRequest({
+          Authorization: 'Bearer unconfirmed-app-guard-allow-token'
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
+    })
+
+    test('unconfirmedAccount: "allow" lets the confirmation-resend endpoint through', async () => {
       // The one carve-out Mastodon makes too
       // (`Api::V1::Emails::ConfirmationsController` never calls
       // `require_user!`): resending its own confirmation e-mail is the single
@@ -1154,7 +1173,7 @@ describe('OAuthGuard', () => {
       storePendingToken('unconfirmed-resend-token')
 
       const guard = OAuthGuard([Scope.enum.read], mockHandler, {
-        allowUnconfirmedAccount: true
+        unconfirmedAccount: 'allow'
       })
       const response = await guard(
         createRequest({ Authorization: 'Bearer unconfirmed-resend-token' }),
@@ -1165,7 +1184,21 @@ describe('OAuthGuard', () => {
       expect(mockHandler).toHaveBeenCalled()
     })
 
-    test('allowUnconfirmedAccount does not relax the suspended-actor check', async () => {
+    test('unconfirmedAccount: "allow" lets an unconfirmed cookie session through', async () => {
+      mockGetServerSession.mockResolvedValue({ user: { email: PENDING_EMAIL } })
+
+      const guard = OAuthGuard([Scope.enum.read], mockHandler, {
+        unconfirmedAccount: 'allow'
+      })
+      const response = await guard(createRequest(), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
+    })
+
+    test('unconfirmedAccount: "allow" does not relax the suspended-actor check', async () => {
       // The carve-out relaxes confirmation and nothing else: a suspended actor
       // stays refused on the very endpoint that is otherwise exempt.
       mockGetServerSession.mockResolvedValue(null)
@@ -1177,7 +1210,7 @@ describe('OAuthGuard', () => {
 
       try {
         const guard = OAuthGuard([Scope.enum.read], mockHandler, {
-          allowUnconfirmedAccount: true
+          unconfirmedAccount: 'allow'
         })
         const response = await guard(
           createRequest({
