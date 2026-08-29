@@ -3,6 +3,7 @@ import { StatusActivity } from '@/lib/activities/statusAction'
 import { RELAY_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
+import { annotateInboxRejection } from '@/lib/services/guards/inboxRejectionTrace'
 import { getQueue } from '@/lib/services/queue'
 import { AnnounceAction } from '@/lib/types/activitypub/activities'
 import { extractActivityPubId, normalizeActorId } from '@/lib/utils/activitypub'
@@ -12,7 +13,6 @@ import {
   DEFAULT_202,
   ERROR_400,
   ERROR_403,
-  ERROR_404,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -115,11 +115,12 @@ export const POST = traceApiRoute(
 
       const jobMessage = getJobMessage(activity, verifiedSenderActorId)
       if (!jobMessage) {
+        annotateInboxRejection('unsupported_activity_shape')
         return apiResponse({
           req: request,
           allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
+          data: DEFAULT_202,
+          responseStatusCode: 202
         })
       }
 

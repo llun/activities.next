@@ -86,7 +86,7 @@ vi.mock('@/lib/services/guards/ActivityPubVerifyGuard', () => ({
       context: { params: Promise<{ username: string }> }
     ) => {
       if (!(await mockVerifyAllows(req, context))) {
-        return Response.json({ error: 'Bad Request' }, { status: 400 })
+        return Response.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
       const activityBody =
@@ -96,6 +96,10 @@ vi.mock('@/lib/services/guards/ActivityPubVerifyGuard', () => ({
               .json()
               .catch(() => null)
           : mockActivityBody
+
+      if (activityBody === null) {
+        return Response.json({ error: 'Unauthorized' }, { status: 401 })
+      }
 
       if (mockConsumeRequestBody) {
         await req.text().catch(() => null)
@@ -391,7 +395,7 @@ describe('POST /api/users/[username]/inbox', () => {
       params: Promise.resolve({ username: 'llun' })
     })
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(401)
     expect(mockCanFederateWithDomain).not.toHaveBeenCalled()
     expect(mockCreateFollower).not.toHaveBeenCalled()
   })
@@ -453,7 +457,7 @@ describe('POST /api/users/[username]/inbox', () => {
       { params: Promise.resolve({ username: 'llun' }) }
     )
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(401)
     expect(mockCanFederateWithDomain).not.toHaveBeenCalled()
     expect(mockCreateFollower).not.toHaveBeenCalled()
   })
@@ -974,7 +978,7 @@ describe('POST /api/users/[username]/inbox', () => {
       params: Promise.resolve({ username: 'llun' })
     })
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(500)
     expect(harness.recordedSpans).toHaveLength(1)
     expect(harness.recordedSpans[0].name).toBe('api.actorInbox')
     expect(harness.recordedSpans[0].attributes).toMatchObject({
@@ -990,37 +994,137 @@ describe('POST /api/users/[username]/inbox', () => {
     expect(mockLogger.error.mock.calls[0][0].err.message).toBe('db down')
   })
 
-  it('annotates unsupported_activity_shape when activity schema validation fails', async () => {
+  describe('status activity routing on personal inbox', () => {
+    it('routes Create Note activities delivered to personal inbox to the job queue with 202', async () => {
+      const response = await POST(
+        new NextRequest('https://activities.local/api/users/llun/inbox', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            id: 'https://remote.test/users/alice/activities/create-1',
+            type: 'Create',
+            actor: 'https://remote.test/users/alice',
+            object: {
+              id: 'https://remote.test/users/alice/statuses/1',
+              type: 'Note',
+              attributedTo: 'https://remote.test/users/alice',
+              content: 'Hello'
+            }
+          })
+        }),
+        { params: Promise.resolve({ username: 'llun' }) }
+      )
+
+      expect(response.status).toBe(202)
+      expect(mockPublish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'CreateNoteJob'
+        })
+      )
+    })
+
+    it('routes Announce activities delivered to personal inbox to the job queue with 202', async () => {
+      const response = await POST(
+        new NextRequest('https://activities.local/api/users/llun/inbox', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            id: 'https://remote.test/users/alice/activities/announce-1',
+            type: 'Announce',
+            actor: 'https://remote.test/users/alice',
+            object: 'https://activities.local/users/llun/statuses/1',
+            to: ['https://www.w3.org/ns/activitystreams#Public']
+          })
+        }),
+        { params: Promise.resolve({ username: 'llun' }) }
+      )
+
+      expect(response.status).toBe(202)
+      expect(mockPublish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'CreateAnnounceJob'
+        })
+      )
+    })
+
+    it('routes Delete activities delivered to personal inbox to the job queue with 202', async () => {
+      const response = await POST(
+        new NextRequest('https://activities.local/api/users/llun/inbox', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            id: 'https://remote.test/users/alice/activities/delete-1',
+            type: 'Delete',
+            actor: 'https://remote.test/users/alice',
+            object: 'https://remote.test/users/alice/statuses/1'
+          })
+        }),
+        { params: Promise.resolve({ username: 'llun' }) }
+      )
+
+      expect(response.status).toBe(202)
+      expect(mockPublish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'DeleteObjectJob'
+        })
+      )
+    })
+
+    it('routes Undo Announce activities delivered to personal inbox to the job queue with 202', async () => {
+      const response = await POST(
+        new NextRequest('https://activities.local/api/users/llun/inbox', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            id: 'https://remote.test/users/alice/activities/undo-announce-1',
+            type: 'Undo',
+            actor: 'https://remote.test/users/alice',
+            object: {
+              id: 'https://remote.test/users/alice/activities/announce-1',
+              type: 'Announce',
+              actor: 'https://remote.test/users/alice',
+              object: 'https://activities.local/users/llun/statuses/1'
+            }
+          })
+        }),
+        { params: Promise.resolve({ username: 'llun' }) }
+      )
+
+      expect(response.status).toBe(202)
+      expect(mockPublish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'DeleteObjectJob'
+        })
+      )
+    })
+  })
+
+  it('accepts unknown or unsupported activity types with 202 and logs without error', async () => {
     const response = await POST(
       new NextRequest('https://activities.local/api/users/llun/inbox', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          id: 'https://remote.test/users/alice/activities/create-1',
-          type: 'Create',
+          id: 'https://remote.test/users/alice/activities/custom-1',
+          type: 'Dislike',
           actor: 'https://remote.test/users/alice',
-          object: {
-            id: 'https://remote.test/users/alice/statuses/1',
-            type: 'Note',
-            content: 'Hello'
-          }
+          object: 'https://activities.local/users/llun'
         })
       }),
       { params: Promise.resolve({ username: 'llun' }) }
     )
 
-    expect(response.status).toBe(400)
-    expect(harness.recordedSpans).toHaveLength(1)
-    expect(harness.recordedSpans[0].attributes).toMatchObject({
-      'inbox.reject_reason': 'unsupported_activity_shape',
-      'inbox.activity_type': 'Create',
-      'inbox.activity_id':
-        'https://remote.test/users/alice/activities/create-1',
-      'inbox.sender_actor_id': 'https://remote.test/users/alice'
-    })
+    expect(response.status).toBe(202)
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message:
+          'Accepted ActivityPub inbox activity without local side effects',
+        reason: 'unsupported activity shape'
+      })
+    )
   })
 
-  it('annotates unsupported_activity_shape with string array activity_type', async () => {
+  it('accepts string array activity_type with 202', async () => {
     const response = await POST(
       new NextRequest('https://activities.local/api/users/llun/inbox', {
         method: 'POST',
@@ -1035,15 +1139,7 @@ describe('POST /api/users/[username]/inbox', () => {
       { params: Promise.resolve({ username: 'llun' }) }
     )
 
-    expect(response.status).toBe(400)
-    expect(harness.recordedSpans).toHaveLength(1)
-    expect(harness.recordedSpans[0].attributes).toMatchObject({
-      'inbox.reject_reason': 'unsupported_activity_shape',
-      'inbox.activity_type': ['Create', 'https://example.com/Custom'],
-      'inbox.activity_id':
-        'https://remote.test/users/alice/activities/custom-1',
-      'inbox.sender_actor_id': 'https://remote.test/users/alice'
-    })
+    expect(response.status).toBe(202)
   })
 
   it('does not annotate inbox.reject_reason on a valid accepted activity', async () => {
