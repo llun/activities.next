@@ -1,3 +1,4 @@
+import { trace } from '@opentelemetry/api'
 import { NextRequest, NextResponse } from 'next/server'
 
 import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
@@ -5,6 +6,7 @@ import { FEDERATION_SIGNING_ACTOR_USERNAME } from '@/lib/services/federation/ins
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { setupRecordingTracer } from '@/lib/testing/recordingTracer'
 
 import { OnlyLocalUserGuard } from './OnlyLocalUserGuard'
 
@@ -423,6 +425,71 @@ describe('OnlyLocalUserGuard', () => {
       expect(mockHandler).not.toHaveBeenCalled()
 
       mockDatabase = originalDb
+    })
+  })
+
+  describe('rejection trace annotations', () => {
+    let harness: ReturnType<typeof setupRecordingTracer>
+
+    beforeEach(() => {
+      harness = setupRecordingTracer()
+    })
+
+    afterEach(() => {
+      harness.cleanup()
+    })
+
+    const runGuardInSpan = async (
+      guard: ReturnType<typeof OnlyLocalUserGuard>,
+      req: NextRequest,
+      username: string
+    ) => {
+      return trace
+        .getTracer('test')
+        .startActiveSpan('api.actorInbox', async () => {
+          return guard(req, { params: Promise.resolve({ username }) })
+        })
+    }
+
+    it('annotates local_actor_not_found when user does not exist', async () => {
+      const guard = OnlyLocalUserGuard(mockHandler)
+      const req = createRequest()
+      const response = await runGuardInSpan(guard, req, 'nonexistent')
+
+      expect(response.status).toBe(404)
+      expect(mockHandler).not.toHaveBeenCalled()
+      expect(harness.recordedSpans).toHaveLength(1)
+      expect(harness.recordedSpans[0].attributes).toMatchObject({
+        'inbox.reject_reason': 'local_actor_not_found',
+        'inbox.username': 'nonexistent'
+      })
+    })
+
+    it('annotates local_actor_suspended when local actor is suspended', async () => {
+      const actor = await database.getActorFromUsername({
+        username: seedActor1.username,
+        domain: 'llun.test'
+      })
+      await database.setActorSuspended({ actorId: actor!.id, suspended: true })
+
+      try {
+        const guard = OnlyLocalUserGuard(mockHandler)
+        const req = createRequest()
+        const response = await runGuardInSpan(guard, req, seedActor1.username)
+
+        expect(response.status).toBe(410)
+        expect(mockHandler).not.toHaveBeenCalled()
+        expect(harness.recordedSpans).toHaveLength(1)
+        expect(harness.recordedSpans[0].attributes).toMatchObject({
+          'inbox.reject_reason': 'local_actor_suspended',
+          'inbox.username': seedActor1.username
+        })
+      } finally {
+        await database.setActorSuspended({
+          actorId: actor!.id,
+          suspended: false
+        })
+      }
     })
   })
 })
