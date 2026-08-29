@@ -5,7 +5,10 @@ import { StatusActivity } from '@/lib/activities/statusAction'
 import { RELAY_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
-import { annotateInboxRejection } from '@/lib/services/guards/inboxRejectionTrace'
+import {
+  annotateInboxRejection,
+  getActivityTraceAttributes
+} from '@/lib/services/guards/inboxRejectionTrace'
 import { getQueue } from '@/lib/services/queue'
 import { AnnounceAction } from '@/lib/types/activitypub/activities'
 import { extractActivityPubId, normalizeActorId } from '@/lib/utils/activitypub'
@@ -56,7 +59,8 @@ export const POST = traceApiRoute(
           !normalizeActorId(actor)
         ) {
           annotateInboxRejection('invalid_activity_body', {
-            sender_actor_id: verifiedSenderActorId
+            sender_actor_id: verifiedSenderActorId,
+            ...getActivityTraceAttributes(activityBody)
           })
           return apiResponse({
             req: request,
@@ -69,7 +73,8 @@ export const POST = traceApiRoute(
         if (!(await canFederateWithDomain(database, activity.actor))) {
           annotateInboxRejection('domain_not_federatable', {
             actor_id: activity.actor,
-            sender_actor_id: verifiedSenderActorId
+            sender_actor_id: verifiedSenderActorId,
+            ...getActivityTraceAttributes(activity)
           })
           return apiResponse({
             req: request,
@@ -128,9 +133,8 @@ export const POST = traceApiRoute(
         const jobMessage = getJobMessage(activity, verifiedSenderActorId)
         if (!jobMessage) {
           annotateInboxRejection('unsupported_activity_shape', {
-            activity_id: activity.id,
-            activity_type: activity.type,
-            sender_actor_id: verifiedSenderActorId
+            sender_actor_id: verifiedSenderActorId,
+            ...getActivityTraceAttributes(activity)
           })
           return apiResponse({
             req: request,
@@ -152,7 +156,9 @@ export const POST = traceApiRoute(
         const err = error instanceof Error ? error : new Error(String(error))
         span?.recordException(err)
         annotateInboxRejection('handler_exception', {
-          sender_actor_id: verifiedSenderActorId
+          sender_actor_id: verifiedSenderActorId,
+          ...getActivityTraceAttributes(activityBody),
+          error: err.message
         })
         logger.error({
           err: toLoggableError(error),

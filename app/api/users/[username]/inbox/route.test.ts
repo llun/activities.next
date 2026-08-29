@@ -1153,4 +1153,56 @@ describe('POST /api/users/[username]/inbox', () => {
       harness.recordedSpans[0].attributes['inbox.reject_reason']
     ).toBeUndefined()
   })
+
+  it('annotates sender_actor_mismatch and activity attributes on Undo Follow mismatch', async () => {
+    const response = await POST(
+      new NextRequest('https://activities.local/api/users/llun/inbox', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id: 'https://remote.test/users/alice/activities/undo-1',
+          type: 'Undo',
+          actor: 'https://remote.test/users/alice',
+          object: {
+            id: 'https://remote.test/users/mallory/follows/1',
+            type: 'Follow',
+            actor: 'https://remote.test/users/mallory',
+            object: 'https://activities.local/users/llun'
+          }
+        })
+      }),
+      { params: Promise.resolve({ username: 'llun' }) }
+    )
+
+    expect(response.status).toBe(403)
+    expect(harness.recordedSpans).toHaveLength(1)
+    expect(harness.recordedSpans[0].attributes).toMatchObject({
+      'inbox.reject_reason': 'sender_actor_mismatch',
+      'inbox.verified_sender': 'https://remote.test/users/alice',
+      'inbox.activity_actor': 'https://remote.test/users/mallory',
+      'inbox.activity_id': 'https://remote.test/users/alice/activities/undo-1',
+      'inbox.activity_type': 'Undo',
+      'inbox.activity_object_id': 'https://remote.test/users/mallory/follows/1',
+      'inbox.activity_object_type': 'Follow'
+    })
+  })
+
+  it('annotates domain_not_federatable with activity metadata in actor inbox', async () => {
+    mockCanFederateWithDomain.mockResolvedValue(false)
+
+    const response = await POST(createFollowRequest('llun'), {
+      params: Promise.resolve({ username: 'llun' })
+    })
+
+    expect(response.status).toBe(403)
+    expect(harness.recordedSpans).toHaveLength(1)
+    expect(harness.recordedSpans[0].attributes).toMatchObject({
+      'inbox.reject_reason': 'domain_not_federatable',
+      'inbox.actor_id': 'https://remote.test/users/alice',
+      'inbox.sender_actor_id': 'https://remote.test/users/alice',
+      'inbox.activity_id': 'https://remote.test/users/alice/follows/1',
+      'inbox.activity_type': 'Follow',
+      'inbox.activity_object_id': 'https://activities.local/users/llun'
+    })
+  })
 })

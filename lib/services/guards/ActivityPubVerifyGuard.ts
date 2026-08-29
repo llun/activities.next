@@ -17,7 +17,10 @@ import { isRecord } from '@/lib/utils/typeGuards'
 
 import { getSenderPublicKeyDetails } from './getSenderPublicKey'
 import { headerHost } from './headerHost'
-import { annotateInboxRejection } from './inboxRejectionTrace'
+import {
+  annotateInboxRejection,
+  getActivityTraceAttributes
+} from './inboxRejectionTrace'
 import { ActivityPubVerifiedSenderHandle, AppRouterParams } from './types'
 
 // signed_request.rb:4-5 (EXPIRATION_WINDOW_LIMIT = 12.hours, CLOCK_SKEW_MARGIN = 1.hour)
@@ -95,7 +98,8 @@ const getExpectedSha256Digest = (digestHeader: string) =>
 
 type PostActivityResult =
   | { actor: string; body: Record<string, unknown>; valid: true }
-  | { actor: null; body: null; valid: boolean }
+  | { actor: null; body: Record<string, unknown> | null; valid: false }
+  | { actor: null; body: null; valid: true }
 
 const getPostActivity = ({
   bodyText,
@@ -118,7 +122,7 @@ const getPostActivity = ({
 
     const actor = extractActivityPubId(body.actor)
     if (!actor || !normalizeActorId(actor)) {
-      return { actor: null, body: null, valid: false }
+      return { actor: null, body, valid: false }
     }
 
     return { actor, body: { ...body, actor }, valid: true }
@@ -317,7 +321,11 @@ export const ActivityPubVerifySenderGuard =
         request,
         401,
         allowedMethods,
-        'invalid_activity_body'
+        'invalid_activity_body',
+        {
+          key_id: signatureParts.keyId,
+          ...getActivityTraceAttributes(activity.body)
+        }
       )
     }
 
@@ -356,7 +364,8 @@ export const ActivityPubVerifySenderGuard =
                   : undefined
             annotateInboxRejection('unknown_actor_delete', {
               actor: activity.actor,
-              activity_type: activityTypeStr
+              activity_type: activityTypeStr,
+              ...getActivityTraceAttributes(activity.body)
             })
             return guardErrorResponse(request, 202, allowedMethods)
           }
@@ -371,7 +380,8 @@ export const ActivityPubVerifySenderGuard =
         allowedMethods,
         'domain_not_federatable',
         {
-          key_id: signatureParts.keyId
+          key_id: signatureParts.keyId,
+          ...getActivityTraceAttributes(activity.body)
         }
       )
     }
@@ -393,7 +403,8 @@ export const ActivityPubVerifySenderGuard =
         ? 'signature_invalid'
         : 'key_unavailable'
       return rejectRequest(request, 401, allowedMethods, reason, {
-        key_id: signatureParts.keyId
+        key_id: signatureParts.keyId,
+        ...getActivityTraceAttributes(activity.body)
       })
     }
 
@@ -406,7 +417,8 @@ export const ActivityPubVerifySenderGuard =
         'key_owner_unresolvable',
         {
           key_id: signatureParts.keyId,
-          key_owner: senderPublicKey.owner ?? undefined
+          key_owner: senderPublicKey.owner ?? undefined,
+          ...getActivityTraceAttributes(activity.body)
         }
       )
     }
@@ -421,7 +433,9 @@ export const ActivityPubVerifySenderGuard =
           allowedMethods,
           'sender_actor_mismatch',
           {
+            key_id: signatureParts.keyId,
             verified_sender: verifiedSenderActorId,
+            ...getActivityTraceAttributes(activity.body),
             activity_actor: normalizedActor ?? undefined
           }
         )

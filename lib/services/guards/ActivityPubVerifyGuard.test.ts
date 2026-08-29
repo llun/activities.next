@@ -990,7 +990,10 @@ describe('ActivityPubVerifySenderGuard', () => {
         expectedStatus: 403,
         expectedReason: 'domain_not_federatable',
         expectedAttributes: {
-          'inbox.key_id': 'https://remote.test/users/alice#main-key'
+          'inbox.key_id': 'https://remote.test/users/alice#main-key',
+          'inbox.activity_id': 'https://remote.test/users/alice/activities/1',
+          'inbox.activity_type': 'Follow',
+          'inbox.activity_actor': 'https://remote.test/users/alice'
         }
       },
       {
@@ -1013,7 +1016,10 @@ describe('ActivityPubVerifySenderGuard', () => {
         expectedStatus: 401,
         expectedReason: 'key_unavailable',
         expectedAttributes: {
-          'inbox.key_id': 'https://remote.test/users/alice#main-key'
+          'inbox.key_id': 'https://remote.test/users/alice#main-key',
+          'inbox.activity_id': 'https://remote.test/users/alice/activities/1',
+          'inbox.activity_type': 'Follow',
+          'inbox.activity_actor': 'https://remote.test/users/alice'
         }
       },
       {
@@ -1036,7 +1042,10 @@ describe('ActivityPubVerifySenderGuard', () => {
         expectedStatus: 401,
         expectedReason: 'signature_invalid',
         expectedAttributes: {
-          'inbox.key_id': 'https://remote.test/users/alice#main-key'
+          'inbox.key_id': 'https://remote.test/users/alice#main-key',
+          'inbox.activity_id': 'https://remote.test/users/alice/activities/1',
+          'inbox.activity_type': 'Follow',
+          'inbox.activity_actor': 'https://remote.test/users/alice'
         }
       },
       {
@@ -1060,7 +1069,10 @@ describe('ActivityPubVerifySenderGuard', () => {
         expectedReason: 'key_owner_unresolvable',
         expectedAttributes: {
           'inbox.key_id': 'https://remote.test/users/alice#main-key',
-          'inbox.key_owner': '_:b0'
+          'inbox.key_owner': '_:b0',
+          'inbox.activity_id': 'https://remote.test/users/alice/activities/1',
+          'inbox.activity_type': 'Follow',
+          'inbox.activity_actor': 'https://remote.test/users/alice'
         }
       },
       {
@@ -1077,14 +1089,19 @@ describe('ActivityPubVerifySenderGuard', () => {
             body: {
               id: 'https://remote.test/users/mallory/activities/1',
               type: 'Follow',
-              actor: 'https://remote.test/users/mallory'
+              actor: 'https://remote.test/users/mallory',
+              object: 'https://activities.local/users/bob'
             }
           }),
         expectedStatus: 403,
         expectedReason: 'sender_actor_mismatch',
         expectedAttributes: {
+          'inbox.key_id': 'https://remote.test/users/alice#main-key',
           'inbox.verified_sender': 'https://remote.test/users/alice',
-          'inbox.activity_actor': 'https://remote.test/users/mallory'
+          'inbox.activity_actor': 'https://remote.test/users/mallory',
+          'inbox.activity_id': 'https://remote.test/users/mallory/activities/1',
+          'inbox.activity_type': 'Follow',
+          'inbox.activity_object_id': 'https://activities.local/users/bob'
         }
       },
       {
