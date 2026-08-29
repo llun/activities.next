@@ -291,6 +291,8 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
   },
 
   async verifyAccount({ verificationCode }: VerifyAccountParams) {
+    if (!verificationCode) return null
+
     const account = await database<SQLAccount>('accounts')
       .where('verificationCode', verificationCode)
       .first()

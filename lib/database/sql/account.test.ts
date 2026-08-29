@@ -299,6 +299,11 @@ describe('AccountDatabase', () => {
           verificationCode: 'missing-code'
         })
         expect(invalid).toBeNull()
+
+        const empty = await database.verifyAccount({
+          verificationCode: ''
+        })
+        expect(empty).toBeNull()
       })
 
       it('updates the account email', async () => {
