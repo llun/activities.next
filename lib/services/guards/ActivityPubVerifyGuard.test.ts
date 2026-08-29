@@ -1,6 +1,8 @@
+import { trace } from '@opentelemetry/api'
 import { NextRequest } from 'next/server'
 import crypto from 'node:crypto'
 
+import { setupRecordingTracer } from '@/lib/testing/recordingTracer'
 import { HttpMethod } from '@/lib/utils/http-headers'
 
 import { ActivityPubVerifySenderGuard } from './ActivityPubVerifyGuard'
@@ -40,19 +42,21 @@ const createSignedRawPostRequest = ({
   bodyText,
   keyId = 'https://remote.test/users/alice#main-key',
   signatureHeaders = '(request-target) host date digest',
-  host = 'activities.local'
+  host = 'activities.local',
+  date = new Date().toUTCString()
 }: {
   bodyText: string
   keyId?: string
   signatureHeaders?: string
   host?: string
+  date?: string
 }) => {
   const digest = crypto.createHash('sha256').update(bodyText).digest('base64')
 
   return new NextRequest('https://activities.local/api/inbox', {
     method: 'POST',
     headers: {
-      date: new Date().toUTCString(),
+      date,
       digest: `SHA-256=${digest}`,
       ...(host ? { host } : {}),
       signature: `keyId="${keyId}",algorithm="rsa-sha256",headers="${signatureHeaders}",signature="signature"`
@@ -74,7 +78,10 @@ const createSignedPostRequest = ({
   })
 
 describe('ActivityPubVerifySenderGuard', () => {
+  let harness: ReturnType<typeof setupRecordingTracer>
+
   beforeEach(() => {
+    harness = setupRecordingTracer()
     vi.clearAllMocks()
     mockCanFederateWithDomain.mockResolvedValue(true)
     mockGetSenderPublicKey.mockResolvedValue('public-key')
@@ -83,6 +90,10 @@ describe('ActivityPubVerifySenderGuard', () => {
       publicKey: 'public-key'
     })
     mockVerify.mockResolvedValue(true)
+  })
+
+  afterEach(() => {
+    harness.cleanup()
   })
 
   it('returns CORS headers on verification errors when methods are provided', async () => {
@@ -493,5 +504,355 @@ describe('ActivityPubVerifySenderGuard', () => {
 
     expect(response.status).toBe(200)
     expect(handler).toHaveBeenCalled()
+  })
+
+  describe('rejection trace annotations', () => {
+    const runGuardInSpan = async (
+      guard: ReturnType<typeof ActivityPubVerifySenderGuard>,
+      req: NextRequest
+    ) => {
+      return trace.getTracer('test').startActiveSpan('api.inbox', async () => {
+        return guard(req, { params: Promise.resolve({}) })
+      })
+    }
+
+    it.each([
+      {
+        description: 'missing signature header',
+        setup: () => {},
+        request: () =>
+          new NextRequest('https://activities.local/api/inbox', {
+            method: 'POST',
+            headers: { host: 'activities.local' }
+          }),
+        expectedStatus: 400,
+        expectedReason: 'missing_signature',
+        expectedAttributes: {}
+      },
+      {
+        description: 'unparseable signature header without keyId',
+        setup: () => {},
+        request: () =>
+          new NextRequest('https://activities.local/api/inbox', {
+            method: 'POST',
+            headers: {
+              host: 'activities.local',
+              signature: 'algorithm="rsa-sha256",signature="signature"'
+            }
+          }),
+        expectedStatus: 400,
+        expectedReason: 'unparseable_signature',
+        expectedAttributes: {}
+      },
+      {
+        description: 'missing required signed headers',
+        setup: () => {},
+        request: () =>
+          createSignedRawPostRequest({
+            bodyText: JSON.stringify({
+              actor: 'https://remote.test/users/alice',
+              type: 'Follow'
+            }),
+            signatureHeaders: '(request-target) date digest'
+          }),
+        expectedStatus: 400,
+        expectedReason: 'missing_signed_headers',
+        expectedAttributes: {
+          'inbox.signed_headers': ['(request-target)', 'date', 'digest'],
+          'inbox.has_host_header': true
+        }
+      },
+      {
+        description: 'stale date header',
+        setup: () => {},
+        request: () =>
+          createSignedRawPostRequest({
+            bodyText: JSON.stringify({
+              actor: 'https://remote.test/users/alice',
+              type: 'Follow'
+            }),
+            date: 'Wed, 09 Nov 2022 18:28:37 GMT'
+          }),
+        expectedStatus: 400,
+        expectedReason: 'stale_date',
+        expectedAttributes: {
+          'inbox.date_header': 'Wed, 09 Nov 2022 18:28:37 GMT',
+          'inbox.server_time': expect.any(String)
+        }
+      },
+      {
+        description: 'mismatched digest header',
+        setup: () => {},
+        request: () =>
+          new NextRequest('https://activities.local/api/inbox', {
+            method: 'POST',
+            headers: {
+              host: 'activities.local',
+              date: new Date().toUTCString(),
+              digest: 'SHA-256=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+              signature:
+                'keyId="https://remote.test/users/alice#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest",signature="signature"'
+            },
+            body: JSON.stringify({ type: 'Follow' })
+          }),
+        expectedStatus: 400,
+        expectedReason: 'digest_mismatch',
+        expectedAttributes: {}
+      },
+      {
+        description: 'invalid activity body JSON',
+        setup: () => {},
+        request: () =>
+          createSignedRawPostRequest({
+            bodyText: '{"actor":"https://remote.test/users/alice",'
+          }),
+        expectedStatus: 400,
+        expectedReason: 'invalid_activity_body',
+        expectedAttributes: {}
+      },
+      {
+        description: 'domain not federatable',
+        setup: () => {
+          mockCanFederateWithDomain.mockResolvedValue(false)
+        },
+        request: () =>
+          createSignedPostRequest({
+            body: {
+              id: 'https://remote.test/users/alice/activities/1',
+              type: 'Follow',
+              actor: 'https://remote.test/users/alice'
+            }
+          }),
+        expectedStatus: 403,
+        expectedReason: 'domain_not_federatable',
+        expectedAttributes: {
+          'inbox.key_id': 'https://remote.test/users/alice#main-key'
+        }
+      },
+      {
+        description: 'key unavailable when sender public key details are empty',
+        setup: () => {
+          mockGetSenderPublicKeyDetails.mockResolvedValue({
+            owner: null,
+            publicKey: ''
+          })
+          mockVerify.mockResolvedValue(false)
+        },
+        request: () =>
+          createSignedPostRequest({
+            body: {
+              id: 'https://remote.test/users/alice/activities/1',
+              type: 'Follow',
+              actor: 'https://remote.test/users/alice'
+            }
+          }),
+        expectedStatus: 400,
+        expectedReason: 'key_unavailable',
+        expectedAttributes: {
+          'inbox.key_id': 'https://remote.test/users/alice#main-key'
+        }
+      },
+      {
+        description: 'signature invalid when public key is present',
+        setup: () => {
+          mockGetSenderPublicKeyDetails.mockResolvedValue({
+            owner: 'https://remote.test/users/alice',
+            publicKey: 'public-key'
+          })
+          mockVerify.mockResolvedValue(false)
+        },
+        request: () =>
+          createSignedPostRequest({
+            body: {
+              id: 'https://remote.test/users/alice/activities/1',
+              type: 'Follow',
+              actor: 'https://remote.test/users/alice'
+            }
+          }),
+        expectedStatus: 400,
+        expectedReason: 'signature_invalid',
+        expectedAttributes: {
+          'inbox.key_id': 'https://remote.test/users/alice#main-key'
+        }
+      },
+      {
+        description: 'key owner unresolvable to a valid actor id',
+        setup: () => {
+          mockGetSenderPublicKeyDetails.mockResolvedValue({
+            owner: '_:b0',
+            publicKey: 'public-key'
+          })
+          mockVerify.mockResolvedValue(true)
+        },
+        request: () =>
+          createSignedPostRequest({
+            body: {
+              id: 'https://remote.test/users/alice/activities/1',
+              type: 'Follow',
+              actor: 'https://remote.test/users/alice'
+            }
+          }),
+        expectedStatus: 400,
+        expectedReason: 'key_owner_unresolvable',
+        expectedAttributes: {
+          'inbox.key_id': 'https://remote.test/users/alice#main-key',
+          'inbox.key_owner': '_:b0'
+        }
+      },
+      {
+        description: 'sender actor mismatch with activity actor',
+        setup: () => {
+          mockGetSenderPublicKeyDetails.mockResolvedValue({
+            owner: 'https://remote.test/users/alice',
+            publicKey: 'public-key'
+          })
+          mockVerify.mockResolvedValue(true)
+        },
+        request: () =>
+          createSignedPostRequest({
+            body: {
+              id: 'https://remote.test/users/mallory/activities/1',
+              type: 'Follow',
+              actor: 'https://remote.test/users/mallory'
+            }
+          }),
+        expectedStatus: 403,
+        expectedReason: 'sender_actor_mismatch',
+        expectedAttributes: {
+          'inbox.verified_sender': 'https://remote.test/users/alice',
+          'inbox.activity_actor': 'https://remote.test/users/mallory'
+        }
+      }
+    ])(
+      'annotates $expectedReason for $description',
+      async ({
+        setup,
+        request,
+        expectedStatus,
+        expectedReason,
+        expectedAttributes
+      }) => {
+        setup()
+        const handler = vi.fn()
+        const guard = ActivityPubVerifySenderGuard(handler)
+
+        const response = await runGuardInSpan(guard, request())
+
+        expect(response.status).toBe(expectedStatus)
+        expect(handler).not.toHaveBeenCalled()
+        expect(harness.recordedSpans).toHaveLength(1)
+        expect(harness.recordedSpans[0].attributes['inbox.reject_reason']).toBe(
+          expectedReason
+        )
+        if (Object.keys(expectedAttributes).length > 0) {
+          expect(harness.recordedSpans[0].attributes).toMatchObject(
+            expectedAttributes
+          )
+        }
+      }
+    )
+
+    it('does not set reject_reason on a fully valid request', async () => {
+      const handler = vi.fn().mockResolvedValue(Response.json({ ok: true }))
+      const guard = ActivityPubVerifySenderGuard(handler)
+
+      const response = await runGuardInSpan(
+        guard,
+        createSignedPostRequest({
+          body: {
+            id: 'https://remote.test/users/alice/activities/1',
+            type: 'Follow',
+            actor: 'https://remote.test/users/alice'
+          }
+        })
+      )
+
+      expect(response.status).toBe(200)
+      expect(handler).toHaveBeenCalled()
+      expect(harness.recordedSpans).toHaveLength(1)
+      expect(
+        harness.recordedSpans[0].attributes['inbox.reject_reason']
+      ).toBeUndefined()
+    })
+
+    it('returns the rejection status without throwing when no span is active', async () => {
+      harness.cleanup()
+      const handler = vi.fn()
+      const guard = ActivityPubVerifySenderGuard(handler)
+
+      const response = await guard(
+        new NextRequest('https://activities.local/api/inbox', {
+          method: 'POST',
+          headers: { host: 'activities.local' }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(400)
+      expect(handler).not.toHaveBeenCalled()
+    })
+
+    it('never attaches the raw signature string to span attributes', async () => {
+      const secretSignature = 'super-secret-signature-string-12345'
+      mockGetSenderPublicKeyDetails.mockResolvedValue({
+        owner: 'https://remote.test/users/alice',
+        publicKey: 'public-key'
+      })
+      mockVerify.mockResolvedValue(false)
+
+      const handler = vi.fn()
+      const guard = ActivityPubVerifySenderGuard(handler)
+
+      const digest = crypto
+        .createHash('sha256')
+        .update('{"type":"Follow"}')
+        .digest('base64')
+
+      const req = new NextRequest('https://activities.local/api/inbox', {
+        method: 'POST',
+        headers: {
+          date: new Date().toUTCString(),
+          digest: `SHA-256=${digest}`,
+          host: 'activities.local',
+          signature: `keyId="https://remote.test/users/alice#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest",signature="${secretSignature}"`
+        },
+        body: '{"type":"Follow"}'
+      })
+
+      const response = await runGuardInSpan(guard, req)
+
+      expect(response.status).toBe(400)
+      expect(harness.recordedSpans).toHaveLength(1)
+      const serializedAttributes = JSON.stringify(
+        harness.recordedSpans[0].attributes
+      )
+      expect(serializedAttributes).not.toContain(secretSignature)
+    })
+
+    it('truncates oversized attributes to 500 characters', async () => {
+      const longKeyId = 'https://remote.test/users/alice#' + 'a'.repeat(600)
+      mockCanFederateWithDomain.mockResolvedValue(false)
+
+      const handler = vi.fn()
+      const guard = ActivityPubVerifySenderGuard(handler)
+
+      const response = await runGuardInSpan(
+        guard,
+        createSignedPostRequest({
+          keyId: longKeyId,
+          body: {
+            id: 'https://remote.test/users/alice/activities/1',
+            type: 'Follow',
+            actor: 'https://remote.test/users/alice'
+          }
+        })
+      )
+
+      expect(response.status).toBe(403)
+      expect(harness.recordedSpans).toHaveLength(1)
+      const keyIdAttr = harness.recordedSpans[0].attributes['inbox.key_id']
+      expect(typeof keyIdAttr).toBe('string')
+      expect((keyIdAttr as string).length).toBe(500)
+    })
   })
 })

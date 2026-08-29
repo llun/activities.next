@@ -17,6 +17,7 @@ import { isRecord } from '@/lib/utils/typeGuards'
 
 import { getSenderPublicKeyDetails } from './getSenderPublicKey'
 import { headerHost } from './headerHost'
+import { annotateInboxRejection } from './inboxRejectionTrace'
 import { ActivityPubVerifiedSenderHandle, AppRouterParams } from './types'
 
 const SIGNATURE_CLOCK_SKEW_MS = 5 * 60 * 1000
@@ -34,6 +35,17 @@ const guardErrorResponse = (
     data: codeMap[statusCode],
     responseStatusCode: statusCode
   })
+}
+
+const rejectRequest = (
+  request: NextRequest,
+  statusCode: StatusCode,
+  allowedMethods: HttpMethod[] | undefined,
+  reason: string,
+  extra?: Record<string, string | number | boolean | string[] | undefined>
+) => {
+  annotateInboxRejection(reason, extra)
+  return guardErrorResponse(request, statusCode, allowedMethods)
 }
 
 const getSignedHeaders = (signatureParts: Record<string, string>) =>
@@ -164,11 +176,16 @@ export const ActivityPubVerifySenderGuard =
 
     const requestSignature = request.headers.get('signature')
     if (!requestSignature)
-      return guardErrorResponse(request, 400, allowedMethods)
+      return rejectRequest(request, 400, allowedMethods, 'missing_signature')
 
     const signatureParts = await parse(requestSignature)
     if (!signatureParts.keyId) {
-      return guardErrorResponse(request, 400, allowedMethods)
+      return rejectRequest(
+        request,
+        400,
+        allowedMethods,
+        'unparseable_signature'
+      )
     }
     const signedHeaders = getSignedHeaders(signatureParts)
     const requiresMutatingSignature = isMutatingRequest(request.method)
@@ -178,16 +195,36 @@ export const ActivityPubVerifySenderGuard =
       (!hasHostHeader(request.headers) ||
         !hasRequiredMutatingSignedHeaders(signedHeaders))
     ) {
-      return guardErrorResponse(request, 400, allowedMethods)
+      return rejectRequest(
+        request,
+        400,
+        allowedMethods,
+        'missing_signed_headers',
+        {
+          signed_headers: signedHeaders,
+          has_host_header: hasHostHeader(request.headers)
+        }
+      )
     }
 
     if (!isDateHeaderFresh(request.headers, signedHeaders)) {
-      return guardErrorResponse(request, 400, allowedMethods)
+      const dateHeader = getHeadersValue(request.headers, 'date')
+      const rawDate =
+        typeof dateHeader === 'string'
+          ? dateHeader
+          : Array.isArray(dateHeader)
+            ? dateHeader.join(', ')
+            : undefined
+
+      return rejectRequest(request, 400, allowedMethods, 'stale_date', {
+        date_header: rawDate,
+        server_time: new Date().toISOString()
+      })
     }
 
     const digestResult = await digestMatches(request, signedHeaders)
     if (!digestResult.valid) {
-      return guardErrorResponse(request, 400, allowedMethods)
+      return rejectRequest(request, 400, allowedMethods, 'digest_mismatch')
     }
 
     const activity = getPostActivity({
@@ -195,11 +232,24 @@ export const ActivityPubVerifySenderGuard =
       method: request.method
     })
     if (!activity.valid) {
-      return guardErrorResponse(request, 400, allowedMethods)
+      return rejectRequest(
+        request,
+        400,
+        allowedMethods,
+        'invalid_activity_body'
+      )
     }
 
     if (!(await canFederateWithDomain(database, signatureParts.keyId))) {
-      return guardErrorResponse(request, 403, allowedMethods)
+      return rejectRequest(
+        request,
+        403,
+        allowedMethods,
+        'domain_not_federatable',
+        {
+          key_id: signatureParts.keyId
+        }
+      )
     }
 
     const host = headerHost(request.headers)
@@ -209,22 +259,48 @@ export const ActivityPubVerifySenderGuard =
       database,
       signatureParts.keyId
     )
-    if (
-      !(await verify(requestTarget, request.headers, senderPublicKey.publicKey))
-    ) {
-      return guardErrorResponse(request, 400, allowedMethods)
+    const isSignatureVerified = await verify(
+      requestTarget,
+      request.headers,
+      senderPublicKey.publicKey
+    )
+    if (!isSignatureVerified) {
+      const reason = senderPublicKey.publicKey
+        ? 'signature_invalid'
+        : 'key_unavailable'
+      return rejectRequest(request, 400, allowedMethods, reason, {
+        key_id: signatureParts.keyId
+      })
     }
 
     const verifiedSenderActorId = normalizeActorId(senderPublicKey.owner)
     if (!verifiedSenderActorId) {
-      return guardErrorResponse(request, 400, allowedMethods)
+      return rejectRequest(
+        request,
+        400,
+        allowedMethods,
+        'key_owner_unresolvable',
+        {
+          key_id: signatureParts.keyId,
+          key_owner: senderPublicKey.owner ?? undefined
+        }
+      )
     }
 
     if (activity.actor) {
       const normalizedActor = normalizeActorId(activity.actor)
 
       if (verifiedSenderActorId !== normalizedActor) {
-        return guardErrorResponse(request, 403, allowedMethods)
+        return rejectRequest(
+          request,
+          403,
+          allowedMethods,
+          'sender_actor_mismatch',
+          {
+            verified_sender: verifiedSenderActorId,
+            activity_actor: normalizedActor ?? undefined
+          }
+        )
       }
     }
 
