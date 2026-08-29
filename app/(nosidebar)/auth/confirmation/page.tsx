@@ -26,14 +26,16 @@ const Page: FC<Props> = async ({ searchParams }) => {
   ])
 
   if (!database) throw new Error('Database is not available')
-  if (session && session.user) {
-    return redirect('/')
-  }
 
   const { verificationCode } = await searchParams
   const code = Array.isArray(verificationCode)
     ? verificationCode[0]
     : verificationCode
+
+  if (!code && session && session.user) {
+    return redirect('/')
+  }
+
   const isAccountVerify = Boolean(await isVerify(database, code))
 
   return (
