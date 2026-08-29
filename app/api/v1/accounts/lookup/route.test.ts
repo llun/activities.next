@@ -441,13 +441,19 @@ describe('GET /api/v1/accounts/lookup', () => {
     expect(await response.json()).toEqual(account)
   })
 
-  it('rejects an invalid bearer token even when the actor is stored locally', async () => {
+  it('serves a stored actor when an invalid bearer token is sent (matching Mastodon)', async () => {
     const storedActor = {
       id: 'https://remote.test/users/person',
       account: null,
       privateKey: ''
     }
     mockGetActorFromUsername.mockResolvedValue(storedActor)
+    mockGetMastodonActorFromId.mockResolvedValue({
+      id: 'https://remote.test/users/person',
+      username: 'person',
+      acct: 'person@remote.test',
+      url: 'https://remote.test/users/person'
+    } as MastodonActor)
     // Default mockStoredToken (null) makes any presented bearer invalid.
 
     const response = await GET(
@@ -457,13 +463,11 @@ describe('GET /api/v1/accounts/lookup', () => {
       )
     )
 
-    expect(response.status).toBe(401)
-    // The presented token is validated before any lookup work happens.
-    expect(mockGetActorFromUsername).not.toHaveBeenCalled()
-    expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    expect(mockGetActorFromUsername).toHaveBeenCalled()
   })
 
-  it('rejects bearer tokens without read account lookup scope before remote resolution', async () => {
+  it('refuses remote resolution with 404 for bearer tokens with insufficient scope', async () => {
     mockGetActorFromUsername.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue({
       expiresAt: new Date(Date.now() + 60_000),
@@ -478,8 +482,41 @@ describe('GET /api/v1/accounts/lookup', () => {
       )
     )
 
-    expect(response.status).toBe(401)
+    expect(response.status).toBe(404)
     expect(mockGetServerSession).not.toHaveBeenCalled()
     expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
+  })
+
+  it('rejects a suspended actor with 403 even for stored lookups', async () => {
+    mockGetActorFromUsername.mockResolvedValue({
+      id: 'https://remote.test/users/person',
+      account: null,
+      privateKey: ''
+    })
+    mockStoredToken.mockResolvedValue({
+      expiresAt: new Date(Date.now() + 60_000),
+      referenceId: 'https://llun.test/users/suspended-user',
+      scopes: 'read'
+    })
+    mockGetActorFromId.mockResolvedValue({
+      ...oauthActor,
+      id: 'https://llun.test/users/suspended-user',
+      suspendedAt: Date.now(),
+      account: {
+        id: 'account-suspended',
+        email: 'suspended@llun.test',
+        createdAt: 1,
+        updatedAt: 1
+      }
+    } as unknown as Actor)
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/lookup?acct=person@remote.test',
+        { headers: { Authorization: 'Bearer suspended-token' } }
+      )
+    )
+
+    expect(response.status).toBe(403)
   })
 })

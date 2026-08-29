@@ -3,8 +3,13 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { createNoteJob } from '@/lib/jobs/createNoteJob'
-import { CREATE_NOTE_JOB_NAME, UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import {
+  CREATE_NOTE_JOB_NAME,
+  FORWARD_ACTIVITY_JOB_NAME,
+  UPDATE_NOTE_JOB_NAME
+} from '@/lib/jobs/names'
 import { updateNoteJob } from '@/lib/jobs/updateNoteJob'
+import { getQueue } from '@/lib/services/queue'
 import {
   buildQuoteAuthorizationObject,
   buildQuoteAuthorizationUri
@@ -815,6 +820,99 @@ describe('updateNoteJob', () => {
       expect(edge?.authorizationUri).toBe(
         `${actor1.id}/quote_authorizations/sentinel`
       )
+    })
+  })
+
+  describe('Outbound Inbox Forwarding on Update', () => {
+    const originalEnv = process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING
+    let queueSpy: ReturnType<typeof vi.spyOn>
+
+    beforeEach(() => {
+      queueSpy = vi.spyOn(getQueue(), 'publish').mockResolvedValue(undefined)
+    })
+
+    afterEach(() => {
+      queueSpy.mockRestore()
+      if (originalEnv === undefined) {
+        delete process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING
+      } else {
+        process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING = originalEnv
+      }
+    })
+
+    it('enqueues ForwardActivityJob on update of public reply to local user', async () => {
+      process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING = 'true'
+
+      const actor1 = await database.getActorFromUsername({
+        username: seedActor1.username,
+        domain: seedActor1.domain
+      })
+      const localActorId = actor1!.id
+
+      const localStatusId = `${localActorId}/statuses/parent-for-update-forwarding`
+      await database.createNote({
+        id: localStatusId,
+        url: localStatusId,
+        actorId: localActorId,
+        text: 'parent note for update',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const followerId = 'https://update-follower.test/users/follower1'
+      await database.createFollow({
+        actorId: followerId,
+        targetActorId: localActorId,
+        status: 'Accepted',
+        inbox: 'https://update-follower.test/users/follower1/inbox',
+        sharedInbox: 'https://update-follower.test/inbox'
+      })
+
+      const remoteAuthor = 'https://update-author.test/users/author'
+      const noteId = `${remoteAuthor}/statuses/reply-to-update`
+      const initialNote = MockMastodonActivityPubNote({
+        id: noteId,
+        from: remoteAuthor,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [localActorId],
+        inReplyTo: localStatusId,
+        content: '<p>Initial content</p>'
+      })
+
+      await createNoteJob(database, {
+        id: 'initial-reply-job',
+        name: CREATE_NOTE_JOB_NAME,
+        data: initialNote,
+        verifiedSenderActorId: remoteAuthor
+      })
+
+      queueSpy.mockClear()
+
+      const updatedNote = {
+        ...initialNote,
+        content: '<p>Updated content</p>',
+        updated: new Date().toISOString()
+      }
+
+      await updateNoteJob(database, {
+        id: 'update-reply-job',
+        name: UPDATE_NOTE_JOB_NAME,
+        data: updatedNote,
+        verifiedSenderActorId: remoteAuthor
+      })
+
+      const forwardCalls = queueSpy.mock.calls.filter(
+        (call) => call[0]?.name === FORWARD_ACTIVITY_JOB_NAME
+      )
+      expect(forwardCalls).toHaveLength(1)
+      const data = forwardCalls[0][0].data as {
+        activity: { type: string }
+        inboxes: string[]
+        localActorId: string
+      }
+      expect(data.activity.type).toBe('Update')
+      expect(data.inboxes).toContain('https://update-follower.test/inbox')
+      expect(data.localActorId).toBe(localActorId)
     })
   })
 })

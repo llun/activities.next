@@ -1435,6 +1435,84 @@ describe('OAuthGuard', () => {
         expect.objectContaining({ currentActor: null })
       )
     })
+
+    test('downgrades an expired bearer token to anonymous access (matching Mastodon)', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+      mockStoredTokens.set(hashToken('optional-expired-token'), {
+        token: hashToken('optional-expired-token'),
+        referenceId: PENDING_ACTOR_ID,
+        clientId: 'client-app-1',
+        expiresAt: new Date(Date.now() - 3600000),
+        scopes: JSON.stringify(['read'])
+      })
+
+      const guard = OptionalOAuthGuard([Scope.enum.read], mockHandler)
+      const response = await guard(
+        createRequest({ Authorization: 'Bearer optional-expired-token' }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ currentActor: null })
+      )
+    })
+
+    test('downgrades a non-existent bearer token to anonymous access (matching Mastodon)', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const guard = OptionalOAuthGuard([Scope.enum.read], mockHandler)
+      const response = await guard(
+        createRequest({ Authorization: 'Bearer nonexistent-token' }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ currentActor: null })
+      )
+    })
+
+    test('downgrades a malformed authorization header to anonymous access', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const guard = OptionalOAuthGuard([Scope.enum.read], mockHandler)
+      const response = await guard(
+        createRequest({ Authorization: 'NotBearer format' }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ currentActor: null })
+      )
+    })
+
+    test('downgrades a token with insufficient scope to anonymous access on OptionalOAuthGuard', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+      mockStoredTokens.set(hashToken('optional-write-only-token'), {
+        token: hashToken('optional-write-only-token'),
+        referenceId: PENDING_ACTOR_ID,
+        clientId: 'client-app-1',
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['write'])
+      })
+
+      const guard = OptionalOAuthGuard([Scope.enum.read], mockHandler)
+      const response = await guard(
+        createRequest({ Authorization: 'Bearer optional-write-only-token' }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ currentActor: null })
+      )
+    })
   })
 
   describe('OAuthAppGuard', () => {

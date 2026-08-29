@@ -1109,3 +1109,33 @@ export const sendPollVotes = async ({
       }
     }
   )
+
+interface ForwardActivityParams {
+  signingActor: Actor
+  inbox: string
+  activity: object
+}
+
+export const forwardActivity = async ({
+  signingActor,
+  inbox,
+  activity
+}: ForwardActivityParams) =>
+  withSpan(
+    'activity',
+    'forwardActivity',
+    {
+      actorId: signingActor.id,
+      inbox
+    },
+    async (span) => {
+      return postActivityToInbox({
+        span,
+        inbox,
+        currentActor: signingActor,
+        activity,
+        logPrefix: 'forwardActivity',
+        silenceTimeout: true
+      })
+    }
+  )

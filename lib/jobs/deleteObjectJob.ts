@@ -1,13 +1,22 @@
+import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
+import {
+  getForwardingTargetLocalActorIds,
+  resolveForwardingInboxes,
+  shouldForwardActivity
+} from '@/lib/services/federation/forwardingDelivery'
+import { getQueue } from '@/lib/services/queue'
 import { Announce, Tombstone } from '@/lib/types/activitypub'
+import { DeleteAction } from '@/lib/types/activitypub/activities'
 import { getOriginalStatus } from '@/lib/types/domain/status'
 import {
   normalizeActivityPubAnnounce,
   normalizeActorId
 } from '@/lib/utils/activitypub'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { withSpan } from '@/lib/utils/trace'
 
 import { createJobHandle } from './createJobHandle'
-import { DELETE_OBJECT_JOB_NAME } from './names'
+import { DELETE_OBJECT_JOB_NAME, FORWARD_ACTIVITY_JOB_NAME } from './names'
 import { actorMatchesVerifiedSender } from './verifiedSender'
 
 // Undefined intentionally preserves unscoped deletes for legacy queued messages.
@@ -115,6 +124,66 @@ export const deleteObjectJob = createJobHandle(
       if (tombStoneResult.success) {
         const tombStone = tombStoneResult.data
         span.setAttribute('statusId', tombStone.id)
+
+        const existingStatus = await database.getStatus({
+          statusId: tombStone.id,
+          withReplies: false
+        })
+
+        // Outbound Inbox Forwarding (W3C ActivityPub §7.1.2):
+        // Fan out verified public delete of replies and mentions of local users to their followers.
+        if (
+          existingStatus &&
+          shouldForwardActivity({
+            message,
+            authorActorId: existingStatus.actorId,
+            activityId: tombStone.id,
+            to: existingStatus.to,
+            cc: existingStatus.cc
+          })
+        ) {
+          const targetLocalActorIds = await getForwardingTargetLocalActorIds({
+            database,
+            inReplyTo:
+              'reply' in existingStatus ? existingStatus.reply : undefined,
+            tags: 'tags' in existingStatus ? existingStatus.tags : undefined,
+            to: existingStatus.to,
+            cc: existingStatus.cc
+          })
+
+          if (targetLocalActorIds.length > 0) {
+            const inboxes = await resolveForwardingInboxes({
+              database,
+              targetLocalActorIds,
+              authorActorId: existingStatus.actorId,
+              to: existingStatus.to,
+              cc: existingStatus.cc
+            })
+
+            if (inboxes.length > 0) {
+              const deleteActivity = {
+                '@context': NOTE_ACTIVITY_CONTEXT,
+                id: `${tombStone.id}#delete`,
+                type: DeleteAction,
+                actor: existingStatus.actorId,
+                to: existingStatus.to,
+                cc: existingStatus.cc,
+                object: tombStone
+              }
+
+              await getQueue().publish({
+                id: `${getHashFromString(tombStone.id)}#forward-delete`,
+                name: FORWARD_ACTIVITY_JOB_NAME,
+                data: {
+                  activity: deleteActivity,
+                  inboxes,
+                  localActorId: targetLocalActorIds[0]
+                }
+              })
+            }
+          }
+        }
+
         await database.deleteStatus({
           statusId: tombStone.id,
           actorId: getVerifiedSenderActorId(message.verifiedSenderActorId)
