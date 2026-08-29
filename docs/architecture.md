@@ -188,7 +188,7 @@ The server implements the [ActivityPub](https://www.w3.org/TR/activitypub/) prot
 - **NodeInfo** (`/.well-known/nodeinfo`) — Instance metadata
 - **HTTP Signatures** — All outgoing requests are signed; incoming requests are verified
 
-#### Inbox Forwarding & Verification
+#### Inbound Forwarding & Verification
 
 Incoming HTTP deliveries to `/api/inbox` and `/api/users/:username/inbox` are guarded by `ActivityPubVerifySenderGuard`:
 
@@ -198,6 +198,24 @@ Incoming HTTP deliveries to `/api/inbox` and `/api/users/:username/inbox` are gu
   - Span attributes record `inbox.forwarded = true`, `inbox.verified_sender`, and `inbox.activity_actor`.
   - **`Create` / `Update` / `Delete`** activities carry unverified payloads: the embedded object is discarded and the activity is routed to `ProcessForwardedActivityJob` to verify the object against its origin server via re-fetch before applying any state changes.
   - **Non-status activities** (`Follow`, `Accept`, `Reject`, `Like`, `Undo`) lack an origin re-fetch verification path and are acknowledged with `202 Accepted` and dropped without side effects (Mastodon parity).
+
+#### Outbound Inbox Forwarding (W3C ActivityPub §7.1.2)
+
+When enabled via the `ACTIVITIES_ENABLE_INBOX_FORWARDING` environment variable (default: `false`), the instance fans out verified public replies and mentions targeting local users to those users' remote followers:
+
+- **Forwarding Criteria**:
+  - `isInboxForwardingEnabled()` is `true`.
+  - **Direct Delivery Only**: Inbound activity arrived via direct HTTP signature delivery from the original author (`verifiedSenderActorId === author`). Inbound forwarded deliveries and relay announces are excluded to prevent forwarding loops.
+  - **Public Audience**: Note/activity includes `as:Public` or the ActivityStreams public IRI in `to` or `cc`.
+  - **Target Condition**: Inbound activity is in-reply-to a status authored by a local user, or explicitly mentions a local user in `tag`, `to`, or `cc`.
+- **Follower Inbox Resolution & Deduplication**:
+  - Queries active remote followers (`FollowStatus.Accepted`) for target local actors (`getFollowersInbox`), preferring `sharedInbox` where available.
+  - Excludes local server inboxes, inboxes matching the original author's host, and inboxes of recipients explicitly addressed in `to`/`cc`.
+  - Moderation check: Filters out inboxes belonging to blocked or non-federatable domains via `canFederateWithDomain`.
+- **Asynchronous Delivery & Observability**:
+  - Enqueues `ForwardActivityJob` on the job queue (`Create`, `Update`, `Delete` activities).
+  - Outbound HTTP POST requests are signed with the targeted local actor's key or the instance federation signing actor (`getFederationSigningActor`).
+  - OpenTelemetry spans track `inbox.forward_targets_count`, `inbox.local_actor_id`, and `inbox.activity_id`.
 
 ### Background Jobs
 

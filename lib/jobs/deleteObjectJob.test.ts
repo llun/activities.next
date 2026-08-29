@@ -2,7 +2,11 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { deleteObjectJob } from '@/lib/jobs/deleteObjectJob'
-import { DELETE_OBJECT_JOB_NAME } from '@/lib/jobs/names'
+import {
+  DELETE_OBJECT_JOB_NAME,
+  FORWARD_ACTIVITY_JOB_NAME
+} from '@/lib/jobs/names'
+import { getQueue } from '@/lib/services/queue'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
@@ -521,5 +525,85 @@ describe('deleteObjectJob', () => {
         data: { invalid: 'data' }
       })
     ).resolves.toBeUndefined()
+  })
+
+  describe('Outbound Inbox Forwarding on Delete', () => {
+    const originalEnv = process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING
+    let queueSpy: ReturnType<typeof vi.spyOn>
+
+    beforeEach(() => {
+      queueSpy = vi.spyOn(getQueue(), 'publish').mockResolvedValue(undefined)
+    })
+
+    afterEach(() => {
+      queueSpy.mockRestore()
+      if (originalEnv === undefined) {
+        delete process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING
+      } else {
+        process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING = originalEnv
+      }
+    })
+
+    it('enqueues ForwardActivityJob on deletion of public reply to local user', async () => {
+      process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING = 'true'
+
+      const localActorId = actor1!.id
+      const localStatusId = `${localActorId}/statuses/parent-for-delete-forwarding`
+      await database.createNote({
+        id: localStatusId,
+        url: localStatusId,
+        actorId: localActorId,
+        text: 'parent note for delete',
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: []
+      })
+
+      const followerId = 'https://delete-follower.test/users/follower1'
+      await database.createFollow({
+        actorId: followerId,
+        targetActorId: localActorId,
+        status: 'Accepted',
+        inbox: 'https://delete-follower.test/users/follower1/inbox',
+        sharedInbox: 'https://delete-follower.test/inbox'
+      })
+
+      const remoteAuthor = 'https://delete-author.test/users/author'
+      const replyStatusId = `${remoteAuthor}/statuses/reply-to-delete`
+      await database.createNote({
+        id: replyStatusId,
+        url: replyStatusId,
+        actorId: remoteAuthor,
+        reply: localStatusId,
+        text: 'reply note to be deleted',
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: [localActorId]
+      })
+
+      queueSpy.mockClear()
+
+      await deleteObjectJob(database, {
+        id: 'delete-reply-job',
+        name: DELETE_OBJECT_JOB_NAME,
+        data: {
+          id: replyStatusId,
+          type: 'Tombstone'
+        },
+        verifiedSenderActorId: remoteAuthor
+      })
+
+      const forwardCalls = queueSpy.mock.calls.filter(
+        (call) => call[0]?.name === FORWARD_ACTIVITY_JOB_NAME
+      )
+      expect(forwardCalls).toHaveLength(1)
+      const data = forwardCalls[0][0].data as {
+        activity: { type: string; object: { id: string } }
+        inboxes: string[]
+        localActorId: string
+      }
+      expect(data.activity.type).toBe('Delete')
+      expect(data.activity.object.id).toBe(replyStatusId)
+      expect(data.inboxes).toContain('https://delete-follower.test/inbox')
+      expect(data.localActorId).toBe(localActorId)
+    })
   })
 })
