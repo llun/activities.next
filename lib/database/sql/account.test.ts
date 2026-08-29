@@ -202,65 +202,41 @@ describe('AccountDatabase', () => {
         ).toMatchObject({ id: accountId })
       })
 
-      it('clears emailVerified when the address is re-pointed', async () => {
-        // The cohort shape: an account that IS marked verified. Starting from a
-        // pending account cannot test this — `emailVerified` is already false
-        // there, so the assertion passes whether or not the write clears it.
-        // Creating without a code is what `createAccount` marks verified.
-        const { accountId } = await createTestAccount()
+      it('leaves an already-confirmed account untouched', async () => {
+        // An account that is already confirmed (or has no outstanding code) is
+        // not pending, so the UPDATE predicate in repointUnconfirmedAccountEmail
+        // matches 0 rows and leaves the row untouched.
+        const { accountId, email: originalEmail } = await createTestAccount()
         const before = await database.getAccountFromId({ id: accountId })
         expect(before?.emailVerified).toBeTrue()
 
         const newEmail = `repointed-${crypto.randomUUID()}@${TEST_DOMAIN}`
-        await database.repointUnconfirmedAccountEmail({
+        const result = await database.repointUnconfirmedAccountEmail({
           accountId,
           email: newEmail,
           verificationCode: `code-${crypto.randomUUID()}`
         })
 
-        // Cleared for the same reason the code is rotated: the flag proves
-        // control of the address it was set for. Left standing, the backfilled
-        // cohort — which is NOT pending, since the predicate reads this column
-        // — could re-point to an arbitrary address and keep an
-        // `email_verified: true` OIDC claim for it.
+        // Re-read returns the unchanged confirmed account so the caller
+        // distinguishes it from a missing account.
+        expect(result).toMatchObject({
+          id: accountId,
+          email: originalEmail,
+          emailVerified: true
+        })
+
         const account = await database.getAccountFromId({ id: accountId })
-        expect(account?.email).toEqual(newEmail)
-        expect(account?.emailVerified).toBeFalse()
+        expect(account?.email).toEqual(originalEmail)
+        expect(account?.emailVerified).toBeTrue()
       })
 
-      it('clears every other proof about the old address too', async () => {
-        // `verifiedAt` and `emailVerifiedAt` go with the address for the same
-        // reason the code and the flag do. Nothing covered these two: reverting
-        // both writes left the whole `lib/database/sql`, `lib/services/oauth`,
-        // `lib/services/auth` and `lib/services/guards` tree green, so a
-        // refactor of the `.update()` call could drop them silently.
-        //
-        // The fixture has to EARN a non-null `emailVerifiedAt` — only
-        // `verifyEmailChange` writes it, so a plain account has none and the
-        // assertion would pass against a write that never cleared anything.
-        const { accountId } = await createTestAccount()
-        const changedEmail = `changed-${crypto.randomUUID()}@${TEST_DOMAIN}`
-        const emailChangeCode = `change-${crypto.randomUUID()}`
-        await database.requestEmailChange({
-          accountId,
-          newEmail: changedEmail,
-          emailChangeCode
-        })
-        await database.verifyEmailChange({ accountId, emailChangeCode })
-
-        const before = await database.getAccountFromId({ id: accountId })
-        expect(before?.verifiedAt).toBeNumber()
-        expect(before?.emailVerifiedAt).toBeNumber()
-
-        await database.repointUnconfirmedAccountEmail({
-          accountId,
-          email: `repointed-${crypto.randomUUID()}@${TEST_DOMAIN}`,
+      it('returns null when repointing a non-existent account', async () => {
+        const result = await database.repointUnconfirmedAccountEmail({
+          accountId: 'non-existent-account-id',
+          email: `missing-${crypto.randomUUID()}@${TEST_DOMAIN}`,
           verificationCode: `code-${crypto.randomUUID()}`
         })
-
-        const after = await database.getAccountFromId({ id: accountId })
-        expect(after?.verifiedAt).toBeNil()
-        expect(after?.emailVerifiedAt).toBeNil()
+        expect(result).toBeNull()
       })
 
       it('leaves verifiedAt null while a confirmation is outstanding', async () => {
@@ -296,13 +272,21 @@ describe('AccountDatabase', () => {
       })
 
       it('updates the account email', async () => {
-        const { accountId } = await createTestAccount()
+        const verificationCode = `pending-${crypto.randomUUID()}`
+        const { accountId } = await createTestAccount({ verificationCode })
         const newEmail = `updated-${crypto.randomUUID()}@${TEST_DOMAIN}`
+        const rotatedCode = `rotated-${crypto.randomUUID()}`
 
-        await database.repointUnconfirmedAccountEmail({
+        const repointed = await database.repointUnconfirmedAccountEmail({
           accountId,
           email: newEmail,
-          verificationCode: ''
+          verificationCode: rotatedCode
+        })
+
+        expect(repointed).toMatchObject({
+          id: accountId,
+          email: newEmail,
+          verificationCode: rotatedCode
         })
 
         const account = await database.getAccountFromId({ id: accountId })
@@ -550,15 +534,19 @@ describe('AccountDatabase', () => {
       })
 
       it('stores a lowercased email when repointUnconfirmedAccountEmail is given mixed case', async () => {
-        const { accountId } = await createTestAccount()
+        const verificationCode = `pending-${crypto.randomUUID()}`
+        const { accountId } = await createTestAccount({ verificationCode })
         const suffix = crypto.randomUUID().slice(0, 8)
         const newEmail = `Updated.${suffix}@${TEST_DOMAIN}`
+        const rotatedCode = `rotated-${crypto.randomUUID()}`
 
-        await database.repointUnconfirmedAccountEmail({
+        const repointed = await database.repointUnconfirmedAccountEmail({
           accountId,
           email: newEmail,
-          verificationCode: ''
+          verificationCode: rotatedCode
         })
+
+        expect(repointed?.email).toEqual(newEmail.toLowerCase())
 
         const account = await database.getAccountFromId({ id: accountId })
         expect(account?.email).toEqual(newEmail.toLowerCase())

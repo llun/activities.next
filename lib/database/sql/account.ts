@@ -830,10 +830,20 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     accountId,
     email,
     verificationCode
-  }: RepointUnconfirmedAccountEmailParams): Promise<void> {
+  }: RepointUnconfirmedAccountEmailParams): Promise<Account | null> {
     const currentTime = new Date()
+
+    // The state change is a predicate on the UPDATE statement rather than a
+    // decision taken from a read in front of it. Only an account that is
+    // genuinely awaiting confirmation (`verificationCode` set, not marked
+    // `emailVerified`) may move to a new address.
     await database('accounts')
       .where('id', accountId)
+      .whereNotNull('verificationCode')
+      .whereNot('verificationCode', '')
+      .where((qb) =>
+        qb.where('emailVerified', false).orWhereNull('emailVerified')
+      )
       .update({
         email: normalizeEmail(email),
         // Written in the SAME statement as the address they belong to — see
@@ -851,6 +861,14 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         emailVerifiedAt: null,
         updatedAt: currentTime
       })
+
+    // Deliberately not keyed on the affected-row count: zero rows means either
+    // "no longer pending" (already confirmed) or "no such account". The
+    // re-read tells them apart so the caller can distinguish 403 from 404.
+    const account = await database<SQLAccount>('accounts')
+      .where('id', accountId)
+      .first()
+    return account ? toDomainAccount(account) : null
   },
 
   async updateAccountName({
