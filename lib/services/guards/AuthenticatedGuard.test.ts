@@ -375,6 +375,58 @@ describe('AuthenticatedGuard', () => {
         })
       }
     })
+
+    it('admits a suspended actor when allowModerationBlocked is true', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      await database.setActorSuspended({
+        actorId: primaryActor.id,
+        suspended: true
+      })
+
+      try {
+        const guard = AuthenticatedGuard(mockHandler, {
+          allowModerationBlocked: true
+        })
+        const req = createRequest()
+        const response = await guard(req, { params: Promise.resolve({}) })
+
+        expect(response.status).toBe(200)
+        expect(mockHandler).toHaveBeenCalled()
+      } finally {
+        await database.setActorSuspended({
+          actorId: primaryActor.id,
+          suspended: false
+        })
+      }
+    })
+
+    it('admits a disabled account when allowModerationBlocked is true', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      await database.setAccountDisabled({
+        accountId: primaryActor.account!.id,
+        disabled: true
+      })
+
+      try {
+        const guard = AuthenticatedGuard(mockHandler, {
+          allowModerationBlocked: true
+        })
+        const req = createRequest()
+        const response = await guard(req, { params: Promise.resolve({}) })
+
+        expect(response.status).toBe(200)
+        expect(mockHandler).toHaveBeenCalled()
+      } finally {
+        await database.setAccountDisabled({
+          accountId: primaryActor.account!.id,
+          disabled: false
+        })
+      }
+    })
   })
 
   describe('unconfirmed accounts', () => {
@@ -477,6 +529,22 @@ describe('AuthenticatedGuard', () => {
           disabled: false
         })
       }
+    })
+
+    it('still refuses an unconfirmed account when allowModerationBlocked is true', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: PENDING_EMAIL }
+      })
+
+      const guard = AuthenticatedGuard(mockHandler, {
+        allowModerationBlocked: true
+      })
+      const req = createRequest()
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(403)
+      await expect(response.json()).resolves.toEqual({ error: 'Forbidden' })
+      expect(mockHandler).not.toHaveBeenCalled()
     })
   })
 

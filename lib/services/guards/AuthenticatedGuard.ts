@@ -15,6 +15,7 @@ import { AppRouterParams, AuthenticatedApiHandle } from './types'
 
 export type AuthenticatedGuardOptions = {
   allowUnconfirmedAccount?: boolean
+  allowModerationBlocked?: boolean
 }
 
 export const AuthenticatedGuard =
@@ -41,7 +42,10 @@ export const AuthenticatedGuard =
       return Response.redirect(getRedirectUrl(req, '/auth/signin'), 307)
     }
 
-    if (isActorModerationBlocked(currentActor)) {
+    if (
+      !options.allowModerationBlocked &&
+      isActorModerationBlocked(currentActor)
+    ) {
       return apiErrorResponse(403)
     }
 

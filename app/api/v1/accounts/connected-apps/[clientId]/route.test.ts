@@ -121,7 +121,7 @@ describe('DELETE /api/v1/accounts/connected-apps/[clientId]', () => {
     expect(mockDb.revokeAccountConnectedApp).not.toHaveBeenCalled()
   })
 
-  it('returns 403 when actor is suspended', async () => {
+  it('revokes the connected app when actor is suspended', async () => {
     mockDb.getActorsForAccount.mockResolvedValue([
       { ...actor, suspendedAt: Date.now() }
     ])
@@ -131,12 +131,16 @@ describe('DELETE /api/v1/accounts/connected-apps/[clientId]', () => {
       { params: Promise.resolve({ clientId: 'ice-cubes' }) }
     )
 
-    expect(response.status).toBe(403)
-    await expect(response.json()).resolves.toEqual({ error: 'Forbidden' })
-    expect(mockDb.revokeAccountConnectedApp).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ status: 'Accepted' })
+    expect(mockDb.revokeAccountConnectedApp).toHaveBeenCalledWith({
+      accountId: account.id,
+      clientId: 'ice-cubes',
+      actorId: null
+    })
   })
 
-  it('returns 403 when account is disabled', async () => {
+  it('revokes the connected app when account is disabled', async () => {
     mockDb.getActorsForAccount.mockResolvedValue([
       { ...actor, account: { ...account, disabledAt: Date.now() } }
     ])
@@ -146,9 +150,13 @@ describe('DELETE /api/v1/accounts/connected-apps/[clientId]', () => {
       { params: Promise.resolve({ clientId: 'ice-cubes' }) }
     )
 
-    expect(response.status).toBe(403)
-    await expect(response.json()).resolves.toEqual({ error: 'Forbidden' })
-    expect(mockDb.revokeAccountConnectedApp).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ status: 'Accepted' })
+    expect(mockDb.revokeAccountConnectedApp).toHaveBeenCalledWith({
+      accountId: account.id,
+      clientId: 'ice-cubes',
+      actorId: null
+    })
   })
 
   it('returns 403 when account confirmation is pending', async () => {

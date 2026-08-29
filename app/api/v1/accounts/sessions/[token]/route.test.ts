@@ -21,7 +21,10 @@ vi.mock('@/lib/config', () => ({
 
 type MockDatabase = Pick<
   Database,
-  'getAccountFromEmail' | 'getActorsForAccount' | 'deleteOtherAccountSessions'
+  | 'getAccountFromEmail'
+  | 'getActorsForAccount'
+  | 'getAccountSession'
+  | 'deleteAccountSession'
 >
 
 let mockDatabase: MockDatabase | null = null
@@ -43,8 +46,10 @@ const account = {
 
 const actor = { ...seedActor1, id: ACTOR1_ID, account }
 
-const buildRequest = () =>
-  new NextRequest('http://llun.test/api/v1/accounts/sessions', {
+const buildRequest = (
+  url: string = 'http://llun.test/api/v1/accounts/sessions/session-token-123'
+) =>
+  new NextRequest(url, {
     method: 'DELETE',
     headers: {
       'Content-Type': 'application/json',
@@ -52,11 +57,12 @@ const buildRequest = () =>
     }
   })
 
-describe('DELETE /api/v1/accounts/sessions', () => {
+describe('DELETE /api/v1/accounts/sessions/[token]', () => {
   const mockDb: jest.Mocked<MockDatabase> = {
     getAccountFromEmail: vi.fn(),
     getActorsForAccount: vi.fn(),
-    deleteOtherAccountSessions: vi.fn()
+    getAccountSession: vi.fn(),
+    deleteAccountSession: vi.fn()
   }
 
   beforeAll(() => {
@@ -69,68 +75,56 @@ describe('DELETE /api/v1/accounts/sessions', () => {
       user: { email: seedActor1.email },
       session: { token: 'current-token' }
     })
-    mockDb.getAccountFromEmail.mockResolvedValue(account)
-    mockDb.getActorsForAccount.mockResolvedValue([actor])
-    mockDb.deleteOtherAccountSessions.mockResolvedValue(2)
+    mockDb.getAccountFromEmail.mockResolvedValue(account as never)
+    mockDb.getActorsForAccount.mockResolvedValue([actor] as never)
+    mockDb.getAccountSession.mockResolvedValue({
+      token: 'session-token-123',
+      account
+    } as never)
+    mockDb.deleteAccountSession.mockResolvedValue(undefined)
   })
 
-  it('revokes every session except the current one and reports the count', async () => {
+  it('revokes the specified session', async () => {
     const response = await DELETE(buildRequest(), {
-      params: Promise.resolve({})
+      params: Promise.resolve({ token: 'session-token-123' })
     })
 
     expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({ revoked: 2 })
-    expect(mockDb.deleteOtherAccountSessions).toHaveBeenCalledWith({
-      accountId: account.id,
-      exceptToken: 'current-token'
+    await expect(response.json()).resolves.toEqual({ status: 'Accepted' })
+    expect(mockDb.deleteAccountSession).toHaveBeenCalledWith({
+      token: 'session-token-123'
     })
   })
 
-  it('returns 400 when the current session token is unavailable', async () => {
-    mockGetServerSession.mockResolvedValue({
-      user: { email: seedActor1.email }
-    })
-
-    const response = await DELETE(buildRequest(), {
-      params: Promise.resolve({})
-    })
-
-    expect(response.status).toBe(400)
-    expect(mockDb.deleteOtherAccountSessions).not.toHaveBeenCalled()
-  })
-
-  it('revokes every session except the current one when actor is suspended', async () => {
+  it('revokes the session when actor is suspended', async () => {
     mockDb.getActorsForAccount.mockResolvedValue([
       { ...actor, suspendedAt: Date.now() }
-    ])
+    ] as never)
 
     const response = await DELETE(buildRequest(), {
-      params: Promise.resolve({})
+      params: Promise.resolve({ token: 'session-token-123' })
     })
 
     expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({ revoked: 2 })
-    expect(mockDb.deleteOtherAccountSessions).toHaveBeenCalledWith({
-      accountId: account.id,
-      exceptToken: 'current-token'
+    await expect(response.json()).resolves.toEqual({ status: 'Accepted' })
+    expect(mockDb.deleteAccountSession).toHaveBeenCalledWith({
+      token: 'session-token-123'
     })
   })
 
-  it('revokes every session except the current one when account is disabled', async () => {
+  it('revokes the session when account is disabled', async () => {
     mockDb.getActorsForAccount.mockResolvedValue([
       { ...actor, account: { ...account, disabledAt: Date.now() } }
-    ])
+    ] as never)
 
     const response = await DELETE(buildRequest(), {
-      params: Promise.resolve({})
+      params: Promise.resolve({ token: 'session-token-123' })
     })
 
     expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({ revoked: 2 })
-    expect(mockDb.deleteOtherAccountSessions).toHaveBeenCalledWith({
-      accountId: account.id,
-      exceptToken: 'current-token'
+    await expect(response.json()).resolves.toEqual({ status: 'Accepted' })
+    expect(mockDb.deleteAccountSession).toHaveBeenCalledWith({
+      token: 'session-token-123'
     })
   })
 
@@ -144,14 +138,34 @@ describe('DELETE /api/v1/accounts/sessions', () => {
           emailVerified: false
         }
       }
-    ])
+    ] as never)
 
     const response = await DELETE(buildRequest(), {
-      params: Promise.resolve({})
+      params: Promise.resolve({ token: 'session-token-123' })
     })
 
     expect(response.status).toBe(403)
     await expect(response.json()).resolves.toEqual({ error: 'Forbidden' })
-    expect(mockDb.deleteOtherAccountSessions).not.toHaveBeenCalled()
+    expect(mockDb.deleteAccountSession).not.toHaveBeenCalled()
+  })
+
+  it('returns 404 when session is not found', async () => {
+    mockDb.getAccountSession.mockResolvedValue(null as never)
+
+    const response = await DELETE(buildRequest(), {
+      params: Promise.resolve({ token: 'session-token-123' })
+    })
+
+    expect(response.status).toBe(404)
+    expect(mockDb.deleteAccountSession).not.toHaveBeenCalled()
+  })
+
+  it('returns 400 when token param is empty', async () => {
+    const response = await DELETE(buildRequest(), {
+      params: Promise.resolve({ token: '' })
+    })
+
+    expect(response.status).toBe(400)
+    expect(mockDb.deleteAccountSession).not.toHaveBeenCalled()
   })
 })

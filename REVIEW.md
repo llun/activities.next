@@ -537,6 +537,17 @@ change doesn't touch.
   as well.
   `OptionalOAuthGuard`'s anonymous downgrade is a different option and does not
   count against this.
+- `allowModerationBlocked` (supported in `AuthenticatedGuard` options) is
+  reserved for restrictive revocation endpoints (`accounts/sessions`,
+  `accounts/sessions/[token]`, `accounts/connected-apps/[clientId]`) so an owner
+  can terminate attacker sessions and revoke connected apps during suspected
+  account compromise even while suspended/disabled. It relaxes
+  `isActorModerationBlocked` only; CSRF same-origin proof and
+  `isActorConfirmationPending` remain enforced.
+- Account-level actor management (`actors/switch`, `actors/cancel-deletion`)
+  authenticates the account directly via session and same-origin CSRF proof,
+  checking account ownership of the target actor rather than gating on the
+  session's active actor.
 - Do not "unify" this with better-auth's `emailAndPassword.requireEmailVerification`,
   which covers credential sign-in only — but DO read the same column it reads.
   `emailVerified` is on the domain `Account` precisely so the two gates agree;

@@ -23,24 +23,31 @@ interface Params {
 // can never revoke another's grant.
 export const DELETE = traceApiRoute(
   'revokeConnectedApp',
-  AuthenticatedGuard<Params>(async (req, context) => {
-    const { database, currentActor, params } = context
-    const accountId = currentActor.account?.id
-    const { clientId } = (await params) ?? { clientId: undefined }
-    if (!accountId || !clientId) {
+  AuthenticatedGuard<Params>(
+    async (req, context) => {
+      const { database, currentActor, params } = context
+      const accountId = currentActor.account?.id
+      const { clientId } = (await params) ?? { clientId: undefined }
+      if (!accountId || !clientId) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
+      }
+
+      // Treat a missing OR empty actorId the same: the null (no-actor) grant.
+      const actorId = req.nextUrl.searchParams.get('actorId') || null
+      await database.revokeAccountConnectedApp({ accountId, clientId, actorId })
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: 400
+        data: DEFAULT_202
       })
-    }
-
-    // Treat a missing OR empty actorId the same: the null (no-actor) grant.
-    const actorId = req.nextUrl.searchParams.get('actorId') || null
-    await database.revokeAccountConnectedApp({ accountId, clientId, actorId })
-    return apiResponse({ req, allowedMethods: CORS_HEADERS, data: DEFAULT_202 })
-  }),
+    },
+    { allowModerationBlocked: true }
+  ),
   {
     addAttributes: async (_req, context) => {
       const params = await context.params
