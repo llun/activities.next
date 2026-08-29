@@ -20,7 +20,12 @@ import { headerHost } from './headerHost'
 import { annotateInboxRejection } from './inboxRejectionTrace'
 import { ActivityPubVerifiedSenderHandle, AppRouterParams } from './types'
 
-const SIGNATURE_CLOCK_SKEW_MS = 5 * 60 * 1000
+// signed_request.rb:4-5 (EXPIRATION_WINDOW_LIMIT = 12.hours, CLOCK_SKEW_MARGIN = 1.hour)
+const EXPIRATION_WINDOW_LIMIT_MS = 12 * 60 * 60 * 1000
+const CLOCK_SKEW_MARGIN_MS = 1 * 60 * 60 * 1000
+
+// activity.rb:8 (MAX_JSON_SIZE = 1.megabyte)
+const MAX_ACTIVITY_JSON_BYTES = 1024 * 1024
 
 const guardErrorResponse = (
   request: NextRequest,
@@ -48,23 +53,29 @@ const rejectRequest = (
   return guardErrorResponse(request, statusCode, allowedMethods)
 }
 
-const getSignedHeaders = (signatureParts: Record<string, string>) =>
-  (signatureParts.headers ?? '').toLowerCase().split(/\s+/).filter(Boolean)
+const getSignedHeaders = (signatureParts: Record<string, string>) => {
+  const algorithm = (signatureParts.algorithm ?? 'hs2019').toLowerCase()
+  const defaultHeaders = algorithm === 'hs2019' ? '(created)' : 'date'
+  return (signatureParts.headers ?? defaultHeaders)
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+}
 
-const REQUIRED_MUTATING_SIGNED_HEADERS = [
-  '(request-target)',
-  'host',
-  'date',
-  'digest'
-]
+const hasRequiredSignedHeaders = (signedHeaders: string[], method: string) => {
+  const upperMethod = method.toUpperCase()
+  const hasDateOrCreated =
+    signedHeaders.includes('date') || signedHeaders.includes('(created)')
+  const hasDigestOrTarget =
+    signedHeaders.includes('digest') ||
+    signedHeaders.includes('(request-target)')
 
-const isMutatingRequest = (method: string) =>
-  !['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase())
+  if (!hasDateOrCreated || !hasDigestOrTarget) return false
+  if (upperMethod === 'POST' && !signedHeaders.includes('digest')) return false
+  if (upperMethod === 'GET' && !signedHeaders.includes('host')) return false
 
-const hasRequiredMutatingSignedHeaders = (signedHeaders: string[]) =>
-  REQUIRED_MUTATING_SIGNED_HEADERS.every((header) =>
-    signedHeaders.includes(header)
-  )
+  return true
+}
 
 const getExpectedSha256Digest = (digestHeader: string) =>
   digestHeader
@@ -82,13 +93,17 @@ const getExpectedSha256Digest = (digestHeader: string) =>
     })
     .find((part) => part?.algorithm === 'sha-256')?.value
 
+type PostActivityResult =
+  | { actor: string; body: Record<string, unknown>; valid: true }
+  | { actor: null; body: null; valid: boolean }
+
 const getPostActivity = ({
   bodyText,
   method
 }: {
   bodyText: string | null
   method: string
-}) => {
+}): PostActivityResult => {
   if (method.toUpperCase() !== 'POST') {
     return { actor: null, body: null, valid: true }
   }
@@ -112,25 +127,73 @@ const getPostActivity = ({
   }
 }
 
-const isDateHeaderFresh = (
+const getSignatureTimes = (
   headers: Headers,
+  signatureParts: Record<string, string>,
+  signedHeaders: string[]
+) => {
+  const algorithm = (signatureParts.algorithm ?? 'hs2019').toLowerCase()
+  let createdTimeMs: number | null = null
+
+  if (
+    algorithm === 'hs2019' &&
+    signatureParts.created &&
+    signedHeaders.includes('(created)')
+  ) {
+    const createdSec = parseInt(signatureParts.created, 10)
+    if (!Number.isNaN(createdSec)) {
+      createdTimeMs = createdSec * 1000
+    }
+  } else if (signedHeaders.includes('date')) {
+    const dateHeader = getHeadersValue(headers, 'date')
+    if (dateHeader && !Array.isArray(dateHeader)) {
+      const parsed = Date.parse(dateHeader)
+      if (!Number.isNaN(parsed)) {
+        createdTimeMs = parsed
+      }
+    }
+  }
+
+  let expiresTimeMs: number | null = null
+  if (signatureParts.expires) {
+    const expiresSec = parseInt(signatureParts.expires, 10)
+    if (!Number.isNaN(expiresSec)) {
+      expiresTimeMs = expiresSec * 1000
+    }
+  }
+
+  return { createdTimeMs, expiresTimeMs }
+}
+
+const isSignatureFresh = (
+  headers: Headers,
+  signatureParts: Record<string, string>,
   signedHeaders: string[],
   now = Date.now()
 ) => {
-  if (!signedHeaders.includes('date')) return false
+  const { createdTimeMs, expiresTimeMs } = getSignatureTimes(
+    headers,
+    signatureParts,
+    signedHeaders
+  )
+  if (createdTimeMs === null) return false
 
-  const dateHeader = getHeadersValue(headers, 'date')
-  if (!dateHeader || Array.isArray(dateHeader)) return false
+  let effectiveExpiryMs = createdTimeMs + EXPIRATION_WINDOW_LIMIT_MS
+  if (expiresTimeMs !== null) {
+    effectiveExpiryMs = Math.min(
+      expiresTimeMs,
+      createdTimeMs + EXPIRATION_WINDOW_LIMIT_MS
+    )
+  }
 
-  const signedAt = Date.parse(dateHeader)
-  if (Number.isNaN(signedAt)) return false
+  if (createdTimeMs > now + CLOCK_SKEW_MARGIN_MS) {
+    return false
+  }
+  if (now > effectiveExpiryMs + CLOCK_SKEW_MARGIN_MS) {
+    return false
+  }
 
-  return Math.abs(now - signedAt) <= SIGNATURE_CLOCK_SKEW_MS
-}
-
-const hasHostHeader = (headers: Headers) => {
-  const host = getHeadersValue(headers, 'host')
-  return typeof host === 'string' && host.trim().length > 0
+  return true
 }
 
 const digestMatches = async (request: NextRequest, signedHeaders: string[]) => {
@@ -174,40 +237,51 @@ export const ActivityPubVerifySenderGuard =
     const database = getDatabase()
     if (!database) return guardErrorResponse(request, 500, allowedMethods)
 
+    const contentLength = request.headers.get('content-length')
+    if (contentLength !== null) {
+      const parsedContentLength = parseInt(contentLength, 10)
+      if (
+        !Number.isNaN(parsedContentLength) &&
+        parsedContentLength > MAX_ACTIVITY_JSON_BYTES
+      ) {
+        return rejectRequest(
+          request,
+          413,
+          allowedMethods,
+          'payload_too_large',
+          { content_length: parsedContentLength }
+        )
+      }
+    }
+
     const requestSignature = request.headers.get('signature')
     if (!requestSignature)
-      return rejectRequest(request, 400, allowedMethods, 'missing_signature')
+      return rejectRequest(request, 401, allowedMethods, 'missing_signature')
 
     const signatureParts = await parse(requestSignature)
     if (!signatureParts.keyId) {
       return rejectRequest(
         request,
-        400,
+        401,
         allowedMethods,
         'unparseable_signature'
       )
     }
     const signedHeaders = getSignedHeaders(signatureParts)
-    const requiresMutatingSignature = isMutatingRequest(request.method)
 
-    if (
-      requiresMutatingSignature &&
-      (!hasHostHeader(request.headers) ||
-        !hasRequiredMutatingSignedHeaders(signedHeaders))
-    ) {
+    if (!hasRequiredSignedHeaders(signedHeaders, request.method)) {
       return rejectRequest(
         request,
-        400,
+        401,
         allowedMethods,
         'missing_signed_headers',
         {
-          signed_headers: signedHeaders,
-          has_host_header: hasHostHeader(request.headers)
+          signed_headers: signedHeaders
         }
       )
     }
 
-    if (!isDateHeaderFresh(request.headers, signedHeaders)) {
+    if (!isSignatureFresh(request.headers, signatureParts, signedHeaders)) {
       const dateHeader = getHeadersValue(request.headers, 'date')
       const rawDate =
         typeof dateHeader === 'string'
@@ -216,15 +290,16 @@ export const ActivityPubVerifySenderGuard =
             ? dateHeader.join(', ')
             : undefined
 
-      return rejectRequest(request, 400, allowedMethods, 'stale_date', {
+      return rejectRequest(request, 401, allowedMethods, 'stale_date', {
         date_header: rawDate,
+        created_param: signatureParts.created,
         server_time: new Date().toISOString()
       })
     }
 
     const digestResult = await digestMatches(request, signedHeaders)
     if (!digestResult.valid) {
-      return rejectRequest(request, 400, allowedMethods, 'digest_mismatch')
+      return rejectRequest(request, 401, allowedMethods, 'digest_mismatch')
     }
 
     const activity = getPostActivity({
@@ -232,12 +307,61 @@ export const ActivityPubVerifySenderGuard =
       method: request.method
     })
     if (!activity.valid) {
+      // ActivityPub requires verifying that the HTTP signature's key owner
+      // matches the activity's actor. An unparseable or actor-less body cannot
+      // be bound to the signature, making it an authentication failure at the
+      // HTTP layer, not a malformed-body client error. Returning 401 gives
+      // compliant peers (Mastodon) a retryable signal rather than permanently
+      // dropping the activity.
       return rejectRequest(
         request,
-        400,
+        401,
         allowedMethods,
         'invalid_activity_body'
       )
+    }
+
+    // Fast-path: mirror Mastodon inboxes_controller.rb:29-38 (unknown_affected_account?)
+    // If Delete or Update of self-actor and actor does not exist in local DB,
+    // return 202 immediately before key fetch / verification.
+    if (activity.body && isRecord(activity.body) && activity.actor) {
+      const rawType = activity.body.type
+      const isDeleteOrUpdate =
+        typeof rawType === 'string'
+          ? rawType === 'Delete' || rawType === 'Update'
+          : Array.isArray(rawType) &&
+            (rawType.includes('Delete') || rawType.includes('Update'))
+
+      if (isDeleteOrUpdate) {
+        const rawObject = activity.body.object
+        const objectId =
+          typeof rawObject === 'string'
+            ? rawObject
+            : isRecord(rawObject) && typeof rawObject.id === 'string'
+              ? rawObject.id
+              : undefined
+
+        if (objectId && objectId === activity.actor) {
+          const existingActor = await database.getActorFromId({
+            id: activity.actor
+          })
+          if (!existingActor) {
+            const activityTypeStr =
+              typeof rawType === 'string'
+                ? rawType
+                : Array.isArray(rawType)
+                  ? rawType
+                      .filter((t): t is string => typeof t === 'string')
+                      .join(',')
+                  : undefined
+            annotateInboxRejection('unknown_actor_delete', {
+              actor: activity.actor,
+              activity_type: activityTypeStr
+            })
+            return guardErrorResponse(request, 202, allowedMethods)
+          }
+        }
+      }
     }
 
     if (!(await canFederateWithDomain(database, signatureParts.keyId))) {
@@ -268,7 +392,7 @@ export const ActivityPubVerifySenderGuard =
       const reason = senderPublicKey.publicKey
         ? 'signature_invalid'
         : 'key_unavailable'
-      return rejectRequest(request, 400, allowedMethods, reason, {
+      return rejectRequest(request, 401, allowedMethods, reason, {
         key_id: signatureParts.keyId
       })
     }
@@ -277,7 +401,7 @@ export const ActivityPubVerifySenderGuard =
     if (!verifiedSenderActorId) {
       return rejectRequest(
         request,
-        400,
+        401,
         allowedMethods,
         'key_owner_unresolvable',
         {

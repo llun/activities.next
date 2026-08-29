@@ -17,10 +17,10 @@ export type SignedHttpMethod = 'GET' | 'POST'
 export async function parse(signature: string): Promise<StringMap> {
   try {
     const result: StringMap = {}
-    const regex = /([a-zA-Z0-9]+)="([^"]*)"/g
+    const regex = /([a-zA-Z0-9_-]+)\s*=\s*(?:"([^"]*)"|([^,;\s]+))/g
     let match
     while ((match = regex.exec(signature)) !== null) {
-      result[match[1]] = match[2]
+      result[match[1]] = match[2] !== undefined ? match[2] : match[3]
     }
     return result
   } catch {
@@ -34,28 +34,62 @@ export async function verify(
   publicKey: string
 ) {
   return withSpan('signature', 'verify', { requestTarget }, async () => {
-    const requestSignature = getHeadersValue(headers, 'signature')
-    const parsedSignature = await parse(requestSignature as string)
-    if (!parsedSignature.headers) {
-      return false
-    }
-
-    const comparedSignedString = parsedSignature.headers
-      .split(' ')
-      .map((item) => {
-        if (item === '(request-target)') {
-          return `(request-target): ${requestTarget}`
-        }
-        if (item === 'host') {
-          return `${item}: ${headerHost(headers)}`
-        }
-        return `${item}: ${getHeadersValue(headers, item)}`
-      })
-      .join('\n')
-    const signature = parsedSignature.signature
-    const verifier = crypto.createVerify(parsedSignature.algorithm)
-    verifier.update(comparedSignedString)
     try {
+      const requestSignature = getHeadersValue(headers, 'signature')
+      if (!requestSignature || typeof requestSignature !== 'string') {
+        return false
+      }
+      const signatureParts = await parse(requestSignature)
+      const algorithm = (signatureParts.algorithm ?? 'hs2019').toLowerCase()
+      if (algorithm !== 'rsa-sha256' && algorithm !== 'hs2019') {
+        return false
+      }
+
+      const defaultHeaders = algorithm === 'hs2019' ? '(created)' : 'date'
+      const headersList = (signatureParts.headers ?? defaultHeaders)
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(Boolean)
+
+      if (headersList.length === 0) {
+        return false
+      }
+
+      const signedHeaderLines: string[] = []
+      for (const item of headersList) {
+        if (item === '(request-target)') {
+          signedHeaderLines.push(`(request-target): ${requestTarget}`)
+        } else if (item === 'host') {
+          signedHeaderLines.push(`host: ${headerHost(headers)}`)
+        } else if (item === '(created)') {
+          if (algorithm !== 'hs2019' || !signatureParts.created) {
+            return false
+          }
+          signedHeaderLines.push(`(created): ${signatureParts.created}`)
+        } else if (item === '(expires)') {
+          if (algorithm !== 'hs2019' || !signatureParts.expires) {
+            return false
+          }
+          signedHeaderLines.push(`(expires): ${signatureParts.expires}`)
+        } else {
+          const headerValue = getHeadersValue(headers, item)
+          if (headerValue === undefined) {
+            return false
+          }
+          signedHeaderLines.push(
+            `${item}: ${Array.isArray(headerValue) ? headerValue.join(', ') : headerValue}`
+          )
+        }
+      }
+
+      const comparedSignedString = signedHeaderLines.join('\n')
+      const signature = signatureParts.signature
+      if (!signature) {
+        return false
+      }
+
+      const verifier = crypto.createVerify('rsa-sha256')
+      verifier.update(comparedSignedString)
       return verifier.verify(publicKey, signature, 'base64')
     } catch {
       return false
