@@ -500,10 +500,10 @@ change doesn't touch.
   verified — better-auth's `requireEmailVerification` has been letting them sign
   in ever since, so honouring it here grants nothing new and locks nobody out.
   A repair keyed on when a migration ran is NOT a substitute: two attempts at
-  that bound shipped wrong in opposite directions. `accounts.verifiedAt` carries `DEFAULT CURRENT_TIMESTAMP`
-  (`20230824181927_add_accounts_verification`), so a pending registration gets a
+  that bound shipped wrong in opposite directions. `accounts.verifiedAt` originally carried `DEFAULT CURRENT_TIMESTAMP`
+  (`20230824181927_add_accounts_verification`, dropped in `drop_accounts_verifiedat_default`), so a pending registration previously got a
   timestamp anyway and a `verifiedAt` test is a **no-op that reads as a working
-  gate**. The column has carried that default since 2023-08-24; every check
+  gate**. The column carried that default since 2023-08-24; every check
   written against it since has been inert, `canCreateSessionForAccount`'s
   included.
   `createAccount` writes an explicit `verifiedAt: null` now, but rows written
