@@ -14,27 +14,30 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 // preserved even though every other device is signed out.
 export const DELETE = traceApiRoute(
   'deleteOtherSessions',
-  AuthenticatedGuard(async (req, context) => {
-    const { database, currentActor } = context
-    const accountId = currentActor.account?.id
-    const currentToken = (await getServerAuthSession())?.session?.token
-    if (!accountId || !currentToken) {
+  AuthenticatedGuard(
+    async (req, context) => {
+      const { database, currentActor } = context
+      const accountId = currentActor.account?.id
+      const currentToken = (await getServerAuthSession())?.session?.token
+      if (!accountId || !currentToken) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_400,
+          responseStatusCode: 400
+        })
+      }
+
+      const revoked = await database.deleteOtherAccountSessions({
+        accountId,
+        exceptToken: currentToken
+      })
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: 400
+        data: { revoked }
       })
-    }
-
-    const revoked = await database.deleteOtherAccountSessions({
-      accountId,
-      exceptToken: currentToken
-    })
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: { revoked }
-    })
-  })
+    },
+    { allowModerationBlocked: true }
+  )
 )

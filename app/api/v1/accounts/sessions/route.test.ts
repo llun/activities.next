@@ -99,4 +99,59 @@ describe('DELETE /api/v1/accounts/sessions', () => {
     expect(response.status).toBe(400)
     expect(mockDb.deleteOtherAccountSessions).not.toHaveBeenCalled()
   })
+
+  it('revokes every session except the current one when actor is suspended', async () => {
+    mockDb.getActorsForAccount.mockResolvedValue([
+      { ...actor, suspendedAt: Date.now() }
+    ])
+
+    const response = await DELETE(buildRequest(), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ revoked: 2 })
+    expect(mockDb.deleteOtherAccountSessions).toHaveBeenCalledWith({
+      accountId: account.id,
+      exceptToken: 'current-token'
+    })
+  })
+
+  it('revokes every session except the current one when account is disabled', async () => {
+    mockDb.getActorsForAccount.mockResolvedValue([
+      { ...actor, account: { ...account, disabledAt: Date.now() } }
+    ])
+
+    const response = await DELETE(buildRequest(), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ revoked: 2 })
+    expect(mockDb.deleteOtherAccountSessions).toHaveBeenCalledWith({
+      accountId: account.id,
+      exceptToken: 'current-token'
+    })
+  })
+
+  it('returns 403 when account confirmation is pending', async () => {
+    mockDb.getActorsForAccount.mockResolvedValue([
+      {
+        ...actor,
+        account: {
+          ...account,
+          verificationCode: 'pending-code',
+          emailVerified: false
+        }
+      }
+    ])
+
+    const response = await DELETE(buildRequest(), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({ error: 'Forbidden' })
+    expect(mockDb.deleteOtherAccountSessions).not.toHaveBeenCalled()
+  })
 })
