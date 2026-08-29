@@ -332,6 +332,7 @@ describe('ActivityPubVerifySenderGuard', () => {
     expect(response.status).toBe(200)
     expect(handler).toHaveBeenCalled()
     expect(handler.mock.calls[0]?.[1]).toMatchObject({
+      forwarded: false,
       verifiedSenderActorId: 'https://remote.test/users/alice',
       activityBody: {
         actor: 'https://remote.test/users/alice',
@@ -458,25 +459,6 @@ describe('ActivityPubVerifySenderGuard', () => {
     expect(mockCanFederateWithDomain).not.toHaveBeenCalled()
     expect(mockGetSenderPublicKeyDetails).not.toHaveBeenCalled()
     expect(mockVerify).not.toHaveBeenCalled()
-  })
-
-  it('rejects POST activities when the signing key owner does not match the activity actor', async () => {
-    const handler = vi.fn().mockResolvedValue(Response.json({ ok: true }))
-    const guard = ActivityPubVerifySenderGuard(handler)
-
-    const response = await guard(
-      createSignedPostRequest({
-        body: {
-          id: 'https://remote.test/users/mallory/activities/create-1',
-          type: 'Create',
-          actor: 'https://remote.test/users/mallory'
-        }
-      }),
-      { params: Promise.resolve({}) }
-    )
-
-    expect(response.status).toBe(403)
-    expect(handler).not.toHaveBeenCalled()
   })
 
   it('accepts POST activities when a path-based signing key is owned by the activity actor', async () => {
@@ -1076,35 +1058,6 @@ describe('ActivityPubVerifySenderGuard', () => {
         }
       },
       {
-        description: 'sender actor mismatch with activity actor',
-        setup: () => {
-          mockGetSenderPublicKeyDetails.mockResolvedValue({
-            owner: 'https://remote.test/users/alice',
-            publicKey: 'public-key'
-          })
-          mockVerify.mockResolvedValue(true)
-        },
-        request: () =>
-          createSignedPostRequest({
-            body: {
-              id: 'https://remote.test/users/mallory/activities/1',
-              type: 'Follow',
-              actor: 'https://remote.test/users/mallory',
-              object: 'https://activities.local/users/bob'
-            }
-          }),
-        expectedStatus: 403,
-        expectedReason: 'sender_actor_mismatch',
-        expectedAttributes: {
-          'inbox.key_id': 'https://remote.test/users/alice#main-key',
-          'inbox.verified_sender': 'https://remote.test/users/alice',
-          'inbox.activity_actor': 'https://remote.test/users/mallory',
-          'inbox.activity_id': 'https://remote.test/users/mallory/activities/1',
-          'inbox.activity_type': 'Follow',
-          'inbox.activity_object_id': 'https://activities.local/users/bob'
-        }
-      },
-      {
         description: 'payload too large when content-length exceeds 1 MB',
         setup: () => {},
         request: () =>
@@ -1299,9 +1252,9 @@ describe('ActivityPubVerifySenderGuard', () => {
         setStatus: vi.fn()
       }
 
-      vi.spyOn(trace, 'getActiveSpan').mockReturnValue(
-        nonRecordingSpan as never
-      )
+      const spy = vi
+        .spyOn(trace, 'getActiveSpan')
+        .mockReturnValue(nonRecordingSpan as never)
 
       const response = await guard(
         new NextRequest('https://activities.local/api/inbox', {
@@ -1313,6 +1266,81 @@ describe('ActivityPubVerifySenderGuard', () => {
 
       expect(response.status).toBe(401)
       expect(setAttributeSpy).not.toHaveBeenCalled()
+      spy.mockRestore()
+    })
+
+    it('passes a forwarded delivery to the handler with forwarded true', async () => {
+      mockGetSenderPublicKeyDetails.mockResolvedValue({
+        owner: 'https://remote.test/users/alice',
+        publicKey: 'public-key'
+      })
+      mockVerify.mockResolvedValue(true)
+
+      const handler = vi.fn().mockResolvedValue(Response.json({ ok: true }))
+      const guard = ActivityPubVerifySenderGuard(handler)
+
+      const response = await runGuardInSpan(
+        guard,
+        createSignedPostRequest({
+          body: {
+            id: 'https://remote.test/users/mallory/activities/1',
+            type: 'Follow',
+            actor: 'https://remote.test/users/mallory',
+            object: 'https://activities.local/users/bob'
+          }
+        })
+      )
+
+      expect(response.status).toBe(200)
+      expect(handler).toHaveBeenCalled()
+      expect(handler.mock.calls[0]?.[1]).toMatchObject({
+        forwarded: true,
+        verifiedSenderActorId: 'https://remote.test/users/alice',
+        activityBody: {
+          id: 'https://remote.test/users/mallory/activities/1',
+          type: 'Follow',
+          actor: 'https://remote.test/users/mallory',
+          object: 'https://activities.local/users/bob'
+        }
+      })
+      expect(harness.recordedSpans).toHaveLength(1)
+      expect(harness.recordedSpans[0].attributes).toMatchObject({
+        'inbox.forwarded': true,
+        'inbox.verified_sender': 'https://remote.test/users/alice',
+        'inbox.activity_actor': 'https://remote.test/users/mallory'
+      })
+      expect('inbox.reject_reason' in harness.recordedSpans[0].attributes).toBe(
+        false
+      )
+    })
+
+    it('passes a direct delivery with forwarded false', async () => {
+      mockGetSenderPublicKeyDetails.mockResolvedValue({
+        owner: 'https://remote.test/users/alice',
+        publicKey: 'public-key'
+      })
+      mockVerify.mockResolvedValue(true)
+
+      const handler = vi.fn().mockResolvedValue(Response.json({ ok: true }))
+      const guard = ActivityPubVerifySenderGuard(handler)
+
+      const response = await guard(
+        createSignedPostRequest({
+          body: {
+            id: 'https://remote.test/users/alice/activities/1',
+            type: 'Follow',
+            actor: 'https://remote.test/users/alice'
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(200)
+      expect(handler).toHaveBeenCalled()
+      expect(handler.mock.calls[0]?.[1]).toMatchObject({
+        forwarded: false,
+        verifiedSenderActorId: 'https://remote.test/users/alice'
+      })
     })
   })
 })

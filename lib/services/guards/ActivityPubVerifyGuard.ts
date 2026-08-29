@@ -18,6 +18,7 @@ import { isRecord } from '@/lib/utils/typeGuards'
 import { getSenderPublicKeyDetails } from './getSenderPublicKey'
 import { headerHost } from './headerHost'
 import {
+  annotateInboxForwarded,
   annotateInboxRejection,
   getActivityTraceAttributes
 } from './inboxRejectionTrace'
@@ -423,28 +424,33 @@ export const ActivityPubVerifySenderGuard =
       )
     }
 
+    let forwarded = false
     if (activity.actor) {
       const normalizedActor = normalizeActorId(activity.actor)
 
       if (verifiedSenderActorId !== normalizedActor) {
-        return rejectRequest(
-          request,
-          403,
-          allowedMethods,
-          'sender_actor_mismatch',
-          {
-            key_id: signatureParts.keyId,
-            verified_sender: verifiedSenderActorId,
-            ...getActivityTraceAttributes(activity.body),
-            activity_actor: normalizedActor ?? undefined
-          }
-        )
+        // ActivityPub inbox forwarding (AP §7.1.2): a server re-delivers a
+        // third party's activity verbatim, signed with its OWN user's key, so
+        // the HTTP signer legitimately differs from the activity's actor
+        // (Mastodon does this for replies and deletes in threads). The
+        // signature above authenticated the FORWARDER; nothing here
+        // authenticated the activity's actor. Hand the handler the forwarded
+        // flag so it routes the activity through origin re-fetch verification
+        // instead of trusting the payload — never 403, which Mastodon treats
+        // as an unsalvageable delivery failure and which permanently dropped
+        // every forwarded reply and delete.
+        forwarded = true
+        annotateInboxForwarded({
+          verifiedSender: verifiedSenderActorId,
+          activityActor: normalizedActor ?? undefined
+        })
       }
     }
 
     return handle(request, {
       activityBody: activity.body,
       database,
+      forwarded,
       params: context.params,
       verifiedSenderActorId
     })

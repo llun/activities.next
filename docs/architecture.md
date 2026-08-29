@@ -188,6 +188,17 @@ The server implements the [ActivityPub](https://www.w3.org/TR/activitypub/) prot
 - **NodeInfo** (`/.well-known/nodeinfo`) — Instance metadata
 - **HTTP Signatures** — All outgoing requests are signed; incoming requests are verified
 
+#### Inbox Forwarding & Verification
+
+Incoming HTTP deliveries to `/api/inbox` and `/api/users/:username/inbox` are guarded by `ActivityPubVerifySenderGuard`:
+
+- **Direct deliveries** (HTTP signature signer === activity `actor`): verified payload enters the direct pipeline.
+- **Forwarded deliveries** (ActivityPub §7.1.2 inbox forwarding, HTTP signature signer ≠ activity `actor`):
+  - Pass the guard with `forwarded: true` rather than rejecting with a 403 `sender_actor_mismatch`.
+  - Span attributes record `inbox.forwarded = true`, `inbox.verified_sender`, and `inbox.activity_actor`.
+  - **`Create` / `Update` / `Delete`** activities carry unverified payloads: the embedded object is discarded and the activity is routed to `ProcessForwardedActivityJob` to verify the object against its origin server via re-fetch before applying any state changes.
+  - **Non-status activities** (`Follow`, `Accept`, `Reject`, `Like`, `Undo`) lack an origin re-fetch verification path and are acknowledged with `202 Accepted` and dropped without side effects (Mastodon parity).
+
 ### Background Jobs
 
 Long-running operations (sending activities to remote servers, processing file uploads) are dispatched to a background queue. Supported backends:

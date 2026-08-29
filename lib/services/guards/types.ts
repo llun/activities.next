@@ -62,6 +62,14 @@ export type ActivityPubVerifiedSenderHandle<P> = (
   context: {
     activityBody: unknown
     database: Database
+    // True when the HTTP-signature key owner is NOT the activity's `actor`,
+    // i.e. the delivery was FORWARDED by another server (AP §7.1.2 inbox
+    // forwarding — Mastodon fans a reply's Create/Delete out to the thread
+    // owner's followers signed with the thread owner's key). The payload's
+    // authorship is unverified: handlers must route such activities
+    // through origin re-fetch verification (processForwardedActivityJob) and
+    // never apply payload-trusting side effects for them.
+    forwarded: boolean
     params: Promise<P>
     verifiedSenderActorId: string
   }
