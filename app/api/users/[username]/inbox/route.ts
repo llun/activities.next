@@ -1,3 +1,4 @@
+import { trace } from '@opentelemetry/api'
 import { z } from 'zod'
 
 import { acceptFollowRequest } from '@/lib/actions/acceptFollowRequest'
@@ -28,6 +29,7 @@ import {
   OnlyLocalUserGuard,
   OnlyLocalUserGuardParams
 } from '@/lib/services/guards/OnlyLocalUserGuard'
+import { annotateInboxRejection } from '@/lib/services/guards/inboxRejectionTrace'
 import { getQueue } from '@/lib/services/queue'
 import {
   Accept,
@@ -50,7 +52,29 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+import { isRecord } from '@/lib/utils/typeGuards'
+
+const readActivityType = (activity: unknown): string | string[] | undefined => {
+  if (!isRecord(activity)) return undefined
+  const type = activity.type
+  if (typeof type === 'string') return type
+  if (
+    Array.isArray(type) &&
+    type.every((item): item is string => typeof item === 'string')
+  ) {
+    return type
+  }
+  return undefined
+}
+
+const readActivityId = (activity: unknown): string | undefined => {
+  if (!isRecord(activity)) return undefined
+  const id = activity.id
+  if (typeof id === 'string') return id
+  return undefined
+}
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 const GracefullyAcceptedActivity = z
@@ -195,6 +219,11 @@ export const POST = traceApiRoute(
             )
             const parsed = Activity.safeParse(compactedActivity)
             if (!parsed.success) {
+              annotateInboxRejection('unsupported_activity_shape', {
+                activity_type: readActivityType(compactedActivity),
+                activity_id: readActivityId(compactedActivity),
+                sender_actor_id: context.verifiedSenderActorId
+              })
               return apiResponse({
                 req,
                 allowedMethods: CORS_HEADERS,
@@ -575,7 +604,19 @@ export const POST = traceApiRoute(
                   responseStatusCode: 202
                 })
             }
-          } catch {
+          } catch (error) {
+            const span = trace.getActiveSpan()
+            const err =
+              error instanceof Error ? error : new Error(String(error))
+            span?.recordException(err)
+            annotateInboxRejection('handler_exception', {
+              sender_actor_id: context.verifiedSenderActorId
+            })
+            logger.error({
+              err: toLoggableError(error),
+              message: 'ActivityPub inbox handler threw',
+              senderActorId: context.verifiedSenderActorId
+            })
             return apiResponse({
               req,
               allowedMethods: CORS_HEADERS,

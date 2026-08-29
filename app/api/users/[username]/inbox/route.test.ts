@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
 import { HANDLE_QUOTE_REQUEST_JOB_NAME } from '@/lib/jobs/names'
+import { setupRecordingTracer } from '@/lib/testing/recordingTracer'
 
 import { POST } from './route'
 
@@ -41,6 +42,20 @@ let mockActor: MockActor = {
   username: 'llun',
   type: 'Person'
 }
+
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    child: vi.fn().mockReturnThis()
+  }
+}))
+
+vi.mock('@/lib/utils/logger', () => ({
+  logger: mockLogger
+}))
 
 vi.mock('@/lib/services/queue', () => ({
   getQueue: vi.fn().mockReturnValue({
@@ -201,7 +216,10 @@ const createActorInboxActivityRequest = (type: string) =>
   })
 
 describe('POST /api/users/[username]/inbox', () => {
+  let harness: ReturnType<typeof setupRecordingTracer>
+
   beforeEach(() => {
+    harness = setupRecordingTracer()
     vi.clearAllMocks()
     mockActor = {
       id: 'https://activities.local/users/llun',
@@ -236,6 +254,10 @@ describe('POST /api/users/[username]/inbox', () => {
     })
     mockActivityBody = mockDefaultActivityBody
     mockConsumeRequestBody = false
+  })
+
+  afterEach(() => {
+    harness.cleanup()
   })
 
   it('returns 202 without side effects when the verified sender actor is suspended', async () => {
@@ -943,5 +965,96 @@ describe('POST /api/users/[username]/inbox', () => {
       actorId: 'https://remote.test/users/alice',
       statusId: 'https://activities.local/users/llun/statuses/1'
     })
+  })
+
+  it('records exception, reject reason, and logs error when an action throws', async () => {
+    mockCreateFollower.mockRejectedValue(new Error('db down'))
+
+    const response = await POST(createFollowRequest('llun'), {
+      params: Promise.resolve({ username: 'llun' })
+    })
+
+    expect(response.status).toBe(400)
+    expect(harness.recordedSpans).toHaveLength(1)
+    expect(harness.recordedSpans[0].name).toBe('api.actorInbox')
+    expect(harness.recordedSpans[0].attributes).toMatchObject({
+      'inbox.reject_reason': 'handler_exception',
+      'inbox.sender_actor_id': 'https://remote.test/users/alice'
+    })
+    expect(harness.recordedSpans[0].exception).toEqual(new Error('db down'))
+    expect(mockLogger.error).toHaveBeenCalledWith({
+      err: expect.any(Error),
+      message: 'ActivityPub inbox handler threw',
+      senderActorId: 'https://remote.test/users/alice'
+    })
+    expect(mockLogger.error.mock.calls[0][0].err.message).toBe('db down')
+  })
+
+  it('annotates unsupported_activity_shape when activity schema validation fails', async () => {
+    const response = await POST(
+      new NextRequest('https://activities.local/api/users/llun/inbox', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id: 'https://remote.test/users/alice/activities/create-1',
+          type: 'Create',
+          actor: 'https://remote.test/users/alice',
+          object: {
+            id: 'https://remote.test/users/alice/statuses/1',
+            type: 'Note',
+            content: 'Hello'
+          }
+        })
+      }),
+      { params: Promise.resolve({ username: 'llun' }) }
+    )
+
+    expect(response.status).toBe(400)
+    expect(harness.recordedSpans).toHaveLength(1)
+    expect(harness.recordedSpans[0].attributes).toMatchObject({
+      'inbox.reject_reason': 'unsupported_activity_shape',
+      'inbox.activity_type': 'Create',
+      'inbox.activity_id':
+        'https://remote.test/users/alice/activities/create-1',
+      'inbox.sender_actor_id': 'https://remote.test/users/alice'
+    })
+  })
+
+  it('annotates unsupported_activity_shape with string array activity_type', async () => {
+    const response = await POST(
+      new NextRequest('https://activities.local/api/users/llun/inbox', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id: 'https://remote.test/users/alice/activities/custom-1',
+          type: ['Create', 'https://example.com/Custom'],
+          actor: 'https://remote.test/users/alice',
+          object: 'https://activities.local/users/llun'
+        })
+      }),
+      { params: Promise.resolve({ username: 'llun' }) }
+    )
+
+    expect(response.status).toBe(400)
+    expect(harness.recordedSpans).toHaveLength(1)
+    expect(harness.recordedSpans[0].attributes).toMatchObject({
+      'inbox.reject_reason': 'unsupported_activity_shape',
+      'inbox.activity_type': ['Create', 'https://example.com/Custom'],
+      'inbox.activity_id':
+        'https://remote.test/users/alice/activities/custom-1',
+      'inbox.sender_actor_id': 'https://remote.test/users/alice'
+    })
+  })
+
+  it('does not annotate inbox.reject_reason on a valid accepted activity', async () => {
+    const response = await POST(createFollowRequest('llun'), {
+      params: Promise.resolve({ username: 'llun' })
+    })
+
+    expect(response.status).toBe(202)
+    expect(harness.recordedSpans).toHaveLength(1)
+    expect(
+      harness.recordedSpans[0].attributes['inbox.reject_reason']
+    ).toBeUndefined()
   })
 })
