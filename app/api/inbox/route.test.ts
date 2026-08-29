@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
 
+import { setupRecordingTracer } from '@/lib/testing/recordingTracer'
+
 import { POST } from './route'
 
 const mockCanFederateWithDomain = vi.fn()
@@ -15,6 +17,20 @@ const mockDefaultActivityBody = Symbol('defaultActivityBody')
 let mockActivityBody: unknown = mockDefaultActivityBody
 let mockConsumeRequestBody = false
 let mockVerifiedSenderActorId = 'https://allowed.test/users/a'
+
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    child: vi.fn().mockReturnThis()
+  }
+}))
+
+vi.mock('@/lib/utils/logger', () => ({
+  logger: mockLogger
+}))
 
 vi.mock('@/lib/services/federation/domainPolicy', () => ({
   canFederateWithDomain: (...params: unknown[]) =>
@@ -92,13 +108,20 @@ const createRequest = (actor: unknown) => {
 }
 
 describe('POST /api/inbox', () => {
+  let harness: ReturnType<typeof setupRecordingTracer>
+
   beforeEach(() => {
+    harness = setupRecordingTracer()
     vi.clearAllMocks()
     mockActivityBody = mockDefaultActivityBody
     mockConsumeRequestBody = false
     mockVerifiedSenderActorId = 'https://allowed.test/users/a'
     mockGetRelayByActorId.mockResolvedValue(null)
     mockGetModerationStatesForActors.mockResolvedValue(new Map())
+  })
+
+  afterEach(() => {
+    harness.cleanup()
   })
 
   describe('suspended remote sender', () => {
@@ -211,6 +234,13 @@ describe('POST /api/inbox', () => {
 
     expect(response.status).toBe(403)
     expect(mockPublish).not.toHaveBeenCalled()
+    expect(harness.recordedSpans).toHaveLength(1)
+    expect(harness.recordedSpans[0].name).toBe('api.sharedInbox')
+    expect(harness.recordedSpans[0].attributes).toMatchObject({
+      'inbox.reject_reason': 'domain_not_federatable',
+      'inbox.actor_id': 'https://blocked.test/users/a',
+      'inbox.sender_actor_id': 'https://allowed.test/users/a'
+    })
   })
 
   it.each([undefined, null, '', 42, {}])(
@@ -223,6 +253,12 @@ describe('POST /api/inbox', () => {
       expect(response.status).toBe(400)
       expect(mockCanFederateWithDomain).not.toHaveBeenCalled()
       expect(mockPublish).not.toHaveBeenCalled()
+      expect(harness.recordedSpans).toHaveLength(1)
+      expect(harness.recordedSpans[0].name).toBe('api.sharedInbox')
+      expect(harness.recordedSpans[0].attributes).toMatchObject({
+        'inbox.reject_reason': 'invalid_activity_body',
+        'inbox.sender_actor_id': 'https://allowed.test/users/a'
+      })
     }
   )
 
@@ -243,6 +279,10 @@ describe('POST /api/inbox', () => {
     expect(response.status).toBe(400)
     expect(mockCanFederateWithDomain).not.toHaveBeenCalled()
     expect(mockPublish).not.toHaveBeenCalled()
+    expect(harness.recordedSpans).toHaveLength(1)
+    expect(harness.recordedSpans[0].attributes).toMatchObject({
+      'inbox.reject_reason': 'invalid_activity_body'
+    })
   })
 
   it('uses the verified guard activity body after the request body is consumed', async () => {
@@ -269,6 +309,9 @@ describe('POST /api/inbox', () => {
     expect(mockPublish).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'CreateNoteJob' })
     )
+    expect(
+      harness.recordedSpans[0].attributes['inbox.reject_reason']
+    ).toBeUndefined()
   })
 
   it('enqueues activities whose actor is an object with an id', async () => {
@@ -374,5 +417,41 @@ describe('POST /api/inbox', () => {
 
     expect(response.status).toBe(202)
     expect(mockPublish).not.toHaveBeenCalled()
+    expect(harness.recordedSpans).toHaveLength(1)
+    expect(harness.recordedSpans[0].name).toBe('api.sharedInbox')
+    expect(harness.recordedSpans[0].attributes).toMatchObject({
+      'inbox.reject_reason': 'unsupported_activity_shape',
+      'inbox.activity_id': `${actor}/activities/unsupported-1`,
+      'inbox.activity_type': 'Dislike',
+      'inbox.sender_actor_id': actor
+    })
+  })
+
+  it('records exception, reject reason, and logs error when shared inbox handler throws', async () => {
+    mockPublish.mockRejectedValue(new Error('queue publish failed'))
+    mockCanFederateWithDomain.mockResolvedValue(true)
+
+    const response = await POST(createRequest('https://allowed.test/users/a'), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(400)
+    expect(harness.recordedSpans).toHaveLength(1)
+    expect(harness.recordedSpans[0].name).toBe('api.sharedInbox')
+    expect(harness.recordedSpans[0].attributes).toMatchObject({
+      'inbox.reject_reason': 'handler_exception',
+      'inbox.sender_actor_id': 'https://allowed.test/users/a'
+    })
+    expect(harness.recordedSpans[0].exception).toEqual(
+      new Error('queue publish failed')
+    )
+    expect(mockLogger.error).toHaveBeenCalledWith({
+      err: expect.any(Error),
+      message: 'Shared inbox handler threw',
+      senderActorId: 'https://allowed.test/users/a'
+    })
+    expect(mockLogger.error.mock.calls[0][0].err.message).toBe(
+      'queue publish failed'
+    )
   })
 })

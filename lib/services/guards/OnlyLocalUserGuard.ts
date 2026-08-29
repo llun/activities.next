@@ -11,6 +11,7 @@ import { normalizeUsername } from '@/lib/utils/normalizeUsername'
 import { apiErrorResponse } from '@/lib/utils/response'
 
 import { headerHost } from './headerHost'
+import { annotateInboxRejection } from './inboxRejectionTrace'
 import { AppRouterParams } from './types'
 
 export type OnlyLocalUserGuardParams = {
@@ -58,6 +59,7 @@ export const OnlyLocalUserGuard =
       actor?.account ||
       (options.allowFederationSigningActor && isFederationSigningActor(actor))
     if (!actor || !isAllowedActor) {
+      annotateInboxRejection('local_actor_not_found', { username })
       return apiErrorResponse(404)
     }
 
@@ -110,6 +112,7 @@ export const OnlyLocalUserGuard =
       isFederationSigningActorIdUsername(normalizeUsername(username)) &&
       !isFederationSigningActor(actor)
     ) {
+      annotateInboxRejection('local_actor_not_found', { username })
       return apiErrorResponse(404)
     }
 
@@ -117,6 +120,7 @@ export const OnlyLocalUserGuard =
     // following, per-user inbox, statuses) responds 410 Gone. Silenced actors
     // still resolve — silence only hides their statuses from public timelines.
     if (actor.suspendedAt) {
+      annotateInboxRejection('local_actor_suspended', { username })
       return apiErrorResponse(410)
     }
 
