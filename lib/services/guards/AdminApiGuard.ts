@@ -177,7 +177,8 @@ export const AdminApiGuard =
       })
     }
 
-    const { OAuthGuardAnyScope } = await import('./OAuthGuard')
+    const { OAuthGuardAnyScope, corsErrorResponse } =
+      await import('./OAuthGuard')
     return OAuthGuardAnyScope<P>(
       getRequiredOAuthScopes(req.method, options),
       async (oauthReq, { currentActor, database: oauthDatabase, params }) => {
@@ -198,6 +199,7 @@ export const AdminApiGuard =
             actorId: currentActor.id
           }
         })
-      }
+      },
+      { errorResponse: corsErrorResponse(allowedMethods) }
     )(req, context)
   }

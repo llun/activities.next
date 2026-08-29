@@ -521,8 +521,33 @@ describe('AdminApiGuard', () => {
     })
   })
 
+  describe('without database', () => {
+    it('returns 500 when database is unavailable', async () => {
+      const originalDb = mockDatabase
+      mockDatabase = null
+      try {
+        const guard = AdminApiGuard([HttpMethod.enum.GET], handle)
+        const req = createRequest()
+        const response = await guard(req, { params: Promise.resolve({}) })
+
+        expect(response.status).toBe(500)
+        await expect(response.json()).resolves.toEqual({
+          error: 'Database unavailable'
+        })
+        expect(handle).not.toHaveBeenCalled()
+      } finally {
+        mockDatabase = originalDb
+      }
+    })
+  })
+
   describe('bearer token handling', () => {
     it('allows an admin OAuth bearer token for read routes', async () => {
+      mockOAuthActor = {
+        id: 'https://llun.test/users/admin',
+        account: { id: 'oauth-admin-account-id', role: 'admin' }
+      } as Actor
+
       const guard = AdminApiGuard([HttpMethod.enum.GET], handle)
       const response = await guard(
         new NextRequest('https://llun.test/api/v1/admin/domain_blocks', {
@@ -532,11 +557,23 @@ describe('AdminApiGuard', () => {
       )
 
       expect(response.status).toBe(200)
+      expect(handle).toHaveBeenCalledWith(
+        expect.any(NextRequest),
+        expect.objectContaining({
+          moderator: {
+            accountId: 'oauth-admin-account-id',
+            actorId: 'https://llun.test/users/admin'
+          }
+        })
+      )
       // Without a resource option, admin GET accepts coarse read OR the aggregate
       // admin:read scope only — no granular admin:read:* scope is added.
       expect(mockOAuthGuardAnyScope).toHaveBeenCalledWith(
         [Scope.enum.read, Scope.enum['admin:read']],
-        expect.any(Function)
+        expect.any(Function),
+        expect.objectContaining({
+          errorResponse: expect.any(Function)
+        })
       )
     })
 
@@ -559,7 +596,10 @@ describe('AdminApiGuard', () => {
           Scope.enum['admin:read'],
           Scope.enum['admin:read:domain_blocks']
         ],
-        expect.any(Function)
+        expect.any(Function),
+        expect.objectContaining({
+          errorResponse: expect.any(Function)
+        })
       )
     })
 
@@ -581,7 +621,10 @@ describe('AdminApiGuard', () => {
           Scope.enum['admin:write'],
           Scope.enum['admin:write:domain_allows']
         ],
-        expect.any(Function)
+        expect.any(Function),
+        expect.objectContaining({
+          errorResponse: expect.any(Function)
+        })
       )
     })
 
@@ -598,7 +641,10 @@ describe('AdminApiGuard', () => {
       // Admin POST accepts coarse write OR the aggregate admin:write scope.
       expect(mockOAuthGuardAnyScope).toHaveBeenCalledWith(
         [Scope.enum.write, Scope.enum['admin:write']],
-        expect.any(Function)
+        expect.any(Function),
+        expect.objectContaining({
+          errorResponse: expect.any(Function)
+        })
       )
     })
 
