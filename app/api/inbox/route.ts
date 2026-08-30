@@ -54,17 +54,59 @@ export const POST = traceApiRoute(
           ? extractActivityPubId(activityBody.actor)
           : undefined
 
+        const validationErrors: string[] = []
+        if (!isRecord(body)) {
+          validationErrors.push('compacted_body_not_an_object')
+        } else {
+          if (typeof body.id !== 'undefined' && typeof body.id !== 'string') {
+            validationErrors.push('invalid_id')
+          }
+          if (typeof body.type !== 'string') {
+            validationErrors.push(
+              typeof body.type === 'undefined' ? 'missing_type' : 'invalid_type'
+            )
+          }
+        }
+        if (!actor) {
+          validationErrors.push('missing_actor')
+        } else if (!normalizeActorId(actor)) {
+          validationErrors.push('invalid_actor')
+        }
+
         // The guard enforces signed POST actors; keep route validation before casting unknown JSON.
         if (
+          validationErrors.length > 0 ||
           !isRecord(body) ||
-          typeof body.id !== 'string' ||
+          (typeof body.id !== 'undefined' && typeof body.id !== 'string') ||
           typeof body.type !== 'string' ||
           !actor ||
           !normalizeActorId(actor)
         ) {
+          const validationErrorStr =
+            validationErrors.join(', ') || 'invalid_activity_body'
           annotateInboxRejection('invalid_activity_body', {
+            error: validationErrorStr,
             sender_actor_id: verifiedSenderActorId,
             ...getActivityTraceAttributes(activityBody)
+          })
+          logger.warn({
+            message: 'Invalid activity body received in shared inbox',
+            error: validationErrorStr,
+            senderActorId: verifiedSenderActorId,
+            activityActor: actor,
+            activityType:
+              isRecord(body) && typeof body.type === 'string'
+                ? body.type
+                : isRecord(activityBody) &&
+                    typeof activityBody.type === 'string'
+                  ? activityBody.type
+                  : undefined,
+            activityId:
+              isRecord(body) && typeof body.id === 'string'
+                ? body.id
+                : isRecord(activityBody) && typeof activityBody.id === 'string'
+                  ? activityBody.id
+                  : undefined
           })
           return apiResponse({
             req: request,
@@ -143,7 +185,7 @@ export const POST = traceApiRoute(
           // acknowledged without falling through to the boost path, so it can
           // never create a relay-attributed Announce row.
           if (relay) {
-            if (relay.state === 'accepted') {
+            if (relay.state === 'accepted' && activity.id) {
               await getQueue().publish({
                 id: getHashFromString(activity.id),
                 name: RELAY_ANNOUNCE_JOB_NAME,

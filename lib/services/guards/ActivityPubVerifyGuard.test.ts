@@ -954,7 +954,25 @@ describe('ActivityPubVerifySenderGuard', () => {
           }),
         expectedStatus: 401,
         expectedReason: 'invalid_activity_body',
-        expectedAttributes: {}
+        expectedAttributes: {
+          'inbox.error': 'json_parse_error'
+        }
+      },
+      {
+        description: 'activity body without actor',
+        setup: () => {},
+        request: () =>
+          createSignedPostRequest({
+            body: {
+              id: 'https://remote.test/users/alice/activities/1',
+              type: 'Follow'
+            }
+          }),
+        expectedStatus: 401,
+        expectedReason: 'invalid_activity_body',
+        expectedAttributes: {
+          'inbox.error': 'missing_actor'
+        }
       },
       {
         description: 'domain not federatable',
