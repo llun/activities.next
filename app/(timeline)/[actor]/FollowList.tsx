@@ -23,6 +23,14 @@ export const FollowList: FC<Props> = ({
     [blockedActorIds]
   )
 
+  if (users.length === 0) {
+    return (
+      <div className="p-8 text-center text-sm text-muted-foreground">
+        No accounts found.
+      </div>
+    )
+  }
+
   return (
     <div className="divide-y">
       {users.map((user) => {
