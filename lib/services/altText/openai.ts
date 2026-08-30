@@ -3,16 +3,13 @@ import sharp from 'sharp'
 import { AltTextConfig } from '@/lib/config/altText'
 import { MAX_MEDIA_DESCRIPTION_LENGTH } from '@/lib/services/medias/constants'
 import { logger } from '@/lib/utils/logger'
+import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
-import { fetchAltTextHttpClient } from './httpClient'
-import {
-  AltTextHttpClient,
-  AltTextProviderError,
-  parseAltTextJson
-} from './types'
+import { AltTextProviderError, parseAltTextJson } from './types'
 
 const REQUEST_TIMEOUT_MS = 30000
+const MAX_RESPONSE_BYTES = 1 * 1024 * 1024
 const MAX_VISION_IMAGE_DIMENSION = 1536
 
 const SYSTEM_PROMPT =
@@ -30,8 +27,7 @@ interface OpenAIChatResponse {
 export const generateAltText = async (
   config: AltTextConfig,
   imageBuffer: Buffer,
-  mimeType: string,
-  httpClient: AltTextHttpClient = fetchAltTextHttpClient
+  mimeType: string
 ): Promise<string | null> => {
   try {
     let processedBuffer = imageBuffer
@@ -50,7 +46,7 @@ export const generateAltText = async (
     const base64Data = processedBuffer.toString('base64')
     const dataUrl = `data:${mimeType};base64,${base64Data}`
 
-    const response = await httpClient({
+    const response = await safeRemoteFetch({
       url: config.endpoint,
       method: 'POST',
       headers: {
@@ -78,7 +74,8 @@ export const generateAltText = async (
           }
         ]
       }),
-      timeoutMs: REQUEST_TIMEOUT_MS
+      timeoutInMilliseconds: REQUEST_TIMEOUT_MS,
+      maxBodyBytes: MAX_RESPONSE_BYTES
     })
 
     if (response.statusCode !== 200) {

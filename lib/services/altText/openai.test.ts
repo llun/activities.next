@@ -1,7 +1,11 @@
 import { MAX_MEDIA_DESCRIPTION_LENGTH } from '@/lib/services/medias/constants'
+import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 
 import { generateAltText } from './openai'
-import { AltTextHttpClient, AltTextHttpRequest } from './types'
+
+vi.mock('@/lib/utils/safeRemoteFetch', () => ({
+  safeRemoteFetch: vi.fn()
+}))
 
 const config = {
   endpoint: 'https://api.openai.com/v1/chat/completions',
@@ -12,47 +16,37 @@ const config = {
 const chatResponse = (content: string) =>
   JSON.stringify({ choices: [{ message: { content } }] })
 
-const createRecordingClient = (
-  responder: (request: AltTextHttpRequest) => {
-    statusCode: number
-    body: string
-  }
-) => {
-  const requests: AltTextHttpRequest[] = []
-  const client: AltTextHttpClient = async (request) => {
-    requests.push(request)
-    return responder(request)
-  }
-  return { client, requests }
-}
-
 describe('generateAltText', () => {
   const sampleImageBuffer = Buffer.from('sample-image-binary-data')
   const mimeType = 'image/jpeg'
 
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   it('sends vision chat completion request and returns generated alt text', async () => {
     const expectedAltText =
       'A golden retriever sitting in a sunny grassy field looking at the camera.'
-    const { client, requests } = createRecordingClient(() => ({
+    vi.mocked(safeRemoteFetch).mockResolvedValue({
       statusCode: 200,
-      body: chatResponse(expectedAltText)
-    }))
+      body: chatResponse(expectedAltText),
+      bodyTruncated: false,
+      headers: {},
+      url: config.endpoint
+    })
 
-    const result = await generateAltText(
-      config,
-      sampleImageBuffer,
-      mimeType,
-      client
-    )
+    const result = await generateAltText(config, sampleImageBuffer, mimeType)
 
     expect(result).toBe(expectedAltText)
-    expect(requests).toHaveLength(1)
-    const request = requests[0]
-    expect(request?.url).toBe('https://api.openai.com/v1/chat/completions')
-    expect(request?.headers.Authorization).toBe('Bearer sk-test')
-    expect(request?.headers['Content-Type']).toBe('application/json')
+    expect(safeRemoteFetch).toHaveBeenCalledTimes(1)
+    const callArgs = vi.mocked(safeRemoteFetch).mock.calls[0]?.[0]
+    expect(callArgs?.url).toBe('https://api.openai.com/v1/chat/completions')
+    expect(callArgs?.headers).toEqual({
+      Authorization: 'Bearer sk-test',
+      'Content-Type': 'application/json'
+    })
 
-    const body = JSON.parse(request?.body ?? '{}')
+    const body = JSON.parse(callArgs?.body ?? '{}')
     expect(body.model).toBe('gpt-4o-mini')
     expect(body.messages).toHaveLength(2)
     expect(body.messages[0].role).toBe('system')
@@ -72,97 +66,80 @@ describe('generateAltText', () => {
   })
 
   it('trims whitespace from generated alt text', async () => {
-    const { client } = createRecordingClient(() => ({
+    vi.mocked(safeRemoteFetch).mockResolvedValue({
       statusCode: 200,
-      body: chatResponse('  A snowy mountain landscape at sunset.  \n')
-    }))
+      body: chatResponse('  A snowy mountain landscape at sunset.  \n'),
+      bodyTruncated: false,
+      headers: {},
+      url: config.endpoint
+    })
 
-    const result = await generateAltText(
-      config,
-      sampleImageBuffer,
-      mimeType,
-      client
-    )
+    const result = await generateAltText(config, sampleImageBuffer, mimeType)
 
     expect(result).toBe('A snowy mountain landscape at sunset.')
   })
 
   it('returns null when model returns empty or whitespace-only content', async () => {
-    const { client } = createRecordingClient(() => ({
+    vi.mocked(safeRemoteFetch).mockResolvedValue({
       statusCode: 200,
-      body: chatResponse('   \n  ')
-    }))
+      body: chatResponse('   \n  '),
+      bodyTruncated: false,
+      headers: {},
+      url: config.endpoint
+    })
 
-    const result = await generateAltText(
-      config,
-      sampleImageBuffer,
-      mimeType,
-      client
-    )
+    const result = await generateAltText(config, sampleImageBuffer, mimeType)
 
     expect(result).toBeNull()
   })
 
   it('returns null and logs when backend returns non-200 status', async () => {
-    const { client } = createRecordingClient(() => ({
+    vi.mocked(safeRemoteFetch).mockResolvedValue({
       statusCode: 500,
-      body: JSON.stringify({ error: { message: 'Internal server error' } })
-    }))
+      body: JSON.stringify({ error: { message: 'Internal server error' } }),
+      bodyTruncated: false,
+      headers: {},
+      url: config.endpoint
+    })
 
-    const result = await generateAltText(
-      config,
-      sampleImageBuffer,
-      mimeType,
-      client
-    )
+    const result = await generateAltText(config, sampleImageBuffer, mimeType)
 
     expect(result).toBeNull()
   })
 
   it('returns null when backend returns invalid JSON', async () => {
-    const { client } = createRecordingClient(() => ({
+    vi.mocked(safeRemoteFetch).mockResolvedValue({
       statusCode: 200,
-      body: 'invalid-json'
-    }))
+      body: 'invalid-json',
+      bodyTruncated: false,
+      headers: {},
+      url: config.endpoint
+    })
 
-    const result = await generateAltText(
-      config,
-      sampleImageBuffer,
-      mimeType,
-      client
-    )
+    const result = await generateAltText(config, sampleImageBuffer, mimeType)
 
     expect(result).toBeNull()
   })
 
-  it('returns null when http client throws an error (e.g. timeout)', async () => {
-    const client: AltTextHttpClient = async () => {
-      throw new Error('Request timed out')
-    }
+  it('returns null when safeRemoteFetch throws an error (e.g. timeout)', async () => {
+    vi.mocked(safeRemoteFetch).mockRejectedValue(new Error('Request timed out'))
 
-    const result = await generateAltText(
-      config,
-      sampleImageBuffer,
-      mimeType,
-      client
-    )
+    const result = await generateAltText(config, sampleImageBuffer, mimeType)
 
     expect(result).toBeNull()
   })
 
   it('truncates alt text to MAX_MEDIA_DESCRIPTION_LENGTH if too long', async () => {
     const longText = 'A'.repeat(MAX_MEDIA_DESCRIPTION_LENGTH + 100)
-    const { client } = createRecordingClient(() => ({
+    vi.mocked(safeRemoteFetch).mockResolvedValue({
       statusCode: 200,
-      body: chatResponse(longText)
-    }))
+      body: chatResponse(longText),
+      bodyTruncated: false,
+      headers: {},
+      url: config.endpoint
+    })
 
-    const result = await generateAltText(
-      config,
-      sampleImageBuffer,
-      mimeType,
-      client
-    )
+    const result = await generateAltText(config, sampleImageBuffer, mimeType)
 
     expect(result).toHaveLength(MAX_MEDIA_DESCRIPTION_LENGTH)
     expect(result).toBe(longText.slice(0, MAX_MEDIA_DESCRIPTION_LENGTH))

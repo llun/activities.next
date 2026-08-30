@@ -1,10 +1,11 @@
 import { GeminiTranslationConfig } from '@/lib/config/translation'
-import {
-  TranslationHttpClient,
-  TranslationHttpRequest
-} from '@/lib/services/translation/types'
+import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 
 import { createGeminiProvider } from './gemini'
+
+vi.mock('@/lib/utils/safeRemoteFetch', () => ({
+  safeRemoteFetch: vi.fn()
+}))
 
 const BASE_CONFIG: GeminiTranslationConfig = {
   type: 'gemini',
@@ -14,32 +15,35 @@ const BASE_CONFIG: GeminiTranslationConfig = {
 }
 
 describe('createGeminiProvider', () => {
-  it('translates posts and detects source language', async () => {
-    let capturedRequest: TranslationHttpRequest | undefined
-    const httpClient: TranslationHttpClient = async (request) => {
-      capturedRequest = request
-      return {
-        statusCode: 200,
-        body: JSON.stringify({
-          candidates: [
-            {
-              content: {
-                parts: [
-                  {
-                    text: JSON.stringify({
-                      translations: ['<p>Hola mundo</p>'],
-                      detected_source_language: 'en'
-                    })
-                  }
-                ]
-              }
-            }
-          ]
-        })
-      }
-    }
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
 
-    const provider = createGeminiProvider(BASE_CONFIG, httpClient)
+  it('translates posts and detects source language', async () => {
+    vi.mocked(safeRemoteFetch).mockResolvedValue({
+      statusCode: 200,
+      body: JSON.stringify({
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  text: JSON.stringify({
+                    translations: ['<p>Hola mundo</p>'],
+                    detected_source_language: 'en'
+                  })
+                }
+              ]
+            }
+          }
+        ]
+      }),
+      bodyTruncated: false,
+      headers: {},
+      url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'
+    })
+
+    const provider = createGeminiProvider(BASE_CONFIG)
     const result = await provider.translate(['<p>Hello world</p>'], 'es')
 
     expect(result).toEqual({
@@ -48,14 +52,16 @@ describe('createGeminiProvider', () => {
       provider: 'gemini-2.5-flash'
     })
 
-    expect(capturedRequest?.url).toBe(
+    expect(safeRemoteFetch).toHaveBeenCalledTimes(1)
+    const callArgs = vi.mocked(safeRemoteFetch).mock.calls[0]?.[0]
+    expect(callArgs?.url).toBe(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'
     )
-    expect(capturedRequest?.headers).toEqual({
+    expect(callArgs?.headers).toEqual({
       'x-goog-api-key': 'gemini-secret-key',
       'Content-Type': 'application/json'
     })
-    const body = JSON.parse(capturedRequest?.body as string)
+    const body = JSON.parse(callArgs?.body ?? '{}')
     expect(body.generationConfig).toEqual({
       temperature: 0,
       responseMimeType: 'application/json'
@@ -72,31 +78,37 @@ describe('createGeminiProvider', () => {
   })
 
   it('throws TranslationProviderError on non-200 responses', async () => {
-    const httpClient: TranslationHttpClient = async () => ({
+    vi.mocked(safeRemoteFetch).mockResolvedValue({
       statusCode: 403,
-      body: '{"error":{"message":"API key not valid"}}'
+      body: '{"error":{"message":"API key not valid"}}',
+      bodyTruncated: false,
+      headers: {},
+      url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'
     })
 
-    const provider = createGeminiProvider(BASE_CONFIG, httpClient)
+    const provider = createGeminiProvider(BASE_CONFIG)
     await expect(provider.translate(['Hello'], 'es')).rejects.toThrow(
       /Gemini translate request failed with status 403/
     )
   })
 
   it('throws TranslationProviderError when candidate content is missing', async () => {
-    const httpClient: TranslationHttpClient = async () => ({
+    vi.mocked(safeRemoteFetch).mockResolvedValue({
       statusCode: 200,
-      body: JSON.stringify({ candidates: [] })
+      body: JSON.stringify({ candidates: [] }),
+      bodyTruncated: false,
+      headers: {},
+      url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'
     })
 
-    const provider = createGeminiProvider(BASE_CONFIG, httpClient)
+    const provider = createGeminiProvider(BASE_CONFIG)
     await expect(provider.translate(['Hello'], 'es')).rejects.toThrow(
       /Gemini translation response was empty/
     )
   })
 
   it('throws TranslationProviderError on malformed JSON payload', async () => {
-    const httpClient: TranslationHttpClient = async () => ({
+    vi.mocked(safeRemoteFetch).mockResolvedValue({
       statusCode: 200,
       body: JSON.stringify({
         candidates: [
@@ -106,17 +118,20 @@ describe('createGeminiProvider', () => {
             }
           }
         ]
-      })
+      }),
+      bodyTruncated: false,
+      headers: {},
+      url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'
     })
 
-    const provider = createGeminiProvider(BASE_CONFIG, httpClient)
+    const provider = createGeminiProvider(BASE_CONFIG)
     await expect(provider.translate(['Hello'], 'es')).rejects.toThrow(
       /LLM translation response was not valid JSON/
     )
   })
 
   it('throws TranslationProviderError when translations length mismatches inputs', async () => {
-    const httpClient: TranslationHttpClient = async () => ({
+    vi.mocked(safeRemoteFetch).mockResolvedValue({
       statusCode: 200,
       body: JSON.stringify({
         candidates: [
@@ -133,10 +148,13 @@ describe('createGeminiProvider', () => {
             }
           }
         ]
-      })
+      }),
+      bodyTruncated: false,
+      headers: {},
+      url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'
     })
 
-    const provider = createGeminiProvider(BASE_CONFIG, httpClient)
+    const provider = createGeminiProvider(BASE_CONFIG)
     await expect(provider.translate(['one', 'two'], 'es')).rejects.toThrow(
       /LLM translation response had an unexpected shape/
     )

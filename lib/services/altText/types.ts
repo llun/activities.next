@@ -1,20 +1,3 @@
-export interface AltTextHttpRequest {
-  url: string
-  method: 'POST'
-  headers: Record<string, string>
-  body: string
-  timeoutMs: number
-}
-
-export interface AltTextHttpResponse {
-  statusCode: number
-  body: string
-}
-
-export type AltTextHttpClient = (
-  request: AltTextHttpRequest
-) => Promise<AltTextHttpResponse>
-
 export class AltTextProviderError extends Error {
   constructor(message: string) {
     super(message)

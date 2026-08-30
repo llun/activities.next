@@ -31,27 +31,6 @@ export interface TranslationProvider {
   translate(texts: string[], targetLang: string): Promise<TranslationResult>
 }
 
-export interface TranslationHttpRequest {
-  url: string
-  method: 'GET' | 'POST'
-  headers: Record<string, string>
-  body?: string
-  timeoutMs: number
-}
-
-export interface TranslationHttpResponse {
-  statusCode: number
-  body: string
-}
-
-/**
- * Minimal HTTP client for reaching a translation backend. Backed by
- * `safeRemoteFetch`. Injectable so adapter tests can mock the transport.
- */
-export type TranslationHttpClient = (
-  request: TranslationHttpRequest
-) => Promise<TranslationHttpResponse>
-
 export class TranslationProviderError extends Error {
   constructor(message: string) {
     super(message)
@@ -72,7 +51,7 @@ export class UnsupportedTargetLanguageError extends Error {
 }
 
 // ISO 639-1 codes are two letters; backends sometimes return regional variants
-// (DeepL "EN-US", LibreTranslate "pt-BR"). Normalize to the base two-letter
+// (DeepL "EN-US"). Normalize to the base two-letter
 // lower-case code used throughout the status `language` field.
 export const normalizeLanguageCode = (code: string): string =>
   code.trim().slice(0, 2).toLowerCase()

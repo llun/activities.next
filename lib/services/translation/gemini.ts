@@ -1,18 +1,18 @@
 import { GeminiTranslationConfig } from '@/lib/config/translation'
-import { fetchTranslationHttpClient } from '@/lib/services/translation/httpClient'
 import { LLM_SUPPORTED_LANGUAGES } from '@/lib/services/translation/languages'
 import {
-  TranslationHttpClient,
   TranslationProvider,
   TranslationProviderError,
   TranslationResult,
   normalizeLanguageCode,
   parseTranslationJson
 } from '@/lib/services/translation/types'
+import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 
 import { SYSTEM_PROMPT, parseLLMContent } from './llmPrompt'
 
 const REQUEST_TIMEOUT_MS = 30000
+const MAX_RESPONSE_BYTES = 1 * 1024 * 1024
 
 interface GeminiGenerateContentResponse {
   candidates?: {
@@ -30,8 +30,7 @@ interface GeminiGenerateContentResponse {
  * `systemInstruction` to translate posts.
  */
 export const createGeminiProvider = (
-  config: GeminiTranslationConfig,
-  httpClient: TranslationHttpClient = fetchTranslationHttpClient
+  config: GeminiTranslationConfig
 ): TranslationProvider => {
   const supported = [...LLM_SUPPORTED_LANGUAGES]
   const endpoint = config.endpoint.replace(/\/$/, '')
@@ -46,37 +45,45 @@ export const createGeminiProvider = (
     },
 
     async translate(texts, targetLang): Promise<TranslationResult> {
-      const response = await httpClient({
-        url,
-        method: 'POST',
-        headers: {
-          'x-goog-api-key': config.apiKey,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          systemInstruction: {
-            parts: [{ text: SYSTEM_PROMPT }]
+      let response
+      try {
+        response = await safeRemoteFetch({
+          url,
+          method: 'POST',
+          headers: {
+            'x-goog-api-key': config.apiKey,
+            'Content-Type': 'application/json'
           },
-          contents: [
-            {
-              role: 'user',
-              parts: [
-                {
-                  text: JSON.stringify({
-                    target: normalizeLanguageCode(targetLang),
-                    texts
-                  })
-                }
-              ]
+          body: JSON.stringify({
+            systemInstruction: {
+              parts: [{ text: SYSTEM_PROMPT }]
+            },
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  {
+                    text: JSON.stringify({
+                      target: normalizeLanguageCode(targetLang),
+                      texts
+                    })
+                  }
+                ]
+              }
+            ],
+            generationConfig: {
+              temperature: 0,
+              responseMimeType: 'application/json'
             }
-          ],
-          generationConfig: {
-            temperature: 0,
-            responseMimeType: 'application/json'
-          }
-        }),
-        timeoutMs: REQUEST_TIMEOUT_MS
-      })
+          }),
+          timeoutInMilliseconds: REQUEST_TIMEOUT_MS,
+          maxBodyBytes: MAX_RESPONSE_BYTES
+        })
+      } catch (error) {
+        throw new TranslationProviderError(
+          `Gemini translate request failed: ${(error as Error).message}`
+        )
+      }
 
       if (response.statusCode !== 200) {
         throw new TranslationProviderError(
