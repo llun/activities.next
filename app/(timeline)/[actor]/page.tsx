@@ -180,7 +180,7 @@ const Page: FC<Props> = async ({ params }) => {
   const iconImageUrl = getIconImage()
 
   return (
-    <div className="space-y-6 pt-4 sm:pt-6">
+    <div className="space-y-6">
       <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
         <ProfileHeaderImage
           actorId={person.id}
