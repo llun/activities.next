@@ -11,8 +11,10 @@ import { format } from 'date-fns'
 import { IncomingMessage } from 'http'
 import sharp from 'sharp'
 
+import { getConfig } from '@/lib/config'
 import { MediaStorageS3Config } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
+import { generateAltText } from '@/lib/services/altText/openai'
 import {
   MAX_HEIGHT,
   MAX_WIDTH,
@@ -415,12 +417,32 @@ export class S3FileStorage implements MediaStorage {
               const analysis = await analyzeImageBuffer(buffer, {
                 manualFocus: media.focus
               })
-              if (analysis.blurhash || analysis.focus) {
+              let generatedDescription: string | null = null
+              if (media.description == null) {
+                const { altText } = getConfig()
+                if (altText) {
+                  try {
+                    generatedDescription = await generateAltText(
+                      altText,
+                      buffer,
+                      media.original.mimeType
+                    )
+                  } catch (error) {
+                    logger.warn({
+                      message:
+                        'Failed to generate alt text for presigned image upload',
+                      err: toLoggableError(error)
+                    })
+                  }
+                }
+              }
+              if (analysis.blurhash || analysis.focus || generatedDescription) {
                 const updated = await this._database.updateMedia({
                   mediaId,
                   accountId,
                   blurhash: analysis.blurhash,
-                  focus: analysis.focus ?? undefined
+                  focus: analysis.focus ?? undefined,
+                  description: generatedDescription ?? undefined
                 })
                 if (updated?.media) {
                   return this._getSaveFileOutput(updated.media)

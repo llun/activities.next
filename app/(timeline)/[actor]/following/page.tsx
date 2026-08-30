@@ -1,13 +1,15 @@
 import { ArrowLeft } from 'lucide-react'
 import { Metadata } from 'next'
 import Link from 'next/link'
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
+import { ActorRedirectCard } from '@/app/(timeline)/[actor]/ActorRedirectCard'
 import { FollowList } from '@/app/(timeline)/[actor]/FollowList'
 import { getFollowListBlockedActorIds } from '@/app/(timeline)/[actor]/getFollowListBlockedActorIds'
 import { getProfileData } from '@/app/(timeline)/[actor]/getProfileData'
 import { Button } from '@/lib/components/ui/button'
+import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { isLocalFederationDomain } from '@/lib/services/federation/domainPolicy'
@@ -23,12 +25,33 @@ export const generateMetadata = async ({
   params
 }: Props): Promise<Metadata> => {
   const { actor } = await params
+  const decodedActorHandle = decodeURIComponent(actor)
+  const parts = decodedActorHandle.split('@').slice(1)
+  if (parts.length === 2) {
+    const [username, domain] = parts
+    const database = getDatabase()
+    if (database) {
+      const isLocal = await isLocalFederationDomain(database, domain)
+      if (!isLocal) {
+        const targetUrl = `https://${domain}/@${username}/following`
+        return {
+          title: `Activities.next: ${decodedActorHandle} Following`,
+          robots: { index: false, follow: false },
+          alternates: {
+            canonical: targetUrl
+          }
+        }
+      }
+    }
+  }
+
   return {
-    title: `Activities.next: ${decodeURIComponent(actor)} Following`
+    title: `Activities.next: ${decodedActorHandle} Following`
   }
 }
 
 const Page: FC<Props> = async ({ params }) => {
+  const { host } = getConfig()
   const database = getDatabase()
   if (!database) throw new Error('Database is not available')
 
@@ -43,6 +66,20 @@ const Page: FC<Props> = async ({ params }) => {
   }
   const [actorUsername, actorDomain] = parts
 
+  const isLocal = await isLocalFederationDomain(database, actorDomain)
+  if (!isLocal) {
+    const bareHost = host.includes('://') ? new URL(host).host : host
+    const targetUrl = `https://${actorDomain}/@${actorUsername}/following`
+    return (
+      <ActorRedirectCard
+        host={bareHost}
+        targetUrl={targetUrl}
+        domain={actorDomain}
+        username={actorUsername}
+      />
+    )
+  }
+
   const actorProfile = await getProfileData(
     database,
     decodedActorHandle,
@@ -50,10 +87,6 @@ const Page: FC<Props> = async ({ params }) => {
     { currentActor }
   )
   if (!actorProfile) {
-    const isLocal = await isLocalFederationDomain(database, actorDomain)
-    if (!isLoggedIn && !isLocal) {
-      return redirect(`/@${actorUsername}@${actorDomain}`)
-    }
     return notFound()
   }
 
@@ -62,7 +95,7 @@ const Page: FC<Props> = async ({ params }) => {
     limit: 100
   })
 
-  const following = (
+  const followings = (
     await Promise.all(
       follows.map((follow: Follow) =>
         database.getActorFromId({ id: follow.targetActorId })
@@ -74,7 +107,7 @@ const Page: FC<Props> = async ({ params }) => {
   const blockedActorIds = await getFollowListBlockedActorIds(
     database,
     currentActor?.id,
-    following
+    followings
   )
 
   return (
@@ -98,9 +131,10 @@ const Page: FC<Props> = async ({ params }) => {
 
       <div className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
         <FollowList
-          users={following}
+          users={followings}
           isLoggedIn={isLoggedIn}
           blockedActorIds={blockedActorIds}
+          emptyMessage="Not following anyone yet"
         />
       </div>
     </div>

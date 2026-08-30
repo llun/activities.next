@@ -1568,5 +1568,41 @@ describe('createNoteJob', () => {
       )
       expect(forwardCalls).toHaveLength(0)
     })
+
+    it('gracefully returns without throwing when given a Question or non-note payload', async () => {
+      const questionPayload = {
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: 'https://somewhere.test/questions/1',
+        type: 'Question',
+        attributedTo: FRIEND_ACTOR_ID,
+        content: '<p>Poll?</p>',
+        published: '2026-08-30T04:27:44Z',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        oneOf: [
+          {
+            type: 'Note',
+            name: 'Option 1',
+            replies: { type: 'Collection', totalItems: 0 }
+          }
+        ]
+      }
+
+      await expect(
+        createNoteJob(database, {
+          id: 'question-in-note-job',
+          name: CREATE_NOTE_JOB_NAME,
+          data: questionPayload as unknown as Note
+        })
+      ).resolves.toBeUndefined()
+
+      await expect(
+        createNoteJob(database, {
+          id: 'malformed-job',
+          name: CREATE_NOTE_JOB_NAME,
+          data: { invalid: 'payload' }
+        })
+      ).resolves.toBeUndefined()
+    })
   })
 })

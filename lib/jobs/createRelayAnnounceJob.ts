@@ -4,9 +4,15 @@ import { getNote } from '@/lib/activities'
 import { getConfig } from '@/lib/config'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { createNoteJob } from '@/lib/jobs/createNoteJob'
-import { CREATE_NOTE_JOB_NAME, RELAY_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
+import { createPollJob } from '@/lib/jobs/createPollJob'
+import {
+  CREATE_NOTE_JOB_NAME,
+  CREATE_POLL_JOB_NAME,
+  RELAY_ANNOUNCE_JOB_NAME
+} from '@/lib/jobs/names'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { JobHandle } from '@/lib/services/queue/type'
+import { ENTITY_TYPE_QUESTION } from '@/lib/types/activitypub'
 import { Status } from '@/lib/types/domain/status'
 import {
   ACTIVITY_STREAM_PUBLIC,
@@ -95,17 +101,25 @@ export const createRelayAnnounceJob: JobHandle = createJobHandle(
       if (!signingActor) return
       const note = await getNote({ statusId: objectId, signingActor })
       if (!note) return
-      // createNoteJob enforces the note author's federation policy and persists
+      // createNoteJob or createPollJob enforces the author's federation policy and persists
       // the status; called without verifiedSenderActorId so the relay's
-      // signature does not have to match the note's author.
-      await createNoteJob(database, {
-        id: note.id,
-        name: CREATE_NOTE_JOB_NAME,
-        data: note
-      })
+      // signature does not have to match the author.
+      if (note.type === ENTITY_TYPE_QUESTION) {
+        await createPollJob(database, {
+          id: note.id,
+          name: CREATE_POLL_JOB_NAME,
+          data: note
+        })
+      } else {
+        await createNoteJob(database, {
+          id: note.id,
+          name: CREATE_NOTE_JOB_NAME,
+          data: note
+        })
+      }
       // Look the stored status up by the note's canonical id — a remote server
       // may canonicalize the requested object id (trailing slash, protocol,
-      // redirect), and createNoteJob persists it under note.id.
+      // redirect), and createNoteJob/createPollJob persists it under note.id.
       status = await database.getStatus({
         statusId: note.id,
         withReplies: false

@@ -9,7 +9,13 @@ import { UPDATE_POLL_JOB_NAME } from './names'
 export const updatePollJob = createJobHandle(
   UPDATE_POLL_JOB_NAME,
   async (database, message) => {
-    const question = Question.parse(normalizeActivityPubContent(message.data))
+    const parseResult = Question.safeParse(
+      normalizeActivityPubContent(message.data)
+    )
+    if (!parseResult.success) {
+      return
+    }
+    const question = parseResult.data
     const existingStatus = await database.getStatus({
       statusId: question.id,
       withReplies: false
@@ -31,7 +37,7 @@ export const updatePollJob = createJobHandle(
       choices:
         question.oneOf?.map((answer) => ({
           title: answer.name,
-          totalVotes: answer.replies.totalItems
+          totalVotes: answer.replies?.totalItems ?? 0
         })) ?? []
     })
   }

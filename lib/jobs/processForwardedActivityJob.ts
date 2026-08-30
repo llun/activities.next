@@ -6,19 +6,23 @@ import { compactActivityPub } from '@/lib/activities/jsonld'
 import { getConfig } from '@/lib/config'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
-import { Tombstone } from '@/lib/types/activitypub'
+import { ENTITY_TYPE_QUESTION, Tombstone } from '@/lib/types/activitypub'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { request } from '@/lib/utils/request'
 import { withSpan } from '@/lib/utils/trace'
 
 import { createJobHandle } from './createJobHandle'
 import { createNoteJob } from './createNoteJob'
+import { createPollJob } from './createPollJob'
 import {
   CREATE_NOTE_JOB_NAME,
+  CREATE_POLL_JOB_NAME,
   PROCESS_FORWARDED_ACTIVITY_JOB_NAME,
-  UPDATE_NOTE_JOB_NAME
+  UPDATE_NOTE_JOB_NAME,
+  UPDATE_POLL_JOB_NAME
 } from './names'
 import { updateNoteJob } from './updateNoteJob'
+import { updatePollJob } from './updatePollJob'
 
 // A FORWARDED activity (AP §7.1.2 inbox forwarding): delivered by a server
 // whose HTTP signature verified as some OTHER actor than the activity's
@@ -179,25 +183,41 @@ export const processForwardedActivityJob = createJobHandle(
       // verifiedSenderActorId: authenticity came from the origin fetch, so the
       // forwarder's signature does not have to match the note's author —
       // exactly how createRelayAnnounceJob calls createNoteJob. createNoteJob
-      // still enforces the author's own federation policy itself.
+      // and createPollJob still enforce the author's own federation policy itself.
       const stored = await database.getStatus({
         statusId: note.id,
         withReplies: false
       })
       if (activity.type === 'Update' && stored) {
-        await updateNoteJob(database, {
-          id: note.id,
-          name: UPDATE_NOTE_JOB_NAME,
-          data: note
-        })
+        if (note.type === ENTITY_TYPE_QUESTION) {
+          await updatePollJob(database, {
+            id: note.id,
+            name: UPDATE_POLL_JOB_NAME,
+            data: note
+          })
+        } else {
+          await updateNoteJob(database, {
+            id: note.id,
+            name: UPDATE_NOTE_JOB_NAME,
+            data: note
+          })
+        }
         span.setAttribute('outcome', 'update_applied')
         return
       }
-      await createNoteJob(database, {
-        id: note.id,
-        name: CREATE_NOTE_JOB_NAME,
-        data: note
-      })
+      if (note.type === ENTITY_TYPE_QUESTION) {
+        await createPollJob(database, {
+          id: note.id,
+          name: CREATE_POLL_JOB_NAME,
+          data: note
+        })
+      } else {
+        await createNoteJob(database, {
+          id: note.id,
+          name: CREATE_NOTE_JOB_NAME,
+          data: note
+        })
+      }
       span.setAttribute('outcome', 'create_stored')
     })
   }

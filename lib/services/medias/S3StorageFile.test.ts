@@ -60,6 +60,16 @@ vi.mock('@/lib/services/medias/extractVideoImage', () => ({
   extractVideoImage: vi.fn()
 }))
 
+const mockGetConfig = vi.fn().mockReturnValue({})
+vi.mock('@/lib/config', () => ({
+  getConfig: () => mockGetConfig()
+}))
+
+const mockGenerateAltText = vi.fn()
+vi.mock('@/lib/services/altText/openai', () => ({
+  generateAltText: (...args: unknown[]) => mockGenerateAltText(...args)
+}))
+
 // A real 1x1 PNG, so the video preview and image branches run sharp for real
 // rather than against a stand-in the production code could never receive.
 const ONE_PIXEL_PNG = Buffer.from(
@@ -104,6 +114,8 @@ describe('S3FileStorage presigned upload completion', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetConfig.mockReturnValue({})
+    mockGenerateAltText.mockReset()
     ;(S3Client as jest.MockedClass<typeof S3Client>).mockImplementation(
       function () {
         return { send } as unknown as S3Client
@@ -555,6 +567,474 @@ describe('S3FileStorage presigned upload completion', () => {
     ).rejects.toThrow('S3 timeout')
     expect(database.markMediaUploadVerified).not.toHaveBeenCalled()
     expect(database.deleteMedia).not.toHaveBeenCalled()
+  })
+
+  it('generates alt text and updates description on completePresignedUpload when altText is configured', async () => {
+    const pngBuffer = await sharp({
+      create: {
+        width: 100,
+        height: 100,
+        channels: 4,
+        background: { r: 255, g: 0, b: 0, alpha: 1 }
+      }
+    })
+      .png()
+      .toBuffer()
+
+    const altTextConfig = {
+      endpoint: 'https://api.openai.com/v1/chat/completions',
+      apiKey: 'test-key',
+      model: 'gpt-4o-mini'
+    }
+    mockGetConfig.mockReturnValue({ altText: altTextConfig })
+    mockGenerateAltText.mockResolvedValue('A generated alt text description')
+
+    database.getMediaByIdForAccount.mockResolvedValue({
+      id: 'media-1',
+      actorId: 'actor-1',
+      original: {
+        path: 'medias/2026-01-01/upload.png',
+        bytes: pngBuffer.length,
+        mimeType: 'image/png',
+        metaData: {
+          width: 10,
+          height: 10,
+          upload: {
+            state: 'pending',
+            checksumSha1: checksumHex,
+            checksumSha1Base64: checksumBase64,
+            contentType: 'image/png',
+            size: pngBuffer.length
+          }
+        },
+        fileName: 'upload.png'
+      }
+    } as never)
+
+    database.markMediaUploadVerified.mockResolvedValue({
+      id: 'media-1',
+      actorId: 'actor-1',
+      original: {
+        path: 'medias/2026-01-01/upload.png',
+        bytes: pngBuffer.length,
+        mimeType: 'image/png',
+        metaData: {
+          width: 10,
+          height: 10,
+          upload: {
+            state: 'verified',
+            verifiedAt: Date.now()
+          }
+        },
+        fileName: 'upload.png'
+      }
+    } as never)
+
+    database.updateMedia.mockResolvedValue({
+      media: {
+        id: 'media-1',
+        actorId: 'actor-1',
+        original: {
+          path: 'medias/2026-01-01/upload.png',
+          bytes: pngBuffer.length,
+          mimeType: 'image/png',
+          metaData: {
+            width: 10,
+            height: 10,
+            upload: {
+              state: 'verified',
+              verifiedAt: Date.now()
+            }
+          },
+          fileName: 'upload.png'
+        },
+        description: 'A generated alt text description',
+        blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+        focusX: 0,
+        focusY: 0
+      }
+    } as never)
+
+    send.mockImplementation(async (command) => {
+      if (command instanceof HeadObjectCommand) {
+        return {
+          ContentLength: pngBuffer.length,
+          ContentType: 'image/png',
+          Metadata: {
+            checksumsha1: checksumHex
+          }
+        }
+      }
+      if (command instanceof GetObjectCommand) {
+        return {
+          Body: {
+            transformToByteArray: async () => new Uint8Array(pngBuffer)
+          }
+        }
+      }
+      throw new Error('Unexpected command')
+    })
+
+    const storage = new S3FileStorage(
+      {
+        type: MediaStorageType.ObjectStorage,
+        bucket: 'bucket',
+        region: 'us-east-1',
+        endpoint: 'https://s3.example.com'
+      },
+      'llun.test',
+      database
+    )
+
+    const result = await storage.completePresignedUpload(actor, 'media-1')
+
+    expect(mockGenerateAltText).toHaveBeenCalledWith(
+      altTextConfig,
+      expect.any(Buffer),
+      'image/png'
+    )
+    expect(database.updateMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mediaId: 'media-1',
+        description: 'A generated alt text description'
+      })
+    )
+    expect(result?.description).toBe('A generated alt text description')
+  })
+
+  it('does not generate alt text or overwrite description if media already has a description', async () => {
+    const pngBuffer = await sharp({
+      create: {
+        width: 100,
+        height: 100,
+        channels: 4,
+        background: { r: 255, g: 0, b: 0, alpha: 1 }
+      }
+    })
+      .png()
+      .toBuffer()
+
+    mockGetConfig.mockReturnValue({
+      altText: {
+        endpoint: 'https://api.openai.com/v1/chat/completions',
+        apiKey: 'test-key',
+        model: 'gpt-4o-mini'
+      }
+    })
+
+    database.getMediaByIdForAccount.mockResolvedValue({
+      id: 'media-1',
+      actorId: 'actor-1',
+      description: 'Existing description',
+      original: {
+        path: 'medias/2026-01-01/upload.png',
+        bytes: pngBuffer.length,
+        mimeType: 'image/png',
+        metaData: {
+          width: 10,
+          height: 10,
+          upload: {
+            state: 'pending',
+            checksumSha1: checksumHex,
+            checksumSha1Base64: checksumBase64,
+            contentType: 'image/png',
+            size: pngBuffer.length
+          }
+        },
+        fileName: 'upload.png'
+      }
+    } as never)
+
+    database.markMediaUploadVerified.mockResolvedValue({
+      id: 'media-1',
+      actorId: 'actor-1',
+      description: 'Existing description',
+      original: {
+        path: 'medias/2026-01-01/upload.png',
+        bytes: pngBuffer.length,
+        mimeType: 'image/png',
+        metaData: {
+          width: 10,
+          height: 10,
+          upload: {
+            state: 'verified',
+            verifiedAt: Date.now()
+          }
+        },
+        fileName: 'upload.png'
+      }
+    } as never)
+
+    database.updateMedia.mockResolvedValue({
+      media: {
+        id: 'media-1',
+        actorId: 'actor-1',
+        description: 'Existing description',
+        original: {
+          path: 'medias/2026-01-01/upload.png',
+          bytes: pngBuffer.length,
+          mimeType: 'image/png',
+          metaData: {
+            width: 10,
+            height: 10,
+            upload: {
+              state: 'verified',
+              verifiedAt: Date.now()
+            }
+          },
+          fileName: 'upload.png'
+        },
+        blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+        focusX: 0,
+        focusY: 0
+      }
+    } as never)
+
+    send.mockImplementation(async (command) => {
+      if (command instanceof HeadObjectCommand) {
+        return {
+          ContentLength: pngBuffer.length,
+          ContentType: 'image/png',
+          Metadata: {
+            checksumsha1: checksumHex
+          }
+        }
+      }
+      if (command instanceof GetObjectCommand) {
+        return {
+          Body: {
+            transformToByteArray: async () => new Uint8Array(pngBuffer)
+          }
+        }
+      }
+      throw new Error('Unexpected command')
+    })
+
+    const storage = new S3FileStorage(
+      {
+        type: MediaStorageType.ObjectStorage,
+        bucket: 'bucket',
+        region: 'us-east-1',
+        endpoint: 'https://s3.example.com'
+      },
+      'llun.test',
+      database
+    )
+
+    const result = await storage.completePresignedUpload(actor, 'media-1')
+
+    expect(mockGenerateAltText).not.toHaveBeenCalled()
+    expect(database.updateMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mediaId: 'media-1',
+        description: undefined
+      })
+    )
+    expect(result?.description).toBe('Existing description')
+  })
+
+  it('completes presigned upload successfully when generateAltText throws or returns null', async () => {
+    const pngBuffer = await sharp({
+      create: {
+        width: 100,
+        height: 100,
+        channels: 4,
+        background: { r: 255, g: 0, b: 0, alpha: 1 }
+      }
+    })
+      .png()
+      .toBuffer()
+
+    mockGetConfig.mockReturnValue({
+      altText: {
+        endpoint: 'https://api.openai.com/v1/chat/completions',
+        apiKey: 'test-key',
+        model: 'gpt-4o-mini'
+      }
+    })
+    mockGenerateAltText.mockRejectedValue(new Error('OpenAI timeout'))
+
+    database.getMediaByIdForAccount.mockResolvedValue({
+      id: 'media-1',
+      actorId: 'actor-1',
+      original: {
+        path: 'medias/2026-01-01/upload.png',
+        bytes: pngBuffer.length,
+        mimeType: 'image/png',
+        metaData: {
+          width: 10,
+          height: 10,
+          upload: {
+            state: 'pending',
+            checksumSha1: checksumHex,
+            checksumSha1Base64: checksumBase64,
+            contentType: 'image/png',
+            size: pngBuffer.length
+          }
+        },
+        fileName: 'upload.png'
+      }
+    } as never)
+
+    database.markMediaUploadVerified.mockResolvedValue({
+      id: 'media-1',
+      actorId: 'actor-1',
+      original: {
+        path: 'medias/2026-01-01/upload.png',
+        bytes: pngBuffer.length,
+        mimeType: 'image/png',
+        metaData: {
+          width: 10,
+          height: 10,
+          upload: {
+            state: 'verified',
+            verifiedAt: Date.now()
+          }
+        },
+        fileName: 'upload.png'
+      }
+    } as never)
+
+    database.updateMedia.mockResolvedValue({
+      media: {
+        id: 'media-1',
+        actorId: 'actor-1',
+        original: {
+          path: 'medias/2026-01-01/upload.png',
+          bytes: pngBuffer.length,
+          mimeType: 'image/png',
+          metaData: {
+            width: 10,
+            height: 10,
+            upload: {
+              state: 'verified',
+              verifiedAt: Date.now()
+            }
+          },
+          fileName: 'upload.png'
+        },
+        blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+        focusX: 0,
+        focusY: 0
+      }
+    } as never)
+
+    send.mockImplementation(async (command) => {
+      if (command instanceof HeadObjectCommand) {
+        return {
+          ContentLength: pngBuffer.length,
+          ContentType: 'image/png',
+          Metadata: {
+            checksumsha1: checksumHex
+          }
+        }
+      }
+      if (command instanceof GetObjectCommand) {
+        return {
+          Body: {
+            transformToByteArray: async () => new Uint8Array(pngBuffer)
+          }
+        }
+      }
+      throw new Error('Unexpected command')
+    })
+
+    const storage = new S3FileStorage(
+      {
+        type: MediaStorageType.ObjectStorage,
+        bucket: 'bucket',
+        region: 'us-east-1',
+        endpoint: 'https://s3.example.com'
+      },
+      'llun.test',
+      database
+    )
+
+    const result = await storage.completePresignedUpload(actor, 'media-1')
+
+    expect(mockGenerateAltText).toHaveBeenCalled()
+    expect(result).toMatchObject({ id: 'media-1' })
+  })
+
+  it('does not generate alt text for non-image uploads', async () => {
+    mockGetConfig.mockReturnValue({
+      altText: {
+        endpoint: 'https://api.openai.com/v1/chat/completions',
+        apiKey: 'test-key',
+        model: 'gpt-4o-mini'
+      }
+    })
+
+    database.getMediaByIdForAccount.mockResolvedValue({
+      id: 'media-video-1',
+      actorId: 'actor-1',
+      original: {
+        path: 'medias/2026-01-01/video.mp4',
+        bytes: 2048,
+        mimeType: 'video/mp4',
+        metaData: {
+          width: 1920,
+          height: 1080,
+          upload: {
+            state: 'pending',
+            checksumSha1: checksumHex,
+            checksumSha1Base64: checksumBase64,
+            contentType: 'video/mp4',
+            size: 2048
+          }
+        },
+        fileName: 'video.mp4'
+      }
+    } as never)
+
+    database.markMediaUploadVerified.mockResolvedValue({
+      id: 'media-video-1',
+      actorId: 'actor-1',
+      original: {
+        path: 'medias/2026-01-01/video.mp4',
+        bytes: 2048,
+        mimeType: 'video/mp4',
+        metaData: {
+          width: 1920,
+          height: 1080,
+          upload: {
+            state: 'verified',
+            verifiedAt: Date.now()
+          }
+        },
+        fileName: 'video.mp4'
+      }
+    } as never)
+
+    send.mockImplementation(async (command) => {
+      if (command instanceof HeadObjectCommand) {
+        return {
+          ContentLength: 2048,
+          ContentType: 'video/mp4',
+          Metadata: {
+            checksumsha1: checksumHex
+          }
+        }
+      }
+      throw new Error('Unexpected command')
+    })
+
+    const storage = new S3FileStorage(
+      {
+        type: MediaStorageType.ObjectStorage,
+        bucket: 'bucket',
+        region: 'us-east-1',
+        endpoint: 'https://s3.example.com'
+      },
+      'llun.test',
+      database
+    )
+
+    const result = await storage.completePresignedUpload(actor, 'media-video-1')
+
+    expect(mockGenerateAltText).not.toHaveBeenCalled()
+    expect(database.updateMedia).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ id: 'media-video-1', type: 'video' })
   })
 })
 

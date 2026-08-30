@@ -24,7 +24,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
 
   const session = await getServerAuthSession()
   const actor = await getActorFromSession(database, session)
-  if (actor) return <>{children}</>
+  if (actor) return <div className="pt-6 sm:pt-8">{children}</div>
 
   return <PublicShell>{children}</PublicShell>
 }

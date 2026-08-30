@@ -6,6 +6,7 @@ import { RELAY_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { Timeline } from '@/lib/services/timelines/types'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
+import { StatusPoll, StatusType } from '@/lib/types/domain/status'
 
 enableFetchMocks()
 
@@ -165,5 +166,48 @@ describe('createRelayAnnounceJob', () => {
     })
     const matches = federated.filter((status) => status.id === note)
     expect(matches).toHaveLength(1)
+  })
+
+  it('fetches a relayed Question from origin and stores it as a poll', async () => {
+    const remotePoll = 'https://somewhere.test/statuses/relayed-poll'
+    const pollCreator = 'https://somewhere.test/actors/pollcreator2'
+    fetchMock.mockOnceIf(
+      remotePoll,
+      JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: remotePoll,
+        type: 'Question',
+        attributedTo: pollCreator,
+        content: '<p>Relayed question</p>',
+        published: '2026-08-30T00:00:00Z',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        oneOf: [
+          {
+            type: 'Note',
+            name: 'Yes',
+            replies: { type: 'Collection', totalItems: 5 }
+          },
+          {
+            type: 'Note',
+            name: 'No',
+            replies: { type: 'Collection', totalItems: 3 }
+          }
+        ]
+      })
+    )
+
+    await createRelayAnnounceJob(database, {
+      id: 'job-relayed-poll',
+      name: RELAY_ANNOUNCE_JOB_NAME,
+      data: announceOf(remotePoll, `${RELAY_ACTOR}/announce/poll`)
+    })
+
+    const stored = (await database.getStatus({
+      statusId: remotePoll
+    })) as StatusPoll
+    expect(stored).toBeDefined()
+    expect(stored.type).toEqual(StatusType.enum.Poll)
+    expect(stored.choices).toHaveLength(2)
   })
 })
