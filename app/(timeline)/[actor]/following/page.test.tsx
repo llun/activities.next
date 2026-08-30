@@ -229,6 +229,7 @@ describe('[actor] following page', () => {
 
   it('renders following page with follow list and empty message when profile is found', async () => {
     mockGetServerAuthSession.mockResolvedValue(null)
+    mockIsLocalFederationDomain.mockResolvedValue(true)
     mockGetProfileData.mockResolvedValue({
       person: {
         id: 'https://llun.test/users/llun',
