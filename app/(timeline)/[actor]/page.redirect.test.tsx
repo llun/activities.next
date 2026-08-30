@@ -18,7 +18,8 @@ vi.mock('@/lib/config', () => ({
   getConfig: () => ({
     host: 'llun.social',
     mediaStorage: null
-  })
+  }),
+  getBaseURL: () => 'https://llun.social'
 }))
 
 vi.mock('@/lib/database', () => ({

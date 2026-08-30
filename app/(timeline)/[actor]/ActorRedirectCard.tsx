@@ -57,7 +57,7 @@ export const ActorRedirectCard: FC<ActorRedirectCardProps> = ({
           <a
             href={targetUrl}
             rel="noopener noreferrer"
-            className="text-primary hover:underline break-all text-center text-xs font-medium max-w-[360px]"
+            className="text-primary-text hover:underline break-all text-center text-xs font-medium max-w-[360px]"
           >
             {targetUrl}
           </a>
