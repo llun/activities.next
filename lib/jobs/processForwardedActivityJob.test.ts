@@ -5,6 +5,7 @@ import { PROCESS_FORWARDED_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
 import { processForwardedActivityJob } from '@/lib/jobs/processForwardedActivityJob'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
+import { StatusPoll, StatusType } from '@/lib/types/domain/status'
 
 enableFetchMocks()
 
@@ -294,5 +295,96 @@ describe('processForwardedActivityJob', () => {
       (call) => typeof call?.[0] === 'string' && call[0] === localNote
     )
     expect(calls).toHaveLength(0)
+  })
+
+  it('stores a forwarded Create of a Question by re-fetching from origin', async () => {
+    const questionDoc = {
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: NOTE_ID,
+      type: 'Question',
+      attributedTo: AUTHOR,
+      content: '<p>What is your choice?</p>',
+      published: '2026-08-28T00:00:00Z',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      url: NOTE_ID,
+      oneOf: [
+        {
+          type: 'Note',
+          name: 'Option A',
+          replies: { type: 'Collection', totalItems: 1 }
+        },
+        {
+          type: 'Note',
+          name: 'Option B',
+          replies: { type: 'Collection', totalItems: 2 }
+        }
+      ]
+    }
+    fetchMock.mockResponseOnce(JSON.stringify(questionDoc))
+
+    await processForwardedActivityJob(
+      database,
+      jobMessage(forwardedActivity('Create', { id: NOTE_ID, type: 'Question' }))
+    )
+
+    const status = (await database.getStatus({
+      statusId: NOTE_ID
+    })) as StatusPoll
+    expect(status).toBeDefined()
+    expect(status.type).toEqual(StatusType.enum.Poll)
+    expect(status.actorId).toEqual(AUTHOR)
+    expect(status.choices).toHaveLength(2)
+  })
+
+  it('updates an existing poll on a forwarded Update of a Question', async () => {
+    // First, store the poll
+    const initialQuestion = {
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: NOTE_ID,
+      type: 'Question',
+      attributedTo: AUTHOR,
+      content: '<p>Vote on this!</p>',
+      published: '2026-08-28T00:00:00Z',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      url: NOTE_ID,
+      oneOf: [
+        {
+          type: 'Note',
+          name: 'Option 1',
+          replies: { type: 'Collection', totalItems: 0 }
+        }
+      ]
+    }
+    fetchMock.mockResponseOnce(JSON.stringify(initialQuestion))
+    await processForwardedActivityJob(
+      database,
+      jobMessage(forwardedActivity('Create', { id: NOTE_ID, type: 'Question' }))
+    )
+
+    // Now update with new vote count
+    const updatedQuestion = {
+      ...initialQuestion,
+      oneOf: [
+        {
+          type: 'Note',
+          name: 'Option 1',
+          replies: { type: 'Collection', totalItems: 10 }
+        }
+      ]
+    }
+    fetchMock.mockResponseOnce(JSON.stringify(updatedQuestion))
+    await processForwardedActivityJob(
+      database,
+      jobMessage(forwardedActivity('Update', { id: NOTE_ID, type: 'Question' }))
+    )
+
+    const status = (await database.getStatus({
+      statusId: NOTE_ID
+    })) as StatusPoll
+    expect(status).toBeDefined()
+    expect(status.type).toEqual(StatusType.enum.Poll)
+    expect(status.choices[0].totalVotes).toEqual(10)
   })
 })

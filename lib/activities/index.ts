@@ -12,6 +12,7 @@ import { FollowRequest } from '@/lib/activities/followAction'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { compactActivityPub } from '@/lib/activities/jsonld'
 import { LikeStatus } from '@/lib/activities/likeAction'
+import { BaseNote } from '@/lib/activities/note'
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
 import {
@@ -120,7 +121,7 @@ interface GetNoteParams {
 export const getNote = async ({
   statusId,
   signingActor
-}: GetNoteParams): Promise<Note | null> =>
+}: GetNoteParams): Promise<BaseNote | null> =>
   withSpan('activity', 'getNote', { statusId }, async (span) => {
     try {
       const { statusCode, body } = await request({
