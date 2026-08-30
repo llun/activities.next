@@ -552,9 +552,12 @@ export const PostBox: FC<Props> = ({
           dispatch(updateAttachment(attachment.id, restoredAttachment))
           const reason =
             error instanceof Error && error.message ? `: ${error.message}` : ''
-          throw new Error(`Fail to upload ${attachment.name}${reason}`, {
-            cause: error
-          })
+          throw new Error(
+            `Fail to upload ${attachment.file?.name ?? attachment.name ?? 'file'}${reason}`,
+            {
+              cause: error
+            }
+          )
         }
       })
     )
@@ -1325,7 +1328,7 @@ export const PostBox: FC<Props> = ({
             return (
               <button
                 type="button"
-                aria-label={`Remove media ${item.name ?? index + 1}`}
+                aria-label={`Remove media ${item.file?.name || item.name || index + 1}`}
                 className="w-full aspect-square bg-border bg-center bg-cover cursor-pointer relative"
                 key={item.id}
                 style={{
