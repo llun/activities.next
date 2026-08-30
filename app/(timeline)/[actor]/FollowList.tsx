@@ -36,7 +36,8 @@ export const FollowList: FC<Props> = ({
   return (
     <div className="divide-y">
       {users.map((user) => {
-        const initials = (user.name || '')
+        const displayName = user.name || user.username
+        const initials = displayName
           .split(' ')
           .map((n) => n[0])
           .join('')
@@ -57,14 +58,16 @@ export const FollowList: FC<Props> = ({
                 prefetch={false}
                 className="block truncate font-semibold hover:underline"
               >
-                {user.name}
+                {displayName}
               </Link>
               <div className="truncate text-sm text-muted-foreground">
                 @{user.username}@{user.domain}
               </div>
-              <div className="mt-1 line-clamp-1 text-sm text-muted-foreground">
-                {user.summary}
-              </div>
+              {user.summary ? (
+                <div className="mt-1 line-clamp-1 text-sm text-muted-foreground">
+                  {user.summary}
+                </div>
+              ) : null}
             </div>
 
             {!blockedActorIdSet.has(user.id) ? (

@@ -89,4 +89,20 @@ describe('FollowList', () => {
 
     expect(screen.getByText('Not following anyone yet')).toBeInTheDocument()
   })
+
+  it('falls back to username when name is empty', () => {
+    const user = actorProfile('https://example.test/users/noname', 'noname')
+    user.name = ''
+    render(<FollowList users={[user]} isLoggedIn />)
+
+    expect(screen.getByText('noname')).toBeInTheDocument()
+  })
+
+  it('renders summary when provided', () => {
+    const user = actorProfile('https://example.test/users/bio', 'bio')
+    user.summary = 'Hello world biography'
+    render(<FollowList users={[user]} isLoggedIn />)
+
+    expect(screen.getByText('Hello world biography')).toBeInTheDocument()
+  })
 })
