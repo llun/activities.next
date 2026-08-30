@@ -1,0 +1,30 @@
+lib/services/altText/openai.test.ts
+  h_580a04e334fef4 2,5-8,23-26,30,32-36,38,41-49,69,71-75,77,83,85-89,91,97,99-103,105,111,113-117,119,124-125,127,134,136-142
+lib/services/altText/openai.ts
+  h_580a04e334fef4 6,9,12,30,49,77-78
+lib/services/translation/deepl.test.ts
+  h_580a04e334fef4 1-2,4-7,16-19,21,27-31,33,42-49,58,62-66,68,71-72,76-89,91,99,101-105,107,114,116-120,122,129,131-135,137
+lib/services/translation/deepl.ts
+  h_580a04e334fef4 9,12,34,40-54,80-101
+lib/services/translation/gemini.test.ts
+  h_580a04e334fef4 2,6-9,18-21,23-36,38-44,46,55-57,60,64,81,83-86,89,96,98-101,104,111,121-124,127,134,151-154,157
+lib/services/translation/gemini.ts
+  h_580a04e334fef4 10,15,33,48-55,57-76,78-86
+lib/services/translation/openai.test.ts
+  h_580a04e334fef4 1-2,5-8,21-24,26,33,42,49-53,55,64-71,77,84-88,90,97,99-103,105
+lib/services/translation/openai.ts
+  h_580a04e334fef4 10,15,27,40-71
+lib/services/translation/types.ts
+  h_580a04e334fef4 54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "f9ccaa08c41ba837ae86facd410d192de5f336cc",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
