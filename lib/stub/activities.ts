@@ -236,9 +236,9 @@ export const mockRequests = (fetchMock: FetchMock) => {
     }
 
     if (req.method === 'POST') {
-      if (url.pathname === '/inbox') {
+      if (url.pathname.includes('/inbox')) {
         return {
-          status: 200
+          status: 202
         }
       }
     }

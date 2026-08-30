@@ -327,11 +327,12 @@ describe('activities', () => {
         object: actor1.id
       }
 
-      await acceptFollow(
+      const accepted = await acceptFollow(
         actor1,
         'https://somewhere.test/actors/requester/inbox',
         followRequest
       )
+      expect(accepted).toBe(true)
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const [url, options] = fetchMock.mock.lastCall as any
@@ -340,6 +341,42 @@ describe('activities', () => {
       const body = JSON.parse(options.body)
       expect(body.type).toEqual('Accept')
       expect(body.object.id).toEqual(followRequest.id)
+    })
+
+    it('treats both 200 OK and 202 Accepted as success', async () => {
+      if (!actor1) fail('Actor1 is required')
+
+      const followRequest = {
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: 'https://somewhere.test/follows/123',
+        type: 'Follow' as const,
+        actor: 'https://somewhere.test/actors/requester',
+        object: actor1.id
+      }
+
+      fetchMock.mockResponseOnce(JSON.stringify({}), { status: 200 })
+      const result200 = await acceptFollow(
+        actor1,
+        'https://somewhere.test/actors/requester/inbox',
+        followRequest
+      )
+      expect(result200).toBe(true)
+
+      fetchMock.mockResponseOnce(JSON.stringify({}), { status: 202 })
+      const result202 = await acceptFollow(
+        actor1,
+        'https://somewhere.test/actors/requester/inbox',
+        followRequest
+      )
+      expect(result202).toBe(true)
+
+      fetchMock.mockResponseOnce(JSON.stringify({}), { status: 500 })
+      const result500 = await acceptFollow(
+        actor1,
+        'https://somewhere.test/actors/requester/inbox',
+        followRequest
+      )
+      expect(result500).toBe(false)
     })
   })
 
@@ -355,11 +392,12 @@ describe('activities', () => {
         object: actor1.id
       }
 
-      await rejectFollow(
+      const rejected = await rejectFollow(
         actor1,
         'https://somewhere.test/actors/requester/inbox',
         followRequest
       )
+      expect(rejected).toBe(true)
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const [url, options] = fetchMock.mock.lastCall as any
@@ -368,6 +406,42 @@ describe('activities', () => {
       const body = JSON.parse(options.body)
       expect(body.type).toEqual('Reject')
       expect(body.object.id).toEqual(followRequest.id)
+    })
+
+    it('treats both 200 OK and 202 Accepted as success', async () => {
+      if (!actor1) fail('Actor1 is required')
+
+      const followRequest = {
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: 'https://somewhere.test/follows/456',
+        type: 'Follow' as const,
+        actor: 'https://somewhere.test/actors/requester',
+        object: actor1.id
+      }
+
+      fetchMock.mockResponseOnce(JSON.stringify({}), { status: 200 })
+      const result200 = await rejectFollow(
+        actor1,
+        'https://somewhere.test/actors/requester/inbox',
+        followRequest
+      )
+      expect(result200).toBe(true)
+
+      fetchMock.mockResponseOnce(JSON.stringify({}), { status: 202 })
+      const result202 = await rejectFollow(
+        actor1,
+        'https://somewhere.test/actors/requester/inbox',
+        followRequest
+      )
+      expect(result202).toBe(true)
+
+      fetchMock.mockResponseOnce(JSON.stringify({}), { status: 400 })
+      const result400 = await rejectFollow(
+        actor1,
+        'https://somewhere.test/actors/requester/inbox',
+        followRequest
+      )
+      expect(result400).toBe(false)
     })
   })
 
@@ -456,33 +530,49 @@ describe('activities', () => {
     })
 
     it.each([
-      { description: 'is ok on a 202 Accepted inbox response', status: 202 },
-      { description: 'is not ok on a non-202 inbox response', status: 200 }
-    ])('falls back to {actor}/inbox and $description', async ({ status }) => {
-      if (!actor1) fail('Actor1 is required')
-      const targetId = 'https://notfound.test/users/nobody'
-      // 1st fetch: the getActorPerson lookup fails, so sendFlag posts to the
-      // `${targetActorId}/inbox` fallback. 2nd fetch: that inbox POST, whose
-      // status decides `ok` (Mastodon answers 202 Accepted).
-      fetchMock.mockResponseOnce('', { status: 404 })
-      fetchMock.mockResponseOnce('', { status })
+      {
+        description: 'is ok on a 202 Accepted inbox response',
+        status: 202,
+        expectedOk: true
+      },
+      {
+        description: 'is ok on a 200 OK inbox response',
+        status: 200,
+        expectedOk: true
+      },
+      {
+        description: 'is not ok on a 400 Bad Request inbox response',
+        status: 400,
+        expectedOk: false
+      }
+    ])(
+      'falls back to {actor}/inbox and $description',
+      async ({ status, expectedOk }) => {
+        if (!actor1) fail('Actor1 is required')
+        const targetId = 'https://notfound.test/users/nobody'
+        // 1st fetch: the getActorPerson lookup fails, so sendFlag posts to the
+        // `${targetActorId}/inbox` fallback. 2nd fetch: that inbox POST, whose
+        // status decides `ok` (ActivityPub servers answer 200 or 202).
+        fetchMock.mockResponseOnce('', { status: 404 })
+        fetchMock.mockResponseOnce('', { status })
 
-      const result = await sendFlag({
-        uri: `${actor1.id}#reports/report-2`,
-        currentActor: actor1,
-        targetActorId: targetId,
-        objects: targetId,
-        content: '',
-        signingActor: actor1
-      })
+        const result = await sendFlag({
+          uri: `${actor1.id}#reports/report-2`,
+          currentActor: actor1,
+          targetActorId: targetId,
+          objects: targetId,
+          content: '',
+          signingActor: actor1
+        })
 
-      const flagCall = fetchMock.mock.calls.find((call) => {
-        if (!call[1]?.body) return false
-        return JSON.parse(call[1].body as string).type === 'Flag'
-      })
-      expect(flagCall?.[0]).toEqual(`${targetId}/inbox`)
-      expect(result.ok).toBe(status === 202)
-    })
+        const flagCall = fetchMock.mock.calls.find((call) => {
+          if (!call[1]?.body) return false
+          return JSON.parse(call[1].body as string).type === 'Flag'
+        })
+        expect(flagCall?.[0]).toEqual(`${targetId}/inbox`)
+        expect(result.ok).toBe(expectedOk)
+      }
+    )
   })
 
   describe('sendUndoLike', () => {
