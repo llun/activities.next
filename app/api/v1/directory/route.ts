@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
-import { getConfig } from '@/lib/config'
 import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { Scope } from '@/lib/types/database/operations'
 import { clampedLimit, clampedOffset } from '@/lib/utils/clampedLimit'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -44,7 +44,7 @@ export const GET = traceApiRoute(
 
     const { offset, limit, order, local } = parsed.data
     const actors = await database.getLocalMastodonActors({
-      localDomain: getConfig().host,
+      localDomain: headerHost(req.headers),
       limit,
       offset,
       order,

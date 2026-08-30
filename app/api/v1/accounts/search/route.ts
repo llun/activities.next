@@ -12,6 +12,7 @@ import { headerHost } from '@/lib/services/guards/headerHost'
 import { Scope } from '@/lib/types/database/operations'
 import { parseAccountHandle } from '@/lib/utils/accountHandle'
 import { clampedLimit, clampedOffset } from '@/lib/utils/clampedLimit'
+import { isOwnInstanceHost } from '@/lib/utils/host'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_400, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -70,14 +71,13 @@ export const GET = traceApiRoute(
       }
 
       const query = q.trim()
-      const localDomain = getConfig().host
       const accessDomain = headerHost(req.headers)
       const getSearchParams = (exactActorIds: string[] = []) => {
         return {
           q: query,
           limit,
           offset,
-          localDomain,
+          localDomain: accessDomain,
           exactActorIds,
           ...(following ? { followingActorId: context.currentActor.id } : {})
         }
@@ -107,7 +107,7 @@ export const GET = traceApiRoute(
             database,
             actor: storedExactActor
           })
-        } else {
+        } else if (!isOwnInstanceHost(handle.domain, getConfig())) {
           const actorId = await getWebfingerSelf({
             account: `${handle.username}@${handle.domain}`
           })

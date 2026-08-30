@@ -45,7 +45,7 @@ export const GET = traceApiRoute('getInstance', async (req: NextRequest) => {
   }
 
   const [stats, contactAccount, serverSettings] = await Promise.all([
-    getInstanceStats(database, config.host),
+    getInstanceStats(database, domain),
     getInstanceContactAccount(database),
     getResolvedServerSettings(database)
   ])

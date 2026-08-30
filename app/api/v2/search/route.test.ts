@@ -74,7 +74,7 @@ vi.mock('@/lib/database', () => ({
 
 vi.mock('@/lib/config', () => ({
   getBaseURL: () => 'https://llun.test',
-  getConfig: () => ({ host: 'llun.test' })
+  getConfig: () => ({ host: 'llun.test', trustedHosts: ['alias.llun.test'] })
 }))
 
 vi.mock('better-auth/oauth2', () => ({
@@ -208,7 +208,8 @@ describe('GET /api/v2/search', () => {
     expect(mockSearchAccountIds).toHaveBeenCalledWith({
       q: 'trail',
       limit: 3,
-      offset: 0
+      offset: 0,
+      localDomain: 'llun.test'
     })
     expect(mockSearchHashtags).toHaveBeenCalledWith({
       q: 'trail',
@@ -252,6 +253,7 @@ describe('GET /api/v2/search', () => {
       q: 'trail',
       limit: 2,
       offset: 0,
+      localDomain: 'llun.test',
       followingActorId: oauthActor.id
     })
     expect(mockSearchHashtags).toHaveBeenCalledWith({
@@ -419,7 +421,8 @@ describe('GET /api/v2/search', () => {
     expect(mockSearchAccountIds).toHaveBeenCalledWith({
       q: 'trail',
       limit: 20,
-      offset: 0
+      offset: 0,
+      localDomain: 'llun.test'
     })
     expect(mockSearchHashtags).toHaveBeenCalledWith({
       q: 'trail',
@@ -443,6 +446,7 @@ describe('GET /api/v2/search', () => {
       q: 'trail',
       limit: 20,
       offset: 0,
+      localDomain: 'llun.test',
       followingActorId: oauthActor.id
     })
   })
@@ -478,7 +482,8 @@ describe('GET /api/v2/search', () => {
     expect(mockSearchAccountIds).toHaveBeenCalledWith({
       q: 'trail',
       limit: 20,
-      offset: 0
+      offset: 0,
+      localDomain: 'llun.test'
     })
     expect(mockSearchHashtags).toHaveBeenCalledWith({
       q: 'trail',
@@ -1183,6 +1188,64 @@ describe('GET /api/v2/search', () => {
     })
   })
 
+  it('resolves bare username queries against the request accessDomain', async () => {
+    const localActor = {
+      id: 'https://alias.llun.test/users/runner',
+      account: { id: 'account-id' },
+      privateKey: 'private-key'
+    }
+    mockSearchAccountIds.mockResolvedValue([])
+    mockGetActorFromUsername.mockResolvedValue(localActor)
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v2/search?q=runner&type=accounts&resolve=true',
+        {
+          headers: {
+            Authorization: 'Bearer read-search-token',
+            'x-forwarded-host': 'alias.llun.test'
+          }
+        }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetActorFromUsername).toHaveBeenCalledWith({
+      username: 'runner',
+      domain: 'alias.llun.test'
+    })
+    expect(mockSearchAccountIds).toHaveBeenCalledWith({
+      q: 'runner',
+      limit: 20,
+      offset: 0,
+      localDomain: 'alias.llun.test'
+    })
+    expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
+      ids: [localActor.id]
+    })
+  })
+
+  it('does not webfinger an unknown handle on a trusted local domain', async () => {
+    mockSearchAccountIds.mockResolvedValue([])
+    mockGetActorFromUsername.mockResolvedValue(null)
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v2/search?q=unknown%40alias.llun.test&type=accounts&resolve=true',
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetActorFromUsername).toHaveBeenCalledWith({
+      username: 'unknown',
+      domain: 'alias.llun.test'
+    })
+    expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
+  })
+
   it('does not resolve account URLs after the first page', async () => {
     const accountUrl = 'http://remote.test/users/resolved'
 
@@ -1316,7 +1379,8 @@ describe('GET /api/v2/search', () => {
     expect(mockSearchAccountIds).toHaveBeenCalledWith({
       q: 'trail',
       limit: 40,
-      offset: 0
+      offset: 0,
+      localDomain: 'llun.test'
     })
     expect(mockSearchHashtags).toHaveBeenCalledWith({
       q: 'trail',
