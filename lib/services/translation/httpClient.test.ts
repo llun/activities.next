@@ -1,90 +1,58 @@
+import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
+
 import { fetchTranslationHttpClient } from './httpClient'
 
-const originalFetch = global.fetch
+vi.mock('@/lib/utils/safeRemoteFetch', () => ({
+  safeRemoteFetch: vi.fn()
+}))
 
 describe('fetchTranslationHttpClient', () => {
-  afterEach(() => {
-    global.fetch = originalFetch
+  beforeEach(() => {
+    vi.clearAllMocks()
   })
 
-  it('returns the status code and streamed body', async () => {
-    global.fetch = vi
-      .fn()
-      .mockResolvedValue(new Response('{"ok":true}', { status: 200 }))
-
-    const result = await fetchTranslationHttpClient({
-      url: 'https://api.example/translate',
-      method: 'POST',
+  it('delegates to safeRemoteFetch and returns status and body', async () => {
+    vi.mocked(safeRemoteFetch).mockResolvedValue({
+      statusCode: 200,
+      body: '{"translations":["Hola"]}',
+      bodyTruncated: false,
       headers: {},
-      body: '{}',
-      timeoutMs: 1000
+      url: 'https://api.deepl.com/v2/translate'
     })
 
-    expect(result).toEqual({ statusCode: 200, body: '{"ok":true}' })
+    const result = await fetchTranslationHttpClient({
+      url: 'https://api.deepl.com/v2/translate',
+      method: 'POST',
+      headers: { Authorization: 'DeepL-Auth-Key test' },
+      body: '{"text":"Hello"}',
+      timeoutMs: 10000
+    })
+
+    expect(result).toEqual({
+      statusCode: 200,
+      body: '{"translations":["Hola"]}'
+    })
+    expect(safeRemoteFetch).toHaveBeenCalledWith({
+      url: 'https://api.deepl.com/v2/translate',
+      method: 'POST',
+      headers: { Authorization: 'DeepL-Auth-Key test' },
+      body: '{"text":"Hello"}',
+      timeoutInMilliseconds: 10000,
+      maxBodyBytes: 1 * 1024 * 1024
+    })
   })
 
-  it('rejects when content-length exceeds the cap before reading the body', async () => {
-    global.fetch = vi.fn().mockResolvedValue(
-      new Response('small', {
-        status: 200,
-        headers: { 'content-length': String(8 * 1024 * 1024) }
-      })
-    )
+  it('wraps safeRemoteFetch errors as TranslationProviderError', async () => {
+    vi.mocked(safeRemoteFetch).mockRejectedValue(new Error('Connection reset'))
 
     await expect(
       fetchTranslationHttpClient({
-        url: 'https://api.example/translate',
+        url: 'https://api.deepl.com/v2/translate',
         method: 'POST',
         headers: {},
-        timeoutMs: 1000
+        body: '{}',
+        timeoutMs: 10000
       })
-    ).rejects.toThrow(/too large/)
-  })
-
-  it('rejects when the streamed body exceeds the cap', async () => {
-    // 1.5 MB body with no content-length header, so the cap must be enforced
-    // while streaming rather than from the declared length.
-    const big = 'a'.repeat(1.5 * 1024 * 1024)
-    global.fetch = vi.fn().mockResolvedValue(new Response(big, { status: 200 }))
-
-    await expect(
-      fetchTranslationHttpClient({
-        url: 'https://api.example/translate',
-        method: 'GET',
-        headers: {},
-        timeoutMs: 1000
-      })
-    ).rejects.toThrow(/too large/)
-  })
-
-  it('caps on UTF-8 byte length, not UTF-16 code units, in the buffered path', async () => {
-    // 600k '€' chars: 600k code units (under the 1 MB cap) but 1.8 MB of UTF-8
-    // bytes (over it). A code-unit check would wrongly accept this.
-    const multibyte = '€'.repeat(600 * 1024)
-    global.fetch = vi
-      .fn()
-      .mockResolvedValue(new Response(multibyte, { status: 200 }))
-
-    await expect(
-      fetchTranslationHttpClient({
-        url: 'https://api.example/translate',
-        method: 'GET',
-        headers: {},
-        timeoutMs: 1000
-      })
-    ).rejects.toThrow(/too large/)
-  })
-
-  it('wraps transport errors as TranslationProviderError', async () => {
-    global.fetch = vi.fn().mockRejectedValue(new Error('ECONNREFUSED'))
-
-    await expect(
-      fetchTranslationHttpClient({
-        url: 'https://api.example/translate',
-        method: 'GET',
-        headers: {},
-        timeoutMs: 1000
-      })
-    ).rejects.toThrow(/request failed/)
+    ).rejects.toThrow(/Translation backend request failed: Connection reset/)
   })
 })

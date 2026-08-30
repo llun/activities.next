@@ -211,6 +211,13 @@ A local actor's username is not a label on its identity, it **is** its identity:
 - Import those functions in components: `import { myApiCall } from '@/lib/client'`.
 - This keeps all network logic in one place, makes it easy to find every client→server call, and lets components stay focused on UI state.
 
+## Outbound Server-Side HTTP Requests
+
+- **All server-side outbound HTTP requests MUST go through `safeRemoteFetch` (`@/lib/utils/safeRemoteFetch`).**
+- Never call raw `fetch()` directly in server-side services or utilities.
+- `safeRemoteFetch` is backed by `got` and applies standard SSRF protection (requiring HTTPS, blocking private IP ranges such as loopback and RFC 1918 subnets), streaming response-size limits, timeout bounds, DNS pinning, and redirect handling.
+- External cloud integrations (e.g. translation providers like DeepL, OpenAI, or Gemini, and alt-text vision generation) must target public HTTPS endpoints. Internal or self-hosted HTTP services running on private IP addresses are not supported.
+
 ## Link prefetching in feeds
 
 - **A `<Link>` rendered once per row of a feed or list MUST pass `prefetch={false}`.** Next's App Router `<Link>` defaults to prefetching every link that enters the viewport, and this app's feeds are infinite-scroll, so a repeated link is not one request — it is one request per row, fired continuously as the user scrolls. This is the bug that flooded production: `Posts` renders two author links per post (the avatar and the display name), so scrolling the home timeline issued a stream of `GET /@user@domain?_rsc=…` prefetches.

@@ -45,12 +45,8 @@ export interface TranslationHttpResponse {
 }
 
 /**
- * Minimal HTTP client for reaching a translation backend. Unlike
- * `safeRemoteFetch`, this intentionally does NOT apply SSRF protections:
- * translation backends are operator-configured trusted infrastructure (same
- * trust class as the SMTP or database host), and self-hosted LibreTranslate is
- * commonly reached over plain HTTP on a private network. Injectable so adapter
- * tests can mock the transport.
+ * Minimal HTTP client for reaching a translation backend. Backed by
+ * `safeRemoteFetch`. Injectable so adapter tests can mock the transport.
  */
 export type TranslationHttpClient = (
   request: TranslationHttpRequest

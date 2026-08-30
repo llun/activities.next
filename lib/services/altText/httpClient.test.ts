@@ -1,106 +1,60 @@
+import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
+
 import { fetchAltTextHttpClient } from './httpClient'
 
-const originalFetch = global.fetch
+vi.mock('@/lib/utils/safeRemoteFetch', () => ({
+  safeRemoteFetch: vi.fn()
+}))
 
 describe('fetchAltTextHttpClient', () => {
-  afterEach(() => {
-    global.fetch = originalFetch
+  beforeEach(() => {
+    vi.clearAllMocks()
   })
 
-  it('returns the status code and streamed body', async () => {
-    global.fetch = vi
-      .fn()
-      .mockResolvedValue(new Response('{"ok":true}', { status: 200 }))
-
-    const result = await fetchAltTextHttpClient({
-      url: 'https://api.example/alt-text',
-      method: 'POST',
+  it('delegates to safeRemoteFetch and returns status and body', async () => {
+    vi.mocked(safeRemoteFetch).mockResolvedValue({
+      statusCode: 200,
+      body: '{"choices":[{"message":{"content":"A photo of a dog"}}]}',
+      bodyTruncated: false,
       headers: {},
-      body: '{}',
-      timeoutMs: 1000
+      url: 'https://api.openai.com/v1/chat/completions'
     })
 
-    expect(result).toEqual({ statusCode: 200, body: '{"ok":true}' })
+    const result = await fetchAltTextHttpClient({
+      url: 'https://api.openai.com/v1/chat/completions',
+      method: 'POST',
+      headers: { Authorization: 'Bearer sk-test' },
+      body: '{"model":"gpt-4o-mini"}',
+      timeoutMs: 30000
+    })
+
+    expect(result).toEqual({
+      statusCode: 200,
+      body: '{"choices":[{"message":{"content":"A photo of a dog"}}]}'
+    })
+    expect(safeRemoteFetch).toHaveBeenCalledWith({
+      url: 'https://api.openai.com/v1/chat/completions',
+      method: 'POST',
+      headers: { Authorization: 'Bearer sk-test' },
+      body: '{"model":"gpt-4o-mini"}',
+      timeoutInMilliseconds: 30000,
+      maxBodyBytes: 1 * 1024 * 1024
+    })
   })
 
-  it('rejects when content-length exceeds the cap before reading the body', async () => {
-    global.fetch = vi.fn().mockResolvedValue(
-      new Response('small', {
-        status: 200,
-        headers: { 'content-length': String(8 * 1024 * 1024) }
-      })
+  it('wraps safeRemoteFetch errors as AltTextProviderError', async () => {
+    vi.mocked(safeRemoteFetch).mockRejectedValue(
+      new Error('Connection timed out')
     )
 
     await expect(
       fetchAltTextHttpClient({
-        url: 'https://api.example/alt-text',
+        url: 'https://api.openai.com/v1/chat/completions',
         method: 'POST',
         headers: {},
         body: '{}',
-        timeoutMs: 1000
+        timeoutMs: 30000
       })
-    ).rejects.toThrow(/too large/)
-  })
-
-  it('rejects when the streamed body exceeds the cap', async () => {
-    const big = 'a'.repeat(1.5 * 1024 * 1024)
-    global.fetch = vi.fn().mockResolvedValue(new Response(big, { status: 200 }))
-
-    await expect(
-      fetchAltTextHttpClient({
-        url: 'https://api.example/alt-text',
-        method: 'POST',
-        headers: {},
-        body: '{}',
-        timeoutMs: 1000
-      })
-    ).rejects.toThrow(/too large/)
-  })
-
-  it('caps on UTF-8 byte length, not UTF-16 code units, in the buffered path', async () => {
-    const multibyte = '€'.repeat(600 * 1024)
-    global.fetch = vi
-      .fn()
-      .mockResolvedValue(new Response(multibyte, { status: 200 }))
-
-    await expect(
-      fetchAltTextHttpClient({
-        url: 'https://api.example/alt-text',
-        method: 'POST',
-        headers: {},
-        body: '{}',
-        timeoutMs: 1000
-      })
-    ).rejects.toThrow(/too large/)
-  })
-
-  it('wraps transport errors as AltTextProviderError', async () => {
-    global.fetch = vi.fn().mockRejectedValue(new Error('ECONNREFUSED'))
-
-    await expect(
-      fetchAltTextHttpClient({
-        url: 'https://api.example/alt-text',
-        method: 'POST',
-        headers: {},
-        body: '{}',
-        timeoutMs: 1000
-      })
-    ).rejects.toThrow(/request failed/)
-  })
-
-  it('wraps fetch timeout errors as AltTextProviderError', async () => {
-    global.fetch = vi
-      .fn()
-      .mockRejectedValue(new Error('The operation was aborted due to timeout'))
-
-    await expect(
-      fetchAltTextHttpClient({
-        url: 'https://api.example/alt-text',
-        method: 'POST',
-        headers: {},
-        body: '{}',
-        timeoutMs: 1000
-      })
-    ).rejects.toThrow(/request failed/)
+    ).rejects.toThrow(/Alt text backend request failed: Connection timed out/)
   })
 })
