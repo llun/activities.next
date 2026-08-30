@@ -54,9 +54,13 @@ export const updateNoteJob = createJobHandle(
       ArticleContent,
       VideoContent
     ])
-    const note = BaseNoteSchema.parse(
+    const parseResult = BaseNoteSchema.safeParse(
       normalizeActivityPubContent(message.data)
-    ) as BaseNote
+    )
+    if (!parseResult.success) {
+      return
+    }
+    const note = parseResult.data as BaseNote
     const existingStatus = await database.getStatus({
       statusId: note.id,
       withReplies: false

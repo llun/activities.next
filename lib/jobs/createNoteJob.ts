@@ -31,6 +31,7 @@ import {
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import {
   ArticleContent,
+  ENTITY_TYPE_QUESTION,
   ImageContent,
   Note,
   PageContent,
@@ -47,7 +48,12 @@ import { isValidFocalPoint } from '@/lib/utils/focalPoint'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import { createJobHandle } from './createJobHandle'
-import { CREATE_NOTE_JOB_NAME, FORWARD_ACTIVITY_JOB_NAME } from './names'
+import { createPollJob } from './createPollJob'
+import {
+  CREATE_NOTE_JOB_NAME,
+  CREATE_POLL_JOB_NAME,
+  FORWARD_ACTIVITY_JOB_NAME
+} from './names'
 import { actorMatchesVerifiedSender } from './verifiedSender'
 
 export const createNoteJob = createJobHandle(
@@ -63,9 +69,13 @@ export const createNoteJob = createJobHandle(
       ArticleContent,
       VideoContent
     ])
-    const note = BaseNoteSchema.parse(
+    const parseResult = BaseNoteSchema.safeParse(
       normalizeActivityPubContent(message.data)
-    ) as BaseNote
+    )
+    if (!parseResult.success) {
+      return
+    }
+    const note = parseResult.data as BaseNote
     if (!actorMatchesVerifiedSender(note.attributedTo, message)) {
       return
     }
@@ -152,13 +162,22 @@ export const createNoteJob = createJobHandle(
             database,
             note,
             quotedStatusId,
-            storeNote: (fetchedQuotedNote, bound) =>
-              createNoteJob(database, {
+            storeNote: (fetchedQuotedNote, bound) => {
+              if (fetchedQuotedNote.type === ENTITY_TYPE_QUESTION) {
+                return createPollJob(database, {
+                  id: fetchedQuotedNote.id,
+                  name: CREATE_POLL_JOB_NAME,
+                  data: fetchedQuotedNote,
+                  ...bound
+                })
+              }
+              return createNoteJob(database, {
                 id: fetchedQuotedNote.id,
                 name: CREATE_NOTE_JOB_NAME,
                 data: fetchedQuotedNote,
                 ...bound
               })
+            }
           })
       // Derive and write the edge. An edge may already exist here (e.g. we
       // accepted this actor's QuoteRequest before the Create Note arrived); the
