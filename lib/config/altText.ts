@@ -21,9 +21,10 @@ export const getAltTextConfig = (): {
   const model = process.env.ACTIVITIES_ALT_TEXT_MODEL
 
   if (!endpoint || !apiKey || !model) {
-    logger.warn(
-      'Alt text generation requires ACTIVITIES_ALT_TEXT_ENDPOINT, ACTIVITIES_ALT_TEXT_API_KEY and ACTIVITIES_ALT_TEXT_MODEL; alt text generation will be disabled'
-    )
+    logger.warn({
+      message:
+        'Alt text generation requires ACTIVITIES_ALT_TEXT_ENDPOINT, ACTIVITIES_ALT_TEXT_API_KEY and ACTIVITIES_ALT_TEXT_MODEL; alt text generation will be disabled'
+    })
     return null
   }
 

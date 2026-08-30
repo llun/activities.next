@@ -1,3 +1,5 @@
+import sharp from 'sharp'
+
 import { AltTextConfig } from '@/lib/config/altText'
 import { MAX_MEDIA_DESCRIPTION_LENGTH } from '@/lib/services/medias/constants'
 import { logger } from '@/lib/utils/logger'
@@ -11,6 +13,7 @@ import {
 } from './types'
 
 const REQUEST_TIMEOUT_MS = 30000
+const MAX_VISION_IMAGE_DIMENSION = 1536
 
 const SYSTEM_PROMPT =
   'You generate concise and accurate alt text descriptions for images for visually impaired users. Provide a clear 1-2 sentence description of the key visual elements and scene. Do not include introductory phrases like "This image shows" or "A photo of".'
@@ -31,7 +34,20 @@ export const generateAltText = async (
   httpClient: AltTextHttpClient = fetchAltTextHttpClient
 ): Promise<string | null> => {
   try {
-    const base64Data = imageBuffer.toString('base64')
+    let processedBuffer = imageBuffer
+    try {
+      processedBuffer = await sharp(imageBuffer)
+        .rotate()
+        .resize(MAX_VISION_IMAGE_DIMENSION, MAX_VISION_IMAGE_DIMENSION, {
+          fit: 'inside',
+          withoutEnlargement: true
+        })
+        .toBuffer()
+    } catch {
+      // If sharp cannot process the buffer, proceed with the original buffer
+    }
+
+    const base64Data = processedBuffer.toString('base64')
     const dataUrl = `data:${mimeType};base64,${base64Data}`
 
     const response = await httpClient({
