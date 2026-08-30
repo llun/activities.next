@@ -40,4 +40,65 @@ describe('PageHeader', () => {
     expect(container.querySelector('.max-w-content')).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'General' })).toBeInTheDocument()
   })
+
+  it('stacks actions on mobile when stackActionsOnMobile is true', () => {
+    const { container } = render(
+      <PageHeader
+        title="Lists & Collections"
+        description="Private curated timelines"
+        stackActionsOnMobile
+        actions={<button type="button">New list</button>}
+      />
+    )
+
+    const flexContainer = container.querySelector('.max-w-content > div')
+    expect(flexContainer).toHaveClass('flex-col')
+    expect(flexContainer).toHaveClass('sm:flex-row')
+    const actionWrapper = screen.getByRole('button', {
+      name: 'New list'
+    }).parentElement
+    expect(actionWrapper).toHaveClass('self-start')
+    expect(actionWrapper).toHaveClass('sm:self-center')
+  })
+
+  it('stacks actions on mobile in section mode when stackActionsOnMobile is true', () => {
+    const { container } = render(
+      <PageHeaderSectionProvider>
+        <PageHeader
+          title="Section"
+          description="Description"
+          stackActionsOnMobile
+          actions={<button type="button">Action</button>}
+        />
+      </PageHeaderSectionProvider>
+    )
+
+    const flexContainer = container.querySelector('.mb-6 > div')
+    expect(flexContainer).toHaveClass('flex-col')
+    expect(flexContainer).toHaveClass('sm:flex-row')
+    const actionWrapper = screen.getByRole('button', {
+      name: 'Action'
+    }).parentElement
+    expect(actionWrapper).toHaveClass('self-start')
+    expect(actionWrapper).toHaveClass('sm:self-center')
+  })
+
+  it('keeps actions inline by default when stackActionsOnMobile is not set', () => {
+    const { container } = render(
+      <PageHeader
+        title="Lists"
+        actions={<button type="button">Action</button>}
+      />
+    )
+
+    const flexContainer = container.querySelector('.max-w-content > div')
+    expect(flexContainer).toHaveClass('items-start')
+    expect(flexContainer).toHaveClass('justify-between')
+    expect(flexContainer).not.toHaveClass('flex-col')
+    const actionWrapper = screen.getByRole('button', {
+      name: 'Action'
+    }).parentElement
+    expect(actionWrapper).toHaveClass('self-center')
+    expect(actionWrapper).not.toHaveClass('self-start')
+  })
 })

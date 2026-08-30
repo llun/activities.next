@@ -9,6 +9,7 @@ interface PageHeaderProps {
   description?: ReactNode
   actions?: ReactNode
   className?: string
+  stackActionsOnMobile?: boolean
 }
 
 // Break out of the content column (`max-w-content`) so the chrome spans the
@@ -69,7 +70,8 @@ export const PageHeader = ({
   title,
   description,
   actions,
-  className
+  className,
+  stackActionsOnMobile
 }: PageHeaderProps) => {
   const subnav = useContext(PageSubnavContext)
   const isSection = useContext(PageHeaderSectionContext)
@@ -77,7 +79,14 @@ export const PageHeader = ({
   if (isSection) {
     return (
       <div className={cn('mb-6', className)}>
-        <div className="flex items-start justify-between gap-4">
+        <div
+          className={cn(
+            'flex gap-4',
+            stackActionsOnMobile
+              ? 'flex-col sm:flex-row sm:items-start sm:justify-between'
+              : 'items-start justify-between'
+          )}
+        >
           <div className="min-w-0">
             <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
             {description && (
@@ -86,7 +95,18 @@ export const PageHeader = ({
               </div>
             )}
           </div>
-          {actions && <div className="shrink-0 self-center">{actions}</div>}
+          {actions && (
+            <div
+              className={cn(
+                'shrink-0',
+                stackActionsOnMobile
+                  ? 'self-start sm:self-center'
+                  : 'self-center'
+              )}
+            >
+              {actions}
+            </div>
+          )}
         </div>
         {subnav && <div className="mt-4">{subnav}</div>}
       </div>
@@ -102,7 +122,14 @@ export const PageHeader = ({
       style={breakoutStyle}
     >
       <div className="mx-auto max-w-content px-4 py-4">
-        <div className="flex items-start justify-between gap-4">
+        <div
+          className={cn(
+            'flex gap-4',
+            stackActionsOnMobile
+              ? 'flex-col sm:flex-row sm:items-start sm:justify-between'
+              : 'items-start justify-between'
+          )}
+        >
           <div className="min-w-0">
             <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
             {description && (
@@ -111,7 +138,18 @@ export const PageHeader = ({
               </div>
             )}
           </div>
-          {actions && <div className="shrink-0 self-center">{actions}</div>}
+          {actions && (
+            <div
+              className={cn(
+                'shrink-0',
+                stackActionsOnMobile
+                  ? 'self-start sm:self-center'
+                  : 'self-center'
+              )}
+            >
+              {actions}
+            </div>
+          )}
         </div>
         {subnav && <div className="mt-3">{subnav}</div>}
       </div>
