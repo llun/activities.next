@@ -19,6 +19,7 @@ import { getQueue } from '@/lib/services/queue'
 import { syncQuoteEdgeFromUpdate } from '@/lib/services/quotes/persistInboundQuoteEdge'
 import {
   ArticleContent,
+  ENTITY_TYPE_QUESTION,
   ImageContent,
   Note,
   PageContent,
@@ -35,8 +36,10 @@ import { logger } from '@/lib/utils/logger'
 
 import { createJobHandle } from './createJobHandle'
 import { createNoteJob } from './createNoteJob'
+import { createPollJob } from './createPollJob'
 import {
   CREATE_NOTE_JOB_NAME,
+  CREATE_POLL_JOB_NAME,
   FORWARD_ACTIVITY_JOB_NAME,
   UPDATE_NOTE_JOB_NAME
 } from './names'
@@ -138,13 +141,22 @@ export const updateNoteJob = createJobHandle(
       database,
       note,
       actorId: existingStatus.actorId,
-      storeNote: (fetchedQuotedNote, bound) =>
-        createNoteJob(database, {
+      storeNote: (fetchedQuotedNote, bound) => {
+        if (fetchedQuotedNote.type === ENTITY_TYPE_QUESTION) {
+          return createPollJob(database, {
+            id: fetchedQuotedNote.id,
+            name: CREATE_POLL_JOB_NAME,
+            data: fetchedQuotedNote,
+            ...bound
+          })
+        }
+        return createNoteJob(database, {
           id: fetchedQuotedNote.id,
           name: CREATE_NOTE_JOB_NAME,
           data: fetchedQuotedNote,
           ...bound
         })
+      }
     })
 
     // Re-detect the content language alongside the edit; the previous

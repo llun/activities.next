@@ -101,9 +101,9 @@ export const createRelayAnnounceJob: JobHandle = createJobHandle(
       if (!signingActor) return
       const note = await getNote({ statusId: objectId, signingActor })
       if (!note) return
-      // createNoteJob enforces the note author's federation policy and persists
+      // createNoteJob or createPollJob enforces the author's federation policy and persists
       // the status; called without verifiedSenderActorId so the relay's
-      // signature does not have to match the note's author.
+      // signature does not have to match the author.
       if (note.type === ENTITY_TYPE_QUESTION) {
         await createPollJob(database, {
           id: note.id,
@@ -119,7 +119,7 @@ export const createRelayAnnounceJob: JobHandle = createJobHandle(
       }
       // Look the stored status up by the note's canonical id — a remote server
       // may canonicalize the requested object id (trailing slash, protocol,
-      // redirect), and createNoteJob persists it under note.id.
+      // redirect), and createNoteJob/createPollJob persists it under note.id.
       status = await database.getStatus({
         statusId: note.id,
         withReplies: false

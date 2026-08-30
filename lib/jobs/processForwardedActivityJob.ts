@@ -183,7 +183,7 @@ export const processForwardedActivityJob = createJobHandle(
       // verifiedSenderActorId: authenticity came from the origin fetch, so the
       // forwarder's signature does not have to match the note's author —
       // exactly how createRelayAnnounceJob calls createNoteJob. createNoteJob
-      // still enforces the author's own federation policy itself.
+      // and createPollJob still enforce the author's own federation policy itself.
       const stored = await database.getStatus({
         statusId: note.id,
         withReplies: false

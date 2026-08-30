@@ -1595,6 +1595,14 @@ describe('createNoteJob', () => {
           data: questionPayload as unknown as Note
         })
       ).resolves.toBeUndefined()
+
+      await expect(
+        createNoteJob(database, {
+          id: 'malformed-job',
+          name: CREATE_NOTE_JOB_NAME,
+          data: { invalid: 'payload' }
+        })
+      ).resolves.toBeUndefined()
     })
   })
 })
