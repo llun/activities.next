@@ -243,6 +243,16 @@ Optional. Enables `POST /api/v1/statuses/:id/translate` and the Translate contro
 | `ACTIVITIES_TRANSLATION_MODEL`    | Model name. Required for `openai` only (e.g. `gpt-4o-mini`).                                                                                                                                                                           |
 | `ACTIVITIES_TRANSLATION_PLAN`     | DeepL plan: `free` (default) or `pro`. Routes requests to `api-free.deepl.com` or `api.deepl.com`. Used by `deepl` only.                                                                                                               |
 
+## Alt Text Generation
+
+Optional. Automatically generates accessibility descriptions (alt text) for uploaded images when no description is provided by the client, using an OpenAI-compatible vision chat-completions API. If any required variable is missing, alt text generation is disabled.
+
+| Variable                       | Description                                                                                                    |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `ACTIVITIES_ALT_TEXT_ENDPOINT` | Chat-completions endpoint URL supporting vision (e.g. `https://api.openai.com/v1/chat/completions`). Required. |
+| `ACTIVITIES_ALT_TEXT_API_KEY`  | API key for the chat-completions endpoint. Required.                                                           |
+| `ACTIVITIES_ALT_TEXT_MODEL`    | Model name supporting vision (e.g. `gpt-4o-mini`). Required.                                                   |
+
 ## Media Storage
 
 Required for media uploads (images and video in posts). If no media storage is configured, media uploads are disabled.

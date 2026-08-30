@@ -34,13 +34,15 @@ vi.mock('better-auth/oauth2', () => ({
   verifyBearerToken: vi.fn()
 }))
 
+const mockGetConfig = vi.fn()
 vi.mock('@/lib/config', () => ({
   getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
-  getConfig: vi.fn().mockReturnValue({
-    allowEmails: [],
-    host: 'llun.test',
-    secretPhase: 'test-secret'
-  })
+  getConfig: () => mockGetConfig()
+}))
+
+const mockGenerateAltText = vi.fn()
+vi.mock('@/lib/services/altText/openai', () => ({
+  generateAltText: (...args: unknown[]) => mockGenerateAltText(...args)
 }))
 
 const mockSaveMedia = vi.fn()
@@ -104,6 +106,12 @@ describe('POST /api/v2/media', () => {
     mockGetServerSession.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue(null)
     mockSaveMedia.mockResolvedValue(sampleAttachment)
+    mockGetConfig.mockReturnValue({
+      allowEmails: [],
+      host: 'llun.test',
+      secretPhase: 'test-secret'
+    })
+    mockGenerateAltText.mockResolvedValue(null)
     await database.deleteServerSetting({ key: 'media.maxFileSize' })
     invalidateServerSettingsCache(database)
   })
@@ -303,5 +311,203 @@ describe('POST /api/v2/media', () => {
     })
 
     expect(response.status).toBe(500)
+  })
+
+  describe('automatic alt text generation', () => {
+    it('generates alt text via LLM when image has no description and altText is configured', async () => {
+      mockStoredToken.mockResolvedValue({
+        expiresAt: new Date(Date.now() + 60_000),
+        referenceId: ACTOR1_ID,
+        scopes: 'write:media'
+      })
+      mockGetConfig.mockReturnValue({
+        allowEmails: [],
+        host: 'llun.test',
+        secretPhase: 'test-secret',
+        altText: {
+          endpoint: 'https://api.openai.com/v1/chat/completions',
+          apiKey: 'sk-test',
+          model: 'gpt-4o-mini'
+        }
+      })
+      mockSaveMedia.mockResolvedValue({
+        ...sampleAttachment,
+        description: null
+      })
+      mockGenerateAltText.mockResolvedValue(
+        'A generated description of the image.'
+      )
+
+      const form = new FormData()
+      form.set(
+        'file',
+        new File([new Uint8Array([1, 2, 3])], 'photo.png', {
+          type: 'image/png'
+        })
+      )
+
+      const response = await POST(postRequest('write-media-token', form), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.description).toBe('A generated description of the image.')
+      expect(mockGenerateAltText).toHaveBeenCalledWith(
+        {
+          endpoint: 'https://api.openai.com/v1/chat/completions',
+          apiKey: 'sk-test',
+          model: 'gpt-4o-mini'
+        },
+        expect.any(Buffer),
+        'image/png'
+      )
+    })
+
+    it('does not generate alt text when user already provided a description', async () => {
+      mockStoredToken.mockResolvedValue({
+        expiresAt: new Date(Date.now() + 60_000),
+        referenceId: ACTOR1_ID,
+        scopes: 'write:media'
+      })
+      mockGetConfig.mockReturnValue({
+        allowEmails: [],
+        host: 'llun.test',
+        secretPhase: 'test-secret',
+        altText: {
+          endpoint: 'https://api.openai.com/v1/chat/completions',
+          apiKey: 'sk-test',
+          model: 'gpt-4o-mini'
+        }
+      })
+      mockSaveMedia.mockResolvedValue({
+        ...sampleAttachment,
+        description: 'User provided alt'
+      })
+
+      const form = buildForm()
+      const response = await POST(postRequest('write-media-token', form), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.description).toBe('User provided alt')
+      expect(mockGenerateAltText).not.toHaveBeenCalled()
+    })
+
+    it('does not generate alt text when altText is not configured', async () => {
+      mockStoredToken.mockResolvedValue({
+        expiresAt: new Date(Date.now() + 60_000),
+        referenceId: ACTOR1_ID,
+        scopes: 'write:media'
+      })
+      mockGetConfig.mockReturnValue({
+        allowEmails: [],
+        host: 'llun.test',
+        secretPhase: 'test-secret'
+      })
+      mockSaveMedia.mockResolvedValue({
+        ...sampleAttachment,
+        description: null
+      })
+
+      const form = new FormData()
+      form.set(
+        'file',
+        new File([new Uint8Array([1, 2, 3])], 'photo.png', {
+          type: 'image/png'
+        })
+      )
+
+      const response = await POST(postRequest('write-media-token', form), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.description).toBeNull()
+      expect(mockGenerateAltText).not.toHaveBeenCalled()
+    })
+
+    it('leaves description null when LLM generation fails or returns null', async () => {
+      mockStoredToken.mockResolvedValue({
+        expiresAt: new Date(Date.now() + 60_000),
+        referenceId: ACTOR1_ID,
+        scopes: 'write:media'
+      })
+      mockGetConfig.mockReturnValue({
+        allowEmails: [],
+        host: 'llun.test',
+        secretPhase: 'test-secret',
+        altText: {
+          endpoint: 'https://api.openai.com/v1/chat/completions',
+          apiKey: 'sk-test',
+          model: 'gpt-4o-mini'
+        }
+      })
+      mockSaveMedia.mockResolvedValue({
+        ...sampleAttachment,
+        description: null
+      })
+      mockGenerateAltText.mockResolvedValue(null)
+
+      const form = new FormData()
+      form.set(
+        'file',
+        new File([new Uint8Array([1, 2, 3])], 'photo.png', {
+          type: 'image/png'
+        })
+      )
+
+      const response = await POST(postRequest('write-media-token', form), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.description).toBeNull()
+    })
+
+    it('does not generate alt text when uploaded media is a video', async () => {
+      mockStoredToken.mockResolvedValue({
+        expiresAt: new Date(Date.now() + 60_000),
+        referenceId: ACTOR1_ID,
+        scopes: 'write:media'
+      })
+      mockGetConfig.mockReturnValue({
+        allowEmails: [],
+        host: 'llun.test',
+        secretPhase: 'test-secret',
+        altText: {
+          endpoint: 'https://api.openai.com/v1/chat/completions',
+          apiKey: 'sk-test',
+          model: 'gpt-4o-mini'
+        }
+      })
+      mockSaveMedia.mockResolvedValue({
+        ...sampleAttachment,
+        type: 'video',
+        mime_type: 'video/mp4',
+        description: null
+      })
+
+      const form = new FormData()
+      form.set(
+        'file',
+        new File([new Uint8Array([1, 2, 3])], 'video.mp4', {
+          type: 'video/mp4'
+        })
+      )
+
+      const response = await POST(postRequest('write-media-token', form), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.description).toBeNull()
+      expect(mockGenerateAltText).not.toHaveBeenCalled()
+    })
   })
 })
