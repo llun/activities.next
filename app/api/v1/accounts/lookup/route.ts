@@ -19,6 +19,7 @@ import {
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { Scope } from '@/lib/types/database/operations'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+import { isOwnInstanceHost } from '@/lib/utils/host'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
@@ -96,8 +97,8 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
       responseStatusCode: 400
     })
 
-  const config = getConfig()
-  const handle = parseAccountHandle(acct, config.host)
+  const host = headerHost(req.headers)
+  const handle = parseAccountHandle(acct, host)
 
   if (!handle)
     return apiResponse({
@@ -176,7 +177,7 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
     if (!isInternal && (await getRemoteFetchAuth()).authorized) {
       actor = await refreshKnownRemoteActor({ database, actor })
     }
-  } else if (resolve && domain !== config.host) {
+  } else if (resolve && !isOwnInstanceHost(domain, getConfig())) {
     // An invalid bearer already returned above, so an unauthorized viewer
     // here is credential-less and gets the same 404 an unresolvable handle
     // would.
@@ -215,6 +216,6 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
   return apiResponse({
     req,
     allowedMethods: CORS_HEADERS,
-    data: localizeAccount(mastodonActor, headerHost(req.headers))
+    data: localizeAccount(mastodonActor, host)
   })
 })
