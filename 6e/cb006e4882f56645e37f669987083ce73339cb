@@ -1,0 +1,18 @@
+lib/activities/index.test.ts
+  h_580a04e334fef4 330,335,345-380,395,400,410-445,533-575
+lib/activities/index.ts
+  h_580a04e334fef4 113-115,572,615,623,649,686,733,785,828,864,900
+lib/stub/activities.ts
+  h_580a04e334fef4 239,241
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "6ecb006e4882f56645e37f669987083ce73339cb",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
