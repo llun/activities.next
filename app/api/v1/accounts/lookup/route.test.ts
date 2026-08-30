@@ -42,7 +42,7 @@ vi.mock('@/lib/database', () => ({
 
 vi.mock('@/lib/config', () => ({
   getBaseURL: () => 'https://llun.test',
-  getConfig: () => ({ host: 'llun.test' })
+  getConfig: () => ({ host: 'llun.test', trustedHosts: ['custom.llun.test'] })
 }))
 
 vi.mock('better-auth/oauth2', () => ({
@@ -107,6 +107,48 @@ describe('GET /api/v1/accounts/lookup', () => {
       username: 'test1',
       domain: 'llun.test'
     })
+  })
+
+  it('uses headerHost for local lookup when handle has no domain', async () => {
+    const actor = { id: 'https://custom.llun.test/users/null' }
+    const account = { id: 'null', username: 'null', acct: 'null' }
+    mockGetActorFromUsername.mockResolvedValue(actor)
+    mockGetMastodonActorFromId.mockResolvedValue(account)
+
+    const response = await GET(
+      new NextRequest(
+        'https://custom.llun.test/api/v1/accounts/lookup?acct=null',
+        {
+          headers: { host: 'custom.llun.test' }
+        }
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetActorFromUsername).toHaveBeenCalledWith({
+      username: 'null',
+      domain: 'custom.llun.test'
+    })
+  })
+
+  it('does not remotely resolve handles for trusted instance domains', async () => {
+    mockGetActorFromUsername.mockResolvedValue(null)
+    mockStoredToken.mockResolvedValue({
+      expiresAt: new Date(Date.now() + 60_000),
+      referenceId: 'https://llun.test/users/oauth-user',
+      scopes: 'read'
+    })
+    mockGetActorFromId.mockResolvedValue(oauthActor)
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/lookup?acct=missing@custom.llun.test&resolve=true',
+        { headers: { Authorization: 'Bearer read-accounts-token' } }
+      )
+    )
+
+    expect(response.status).toBe(404)
+    expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
   })
 
   it('rejects handles with more than one username/domain separator', async () => {
