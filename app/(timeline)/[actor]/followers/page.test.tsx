@@ -50,7 +50,9 @@ vi.mock('@/app/(timeline)/[actor]/getProfileData', () => ({
 }))
 
 vi.mock('@/app/(timeline)/[actor]/FollowList', () => ({
-  FollowList: () => <div data-testid="follow-list" />
+  FollowList: ({ emptyMessage }: { emptyMessage?: string }) => (
+    <div data-testid="follow-list" data-empty-message={emptyMessage} />
+  )
 }))
 
 vi.mock('@/app/(timeline)/[actor]/getFollowListBlockedActorIds', () => ({
@@ -223,5 +225,41 @@ describe('[actor] followers page', () => {
         title: 'Activities.next: @localuser@llun.social Followers'
       })
     })
+  })
+
+  it('renders followers page with follow list and empty message when profile is found', async () => {
+    mockGetServerAuthSession.mockResolvedValue(null)
+    mockIsLocalFederationDomain.mockResolvedValue(true)
+    mockGetProfileData.mockResolvedValue({
+      person: {
+        id: 'https://llun.test/users/llun',
+        preferredUsername: 'llun'
+      } as unknown as Parameters<typeof getProfileData>[0] extends never
+        ? never
+        : NonNullable<Awaited<ReturnType<typeof getProfileData>>>['person'],
+      statuses: [],
+      statusesCount: 0,
+      statusPagination: { nextPageUrl: null, prevPageUrl: null },
+      attachments: [],
+      followingCount: 0,
+      followersCount: 0,
+      isInternalAccount: true,
+      hasFitnessData: false
+    })
+    mockDatabase.getFollowers.mockResolvedValue([])
+
+    const result = await Page({
+      params: Promise.resolve({ actor: '@llun@llun.test' })
+    })
+
+    const { render, screen } = await import('@testing-library/react')
+    render(result as React.ReactElement)
+
+    expect(
+      screen.getByRole('heading', { name: 'Followers' })
+    ).toBeInTheDocument()
+    const followList = screen.getByTestId('follow-list')
+    expect(followList).toBeInTheDocument()
+    expect(followList).toHaveAttribute('data-empty-message', 'No followers yet')
   })
 })

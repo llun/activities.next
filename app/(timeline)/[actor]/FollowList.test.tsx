@@ -72,9 +72,37 @@ describe('FollowList', () => {
     ).toBeInTheDocument()
   })
 
-  it('renders empty state message when users array is empty', () => {
+  it('renders default empty message when users is empty', () => {
     render(<FollowList users={[]} isLoggedIn />)
 
-    expect(screen.getByText('No accounts found.')).toBeInTheDocument()
+    expect(screen.getByText('No accounts yet')).toBeInTheDocument()
+  })
+
+  it('renders custom empty message when users is empty and emptyMessage is provided', () => {
+    render(
+      <FollowList
+        users={[]}
+        isLoggedIn
+        emptyMessage="Not following anyone yet"
+      />
+    )
+
+    expect(screen.getByText('Not following anyone yet')).toBeInTheDocument()
+  })
+
+  it('falls back to username when name is empty', () => {
+    const user = actorProfile('https://example.test/users/noname', 'noname')
+    user.name = ''
+    render(<FollowList users={[user]} isLoggedIn />)
+
+    expect(screen.getByText('noname')).toBeInTheDocument()
+  })
+
+  it('renders summary when provided', () => {
+    const user = actorProfile('https://example.test/users/bio', 'bio')
+    user.summary = 'Hello world biography'
+    render(<FollowList users={[user]} isLoggedIn />)
+
+    expect(screen.getByText('Hello world biography')).toBeInTheDocument()
   })
 })

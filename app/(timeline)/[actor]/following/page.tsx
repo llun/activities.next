@@ -95,7 +95,7 @@ const Page: FC<Props> = async ({ params }) => {
     limit: 100
   })
 
-  const following = (
+  const followings = (
     await Promise.all(
       follows.map((follow: Follow) =>
         database.getActorFromId({ id: follow.targetActorId })
@@ -107,7 +107,7 @@ const Page: FC<Props> = async ({ params }) => {
   const blockedActorIds = await getFollowListBlockedActorIds(
     database,
     currentActor?.id,
-    following
+    followings
   )
 
   return (
@@ -131,9 +131,10 @@ const Page: FC<Props> = async ({ params }) => {
 
       <div className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
         <FollowList
-          users={following}
+          users={followings}
           isLoggedIn={isLoggedIn}
           blockedActorIds={blockedActorIds}
+          emptyMessage="Not following anyone yet"
         />
       </div>
     </div>
