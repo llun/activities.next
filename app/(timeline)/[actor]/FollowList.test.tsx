@@ -72,9 +72,21 @@ describe('FollowList', () => {
     ).toBeInTheDocument()
   })
 
-  it('renders empty state message when users array is empty', () => {
+  it('renders default empty message when users is empty', () => {
     render(<FollowList users={[]} isLoggedIn />)
 
-    expect(screen.getByText('No accounts found.')).toBeInTheDocument()
+    expect(screen.getByText('No accounts yet')).toBeInTheDocument()
+  })
+
+  it('renders custom empty message when users is empty and emptyMessage is provided', () => {
+    render(
+      <FollowList
+        users={[]}
+        isLoggedIn
+        emptyMessage="Not following anyone yet"
+      />
+    )
+
+    expect(screen.getByText('Not following anyone yet')).toBeInTheDocument()
   })
 })

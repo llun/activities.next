@@ -134,6 +134,7 @@ const Page: FC<Props> = async ({ params }) => {
           users={following}
           isLoggedIn={isLoggedIn}
           blockedActorIds={blockedActorIds}
+          emptyMessage="Not following anyone yet"
         />
       </div>
     </div>

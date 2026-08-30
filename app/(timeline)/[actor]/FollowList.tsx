@@ -11,12 +11,14 @@ interface Props {
   users: ActorProfile[]
   isLoggedIn: boolean
   blockedActorIds?: string[]
+  emptyMessage?: string
 }
 
 export const FollowList: FC<Props> = ({
   users,
   isLoggedIn,
-  blockedActorIds = []
+  blockedActorIds = [],
+  emptyMessage = 'No accounts yet'
 }) => {
   const blockedActorIdSet = useMemo(
     () => new Set(blockedActorIds),
@@ -26,7 +28,7 @@ export const FollowList: FC<Props> = ({
   if (users.length === 0) {
     return (
       <div className="p-8 text-center text-sm text-muted-foreground">
-        No accounts found.
+        {emptyMessage}
       </div>
     )
   }
