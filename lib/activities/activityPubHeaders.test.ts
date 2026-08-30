@@ -35,7 +35,7 @@ describe('activityPubRequestHeaders', () => {
     })
 
     expect(headers).toEqual({
-      accept: 'application/activity+json, application/ld+json'
+      accept: 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
     })
   })
 
@@ -57,7 +57,7 @@ describe('activityPubRequestHeaders', () => {
     })
 
     expect(headers).toMatchObject({
-      accept: 'application/activity+json, application/ld+json',
+      accept: 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
       host: 'remote.test',
       signature: expect.stringContaining('headers="(request-target) host date"')
     })
@@ -80,7 +80,7 @@ describe('activityPubRequestHeaders', () => {
     })
 
     expect(headers).toMatchObject({
-      accept: 'application/activity+json, application/ld+json',
+      accept: 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
       'content-type': 'application/activity+json',
       digest: expect.stringMatching(/^SHA-256=/),
       signature: expect.stringContaining(
