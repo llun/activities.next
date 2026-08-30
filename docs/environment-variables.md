@@ -235,13 +235,23 @@ Email is used for account verification and notifications.
 
 Optional. Enables `POST /api/v1/statuses/:id/translate` and the Translate control on posts, and sets `translation.enabled` in `/api/v2/instance`. One backend is active at a time, selected by `ACTIVITIES_TRANSLATION_TYPE`; if the required variables for the chosen backend are missing, translation is disabled. Translations are sanitized and cached in the `translation_cache` table.
 
-| Variable                          | Description                                                                                                                                                                                                                            |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ACTIVITIES_TRANSLATION_TYPE`     | Translation backend: `deepl`, `libretranslate`, or `openai`.                                                                                                                                                                           |
-| `ACTIVITIES_TRANSLATION_API_KEY`  | API key. Required for `deepl` and `openai`; optional for `libretranslate` (public/self-hosted instances may not need one).                                                                                                             |
-| `ACTIVITIES_TRANSLATION_ENDPOINT` | Backend endpoint URL. Required for `libretranslate` (base URL, e.g. `http://libretranslate:5000`) and `openai` (full chat-completions URL including the path, e.g. `https://api.openai.com/v1/chat/completions`). Not used by `deepl`. |
-| `ACTIVITIES_TRANSLATION_MODEL`    | Model name. Required for `openai` only (e.g. `gpt-4o-mini`).                                                                                                                                                                           |
-| `ACTIVITIES_TRANSLATION_PLAN`     | DeepL plan: `free` (default) or `pro`. Routes requests to `api-free.deepl.com` or `api.deepl.com`. Used by `deepl` only.                                                                                                               |
+| Variable                          | Description                                                                                                                                                                                                        |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ACTIVITIES_TRANSLATION_TYPE`     | Translation backend: `deepl`, `gemini`, or `openai`.                                                                                                                                                               |
+| `ACTIVITIES_TRANSLATION_API_KEY`  | API key. Required for `deepl`, `gemini`, and `openai`.                                                                                                                                                             |
+| `ACTIVITIES_TRANSLATION_ENDPOINT` | Backend endpoint URL. Required for `openai` (full chat-completions URL including the path, e.g. `https://api.openai.com/v1/chat/completions`); optional for `gemini` (defaults to Google Generative Language API). |
+| `ACTIVITIES_TRANSLATION_MODEL`    | Model name. Required for `openai` (e.g. `gpt-4o-mini`); optional for `gemini` (defaults to `gemini-2.5-flash`).                                                                                                    |
+| `ACTIVITIES_TRANSLATION_PLAN`     | DeepL plan: `free` (default) or `pro`. Routes requests to `api-free.deepl.com` or `api.deepl.com`. Used by `deepl` only.                                                                                           |
+
+## Alt Text Generation
+
+Optional. Automatically generates accessibility descriptions (alt text) for uploaded images when no description is provided by the client, using an OpenAI-compatible vision chat-completions API. If any required variable is missing, alt text generation is disabled.
+
+| Variable                       | Description                                                                                                    |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `ACTIVITIES_ALT_TEXT_ENDPOINT` | Chat-completions endpoint URL supporting vision (e.g. `https://api.openai.com/v1/chat/completions`). Required. |
+| `ACTIVITIES_ALT_TEXT_API_KEY`  | API key for the chat-completions endpoint. Required.                                                           |
+| `ACTIVITIES_ALT_TEXT_MODEL`    | Model name supporting vision (e.g. `gpt-4o-mini`). Required.                                                   |
 
 ## Media Storage
 

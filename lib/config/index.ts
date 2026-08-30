@@ -12,6 +12,7 @@ import { SMTPConfig } from '@/lib/services/email/smtp'
 import { logger } from '@/lib/utils/logger'
 import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 
+import { AltTextConfig, getAltTextConfig } from './altText'
 import { AuthConfig, getAuthConfig } from './auth'
 import { getDatabaseConfig } from './database'
 import { getEmailConfig } from './email'
@@ -64,7 +65,8 @@ const Config = z.object({
   fitnessStorage: FitnessStorageConfig.optional(),
   openTelemetry: OpenTelemetryConfig.optional(),
   request: RequestConfig.optional(),
-  translation: TranslationConfig.optional()
+  translation: TranslationConfig.optional(),
+  altText: AltTextConfig.optional()
 })
 export type Config = z.infer<typeof Config>
 
@@ -149,7 +151,8 @@ const getConfigFromEnvironment = () => {
       ...getRequestConfig(),
       ...getQueueConfig(),
       ...getPushConfig(),
-      ...getTranslationConfig()
+      ...getTranslationConfig(),
+      ...getAltTextConfig()
     })
   } catch (error) {
     if (process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD) {

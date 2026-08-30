@@ -1,15 +1,15 @@
 import { DeepLTranslationConfig } from '@/lib/config/translation'
-import { fetchTranslationHttpClient } from '@/lib/services/translation/httpClient'
 import {
-  TranslationHttpClient,
   TranslationProvider,
   TranslationProviderError,
   TranslationResult,
   normalizeLanguageCode,
   parseTranslationJson
 } from '@/lib/services/translation/types'
+import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 
 const REQUEST_TIMEOUT_MS = 10000
+const MAX_RESPONSE_BYTES = 1 * 1024 * 1024
 
 const getBaseUrl = (plan: DeepLTranslationConfig['plan']) =>
   plan === 'pro' ? 'https://api.deepl.com' : 'https://api-free.deepl.com'
@@ -31,19 +31,27 @@ interface DeepLLanguage {
  * @see https://developers.deepl.com/docs/api-reference/translate
  */
 export const createDeepLProvider = (
-  config: DeepLTranslationConfig,
-  httpClient: TranslationHttpClient = fetchTranslationHttpClient
+  config: DeepLTranslationConfig
 ): TranslationProvider => {
   const baseUrl = getBaseUrl(config.plan)
   const authHeader = `DeepL-Auth-Key ${config.apiKey}`
 
   const fetchLanguages = async (type: 'source' | 'target') => {
-    const response = await httpClient({
-      url: `${baseUrl}/v2/languages?type=${type}`,
-      method: 'GET',
-      headers: { Authorization: authHeader },
-      timeoutMs: REQUEST_TIMEOUT_MS
-    })
+    let response
+    try {
+      response = await safeRemoteFetch({
+        url: `${baseUrl}/v2/languages?type=${type}`,
+        method: 'GET',
+        headers: { Authorization: authHeader },
+        timeoutInMilliseconds: REQUEST_TIMEOUT_MS,
+        maxBodyBytes: MAX_RESPONSE_BYTES
+      })
+    } catch (error) {
+      throw new TranslationProviderError(
+        `DeepL languages request failed: ${(error as Error).message}`
+      )
+    }
+
     if (response.statusCode !== 200) {
       throw new TranslationProviderError(
         `DeepL languages request failed with status ${response.statusCode}`
@@ -69,20 +77,28 @@ export const createDeepLProvider = (
     },
 
     async translate(texts, targetLang): Promise<TranslationResult> {
-      const response = await httpClient({
-        url: `${baseUrl}/v2/translate`,
-        method: 'POST',
-        headers: {
-          Authorization: authHeader,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          text: texts,
-          target_lang: normalizeLanguageCode(targetLang).toUpperCase(),
-          tag_handling: 'html'
-        }),
-        timeoutMs: REQUEST_TIMEOUT_MS
-      })
+      let response
+      try {
+        response = await safeRemoteFetch({
+          url: `${baseUrl}/v2/translate`,
+          method: 'POST',
+          headers: {
+            Authorization: authHeader,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            text: texts,
+            target_lang: normalizeLanguageCode(targetLang).toUpperCase(),
+            tag_handling: 'html'
+          }),
+          timeoutInMilliseconds: REQUEST_TIMEOUT_MS,
+          maxBodyBytes: MAX_RESPONSE_BYTES
+        })
+      } catch (error) {
+        throw new TranslationProviderError(
+          `DeepL translate request failed: ${(error as Error).message}`
+        )
+      }
 
       if (response.statusCode !== 200) {
         throw new TranslationProviderError(
