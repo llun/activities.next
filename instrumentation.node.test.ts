@@ -1,4 +1,3 @@
-import { TraceExporter as GoogleCloudTraceExporter } from '@google-cloud/opentelemetry-cloud-trace-exporter'
 import { OTLPTraceExporter as GrpcOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc'
 import { OTLPTraceExporter as HttpOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
 import { OTLPTraceExporter as ProtoOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto'
@@ -12,7 +11,24 @@ import {
 } from './instrumentation.node'
 import { Config, getConfig } from './lib/config'
 
-vi.mock('@google-cloud/opentelemetry-cloud-trace-exporter')
+const mockGetRequestHeaders = vi.fn().mockResolvedValue(
+  new Headers({
+    authorization: 'Bearer mock-google-token'
+  })
+)
+const mockGetClient = vi.fn().mockResolvedValue({
+  getRequestHeaders: mockGetRequestHeaders
+})
+
+vi.mock('google-auth-library', () => {
+  return {
+    GoogleAuth: vi.fn().mockImplementation(function (this: unknown) {
+      return {
+        getClient: mockGetClient
+      }
+    })
+  }
+})
 vi.mock('@opentelemetry/exporter-trace-otlp-grpc')
 vi.mock('@opentelemetry/exporter-trace-otlp-http')
 vi.mock('@opentelemetry/exporter-trace-otlp-proto')
@@ -52,6 +68,10 @@ describe('instrumentation.node', () => {
   })
 
   describe('getTraceExporter', () => {
+    beforeEach(() => {
+      vi.clearAllMocks()
+    })
+
     it('returns null when openTelemetry config is not set', () => {
       const config = {} as Config
       expect(getTraceExporter(config)).toBeNull()
@@ -91,7 +111,7 @@ describe('instrumentation.node', () => {
       })
     })
 
-    it('instantiates GoogleCloudTraceExporter for google protocol', () => {
+    it('instantiates ProtoOLTPTraceExporter with google telemetry endpoint and dynamic auth headers for google protocol', async () => {
       const config = {
         openTelemetry: {
           protocol: 'google'
@@ -100,7 +120,46 @@ describe('instrumentation.node', () => {
 
       getTraceExporter(config)
 
-      expect(GoogleCloudTraceExporter).toHaveBeenCalledWith()
+      expect(ProtoOLTPTraceExporter).toHaveBeenCalledWith({
+        url: 'https://telemetry.googleapis.com/v1/traces',
+        headers: expect.any(Function)
+      })
+
+      const callArgs = vi.mocked(ProtoOLTPTraceExporter).mock.calls[0][0] as {
+        url: string
+        headers: () => Promise<Record<string, string>>
+      }
+      const headers = await callArgs.headers()
+      expect(headers).toEqual({
+        authorization: 'Bearer mock-google-token'
+      })
+    })
+
+    it('uses custom endpoint and merges custom headers for google protocol when provided', async () => {
+      const config = {
+        openTelemetry: {
+          protocol: 'google',
+          endpoint: 'https://custom.telemetry.googleapis.com/v1/traces',
+          headers: 'X-Custom-Header=value'
+        }
+      } as Config
+
+      getTraceExporter(config)
+
+      expect(ProtoOLTPTraceExporter).toHaveBeenCalledWith({
+        url: 'https://custom.telemetry.googleapis.com/v1/traces',
+        headers: expect.any(Function)
+      })
+
+      const callArgs = vi.mocked(ProtoOLTPTraceExporter).mock.calls[0][0] as {
+        url: string
+        headers: () => Promise<Record<string, string>>
+      }
+      const headers = await callArgs.headers()
+      expect(headers).toEqual({
+        authorization: 'Bearer mock-google-token',
+        'X-Custom-Header': 'value'
+      })
     })
 
     it('instantiates ProtoOLTPTraceExporter for http/protobuf protocol or default', () => {

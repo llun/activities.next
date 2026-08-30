@@ -1,5 +1,3 @@
-import { TraceExporter as GoogleCloudTraceExporter } from '@google-cloud/opentelemetry-cloud-trace-exporter'
-import { CloudPropagator } from '@google-cloud/opentelemetry-cloud-trace-propagator'
 import {
   CompositePropagator,
   W3CBaggagePropagator,
@@ -14,6 +12,7 @@ import { UndiciInstrumentation } from '@opentelemetry/instrumentation-undici'
 import { gcpDetector } from '@opentelemetry/resource-detector-gcp'
 import { resourceFromAttributes } from '@opentelemetry/resources'
 import { NodeSDK } from '@opentelemetry/sdk-node'
+import { GoogleAuth } from 'google-auth-library'
 
 import { type Config, getConfig } from './lib/config'
 import { logger } from './lib/utils/logger'
@@ -49,8 +48,25 @@ export const getTraceExporter = (config: Config) => {
       return new GrpcOLTPTraceExporter(options)
     case 'http/json':
       return new HttpOLTPTraceExporter(options)
-    case 'google':
-      return new GoogleCloudTraceExporter()
+    case 'google': {
+      let authClient: Awaited<ReturnType<GoogleAuth['getClient']>> | null = null
+      return new ProtoOLTPTraceExporter({
+        url: endpoint ?? 'https://telemetry.googleapis.com/v1/traces',
+        headers: async () => {
+          if (!authClient) {
+            const auth = new GoogleAuth({
+              scopes: 'https://www.googleapis.com/auth/cloud-platform'
+            })
+            authClient = await auth.getClient()
+          }
+          const rawHeaders = await authClient.getRequestHeaders()
+          return {
+            ...Object.fromEntries(rawHeaders.entries()),
+            ...(parsedHeaders ?? {})
+          }
+        }
+      })
+    }
     case 'http/protobuf':
     default:
       return new ProtoOLTPTraceExporter(options)
@@ -75,11 +91,7 @@ export const registerNodeInstrumentation = async () => {
     ...(isGoogle ? { resourceDetectors: [gcpDetector] } : {}),
     traceExporter: exporter,
     textMapPropagator: new CompositePropagator({
-      propagators: [
-        new W3CTraceContextPropagator(),
-        new W3CBaggagePropagator(),
-        new CloudPropagator()
-      ]
+      propagators: [new W3CTraceContextPropagator(), new W3CBaggagePropagator()]
     }),
     instrumentations: [
       new KnexInstrumentation(),
