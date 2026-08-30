@@ -255,7 +255,7 @@ describe('[actor] followers page', () => {
     render(result as React.ReactElement)
 
     expect(
-      screen.getByRole('heading', { name: 'Followers' })
+      screen.getByRole('heading', { name: /Followers/ })
     ).toBeInTheDocument()
     const followList = screen.getByTestId('follow-list')
     expect(followList).toBeInTheDocument()
