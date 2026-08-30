@@ -1,66 +1,21 @@
 import { OpenAITranslationConfig } from '@/lib/config/translation'
-import { fetchTranslationHttpClient } from '@/lib/services/translation/httpClient'
 import { LLM_SUPPORTED_LANGUAGES } from '@/lib/services/translation/languages'
 import {
-  TranslationHttpClient,
   TranslationProvider,
   TranslationProviderError,
   TranslationResult,
   normalizeLanguageCode,
   parseTranslationJson
 } from '@/lib/services/translation/types'
+import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
+
+import { SYSTEM_PROMPT, parseLLMContent } from './llmPrompt'
 
 const REQUEST_TIMEOUT_MS = 30000
-
-const SYSTEM_PROMPT = [
-  'You are a translation engine for social media posts.',
-  'You receive a JSON object: { "target": <ISO 639-1 code>, "texts": <array of strings> }.',
-  'Each string may contain HTML. Translate only the human-readable text nodes into the target language.',
-  'Preserve all HTML tags, attributes, links, @mentions and #hashtags exactly as given.',
-  'Respond with ONLY a JSON object of the form',
-  '{ "translations": <array of translated strings, same order and length as the input>,',
-  '"detected_source_language": <ISO 639-1 code of the original language> }.',
-  'Do not add explanations or wrap the JSON in code fences.'
-].join(' ')
+const MAX_RESPONSE_BYTES = 1 * 1024 * 1024
 
 interface OpenAIChatResponse {
   choices?: { message?: { content?: string } }[]
-}
-
-interface LLMTranslationPayload {
-  translations?: unknown
-  detected_source_language?: unknown
-}
-
-const parseLLMContent = (
-  content: string,
-  expectedLength: number
-): { texts: string[]; detectedSourceLanguage: string } => {
-  let payload: LLMTranslationPayload
-  try {
-    payload = JSON.parse(content) as LLMTranslationPayload
-  } catch {
-    throw new TranslationProviderError(
-      'LLM translation response was not valid JSON'
-    )
-  }
-
-  const { translations, detected_source_language: detected } = payload
-  if (
-    !Array.isArray(translations) ||
-    translations.length !== expectedLength ||
-    !translations.every((text): text is string => typeof text === 'string')
-  ) {
-    throw new TranslationProviderError(
-      'LLM translation response had an unexpected shape'
-    )
-  }
-
-  return {
-    texts: translations,
-    detectedSourceLanguage:
-      typeof detected === 'string' ? normalizeLanguageCode(detected) : ''
-  }
 }
 
 /**
@@ -69,8 +24,7 @@ const parseLLMContent = (
  * languages are a broad fixed list since LLMs handle effectively any language.
  */
 export const createOpenAIProvider = (
-  config: OpenAITranslationConfig,
-  httpClient: TranslationHttpClient = fetchTranslationHttpClient
+  config: OpenAITranslationConfig
 ): TranslationProvider => {
   const supported = [...LLM_SUPPORTED_LANGUAGES]
 
@@ -83,30 +37,38 @@ export const createOpenAIProvider = (
     },
 
     async translate(texts, targetLang): Promise<TranslationResult> {
-      const response = await httpClient({
-        url: config.endpoint,
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${config.apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: config.model,
-          temperature: 0,
-          response_format: { type: 'json_object' },
-          messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
-            {
-              role: 'user',
-              content: JSON.stringify({
-                target: normalizeLanguageCode(targetLang),
-                texts
-              })
-            }
-          ]
-        }),
-        timeoutMs: REQUEST_TIMEOUT_MS
-      })
+      let response
+      try {
+        response = await safeRemoteFetch({
+          url: config.endpoint,
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${config.apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: config.model,
+            temperature: 0,
+            response_format: { type: 'json_object' },
+            messages: [
+              { role: 'system', content: SYSTEM_PROMPT },
+              {
+                role: 'user',
+                content: JSON.stringify({
+                  target: normalizeLanguageCode(targetLang),
+                  texts
+                })
+              }
+            ]
+          }),
+          timeoutInMilliseconds: REQUEST_TIMEOUT_MS,
+          maxBodyBytes: MAX_RESPONSE_BYTES
+        })
+      } catch (error) {
+        throw new TranslationProviderError(
+          `LLM translate request failed: ${(error as Error).message}`
+        )
+      }
 
       if (response.statusCode !== 200) {
         throw new TranslationProviderError(

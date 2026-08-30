@@ -4,6 +4,10 @@ import { logger } from '@/lib/utils/logger'
 
 import { matcher } from './utils'
 
+const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash'
+const DEFAULT_GEMINI_ENDPOINT =
+  'https://generativelanguage.googleapis.com/v1beta'
+
 /**
  * Translation backend configuration. Mirrors Mastodon's translation feature:
  * one backend is active at a time, selected by `ACTIVITIES_TRANSLATION_TYPE`.
@@ -18,24 +22,18 @@ export const DeepLTranslationConfig = z.object({
 })
 export type DeepLTranslationConfig = z.infer<typeof DeepLTranslationConfig>
 
-export const LibreTranslateTranslationConfig = z.object({
-  type: z.literal('libretranslate'),
-  // Base URL of the LibreTranslate server, e.g. https://libretranslate.example
-  // or an internal http://libretranslate:5000. API key is optional (public or
-  // self-hosted instances may not require one). A reasonably recent
-  // LibreTranslate is expected, since a status is translated as a batch (array
-  // `q`); the adapter still tolerates an older single-string response.
-  endpoint: z.string(),
-  apiKey: z.string().optional()
+export const GeminiTranslationConfig = z.object({
+  type: z.literal('gemini'),
+  apiKey: z.string(),
+  model: z.string().default(DEFAULT_GEMINI_MODEL),
+  endpoint: z.string().default(DEFAULT_GEMINI_ENDPOINT)
 })
-export type LibreTranslateTranslationConfig = z.infer<
-  typeof LibreTranslateTranslationConfig
->
+export type GeminiTranslationConfig = z.infer<typeof GeminiTranslationConfig>
 
 export const OpenAITranslationConfig = z.object({
   type: z.literal('openai'),
-  // Chat-completions endpoint of any OpenAI-compatible API (OpenAI, Azure,
-  // local llama.cpp, etc.). The full URL including the path is expected.
+  // Chat-completions endpoint of any OpenAI-compatible API (OpenAI, Azure, etc.).
+  // The full URL including the path is expected.
   endpoint: z.string(),
   apiKey: z.string(),
   model: z.string()
@@ -44,7 +42,7 @@ export type OpenAITranslationConfig = z.infer<typeof OpenAITranslationConfig>
 
 export const TranslationConfig = z.discriminatedUnion('type', [
   DeepLTranslationConfig,
-  LibreTranslateTranslationConfig,
+  GeminiTranslationConfig,
   OpenAITranslationConfig
 ])
 export type TranslationConfig = z.infer<typeof TranslationConfig>
@@ -52,9 +50,10 @@ export type TranslationConfig = z.infer<typeof TranslationConfig>
 const getDeepLConfig = (): DeepLTranslationConfig | null => {
   const apiKey = process.env.ACTIVITIES_TRANSLATION_API_KEY
   if (!apiKey) {
-    logger.warn(
-      'ACTIVITIES_TRANSLATION_TYPE=deepl requires ACTIVITIES_TRANSLATION_API_KEY; translation will be disabled'
-    )
+    logger.warn({
+      message:
+        'ACTIVITIES_TRANSLATION_TYPE=deepl requires ACTIVITIES_TRANSLATION_API_KEY; translation will be disabled'
+    })
     return null
   }
 
@@ -63,21 +62,21 @@ const getDeepLConfig = (): DeepLTranslationConfig | null => {
   return { type: 'deepl', apiKey, plan }
 }
 
-const getLibreTranslateConfig = (): LibreTranslateTranslationConfig | null => {
-  const endpoint = process.env.ACTIVITIES_TRANSLATION_ENDPOINT
-  if (!endpoint) {
-    logger.warn(
-      'ACTIVITIES_TRANSLATION_TYPE=libretranslate requires ACTIVITIES_TRANSLATION_ENDPOINT; translation will be disabled'
-    )
+const getGeminiConfig = (): GeminiTranslationConfig | null => {
+  const apiKey = process.env.ACTIVITIES_TRANSLATION_API_KEY
+  if (!apiKey) {
+    logger.warn({
+      message:
+        'ACTIVITIES_TRANSLATION_TYPE=gemini requires ACTIVITIES_TRANSLATION_API_KEY; translation will be disabled'
+    })
     return null
   }
 
-  const apiKey = process.env.ACTIVITIES_TRANSLATION_API_KEY
-  return {
-    type: 'libretranslate',
-    endpoint,
-    ...(apiKey ? { apiKey } : {})
-  }
+  const model = process.env.ACTIVITIES_TRANSLATION_MODEL || DEFAULT_GEMINI_MODEL
+  const endpoint =
+    process.env.ACTIVITIES_TRANSLATION_ENDPOINT || DEFAULT_GEMINI_ENDPOINT
+
+  return { type: 'gemini', apiKey, model, endpoint }
 }
 
 const getOpenAIConfig = (): OpenAITranslationConfig | null => {
@@ -85,9 +84,10 @@ const getOpenAIConfig = (): OpenAITranslationConfig | null => {
   const apiKey = process.env.ACTIVITIES_TRANSLATION_API_KEY
   const model = process.env.ACTIVITIES_TRANSLATION_MODEL
   if (!endpoint || !apiKey || !model) {
-    logger.warn(
-      'ACTIVITIES_TRANSLATION_TYPE=openai requires ACTIVITIES_TRANSLATION_ENDPOINT, ACTIVITIES_TRANSLATION_API_KEY and ACTIVITIES_TRANSLATION_MODEL; translation will be disabled'
-    )
+    logger.warn({
+      message:
+        'ACTIVITIES_TRANSLATION_TYPE=openai requires ACTIVITIES_TRANSLATION_ENDPOINT, ACTIVITIES_TRANSLATION_API_KEY and ACTIVITIES_TRANSLATION_MODEL; translation will be disabled'
+    })
     return null
   }
 
@@ -101,9 +101,10 @@ export const getTranslationConfig = (): {
 
   const type = process.env.ACTIVITIES_TRANSLATION_TYPE
   if (!type) {
-    logger.warn(
-      'ACTIVITIES_TRANSLATION_TYPE is not set; translation will be disabled'
-    )
+    logger.warn({
+      message:
+        'ACTIVITIES_TRANSLATION_TYPE is not set; translation will be disabled'
+    })
     return null
   }
 
@@ -112,8 +113,8 @@ export const getTranslationConfig = (): {
       const config = getDeepLConfig()
       return config ? { translation: config } : null
     }
-    case 'libretranslate': {
-      const config = getLibreTranslateConfig()
+    case 'gemini': {
+      const config = getGeminiConfig()
       return config ? { translation: config } : null
     }
     case 'openai': {
@@ -121,9 +122,9 @@ export const getTranslationConfig = (): {
       return config ? { translation: config } : null
     }
     default:
-      logger.warn(
-        `Unknown ACTIVITIES_TRANSLATION_TYPE value "${type}"; translation will be disabled`
-      )
+      logger.warn({
+        message: `Unknown ACTIVITIES_TRANSLATION_TYPE value "${type}"; translation will be disabled`
+      })
       return null
   }
 }

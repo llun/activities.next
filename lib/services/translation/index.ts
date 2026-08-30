@@ -2,7 +2,7 @@ import memoize from 'lodash/memoize'
 
 import { getConfig } from '@/lib/config'
 import { createDeepLProvider } from '@/lib/services/translation/deepl'
-import { createLibreTranslateProvider } from '@/lib/services/translation/libretranslate'
+import { createGeminiProvider } from '@/lib/services/translation/gemini'
 import { createOpenAIProvider } from '@/lib/services/translation/openai'
 import {
   TranslationLanguages,
@@ -10,8 +10,8 @@ import {
 } from '@/lib/services/translation/types'
 
 /**
- * Caches the provider's supported-language list across requests. DeepL and
- * LibreTranslate fetch it over HTTP, so without this every translate call would
+ * Caches the provider's supported-language list across requests. DeepL
+ * fetches it over HTTP, so without this every translate call would
  * pay an extra round trip. A rejected lookup is not cached, so a transient
  * failure can be retried.
  */
@@ -47,8 +47,8 @@ export const getTranslationProvider = memoize(
     switch (translation.type) {
       case 'deepl':
         return withLanguageCache(createDeepLProvider(translation))
-      case 'libretranslate':
-        return withLanguageCache(createLibreTranslateProvider(translation))
+      case 'gemini':
+        return withLanguageCache(createGeminiProvider(translation))
       case 'openai':
         return withLanguageCache(createOpenAIProvider(translation))
       default:

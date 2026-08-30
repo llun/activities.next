@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
 
+import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
+import { generateAltText } from '@/lib/services/altText/openai'
 import { saveMedia } from '@/lib/services/medias'
 import { MediaValidationError } from '@/lib/services/medias/errors'
 import { MediaSchema } from '@/lib/services/medias/types'
@@ -9,6 +11,7 @@ import { Actor } from '@/lib/types/domain/actor'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import { ERROR_422, ERROR_500, apiResponse } from '@/lib/utils/response'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 // Shared handler for the two synchronous upload endpoints (POST /api/v1/media
 // and POST /api/v2/media). Both accept the same params (file, thumbnail,
@@ -74,6 +77,38 @@ export const handleSyncMediaUpload = async (
         responseStatusCode: 422
       })
     }
+
+    if (
+      response.description === null &&
+      response.type === 'image' &&
+      currentActor.account?.id
+    ) {
+      const { altText } = getConfig()
+      if (altText) {
+        try {
+          const buffer = Buffer.from(await media.data.file.arrayBuffer())
+          const generatedDescription = await generateAltText(
+            altText,
+            buffer,
+            media.data.file.type
+          )
+          if (generatedDescription) {
+            await database.updateMedia({
+              mediaId: response.id,
+              accountId: currentActor.account.id,
+              description: generatedDescription
+            })
+            response.description = generatedDescription
+          }
+        } catch (error) {
+          logger.warn({
+            message: 'Failed to populate generated alt text on media row',
+            err: toLoggableError(error)
+          })
+        }
+      }
+    }
+
     return apiResponse({
       req,
       allowedMethods: corsHeaders,

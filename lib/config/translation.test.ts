@@ -51,25 +51,35 @@ describe('getTranslationConfig', () => {
     expect(getTranslationConfig()).toBeNull()
   })
 
-  it('builds LibreTranslate config with an optional api key', () => {
-    process.env.ACTIVITIES_TRANSLATION_TYPE = 'libretranslate'
-    process.env.ACTIVITIES_TRANSLATION_ENDPOINT = 'http://libretranslate:5000'
+  it('builds Gemini config with defaults for model and endpoint', () => {
+    process.env.ACTIVITIES_TRANSLATION_TYPE = 'gemini'
+    process.env.ACTIVITIES_TRANSLATION_API_KEY = 'gemini-key'
 
     expect(getTranslationConfig()?.translation).toEqual({
-      type: 'libretranslate',
-      endpoint: 'http://libretranslate:5000'
-    })
-
-    process.env.ACTIVITIES_TRANSLATION_API_KEY = 'libre-key'
-    expect(getTranslationConfig()?.translation).toEqual({
-      type: 'libretranslate',
-      endpoint: 'http://libretranslate:5000',
-      apiKey: 'libre-key'
+      type: 'gemini',
+      apiKey: 'gemini-key',
+      model: 'gemini-2.5-flash',
+      endpoint: 'https://generativelanguage.googleapis.com/v1beta'
     })
   })
 
-  it('returns null when LibreTranslate endpoint is missing', () => {
-    process.env.ACTIVITIES_TRANSLATION_TYPE = 'libretranslate'
+  it('builds Gemini config with custom model and endpoint', () => {
+    process.env.ACTIVITIES_TRANSLATION_TYPE = 'gemini'
+    process.env.ACTIVITIES_TRANSLATION_API_KEY = 'gemini-key'
+    process.env.ACTIVITIES_TRANSLATION_MODEL = 'gemini-1.5-pro'
+    process.env.ACTIVITIES_TRANSLATION_ENDPOINT =
+      'https://custom-gemini-proxy.example/v1beta'
+
+    expect(getTranslationConfig()?.translation).toEqual({
+      type: 'gemini',
+      apiKey: 'gemini-key',
+      model: 'gemini-1.5-pro',
+      endpoint: 'https://custom-gemini-proxy.example/v1beta'
+    })
+  })
+
+  it('returns null when Gemini api key is missing', () => {
+    process.env.ACTIVITIES_TRANSLATION_TYPE = 'gemini'
     expect(getTranslationConfig()).toBeNull()
   })
 
