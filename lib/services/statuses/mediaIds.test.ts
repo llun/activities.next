@@ -1,4 +1,9 @@
-import { resolveStatusAttachmentMediaIds } from '@/lib/services/statuses/mediaIds'
+import { Database } from '@/lib/database/types'
+import {
+  getAttachmentsFromMediaIds,
+  resolveStatusAttachmentMediaIds
+} from '@/lib/services/statuses/mediaIds'
+import { Actor } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
 
 const statusWithAttachments = (
@@ -56,5 +61,57 @@ describe('resolveStatusAttachmentMediaIds', () => {
     expect(
       resolveStatusAttachmentMediaIds(statusWithAttachments([]), ['12'])
     ).toEqual(['12'])
+  })
+})
+
+describe('getAttachmentsFromMediaIds', () => {
+  it('uses media description when present and does not fall back to fileName when description is empty', async () => {
+    const mockDatabase = {
+      getMediaByIdForAccount: vi.fn().mockImplementation(({ mediaId }) => {
+        if (mediaId === '1') {
+          return Promise.resolve({
+            id: '1',
+            original: {
+              path: 'medias/with-desc.png',
+              mimeType: 'image/png',
+              metaData: { width: 100, height: 100 },
+              fileName: 'with-desc.png'
+            },
+            description: 'Custom alt text'
+          })
+        }
+        return Promise.resolve({
+          id: '2',
+          original: {
+            path: 'medias/without-desc.png',
+            mimeType: 'image/png',
+            metaData: { width: 100, height: 100 },
+            fileName: 'without-desc.png'
+          },
+          description: null
+        })
+      })
+    } as unknown as Database
+
+    const currentActor = {
+      id: 'https://llun.test/users/test1',
+      account: { id: 'account-1' }
+    } as unknown as Actor
+
+    const attachments = await getAttachmentsFromMediaIds(
+      mockDatabase,
+      currentActor,
+      ['1', '2']
+    )
+    expect(attachments).toEqual([
+      expect.objectContaining({
+        id: '1',
+        name: 'Custom alt text'
+      }),
+      expect.objectContaining({
+        id: '2'
+      })
+    ])
+    expect(attachments?.[1].name).toBeUndefined()
   })
 })

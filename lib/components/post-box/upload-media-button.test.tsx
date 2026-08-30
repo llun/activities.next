@@ -221,7 +221,7 @@ describe('UploadMediaButton', () => {
         expect(mockOnAddAttachment).toHaveBeenCalledTimes(1)
         expect(mockOnAddAttachment).toHaveBeenCalledWith(
           expect.objectContaining({
-            name: 'new-file.jpg'
+            name: ''
           })
         )
       })
@@ -292,7 +292,7 @@ describe('UploadMediaButton', () => {
       })
 
       mockOnAddAttachment.mockImplementation((attachment) => {
-        processingOrder.push(`add-${attachment.name}`)
+        processingOrder.push(`add-${attachment.file?.name ?? attachment.name}`)
       })
 
       render(
@@ -354,7 +354,7 @@ describe('UploadMediaButton', () => {
       expect(mockOnAddAttachment).toHaveBeenCalledTimes(1)
       expect(mockOnAddAttachment).toHaveBeenCalledWith(
         expect.objectContaining({
-          name: 'file2.jpg'
+          name: ''
         })
       )
 
@@ -396,7 +396,7 @@ describe('UploadMediaButton', () => {
           url: 'blob:test-url',
           width: 0,
           height: 0,
-          name: 'test.jpg',
+          name: '',
           file: expect.any(File)
         })
       })

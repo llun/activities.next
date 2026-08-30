@@ -1822,7 +1822,7 @@ export const uploadAttachment = async (
       posterUrl: media.preview_url,
       width: media.meta.original.width,
       height: media.meta.original.height,
-      name: file.name
+      name: media.description ?? undefined
     }
   }
 
@@ -1838,10 +1838,7 @@ export const uploadAttachment = async (
     return null
   }
 
-  return {
-    ...completion.completed,
-    name: file.name
-  }
+  return completion.completed
 }
 
 interface GetActorMediaParams {
