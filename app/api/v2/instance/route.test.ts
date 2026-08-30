@@ -91,6 +91,25 @@ describe('GET /api/v2/instance', () => {
     })
   })
 
+  it('passes the request domain to getInstanceStats', async () => {
+    const peersSpy = vi
+      .spyOn(database, 'getInstancePeers')
+      .mockResolvedValue([])
+    try {
+      await GET(
+        new NextRequest('https://llun.test/api/v2/instance', {
+          headers: { 'x-forwarded-host': 'alias.llun.test' }
+        }),
+        params
+      )
+      expect(peersSpy).toHaveBeenCalledWith({
+        localDomain: 'alias.llun.test'
+      })
+    } finally {
+      peersSpy.mockRestore()
+    }
+  })
+
   it('ignores an untrusted forwarded host', async () => {
     const response = await GET(
       new NextRequest('https://llun.test/api/v2/instance', {

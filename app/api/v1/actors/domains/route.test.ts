@@ -100,11 +100,11 @@ describe('GET /api/v1/actors/domains', () => {
     }
   })
 
-  it('returns host from config', async () => {
+  it('returns trusted host rules when allowActorDomains is not set', async () => {
     mockGetConfig.mockReturnValue({
-      host: 'main.test',
-      allowEmails: [],
-      allowActorDomains: ['allowed.test']
+      host: 'llun.test',
+      trustedHosts: ['alias.llun.test', 'other.llun.test'],
+      allowEmails: []
     })
 
     const response = await GET(createRequest(), {
@@ -113,6 +113,30 @@ describe('GET /api/v1/actors/domains', () => {
 
     const data = await response.json()
     expect(response.status).toBe(200)
-    expect(data.host).toBe('main.test')
+    expect(data.domains).toEqual([
+      'llun.test',
+      'alias.llun.test',
+      'other.llun.test'
+    ])
+    expect(data.host).toBe('llun.test')
+  })
+
+  it('returns host from request headers', async () => {
+    mockGetConfig.mockReturnValue({
+      host: 'main.test',
+      trustedHosts: ['alias.main.test'],
+      allowEmails: []
+    })
+
+    const response = await GET(
+      new NextRequest('https://main.test/api/v1/actors/domains', {
+        headers: { 'x-forwarded-host': 'alias.main.test' }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    const data = await response.json()
+    expect(response.status).toBe(200)
+    expect(data.host).toBe('alias.main.test')
   })
 })

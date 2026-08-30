@@ -2,7 +2,9 @@ import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
+import { getTrustedHostRules } from '@/lib/utils/host'
 import { apiResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -13,14 +15,14 @@ export const GET = traceApiRoute(
     const { federation } = await getResolvedServerSettings()
     const allowedDomains = federation.allowActorDomains.length
       ? federation.allowActorDomains
-      : [config.host]
+      : getTrustedHostRules(config)
 
     return apiResponse({
       req,
       allowedMethods: ['GET'],
       data: {
         domains: allowedDomains,
-        host: config.host
+        host: headerHost(req.headers)
       }
     })
   })

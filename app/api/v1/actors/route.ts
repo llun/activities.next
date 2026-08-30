@@ -7,6 +7,7 @@ import { localUsernameSchema } from '@/lib/services/accounts/localUsername'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
+import { getTrustedHostRules } from '@/lib/utils/host'
 import {
   HTTP_STATUS,
   apiErrorResponse,
@@ -75,7 +76,7 @@ export const POST = traceApiRoute(
       parsed.data.domain ?? currentActor.domain ?? headerHost(req.headers)
     const allowedDomains = federation.allowActorDomains.length
       ? federation.allowActorDomains
-      : [config.host]
+      : getTrustedHostRules(config)
 
     if (!allowedDomains.includes(domain)) {
       return apiResponse({
