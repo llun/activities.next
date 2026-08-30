@@ -6,6 +6,7 @@ import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getHeadersValue } from '@/lib/services/guards/getHeaderValue'
 import { extractActivityPubId, normalizeActorId } from '@/lib/utils/activitypub'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { logger } from '@/lib/utils/logger'
 import {
   StatusCode,
   apiErrorResponse,
@@ -99,7 +100,12 @@ const getExpectedSha256Digest = (digestHeader: string) =>
 
 type PostActivityResult =
   | { actor: string; body: Record<string, unknown>; valid: true }
-  | { actor: null; body: Record<string, unknown> | null; valid: false }
+  | {
+      actor: null
+      body: Record<string, unknown> | null
+      error: string
+      valid: false
+    }
   | { actor: null; body: null; valid: true }
 
 const getPostActivity = ({
@@ -114,21 +120,47 @@ const getPostActivity = ({
   }
 
   try {
-    if (bodyText === null) return { actor: null, body: null, valid: false }
+    if (bodyText === null) {
+      return { actor: null, body: null, error: 'body_missing', valid: false }
+    }
 
-    const body = JSON.parse(bodyText) as unknown
+    let body: unknown
+    try {
+      body = JSON.parse(bodyText) as unknown
+    } catch {
+      return {
+        actor: null,
+        body: null,
+        error: 'json_parse_error',
+        valid: false
+      }
+    }
+
     if (!isRecord(body)) {
-      return { actor: null, body: null, valid: false }
+      return {
+        actor: null,
+        body: null,
+        error: 'not_an_object',
+        valid: false
+      }
     }
 
     const actor = extractActivityPubId(body.actor)
-    if (!actor || !normalizeActorId(actor)) {
-      return { actor: null, body, valid: false }
+    if (!actor) {
+      return { actor: null, body, error: 'missing_actor', valid: false }
+    }
+    if (!normalizeActorId(actor)) {
+      return { actor: null, body, error: 'invalid_actor', valid: false }
     }
 
     return { actor, body: { ...body, actor }, valid: true }
   } catch {
-    return { actor: null, body: null, valid: false }
+    return {
+      actor: null,
+      body: null,
+      error: 'unexpected_error',
+      valid: false
+    }
   }
 }
 
@@ -318,12 +350,19 @@ export const ActivityPubVerifySenderGuard =
       // HTTP layer, not a malformed-body client error. Returning 401 gives
       // compliant peers (Mastodon) a retryable signal rather than permanently
       // dropping the activity.
+      logger.warn({
+        message:
+          'Invalid activity body received during HTTP signature verification',
+        error: activity.error,
+        keyId: signatureParts.keyId
+      })
       return rejectRequest(
         request,
         401,
         allowedMethods,
         'invalid_activity_body',
         {
+          error: activity.error,
           key_id: signatureParts.keyId,
           ...getActivityTraceAttributes(activity.body)
         }

@@ -507,6 +507,31 @@ describe('POST /api/users/[username]/inbox', () => {
     }
   )
 
+  it.each(['Flag', 'Move', 'Add', 'Remove'])(
+    'accepts transient %s activities without an id with 202 Accepted',
+    async (activityType) => {
+      mockActivityBody = {
+        type: activityType,
+        actor: 'https://remote.test/users/alice',
+        object: 'https://activities.local/users/llun'
+      }
+
+      const response = await POST(
+        createActorInboxActivityRequest(activityType),
+        {
+          params: Promise.resolve({ username: 'llun' })
+        }
+      )
+
+      expect(response.status).toBe(202)
+      expect(mockCanFederateWithDomain).toHaveBeenCalledWith(
+        mockDatabase,
+        'https://remote.test/users/alice'
+      )
+      expect(mockCreateFollower).not.toHaveBeenCalled()
+    }
+  )
+
   it('dispatches verified QuoteRequest activities to the quote-request job', async () => {
     // The instrument-authorship check dereferences the remote note, so the
     // per-user inbox defers to the worker (like the shared inbox) instead of

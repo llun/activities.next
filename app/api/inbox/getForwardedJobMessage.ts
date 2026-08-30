@@ -24,6 +24,7 @@ export const getForwardedJobMessage = (
   activity: StatusActivity
 ): JobMessage | null => {
   if (!FORWARDABLE_TYPES.includes(activity.type)) return null
+  if (!activity.id || typeof activity.id !== 'string') return null
   return {
     id: getHashFromString(`${activity.id}#forwarded`),
     name: PROCESS_FORWARDED_ACTIVITY_JOB_NAME,

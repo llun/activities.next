@@ -130,6 +130,10 @@ export const getJobMessage = (
   activity: StatusActivity,
   verifiedSenderActorId: string
 ) => {
+  if (!activity.id || typeof activity.id !== 'string') {
+    return null
+  }
+
   const deduplicationId = getHashFromString(activity.id)
 
   if (activity.type === CreateAction) {

@@ -267,10 +267,82 @@ describe('POST /api/inbox', () => {
       expect(harness.recordedSpans[0].name).toBe('api.sharedInbox')
       expect(harness.recordedSpans[0].attributes).toMatchObject({
         'inbox.reject_reason': 'invalid_activity_body',
+        'inbox.error': 'missing_actor',
         'inbox.sender_actor_id': 'https://allowed.test/users/a'
       })
     }
   )
+
+  it('gracefully accepts transient activities missing an id with 202 Accepted', async () => {
+    mockCanFederateWithDomain.mockResolvedValue(true)
+    mockActivityBody = {
+      type: 'Add',
+      actor: 'https://allowed.test/users/a',
+      target: 'https://allowed.test/users/a/collections/featured',
+      object: {
+        id: 'https://allowed.test/users/a/collection_items/1',
+        type: 'FeaturedItem'
+      }
+    }
+
+    const response = await POST(createRequest('https://allowed.test/users/a'), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(202)
+    expect(mockCanFederateWithDomain).toHaveBeenCalledWith(
+      mockDatabase,
+      'https://allowed.test/users/a'
+    )
+    expect(mockPublish).not.toHaveBeenCalled()
+    expect(harness.recordedSpans).toHaveLength(1)
+    expect(harness.recordedSpans[0].attributes).toMatchObject({
+      'inbox.reject_reason': 'unsupported_activity_shape',
+      'inbox.activity_type': 'Add',
+      'inbox.activity_actor': 'https://allowed.test/users/a',
+      'inbox.activity_target_id':
+        'https://allowed.test/users/a/collections/featured',
+      'inbox.sender_actor_id': 'https://allowed.test/users/a'
+    })
+  })
+
+  it('rejects activities with a non-string id with 400 Bad Request', async () => {
+    mockActivityBody = {
+      id: 12345,
+      type: 'Create',
+      actor: 'https://allowed.test/users/a'
+    }
+
+    const response = await POST(createRequest('https://allowed.test/users/a'), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(400)
+    expect(harness.recordedSpans[0].attributes).toMatchObject({
+      'inbox.reject_reason': 'invalid_activity_body',
+      'inbox.error': 'invalid_id',
+      'inbox.sender_actor_id': 'https://allowed.test/users/a'
+    })
+  })
+
+  it('rejects activities missing a type with detailed error attribute', async () => {
+    mockActivityBody = {
+      id: 'https://allowed.test/users/a/activities/1',
+      actor: 'https://allowed.test/users/a'
+    }
+
+    const response = await POST(createRequest('https://allowed.test/users/a'), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(400)
+    expect(harness.recordedSpans[0].attributes).toMatchObject({
+      'inbox.reject_reason': 'invalid_activity_body',
+      'inbox.error': 'missing_type',
+      'inbox.activity_id': 'https://allowed.test/users/a/activities/1',
+      'inbox.sender_actor_id': 'https://allowed.test/users/a'
+    })
+  })
 
   it('rejects invalid JSON without enqueueing a job', async () => {
     const response = await POST(
