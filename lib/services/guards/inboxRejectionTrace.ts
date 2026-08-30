@@ -18,8 +18,7 @@ export const getActivityTraceAttributes = (
 ): Record<string, string | undefined> => {
   if (!isRecord(body)) return {}
 
-  const activityId =
-    typeof body.id === 'string' ? extractActivityPubId(body.id) : undefined
+  const activityId = extractActivityPubId(body.id)
 
   const activityType =
     typeof body.type === 'string'

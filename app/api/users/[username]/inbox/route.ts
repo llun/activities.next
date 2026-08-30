@@ -65,7 +65,7 @@ import { isRecord } from '@/lib/utils/typeGuards'
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
 const GracefullyAcceptedActivity = z
   .object({
-    id: z.string(),
+    id: z.string().optional(),
     type: z.enum(['Flag', 'Move', 'Add', 'Remove']),
     actor: z.string()
   })

@@ -110,6 +110,9 @@ const postActivityToInbox = async ({
   }
 }
 
+const isAcceptedStatusCode = (statusCode?: number): boolean =>
+  statusCode === 200 || statusCode === 202
+
 interface GetNoteParams {
   statusId: string
   signingActor?: Actor
@@ -566,7 +569,7 @@ export const follow = async (
         activity,
         logPrefix: 'follow'
       })
-      return statusCode === 202
+      return isAcceptedStatusCode(statusCode)
     }
   )
 
@@ -609,7 +612,7 @@ export const unfollow = async (
         activity,
         logPrefix: 'unfollow'
       })
-      return statusCode === 202
+      return isAcceptedStatusCode(statusCode)
     }
   )
 
@@ -617,7 +620,7 @@ export const unfollow = async (
 // Public collection (the LitePub convention) to the relay's inbox, signed by
 // the instance/federation signing actor. Returns the generated Follow id (to
 // persist so the relay's Accept can be matched back) and whether the relay
-// inbox accepted delivery (HTTP 202). The relay confirms the subscription
+// inbox accepted delivery (HTTP 200/202). The relay confirms the subscription
 // asynchronously with its own Accept.
 export const followRelay = async (
   relay: Relay,
@@ -643,7 +646,7 @@ export const followRelay = async (
         activity,
         logPrefix: 'followRelay'
       })
-      return { followActivityId, ok: statusCode === 202 }
+      return { followActivityId, ok: isAcceptedStatusCode(statusCode) }
     }
   )
 
@@ -680,7 +683,7 @@ export const unfollowRelay = async (
         activity,
         logPrefix: 'unfollowRelay'
       })
-      return statusCode === 202
+      return isAcceptedStatusCode(statusCode)
     }
   )
 
@@ -727,7 +730,7 @@ export const block = async ({
         activity,
         logPrefix: 'block'
       })
-      return { ok: statusCode === 202, uri }
+      return { ok: isAcceptedStatusCode(statusCode), uri }
     }
   )
 
@@ -779,7 +782,7 @@ export const sendFlag = async ({
         activity,
         logPrefix: 'sendFlag'
       })
-      return { ok: statusCode === 202, uri }
+      return { ok: isAcceptedStatusCode(statusCode), uri }
     }
   )
 
@@ -822,7 +825,7 @@ export const unblock = async (
         activity,
         logPrefix: 'unblock'
       })
-      return statusCode === 202
+      return isAcceptedStatusCode(statusCode)
     }
   )
 
@@ -858,7 +861,7 @@ export const acceptFollow = async (
         activity,
         logPrefix: 'acceptFollow'
       })
-      return statusCode === 202
+      return isAcceptedStatusCode(statusCode)
     }
   )
 
@@ -894,7 +897,7 @@ export const rejectFollow = async (
         activity,
         logPrefix: 'rejectFollow'
       })
-      return statusCode === 202
+      return isAcceptedStatusCode(statusCode)
     }
   )
 
