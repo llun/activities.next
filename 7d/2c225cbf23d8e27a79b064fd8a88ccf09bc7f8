@@ -1,0 +1,14 @@
+lib/services/altText/httpClient.test.ts
+  h_580a04e334fef4 90-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "7d2c225cbf23d8e27a79b064fd8a88ccf09bc7f8",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
