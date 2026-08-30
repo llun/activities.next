@@ -10,7 +10,10 @@ const mockCurrentActor = {
 }
 
 vi.mock('@/lib/config', () => ({
-  getConfig: () => ({ host: 'local.test' })
+  getConfig: () => ({
+    host: 'local.test',
+    trustedHosts: ['alias.local.test']
+  })
 }))
 
 vi.mock('@/lib/services/guards/OAuthGuard', () => ({
@@ -125,6 +128,23 @@ describe('GET /api/v1/directory', () => {
     expect(response.status).toBe(200)
     expect(mockDatabase.getLocalMastodonActors).toHaveBeenCalledWith(
       expect.objectContaining({ local: expectedLocal })
+    )
+  })
+
+  it('passes request headerHost as localDomain when x-forwarded-host is present', async () => {
+    const response = await GET(
+      new NextRequest('https://local.test/api/v1/directory?local=true', {
+        headers: { 'x-forwarded-host': 'alias.local.test' }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockDatabase.getLocalMastodonActors).toHaveBeenCalledWith(
+      expect.objectContaining({
+        localDomain: 'alias.local.test',
+        local: true
+      })
     )
   })
 })

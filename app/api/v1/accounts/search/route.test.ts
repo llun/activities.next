@@ -47,7 +47,7 @@ vi.mock('@/lib/database', () => ({
 
 vi.mock('@/lib/config', () => ({
   getBaseURL: () => 'https://llun.test',
-  getConfig: () => ({ host: 'llun.test' })
+  getConfig: () => ({ host: 'llun.test', trustedHosts: ['alias.llun.test'] })
 }))
 
 vi.mock('better-auth/oauth2', () => ({
@@ -429,6 +429,27 @@ describe('GET /api/v1/accounts/search', () => {
     })
     expect(mockGetMastodonActorsFromIds).toHaveBeenLastCalledWith({
       ids: [resolvedActor.id, 'https://llun.test/users/charlie-brown']
+    })
+  })
+
+  it('scopes searchAccountIds localDomain to a trusted forwarded host', async () => {
+    const response = await GET(
+      new NextRequest('https://llun.test/api/v1/accounts/search?q=runner', {
+        headers: {
+          Authorization: 'Bearer read-accounts-token',
+          'x-forwarded-host': 'alias.llun.test'
+        }
+      }),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockSearchAccountIds).toHaveBeenCalledWith({
+      q: 'runner',
+      limit: 40,
+      offset: 0,
+      localDomain: 'alias.llun.test',
+      exactActorIds: []
     })
   })
 })

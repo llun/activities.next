@@ -1,5 +1,5 @@
-import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_500,
@@ -28,7 +28,7 @@ export const GET = traceApiRoute('getInstancePeers', async (req) => {
   }
 
   const peers = await database.getInstancePeers({
-    localDomain: getConfig().host
+    localDomain: headerHost(req.headers)
   })
   return apiResponse({
     req,

@@ -34,6 +34,7 @@ import {
 } from '@/lib/utils/accountHandle'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { clampedLimit } from '@/lib/utils/clampedLimit'
+import { isOwnInstanceHost } from '@/lib/utils/host'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -268,7 +269,8 @@ const resolveAccountId = async ({
   query,
   resolve,
   following,
-  signingActor
+  signingActor,
+  accessDomain
 }: {
   database: Database
   currentActor: Actor | null
@@ -276,6 +278,7 @@ const resolveAccountId = async ({
   resolve: boolean
   following: boolean
   signingActor?: Actor
+  accessDomain: string
 }) => {
   if (!resolve) return null
 
@@ -323,7 +326,7 @@ const resolveAccountId = async ({
 
   const handle = query.includes('@')
     ? parseAccountHandle(query)
-    : { username: query, domain: getConfig().host }
+    : { username: query, domain: accessDomain }
   if (!handle) return null
 
   let actor = await database.getActorFromUsername(handle)
@@ -331,7 +334,10 @@ const resolveAccountId = async ({
     // Same refresh as the URL branch: handle searches with resolve=true are
     // how apps open remote profiles, and the header is built from this result.
     actor = await refreshKnownRemoteActor({ database, actor, signingActor })
-  } else if (query.includes('@')) {
+  } else if (
+    query.includes('@') &&
+    !isOwnInstanceHost(handle.domain, getConfig())
+  ) {
     const actorId = await getWebfingerSelf({
       account: `${handle.username}@${handle.domain}`
     })
@@ -424,7 +430,8 @@ const searchAccounts = async ({
   query,
   limit,
   offset,
-  signingActor
+  signingActor,
+  accessDomain
 }: {
   database: Database
   currentActor: Actor | null
@@ -433,6 +440,7 @@ const searchAccounts = async ({
   limit: number
   offset: number
   signingActor?: Actor
+  accessDomain: string
 }) => {
   const [resolvedAccountId, indexedIds] = await Promise.all([
     offset === 0
@@ -442,13 +450,15 @@ const searchAccounts = async ({
           query,
           resolve: params.resolve ?? false,
           following: params.following ?? false,
-          signingActor
+          signingActor,
+          accessDomain
         })
       : Promise.resolve(null),
     database.searchAccountIds({
       q: query,
       limit,
       offset,
+      localDomain: accessDomain,
       ...(params.following && currentActor
         ? { followingActorId: currentActor.id }
         : {})
@@ -638,6 +648,7 @@ export const GET = traceApiRoute(
       // user-scoped (`currentActor`) and are untouched. Resolution is
       // best-effort: a missing/failed signer degrades to an unsigned fetch
       // rather than failing the whole search.
+      const accessDomain = headerHost(req.headers)
       const requiresRemoteSigner = params.resolve === true && offset === 0
       const signingActor = requiresRemoteSigner
         ? await getFederationSigningActor(database).catch((error) => {
@@ -659,7 +670,8 @@ export const GET = traceApiRoute(
               query,
               limit,
               offset,
-              signingActor
+              signingActor,
+              accessDomain
             })
           : [],
         includeHashtags
@@ -698,7 +710,7 @@ export const GET = traceApiRoute(
         req,
         allowedMethods: CORS_HEADERS,
         data: {
-          accounts: localizeAccounts(accounts, headerHost(req.headers)),
+          accounts: localizeAccounts(accounts, accessDomain),
           statuses,
           hashtags
         }

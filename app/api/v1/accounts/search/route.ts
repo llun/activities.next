@@ -1,7 +1,6 @@
 import { z } from 'zod'
 
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
-import { getConfig } from '@/lib/config'
 import { localizeAccounts } from '@/lib/services/accounts/localizeAccount'
 import {
   recordRemoteActorBestEffort,
@@ -70,14 +69,13 @@ export const GET = traceApiRoute(
       }
 
       const query = q.trim()
-      const localDomain = getConfig().host
       const accessDomain = headerHost(req.headers)
       const getSearchParams = (exactActorIds: string[] = []) => {
         return {
           q: query,
           limit,
           offset,
-          localDomain,
+          localDomain: accessDomain,
           exactActorIds,
           ...(following ? { followingActorId: context.currentActor.id } : {})
         }

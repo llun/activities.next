@@ -99,6 +99,26 @@ describe('POST /api/v1/actors', () => {
     }
   })
 
+  it('allows creating an actor on a trusted host when allowActorDomains is not set', async () => {
+    mockGetConfig.mockReturnValue({
+      host: 'llun.test',
+      trustedHosts: ['alias.llun.test'],
+      allowEmails: []
+    })
+
+    const response = await POST(
+      createRequest({
+        username: 'newactor-trusted',
+        domain: 'alias.llun.test'
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    const data = await response.json()
+    expect(response.status).toBe(200)
+    expect(data.domain).toBe('alias.llun.test')
+  })
+
   it('falls back to the current actor domain when none is provided', async () => {
     mockGetConfig.mockReturnValue({
       host: 'llun.test',
