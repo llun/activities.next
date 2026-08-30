@@ -1,7 +1,7 @@
 import { ArrowLeft } from 'lucide-react'
 import { Metadata } from 'next'
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { FC } from 'react'
 
 import { FollowList } from '@/app/(timeline)/[actor]/FollowList'
@@ -10,6 +10,7 @@ import { getProfileData } from '@/app/(timeline)/[actor]/getProfileData'
 import { Button } from '@/lib/components/ui/button'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { isLocalFederationDomain } from '@/lib/services/federation/domainPolicy'
 import { Actor, ActorProfile } from '@/lib/types/domain/actor'
 import { Follow } from '@/lib/types/domain/follow'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -40,7 +41,7 @@ const Page: FC<Props> = async ({ params }) => {
   if (parts.length !== 2) {
     return notFound()
   }
-  const actorDomain = parts[1]
+  const [actorUsername, actorDomain] = parts
 
   const actorProfile = await getProfileData(
     database,
@@ -49,6 +50,10 @@ const Page: FC<Props> = async ({ params }) => {
     { currentActor }
   )
   if (!actorProfile) {
+    const isLocal = await isLocalFederationDomain(database, actorDomain)
+    if (!isLoggedIn && !isLocal) {
+      return redirect(`/@${actorUsername}@${actorDomain}`)
+    }
     return notFound()
   }
 

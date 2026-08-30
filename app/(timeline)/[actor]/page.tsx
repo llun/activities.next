@@ -11,10 +11,12 @@ import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getRelationship } from '@/lib/services/accounts/relationship'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { isLocalFederationDomain } from '@/lib/services/federation/domainPolicy'
 import { getMastodonFeaturedTag } from '@/lib/services/mastodon/getMastodonFeaturedTag'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
+import { ActorRedirectCard } from './ActorRedirectCard'
 import { ActorTimelines } from './ActorTimelines'
 import { ProfileHeaderImage } from './ProfileHeaderImage'
 import { ProfileRelationshipActions } from './ProfileRelationshipActions'
@@ -38,8 +40,30 @@ export const generateMetadata = async ({
   params
 }: Props): Promise<Metadata> => {
   const { actor } = await params
+  const decodedActorHandle = decodeURIComponent(actor)
+  const parts = decodedActorHandle.split('@').slice(1)
+  if (parts.length === 2) {
+    const [username, domain] = parts
+    const database = getDatabase()
+    if (database) {
+      const session = await getServerAuthSession()
+      const isLoggedIn = Boolean(session?.user?.email)
+      const isLocal = await isLocalFederationDomain(database, domain)
+      if (!isLoggedIn && !isLocal) {
+        const targetUrl = `https://${domain}/@${username}`
+        return {
+          title: `Activities.next: ${decodedActorHandle}`,
+          robots: { index: false, follow: false },
+          alternates: {
+            canonical: targetUrl
+          }
+        }
+      }
+    }
+  }
+
   return {
-    title: `Activities.next: ${decodeURIComponent(actor)}`
+    title: `Activities.next: ${decodedActorHandle}`
   }
 }
 
@@ -56,7 +80,7 @@ const Page: FC<Props> = async ({ params }) => {
   if (parts.length !== 2) {
     return notFound()
   }
-  const actorDomain = parts[1]
+  const [actorUsername, actorDomain] = parts
 
   // Resolve the viewer's actor for relationship/ownership checks, settings, and
   // timeline rendering. Remote-fetch signing is handled inside getProfileData
@@ -73,6 +97,20 @@ const Page: FC<Props> = async ({ params }) => {
     { currentActor }
   )
   if (!actorProfile) {
+    const isLocal = await isLocalFederationDomain(database, actorDomain)
+    if (!isLoggedIn && !isLocal) {
+      const bareHost = host.includes('://') ? new URL(host).host : host
+      const targetUrl = `https://${actorDomain}/@${actorUsername}`
+      return (
+        <ActorRedirectCard
+          host={bareHost}
+          targetUrl={targetUrl}
+          domain={actorDomain}
+          username={actorUsername}
+        />
+      )
+    }
+
     return notFound()
   }
 
