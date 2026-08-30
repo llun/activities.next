@@ -87,4 +87,20 @@ describe('fetchAltTextHttpClient', () => {
       })
     ).rejects.toThrow(/request failed/)
   })
+
+  it('wraps fetch timeout errors as AltTextProviderError', async () => {
+    global.fetch = vi
+      .fn()
+      .mockRejectedValue(new Error('The operation was aborted due to timeout'))
+
+    await expect(
+      fetchAltTextHttpClient({
+        url: 'https://api.example/alt-text',
+        method: 'POST',
+        headers: {},
+        body: '{}',
+        timeoutMs: 1000
+      })
+    ).rejects.toThrow(/request failed/)
+  })
 })
