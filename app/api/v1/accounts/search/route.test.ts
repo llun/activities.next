@@ -452,4 +452,31 @@ describe('GET /api/v1/accounts/search', () => {
       exactActorIds: []
     })
   })
+
+  it('does not webfinger an unknown handle on a trusted local domain', async () => {
+    mockSearchAccountIds.mockResolvedValue([])
+    mockGetActorFromUsername.mockResolvedValue(null)
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/search?q=unknown%40alias.llun.test&resolve=true',
+        { headers: { Authorization: 'Bearer read-accounts-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetActorFromUsername).toHaveBeenCalledWith({
+      username: 'unknown',
+      domain: 'alias.llun.test'
+    })
+    expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
+    expect(mockSearchAccountIds).toHaveBeenCalledWith({
+      q: 'unknown@alias.llun.test',
+      limit: 40,
+      offset: 0,
+      localDomain: 'llun.test',
+      exactActorIds: []
+    })
+  })
 })

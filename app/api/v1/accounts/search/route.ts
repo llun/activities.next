@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
+import { getConfig } from '@/lib/config'
 import { localizeAccounts } from '@/lib/services/accounts/localizeAccount'
 import {
   recordRemoteActorBestEffort,
@@ -11,6 +12,7 @@ import { headerHost } from '@/lib/services/guards/headerHost'
 import { Scope } from '@/lib/types/database/operations'
 import { parseAccountHandle } from '@/lib/utils/accountHandle'
 import { clampedLimit, clampedOffset } from '@/lib/utils/clampedLimit'
+import { isOwnInstanceHost } from '@/lib/utils/host'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_400, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -105,7 +107,7 @@ export const GET = traceApiRoute(
             database,
             actor: storedExactActor
           })
-        } else {
+        } else if (!isOwnInstanceHost(handle.domain, getConfig())) {
           const actorId = await getWebfingerSelf({
             account: `${handle.username}@${handle.domain}`
           })
