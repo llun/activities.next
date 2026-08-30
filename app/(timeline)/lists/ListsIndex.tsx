@@ -113,8 +113,9 @@ export const ListsIndex: FC<ListsIndexProps> = ({ lists, collections }) => {
       <PageHeader
         title="Lists & Collections"
         description="Private curated timelines and shareable feeds you highlight"
+        stackActionsOnMobile
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <NewListButton variant="outline" />
             <NewCollectionButton />
           </div>
