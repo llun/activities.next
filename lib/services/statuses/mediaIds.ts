@@ -42,9 +42,7 @@ export const getAttachmentsFromMediaIds = async (
       ...(media.thumbnail
         ? { posterUrl: getMediaUrl(media.thumbnail.path) }
         : {}),
-      ...(media.description || media.original.fileName
-        ? { name: media.description || media.original.fileName }
-        : {})
+      ...(media.description ? { name: media.description } : {})
     })
   }
 

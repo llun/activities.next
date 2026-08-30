@@ -456,7 +456,7 @@ describe('POST /api/v1/statuses', () => {
     expect(mastodonStatus.media_attachments[0]).toMatchObject({
       type: 'image',
       url: 'https://llun.test/api/v1/files/medias/form-status-photo.webp',
-      description: 'form-status-photo.png'
+      description: ''
     })
 
     const attachments = await database.getAttachmentsWithMedia({
@@ -465,7 +465,7 @@ describe('POST /api/v1/statuses', () => {
     expect(attachments).toHaveLength(1)
     expect(attachments[0]).toMatchObject({
       mediaId: String(media!.id),
-      name: 'form-status-photo.png'
+      name: ''
     })
   })
 

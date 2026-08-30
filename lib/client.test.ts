@@ -1041,7 +1041,7 @@ describe('client uploadAttachment presigned completion', () => {
       )
     ).resolves.toMatchObject({
       id: 'media-1',
-      name: 'photo.png'
+      name: ''
     })
 
     expect(fetchMock).toHaveBeenCalledTimes(5)
@@ -1124,6 +1124,31 @@ describe('client uploadAttachment presigned completion', () => {
       '/api/v1/accounts/media/media-1',
       expect.objectContaining({ method: 'DELETE' })
     )
+  })
+
+  it('returns media description from upload response instead of file name on direct upload', async () => {
+    fetchMock.mockResponseOnce(JSON.stringify(null), { status: 404 })
+    fetchMock.mockResponseOnce(
+      JSON.stringify({
+        id: 'media-123',
+        type: 'image',
+        mime_type: 'image/png',
+        url: 'https://llun.test/files/123.png',
+        preview_url: null,
+        meta: { original: { width: 100, height: 100 } },
+        description: 'AI alt description'
+      }),
+      { status: 200 }
+    )
+
+    const result = await uploadAttachment(
+      new File(['test'], 'photo.png', { type: 'image/png' })
+    )
+
+    expect(result).toMatchObject({
+      id: 'media-123',
+      name: 'AI alt description'
+    })
   })
 })
 

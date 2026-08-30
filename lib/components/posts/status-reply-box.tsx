@@ -205,7 +205,9 @@ export const StatusReplyBox: FC<Props> = ({
                 isLoading: false
               })
             )
-            throw new Error(`Fail to upload ${attachment.name}`)
+            throw new Error(
+              `Fail to upload ${attachment.file?.name ?? attachment.name ?? 'file'}`
+            )
           }
         })
       )

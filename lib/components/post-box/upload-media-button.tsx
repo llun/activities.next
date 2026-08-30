@@ -57,7 +57,9 @@ export const UploadMediaButton: FC<Props> = ({
     if (availableSlots <= 0) return
 
     const filteredFiles = selectedFiles.filter((file) => {
-      return !attachments.some((attachment) => attachment.name === file.name)
+      return !attachments.some(
+        (attachment) => (attachment.file?.name ?? attachment.name) === file.name
+      )
     })
 
     if (filteredFiles.length !== selectedFiles.length) {
@@ -91,7 +93,7 @@ export const UploadMediaButton: FC<Props> = ({
               url: previewUrl,
               width: 0,
               height: 0,
-              name: targetFile.name,
+              name: '',
               file
             }
           } catch (error) {
