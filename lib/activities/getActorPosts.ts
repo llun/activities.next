@@ -1,6 +1,7 @@
 import { getNote } from '@/lib/activities'
 import { compactActivityPub } from '@/lib/activities/jsonld'
 import { Database } from '@/lib/database/types'
+import { isPixelfedActor } from '@/lib/services/federation/serverSoftware'
 import { detectLanguageFromHtml } from '@/lib/services/language-detection'
 import { Actor } from '@/lib/types/activitypub'
 import {
@@ -202,11 +203,14 @@ export const getActorPosts: GetActorPostsFunction = async ({
       )
 
       if (validStatuses.length === 0 && !pageUrl) {
-        validStatuses = await getActorPostsFromAtomFeed({
-          person,
-          signingActor,
-          actor
-        })
+        const isPixelfed = await isPixelfedActor(person)
+        if (isPixelfed) {
+          validStatuses = await getActorPostsFromAtomFeed({
+            person,
+            signingActor,
+            actor
+          })
+        }
       }
 
       return {
