@@ -77,16 +77,21 @@ jobs:
           fi
 
       - name: Prepare merge state
+        id: merge_state
         if: steps.synced.outputs.skip == 'false'
         shell: bash
         run: |
           git checkout -B oltp-sync origin/oltp
 
           if git merge --no-commit --no-ff "${MAIN_SHA}"; then
+            echo "Clean merge without conflicts."
+            echo "has_conflicts=false" >> "${GITHUB_OUTPUT}"
             exit 0
           fi
 
           if git ls-files -u | grep -q .; then
+            echo "Merge encountered conflicts."
+            echo "has_conflicts=true" >> "${GITHUB_OUTPUT}"
             exit 0
           fi
 
@@ -104,43 +109,70 @@ jobs:
         shell: bash
         run: pip install aider-chat
 
-      - name: Resolve and validate merge with Gemini
-        if: steps.synced.outputs.skip == 'false'
+      - name: Resolve merge conflicts with Gemini
+        if: steps.synced.outputs.skip == 'false' && steps.merge_state.outputs.has_conflicts == 'true'
         timeout-minutes: 30
         env:
           GEMINI_API_KEY: ${{ env.GEMINI_API_KEY }}
         run: |
-          aider \
-            --model gemini/gemini-3.7-flash \
-            --no-auto-commits \
-            --yes \
-            --message "
-            Resolve and validate a sync from \`main\` into \`oltp\`.
+          mapfile -t unmerged < <(git diff --name-only --diff-filter=U)
 
-            Context:
-            - Read and follow the repository's \`AGENTS.md\` file before making any changes.
-            - The current local branch is \`oltp-sync\`.
-            - It was created from \`origin/oltp\`.
-            - A \`git merge --no-commit --no-ff ${{ env.MAIN_SHA }}\` has already been attempted.
+          if [ ${#unmerged[@]} -eq 0 ]; then
+            echo "No unmerged files found."
+            exit 0
+          fi
 
-            Requirements:
-            - Resolve any merge conflicts or merge-related code issues.
-            - Keep changes scoped to the merge.
-            - Run \`yarn install\`, \`yarn lint\`, \`yarn run prettier --check\`, \`yarn typecheck\`, and \`yarn build\`.
-            - Make the minimum changes needed for those commands to pass.
-            - Do not create commits.
-            - Do not push.
-            - Do not open a pull request.
-            - Leave the repository in a merge-in-progress state with no unmerged files so the workflow can create the final merge commit.
-            - If you cannot reach that state, stop and fail.
-            "
+          echo "Conflicted files: ${unmerged[*]}"
+
+          code_files=()
+          for f in "${unmerged[@]}"; do
+            if [ "$f" = "yarn.lock" ]; then
+              echo "Reconciling yarn.lock conflict via target branch version..."
+              git checkout --ours yarn.lock
+            else
+              code_files+=("$f")
+            fi
+          done
+
+          if [ ${#code_files[@]} -gt 0 ]; then
+            echo "Resolving code conflicts with Aider: ${code_files[*]}"
+            aider \
+              --model gemini/gemini-3.7-flash \
+              --no-auto-commits \
+              --yes \
+              --message "
+              Resolve all git merge conflict markers in the specified files.
+
+              Context:
+              - Merging 'main' commit ${{ env.MAIN_SHA }} into branch 'oltp'.
+              - Follow the repository guidelines in AGENTS.md.
+
+              Requirements:
+              - Completely remove all conflict markers (<<<<<<<, =======, >>>>>>>).
+              - Maintain valid syntax and ensure all imports and type definitions are correct.
+              - For package.json, ensure valid JSON and merge dependencies properly without duplicates.
+              " \
+              "${code_files[@]}"
+
+            for f in "${code_files[@]}"; do
+              if grep -qE '^(<{7}|={7}|>{7})' "$f"; then
+                echo "::error::Conflict markers still remain in $f after Gemini resolution" >&2
+                exit 1
+              fi
+            done
+
+            git add "${code_files[@]}"
+          fi
+
+          yarn install
+          git add yarn.lock
 
       - name: Verify merge is still pending
         if: steps.synced.outputs.skip == 'false'
         shell: bash
         run: |
           if git ls-files -u | grep -q .; then
-            echo "Unmerged files remain after Gemini finished" >&2
+            echo "Unmerged files remain after conflict resolution" >&2
             git status --short
             exit 1
           fi
@@ -151,30 +183,132 @@ jobs:
             exit 1
           fi
 
-      - name: Install dependencies
+      - name: Validate and heal merge state
         if: steps.synced.outputs.skip == 'false'
-        shell: bash
-        run: yarn install
+        timeout-minutes: 30
+        env:
+          GEMINI_API_KEY: ${{ env.GEMINI_API_KEY }}
+        run: |
+          yarn install
 
-      - name: Run lint
-        if: steps.synced.outputs.skip == 'false'
-        shell: bash
-        run: yarn lint
+          heal_attempts=2
+          for attempt in $(seq 1 $heal_attempts); do
+            echo "Validating merge state (attempt ${attempt}/${heal_attempts})..."
 
-      - name: Check prettier formatting
-        if: steps.synced.outputs.skip == 'false'
-        shell: bash
-        run: yarn run prettier --check
+            yarn run prettier --write .
+            git add -u
 
-      - name: Type check
-        if: steps.synced.outputs.skip == 'false'
-        shell: bash
-        run: yarn typecheck
+            lint_error=""
+            if ! lint_out=$(yarn lint 2>&1); then
+              echo "Lint check failed on attempt $attempt:"
+              echo "$lint_out"
+              lint_error="$lint_out"
+            fi
 
-      - name: Build
-        if: steps.synced.outputs.skip == 'false'
-        shell: bash
-        run: yarn build
+            if [ -n "$lint_error" ]; then
+              if [ "$attempt" -lt "$heal_attempts" ]; then
+                echo "Attempting to fix lint errors with Gemini..."
+                mapfile -t changed_files < <(git diff --name-only origin/oltp)
+                target_files=()
+                for cf in "${changed_files[@]}"; do
+                  if [[ "$cf" =~ \.(ts|tsx|js|mjs|cjs|json)$ && "$cf" != "yarn.lock" && -f "$cf" ]]; then
+                    target_files+=("$cf")
+                  fi
+                done
+
+                if [ ${#target_files[@]} -gt 0 ]; then
+                  aider \
+                    --model gemini/gemini-3.7-flash \
+                    --no-auto-commits \
+                    --yes \
+                    --message "Fix the following lint errors according to AGENTS.md:
+          ${lint_error}" \
+                    "${target_files[@]}"
+                  yarn run prettier --write .
+                  git add -u
+                fi
+                continue
+              else
+                echo "::error::Lint check failed after healing attempts" >&2
+                exit 1
+              fi
+            fi
+
+            typecheck_error=""
+            if ! typecheck_out=$(yarn typecheck 2>&1); then
+              echo "Type check failed on attempt $attempt:"
+              echo "$typecheck_out"
+              typecheck_error="$typecheck_out"
+            fi
+
+            if [ -n "$typecheck_error" ]; then
+              if [ "$attempt" -lt "$heal_attempts" ]; then
+                echo "Attempting to fix typecheck errors with Gemini..."
+                mapfile -t changed_files < <(git diff --name-only origin/oltp)
+                target_files=()
+                for cf in "${changed_files[@]}"; do
+                  if [[ "$cf" =~ \.(ts|tsx|js|mjs|cjs|json)$ && "$cf" != "yarn.lock" && -f "$cf" ]]; then
+                    target_files+=("$cf")
+                  fi
+                done
+
+                if [ ${#target_files[@]} -gt 0 ]; then
+                  aider \
+                    --model gemini/gemini-3.7-flash \
+                    --no-auto-commits \
+                    --yes \
+                    --message "Fix the following TypeScript typecheck errors according to AGENTS.md:
+          ${typecheck_error}" \
+                    "${target_files[@]}"
+                  yarn run prettier --write .
+                  git add -u
+                fi
+                continue
+              else
+                echo "::error::Type check failed after healing attempts" >&2
+                exit 1
+              fi
+            fi
+
+            build_error=""
+            if ! build_out=$(yarn build 2>&1); then
+              echo "Build failed on attempt $attempt:"
+              echo "$build_out"
+              build_error="$build_out"
+            fi
+
+            if [ -n "$build_error" ]; then
+              if [ "$attempt" -lt "$heal_attempts" ]; then
+                echo "Attempting to fix build errors with Gemini..."
+                mapfile -t changed_files < <(git diff --name-only origin/oltp)
+                target_files=()
+                for cf in "${changed_files[@]}"; do
+                  if [[ "$cf" =~ \.(ts|tsx|js|mjs|cjs|json)$ && "$cf" != "yarn.lock" && -f "$cf" ]]; then
+                    target_files+=("$cf")
+                  fi
+                done
+
+                if [ ${#target_files[@]} -gt 0 ]; then
+                  aider \
+                    --model gemini/gemini-3.7-flash \
+                    --no-auto-commits \
+                    --yes \
+                    --message "Fix the following build errors according to AGENTS.md:
+          ${build_error}" \
+                    "${target_files[@]}"
+                  yarn run prettier --write .
+                  git add -u
+                fi
+                continue
+              else
+                echo "::error::Build failed after healing attempts" >&2
+                exit 1
+              fi
+            fi
+
+            echo "All validations passed successfully."
+            break
+          done
 
       - name: Create merge commit
         if: steps.synced.outputs.skip == 'false'
