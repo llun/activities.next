@@ -742,4 +742,243 @@ describe('getActorPosts', () => {
       statuses: []
     })
   })
+
+  it('handles inline orderedItems on OrderedCollection root without first page', async () => {
+    const actorId = 'https://inline.example/users/actor'
+    const statusId = `${actorId}/statuses/inline-1`
+    const published = Date.now()
+    const person = MockActivityPubPerson({
+      id: actorId,
+      withContext: true
+    }) as Actor
+
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `${actorId}/outbox`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            '@context': 'https://www.w3.org/ns/activitystreams',
+            id: `${actorId}/outbox`,
+            type: 'OrderedCollection',
+            totalItems: 1,
+            orderedItems: [
+              {
+                id: `${statusId}/activity`,
+                type: 'Create',
+                actor: actorId,
+                published: new Date(published).toISOString(),
+                object: MockMastodonActivityPubNote({
+                  id: statusId,
+                  from: actorId,
+                  content: 'Inline status text',
+                  withContext: true
+                })
+              }
+            ]
+          })
+        }
+      }
+
+      return { status: 404, body: 'Not Found' }
+    })
+
+    const response = await getActorPosts({ database, person })
+
+    expect(response.statusesCount).toBe(1)
+    expect(response.statuses).toHaveLength(1)
+    expect(response.statuses[0].id).toBe(statusId)
+  })
+
+  it('falls back to Atom feed when outbox has totalItems but no items', async () => {
+    const actorId = 'https://pixelfed.example/users/actor'
+    const statusId = 'https://pixelfed.example/p/actor/12345'
+    const person = MockActivityPubPerson({
+      id: actorId,
+      preferredUsername: 'actor',
+      withContext: true
+    }) as Actor
+
+    const atomXml = `<?xml version="1.0" encoding="UTF-8"?>
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <id>${actorId}.atom</id>
+      <entry>
+        <id>${statusId}</id>
+        <title>Pixelfed Post</title>
+        <link rel="alternate" href="${statusId}" />
+      </entry>
+    </feed>`
+
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `https://pixelfed.example/.well-known/nodeinfo`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            links: [
+              {
+                rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
+                href: 'https://pixelfed.example/api/nodeinfo/2.0.json'
+              }
+            ]
+          })
+        }
+      }
+
+      if (req.url === 'https://pixelfed.example/api/nodeinfo/2.0.json') {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            software: { name: 'pixelfed' }
+          })
+        }
+      }
+
+      if (req.url === `${actorId}/outbox`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            '@context': 'https://www.w3.org/ns/activitystreams',
+            id: `${actorId}/outbox`,
+            type: 'OrderedCollection',
+            totalItems: 413
+          })
+        }
+      }
+
+      if (req.url === `${actorId}.atom`) {
+        return {
+          status: 200,
+          headers: { 'Content-Type': 'application/atom+xml' },
+          body: atomXml
+        }
+      }
+
+      if (req.url === statusId) {
+        return {
+          status: 200,
+          body: JSON.stringify(
+            MockMastodonActivityPubNote({
+              id: statusId,
+              from: actorId,
+              content: 'Atom resolved post',
+              withContext: true
+            })
+          )
+        }
+      }
+
+      return { status: 404, body: 'Not Found' }
+    })
+
+    const response = await getActorPosts({ database, person })
+
+    expect(response.statusesCount).toBe(413)
+    expect(response.statuses).toHaveLength(1)
+    expect(response.statuses[0].id).toBe(statusId)
+    expect(response.statuses[0].text).toContain('Atom resolved post')
+  })
+
+  it('does not fall back to Atom feed for non-Pixelfed instances', async () => {
+    const actorId = 'https://mastodon.example/users/actor'
+    const statusId = 'https://mastodon.example/p/actor/999'
+    const person = MockActivityPubPerson({
+      id: actorId,
+      withContext: true
+    }) as Actor
+
+    const atomXml = `<?xml version="1.0" encoding="UTF-8"?>
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <id>${actorId}.atom</id>
+      <entry>
+        <id>${statusId}</id>
+        <title>Mastodon Post</title>
+      </entry>
+    </feed>`
+
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `https://mastodon.example/.well-known/nodeinfo`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            links: [
+              {
+                rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
+                href: 'https://mastodon.example/nodeinfo/2.0'
+              }
+            ]
+          })
+        }
+      }
+
+      if (req.url === 'https://mastodon.example/nodeinfo/2.0') {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            software: { name: 'mastodon' }
+          })
+        }
+      }
+
+      if (req.url === `${actorId}/outbox`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            '@context': 'https://www.w3.org/ns/activitystreams',
+            id: `${actorId}/outbox`,
+            type: 'OrderedCollection',
+            totalItems: 10
+          })
+        }
+      }
+
+      if (req.url === `${actorId}.atom`) {
+        return {
+          status: 200,
+          headers: { 'Content-Type': 'application/atom+xml' },
+          body: atomXml
+        }
+      }
+
+      return { status: 404, body: 'Not Found' }
+    })
+
+    const response = await getActorPosts({ database, person })
+
+    expect(response.statusesCount).toBe(10)
+    expect(response.statuses).toEqual([])
+  })
+
+  it('handles outbox with totalItems only when Atom feed is also 404', async () => {
+    const actorId = 'https://pixelfed.example/users/noatom'
+    const person = MockActivityPubPerson({
+      id: actorId,
+      withContext: true
+    }) as Actor
+
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `${actorId}/outbox`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            '@context': 'https://www.w3.org/ns/activitystreams',
+            id: `${actorId}/outbox`,
+            type: 'OrderedCollection',
+            totalItems: 413
+          })
+        }
+      }
+
+      return { status: 404, body: 'Not Found' }
+    })
+
+    const response = await getActorPosts({ database, person })
+
+    expect(response.statusesCount).toBe(413)
+    expect(response.statuses).toEqual([])
+    expect(response.nextPageUrl).toBeNull()
+    expect(response.prevPageUrl).toBeNull()
+  })
 })

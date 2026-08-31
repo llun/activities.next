@@ -188,6 +188,14 @@ export const getProfileData = async (
       actorId: person.id,
       ...getPersistableProfile(person)
     })
+  } else {
+    await database.createActor({
+      actorId: person.id,
+      username: person.preferredUsername,
+      domain: new URL(person.id).host,
+      ...getPersistableProfile(person),
+      createdAt: new Date(person.published ?? Date.now()).getTime()
+    })
   }
 
   // A remote actor's attachments are the ones their statuses brought here when
@@ -229,21 +237,19 @@ export const getProfileData = async (
   // (null, preserves the stored counter) from a real zero. getActorPosts
   // reports 0 for both, so only positive status counts are trusted here.
   // Best-effort — the page renders from the live values either way.
-  if (persistedActor) {
-    await database
-      .setActorCounters({
-        actorId: person.id,
-        followersCount: collectionCounts.followersCount,
-        followingCount: collectionCounts.followingCount,
-        statusCount: actorPostsResponse.statusesCount || null
-      })
-      .catch((error) => {
-        logger.warn({
-          message: 'Failed to persist remote actor collection counts',
-          actorId: person.id,
-          error: error instanceof Error ? error.message : String(error)
-        })
-      })
+  try {
+    await database.setActorCounters({
+      actorId: person.id,
+      followersCount: collectionCounts.followersCount,
+      followingCount: collectionCounts.followingCount,
+      statusCount: actorPostsResponse.statusesCount || null
+    })
+  } catch (error) {
+    logger.warn({
+      message: 'Failed to persist remote actor collection counts',
+      actorId: person.id,
+      error: error instanceof Error ? error.message : String(error)
+    })
   }
 
   return {
