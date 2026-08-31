@@ -3325,6 +3325,31 @@ describe('StatusDatabase', () => {
           }
         ])
       })
+
+      it('returns existing status without throwing unique constraint error when status id already exists', async () => {
+        const statusId = `${extraActorId}/statuses/duplicate-note-test`
+        const created = await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: extraActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'First insertion'
+        })
+        const duplicate = await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: extraActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Second insertion with same id'
+        })
+
+        expect(duplicate).toBeDefined()
+        expect(duplicate.id).toBe(statusId)
+        expect((duplicate as StatusNote).text).toBe('First insertion')
+        expect(duplicate.publicId).toBe(created.publicId)
+      })
     })
 
     describe('createPoll', () => {
@@ -3386,6 +3411,35 @@ describe('StatusDatabase', () => {
           statusId: pollId
         })) as StatusPoll
         expect(fetched.hideTotals).toBe(true)
+      })
+
+      it('returns existing poll without throwing unique constraint error when status id already exists', async () => {
+        const pollId = `${emptyActorId}/statuses/duplicate-poll-test`
+        const created = await database.createPoll({
+          id: pollId,
+          url: pollId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'First poll insertion',
+          choices: ['Option 1', 'Option 2'],
+          endAt: Date.now() + 60_000
+        })
+        const duplicate = await database.createPoll({
+          id: pollId,
+          url: pollId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Second poll insertion with same id',
+          choices: ['Option A', 'Option B'],
+          endAt: Date.now() + 60_000
+        })
+
+        expect(duplicate).toBeDefined()
+        expect(duplicate.id).toBe(pollId)
+        expect((duplicate as StatusPoll).text).toBe('First poll insertion')
+        expect(duplicate.publicId).toBe(created.publicId)
       })
     })
 
@@ -4395,6 +4449,37 @@ describe('StatusDatabase', () => {
 
         const originalStatus = announceStatus.originalStatus
         expect(originalStatus.id).toEqual(note.id)
+      })
+
+      it('returns existing announce without throwing unique constraint error when status id already exists', async () => {
+        const originalStatusId = `${TEST_ID_ORIGINAL}/statuses/duplicate-announce-target`
+        await database.createNote({
+          id: originalStatusId,
+          url: originalStatusId,
+          actorId: TEST_ID_ORIGINAL,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Post to announce'
+        })
+        const announceId = `${TEST_ID_BOOSTER}/statuses/duplicate-announce-test`
+        const created = await database.createAnnounce({
+          id: announceId,
+          actorId: TEST_ID_BOOSTER,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          originalStatusId
+        })
+        const duplicate = await database.createAnnounce({
+          id: announceId,
+          actorId: TEST_ID_BOOSTER,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          originalStatusId
+        })
+
+        expect(duplicate).toBeDefined()
+        expect(duplicate.id).toBe(announceId)
+        expect(duplicate.publicId).toBe(created.publicId)
       })
     })
 
