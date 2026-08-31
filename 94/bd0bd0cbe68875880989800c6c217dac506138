@@ -1,0 +1,16 @@
+lib/database/sql/status.test.ts
+  h_580a04e334fef4 3328-3352,3415-3443,4453-4483
+lib/database/sql/status.ts
+  h_580a04e334fef4 577-610,612-615,618-624,626-629,631-641,950-982,984-987,990-996,998-1001,1003-1013,1080-1111,1113-1116,1118-1124,1126-1129,1132-1138,1140-1143,1145-1155
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "94bd0bd0cbe68875880989800c6c217dac506138",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
