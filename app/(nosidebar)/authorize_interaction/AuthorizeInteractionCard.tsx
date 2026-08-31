@@ -72,7 +72,9 @@ export const AuthorizeInteractionCard: FC<AuthorizeInteractionCardProps> = ({
         {isSelf ? null : <FollowAction targetActorId={actor.id} isLoggedIn />}
         {profileUrl ? (
           <Button variant="outline" asChild>
-            <Link href={profileUrl}>View profile</Link>
+            <Link href={profileUrl} prefetch={false}>
+              View profile
+            </Link>
           </Button>
         ) : null}
       </CardFooter>

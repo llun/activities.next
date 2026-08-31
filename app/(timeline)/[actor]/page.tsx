@@ -224,6 +224,7 @@ const Page: FC<Props> = async ({ params }) => {
             </div>
             <Link
               href={`/@${person.preferredUsername}@${actorDomain}/following`}
+              prefetch={false}
               className="hover:underline"
             >
               <span className="font-semibold">{followingCount}</span>{' '}
@@ -231,6 +232,7 @@ const Page: FC<Props> = async ({ params }) => {
             </Link>
             <Link
               href={`/@${person.preferredUsername}@${actorDomain}/followers`}
+              prefetch={false}
               className="hover:underline"
             >
               <span className="font-semibold">{followersCount}</span>{' '}

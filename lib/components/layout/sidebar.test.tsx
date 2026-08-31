@@ -9,10 +9,31 @@ import {
   waitFor,
   within
 } from '@testing-library/react'
-import { ReactElement } from 'react'
+import {
+  type AnchorHTMLAttributes,
+  type ReactElement,
+  type ReactNode
+} from 'react'
 
 import { NavPreferencesProvider } from '@/lib/components/layout/nav-preferences-context'
 import { Sidebar } from '@/lib/components/layout/sidebar'
+
+vi.mock('next/link', () => ({
+  default: ({
+    children,
+    href,
+    prefetch,
+    ...rest
+  }: AnchorHTMLAttributes<HTMLAnchorElement> & {
+    href: string
+    prefetch?: boolean | 'auto' | null
+    children: ReactNode
+  }) => (
+    <a href={href} data-prefetch={String(prefetch)} {...rest}>
+      {children}
+    </a>
+  )
+}))
 
 const mockPathname = vi.fn(() => '/lists')
 vi.mock('next/navigation', () => ({
@@ -95,6 +116,30 @@ describe('Sidebar', () => {
         name: /collapse lists|expand lists/i
       })
     ).not.toBeInTheDocument()
+  })
+
+  it('renders user profile link with prefetch disabled', () => {
+    mockPathname.mockReturnValue('/')
+    renderSidebar(
+      <Sidebar
+        lists={[]}
+        user={{
+          handle: '@alice@activities.local',
+          username: 'alice',
+          name: 'Alice'
+        }}
+      />
+    )
+
+    const profileLinks = screen
+      .getAllByRole('link')
+      .filter(
+        (link) => link.getAttribute('href') === '/@alice@activities.local'
+      )
+    expect(profileLinks.length).toBeGreaterThan(0)
+    for (const link of profileLinks) {
+      expect(link).toHaveAttribute('data-prefetch', 'false')
+    }
   })
 
   describe('customization', () => {

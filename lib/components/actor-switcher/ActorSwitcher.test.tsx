@@ -3,8 +3,26 @@
  */
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
+import type { AnchorHTMLAttributes, ReactNode } from 'react'
 
 import { ActorSwitcher } from './ActorSwitcher'
+
+vi.mock('next/link', () => ({
+  default: ({
+    children,
+    href,
+    prefetch,
+    ...rest
+  }: AnchorHTMLAttributes<HTMLAnchorElement> & {
+    href: string
+    prefetch?: boolean | 'auto' | null
+    children: ReactNode
+  }) => (
+    <a href={href} data-prefetch={String(prefetch)} {...rest}>
+      {children}
+    </a>
+  )
+}))
 
 vi.mock('next/navigation', () => ({
   useRouter: vi.fn(() => ({
@@ -33,11 +51,12 @@ const profileHref = '/@alice@activities.local'
 
 describe('ActorSwitcher', () => {
   describe('with a single actor', () => {
-    it('renders the whole row as a link to the profile', () => {
+    it('renders the whole row as a link to the profile without prefetch', () => {
       render(<ActorSwitcher currentActor={alice} actors={[alice]} />)
 
       const link = screen.getByRole('link')
       expect(link).toHaveAttribute('href', profileHref)
+      expect(link).toHaveAttribute('data-prefetch', 'false')
       expect(link).toHaveTextContent('Alice')
       expect(link).toHaveTextContent('@alice@activities.local')
     })
@@ -60,13 +79,14 @@ describe('ActorSwitcher', () => {
   })
 
   describe('with multiple actors', () => {
-    it('links only the avatar icon to the profile', () => {
+    it('links only the avatar icon to the profile without prefetch', () => {
       render(<ActorSwitcher currentActor={alice} actors={[alice, bob]} />)
 
       const iconLink = screen.getByRole('link', {
         name: "View Alice's profile"
       })
       expect(iconLink).toHaveAttribute('href', profileHref)
+      expect(iconLink).toHaveAttribute('data-prefetch', 'false')
     })
 
     it('renders the name/handle/arrow as the dropdown trigger, not a link', () => {
