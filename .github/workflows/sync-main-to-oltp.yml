@@ -211,7 +211,7 @@ jobs:
                 mapfile -t changed_files < <(git diff --name-only origin/oltp)
                 target_files=()
                 for cf in "${changed_files[@]}"; do
-                  if [[ "$cf" =~ \.(ts|tsx|js|mjs|cjs|json)$ && "$cf" != "yarn.lock" ]]; then
+                  if [[ "$cf" =~ \.(ts|tsx|js|mjs|cjs|json)$ && "$cf" != "yarn.lock" && -f "$cf" ]]; then
                     target_files+=("$cf")
                   fi
                 done
@@ -247,7 +247,7 @@ jobs:
                 mapfile -t changed_files < <(git diff --name-only origin/oltp)
                 target_files=()
                 for cf in "${changed_files[@]}"; do
-                  if [[ "$cf" =~ \.(ts|tsx|js|mjs|cjs|json)$ && "$cf" != "yarn.lock" ]]; then
+                  if [[ "$cf" =~ \.(ts|tsx|js|mjs|cjs|json)$ && "$cf" != "yarn.lock" && -f "$cf" ]]; then
                     target_files+=("$cf")
                   fi
                 done
@@ -283,7 +283,7 @@ jobs:
                 mapfile -t changed_files < <(git diff --name-only origin/oltp)
                 target_files=()
                 for cf in "${changed_files[@]}"; do
-                  if [[ "$cf" =~ \.(ts|tsx|js|mjs|cjs|json)$ && "$cf" != "yarn.lock" ]]; then
+                  if [[ "$cf" =~ \.(ts|tsx|js|mjs|cjs|json)$ && "$cf" != "yarn.lock" && -f "$cf" ]]; then
                     target_files+=("$cf")
                   fi
                 done
