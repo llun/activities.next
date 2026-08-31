@@ -116,6 +116,7 @@ const Page: FC<Props> = async ({ params }) => {
         <Button variant="ghost" size="icon" asChild>
           <Link
             href={`/@${actorProfile.person.preferredUsername}@${actorDomain}`}
+            prefetch={false}
           >
             <ArrowLeft className="h-5 w-5" />
             <span className="sr-only">Back to profile</span>

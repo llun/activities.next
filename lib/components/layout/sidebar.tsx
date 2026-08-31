@@ -468,6 +468,7 @@ export function Sidebar({
             <div className="border-t p-4">
               <Link
                 href={`/${user.handle}`}
+                prefetch={false}
                 className="flex items-center gap-3 rounded-lg p-2 cursor-pointer hover:bg-muted transition-colors"
               >
                 <Avatar className="h-10 w-10">
@@ -625,7 +626,11 @@ export function Sidebar({
           <div className="border-t p-3">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Link href={`/${user.handle}`} className="cursor-pointer block">
+                <Link
+                  href={`/${user.handle}`}
+                  prefetch={false}
+                  className="cursor-pointer block"
+                >
                   <Avatar className="h-10 w-10">
                     {user.avatarUrl && <AvatarImage src={user.avatarUrl} />}
                     <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
