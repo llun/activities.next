@@ -1,0 +1,20 @@
+lib/activities/getActorPosts.test.ts
+  h_580a04e334fef4 793,795-860
+lib/activities/getActorPosts.ts
+  h_580a04e334fef4 32,200-211,213-214
+lib/activities/getActorPostsFromAtomFeed.test.ts
+  h_580a04e334fef4 1-214
+lib/activities/getActorPostsFromAtomFeed.ts
+  h_580a04e334fef4 1-192
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "780a025c7aba7b8c0ab1d64eeac885516fd0349b",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
