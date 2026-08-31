@@ -1,0 +1,42 @@
+app/(timeline)/[actor]/ProfileRelationshipActions.test.tsx
+  h_580a04e334fef4 15-28,134-137
+app/(timeline)/[actor]/ProfileRelationshipActions.tsx
+  h_580a04e334fef4 42
+app/(timeline)/[actor]/getProfileData.test.ts
+  h_580a04e334fef4 42-43,487-519
+app/(timeline)/[actor]/getProfileData.ts
+  h_580a04e334fef4 191-198,240-252
+app/(timeline)/[actor]/profileFollowLookup.test.ts
+  h_580a04e334fef4 93-96
+app/api/v1/accounts/[id]/follow/route.test.ts
+  h_580a04e334fef4 50-62,102,106-120,409-432
+app/api/v1/accounts/[id]/follow/route.ts
+  h_580a04e334fef4 3,130-135
+app/api/v1/accounts/relationships/route.test.ts
+  h_580a04e334fef4 5,8,115-137
+app/api/v1/accounts/relationships/route.ts
+  h_580a04e334fef4 49-50,54
+lib/actions/utils.ts
+  h_580a04e334fef4 84
+lib/activities/getActorCollections.ts
+  h_580a04e334fef4 104-117
+lib/activities/getActorPosts.test.ts
+  h_580a04e334fef4 745-823
+lib/activities/orderedCollection.ts
+  h_580a04e334fef4 22
+lib/components/follow-action/follow-action.test.tsx
+  h_580a04e334fef4 1-193
+lib/components/follow-action/follow-action.tsx
+  h_580a04e334fef4 12,17,19-29,32-33,37-38,40-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "618eb47dd8a0e04be37e448a8eec47c7172dbbe4",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
