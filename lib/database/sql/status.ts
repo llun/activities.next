@@ -574,60 +574,71 @@ export const StatusSQLDatabaseMixin = (
       createdAt: statusCreatedAt
     }
 
-    await database.transaction(async (trx) => {
-      await trx('statuses').insert({
-        id,
-        publicId: statusPublicId,
-        url,
-        urlHash: getStatusUrlHash(url),
-        actorId,
-        type: StatusType.enum.Note,
-        content: statusContent,
-        applicationName,
-        applicationWebsite,
-        reply,
-        replyHash: getStatusReplyHash(reply),
-        createdAt: statusCreatedAt,
-        updatedAt: statusUpdatedAt
-      })
-      await updateStatusCounters({
-        actorId,
-        type: StatusType.enum.Note,
-        reply,
-        content,
-        step: 'increment',
-        trx,
-        currentTime,
-        statusCreatedAt
-      })
-      await Promise.all(
-        to.map((actorId) =>
-          trx('recipients').insert({
-            id: crypto.randomUUID(),
-            statusId: id,
-            actorId,
-            type: 'to',
+    try {
+      await database.transaction(async (trx) => {
+        await trx('statuses').insert({
+          id,
+          publicId: statusPublicId,
+          url,
+          urlHash: getStatusUrlHash(url),
+          actorId,
+          type: StatusType.enum.Note,
+          content: statusContent,
+          applicationName,
+          applicationWebsite,
+          reply,
+          replyHash: getStatusReplyHash(reply),
+          createdAt: statusCreatedAt,
+          updatedAt: statusUpdatedAt
+        })
+        await updateStatusCounters({
+          actorId,
+          type: StatusType.enum.Note,
+          reply,
+          content,
+          step: 'increment',
+          trx,
+          currentTime,
+          statusCreatedAt
+        })
+        await Promise.all(
+          to.map((actorId) =>
+            trx('recipients').insert({
+              id: crypto.randomUUID(),
+              statusId: id,
+              actorId,
+              type: 'to',
 
-            createdAt: statusUpdatedAt,
-            updatedAt: statusUpdatedAt
-          })
+              createdAt: statusUpdatedAt,
+              updatedAt: statusUpdatedAt
+            })
+          )
         )
-      )
 
-      await Promise.all(
-        cc.map((actorId) =>
-          trx('recipients').insert({
-            id: crypto.randomUUID(),
-            statusId: id,
-            actorId,
-            type: 'cc',
+        await Promise.all(
+          cc.map((actorId) =>
+            trx('recipients').insert({
+              id: crypto.randomUUID(),
+              statusId: id,
+              actorId,
+              type: 'cc',
 
-            createdAt: statusUpdatedAt,
-            updatedAt: statusUpdatedAt
-          })
+              createdAt: statusUpdatedAt,
+              updatedAt: statusUpdatedAt
+            })
+          )
         )
-      )
-    })
+      })
+    } catch (error) {
+      if (isUniqueConstraintError(error)) {
+        const existingStatus = await getStatus({
+          statusId: id,
+          withReplies: false
+        })
+        if (existingStatus) return existingStatus
+      }
+      throw error
+    }
 
     await indexStatusSearchDocument(database, { status: searchStatus })
 
@@ -936,59 +947,70 @@ export const StatusSQLDatabaseMixin = (
       publicId ?? generatePublicId(statusCreatedAt.getTime())
     const statusUpdatedAt = currentTime
 
-    await database.transaction(async (trx) => {
-      await trx('statuses').insert({
-        id,
-        publicId: statusPublicId,
-        url: null,
-        urlHash: null,
-        actorId,
-        type: StatusType.enum.Announce,
-        reply: '',
-        replyHash: null,
-        content: originalStatusId,
-        originalStatusId,
-        createdAt: statusCreatedAt,
-        updatedAt: statusUpdatedAt
-      })
-      await updateStatusCounters({
-        actorId,
-        type: StatusType.enum.Announce,
-        reply: '',
-        content: originalStatusId,
-        step: 'increment',
-        trx,
-        currentTime,
-        statusCreatedAt
-      })
-      await Promise.all(
-        to.map((actorId) =>
-          trx('recipients').insert({
-            id: crypto.randomUUID(),
-            statusId: id,
-            actorId,
-            type: 'to',
+    try {
+      await database.transaction(async (trx) => {
+        await trx('statuses').insert({
+          id,
+          publicId: statusPublicId,
+          url: null,
+          urlHash: null,
+          actorId,
+          type: StatusType.enum.Announce,
+          reply: '',
+          replyHash: null,
+          content: originalStatusId,
+          originalStatusId,
+          createdAt: statusCreatedAt,
+          updatedAt: statusUpdatedAt
+        })
+        await updateStatusCounters({
+          actorId,
+          type: StatusType.enum.Announce,
+          reply: '',
+          content: originalStatusId,
+          step: 'increment',
+          trx,
+          currentTime,
+          statusCreatedAt
+        })
+        await Promise.all(
+          to.map((actorId) =>
+            trx('recipients').insert({
+              id: crypto.randomUUID(),
+              statusId: id,
+              actorId,
+              type: 'to',
 
-            createdAt: statusUpdatedAt,
-            updatedAt: statusUpdatedAt
-          })
+              createdAt: statusUpdatedAt,
+              updatedAt: statusUpdatedAt
+            })
+          )
         )
-      )
 
-      await Promise.all(
-        cc.map((actorId) =>
-          trx('recipients').insert({
-            id: crypto.randomUUID(),
-            statusId: id,
-            actorId,
-            type: 'cc',
+        await Promise.all(
+          cc.map((actorId) =>
+            trx('recipients').insert({
+              id: crypto.randomUUID(),
+              statusId: id,
+              actorId,
+              type: 'cc',
 
-            createdAt: statusUpdatedAt,
-            updatedAt: statusUpdatedAt
-          })
+              createdAt: statusUpdatedAt,
+              updatedAt: statusUpdatedAt
+            })
+          )
         )
-      )
-    })
+      })
+    } catch (error) {
+      if (isUniqueConstraintError(error)) {
+        const existingStatus = await getStatus({
+          statusId: id,
+          withReplies: false
+        })
+        if (existingStatus) return existingStatus
+      }
+      throw error
+    }
 
     const [originalStatus, actor] = await Promise.all([
       getStatus({ statusId: originalStatusId }),
@@ -1055,71 +1077,82 @@ export const StatusSQLDatabaseMixin = (
       createdAt: statusCreatedAt
     }
 
-    await database.transaction(async (trx) => {
-      await trx('statuses').insert({
-        id,
-        publicId: statusPublicId,
-        url,
-        urlHash: getStatusUrlHash(url),
-        actorId,
-        type: StatusType.enum.Poll,
-        content: statusContent,
-        applicationName,
-        applicationWebsite,
-        reply,
-        replyHash: getStatusReplyHash(reply),
-        createdAt: statusCreatedAt,
-        updatedAt: statusUpdatedAt
+    try {
+      await database.transaction(async (trx) => {
+        await trx('statuses').insert({
+          id,
+          publicId: statusPublicId,
+          url,
+          urlHash: getStatusUrlHash(url),
+          actorId,
+          type: StatusType.enum.Poll,
+          content: statusContent,
+          applicationName,
+          applicationWebsite,
+          reply,
+          replyHash: getStatusReplyHash(reply),
+          createdAt: statusCreatedAt,
+          updatedAt: statusUpdatedAt
+        })
+        await updateStatusCounters({
+          actorId,
+          type: StatusType.enum.Poll,
+          reply,
+          content,
+          step: 'increment',
+          trx,
+          currentTime,
+          statusCreatedAt
+        })
+        await Promise.all(
+          choices.map((choice) =>
+            trx('poll_choices').insert({
+              statusId: id,
+              title: choice,
+
+              createdAt: statusUpdatedAt,
+              updatedAt: statusUpdatedAt
+            })
+          )
+        )
+        await Promise.all(
+          to.map((actorId) =>
+            trx('recipients').insert({
+              id: crypto.randomUUID(),
+              statusId: id,
+              actorId,
+              type: 'to',
+
+              createdAt: statusUpdatedAt,
+              updatedAt: statusUpdatedAt
+            })
+          )
+        )
+
+        await Promise.all(
+          cc.map((actorId) =>
+            trx('recipients').insert({
+              id: crypto.randomUUID(),
+              statusId: id,
+              actorId,
+              type: 'cc',
+
+              createdAt: statusUpdatedAt,
+              updatedAt: statusUpdatedAt
+            })
+          )
+        )
       })
-      await updateStatusCounters({
-        actorId,
-        type: StatusType.enum.Poll,
-        reply,
-        content,
-        step: 'increment',
-        trx,
-        currentTime,
-        statusCreatedAt
-      })
-      await Promise.all(
-        choices.map((choice) =>
-          trx('poll_choices').insert({
-            statusId: id,
-            title: choice,
-
-            createdAt: statusUpdatedAt,
-            updatedAt: statusUpdatedAt
-          })
-        )
-      )
-      await Promise.all(
-        to.map((actorId) =>
-          trx('recipients').insert({
-            id: crypto.randomUUID(),
-            statusId: id,
-            actorId,
-            type: 'to',
-
-            createdAt: statusUpdatedAt,
-            updatedAt: statusUpdatedAt
-          })
-        )
-      )
-
-      await Promise.all(
-        cc.map((actorId) =>
-          trx('recipients').insert({
-            id: crypto.randomUUID(),
-            statusId: id,
-            actorId,
-            type: 'cc',
-
-            createdAt: statusUpdatedAt,
-            updatedAt: statusUpdatedAt
-          })
-        )
-      )
-    })
+    } catch (error) {
+      if (isUniqueConstraintError(error)) {
+        const existingStatus = await getStatus({
+          statusId: id,
+          withReplies: false
+        })
+        if (existingStatus) return existingStatus
+      }
+      throw error
+    }
 
     await indexStatusSearchDocument(database, { status: searchStatus })
 
