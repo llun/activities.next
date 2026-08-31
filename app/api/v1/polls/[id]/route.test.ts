@@ -10,6 +10,7 @@ import { POST } from './votes/route'
 const mockGetMastodonStatus = vi.fn()
 const mockSendPollVotes = vi.fn()
 const mockCanActorReadStatus = vi.fn()
+const mockSyncRemotePoll = vi.fn()
 const mockDatabase = {
   getStatus: vi.fn(),
   getStatusIdByPublicId: vi.fn(),
@@ -91,6 +92,10 @@ vi.mock('@/lib/activities', () => ({
   sendPollVotes: (...params: unknown[]) => mockSendPollVotes(...params)
 }))
 
+vi.mock('@/lib/services/polls/syncRemotePoll', () => ({
+  syncRemotePoll: (...params: unknown[]) => mockSyncRemotePoll(...params)
+}))
+
 const pollStatusId = 'https://remote.test/users/alice/statuses/poll-1'
 const encodedPollId = urlToId(pollStatusId)
 const pollStatus = {
@@ -120,6 +125,7 @@ describe('Mastodon poll routes', () => {
     mockDatabase.recordPollVotes.mockResolvedValue(true)
     mockGetMastodonStatus.mockResolvedValue({ poll: mastodonPoll })
     mockCanActorReadStatus.mockResolvedValue(true)
+    mockSyncRemotePoll.mockImplementation(({ status }) => status)
   })
 
   it('returns a Mastodon poll entity', async () => {
@@ -436,5 +442,32 @@ describe('Mastodon poll routes', () => {
 
     expect(response.status).toBe(404)
     expect(mockGetMastodonStatus).not.toHaveBeenCalled()
+  })
+
+  it('syncs remote poll when fetching poll details via GET', async () => {
+    const syncedPollStatus = {
+      ...pollStatus,
+      choices: [
+        { title: 'Red', totalVotes: 5 },
+        { title: 'Blue', totalVotes: 10 }
+      ]
+    }
+    mockSyncRemotePoll.mockResolvedValueOnce(syncedPollStatus)
+
+    const response = await GET(
+      new NextRequest(`https://local.test/api/v1/polls/${encodedPollId}`),
+      { params: Promise.resolve({ id: encodedPollId }) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockSyncRemotePoll).toHaveBeenCalledWith({
+      database: mockDatabase,
+      status: pollStatus
+    })
+    expect(mockGetMastodonStatus).toHaveBeenCalledWith(
+      mockDatabase,
+      syncedPollStatus,
+      mockCurrentActor.id
+    )
   })
 })

@@ -518,4 +518,61 @@ describe('createPollJob', () => {
     }
     expect(status.choices).toHaveLength(2)
   })
+
+  it('preserves existing vote counts from Question options on initial ingestion', async () => {
+    const questionWithVotes = {
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: `https://somewhere.test/actors/pollcreator/questions/with-votes-${Date.now()}`,
+      type: 'Question',
+      attributedTo: REMOTE_ACTOR_ID,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [`${REMOTE_ACTOR_ID}/followers`],
+      content: '<p>How frequently do you chat with LLM?</p>',
+      published: getISOTimeUTC(Date.now()),
+      endTime: getISOTimeUTC(Date.now() + 24 * 60 * 60 * 1000),
+      url: `https://somewhere.test/actors/pollcreator/questions/with-votes-${Date.now()}`,
+      oneOf: [
+        {
+          type: 'Note',
+          name: 'not at all',
+          replies: { type: 'Collection', totalItems: 12 }
+        },
+        {
+          type: 'Note',
+          name: 'a few times per month',
+          replies: { type: 'Collection', totalItems: 34 }
+        },
+        {
+          type: 'Note',
+          name: 'multiple times per week',
+          replies: { type: 'Collection', totalItems: 56 }
+        },
+        {
+          type: 'Note',
+          name: 'over 1 hour per day',
+          replies: { type: 'Collection', totalItems: 78 }
+        }
+      ]
+    }
+
+    await createPollJob(database, {
+      id: 'id-poll-with-votes',
+      name: CREATE_POLL_JOB_NAME,
+      data: questionWithVotes
+    })
+
+    const status = await database.getStatus({
+      statusId: questionWithVotes.id
+    })
+    expect(status).toBeDefined()
+    expect(status?.type).toEqual(StatusType.enum.Poll)
+    if (status?.type !== StatusType.enum.Poll) {
+      fail('Status type must be Poll')
+    }
+    expect(status.choices).toHaveLength(4)
+    expect(status.choices[0].totalVotes).toEqual(12)
+    expect(status.choices[1].totalVotes).toEqual(34)
+    expect(status.choices[2].totalVotes).toEqual(56)
+    expect(status.choices[3].totalVotes).toEqual(78)
+  })
 })

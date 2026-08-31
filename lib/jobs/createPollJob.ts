@@ -59,8 +59,14 @@ export const createPollJob = createJobHandle(
         ? 'anyOf'
         : 'oneOf'
     const choices =
-      question.oneOf?.map((item) => item.name) ??
-      question.anyOf?.map((item) => item.name) ??
+      question.oneOf?.map((item) => ({
+        title: item.name,
+        totalVotes: item.replies?.totalItems ?? 0
+      })) ??
+      question.anyOf?.map((item) => ({
+        title: item.name,
+        totalVotes: item.replies?.totalItems ?? 0
+      })) ??
       []
 
     await assertActorCanFederate({
