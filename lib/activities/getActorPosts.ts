@@ -29,6 +29,7 @@ import { withSpan } from '@/lib/utils/trace'
 
 import { getActorCollections } from './getActorCollections'
 import { getActorPerson } from './getActorPerson'
+import { getActorPostsFromAtomFeed } from './getActorPostsFromAtomFeed'
 
 type GetActorPostsFunction = (params: {
   database: Database
@@ -196,9 +197,21 @@ export const getActorPosts: GetActorPostsFunction = async ({
         })
       )
 
+      let validStatuses: Status[] = statuses.filter(
+        (item): item is NonNullable<typeof item> => item !== null
+      )
+
+      if (validStatuses.length === 0 && !pageUrl) {
+        validStatuses = await getActorPostsFromAtomFeed({
+          person,
+          signingActor,
+          actor
+        })
+      }
+
       return {
-        statusesCount: value.totalItems ?? 0,
-        statuses: statuses.filter((item) => item !== null),
+        statusesCount: value.totalItems ?? validStatuses.length,
+        statuses: validStatuses,
         nextPageUrl: value.page?.next ?? null,
         prevPageUrl: value.page?.prev ?? null
       }

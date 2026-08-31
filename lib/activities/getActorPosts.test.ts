@@ -790,8 +790,74 @@ describe('getActorPosts', () => {
     expect(response.statuses[0].id).toBe(statusId)
   })
 
-  it('handles outbox with totalItems only (Pixelfed-style) without crashing', async () => {
+  it('falls back to Atom feed when outbox has totalItems but no items', async () => {
     const actorId = 'https://pixelfed.example/users/actor'
+    const statusId = 'https://pixelfed.example/p/actor/12345'
+    const person = MockActivityPubPerson({
+      id: actorId,
+      preferredUsername: 'actor',
+      withContext: true
+    }) as Actor
+
+    const atomXml = `<?xml version="1.0" encoding="UTF-8"?>
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <id>${actorId}.atom</id>
+      <entry>
+        <id>${statusId}</id>
+        <title>Pixelfed Post</title>
+        <link rel="alternate" href="${statusId}" />
+      </entry>
+    </feed>`
+
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `${actorId}/outbox`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            '@context': 'https://www.w3.org/ns/activitystreams',
+            id: `${actorId}/outbox`,
+            type: 'OrderedCollection',
+            totalItems: 413
+          })
+        }
+      }
+
+      if (req.url === `${actorId}.atom`) {
+        return {
+          status: 200,
+          headers: { 'Content-Type': 'application/atom+xml' },
+          body: atomXml
+        }
+      }
+
+      if (req.url === statusId) {
+        return {
+          status: 200,
+          body: JSON.stringify(
+            MockMastodonActivityPubNote({
+              id: statusId,
+              from: actorId,
+              content: 'Atom resolved post',
+              withContext: true
+            })
+          )
+        }
+      }
+
+      return { status: 404, body: 'Not Found' }
+    })
+
+    const response = await getActorPosts({ database, person })
+
+    expect(response.statusesCount).toBe(413)
+    expect(response.statuses).toHaveLength(1)
+    expect(response.statuses[0].id).toBe(statusId)
+    expect(response.statuses[0].text).toContain('Atom resolved post')
+  })
+
+  it('handles outbox with totalItems only when Atom feed is also 404', async () => {
+    const actorId = 'https://pixelfed.example/users/noatom'
     const person = MockActivityPubPerson({
       id: actorId,
       withContext: true
