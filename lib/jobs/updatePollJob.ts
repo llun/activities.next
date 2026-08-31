@@ -38,7 +38,12 @@ export const updatePollJob = createJobHandle(
         question.oneOf?.map((answer) => ({
           title: answer.name,
           totalVotes: answer.replies?.totalItems ?? 0
-        })) ?? []
+        })) ??
+        question.anyOf?.map((answer) => ({
+          title: answer.name,
+          totalVotes: answer.replies?.totalItems ?? 0
+        })) ??
+        []
     })
   }
 )

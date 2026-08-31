@@ -157,4 +157,50 @@ describe('Poll', () => {
     expect(screen.getByText('Poll closed')).toBeInTheDocument()
     expect(vi.getTimerCount()).toBe(0)
   })
+
+  it('updates choices and percentages immediately upon successful vote', async () => {
+    const updatedChoices = [
+      {
+        statusId: pollStatus.id,
+        title: 'First',
+        totalVotes: 1,
+        createdAt: currentTime,
+        updatedAt: currentTime
+      },
+      {
+        statusId: pollStatus.id,
+        title: 'Second',
+        totalVotes: 0,
+        createdAt: currentTime,
+        updatedAt: currentTime
+      }
+    ]
+    mockVotePoll.mockResolvedValueOnce({
+      status: {
+        ...pollStatus,
+        choices: updatedChoices,
+        ownVotes: [0]
+      }
+    })
+
+    render(
+      <Poll
+        status={pollStatus}
+        currentTime={currentTime}
+        currentActorId="https://activities.local/actors/llun"
+      />
+    )
+
+    const firstChoice = screen.getByLabelText('First')
+    fireEvent.click(firstChoice)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Vote' }))
+    })
+
+    // Once voted, it renders results
+    expect(screen.getByText('100%')).toBeInTheDocument()
+    expect(screen.getByText('0%')).toBeInTheDocument()
+    expect(screen.getByText(/1 vote/)).toBeInTheDocument()
+  })
 })

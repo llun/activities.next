@@ -594,7 +594,7 @@ export type CreateAnnounceParams = Pick<
 }
 
 export type CreatePollParams = BaseCreateStatusParams & {
-  choices: string[]
+  choices: (string | { title: string; totalVotes?: number })[]
   endAt: number
   pollType?: 'oneOf' | 'anyOf'
   // Mastodon poll[hide_totals]: hide per-option tallies until the poll expires.
