@@ -1105,15 +1105,18 @@ export const StatusSQLDatabaseMixin = (
           statusCreatedAt
         })
         await Promise.all(
-          choices.map((choice) =>
-            trx('poll_choices').insert({
+          choices.map((choice) => {
+            const title = typeof choice === 'string' ? choice : choice.title
+            const totalVotes =
+              typeof choice === 'string' ? 0 : (choice.totalVotes ?? 0)
+            return trx('poll_choices').insert({
               statusId: id,
-              title: choice,
-
+              title,
+              totalVotes,
               createdAt: statusUpdatedAt,
               updatedAt: statusUpdatedAt
             })
-          )
+          })
         )
         await Promise.all(
           to.map((actorId) =>

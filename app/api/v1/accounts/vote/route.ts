@@ -1,5 +1,6 @@
 import { sendPollVotes } from '@/lib/activities'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { syncRemotePoll } from '@/lib/services/polls/syncRemotePoll'
 import { StatusType } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -102,10 +103,16 @@ export const POST = traceApiRoute(
       statusId,
       withReplies: false
     })
+    const syncedStatus = updatedStatus
+      ? await syncRemotePoll({
+          database,
+          status: updatedStatus
+        })
+      : null
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: { status: updatedStatus }
+      data: { status: syncedStatus ?? updatedStatus }
     })
   })
 )

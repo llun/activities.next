@@ -1,6 +1,7 @@
 import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
+import { syncRemotePoll } from '@/lib/services/polls/syncRemotePoll'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { StatusType } from '@/lib/types/domain/status'
@@ -59,9 +60,14 @@ export const GET = traceApiRoute(
         })
       }
 
+      const syncedStatus = await syncRemotePoll({
+        database,
+        status
+      })
+
       const mastodonStatus = await getMastodonStatus(
         database,
-        status,
+        syncedStatus,
         currentActor?.id
       )
       if (!mastodonStatus?.poll) {

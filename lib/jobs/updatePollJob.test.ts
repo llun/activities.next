@@ -213,4 +213,36 @@ describe('updatePollJob', () => {
     const status = await database.getStatus({ statusId: pollId })
     expect(status).toBeNull()
   })
+
+  it('updates multiple-choice (anyOf) poll vote counts', async () => {
+    const pollId = `${REMOTE_ACTOR_ID}/questions/multiple-${Date.now()}`
+    const originalPoll = MockActivityPubQuestion(pollId, {
+      anyOf: [createOption('Option 1', 0), createOption('Option 2', 0)]
+    })
+
+    await createPollJob(database, {
+      id: 'id-anyof-create',
+      name: CREATE_POLL_JOB_NAME,
+      data: originalPoll
+    })
+
+    const updatedPoll = MockActivityPubQuestion(pollId, {
+      anyOf: [createOption('Option 1', 15), createOption('Option 2', 20)]
+    })
+
+    await updatePollJob(database, {
+      id: 'id-anyof-update',
+      name: UPDATE_POLL_JOB_NAME,
+      data: updatedPoll
+    })
+
+    const status = await database.getStatus({ statusId: pollId })
+    expect(status).toBeDefined()
+    if (status?.type !== StatusType.enum.Poll) {
+      fail('Status type must be Poll')
+    }
+    expect(status.choices).toHaveLength(2)
+    expect(status.choices[0].totalVotes).toEqual(15)
+    expect(status.choices[1].totalVotes).toEqual(20)
+  })
 })

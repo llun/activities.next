@@ -31,11 +31,23 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
       ? status.ownVotes
       : []
   )
+  const [choices, setChoices] = useState(
+    status.type === StatusType.enum.Poll && status.choices ? status.choices : []
+  )
   const [voteError, setVoteError] = useState<string | null>(null)
 
   useEffect(() => {
     setNow(currentTime)
   }, [currentTime])
+
+  useEffect(() => {
+    if (status.type === StatusType.enum.Poll && status.choices) {
+      setChoices(status.choices)
+    }
+    if (status.type === StatusType.enum.Poll && status.ownVotes) {
+      setVotedChoices(status.ownVotes)
+    }
+  }, [status])
 
   useEffect(() => {
     if (pollEndAt === undefined) return
@@ -54,16 +66,15 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
   }, [pollEndAt, status.id])
 
   if (status.type !== StatusType.enum.Poll) return null
-  if (!status.choices) return null
+  if (choices.length === 0) return null
 
   const isPollClosed = now >= status.endAt
-  const choices = status.choices
   const translatedOptions =
     translation?.showingTranslation && translation.translation?.poll
       ? translation.translation.poll.options
       : null
   const titleFor = (index: number) =>
-    translatedOptions?.[index]?.title ?? choices[index].title
+    translatedOptions?.[index]?.title ?? choices[index]?.title ?? ''
   const voteCount = choices.reduce((sum, choice) => sum + choice.totalVotes, 0)
   const totalVotes = voteCount || 1
 
@@ -76,9 +87,23 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
     setIsVoting(true)
     setVoteError(null)
     try {
-      await votePoll({ statusId: status.id, choices: selectedChoices })
+      const result = await votePoll({
+        statusId: status.id,
+        choices: selectedChoices
+      })
       setVotedChoices(selectedChoices)
       setSelectedChoices([])
+      if (result?.status?.choices) {
+        setChoices(result.status.choices)
+      } else {
+        setChoices((prev) =>
+          prev.map((choice, i) =>
+            selectedChoices.includes(i)
+              ? { ...choice, totalVotes: choice.totalVotes + 1 }
+              : choice
+          )
+        )
+      }
     } catch {
       setVoteError('Failed to submit vote. Please try again.')
     } finally {
