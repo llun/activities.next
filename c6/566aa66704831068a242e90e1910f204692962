@@ -1,0 +1,68 @@
+app/(timeline)/[actor]/[status]/loading.tsx
+  h_580a04e334fef4 1-4,6-7,11-12,17-21,23-46,48-54
+app/(timeline)/[actor]/followers/loading.test.tsx
+  h_580a04e334fef4 1-4,6-7,9,12,18-20,27
+app/(timeline)/[actor]/followers/loading.tsx
+  h_580a04e334fef4 1-4,6,8-15,20-29
+app/(timeline)/[actor]/following/loading.test.tsx
+  h_580a04e334fef4 1-4,6-7,9,12,18-20,27
+app/(timeline)/[actor]/following/loading.tsx
+  h_580a04e334fef4 1-4,6,8-15,20-29
+app/(timeline)/[actor]/loading.test.tsx
+  h_580a04e334fef4 1-4,6-7,9,12,18-20,27
+app/(timeline)/[actor]/loading.tsx
+  h_580a04e334fef4 1-8,10,12-15,20-25,27-35
+app/(timeline)/admin/loading.tsx
+  h_580a04e334fef4 1-45
+app/(timeline)/bookmarks/loading.tsx
+  h_580a04e334fef4 1-18
+app/(timeline)/explore/ExplorePageClient.tsx
+  h_580a04e334fef4 17,51-52,54
+app/(timeline)/explore/loading.test.tsx
+  h_580a04e334fef4 1-16
+app/(timeline)/explore/loading.tsx
+  h_580a04e334fef4 1-42
+app/(timeline)/favorites/loading.tsx
+  h_580a04e334fef4 1-18
+app/(timeline)/fitness/heatmap/loading.tsx
+  h_580a04e334fef4 1-28
+app/(timeline)/fitness/loading.test.tsx
+  h_580a04e334fef4 1-16
+app/(timeline)/fitness/loading.tsx
+  h_580a04e334fef4 1-64
+app/(timeline)/lists/loading.tsx
+  h_580a04e334fef4 1-52
+app/(timeline)/loading.tsx
+  h_580a04e334fef4 1-19
+app/(timeline)/messages/loading.tsx
+  h_580a04e334fef4 1-67
+app/(timeline)/notifications/loading.test.tsx
+  h_580a04e334fef4 1-16
+app/(timeline)/notifications/loading.tsx
+  h_580a04e334fef4 1-35
+app/(timeline)/search/SearchPageClient.tsx
+  h_580a04e334fef4 24,559-564
+app/(timeline)/search/loading.tsx
+  h_580a04e334fef4 1-44
+app/(timeline)/search/page.tsx
+  h_580a04e334fef4 5-9,23-49,66
+app/(timeline)/tags/[tag]/loading.tsx
+  h_580a04e334fef4 1-28
+app/globals.css
+  h_580a04e334fef4 256-268
+lib/components/ui/skeleton.test.tsx
+  h_580a04e334fef4 1-72
+lib/components/ui/skeleton.tsx
+  h_580a04e334fef4 1-232
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "c6566aa66704831068a242e90e1910f204692962",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
