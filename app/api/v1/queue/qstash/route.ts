@@ -1,3 +1,4 @@
+import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { Receiver } from '@upstash/qstash'
 import { memoize } from 'lodash'
 import { NextRequest } from 'next/server'
@@ -8,6 +9,7 @@ import { getQueue } from '@/lib/services/queue'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import { apiErrorResponse, apiResponse } from '@/lib/utils/response'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const getReceiver = memoize(
@@ -44,7 +46,17 @@ export const POST = traceApiRoute(
       logger.debug({ body: jsonBody }, 'Received message from qstash')
       await getQueue().handle(jsonBody)
     } catch (e) {
-      logger.error(e)
+      const span = trace.getActiveSpan()
+      const err = e instanceof Error ? e : new Error(String(e))
+      span?.recordException(err)
+      span?.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: err.message
+      })
+      logger.error({
+        err: toLoggableError(e),
+        message: 'Failed to process qstash message'
+      })
       return apiErrorResponse(400)
     }
     return apiResponse({

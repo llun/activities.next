@@ -128,7 +128,6 @@
     "lib/database/sql/search.test.ts",
     "lib/database/sql/status.test.ts",
     "lib/database/sql/timeline.test.ts",
-    "lib/jobs/createAnnounceJob.test.ts",
     "lib/jobs/createNoteJob.test.ts",
     "lib/jobs/createPollJob.test.ts",
     "lib/jobs/createPollVoteJob.test.ts",

@@ -4478,8 +4478,20 @@ describe('StatusDatabase', () => {
         })
 
         expect(duplicate).toBeDefined()
-        expect(duplicate.id).toBe(announceId)
-        expect(duplicate.publicId).toBe(created.publicId)
+        expect(duplicate?.id).toBe(announceId)
+        expect(duplicate?.publicId).toBe(created?.publicId)
+      })
+
+      it('returns null when original status does not exist', async () => {
+        const announcePostId = `${TEST_ID_BOOSTER}/posts/boost-missing-original`
+        const announce = await database.createAnnounce({
+          id: announcePostId,
+          actorId: TEST_ID_BOOSTER,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [`${TEST_ID_BOOSTER}/followers`],
+          originalStatusId: 'https://somewhere.test/posts/non-existent-status'
+        })
+        expect(announce).toBeNull()
       })
     })
 
