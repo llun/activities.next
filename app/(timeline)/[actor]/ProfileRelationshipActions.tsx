@@ -39,6 +39,7 @@ export const ProfileRelationshipActions: FC<
             key={`follow-${targetActorId}`}
             targetActorId={targetActorId}
             isLoggedIn={isLoggedIn}
+            initialRelationship={relationship}
           />
           <MuteAction
             key={`mute-${targetActorId}`}

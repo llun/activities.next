@@ -81,7 +81,7 @@ export const getPersistableProfile = (person: ActivityPubActor) => {
     followersUrl: person.followers ?? '',
     inboxUrl: person.inbox,
     sharedInboxUrl: person.endpoints?.sharedInbox ?? person.inbox,
-    publicKey: person.publicKey.publicKeyPem || ''
+    publicKey: person.publicKey?.publicKeyPem || ''
   }
 }
 

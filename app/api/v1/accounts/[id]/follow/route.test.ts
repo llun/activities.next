@@ -47,7 +47,19 @@ vi.mock('@/lib/activities', () => ({
   follow: vi.fn().mockResolvedValue(undefined)
 }))
 vi.mock('@/lib/activities/getActorPerson', () => ({
-  getActorPerson: vi.fn().mockResolvedValue({ id: 'remote-person' })
+  getActorPerson: vi
+    .fn()
+    .mockImplementation(({ actorId }: { actorId: string }) => ({
+      id: actorId,
+      type: 'Person',
+      preferredUsername: 'remote-user',
+      publicKey: {
+        id: `${actorId}#main-key`,
+        owner: actorId,
+        publicKeyPem:
+          '-----BEGIN PUBLIC KEY-----\nMOCK\n-----END PUBLIC KEY-----'
+      }
+    }))
 }))
 vi.mock('@/lib/services/federation/getFederationSigningActor', () => ({
   getFederationSigningActor: vi.fn().mockResolvedValue(null)
@@ -87,9 +99,25 @@ describe('Account Action Endpoints', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    ;(getActorPerson as jest.Mock).mockReset()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
+    ;(getActorPerson as jest.Mock).mockImplementation(
+      ({ actorId }: { actorId: string }) => ({
+        id: actorId,
+        type: 'Person',
+        preferredUsername: 'remote-user',
+        inbox: `${actorId}/inbox`,
+        endpoints: { sharedInbox: 'https://remote.test/inbox' },
+        publicKey: {
+          id: `${actorId}#main-key`,
+          owner: actorId,
+          publicKeyPem:
+            '-----BEGIN PUBLIC KEY-----\nMOCK\n-----END PUBLIC KEY-----'
+        }
+      })
+    )
   })
 
   describe('POST /api/v1/accounts/:id/follow body params', () => {
@@ -377,6 +405,30 @@ describe('Account Action Endpoints', () => {
           targetActorId
         })
       ).resolves.toBeNull()
+    })
+
+    it('records an unrecorded remote actor in the database when following', async () => {
+      const targetActorId = 'https://remote.test/users/unrecorded-remote'
+
+      const response = await followAccount(
+        new NextRequest(
+          `https://llun.test/api/v1/accounts/${urlToId(targetActorId)}/follow`,
+          {
+            method: 'POST',
+            headers: { Origin: 'https://llun.test' }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(targetActorId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      const relationship = await response.json()
+      expect(relationship.requested).toBe(true)
+
+      const actor = await database.getActorFromId({ id: targetActorId })
+      expect(actor).not.toBeNull()
+      expect(actor?.username).toBe('remote-user')
+      expect(actor?.domain).toBe('remote.test')
     })
   })
 

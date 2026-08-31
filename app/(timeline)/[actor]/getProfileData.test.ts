@@ -39,7 +39,8 @@ describe('getProfileData', () => {
     getActorHasFitnessData: vi.fn(),
     getAcceptedOrRequestedFollow: vi.fn(),
     setActorCounters: vi.fn(),
-    updateActor: vi.fn()
+    updateActor: vi.fn(),
+    createActor: vi.fn()
   } as unknown as Database
 
   const mockLocalActor = {
@@ -479,6 +480,39 @@ describe('getProfileData', () => {
         actorId: mockPerson.id,
         followersCount: 5370,
         followingCount: 519,
+        statusCount: null
+      })
+    })
+
+    it('creates newly discovered remote actor in database when persistedActor does not exist', async () => {
+      ;(mockDatabase.getActorFromUsername as jest.Mock).mockResolvedValue(null)
+      ;(getActorCollectionCounts as jest.Mock).mockResolvedValue({
+        followersCount: 100,
+        followingCount: 50,
+        statusesCount: 10
+      })
+
+      const result = await getProfileData(
+        mockDatabase,
+        '@remoteuser@remote.com',
+        true,
+        { currentActor: null }
+      )
+
+      expect(result).not.toBeNull()
+      expect(mockDatabase.createActor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: mockPerson.id,
+          username: mockPerson.preferredUsername,
+          domain: 'remote.com',
+          name: 'Remote User',
+          summary: 'A remote user'
+        })
+      )
+      expect(mockDatabase.setActorCounters).toHaveBeenCalledWith({
+        actorId: mockPerson.id,
+        followersCount: 100,
+        followingCount: 50,
         statusCount: null
       })
     })

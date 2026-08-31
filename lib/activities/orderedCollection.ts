@@ -19,6 +19,7 @@ export interface OrderedCollection extends ContextEntity {
   totalItems?: number
   first?: string | OrderedCollectionPage
   last?: string
+  orderedItems?: (string | Record<string, unknown>)[]
 }
 
 export const getOrderCollectionFirstPage = (
