@@ -1,3 +1,4 @@
+import { CloudPropagator as CloudTraceContextPropagator } from '@google-cloud/opentelemetry-cloud-trace-propagator'
 import {
   CompositePropagator,
   W3CBaggagePropagator,
@@ -12,6 +13,7 @@ import { UndiciInstrumentation } from '@opentelemetry/instrumentation-undici'
 import { gcpDetector } from '@opentelemetry/resource-detector-gcp'
 import { resourceFromAttributes } from '@opentelemetry/resources'
 import { NodeSDK } from '@opentelemetry/sdk-node'
+import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base'
 import { GoogleAuth } from 'google-auth-library'
 
 import { type Config, getConfig } from './lib/config'
@@ -82,6 +84,10 @@ export const registerNodeInstrumentation = async () => {
   if (!exporter) return
 
   const isGoogle = config.openTelemetry?.protocol === 'google'
+  const spanProcessor = new BatchSpanProcessor(exporter, {
+    scheduledDelayMillis: 500,
+    maxExportBatchSize: 64
+  })
 
   sdk = new NodeSDK({
     resource: resourceFromAttributes({
@@ -89,9 +95,13 @@ export const registerNodeInstrumentation = async () => {
       environment: process.env.NODE_ENV
     }),
     ...(isGoogle ? { resourceDetectors: [gcpDetector] } : {}),
-    traceExporter: exporter,
+    spanProcessors: [spanProcessor],
     textMapPropagator: new CompositePropagator({
-      propagators: [new W3CTraceContextPropagator(), new W3CBaggagePropagator()]
+      propagators: [
+        new W3CTraceContextPropagator(),
+        new W3CBaggagePropagator(),
+        ...(isGoogle ? [new CloudTraceContextPropagator()] : [])
+      ]
     }),
     instrumentations: [
       new KnexInstrumentation(),
