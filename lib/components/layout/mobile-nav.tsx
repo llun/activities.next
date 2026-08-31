@@ -107,6 +107,7 @@ export function MobileNav({
       <DropdownMenuItem key={item.key} asChild>
         <Link
           href={item.href}
+          prefetch={false}
           aria-current={isActive ? 'page' : undefined}
           className={cn(
             'flex items-center gap-2',
@@ -130,6 +131,7 @@ export function MobileNav({
             <li key={item.key} className="min-w-0">
               <Link
                 href={item.href}
+                prefetch={false}
                 aria-current={isActive ? 'page' : undefined}
                 className={cn(
                   'relative flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 px-2 py-2 text-xs font-medium transition-colors',

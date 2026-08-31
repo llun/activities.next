@@ -120,6 +120,7 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
     return (
       <Link
         href={profileHref}
+        prefetch={false}
         className="flex items-center gap-3 rounded-lg p-2 cursor-pointer hover:bg-muted transition-colors w-full overflow-hidden"
       >
         {avatar}
@@ -138,6 +139,7 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
         <div className="flex items-center gap-3 rounded-lg p-2 hover:bg-muted transition-colors w-full">
           <Link
             href={profileHref}
+            prefetch={false}
             aria-label={`View ${displayName}'s profile`}
             className="shrink-0 rounded-full cursor-pointer"
           >
