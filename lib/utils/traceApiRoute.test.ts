@@ -1,7 +1,41 @@
 import { SpanStatusCode, Tracer, trace } from '@opentelemetry/api'
 import { NextRequest } from 'next/server'
 
-import { traceApiRoute } from './traceApiRoute'
+import { parseCloudTraceContext, traceApiRoute } from './traceApiRoute'
+
+describe('parseCloudTraceContext', () => {
+  it('parses traceId, decimal spanId, and sampled flag', () => {
+    const traceId = '02dad5002ab305f1fd75ae8bd0d46e94'
+    const hexSpanId = '3ca938408dc381d3'
+    const decSpanId = BigInt(`0x${hexSpanId}`).toString(10)
+    const header = `${traceId}/${decSpanId};o=1`
+    const result = parseCloudTraceContext(header)
+    expect(result).toEqual({
+      traceId,
+      spanId: hexSpanId,
+      traceFlags: 1,
+      isRemote: true
+    })
+  })
+
+  it('parses header without options', () => {
+    const traceId = '02dad5002ab305f1fd75ae8bd0d46e94'
+    const hexSpanId = '3ca938408dc381d3'
+    const decSpanId = BigInt(`0x${hexSpanId}`).toString(10)
+    const header = `${traceId}/${decSpanId}`
+    const result = parseCloudTraceContext(header)
+    expect(result).toEqual({
+      traceId,
+      spanId: hexSpanId,
+      traceFlags: 0,
+      isRemote: true
+    })
+  })
+
+  it('returns null for invalid header', () => {
+    expect(parseCloudTraceContext('invalid')).toBeNull()
+  })
+})
 
 describe('traceApiRoute', () => {
   let mockSpan: {
@@ -204,5 +238,50 @@ describe('traceApiRoute', () => {
       'optional',
       undefined
     )
+  })
+
+  it('extracts W3C traceparent header and binds it as active context', async () => {
+    const handler = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ success: true }), {
+        status: 200
+      })
+    )
+
+    const wrapped = traceApiRoute('testRoute', handler)
+    const traceId = '02dad5002ab305f1fd75ae8bd0d46e94'
+    const spanId = '3ca938408dc381d3'
+    const req = new NextRequest('http://localhost/api/test', {
+      headers: {
+        traceparent: `00-${traceId}-${spanId}-01`
+      }
+    })
+    const context = { params: Promise.resolve({}) }
+
+    const response = await wrapped(req, context)
+    expect(response.status).toBe(200)
+    expect(handler).toHaveBeenCalled()
+  })
+
+  it('extracts Google Cloud X-Cloud-Trace-Context header and parses decimal spanId', async () => {
+    const handler = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ success: true }), {
+        status: 200
+      })
+    )
+
+    const wrapped = traceApiRoute('testRoute', handler)
+    const traceId = '02dad5002ab305f1fd75ae8bd0d46e94'
+    const hexSpanId = '3ca938408dc381d3'
+    const decSpanId = BigInt(`0x${hexSpanId}`).toString(10)
+    const req = new NextRequest('http://localhost/api/test', {
+      headers: {
+        'x-cloud-trace-context': `${traceId}/${decSpanId};o=1`
+      }
+    })
+    const context = { params: Promise.resolve({}) }
+
+    const response = await wrapped(req, context)
+    expect(response.status).toBe(200)
+    expect(handler).toHaveBeenCalled()
   })
 })
