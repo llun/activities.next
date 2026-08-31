@@ -742,4 +742,83 @@ describe('getActorPosts', () => {
       statuses: []
     })
   })
+
+  it('handles inline orderedItems on OrderedCollection root without first page', async () => {
+    const actorId = 'https://inline.example/users/actor'
+    const statusId = `${actorId}/statuses/inline-1`
+    const published = Date.now()
+    const person = MockActivityPubPerson({
+      id: actorId,
+      withContext: true
+    }) as Actor
+
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `${actorId}/outbox`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            '@context': 'https://www.w3.org/ns/activitystreams',
+            id: `${actorId}/outbox`,
+            type: 'OrderedCollection',
+            totalItems: 1,
+            orderedItems: [
+              {
+                id: `${statusId}/activity`,
+                type: 'Create',
+                actor: actorId,
+                published: new Date(published).toISOString(),
+                object: MockMastodonActivityPubNote({
+                  id: statusId,
+                  from: actorId,
+                  content: 'Inline status text',
+                  withContext: true
+                })
+              }
+            ]
+          })
+        }
+      }
+
+      return { status: 404, body: 'Not Found' }
+    })
+
+    const response = await getActorPosts({ database, person })
+
+    expect(response.statusesCount).toBe(1)
+    expect(response.statuses).toHaveLength(1)
+    expect(response.statuses[0].id).toBe(statusId)
+  })
+
+  it('handles outbox with totalItems only (Pixelfed-style) without crashing', async () => {
+    const actorId = 'https://pixelfed.example/users/actor'
+    const person = MockActivityPubPerson({
+      id: actorId,
+      withContext: true
+    }) as Actor
+
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `${actorId}/outbox`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            '@context': 'https://www.w3.org/ns/activitystreams',
+            id: `${actorId}/outbox`,
+            type: 'OrderedCollection',
+            totalItems: 413
+          })
+        }
+      }
+
+      return { status: 404, body: 'Not Found' }
+    })
+
+    const response = await getActorPosts({ database, person })
+
+    expect(response.statusesCount).toBe(413)
+    expect(response.statuses).toEqual([])
+    expect(response.nextPageUrl).toBeNull()
+    expect(response.prevPageUrl).toBeNull()
+  })
 })

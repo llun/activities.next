@@ -46,14 +46,12 @@ export const GET = traceApiRoute(
       const relationships = await Promise.all(
         accountIds.map(async (encodedAccountId, index) => {
           try {
-            const actor = await database.getActorFromId({
-              id: resolvedIds[index]
-            })
-            if (!actor) return null
+            const targetActorId = resolvedIds[index]
+            if (!targetActorId) return null
             return getRelationship({
               database,
               currentActor,
-              targetActorId: actor.id
+              targetActorId
             })
           } catch (error) {
             logger.error(

@@ -90,7 +90,10 @@ describe('profile follow lookup', () => {
     getMute: vi.fn(),
     getAccountNote: vi.fn(),
     getEndorsement: vi.fn(),
-    getActorPublicIds: vi.fn(),
+    getActorPublicIds: vi.fn().mockResolvedValue([]),
+    createActor: vi.fn().mockResolvedValue(undefined),
+    updateActor: vi.fn().mockResolvedValue(undefined),
+    setActorCounters: vi.fn().mockResolvedValue(undefined),
     // The shared one
     getAcceptedOrRequestedFollow: vi.fn()
   }

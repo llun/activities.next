@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { follow } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { parseFollowRequestBody } from '@/lib/services/accounts/parseFollowRequestBody'
@@ -125,6 +126,12 @@ export const POST = traceApiRoute(
           signingActor
         })
         if (!person) return apiCorsError(req, CORS_HEADERS, 404)
+
+        await recordActorIfNeeded({
+          actorId: targetActorId,
+          database,
+          signingActor
+        })
 
         const followItem = await database.createFollow({
           actorId: currentActor.id,

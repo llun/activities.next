@@ -2,9 +2,10 @@ import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
-import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import { GET } from './route'
@@ -109,6 +110,29 @@ describe('GET /api/v1/accounts/relationships', () => {
     })
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual([])
+  })
+
+  it('returns relationship for remote actor id even when actor row is not stored', async () => {
+    const remoteActorId = 'https://remote.social/users/remoteuser'
+    await database.createFollow({
+      actorId: ACTOR1_ID,
+      targetActorId: remoteActorId,
+      status: FollowStatus.enum.Requested,
+      inbox: `${remoteActorId}/inbox`,
+      sharedInbox: 'https://remote.social/inbox'
+    })
+
+    const query = `id[]=${encodeURIComponent(remoteActorId)}`
+    const response = await GET(createRequest(query), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data).toHaveLength(1)
+    expect(data[0].id).toBe(urlToId(remoteActorId))
+    expect(data[0].requested).toBe(true)
+    expect(data[0].following).toBe(false)
   })
 
   it('requires authentication', async () => {

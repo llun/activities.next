@@ -9,21 +9,38 @@ import {
   unfollow
 } from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
+import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
 
 export interface FollowActionProps {
   targetActorId: string
   isLoggedIn: boolean
+  initialRelationship?: MastodonRelationship | null
 }
+
+const getStatusFromRelationship = (
+  relationship?: MastodonRelationship | null
+): FollowStatusType | undefined => {
+  if (relationship === undefined) return undefined
+  if (!relationship) return 'not_following'
+  if (relationship.following) return 'following'
+  if (relationship.requested) return 'requested'
+  return 'not_following'
+}
+
 export const FollowAction: FC<FollowActionProps> = ({
   targetActorId,
-  isLoggedIn
+  isLoggedIn,
+  initialRelationship
 }) => {
   const [followingStatus, setFollowingStatus] = useState<
     FollowStatusType | undefined
-  >()
+  >(() => getStatusFromRelationship(initialRelationship))
+
   useEffect(() => {
-    getFollowStatus({ targetActorId }).then(setFollowingStatus)
-  }, [targetActorId])
+    if (initialRelationship === undefined) {
+      getFollowStatus({ targetActorId }).then(setFollowingStatus)
+    }
+  }, [targetActorId, initialRelationship])
 
   const onFollow = async (targetActorId: string) => {
     const followResult = await follow({ targetActorId })

@@ -12,8 +12,20 @@ import {
 } from './ProfileRelationshipActions'
 
 vi.mock('@/lib/components/follow-action/follow-action', () => ({
-  FollowAction: ({ targetActorId }: { targetActorId: string }) => (
-    <div data-testid="follow-action">{targetActorId}</div>
+  FollowAction: ({
+    targetActorId,
+    initialRelationship
+  }: {
+    targetActorId: string
+    initialRelationship?: MastodonRelationship | null
+  }) => (
+    <div
+      data-testid="follow-action"
+      data-following={String(initialRelationship?.following)}
+      data-requested={String(initialRelationship?.requested)}
+    >
+      {targetActorId}
+    </div>
   )
 }))
 
@@ -118,6 +130,10 @@ describe('ProfileRelationshipActions', () => {
 
     expect(screen.getByTestId('follow-action')).toHaveTextContent(
       'https://remote.test/users/open'
+    )
+    expect(screen.getByTestId('follow-action')).toHaveAttribute(
+      'data-following',
+      'false'
     )
     expect(screen.getByTestId('mute-action')).toHaveTextContent(
       'https://remote.test/users/open'

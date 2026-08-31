@@ -101,6 +101,20 @@ export const getActorCollections = async ({
       }
 
       const collection = fieldResponse.collection
+      if (
+        Array.isArray(collection.orderedItems) &&
+        collection.orderedItems.length > 0
+      ) {
+        return {
+          page: {
+            '@context': collection['@context'],
+            type: 'OrderedCollectionPage' as const,
+            orderedItems: collection.orderedItems
+          },
+          totalItems: collection.totalItems ?? collection.orderedItems.length
+        }
+      }
+
       const firstPageUrl = getOrderCollectionFirstPage(collection)
       const collectionPageUrl =
         pageUrl && isCollectionPageUrl(pageUrl, person[field])
