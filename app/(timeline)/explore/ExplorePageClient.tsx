@@ -14,7 +14,6 @@ import { Posts } from '@/lib/components/posts/posts'
 import { TrendLinkCard } from '@/lib/components/trends/trend-link-card'
 import { TrendTagRow } from '@/lib/components/trends/trend-tag-row'
 import { Button } from '@/lib/components/ui/button'
-import { Skeleton } from '@/lib/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/lib/components/ui/tabs'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
@@ -48,10 +47,10 @@ const SkeletonRows = ({ count = 4 }: { count?: number }) => (
     {Array.from({ length: count }).map((_, index) => (
       <div key={index} className="flex items-center justify-between gap-4 py-2">
         <div className="w-full space-y-2">
-          <Skeleton className="h-3.5 w-32" />
-          <Skeleton className="h-3 w-48" />
+          <div className="h-3.5 w-32 rounded bg-muted" />
+          <div className="h-3 w-48 rounded bg-muted/60" />
         </div>
-        <Skeleton className="h-6 w-14 rounded-md" />
+        <div className="h-6 w-14 rounded bg-muted/60" />
       </div>
     ))}
   </div>
