@@ -1,7 +1,10 @@
+import { CloudPropagator } from '@google-cloud/opentelemetry-cloud-trace-propagator'
 import { OTLPTraceExporter as GrpcOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc'
 import { OTLPTraceExporter as HttpOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
 import { OTLPTraceExporter as ProtoOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto'
+import { gcpDetector } from '@opentelemetry/resource-detector-gcp'
 import { NodeSDK } from '@opentelemetry/sdk-node'
+import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -29,10 +32,16 @@ vi.mock('google-auth-library', () => {
     })
   }
 })
+vi.mock('@google-cloud/opentelemetry-cloud-trace-propagator', () => ({
+  CloudPropagator: vi.fn()
+}))
 vi.mock('@opentelemetry/exporter-trace-otlp-grpc')
 vi.mock('@opentelemetry/exporter-trace-otlp-http')
 vi.mock('@opentelemetry/exporter-trace-otlp-proto')
 vi.mock('@opentelemetry/sdk-node')
+vi.mock('@opentelemetry/sdk-trace-base', () => ({
+  BatchSpanProcessor: vi.fn()
+}))
 vi.mock('./lib/config', () => ({
   getConfig: vi.fn()
 }))
@@ -191,8 +200,14 @@ describe('instrumentation.node', () => {
       expect(NodeSDK).not.toHaveBeenCalled()
     })
 
-    it('starts NodeSDK when openTelemetry is configured', async () => {
+    it('starts NodeSDK with BatchSpanProcessor and CloudPropagator when protocol is google', async () => {
       const mockStart = vi.fn()
+      const mockSpanProcessor = { id: 'mock-span-processor' }
+      vi.mocked(BatchSpanProcessor).mockImplementation(function (
+        this: unknown
+      ) {
+        return mockSpanProcessor as unknown as BatchSpanProcessor
+      } as unknown as typeof BatchSpanProcessor)
       vi.mocked(NodeSDK).mockImplementation(function (this: unknown) {
         return {
           start: mockStart
@@ -207,7 +222,57 @@ describe('instrumentation.node', () => {
 
       await registerNodeInstrumentation()
 
+      expect(BatchSpanProcessor).toHaveBeenCalledWith(expect.any(Object), {
+        scheduledDelayMillis: 500,
+        maxExportBatchSize: 64
+      })
+      expect(CloudPropagator).toHaveBeenCalledTimes(1)
       expect(NodeSDK).toHaveBeenCalledTimes(1)
+      expect(NodeSDK).toHaveBeenCalledWith(
+        expect.objectContaining({
+          resourceDetectors: [gcpDetector],
+          spanProcessors: [mockSpanProcessor],
+          textMapPropagator: expect.any(Object)
+        })
+      )
+      expect(mockStart).toHaveBeenCalledTimes(1)
+    })
+
+    it('starts NodeSDK with BatchSpanProcessor but without CloudPropagator when protocol is not google', async () => {
+      const mockStart = vi.fn()
+      const mockSpanProcessor = { id: 'mock-span-processor' }
+      vi.mocked(BatchSpanProcessor).mockImplementation(function (
+        this: unknown
+      ) {
+        return mockSpanProcessor as unknown as BatchSpanProcessor
+      } as unknown as typeof BatchSpanProcessor)
+      vi.mocked(NodeSDK).mockImplementation(function (this: unknown) {
+        return {
+          start: mockStart
+        } as unknown as NodeSDK
+      } as unknown as typeof NodeSDK)
+
+      vi.mocked(getConfig).mockReturnValue({
+        openTelemetry: {
+          protocol: 'grpc',
+          endpoint: 'localhost:4317'
+        }
+      } as Config)
+
+      await registerNodeInstrumentation()
+
+      expect(BatchSpanProcessor).toHaveBeenCalledWith(expect.any(Object), {
+        scheduledDelayMillis: 500,
+        maxExportBatchSize: 64
+      })
+      expect(CloudPropagator).not.toHaveBeenCalled()
+      expect(NodeSDK).toHaveBeenCalledTimes(1)
+      const sdkConfig = vi.mocked(NodeSDK).mock.calls[0][0] as {
+        resourceDetectors?: unknown[]
+        spanProcessors?: unknown[]
+      }
+      expect(sdkConfig.resourceDetectors).toBeUndefined()
+      expect(sdkConfig.spanProcessors).toEqual([mockSpanProcessor])
       expect(mockStart).toHaveBeenCalledTimes(1)
     })
   })
