@@ -21,6 +21,7 @@ import { TrendingNowBlock } from '@/lib/components/trends/trending-now-block'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
+import { UserRowSkeleton } from '@/lib/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/lib/components/ui/tabs'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
@@ -555,11 +556,12 @@ export const SearchPageClient = ({
             <p>Try again in a moment.</p>
           </div>
         ) : isLoading ? (
-          <div
-            className="p-8 text-center text-muted-foreground"
-            aria-live="polite"
-          >
-            <p className="text-sm font-medium">Searching...</p>
+          <div aria-live="polite">
+            <span className="sr-only">Searching...</span>
+            <UserRowSkeleton />
+            <UserRowSkeleton />
+            <UserRowSkeleton />
+            <UserRowSkeleton />
           </div>
         ) : !submittedQuery.trim() ? (
           <div className="p-8 text-center text-muted-foreground">
