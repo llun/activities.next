@@ -1,0 +1,16 @@
+instrumentation.node.test.ts
+  h_580a04e334fef4 6-9,42,206-209,229,234,246-249,270,274,278
+instrumentation.node.ts
+  h_580a04e334fef4 15-18,92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "9ca901596ba355475f066e71736ae10864413483",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
