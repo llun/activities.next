@@ -1,10 +1,9 @@
-import { CloudPropagator } from '@google-cloud/opentelemetry-cloud-trace-propagator'
 import { OTLPTraceExporter as GrpcOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc'
 import { OTLPTraceExporter as HttpOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
 import { OTLPTraceExporter as ProtoOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto'
 import { gcpDetector } from '@opentelemetry/resource-detector-gcp'
 import { NodeSDK } from '@opentelemetry/sdk-node'
-import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base'
+import { SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -32,15 +31,12 @@ vi.mock('google-auth-library', () => {
     })
   }
 })
-vi.mock('@google-cloud/opentelemetry-cloud-trace-propagator', () => ({
-  CloudPropagator: vi.fn()
-}))
 vi.mock('@opentelemetry/exporter-trace-otlp-grpc')
 vi.mock('@opentelemetry/exporter-trace-otlp-http')
 vi.mock('@opentelemetry/exporter-trace-otlp-proto')
 vi.mock('@opentelemetry/sdk-node')
 vi.mock('@opentelemetry/sdk-trace-base', () => ({
-  BatchSpanProcessor: vi.fn()
+  SimpleSpanProcessor: vi.fn()
 }))
 vi.mock('./lib/config', () => ({
   getConfig: vi.fn()
@@ -200,14 +196,14 @@ describe('instrumentation.node', () => {
       expect(NodeSDK).not.toHaveBeenCalled()
     })
 
-    it('starts NodeSDK with BatchSpanProcessor and CloudPropagator when protocol is google', async () => {
+    it('starts NodeSDK with SimpleSpanProcessor and gcpDetector when protocol is google', async () => {
       const mockStart = vi.fn()
       const mockSpanProcessor = { id: 'mock-span-processor' }
-      vi.mocked(BatchSpanProcessor).mockImplementation(function (
+      vi.mocked(SimpleSpanProcessor).mockImplementation(function (
         this: unknown
       ) {
-        return mockSpanProcessor as unknown as BatchSpanProcessor
-      } as unknown as typeof BatchSpanProcessor)
+        return mockSpanProcessor as unknown as SimpleSpanProcessor
+      } as unknown as typeof SimpleSpanProcessor)
       vi.mocked(NodeSDK).mockImplementation(function (this: unknown) {
         return {
           start: mockStart
@@ -222,11 +218,7 @@ describe('instrumentation.node', () => {
 
       await registerNodeInstrumentation()
 
-      expect(BatchSpanProcessor).toHaveBeenCalledWith(expect.any(Object), {
-        scheduledDelayMillis: 500,
-        maxExportBatchSize: 64
-      })
-      expect(CloudPropagator).toHaveBeenCalledTimes(1)
+      expect(SimpleSpanProcessor).toHaveBeenCalledWith(expect.any(Object))
       expect(NodeSDK).toHaveBeenCalledTimes(1)
       expect(NodeSDK).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -238,14 +230,14 @@ describe('instrumentation.node', () => {
       expect(mockStart).toHaveBeenCalledTimes(1)
     })
 
-    it('starts NodeSDK with BatchSpanProcessor but without CloudPropagator when protocol is not google', async () => {
+    it('starts NodeSDK with SimpleSpanProcessor without gcpDetector when protocol is not google', async () => {
       const mockStart = vi.fn()
       const mockSpanProcessor = { id: 'mock-span-processor' }
-      vi.mocked(BatchSpanProcessor).mockImplementation(function (
+      vi.mocked(SimpleSpanProcessor).mockImplementation(function (
         this: unknown
       ) {
-        return mockSpanProcessor as unknown as BatchSpanProcessor
-      } as unknown as typeof BatchSpanProcessor)
+        return mockSpanProcessor as unknown as SimpleSpanProcessor
+      } as unknown as typeof SimpleSpanProcessor)
       vi.mocked(NodeSDK).mockImplementation(function (this: unknown) {
         return {
           start: mockStart
@@ -261,11 +253,7 @@ describe('instrumentation.node', () => {
 
       await registerNodeInstrumentation()
 
-      expect(BatchSpanProcessor).toHaveBeenCalledWith(expect.any(Object), {
-        scheduledDelayMillis: 500,
-        maxExportBatchSize: 64
-      })
-      expect(CloudPropagator).not.toHaveBeenCalled()
+      expect(SimpleSpanProcessor).toHaveBeenCalledWith(expect.any(Object))
       expect(NodeSDK).toHaveBeenCalledTimes(1)
       const sdkConfig = vi.mocked(NodeSDK).mock.calls[0][0] as {
         resourceDetectors?: unknown[]

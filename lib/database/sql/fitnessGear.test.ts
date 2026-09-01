@@ -1955,7 +1955,7 @@ describe('FitnessGearDatabase', () => {
           gearId: bike.id,
           actorId: actors.pollAuthor.id,
           addedAt: new Date('2025-12-01T00:00:00.000Z'),
-          removedAt: new Date('2026-09-01T00:00:00.000Z')
+          removedAt: new Date('2027-01-01T00:00:00.000Z')
         })
 
         expect(updated?.periods).toHaveLength(2)
@@ -1967,7 +1967,7 @@ describe('FitnessGearDatabase', () => {
           Date.parse('2026-02-01T00:00:00.000Z')
         )
         expect(updated?.periods[1].removedAt).toEqual(
-          Date.parse('2026-09-01T00:00:00.000Z')
+          Date.parse('2027-01-01T00:00:00.000Z')
         )
       })
 
