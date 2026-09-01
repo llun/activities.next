@@ -22,6 +22,43 @@ export const normalizeActivityPubUri = (uri: string | null | undefined) => {
   }
 }
 
+/**
+ * Do two ActivityPub ids live on the same origin?
+ *
+ * This is the trust boundary for "a document I fetched claims an id" — the same
+ * question `sameHost`/`sameAuthority` answer inline in `processForwardedActivityJob`,
+ * `verifyRemoteQuote`, `persistInboundQuoteEdge` and both quote-request actions
+ * (those five copies should collapse onto this one in the dedup pass). A server
+ * may legitimately canonicalise a URL WITHIN its own origin — this instance's own
+ * `proxy.ts` serves the ActivityPub document for `/@user/<id>` with an `id` of
+ * `/users/<user>/statuses/<n>`, and Mastodon does the same — so an exact id match
+ * is too strict. What must never be allowed is a document claiming an id on
+ * ANOTHER host, which is how a hostile server names someone else's status.
+ *
+ * Fails CLOSED, and the empty-host test is the load-bearing half of that. A
+ * blank node or an unparseable id throws, but a HOST-LESS URI parses fine and
+ * reports `host === ''` — so `urn:`, `did:`, `tag:` and `mailto:` ids all
+ * compare equal to one another under a bare `.host` comparison, which is the
+ * one way two unrelated ids can be read as the same authority. Unreachable
+ * from the announce path (`safeRemoteFetch` is https-only, so `getNote`
+ * returns null first), but it is a real false-accept for the quote paths above,
+ * where a `did:`-shaped stamp uri would otherwise be read as sharing an
+ * authority with a `did:`-shaped author id. Deliberately stricter than the five
+ * inline copies on exactly that input and no other.
+ */
+export const isSameActivityPubOrigin = (
+  first: string | null | undefined,
+  second: string | null | undefined
+): boolean => {
+  if (!first || !second) return false
+  try {
+    const host = new URL(first).host
+    return host !== '' && host === new URL(second).host
+  } catch {
+    return false
+  }
+}
+
 export const normalizeActorId = (actorId: string | null | undefined) =>
   normalizeActivityPubUri(actorId?.split('#')[0])
 
