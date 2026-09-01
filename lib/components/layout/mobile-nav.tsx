@@ -103,11 +103,18 @@ export function MobileNav({
 
   const renderMenuItem = (item: MobileNavEntry, muted = false) => {
     const isActive = isItemActive(item.href)
+    // Every entry here is a bounded, fixed registry route except the
+    // synthesized Profile item, whose href is the viewer's own per-user
+    // `/@user@domain` — a fully dynamic route that triggers a WebFinger and
+    // signed actor fetch for a remote actor (see "Link prefetching in feeds"
+    // in AGENTS.md). Only that one item opts out; the rest are cheap to
+    // prefetch like any other nav chrome.
+    const isProfileItem = item.key === 'profile'
     return (
       <DropdownMenuItem key={item.key} asChild>
         <Link
           href={item.href}
-          prefetch={false}
+          prefetch={isProfileItem ? false : undefined}
           aria-current={isActive ? 'page' : undefined}
           className={cn(
             'flex items-center gap-2',
@@ -129,9 +136,11 @@ export function MobileNav({
           const isActive = isItemActive(item.href)
           return (
             <li key={item.key} className="min-w-0">
+              {/* The Profile entry never reaches the direct bar — it is
+                  spliced only into overflowNavItems — so every link here is
+                  a bounded registry route and keeps default prefetching. */}
               <Link
                 href={item.href}
-                prefetch={false}
                 aria-current={isActive ? 'page' : undefined}
                 className={cn(
                   'relative flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 px-2 py-2 text-xs font-medium transition-colors',
