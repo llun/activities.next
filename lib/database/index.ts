@@ -11,10 +11,21 @@ interface DatabaseInstance {
   knex: Knex
 }
 
+// Symbol.for (global registry), not Symbol(): Next.js dev Fast Refresh
+// re-evaluates this module while the cached knex dialect class survives, so a
+// per-module Symbol() would never match on reload and query would be
+// re-wrapped every time, stacking duplicate traceparent comments.
+const SQLCOMMENTER_ATTACHED = Symbol.for('activities.next.sqlcommenter')
+
 export const attachSqlcommenter = (db: Knex): Knex => {
-  const origQuery = db.client?.query
-  if (typeof origQuery === 'function') {
-    db.client.query = function (
+  // Patch the dialect class prototype, not the knex instance: knex builds each
+  // transaction client via Object.create(client.constructor.prototype), so an
+  // instance-level override is invisible to every query inside a transaction.
+  const proto = db.client?.constructor?.prototype
+  const origQuery = proto?.query
+  if (typeof origQuery === 'function' && !proto[SQLCOMMENTER_ATTACHED]) {
+    proto[SQLCOMMENTER_ATTACHED] = true
+    proto.query = function (
       connection: unknown,
       obj: { sql: string; [key: string]: unknown } | string
     ) {
