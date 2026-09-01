@@ -1,0 +1,20 @@
+app/api/v1/accounts/[id]/following/route.test.ts
+  h_580a04e334fef4 129-130
+docs/mastodon-api-compatibility.md
+  h_580a04e334fef4 404-425
+lib/services/mastodon/remoteFollowCollection.test.ts
+  h_580a04e334fef4 158-177,235,251-258
+lib/services/mastodon/remoteFollowCollection.ts
+  h_580a04e334fef4 64-68,166-171,235-243,354-355
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "2aa0fa9dc67d07b88246d7683429d305845e0eef",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
