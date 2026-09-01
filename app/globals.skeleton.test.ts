@@ -55,6 +55,7 @@ const lightnessAndAlphaOf = (
   }
 }
 
+/** Lightness only, for callers that never need the alpha channel. */
 const lightnessOf = (value: string): number =>
   lightnessAndAlphaOf(value).lightness
 
@@ -93,14 +94,13 @@ describe('skeleton loading utility', () => {
       // green. Lightness-space compositing is exact for these grey (0% sat)
       // tokens, and the parser throws loudly on any other value form.
       const block = blockOf(theme)
-      const base = lightnessAndAlphaOf(tokenOf(block, '--skeleton'))
+      const base = lightnessOf(tokenOf(block, '--skeleton'))
       const highlight = lightnessAndAlphaOf(
         tokenOf(block, '--skeleton-highlight')
       )
       const effective =
-        highlight.alpha * highlight.lightness +
-        (1 - highlight.alpha) * base.lightness
-      expect(Math.abs(effective - base.lightness)).toBeGreaterThanOrEqual(5)
+        highlight.alpha * highlight.lightness + (1 - highlight.alpha) * base
+      expect(Math.abs(effective - base)).toBeGreaterThanOrEqual(5)
     }
   )
 
