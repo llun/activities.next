@@ -421,19 +421,15 @@ export class S3FileStorage implements MediaStorage {
               if (media.description == null) {
                 const { altText } = getConfig()
                 if (altText) {
-                  try {
-                    generatedDescription = await generateAltText(
-                      altText,
-                      buffer,
-                      media.original.mimeType
-                    )
-                  } catch (error) {
-                    logger.warn({
-                      message:
-                        'Failed to generate alt text for presigned image upload',
-                      err: toLoggableError(error)
-                    })
-                  }
+                  // generateAltText never throws — its entire body is
+                  // wrapped in try/catch and it returns null on any
+                  // failure, logging its own warn. A try/catch here would
+                  // be dead code that only double-logs the same failure.
+                  generatedDescription = await generateAltText(
+                    altText,
+                    buffer,
+                    media.original.mimeType
+                  )
                 }
               }
               if (analysis.blurhash || analysis.focus || generatedDescription) {

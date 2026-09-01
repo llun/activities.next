@@ -8,11 +8,11 @@ import { ActorRedirectCard } from '@/app/(timeline)/[actor]/ActorRedirectCard'
 import { FollowList } from '@/app/(timeline)/[actor]/FollowList'
 import { getFollowListBlockedActorIds } from '@/app/(timeline)/[actor]/getFollowListBlockedActorIds'
 import { getProfileData } from '@/app/(timeline)/[actor]/getProfileData'
-import { Button } from '@/lib/components/ui/button'
+import { getNonLocalActorRedirectTarget } from '@/app/(timeline)/[actor]/resolveActorRedirect'
+import { PageHeader } from '@/lib/components/page-header'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
-import { isLocalFederationDomain } from '@/lib/services/federation/domainPolicy'
 import { Actor, ActorProfile } from '@/lib/types/domain/actor'
 import { Follow } from '@/lib/types/domain/follow'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -31,9 +31,13 @@ export const generateMetadata = async ({
     const [username, domain] = parts
     const database = getDatabase()
     if (database) {
-      const isLocal = await isLocalFederationDomain(database, domain)
-      if (!isLocal) {
-        const targetUrl = `https://${domain}/@${username}/following`
+      const targetUrl = await getNonLocalActorRedirectTarget(
+        database,
+        username,
+        domain,
+        '/following'
+      )
+      if (targetUrl) {
         return {
           title: `Activities.next: ${decodedActorHandle} Following`,
           robots: { index: false, follow: false },
@@ -66,10 +70,14 @@ const Page: FC<Props> = async ({ params }) => {
   }
   const [actorUsername, actorDomain] = parts
 
-  const isLocal = await isLocalFederationDomain(database, actorDomain)
-  if (!isLocal) {
+  const targetUrl = await getNonLocalActorRedirectTarget(
+    database,
+    actorUsername,
+    actorDomain,
+    '/following'
+  )
+  if (targetUrl) {
     const bareHost = host.includes('://') ? new URL(host).host : host
-    const targetUrl = `https://${actorDomain}/@${actorUsername}/following`
     return (
       <ActorRedirectCard
         host={bareHost}
@@ -112,23 +120,22 @@ const Page: FC<Props> = async ({ params }) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start gap-3">
-        <Button variant="ghost" size="icon" asChild>
-          <Link
-            href={`/@${actorProfile.person.preferredUsername}@${actorDomain}`}
-            prefetch={false}
-          >
-            <ArrowLeft className="h-5 w-5" />
-            <span className="sr-only">Back to profile</span>
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-2xl font-semibold">Following</h1>
-          <p className="text-sm text-muted-foreground">
-            {actorProfile.followingCount.toLocaleString()} accounts
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title={
+          <span className="flex items-center gap-2">
+            <Link
+              href={`/@${actorProfile.person.preferredUsername}@${actorDomain}`}
+              prefetch={false}
+              aria-label="Back to profile"
+              className="text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+            <span className="truncate">Following</span>
+          </span>
+        }
+        description={`${actorProfile.followingCount.toLocaleString()} accounts`}
+      />
 
       <div className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
         <FollowList
