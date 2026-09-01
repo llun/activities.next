@@ -72,10 +72,12 @@ describe('attachSqlcommenter', () => {
     )
   })
 
-  it('appends the traceparent comment only once when the same builder is executed twice', async () => {
-    // knex fires `start` once per execution, and a builder can be executed
-    // more than once. Without an idempotency guard the second `start` captures
-    // the already-patched toSQL and stacks a second identical suffix.
+  it('appends the traceparent comment exactly once per execution when the same builder is executed twice', async () => {
+    // A builder can be executed more than once (awaiting the same instance
+    // twice re-runs `client.runner(this).run()`). The tag is appended to the
+    // compiled object `query()` is handed, and `toSQL()` builds that object
+    // fresh per execution — so the second run must carry exactly one tag of
+    // its own, never a stacked copy of the first.
     const mockSpan = {
       spanContext: () => ({
         traceId: '02dad5002ab305f1fd75ae8bd0d46e94',
@@ -86,12 +88,15 @@ describe('attachSqlcommenter', () => {
 
     vi.spyOn(trace, 'getActiveSpan').mockReturnValue(mockSpan)
 
-    const query = db('statuses').select('*')
-    db.emit('start', query)
-    db.emit('start', query)
+    const query = db.raw('SELECT 1')
+    await query
+    await query
 
-    const occurrences = query.toSQL().sql.match(/\/\* traceparent=/g) ?? []
-    expect(occurrences).toHaveLength(1)
+    expect(executedSql).toHaveLength(2)
+    for (const sql of executedSql) {
+      const occurrences = sql.match(/\/\*traceparent=/g) ?? []
+      expect(occurrences).toHaveLength(1)
+    }
   })
 
   it('appends the traceparent comment as a SUFFIX, never a leading comment', async () => {
@@ -112,24 +117,27 @@ describe('attachSqlcommenter', () => {
 
     vi.spyOn(trace, 'getActiveSpan').mockReturnValue(mockSpan)
 
-    const query = db('statuses').select('*')
-    db.emit('start', query)
+    await db.raw('SELECT 1')
 
-    const sql = query.toSQL().sql
+    const sql = executedSql[0]
 
-    // The compiled statement must not START with the comment (that is what
-    // knex's `builder.comment()` produces) and must END with it instead.
+    // The statement the driver receives must not START with the comment
+    // (that is what knex's `builder.comment()` produces) and must END with
+    // it instead.
     expect(sql).not.toMatch(/^\s*\/\*/)
     expect(sql).toMatch(
-      /\/\* traceparent='00-02dad5002ab305f1fd75ae8bd0d46e94-3ca938408dc381d3-01' \*\/\s*$/
+      /\/\*traceparent='00-02dad5002ab305f1fd75ae8bd0d46e94-3ca938408dc381d3-01'\*\/\s*$/
     )
-    expect(sql.indexOf('/*')).toBeGreaterThan(sql.indexOf('select'))
+    expect(sql.indexOf('/*')).toBeGreaterThan(sql.indexOf('SELECT'))
   })
 
-  it('appends the traceparent comment onto toNative() output too', async () => {
-    // `Sql#toNative()` is a separate closure over the same compiled object;
-    // some dialects read `.sql` through it rather than the plain `.sql`
-    // field, so the suffix must be visible there as well.
+  it('appends the comment before bindings are positioned, so bound values still resolve', async () => {
+    // `client.query()` hands the compiled object to knex's `enrichQueryObject`,
+    // which rewrites binding positions for the dialect (`?` -> `$1` on
+    // PostgreSQL) AFTER this wrapper has appended the tag. The tag carries no
+    // `?`, so it cannot shift a binding — pinned by executing a bound
+    // statement and checking both the SQL the driver received and the value
+    // it resolved.
     const mockSpan = {
       spanContext: () => ({
         traceId: '02dad5002ab305f1fd75ae8bd0d46e94',
@@ -140,13 +148,11 @@ describe('attachSqlcommenter', () => {
 
     vi.spyOn(trace, 'getActiveSpan').mockReturnValue(mockSpan)
 
-    const query = db('statuses').select('*')
-    db.emit('start', query)
+    const rows = await db.raw('SELECT ? AS value', [42])
 
-    const compiled = query.toSQL()
-    const native = compiled.toNative()
-    expect(native.sql).toMatch(
-      /\/\* traceparent='00-02dad5002ab305f1fd75ae8bd0d46e94-3ca938408dc381d3-01' \*\/\s*$/
+    expect(rows).toEqual([{ value: 42 }])
+    expect(executedSql[0]).toBe(
+      "SELECT ? AS value /*traceparent='00-02dad5002ab305f1fd75ae8bd0d46e94-3ca938408dc381d3-01'*/"
     )
   })
 
