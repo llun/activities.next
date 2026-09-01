@@ -62,7 +62,7 @@ describe('POST /api/v1/accounts/vote', () => {
     mockSyncRemotePoll.mockImplementation(({ status }) => status)
   })
 
-  it('records votes, sends poll votes, syncs remote poll, and returns updated status', async () => {
+  it('records votes, sends poll votes, and returns the locally-updated status without a post-vote remote sync', async () => {
     const updatedStatus = {
       ...pollStatus,
       choices: [
@@ -74,14 +74,18 @@ describe('POST /api/v1/accounts/vote', () => {
       .mockResolvedValueOnce(pollStatus)
       .mockResolvedValueOnce(updatedStatus)
 
-    const syncedStatus = {
+    // If the route synced from the remote here it would overwrite the local
+    // tallies with a stale count that does not yet include the just-cast vote.
+    // Stub the sync to return exactly that stale shape so a revert of the fix
+    // (which restores the call) makes the response assertion below fail.
+    const staleSyncedStatus = {
       ...pollStatus,
       choices: [
-        { title: 'Red', totalVotes: 10 },
-        { title: 'Blue', totalVotes: 5 }
+        { title: 'Red', totalVotes: 0 },
+        { title: 'Blue', totalVotes: 0 }
       ]
     }
-    mockSyncRemotePoll.mockResolvedValueOnce(syncedStatus)
+    mockSyncRemotePoll.mockResolvedValue(staleSyncedStatus)
 
     const response = await POST(
       new NextRequest('https://local.test/api/v1/accounts/vote', {
@@ -106,11 +110,10 @@ describe('POST /api/v1/accounts/vote', () => {
       status: pollStatus,
       choices: [0]
     })
-    expect(mockSyncRemotePoll).toHaveBeenCalledWith({
-      database: mockDatabase,
-      status: updatedStatus
-    })
-    expect(await response.json()).toEqual({ status: syncedStatus })
+    // Design (a): no immediate post-vote sync — the voter's own vote survives
+    // in the response, and reconciliation is deferred to the next poll GET.
+    expect(mockSyncRemotePoll).not.toHaveBeenCalled()
+    expect(await response.json()).toEqual({ status: updatedStatus })
   })
 
   it('rejects invalid choice indices', async () => {

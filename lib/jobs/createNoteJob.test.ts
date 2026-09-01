@@ -580,6 +580,66 @@ describe('createNoteJob', () => {
     expect(hashtagTags[0].value).toEqual('https://somewhere.test/tags/testing')
   })
 
+  it('recovers a concurrent duplicate insert without re-running tag or hashtag side effects', async () => {
+    const noteId = `https://${actor1!.domain}/notes/dup-recovery-${Date.now()}`
+    const note = MockMastodonActivityPubNote({
+      id: noteId,
+      content: '<p>Race #dup</p>',
+      tags: [
+        {
+          type: 'Hashtag',
+          href: 'https://somewhere.test/tags/dup',
+          name: '#dup'
+        }
+      ]
+    })
+
+    // Stand in for the delivery that WON the race and committed first: the row
+    // already exists, so createNoteWithResult's insert below will hit the
+    // unique constraint and take the recovery path.
+    await database.createNote({
+      id: noteId,
+      url: noteId,
+      actorId: note.attributedTo,
+      text: '<p>Race #dup</p>',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      createdAt: new Date(note.published).getTime()
+    })
+
+    // Simulate the losing delivery: its own pre-insert getStatus check saw no
+    // row (the winner had not committed when it ran), so it proceeds into
+    // createNoteWithResult and only discovers the duplicate at the INSERT —
+    // i.e. the recovery path returns the winner's row with isNew=false. The
+    // recovery lookup inside createNoteWithResult uses the module's own
+    // getStatus closure, not this spied property, so it still finds the row.
+    const getStatusSpy = vi
+      .spyOn(database, 'getStatus')
+      .mockResolvedValueOnce(null)
+    const createTagSpy = vi.spyOn(database, 'createTag')
+    const increaseHashtagCounterSpy = vi.spyOn(
+      database,
+      'increaseHashtagCounter'
+    )
+
+    try {
+      await createNoteJob(database, {
+        id: 'id-dup-recovery',
+        name: CREATE_NOTE_JOB_NAME,
+        data: note
+      })
+
+      // The winning delivery owns every side effect; the recovered loser must
+      // skip them, or the hashtag counter permanently double-counts.
+      expect(createTagSpy).not.toHaveBeenCalled()
+      expect(increaseHashtagCounterSpy).not.toHaveBeenCalled()
+    } finally {
+      getStatusSpy.mockRestore()
+      createTagSpy.mockRestore()
+      increaseHashtagCounterSpy.mockRestore()
+    }
+  })
+
   it('stores inbound emoji tags so remote custom emoji render locally', async () => {
     const noteId = `https://${actor1!.domain}/notes/emoji-test-${Date.now()}`
     const note = MockMastodonActivityPubNote({

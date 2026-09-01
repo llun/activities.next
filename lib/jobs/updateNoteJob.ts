@@ -61,6 +61,11 @@ export const updateNoteJob = createJobHandle(
       normalizeActivityPubContent(message.data)
     )
     if (!parseResult.success) {
+      logger.warn({
+        message: 'Dropping malformed note update payload',
+        job: UPDATE_NOTE_JOB_NAME,
+        statusId: (message.data as { id?: unknown } | null)?.id
+      })
       return
     }
     const note = parseResult.data as BaseNote

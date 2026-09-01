@@ -600,6 +600,20 @@ export type CreatePollParams = BaseCreateStatusParams & {
   // Mastodon poll[hide_totals]: hide per-option tallies until the poll expires.
   hideTotals?: boolean
 }
+
+/**
+ * Discriminated result of a status create that recovers from a concurrent
+ * duplicate insert. `isNew` is false when a racing delivery of the same object
+ * won the unique key and this call returned the winner's existing row — the
+ * signal `createNoteJob` / `createPollJob` read to skip re-running their
+ * (non-idempotent) tag / attachment / hashtag side effects. The plain
+ * `createNote` / `createPoll` methods keep returning just the `Status`; only
+ * the `*WithResult` variants surface `isNew`.
+ */
+export type CreateStatusResult = {
+  status: Status
+  isNew: boolean
+}
 export type UpdatePollParams = Pick<CreatePollParams, 'text' | 'summary'> &
   BaseStatusParams & {
     choices: { title: string; totalVotes: number }[]
@@ -891,8 +905,13 @@ export type RecordPollVotesParams = {
 
 export interface StatusDatabase {
   createNote(params: CreateNoteParams): Promise<Status>
+  // Same insert as createNote, but reports whether the row was newly created
+  // (isNew) or recovered from a concurrent duplicate. See CreateStatusResult.
+  createNoteWithResult(params: CreateNoteParams): Promise<CreateStatusResult>
   createAnnounce(params: CreateAnnounceParams): Promise<Status | null>
   createPoll(params: CreatePollParams): Promise<Status>
+  // Same insert as createPoll, but reports whether the row was newly created.
+  createPollWithResult(params: CreatePollParams): Promise<CreateStatusResult>
   updateNote(params: UpdateNoteParams): Promise<Status | null>
   // Rewrites the status's quote-approval policy in the content blob without
   // recording an edit (no status_history append, no edited_at bump).
