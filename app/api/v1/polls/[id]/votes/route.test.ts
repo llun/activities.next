@@ -41,8 +41,14 @@ vi.mock('@/lib/services/statusAccess', () => ({
   canActorReadStatus: vi.fn().mockResolvedValue(true)
 }))
 
+const mockGetMastodonStatus = vi.fn()
 vi.mock('@/lib/services/mastodon/getMastodonStatus', () => ({
-  getMastodonStatus: vi.fn().mockResolvedValue({ poll: { id: 'poll-1' } })
+  getMastodonStatus: (...params: unknown[]) => mockGetMastodonStatus(...params)
+}))
+
+const mockSyncRemotePoll = vi.fn()
+vi.mock('@/lib/services/polls/syncRemotePoll', () => ({
+  syncRemotePoll: (...params: unknown[]) => mockSyncRemotePoll(...params)
 }))
 
 const createRequest = (body: unknown) =>
@@ -63,6 +69,8 @@ describe('POST /api/v1/polls/[id]/votes', () => {
       choices: [{ title: 'a' }, { title: 'b' }]
     })
     mockDatabase.recordPollVotes.mockResolvedValue(true)
+    mockGetMastodonStatus.mockResolvedValue({ poll: { id: 'poll-1' } })
+    mockSyncRemotePoll.mockImplementation(({ status }) => status)
   })
 
   it.each([
@@ -86,6 +94,50 @@ describe('POST /api/v1/polls/[id]/votes', () => {
       actorId: mockCurrentActor.id,
       choices: expected
     })
+  })
+
+  it('serializes the locally-updated status without a post-vote remote sync', async () => {
+    const votedStatus = {
+      id: POLL_ID,
+      type: 'Poll',
+      pollType: 'multiple',
+      endAt: Date.now() + 60_000,
+      choices: [
+        { title: 'a', totalVotes: 1 },
+        { title: 'b', totalVotes: 0 }
+      ]
+    }
+    mockDatabase.getStatus
+      .mockResolvedValueOnce({
+        id: POLL_ID,
+        type: 'Poll',
+        pollType: 'multiple',
+        endAt: Date.now() + 60_000,
+        choices: [{ title: 'a' }, { title: 'b' }]
+      })
+      .mockResolvedValueOnce(votedStatus)
+
+    // A revert of the fix would pass this stale, vote-less status to
+    // getMastodonStatus instead of the locally-voted one below.
+    mockSyncRemotePoll.mockResolvedValue({
+      ...votedStatus,
+      choices: [
+        { title: 'a', totalVotes: 0 },
+        { title: 'b', totalVotes: 0 }
+      ]
+    })
+
+    const response = await POST(createRequest({ choices: ['0'] }), {
+      params: Promise.resolve({ id: urlToId(POLL_ID) })
+    })
+
+    expect(response.status).toBe(200)
+    expect(mockSyncRemotePoll).not.toHaveBeenCalled()
+    expect(mockGetMastodonStatus).toHaveBeenCalledWith(
+      mockDatabase,
+      votedStatus,
+      mockCurrentActor.id
+    )
   })
 
   it('still rejects non-numeric choices', async () => {

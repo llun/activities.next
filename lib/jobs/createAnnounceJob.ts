@@ -29,6 +29,11 @@ export const createAnnounceJob: JobHandle = createJobHandle(
       normalizeActivityPubAnnounce(message.data)
     )
     if (!parseResult.success) {
+      logger.warn({
+        message: 'Dropping malformed announce payload',
+        job: CREATE_ANNOUNCE_JOB_NAME,
+        announceId: (message.data as { id?: unknown } | null)?.id
+      })
       return
     }
     const status = parseResult.data

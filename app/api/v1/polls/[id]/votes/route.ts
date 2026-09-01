@@ -4,7 +4,6 @@ import { sendPollVotes } from '@/lib/activities'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
-import { syncRemotePoll } from '@/lib/services/polls/syncRemotePoll'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { StatusType } from '@/lib/types/domain/status'
@@ -179,14 +178,19 @@ export const POST = traceApiRoute(
         })
       }
 
-      const syncedStatus = await syncRemotePoll({
-        database,
-        status: updatedStatus
-      })
-
+      // Serialize the locally-updated status WITHOUT syncing from the remote
+      // here. `recordPollVotes` already incremented this instance's own
+      // `poll_choices.totalVotes`, but the remote origin has almost certainly
+      // not processed the vote we just delivered — so `syncRemotePoll` would
+      // overwrite the local tallies with the origin's stale count and make the
+      // voter watch their own vote vanish from the response. Reconciliation is
+      // deferred to the next independent read: GET /api/v1/polls/:id is the
+      // one path that syncs (timeline serialization never does), and clients
+      // issue that per-poll GET when they re-render a poll, so the origin's
+      // authoritative count is picked up once it reflects the vote.
       const mastodonStatus = await getMastodonStatus(
         database,
-        syncedStatus,
+        updatedStatus,
         currentActor.id
       )
       if (!mastodonStatus?.poll) {

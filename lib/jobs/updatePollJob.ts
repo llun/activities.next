@@ -17,6 +17,11 @@ export const updatePollJob = createJobHandle(
       normalizeActivityPubContent(message.data)
     )
     if (!parseResult.success) {
+      logger.warn({
+        message: 'Dropping malformed poll update payload',
+        job: UPDATE_POLL_JOB_NAME,
+        statusId: (message.data as { id?: unknown } | null)?.id
+      })
       return
     }
     const question = parseResult.data

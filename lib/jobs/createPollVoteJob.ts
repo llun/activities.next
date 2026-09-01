@@ -25,6 +25,11 @@ export const createPollVoteJob = createJobHandle(
 
     const parseResult = Note.safeParse(normalizedData)
     if (!parseResult.success) {
+      logger.warn({
+        message: 'Dropping malformed poll vote payload',
+        job: CREATE_POLL_VOTE_JOB_NAME,
+        statusId: (message.data as { id?: unknown } | null)?.id
+      })
       return
     }
     const note = parseResult.data

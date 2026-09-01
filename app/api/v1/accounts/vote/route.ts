@@ -1,6 +1,5 @@
 import { sendPollVotes } from '@/lib/activities'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
-import { syncRemotePoll } from '@/lib/services/polls/syncRemotePoll'
 import { StatusType } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -99,20 +98,24 @@ export const POST = traceApiRoute(
 
     await sendPollVotes({ currentActor, status, choices })
 
+    // Return the locally-updated status WITHOUT syncing from the remote here.
+    // `recordPollVotes` already incremented this instance's own
+    // `poll_choices.totalVotes`, but the remote origin has almost certainly
+    // not processed the vote we just delivered — so `syncRemotePoll` would
+    // overwrite the local tallies with the origin's stale count and make the
+    // voter watch their own vote vanish from the response. Reconciliation is
+    // deferred to the next independent read: GET /api/v1/polls/:id is the one
+    // path that syncs (timeline serialization never does), and clients issue
+    // that per-poll GET when they re-render a poll, so the origin's
+    // authoritative count is picked up once it reflects the vote.
     const updatedStatus = await database.getStatus({
       statusId,
       withReplies: false
     })
-    const syncedStatus = updatedStatus
-      ? await syncRemotePoll({
-          database,
-          status: updatedStatus
-        })
-      : null
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: { status: syncedStatus ?? updatedStatus }
+      data: { status: updatedStatus }
     })
   })
 )
