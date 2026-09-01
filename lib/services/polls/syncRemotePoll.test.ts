@@ -325,6 +325,41 @@ describe('syncRemotePoll', () => {
     expect(mockDatabase.updatePoll).not.toHaveBeenCalled()
   })
 
+  it('refuses a remote poll document claiming another poll on the same origin', async () => {
+    // The width test for the deliberate split documented in AGENTS.md: this
+    // guard is an EXACT id match, NOT the same-origin check createAnnounceJob
+    // uses, because here we fetch the origin's own canonical id and it should
+    // answer with that id. Both other refusal fixtures are cross-host, so
+    // without this one, loosening the guard onto isSameActivityPubOrigin — the
+    // "obvious sixth call site" its own docblock invites — leaves the suite
+    // green while letting an origin write poll 999's content onto poll 1.
+    ;(getNote as jest.Mock).mockResolvedValue({
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: 'https://remote.test/polls/999',
+      type: 'Question',
+      attributedTo: remotePollStatus.actorId,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      content: '<p>A different poll entirely</p>',
+      published: '2026-08-31T00:00:00Z',
+      oneOf: [
+        {
+          type: 'Note',
+          name: 'Elsewhere',
+          replies: { type: 'Collection', totalItems: 99 }
+        }
+      ]
+    })
+
+    const result = await syncRemotePoll({
+      database: mockDatabase,
+      status: remotePollStatus
+    })
+
+    expect(mockDatabase.updatePoll).not.toHaveBeenCalled()
+    expect(result).toBe(remotePollStatus)
+  })
+
   it('accepts a remote poll document whose id differs only by host casing', async () => {
     // The guard normalizes both sides, so a benign serialization difference
     // must still sync — and must write to the row we asked about.

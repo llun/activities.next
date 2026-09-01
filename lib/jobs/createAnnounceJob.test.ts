@@ -302,10 +302,12 @@ describe('Announce action', () => {
     await expect(
       database.getStatus({ statusId: `${statusId}/activity` })
     ).resolves.toBeNull()
-    // Nothing was stored under the announced id either, which is what pins the
-    // guard AHEAD of the createNoteJob/createPollJob dispatch: moved below it,
-    // a document claiming an id we were never pointed at would still be
-    // persisted, attributed to whatever `attributedTo` claims.
+    // Nothing was stored under the announced id either. This is a plain
+    // no-plant assertion and NOT a placement pin: createNoteJob only ever
+    // writes `note.id`, so the announced URL is never a write key and this
+    // holds under every guard placement. Placement is pinned by the companion
+    // test below, whose claimed id is unstored and therefore IS the write key —
+    // it is the only test that moves when the guard is relocated.
     await expect(
       database.getStatus({ statusId: announcedObjectId })
     ).resolves.toBeNull()

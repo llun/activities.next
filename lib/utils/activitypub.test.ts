@@ -294,6 +294,32 @@ describe('isSameActivityPubOrigin', () => {
       expected: false
     },
     {
+      description:
+        'refuses two host-less URIs rather than reading them as one authority',
+      first: 'urn:uuid:aaaaaaaa',
+      second: 'urn:uuid:bbbbbbbb',
+      expected: false
+    },
+    {
+      description: 'refuses two host-less URIs of different schemes',
+      first: 'did:plc:abcdef',
+      second: 'tag:remote.test,2026:1',
+      expected: false
+    },
+    {
+      description: 'refuses a host-less URI against a real host',
+      first: 'urn:uuid:aaaaaaaa',
+      second: 'https://remote.test/notes/1',
+      expected: false
+    },
+    {
+      description:
+        'compares the host and NOT the scheme, matching the five inline copies',
+      first: 'http://remote.test/notes/1',
+      second: 'https://remote.test/notes/1',
+      expected: true
+    },
+    {
       description: 'refuses a JSON-LD blank node',
       first: '_:b0',
       second: 'https://remote.test/notes/1',

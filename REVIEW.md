@@ -920,9 +920,10 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   `proxy.ts` serves `/@user/<id>` with an `id` of `/users/<user>/statuses/<n>`,
   Mastodon does the same, `safeRemoteFetch` follows redirects, and
   `createRelayAnnounceJob` already records the same fact about the same fetch.
-  Note what the normalizer does and does not fold: scheme/host case, default
-  port, dot segments and encode-direction percent-encoding, but **not** a
-  trailing slash and **not** percent-decoding.
+  Check the parser rather than a remembered list before relying on a specific
+  fold: it does scheme/host case, default port, dot segments, IDNA mapping and
+  encode-direction percent-encoding, but **not** percent-decoding and **not** a
+  trailing slash on a non-empty path.
 - The origin guard in `createAnnounceJob` does **not** make a boost's target
   safe: an already-stored status is resolved before it and skips the branch, and
   `createAnnounce` applies no audience check. A remote actor can still boost a
@@ -931,9 +932,14 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   Open and pre-existing — flag any comment or doc that implies the guard shuts
   it.
 - Reject any new inline `new URL(a).host === new URL(b).host`; use
-  `isSameActivityPubOrigin`. It fails closed — a blank node, an empty string or
-  an unparseable id matches nothing, _including itself_, which is the property
-  that stops two degenerate ids comparing equal.
+  `isSameActivityPubOrigin`. It fails closed — a blank node, an empty string, an
+  unparseable id or a **host-less URI** (`urn:`, `did:`, `tag:`, `mailto:`, all
+  of which parse to `host === ''`) matches nothing, _including itself_. That
+  last case is the one a bare `.host` comparison silently gets wrong, so the
+  helper is intentionally stricter than the five copies it replaces on that
+  input alone. It compares the host and not the scheme, which is deliberate:
+  scheme does not partition who controls an id space, and the port — which
+  does — is already part of `host`.
 - In `createAnnounceJob` the guard must precede the `createNoteJob`/
   `createPollJob` dispatch, not just the fallback `getStatus`. Below the
   dispatch it still lets a lying document be persisted at an id we were never

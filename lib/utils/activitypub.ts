@@ -35,7 +35,16 @@ export const normalizeActivityPubUri = (uri: string | null | undefined) => {
  * is too strict. What must never be allowed is a document claiming an id on
  * ANOTHER host, which is how a hostile server names someone else's status.
  *
- * Fails CLOSED: an id that is not a parseable URL matches nothing.
+ * Fails CLOSED, and the empty-host test is the load-bearing half of that. A
+ * blank node or an unparseable id throws, but a HOST-LESS URI parses fine and
+ * reports `host === ''` — so `urn:`, `did:`, `tag:` and `mailto:` ids all
+ * compare equal to one another under a bare `.host` comparison, which is the
+ * one way two unrelated ids can be read as the same authority. Unreachable
+ * from the announce path (`safeRemoteFetch` is https-only, so `getNote`
+ * returns null first), but it is a real false-accept for the quote paths above,
+ * where a `did:`-shaped stamp uri would otherwise be read as sharing an
+ * authority with a `did:`-shaped author id. Deliberately stricter than the five
+ * inline copies on exactly that input and no other.
  */
 export const isSameActivityPubOrigin = (
   first: string | null | undefined,
@@ -43,7 +52,8 @@ export const isSameActivityPubOrigin = (
 ): boolean => {
   if (!first || !second) return false
   try {
-    return new URL(first).host === new URL(second).host
+    const host = new URL(first).host
+    return host !== '' && host === new URL(second).host
   } catch {
     return false
   }
