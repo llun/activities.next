@@ -1,7 +1,49 @@
-import { SpanStatusCode, Tracer, trace } from '@opentelemetry/api'
+import {
+  SpanContext,
+  SpanStatusCode,
+  TextMapPropagator,
+  Tracer,
+  propagation,
+  trace
+} from '@opentelemetry/api'
 import { NextRequest } from 'next/server'
 
+import { setupRecordingTracer } from '@/lib/testing/recordingTracer'
+
 import { parseCloudTraceContext, traceApiRoute } from './traceApiRoute'
+
+// A minimal, spec-shaped W3C `traceparent` propagator used ONLY to exercise
+// `extractTraceContext`'s call to `propagation.extract()` in tests below.
+// Without *some* propagator registered, `propagation.extract()` is a no-op
+// by default (`NoopTextMapPropagator`), so a `traceparent` header would never
+// actually bind to context — production relies on an OTel SDK registering
+// the real `W3CTraceContextPropagator` (from `@opentelemetry/core`, which is
+// not a declared dependency of this repo). Tests build minimal fakes against
+// the `@opentelemetry/api` interfaces instead, the same way
+// `lib/testing/recordingTracer.ts` builds a fake tracer/context manager.
+const w3cTraceparentPropagator: TextMapPropagator = {
+  inject: () => {
+    // Not exercised by these tests — traceApiRoute only extracts.
+  },
+  fields: () => ['traceparent'],
+  extract: (activeCtx, carrier, getter) => {
+    const header = getter.get(carrier, 'traceparent')
+    if (typeof header !== 'string') return activeCtx
+    const match = header.match(
+      /^[0-9a-f]{2}-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/i
+    )
+    if (!match) return activeCtx
+    const [, traceId, spanId, flagsHex] = match
+    const spanContext: SpanContext = {
+      traceId,
+      spanId,
+      traceFlags: parseInt(flagsHex, 16),
+      isRemote: true
+    }
+    if (!trace.isSpanContextValid(spanContext)) return activeCtx
+    return trace.setSpanContext(activeCtx, spanContext)
+  }
+}
 
 describe('parseCloudTraceContext', () => {
   it('parses traceId, decimal spanId, and sampled flag', () => {
@@ -240,48 +282,100 @@ describe('traceApiRoute', () => {
     )
   })
 
-  it('extracts W3C traceparent header and binds it as active context', async () => {
-    const handler = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ success: true }), {
-        status: 200
-      })
-    )
+  // The "extracts …" test above (and this block's two tests, before they
+  // were strengthened) only asserted a 200 response and that the handler
+  // ran — which would pass even if the extracted trace context (W3C
+  // `traceparent` or `X-Cloud-Trace-Context`) were parsed and then silently
+  // discarded rather than bound as the active context. The block below
+  // instead captures the ACTIVE SPAN CONTEXT observed from *inside* the handler and
+  // asserts it descends from the injected header, which is the only way to
+  // prove `context.with(parentContext, …)` actually threaded the extracted
+  // context through to the wrapped handler.
+  //
+  // This needs a REAL context manager and tracer, not the `mockSpan` stub
+  // used by every other test in this file: that stub's `startActiveSpan`
+  // never calls `context.with()`, so `trace.getActiveSpan()` inside the
+  // handler would read whatever the environment's context manager reports —
+  // which, with no context manager registered (the default), is always
+  // `undefined` regardless of whether propagation actually worked. Swap in
+  // `setupRecordingTracer()` (a real in-memory context manager + tracer,
+  // built only against `@opentelemetry/api`) for this block instead.
+  describe('active span context propagation', () => {
+    let harness: ReturnType<typeof setupRecordingTracer>
 
-    const wrapped = traceApiRoute('testRoute', handler)
-    const traceId = '02dad5002ab305f1fd75ae8bd0d46e94'
-    const spanId = '3ca938408dc381d3'
-    const req = new NextRequest('http://localhost/api/test', {
-      headers: {
-        traceparent: `00-${traceId}-${spanId}-01`
-      }
+    beforeEach(() => {
+      // Undo the outer `beforeEach`'s `trace.getTracer` stub first — it
+      // shadows the real `trace.getTracer`, which `setupRecordingTracer()`
+      // needs untouched so it can register its own global tracer provider.
+      vi.restoreAllMocks()
+      harness = setupRecordingTracer()
+      propagation.setGlobalPropagator(w3cTraceparentPropagator)
     })
-    const context = { params: Promise.resolve({}) }
 
-    const response = await wrapped(req, context)
-    expect(response.status).toBe(200)
-    expect(handler).toHaveBeenCalled()
-  })
-
-  it('extracts Google Cloud X-Cloud-Trace-Context header and parses decimal spanId', async () => {
-    const handler = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ success: true }), {
-        status: 200
-      })
-    )
-
-    const wrapped = traceApiRoute('testRoute', handler)
-    const traceId = '02dad5002ab305f1fd75ae8bd0d46e94'
-    const hexSpanId = '3ca938408dc381d3'
-    const decSpanId = BigInt(`0x${hexSpanId}`).toString(10)
-    const req = new NextRequest('http://localhost/api/test', {
-      headers: {
-        'x-cloud-trace-context': `${traceId}/${decSpanId};o=1`
-      }
+    afterEach(() => {
+      propagation.disable()
+      harness.cleanup()
     })
-    const context = { params: Promise.resolve({}) }
 
-    const response = await wrapped(req, context)
-    expect(response.status).toBe(200)
-    expect(handler).toHaveBeenCalled()
+    it('extracts W3C traceparent header and binds it as the active span context inside the handler', async () => {
+      let capturedSpanContext: SpanContext | undefined
+      const handler = vi.fn().mockImplementation(async () => {
+        capturedSpanContext = trace.getActiveSpan()?.spanContext()
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200
+        })
+      })
+
+      const wrapped = traceApiRoute('testRoute', handler)
+      const traceId = '02dad5002ab305f1fd75ae8bd0d46e94'
+      const spanId = '3ca938408dc381d3'
+      const req = new NextRequest('http://localhost/api/test', {
+        headers: {
+          traceparent: `00-${traceId}-${spanId}-01`
+        }
+      })
+      const context = { params: Promise.resolve({}) }
+
+      const response = await wrapped(req, context)
+      expect(response.status).toBe(200)
+      expect(handler).toHaveBeenCalled()
+
+      // The span active INSIDE the handler must descend from the extracted
+      // remote span: same trace id, and parented on the injected span id.
+      expect(capturedSpanContext?.traceId).toBe(traceId)
+      expect(harness.recordedSpans).toHaveLength(1)
+      expect(harness.recordedSpans[0].parentSpanId).toBe(spanId)
+      expect(harness.recordedSpans[0].name).toBe('api.testRoute')
+    })
+
+    it('extracts Google Cloud X-Cloud-Trace-Context header and binds it as the active span context inside the handler', async () => {
+      let capturedSpanContext: SpanContext | undefined
+      const handler = vi.fn().mockImplementation(async () => {
+        capturedSpanContext = trace.getActiveSpan()?.spanContext()
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200
+        })
+      })
+
+      const wrapped = traceApiRoute('testRoute', handler)
+      const traceId = '02dad5002ab305f1fd75ae8bd0d46e94'
+      const hexSpanId = '3ca938408dc381d3'
+      const decSpanId = BigInt(`0x${hexSpanId}`).toString(10)
+      const req = new NextRequest('http://localhost/api/test', {
+        headers: {
+          'x-cloud-trace-context': `${traceId}/${decSpanId};o=1`
+        }
+      })
+      const context = { params: Promise.resolve({}) }
+
+      const response = await wrapped(req, context)
+      expect(response.status).toBe(200)
+      expect(handler).toHaveBeenCalled()
+
+      expect(capturedSpanContext?.traceId).toBe(traceId)
+      expect(harness.recordedSpans).toHaveLength(1)
+      expect(harness.recordedSpans[0].parentSpanId).toBe(hexSpanId)
+      expect(harness.recordedSpans[0].name).toBe('api.testRoute')
+    })
   })
 })
