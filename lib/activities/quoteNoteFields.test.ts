@@ -107,9 +107,8 @@ describe('addQuoteFallbackToContent', () => {
   it('skips when the content contains only the RAW form of an escapable quoted url', () => {
     // A local status stores raw author text, so a hand-pasted link keeps its
     // literal `&`. The raw half of the skip is what catches it — and this url
-    // must carry an escapable character, because for every other fixture the
-    // url escapes to itself, so a mutant testing only the escaped form
-    // survives them all.
+    // must carry an escapable character: when raw and escaped coincide, no
+    // test can tell the raw branch from the escaped one.
     const withAmpersand = edge({
       quotedStatusId: 'https://charlie.example/statuses/9?ref=abc&v=2'
     })
