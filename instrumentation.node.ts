@@ -54,8 +54,9 @@ export const getTraceExporter = (config: Config) => {
       return new HttpOLTPTraceExporter(options)
     case 'google': {
       let authClient: Awaited<ReturnType<GoogleAuth['getClient']>> | null = null
+      const url = endpoint ?? 'https://telemetry.googleapis.com/v1/traces'
       return new ProtoOLTPTraceExporter({
-        url: endpoint ?? 'https://telemetry.googleapis.com/v1/traces',
+        url,
         headers: async () => {
           if (!authClient) {
             const auth = new GoogleAuth({
@@ -63,9 +64,22 @@ export const getTraceExporter = (config: Config) => {
             })
             authClient = await auth.getClient()
           }
-          const rawHeaders = await authClient.getRequestHeaders()
+          const rawHeaders = await authClient.getRequestHeaders(url)
+          const authHeaders =
+            rawHeaders instanceof Headers
+              ? Object.fromEntries(rawHeaders.entries())
+              : typeof (rawHeaders as { entries?: unknown })?.entries ===
+                  'function'
+                ? Object.fromEntries(
+                    (
+                      rawHeaders as {
+                        entries: () => Iterable<[string, string]>
+                      }
+                    ).entries()
+                  )
+                : ((rawHeaders ?? {}) as Record<string, string>)
           return {
-            ...Object.fromEntries(rawHeaders.entries()),
+            ...authHeaders,
             ...(parsedHeaders ?? {})
           }
         }

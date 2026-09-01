@@ -144,6 +144,29 @@ describe('instrumentation.node', () => {
       })
     })
 
+    it('handles plain object return from authClient.getRequestHeaders for google protocol', async () => {
+      mockGetRequestHeaders.mockResolvedValueOnce({
+        authorization: 'Bearer plain-token'
+      })
+
+      const config = {
+        openTelemetry: {
+          protocol: 'google'
+        }
+      } as Config
+
+      getTraceExporter(config)
+
+      const callArgs = vi.mocked(ProtoOLTPTraceExporter).mock.calls[0][0] as {
+        url: string
+        headers: () => Promise<Record<string, string>>
+      }
+      const headers = await callArgs.headers()
+      expect(headers).toEqual({
+        authorization: 'Bearer plain-token'
+      })
+    })
+
     it('uses custom endpoint and merges custom headers for google protocol when provided', async () => {
       const config = {
         openTelemetry: {
