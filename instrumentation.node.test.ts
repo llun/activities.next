@@ -25,11 +25,14 @@ const mockGetClient = vi.fn().mockResolvedValue({
   getRequestHeaders: mockGetRequestHeaders
 })
 
+const mockGetProjectId = vi.fn().mockResolvedValue('mock-gcp-project')
+
 vi.mock('google-auth-library', () => {
   return {
     GoogleAuth: vi.fn().mockImplementation(function (this: unknown) {
       return {
-        getClient: mockGetClient
+        getClient: mockGetClient,
+        getProjectId: mockGetProjectId
       }
     })
   }

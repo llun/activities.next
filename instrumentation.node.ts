@@ -102,11 +102,20 @@ export const registerNodeInstrumentation = async () => {
   const isGoogle = config.openTelemetry?.protocol === 'google'
   const spanProcessor = new SimpleSpanProcessor(exporter)
 
+  let projectId: string | null = null
+  if (isGoogle) {
+    const auth = new GoogleAuth({
+      scopes: 'https://www.googleapis.com/auth/cloud-platform'
+    })
+    projectId = await auth.getProjectId().catch(() => null)
+  }
+
   sdk = new NodeSDK({
     sampler: new AlwaysOnSampler(),
     resource: resourceFromAttributes({
       'service.name': TRACE_APPLICATION_SCOPE,
-      environment: process.env.NODE_ENV
+      environment: process.env.NODE_ENV,
+      ...(projectId ? { 'gcp.project_id': projectId } : {})
     }),
     ...(isGoogle ? { resourceDetectors: [gcpDetector] } : {}),
     spanProcessors: [spanProcessor],
