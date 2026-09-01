@@ -39,12 +39,22 @@ export const normalizeActivityPubUri = (uri: string | null | undefined) => {
  * blank node or an unparseable id throws, but a HOST-LESS URI parses fine and
  * reports `host === ''` — so `urn:`, `did:`, `tag:` and `mailto:` ids all
  * compare equal to one another under a bare `.host` comparison, which is the
- * one way two unrelated ids can be read as the same authority. Unreachable
- * from the announce path (`safeRemoteFetch` is https-only, so `getNote`
- * returns null first), but it is a real false-accept for the quote paths above,
- * where a `did:`-shaped stamp uri would otherwise be read as sharing an
- * authority with a `did:`-shaped author id. Deliberately stricter than the five
- * inline copies on exactly that input and no other.
+ * one way two unrelated ids can be read as the same authority.
+ *
+ * It is defence in depth at every call site that exists today, and the reason
+ * is the same one everywhere: an https-only fetch stands between the attacker
+ * and the comparison. On the announce path `getNote` returns null first;
+ * `verifyRemoteQuote`'s post-fetch pair and `handleQuoteRequest` both sit
+ * behind `fetchQuoteAuthorization`; `processForwardedActivityJob` gates both
+ * operands on `isHttpUrl`; and the pre-fetch comparisons in
+ * `verifyQuoteAuthorizationStamp` and `handleQuoteResponse` take their second
+ * operand from a signature keyId actor, which always has a host. The one place
+ * a host-less pair could chain into a write is `persistInboundQuoteEdge`, and
+ * only against a status stored under a host-less id — which nothing produces
+ * except the unconstrained fetched-`note.id` writes AGENTS.md records as open.
+ * Do not read any of that as "so it does not matter": it is the shape of the
+ * bug, and the copies it replaces have no such test. Deliberately stricter than
+ * those five on exactly this input and no other.
  */
 export const isSameActivityPubOrigin = (
   first: string | null | undefined,

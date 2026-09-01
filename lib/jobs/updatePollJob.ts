@@ -1,4 +1,5 @@
 import { getContent, getSummary } from '@/lib/activities/note'
+import { getPollChoicesFromQuestion } from '@/lib/services/polls/pollChoices'
 import { ENTITY_TYPE_QUESTION, Question } from '@/lib/types/activitypub'
 import { StatusType } from '@/lib/types/domain/status'
 import {
@@ -65,16 +66,7 @@ export const updatePollJob = createJobHandle(
       statusId: question.id,
       summary,
       text,
-      choices:
-        question.oneOf?.map((answer) => ({
-          title: answer.name,
-          totalVotes: answer.replies?.totalItems ?? 0
-        })) ??
-        question.anyOf?.map((answer) => ({
-          title: answer.name,
-          totalVotes: answer.replies?.totalItems ?? 0
-        })) ??
-        []
+      choices: getPollChoicesFromQuestion(question)
     })
   }
 )

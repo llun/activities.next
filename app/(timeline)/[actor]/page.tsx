@@ -11,7 +11,6 @@ import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getRelationship } from '@/lib/services/accounts/relationship'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
-import { isLocalFederationDomain } from '@/lib/services/federation/domainPolicy'
 import { getMastodonFeaturedTag } from '@/lib/services/mastodon/getMastodonFeaturedTag'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -21,6 +20,7 @@ import { ActorTimelines } from './ActorTimelines'
 import { ProfileHeaderImage } from './ProfileHeaderImage'
 import { ProfileRelationshipActions } from './ProfileRelationshipActions'
 import { getProfileData } from './getProfileData'
+import { getNonLocalActorRedirectTarget } from './resolveActorRedirect'
 
 interface Props {
   params: Promise<{ actor: string }>
@@ -48,9 +48,15 @@ export const generateMetadata = async ({
     if (database) {
       const session = await getServerAuthSession()
       const isLoggedIn = Boolean(session?.user?.email)
-      const isLocal = await isLocalFederationDomain(database, domain)
-      if (!isLoggedIn && !isLocal) {
-        const targetUrl = `https://${domain}/@${username}`
+      const targetUrl = await getNonLocalActorRedirectTarget(
+        database,
+        username,
+        domain,
+        ''
+      )
+      // page.tsx-only gate: a signed-in visitor still gets a chance to
+      // resolve the actor locally (see getNonLocalActorRedirectTarget).
+      if (!isLoggedIn && targetUrl) {
         return {
           title: `Activities.next: ${decodedActorHandle}`,
           robots: { index: false, follow: false },
@@ -97,10 +103,16 @@ const Page: FC<Props> = async ({ params }) => {
     { currentActor }
   )
   if (!actorProfile) {
-    const isLocal = await isLocalFederationDomain(database, actorDomain)
-    if (!isLoggedIn && !isLocal) {
+    const targetUrl = await getNonLocalActorRedirectTarget(
+      database,
+      actorUsername,
+      actorDomain,
+      ''
+    )
+    // page.tsx-only gate: only redirect a logged-out visitor (see
+    // getNonLocalActorRedirectTarget).
+    if (!isLoggedIn && targetUrl) {
       const bareHost = host.includes('://') ? new URL(host).host : host
-      const targetUrl = `https://${actorDomain}/@${actorUsername}`
       return (
         <ActorRedirectCard
           host={bareHost}

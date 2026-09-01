@@ -85,6 +85,10 @@ export const handleSyncMediaUpload = async (
     ) {
       const { altText } = getConfig()
       if (altText) {
+        // generateAltText itself never throws, but this try/catch also
+        // guards the buffer read above and the database.updateMedia() write
+        // below, both of which can — so it stays, unlike the equivalent
+        // dead catch removed from S3StorageFile.ts's presigned path.
         try {
           const buffer = Buffer.from(await media.data.file.arrayBuffer())
           const generatedDescription = await generateAltText(

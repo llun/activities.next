@@ -120,6 +120,25 @@ describe('[actor] page redirects and non-local handles', () => {
     expect(mockNotFound).toHaveBeenCalled()
   })
 
+  // Pins the difference documented on getNonLocalActorRedirectTarget: unlike
+  // followers/page.tsx and following/page.tsx (which redirect any visitor),
+  // [actor]/page.tsx only redirects a LOGGED-OUT visitor. A signed-in visitor
+  // to an unresolvable non-local actor still gets notFound, not a redirect
+  // card, so they always get a chance to resolve the actor locally first.
+  it('calls notFound instead of redirecting for a non-local actor when logged in', async () => {
+    mockGetServerAuthSession.mockResolvedValue({
+      user: { email: 'user@llun.social' }
+    } as never)
+    mockIsLocalFederationDomain.mockResolvedValue(false)
+    mockGetProfileData.mockResolvedValue(null)
+
+    await Page({
+      params: Promise.resolve({ actor: '@clairenony@pouet.chapril.org' })
+    })
+
+    expect(mockNotFound).toHaveBeenCalled()
+  })
+
   it('calls notFound for invalid actor handle parameter', async () => {
     await Page({
       params: Promise.resolve({ actor: 'invalid' })
@@ -156,6 +175,24 @@ describe('[actor] page redirects and non-local handles', () => {
 
       expect(metadata).toEqual({
         title: 'Activities.next: @localuser@llun.social'
+      })
+    })
+
+    // Pins the same page.tsx-only !isLoggedIn gate for metadata: a signed-in
+    // visitor gets the standard (non-redirect) metadata even for a non-local
+    // actor, unlike followers/page.tsx and following/page.tsx.
+    it('sets standard metadata (no redirect) for non-local actor when logged in', async () => {
+      mockGetServerAuthSession.mockResolvedValue({
+        user: { email: 'user@llun.social' }
+      } as never)
+      mockIsLocalFederationDomain.mockResolvedValue(false)
+
+      const metadata = await generateMetadata({
+        params: Promise.resolve({ actor: '@clairenony@pouet.chapril.org' })
+      })
+
+      expect(metadata).toEqual({
+        title: 'Activities.next: @clairenony@pouet.chapril.org'
       })
     })
   })
