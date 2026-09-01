@@ -1,0 +1,18 @@
+instrumentation.node.test.ts
+  h_580a04e334fef4 6,39,199,202,205-206,221,233,236,239-240,256
+instrumentation.node.ts
+  h_580a04e334fef4 15,86,96
+lib/database/sql/fitnessGear.test.ts
+  h_580a04e334fef4 1958,1970
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "3fa17519b2346b075889dc33159b796e5ee3f2d9",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
