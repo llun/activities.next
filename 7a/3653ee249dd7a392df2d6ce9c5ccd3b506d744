@@ -1,0 +1,157 @@
+app/api/v1/accounts/relationships/route.ts
+  s_867498a5a8dd3b::t_1f9e37ab468fc1 6-9,14,19-23
+  s_867498a5a8dd3b::t_7d7eec8182025d 43-50
+  s_867498a5a8dd3b::t_8816a7dc83a6c8 71-72
+  s_867498a5a8dd3b::t_1ea658d48f8a59 24
+  s_867498a5a8dd3b::t_83ad2be76d97e4 77
+  s_867498a5a8dd3b::t_7b91da09a45554 41-42,65-70,73-76,83-87
+lib/services/collections/addMembers.ts
+  s_867498a5a8dd3b::t_5fc8a8579bd3fd 5-8
+  s_867498a5a8dd3b::t_aa5273bd0779e5 18-20
+  s_867498a5a8dd3b::t_f4af2e25f71cab 61
+lib/services/federation/statusDelivery.ts
+  s_867498a5a8dd3b::t_d1045c59de1d3b 9
+app/(timeline)/[actor]/profileFollowLookup.test.ts
+  s_867498a5a8dd3b::t_01e352b3129249 86-90
+lib/activities/getActorPostsFromAtomFeed.ts
+  s_867498a5a8dd3b::t_1974e3274d2181 11,13,16-20
+  s_867498a5a8dd3b::t_d5d3cf0dc03e2f 51-54
+  s_867498a5a8dd3b::t_3838b60392fc72 203
+  s_867498a5a8dd3b::t_783d3018bee7ae 161-164
+  s_867498a5a8dd3b::t_fec51b0e9b15f5 21-22
+  s_867498a5a8dd3b::t_dc633548d41a83 147-148,158-160,186
+  s_867498a5a8dd3b::t_a58055ed104998 190
+  s_867498a5a8dd3b::t_835d3b71d17389 23
+  s_867498a5a8dd3b::t_d7aa294a6d8816 152
+lib/services/federation/serverSoftware.ts
+  s_867498a5a8dd3b::t_09871a9d915b01 4,7-17,20-24,26-33,41-61,78,91,99,101,113,126,135-139,145,147
+  s_867498a5a8dd3b::t_eceff1a00e3122 18-19
+  s_867498a5a8dd3b::t_b648cc7f8cb227 34-40
+  s_867498a5a8dd3b::t_4165ffb437ff1b 68
+  s_867498a5a8dd3b::t_d506a9c3554e47 25
+  s_867498a5a8dd3b::t_4dccf302f3fb7b 103,107-110
+  s_867498a5a8dd3b::t_03f57ea4d06dd2 77
+  s_867498a5a8dd3b::t_8816a7dc83a6c8 67
+app/(timeline)/[actor]/getProfileData.ts
+  s_867498a5a8dd3b::t_4553b0d6bbb5b0 198-199
+  s_867498a5a8dd3b::t_30048b18278758 222-230,232-236
+  s_867498a5a8dd3b::t_1a2a1e473923b2 289
+  s_867498a5a8dd3b::t_53093d10b1a65c 209
+  s_867498a5a8dd3b::t_4215a0738683e3 6,8,20
+  s_867498a5a8dd3b::t_38275d797a2ad7 231
+  s_867498a5a8dd3b::t_b7b26b00c45c39 200-208,215,218-221
+  s_867498a5a8dd3b::t_c3efdc0a41ac57 182-187,194-197
+  s_867498a5a8dd3b::t_63471d4e656262 188-189
+lib/utils/mapWithConcurrency.ts
+  s_867498a5a8dd3b::t_7803a8804f37bd 1-14
+lib/services/polls/syncRemotePoll.ts
+  s_867498a5a8dd3b::t_e6a979b65a864b 13,132
+lib/activities/getActorPostsFromAtomFeed.test.ts
+  s_867498a5a8dd3b::t_6ada8263ece4c5 6,10-14,27-30
+  s_867498a5a8dd3b::t_89a0bf081c2994 222-330
+lib/services/mastodon/resolveClientId.ts
+  s_867498a5a8dd3b::t_65891783d45091 88-103
+lib/services/federation/serverSoftware.test.ts
+  s_867498a5a8dd3b::t_686c64fe1337d3 24
+  s_867498a5a8dd3b::t_b6a37af7f81a85 130-276
+  s_867498a5a8dd3b::t_09fc3bfaecf7a1 7-9,12,17-23
+app/(timeline)/[actor]/getProfileData.test.ts
+  s_867498a5a8dd3b::t_b5f0c141f927a6 44
+  s_867498a5a8dd3b::t_8816a7dc83a6c8 664-666,692-694,719-721
+  s_867498a5a8dd3b::t_501be6e59252b4 749-753,757-779
+  s_867498a5a8dd3b::t_ac7004c118d7ac 6
+  s_867498a5a8dd3b::t_7a2e618ab166e1 502-503
+  s_867498a5a8dd3b::t_524eb7113bf605 22
+  s_867498a5a8dd3b::t_a3132c2a340dd1 104-113
+  s_867498a5a8dd3b::t_b98eec34724592 648-663,667-691,695-718,722-748,780
+  s_867498a5a8dd3b::t_010853604d5008 754-756
+app/api/v1/accounts/relationships/route.test.ts
+  s_867498a5a8dd3b::t_4ed88dbb2c5c41 4,10,13-28
+  s_867498a5a8dd3b::t_34d13cb9477362 162-227
+app/api/v1/polls/[id]/votes/route.test.ts
+  s_867498a5a8dd3b::t_e3be1f7982cf5c 99-142
+  s_867498a5a8dd3b::t_c5cefa13627f4e 72-73
+  s_867498a5a8dd3b::t_77b69d422ef39c 44,46-51
+app/api/v1/accounts/vote/route.test.ts
+  s_867498a5a8dd3b::t_7235f979184e17 65,77-81,84-85,88,113-116
+app/api/v1/accounts/vote/route.ts
+  s_867498a5a8dd3b::t_86e283fdb81240 118
+  s_867498a5a8dd3b::t_68a0b416f236fb 101-109,101-106
+  s_867498a5a8dd3b::t_165ab5735d5e71 110
+lib/jobs/updateNoteJob.ts
+  s_867498a5a8dd3b::t_f5c07a52be2f21 64-68
+lib/jobs/dropMalformedPayloadLogging.test.ts
+  s_867498a5a8dd3b::t_510cf2e9a523d8 1-121
+lib/jobs/createNoteJob.test.ts
+  s_867498a5a8dd3b::t_7e8401998d7643 583-642
+lib/database/sql/status.ts
+  s_867498a5a8dd3b::t_97b79f9ce440f2 58
+  s_867498a5a8dd3b::t_d378ee5d5a7023 683-687
+  s_867498a5a8dd3b::t_8d156c3cd24428 960-998,1001-1007,1009-1012,1014-1018
+  s_867498a5a8dd3b::t_0aa6e12f666b3a 1089-1105,1107-1128,1131-1143,1145-1151,1153-1156,1158-1164,1170
+  s_867498a5a8dd3b::t_469a22a8361185 1045,1064
+  s_867498a5a8dd3b::t_fcc30d35f23eee 3974,3980
+  s_867498a5a8dd3b::t_d185aa92dd6f7b 538,554
+  s_867498a5a8dd3b::t_21de77a3f20fb7 33
+  s_867498a5a8dd3b::t_f85298a79a2063 1210-1214
+  s_867498a5a8dd3b::t_263e0e278c5afa 579-618,621-627,629-632,634-640,646
+lib/jobs/updatePollJob.ts
+  s_867498a5a8dd3b::t_3237dcda9d2aa3 20-24
+lib/jobs/createPollVoteJob.ts
+  s_867498a5a8dd3b::t_1df6b2e92fb921 28-32
+lib/jobs/createPollJob.test.ts
+  s_867498a5a8dd3b::t_d4616c04ac88f3 428-461,463-485
+  s_867498a5a8dd3b::t_5ece5d152a9089 462
+lib/types/database/operations.ts
+  s_867498a5a8dd3b::t_432b1f1c3d2037 908-910,913-914
+  s_867498a5a8dd3b::t_8f4867b8565442 603-616
+lib/jobs/createPollJob.ts
+  s_867498a5a8dd3b::t_ad6fc82b5ff245 32-36
+  s_867498a5a8dd3b::t_e4b84e84994895 19
+  s_867498a5a8dd3b::t_dac237026d597b 83,88
+  s_867498a5a8dd3b::t_3d0c6122392ed8 111-121
+app/api/v1/polls/[id]/votes/route.ts
+  s_867498a5a8dd3b::t_332d693b51d419 181-189,181-186
+  s_867498a5a8dd3b::t_86e283fdb81240 193
+  s_867498a5a8dd3b::t_22ce380fe1d5fe 190
+lib/jobs/createNoteJob.ts
+  s_867498a5a8dd3b::t_f03b4bea25b4ba 77-81
+  s_867498a5a8dd3b::t_e8ef6db6106506 121,123
+  s_867498a5a8dd3b::t_3d0c6122392ed8 140-151
+  s_867498a5a8dd3b::t_b82bf85a4b42d7 49
+lib/database/sql/utils/recoverFromDuplicateInsert.ts
+  s_867498a5a8dd3b::t_62e6380f18603b 13
+  s_867498a5a8dd3b::t_9f3f0d7619d7f2 1-12,14-48
+lib/jobs/createAnnounceJob.ts
+  s_867498a5a8dd3b::t_7324ab1daedd73 32-36
+lib/utils/traceApiRoute.ts
+  s_867498a5a8dd3b::t_46bfab4823fbef 57-97
+lib/database/index.ts
+  s_867498a5a8dd3b::t_c71acc3c1ed361 14-32,43-45,57-65
+  s_867498a5a8dd3b::t_0751c0465a47a5 46-56
+lib/database/sqlcommenter.test.ts
+  s_867498a5a8dd3b::t_531f6627e516fb 41-62
+  s_867498a5a8dd3b::t_3581947ec2c2de 63-118
+lib/utils/traceApiRoute.test.ts
+  s_867498a5a8dd3b::t_ddaa8a104b45e8 294-326,329-348,351-358,360-367,369,371-373,375-379
+  s_867498a5a8dd3b::t_74603eabdd73c7 291-293
+  s_867498a5a8dd3b::t_b9f323887e11e7 47
+  s_867498a5a8dd3b::t_d28eb3dbe8bb88 285-290
+  s_867498a5a8dd3b::t_662f4d1c3a9a1f 1-8,11-12,15-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "7a3653ee249dd7a392df2d6ce9c5ccd3b506d744",
+  "prompts": {},
+  "sessions": {
+    "s_867498a5a8dd3b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "07b215df-f83e-435d-96c9-42900a5bfb30",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": null
+    }
+  }
+}
