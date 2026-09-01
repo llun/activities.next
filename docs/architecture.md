@@ -217,6 +217,8 @@ When enabled via the `ACTIVITIES_ENABLE_INBOX_FORWARDING` environment variable (
   - Outbound HTTP POST requests are signed with the targeted local actor's key or the instance federation signing actor (`getFederationSigningActor`).
   - OpenTelemetry spans track `inbox.forward_targets_count`, `inbox.local_actor_id`, and `inbox.activity_id`.
 
+On follow accept, `acceptFollowRequest` enqueues `FollowTimelineBackfillJob`. First discovery of a remote actor (zero stored statuses) fetches the outbox first page (cap 20, public/unlisted only, Announces skipped, each `Create` routed through `CreateNoteJob`/`CreatePollJob` with the followed actor pinned as verified sender), then the actor's stored statuses are merged into the follower's home timeline (also the whole behavior for already-known and local actors); best-effort — a failure never affects the follow.
+
 ### Background Jobs
 
 Long-running operations (sending activities to remote servers, processing file uploads) are dispatched to a background queue. Supported backends:
