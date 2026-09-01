@@ -1,0 +1,29 @@
+lib/utils/activitypub.test.ts
+  s_867498a5a8dd3b::t_13f64a9e7bf292 296-321
+AGENTS.md
+  s_867498a5a8dd3b::t_f1947ea8e2b050 179,181,187
+REVIEW.md
+  s_867498a5a8dd3b::t_f1301ab2dac994 923-926,935-942
+lib/jobs/createAnnounceJob.test.ts
+  s_867498a5a8dd3b::t_ff6688f9e06314 305-310
+lib/utils/activitypub.ts
+  s_867498a5a8dd3b::t_13f64a9e7bf292 38-47,55-56
+lib/services/polls/syncRemotePoll.test.ts
+  s_867498a5a8dd3b::t_ff6688f9e06314 328-362
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "1121eac56e7c248d7109b65b43b4170094cf8d02",
+  "prompts": {},
+  "sessions": {
+    "s_867498a5a8dd3b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "07b215df-f83e-435d-96c9-42900a5bfb30",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
