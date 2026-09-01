@@ -13,9 +13,13 @@ describe('attachSqlcommenter', () => {
     })
   )
 
+  // Capture on the dialect class prototype, not the knex instance: a
+  // transaction client is built via Object.create(client.constructor.prototype)
+  // and never consults instance-level properties.
   let executedSql: string[] = []
-  const origDriverQuery = db.client._query
-  db.client._query = function (
+  const clientProto = db.client.constructor.prototype
+  const origDriverQuery = clientProto._query
+  clientProto._query = function (
     conn: unknown,
     obj: { sql: string; [key: string]: unknown }
   ) {
@@ -42,6 +46,28 @@ describe('attachSqlcommenter', () => {
     await db.raw('SELECT 1')
 
     expect(executedSql[0]).toContain(
+      "/*traceparent='00-02dad5002ab305f1fd75ae8bd0d46e94-3ca938408dc381d3-01'*/"
+    )
+  })
+
+  it('appends traceparent comment to queries inside a transaction', async () => {
+    const mockSpan = {
+      spanContext: () => ({
+        traceId: '02dad5002ab305f1fd75ae8bd0d46e94',
+        spanId: '3ca938408dc381d3',
+        traceFlags: 1
+      })
+    } as unknown as Span
+
+    vi.spyOn(trace, 'getActiveSpan').mockReturnValue(mockSpan)
+
+    await db.transaction(async (trx) => {
+      await trx.raw('SELECT 1')
+    })
+
+    const selects = executedSql.filter((sql) => sql.startsWith('SELECT 1'))
+    expect(selects).toHaveLength(1)
+    expect(selects[0]).toContain(
       "/*traceparent='00-02dad5002ab305f1fd75ae8bd0d46e94-3ca938408dc381d3-01'*/"
     )
   })

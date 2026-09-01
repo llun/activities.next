@@ -11,10 +11,17 @@ interface DatabaseInstance {
   knex: Knex
 }
 
+const SQLCOMMENTER_ATTACHED = Symbol.for('activities.next.sqlcommenter')
+
 export const attachSqlcommenter = (db: Knex): Knex => {
-  const origQuery = db.client?.query
-  if (typeof origQuery === 'function') {
-    db.client.query = function (
+  // Patch the dialect class prototype, not the knex instance: knex builds each
+  // transaction client via Object.create(client.constructor.prototype), so an
+  // instance-level override is invisible to every query inside a transaction.
+  const proto = db.client?.constructor?.prototype
+  const origQuery = proto?.query
+  if (typeof origQuery === 'function' && !proto[SQLCOMMENTER_ATTACHED]) {
+    proto[SQLCOMMENTER_ATTACHED] = true
+    proto.query = function (
       connection: unknown,
       obj: { sql: string; [key: string]: unknown } | string
     ) {
