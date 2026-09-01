@@ -891,7 +891,7 @@ export type RecordPollVotesParams = {
 
 export interface StatusDatabase {
   createNote(params: CreateNoteParams): Promise<Status>
-  createAnnounce(params: CreateAnnounceParams): Promise<Status>
+  createAnnounce(params: CreateAnnounceParams): Promise<Status | null>
   createPoll(params: CreatePollParams): Promise<Status>
   updateNote(params: UpdateNoteParams): Promise<Status | null>
   // Rewrites the status's quote-approval policy in the content blob without

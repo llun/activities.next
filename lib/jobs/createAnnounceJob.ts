@@ -46,11 +46,11 @@ export const createAnnounceJob: JobHandle = createJobHandle(
     await assertActorCanFederate({ actorId: status.actor, database })
     const signingActor = await getFederationSigningActor(database)
 
-    const existingStatus = await database.getStatus({
+    let targetStatus = await database.getStatus({
       statusId: object,
       withReplies: false
     })
-    if (!existingStatus) {
+    if (!targetStatus) {
       const boostedStatus = await getNote({ statusId: object, signingActor })
       if (!boostedStatus) {
         return
@@ -68,6 +68,18 @@ export const createAnnounceJob: JobHandle = createJobHandle(
           data: boostedStatus
         })
       }
+      targetStatus =
+        (await database.getStatus({
+          statusId: object,
+          withReplies: false
+        })) ??
+        (await database.getStatus({
+          statusId: boostedStatus.id,
+          withReplies: false
+        }))
+    }
+    if (!targetStatus) {
+      return
     }
     const existingAnnounce = await database.getStatus({
       statusId: status.id,
@@ -83,7 +95,7 @@ export const createAnnounceJob: JobHandle = createJobHandle(
         actorId: status.actor,
         to: toRecipientArray(status.to),
         cc: toRecipientArray(status.cc),
-        originalStatusId: object
+        originalStatusId: targetStatus.id
       })
     ])
     if (!announce) {
