@@ -85,3 +85,19 @@ export const resolveActorIdParams = (
   resolveIdParams(params, (publicIds) =>
     database.getActorIdsByPublicIds({ publicIds })
   )
+
+// A resolved id is only usable where an actor AP URI is required. The
+// resolvers above return an unknown publicId UNCHANGED (their documented
+// "matches nothing" contract), and `idToUrl` is permissive enough to emit an
+// unparseable string, so a resolved list can hold values that are not URIs at
+// all. Callers that persist a resolved id or feed it to `new URL` filter the
+// OUTPUT of the resolvers through this — it never prunes an input form the
+// resolvers accept.
+export const isResolvedActorUri = (value: string): boolean => {
+  try {
+    const { protocol } = new URL(value)
+    return protocol === 'http:' || protocol === 'https:'
+  } catch {
+    return false
+  }
+}

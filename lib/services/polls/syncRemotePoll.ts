@@ -10,6 +10,7 @@ import {
   normalizeActivityPubUri
 } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
 
 const FAILURE_COOLDOWN_MS = 60 * 1000
@@ -128,7 +129,7 @@ const performPollSync = async ({
     logger.warn({
       message: 'Failed to sync remote poll',
       statusId: status.id,
-      error: error instanceof Error ? error.message : String(error)
+      err: toLoggableError(error)
     })
     failedPollSyncsAt.set(status.id, Date.now())
     return null

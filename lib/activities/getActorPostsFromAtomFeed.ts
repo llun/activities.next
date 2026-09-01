@@ -8,8 +8,18 @@ import { ActorProfile, Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Status, fromNote } from '@/lib/types/domain/status'
 import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
+import { mapWithConcurrency } from '@/lib/utils/mapWithConcurrency'
 import { request } from '@/lib/utils/request'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
+
+// The remote server chooses how many entries its feed carries, and every entry
+// is a separate signed GET back to that server, reachable from a logged-in
+// profile render. Bound both the count and the concurrency so a hostile or
+// simply large feed cannot fan out into an unbounded burst of outbound
+// requests. 40 mirrors Mastodon's own maximum page size.
+export const MAX_ATOM_FEED_ENTRIES = 40
+export const ATOM_FEED_FETCH_CONCURRENCY = 8
 
 interface AtomFeedLink {
   '@_href'?: string
@@ -31,9 +41,6 @@ interface AtomFeedRoot {
   }
 }
 
-const getErrorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : String(error)
-
 const getStatusFromNote = (note: Note): Status | null => {
   try {
     const status = fromNote(note)
@@ -41,7 +48,10 @@ const getStatusFromNote = (note: Note): Status | null => {
       detectLanguageFromHtml(status.text)?.language ?? null
     return status
   } catch (error) {
-    logger.error(`[getActorPostsFromAtomFeed] ${getErrorMessage(error)}`)
+    logger.error({
+      message: 'Failed to build status from Atom feed note',
+      err: toLoggableError(error)
+    })
     return null
   }
 }
@@ -134,16 +144,24 @@ export const getActorPostsFromAtomFeed = async ({
             continue
           }
 
+          // The remote server chooses the entry count, so cap it before the
+          // fan-out; each surviving entry is a signed GET back to that server.
           const entryUrls = entryList
             .map(extractEntryUrl)
             .filter((url): url is string => Boolean(url))
+            .slice(0, MAX_ATOM_FEED_ENTRIES)
 
           if (entryUrls.length === 0) {
             continue
           }
 
-          const statuses = await Promise.all(
-            entryUrls.map(async (entryUrl) => {
+          // Bounded concurrency rather than `Promise.all` over the whole list:
+          // an uncapped fan-out on a remote-chosen entry count is an unbounded
+          // burst of outbound signed fetches.
+          const statuses = await mapWithConcurrency(
+            entryUrls,
+            ATOM_FEED_FETCH_CONCURRENCY,
+            async (entryUrl) => {
               try {
                 const note = await getNote({
                   statusId: entryUrl,
@@ -165,11 +183,11 @@ export const getActorPostsFromAtomFeed = async ({
                 logger.warn({
                   message: 'Failed to fetch note for Atom feed entry',
                   entryUrl,
-                  error: getErrorMessage(error)
+                  err: toLoggableError(error)
                 })
                 return null
               }
-            })
+            }
           )
 
           const validStatuses = statuses.filter(
@@ -182,7 +200,7 @@ export const getActorPostsFromAtomFeed = async ({
           logger.warn({
             message: 'Failed to fetch or parse candidate Atom feed',
             atomUrl,
-            error: getErrorMessage(error)
+            err: toLoggableError(error)
           })
         }
       }
