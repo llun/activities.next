@@ -39,9 +39,7 @@ describe('followTimelineBackfillJob', () => {
       sharedInboxUrl: `https://${domain}/inbox`,
       followersUrl: `${actorId}/followers`,
       publicKey: 'publicKey',
-      createdAt: Date.now(),
-      followersCount: 0,
-      followingCount: 0
+      createdAt: Date.now()
     })
     await database.createFollow({
       actorId: ACTOR1_ID,
