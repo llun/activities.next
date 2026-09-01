@@ -61,9 +61,11 @@ export const REMOTE_FOLLOW_PAGE_TTL_MS = 60_000
 export const MAX_PAGE_ITEMS = 80
 export const MAX_UNKNOWN_ACTORS_PER_PAGE = 20
 export const UNKNOWN_ACTOR_CONCURRENCY = 5
-// Uncached page reads in flight at once, across every actor and viewer this
-// process serves. Sized for a handful of people opening sheets at the same
-// moment, not for a page per request.
+// Uncached page reads in flight at once, per database instance (one per process
+// today). Sized for a handful of people opening sheets at the same moment, not
+// for a page per request. Note: a single read holds its slot through up to 20
+// unknown-actor fetches, so slow remote domains can occupy slots under retries;
+// capped low so memory and socket pressure remain bounded.
 export const MAX_IN_FLIGHT_REMOTE_READS = 4
 // Bounded because entries expire but nothing sweeps them, and which actors and
 // pages get asked for is chosen by clients.
@@ -161,8 +163,12 @@ const getItemActorId = (item: unknown): string | null => {
   return null
 }
 
-const getPageUrl = (value: unknown): string | null =>
-  typeof value === 'string' && value.length > 0 ? value : null
+const getPageUrl = (value: unknown, collectionUrl: string): string | null =>
+  typeof value === 'string' &&
+  value.length > 0 &&
+  isCollectionPageUrl(value, collectionUrl)
+    ? value
+    : null
 
 // Runs `task` over `items` with at most `concurrency` in flight. Failures are
 // the task's own to handle; this never rejects on one.
@@ -226,7 +232,15 @@ const recordUnknownActor = async ({
     const existing = await database
       .getActorFromId({ id: actorId })
       .catch(() => null)
-    if (existing) return existing.id
+    if (existing) {
+      logger.debug({
+        message:
+          'Actor record threw but row exists (likely insert race or background refresh error)',
+        actorId,
+        err: toLoggableError(error)
+      })
+      return existing.id
+    }
 
     logger.warn({
       message: 'Failed to record remote follow collection actor',
@@ -337,8 +351,8 @@ const fetchRemoteFollowCollectionPage = async ({
     status: 'ok',
     page: {
       accounts,
-      nextPageUrl: getPageUrl(collection.page.next),
-      prevPageUrl: getPageUrl(collection.page.prev),
+      nextPageUrl: getPageUrl(collection.page.next, collectionUrl),
+      prevPageUrl: getPageUrl(collection.page.prev, collectionUrl),
       totalItems: collection.totalItems
     }
   }

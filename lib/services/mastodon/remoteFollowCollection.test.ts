@@ -155,6 +155,26 @@ describe('getRemoteFollowCollectionPage', () => {
     })
   })
 
+  it('nulls nextPageUrl and prevPageUrl when the remote page URLs are not on this collection', async () => {
+    mockCollectionPage([ACTOR2_ID], {
+      next: `${REMOTE_ACTOR_ID}/followers_page?page=2`,
+      prev: 'https://other-domain.test/users/verge/followers?page=1',
+      totalItems: 1
+    })
+
+    const result = await getRemoteFollowCollectionPage({
+      database,
+      actorId: REMOTE_ACTOR_ID,
+      field: 'followers',
+      signingActor
+    })
+
+    expect(result.status).toBe('ok')
+    if (result.status !== 'ok') return
+    expect(result.page.nextPageUrl).toBeNull()
+    expect(result.page.prevPageUrl).toBeNull()
+  })
+
   it('records an unknown actor once and places it where the page listed it', async () => {
     vi.mocked(recordActorIfNeeded).mockImplementation(
       async ({ actorId }) => (await insertActor(actorId)) ?? undefined
@@ -212,6 +232,7 @@ describe('getRemoteFollowCollectionPage', () => {
   })
 
   it('keeps an actor whose insert lost a race but whose row now exists', async () => {
+    const debug = vi.spyOn(logger, 'debug').mockImplementation(() => undefined)
     const racedActorId = 'https://raced.test/users/r'
     vi.mocked(recordActorIfNeeded).mockImplementation(async ({ actorId }) => {
       // Someone else inserted the row between our read and our insert.
@@ -227,6 +248,14 @@ describe('getRemoteFollowCollectionPage', () => {
     })
 
     expect(accountUris(result)).toEqual([racedActorId, ACTOR2_ID])
+    expect(debug).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: racedActorId,
+        err: expect.objectContaining({
+          message: 'UNIQUE constraint failed: actors.id'
+        })
+      })
+    )
   })
 
   it('resolves at most MAX_UNKNOWN_ACTORS_PER_PAGE unknown actors per page, in page order', async () => {

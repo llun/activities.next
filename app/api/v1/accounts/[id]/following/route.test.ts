@@ -126,6 +126,8 @@ describe('GET /api/v1/accounts/:id/following', () => {
       expect(getFollowingSpy).toHaveBeenCalledWith(
         expect.objectContaining({ limit: expected })
       )
+
+      getFollowingSpy.mockRestore()
     }
   )
 })
