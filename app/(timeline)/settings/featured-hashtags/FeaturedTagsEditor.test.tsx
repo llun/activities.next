@@ -10,6 +10,7 @@ import {
   getFeaturedTags,
   removeFeaturedTag
 } from '@/lib/client'
+import { createDeferred } from '@/lib/testing/deferred'
 import type { FeaturedTag } from '@/lib/types/mastodon/featuredTag'
 
 import { FeaturedTagsEditor } from './FeaturedTagsEditor'
@@ -57,6 +58,26 @@ describe('FeaturedTagsEditor', () => {
 
   it('shows the empty state when the account has no featured tags', async () => {
     render(<FeaturedTagsEditor />)
+    expect(
+      await screen.findByText('No featured hashtags yet')
+    ).toBeInTheDocument()
+  })
+
+  it('renders the loading placeholders with the shimmer skeleton utility', async () => {
+    // Hold the tags request pending so the assertion really sees the in-flight
+    // skeleton — an already-resolved mock collapses the pending render and the
+    // settled one into a single flush.
+    const pendingTags = createDeferred<FeaturedTag[]>()
+    mockGetFeaturedTags.mockReturnValue(pendingTags.promise)
+
+    const { container } = render(<FeaturedTagsEditor />)
+
+    // jsdom paints no CSS, so the class is the observable — see
+    // app/globals.skeleton.test.ts for the definition guard.
+    expect(container.querySelectorAll('.skeleton').length).toBeGreaterThan(0)
+    expect(container.querySelector('.animate-pulse')).toBeNull()
+
+    pendingTags.resolve([])
     expect(
       await screen.findByText('No featured hashtags yet')
     ).toBeInTheDocument()
