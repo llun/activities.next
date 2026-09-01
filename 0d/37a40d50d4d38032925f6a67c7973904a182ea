@@ -1,0 +1,43 @@
+app/globals.css
+  s_c332d2ffff4a32::t_0756a0ce922830 181-182
+app/(timeline)/[actor]/[status]/loading.test.tsx
+  s_c332d2ffff4a32::t_9d7de7977f2757 24-29,31-35
+app/(timeline)/[actor]/following/loading.test.tsx
+  s_c332d2ffff4a32::t_424637ea2c4eaf 24-29,31-35
+app/(timeline)/[actor]/loading.test.tsx
+  s_c332d2ffff4a32::t_7a4e09af6f12c2 24-29,31-35
+app/(timeline)/[actor]/followers/loading.test.tsx
+  s_c332d2ffff4a32::t_4e794e99d3ed74 24-29,31-35
+app/(timeline)/[actor]/loading.tsx
+  s_c332d2ffff4a32::t_794f5e249eec92 10
+  s_c332d2ffff4a32::t_131c387019e2b5 7
+app/globals.skeleton.test.ts
+  s_c332d2ffff4a32::t_2462fed36bc18e 16-20
+  s_c332d2ffff4a32::t_7951cd849315d3 88-106
+  s_c332d2ffff4a32::t_862cac71d36992 44-50,52-55,58-59
+  s_19192de7787161::t_d30f22b99f6451 60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "0d37a40d50d4d38032925f6a67c7973904a182ea",
+  "prompts": {},
+  "sessions": {
+    "s_19192de7787161": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c9d6699-6371-493a-aa12-4b09b40f832c",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_c332d2ffff4a32": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ca45c8aa-83ae-4444-9988-d5b4126e95a2",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
