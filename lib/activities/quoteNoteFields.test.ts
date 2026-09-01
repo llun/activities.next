@@ -1,6 +1,7 @@
 import { compactActivityPub } from '@/lib/activities/jsonld'
 import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
 import {
+  addQuoteFallbackToContent,
   getInteractionPolicyFields,
   getQuoteNoteFields
 } from '@/lib/activities/quoteNoteFields'
@@ -65,6 +66,56 @@ describe('getQuoteNoteFields', () => {
   it('omits the stamp when an accepted edge has none stored', () => {
     expect(getQuoteNoteFields(edge({ state: 'accepted' }))).not.toHaveProperty(
       'quoteAuthorization'
+    )
+  })
+})
+
+describe('addQuoteFallbackToContent', () => {
+  const FALLBACK = `<p class="quote-inline">RE: <a href="${QUOTED_STATUS_ID}">${QUOTED_STATUS_ID}</a></p>`
+
+  it.each([{ state: 'pending' as const }, { state: 'accepted' as const }])(
+    'prepends the fallback paragraph on a $state edge',
+    ({ state }) => {
+      expect(addQuoteFallbackToContent('<p>hi</p>', edge({ state }))).toEqual(
+        `${FALLBACK}<p>hi</p>`
+      )
+    }
+  )
+
+  it.each([
+    { state: 'rejected' as const },
+    { state: 'revoked' as const },
+    { state: 'deleted' as const }
+  ])('leaves content alone on a $state edge', ({ state }) => {
+    expect(addQuoteFallbackToContent('<p>hi</p>', edge({ state }))).toEqual(
+      '<p>hi</p>'
+    )
+  })
+
+  it.each([
+    { label: 'null', value: null },
+    { label: 'undefined', value: undefined }
+  ])('leaves content alone when the edge is $label', ({ value }) => {
+    expect(addQuoteFallbackToContent('<p>hi</p>', value)).toEqual('<p>hi</p>')
+  })
+
+  it('skips when the content already contains the quoted url', () => {
+    const linked = `<p>see <a href="${QUOTED_STATUS_ID}">this</a></p>`
+    expect(addQuoteFallbackToContent(linked, edge())).toEqual(linked)
+  })
+
+  it('escapes the url when interpolating', () => {
+    const hostile = edge({
+      quotedStatusId: 'https://remote.test/statuses/9?a=1&b="<x>'
+    })
+    expect(addQuoteFallbackToContent('<p>hi</p>', hostile)).toEqual(
+      '<p class="quote-inline">RE: <a href="https://remote.test/statuses/9?a=1&amp;b=&quot;&lt;x&gt;">https://remote.test/statuses/9?a=1&amp;b=&quot;&lt;x&gt;</a></p><p>hi</p>'
+    )
+  })
+
+  it('produces only the fallback for empty content', () => {
+    expect(addQuoteFallbackToContent('', edge({ state: 'pending' }))).toEqual(
+      FALLBACK
     )
   })
 })
