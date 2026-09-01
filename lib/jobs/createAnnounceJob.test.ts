@@ -22,7 +22,7 @@ enableFetchMocks()
 
 describe('Announce action', () => {
   const database = getTestSQLDatabase()
-  let actor1: Actor | undefined
+  let actor1: Actor | null = null
   beforeAll(async () => {
     await database.migrate()
     await seedDatabase(database)
@@ -187,7 +187,7 @@ describe('Announce action', () => {
       id: friendId,
       username: 'friend',
       domain: 'somewhere.test',
-      createdAt: expect.toBeNumber()
+      createdAt: expect.any(Number)
     })
     const originalStatusActor = await database.getActorFromId({
       id: friend2Id
@@ -197,7 +197,7 @@ describe('Announce action', () => {
       id: friend2Id,
       username: 'friend2',
       domain: 'somewhere.test',
-      createdAt: expect.toBeNumber()
+      createdAt: expect.any(Number)
     })
   })
 
@@ -265,5 +265,28 @@ describe('Announce action', () => {
         data: { invalid: true } as unknown as AnnounceStatus
       })
     ).resolves.toBeUndefined()
+  })
+
+  it('gracefully ignores announce when boosted status cannot be fetched or saved', async () => {
+    const statusId = stubNoteId()
+    const announceStatusId =
+      'https://somewhere.test/statuses/unfetchable-status'
+    fetchMock.mockResponseOnce('', { status: 404 })
+
+    await expect(
+      createAnnounceJob(database, {
+        id: 'id-unfetchable',
+        name: CREATE_ANNOUNCE_JOB_NAME,
+        data: MockAnnounceStatus({
+          actorId: ACTOR1_ID,
+          statusId,
+          announceStatusId
+        })
+      })
+    ).resolves.toBeUndefined()
+
+    await expect(
+      database.getStatus({ statusId: `${statusId}/activity` })
+    ).resolves.toBeNull()
   })
 })

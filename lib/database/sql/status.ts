@@ -941,6 +941,11 @@ export const StatusSQLDatabaseMixin = (
     createdAt,
     publicId
   }: CreateAnnounceParams) {
+    const existingOriginal = await getStatus({ statusId: originalStatusId })
+    if (!existingOriginal) {
+      return null
+    }
+
     const currentTime = new Date()
     const statusCreatedAt = createdAt ? new Date(createdAt) : currentTime
     const statusPublicId =
@@ -1016,6 +1021,9 @@ export const StatusSQLDatabaseMixin = (
       getStatus({ statusId: originalStatusId }),
       actorDatabase.getActorFromId({ id: actorId })
     ])
+    if (!originalStatus) {
+      return null
+    }
     return StatusAnnounce.parse({
       id,
       publicId: statusPublicId,

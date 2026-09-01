@@ -25,6 +25,7 @@ export const defaultJobHandle =
             code: SpanStatusCode.ERROR,
             message: 'Database is not available'
           })
+          span.recordException(new Error('Database is not available'))
           return
         }
 
@@ -39,6 +40,7 @@ export const defaultJobHandle =
             code: SpanStatusCode.ERROR,
             message: 'Unknown job name'
           })
+          span.recordException(new Error('Unknown job name'))
           return
         }
 

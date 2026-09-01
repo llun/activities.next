@@ -87,6 +87,7 @@ describe('BookmarkDatabase', () => {
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
       })
+      if (!announce) throw new Error('announce must not be null')
 
       await database.createBookmark({
         actorId: ACTOR3_ID,
@@ -127,6 +128,7 @@ describe('BookmarkDatabase', () => {
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
       })
+      if (!firstAnnounce) throw new Error('firstAnnounce must not be null')
       const secondAnnounce = await database.createAnnounce({
         id: `${ACTOR3_ID}/statuses/bookmark-nested-announce-two-${randomUUID()}`,
         actorId: ACTOR3_ID,
@@ -134,6 +136,7 @@ describe('BookmarkDatabase', () => {
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
       })
+      if (!secondAnnounce) throw new Error('secondAnnounce must not be null')
 
       await database.createBookmark({
         actorId: ACTOR2_ID,
@@ -186,6 +189,7 @@ describe('BookmarkDatabase', () => {
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
       })
+      if (!announce) throw new Error('announce must not be null')
 
       await database.createBookmark({
         actorId: ACTOR3_ID,
