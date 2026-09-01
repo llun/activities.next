@@ -1,0 +1,96 @@
+lib/types/database/operations.ts
+  s_867498a5a8dd3b::t_432b1f1c3d2037 908-910,913-914
+  s_867498a5a8dd3b::t_8f4867b8565442 603-616
+app/api/v1/polls/[id]/votes/route.test.ts
+  s_867498a5a8dd3b::t_77b69d422ef39c 44,46-51
+  s_867498a5a8dd3b::t_c5cefa13627f4e 72-73
+  s_867498a5a8dd3b::t_e3be1f7982cf5c 99-142
+lib/database/sql/utils/recoverFromDuplicateInsert.ts
+  s_867498a5a8dd3b::t_62e6380f18603b 13
+  s_867498a5a8dd3b::t_9f3f0d7619d7f2 1-12,14-48
+lib/jobs/createNoteJob.test.ts
+  s_867498a5a8dd3b::t_7e8401998d7643 583-642
+app/api/v1/accounts/vote/route.test.ts
+  s_867498a5a8dd3b::t_7235f979184e17 65,77-81,84-85,88,113-116
+lib/jobs/createPollJob.test.ts
+  s_867498a5a8dd3b::t_d4616c04ac88f3 428-461,463-485
+  s_867498a5a8dd3b::t_5ece5d152a9089 462
+lib/jobs/createPollJob.ts
+  s_867498a5a8dd3b::t_e4b84e84994895 19
+  s_867498a5a8dd3b::t_ad6fc82b5ff245 32-36
+  s_867498a5a8dd3b::t_dac237026d597b 83,88
+  s_867498a5a8dd3b::t_3d0c6122392ed8 111-121
+lib/jobs/dropMalformedPayloadLogging.test.ts
+  s_867498a5a8dd3b::t_510cf2e9a523d8 1-121
+lib/jobs/createPollVoteJob.ts
+  s_867498a5a8dd3b::t_1df6b2e92fb921 28-32
+app/api/v1/polls/[id]/votes/route.ts
+  s_867498a5a8dd3b::t_86e283fdb81240 193
+  s_867498a5a8dd3b::t_332d693b51d419 181-186
+app/api/v1/accounts/vote/route.ts
+  s_867498a5a8dd3b::t_68a0b416f236fb 101-106
+  s_867498a5a8dd3b::t_86e283fdb81240 118
+lib/jobs/createAnnounceJob.ts
+  s_867498a5a8dd3b::t_7324ab1daedd73 32-36
+lib/database/sql/status.ts
+  s_867498a5a8dd3b::t_f85298a79a2063 1210-1214
+  s_867498a5a8dd3b::t_d185aa92dd6f7b 538,554
+  s_867498a5a8dd3b::t_8d156c3cd24428 960-998,1001-1007,1009-1012,1014-1018
+  s_867498a5a8dd3b::t_fcc30d35f23eee 3974,3980
+  s_867498a5a8dd3b::t_21de77a3f20fb7 33
+  s_867498a5a8dd3b::t_0aa6e12f666b3a 1089-1105,1107-1128,1131-1143,1145-1151,1153-1156,1158-1164,1170
+  s_867498a5a8dd3b::t_263e0e278c5afa 579-618,621-627,629-632,634-640,646
+  s_867498a5a8dd3b::t_469a22a8361185 1045,1064
+  s_867498a5a8dd3b::t_d378ee5d5a7023 683-687
+  s_867498a5a8dd3b::t_97b79f9ce440f2 58
+lib/jobs/createNoteJob.ts
+  s_867498a5a8dd3b::t_b82bf85a4b42d7 49
+  s_867498a5a8dd3b::t_f03b4bea25b4ba 77-81
+  s_867498a5a8dd3b::t_3d0c6122392ed8 140-151
+  s_867498a5a8dd3b::t_e8ef6db6106506 121,123
+lib/jobs/updateNoteJob.ts
+  s_867498a5a8dd3b::t_f5c07a52be2f21 64-68
+lib/jobs/updatePollJob.ts
+  s_867498a5a8dd3b::t_3237dcda9d2aa3 20-24
+lib/database/index.ts
+  s_867498a5a8dd3b::t_c71acc3c1ed361 14-32,43-45,57-65
+lib/database/sqlcommenter.test.ts
+  s_867498a5a8dd3b::t_3581947ec2c2de 63-118
+lib/utils/traceApiRoute.test.ts
+  s_867498a5a8dd3b::t_662f4d1c3a9a1f 1-8,11-12,15-46
+  s_867498a5a8dd3b::t_74603eabdd73c7 291-293
+  s_867498a5a8dd3b::t_d28eb3dbe8bb88 285-290
+  s_867498a5a8dd3b::t_ddaa8a104b45e8 294-326,329-348,351-358,360-367,369,371-373,375-379
+  s_867498a5a8dd3b::t_b9f323887e11e7 47
+lib/utils/traceApiRoute.ts
+  s_867498a5a8dd3b::t_46bfab4823fbef 57-97
+lib/components/layout/mobile-nav.test.tsx
+  s_867498a5a8dd3b::t_e64f87ec5835b7 306
+  s_867498a5a8dd3b::t_42b040cb3056be 278-305,307-316
+  s_867498a5a8dd3b::t_43fcc5a496af02 7,12-30
+  s_867498a5a8dd3b::t_e13abf4481a495 31
+lib/components/layout/mobile-nav.tsx
+  s_867498a5a8dd3b::t_1495a9afdff7c9 117
+  s_867498a5a8dd3b::t_29503f4ab6a871 106-112
+  s_867498a5a8dd3b::t_c76d0b1acd6104 139-141
+.github/workflows/sync-main-to-oltp.yml
+  s_867498a5a8dd3b::t_00136d2790ae1b 130-138
+AGENTS.md
+  s_867498a5a8dd3b::t_80546829f275e5 243
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "65d91f194d94bc1a4feb741ef30e2c7dd3fdb20c",
+  "prompts": {},
+  "sessions": {
+    "s_867498a5a8dd3b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "07b215df-f83e-435d-96c9-42900a5bfb30",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
