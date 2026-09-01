@@ -83,12 +83,12 @@ const LoadingSkeleton: FC = () => (
         key={index}
         className="flex items-center gap-3 rounded-lg border p-3"
       >
-        <span className="h-9 w-9 shrink-0 animate-pulse rounded-lg bg-muted" />
+        <span className="skeleton h-9 w-9 shrink-0 rounded-lg" />
         <div className="min-w-0 flex-1 space-y-1.5">
-          <div className="h-3.5 w-28 animate-pulse rounded bg-muted" />
-          <div className="h-3 w-44 animate-pulse rounded bg-muted" />
+          <div className="skeleton h-3.5 w-28 rounded" />
+          <div className="skeleton h-3 w-44 rounded" />
         </div>
-        <span className="h-8 w-8 shrink-0 animate-pulse rounded-md bg-muted" />
+        <span className="skeleton h-8 w-8 shrink-0 rounded-md" />
       </div>
     ))}
   </div>
