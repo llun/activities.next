@@ -1,14 +1,31 @@
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { getRelationship } from '@/lib/services/accounts/relationship'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { FollowStatus } from '@/lib/types/domain/follow'
+import { generatePublicId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
-import { GET } from './route'
+import { GET, MAX_BATCH_RELATIONSHIPS } from './route'
+
+// Partial mock so getRelationship's default is the REAL implementation
+// (`vi.fn(actual.getRelationship)`) — every test below runs real behaviour —
+// while the "one failing id drops" test can queue a single rejection with
+// `mockRejectedValueOnce`, after which calls fall back to the real impl. Read
+// through the STATIC import above, not vi.importMock: the factory awaits
+// importOriginal, so vi.importMock would hand back the original module instead
+// of this mock (per AGENTS.md, Testing Guidelines).
+vi.mock('@/lib/services/accounts/relationship', async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import('@/lib/services/accounts/relationship')
+    >()
+  return { ...actual, getRelationship: vi.fn(actual.getRelationship) }
+})
 
 const mockGetServerSession = vi.fn()
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -141,5 +158,71 @@ describe('GET /api/v1/accounts/relationships', () => {
       params: Promise.resolve({})
     })
     expect(response.status).toBe(401)
+  })
+
+  // An id that resolves to something that is not an actor URI is dropped by the
+  // isResolvedActorUri filter on the resolver OUTPUT, rather than reaching
+  // getRelationship with a non-id. A publicId-shaped value with no row resolves
+  // to the bare uuid, which is not a URI.
+  it('drops an id that resolves to a non-actor URI', async () => {
+    const response = await GET(createRequest(`id[]=${generatePublicId()}`), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual([])
+  })
+
+  // Characterization test pinning the LIVE falsy guard: idToUrl returns '' for a
+  // bad apurl_ value, and the `!targetActorId` guard drops it. This is not dead
+  // code — removing that guard would let '' reach getRelationship.
+  it('drops a bad apurl_ id via the empty-string falsy guard', async () => {
+    const response = await GET(createRequest('id[]=apurl_not-valid-base64!!'), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual([])
+  })
+
+  it('deduplicates repeated ids', async () => {
+    const id = urlToId(ACTOR2_ID)
+    const response = await GET(createRequest(`id[]=${id}&id[]=${id}`), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toHaveLength(1)
+  })
+
+  it('caps the batch at MAX_BATCH_RELATIONSHIPS distinct ids', async () => {
+    const query = Array.from(
+      { length: MAX_BATCH_RELATIONSHIPS + 5 },
+      (_unused, index) =>
+        `id[]=${encodeURIComponent(`https://remote.test/users/u${index}`)}`
+    ).join('&')
+
+    const response = await GET(createRequest(query), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toHaveLength(MAX_BATCH_RELATIONSHIPS)
+  })
+
+  // Awaiting getRelationship inside the try is what makes the catch reachable;
+  // one failing id is dropped rather than rejecting the whole Promise.all.
+  it('drops a single failing id instead of failing the request', async () => {
+    vi.mocked(getRelationship).mockRejectedValueOnce(new Error('boom'))
+
+    const query = `id[]=${urlToId(ACTOR2_ID)}&id[]=${urlToId(ACTOR3_ID)}`
+    const response = await GET(createRequest(query), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data).toHaveLength(1)
+    expect(data[0].id).toBe(await emittedActorId(ACTOR3_ID))
   })
 })

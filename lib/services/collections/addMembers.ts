@@ -2,7 +2,10 @@ import { randomUUID } from 'crypto'
 
 import { Database } from '@/lib/database/types'
 import { INGEST_COLLECTION_MEMBER_JOB_NAME } from '@/lib/jobs/names'
-import { resolveActorIdParams } from '@/lib/services/mastodon/resolveClientId'
+import {
+  isResolvedActorUri,
+  resolveActorIdParams
+} from '@/lib/services/mastodon/resolveClientId'
 import { notifyAddedToCollection } from '@/lib/services/notifications/collectionNotifications'
 import { getQueue } from '@/lib/services/queue'
 import { logger } from '@/lib/utils/logger'
@@ -12,18 +15,9 @@ import { logger } from '@/lib/utils/logger'
 export const MAX_COLLECTION_ACCOUNT_IDS = 100
 
 // Membership rows store an actor's AP URI, so every resolved id has to be one.
-// `resolveActorIdParams` returns an unknown publicId UNCHANGED (its documented
-// "matches nothing" contract), and `idToUrl` is permissive enough to emit an
-// unparseable string, so the resolved list can contain values that are not
-// URIs at all.
-const isActorUri = (value: string): boolean => {
-  try {
-    const { protocol } = new URL(value)
-    return protocol === 'http:' || protocol === 'https:'
-  } catch {
-    return false
-  }
-}
+// The URI predicate lives in `resolveClientId` as `isResolvedActorUri`, beside
+// the resolvers whose permissive output it filters (the relationships route is
+// the other caller).
 
 // Add members to an owned collection with the standard side effects: notify
 // the newly-added local members (added_to_collection) and enqueue remote-member
@@ -64,7 +58,7 @@ export const addMembersToCollection = async ({
   // One batched publicId lookup for the whole list, not one per id.
   const targetActorIds = (
     await resolveActorIdParams(database, accountIds)
-  ).filter(isActorUri)
+  ).filter(isResolvedActorUri)
   if (targetActorIds.length === 0) return
 
   const addedActorIds = await database.addCollectionMembers({

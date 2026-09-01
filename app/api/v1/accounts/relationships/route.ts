@@ -3,14 +3,24 @@ import {
   OAuthGuardAnyScope,
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
-import { resolveActorIdParams } from '@/lib/services/mastodon/resolveClientId'
+import {
+  isResolvedActorUri,
+  resolveActorIdParams
+} from '@/lib/services/mastodon/resolveClientId'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import { apiResponse, defaultOptions } from '@/lib/utils/response'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
+
+// Upper bound on how many accounts a single relationships request may ask
+// about. Mastodon does not document a cap; dedupe + truncate the way
+// `GET /api/v1/accounts` does rather than letting a header-sized id list drive
+// the per-request work. Exported so the route test can exercise truncation.
+export const MAX_BATCH_RELATIONSHIPS = 100
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -28,11 +38,16 @@ export const GET = traceApiRoute(
       const { database, currentActor } = context
 
       const url = new URL(req.url)
-      // Preserve request order and accept both `id[]` and bare `id`.
-      const accountIds = [
-        ...url.searchParams.getAll('id[]'),
-        ...url.searchParams.getAll('id')
-      ].filter(Boolean)
+      // Deduplicate and bound the requested ids, then preserve request order.
+      // Accept both `id[]` and bare `id`.
+      const accountIds = Array.from(
+        new Set(
+          [
+            ...url.searchParams.getAll('id[]'),
+            ...url.searchParams.getAll('id')
+          ].filter(Boolean)
+        )
+      ).slice(0, MAX_BATCH_RELATIONSHIPS)
 
       if (!accountIds.length) {
         return apiResponse({ req, allowedMethods: CORS_HEADERS, data: [] })
@@ -47,17 +62,29 @@ export const GET = traceApiRoute(
         accountIds.map(async (encodedAccountId, index) => {
           try {
             const targetActorId = resolvedIds[index]
-            if (!targetActorId) return null
-            return getRelationship({
+            // Keep the falsy guard AND filter to actual URIs: `idToUrl` returns
+            // '' for a bad `apurl_` (so the falsy guard is live), and returns an
+            // unknown publicId or an unparseable value unchanged — neither is an
+            // actor URI, and `getRelationship` would then key a lookup on a
+            // non-id. The filter runs on the resolver OUTPUT only; it prunes no
+            // input form the resolver accepts.
+            if (!targetActorId || !isResolvedActorUri(targetActorId))
+              return null
+            // Awaited inside the try so a rejection is caught HERE and drops
+            // this one id. Returning the un-awaited promise adopted it after
+            // the try exited, leaving the catch dead — one failing id then
+            // rejected the whole `Promise.all` and failed the request.
+            return await getRelationship({
               database,
               currentActor,
               targetActorId
             })
           } catch (error) {
-            logger.error(
-              { error, accountId: encodedAccountId },
-              `Error processing relationship for ID ${encodedAccountId}`
-            )
+            logger.error({
+              message: 'Error processing relationship for account id',
+              accountId: encodedAccountId,
+              err: toLoggableError(error)
+            })
             return null
           }
         })

@@ -3,7 +3,9 @@ import { getActorCollectionCounts } from '@/lib/activities/getActorCollectionCou
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
+import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import { Database } from '@/lib/database/types'
+import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import {
   canActorReadStatus,
@@ -15,6 +17,7 @@ import { Attachment } from '@/lib/types/domain/attachment'
 import { Status } from '@/lib/types/domain/status'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 import { logger } from '@/lib/utils/logger'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 type ProfileData = {
   person: Actor
@@ -176,26 +179,61 @@ export const getProfileData = async (
   ])
   if (!actorId) return null
 
+  // Don't fetch or persist actors from domains this instance won't federate
+  // with. Without this gate a hot profile render would search-index and store
+  // an actor from a blocked or (in allowlist mode) non-allowlisted domain. The
+  // WebFinger-resolved id decides federation policy, and it is re-checked
+  // against `person.id` below because that id — the server's own choice of
+  // canonical id — can name a different host.
+  if (!(await canFederateWithDomain(database, actorId))) return null
+
   const signingParams = signingActor ? { signingActor } : {}
   const person = await getActorPerson({ actorId, ...signingParams })
   if (!person) return null
 
-  if (persistedActor) {
+  // The id actually written is `person.id`, not the WebFinger id, so the
+  // federation gate is applied again to the id we persist and index — a
+  // split-domain deployment answers WebFinger for `@llun@llun.dev` with a
+  // Person whose id lives on `social.llun.dev`, so the two hosts differ.
+  if (!(await canFederateWithDomain(database, person.id))) return null
+
+  // Look up the row by the id we are about to write (`person.id`), NOT by the
+  // handle `persistedActor` was resolved from. On a split-domain deployment the
+  // handle (`llun@llun.dev`) and the stored id's host (`social.llun.dev`)
+  // differ, so `getActorFromUsername` misses forever while the row already
+  // exists under `person.id`. Keying the update/create decision on the handle
+  // therefore re-entered the create branch on every render and re-inserted the
+  // same id — a permanent 500 on the `actors_id_unique` constraint.
+  const storedActor = await database.getActorFromId({ id: person.id })
+  const persistableProfile = getPersistableProfile(person)
+  if (storedActor) {
     // Same field set recordActorIfNeeded persists, so the web profile page
     // and the Mastodon API refresh paths write consistent snapshots (including
     // metadata fields and the locked state).
     await database.updateActor({
       actorId: person.id,
-      ...getPersistableProfile(person)
+      ...persistableProfile
     })
   } else {
-    await database.createActor({
-      actorId: person.id,
-      username: person.preferredUsername,
-      domain: new URL(person.id).host,
-      ...getPersistableProfile(person),
-      createdAt: new Date(person.published ?? Date.now()).getTime()
-    })
+    // A concurrent render can insert the same id between the read above and
+    // this insert. Rather than serialize the whole render, treat the unique
+    // violation as "someone else won the race" and fall back to the update the
+    // winner's row now needs — any other error is real and rethrown.
+    try {
+      await database.createActor({
+        actorId: person.id,
+        username: person.preferredUsername,
+        domain: new URL(person.id).host,
+        ...persistableProfile,
+        createdAt: new Date(person.published ?? Date.now()).getTime()
+      })
+    } catch (error) {
+      if (!isUniqueConstraintError(error)) throw error
+      await database.updateActor({
+        actorId: person.id,
+        ...persistableProfile
+      })
+    }
   }
 
   // A remote actor's attachments are the ones their statuses brought here when
@@ -248,7 +286,7 @@ export const getProfileData = async (
     logger.warn({
       message: 'Failed to persist remote actor collection counts',
       actorId: person.id,
-      error: error instanceof Error ? error.message : String(error)
+      err: toLoggableError(error)
     })
   }
 

@@ -4,11 +4,23 @@ import { MockActivityPubPerson } from '@/lib/stub/person'
 import { Actor } from '@/lib/types/activitypub'
 
 import {
+  FAILURE_TTL_MS,
+  MAX_CACHED_DOMAINS,
+  SUCCESS_TTL_MS,
   clearServerSoftwareCache,
   getServerSoftware,
+  getServerSoftwareCacheSizeForTests,
   isPixelfedActor,
   isPixelfedDomain
 } from './serverSoftware'
+
+const requestedUrls = () =>
+  fetchMock.mock.calls.map((call) => {
+    const [input] = call
+    if (typeof input === 'string') return input
+    if (input instanceof URL) return input.toString()
+    return (input as Request).url
+  })
 
 enableFetchMocks()
 
@@ -114,5 +126,152 @@ describe('serverSoftware', () => {
   it('returns false for malformed person ID', async () => {
     const person = { id: 'invalid-url' } as Actor
     expect(await isPixelfedActor(person)).toBe(false)
+  })
+
+  it('re-probes after a failed lookup expires (FAILURE_TTL_MS)', async () => {
+    vi.useFakeTimers()
+    try {
+      const domain = 'transient.example'
+      fetchMock.mockResponse(async () => ({ status: 404, body: 'Not Found' }))
+
+      expect(await getServerSoftware(domain)).toBeNull()
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+
+      // A failure is a cache HIT until it expires — no second fetch.
+      expect(await getServerSoftware(domain)).toBeNull()
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+
+      vi.advanceTimersByTime(FAILURE_TTL_MS + 1)
+      expect(await getServerSoftware(domain)).toBeNull()
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('re-probes after a successful lookup expires (SUCCESS_TTL_MS)', async () => {
+    vi.useFakeTimers()
+    try {
+      const domain = 'pixelfed.example'
+      let wellKnownFetches = 0
+      fetchMock.mockResponse(async (req) => {
+        if (req.url === `https://${domain}/.well-known/nodeinfo`) {
+          wellKnownFetches += 1
+          return {
+            status: 200,
+            body: JSON.stringify({
+              links: [
+                {
+                  rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
+                  href: `https://${domain}/api/nodeinfo/2.0.json`
+                }
+              ]
+            })
+          }
+        }
+        if (req.url === `https://${domain}/api/nodeinfo/2.0.json`) {
+          return {
+            status: 200,
+            body: JSON.stringify({ software: { name: 'Pixelfed' } })
+          }
+        }
+        return { status: 404, body: 'Not Found' }
+      })
+
+      expect(await getServerSoftware(domain)).toBe('pixelfed')
+      expect(wellKnownFetches).toBe(1)
+
+      // Cached within the success window.
+      expect(await getServerSoftware(domain)).toBe('pixelfed')
+      expect(wellKnownFetches).toBe(1)
+
+      vi.advanceTimersByTime(SUCCESS_TTL_MS + 1)
+      expect(await getServerSoftware(domain)).toBe('pixelfed')
+      expect(wellKnownFetches).toBe(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('refuses a NodeInfo href on a different host', async () => {
+    const domain = 'victim.example'
+    const evilUrl = 'https://evil.example/nodeinfo/2.0'
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `https://${domain}/.well-known/nodeinfo`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            links: [
+              {
+                rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
+                href: evilUrl
+              }
+            ]
+          })
+        }
+      }
+      // Would report pixelfed IF the cross-host href were ever followed.
+      return {
+        status: 200,
+        body: JSON.stringify({ software: { name: 'pixelfed' } })
+      }
+    })
+
+    expect(await isPixelfedDomain(domain)).toBe(false)
+    expect(requestedUrls()).not.toContain(evilUrl)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('refuses a rel-less first link on a different host', async () => {
+    const domain = 'victim2.example'
+    const evilUrl = 'https://evil.example/nodeinfo'
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `https://${domain}/.well-known/nodeinfo`) {
+        return {
+          status: 200,
+          body: JSON.stringify({ links: [{ href: evilUrl }] })
+        }
+      }
+      return {
+        status: 200,
+        body: JSON.stringify({ software: { name: 'pixelfed' } })
+      }
+    })
+
+    expect(await isPixelfedDomain(domain)).toBe(false)
+    expect(requestedUrls()).not.toContain(evilUrl)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('still follows a rel-less first link on the same host (compatibility fallback preserved)', async () => {
+    const domain = 'norel.example'
+    const infoUrl = `https://${domain}/nodeinfo/2.0`
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `https://${domain}/.well-known/nodeinfo`) {
+        return {
+          status: 200,
+          body: JSON.stringify({ links: [{ href: infoUrl }] })
+        }
+      }
+      if (req.url === infoUrl) {
+        return {
+          status: 200,
+          body: JSON.stringify({ software: { name: 'Pixelfed' } })
+        }
+      }
+      return { status: 404, body: 'Not Found' }
+    })
+
+    expect(await getServerSoftware(domain)).toBe('pixelfed')
+  })
+
+  it('evicts the oldest entry past MAX_CACHED_DOMAINS', async () => {
+    fetchMock.mockResponse(async () => ({ status: 404, body: 'Not Found' }))
+
+    for (let index = 0; index < MAX_CACHED_DOMAINS + 10; index += 1) {
+      await getServerSoftware(`d${index}.example`)
+    }
+
+    expect(getServerSoftwareCacheSizeForTests()).toBe(MAX_CACHED_DOMAINS)
   })
 })

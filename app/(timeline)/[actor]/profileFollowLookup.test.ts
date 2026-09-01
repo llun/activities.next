@@ -83,6 +83,11 @@ describe('profile follow lookup', () => {
     getActorFollowingCount: vi.fn(),
     getActorFollowersCount: vi.fn(),
     getActorHasFitnessData: vi.fn(),
+    // canFederateWithDomain (federation gate added on the remote persist path)
+    getDomainBlockForDomain: vi.fn().mockResolvedValue(null),
+    getDomainAllowForDomain: vi.fn().mockResolvedValue(null),
+    // getProfileData persist branch resolves by the written id (person.id)
+    getActorFromId: vi.fn().mockResolvedValue(null),
     // getRelationship
     isCurrentActorFollowing: vi.fn(),
     isBlocking: vi.fn(),

@@ -6,6 +6,7 @@ import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
+import { mapWithConcurrency } from '@/lib/utils/mapWithConcurrency'
 
 import { filterFederatedUrls } from './domainPolicy'
 
@@ -42,21 +43,6 @@ const isSameOriginActorId = (actorId: string, currentActor: Actor) => {
   } catch {
     return false
   }
-}
-
-const mapWithConcurrency = async <T, TResult>(
-  items: T[],
-  concurrency: number,
-  mapper: (item: T) => Promise<TResult>
-): Promise<TResult[]> => {
-  const results: TResult[] = []
-
-  for (let index = 0; index < items.length; index += concurrency) {
-    const chunk = items.slice(index, index + concurrency)
-    results.push(...(await Promise.all(chunk.map(mapper))))
-  }
-
-  return results
 }
 
 const getRemoteActorInboxForMissingActor = async ({
