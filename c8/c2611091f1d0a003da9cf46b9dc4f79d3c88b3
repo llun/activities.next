@@ -1,0 +1,18 @@
+instrumentation.node.test.ts
+  h_580a04e334fef4 147-169
+instrumentation.node.ts
+  h_580a04e334fef4 57,59,67-80,82
+lib/utils/traceApiRoute.ts
+  h_580a04e334fef4 73-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "c8c2611091f1d0a003da9cf46b9dc4f79d3c88b3",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
