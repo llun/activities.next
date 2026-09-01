@@ -1,3 +1,4 @@
+import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
@@ -268,6 +269,13 @@ const serveRemoteCollection = async ({
       })
     })
   } catch (error) {
+    const span = trace.getActiveSpan()
+    if (span) {
+      span.recordException(
+        error instanceof Error ? error : new Error(String(error))
+      )
+      span.setStatus({ code: SpanStatusCode.ERROR })
+    }
     logger.warn({
       message: `Failed to read remote actor ${field} collection; serving local rows`,
       actorId,

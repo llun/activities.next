@@ -1,3 +1,5 @@
+import { SpanStatusCode } from '@opentelemetry/api'
+
 import {
   BlockedFederationDomainError,
   recordActorIfNeeded
@@ -13,6 +15,7 @@ import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import { normalizeActivityPubUri } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
+import { withSpan } from '@/lib/utils/trace'
 
 // The Mastodon `accounts/:id/followers` and `/following` lists for a REMOTE
 // actor. The `follows` table only knows relationships this instance took part
@@ -210,46 +213,55 @@ const recordUnknownActor = async ({
   database: Database
   actorId: string
   signingActor?: Actor
-}): Promise<string | null> => {
-  try {
-    // Refuses a blocked domain by throwing, and answers undefined when the
-    // actor cannot be fetched; both simply leave the entry out of the page.
-    const actor = await recordActorIfNeeded({ actorId, database, signingActor })
-    return actor?.id ?? null
-  } catch (error) {
-    if (error instanceof BlockedFederationDomainError) {
-      // Policy working as configured, not a failure.
-      logger.debug({
-        message: 'Skipped blocked-domain actor in remote follow collection',
-        actorId
+}): Promise<string | null> =>
+  withSpan('service', 'recordUnknownActor', { actorId }, async (span) => {
+    try {
+      // Refuses a blocked domain by throwing, and answers undefined when the
+      // actor cannot be fetched; both simply leave the entry out of the page.
+      const actor = await recordActorIfNeeded({
+        actorId,
+        database,
+        signingActor
       })
-      return null
-    }
-    // The same unknown actor can be recorded at the same moment from the
-    // other collection's entry (or any other path that records actors); the
-    // loser's insert fails on the id's unique constraint after the row exists.
-    // Re-read before giving the actor up for the whole TTL.
-    const existing = await database
-      .getActorFromId({ id: actorId })
-      .catch(() => null)
-    if (existing) {
-      logger.debug({
-        message:
-          'Actor record threw but row exists (likely insert race or background refresh error)',
+      return actor?.id ?? null
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error))
+      if (error instanceof BlockedFederationDomainError) {
+        // Policy working as configured, not a failure.
+        logger.debug({
+          message: 'Skipped blocked-domain actor in remote follow collection',
+          actorId
+        })
+        return null
+      }
+      // The same unknown actor can be recorded at the same moment from the
+      // other collection's entry (or any other path that records actors); the
+      // loser's insert fails on the id's unique constraint after the row exists.
+      // Re-read before giving the actor up for the whole TTL.
+      const existing = await database
+        .getActorFromId({ id: actorId })
+        .catch(() => null)
+      if (existing) {
+        span.recordException(err)
+        logger.debug({
+          message:
+            'Actor record threw but row exists (likely insert race or background refresh error)',
+          actorId,
+          err: toLoggableError(error)
+        })
+        return existing.id
+      }
+
+      span.recordException(err)
+      span.setStatus({ code: SpanStatusCode.ERROR, message: err.message })
+      logger.warn({
+        message: 'Failed to record remote follow collection actor',
         actorId,
         err: toLoggableError(error)
       })
-      return existing.id
+      return null
     }
-
-    logger.warn({
-      message: 'Failed to record remote follow collection actor',
-      actorId,
-      err: toLoggableError(error)
-    })
-    return null
-  }
-}
+  })
 
 const resolvePageAccounts = async ({
   database,
@@ -306,57 +318,70 @@ const fetchRemoteFollowCollectionPage = async ({
   field,
   signingActor,
   pageUrl
-}: Params): Promise<RemoteFollowCollectionResult> => {
-  const person = await getActorPerson({ actorId, signingActor })
-  const collectionUrl = person?.[field]
-  if (!person || !collectionUrl) return { status: 'unavailable' }
+}: Params): Promise<RemoteFollowCollectionResult> =>
+  withSpan(
+    'service',
+    'fetchRemoteFollowCollectionPage',
+    { actorId, field, ...(pageUrl ? { pageUrl } : {}) },
+    async (span) => {
+      const person = await getActorPerson({ actorId, signingActor })
+      const collectionUrl = person?.[field]
+      if (!person || !collectionUrl) {
+        span.setAttribute('result', 'unavailable')
+        return { status: 'unavailable' }
+      }
 
-  // The same check `remote-statuses` applies to its `page_url`: a cursor is
-  // only ever a page of THIS actor's collection, never an arbitrary URL this
-  // instance would then fetch on the client's behalf.
-  if (pageUrl && !isCollectionPageUrl(pageUrl, collectionUrl)) {
-    return { status: 'invalid-page' }
-  }
+      // The same check `remote-statuses` applies to its `page_url`: a cursor is
+      // only ever a page of THIS actor's collection, never an arbitrary URL this
+      // instance would then fetch on the client's behalf.
+      if (pageUrl && !isCollectionPageUrl(pageUrl, collectionUrl)) {
+        span.setAttribute('result', 'invalid-page')
+        return { status: 'invalid-page' }
+      }
 
-  const collection = await getActorCollections({
-    person,
-    field,
-    signingActor,
-    pageUrl
-  })
-  // No collection, or a collection the remote publishes a size for but no
-  // page of — Mastodon's "hide your social graph" — is the caller's cue to
-  // fall back to what this instance knows locally. So is a page whose items
-  // are not the `orderedItems` array this reader handles (`items`, or a
-  // non-array): the body is parsed JSON with no schema, and a shape this
-  // cannot read must be a cached `unavailable`, never a thrown TypeError that
-  // evicts the entry and is retried on every open.
-  const orderedItems = collection?.page?.orderedItems
-  if (!collection?.page || !Array.isArray(orderedItems)) {
-    return { status: 'unavailable' }
-  }
+      const collection = await getActorCollections({
+        person,
+        field,
+        signingActor,
+        pageUrl
+      })
+      // No collection, or a collection the remote publishes a size for but no
+      // page of — Mastodon's "hide your social graph" — is the caller's cue to
+      // fall back to what this instance knows locally. So is a page whose items
+      // are not the `orderedItems` array this reader handles (`items`, or a
+      // non-array): the body is parsed JSON with no schema, and a shape this
+      // cannot read must be a cached `unavailable`, never a thrown TypeError that
+      // evicts the entry and is retried on every open.
+      const orderedItems = collection?.page?.orderedItems
+      if (!collection?.page || !Array.isArray(orderedItems)) {
+        span.setAttribute('result', 'unavailable')
+        return { status: 'unavailable' }
+      }
 
-  const actorIds = Array.from(
-    new Set(
-      orderedItems.map(getItemActorId).filter((id): id is string => Boolean(id))
-    )
-  ).slice(0, MAX_PAGE_ITEMS)
-  const accounts = await resolvePageAccounts({
-    database,
-    actorIds,
-    signingActor
-  })
+      const actorIds = Array.from(
+        new Set(
+          orderedItems
+            .map(getItemActorId)
+            .filter((id): id is string => Boolean(id))
+        )
+      ).slice(0, MAX_PAGE_ITEMS)
+      const accounts = await resolvePageAccounts({
+        database,
+        actorIds,
+        signingActor
+      })
 
-  return {
-    status: 'ok',
-    page: {
-      accounts,
-      nextPageUrl: getPageUrl(collection.page.next, collectionUrl),
-      prevPageUrl: getPageUrl(collection.page.prev, collectionUrl),
-      totalItems: collection.totalItems
+      return {
+        status: 'ok',
+        page: {
+          accounts,
+          nextPageUrl: getPageUrl(collection.page.next, collectionUrl),
+          prevPageUrl: getPageUrl(collection.page.prev, collectionUrl),
+          totalItems: collection.totalItems
+        }
+      }
     }
-  }
-}
+  )
 
 /**
  * One page of a remote actor's `followers` or `following` collection as
