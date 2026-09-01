@@ -1,0 +1,22 @@
+lib/utils/getNoteFromStatus.test.ts
+  s_9e9181f395c758::t_e1c3eb750d0a9c 59-90
+lib/utils/getNoteFromStatus.ts
+  s_9e9181f395c758::t_d3283935273c46 50-53
+  s_9e9181f395c758::t_7180dfafbb719c 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "33d1f56fc9015dc7246c08e54f516ebb03bdffd1",
+  "prompts": {},
+  "sessions": {
+    "s_9e9181f395c758": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bc2e929-9c85-4141-8d3b-ed40b9c01022",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
