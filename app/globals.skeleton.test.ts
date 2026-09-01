@@ -13,8 +13,11 @@ import { describe, expect, it } from 'vitest'
  * BOTH themes (a token defined only for light silently loses dark), the base
  * tone must stay visibly distinct from the surfaces it loads over (the bug the
  * utility replaced: `animate-pulse bg-muted` at 96.1% lightness on the white
- * background left the whole animation within ~2 points of lightness), and the
- * shimmer must be stilled under prefers-reduced-motion.
+ * background left the whole animation within ~2 points of lightness), the
+ * composited highlight band must stay visibly distinct from the base in each
+ * theme (a highlight whose blended lightness matches the base renders the
+ * shimmer invisible while every other assertion stays green), and the shimmer
+ * must be stilled under prefers-reduced-motion.
  */
 
 // Strip comments first so token parsing cannot match `--token`-like text
@@ -38,12 +41,22 @@ const tokenOf = (block: string, name: string): string => {
   return match[1].trim()
 }
 
-/** Lightness (0-100) of a space-separated `hsl(H S% L% [/ A])` value. */
-const lightnessOf = (value: string): number => {
-  const match = value.match(/hsl\(\s*[\d.]+\s+[\d.]+%\s+([\d.]+)%/)
+/** Lightness (0-100) and alpha (0-1) of a space-separated `hsl(H S% L% [/ A])` value. */
+const lightnessAndAlphaOf = (
+  value: string
+): { lightness: number; alpha: number } => {
+  const match = value.match(
+    /hsl\(\s*[\d.]+\s+[\d.]+%\s+([\d.]+)%(?:\s*\/\s*([\d.]+))?\s*\)/
+  )
   if (!match) throw new Error(`Not a space-separated hsl() value: ${value}`)
-  return Number(match[1])
+  return {
+    lightness: Number(match[1]),
+    alpha: match[2] === undefined ? 1 : Number(match[2])
+  }
 }
+
+const lightnessOf = (value: string): number =>
+  lightnessAndAlphaOf(value).lightness
 
 describe('skeleton loading utility', () => {
   it('defines the .skeleton class the loading skeletons apply', () => {
@@ -71,6 +84,25 @@ describe('skeleton loading utility', () => {
     const card = lightnessOf(tokenOf(dark, '--card'))
     expect(skeleton).toBeGreaterThanOrEqual(card + 8)
   })
+
+  it.each([':root', '.dark'])(
+    'keeps the %s shimmer band visible against the base',
+    (theme) => {
+      // The highlight IS the shimmer: a band whose composited lightness matches
+      // the base renders the sweep invisible while every other assertion stays
+      // green. Lightness-space compositing is exact for these grey (0% sat)
+      // tokens, and the parser throws loudly on any other value form.
+      const block = blockOf(theme)
+      const base = lightnessAndAlphaOf(tokenOf(block, '--skeleton'))
+      const highlight = lightnessAndAlphaOf(
+        tokenOf(block, '--skeleton-highlight')
+      )
+      const effective =
+        highlight.alpha * highlight.lightness +
+        (1 - highlight.alpha) * base.lightness
+      expect(Math.abs(effective - base.lightness)).toBeGreaterThanOrEqual(5)
+    }
+  )
 
   it('stills the shimmer under prefers-reduced-motion', () => {
     expect(css).toMatch(

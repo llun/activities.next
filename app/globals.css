@@ -178,9 +178,8 @@
   --control-active: hsl(0 0% 30%);
 
   /* Loading skeleton: on the dark ramp visibility comes from going UP — the
-     base sits above the 9% card and the 17% muted track. The highlight is a
-     faint white wash; anything stronger reads as a flashlight sweep on the
-     dark surface. */
+     base sits above the 9% card. The highlight is a faint white wash;
+     anything stronger reads as a flashlight sweep on the dark surface. */
   --skeleton: hsl(0 0% 20%);
   --skeleton-highlight: hsl(0 0% 100% / 0.09);
 

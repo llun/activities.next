@@ -4,10 +4,10 @@ export const ProfileLoading: FC = () => {
   return (
     <div aria-busy="true" aria-label="Loading profile" className="space-y-6">
       <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
-        <div className="skeleton relative h-36 md:h-52" />
+        <div className="skeleton h-36 md:h-52" />
 
         <div className="relative px-6 pb-6">
-          <div className="skeleton relative -mt-10 h-20 w-20 rounded-full border-4 border-background" />
+          <div className="skeleton -mt-10 h-20 w-20 rounded-full border-4 border-background" />
 
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-2">
