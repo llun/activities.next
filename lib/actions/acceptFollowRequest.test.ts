@@ -3,8 +3,10 @@ import { enableFetchMocks } from 'jest-fetch-mock'
 import { acceptFollowRequest } from '@/lib/actions/acceptFollowRequest'
 import { AcceptFollow } from '@/lib/activities/acceptFollow'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { FOLLOW_TIMELINE_BACKFILL_JOB_NAME } from '@/lib/jobs/names'
 import { buildFollowEmail } from '@/lib/services/email/templates/follow'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
+import { getQueue } from '@/lib/services/queue'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { MockFollowRequestResponse } from '@/lib/stub/followRequest'
@@ -12,11 +14,18 @@ import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR5_ID } from '@/lib/stub/seed/actor5'
 import { NotificationType } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 enableFetchMocks()
 
 vi.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
   sendNotificationAlerts: vi.fn()
+}))
+
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: vi.fn().mockReturnValue({
+    publish: vi.fn().mockResolvedValue(undefined)
+  })
 }))
 
 describe('Accept follow action', () => {
@@ -36,6 +45,7 @@ describe('Accept follow action', () => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
     vi.clearAllMocks()
+    vi.mocked(getQueue().publish).mockReset().mockResolvedValue(undefined)
   })
 
   describe('acceptFollowRequest', () => {
@@ -126,6 +136,82 @@ describe('Accept follow action', () => {
         database
       })
       expect(updatedRequest).toBeNull()
+    })
+
+    it('queues follow timeline backfill job on remote target accept', async () => {
+      const targetActorId = 'https://somewhere.test/actors/request-following'
+      const followRequest = await database.getAcceptedOrRequestedFollow({
+        actorId: ACTOR1_ID,
+        targetActorId
+      })
+      if (!followRequest) fail('Follow request must exist')
+
+      const activity = MockFollowRequestResponse({
+        actorId: ACTOR1_ID,
+        targetActorId,
+        followResponseStatus: 'Accept',
+        followId: `https://llun.test/${followRequest.id}`
+      }) as AcceptFollow
+      await acceptFollowRequest({
+        activity,
+        database
+      })
+
+      expect(getQueue().publish).toHaveBeenCalledWith({
+        id: getHashFromString(`${followRequest.id}#backfill`),
+        name: FOLLOW_TIMELINE_BACKFILL_JOB_NAME,
+        data: { actorId: ACTOR1_ID, targetActorId }
+      })
+    })
+
+    it('queues follow timeline backfill job on local target accept', async () => {
+      const followRequest = await database.getAcceptedOrRequestedFollow({
+        actorId: ACTOR5_ID,
+        targetActorId: ACTOR1_ID
+      })
+      if (!followRequest) fail('Follow request must exist')
+
+      const activity = MockFollowRequestResponse({
+        actorId: ACTOR5_ID,
+        targetActorId: ACTOR1_ID,
+        followResponseStatus: 'Accept',
+        followId: `https://llun.test/${followRequest.id}`
+      }) as AcceptFollow
+      await acceptFollowRequest({
+        activity,
+        database
+      })
+
+      expect(getQueue().publish).toHaveBeenCalledWith({
+        id: getHashFromString(`${followRequest.id}#backfill`),
+        name: FOLLOW_TIMELINE_BACKFILL_JOB_NAME,
+        data: { actorId: ACTOR5_ID, targetActorId: ACTOR1_ID }
+      })
+    })
+
+    it('handles queue publish failure gracefully', async () => {
+      vi.mocked(getQueue().publish).mockRejectedValueOnce(
+        new Error('queue down')
+      )
+      const targetActorId = 'https://somewhere.test/actors/request-following'
+      const followRequest = await database.getAcceptedOrRequestedFollow({
+        actorId: ACTOR1_ID,
+        targetActorId
+      })
+      if (!followRequest) fail('Follow request must exist')
+
+      const activity = MockFollowRequestResponse({
+        actorId: ACTOR1_ID,
+        targetActorId,
+        followResponseStatus: 'Accept',
+        followId: `https://llun.test/${followRequest.id}`
+      }) as AcceptFollow
+      const updatedRequest = await acceptFollowRequest({
+        activity,
+        database
+      })
+
+      expect(updatedRequest).toBeTruthy()
     })
   })
 })
