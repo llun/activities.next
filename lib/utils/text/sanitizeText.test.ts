@@ -127,9 +127,39 @@ describe('sanitizeText', () => {
         {
           description: 'a p-author inside an h-card',
           html: '<span class="h-card"><a href="https://example.com/@user" class="u-url mention"><span class="p-author">user</span></a></span>'
+        },
+        {
+          description: "Mastodon's quote-inline fallback paragraph",
+          html: '<p class="quote-inline">RE: <a href="https://remote.test/statuses/9">https://remote.test/statuses/9</a></p>'
+        },
+        {
+          description: 'the older quote-inline span convention',
+          html: '<span class="quote-inline">RE: <a href="https://remote.test/statuses/9">x</a></span>'
+        },
+        {
+          description: 'an anchor-level quote-inline marker',
+          html: '<a href="https://remote.test/statuses/9" class="quote-inline">x</a>'
         }
       ])('keeps $description unchanged', ({ html }) => {
         expect(sanitizeText(html)).toEqual(html)
+      })
+
+      // `p` newly keeps a class attribute, but ONLY for the quote-fallback
+      // marker — everything else a remote server hangs on a paragraph is still
+      // stripped, exactly as it is for span and a.
+      it('still drops any other class from p', () => {
+        expect(sanitizeText('<p class="sr-only">hidden</p>')).toEqual(
+          '<p>hidden</p>'
+        )
+        expect(sanitizeText('<p class="quote-inline sr-only">x</p>')).toEqual(
+          '<p class="quote-inline">x</p>'
+        )
+      })
+
+      it('does not let p wear the microformat classes', () => {
+        expect(sanitizeText('<p class="h-card mention">x</p>')).toEqual(
+          '<p>x</p>'
+        )
       })
     })
 
