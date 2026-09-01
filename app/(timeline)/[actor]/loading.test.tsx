@@ -20,4 +20,15 @@ describe('[actor] loading', () => {
 
     expect(screen.getByLabelText('Loading profile')).toBeInTheDocument()
   })
+
+  it('renders placeholders with the shimmer skeleton utility', () => {
+    const { container } = render(<Loading />)
+
+    // jsdom paints no CSS, so the class is the observable: the shimmer lives
+    // on the `skeleton` utility (app/globals.css, guarded by
+    // app/globals.skeleton.test.ts), and the old animate-pulse-on-bg-muted
+    // treatment — near-invisible in light mode — must not come back.
+    expect(container.querySelectorAll('.skeleton').length).toBeGreaterThan(0)
+    expect(container.querySelector('.animate-pulse')).toBeNull()
+  })
 })

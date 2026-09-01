@@ -103,6 +103,17 @@
      (--muted) track. */
   --control-active: hsl(0 0% 100%);
 
+  /* Loading skeleton placeholder, plus the band the `skeleton` utility sweeps
+     across it. Deliberately NOT --muted: that is a hover/track surface tuned
+     to sit barely off the card (96.1% on the white background), which is why
+     the old `animate-pulse bg-muted` skeletons were invisible — the pulse's
+     whole animated range stayed within ~2 points of lightness. The base must
+     read as a placeholder at rest, because the static block is the entire
+     treatment under prefers-reduced-motion. Guarded by
+     app/globals.skeleton.test.ts. */
+  --skeleton: hsl(0 0% 90%);
+  --skeleton-highlight: hsl(0 0% 100% / 0.75);
+
   /* Link colors for markdown content */
   --link-color: oklch(0.588 0.158 241.966);
   --link-color-hover: oklch(0.518 0.158 241.966);
@@ -165,6 +176,13 @@
   /* The raised active segment sits ~13% above the --muted track (elevation via
      lightness, not shadow). */
   --control-active: hsl(0 0% 30%);
+
+  /* Loading skeleton: on the dark ramp visibility comes from going UP — the
+     base sits above the 9% card and the 17% muted track. The highlight is a
+     faint white wash; anything stronger reads as a flashlight sweep on the
+     dark surface. */
+  --skeleton: hsl(0 0% 20%);
+  --skeleton-highlight: hsl(0 0% 100% / 0.09);
 
   /* Link colors for markdown content */
   --link-color: oklch(0.746 0.16 232.661);
@@ -252,6 +270,46 @@
 
   .no-scrollbar::-webkit-scrollbar {
     display: none;
+  }
+
+  /* Loading placeholder with a moving shimmer band, replacing the stock
+     `animate-pulse bg-muted` treatment whose opacity fade blended an already
+     near-invisible grey TOWARD the background. The sweep is a pseudo-element
+     transform rather than an animated background-position so it stays
+     compositor-friendly, and `overflow: hidden` clips the band to the block's
+     own border radius. Under prefers-reduced-motion the band is removed
+     entirely, leaving the static tinted block — which is why --skeleton must
+     stay visible at rest (app/globals.skeleton.test.ts). */
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    background-color: var(--skeleton);
+  }
+
+  .skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      var(--skeleton-highlight) 50%,
+      transparent
+    );
+    animation: skeleton-shimmer 1.6s ease-in-out infinite;
+  }
+
+  @keyframes skeleton-shimmer {
+    to {
+      transform: translateX(100%);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton::after {
+      display: none;
+    }
   }
 }
 

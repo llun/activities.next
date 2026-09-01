@@ -20,4 +20,13 @@ describe('[actor]/following loading', () => {
 
     expect(screen.getByLabelText('Loading following')).toBeInTheDocument()
   })
+
+  it('renders placeholders with the shimmer skeleton utility', () => {
+    const { container } = render(<Loading />)
+
+    // jsdom paints no CSS, so the class is the observable — see
+    // app/globals.skeleton.test.ts for the definition guard.
+    expect(container.querySelectorAll('.skeleton').length).toBeGreaterThan(0)
+    expect(container.querySelector('.animate-pulse')).toBeNull()
+  })
 })
