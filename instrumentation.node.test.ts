@@ -25,11 +25,14 @@ const mockGetClient = vi.fn().mockResolvedValue({
   getRequestHeaders: mockGetRequestHeaders
 })
 
+const mockGetProjectId = vi.fn().mockResolvedValue('mock-gcp-project')
+
 vi.mock('google-auth-library', () => {
   return {
     GoogleAuth: vi.fn().mockImplementation(function (this: unknown) {
       return {
-        getClient: mockGetClient
+        getClient: mockGetClient,
+        getProjectId: mockGetProjectId
       }
     })
   }
@@ -141,6 +144,29 @@ describe('instrumentation.node', () => {
       const headers = await callArgs.headers()
       expect(headers).toEqual({
         authorization: 'Bearer mock-google-token'
+      })
+    })
+
+    it('handles plain object return from authClient.getRequestHeaders for google protocol', async () => {
+      mockGetRequestHeaders.mockResolvedValueOnce({
+        authorization: 'Bearer plain-token'
+      })
+
+      const config = {
+        openTelemetry: {
+          protocol: 'google'
+        }
+      } as Config
+
+      getTraceExporter(config)
+
+      const callArgs = vi.mocked(ProtoOLTPTraceExporter).mock.calls[0][0] as {
+        url: string
+        headers: () => Promise<Record<string, string>>
+      }
+      const headers = await callArgs.headers()
+      expect(headers).toEqual({
+        authorization: 'Bearer plain-token'
       })
     })
 

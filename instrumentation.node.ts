@@ -54,8 +54,9 @@ export const getTraceExporter = (config: Config) => {
       return new HttpOLTPTraceExporter(options)
     case 'google': {
       let authClient: Awaited<ReturnType<GoogleAuth['getClient']>> | null = null
+      const url = endpoint ?? 'https://telemetry.googleapis.com/v1/traces'
       return new ProtoOLTPTraceExporter({
-        url: endpoint ?? 'https://telemetry.googleapis.com/v1/traces',
+        url,
         headers: async () => {
           if (!authClient) {
             const auth = new GoogleAuth({
@@ -63,9 +64,22 @@ export const getTraceExporter = (config: Config) => {
             })
             authClient = await auth.getClient()
           }
-          const rawHeaders = await authClient.getRequestHeaders()
+          const rawHeaders = await authClient.getRequestHeaders(url)
+          const authHeaders =
+            rawHeaders instanceof Headers
+              ? Object.fromEntries(rawHeaders.entries())
+              : typeof (rawHeaders as { entries?: unknown })?.entries ===
+                  'function'
+                ? Object.fromEntries(
+                    (
+                      rawHeaders as {
+                        entries: () => Iterable<[string, string]>
+                      }
+                    ).entries()
+                  )
+                : ((rawHeaders ?? {}) as Record<string, string>)
           return {
-            ...Object.fromEntries(rawHeaders.entries()),
+            ...authHeaders,
             ...(parsedHeaders ?? {})
           }
         }
@@ -88,11 +102,20 @@ export const registerNodeInstrumentation = async () => {
   const isGoogle = config.openTelemetry?.protocol === 'google'
   const spanProcessor = new SimpleSpanProcessor(exporter)
 
+  let projectId: string | null = null
+  if (isGoogle) {
+    const auth = new GoogleAuth({
+      scopes: 'https://www.googleapis.com/auth/cloud-platform'
+    })
+    projectId = await auth.getProjectId().catch(() => null)
+  }
+
   sdk = new NodeSDK({
     sampler: new AlwaysOnSampler(),
     resource: resourceFromAttributes({
       'service.name': TRACE_APPLICATION_SCOPE,
-      environment: process.env.NODE_ENV
+      environment: process.env.NODE_ENV,
+      ...(projectId ? { 'gcp.project_id': projectId } : {})
     }),
     ...(isGoogle ? { resourceDetectors: [gcpDetector] } : {}),
     spanProcessors: [spanProcessor],

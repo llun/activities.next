@@ -70,12 +70,15 @@ export const extractTraceContext = (req: NextRequest) => {
     }
   })
 
-  // Check for Google Cloud Trace context header (X-Cloud-Trace-Context)
-  const cloudTraceHeader = req.headers.get('x-cloud-trace-context')
-  if (cloudTraceHeader) {
-    const cloudSpanContext = parseCloudTraceContext(cloudTraceHeader)
-    if (cloudSpanContext && trace.isSpanContextValid(cloudSpanContext)) {
-      return trace.setSpanContext(extractedCtx, cloudSpanContext)
+  // Check for Google Cloud Trace context header (X-Cloud-Trace-Context) as fallback
+  const existingSpanContext = trace.getSpanContext(extractedCtx)
+  if (!existingSpanContext || !trace.isSpanContextValid(existingSpanContext)) {
+    const cloudTraceHeader = req.headers.get('x-cloud-trace-context')
+    if (cloudTraceHeader) {
+      const cloudSpanContext = parseCloudTraceContext(cloudTraceHeader)
+      if (cloudSpanContext && trace.isSpanContextValid(cloudSpanContext)) {
+        return trace.setSpanContext(extractedCtx, cloudSpanContext)
+      }
     }
   }
 
