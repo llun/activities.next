@@ -7,7 +7,6 @@ import { OTLPTraceExporter as GrpcOLTPTraceExporter } from '@opentelemetry/expor
 import { OTLPTraceExporter as HttpOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
 import { OTLPTraceExporter as ProtoOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto'
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http'
-import { KnexInstrumentation } from '@opentelemetry/instrumentation-knex'
 import { UndiciInstrumentation } from '@opentelemetry/instrumentation-undici'
 import { gcpDetector } from '@opentelemetry/resource-detector-gcp'
 import { resourceFromAttributes } from '@opentelemetry/resources'
@@ -123,7 +122,6 @@ export const registerNodeInstrumentation = async () => {
       propagators: [new W3CTraceContextPropagator(), new W3CBaggagePropagator()]
     }),
     instrumentations: [
-      new KnexInstrumentation(),
       new HttpInstrumentation({
         ignoreIncomingRequestHook: (req) => {
           const url = req.url ?? ''
