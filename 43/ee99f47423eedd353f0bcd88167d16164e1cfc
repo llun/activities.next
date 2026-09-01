@@ -1,0 +1,22 @@
+lib/types/domain/status.test.ts
+  s_9e9181f395c758::t_3a08f5596acdfe 445-465
+lib/types/domain/status.ts
+  s_9e9181f395c758::t_ff6dfce0e02a2e 12
+  s_9e9181f395c758::t_6bd04c46be86cb 502-505
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "43ee99f47423eedd353f0bcd88167d16164e1cfc",
+  "prompts": {},
+  "sessions": {
+    "s_9e9181f395c758": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bc2e929-9c85-4141-8d3b-ed40b9c01022",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
