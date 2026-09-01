@@ -46,6 +46,7 @@ import {
 } from '@/lib/utils/activitypub'
 import { isValidFocalPoint } from '@/lib/utils/focalPoint'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { logger } from '@/lib/utils/logger'
 
 import { createJobHandle } from './createJobHandle'
 import { createPollJob } from './createPollJob'
@@ -73,6 +74,11 @@ export const createNoteJob = createJobHandle(
       normalizeActivityPubContent(message.data)
     )
     if (!parseResult.success) {
+      logger.warn({
+        message: 'Dropping malformed note payload',
+        job: CREATE_NOTE_JOB_NAME,
+        statusId: (message.data as { id?: unknown } | null)?.id
+      })
       return
     }
     const note = parseResult.data as BaseNote
@@ -112,9 +118,9 @@ export const createNoteJob = createJobHandle(
       database
     })
 
-    const [, status] = await Promise.all([
+    const [, createResult] = await Promise.all([
       recordActorIfNeeded({ actorId, database }),
-      database.createNote({
+      database.createNoteWithResult({
         id: note.id,
         url: typeof note.url === 'string' ? note.url : note.id,
 
@@ -131,6 +137,18 @@ export const createNoteJob = createJobHandle(
         createdAt: publishedAt
       })
     ])
+    const { status, isNew } = createResult
+
+    // A concurrent delivery of the same note won the unique-key insert, so this
+    // call recovered the winner's row rather than creating one. The winner's own
+    // run owns every side effect below — the quote edge, tags, hashtag counters,
+    // attachments, timelines and link preview — so re-running them here would
+    // double-count (an inflated hashtag counter, duplicate tags/timeline rows).
+    // This is the concurrent-race twin of the `if (existingStatus) return` guard
+    // above, which drops a sequential duplicate the same way.
+    if (!isNew) {
+      return
+    }
 
     // Content-detected language, stored separately from the declared
     // `language` above so the Translate gate can fall back to it when a

@@ -425,6 +425,64 @@ describe('createPollJob', () => {
     }
   })
 
+  it('recovers a concurrent duplicate insert without re-running tag or hashtag side effects', async () => {
+    const pollId = `${REMOTE_ACTOR_ID}/questions/dup-recovery-${Date.now()}`
+    const question = MockActivityPubQuestion({
+      id: pollId,
+      oneOf: [createOption('Red'), createOption('Blue')],
+      tags: [
+        {
+          type: 'Hashtag',
+          name: '#dup',
+          href: 'https://example.com/tags/dup'
+        }
+      ]
+    })
+
+    // Stand in for the delivery that WON the race and committed first, so the
+    // createPollWithResult insert inside the job hits the unique constraint and
+    // takes the recovery path (isNew=false).
+    await database.createPoll({
+      id: pollId,
+      url: pollId,
+      actorId: question.attributedTo,
+      text: '<p>What is your favorite color?</p>',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      endAt: Date.now() + 24 * 60 * 60 * 1000,
+      choices: ['Red', 'Blue']
+    })
+
+    // Simulate the losing delivery: its own pre-insert getStatus check saw no
+    // row, so it proceeds into createPollWithResult and only discovers the
+    // duplicate at the INSERT. The recovery lookup inside createPollWithResult
+    // uses the module's own getStatus closure, not this spied property.
+    const getStatusSpy = vi
+      .spyOn(database, 'getStatus')
+      .mockResolvedValueOnce(null)
+    const createTagSpy = vi.spyOn(database, 'createTag')
+    const increaseHashtagCounterSpy = vi.spyOn(
+      database,
+      'increaseHashtagCounter'
+    )
+
+    try {
+      await createPollJob(database, {
+        id: 'id-poll-dup-recovery',
+        name: CREATE_POLL_JOB_NAME,
+        data: question,
+        verifiedSenderActorId: question.attributedTo
+      })
+
+      expect(createTagSpy).not.toHaveBeenCalled()
+      expect(increaseHashtagCounterSpy).not.toHaveBeenCalled()
+    } finally {
+      getStatusSpy.mockRestore()
+      createTagSpy.mockRestore()
+      increaseHashtagCounterSpy.mockRestore()
+    }
+  })
+
   it('handles poll as reply', async () => {
     const replyToId = `${actor1?.id}/statuses/post-1`
     const question = MockActivityPubQuestion({

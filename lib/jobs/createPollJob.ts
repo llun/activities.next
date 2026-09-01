@@ -16,6 +16,7 @@ import {
   normalizeActivityPubContent,
   toRecipientArray
 } from '@/lib/utils/activitypub'
+import { logger } from '@/lib/utils/logger'
 
 import { createJobHandle } from './createJobHandle'
 import { CREATE_POLL_JOB_NAME } from './names'
@@ -28,6 +29,11 @@ export const createPollJob = createJobHandle(
       normalizeActivityPubContent(message.data)
     )
     if (!parseResult.success) {
+      logger.warn({
+        message: 'Dropping malformed poll payload',
+        job: CREATE_POLL_JOB_NAME,
+        statusId: (message.data as { id?: unknown } | null)?.id
+      })
       return
     }
     const question = parseResult.data
@@ -74,12 +80,12 @@ export const createPollJob = createJobHandle(
       database
     })
 
-    const [, status] = await Promise.all([
+    const [, createResult] = await Promise.all([
       recordActorIfNeeded({
         actorId: question.attributedTo,
         database
       }),
-      database.createPoll({
+      database.createPollWithResult({
         id: question.id,
         url: typeof question.url === 'string' ? question.url : question.id,
 
@@ -102,6 +108,17 @@ export const createPollJob = createJobHandle(
         createdAt: new Date(question.published).getTime()
       })
     ])
+    const { status, isNew } = createResult
+
+    // A concurrent delivery of the same poll won the unique-key insert, so this
+    // call recovered the winner's row rather than creating one. The winner's own
+    // run owns every side effect below — timelines, tags, hashtag counters — so
+    // re-running them here would double-count. This is the concurrent-race twin
+    // of the `if (existingStatus) return` guard above, which drops a sequential
+    // duplicate the same way.
+    if (!isNew) {
+      return
+    }
 
     // Content-detected language, stored separately from the declared
     // `language` above so the Translate gate can fall back to it when a
