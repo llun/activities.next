@@ -255,9 +255,10 @@ describe('[actor] followers page', () => {
     const { render, screen } = await import('@testing-library/react')
     render(result as React.ReactElement)
 
+    expect(screen.getByText('Followers')).toBeInTheDocument()
     expect(
-      screen.getByRole('heading', { name: 'Followers' })
-    ).toBeInTheDocument()
+      screen.getByRole('link', { name: 'Back to profile' })
+    ).toHaveAttribute('href', '/@llun@llun.test')
     const followList = screen.getByTestId('follow-list')
     expect(followList).toBeInTheDocument()
     expect(followList).toHaveAttribute('data-empty-message', 'No followers yet')

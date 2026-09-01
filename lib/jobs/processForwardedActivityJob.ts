@@ -12,11 +12,8 @@ import { request } from '@/lib/utils/request'
 import { withSpan } from '@/lib/utils/trace'
 
 import { createJobHandle } from './createJobHandle'
-import { createNoteJob } from './createNoteJob'
-import { createPollJob } from './createPollJob'
+import { dispatchCreateNoteOrPollJob } from './dispatchCreateNoteOrPollJob'
 import {
-  CREATE_NOTE_JOB_NAME,
-  CREATE_POLL_JOB_NAME,
   PROCESS_FORWARDED_ACTIVITY_JOB_NAME,
   UPDATE_NOTE_JOB_NAME,
   UPDATE_POLL_JOB_NAME
@@ -205,19 +202,7 @@ export const processForwardedActivityJob = createJobHandle(
         span.setAttribute('outcome', 'update_applied')
         return
       }
-      if (note.type === ENTITY_TYPE_QUESTION) {
-        await createPollJob(database, {
-          id: note.id,
-          name: CREATE_POLL_JOB_NAME,
-          data: note
-        })
-      } else {
-        await createNoteJob(database, {
-          id: note.id,
-          name: CREATE_NOTE_JOB_NAME,
-          data: note
-        })
-      }
+      await dispatchCreateNoteOrPollJob(database, note)
       span.setAttribute('outcome', 'create_stored')
     })
   }

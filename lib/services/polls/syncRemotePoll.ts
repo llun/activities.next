@@ -13,6 +13,8 @@ import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
 
+import { getPollChoicesFromQuestion } from './pollChoices'
+
 const FAILURE_COOLDOWN_MS = 60 * 1000
 const REFRESH_WAIT_BUDGET_MS = 5_000
 
@@ -76,12 +78,14 @@ const performPollSync = async ({
     // `status_history` revision that reads as a genuine edit by its author,
     // local users included. Trust only the id we asked for: a mismatch is a
     // failed sync, not a document to apply to this row. Normalized on both
-    // sides so a benign serialization difference — scheme/host case, an
-    // explicit default port, dot segments, or a character the URL parser must
-    // percent-ENCODE (a non-ASCII username in the path) — is not mistaken for
-    // a substitution. It does not percent-DECODE, so `%7E` and `~` still
-    // differ; that is deliberate here, where the id we fetch is the origin's
-    // own canonical id and should come back spelled the way we stored it.
+    // sides so a benign serialization difference is not mistaken for a
+    // substitution — the parser's own folds, which include scheme/host case, a
+    // default port, dot segments, IDNA host mapping and characters it must
+    // percent-ENCODE. Check the parser rather than that list before relying on
+    // a specific fold. Two it does not do: it never percent-DECODEs (`%7E` and
+    // `~` still differ) and it does not fold a trailing slash on a non-empty
+    // path. Both are fine here, where the id we fetch is the origin's own
+    // canonical id and should come back spelled the way we stored it.
     if (
       normalizeActivityPubUri(question.id) !==
       normalizeActivityPubUri(status.id)
@@ -95,16 +99,7 @@ const performPollSync = async ({
       return null
     }
 
-    const choices =
-      question.oneOf?.map((answer) => ({
-        title: answer.name,
-        totalVotes: answer.replies?.totalItems ?? 0
-      })) ??
-      question.anyOf?.map((answer) => ({
-        title: answer.name,
-        totalVotes: answer.replies?.totalItems ?? 0
-      })) ??
-      []
+    const choices = getPollChoicesFromQuestion(question)
 
     const text = getContent(question)
     const summary = getSummary(question)

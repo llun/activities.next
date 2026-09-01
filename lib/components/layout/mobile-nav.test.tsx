@@ -4,10 +4,30 @@
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { usePathname } from 'next/navigation'
-import { ReactElement } from 'react'
+import { type AnchorHTMLAttributes, ReactElement, type ReactNode } from 'react'
 
 import { MobileNav } from '@/lib/components/layout/mobile-nav'
 import { NavPreferencesProvider } from '@/lib/components/layout/nav-preferences-context'
+
+// next/link swallows `prefetch` instead of reflecting it in the DOM, so the
+// prefetch-opt-out tests below need a stand-in that surfaces it as an
+// attribute — same approach as sidebar.test.tsx and ActorSwitcher.test.tsx.
+vi.mock('next/link', () => ({
+  default: ({
+    children,
+    href,
+    prefetch,
+    ...rest
+  }: AnchorHTMLAttributes<HTMLAnchorElement> & {
+    href: string
+    prefetch?: boolean | 'auto' | null
+    children: ReactNode
+  }) => (
+    <a href={href} data-prefetch={String(prefetch)} {...rest}>
+      {children}
+    </a>
+  )
+}))
 
 vi.mock('next/navigation', () => ({
   usePathname: vi.fn()
@@ -254,5 +274,44 @@ describe('MobileNav', () => {
     expect(
       screen.queryByRole('menuitem', { name: /profile/i })
     ).not.toBeInTheDocument()
+  })
+
+  // The mobile bar renders a bounded handful of chrome links, so per
+  // "Link prefetching in feeds" in AGENTS.md they should prefetch like any
+  // other nav chrome — with the one exception of the synthesized Profile
+  // entry, whose href is the viewer's own dynamic `/@user@domain` route.
+  it('does not prefetch the synthesized Profile item', async () => {
+    renderMobileNav(<MobileNav profileUrl="/@llun@llun.test" isAdmin />)
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More navigation' }), {
+      key: 'ArrowDown'
+    })
+
+    expect(
+      await screen.findByRole('menuitem', { name: /profile/i })
+    ).toHaveAttribute('data-prefetch', 'false')
+  })
+
+  it('keeps default prefetching on the direct bar registry items', () => {
+    renderMobileNav(<MobileNav />)
+
+    const nav = screen.getByRole('navigation')
+    for (const name of [/home/i, /search/i, /explore/i, /messages/i]) {
+      const link = within(nav).getByRole('link', { name })
+      expect(link).not.toHaveAttribute('data-prefetch', 'false')
+    }
+  })
+
+  it('keeps default prefetching on the overflow menu registry items', async () => {
+    renderMobileNav(<MobileNav fitnessUrl="/@llun@llun.test/fitness" isAdmin />)
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More navigation' }), {
+      key: 'ArrowDown'
+    })
+
+    for (const name of [/bookmarks/i, /fitness/i, /admin/i, /settings/i]) {
+      const item = await screen.findByRole('menuitem', { name })
+      expect(item).not.toHaveAttribute('data-prefetch', 'false')
+    }
   })
 })
