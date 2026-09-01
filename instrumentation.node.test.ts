@@ -3,7 +3,10 @@ import { OTLPTraceExporter as HttpOLTPTraceExporter } from '@opentelemetry/expor
 import { OTLPTraceExporter as ProtoOLTPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto'
 import { gcpDetector } from '@opentelemetry/resource-detector-gcp'
 import { NodeSDK } from '@opentelemetry/sdk-node'
-import { SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base'
+import {
+  AlwaysOnSampler,
+  SimpleSpanProcessor
+} from '@opentelemetry/sdk-trace-base'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -36,6 +39,7 @@ vi.mock('@opentelemetry/exporter-trace-otlp-http')
 vi.mock('@opentelemetry/exporter-trace-otlp-proto')
 vi.mock('@opentelemetry/sdk-node')
 vi.mock('@opentelemetry/sdk-trace-base', () => ({
+  AlwaysOnSampler: vi.fn(),
   SimpleSpanProcessor: vi.fn()
 }))
 vi.mock('./lib/config', () => ({
@@ -199,6 +203,10 @@ describe('instrumentation.node', () => {
     it('starts NodeSDK with SimpleSpanProcessor and gcpDetector when protocol is google', async () => {
       const mockStart = vi.fn()
       const mockSpanProcessor = { id: 'mock-span-processor' }
+      const mockSampler = { id: 'mock-sampler' }
+      vi.mocked(AlwaysOnSampler).mockImplementation(function (this: unknown) {
+        return mockSampler as unknown as AlwaysOnSampler
+      } as unknown as typeof AlwaysOnSampler)
       vi.mocked(SimpleSpanProcessor).mockImplementation(function (
         this: unknown
       ) {
@@ -218,10 +226,12 @@ describe('instrumentation.node', () => {
 
       await registerNodeInstrumentation()
 
+      expect(AlwaysOnSampler).toHaveBeenCalledTimes(1)
       expect(SimpleSpanProcessor).toHaveBeenCalledWith(expect.any(Object))
       expect(NodeSDK).toHaveBeenCalledTimes(1)
       expect(NodeSDK).toHaveBeenCalledWith(
         expect.objectContaining({
+          sampler: mockSampler,
           resourceDetectors: [gcpDetector],
           spanProcessors: [mockSpanProcessor],
           textMapPropagator: expect.any(Object)
@@ -233,6 +243,10 @@ describe('instrumentation.node', () => {
     it('starts NodeSDK with SimpleSpanProcessor without gcpDetector when protocol is not google', async () => {
       const mockStart = vi.fn()
       const mockSpanProcessor = { id: 'mock-span-processor' }
+      const mockSampler = { id: 'mock-sampler' }
+      vi.mocked(AlwaysOnSampler).mockImplementation(function (this: unknown) {
+        return mockSampler as unknown as AlwaysOnSampler
+      } as unknown as typeof AlwaysOnSampler)
       vi.mocked(SimpleSpanProcessor).mockImplementation(function (
         this: unknown
       ) {
@@ -253,12 +267,15 @@ describe('instrumentation.node', () => {
 
       await registerNodeInstrumentation()
 
+      expect(AlwaysOnSampler).toHaveBeenCalledTimes(1)
       expect(SimpleSpanProcessor).toHaveBeenCalledWith(expect.any(Object))
       expect(NodeSDK).toHaveBeenCalledTimes(1)
       const sdkConfig = vi.mocked(NodeSDK).mock.calls[0][0] as {
+        sampler?: unknown
         resourceDetectors?: unknown[]
         spanProcessors?: unknown[]
       }
+      expect(sdkConfig.sampler).toBe(mockSampler)
       expect(sdkConfig.resourceDetectors).toBeUndefined()
       expect(sdkConfig.spanProcessors).toEqual([mockSpanProcessor])
       expect(mockStart).toHaveBeenCalledTimes(1)

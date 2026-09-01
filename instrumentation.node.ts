@@ -12,7 +12,10 @@ import { UndiciInstrumentation } from '@opentelemetry/instrumentation-undici'
 import { gcpDetector } from '@opentelemetry/resource-detector-gcp'
 import { resourceFromAttributes } from '@opentelemetry/resources'
 import { NodeSDK } from '@opentelemetry/sdk-node'
-import { SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base'
+import {
+  AlwaysOnSampler,
+  SimpleSpanProcessor
+} from '@opentelemetry/sdk-trace-base'
 import { GoogleAuth } from 'google-auth-library'
 
 import { type Config, getConfig } from './lib/config'
@@ -86,6 +89,7 @@ export const registerNodeInstrumentation = async () => {
   const spanProcessor = new SimpleSpanProcessor(exporter)
 
   sdk = new NodeSDK({
+    sampler: new AlwaysOnSampler(),
     resource: resourceFromAttributes({
       'service.name': TRACE_APPLICATION_SCOPE,
       environment: process.env.NODE_ENV
