@@ -1,5 +1,5 @@
 import {
-  FOLLOW_COLLECTION_CORS_HEADERS,
+  CORS_HEADERS,
   handleFollowCollectionRequest
 } from '@/app/api/v1/accounts/[id]/followCollectionHandler'
 import {
@@ -9,8 +9,6 @@ import {
 import { Scope } from '@/lib/types/database/operations'
 import { defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
-
-const CORS_HEADERS = FOLLOW_COLLECTION_CORS_HEADERS
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 

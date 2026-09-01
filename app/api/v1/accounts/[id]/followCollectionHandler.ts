@@ -34,11 +34,14 @@ import { toLoggableError } from '@/lib/utils/toLoggableError'
 // which for a remote actor is one local follower and nothing followed. On that
 // path the cursor is the remote page URL: `max_id` carries the page's `next`,
 // `min_id` its `prev`, so an unmodified Mastodon client paginates by sending
-// the Link header's value straight back. A cursor that parses as a URL is
-// accepted only for a page of THAT actor's collection (the service applies
-// the same `isCollectionPageUrl` check `remote-statuses` applies to its
-// `page_url`), and is a 400 otherwise. A cursor that is not a URL is a follow-row id from the local
-// path and is answered from local rows.
+// the Link header's value straight back. When the remote is consulted, a
+// cursor that parses as a URL is accepted only for a page of THAT actor's
+// collection (the service applies the same `isCollectionPageUrl` check
+// `remote-statuses` applies to its `page_url`) and is a 400 otherwise. On the
+// local path — a local actor, or any of the fallbacks below — a URL cursor is
+// ignored and the first local page served, because it names nothing among the
+// follow-row ids that path paginates on; a cursor that is not a URL is such a
+// row id.
 //
 // The remote read is only made for a signed-in viewer. The route is public,
 // and each page can cost a signed fetch per unknown actor on it, so an
@@ -47,12 +50,7 @@ import { toLoggableError } from '@/lib/utils/toLoggableError'
 // the remote path (blocked domain, unreachable server, hidden collection)
 // also falls back to the local rows, so today's behaviour is the floor.
 
-export const FOLLOW_COLLECTION_CORS_HEADERS = [
-  HttpMethod.enum.OPTIONS,
-  HttpMethod.enum.GET
-]
-
-const CORS_HEADERS = FOLLOW_COLLECTION_CORS_HEADERS
+export const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
 const FollowCollectionQueryParams = z.object({
   max_id: z.string().optional(),

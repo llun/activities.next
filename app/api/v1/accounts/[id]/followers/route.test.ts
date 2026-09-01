@@ -6,7 +6,7 @@ import { getFederationSigningActorSafe } from '@/lib/services/federation/getFede
 import { getRemoteFollowCollectionPage } from '@/lib/services/mastodon/remoteFollowCollection'
 import { seedDatabase } from '@/lib/stub/database'
 import { actorPublicId } from '@/lib/stub/publicIds'
-import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import { urlToId } from '@/lib/utils/urlToId'
@@ -301,11 +301,11 @@ describe('GET /api/v1/accounts/:id/followers for a remote actor', () => {
 
     expect(response.status).toBe(200)
     const data = await response.json()
-    const localFollows = await database.getFollowers({
-      targetActorId: EXTERNAL_ACTOR1,
-      limit: 40
-    })
-    expect(data.length).toBe(localFollows.length)
+    // The seed's local follower row for EXTERNAL_ACTOR1 (actor1), not the
+    // mocked remote page (actor2).
+    expect(data.map((account: { uri: string }) => account.uri)).toEqual([
+      ACTOR1_ID
+    ])
   })
 
   it('serves the local rows for a blocked domain without fetching it', async () => {

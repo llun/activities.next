@@ -163,8 +163,11 @@ describe('GET /api/v1/accounts/:id/following for a remote actor', () => {
     vi.mocked(getRemoteFollowCollectionPage).mockResolvedValue({
       status: 'ok',
       page: {
+        // ACTOR3, not ACTOR2: the seed has EXTERNAL_ACTOR1 following ACTOR2,
+        // so a body of [ACTOR2] would also be what the LOCAL rows answer and
+        // the assertion could not tell the two branches apart.
         accounts: await database.getMastodonActorsFromIds({
-          ids: [ACTOR2_ID]
+          ids: [ACTOR3_ID]
         }),
         nextPageUrl,
         prevPageUrl,
@@ -181,7 +184,7 @@ describe('GET /api/v1/accounts/:id/following for a remote actor', () => {
     expect(response.status).toBe(200)
     const data = await response.json()
     expect(data.map((account: { uri: string }) => account.uri)).toEqual([
-      ACTOR2_ID
+      ACTOR3_ID
     ])
     // Signed by the headless instance actor, never the viewer.
     expect(getRemoteFollowCollectionPage).toHaveBeenCalledWith({
@@ -272,11 +275,11 @@ describe('GET /api/v1/accounts/:id/following for a remote actor', () => {
 
     expect(response.status).toBe(200)
     const data = await response.json()
-    const localFollows = await database.getFollowing({
-      actorId: EXTERNAL_ACTOR1,
-      limit: 40
-    })
-    expect(data.length).toBe(localFollows.length)
+    // The seed's local following row for EXTERNAL_ACTOR1, not the mocked
+    // remote page.
+    expect(data.map((account: { uri: string }) => account.uri)).toEqual([
+      ACTOR2_ID
+    ])
   })
 
   it('serves the local rows for a blocked domain without fetching it', async () => {
