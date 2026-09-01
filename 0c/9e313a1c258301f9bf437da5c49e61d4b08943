@@ -1,0 +1,26 @@
+REVIEW.md
+  s_9e9181f395c758::t_a2d6e888c74cd8 973-976
+  s_9e9181f395c758::t_06046467730915 850
+AGENTS.md
+  s_9e9181f395c758::t_a80f46baf16d13 1303-1306
+  s_9e9181f395c758::t_ad01d51d00b702 166
+  s_9e9181f395c758::t_9909c807ad2b63 1310-1313
+lib/services/link-previews/extractUrl.test.ts
+  s_9e9181f395c758::t_506ea941c9ef55 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "0c9e313a1c258301f9bf437da5c49e61d4b08943",
+  "prompts": {},
+  "sessions": {
+    "s_9e9181f395c758": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bc2e929-9c85-4141-8d3b-ed40b9c01022",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
