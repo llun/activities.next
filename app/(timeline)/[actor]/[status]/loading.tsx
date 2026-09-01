@@ -8,32 +8,32 @@ export const StatusLoading: FC = () => {
       className="mt-4 overflow-hidden rounded-2xl border bg-background/80 shadow-sm"
     >
       <div className="flex items-center gap-3 border-b bg-background/90 px-5 py-3">
-        <div className="h-8 w-8 animate-pulse rounded-md bg-muted" />
+        <div className="skeleton h-8 w-8 rounded-md" />
         <div className="space-y-1">
-          <div className="h-4 w-16 animate-pulse rounded bg-muted" />
-          <div className="h-3 w-32 animate-pulse rounded bg-muted" />
+          <div className="skeleton h-4 w-16 rounded" />
+          <div className="skeleton h-3 w-32 rounded" />
         </div>
       </div>
 
       <div className="p-5">
         <div className="flex items-center gap-3">
-          <div className="size-12 shrink-0 animate-pulse rounded-full bg-muted" />
+          <div className="skeleton size-12 shrink-0 rounded-full" />
           <div className="space-y-1.5">
-            <div className="h-4 w-36 animate-pulse rounded bg-muted" />
-            <div className="h-3 w-24 animate-pulse rounded bg-muted" />
+            <div className="skeleton h-4 w-36 rounded" />
+            <div className="skeleton h-3 w-24 rounded" />
           </div>
         </div>
 
         <div className="mt-4 space-y-2">
-          <div className="h-4 w-full animate-pulse rounded bg-muted" />
-          <div className="h-4 w-5/6 animate-pulse rounded bg-muted" />
-          <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
+          <div className="skeleton h-4 w-full rounded" />
+          <div className="skeleton h-4 w-5/6 rounded" />
+          <div className="skeleton h-4 w-2/3 rounded" />
         </div>
 
         <div className="mt-6 flex gap-8 border-t pt-4">
-          <div className="h-5 w-12 animate-pulse rounded bg-muted" />
-          <div className="h-5 w-12 animate-pulse rounded bg-muted" />
-          <div className="h-5 w-12 animate-pulse rounded bg-muted" />
+          <div className="skeleton h-5 w-12 rounded" />
+          <div className="skeleton h-5 w-12 rounded" />
+          <div className="skeleton h-5 w-12 rounded" />
         </div>
       </div>
     </div>
