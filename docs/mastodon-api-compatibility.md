@@ -395,6 +395,28 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
 
 - **Remote statuses** — `/api/v1/accounts/:id/remote-statuses` exposes cached
   remote posts for an actor.
+- **Remote follow lists are read live from the remote collections.** Mastodon
+  answers `GET /api/v1/accounts/:id/followers` and `/following` for a remote
+  account from the relationships it already knows about, so a small instance
+  shows one local follower and nothing followed. For a remote actor these two
+  routes instead read the actor's own `followers`/`following` ActivityPub
+  collections (`lib/services/mastodon/remoteFollowCollection.ts`), signed by
+  the federation signing actor, and serialize each listed actor as an Account
+  entity. The remote page URLs ride in the Mastodon cursors — the Link header's
+  `max_id` carries the page's `next` and `min_id` its `prev` — so an unmodified
+  client paginates by sending them back; a URL cursor is accepted only for a
+  page of that actor's collection and is a `400` otherwise, and `limit` is
+  echoed in the Link header but the page size is the remote server's. Only a
+  signed-in viewer triggers the remote read: an anonymous caller, a blocked
+  domain, an unreachable server, and a hidden collection (Mastodon's "hide your
+  social graph", which publishes a size but no page) all fall back to the
+  locally-known rows, so the old behaviour is the floor. Each page resolves at
+  most 20 actors this instance has never stored (five at a time, each a
+  `recordActorIfNeeded`) and drops the rest of that page's unknowns; a resolved
+  page is cached for 60 seconds per actor, field and page, with concurrent
+  misses sharing one fetch. Activity.next's own ActivityPub `followers` and
+  `following` collections still publish only `totalItems`, so another
+  Activity.next instance cannot list this instance's users this way yet.
 - **Admin CRUD extras** — custom emoji, domain allow/deny lists (with import),
   announcements, filters, and rules management under `/api/v1/admin/*` and
   `/api/v2/admin/*`.

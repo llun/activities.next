@@ -1,24 +1,16 @@
-import { z } from 'zod'
-
+import {
+  FOLLOW_COLLECTION_CORS_HEADERS,
+  handleFollowCollectionRequest
+} from '@/app/api/v1/accounts/[id]/followCollectionHandler'
 import {
   OptionalOAuthGuard,
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
-import { headerHost } from '@/lib/services/guards/headerHost'
-import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { Scope } from '@/lib/types/database/operations'
-import { clampedLimit } from '@/lib/utils/clampedLimit'
-import { HttpMethod } from '@/lib/utils/http-headers'
-import { buildPaginationLinkHeader } from '@/lib/utils/paginationLinkHeader'
-import {
-  ERROR_400,
-  apiCorsError,
-  apiResponse,
-  defaultOptions
-} from '@/lib/utils/response'
+import { defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
-const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
+const CORS_HEADERS = FOLLOW_COLLECTION_CORS_HEADERS
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
@@ -26,95 +18,20 @@ interface Params {
   id: string
 }
 
-const FollowingQueryParams = z.object({
-  max_id: z.string().optional(),
-  since_id: z.string().optional(),
-  min_id: z.string().optional(),
-  limit: clampedLimit(80, 40)
-})
-
-// GET /api/v1/accounts/:id/following — accounts the given account follows.
-// https://docs.joinmastodon.org/methods/accounts/#following
-//
-// Public with optional auth. Paginated with Mastodon id cursors + Link headers,
-// mirroring the accounts/:id/statuses route. The cursor is the underlying
-// follow-row id (the column getFollowing paginates on), not the account id.
+// GET /api/v1/accounts/:id/following — see followCollectionHandler.ts for the
+// local-vs-remote actor split and the cursor shapes.
 export const GET = traceApiRoute(
   'getAccountFollowing',
   OptionalOAuthGuard<Params>(
     [Scope.enum.read, Scope.enum['read:follows']],
     async (req, context) => {
-      const { database, params } = context
-      const encodedAccountId = (await params).id
-      if (!encodedAccountId) return apiCorsError(req, CORS_HEADERS, 400)
-
-      const id = await resolveActorIdParam(database, encodedAccountId)
-      const actor = await database.getActorFromId({ id })
-      if (!actor) return apiCorsError(req, CORS_HEADERS, 404)
-
-      const url = new URL(req.url)
-      const parsed = FollowingQueryParams.safeParse(
-        Object.fromEntries(url.searchParams.entries())
-      )
-      if (!parsed.success) {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_400,
-          responseStatusCode: 400
-        })
-      }
-      const {
-        limit,
-        max_id: maxId,
-        min_id: minId,
-        since_id: sinceId
-      } = parsed.data
-
-      // getFollowing applies the correct ordering per cursor and always returns
-      // newest-first; the cursor is the follow-row id.
-      const orderedFollows = await database.getFollowing({
-        actorId: id,
-        limit,
-        maxId,
-        minId,
-        sinceId
-      })
-
-      // Batch-hydrate the followed accounts in a single query, then re-order to
-      // match orderedFollows (getMastodonActorsFromIds does not guarantee order).
-      const accountsById = new Map(
-        (
-          await database.getMastodonActorsFromIds({
-            ids: orderedFollows.map((follow) => follow.targetActorId)
-          })
-        ).map((account) => [account.url, account])
-      )
-      const accounts = orderedFollows
-        .map((follow) => accountsById.get(follow.targetActorId))
-        .filter((account): account is NonNullable<typeof account> =>
-          Boolean(account)
-        )
-
-      const additionalHeaders = buildPaginationLinkHeader({
-        host: headerHost(req.headers),
-        // Percent-encoded: the router hands the id over already decoded, and
-        // the resolver accepts a raw http(s) URI as an id form, so the raw
-        // value would emit a Link URL that does not route back here.
-        path: `/api/v1/accounts/${encodeURIComponent(encodedAccountId)}/following`,
-        limit,
-        nextMaxId:
-          orderedFollows.length > 0
-            ? orderedFollows[orderedFollows.length - 1].id
-            : null,
-        prevMinId: orderedFollows.length > 0 ? orderedFollows[0].id : null
-      })
-
-      return apiResponse({
+      const { database, currentActor, params } = context
+      return handleFollowCollectionRequest({
         req,
-        allowedMethods: CORS_HEADERS,
-        data: accounts,
-        additionalHeaders
+        database,
+        currentActor,
+        encodedAccountId: (await params).id,
+        field: 'following'
       })
     },
     { errorResponse: corsErrorResponse(CORS_HEADERS), matchMode: 'any' }
