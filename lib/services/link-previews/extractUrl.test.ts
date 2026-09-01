@@ -8,7 +8,7 @@ import {
   sanitizeText
 } from '@/lib/utils/text/sanitizeText'
 
-// The extractor decides whether a link is visible from a two-entry list of
+// The extractor decides whether a link is visible from a short list of
 // hiding classes. That is only safe because `sanitizeText` runs first and
 // reduces the class attribute to the fixed set below — so the two lists are one
 // mechanism, and this pins them together.
