@@ -1,4 +1,3 @@
-import { CloudPropagator as CloudTraceContextPropagator } from '@google-cloud/opentelemetry-cloud-trace-propagator'
 import {
   CompositePropagator,
   W3CBaggagePropagator,
@@ -13,7 +12,10 @@ import { UndiciInstrumentation } from '@opentelemetry/instrumentation-undici'
 import { gcpDetector } from '@opentelemetry/resource-detector-gcp'
 import { resourceFromAttributes } from '@opentelemetry/resources'
 import { NodeSDK } from '@opentelemetry/sdk-node'
-import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base'
+import {
+  AlwaysOnSampler,
+  SimpleSpanProcessor
+} from '@opentelemetry/sdk-trace-base'
 import { GoogleAuth } from 'google-auth-library'
 
 import { type Config, getConfig } from './lib/config'
@@ -84,12 +86,10 @@ export const registerNodeInstrumentation = async () => {
   if (!exporter) return
 
   const isGoogle = config.openTelemetry?.protocol === 'google'
-  const spanProcessor = new BatchSpanProcessor(exporter, {
-    scheduledDelayMillis: 500,
-    maxExportBatchSize: 64
-  })
+  const spanProcessor = new SimpleSpanProcessor(exporter)
 
   sdk = new NodeSDK({
+    sampler: new AlwaysOnSampler(),
     resource: resourceFromAttributes({
       'service.name': TRACE_APPLICATION_SCOPE,
       environment: process.env.NODE_ENV
@@ -97,11 +97,7 @@ export const registerNodeInstrumentation = async () => {
     ...(isGoogle ? { resourceDetectors: [gcpDetector] } : {}),
     spanProcessors: [spanProcessor],
     textMapPropagator: new CompositePropagator({
-      propagators: [
-        new W3CTraceContextPropagator(),
-        new W3CBaggagePropagator(),
-        ...(isGoogle ? [new CloudTraceContextPropagator()] : [])
-      ]
+      propagators: [new W3CTraceContextPropagator(), new W3CBaggagePropagator()]
     }),
     instrumentations: [
       new KnexInstrumentation(),
