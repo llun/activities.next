@@ -1,0 +1,42 @@
+lib/services/polls/syncRemotePoll.ts
+  s_867498a5a8dd3b::t_3995a51e353a29 102
+  s_867498a5a8dd3b::t_787eb6140c602c 16-17
+lib/jobs/processForwardedActivityJob.ts
+  s_867498a5a8dd3b::t_484cf9d9ccbcc4 205
+  s_867498a5a8dd3b::t_c6d270757f1cea 15
+lib/jobs/dispatchCreateNoteOrPollJob.ts
+  s_867498a5a8dd3b::t_6ba4ed13d0e6ea 1-40
+lib/jobs/updatePollJob.ts
+  s_867498a5a8dd3b::t_66cc2631fd28ba 2
+  s_867498a5a8dd3b::t_edca9eb5571b4c 69
+lib/services/polls/pollChoices.ts
+  s_867498a5a8dd3b::t_012772d7af248a 1-13,15-23
+  s_867498a5a8dd3b::t_487aac300b8d4b 14
+lib/jobs/createRelayAnnounceJob.ts
+  s_867498a5a8dd3b::t_f2074a080d8e99 101
+  s_867498a5a8dd3b::t_30a324298ba850 6-7
+lib/jobs/createAnnounceJob.ts
+  s_867498a5a8dd3b::t_480d2f25d04d81 7-8,12
+  s_867498a5a8dd3b::t_0d5f8682bda823 98
+lib/services/polls/pollChoices.test.ts
+  s_867498a5a8dd3b::t_32f2946fd52d89 1-101
+lib/jobs/createPollJob.ts
+  s_867498a5a8dd3b::t_4dfb93f5001eab 68
+  s_867498a5a8dd3b::t_dbaa16395afe43 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "611706a3d46b8daf1b13f05f8470ce315f871526",
+  "prompts": {},
+  "sessions": {
+    "s_867498a5a8dd3b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "07b215df-f83e-435d-96c9-42900a5bfb30",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
