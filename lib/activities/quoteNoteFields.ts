@@ -45,7 +45,7 @@ export const getQuoteNoteFields = (
   }
 }
 
-export const QUOTE_INLINE_CLASS = 'quote-inline'
+const QUOTE_INLINE_CLASS = 'quote-inline'
 
 /**
  * Mastodon-compatible legacy fallback: prepend
@@ -67,8 +67,13 @@ export const addQuoteFallbackToContent = (
   const fields = getQuoteNoteFields(quoteEdge)
   if (!fields) return content
   const url = fields.quote
-  if (!url || content.includes(url)) return content
+  if (!url) return content
+  // The skip must test the ESCAPED form too: stored HTML only ever carries
+  // the escaped rendering of the url (`&` as `&amp;`), so matching the raw
+  // form alone double-prefixed a boosted remote quote post whose id contains
+  // an escapable character.
   const escaped = escapeHtml(url)
+  if (content.includes(url) || content.includes(escaped)) return content
   return `<p class="${QUOTE_INLINE_CLASS}">RE: <a href="${escaped}">${escaped}</a></p>${content}`
 }
 

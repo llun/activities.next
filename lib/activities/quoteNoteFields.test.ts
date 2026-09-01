@@ -104,6 +104,22 @@ describe('addQuoteFallbackToContent', () => {
     expect(addQuoteFallbackToContent(linked, edge())).toEqual(linked)
   })
 
+  it('skips when the content contains only the ESCAPED form of the quoted url', () => {
+    // A remote quote post stores its origin server's own fallback, where an
+    // `&` in the quoted id is rendered `&amp;` — the only form HTML ever
+    // carries. Matching the raw form alone double-prefixed such a note when it
+    // was re-served through toActivityPubObject (a boosted remote quote post,
+    // or one embedded in the /replies collection).
+    const withAmpersand = edge({
+      quotedStatusId: 'https://charlie.example/statuses/9?ref=abc&v=2'
+    })
+    const alreadyPrefixed =
+      '<p class="quote-inline">RE: <a href="https://charlie.example/statuses/9?ref=abc&amp;v=2">https://charlie.example/statuses/9?ref=abc&amp;v=2</a></p><p>hi</p>'
+    expect(addQuoteFallbackToContent(alreadyPrefixed, withAmpersand)).toEqual(
+      alreadyPrefixed
+    )
+  })
+
   it('escapes the url when interpolating', () => {
     const hostile = edge({
       quotedStatusId: 'https://remote.test/statuses/9?a=1&b="<x>'
