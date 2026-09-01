@@ -13,6 +13,8 @@ import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
 
+import { getPollChoicesFromQuestion } from './pollChoices'
+
 const FAILURE_COOLDOWN_MS = 60 * 1000
 const REFRESH_WAIT_BUDGET_MS = 5_000
 
@@ -97,16 +99,7 @@ const performPollSync = async ({
       return null
     }
 
-    const choices =
-      question.oneOf?.map((answer) => ({
-        title: answer.name,
-        totalVotes: answer.replies?.totalItems ?? 0
-      })) ??
-      question.anyOf?.map((answer) => ({
-        title: answer.name,
-        totalVotes: answer.replies?.totalItems ?? 0
-      })) ??
-      []
+    const choices = getPollChoicesFromQuestion(question)
 
     const text = getContent(question)
     const summary = getSummary(question)

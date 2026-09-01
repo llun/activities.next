@@ -10,6 +10,7 @@ import {
   getTags
 } from '@/lib/activities/note'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
+import { getPollChoicesFromQuestion } from '@/lib/services/polls/pollChoices'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { ENTITY_TYPE_QUESTION, Question } from '@/lib/types/activitypub'
 import {
@@ -64,16 +65,7 @@ export const createPollJob = createJobHandle(
       : question.anyOf
         ? 'anyOf'
         : 'oneOf'
-    const choices =
-      question.oneOf?.map((item) => ({
-        title: item.name,
-        totalVotes: item.replies?.totalItems ?? 0
-      })) ??
-      question.anyOf?.map((item) => ({
-        title: item.name,
-        totalVotes: item.replies?.totalItems ?? 0
-      })) ??
-      []
+    const choices = getPollChoicesFromQuestion(question)
 
     await assertActorCanFederate({
       actorId: question.attributedTo,
