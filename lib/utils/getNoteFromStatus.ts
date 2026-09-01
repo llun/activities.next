@@ -1,4 +1,5 @@
 import {
+  addQuoteFallbackToContent,
   getInteractionPolicyFields,
   getQuoteNoteFields
 } from '@/lib/activities/quoteNoteFields'
@@ -46,7 +47,10 @@ export const getNoteFromStatus = (
     to: actualStatus.to,
     cc: actualStatus.cc,
     inReplyTo: actualStatus.reply || null,
-    content: convertMarkdownText(getConfig().host)(actualStatus.text),
+    content: addQuoteFallbackToContent(
+      convertMarkdownText(getConfig().host)(actualStatus.text),
+      actualStatus.quote
+    ),
     // A status may store more media than Mastodon renders; only the first
     // MAX_FEDERATION_MEDIA_ATTACHMENTS federate so remote servers receive a
     // Mastodon-compatible payload. The extras stay visible on local surfaces.

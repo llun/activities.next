@@ -9,6 +9,7 @@ import {
   getSummary
 } from '@/lib/activities/note'
 import {
+  addQuoteFallbackToContent,
   getInteractionPolicyFields,
   getQuoteNoteFields
 } from '@/lib/activities/quoteNoteFields'
@@ -498,7 +499,10 @@ export const toActivityPubObject = (status: Status): Note | Question => {
     to: originalStatus.to,
     cc: originalStatus.cc,
     inReplyTo: originalStatus.reply || null,
-    content: originalStatus.text,
+    content: addQuoteFallbackToContent(
+      originalStatus.text,
+      originalStatus.quote
+    ),
     // Only the first MAX_FEDERATION_MEDIA_ATTACHMENTS federate (outbox and the
     // AP note/replies endpoints); a status may store more, but remote servers
     // receive a Mastodon-compatible payload. Mirrors getNoteFromStatus.

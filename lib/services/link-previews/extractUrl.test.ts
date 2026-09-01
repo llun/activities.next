@@ -8,7 +8,7 @@ import {
   sanitizeText
 } from '@/lib/utils/text/sanitizeText'
 
-// The extractor decides whether a link is visible from a two-entry list of
+// The extractor decides whether a link is visible from a short list of
 // hiding classes. That is only safe because `sanitizeText` runs first and
 // reduces the class attribute to the fixed set below — so the two lists are one
 // mechanism, and this pins them together.
@@ -19,7 +19,11 @@ import {
 // than defaulted to "yes".
 describe('the extractor and the sanitizer agree about hiding', () => {
   // Renders to nothing. The walk must skip anchors wearing these.
-  const HIDES_CONTENT = ['invisible']
+  // `quote-inline` is Mastodon's quote-fallback marker: every quote-aware
+  // renderer (ours included, once the quote card renders) hides it, and the
+  // extractor cannot see whether the quote edge resolved — so it errs toward
+  // no card, the direction this module already commits to.
+  const HIDES_CONTENT = ['invisible', 'quote-inline']
   // Microformat and presentation markers that leave content on screen.
   const LEAVES_CONTENT_VISIBLE = [
     'h-card',
@@ -44,6 +48,16 @@ describe('the extractor and the sanitizer agree about hiding', () => {
         host: 'llun.test'
       })
     ).toBeNull()
+  })
+
+  it('hides an anchor inside a quote-inline paragraph but not its sibling', () => {
+    expect(
+      extractPreviewUrl({
+        text: '<p class="quote-inline">RE: <a href="https://remote.test/quoted">https://remote.test/quoted</a></p><p><a href="https://example.com/ok">example.com/ok</a></p>',
+        isLocalActor: false,
+        host: 'llun.test'
+      })
+    ).toBe('https://example.com/ok')
   })
 
   it.each(LEAVES_CONTENT_VISIBLE)(

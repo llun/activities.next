@@ -185,6 +185,54 @@ describe('Post', () => {
     expect(screen.queryByTestId('collapsible-content')).not.toBeInTheDocument()
   })
 
+  describe('quote-inline RE: fallback', () => {
+    // A remote quote post as Mastodon 4.5 federates it: the structured quote
+    // edge plus the legacy fallback paragraph prepended to the content.
+    const quotedUrl = 'https://remote.example/users/alice/statuses/9'
+    const remoteQuoteText = `<p class="quote-inline">RE: <a href="${quotedUrl}">${quotedUrl}</a></p><p>worth a read</p>`
+
+    it('hides the fallback when the quote card renders', () => {
+      const { container } = render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{
+            ...status,
+            isLocalActor: false,
+            summary: null,
+            text: remoteQuoteText,
+            quote: { quotedStatusId: quotedUrl, state: 'accepted' }
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      const fallback = container.querySelector('p.hidden')
+      expect(fallback?.textContent).toContain('RE:')
+      expect(container.querySelector('.quote-inline')).toBeNull()
+    })
+
+    it('keeps the fallback visible when the quote edge is missing', () => {
+      // No edge means no quote card — the RE: line is the reader's only clue.
+      const { container } = render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{
+            ...status,
+            isLocalActor: false,
+            summary: null,
+            text: remoteQuoteText
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(container.querySelector('p.quote-inline')).not.toBeNull()
+      expect(container.querySelector('p.hidden')).toBeNull()
+    })
+  })
+
   it('renders boosts with the booster label and original post actor', () => {
     render(
       <Post

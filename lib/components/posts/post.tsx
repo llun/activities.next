@@ -162,7 +162,16 @@ export const Post: FC<PostProps> = (props) => {
 
   const processedAndCleanedText = _.chain(actualStatus)
     .thru((s) => processStatusText(host, s))
-    .thru(cleanClassName)
+    .thru((parsedText) =>
+      cleanClassName(parsedText, {
+        // Mastodon client contract: when the quote renders structurally (the
+        // QuoteCard below renders for every edge state, tombstones included),
+        // the in-content "RE: <link>" fallback is redundant and is hidden.
+        // With no edge the fallback is the reader's only clue and stays
+        // visible.
+        hideQuoteInline: Boolean(actualStatus.quote)
+      })
+    )
     .value()
   const fitnessFile =
     actualStatus.type === StatusType.enum.Note ? actualStatus.fitness : null

@@ -33,10 +33,27 @@ export const extractTagFromHref = (
 const hasToken = (value: string | undefined, token: string): boolean =>
   value?.split(/\s+/).includes(token) ?? false
 
-export const cleanClassName = (text: string) => {
+export const cleanClassName = (
+  text: string,
+  // Mastodon's legacy quote fallback ("RE: <link>") is redundant exactly when
+  // the caller renders the quote structurally, so hiding it is the caller's
+  // decision: `post.tsx` opts in whenever it renders a quote card, while a
+  // surface with no card leaves the fallback visible as the reader's only
+  // clue. The marker rides on a `p` (Mastodon 4.5), a `span` (the older
+  // appended convention), or — rarely — the anchor itself.
+  { hideQuoteInline = false }: { hideQuoteInline?: boolean } = {}
+) => {
   const options: HTMLReactParserOptions = {
     replace: (node: DOMNode) => {
       const replacingNode = node as replacingNode
+      if (
+        hideQuoteInline &&
+        (replacingNode.name === 'p' || replacingNode.name === 'span') &&
+        replacingNode.attribs &&
+        hasToken(replacingNode.attribs.class, 'quote-inline')
+      ) {
+        replacingNode.attribs.class = 'hidden'
+      }
       if (replacingNode.name === 'span') {
         if (replacingNode.attribs?.class === 'invisible') {
           replacingNode.attribs.class = 'hidden'
@@ -73,7 +90,10 @@ export const cleanClassName = (text: string) => {
           'a',
           {
             ...restAttribs,
-            className,
+            className:
+              hideQuoteInline && hasToken(className, 'quote-inline')
+                ? 'hidden'
+                : className,
             onClick: (e: React.MouseEvent) => e.stopPropagation()
           },
           domToReact(anchorElement.children as DOMNode[], options)

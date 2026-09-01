@@ -56,6 +56,38 @@ describe('getNoteFromStatus quote emission', () => {
     expect(note.quoteAuthorization).toBeUndefined()
   })
 
+  it('prepends the quote-inline RE: fallback to a quoting note content', () => {
+    const note = getNoteFromStatus(
+      baseStatus({
+        quote: { quotedStatusId: QUOTED_ID, state: 'pending' }
+      })
+    ) as Record<string, unknown>
+
+    expect(note.content).toMatch(
+      new RegExp(
+        `^<p class="quote-inline">RE: <a href="${QUOTED_ID.replaceAll('/', '\\/')}">`
+      )
+    )
+    expect(note.content).toContain('hello')
+  })
+
+  it('does not prepend the fallback when the text already links the quoted status', () => {
+    const note = getNoteFromStatus(
+      baseStatus({
+        text: `have a look at ${QUOTED_ID}`,
+        quote: { quotedStatusId: QUOTED_ID, state: 'accepted' }
+      })
+    ) as Record<string, unknown>
+
+    expect(note.content).not.toContain('quote-inline')
+  })
+
+  it('does not touch a non-quote note content', () => {
+    const note = getNoteFromStatus(baseStatus()) as Record<string, unknown>
+
+    expect(note.content).not.toContain('quote-inline')
+  })
+
   it('does not emit a quote target for a terminal (revoked) edge', () => {
     const note = getNoteFromStatus(
       baseStatus({
