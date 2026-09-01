@@ -3,6 +3,7 @@ import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { Database } from '@/lib/database/types'
+import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
@@ -18,6 +19,7 @@ vi.mock('@/lib/activities/getActorCollectionCounts')
 vi.mock('@/lib/activities/getActorPerson')
 vi.mock('@/lib/activities/getActorPosts')
 vi.mock('@/lib/activities/getWebfingerSelf')
+vi.mock('@/lib/services/federation/domainPolicy')
 vi.mock('@/lib/services/federation/getFederationSigningActor')
 vi.mock('@/lib/utils/getPersonFromActor')
 vi.mock('@/lib/utils/logger', () => ({
@@ -39,6 +41,7 @@ describe('getProfileData', () => {
     getActorHasFitnessData: vi.fn(),
     getAcceptedOrRequestedFollow: vi.fn(),
     setActorCounters: vi.fn(),
+    getActorFromId: vi.fn(),
     updateActor: vi.fn(),
     createActor: vi.fn()
   } as unknown as Database
@@ -98,6 +101,16 @@ describe('getProfileData', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    // `canFederateWithDomain` comes from an auto-mocked module (a vi.mock-factory
+    // fn), so it is not reset by restoreAllMocks — set its default explicitly.
+    // Default to allowed so the existing remote-branch tests are unaffected.
+    ;(canFederateWithDomain as jest.Mock).mockResolvedValue(true)
+    // The remote branch now decides update-vs-create by looking up person.id.
+    // Default to an existing row (update path); tests exercising creation
+    // override this to null.
+    ;(mockDatabase.getActorFromId as jest.Mock).mockResolvedValue({
+      id: 'https://remote.com/users/remoteuser'
+    })
     ;(mockDatabase.getActorStatuses as jest.Mock).mockResolvedValue(
       mockStatuses
     )
@@ -486,6 +499,8 @@ describe('getProfileData', () => {
 
     it('creates newly discovered remote actor in database when persistedActor does not exist', async () => {
       ;(mockDatabase.getActorFromUsername as jest.Mock).mockResolvedValue(null)
+      // No row under person.id yet — the create branch.
+      ;(mockDatabase.getActorFromId as jest.Mock).mockResolvedValue(null)
       ;(getActorCollectionCounts as jest.Mock).mockResolvedValue({
         followersCount: 100,
         followingCount: 50,
@@ -629,6 +644,139 @@ describe('getProfileData', () => {
       expect('signingActor' in personCall).toBe(false)
       const postsCall = (getActorPosts as jest.Mock).mock.calls[0][0]
       expect('signingActor' in postsCall).toBe(false)
+    })
+
+    // Fix A: the update-vs-create decision is keyed on the id actually written
+    // (person.id), not on the handle persistedActor was resolved from, and the
+    // insert survives a concurrent loser + a federation gate fronts the fetch.
+    describe('remote actor persistence hardening', () => {
+      // A split-domain deployment: the handle is @llun@llun.dev but the actor
+      // id lives on social.llun.dev, so getActorFromUsername (keyed on the
+      // handle domain) misses while getActorFromId (keyed on person.id) hits.
+      const splitDomainPerson: Actor = {
+        ...mockPerson,
+        id: 'https://social.llun.dev/users/llun',
+        preferredUsername: 'llun'
+      }
+
+      it('updates the existing row keyed on person.id, not the handle, on a split-domain host', async () => {
+        // Handle lookup misses (its domain differs from the stored id's host).
+        ;(mockDatabase.getActorFromUsername as jest.Mock).mockResolvedValue(
+          null
+        )
+        ;(getWebfingerSelf as jest.Mock).mockResolvedValue(splitDomainPerson.id)
+        ;(getActorPerson as jest.Mock).mockResolvedValue(splitDomainPerson)
+        // A row already exists under person.id.
+        ;(mockDatabase.getActorFromId as jest.Mock).mockResolvedValue({
+          id: splitDomainPerson.id
+        })
+
+        const result = await getProfileData(
+          mockDatabase,
+          '@llun@llun.dev',
+          true,
+          { currentActor: null }
+        )
+
+        expect(result).not.toBeNull()
+        expect(mockDatabase.getActorFromId).toHaveBeenCalledWith({
+          id: splitDomainPerson.id
+        })
+        expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+          expect.objectContaining({ actorId: splitDomainPerson.id })
+        )
+        expect(mockDatabase.createActor).not.toHaveBeenCalled()
+      })
+
+      it('recovers by updating when a concurrent insert already claimed the id', async () => {
+        ;(mockDatabase.getActorFromUsername as jest.Mock).mockResolvedValue(
+          null
+        )
+        // No row when we look, so we take the create branch...
+        ;(mockDatabase.getActorFromId as jest.Mock).mockResolvedValue(null)
+        // ...but a concurrent render wins the insert first.
+        ;(mockDatabase.createActor as jest.Mock).mockRejectedValue(
+          Object.assign(new Error('UNIQUE constraint failed: actors.id'), {
+            code: 'SQLITE_CONSTRAINT_UNIQUE'
+          })
+        )
+
+        const result = await getProfileData(
+          mockDatabase,
+          '@remoteuser@remote.com',
+          true,
+          { currentActor: null }
+        )
+
+        expect(result).not.toBeNull()
+        expect(mockDatabase.createActor).toHaveBeenCalled()
+        expect(mockDatabase.updateActor).toHaveBeenCalledWith(
+          expect.objectContaining({ actorId: mockPerson.id })
+        )
+      })
+
+      it('rethrows a non-unique insert error', async () => {
+        ;(mockDatabase.getActorFromUsername as jest.Mock).mockResolvedValue(
+          null
+        )
+        ;(mockDatabase.getActorFromId as jest.Mock).mockResolvedValue(null)
+        ;(mockDatabase.createActor as jest.Mock).mockRejectedValue(
+          new Error('connection reset')
+        )
+
+        await expect(
+          getProfileData(mockDatabase, '@remoteuser@remote.com', true, {
+            currentActor: null
+          })
+        ).rejects.toThrow('connection reset')
+      })
+
+      it('does not fetch or persist an actor from a non-federatable domain', async () => {
+        ;(canFederateWithDomain as jest.Mock).mockResolvedValue(false)
+
+        const result = await getProfileData(
+          mockDatabase,
+          '@remoteuser@remote.com',
+          true,
+          { currentActor: null }
+        )
+
+        expect(result).toBeNull()
+        expect(getActorPerson).not.toHaveBeenCalled()
+        expect(mockDatabase.createActor).not.toHaveBeenCalled()
+        expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+      })
+
+      // The WebFinger id can be federatable while the server's own canonical
+      // person.id lands on a host that is not — the id actually written. The
+      // second gate must refuse that after the fetch, before any persist.
+      it('refuses to persist when person.id resolves to a non-federatable host', async () => {
+        ;(mockDatabase.getActorFromUsername as jest.Mock).mockResolvedValue(
+          null
+        )
+        ;(getWebfingerSelf as jest.Mock).mockResolvedValue(
+          'https://llun.dev/users/llun'
+        )
+        ;(getActorPerson as jest.Mock).mockResolvedValue(splitDomainPerson)
+        ;(canFederateWithDomain as jest.Mock).mockImplementation(
+          async (_database: unknown, value: string) =>
+            !value.includes('social.llun.dev')
+        )
+
+        const result = await getProfileData(
+          mockDatabase,
+          '@llun@llun.dev',
+          true,
+          { currentActor: null }
+        )
+
+        expect(result).toBeNull()
+        // The first gate passed, so the fetch happened...
+        expect(getActorPerson).toHaveBeenCalled()
+        // ...but the person.id gate refused the write.
+        expect(mockDatabase.createActor).not.toHaveBeenCalled()
+        expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+      })
     })
   })
 

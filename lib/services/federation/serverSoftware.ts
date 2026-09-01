@@ -1,13 +1,70 @@
 import { Actor } from '@/lib/types/activitypub'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
 
-const domainSoftwareCache = new Map<string, string>()
+type CacheEntry = {
+  // '' is the negative-cache value (probe failed / not resolvable), kept
+  // distinct from "not cached" so a failure does not re-probe until it expires.
+  software: string
+  expiresAt: number
+}
+
+// A resolved software name barely changes, so hold it a day; a failure was
+// often transient, so re-probe after a few minutes rather than marking a real
+// instance non-Pixelfed forever. The pre-TTL cache stored the '' failure
+// sentinel as a permanent HIT, which is exactly that bug.
+export const SUCCESS_TTL_MS = 24 * 60 * 60 * 1000
+export const FAILURE_TTL_MS = 5 * 60 * 1000
+
+// The entries expire but nothing sweeps them, and NodeInfo is probed for
+// whichever domains remote actors bring in. Bound the map so a long-lived
+// process cannot accumulate one entry per domain it has ever seen. Mirrors
+// `MAX_CACHED_ACTORS` in `lib/services/statuses/actorPublicStatusesCount.ts`.
+export const MAX_CACHED_DOMAINS = 512
+
+const domainSoftwareCache = new Map<string, CacheEntry>()
+
+// Insertion-order eviction, mirroring `setBoundedEntry` in
+// `actorPublicStatusesCount.ts` and `setBoundedCacheValue` in
+// `lib/utils/host.ts` — both are private to their own domains, so this is a
+// deliberate copy rather than an export widened for one caller.
+const setBoundedEntry = (domain: string, software: string, ttlMs: number) => {
+  if (domainSoftwareCache.has(domain)) {
+    domainSoftwareCache.delete(domain)
+  } else if (domainSoftwareCache.size >= MAX_CACHED_DOMAINS) {
+    const oldestDomain = domainSoftwareCache.keys().next().value
+    if (oldestDomain !== undefined) domainSoftwareCache.delete(oldestDomain)
+  }
+
+  domainSoftwareCache.set(domain, {
+    software,
+    expiresAt: Date.now() + ttlMs
+  })
+}
+
+// A NodeInfo document is served by the instance itself, so its discovery link
+// must point back at the same host. Following a cross-host href would let a
+// hostile `.well-known/nodeinfo` redirect the probe at an arbitrary server. The
+// `typeof href === 'string'` guard was missing on the old rel-less fallback.
+const isSameHostNodeInfoLink = (
+  link: { rel?: string; href?: string },
+  expectedHost: string
+): boolean => {
+  if (typeof link.href !== 'string') return false
+  try {
+    return new URL(link.href).host.toLowerCase() === expectedHost
+  } catch {
+    return false
+  }
+}
 
 export const clearServerSoftwareCache = () => {
   domainSoftwareCache.clear()
 }
+
+export const getServerSoftwareCacheSizeForTests = () => domainSoftwareCache.size
 
 export const getServerSoftware = async (
   domain: string
@@ -17,8 +74,8 @@ export const getServerSoftware = async (
     if (!normalizedDomain) return null
 
     const cached = domainSoftwareCache.get(normalizedDomain)
-    if (cached !== undefined) {
-      return cached || null
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.software || null
     }
 
     try {
@@ -31,7 +88,7 @@ export const getServerSoftware = async (
       })
 
       if (statusCode !== 200 || !body || typeof body !== 'string') {
-        domainSoftwareCache.set(normalizedDomain, '')
+        setBoundedEntry(normalizedDomain, '', FAILURE_TTL_MS)
         return null
       }
 
@@ -39,17 +96,21 @@ export const getServerSoftware = async (
         links?: Array<{ rel?: string; href?: string }>
       }
 
+      const links = nodeInfoWellKnown.links ?? []
       const nodeInfoLink =
-        nodeInfoWellKnown.links?.find(
+        links.find(
           (link) =>
-            typeof link.href === 'string' &&
+            isSameHostNodeInfoLink(link, normalizedDomain) &&
             (link.rel?.includes('nodeinfo') ||
               link.rel?.includes('schema.2.0') ||
               link.rel?.includes('schema.2.1'))
-        ) ?? nodeInfoWellKnown.links?.[0]
+        ) ??
+        // Compatibility fallback for a server that omits a recognizable rel:
+        // the first link regardless of rel, but still pinned to this host.
+        links.find((link) => isSameHostNodeInfoLink(link, normalizedDomain))
 
       if (!nodeInfoLink?.href) {
-        domainSoftwareCache.set(normalizedDomain, '')
+        setBoundedEntry(normalizedDomain, '', FAILURE_TTL_MS)
         return null
       }
 
@@ -62,7 +123,7 @@ export const getServerSoftware = async (
       })
 
       if (infoStatus !== 200 || !infoBody || typeof infoBody !== 'string') {
-        domainSoftwareCache.set(normalizedDomain, '')
+        setBoundedEntry(normalizedDomain, '', FAILURE_TTL_MS)
         return null
       }
 
@@ -71,15 +132,19 @@ export const getServerSoftware = async (
       }
 
       const softwareName = schema.software?.name?.trim().toLowerCase() ?? ''
-      domainSoftwareCache.set(normalizedDomain, softwareName)
+      setBoundedEntry(
+        normalizedDomain,
+        softwareName,
+        softwareName ? SUCCESS_TTL_MS : FAILURE_TTL_MS
+      )
       return softwareName || null
     } catch (error) {
       logger.warn({
         message: 'Failed to resolve server software via NodeInfo',
         domain: normalizedDomain,
-        error: error instanceof Error ? error.message : String(error)
+        err: toLoggableError(error)
       })
-      domainSoftwareCache.set(normalizedDomain, '')
+      setBoundedEntry(normalizedDomain, '', FAILURE_TTL_MS)
       return null
     }
   })
