@@ -54,6 +54,47 @@ export const parseCloudTraceContext = (
   }
 }
 
+// DELIBERATE TRUST DECISION — remote trace context is honored unverified,
+// on EVERY route this wraps, public and authenticated alike (the vast
+// majority of this app's `app/api/**` routes, plus the ActivityPub inbox and
+// other unauthenticated federation surfaces). Any caller can set a
+// `traceparent` or `X-Cloud-Trace-Context` header naming an arbitrary trace
+// id and a "sampled" flag, and both are bound as this request's parent
+// context below with no authentication or signature check.
+//
+// The accepted risk: a caller can make this app's spans for that request
+// correlate under a trace id of the caller's choosing, and can HINT that the
+// trace should be sampled. Whether that hint is actually honored is decided
+// by whichever OTel SDK/collector an operator attaches externally (this repo
+// depends only on `@opentelemetry/api` — see the `OTEL_EXPORTER_*` table in
+// `docs/environment-variables.md` — and registers no SDK, sampler, or
+// exporter of its own), but the OTel SDK ecosystem's long-standing default is
+// a `ParentBased` sampler, which DOES honor an incoming sampled flag. So on a
+// default setup, a high-volume anonymous caller could inflate sampled span
+// volume against a cost-bearing trace backend (e.g. Google Cloud Trace,
+// which this app has first-class support for via `OTEL_EXPORTER_OTLP_PROTOCOL
+// =google`).
+//
+// This is honored anyway, deliberately, rather than stripped for
+// "unauthenticated" routes, for two reasons. First, honoring the incoming
+// context is the entire point of W3C Trace Context propagation: it is what
+// lets legitimate infrastructure in front of this app (a reverse proxy, a
+// load balancer, or — on Cloud Run specifically — the platform's own
+// front end) correlate a request across hops; refusing it outright would
+// break that correlation for every deployment that propagates traces
+// correctly, to defend against one that does not. Second, `traceApiRoute`
+// wraps handlers uniformly with no signal, at this layer, for whether a
+// given route will end up requiring authentication — that check runs
+// *inside* the handler, after this context has already been extracted — so
+// a "public vs authenticated" split here would need a broader design change
+// (e.g. an explicit flag threaded through every one of this app's route
+// wrappers) than this fix's scope justifies, and an incomplete or guessed
+// split (e.g. inferred from the route path) would be worse than the status
+// quo. An operator who needs to bound this risk on a cost-bearing backend
+// should do so at the sampler layer they control — e.g. a `ParentBased`
+// sampler configured with `remoteParentSampled: alwaysOff` — since that is
+// where the actual export/ingestion (and billing) decision is made, not
+// here.
 export const extractTraceContext = (req: NextRequest) => {
   const activeCtx = context.active()
   if (!req.headers) return activeCtx
