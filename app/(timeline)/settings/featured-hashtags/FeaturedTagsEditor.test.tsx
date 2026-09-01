@@ -72,10 +72,8 @@ describe('FeaturedTagsEditor', () => {
 
     const { container } = render(<FeaturedTagsEditor />)
 
-    // jsdom paints no CSS, so the class is the observable: the shimmer lives
-    // on the `skeleton` utility (app/globals.css, guarded by
-    // app/globals.skeleton.test.ts), and the old animate-pulse-on-bg-muted
-    // treatment — near-invisible in light mode — must not come back.
+    // jsdom paints no CSS, so the class is the observable — see
+    // app/globals.skeleton.test.ts for the definition guard.
     expect(container.querySelectorAll('.skeleton').length).toBeGreaterThan(0)
     expect(container.querySelector('.animate-pulse')).toBeNull()
 
