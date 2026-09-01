@@ -127,8 +127,15 @@ jobs:
           code_files=()
           for f in "${unmerged[@]}"; do
             if [ "$f" = "yarn.lock" ]; then
-              echo "Reconciling yarn.lock conflict via target branch version..."
-              git checkout --ours yarn.lock
+              # This merge checks out 'oltp' first and merges main's commit in
+              # (see "Prepare merge state" above), so --ours is oltp's STALE
+              # lockfile and --theirs is main's. Taking --ours silently
+              # dropped every lockfile-only bump from main (Dependabot,
+              # security patches) on any sync that conflicted here. Take
+              # main's lockfile instead; the unconditional `yarn install`
+              # below reconciles it against the merged package.json.
+              echo "Reconciling yarn.lock conflict via main's version..."
+              git checkout --theirs yarn.lock
             else
               code_files+=("$f")
             fi
