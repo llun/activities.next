@@ -35,6 +35,7 @@ const MockActivityPubQuestion = (
     oneOf?: QuestionOption[]
     anyOf?: QuestionOption[]
     includeTag?: boolean
+    attributedTo?: string
   } = {}
 ) => {
   const {
@@ -44,7 +45,8 @@ const MockActivityPubQuestion = (
     endTime = Date.now() + 24 * 60 * 60 * 1000,
     oneOf,
     anyOf,
-    includeTag = true
+    includeTag = true,
+    attributedTo = REMOTE_ACTOR_ID
   } = options
 
   // Determine poll options
@@ -65,7 +67,7 @@ const MockActivityPubQuestion = (
     '@context': 'https://www.w3.org/ns/activitystreams',
     id,
     type: 'Question',
-    attributedTo: REMOTE_ACTOR_ID,
+    attributedTo,
     to: ['https://www.w3.org/ns/activitystreams#Public'],
     cc: [`${REMOTE_ACTOR_ID}/followers`],
     content,
@@ -212,6 +214,74 @@ describe('updatePollJob', () => {
 
     const status = await database.getStatus({ statusId: pollId })
     expect(status).toBeNull()
+  })
+
+  it('refuses an Update for a poll the sender does not own', async () => {
+    // The inbox only proves the payload's `attributedTo` matches the signer,
+    // which an attacker satisfies by attributing the Update to themselves while
+    // pointing `id` at someone else's poll. Without an ownership check the
+    // target is resolved by `question.id` alone and any federated actor can
+    // rewrite the text and tallies of any stored poll, recording a
+    // `status_history` revision that reads as a genuine edit by the victim.
+    const pollId = `${REMOTE_ACTOR_ID}/questions/owned-${Date.now()}`
+    await createPollJob(database, {
+      id: 'id-owned-create',
+      name: CREATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, {
+        content: '<p>Original question</p>',
+        oneOf: [createOption('Red', 1), createOption('Blue', 2)]
+      })
+    })
+
+    await updatePollJob(database, {
+      id: 'id-owned-update',
+      name: UPDATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, {
+        content: '<p>Defaced</p>',
+        attributedTo: 'https://attacker.test/actors/bad',
+        oneOf: [createOption('Red', 999), createOption('Blue', 999)]
+      })
+    })
+
+    const status = await database.getStatus({ statusId: pollId })
+    if (status?.type !== StatusType.enum.Poll) {
+      fail('Status type must be Poll')
+    }
+    expect(status.text).toEqual('<p>Original question</p>')
+    expect(status.choices[0].totalVotes).toEqual(1)
+    expect(status.choices[1].totalVotes).toEqual(2)
+    expect(status.edits).toHaveLength(0)
+  })
+
+  it('accepts an Update whose author differs from the poll owner only by host casing', async () => {
+    // The ownership check normalizes both actor ids, so a benign case
+    // difference must not refuse a poll author's own edit.
+    const pollId = `${REMOTE_ACTOR_ID}/questions/host-case-${Date.now()}`
+    await createPollJob(database, {
+      id: 'id-host-case-create',
+      name: CREATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, {
+        content: '<p>Original question</p>',
+        oneOf: [createOption('Red', 1)]
+      })
+    })
+
+    await updatePollJob(database, {
+      id: 'id-host-case-update',
+      name: UPDATE_POLL_JOB_NAME,
+      data: MockActivityPubQuestion(pollId, {
+        content: '<p>Edited by the author</p>',
+        attributedTo: 'https://SOMEWHERE.test/actors/pollcreator',
+        oneOf: [createOption('Red', 4)]
+      })
+    })
+
+    const status = await database.getStatus({ statusId: pollId })
+    if (status?.type !== StatusType.enum.Poll) {
+      fail('Status type must be Poll')
+    }
+    expect(status.text).toEqual('<p>Edited by the author</p>')
+    expect(status.choices[0].totalVotes).toEqual(4)
   })
 
   it('updates multiple-choice (anyOf) poll vote counts', async () => {

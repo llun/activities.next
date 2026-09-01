@@ -266,6 +266,94 @@ describe('syncRemotePoll', () => {
     expect(res1).toEqual(res2)
   })
 
+  it('refuses a remote poll document that claims a different status id', async () => {
+    // A hostile server answering this poll's own URL names a status it does
+    // not own. `updatePoll` filters on nothing but `id`, so trusting the
+    // document's self-reported id would rewrite that status's text, spoiler
+    // and choice tallies and record a `status_history` revision for it.
+    const victimStatusId = 'https://test.llun.dev/users/alice/statuses/1'
+    ;(getNote as jest.Mock).mockResolvedValue({
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: victimStatusId,
+      type: 'Question',
+      attributedTo: remotePollStatus.actorId,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      content: '<p>Defaced</p>',
+      published: '2026-08-31T00:00:00Z',
+      oneOf: [
+        {
+          type: 'Note',
+          name: 'Owned',
+          replies: { type: 'Collection', totalItems: 99 }
+        }
+      ]
+    })
+
+    const result = await syncRemotePoll({
+      database: mockDatabase,
+      status: remotePollStatus
+    })
+
+    expect(mockDatabase.updatePoll).not.toHaveBeenCalled()
+    expect(result).toBe(remotePollStatus)
+  })
+
+  it('cools down after refusing a mismatched remote poll document', async () => {
+    ;(getNote as jest.Mock).mockResolvedValue({
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: 'https://test.llun.dev/users/alice/statuses/2',
+      type: 'Question',
+      attributedTo: remotePollStatus.actorId,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      content: '<p>Defaced</p>',
+      published: '2026-08-31T00:00:00Z',
+      oneOf: [
+        {
+          type: 'Note',
+          name: 'Owned',
+          replies: { type: 'Collection', totalItems: 99 }
+        }
+      ]
+    })
+
+    await syncRemotePoll({ database: mockDatabase, status: remotePollStatus })
+    await syncRemotePoll({ database: mockDatabase, status: remotePollStatus })
+
+    expect(getNote).toHaveBeenCalledTimes(1)
+    expect(mockDatabase.updatePoll).not.toHaveBeenCalled()
+  })
+
+  it('accepts a remote poll document whose id differs only by host casing', async () => {
+    // The guard normalizes both sides, so a benign serialization difference
+    // must still sync — and must write to the row we asked about.
+    ;(getNote as jest.Mock).mockResolvedValue({
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: 'https://REMOTE.test/polls/1',
+      type: 'Question',
+      attributedTo: remotePollStatus.actorId,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      content: '<p>Favorite color?</p>',
+      published: '2026-08-31T00:00:00Z',
+      oneOf: [
+        {
+          type: 'Note',
+          name: 'Red',
+          replies: { type: 'Collection', totalItems: 7 }
+        }
+      ]
+    })
+    ;(mockDatabase.updatePoll as jest.Mock).mockResolvedValue(remotePollStatus)
+
+    await syncRemotePoll({ database: mockDatabase, status: remotePollStatus })
+
+    expect(mockDatabase.updatePoll).toHaveBeenCalledWith(
+      expect.objectContaining({ statusId: remotePollStatus.id })
+    )
+  })
+
   it('falls back to existing status on remote fetch failure and cools down', async () => {
     ;(getNote as jest.Mock).mockRejectedValueOnce(new Error('Network failure'))
 

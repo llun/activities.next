@@ -17,8 +17,10 @@ import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Announce, ENTITY_TYPE_QUESTION } from '@/lib/types/activitypub'
 import {
   normalizeActivityPubAnnounce,
+  normalizeActivityPubUri,
   toRecipientArray
 } from '@/lib/utils/activitypub'
+import { logger } from '@/lib/utils/logger'
 
 export const createAnnounceJob: JobHandle = createJobHandle(
   CREATE_ANNOUNCE_JOB_NAME,
@@ -55,6 +57,31 @@ export const createAnnounceJob: JobHandle = createJobHandle(
       if (!boostedStatus) {
         return
       }
+      // `object` is the id the Announce itself named; `boostedStatus.id` is
+      // SELF-REPORTED by whatever server answered that URL, and the two must
+      // agree. createNoteJob/createPollJob persist under — and silently no-op
+      // on an already-stored — the FETCHED id, so a document claiming an
+      // unrelated stored status's id stores nothing and then hands that status
+      // to `createAnnounce` below as `originalStatusId`. The result is a forged
+      // boost of a post the announcer never saw, and because
+      // `addStatusToTimelines` fans an Announce out on the ANNOUNCE's own
+      // recipients, a local followers-only or direct status can be surfaced to
+      // whoever the attacker addresses. Drop the Announce rather than
+      // substituting a status we were never pointed at. Both sides are
+      // normalized so a benign case/serialization difference still resolves.
+      if (
+        normalizeActivityPubUri(boostedStatus.id) !==
+        normalizeActivityPubUri(object)
+      ) {
+        logger.warn({
+          message:
+            'Ignoring an announce whose boosted status id does not match the announced object',
+          announceId: status.id,
+          announcedObjectId: object,
+          fetchedStatusId: boostedStatus.id
+        })
+        return
+      }
       if (boostedStatus.type === ENTITY_TYPE_QUESTION) {
         await createPollJob(database, {
           id: boostedStatus.id,
@@ -73,6 +100,14 @@ export const createAnnounceJob: JobHandle = createJobHandle(
           statusId: object,
           withReplies: false
         })) ??
+        // Reachable only when `object` and the fetched id differ by the benign
+        // normalization the guard above admits — an explicit default port,
+        // percent-encoding, or dot segments in the Announce's spelling against
+        // the canonical form the origin serves. `getStatus` does not normalize,
+        // and the child job stored the row under the FETCHED spelling, so the
+        // `object` lookup misses it. Guarded above, this can no longer resolve
+        // an unrelated status. (Host case never reaches here: the HTTP client
+        // lowercases the authority before the request is made.)
         (await database.getStatus({
           statusId: boostedStatus.id,
           withReplies: false

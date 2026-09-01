@@ -903,6 +903,42 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   It was applied in the emoji and reaction pickers while defined nowhere, so
   defining it would have removed their only cue.
 
+## Fetched ActivityPub document ids
+
+- A document's own `id` is a claim by whoever answered the fetch — `getNote` and
+  `getActorPerson` validate nothing. Flag any new code that resolves a database
+  row from a fetched `id`: `updatePoll` and `createAnnounce` both key on a bare
+  `where('id', ?)` with no ownership, locality or type filter, so the remote
+  server is choosing which of our rows the write lands on.
+- The check is the fetched id against the id that was **requested**, normalized
+  on both sides with `normalizeActivityPubUri` — `syncRemotePoll` against
+  `status.id`, `createAnnounceJob` against the Announce's own `object`. A raw
+  `!==` is over-strict (it refuses a benign default port or percent-encoding and
+  breaks the `#1694` fallback lookup); dropping normalization to a substring or
+  host comparison is under-strict. Every guard here is bracketed by a test on
+  each side — one that fails when it is loosened, one when it is tightened. A PR
+  that adds only the first has not pinned it.
+- In `createAnnounceJob` the guard must precede the `createNoteJob`/
+  `createPollJob` dispatch, not just the fallback `getStatus`. Below the
+  dispatch it still lets a lying document be persisted at an id we were never
+  pointed at. Relocating it fails exactly one test; if a reviewer sees the guard
+  move and the suite stay green, the pinning test was deleted.
+- `syncRemotePoll` writes with `statusId: status.id`, never `question.id`. That
+  is deliberate belt-and-braces on top of the guard, not redundancy to tidy
+  away — it is what keeps the write target correct if the guard is ever
+  weakened.
+- An id match is not an ownership check. Where the resolved row belongs to
+  someone else, compare `normalizeActorId(attributedTo)` against the stored
+  status's `actorId`, as `updateNoteJob` and `updatePollJob` both now do. The
+  inbox's `createObjectActorMismatch` only binds the payload to the _signer_,
+  which an attacker satisfies by attributing the Update to themselves.
+- Known-open and deliberately so: `createAnnounceJob` does not bind the fetched
+  note's `attributedTo` (and `actorMatchesVerifiedSender` fails open on a direct
+  call, which carries no `verifiedSenderActorId`); `recordActorIfNeeded` takes a
+  row's `id` from the request and its `domain` from the fetched `person.id`
+  unchecked. Do not treat these as covered by the guards above — they are a
+  different class (forged attribution) awaiting their own decision.
+
 ## Status delete & unboost federation
 
 - The local delete commits **first**; `SendDeleteNoteJob` federates the
