@@ -365,12 +365,12 @@ describe('Announce action', () => {
     ).resolves.toBeNull()
   })
 
-  it('accepts an announce whose fetched object id differs only by a default port', async () => {
-    // The guard normalizes both sides, so a benign serialization difference —
-    // here an explicit `:443` in the Announce against the canonical form the
-    // origin serves — still resolves through the fetched-id fallback rather
-    // than being dropped. The row is stored under the fetched spelling, which
-    // is exactly what that fallback exists to find.
+  it('accepts an announce whose fetched object id is a same-origin canonical form', async () => {
+    // The guard is on the ORIGIN, so a same-host canonicalisation — here an
+    // explicit `:443` in the Announce against the canonical form the origin
+    // serves — still resolves through the fetched-id fallback rather than being
+    // dropped. The row is stored under the fetched spelling, which is exactly
+    // what that fallback exists to find.
     const statusId = stubNoteId()
     const announcedObjectId =
       'https://somewhere.test:443/statuses/announce-default-port'
@@ -398,6 +398,49 @@ describe('Announce action', () => {
         actorId: ACTOR1_ID,
         statusId,
         announceStatusId: announcedObjectId
+      })
+    })
+
+    const status = (await database.getStatus({
+      statusId: `${statusId}/activity`
+    })) as StatusAnnounce | null
+    expect(status).not.toBeNull()
+    expect(status?.originalStatus?.id).toEqual(canonicalObjectId)
+  })
+
+  it('accepts an announce naming a same-origin permalink for the boosted status', async () => {
+    // The regression an exact-id guard would cause. A server may canonicalise a
+    // URL within its own origin: this instance's own `proxy.ts` answers
+    // `/@user/<id>` under an ActivityPub Accept header with a document whose id
+    // is `/users/<user>/statuses/<n>`, and Mastodon does the same. An Announce
+    // naming the permalink must still boost the canonical status.
+    const statusId = stubNoteId()
+    const permalinkObjectId =
+      'https://somewhere.test/@friend/announce-permalink'
+    const canonicalObjectId =
+      'https://somewhere.test/users/friend/statuses/announce-permalink'
+
+    fetchMock.mockOnceIf(
+      permalinkObjectId,
+      JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: canonicalObjectId,
+        type: 'Note',
+        attributedTo: 'https://somewhere.test/actors/friend',
+        content: '<p>via permalink</p>',
+        published: '2026-08-30T04:27:44Z',
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: []
+      })
+    )
+
+    await createAnnounceJob(database, {
+      id: 'id-permalink',
+      name: CREATE_ANNOUNCE_JOB_NAME,
+      data: MockAnnounceStatus({
+        actorId: ACTOR1_ID,
+        statusId,
+        announceStatusId: permalinkObjectId
       })
     })
 

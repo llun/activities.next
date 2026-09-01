@@ -910,28 +910,47 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   row from a fetched `id`: `updatePoll` and `createAnnounce` both key on a bare
   `where('id', ?)` with no ownership, locality or type filter, so the remote
   server is choosing which of our rows the write lands on.
-- The check is the fetched id against the id that was **requested**, normalized
-  on both sides with `normalizeActivityPubUri` — `syncRemotePoll` against
-  `status.id`, `createAnnounceJob` against the Announce's own `object`. A raw
-  `!==` is over-strict (it refuses a benign default port or percent-encoding and
-  breaks the `#1694` fallback lookup); dropping normalization to a substring or
-  host comparison is under-strict. Every guard here is bracketed by a test on
-  each side — one that fails when it is loosened, one when it is tightened. A PR
-  that adds only the first has not pinned it.
+- **Check which of the two questions the call site is asking**, because they take
+  different guards and a reviewer who unifies them breaks one of them.
+  "Did I get back the document I asked for?" (`syncRemotePoll`, which fetches the
+  canonical id it stored) is an exact id match, normalized. "Is this document
+  allowed to name that id?" (`createAnnounceJob`, where a third party chose
+  `object`) is `isSameActivityPubOrigin`. Tightening the second into an id match
+  looks like hardening and is an interop regression — this instance's own
+  `proxy.ts` serves `/@user/<id>` with an `id` of `/users/<user>/statuses/<n>`,
+  Mastodon does the same, `safeRemoteFetch` follows redirects, and
+  `createRelayAnnounceJob` already records the same fact about the same fetch.
+  Note what the normalizer does and does not fold: scheme/host case, default
+  port, dot segments and encode-direction percent-encoding, but **not** a
+  trailing slash and **not** percent-decoding.
+- The origin guard in `createAnnounceJob` does **not** make a boost's target
+  safe: an already-stored status is resolved before it and skips the branch, and
+  `createAnnounce` applies no audience check. A remote actor can still boost a
+  local followers-only status by naming its id directly (reproduced; the sibling
+  `createRelayAnnounceJob` gates it with `isPublicStatus`, this job does not).
+  Open and pre-existing — flag any comment or doc that implies the guard shuts
+  it.
+- Reject any new inline `new URL(a).host === new URL(b).host`; use
+  `isSameActivityPubOrigin`. It fails closed — a blank node, an empty string or
+  an unparseable id matches nothing, _including itself_, which is the property
+  that stops two degenerate ids comparing equal.
 - In `createAnnounceJob` the guard must precede the `createNoteJob`/
   `createPollJob` dispatch, not just the fallback `getStatus`. Below the
   dispatch it still lets a lying document be persisted at an id we were never
   pointed at. Relocating it fails exactly one test; if a reviewer sees the guard
   move and the suite stay green, the pinning test was deleted.
 - `syncRemotePoll` writes with `statusId: status.id`, never `question.id`. That
-  is deliberate belt-and-braces on top of the guard, not redundancy to tidy
-  away — it is what keeps the write target correct if the guard is ever
-  weakened.
+  is what actually closes the vulnerability, so it is not redundancy to tidy
+  away once the guard is in place.
 - An id match is not an ownership check. Where the resolved row belongs to
   someone else, compare `normalizeActorId(attributedTo)` against the stored
-  status's `actorId`, as `updateNoteJob` and `updatePollJob` both now do. The
+  status's `actorId`, as `updateNoteJob` and `updatePollJob` both do. The
   inbox's `createObjectActorMismatch` only binds the payload to the _signer_,
   which an attacker satisfies by attributing the Update to themselves.
+- **Demand a test on each side of every guard**: one that fails when it is
+  loosened, one when it is tightened. A PR carrying only the first has pinned
+  that the guard exists, not that it has the right width — which is exactly how
+  an over-strict version of this change nearly shipped.
 - Known-open and deliberately so: `createAnnounceJob` does not bind the fetched
   note's `attributedTo` (and `actorMatchesVerifiedSender` fails open on a direct
   call, which carries no `verifiedSenderActorId`); `recordActorIfNeeded` takes a

@@ -22,6 +22,33 @@ export const normalizeActivityPubUri = (uri: string | null | undefined) => {
   }
 }
 
+/**
+ * Do two ActivityPub ids live on the same origin?
+ *
+ * This is the trust boundary for "a document I fetched claims an id" — the same
+ * question `sameHost`/`sameAuthority` answer inline in `processForwardedActivityJob`,
+ * `verifyRemoteQuote`, `persistInboundQuoteEdge` and both quote-request actions
+ * (those five copies should collapse onto this one in the dedup pass). A server
+ * may legitimately canonicalise a URL WITHIN its own origin — this instance's own
+ * `proxy.ts` serves the ActivityPub document for `/@user/<id>` with an `id` of
+ * `/users/<user>/statuses/<n>`, and Mastodon does the same — so an exact id match
+ * is too strict. What must never be allowed is a document claiming an id on
+ * ANOTHER host, which is how a hostile server names someone else's status.
+ *
+ * Fails CLOSED: an id that is not a parseable URL matches nothing.
+ */
+export const isSameActivityPubOrigin = (
+  first: string | null | undefined,
+  second: string | null | undefined
+): boolean => {
+  if (!first || !second) return false
+  try {
+    return new URL(first).host === new URL(second).host
+  } catch {
+    return false
+  }
+}
+
 export const normalizeActorId = (actorId: string | null | undefined) =>
   normalizeActivityPubUri(actorId?.split('#')[0])
 
