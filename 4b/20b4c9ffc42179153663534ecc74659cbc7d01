@@ -1,0 +1,22 @@
+lib/activities/quoteNoteFields.ts
+  s_9e9181f395c758::t_f6f7033a26d524 48
+  s_9e9181f395c758::t_b236741be00c3e 70-74,76
+lib/activities/quoteNoteFields.test.ts
+  s_9e9181f395c758::t_8b48bb17c2ce30 107-122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "4b20b4c9ffc42179153663534ecc74659cbc7d01",
+  "prompts": {},
+  "sessions": {
+    "s_9e9181f395c758": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1bc2e929-9c85-4141-8d3b-ed40b9c01022",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
