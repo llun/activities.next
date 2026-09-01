@@ -95,4 +95,35 @@ describe('attachSqlcommenter', () => {
 
     expect(executedSql[0]).not.toContain('traceparent')
   })
+
+  it('does not double-attach the comment when a second knex instance shares the dialect prototype', async () => {
+    // Same client ('better-sqlite3') as `db` above, so this instance's
+    // client.constructor is the identical class object, and the guard on
+    // its shared prototype must stop attachSqlcommenter from wrapping
+    // `query` a second time.
+    const secondDb = attachSqlcommenter(
+      knex({
+        client: 'better-sqlite3',
+        useNullAsDefault: true,
+        connection: { filename: ':memory:' }
+      })
+    )
+
+    const mockSpan = {
+      spanContext: () => ({
+        traceId: '02dad5002ab305f1fd75ae8bd0d46e94',
+        spanId: '3ca938408dc381d3',
+        traceFlags: 1
+      })
+    } as unknown as Span
+
+    vi.spyOn(trace, 'getActiveSpan').mockReturnValue(mockSpan)
+
+    await secondDb.raw('SELECT 2')
+
+    const selects = executedSql.filter((sql) => sql.startsWith('SELECT 2'))
+    expect(selects).toHaveLength(1)
+    const traceparentOccurrences = selects[0].match(/\/\*traceparent=/g) ?? []
+    expect(traceparentOccurrences).toHaveLength(1)
+  })
 })

@@ -11,6 +11,10 @@ interface DatabaseInstance {
   knex: Knex
 }
 
+// Symbol.for (global registry), not Symbol(): Next.js dev Fast Refresh
+// re-evaluates this module while the cached knex dialect class survives, so a
+// per-module Symbol() would never match on reload and query would be
+// re-wrapped every time, stacking duplicate traceparent comments.
 const SQLCOMMENTER_ATTACHED = Symbol.for('activities.next.sqlcommenter')
 
 export const attachSqlcommenter = (db: Knex): Knex => {
