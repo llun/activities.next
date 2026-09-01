@@ -1,8 +1,12 @@
 import sanitizeHtml from 'sanitize-html'
 
 // The microformat and presentation classes fediverse servers put inside status
-// text: the mention wrapper and its anchor, hashtag anchors, and the
-// `invisible`/`ellipsis` spans Mastodon splits a long link's display text into.
+// text: the mention wrapper and its anchor, hashtag anchors, the
+// `invisible`/`ellipsis` spans Mastodon splits a long link's display text into,
+// and the `quote-inline` marker on the legacy quote fallback ("RE: <link>") a
+// quote post carries for receivers that do not understand structured quotes —
+// kept so `cleanClassName` can hide the redundant line whenever a quote card
+// renders (Mastodon 4.5 wraps it in a `p`, older conventions in a `span`).
 //
 // An ALLOWLIST rather than Mastodon's own `h-*`/`p-*`/`u-*` prefix globs,
 // because those globs are unsafe in a Tailwind app: `h-*` would admit `h-screen`
@@ -27,7 +31,8 @@ export const ALLOWED_CONTENT_CLASSES = [
   'mention',
   'hashtag',
   'invisible',
-  'ellipsis'
+  'ellipsis',
+  'quote-inline'
 ]
 
 export const SANITIZED_OPTION = {
@@ -52,12 +57,18 @@ export const SANITIZED_OPTION = {
   allowedAttributes: {
     a: ['href', 'rel', 'class', 'translate', 'target'],
     span: ['class', 'translate'],
+    p: ['class'],
     ol: ['start', 'reversed'],
     li: ['value']
   },
   allowedClasses: {
     a: ALLOWED_CONTENT_CLASSES,
-    span: ALLOWED_CONTENT_CLASSES
+    span: ALLOWED_CONTENT_CLASSES,
+    // `p` may wear ONLY the quote-fallback marker (Mastodon 4.5 wraps its
+    // "RE: <link>" line in `<p class="quote-inline">`). The microformat
+    // classes have no meaning on a paragraph, so don't widen what remote
+    // HTML can keep.
+    p: ['quote-inline']
   },
   allowedSchemes: ['http', 'https', 'mailto'],
   allowedSchemesByTag: {

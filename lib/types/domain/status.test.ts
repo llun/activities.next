@@ -442,6 +442,27 @@ describe('Status', () => {
           }
         )
 
+        it('prepends the quote-inline RE: fallback to the note content', () => {
+          const quotedStatusId = 'https://remote.test/users/alice/statuses/1'
+          const note = withQuote(noteStatus, {
+            quotedStatusId,
+            state: 'pending'
+          }) as { content: string }
+
+          expect(note.content).toMatch(
+            /^<p class="quote-inline">RE: <a href="https:\/\/remote\.test\/users\/alice\/statuses\/1">/
+          )
+        })
+
+        it('adds no fallback on a rejected edge', () => {
+          const note = withQuote(noteStatus, {
+            quotedStatusId: 'https://remote.test/users/alice/statuses/1',
+            state: 'rejected'
+          }) as { content: string }
+
+          expect(note.content).not.toContain('quote-inline')
+        })
+
         it('emits the hosted stamp uri only on an accepted edge', () => {
           const quotedStatusId = 'https://remote.test/users/alice/statuses/1'
           const authorizationUri =

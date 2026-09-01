@@ -1,6 +1,7 @@
 import { compactActivityPub } from '@/lib/activities/jsonld'
 import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
 import {
+  addQuoteFallbackToContent,
   getInteractionPolicyFields,
   getQuoteNoteFields
 } from '@/lib/activities/quoteNoteFields'
@@ -65,6 +66,87 @@ describe('getQuoteNoteFields', () => {
   it('omits the stamp when an accepted edge has none stored', () => {
     expect(getQuoteNoteFields(edge({ state: 'accepted' }))).not.toHaveProperty(
       'quoteAuthorization'
+    )
+  })
+})
+
+describe('addQuoteFallbackToContent', () => {
+  const FALLBACK = `<p class="quote-inline">RE: <a href="${QUOTED_STATUS_ID}">${QUOTED_STATUS_ID}</a></p>`
+
+  it.each([{ state: 'pending' as const }, { state: 'accepted' as const }])(
+    'prepends the fallback paragraph on a $state edge',
+    ({ state }) => {
+      expect(addQuoteFallbackToContent('<p>hi</p>', edge({ state }))).toEqual(
+        `${FALLBACK}<p>hi</p>`
+      )
+    }
+  )
+
+  it.each([
+    { state: 'rejected' as const },
+    { state: 'revoked' as const },
+    { state: 'deleted' as const }
+  ])('leaves content alone on a $state edge', ({ state }) => {
+    expect(addQuoteFallbackToContent('<p>hi</p>', edge({ state }))).toEqual(
+      '<p>hi</p>'
+    )
+  })
+
+  it.each([
+    { label: 'null', value: null },
+    { label: 'undefined', value: undefined }
+  ])('leaves content alone when the edge is $label', ({ value }) => {
+    expect(addQuoteFallbackToContent('<p>hi</p>', value)).toEqual('<p>hi</p>')
+  })
+
+  it('skips when the content already contains the quoted url', () => {
+    const linked = `<p>see <a href="${QUOTED_STATUS_ID}">this</a></p>`
+    expect(addQuoteFallbackToContent(linked, edge())).toEqual(linked)
+  })
+
+  it('skips when the content contains only the RAW form of an escapable quoted url', () => {
+    // A local status stores raw author text, so a hand-pasted link keeps its
+    // literal `&`. The raw half of the skip is what catches it — and this url
+    // must carry an escapable character: when raw and escaped coincide, no
+    // test can tell the raw branch from the escaped one.
+    const withAmpersand = edge({
+      quotedStatusId: 'https://charlie.example/statuses/9?ref=abc&v=2'
+    })
+    const rawMention =
+      '<p>see https://charlie.example/statuses/9?ref=abc&v=2</p>'
+    expect(addQuoteFallbackToContent(rawMention, withAmpersand)).toEqual(
+      rawMention
+    )
+  })
+
+  it('skips when the content contains only the ESCAPED form of the quoted url', () => {
+    // A remote quote post stores its origin server's own fallback, where an
+    // `&` in the quoted id is rendered `&amp;` — the only form HTML ever
+    // carries. Matching the raw form alone double-prefixed such a note when it
+    // was re-served through toActivityPubObject (a boosted remote quote post,
+    // or one embedded in the /replies collection).
+    const withAmpersand = edge({
+      quotedStatusId: 'https://charlie.example/statuses/9?ref=abc&v=2'
+    })
+    const alreadyPrefixed =
+      '<p class="quote-inline">RE: <a href="https://charlie.example/statuses/9?ref=abc&amp;v=2">https://charlie.example/statuses/9?ref=abc&amp;v=2</a></p><p>hi</p>'
+    expect(addQuoteFallbackToContent(alreadyPrefixed, withAmpersand)).toEqual(
+      alreadyPrefixed
+    )
+  })
+
+  it('escapes the url when interpolating', () => {
+    const hostile = edge({
+      quotedStatusId: 'https://remote.test/statuses/9?a=1&b="<x>'
+    })
+    expect(addQuoteFallbackToContent('<p>hi</p>', hostile)).toEqual(
+      '<p class="quote-inline">RE: <a href="https://remote.test/statuses/9?a=1&amp;b=&quot;&lt;x&gt;">https://remote.test/statuses/9?a=1&amp;b=&quot;&lt;x&gt;</a></p><p>hi</p>'
+    )
+  })
+
+  it('produces only the fallback for empty content', () => {
+    expect(addQuoteFallbackToContent('', edge({ state: 'pending' }))).toEqual(
+      FALLBACK
     )
   })
 })

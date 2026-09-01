@@ -109,15 +109,22 @@ const extractRenderedLinks = (
 // The classes that hide content, which here is an exhaustive list rather than a
 // denylist — and only because `sanitizeText` runs first. Its `allowedClasses`
 // reduces the class attribute to a fixed set of fediverse markers, so
-// `invisible` is the only hiding class that can still be present by the time
-// the walk below happens. Written as a guess at hostile input this could never
-// work: the app compiles Tailwind, so an unfiltered class attribute offers
-// `sr-only`, `opacity-0`, `size-0` and every other utility in the bundle.
+// `invisible` and `quote-inline` are the only hiding classes that can still be
+// present by the time the walk below happens. Written as a guess at hostile
+// input this could never work: the app compiles Tailwind, so an unfiltered
+// class attribute offers `sr-only`, `opacity-0`, `size-0` and every other
+// utility in the bundle.
 //
 // `hidden` is what `cleanClassName` rewrites `invisible` to at render time. It
 // is listed so the two agree about what "hidden" means, not because a remote
 // server can send it.
-const HIDDEN_ANCHOR_CLASSES = ['hidden', 'invisible']
+//
+// `quote-inline` is Mastodon's quote-fallback marker ("RE: <link>"), hidden by
+// every quote-aware renderer — ours included, whenever the quote card renders.
+// The extractor cannot see whether the status's quote edge resolved (it reads
+// only text and tags), so it errs toward no card, the direction this module
+// already commits to.
+const HIDDEN_ANCHOR_CLASSES = ['hidden', 'invisible', 'quote-inline']
 
 type DomNode = {
   type?: string

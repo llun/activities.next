@@ -4,6 +4,7 @@ import type {
   StatusQuote
 } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { escapeHtml } from '@/lib/utils/text/escapeHtml'
 
 /**
  * The FEP-044f quote fields a note carries, or `null` when it quotes nothing.
@@ -42,6 +43,38 @@ export const getQuoteNoteFields = (
     _misskey_quote: quoteTargetId,
     ...(quoteAuthorization ? { quoteAuthorization } : null)
   }
+}
+
+const QUOTE_INLINE_CLASS = 'quote-inline'
+
+/**
+ * Mastodon-compatible legacy fallback: prepend
+ * `<p class="quote-inline">RE: <a href="…">…</a></p>` to a quoting note's
+ * content so receivers that do not understand the FEP-044f quote fields still
+ * show a link to the quoted post. Mirrors Mastodon's
+ * TextFormatter#add_quote_fallback: added only while the quote fields
+ * themselves are emitted (the `getQuoteNoteFields` gate, shared by
+ * construction), and skipped when the content already contains the quoted
+ * url — which also stops a boosted remote quote post from being
+ * double-prefixed, since its origin server's fallback already carries the url.
+ * Receivers that DO understand quotes hide the `quote-inline` element, as
+ * `post.tsx` does whenever it renders a quote card.
+ */
+export const addQuoteFallbackToContent = (
+  content: string,
+  quoteEdge: StatusQuote | null | undefined
+): string => {
+  const fields = getQuoteNoteFields(quoteEdge)
+  if (!fields) return content
+  const url = fields.quote
+  if (!url) return content
+  // The skip must test the ESCAPED form too: stored HTML only ever carries
+  // the escaped rendering of the url (`&` as `&amp;`), so matching the raw
+  // form alone double-prefixed a boosted remote quote post whose id contains
+  // an escapable character.
+  const escaped = escapeHtml(url)
+  if (content.includes(url) || content.includes(escaped)) return content
+  return `<p class="${QUOTE_INLINE_CLASS}">RE: <a href="${escaped}">${escaped}</a></p>${content}`
 }
 
 // Advertise the audiences that may quote a status. `public` → the public

@@ -53,8 +53,11 @@ describe('extractTagFromHref', () => {
 })
 
 describe('cleanClassName', () => {
-  const renderToHtml = (input: string) => {
-    const result = cleanClassName(input)
+  const renderToHtml = (
+    input: string,
+    options?: { hideQuoteInline?: boolean }
+  ) => {
+    const result = cleanClassName(input, options)
     if (typeof result === 'string') return result
     if (Array.isArray(result)) {
       return result.map((el) => renderToStaticMarkup(el)).join('')
@@ -164,6 +167,45 @@ describe('cleanClassName', () => {
       const html = '<span class="ellipsis">text</span>'
       const output = renderToHtml(html)
       expect(output).toContain('after:content-')
+    })
+  })
+
+  // Mastodon's legacy quote fallback ("RE: <link>"). Redundant exactly when
+  // the caller renders the quote structurally, so hiding is the CALLER's
+  // decision — with no quote card, the fallback is the reader's only clue and
+  // must stay visible, which is why the default leaves it alone.
+  describe('quote-inline fallback', () => {
+    const paragraph =
+      '<p class="quote-inline">RE: <a href="https://remote.test/statuses/9">https://remote.test/statuses/9</a></p><p>body</p>'
+
+    it('hides a quote-inline paragraph when hideQuoteInline is set', () => {
+      const output = renderToHtml(paragraph, { hideQuoteInline: true })
+      expect(output).toContain('<p class="hidden">')
+      expect(output).toContain('<p>body</p>')
+      expect(output).not.toContain('quote-inline')
+    })
+
+    it('hides a quote-inline span when hideQuoteInline is set', () => {
+      const output = renderToHtml('<span class="quote-inline">RE: x</span>', {
+        hideQuoteInline: true
+      })
+      expect(output).toContain('class="hidden"')
+      expect(output).not.toContain('quote-inline')
+    })
+
+    it('hides an anchor-level quote-inline marker when hideQuoteInline is set', () => {
+      const output = renderToHtml(
+        '<a href="https://remote.test/statuses/9" class="quote-inline">x</a>',
+        { hideQuoteInline: true }
+      )
+      expect(output).toContain('class="hidden"')
+      expect(output).not.toContain('quote-inline')
+    })
+
+    it('leaves the fallback visible by default', () => {
+      const output = renderToHtml(paragraph)
+      expect(output).toContain('class="quote-inline"')
+      expect(output).not.toContain('hidden')
     })
   })
 
