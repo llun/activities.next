@@ -104,6 +104,22 @@ describe('addQuoteFallbackToContent', () => {
     expect(addQuoteFallbackToContent(linked, edge())).toEqual(linked)
   })
 
+  it('skips when the content contains only the RAW form of an escapable quoted url', () => {
+    // A local status stores raw author text, so a hand-pasted link keeps its
+    // literal `&`. The raw half of the skip is what catches it — and this url
+    // must carry an escapable character, because for every other fixture the
+    // url escapes to itself, so a mutant testing only the escaped form
+    // survives them all.
+    const withAmpersand = edge({
+      quotedStatusId: 'https://charlie.example/statuses/9?ref=abc&v=2'
+    })
+    const rawMention =
+      '<p>see https://charlie.example/statuses/9?ref=abc&v=2</p>'
+    expect(addQuoteFallbackToContent(rawMention, withAmpersand)).toEqual(
+      rawMention
+    )
+  })
+
   it('skips when the content contains only the ESCAPED form of the quoted url', () => {
     // A remote quote post stores its origin server's own fallback, where an
     // `&` in the quoted id is rendered `&amp;` — the only form HTML ever
