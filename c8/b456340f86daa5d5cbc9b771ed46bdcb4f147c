@@ -1,0 +1,16 @@
+lib/database/index.ts
+  h_580a04e334fef4 15-40,42-43,45
+lib/database/sqlcommenter.test.ts
+  h_580a04e334fef4 16-25,28,42,44-45,52,54,68,70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "c8b456340f86daa5d5cbc9b771ed46bdcb4f147c",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
