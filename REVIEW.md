@@ -903,6 +903,67 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   It was applied in the emoji and reaction pickers while defined nowhere, so
   defining it would have removed their only cue.
 
+## Fetched ActivityPub document ids
+
+- A document's own `id` is a claim by whoever answered the fetch — `getNote` and
+  `getActorPerson` validate nothing. Flag any new code that resolves a database
+  row from a fetched `id`: `updatePoll` and `createAnnounce` both key on a bare
+  `where('id', ?)` with no ownership, locality or type filter, so the remote
+  server is choosing which of our rows the write lands on.
+- **Check which of the two questions the call site is asking**, because they take
+  different guards and a reviewer who unifies them breaks one of them.
+  "Did I get back the document I asked for?" (`syncRemotePoll`, which fetches the
+  canonical id it stored) is an exact id match, normalized. "Is this document
+  allowed to name that id?" (`createAnnounceJob`, where a third party chose
+  `object`) is `isSameActivityPubOrigin`. Tightening the second into an id match
+  looks like hardening and is an interop regression — this instance's own
+  `proxy.ts` serves `/@user/<id>` with an `id` of `/users/<user>/statuses/<n>`,
+  Mastodon does the same, `safeRemoteFetch` follows redirects, and
+  `createRelayAnnounceJob` already records the same fact about the same fetch.
+  Check the parser rather than a remembered list before relying on a specific
+  fold: it does scheme/host case, default port, dot segments, IDNA mapping and
+  encode-direction percent-encoding, but **not** percent-decoding and **not** a
+  trailing slash on a non-empty path.
+- The origin guard in `createAnnounceJob` does **not** make a boost's target
+  safe: an already-stored status is resolved before it and skips the branch, and
+  `createAnnounce` applies no audience check. A remote actor can still boost a
+  local followers-only status by naming its id directly (reproduced; the sibling
+  `createRelayAnnounceJob` gates it with `isPublicStatus`, this job does not).
+  Open and pre-existing — flag any comment or doc that implies the guard shuts
+  it.
+- Reject any new inline `new URL(a).host === new URL(b).host`; use
+  `isSameActivityPubOrigin`. It fails closed — a blank node, an empty string, an
+  unparseable id or a **host-less URI** (`urn:`, `did:`, `tag:`, `mailto:`, all
+  of which parse to `host === ''`) matches nothing, _including itself_. That
+  last case is the one a bare `.host` comparison silently gets wrong, so the
+  helper is intentionally stricter than the five copies it replaces on that
+  input alone. It compares the host and not the scheme, which is deliberate:
+  scheme does not partition who controls an id space, and the port — which
+  does — is already part of `host`.
+- In `createAnnounceJob` the guard must precede the `createNoteJob`/
+  `createPollJob` dispatch, not just the fallback `getStatus`. Below the
+  dispatch it still lets a lying document be persisted at an id we were never
+  pointed at. Relocating it fails exactly one test; if a reviewer sees the guard
+  move and the suite stay green, the pinning test was deleted.
+- `syncRemotePoll` writes with `statusId: status.id`, never `question.id`. That
+  is what actually closes the vulnerability, so it is not redundancy to tidy
+  away once the guard is in place.
+- An id match is not an ownership check. Where the resolved row belongs to
+  someone else, compare `normalizeActorId(attributedTo)` against the stored
+  status's `actorId`, as `updateNoteJob` and `updatePollJob` both do. The
+  inbox's `createObjectActorMismatch` only binds the payload to the _signer_,
+  which an attacker satisfies by attributing the Update to themselves.
+- **Demand a test on each side of every guard**: one that fails when it is
+  loosened, one when it is tightened. A PR carrying only the first has pinned
+  that the guard exists, not that it has the right width — which is exactly how
+  an over-strict version of this change nearly shipped.
+- Known-open and deliberately so: `createAnnounceJob` does not bind the fetched
+  note's `attributedTo` (and `actorMatchesVerifiedSender` fails open on a direct
+  call, which carries no `verifiedSenderActorId`); `recordActorIfNeeded` takes a
+  row's `id` from the request and its `domain` from the fetched `person.id`
+  unchecked. Do not treat these as covered by the guards above — they are a
+  different class (forged attribution) awaiting their own decision.
+
 ## Status delete & unboost federation
 
 - The local delete commits **first**; `SendDeleteNoteJob` federates the

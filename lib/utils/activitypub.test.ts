@@ -1,5 +1,6 @@
 import {
   extractActivityPubId,
+  isSameActivityPubOrigin,
   normalizeActivityPubAnnounce,
   normalizeActivityPubContent,
   normalizeActivityPubRecipients,
@@ -233,5 +234,142 @@ describe('normalizeActivityPubContent', () => {
   it('returns non-record value as-is', () => {
     expect(normalizeActivityPubContent('string')).toEqual('string')
     expect(normalizeActivityPubContent(null)).toEqual(null)
+  })
+})
+
+describe('isSameActivityPubOrigin', () => {
+  it.each([
+    {
+      description: 'matches identical ids',
+      first: 'https://remote.test/notes/1',
+      second: 'https://remote.test/notes/1',
+      expected: true
+    },
+    {
+      description: 'matches a same-origin permalink against a canonical id',
+      first: 'https://remote.test/users/bob/statuses/1',
+      second: 'https://remote.test/@bob/1',
+      expected: true
+    },
+    {
+      description: 'ignores an explicit default port',
+      first: 'https://remote.test/notes/1',
+      second: 'https://remote.test:443/notes/1',
+      expected: true
+    },
+    {
+      description: 'ignores host casing',
+      first: 'https://REMOTE.test/notes/1',
+      second: 'https://remote.test/notes/1',
+      expected: true
+    },
+    {
+      description: 'separates a different host',
+      first: 'https://evil.test/notes/1',
+      second: 'https://remote.test/notes/1',
+      expected: false
+    },
+    {
+      description: 'separates a subdomain from its parent',
+      first: 'https://cdn.remote.test/notes/1',
+      second: 'https://remote.test/notes/1',
+      expected: false
+    },
+    {
+      description: 'separates a non-default port',
+      first: 'https://remote.test:8443/notes/1',
+      second: 'https://remote.test/notes/1',
+      expected: false
+    },
+    {
+      description: 'separates a host that only prefixes another',
+      first: 'https://remote.test.evil.test/notes/1',
+      second: 'https://remote.test/notes/1',
+      expected: false
+    },
+    {
+      description: 'refuses a userinfo-smuggled host',
+      first: 'https://remote.test@evil.test/notes/1',
+      second: 'https://remote.test/notes/1',
+      expected: false
+    },
+    {
+      description:
+        'refuses two host-less URIs rather than reading them as one authority',
+      first: 'urn:uuid:aaaaaaaa',
+      second: 'urn:uuid:bbbbbbbb',
+      expected: false
+    },
+    {
+      description: 'refuses two host-less URIs of different schemes',
+      first: 'did:plc:abcdef',
+      second: 'tag:remote.test,2026:1',
+      expected: false
+    },
+    {
+      description: 'refuses a host-less URI against a real host',
+      first: 'urn:uuid:aaaaaaaa',
+      second: 'https://remote.test/notes/1',
+      expected: false
+    },
+    {
+      description:
+        'compares the host and NOT the scheme, matching the five inline copies',
+      first: 'http://remote.test/notes/1',
+      second: 'https://remote.test/notes/1',
+      expected: true
+    },
+    {
+      description: 'refuses a JSON-LD blank node',
+      first: '_:b0',
+      second: 'https://remote.test/notes/1',
+      expected: false
+    },
+    {
+      description: 'refuses two blank nodes rather than matching them',
+      first: '_:b0',
+      second: '_:b0',
+      expected: false
+    },
+    {
+      description: 'refuses an unparseable id',
+      first: 'not a url',
+      second: 'https://remote.test/notes/1',
+      expected: false
+    },
+    {
+      description: 'refuses two identical unparseable ids',
+      first: 'not a url',
+      second: 'not a url',
+      expected: false
+    },
+    {
+      description: 'refuses an empty id',
+      first: '',
+      second: 'https://remote.test/notes/1',
+      expected: false
+    },
+    {
+      description: 'refuses two empty ids',
+      first: '',
+      second: '',
+      expected: false
+    },
+    {
+      description: 'refuses a null id',
+      first: null,
+      second: 'https://remote.test/notes/1',
+      expected: false
+    },
+    {
+      description: 'refuses two null ids',
+      first: null,
+      second: null,
+      expected: false
+    }
+  ])('$description', ({ first, second, expected }) => {
+    expect(isSameActivityPubOrigin(first, second)).toEqual(expected)
+    // The question is symmetric; a caller must not have to know the order.
+    expect(isSameActivityPubOrigin(second, first)).toEqual(expected)
   })
 })

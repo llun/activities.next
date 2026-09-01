@@ -257,6 +257,202 @@ describe('Announce action', () => {
     expect(status.originalStatus).toEqual(boostedStatus)
   })
 
+  it('ignores an announce whose fetched object claims a different status id', async () => {
+    // A hostile server answers the announced URL with a document whose
+    // self-reported `id` is an existing status it does not own. createNoteJob
+    // no-ops on the already-stored id, so trusting it would attribute this
+    // Announce to that status — a forged boost of a post the announcer never
+    // saw, fanned out on the ANNOUNCE's own recipients.
+    const statusId = stubNoteId()
+    const announcedObjectId = 'https://somewhere.test/statuses/id-spoof-source'
+    const victimStatusId = `${actor1?.id}/statuses/post-2`
+
+    const victimBefore = await database.getStatus({ statusId: victimStatusId })
+    if (victimBefore?.type !== StatusType.enum.Note) {
+      fail('Victim fixture must be a stored Note')
+    }
+
+    fetchMock.mockOnceIf(
+      announcedObjectId,
+      JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: victimStatusId,
+        type: 'Note',
+        attributedTo: 'https://somewhere.test/actors/spoofer',
+        content: '<p>spoofed</p>',
+        published: '2026-08-30T04:27:44Z',
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: []
+      })
+    )
+
+    await expect(
+      createAnnounceJob(database, {
+        id: 'id-spoofed-object',
+        name: CREATE_ANNOUNCE_JOB_NAME,
+        data: MockAnnounceStatus({
+          actorId: ACTOR1_ID,
+          statusId,
+          announceStatusId: announcedObjectId
+        })
+      })
+    ).resolves.toBeUndefined()
+
+    // No announce row, and in particular none pointing at the victim status.
+    await expect(
+      database.getStatus({ statusId: `${statusId}/activity` })
+    ).resolves.toBeNull()
+    // Nothing was stored under the announced id either. This is a plain
+    // no-plant assertion and NOT a placement pin: createNoteJob only ever
+    // writes `note.id`, so the announced URL is never a write key and this
+    // holds under every guard placement. Placement is pinned by the companion
+    // test below, whose claimed id is unstored and therefore IS the write key —
+    // it is the only test that moves when the guard is relocated.
+    await expect(
+      database.getStatus({ statusId: announcedObjectId })
+    ).resolves.toBeNull()
+    // The victim status itself is untouched.
+    const victimAfter = await database.getStatus({ statusId: victimStatusId })
+    if (victimAfter?.type !== StatusType.enum.Note) {
+      fail('Victim status must still be a stored Note')
+    }
+    expect(victimAfter.text).toEqual(victimBefore.text)
+  })
+
+  it('stores nothing when the fetched object claims an unstored id on another host', async () => {
+    // The companion to the test above, and what pins the guard AHEAD of the
+    // createNoteJob/createPollJob dispatch rather than merely ahead of the
+    // fallback lookup. Here the claimed id is not already stored, so a guard
+    // placed after the dispatch would let the child job persist a status at an
+    // id the Announce never named — content planted on another server's id
+    // space, attributed to whatever `attributedTo` claims.
+    const statusId = stubNoteId()
+    const announcedObjectId = 'https://somewhere.test/statuses/id-plant-source'
+    const plantedStatusId = 'https://elsewhere.test/statuses/planted'
+
+    fetchMock.mockOnceIf(
+      announcedObjectId,
+      JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: plantedStatusId,
+        type: 'Note',
+        attributedTo: 'https://somewhere.test/actors/spoofer',
+        content: '<p>planted</p>',
+        published: '2026-08-30T04:27:44Z',
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: []
+      })
+    )
+
+    await expect(
+      createAnnounceJob(database, {
+        id: 'id-planted-object',
+        name: CREATE_ANNOUNCE_JOB_NAME,
+        data: MockAnnounceStatus({
+          actorId: ACTOR1_ID,
+          statusId,
+          announceStatusId: announcedObjectId
+        })
+      })
+    ).resolves.toBeUndefined()
+
+    await expect(
+      database.getStatus({ statusId: plantedStatusId })
+    ).resolves.toBeNull()
+    await expect(
+      database.getStatus({ statusId: announcedObjectId })
+    ).resolves.toBeNull()
+    await expect(
+      database.getStatus({ statusId: `${statusId}/activity` })
+    ).resolves.toBeNull()
+  })
+
+  it('accepts an announce whose fetched object id is a same-origin canonical form', async () => {
+    // The guard is on the ORIGIN, so a same-host canonicalisation — here an
+    // explicit `:443` in the Announce against the canonical form the origin
+    // serves — still resolves through the fetched-id fallback rather than being
+    // dropped. The row is stored under the fetched spelling, which is exactly
+    // what that fallback exists to find.
+    const statusId = stubNoteId()
+    const announcedObjectId =
+      'https://somewhere.test:443/statuses/announce-default-port'
+    const canonicalObjectId =
+      'https://somewhere.test/statuses/announce-default-port'
+
+    fetchMock.mockOnceIf(
+      (input) => new URL(input.url).pathname.endsWith('announce-default-port'),
+      JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: canonicalObjectId,
+        type: 'Note',
+        attributedTo: 'https://somewhere.test/actors/friend',
+        content: '<p>canonical</p>',
+        published: '2026-08-30T04:27:44Z',
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: []
+      })
+    )
+
+    await createAnnounceJob(database, {
+      id: 'id-default-port',
+      name: CREATE_ANNOUNCE_JOB_NAME,
+      data: MockAnnounceStatus({
+        actorId: ACTOR1_ID,
+        statusId,
+        announceStatusId: announcedObjectId
+      })
+    })
+
+    const status = (await database.getStatus({
+      statusId: `${statusId}/activity`
+    })) as StatusAnnounce | null
+    expect(status).not.toBeNull()
+    expect(status?.originalStatus?.id).toEqual(canonicalObjectId)
+  })
+
+  it('accepts an announce naming a same-origin permalink for the boosted status', async () => {
+    // The regression an exact-id guard would cause. A server may canonicalise a
+    // URL within its own origin: this instance's own `proxy.ts` answers
+    // `/@user/<id>` under an ActivityPub Accept header with a document whose id
+    // is `/users/<user>/statuses/<n>`, and Mastodon does the same. An Announce
+    // naming the permalink must still boost the canonical status.
+    const statusId = stubNoteId()
+    const permalinkObjectId =
+      'https://somewhere.test/@friend/announce-permalink'
+    const canonicalObjectId =
+      'https://somewhere.test/users/friend/statuses/announce-permalink'
+
+    fetchMock.mockOnceIf(
+      permalinkObjectId,
+      JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: canonicalObjectId,
+        type: 'Note',
+        attributedTo: 'https://somewhere.test/actors/friend',
+        content: '<p>via permalink</p>',
+        published: '2026-08-30T04:27:44Z',
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: []
+      })
+    )
+
+    await createAnnounceJob(database, {
+      id: 'id-permalink',
+      name: CREATE_ANNOUNCE_JOB_NAME,
+      data: MockAnnounceStatus({
+        actorId: ACTOR1_ID,
+        statusId,
+        announceStatusId: permalinkObjectId
+      })
+    })
+
+    const status = (await database.getStatus({
+      statusId: `${statusId}/activity`
+    })) as StatusAnnounce | null
+    expect(status).not.toBeNull()
+    expect(status?.originalStatus?.id).toEqual(canonicalObjectId)
+  })
+
   it('gracefully ignores malformed announce payloads without error', async () => {
     await expect(
       createAnnounceJob(database, {
