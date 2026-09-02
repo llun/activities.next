@@ -144,7 +144,7 @@ jobs:
           if [ ${#code_files[@]} -gt 0 ]; then
             echo "Resolving code conflicts with Aider: ${code_files[*]}"
             aider \
-              --model gemini/gemini-3.7-flash \
+              --model gemini/gemini-3.8-flash \
               --no-auto-commits \
               --yes \
               --message "
