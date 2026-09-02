@@ -27,6 +27,7 @@ describe('robots metadata route', () => {
         '/oauth/',
         '/search',
         '/settings',
+        '/tags',
         '/users/'
       ]
     })

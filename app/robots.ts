@@ -24,6 +24,7 @@ export default function robots(): MetadataRoute.Robots {
         '/oauth/',
         '/search',
         '/settings',
+        '/tags',
         '/users/'
       ]
     }
