@@ -1,0 +1,14 @@
+.github/workflows/sync-main-to-oltp.yml
+  h_580a04e334fef4 20,159,184
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "bcd3e0306ea14af1f7900bc848e97dd3eb427478",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
