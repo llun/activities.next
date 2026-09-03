@@ -581,6 +581,9 @@ describe('Attachments', () => {
       )
 
       expect(screen.queryByText(/ALT/)).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /alt text/i })
+      ).not.toBeInTheDocument()
     })
 
     it('stops click propagation when clicking on the alt text list item', () => {
@@ -632,6 +635,7 @@ describe('Attachments', () => {
         name: 'Collapse alt text'
       })
       expect(toggleButton).toHaveAttribute('aria-expanded', 'true')
+      expect(toggleButton).toHaveAttribute('aria-controls')
       expect(screen.getByText('First description')).toBeInTheDocument()
       expect(screen.getByText('Second description')).toBeInTheDocument()
 
@@ -639,12 +643,14 @@ describe('Attachments', () => {
       fireEvent.click(toggleButton)
       expect(toggleButton).toHaveAttribute('aria-expanded', 'false')
       expect(toggleButton).toHaveAttribute('aria-label', 'Expand alt text')
+      expect(toggleButton).not.toHaveAttribute('aria-controls')
       expect(screen.queryByText('First description')).not.toBeInTheDocument()
       expect(screen.queryByText('Second description')).not.toBeInTheDocument()
 
       // Re-expand
       fireEvent.click(toggleButton)
       expect(toggleButton).toHaveAttribute('aria-expanded', 'true')
+      expect(toggleButton).toHaveAttribute('aria-controls')
       expect(toggleButton).toHaveAttribute('aria-label', 'Collapse alt text')
       expect(screen.getByText('First description')).toBeInTheDocument()
       expect(screen.getByText('Second description')).toBeInTheDocument()

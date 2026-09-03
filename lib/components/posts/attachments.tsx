@@ -422,7 +422,7 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
               <button
                 type="button"
                 aria-expanded={isAltExpanded}
-                aria-controls={altListId}
+                aria-controls={isAltExpanded ? altListId : undefined}
                 aria-label={
                   isAltExpanded ? 'Collapse alt text' : 'Expand alt text'
                 }
