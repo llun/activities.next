@@ -263,4 +263,81 @@ describe('[actor] followers page', () => {
     expect(followList).toBeInTheDocument()
     expect(followList).toHaveAttribute('data-empty-message', 'No followers yet')
   })
+
+  it('renders PageHeader when user is logged in', async () => {
+    mockGetServerAuthSession.mockResolvedValue({
+      user: { email: 'user@llun.test' }
+    } as never)
+    mockIsLocalFederationDomain.mockResolvedValue(true)
+    mockGetProfileData.mockResolvedValue({
+      person: {
+        id: 'https://llun.test/users/llun',
+        preferredUsername: 'llun'
+      } as unknown as Parameters<typeof getProfileData>[0] extends never
+        ? never
+        : NonNullable<Awaited<ReturnType<typeof getProfileData>>>['person'],
+      statuses: [],
+      statusesCount: 0,
+      statusPagination: { nextPageUrl: null, prevPageUrl: null },
+      attachments: [],
+      followingCount: 0,
+      followersCount: 42,
+      isInternalAccount: true,
+      hasFitnessData: false
+    })
+    mockDatabase.getFollowers.mockResolvedValue([])
+
+    const result = await Page({
+      params: Promise.resolve({ actor: '@llun@llun.test' })
+    })
+
+    const { render, screen } = await import('@testing-library/react')
+    const { container } = render(result as React.ReactElement)
+
+    expect(container.querySelector('.sticky')).toBeInTheDocument()
+    expect(screen.getByText('Followers')).toBeInTheDocument()
+    expect(screen.getByText('42 accounts')).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Back to profile' })
+    ).toHaveAttribute('href', '/@llun@llun.test')
+  })
+
+  it('renders navigation text and follower count on the same line without PageHeader when anonymous', async () => {
+    mockGetServerAuthSession.mockResolvedValue(null)
+    mockIsLocalFederationDomain.mockResolvedValue(true)
+    mockGetProfileData.mockResolvedValue({
+      person: {
+        id: 'https://llun.test/users/llun',
+        preferredUsername: 'llun'
+      } as unknown as Parameters<typeof getProfileData>[0] extends never
+        ? never
+        : NonNullable<Awaited<ReturnType<typeof getProfileData>>>['person'],
+      statuses: [],
+      statusesCount: 0,
+      statusPagination: { nextPageUrl: null, prevPageUrl: null },
+      attachments: [],
+      followingCount: 0,
+      followersCount: 42,
+      isInternalAccount: true,
+      hasFitnessData: false
+    })
+    mockDatabase.getFollowers.mockResolvedValue([])
+
+    const result = await Page({
+      params: Promise.resolve({ actor: '@llun@llun.test' })
+    })
+
+    const { render, screen } = await import('@testing-library/react')
+    const { container } = render(result as React.ReactElement)
+
+    expect(container.querySelector('.sticky')).not.toBeInTheDocument()
+    const heading = screen.getByRole('heading', { name: 'Followers' })
+    expect(heading).toBeInTheDocument()
+    const count = screen.getByText('42 accounts')
+    expect(count).toBeInTheDocument()
+    expect(heading.parentElement).toBe(count.parentElement)
+    expect(
+      screen.getByRole('link', { name: 'Back to profile' })
+    ).toHaveAttribute('href', '/@llun@llun.test')
+  })
 })
