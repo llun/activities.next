@@ -111,7 +111,9 @@ describe('Update note visibility action', () => {
 
       expect(getQueue().publish).toHaveBeenCalledTimes(1)
       expect(getQueue().publish).toHaveBeenCalledWith({
-        id: getHashFromString(`${ACTOR1_ID}/statuses/post-2`),
+        id: getHashFromString(
+          `${ACTOR1_ID}/statuses/post-2#update/${result?.updatedAt}`
+        ),
         name: SEND_UPDATE_NOTE_JOB_NAME,
         data: {
           actorId: actor1.id,

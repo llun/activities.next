@@ -1925,10 +1925,11 @@ system's `Attachments` component.
   uses a statusId that is deliberately NOT in the database for that reason.
 - **The dedup id is `getHashFromString(`${statusId}#delete`)`, and the suffix is
   correctness.** The queue deduplicates globally on `message.id` across job
-  names, with a window that outlives consumption, and `SendNoteJob` /
-  `SendUpdateNoteJob` already publish under the bare `getHashFromString(statusId)`
-  — without the suffix, deleting a status posted or edited inside that window is
-  silently dropped and never federates.
+  names, with a window that outlives consumption (`SendNoteJob` publishes under
+  bare `getHashFromString(statusId)` and `SendUpdateNoteJob` under
+  `getHashFromString(`${statusId}#update/${updatedStatus.updatedAt}`)`) — without
+  the suffix, deleting a status posted or edited inside that window is silently
+  dropped and never federates.
 - **Unboost carries more than the audience, because its activity embeds the
   Announce.** `undoAnnounce` (`lib/activities/index.ts`) builds its object from
   `id`, `actorId`, `createdAt`, `to`, `cc` and `originalStatus.id`, so the job

@@ -65,6 +65,7 @@ interface PostActivityToInboxParams {
   activity: object
   logPrefix: string
   silenceTimeout?: boolean
+  recordOnlyErrorOnSpan?: boolean
 }
 
 /**
@@ -80,7 +81,8 @@ const postActivityToInbox = async ({
   currentActor,
   activity,
   logPrefix,
-  silenceTimeout = false
+  silenceTimeout = false,
+  recordOnlyErrorOnSpan = false
 }: PostActivityToInboxParams): Promise<number | undefined> => {
   const method = 'POST'
   try {
@@ -106,7 +108,9 @@ const postActivityToInbox = async ({
     // Normalize non-Error throws so recording/logging can't itself throw.
     const exception = error instanceof Error ? error : new Error(String(error))
     span.recordException(exception)
-    logger.error(`[${logPrefix}] ${exception.message}`)
+    if (!recordOnlyErrorOnSpan) {
+      logger.error(`[${logPrefix}] ${exception.message}`)
+    }
     return undefined
   }
 }
@@ -221,14 +225,21 @@ export const sendUpdateNote = async ({
         cc: note.cc,
         object: note
       }
-      await postActivityToInbox({
+      const statusCode = await postActivityToInbox({
         span,
         inbox,
         currentActor,
         activity,
         logPrefix: 'sendUpdateNote',
-        silenceTimeout: true
+        silenceTimeout: true,
+        recordOnlyErrorOnSpan: true
       })
+      if (statusCode !== undefined && !isAcceptedStatusCode(statusCode)) {
+        const error = new Error(`Failed to update note: HTTP ${statusCode}`)
+        span.recordException(error)
+        span.setAttribute('http.status_code', statusCode)
+        throw error
+      }
     }
   )
 
