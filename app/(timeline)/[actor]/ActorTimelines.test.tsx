@@ -698,7 +698,7 @@ describe('ActorTimelines', () => {
   })
 
   describe('Pixelfed profile timeline view', () => {
-    it('renders only the Media tab as default when isPixelfed is true', () => {
+    it('removes the tab bar completely when isPixelfed is true', () => {
       const { container } = render(
         <ActorTimelines
           host="localhost:3000"
@@ -712,12 +712,12 @@ describe('ActorTimelines', () => {
         />
       )
 
-      expect(screen.getByRole('button', { name: 'Media' })).toBeInTheDocument()
       expect(
-        container
-          .querySelector('[data-active-tab]')
-          ?.getAttribute('data-active-tab')
-      ).toBe('media')
+        screen.queryByRole('button', { name: 'Media' })
+      ).not.toBeInTheDocument()
+      expect(
+        container.querySelector('[data-active-tab]')
+      ).not.toBeInTheDocument()
       expect(
         screen.queryByRole('button', { name: 'Posts' })
       ).not.toBeInTheDocument()

@@ -360,6 +360,43 @@ export const ActorTimelines: FC<Props> = ({
       <EmptyState>{emptyMessage}</EmptyState>
     )
 
+  if (isPixelfed) {
+    return (
+      <div className="space-y-4">
+        {attachments.length > 0 ||
+        currentStatuses.some(
+          (s) => s.type === StatusType.enum.Note && s.attachments.length > 0
+        ) ? (
+          <ActorMediaGallery
+            actorId={actorId}
+            initialAttachments={attachments}
+            statuses={currentStatuses}
+            isPixelfed={true}
+          />
+        ) : (
+          <EmptyState>No media yet</EmptyState>
+        )}
+
+        {canLoadMore && (
+          <div ref={loadMoreRef} className="text-center">
+            {loadMoreError && (
+              <p className="mb-3 text-sm text-destructive" role="alert">
+                {loadMoreError}
+              </p>
+            )}
+            <Button
+              variant="outline"
+              disabled={isLoadingMoreStatuses}
+              onClick={loadMoreStatuses}
+            >
+              {isLoadingMoreStatuses ? 'Loading...' : 'Load more'}
+            </Button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       <Tabs
@@ -368,50 +405,38 @@ export const ActorTimelines: FC<Props> = ({
         className="w-full gap-4"
       >
         <TabsList className="w-full sm:w-fit" aria-label="Profile sections">
-          {!isPixelfed && (
-            <>
-              <TabsTrigger value="posts" className="flex-1 sm:flex-none">
-                Posts
-              </TabsTrigger>
-              <TabsTrigger value="replies" className="flex-1 sm:flex-none">
-                Replies
-              </TabsTrigger>
-            </>
-          )}
+          <TabsTrigger value="posts" className="flex-1 sm:flex-none">
+            Posts
+          </TabsTrigger>
+          <TabsTrigger value="replies" className="flex-1 sm:flex-none">
+            Replies
+          </TabsTrigger>
           <TabsTrigger value="media" className="flex-1 sm:flex-none">
             Media
           </TabsTrigger>
-          {showFitnessTab && !isPixelfed && (
+          {showFitnessTab && (
             <TabsTrigger value="fitness" className="flex-1 sm:flex-none">
               Fitness
             </TabsTrigger>
           )}
         </TabsList>
 
-        {!isPixelfed && (
-          <>
-            <TabsContent value="posts" className="mt-0">
-              {renderFeed(postStatuses, 'No posts yet')}
-            </TabsContent>
+        <TabsContent value="posts" className="mt-0">
+          {renderFeed(postStatuses, 'No posts yet')}
+        </TabsContent>
 
-            <TabsContent value="replies" className="mt-0">
-              {renderFeed(replyStatuses, 'No replies yet')}
-            </TabsContent>
-          </>
-        )}
+        <TabsContent value="replies" className="mt-0">
+          {renderFeed(replyStatuses, 'No replies yet')}
+        </TabsContent>
 
         <TabsContent value="media" className="mt-0">
-          {attachments.length > 0 ||
-          (isPixelfed &&
-            currentStatuses.some(
-              (s) => s.type === StatusType.enum.Note && s.attachments.length > 0
-            )) ? (
+          {attachments.length > 0 ? (
             <div className="rounded-xl border bg-card p-2 shadow-sm sm:p-4">
               <ActorMediaGallery
                 actorId={actorId}
                 initialAttachments={attachments}
                 statuses={currentStatuses}
-                isPixelfed={isPixelfed}
+                isPixelfed={false}
               />
             </div>
           ) : (
@@ -419,7 +444,7 @@ export const ActorTimelines: FC<Props> = ({
           )}
         </TabsContent>
 
-        {showFitnessTab && !isPixelfed && (
+        {showFitnessTab && (
           <TabsContent value="fitness" className="mt-0 space-y-4">
             {isCurrentUser && (
               <div className="flex justify-end">
