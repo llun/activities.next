@@ -826,4 +826,36 @@ describe('safeRemoteFetch', () => {
       [null, addresses[0]?.address, addresses[0]?.family]
     ])
   })
+
+  it('enables HTTP/2 auto-detection when delegating to got transport', async () => {
+    let observedOptions: { http2?: boolean } | undefined
+    mockGotStream.mockImplementationOnce((_url: string, options: unknown) => {
+      observedOptions = options as { http2?: boolean }
+      const stream = new Readable({
+        read() {}
+      })
+      process.nextTick(() => {
+        stream.emit('response', {
+          headers: {},
+          statusCode: 200
+        })
+        stream.push('ok')
+        stream.push(null)
+      })
+      return stream
+    })
+    const safeRemoteFetch = createSafeRemoteFetch({
+      resolveHost: async () => [SAFE_ADDRESS]
+    })
+
+    await expect(
+      safeRemoteFetch({ url: 'https://safe.example/actor' })
+    ).resolves.toMatchObject({
+      body: 'ok',
+      statusCode: 200
+    })
+    expect(observedOptions).toMatchObject({
+      http2: true
+    })
+  })
 })
