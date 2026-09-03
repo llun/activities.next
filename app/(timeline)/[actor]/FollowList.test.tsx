@@ -105,4 +105,23 @@ describe('FollowList', () => {
 
     expect(screen.getByText('Hello world biography')).toBeInTheDocument()
   })
+
+  it('strips html tags and decodes entities from summary', () => {
+    const user = actorProfile('https://example.test/users/bio', 'bio')
+    user.summary =
+      '<p>I write curl. I don&#39;t know anything &amp; <a href="https://example.com">more</a>.</p>'
+    render(<FollowList users={[user]} isLoggedIn />)
+
+    expect(
+      screen.getByText("I write curl. I don't know anything & more.")
+    ).toBeInTheDocument()
+  })
+
+  it('does not render summary element when summary consists only of empty html tags', () => {
+    const user = actorProfile('https://example.test/users/bio', 'bio')
+    user.summary = '<p>   </p>'
+    const { container } = render(<FollowList users={[user]} isLoggedIn />)
+
+    expect(container.querySelector('.line-clamp-1')).not.toBeInTheDocument()
+  })
 })
