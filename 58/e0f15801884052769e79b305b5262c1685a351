@@ -1,0 +1,20 @@
+app/(timeline)/[actor]/followers/page.test.tsx
+  h_580a04e334fef4 305
+app/(timeline)/[actor]/followers/page.tsx
+  h_580a04e334fef4 141,146,150-155
+app/(timeline)/[actor]/following/page.test.tsx
+  h_580a04e334fef4 308
+app/(timeline)/[actor]/following/page.tsx
+  h_580a04e334fef4 141,146,150-155
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "58e0f15801884052769e79b305b5262c1685a351",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
