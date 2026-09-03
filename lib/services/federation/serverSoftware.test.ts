@@ -10,6 +10,8 @@ import {
   clearServerSoftwareCache,
   getServerSoftware,
   getServerSoftwareCacheSizeForTests,
+  isMisskeyActor,
+  isMisskeyDomain,
   isPixelfedActor,
   isPixelfedDomain
 } from './serverSoftware'
@@ -273,5 +275,108 @@ describe('serverSoftware', () => {
     }
 
     expect(getServerSoftwareCacheSizeForTests()).toBe(MAX_CACHED_DOMAINS)
+  })
+
+  it('detects Misskey and fork instances via NodeInfo', async () => {
+    const domain = 'misskey.example'
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `https://${domain}/.well-known/nodeinfo`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            links: [
+              {
+                rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
+                href: `https://${domain}/nodeinfo/2.0`
+              }
+            ]
+          })
+        }
+      }
+      if (req.url === `https://${domain}/nodeinfo/2.0`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            software: {
+              name: 'Misskey',
+              version: '2025.4.1'
+            }
+          })
+        }
+      }
+      return { status: 404, body: 'Not Found' }
+    })
+
+    expect(await isMisskeyDomain(domain)).toBe(true)
+    const person = MockActivityPubPerson({
+      id: `https://${domain}/users/7rkrarq81i`
+    }) as Actor
+    expect(await isMisskeyActor(person)).toBe(true)
+  })
+
+  it('detects Sharkey and Firefish as Misskey family', async () => {
+    const sharkeyDomain = 'sharkey.example'
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `https://${sharkeyDomain}/.well-known/nodeinfo`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            links: [
+              {
+                rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
+                href: `https://${sharkeyDomain}/nodeinfo/2.0`
+              }
+            ]
+          })
+        }
+      }
+      if (req.url === `https://${sharkeyDomain}/nodeinfo/2.0`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            software: {
+              name: 'sharkey',
+              version: '2024.1.0'
+            }
+          })
+        }
+      }
+      return { status: 404, body: 'Not Found' }
+    })
+
+    expect(await isMisskeyDomain(sharkeyDomain)).toBe(true)
+  })
+
+  it('returns false for non-Misskey software in isMisskeyDomain', async () => {
+    const mastodonDomain = 'mastodon.example'
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `https://${mastodonDomain}/.well-known/nodeinfo`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            links: [
+              {
+                rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
+                href: `https://${mastodonDomain}/nodeinfo/2.0`
+              }
+            ]
+          })
+        }
+      }
+      if (req.url === `https://${mastodonDomain}/nodeinfo/2.0`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            software: {
+              name: 'mastodon',
+              version: '4.3.0'
+            }
+          })
+        }
+      }
+      return { status: 404, body: 'Not Found' }
+    })
+
+    expect(await isMisskeyDomain(mastodonDomain)).toBe(false)
   })
 })

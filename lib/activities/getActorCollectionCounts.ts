@@ -1,4 +1,6 @@
 import { fetchCollectionRoot } from '@/lib/activities/getActorCollections'
+import { getMisskeyCollectionCounts } from '@/lib/activities/getMisskeyCollectionCounts'
+import { isMisskeyActor } from '@/lib/services/federation/serverSoftware'
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
@@ -58,10 +60,25 @@ export const getActorCollectionCounts = async ({
   person,
   signingActor
 }: Params): Promise<ActorCollectionCounts> => {
-  const [followersCount, followingCount, statusesCount] = await Promise.all([
+  let [followersCount, followingCount, statusesCount] = await Promise.all([
     getCollectionTotalItems(person, 'followers', signingActor),
     getCollectionTotalItems(person, 'following', signingActor),
     getCollectionTotalItems(person, 'outbox', signingActor)
   ])
+
+  if (followersCount === null || followingCount === null) {
+    if (await isMisskeyActor(person)) {
+      const misskeyCounts = await getMisskeyCollectionCounts({
+        person,
+        currentCounts: { followersCount, followingCount, statusesCount }
+      })
+      followersCount = misskeyCounts.followersCount
+      followingCount = misskeyCounts.followingCount
+      if (statusesCount === null) {
+        statusesCount = misskeyCounts.statusesCount
+      }
+    }
+  }
+
   return { followersCount, followingCount, statusesCount }
 }

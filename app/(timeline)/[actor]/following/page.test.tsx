@@ -343,4 +343,34 @@ describe('[actor] following page', () => {
       screen.getByRole('link', { name: 'Back to profile' })
     ).toHaveAttribute('href', '/@llun@llun.test')
   })
+
+  it('renders gracefully without count subtitle when followingCount is null', async () => {
+    mockGetServerAuthSession.mockResolvedValue({
+      user: { email: 'user@llun.social' }
+    } as never)
+    mockIsLocalFederationDomain.mockResolvedValue(true)
+    mockGetProfileData.mockResolvedValue({
+      person: {
+        id: 'https://llun.social/users/user',
+        preferredUsername: 'user'
+      } as never,
+      followersCount: 10,
+      followingCount: null,
+      statusesCount: 5,
+      attachments: [],
+      isInternalAccount: false,
+      hasFitnessData: false,
+      statuses: [],
+      statusPagination: { nextPageUrl: null, prevPageUrl: null }
+    })
+    mockDatabase.getFollowing.mockResolvedValue([])
+
+    const element = await Page({
+      params: Promise.resolve({ actor: '@user@llun.social' })
+    })
+    render(element)
+
+    expect(screen.getByText('Following')).toBeInTheDocument()
+    expect(screen.queryByText(/accounts/)).not.toBeInTheDocument()
+  })
 })

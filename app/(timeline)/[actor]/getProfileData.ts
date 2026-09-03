@@ -29,8 +29,8 @@ type ProfileData = {
     prevPageUrl: string | null
   }
   attachments: Attachment[]
-  followingCount: number
-  followersCount: number
+  followingCount: number | null
+  followersCount: number | null
   isInternalAccount: boolean
   hasFitnessData: boolean
   isPixelfed?: boolean
@@ -306,8 +306,8 @@ export const getProfileData = async (
         : actorPostsResponse.statuses.flatMap((status) =>
             status.type === StatusType.enum.Note ? status.attachments : []
           ),
-    followingCount: collectionCounts.followingCount ?? 0,
-    followersCount: collectionCounts.followersCount ?? 0,
+    followingCount: collectionCounts.followingCount,
+    followersCount: collectionCounts.followersCount,
     isInternalAccount: false,
     hasFitnessData: false,
     isPixelfed: await isPixelfedActor(person)
