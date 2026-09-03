@@ -31,4 +31,20 @@ describe('FollowListLoadingSkeleton', () => {
     leaves.forEach((el) => expect(el).toHaveClass('skeleton'))
     expect(container.querySelector('.animate-pulse')).toBeNull()
   })
+
+  it('renders dual header variants for signed-in and anonymous shells', () => {
+    const { container } = render(
+      <FollowListLoadingSkeleton label="Loading followers" />
+    )
+    const stickyHeader = container.querySelector('.sticky')
+    expect(stickyHeader).toBeInTheDocument()
+    expect(stickyHeader).toHaveClass('top-0')
+    expect(stickyHeader).toHaveClass('group-data-[shell=public]/shell:hidden')
+
+    const anonHeader = container.querySelector(
+      '.group-data-\\[shell\\=public\\]\\/shell\\:flex'
+    )
+    expect(anonHeader).toBeInTheDocument()
+    expect(anonHeader).toHaveClass('hidden')
+  })
 })

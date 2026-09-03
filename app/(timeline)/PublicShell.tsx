@@ -21,7 +21,7 @@ export const PublicShell: FC<PublicShellProps> = ({ children }) => (
   // min-h-dvh (dynamic viewport height) rather than min-h-screen/100vh so the
   // footer stays at the bottom without a mobile address-bar gap — same
   // rationale as the public error pages (lib/components/error-page.tsx).
-  <div className="flex min-h-dvh flex-col">
+  <div data-shell="public" className="group/shell flex min-h-dvh flex-col">
     <PublicTopBar />
     <main className="flex flex-1 flex-col overflow-x-clip">
       <div className="mx-auto flex w-full max-w-[680px] flex-1 flex-col px-4 py-6">
