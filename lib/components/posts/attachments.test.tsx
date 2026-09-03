@@ -296,8 +296,11 @@ describe('Attachments', () => {
       const alt = screen.getByText('A mountaineer hiking on a ridge')
       expect(alt).toBeInTheDocument()
       expect(alt).toHaveClass('text-muted-foreground', 'text-sm')
-      // Single image should not render an ALT badge
+      // Single image should not render an ALT badge or collapse/expand toggle button
       expect(screen.queryByText(/ALT/)).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /alt text/i })
+      ).not.toBeInTheDocument()
     })
 
     it('does not render alt text underneath when name is empty or whitespace', () => {
@@ -603,6 +606,76 @@ describe('Attachments', () => {
       )
 
       fireEvent.click(screen.getByText('Cat photo'))
+      expect(parentOnClick).not.toHaveBeenCalled()
+    })
+
+    it('expands alt text by default and allows collapsing and re-expanding', () => {
+      const first = buildAttachment({
+        width: 800,
+        height: 600,
+        name: 'First description'
+      })
+      const second = buildAttachment({
+        width: 800,
+        height: 600,
+        name: 'Second description'
+      })
+
+      render(
+        <Attachments
+          status={buildNoteStatus([first, second])}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      const toggleButton = screen.getByRole('button', {
+        name: 'Collapse alt text'
+      })
+      expect(toggleButton).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByText('First description')).toBeInTheDocument()
+      expect(screen.getByText('Second description')).toBeInTheDocument()
+
+      // Collapse
+      fireEvent.click(toggleButton)
+      expect(toggleButton).toHaveAttribute('aria-expanded', 'false')
+      expect(toggleButton).toHaveAttribute('aria-label', 'Expand alt text')
+      expect(screen.queryByText('First description')).not.toBeInTheDocument()
+      expect(screen.queryByText('Second description')).not.toBeInTheDocument()
+
+      // Re-expand
+      fireEvent.click(toggleButton)
+      expect(toggleButton).toHaveAttribute('aria-expanded', 'true')
+      expect(toggleButton).toHaveAttribute('aria-label', 'Collapse alt text')
+      expect(screen.getByText('First description')).toBeInTheDocument()
+      expect(screen.getByText('Second description')).toBeInTheDocument()
+    })
+
+    it('stops click propagation when clicking on the collapse/expand button', () => {
+      const parentOnClick = vi.fn()
+      const first = buildAttachment({
+        width: 800,
+        height: 600,
+        name: 'Cat photo'
+      })
+      const second = buildAttachment({
+        width: 800,
+        height: 600,
+        name: 'Dog photo'
+      })
+
+      render(
+        <div onClick={parentOnClick}>
+          <Attachments
+            status={buildNoteStatus([first, second])}
+            onMediaSelected={vi.fn()}
+          />
+        </div>
+      )
+
+      const toggleButton = screen.getByRole('button', {
+        name: 'Collapse alt text'
+      })
+      fireEvent.click(toggleButton)
       expect(parentOnClick).not.toHaveBeenCalled()
     })
   })
