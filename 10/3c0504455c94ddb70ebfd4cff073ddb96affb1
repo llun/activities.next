@@ -1,0 +1,14 @@
+docs/architecture.md
+  h_580a04e334fef4 230,233-242
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "103c0504455c94ddb70ebfd4cff073ddb96affb1",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
