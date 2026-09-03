@@ -1,0 +1,34 @@
+AGENTS.md
+  h_580a04e334fef4 166
+lib/activities/quoteNoteFields.test.ts
+  h_580a04e334fef4 147-172
+lib/activities/quoteNoteFields.ts
+  h_580a04e334fef4 65-66,70,72,76-87
+lib/database/sql/status.ts
+  h_580a04e334fef4 2037,2044,2054-2063,2073-2082
+lib/database/sql/statusQuote.test.ts
+  h_580a04e334fef4 10,32-35,37,44,444,499,501-516
+lib/services/mastodon/getMastodonStatus.test.ts
+  h_580a04e334fef4 1954-1968,1990-2002
+lib/services/mastodon/getMastodonStatus.ts
+  h_580a04e334fef4 1,19,652-731,763
+lib/services/mastodon/getMastodonStatusEdits.ts
+  h_580a04e334fef4 1,74-80,82
+lib/types/domain/status.test.ts
+  h_580a04e334fef4 457-470
+lib/types/domain/status.ts
+  h_580a04e334fef4 123
+lib/utils/getNoteFromStatus.test.ts
+  h_580a04e334fef4 74-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "b55d5dd855b10d43c538b8d63cd1e06ba6681ed6",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
