@@ -9,7 +9,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **ActivityPub federation** — Send and receive activities with other Fediverse servers
 - ✅ **Notes** — Create, receive, edit, and delete posts
 - ✅ **Replies** — Threaded conversation support, including on-demand fetching of full remote reply threads when viewing a remote status
-- ✅ **Image attachments** — Upload and display images in posts
+- ✅ **Image and video attachments** — Upload and display images and video in posts (with automatic preview frames and blurhash)
 - ✅ **Boost / Repost** — Share other users' posts (with undo)
 - ✅ **Like / Favorite** — React to posts (with undo)
 - ✅ **Polls** — Create, vote on, and view poll results (single and multiple choice)

@@ -339,13 +339,18 @@ activities.next/
 ├── app/                       # Next.js App Router
 │   ├── (timeline)/            # Timeline routes (with sidebar)
 │   ├── (nosidebar)/           # Auth routes (no sidebar)
+│   ├── embed/                 # Public embed widgets (heatmaps)
+│   ├── health/                # Health liveness probe
 │   ├── api/                   # API routes
 │   │   ├── auth/              #   Authentication (better-auth)
-│   │   ├── v1/               #   Mastodon-compatible API v1
-│   │   ├── v2/               #   Mastodon-compatible API v2
-│   │   ├── users/            #   ActivityPub actor endpoints
-│   │   ├── oauth/            #   OAuth 2.0 provider
-│   │   └── well-known/       #   Federation discovery
+│   │   ├── inbox/             #   Shared ActivityPub inbox
+│   │   ├── nodeinfo/          #   NodeInfo 2.0 / 2.1 metadata
+│   │   ├── oauth/             #   OAuth 2.0 provider
+│   │   ├── oembed/            #   Public oEmbed endpoint
+│   │   ├── users/             #   ActivityPub actor endpoints
+│   │   ├── v1/                #   Mastodon-compatible API v1
+│   │   ├── v2/                #   Mastodon-compatible API v2
+│   │   └── well-known/        #   Federation discovery
 │   └── layout.tsx             # Root layout
 ├── lib/                       # Core application logic
 │   ├── actions/               # Server actions
@@ -361,7 +366,7 @@ activities.next/
 ├── docs/                      # Documentation
 ├── lint/                      # Local Oxlint JS plugin (AGENTS.md conventions)
 ├── public/                    # Static assets
-└── scripts/                   # Development/admin scripts
+└── scripts/                   # Development/admin scripts (backup/, fitness/, maintenance/, mock/)
 ```
 
 ### Important Files
