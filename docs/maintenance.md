@@ -115,6 +115,71 @@ The script includes several safety features:
 
 **Warning**: Always run with `--dry-run` first to verify the files to be deleted are indeed orphaned.
 
+## Production Snapshot Backup and Restore
+
+Activity.next provides scripts to create a full, standalone archive of a production instance (database rows and storage files) and to restore that snapshot into a local development environment.
+
+### Downloading a Production Archive
+
+The `downloadProductionArchive.ts` script connects to your production database, exports all table data (chunked in pages), and packages referenced media/fitness files into a gzip-compressed tar archive (`.tar.gz`):
+
+```bash
+# Download production archive with referenced media/fitness files (default)
+NODE_ENV=production ./scripts/backup/downloadProductionArchive.ts
+
+# Include all files in storage, even unreferenced ones
+NODE_ENV=production ./scripts/backup/downloadProductionArchive.ts --storage-scope all
+
+# Export database rows only (skip storage files)
+NODE_ENV=production ./scripts/backup/downloadProductionArchive.ts --skip-storage
+
+# Show help and available options
+./scripts/backup/downloadProductionArchive.ts --help
+```
+
+#### Options
+
+- `--env-file <path>` — Path to the environment configuration file to load (default: `.env.production`).
+- `--output-dir <path>` — Destination directory for archives (default: `backups/production-archives`).
+- `--storage-scope <referenced|all>` — Scope of files to include: `referenced` (default; only files linked to database rows) or `all` (every object in storage).
+- `--allow-missing-storage` — Warn and continue if a referenced storage object cannot be fetched, recording missing items in the archive manifest.
+- `--skip-database` — Package storage files only without exporting database tables.
+- `--skip-storage` — Export database tables only without packaging storage files.
+
+### Restoring a Production Archive into Local Development
+
+The `restoreProductionArchive.ts` script restores a downloaded archive into your local development environment: it validates local database connectivity, imports database tables in topological foreign-key order, runs Knex migrations to ensure schema currency, and extracts storage files into your local storage directory.
+
+```bash
+# Restore an archive into your local environment
+./scripts/backup/restoreProductionArchive.ts \
+  --archive backups/production-archives/activitynext-production-2026-09-01T12-00-00.tar.gz \
+  --yes
+
+# Restore only the database tables
+./scripts/backup/restoreProductionArchive.ts \
+  --archive backups/production-archives/activitynext-production-2026-09-01T12-00-00.tar.gz \
+  --database-only \
+  --yes
+```
+
+#### Options
+
+- `--archive <path>` — **Required.** Path to the `.tar.gz` production archive to restore.
+- `--yes` — **Required.** Confirmation flag acknowledging that restoring overwrites local data.
+- `--env-file <path>` — Environment file to load for local target settings (default: `.env.local`).
+- `--database-only` — Restore database tables only; skip extracting files.
+- `--files-only` — Extract storage files only; skip restoring database tables.
+- `--preserve-files` — Keep existing local files instead of replacing them during file extraction.
+- `--allow-non-local-database` — Override the safety guard that prevents restoring to non-local databases (use with extreme caution).
+
+#### Safety
+
+To prevent accidental data loss or clobbering of a live instance:
+
+- `restoreProductionArchive.ts` strictly refuses to run when `NODE_ENV=production`.
+- The script checks that the target database hostname is a local address (e.g. `localhost`, `127.0.0.1`, `::1`, or SQLite file) and refuses remote hostnames unless `--allow-non-local-database` is explicitly passed.
+
 ## Actor Archive Export
 
 The `exportActorArchive.ts` script exports everything belonging to one **local**
@@ -320,6 +385,51 @@ code at `1`.
 - Stops instead of looping when a pass selects rows but changes none of them
   (its `UPDATE`s are not taking effect), and says so.
 
+## Search Index Rebuild
+
+The `rebuildSearchIndex.ts` script rebuilds full-text search indexes for accounts, hashtags, and statuses. It scans records, regenerates search tokens and searchable text, and updates the search documents table in batches.
+
+You can run it directly or via the convenience package script:
+
+```bash
+# Using the yarn script
+yarn search:reindex
+
+# Or directly through node
+node scripts/run.cjs scripts/maintenance/rebuildSearchIndex.ts
+```
+
+Batch sizing can be controlled with the `SEARCH_REINDEX_BATCH_SIZE` environment variable (default: `500`):
+
+```bash
+SEARCH_REINDEX_BATCH_SIZE=1000 yarn search:reindex
+```
+
+## Fixing Attachment URLs
+
+The `fixAttachmentUrls.ts` script fixes attachment URLs that were mistakenly stored with a local or incorrect host (such as `localhost:3000`) instead of your production domain. It inspects `attachments.url` and replaces the mismatched host with the target domain.
+
+### Usage
+
+```bash
+# Preview changes without modifying any records (recommended first)
+NODE_ENV=production ./scripts/maintenance/fixAttachmentUrls.ts --wrong-host localhost:3000 --dry-run
+
+# Run the replacement
+NODE_ENV=production ./scripts/maintenance/fixAttachmentUrls.ts --wrong-host localhost:3000
+
+# Explicitly override the target replacement host (defaults to ACTIVITIES_HOST from config)
+NODE_ENV=production ./scripts/maintenance/fixAttachmentUrls.ts \
+  --wrong-host localhost:3000 \
+  --correct-host your-domain.tld
+```
+
+### Options
+
+- `--wrong-host <host>` — The bad host to find and replace (default: `localhost:3000`).
+- `--correct-host <host>` — The replacement host (defaults to `ACTIVITIES_HOST` read from configuration).
+- `--dry-run` — Print rows that would be modified without updating the database.
+
 ## Other Scripts
 
 ### Create Mock User
@@ -331,6 +441,26 @@ Creates a test user for development/testing:
 ```
 
 > **Note:** This script is for development and testing purposes only. In production, users should register through the web interface at `/auth/signup`.
+
+### Create Mock Statuses
+
+Creates realistic mock statuses (including threaded conversations, polls, mentions, and image attachments) for a local test user to populate timelines for development:
+
+```bash
+node scripts/run.cjs scripts/mock/createMockStatuses.ts [username]
+```
+
+Defaults to `testuser` if omitted. Run after `createMockUser.ts`.
+
+### Create Mock Fitness Data
+
+Seeds completed primary fitness files (runs, rides, walks with realistic GPS tracks and device metadata) and linked fitness posts for a local test user, so the `/fitness` Overview, calendar, and Recent activities feeds render with realistic data:
+
+```bash
+node scripts/run.cjs scripts/mock/createMockFitnessData.ts [username]
+```
+
+Defaults to `testuser` if omitted. Run after `createMockUser.ts`.
 
 ### Render Email Previews
 
@@ -391,6 +521,7 @@ Useful scripts for interrupted imports, route heatmap rebuilds, and Strava maint
 
 ```bash
 NODE_ENV=production ./scripts/fitness/fixStuckFitnessProcessing.ts --actor-id https://your-domain.tld/users/username
+NODE_ENV=production ./scripts/fitness/repairFailedFitnessImports.ts --actor-id https://your-domain.tld/users/username --dry-run
 NODE_ENV=production ./scripts/fitness/recreateFitnessRouteHeatmaps.ts --actor-id https://your-domain.tld/users/username --dry-run
 NODE_ENV=production ./scripts/fitness/repairStravaActivityFiles.ts --actor-id https://your-domain.tld/users/username --dry-run
 NODE_ENV=production ./scripts/fitness/backfillFitnessMovingTime.ts --actor-id https://your-domain.tld/users/username --dry-run
@@ -626,6 +757,14 @@ single post instead of duplicates. To consolidate existing duplicate posts,
 delete them first (deleting a status detaches its files back to orphans), then
 re-run with all the activity ids.
 
+To recover all failed or orphaned imports for an actor without re-triggering each activity individually, run `repairFailedFitnessImports.ts`. It re-executes the appropriate background importer directly from stored files:
+
+```bash
+NODE_ENV=production ./scripts/fitness/repairFailedFitnessImports.ts \
+  --actor-id https://your-domain.tld/users/username \
+  [--batch-id <batch-id>] [--visibility public] [--dry-run]
+```
+
 > **Important — run these against the right database.** `@next/env` loads
 > `.env.local` at higher precedence than `.env.production` **even under**
 > `NODE_ENV=production`, so a stray `.env.local` silently points every recovery
@@ -640,14 +779,6 @@ For local archive or one-off activity imports, see the `--help` output from:
 ./scripts/fitness/importStravaArchive.ts --help
 ./scripts/fitness/resumeStravaProcessing.ts --help
 ./scripts/fitness/runImportStravaActivity.ts --help
-```
-
-Additional utility scripts:
-
-```bash
-NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --dry-run
-NODE_ENV=production ./scripts/maintenance/fixAttachmentUrls.ts --dry-run
-NODE_ENV=development ./scripts/mock/createMockStatuses.ts
 ```
 
 ## Blurhash & Smart Focus Backfill
