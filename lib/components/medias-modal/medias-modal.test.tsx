@@ -85,4 +85,44 @@ describe('MediasModal', () => {
 
     expect(screen.getByText('Second photo description')).toBeInTheDocument()
   })
+
+  it('marks off-screen carousel panels as aria-hidden and active panel as visible', () => {
+    const attachment = buildAttachment({
+      name: 'Ridge view'
+    })
+
+    render(
+      <MediasModal
+        medias={[attachment]}
+        initialSelection={0}
+        onClosed={vi.fn()}
+      />
+    )
+
+    const panels = document.body.querySelectorAll('.w-\\[300\\%\\] > div')
+    expect(panels[0]).toHaveAttribute('aria-hidden', 'true')
+    expect(panels[1]).toHaveAttribute('aria-hidden', 'false')
+    expect(panels[2]).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  it('stops touch event propagation on alt text paragraph', () => {
+    const attachment = buildAttachment({
+      name: 'Touch description'
+    })
+
+    render(
+      <MediasModal
+        medias={[attachment]}
+        initialSelection={0}
+        onClosed={vi.fn()}
+      />
+    )
+
+    const altElements = screen.getAllByText('Touch description')
+    const touchStartEvent = new Event('touchstart', { bubbles: true })
+    const stopPropagationSpy = vi.spyOn(touchStartEvent, 'stopPropagation')
+
+    altElements[1].dispatchEvent(touchStartEvent)
+    expect(stopPropagationSpy).toHaveBeenCalled()
+  })
 })

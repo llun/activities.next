@@ -50,7 +50,7 @@ export const ActorMediaGallery: FC<Props> = ({
           <button
             key={attachment.id}
             type="button"
-            className="group relative aspect-square overflow-hidden bg-muted/20"
+            className="group relative aspect-square overflow-hidden bg-muted/20 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
             onClick={() => setModalIndex(index)}
             aria-label={
               attachment.name

@@ -67,4 +67,27 @@ describe('ActorMediaGallery', () => {
     const descriptions = screen.getAllByText('Cat in the garden')
     expect(descriptions[0]).toBeInTheDocument()
   })
+
+  it('applies keyboard focus-visible outline classes on thumbnail buttons', () => {
+    const attachment = buildAttachment({
+      id: 'attachment-1',
+      name: 'Cat'
+    })
+
+    render(
+      <ActorMediaGallery
+        actorId="https://activities.local/users/llun"
+        initialAttachments={[attachment]}
+      />
+    )
+
+    const button = screen.getByRole('button', {
+      name: 'Open media: Cat'
+    })
+    expect(button).toHaveClass(
+      'focus-visible:outline-2',
+      'focus-visible:outline-offset-[-2px]',
+      'focus-visible:outline-primary'
+    )
+  })
 })
