@@ -1,7 +1,7 @@
 'use client'
 
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { CSSProperties, FC, MouseEvent, useMemo } from 'react'
+import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { CSSProperties, FC, MouseEvent, useId, useMemo, useState } from 'react'
 
 import {
   Attachment,
@@ -179,6 +179,8 @@ interface Props {
 }
 
 export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
+  const [isAltExpanded, setIsAltExpanded] = useState(true)
+  const altListId = useId()
   const attachments = useMemo(
     () => (status.type === StatusType.enum.Note ? status.attachments : []),
     [status]
@@ -417,17 +419,43 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
               className="mt-2 flex flex-col gap-1 text-sm text-muted-foreground select-text"
               onClick={(e) => e.stopPropagation()}
             >
-              {altEntries.map((entry) => (
-                <div
-                  key={entry.indices.join('-')}
-                  className="flex items-start gap-1 leading-relaxed"
-                >
-                  <sup className="shrink-0 pt-0.5 text-xs font-semibold select-none">
-                    {entry.indices.join(' ')}
-                  </sup>
-                  <span className="break-words">{entry.text}</span>
+              <button
+                type="button"
+                aria-expanded={isAltExpanded}
+                aria-controls={isAltExpanded ? altListId : undefined}
+                aria-label={
+                  isAltExpanded ? 'Collapse alt text' : 'Expand alt text'
+                }
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setIsAltExpanded((prev) => !prev)
+                }}
+                className="flex items-center gap-1 self-start text-xs font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer select-none"
+              >
+                <span>Alt text</span>
+                <ChevronDown
+                  className={cn(
+                    'size-3.5 transition-transform duration-200',
+                    isAltExpanded && 'rotate-180'
+                  )}
+                  aria-hidden="true"
+                />
+              </button>
+              {isAltExpanded ? (
+                <div id={altListId} className="flex flex-col gap-1">
+                  {altEntries.map((entry) => (
+                    <div
+                      key={entry.indices.join('-')}
+                      className="flex items-start gap-1 leading-relaxed"
+                    >
+                      <sup className="shrink-0 pt-0.5 text-xs font-semibold select-none">
+                        {entry.indices.join(' ')}
+                      </sup>
+                      <span className="break-words">{entry.text}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              ) : null}
             </div>
           ) : null}
         </>
