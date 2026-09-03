@@ -15,8 +15,10 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 const getReceiver = memoize(
   (config: Config) =>
     new Receiver({
-      currentSigningKey: config.queue?.currentSigningKey || '',
-      nextSigningKey: config.queue?.nextSigningKey || ''
+      currentSigningKey:
+        config.queue?.type === 'qstash' ? config.queue.currentSigningKey : '',
+      nextSigningKey:
+        config.queue?.type === 'qstash' ? config.queue.nextSigningKey : ''
     })
 )
 
