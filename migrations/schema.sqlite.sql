@@ -281,3 +281,7 @@ CREATE UNIQUE INDEX `accounts_email_unique` on `accounts` (`email`);
 CREATE INDEX `accountsIndex` on `accounts` (`email`, `createdAt`, `updatedAt`);
 CREATE INDEX `verificationCodeIndex` on `accounts` (`verificationCode`);
 CREATE INDEX `passwordResetCodeIndex` on `accounts` (`passwordResetCode`);
+CREATE TABLE `dead_letter_jobs` (`id` varchar(255), `job_name` varchar(255) not null, `payload` json not null, `error_message` text not null, `error_stack` text null, `attempts` integer not null default '1', `status` varchar(32) not null default 'failed', `created_at` datetime default CURRENT_TIMESTAMP, `updated_at` datetime default CURRENT_TIMESTAMP, primary key (`id`));
+CREATE INDEX `dead_letter_jobs_job_name_idx` on `dead_letter_jobs` (`job_name`);
+CREATE INDEX `dead_letter_jobs_status_idx` on `dead_letter_jobs` (`status`);
+CREATE INDEX `dead_letter_jobs_created_at_idx` on `dead_letter_jobs` (`created_at`);
