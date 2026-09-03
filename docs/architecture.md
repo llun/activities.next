@@ -227,9 +227,19 @@ On follow accept, `acceptFollowRequest` enqueues `FollowTimelineBackfillJob`. Fi
 Long-running operations (sending activities to remote servers, processing file uploads) are dispatched to a background queue. Supported backends:
 
 - **Upstash QStash** — Managed HTTP-based message queue (recommended for production)
+- **Google Cloud Tasks** — Managed HTTP-based task queue with OIDC verification and dead-letter queue support
 - **Synchronous** — Jobs execute inline (default, suitable for small instances and local development)
 
-Note the difference where a job is delayed: QStash honours `delaySeconds`, while
+#### Cloud Tasks & Dead Letter Queue (DLQ)
+
+When running with `ACTIVITIES_QUEUE_TYPE=cloudtasks`, Cloud Tasks triggers the webhook endpoint at `/api/v1/queue/cloudtasks`.
+
+- Tasks are authenticated via Google Cloud OIDC tokens (validating audience and service account email) or pre-shared webhook secrets / service account headers.
+- If task execution fails, the endpoint logs a warning and returns HTTP 500 while retry attempts are below the configured maximum (`ACTIVITIES_QUEUE_CLOUDTASKS_MAX_RETRIES`), prompting Cloud Tasks to retry with exponential backoff.
+- When maximum retries are exhausted (terminal failure), the job payload, failure message, error stack trace, and attempt count are captured in the database table `dead_letter_jobs`, and HTTP 200 is returned to acknowledge delivery and prevent infinite retries.
+- Instance administrators can inspect failed tasks, view formatted payloads and error stack traces, re-dispatch jobs, or purge discarded records via the Admin UI at `/admin/queues`.
+
+Note the difference where a job is delayed: QStash and Cloud Tasks honour `delaySeconds`, while
 the synchronous backend has no scheduler and **drops** any delayed message. Code
 that wants a delay must therefore check `getQueue().runsInline` and skip the
 delay rather than losing the job (see `syncStatusLinkPreview`).
