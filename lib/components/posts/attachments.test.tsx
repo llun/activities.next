@@ -278,6 +278,65 @@ describe('Attachments', () => {
         screen.queryByLabelText(/media attachments/)
       ).not.toBeInTheDocument()
     })
+
+    it('renders subtle alt text underneath a single image when name is provided', () => {
+      render(
+        <Attachments
+          status={buildNoteStatus([
+            buildAttachment({
+              width: 800,
+              height: 600,
+              name: 'A mountaineer hiking on a ridge'
+            })
+          ])}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      const alt = screen.getByText('A mountaineer hiking on a ridge')
+      expect(alt).toBeInTheDocument()
+      expect(alt).toHaveClass('text-muted-foreground', 'text-sm')
+      // Single image should not render an ALT badge
+      expect(screen.queryByText(/ALT/)).not.toBeInTheDocument()
+    })
+
+    it('does not render alt text underneath when name is empty or whitespace', () => {
+      const { container } = render(
+        <Attachments
+          status={buildNoteStatus([
+            buildAttachment({
+              width: 800,
+              height: 600,
+              name: '   '
+            })
+          ])}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      expect(container.querySelector('p')).not.toBeInTheDocument()
+    })
+
+    it('stops click propagation when clicking on the alt text', () => {
+      const parentOnClick = vi.fn()
+      render(
+        <div onClick={parentOnClick}>
+          <Attachments
+            status={buildNoteStatus([
+              buildAttachment({
+                width: 800,
+                height: 600,
+                name: 'Description'
+              })
+            ])}
+            onMediaSelected={vi.fn()}
+          />
+        </div>
+      )
+
+      fireEvent.click(screen.getByText('Description'))
+      expect(parentOnClick).not.toHaveBeenCalled()
+    })
   })
 
   describe('two or more images', () => {
@@ -413,6 +472,138 @@ describe('Attachments', () => {
 
       expect(screen.getAllByRole('button')).toHaveLength(7)
       expect(screen.queryByText(/^\+\d/)).not.toBeInTheDocument()
+    })
+
+    it('renders ALT badges and numbered alt text list for multiple images with descriptions', () => {
+      const first = buildAttachment({
+        width: 800,
+        height: 600,
+        name: 'First cat eating'
+      })
+      const second = buildAttachment({
+        width: 600,
+        height: 900,
+        name: 'Second cat resting'
+      })
+      const third = buildAttachment({
+        width: 1200,
+        height: 500,
+        name: ''
+      })
+
+      render(
+        <Attachments
+          status={buildNoteStatus([first, second, third])}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      // First and second have alt text -> ALT¹ and ALT² badges
+      expect(
+        screen.getByText(
+          (_content, element) =>
+            element?.tagName.toLowerCase() === 'span' &&
+            element.textContent === 'ALT1'
+        )
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          (_content, element) =>
+            element?.tagName.toLowerCase() === 'span' &&
+            element.textContent === 'ALT2'
+        )
+      ).toBeInTheDocument()
+      // Third has no alt text -> no ALT³ badge
+      expect(
+        screen.queryByText(
+          (_content, element) =>
+            element?.tagName.toLowerCase() === 'span' &&
+            element.textContent === 'ALT3'
+        )
+      ).not.toBeInTheDocument()
+
+      // Numbered alt text list underneath
+      expect(screen.getByText('First cat eating')).toBeInTheDocument()
+      expect(screen.getByText('Second cat resting')).toBeInTheDocument()
+    })
+
+    it('groups indices when multiple images share identical alt text', () => {
+      const first = buildAttachment({
+        width: 800,
+        height: 600,
+        name: 'Same landscape view'
+      })
+      const second = buildAttachment({
+        width: 600,
+        height: 900,
+        name: 'Same landscape view'
+      })
+
+      render(
+        <Attachments
+          status={buildNoteStatus([first, second])}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      expect(
+        screen.getByText(
+          (_content, element) =>
+            element?.tagName.toLowerCase() === 'span' &&
+            element.textContent === 'ALT1'
+        )
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          (_content, element) =>
+            element?.tagName.toLowerCase() === 'span' &&
+            element.textContent === 'ALT2'
+        )
+      ).toBeInTheDocument()
+
+      // The grouped item shows indices "1 2" together
+      expect(screen.getByText('1 2')).toBeInTheDocument()
+      expect(screen.getByText('Same landscape view')).toBeInTheDocument()
+    })
+
+    it('does not render alt text section or badges if none have descriptions', () => {
+      const first = buildAttachment({ width: 800, height: 600 })
+      const second = buildAttachment({ width: 800, height: 600 })
+
+      render(
+        <Attachments
+          status={buildNoteStatus([first, second])}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      expect(screen.queryByText(/ALT/)).not.toBeInTheDocument()
+    })
+
+    it('stops click propagation when clicking on the alt text list item', () => {
+      const parentOnClick = vi.fn()
+      const first = buildAttachment({
+        width: 800,
+        height: 600,
+        name: 'Cat photo'
+      })
+      const second = buildAttachment({
+        width: 800,
+        height: 600,
+        name: 'Dog photo'
+      })
+
+      render(
+        <div onClick={parentOnClick}>
+          <Attachments
+            status={buildNoteStatus([first, second])}
+            onMediaSelected={vi.fn()}
+          />
+        </div>
+      )
+
+      fireEvent.click(screen.getByText('Cat photo'))
+      expect(parentOnClick).not.toHaveBeenCalled()
     })
   })
 

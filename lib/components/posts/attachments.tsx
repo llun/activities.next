@@ -263,9 +263,10 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
         Math.round(SINGLE_MAX_HEIGHT * ratio)
       )
     )
+    const altText = attachment.name?.trim()
     return (
       <>
-        <div className="mt-3 flex justify-start">
+        <div className="mt-3 flex flex-col justify-start">
           <button
             type="button"
             onClick={openMedia(0)}
@@ -278,11 +279,34 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
               attachment={attachment}
             />
           </button>
+          {altText ? (
+            <p
+              onClick={(e) => e.stopPropagation()}
+              className="mt-1.5 text-sm leading-relaxed text-muted-foreground break-words select-text"
+            >
+              {altText}
+            </p>
+          ) : null}
         </div>
         {audioPlayers}
       </>
     )
   }
+
+  const altEntries = useMemo(() => {
+    const entries: { indices: number[]; text: string }[] = []
+    pictures.forEach((pic, i) => {
+      const text = pic.name?.trim()
+      if (!text) return
+      const existing = entries.find((e) => e.text === text)
+      if (existing) {
+        existing.indices.push(i + 1)
+      } else {
+        entries.push({ indices: [i + 1], text })
+      }
+    })
+    return entries
+  }, [pictures])
 
   const stripStyle: CSSProperties = {
     height: STRIP_ROW_HEIGHT,
@@ -294,88 +318,119 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
   return (
     <>
       {items.length ? (
-        <div className="group/media relative mt-3">
-          <div
-            ref={strip.ref}
-            onScroll={strip.measure}
-            role="group"
-            // Only promise more once the measurement says there is more: a
-            // strip whose items all fit tells a screen-reader user to scroll to
-            // content that does not exist.
-            aria-label={
-              canScrollLeft || canScrollRight
-                ? `${items.length} media attachments, scroll for more`
-                : `${items.length} media attachments`
-            }
-            className="no-scrollbar flex gap-1.5 overflow-x-auto"
-            style={stripStyle}
-          >
-            {items.map(({ attachment, width }, index) => (
+        <>
+          <div className="group/media relative mt-3">
+            <div
+              ref={strip.ref}
+              onScroll={strip.measure}
+              role="group"
+              // Only promise more once the measurement says there is more: a
+              // strip whose items all fit tells a screen-reader user to scroll to
+              // content that does not exist.
+              aria-label={
+                canScrollLeft || canScrollRight
+                  ? `${items.length} media attachments, scroll for more`
+                  : `${items.length} media attachments`
+              }
+              className="no-scrollbar flex gap-1.5 overflow-x-auto"
+              style={stripStyle}
+            >
+              {items.map(({ attachment, width }, index) => {
+                const alt = attachment.name?.trim()
+                return (
+                  <button
+                    key={attachment.id}
+                    type="button"
+                    onClick={openMedia(index)}
+                    aria-label={mediaLabel(attachment, index)}
+                    className={cn(
+                      MEDIA_BOX_CLASS,
+                      STRIP_FOCUS_CLASS,
+                      'h-full flex-none'
+                    )}
+                    style={{
+                      width,
+                      maxWidth: STRIP_ITEM_MAX_WIDTH,
+                      scrollSnapAlign: 'start'
+                    }}
+                  >
+                    <Media
+                      className="h-full w-full object-cover"
+                      attachment={attachment}
+                      loading="lazy"
+                    />
+                    {alt ? (
+                      <span
+                        className="pointer-events-none absolute bottom-2 left-2 flex items-center rounded bg-black/60 px-1.5 py-0.5 text-xs font-semibold text-white shadow-sm backdrop-blur-xs"
+                        aria-hidden="true"
+                      >
+                        ALT<sup>{index + 1}</sup>
+                      </span>
+                    ) : null}
+                  </button>
+                )
+              })}
+            </div>
+            {canScrollLeft ? (
               <button
-                key={attachment.id}
                 type="button"
-                onClick={openMedia(index)}
-                aria-label={mediaLabel(attachment, index)}
-                className={cn(
-                  MEDIA_BOX_CLASS,
-                  STRIP_FOCUS_CLASS,
-                  'h-full flex-none'
-                )}
-                style={{
-                  width,
-                  maxWidth: STRIP_ITEM_MAX_WIDTH,
-                  scrollSnapAlign: 'start'
+                tabIndex={-1}
+                aria-label="Previous media"
+                onMouseDown={preventFocusOnPress}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  strip.scrollByPage(-1)
                 }}
+                // Hidden until the strip is hovered — going back is only worth
+                // chrome once you have gone forward. The forward chevron opposite
+                // stays visible so "there is more" is discoverable without a
+                // pointer. `pointer-events-none` while invisible is load-bearing:
+                // `opacity-0` alone still hit-tests, and on a touch screen —
+                // where `group-hover` never latches — that leaves a dead column
+                // swallowing taps on the leftmost photo.
+                className={cn(
+                  CHEVRON_CLASS,
+                  'pointer-events-none left-2 opacity-0 transition-opacity group-hover/media:pointer-events-auto group-hover/media:opacity-100'
+                )}
               >
-                <Media
-                  className="h-full w-full object-cover"
-                  attachment={attachment}
-                  loading="lazy"
-                />
+                <ChevronLeft className="size-4" />
               </button>
-            ))}
+            ) : null}
+            {canScrollRight ? (
+              <button
+                type="button"
+                tabIndex={-1}
+                aria-label="More media"
+                onMouseDown={preventFocusOnPress}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  strip.scrollByPage(1)
+                }}
+                className={cn(CHEVRON_CLASS, 'right-2')}
+              >
+                <ChevronRight className="size-4" />
+              </button>
+            ) : null}
           </div>
-          {canScrollLeft ? (
-            <button
-              type="button"
-              tabIndex={-1}
-              aria-label="Previous media"
-              onMouseDown={preventFocusOnPress}
-              onClick={(event) => {
-                event.stopPropagation()
-                strip.scrollByPage(-1)
-              }}
-              // Hidden until the strip is hovered — going back is only worth
-              // chrome once you have gone forward. The forward chevron opposite
-              // stays visible so "there is more" is discoverable without a
-              // pointer. `pointer-events-none` while invisible is load-bearing:
-              // `opacity-0` alone still hit-tests, and on a touch screen —
-              // where `group-hover` never latches — that leaves a dead column
-              // swallowing taps on the leftmost photo.
-              className={cn(
-                CHEVRON_CLASS,
-                'pointer-events-none left-2 opacity-0 transition-opacity group-hover/media:pointer-events-auto group-hover/media:opacity-100'
-              )}
+          {altEntries.length ? (
+            <div
+              className="mt-2 flex flex-col gap-1 text-sm text-muted-foreground select-text"
+              onClick={(e) => e.stopPropagation()}
             >
-              <ChevronLeft className="size-4" />
-            </button>
+              {altEntries.map((entry) => (
+                <div
+                  key={entry.indices.join('-')}
+                  className="flex items-start gap-1 leading-relaxed"
+                >
+                  <sup className="shrink-0 pt-0.5 text-xs font-semibold select-none">
+                    {entry.indices.join(' ')}
+                  </sup>
+                  <span className="break-words">{entry.text}</span>
+                </div>
+              ))}
+            </div>
           ) : null}
-          {canScrollRight ? (
-            <button
-              type="button"
-              tabIndex={-1}
-              aria-label="More media"
-              onMouseDown={preventFocusOnPress}
-              onClick={(event) => {
-                event.stopPropagation()
-                strip.scrollByPage(1)
-              }}
-              className={cn(CHEVRON_CLASS, 'right-2')}
-            >
-              <ChevronRight className="size-4" />
-            </button>
-          ) : null}
-        </div>
+        </>
       ) : null}
       {audioPlayers}
     </>
