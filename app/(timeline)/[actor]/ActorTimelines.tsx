@@ -51,6 +51,7 @@ interface Props {
    */
   hasFitnessData?: boolean
   isMediaUploadEnabled?: boolean
+  isPixelfed?: boolean
 }
 
 const LOAD_MORE_PAGE_LIMIT = 5
@@ -127,9 +128,12 @@ export const ActorTimelines: FC<Props> = ({
   currentActor,
   isCurrentUser = false,
   hasFitnessData = false,
-  isMediaUploadEnabled
+  isMediaUploadEnabled,
+  isPixelfed = false
 }) => {
-  const [activeTab, setActiveTab] = useState<ProfileTab>('posts')
+  const [activeTab, setActiveTab] = useState<ProfileTab>(
+    isPixelfed ? 'media' : 'posts'
+  )
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
   const [currentStatusPagination, setCurrentStatusPagination] = useState({
     nextPageUrl: statusPagination?.nextPageUrl ?? null,
@@ -159,12 +163,14 @@ export const ActorTimelines: FC<Props> = ({
 
   // The outbox cursor feeds the post/reply/fitness feeds (all derived from the
   // loaded status list), so the standalone load more control is offered on
-  // those tabs. The media tab paginates separately via its own gallery loader.
+  // those tabs. For Pixelfed profiles, the media grid is the status feed, so it
+  // also paginates via this outbox cursor.
   const canLoadMore =
     Boolean(currentStatusPagination.nextPageUrl) &&
     (activeTab === 'posts' ||
       activeTab === 'replies' ||
-      activeTab === 'fitness')
+      activeTab === 'fitness' ||
+      (isPixelfed && activeTab === 'media'))
 
   const handleStatusCreated = useCallback(
     (status: Status) => {
@@ -354,6 +360,43 @@ export const ActorTimelines: FC<Props> = ({
       <EmptyState>{emptyMessage}</EmptyState>
     )
 
+  if (isPixelfed) {
+    return (
+      <div className="space-y-4">
+        {attachments.length > 0 ||
+        currentStatuses.some(
+          (s) => s.type === StatusType.enum.Note && s.attachments.length > 0
+        ) ? (
+          <ActorMediaGallery
+            actorId={actorId}
+            initialAttachments={attachments}
+            statuses={currentStatuses}
+            isPixelfed={true}
+          />
+        ) : (
+          <EmptyState>No media yet</EmptyState>
+        )}
+
+        {canLoadMore && (
+          <div ref={loadMoreRef} className="text-center">
+            {loadMoreError && (
+              <p className="mb-3 text-sm text-destructive" role="alert">
+                {loadMoreError}
+              </p>
+            )}
+            <Button
+              variant="outline"
+              disabled={isLoadingMoreStatuses}
+              onClick={loadMoreStatuses}
+            >
+              {isLoadingMoreStatuses ? 'Loading...' : 'Load more'}
+            </Button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       <Tabs
@@ -392,6 +435,8 @@ export const ActorTimelines: FC<Props> = ({
               <ActorMediaGallery
                 actorId={actorId}
                 initialAttachments={attachments}
+                statuses={currentStatuses}
+                isPixelfed={false}
               />
             </div>
           ) : (
