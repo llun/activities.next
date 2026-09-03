@@ -135,7 +135,8 @@ const Page: FC<Props> = async ({ params }) => {
     statusPagination,
     followingCount,
     followersCount,
-    hasFitnessData
+    hasFitnessData,
+    isPixelfed
   } = actorProfile
 
   const isCurrentUser = currentActor?.id === person.id
@@ -268,6 +269,7 @@ const Page: FC<Props> = async ({ params }) => {
         postLineLimit={actorSettings?.postLineLimit}
         currentActor={currentActor ? getActorProfile(currentActor) : undefined}
         isCurrentUser={isCurrentUser}
+        isPixelfed={isLoggedIn && Boolean(isPixelfed)}
         hasFitnessData={hasFitnessData}
         isMediaUploadEnabled={Boolean(mediaStorage)}
       />

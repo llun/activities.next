@@ -26,11 +26,13 @@ import {
   isOpaqueActorUsername
 } from '@/lib/utils/activitypubActor'
 import { logger } from '@/lib/utils/logger'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
 
 import { getActorCollections } from './getActorCollections'
 import { getActorPerson } from './getActorPerson'
 import { getActorPostsFromAtomFeed } from './getActorPostsFromAtomFeed'
+import { getPixelfedPosts } from './getPixelfedPosts'
 
 type GetActorPostsFunction = (params: {
   database: Database
@@ -202,14 +204,34 @@ export const getActorPosts: GetActorPostsFunction = async ({
         (item): item is NonNullable<typeof item> => item !== null
       )
 
-      if (validStatuses.length === 0 && !pageUrl) {
+      if (validStatuses.length === 0) {
         const isPixelfed = await isPixelfedActor(person)
         if (isPixelfed) {
-          validStatuses = await getActorPostsFromAtomFeed({
-            person,
-            signingActor,
-            actor
-          })
+          try {
+            const pixelfedResult = await getPixelfedPosts({
+              person,
+              pageUrl,
+              actor
+            })
+            if (pixelfedResult && pixelfedResult.statuses.length > 0) {
+              return pixelfedResult
+            }
+          } catch (err) {
+            logger.warn({
+              message:
+                'Failed to fetch Pixelfed posts via API, falling back to Atom feed',
+              actorId: person.id,
+              err: toLoggableError(err)
+            })
+          }
+
+          if (!pageUrl) {
+            validStatuses = await getActorPostsFromAtomFeed({
+              person,
+              signingActor,
+              actor
+            })
+          }
         }
       }
 
