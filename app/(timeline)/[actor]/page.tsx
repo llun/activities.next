@@ -13,6 +13,7 @@ import { getRelationship } from '@/lib/services/accounts/relationship'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getMastodonFeaturedTag } from '@/lib/services/mastodon/getMastodonFeaturedTag'
 import { getActorProfile } from '@/lib/types/domain/actor'
+import { cn } from '@/lib/utils'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { ActorRedirectCard } from './ActorRedirectCard'
@@ -192,7 +193,7 @@ const Page: FC<Props> = async ({ params }) => {
   const iconImageUrl = getIconImage()
 
   return (
-    <div className="space-y-6">
+    <div className={cn('space-y-6', isLoggedIn && 'pt-6 sm:pt-8')}>
       <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
         <ProfileHeaderImage
           actorId={person.id}

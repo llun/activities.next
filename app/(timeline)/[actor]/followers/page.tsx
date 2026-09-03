@@ -120,22 +120,41 @@ const Page: FC<Props> = async ({ params }) => {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={
-          <span className="flex items-center gap-2">
-            <Link
-              href={`/@${actorProfile.person.preferredUsername}@${actorDomain}`}
-              prefetch={false}
-              aria-label="Back to profile"
-              className="text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
-            <span className="truncate">Followers</span>
-          </span>
-        }
-        description={`${actorProfile.followersCount.toLocaleString()} accounts`}
-      />
+      {isLoggedIn ? (
+        <PageHeader
+          title={
+            <span className="flex items-center gap-2">
+              <Link
+                href={`/@${actorProfile.person.preferredUsername}@${actorDomain}`}
+                prefetch={false}
+                aria-label="Back to profile"
+                className="text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Link>
+              <span className="truncate">Followers</span>
+            </span>
+          }
+          description={`${actorProfile.followersCount.toLocaleString()} accounts`}
+        />
+      ) : (
+        <div className="flex items-start gap-2">
+          <Link
+            href={`/@${actorProfile.person.preferredUsername}@${actorDomain}`}
+            prefetch={false}
+            aria-label="Back to profile"
+            className="mt-0.5 text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">Followers</h1>
+            <p className="text-sm text-muted-foreground">
+              {actorProfile.followersCount.toLocaleString()} accounts
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
         <FollowList
