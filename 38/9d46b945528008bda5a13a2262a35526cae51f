@@ -1,0 +1,28 @@
+app/api/v1/queue/cloudtasks/route.test.ts
+  h_580a04e334fef4 1-264
+app/api/v1/queue/cloudtasks/route.ts
+  h_580a04e334fef4 1-193
+app/api/v1/queue/qstash/route.ts
+  h_580a04e334fef4 18-21
+docs/environment-variables.md
+  h_580a04e334fef4 363-373
+lib/config/queue.test.ts
+  h_580a04e334fef4 38-63
+lib/config/queue.ts
+  h_580a04e334fef4 7-19,39-51
+lib/services/queue/cloudtasks.ts
+  h_580a04e334fef4 1-26
+lib/services/queue/index.ts
+  h_580a04e334fef4 5,15-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "389d46b945528008bda5a13a2262a35526cae51f",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
