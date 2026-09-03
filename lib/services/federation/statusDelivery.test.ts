@@ -216,6 +216,81 @@ describe('getFederatedStatusDeliveryInboxes', () => {
 
     expect(maxActiveLookups).toBeLessThanOrEqual(8)
   })
+
+  it('delivers to inboxes of remote accounts that interacted with the status when statusId is provided', async () => {
+    const currentActor = makeActor('https://local.test/users/alice', {
+      privateKey: 'private-key'
+    })
+    const liker = makeActor('https://remote-like.test/users/bob')
+    const reblogger = makeActor('https://remote-reblog.test/users/carol')
+    const replier = makeActor('https://remote-reply.test/users/dave')
+    const quoter = makeActor('https://remote-quote.test/users/eve')
+    const statusId = 'https://local.test/users/alice/statuses/1'
+
+    const database = makeDatabase({
+      getFavouritedBy: vi
+        .fn()
+        .mockResolvedValue([{ actorId: liker.id, createdAt: 1 }]),
+      getRebloggedBy: vi
+        .fn()
+        .mockResolvedValue([{ actorId: reblogger.id, statusId: 's1' }]),
+      getStatusReplies: vi
+        .fn()
+        .mockResolvedValue([
+          makeStatus({ id: 'reply-1', actorId: replier.id })
+        ]),
+      getQuotingStatusIds: vi.fn().mockResolvedValue(['quote-1']),
+      getStatusesByIds: vi
+        .fn()
+        .mockResolvedValue([makeStatus({ id: 'quote-1', actorId: quoter.id })]),
+      getActorsFromIds: vi.fn(async ({ ids }) => {
+        const actorMap: Record<string, Actor> = {
+          [liker.id]: liker,
+          [reblogger.id]: reblogger,
+          [replier.id]: replier,
+          [quoter.id]: quoter
+        }
+        return ids.map((id) => actorMap[id]).filter((a): a is Actor => !!a)
+      })
+    })
+
+    const inboxes = await getFederatedStatusDeliveryInboxes({
+      database,
+      currentActor,
+      status: makeStatus({ to: [ACTIVITY_STREAM_PUBLIC] }),
+      statusId
+    })
+
+    expect(inboxes).toContain(liker.sharedInboxUrl)
+    expect(inboxes).toContain(reblogger.sharedInboxUrl)
+    expect(inboxes).toContain(replier.sharedInboxUrl)
+    expect(inboxes).toContain(quoter.sharedInboxUrl)
+  })
+
+  it('does not fan out to interacted accounts for private statuses even if statusId is provided', async () => {
+    const currentActor = makeActor('https://local.test/users/alice', {
+      privateKey: 'private-key'
+    })
+    const liker = makeActor('https://remote-like.test/users/bob')
+    const statusId = 'https://local.test/users/alice/statuses/1'
+    const getFavouritedBy = vi
+      .fn()
+      .mockResolvedValue([{ actorId: liker.id, createdAt: 1 }])
+
+    const database = makeDatabase({
+      getFavouritedBy
+    })
+
+    const inboxes = await getFederatedStatusDeliveryInboxes({
+      database,
+      currentActor,
+      status: makeStatus({ to: [`${currentActor.id}/followers`] }),
+      statusId
+    })
+
+    expect(inboxes).not.toContain(liker.sharedInboxUrl)
+    expect(getFavouritedBy).not.toHaveBeenCalled()
+  })
 })
 
 describe('getExplicitRecipientInboxes', () => {

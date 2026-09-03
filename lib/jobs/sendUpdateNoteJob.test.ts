@@ -11,6 +11,7 @@ import { Status } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
+import { logger } from '@/lib/utils/logger'
 
 enableFetchMocks()
 
@@ -104,5 +105,55 @@ describe('Send update note job', () => {
     })
 
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('does not log to logger.error when inbox request fails with network error', async () => {
+    if (!actor1) fail('Actor1 is required')
+
+    const status = (await database.getStatus({
+      statusId: `${actor1.id}/statuses/post-1`,
+      withReplies: false
+    })) as Status
+
+    fetchMock.mockRejectOnce(new Error('Network error'))
+    const loggerErrorSpy = vi.spyOn(logger, 'error')
+
+    await sendUpdateNoteJob(database, {
+      id: 'job-id',
+      name: 'SendUpdateNoteJob',
+      data: {
+        actorId: actor1.id,
+        statusId: status.id
+      }
+    })
+
+    expect(loggerErrorSpy).not.toHaveBeenCalled()
+    loggerErrorSpy.mockRestore()
+  })
+
+  it('does not log to logger.error when inbox responds with HTTP error status code', async () => {
+    if (!actor1) fail('Actor1 is required')
+
+    const status = (await database.getStatus({
+      statusId: `${actor1.id}/statuses/post-1`,
+      withReplies: false
+    })) as Status
+
+    fetchMock.mockResponseOnce(JSON.stringify({ error: 'Unprocessable' }), {
+      status: 422
+    })
+    const loggerErrorSpy = vi.spyOn(logger, 'error')
+
+    await sendUpdateNoteJob(database, {
+      id: 'job-id',
+      name: 'SendUpdateNoteJob',
+      data: {
+        actorId: actor1.id,
+        statusId: status.id
+      }
+    })
+
+    expect(loggerErrorSpy).not.toHaveBeenCalled()
+    loggerErrorSpy.mockRestore()
   })
 })
