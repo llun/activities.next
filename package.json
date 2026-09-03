@@ -59,7 +59,7 @@
     "date-fns": "^4.4.0",
     "fast-xml-parser": "^5.11.1",
     "fit-file-parser": "^5.0.2",
-    "got": "^15.1.0",
+    "got": "^16.0.0",
     "html-react-parser": "^6.1.7",
     "jose": "^6.2.10",
     "jsonld": "^9.0.0",
