@@ -6,6 +6,7 @@ import { FC, useMemo } from 'react'
 import { FollowAction } from '@/lib/components/follow-action/follow-action'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { ActorProfile } from '@/lib/types/domain/actor'
+import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
 
 interface Props {
   users: ActorProfile[]
@@ -42,6 +43,7 @@ export const FollowList: FC<Props> = ({
           .map((n) => n[0])
           .join('')
           .toUpperCase()
+        const summary = htmlToPlainText(user.summary)
 
         return (
           <div key={user.id} className="flex items-center gap-3 px-5 py-4">
@@ -63,9 +65,9 @@ export const FollowList: FC<Props> = ({
               <div className="truncate text-sm text-muted-foreground">
                 @{user.username}@{user.domain}
               </div>
-              {user.summary ? (
+              {summary ? (
                 <div className="mt-1 line-clamp-1 text-sm text-muted-foreground">
-                  {user.summary}
+                  {summary}
                 </div>
               ) : null}
             </div>
