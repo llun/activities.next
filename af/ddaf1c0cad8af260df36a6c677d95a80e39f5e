@@ -1,0 +1,22 @@
+CONTRIBUTING.md
+  h_580a04e334fef4 342-343,346-353,369
+README.md
+  h_580a04e334fef4 139-151
+docs/architecture.md
+  h_580a04e334fef4 89-90,92-93,96-98,408,410,413,416-421
+docs/features.md
+  h_580a04e334fef4 12
+docs/maintenance.md
+  h_580a04e334fef4 118-182,388-432,445-464,524,760-767
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "afddaf1c0cad8af260df36a6c677d95a80e39f5e",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
