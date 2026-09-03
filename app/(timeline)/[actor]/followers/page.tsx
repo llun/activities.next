@@ -138,19 +138,21 @@ const Page: FC<Props> = async ({ params }) => {
           description={`${actorProfile.followersCount.toLocaleString()} accounts`}
         />
       ) : (
-        <div className="flex items-center gap-2">
+        <div className="flex items-start gap-2">
           <Link
             href={`/@${actorProfile.person.preferredUsername}@${actorDomain}`}
             prefetch={false}
             aria-label="Back to profile"
-            className="text-muted-foreground transition-colors hover:text-foreground"
+            className="mt-0.5 text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="h-5 w-5" />
           </Link>
-          <h1 className="text-xl font-semibold tracking-tight">Followers</h1>
-          <span className="text-sm text-muted-foreground">
-            {actorProfile.followersCount.toLocaleString()} accounts
-          </span>
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">Followers</h1>
+            <p className="text-sm text-muted-foreground">
+              {actorProfile.followersCount.toLocaleString()} accounts
+            </p>
+          </div>
         </div>
       )}
 

@@ -305,7 +305,7 @@ describe('[actor] following page', () => {
     ).toHaveAttribute('href', '/@llun@llun.test')
   })
 
-  it('renders navigation text and following count on the same line without PageHeader when anonymous', async () => {
+  it('renders navigation text and following count on a new line without PageHeader when anonymous', async () => {
     mockGetServerAuthSession.mockResolvedValue(null)
     mockIsLocalFederationDomain.mockResolvedValue(true)
     mockGetProfileData.mockResolvedValue({
