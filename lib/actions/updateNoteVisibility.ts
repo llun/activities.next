@@ -83,7 +83,9 @@ export const updateNoteVisibilityFromUserInput = async ({
 
       if (publish) {
         await getQueue().publish({
-          id: getHashFromString(statusId),
+          id: getHashFromString(
+            `${statusId}#update/${updatedStatus.updatedAt}`
+          ),
           name: SEND_UPDATE_NOTE_JOB_NAME,
           data: { actorId: currentActor.id, statusId }
         })

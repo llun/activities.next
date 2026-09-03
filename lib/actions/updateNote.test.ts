@@ -76,7 +76,7 @@ describe('Update note action', () => {
 
       expect(getQueue().publish).toHaveBeenCalledTimes(1)
       expect(getQueue().publish).toHaveBeenCalledWith({
-        id: getHashFromString(statusId),
+        id: getHashFromString(`${statusId}#update/${status?.updatedAt}`),
         name: SEND_UPDATE_NOTE_JOB_NAME,
         data: {
           actorId: actor1.id,
@@ -164,7 +164,7 @@ describe('Update note action', () => {
 
       expect(getQueue().publish).toHaveBeenCalledTimes(1)
       expect(getQueue().publish).toHaveBeenCalledWith({
-        id: getHashFromString(statusId),
+        id: getHashFromString(`${statusId}#update/${status?.updatedAt}`),
         name: SEND_UPDATE_NOTE_JOB_NAME,
         data: {
           actorId: actor1.id,

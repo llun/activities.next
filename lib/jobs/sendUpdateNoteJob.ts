@@ -8,7 +8,6 @@ import { getFederatedStatusDeliveryInboxes } from '@/lib/services/federation/sta
 import { JobHandle } from '@/lib/services/queue/type'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { StatusType } from '@/lib/types/domain/status'
-import { logger } from '@/lib/utils/logger'
 import { UNFOLLOW_NETWORK_ERROR_CODES } from '@/lib/utils/response'
 import { withSpan } from '@/lib/utils/trace'
 
@@ -49,7 +48,8 @@ export const sendUpdateNoteJob: JobHandle = createJobHandle(
       const uniqueInboxes = await getFederatedStatusDeliveryInboxes({
         database,
         currentActor: actor,
-        status
+        status,
+        statusId: status.id
       })
       await Promise.all(
         uniqueInboxes.map(async (inbox) => {
@@ -61,14 +61,8 @@ export const sendUpdateNoteJob: JobHandle = createJobHandle(
             })
           } catch (e) {
             const nodeError = e as NodeJS.ErrnoException
-            logger.error(
-              {
-                inbox,
-                error: nodeError.message,
-                code: nodeError.code
-              },
-              'Failed to update note'
-            )
+            span.recordException(nodeError)
+            span.setAttribute('error.inbox', inbox)
             if (UNFOLLOW_NETWORK_ERROR_CODES.includes(nodeError.code ?? '')) {
               const follows = await database.getLocalFollowsFromInboxUrl({
                 followerInboxUrl: inbox,

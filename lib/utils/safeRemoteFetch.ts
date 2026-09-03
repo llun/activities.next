@@ -246,6 +246,7 @@ const gotTransport: SafeRemoteFetchTransport = async ({
       dnsLookup: createFixedDnsLookup(resolvedAddresses),
       followRedirect: false,
       headers,
+      http2: true,
       method,
       retry: RETRY_DISABLED,
       throwHttpErrors: false,

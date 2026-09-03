@@ -117,14 +117,73 @@ export const getExplicitRecipientInboxes = async ({
   ])
 }
 
+const getInteractedActorIds = async ({
+  database,
+  statusId,
+  currentActor
+}: {
+  database: Database
+  statusId: string
+  currentActor: Actor
+}): Promise<string[]> => {
+  const actorIds: string[] = []
+
+  try {
+    const [favourites, reblogs, replies, quotingStatusIds] = await Promise.all([
+      database.getFavouritedBy
+        ? database.getFavouritedBy({ statusId, limit: 100 })
+        : [],
+      database.getRebloggedBy
+        ? database.getRebloggedBy({ statusId, limit: 100 })
+        : [],
+      database.getStatusReplies
+        ? database.getStatusReplies({ statusId, limit: 100 })
+        : [],
+      database.getQuotingStatusIds
+        ? database.getQuotingStatusIds({
+            quotedStatusId: statusId,
+            state: 'accepted',
+            limit: 100
+          })
+        : []
+    ])
+
+    for (const fav of favourites) {
+      actorIds.push(fav.actorId)
+    }
+    for (const reb of reblogs) {
+      actorIds.push(reb.actorId)
+    }
+    for (const rep of replies) {
+      actorIds.push(rep.actorId)
+    }
+
+    if (quotingStatusIds.length > 0 && database.getStatusesByIds) {
+      const quotingStatuses = await database.getStatusesByIds({
+        statusIds: quotingStatusIds,
+        withReplies: false
+      })
+      for (const quote of quotingStatuses) {
+        actorIds.push(quote.actorId)
+      }
+    }
+  } catch {
+    // Interacted account discovery is best-effort
+  }
+
+  return [...new Set(actorIds)].filter((id) => id !== currentActor.id)
+}
+
 export const getFederatedStatusDeliveryInboxes = async ({
   database,
   currentActor,
-  status
+  status,
+  statusId
 }: {
   database: Database
   currentActor: Actor
   status: StatusAudience
+  statusId?: string
 }) => {
   const inboxes: string[] = []
 
@@ -154,6 +213,25 @@ export const getFederatedStatusDeliveryInboxes = async ({
     currentActor
   })
   inboxes.push(...recipientInboxes.filter((inbox): inbox is string => !!inbox))
+
+  // For public and unlisted statuses, fan updates out to third-party accounts
+  // that interacted with the status (reblogged, liked, replied, or quoted),
+  // matching Mastodon's StatusReachFinder.
+  if (statusId && hasPublicAudience(status)) {
+    const interactedActorIds = await getInteractedActorIds({
+      database,
+      statusId,
+      currentActor
+    })
+    const interactedInboxes = await getRemoteActorInboxes({
+      database,
+      actorIds: interactedActorIds,
+      currentActor
+    })
+    inboxes.push(
+      ...interactedInboxes.filter((inbox): inbox is string => !!inbox)
+    )
+  }
 
   return filterFederatedUrls(database, [...new Set(inboxes)])
 }

@@ -144,6 +144,32 @@ describe('addQuoteFallbackToContent', () => {
     )
   })
 
+  it('uses quotedStatusUrl when present on the edge', () => {
+    const customUrl = 'https://llun.test/@alice/123'
+    const customEdge = edge({ quotedStatusUrl: customUrl })
+    expect(addQuoteFallbackToContent('<p>hi</p>', customEdge)).toEqual(
+      `<p class="quote-inline">RE: <a href="${customUrl}">${customUrl}</a></p><p>hi</p>`
+    )
+  })
+
+  it('uses targetUrl when provided over edge properties', () => {
+    const explicitUrl = 'https://llun.test/@bob/456'
+    const customEdge = edge({ quotedStatusUrl: 'https://llun.test/@alice/123' })
+    expect(
+      addQuoteFallbackToContent('<p>hi</p>', customEdge, explicitUrl)
+    ).toEqual(
+      `<p class="quote-inline">RE: <a href="${explicitUrl}">${explicitUrl}</a></p><p>hi</p>`
+    )
+  })
+
+  it('skips when the content already contains quotedStatusId even if targetUrl differs', () => {
+    const linked = `<p>see <a href="${QUOTED_STATUS_ID}">this</a></p>`
+    const customUrl = 'https://llun.test/@alice/123'
+    expect(
+      addQuoteFallbackToContent(linked, edge({ quotedStatusUrl: customUrl }))
+    ).toEqual(linked)
+  })
+
   it('produces only the fallback for empty content', () => {
     expect(addQuoteFallbackToContent('', edge({ state: 'pending' }))).toEqual(
       FALLBACK

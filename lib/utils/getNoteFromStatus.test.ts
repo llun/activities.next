@@ -71,6 +71,25 @@ describe('getNoteFromStatus quote emission', () => {
     expect(note.content).toContain('hello')
   })
 
+  it('prepends the quote-inline fallback with quotedStatusUrl when present', () => {
+    const quotedUrl = 'https://remote.example/@alice/7'
+    const note = getNoteFromStatus(
+      baseStatus({
+        quote: {
+          quotedStatusId: QUOTED_ID,
+          quotedStatusUrl: quotedUrl,
+          state: 'pending'
+        }
+      })
+    ) as Record<string, unknown>
+
+    expect(note.content).toMatch(
+      new RegExp(
+        `^<p class="quote-inline">RE: <a href="${quotedUrl.replaceAll('/', '\\/')}">`
+      )
+    )
+  })
+
   it('does not prepend the fallback when the text already links the quoted status', () => {
     const note = getNoteFromStatus(
       baseStatus({

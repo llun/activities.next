@@ -1,6 +1,6 @@
 {
   "name": "activities.next",
-  "version": "1.155.6",
+  "version": "1.155.8",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -75,7 +75,7 @@
     "fast-xml-parser": "^5.11.1",
     "fit-file-parser": "^5.0.2",
     "google-auth-library": "^11.0.2",
-    "got": "^15.1.0",
+    "got": "^16.0.0",
     "html-react-parser": "^6.1.7",
     "jose": "^6.2.10",
     "jsonld": "^9.0.0",

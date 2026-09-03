@@ -17,6 +17,7 @@ concurrency:
 env:
   GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
   MAIN_SHA: ${{ github.event.client_payload.main_sha }}
+  YARN_ENABLE_IMMUTABLE_INSTALLS: 'false'
 
 jobs:
   sync:
@@ -142,24 +143,8 @@ jobs:
           done
 
           if [ ${#code_files[@]} -gt 0 ]; then
-            echo "Resolving code conflicts with Aider: ${code_files[*]}"
-            aider \
-              --model gemini/gemini-3.8-flash \
-              --no-auto-commits \
-              --yes \
-              --message "
-              Resolve all git merge conflict markers in the specified files.
-
-              Context:
-              - Merging 'main' commit ${{ env.MAIN_SHA }} into branch 'oltp'.
-              - Follow the repository guidelines in AGENTS.md.
-
-              Requirements:
-              - Completely remove all conflict markers (<<<<<<<, =======, >>>>>>>).
-              - Maintain valid syntax and ensure all imports and type definitions are correct.
-              - For package.json, ensure valid JSON and merge dependencies properly without duplicates.
-              " \
-              "${code_files[@]}"
+            echo "Resolving code conflicts with Gemini: ${code_files[*]}"
+            python3 .github/scripts/resolve-merge-conflicts.py "${code_files[@]}"
 
             for f in "${code_files[@]}"; do
               if grep -qE '^(<{7}|={7}|>{7})' "$f"; then
@@ -171,7 +156,7 @@ jobs:
             git add "${code_files[@]}"
           fi
 
-          yarn install
+          yarn install --no-immutable
           git add yarn.lock
 
       - name: Verify merge is still pending
@@ -196,7 +181,7 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ env.GEMINI_API_KEY }}
         run: |
-          yarn install
+          yarn install --no-immutable
 
           heal_attempts=2
           for attempt in $(seq 1 $heal_attempts); do
@@ -225,7 +210,10 @@ jobs:
 
                 if [ ${#target_files[@]} -gt 0 ]; then
                   aider \
-                    --model gemini/gemini-3.7-flash \
+                    --model gemini/gemini-3.8-flash \
+                    --model-metadata-file .github/aider/model-metadata.json \
+                    --model-settings-file .github/aider/model-settings.yml \
+                    --no-show-model-warnings \
                     --no-auto-commits \
                     --yes \
                     --message "Fix the following lint errors according to AGENTS.md:
@@ -261,7 +249,10 @@ jobs:
 
                 if [ ${#target_files[@]} -gt 0 ]; then
                   aider \
-                    --model gemini/gemini-3.7-flash \
+                    --model gemini/gemini-3.8-flash \
+                    --model-metadata-file .github/aider/model-metadata.json \
+                    --model-settings-file .github/aider/model-settings.yml \
+                    --no-show-model-warnings \
                     --no-auto-commits \
                     --yes \
                     --message "Fix the following TypeScript typecheck errors according to AGENTS.md:
@@ -297,7 +288,10 @@ jobs:
 
                 if [ ${#target_files[@]} -gt 0 ]; then
                   aider \
-                    --model gemini/gemini-3.7-flash \
+                    --model gemini/gemini-3.8-flash \
+                    --model-metadata-file .github/aider/model-metadata.json \
+                    --model-settings-file .github/aider/model-settings.yml \
+                    --no-show-model-warnings \
                     --no-auto-commits \
                     --yes \
                     --message "Fix the following build errors according to AGENTS.md:

@@ -7,7 +7,7 @@ import {
 import { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
-import { QuoteState } from '@/lib/types/domain/status'
+import { QuoteState, StatusNote } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 describe('StatusQuoteDatabase', () => {
@@ -29,16 +29,19 @@ describe('StatusQuoteDatabase', () => {
     const uniqueId = (name: string) =>
       `${ACTOR1_ID}/statuses/quote-${name}-${randomUUID()}`
 
-    const createStatus = async (name: string, actorId = ACTOR1_ID) => {
+    const createStatus = async (
+      name: string,
+      actorId = ACTOR1_ID
+    ): Promise<StatusNote> => {
       const statusId = uniqueId(name)
-      return database.createNote({
+      return (await database.createNote({
         id: statusId,
         url: statusId,
         actorId,
         text: `Quote ${name}`,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
-      })
+      })) as StatusNote
     }
 
     it('creates a pending edge and reads it back', async () => {
@@ -438,6 +441,7 @@ describe('StatusQuoteDatabase', () => {
       if (status?.type !== 'Note') throw new Error('expected a Note status')
       expect(status.quote).toEqual({
         quotedStatusId: quoted.id,
+        quotedStatusUrl: quoted.url,
         state: 'accepted',
         authorizationUri: 'https://llun.test/stamp/hydrate'
       })
@@ -492,7 +496,24 @@ describe('StatusQuoteDatabase', () => {
         throw new Error('expected Note statuses')
       }
       expect(a.quote?.state).toBe('accepted')
+      expect(a.quote?.quotedStatusUrl).toBe(quoted.url)
       expect(b.quote?.state).toBe('pending')
+      expect(b.quote?.quotedStatusUrl).toBe(quoted.url)
+    })
+
+    it('hydrates quotedStatusUrl from the target status in getStatus', async () => {
+      const quoted = await createStatus('url-target')
+      const quoting = await createStatus('url-quoting')
+      await database.createStatusQuote({
+        statusId: quoting.id,
+        quotedStatusId: quoted.id,
+        state: 'accepted'
+      })
+
+      const status = await database.getStatus({ statusId: quoting.id })
+      if (status?.type !== 'Note') throw new Error('expected a Note status')
+      expect(status.quote?.quotedStatusId).toBe(quoted.id)
+      expect(status.quote?.quotedStatusUrl).toBe(quoted.url)
     })
   })
 })
