@@ -135,7 +135,11 @@ const Page: FC<Props> = async ({ params }) => {
               <span className="truncate">Following</span>
             </span>
           }
-          description={`${actorProfile.followingCount.toLocaleString()} accounts`}
+          description={
+            typeof actorProfile.followingCount === 'number'
+              ? `${actorProfile.followingCount.toLocaleString()} accounts`
+              : undefined
+          }
         />
       ) : (
         <div className="flex items-start gap-2">
@@ -149,9 +153,11 @@ const Page: FC<Props> = async ({ params }) => {
           </Link>
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Following</h1>
-            <p className="text-sm text-muted-foreground">
-              {actorProfile.followingCount.toLocaleString()} accounts
-            </p>
+            {typeof actorProfile.followingCount === 'number' && (
+              <p className="text-sm text-muted-foreground">
+                {actorProfile.followingCount.toLocaleString()} accounts
+              </p>
+            )}
           </div>
         </div>
       )}

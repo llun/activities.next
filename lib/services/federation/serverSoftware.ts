@@ -162,3 +162,25 @@ export const isPixelfedActor = async (person: Actor): Promise<boolean> => {
     return false
   }
 }
+
+const MISSKEY_FAMILY_SOFTWARE = new Set([
+  'misskey',
+  'sharkey',
+  'firefish',
+  'iceshrimp',
+  'calckey'
+])
+
+export const isMisskeyDomain = async (domain: string): Promise<boolean> => {
+  const software = await getServerSoftware(domain)
+  return software ? MISSKEY_FAMILY_SOFTWARE.has(software) : false
+}
+
+export const isMisskeyActor = async (person: Actor): Promise<boolean> => {
+  try {
+    const actorUrl = new URL(person.id)
+    return isMisskeyDomain(actorUrl.host)
+  } catch {
+    return false
+  }
+}

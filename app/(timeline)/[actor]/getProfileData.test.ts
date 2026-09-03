@@ -501,6 +501,33 @@ describe('getProfileData', () => {
       })
     })
 
+    it('preserves null followersCount and followingCount when collections are private or inaccessible', async () => {
+      ;(getActorCollectionCounts as jest.Mock).mockResolvedValue({
+        followersCount: null,
+        followingCount: null,
+        statusesCount: 100
+      })
+
+      const result = await getProfileData(
+        mockDatabase,
+        '@remoteuser@remote.com',
+        true,
+        { currentActor: null }
+      )
+
+      expect(result).toMatchObject({
+        followersCount: null,
+        followingCount: null,
+        statusesCount: 0
+      })
+      expect(mockDatabase.setActorCounters).toHaveBeenCalledWith({
+        actorId: mockPerson.id,
+        followersCount: null,
+        followingCount: null,
+        statusCount: null
+      })
+    })
+
     it('creates newly discovered remote actor in database when persistedActor does not exist', async () => {
       ;(mockDatabase.getActorFromUsername as jest.Mock).mockResolvedValue(null)
       // No row under person.id yet — the create branch.
