@@ -2034,12 +2034,14 @@ export const StatusSQLDatabaseMixin = (
   type StatusQuoteEdgeRow = {
     statusId: string
     quotedStatusId: string
+    quotedStatusUrl?: string | null
     state: string
     authorizationUri: string | null
   }
 
   const toStatusQuoteEdge = (row: StatusQuoteEdgeRow): StatusQuote => ({
     quotedStatusId: row.quotedStatusId,
+    quotedStatusUrl: row.quotedStatusUrl ?? null,
     state: QuoteState.parse(row.state),
     authorizationUri: row.authorizationUri ?? null
   })
@@ -2049,9 +2051,16 @@ export const StatusSQLDatabaseMixin = (
   const getStatusQuoteEdgeForData = async (
     statusId: string
   ): Promise<StatusQuote | null> => {
-    const row = await database<StatusQuoteEdgeRow>('status_quotes')
-      .where('statusId', statusId)
-      .first('statusId', 'quotedStatusId', 'state', 'authorizationUri')
+    const row = await database('status_quotes')
+      .leftJoin('statuses', 'statuses.id', 'status_quotes.quotedStatusId')
+      .where('status_quotes.statusId', statusId)
+      .first<StatusQuoteEdgeRow>(
+        'status_quotes.statusId',
+        'status_quotes.quotedStatusId',
+        'status_quotes.state',
+        'status_quotes.authorizationUri',
+        'statuses.url as quotedStatusUrl'
+      )
     return row ? toStatusQuoteEdge(row) : null
   }
 
@@ -2061,9 +2070,16 @@ export const StatusSQLDatabaseMixin = (
   ): Promise<Map<string, StatusQuote>> => {
     const edges = new Map<string, StatusQuote>()
     if (statusIds.length === 0) return edges
-    const rows = await database<StatusQuoteEdgeRow>('status_quotes')
-      .whereIn('statusId', statusIds)
-      .select('statusId', 'quotedStatusId', 'state', 'authorizationUri')
+    const rows = await database('status_quotes')
+      .leftJoin('statuses', 'statuses.id', 'status_quotes.quotedStatusId')
+      .whereIn('status_quotes.statusId', statusIds)
+      .select<StatusQuoteEdgeRow[]>(
+        'status_quotes.statusId',
+        'status_quotes.quotedStatusId',
+        'status_quotes.state',
+        'status_quotes.authorizationUri',
+        'statuses.url as quotedStatusUrl'
+      )
     for (const row of rows) edges.set(row.statusId, toStatusQuoteEdge(row))
     return edges
   }

@@ -1951,6 +1951,21 @@ describe('getMastodonStatus', () => {
       }
       expect(quote.state).toBe('accepted')
       expect(quote.quoted_status?.id).toBe(quoted.publicId)
+      expect(result?.content).toMatch(
+        new RegExp(
+          `^<p class="quote-inline">RE: <a href="${quoted.url.replaceAll('/', '\\/')}">`
+        )
+      )
+    })
+
+    it('prepends the fallback to content for a pending quote', async () => {
+      const quoted = await makeStatus(ACTOR1_ID)
+      const result = await serializeQuoting(quoted.id, 'pending')
+      expect(result?.content).toMatch(
+        new RegExp(
+          `^<p class="quote-inline">RE: <a href="${quoted.url.replaceAll('/', '\\/')}">`
+        )
+      )
     })
 
     it.each([
@@ -1969,6 +1984,19 @@ describe('getMastodonStatus', () => {
         }
         expect(quote.state).toBe(state)
         expect(quote.quoted_status).toBeNull()
+      }
+    )
+
+    it.each([
+      { state: 'rejected' as const },
+      { state: 'revoked' as const },
+      { state: 'deleted' as const }
+    ])(
+      'does not add fallback to content on a $state edge',
+      async ({ state }) => {
+        const quoted = await makeStatus(ACTOR1_ID)
+        const result = await serializeQuoting(quoted.id, state)
+        expect(result?.content).not.toContain('quote-inline')
       }
     )
 

@@ -120,6 +120,7 @@ export type QuoteApprovalPolicy = z.infer<typeof QuoteApprovalPolicy>
 // edge state, mirroring how `reply` is a bare id string (no embedded status).
 export const StatusQuote = z.object({
   quotedStatusId: z.string(),
+  quotedStatusUrl: z.string().nullable().optional(),
   state: QuoteState,
   authorizationUri: z.string().nullable().optional()
 })

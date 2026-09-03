@@ -454,6 +454,20 @@ describe('Status', () => {
           )
         })
 
+        it('prepends the quote-inline RE: fallback using quotedStatusUrl when present', () => {
+          const quotedStatusId = 'https://remote.test/users/alice/statuses/1'
+          const quotedStatusUrl = 'https://remote.test/@alice/1'
+          const note = withQuote(noteStatus, {
+            quotedStatusId,
+            quotedStatusUrl,
+            state: 'pending'
+          }) as { content: string }
+
+          expect(note.content).toMatch(
+            /^<p class="quote-inline">RE: <a href="https:\/\/remote\.test\/@alice\/1">/
+          )
+        })
+
         it('adds no fallback on a rejected edge', () => {
           const note = withQuote(noteStatus, {
             quotedStatusId: 'https://remote.test/users/alice/statuses/1',
