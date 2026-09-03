@@ -35,4 +35,12 @@ describe('[actor] loading', () => {
     leaves.forEach((el) => expect(el).toHaveClass('skeleton'))
     expect(container.querySelector('.animate-pulse')).toBeNull()
   })
+
+  it('renders with signed-in top padding that resets under public shell', () => {
+    const { container } = render(<Loading />)
+    const root = container.firstElementChild
+    expect(root).toHaveClass('pt-6')
+    expect(root).toHaveClass('sm:pt-8')
+    expect(root).toHaveClass('group-data-[shell=public]/shell:pt-0')
+  })
 })
