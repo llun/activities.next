@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 
 const MIN_SWIPE_DISTANCE = 50 // Minimum distance in pixels for a swipe to be recognized
 const INTERACTIVE_SWIPE_IGNORE_SELECTOR =
-  'button, a, input, textarea, select, label, [role="button"], video, audio'
+  'button, a, input, textarea, select, label, [role="button"], video, audio, .select-text'
 
 interface Props {
   medias: Attachment[] | null
@@ -278,17 +278,31 @@ export const MediasModal: FC<Props> = ({
                       ? `${medias[index].id}-${panelIndex}`
                       : medias[index].id
                   }
+                  aria-hidden={panelIndex !== 1}
                   className="flex h-full w-full shrink-0 items-center justify-center"
                 >
                   <div
                     onClick={(e) => e.stopPropagation()}
-                    className="flex max-h-[80vh] max-w-full items-center justify-center cursor-default"
+                    className="flex max-h-[80vh] max-w-full flex-col items-center justify-center cursor-default"
                   >
                     <Media
                       showVideoControl
-                      className="max-h-[80vh] max-w-full object-contain"
+                      className={cn(
+                        'max-w-full object-contain',
+                        medias[index].name?.trim()
+                          ? 'max-h-[72vh]'
+                          : 'max-h-[80vh]'
+                      )}
                       attachment={medias[index]}
                     />
+                    {medias[index].name?.trim() ? (
+                      <p
+                        onTouchStart={(e) => e.stopPropagation()}
+                        className="mt-2 max-h-24 max-w-2xl overflow-y-auto px-4 text-center text-sm leading-relaxed text-white/85 select-text"
+                      >
+                        {medias[index].name.trim()}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               ))}
