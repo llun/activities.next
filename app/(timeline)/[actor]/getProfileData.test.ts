@@ -5,6 +5,7 @@ import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
+import { isPixelfedActor } from '@/lib/services/federation/serverSoftware'
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
@@ -21,6 +22,9 @@ vi.mock('@/lib/activities/getActorPosts')
 vi.mock('@/lib/activities/getWebfingerSelf')
 vi.mock('@/lib/services/federation/domainPolicy')
 vi.mock('@/lib/services/federation/getFederationSigningActor')
+vi.mock('@/lib/services/federation/serverSoftware', () => ({
+  isPixelfedActor: vi.fn().mockResolvedValue(false)
+}))
 vi.mock('@/lib/utils/getPersonFromActor')
 vi.mock('@/lib/utils/logger', () => ({
   logger: {
@@ -598,6 +602,64 @@ describe('getProfileData', () => {
 
       expect(result).not.toBeNull()
       expect(result?.hasFitnessData).toBe(false)
+    })
+
+    it('returns isPixelfed as true and falls back to status attachments when DB attachments are empty', async () => {
+      vi.mocked(isPixelfedActor).mockResolvedValueOnce(true)
+      const mockAttachment: Attachment = {
+        id: 'att-1',
+        actorId: mockPerson.id,
+        statusId: 'status-1',
+        type: 'Document',
+        mediaType: 'image/jpeg',
+        url: 'https://pixelfed.example/image.jpg',
+        name: 'Sample',
+        createdAt: 1000,
+        updatedAt: 1000
+      }
+      vi.mocked(getActorPosts).mockResolvedValueOnce({
+        statuses: [
+          {
+            id: 'status-1',
+            url: 'https://pixelfed.example/p/user/1',
+            actorId: mockPerson.id,
+            actor: null,
+            type: StatusType.enum.Note,
+            text: 'Test',
+            to: [],
+            cc: [],
+            edits: [],
+            reply: '',
+            replies: [],
+            totalReplies: 1,
+            actorAnnounceStatusId: null,
+            isActorLiked: false,
+            isActorBookmarked: false,
+            totalLikes: 5,
+            totalShares: 2,
+            attachments: [mockAttachment],
+            tags: [],
+            createdAt: 1000,
+            updatedAt: 1000,
+            isLocalActor: false
+          }
+        ],
+        statusesCount: 1,
+        nextPageUrl: null,
+        prevPageUrl: null
+      })
+      vi.mocked(mockDatabase.getAttachmentsForActor).mockResolvedValueOnce([])
+
+      const result = await getProfileData(
+        mockDatabase,
+        '@remoteuser@remote.com',
+        true,
+        { currentActor: null }
+      )
+
+      expect(result).not.toBeNull()
+      expect(result?.isPixelfed).toBe(true)
+      expect(result?.attachments).toEqual([mockAttachment])
     })
 
     it('should return null for anonymous user without calling remote APIs', async () => {

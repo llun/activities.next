@@ -90,4 +90,176 @@ describe('ActorMediaGallery', () => {
       'focus-visible:outline-primary'
     )
   })
+
+  it('renders engagement counts overlay with favorite, comment, and repost counts', () => {
+    const attachment = buildAttachment({
+      id: 'attachment-1',
+      statusId: 'https://activities.local/users/llun/statuses/post-1'
+    })
+
+    const status = {
+      id: 'https://activities.local/users/llun/statuses/post-1',
+      url: 'https://activities.local/users/llun/statuses/post-1',
+      actorId: 'https://activities.local/users/llun',
+      actor: null,
+      type: 'Note' as const,
+      text: 'Photo post',
+      to: [],
+      cc: [],
+      edits: [],
+      reply: '',
+      replies: [],
+      totalReplies: 14,
+      actorAnnounceStatusId: null,
+      isActorLiked: false,
+      isActorBookmarked: false,
+      totalLikes: 42,
+      totalShares: 7,
+      attachments: [attachment],
+      tags: [],
+      createdAt: currentTime,
+      updatedAt: currentTime,
+      isLocalActor: true
+    }
+
+    render(
+      <ActorMediaGallery
+        actorId="https://activities.local/users/llun"
+        initialAttachments={[attachment]}
+        statuses={[status]}
+      />
+    )
+
+    const overlay = screen.getByTestId('media-overlay-attachment-1')
+    expect(overlay).toBeInTheDocument()
+    expect(screen.getByTitle('42 favorites')).toBeInTheDocument()
+    expect(screen.getByTitle('14 comments')).toBeInTheDocument()
+    expect(screen.getByTitle('7 reposts')).toBeInTheDocument()
+    expect(screen.getByText('42')).toBeInTheDocument()
+    expect(screen.getByText('14')).toBeInTheDocument()
+    expect(screen.getByText('7')).toBeInTheDocument()
+  })
+
+  it('renders album indicator for multi-photo statuses and video indicator for video attachments', () => {
+    const photo1 = buildAttachment({
+      id: 'photo-1',
+      statusId: 'https://activities.local/users/llun/statuses/post-multi'
+    })
+    const photo2 = buildAttachment({
+      id: 'photo-2',
+      statusId: 'https://activities.local/users/llun/statuses/post-multi'
+    })
+    const video = buildAttachment({
+      id: 'video-1',
+      mediaType: 'video/mp4',
+      statusId: 'https://activities.local/users/llun/statuses/post-video'
+    })
+
+    const multiStatus = {
+      id: 'https://activities.local/users/llun/statuses/post-multi',
+      url: 'https://activities.local/users/llun/statuses/post-multi',
+      actorId: 'https://activities.local/users/llun',
+      actor: null,
+      type: 'Note' as const,
+      text: 'Multi photo',
+      to: [],
+      cc: [],
+      edits: [],
+      reply: '',
+      replies: [],
+      totalReplies: 0,
+      actorAnnounceStatusId: null,
+      isActorLiked: false,
+      isActorBookmarked: false,
+      totalLikes: 0,
+      totalShares: 0,
+      attachments: [photo1, photo2],
+      tags: [],
+      createdAt: currentTime,
+      updatedAt: currentTime,
+      isLocalActor: true
+    }
+
+    const videoStatus = {
+      id: 'https://activities.local/users/llun/statuses/post-video',
+      url: 'https://activities.local/users/llun/statuses/post-video',
+      actorId: 'https://activities.local/users/llun',
+      actor: null,
+      type: 'Note' as const,
+      text: 'Video post',
+      to: [],
+      cc: [],
+      edits: [],
+      reply: '',
+      replies: [],
+      totalReplies: 0,
+      actorAnnounceStatusId: null,
+      isActorLiked: false,
+      isActorBookmarked: false,
+      totalLikes: 0,
+      totalShares: 0,
+      attachments: [video],
+      tags: [],
+      createdAt: currentTime,
+      updatedAt: currentTime,
+      isLocalActor: true
+    }
+
+    render(
+      <ActorMediaGallery
+        actorId="https://activities.local/users/llun"
+        initialAttachments={[photo1, video]}
+        statuses={[multiStatus, videoStatus]}
+      />
+    )
+
+    expect(screen.getByTestId('album-indicator')).toBeInTheDocument()
+    expect(screen.getByTestId('video-indicator')).toBeInTheDocument()
+  })
+
+  it('derives attachments from statuses and hides standalone load more button when isPixelfed is true', () => {
+    const attachment = buildAttachment({
+      id: 'pixelfed-att-1',
+      name: 'Pixelfed photo'
+    })
+
+    const pixelfedStatus = {
+      id: 'https://pixelfed.example/p/user/1',
+      url: 'https://pixelfed.example/p/user/1',
+      actorId: 'https://pixelfed.example/users/user',
+      actor: null,
+      type: 'Note' as const,
+      text: 'Pixelfed photo',
+      to: [],
+      cc: [],
+      edits: [],
+      reply: '',
+      replies: [],
+      totalReplies: 2,
+      actorAnnounceStatusId: null,
+      isActorLiked: false,
+      isActorBookmarked: false,
+      totalLikes: 10,
+      totalShares: 3,
+      attachments: [attachment],
+      tags: [],
+      createdAt: currentTime,
+      updatedAt: currentTime,
+      isLocalActor: false
+    }
+
+    render(
+      <ActorMediaGallery
+        actorId="https://pixelfed.example/users/user"
+        initialAttachments={[]}
+        statuses={[pixelfedStatus]}
+        isPixelfed={true}
+      />
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Open media: Pixelfed photo' })
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Load more')).not.toBeInTheDocument()
+  })
 })

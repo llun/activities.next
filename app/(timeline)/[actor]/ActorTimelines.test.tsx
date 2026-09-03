@@ -115,12 +115,18 @@ vi.mock('./ActorMediaGallery', () => ({
 }))
 
 vi.mock('@/lib/components/ui/tabs', () => ({
-  Tabs: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  Tabs: ({ children, value }: { children: ReactNode; value?: string }) => (
+    <div data-active-tab={value}>{children}</div>
+  ),
   TabsContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   TabsList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  TabsTrigger: ({ children }: { children: ReactNode }) => (
-    <button>{children}</button>
-  )
+  TabsTrigger: ({
+    children,
+    value
+  }: {
+    children: ReactNode
+    value?: string
+  }) => <button data-value={value}>{children}</button>
 }))
 
 vi.mock('@/lib/components/ui/button', () => ({
@@ -689,5 +695,102 @@ describe('ActorTimelines', () => {
 
     expect(screen.queryByText(boostId)).not.toBeInTheDocument()
     expect(screen.queryByText(originalId)).not.toBeInTheDocument()
+  })
+
+  describe('Pixelfed profile timeline view', () => {
+    it('renders only the Media tab as default when isPixelfed is true', () => {
+      const { container } = render(
+        <ActorTimelines
+          host="localhost:3000"
+          actorId="https://pixelfed.social/users/dansup"
+          statuses={[]}
+          attachments={[]}
+          currentTime={FIXED_CURRENT_TIME}
+          currentActor={currentActorProfile}
+          isPixelfed={true}
+          statusPagination={{ nextPageUrl: null, prevPageUrl: null }}
+        />
+      )
+
+      expect(screen.getByRole('button', { name: 'Media' })).toBeInTheDocument()
+      expect(
+        container
+          .querySelector('[data-active-tab]')
+          ?.getAttribute('data-active-tab')
+      ).toBe('media')
+      expect(
+        screen.queryByRole('button', { name: 'Posts' })
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Replies' })
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Fitness' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('renders standard Posts, Replies, and Media tabs when isPixelfed is false', () => {
+      const { container } = render(
+        <ActorTimelines
+          host="localhost:3000"
+          actorId="https://mastodon.social/users/someone"
+          statuses={[]}
+          attachments={[]}
+          currentTime={FIXED_CURRENT_TIME}
+          currentActor={currentActorProfile}
+          isPixelfed={false}
+          statusPagination={{ nextPageUrl: null, prevPageUrl: null }}
+        />
+      )
+
+      expect(screen.getByRole('button', { name: 'Posts' })).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Replies' })
+      ).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Media' })).toBeInTheDocument()
+      expect(
+        container
+          .querySelector('[data-active-tab]')
+          ?.getAttribute('data-active-tab')
+      ).toBe('posts')
+    })
+
+    it('enables load more on the Media tab when isPixelfed is true', async () => {
+      const mockGetActorStatuses = vi.mocked(getActorStatuses)
+      const nextPageUrl = 'https://pixelfed.social/api/page2'
+      const newStatus = createStatus('https://pixelfed.social/p/dansup/999')
+
+      mockGetActorStatuses.mockResolvedValueOnce({
+        statuses: [newStatus],
+        statusesCount: 1,
+        nextPageUrl: null,
+        prevPageUrl: null
+      })
+
+      render(
+        <ActorTimelines
+          host="localhost:3000"
+          actorId="https://pixelfed.social/users/dansup"
+          statuses={[]}
+          attachments={[]}
+          currentTime={FIXED_CURRENT_TIME}
+          currentActor={currentActorProfile}
+          isPixelfed={true}
+          statusPagination={{ nextPageUrl, prevPageUrl: null }}
+        />
+      )
+
+      const loadMoreButton = screen.getByRole('button', { name: 'Load more' })
+      expect(loadMoreButton).toBeInTheDocument()
+
+      fireEvent.click(loadMoreButton)
+
+      await waitFor(() => {
+        expect(mockGetActorStatuses).toHaveBeenCalledWith({
+          actorId: 'https://pixelfed.social/users/dansup',
+          pageUrl: nextPageUrl
+        })
+      })
+    })
   })
 })

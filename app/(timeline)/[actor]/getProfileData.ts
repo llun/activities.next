@@ -7,6 +7,7 @@ import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstr
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
+import { isPixelfedActor } from '@/lib/services/federation/serverSoftware'
 import {
   canActorReadStatus,
   resolveActorStatusesAudience
@@ -14,7 +15,7 @@ import {
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
-import { Status } from '@/lib/types/domain/status'
+import { Status, StatusType } from '@/lib/types/domain/status'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
@@ -32,6 +33,7 @@ type ProfileData = {
   followersCount: number
   isInternalAccount: boolean
   hasFitnessData: boolean
+  isPixelfed?: boolean
 }
 
 type ProfileDataOptions = {
@@ -151,7 +153,8 @@ export const getProfileData = async (
       followingCount,
       followersCount,
       isInternalAccount: true,
-      hasFitnessData
+      hasFitnessData,
+      isPixelfed: false
     }
   }
 
@@ -297,10 +300,16 @@ export const getProfileData = async (
       nextPageUrl: actorPostsResponse.nextPageUrl ?? null,
       prevPageUrl: actorPostsResponse.prevPageUrl ?? null
     },
-    attachments,
+    attachments:
+      attachments.length > 0
+        ? attachments
+        : actorPostsResponse.statuses.flatMap((status) =>
+            status.type === StatusType.enum.Note ? status.attachments : []
+          ),
     followingCount: collectionCounts.followingCount ?? 0,
     followersCount: collectionCounts.followersCount ?? 0,
     isInternalAccount: false,
-    hasFitnessData: false
+    hasFitnessData: false,
+    isPixelfed: await isPixelfedActor(person)
   }
 }

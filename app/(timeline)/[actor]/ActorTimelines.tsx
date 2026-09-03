@@ -51,6 +51,7 @@ interface Props {
    */
   hasFitnessData?: boolean
   isMediaUploadEnabled?: boolean
+  isPixelfed?: boolean
 }
 
 const LOAD_MORE_PAGE_LIMIT = 5
@@ -127,9 +128,12 @@ export const ActorTimelines: FC<Props> = ({
   currentActor,
   isCurrentUser = false,
   hasFitnessData = false,
-  isMediaUploadEnabled
+  isMediaUploadEnabled,
+  isPixelfed = false
 }) => {
-  const [activeTab, setActiveTab] = useState<ProfileTab>('posts')
+  const [activeTab, setActiveTab] = useState<ProfileTab>(
+    isPixelfed ? 'media' : 'posts'
+  )
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
   const [currentStatusPagination, setCurrentStatusPagination] = useState({
     nextPageUrl: statusPagination?.nextPageUrl ?? null,
@@ -159,12 +163,14 @@ export const ActorTimelines: FC<Props> = ({
 
   // The outbox cursor feeds the post/reply/fitness feeds (all derived from the
   // loaded status list), so the standalone load more control is offered on
-  // those tabs. The media tab paginates separately via its own gallery loader.
+  // those tabs. For Pixelfed profiles, the media grid is the status feed, so it
+  // also paginates via this outbox cursor.
   const canLoadMore =
     Boolean(currentStatusPagination.nextPageUrl) &&
     (activeTab === 'posts' ||
       activeTab === 'replies' ||
-      activeTab === 'fitness')
+      activeTab === 'fitness' ||
+      (isPixelfed && activeTab === 'media'))
 
   const handleStatusCreated = useCallback(
     (status: Status) => {
@@ -362,36 +368,50 @@ export const ActorTimelines: FC<Props> = ({
         className="w-full gap-4"
       >
         <TabsList className="w-full sm:w-fit" aria-label="Profile sections">
-          <TabsTrigger value="posts" className="flex-1 sm:flex-none">
-            Posts
-          </TabsTrigger>
-          <TabsTrigger value="replies" className="flex-1 sm:flex-none">
-            Replies
-          </TabsTrigger>
+          {!isPixelfed && (
+            <>
+              <TabsTrigger value="posts" className="flex-1 sm:flex-none">
+                Posts
+              </TabsTrigger>
+              <TabsTrigger value="replies" className="flex-1 sm:flex-none">
+                Replies
+              </TabsTrigger>
+            </>
+          )}
           <TabsTrigger value="media" className="flex-1 sm:flex-none">
             Media
           </TabsTrigger>
-          {showFitnessTab && (
+          {showFitnessTab && !isPixelfed && (
             <TabsTrigger value="fitness" className="flex-1 sm:flex-none">
               Fitness
             </TabsTrigger>
           )}
         </TabsList>
 
-        <TabsContent value="posts" className="mt-0">
-          {renderFeed(postStatuses, 'No posts yet')}
-        </TabsContent>
+        {!isPixelfed && (
+          <>
+            <TabsContent value="posts" className="mt-0">
+              {renderFeed(postStatuses, 'No posts yet')}
+            </TabsContent>
 
-        <TabsContent value="replies" className="mt-0">
-          {renderFeed(replyStatuses, 'No replies yet')}
-        </TabsContent>
+            <TabsContent value="replies" className="mt-0">
+              {renderFeed(replyStatuses, 'No replies yet')}
+            </TabsContent>
+          </>
+        )}
 
         <TabsContent value="media" className="mt-0">
-          {attachments.length > 0 ? (
+          {attachments.length > 0 ||
+          (isPixelfed &&
+            currentStatuses.some(
+              (s) => s.type === StatusType.enum.Note && s.attachments.length > 0
+            )) ? (
             <div className="rounded-xl border bg-card p-2 shadow-sm sm:p-4">
               <ActorMediaGallery
                 actorId={actorId}
                 initialAttachments={attachments}
+                statuses={currentStatuses}
+                isPixelfed={isPixelfed}
               />
             </div>
           ) : (
@@ -399,7 +419,7 @@ export const ActorTimelines: FC<Props> = ({
           )}
         </TabsContent>
 
-        {showFitnessTab && (
+        {showFitnessTab && !isPixelfed && (
           <TabsContent value="fitness" className="mt-0 space-y-4">
             {isCurrentUser && (
               <div className="flex justify-end">
