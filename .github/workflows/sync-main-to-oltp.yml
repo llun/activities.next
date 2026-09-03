@@ -17,6 +17,7 @@ concurrency:
 env:
   GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
   MAIN_SHA: ${{ github.event.client_payload.main_sha }}
+  YARN_ENABLE_IMMUTABLE_INSTALLS: 'false'
 
 jobs:
   sync:
@@ -155,7 +156,7 @@ jobs:
             git add "${code_files[@]}"
           fi
 
-          yarn install
+          yarn install --no-immutable
           git add yarn.lock
 
       - name: Verify merge is still pending
@@ -180,7 +181,7 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ env.GEMINI_API_KEY }}
         run: |
-          yarn install
+          yarn install --no-immutable
 
           heal_attempts=2
           for attempt in $(seq 1 $heal_attempts); do
