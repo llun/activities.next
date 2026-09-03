@@ -1,7 +1,12 @@
-import { FC } from 'react'
+import { CSSProperties, FC } from 'react'
 
 interface FollowListLoadingSkeletonProps {
   label: string
+}
+
+const breakoutStyle: CSSProperties = {
+  marginLeft: 'calc(-50vw + 50% + var(--sidebar-w, 0px) / 2)',
+  marginRight: 'calc(-50vw + 50% + var(--sidebar-w, 0px) / 2)'
 }
 
 /**
@@ -18,11 +23,28 @@ export const FollowListLoadingSkeleton: FC<FollowListLoadingSkeletonProps> = ({
 }) => {
   return (
     <div aria-busy="true" aria-label={label} className="space-y-6">
-      <div className="flex items-start gap-3">
-        <div className="skeleton h-9 w-9 shrink-0 rounded-md" />
+      {/* Signed-in header: mirrors PageHeader (sticky top-0, breakout, py-4) */}
+      <div
+        className="sticky top-0 z-20 border-b bg-background/85 backdrop-blur group-data-[shell=public]/shell:hidden"
+        style={breakoutStyle}
+      >
+        <div className="mx-auto max-w-content px-4 py-4">
+          <div className="flex items-start gap-2">
+            <div className="skeleton mt-0.5 size-5 shrink-0 rounded-md" />
+            <div className="space-y-1">
+              <div className="skeleton h-6 w-28 rounded-md" />
+              <div className="skeleton h-3.5 w-24 rounded" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Anonymous header: mirrors the non-sticky header inside PublicShell */}
+      <div className="hidden items-start gap-2 group-data-[shell=public]/shell:flex">
+        <div className="skeleton mt-0.5 size-5 shrink-0 rounded-md" />
         <div className="space-y-1">
-          <div className="skeleton h-7 w-32 rounded-md" />
-          <div className="skeleton h-4 w-24 rounded" />
+          <div className="skeleton h-6 w-28 rounded-md" />
+          <div className="skeleton h-3.5 w-24 rounded" />
         </div>
       </div>
 
