@@ -238,22 +238,26 @@ const Page: FC<Props> = async ({ params }) => {
               <span className="font-semibold">{statusesCount}</span>{' '}
               <span className="text-muted-foreground">Posts</span>
             </div>
-            <Link
-              href={`/@${person.preferredUsername}@${actorDomain}/following`}
-              prefetch={false}
-              className="hover:underline"
-            >
-              <span className="font-semibold">{followingCount}</span>{' '}
-              <span className="text-muted-foreground">Following</span>
-            </Link>
-            <Link
-              href={`/@${person.preferredUsername}@${actorDomain}/followers`}
-              prefetch={false}
-              className="hover:underline"
-            >
-              <span className="font-semibold">{followersCount}</span>{' '}
-              <span className="text-muted-foreground">Followers</span>
-            </Link>
+            {followingCount !== null && (
+              <Link
+                href={`/@${person.preferredUsername}@${actorDomain}/following`}
+                prefetch={false}
+                className="hover:underline"
+              >
+                <span className="font-semibold">{followingCount}</span>{' '}
+                <span className="text-muted-foreground">Following</span>
+              </Link>
+            )}
+            {followersCount !== null && (
+              <Link
+                href={`/@${person.preferredUsername}@${actorDomain}/followers`}
+                prefetch={false}
+                className="hover:underline"
+              >
+                <span className="font-semibold">{followersCount}</span>{' '}
+                <span className="text-muted-foreground">Followers</span>
+              </Link>
+            )}
           </div>
 
           <FeaturedTagsBlock tags={featuredTags} />

@@ -11,8 +11,8 @@ interface Props {
   domain: string
   url: string
   totalPosts?: number
-  followingCount?: number
-  followersCount?: number
+  followingCount?: number | null
+  followersCount?: number | null
   createdAt: number
 }
 
@@ -33,17 +33,25 @@ export const Profile: FC<Props> = ({
         @{username}
       </Link>
     </h4>
-    {totalPosts || followingCount || followersCount ? (
+    {typeof totalPosts === 'number' ||
+    typeof followingCount === 'number' ||
+    typeof followersCount === 'number' ? (
       <p>
-        <span className="inline-block whitespace-nowrap">
-          {totalPosts} Posts
-        </span>
-        <span className="inline-block ml-2 whitespace-nowrap">
-          {followingCount} Following
-        </span>
-        <span className="inline-block ml-2 whitespace-nowrap">
-          {followersCount} Followers
-        </span>
+        {typeof totalPosts === 'number' && (
+          <span className="inline-block whitespace-nowrap">
+            {totalPosts} Posts
+          </span>
+        )}
+        {typeof followingCount === 'number' && (
+          <span className="inline-block ml-2 whitespace-nowrap">
+            {followingCount} Following
+          </span>
+        )}
+        {typeof followersCount === 'number' && (
+          <span className="inline-block ml-2 whitespace-nowrap">
+            {followersCount} Followers
+          </span>
+        )}
       </p>
     ) : null}
     {Number.isInteger(createdAt) ? (
