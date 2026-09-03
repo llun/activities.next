@@ -282,13 +282,23 @@ export const MediasModal: FC<Props> = ({
                 >
                   <div
                     onClick={(e) => e.stopPropagation()}
-                    className="flex max-h-[80vh] max-w-full items-center justify-center cursor-default"
+                    className="flex max-h-[80vh] max-w-full flex-col items-center justify-center cursor-default"
                   >
                     <Media
                       showVideoControl
-                      className="max-h-[80vh] max-w-full object-contain"
+                      className={cn(
+                        'max-w-full object-contain',
+                        medias[index].name?.trim()
+                          ? 'max-h-[72vh]'
+                          : 'max-h-[80vh]'
+                      )}
                       attachment={medias[index]}
                     />
+                    {medias[index].name?.trim() ? (
+                      <p className="mt-2 max-h-24 max-w-2xl overflow-y-auto px-4 text-center text-sm leading-relaxed text-white/85 select-text">
+                        {medias[index].name.trim()}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               ))}
