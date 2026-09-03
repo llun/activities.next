@@ -5,8 +5,10 @@ import { FollowAction } from '@/lib/components/follow-action/follow-action'
 import { MuteAction } from '@/lib/components/mute-action/mute-action'
 import { RemoteFollowDialog } from '@/lib/components/remote-follow/remote-follow-dialog'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
+import { cn } from '@/lib/utils'
 
 interface ProfileRelationshipActionsProps {
+  className?: string
   targetActorId: string
   targetHandle: string
   isLoggedIn: boolean
@@ -19,20 +21,27 @@ export const isBlockedRelationship = (
 
 export const ProfileRelationshipActions: FC<
   ProfileRelationshipActionsProps
-> = ({ targetActorId, targetHandle, isLoggedIn, relationship }) => {
+> = ({ className, targetActorId, targetHandle, isLoggedIn, relationship }) => {
   // Every action below renders nothing without a session. A logged-out visitor
   // gets the remote-follow dialog instead, so they can follow from their own
   // server the way Mastodon offers.
   if (!isLoggedIn) {
     return (
-      <div className="flex flex-wrap gap-2">
+      <div
+        className={cn(
+          'flex shrink-0 flex-wrap gap-2 sm:flex-nowrap',
+          className
+        )}
+      >
         <RemoteFollowDialog targetHandle={targetHandle} />
       </div>
     )
   }
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div
+      className={cn('flex shrink-0 flex-wrap gap-2 sm:flex-nowrap', className)}
+    >
       {!isBlockedRelationship(relationship) ? (
         <>
           <FollowAction
