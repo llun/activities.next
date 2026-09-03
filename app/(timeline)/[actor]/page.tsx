@@ -208,15 +208,17 @@ const Page: FC<Props> = async ({ params }) => {
             <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
 
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold">{person.name}</h1>
-              <p className="text-muted-foreground">
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+            <div className="min-w-0">
+              <h1 className="text-2xl font-semibold break-words">
+                {person.name}
+              </h1>
+              <p className="truncate text-muted-foreground">
                 @{person.preferredUsername}
               </p>
             </div>
             {isCurrentUser ? (
-              <Button variant="outline" asChild>
+              <Button variant="outline" asChild className="shrink-0">
                 <Link href="/settings">Edit Profile</Link>
               </Button>
             ) : (
