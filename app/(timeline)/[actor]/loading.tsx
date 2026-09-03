@@ -13,12 +13,12 @@ export const ProfileLoading: FC = () => {
         <div className="relative px-6 pb-6">
           <div className="skeleton -mt-10 h-20 w-20 rounded-full border-4 border-background" />
 
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="space-y-2">
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+            <div className="min-w-0 space-y-2">
               <div className="skeleton h-7 w-48 rounded-md" />
               <div className="skeleton h-4 w-32 rounded-md" />
             </div>
-            <div className="skeleton h-9 w-28 rounded-md" />
+            <div className="skeleton h-9 w-28 shrink-0 rounded-md" />
           </div>
 
           <div className="mt-4 space-y-2">
