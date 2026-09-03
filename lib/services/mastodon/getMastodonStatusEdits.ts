@@ -1,3 +1,4 @@
+import { addQuoteFallbackToContent } from '@/lib/activities/quoteNoteFields'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { Mastodon } from '@/lib/types/activitypub'
@@ -70,12 +71,15 @@ export const getMastodonStatusEdits = async (
     // extended fields; fall back to the status's current values for those.
     const sensitive = revision.sensitive ?? status.sensitive ?? false
     const pollOptions = revision.pollOptions ?? currentPollOptions
+    const rawContent = processStatusText(host, {
+      ...status,
+      text: revision.text,
+      summary: revision.summary
+    } as Status)
+    const fallbackUrl =
+      status.quote?.quotedStatusUrl || status.quote?.quotedStatusId
     return {
-      content: processStatusText(host, {
-        ...status,
-        text: revision.text,
-        summary: revision.summary
-      } as Status),
+      content: addQuoteFallbackToContent(rawContent, status.quote, fallbackUrl),
       spoiler_text: revision.summary ?? '',
       // Mastodon forces sensitive=true whenever the revision carries a content
       // warning, mirroring the live-status serializer.

@@ -62,19 +62,29 @@ const QUOTE_INLINE_CLASS = 'quote-inline'
  */
 export const addQuoteFallbackToContent = (
   content: string,
-  quoteEdge: StatusQuote | null | undefined
+  quoteEdge: StatusQuote | null | undefined,
+  targetUrl?: string | null
 ): string => {
   const fields = getQuoteNoteFields(quoteEdge)
   if (!fields) return content
-  const url = fields.quote
+  const url = targetUrl || quoteEdge?.quotedStatusUrl || fields.quote
   if (!url) return content
+  const targetId = fields.quote
   // The skip must test the ESCAPED form too: stored HTML only ever carries
   // the escaped rendering of the url (`&` as `&amp;`), so matching the raw
   // form alone double-prefixed a boosted remote quote post whose id contains
-  // an escapable character.
-  const escaped = escapeHtml(url)
-  if (content.includes(url) || content.includes(escaped)) return content
-  return `<p class="${QUOTE_INLINE_CLASS}">RE: <a href="${escaped}">${escaped}</a></p>${content}`
+  // an escapable character. Check both the resolved url and the raw quoted id.
+  const escapedUrl = escapeHtml(url)
+  const escapedTargetId = escapeHtml(targetId)
+  if (
+    content.includes(url) ||
+    content.includes(escapedUrl) ||
+    content.includes(targetId) ||
+    content.includes(escapedTargetId)
+  ) {
+    return content
+  }
+  return `<p class="${QUOTE_INLINE_CLASS}">RE: <a href="${escapedUrl}">${escapedUrl}</a></p>${content}`
 }
 
 // Advertise the audiences that may quote a status. `public` → the public
