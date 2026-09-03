@@ -8,6 +8,7 @@ import {
   Hash,
   Image,
   Link as LinkIcon,
+  ListOrdered,
   Megaphone,
   Rss,
   Scale,
@@ -53,6 +54,7 @@ const tabs: SectionNavTab[] = [
   { name: 'Posts & media', url: '/admin/posts', icon: Image },
   { name: 'Network', url: '/admin/network', icon: LinkIcon },
   { name: 'Instance', url: '/admin/instance', icon: Settings },
+  { name: 'Queues', url: '/admin/queues', icon: ListOrdered },
   { name: 'System', url: '/admin/system', icon: Server }
 ]
 
