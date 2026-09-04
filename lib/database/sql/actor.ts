@@ -190,13 +190,15 @@ const insertActorWithSearchIndex = async (
 ) => {
   const currentTime = new Date()
   let resolvedTags = tags
-  if (resolvedTags === undefined && (name || summary)) {
+  if (resolvedTags === undefined && (name || summary || fields)) {
     const isLocal =
       domain.toLowerCase() === getConfiguredActorDomain().toLowerCase()
     if (isLocal) {
+      const fieldsText =
+        fields?.map((f) => `${f.name} ${f.value}`).join(' ') ?? ''
       resolvedTags = await resolveLocalEmojiTags(
         database,
-        `${name ?? ''} ${summary ?? ''}`
+        `${name ?? ''} ${summary ?? ''} ${fieldsText}`.trim()
       )
     }
   }
@@ -1016,10 +1018,11 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       .first()
     if (!persistedActor) return null
 
+    const persistedSettings = getCompatibleJSON(persistedActor.settings)
     let resolvedTags = tags
     if (
       resolvedTags === undefined &&
-      (name !== undefined || summary !== undefined)
+      (name !== undefined || summary !== undefined || fields !== undefined)
     ) {
       const isLocal =
         persistedActor.domain.toLowerCase() ===
@@ -1029,14 +1032,17 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
           name !== undefined ? name : (persistedActor.name ?? '')
         const targetSummary =
           summary !== undefined ? summary : (persistedActor.summary ?? '')
+        const targetFields =
+          fields !== undefined ? fields : (persistedSettings.fields ?? [])
+        const fieldsText = targetFields
+          .map((f: { name: string; value: string }) => `${f.name} ${f.value}`)
+          .join(' ')
         resolvedTags = await resolveLocalEmojiTags(
           database,
-          `${targetName} ${targetSummary}`
+          `${targetName} ${targetSummary} ${fieldsText}`.trim()
         )
       }
     }
-
-    const persistedSettings = getCompatibleJSON(persistedActor.settings)
     // The explicit settings changes requested by this call (undefined fields
     // mean "no change"). Kept as a standalone object so the
     // appendNotificationAcceptedSenders path can re-apply them on top of the

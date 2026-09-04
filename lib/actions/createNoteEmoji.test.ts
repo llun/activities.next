@@ -3,6 +3,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { createPollFromUserInput } from '@/lib/actions/createPoll'
 import { updateNoteFromUserInput } from '@/lib/actions/updateNote'
+import { updatePollFromUserInput } from '@/lib/actions/updatePoll'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
@@ -197,5 +198,109 @@ describe('Custom emoji status federation', () => {
     expect(updated?.tags.filter((tag) => tag.type === 'emoji')).toEqual([
       expect.objectContaining({ name: ':blobcat:' })
     ])
+  })
+
+  it('persists an emoji tag when shortcode appears in summary (content warning)', async () => {
+    const status = await createNoteFromUserInput({
+      currentActor: actor1,
+      text: 'plain post body',
+      summary: 'spoiler with :blobcat:',
+      database
+    })
+    if (!status) throw new Error('Expected a status')
+
+    const emojiTags = status.tags.filter((tag) => tag.type === 'emoji')
+    expect(emojiTags).toHaveLength(1)
+    expect(emojiTags[0].name).toBe(':blobcat:')
+  })
+
+  it('persists an emoji tag when shortcode appears in attachment alt text', async () => {
+    const status = await createNoteFromUserInput({
+      currentActor: actor1,
+      text: 'image post',
+      attachments: [
+        {
+          type: 'upload',
+          id: 'media-emoji-1',
+          mediaType: 'image/png',
+          url: 'https://example.com/test.png',
+          width: 400,
+          height: 300,
+          name: 'alt with :blobcat:'
+        }
+      ],
+      database
+    })
+    if (!status) throw new Error('Expected a status')
+
+    const emojiTags = status.tags.filter((tag) => tag.type === 'emoji')
+    expect(emojiTags).toHaveLength(1)
+    expect(emojiTags[0].name).toBe(':blobcat:')
+  })
+
+  it('persists an emoji tag when shortcode appears in poll choices', async () => {
+    const status = await createPollFromUserInput({
+      currentActor: actor1,
+      text: 'poll question',
+      choices: ['option 1 :blobcat:', 'option 2'],
+      endAt: 4102444800000,
+      database
+    })
+    if (!status) throw new Error('Expected a poll status')
+
+    const emojiTags = status.tags.filter((tag) => tag.type === 'emoji')
+    expect(emojiTags).toHaveLength(1)
+    expect(emojiTags[0].name).toBe(':blobcat:')
+  })
+
+  it('re-syncs emoji tags when summary or attachments are updated', async () => {
+    const status = await createNoteFromUserInput({
+      currentActor: actor1,
+      text: 'plain text',
+      summary: 'plain summary',
+      database
+    })
+    if (!status) throw new Error('Expected a status')
+
+    const updated = await updateNoteFromUserInput({
+      statusId: status.id,
+      currentActor: actor1,
+      summary: 'warning with :blobcat:',
+      database,
+      publish: false
+    })
+
+    const tags = await database.getTags({ statusId: status.id })
+    const emojiTags = tags.filter((tag) => tag.type === 'emoji')
+    expect(emojiTags).toHaveLength(1)
+    expect(emojiTags[0].name).toBe(':blobcat:')
+    expect(updated?.tags.filter((tag) => tag.type === 'emoji')).toHaveLength(1)
+  })
+
+  it('re-syncs emoji tags when poll choices are updated', async () => {
+    const status = await createPollFromUserInput({
+      currentActor: actor1,
+      text: 'poll question',
+      choices: ['option 1', 'option 2'],
+      endAt: 4102444800000,
+      database
+    })
+    if (!status) throw new Error('Expected a poll status')
+
+    const updated = await updatePollFromUserInput({
+      statusId: status.id,
+      currentActor: actor1,
+      poll: {
+        options: ['new choice :blobcat:', 'option 2'],
+        expiresIn: 3600
+      },
+      database
+    })
+
+    const tags = await database.getTags({ statusId: status.id })
+    const emojiTags = tags.filter((tag) => tag.type === 'emoji')
+    expect(emojiTags).toHaveLength(1)
+    expect(emojiTags[0].name).toBe(':blobcat:')
+    expect(updated?.tags.filter((tag) => tag.type === 'emoji')).toHaveLength(1)
   })
 })

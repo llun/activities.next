@@ -170,10 +170,11 @@ export const persistEmojiTagsForStatus = async ({
 }: {
   database: Database
   statusId: string
-  text: string
+  text: string | string[]
 }): Promise<number> => {
+  const combinedText = Array.isArray(text) ? text.join(' ') : text
   const customEmojis = await database.getCustomEmojis()
-  const emojiTags = getEmojiTags(text, customEmojis)
+  const emojiTags = getEmojiTags(combinedText, customEmojis)
   await Promise.all(
     emojiTags.map((emojiTag) =>
       database.createTag({
@@ -553,7 +554,11 @@ export const createNoteFromUserInput = async ({
       })
     }
 
-    await persistEmojiTagsForStatus({ database, statusId, text })
+    await persistEmojiTagsForStatus({
+      database,
+      statusId,
+      text: [text, summary ?? '', ...attachments.map((a) => a.name || '')]
+    })
 
     const mediaIds = attachments
       .map((attachment) => attachment.id)

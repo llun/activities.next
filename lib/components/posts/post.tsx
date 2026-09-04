@@ -483,7 +483,9 @@ export const Post: FC<PostProps> = (props) => {
           </div>
 
           {summary ? (
-            <ContentWarning summary={summary}>{statusBody}</ContentWarning>
+            <ContentWarning summary={summary} tags={actualStatus.tags}>
+              {statusBody}
+            </ContentWarning>
           ) : (
             statusBody
           )}

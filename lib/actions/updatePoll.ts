@@ -88,12 +88,30 @@ export const updatePollFromUserInput = async ({
       return null
     }
 
-    // Mirror updateNoteFromUserInput: re-sync emoji tags and re-detect the
-    // content language when the text changes.
-    if (text !== undefined) {
+    // Mirror updateNoteFromUserInput: re-sync emoji tags when text, summary, or
+    // poll options change, and re-detect the content language when text changes.
+    if (
+      text !== undefined ||
+      summary !== undefined ||
+      poll?.options !== undefined
+    ) {
       await database.deleteStatusTagsByType({ statusId, type: 'emoji' })
-      await persistEmojiTagsForStatus({ database, statusId, text })
-      await persistDetectedLanguage({ database, statusId, text })
+      const pollChoices =
+        updatedStatus.type === StatusType.enum.Poll ? updatedStatus.choices : []
+      const pollSummary =
+        updatedStatus.type === StatusType.enum.Poll
+          ? (updatedStatus.summary ?? '')
+          : ''
+      const pollText =
+        updatedStatus.type === StatusType.enum.Poll ? updatedStatus.text : ''
+      await persistEmojiTagsForStatus({
+        database,
+        statusId,
+        text: [pollText, pollSummary, ...pollChoices.map((c) => c.title)]
+      })
+      if (text !== undefined) {
+        await persistDetectedLanguage({ database, statusId, text })
+      }
       updatedStatus = (await database.getStatus({ statusId })) ?? updatedStatus
     }
 

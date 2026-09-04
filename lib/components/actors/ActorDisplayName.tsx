@@ -13,7 +13,8 @@ export interface MastodonAccountCustomEmoji {
   static_url?: string
 }
 
-export interface ActorDisplayNameProps {
+export interface CustomEmojiTextProps {
+  text?: string | null
   name?: string | null
   tags?:
     | (
@@ -27,14 +28,18 @@ export interface ActorDisplayNameProps {
   emojiClassName?: string
 }
 
-export const ActorDisplayName: FC<ActorDisplayNameProps> = ({
+export type ActorDisplayNameProps = CustomEmojiTextProps
+
+export const CustomEmojiText: FC<CustomEmojiTextProps> = ({
+  text,
   name,
   tags,
   emojis,
   className,
   emojiClassName
 }) => {
-  if (!name) return null
+  const contentText = text ?? name
+  if (!contentText) return null
 
   const urlByShortcode = new Map<string, string>()
 
@@ -56,10 +61,14 @@ export const ActorDisplayName: FC<ActorDisplayNameProps> = ({
   }
 
   if (urlByShortcode.size === 0) {
-    return className ? <span className={className}>{name}</span> : <>{name}</>
+    return className ? (
+      <span className={className}>{contentText}</span>
+    ) : (
+      <>{contentText}</>
+    )
   }
 
-  const parts = name.split(SHORTCODE_CAPTURE_REGEX)
+  const parts = contentText.split(SHORTCODE_CAPTURE_REGEX)
   let hasEmoji = false
 
   const content: ReactNode[] = parts.map((part, index) => {
@@ -83,7 +92,11 @@ export const ActorDisplayName: FC<ActorDisplayNameProps> = ({
   })
 
   if (!hasEmoji) {
-    return className ? <span className={className}>{name}</span> : <>{name}</>
+    return className ? (
+      <span className={className}>{contentText}</span>
+    ) : (
+      <>{contentText}</>
+    )
   }
 
   return className ? (
@@ -92,3 +105,5 @@ export const ActorDisplayName: FC<ActorDisplayNameProps> = ({
     <>{content}</>
   )
 }
+
+export const ActorDisplayName = CustomEmojiText

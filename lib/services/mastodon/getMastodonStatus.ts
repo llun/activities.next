@@ -816,7 +816,7 @@ export const getMastodonStatus = async (
         title: choice.title,
         votes_count: showTotals ? choice.totalVotes : null
       })),
-      emojis: [],
+      emojis,
       voted,
       own_votes: ownVotes
     })

@@ -79,18 +79,42 @@ export const updateNoteFromUserInput = async ({
       return null
     }
 
-    // Re-sync emoji tags when the text changes so newly added `:shortcode:`
-    // tokens federate and removed ones stop federating, then re-fetch so the
-    // returned status and the timeline cache reflect the re-synced tags (mirroring
-    // createNoteFromUserInput).
-    if (text !== undefined) {
+    // Re-sync emoji tags when the text, summary, or attachments change so newly
+    // added `:shortcode:` tokens federate and removed ones stop federating, then
+    // re-fetch so the returned status and the timeline cache reflect the
+    // re-synced tags (mirroring createNoteFromUserInput).
+    if (
+      text !== undefined ||
+      summary !== undefined ||
+      attachments !== undefined
+    ) {
       await database.deleteStatusTagsByType({ statusId, type: 'emoji' })
-      await persistEmojiTagsForStatus({ database, statusId, text })
+      const noteAttachments =
+        updatedStatus.type === StatusType.enum.Note
+          ? updatedStatus.attachments
+          : []
+      const noteSummary =
+        updatedStatus.type === StatusType.enum.Note
+          ? (updatedStatus.summary ?? '')
+          : ''
+      const noteText =
+        updatedStatus.type === StatusType.enum.Note ? updatedStatus.text : ''
+      await persistEmojiTagsForStatus({
+        database,
+        statusId,
+        text: [
+          noteText,
+          noteSummary,
+          ...noteAttachments.map((a) => a.name || '')
+        ]
+      })
 
-      // Re-detect the content language alongside the edit; the previous
-      // detection (if any) is stale once the text changes — persistDetectedLanguage
-      // clears the old row when the new text no longer detects confidently.
-      await persistDetectedLanguage({ database, statusId, text })
+      if (text !== undefined) {
+        // Re-detect the content language alongside the edit; the previous
+        // detection (if any) is stale once the text changes — persistDetectedLanguage
+        // clears the old row when the new text no longer detects confidently.
+        await persistDetectedLanguage({ database, statusId, text })
+      }
 
       updatedStatus = (await database.getStatus({ statusId })) ?? updatedStatus
     }

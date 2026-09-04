@@ -8,6 +8,7 @@ import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
+import { Tag } from '@/lib/types/domain/tag'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import { cn } from '@/lib/utils'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
@@ -79,6 +80,7 @@ export const Posts: FC<Props> = ({
   const router = useRouter()
   const [modalMedias, setModalMedias] = useState<{
     medias: Attachment[]
+    tags?: Tag[]
     initialSelection: number
   } | null>(null)
   // Reply/quote/edit share one inline composer owned here, so every surface
@@ -161,7 +163,11 @@ export const Posts: FC<Props> = ({
                 onReactionsChanged={onReactionsChanged}
                 onOpenStatus={openStatus}
                 onShowAttachment={(allMedias, index) => {
-                  setModalMedias({ medias: allMedias, initialSelection: index })
+                  setModalMedias({
+                    medias: allMedias,
+                    tags: actualStatus.tags,
+                    initialSelection: index
+                  })
                 }}
               />
               {activeComposer && currentActor ? (
@@ -183,6 +189,7 @@ export const Posts: FC<Props> = ({
       </section>
       <MediasModal
         medias={modalMedias?.medias ?? null}
+        tags={modalMedias?.tags ?? null}
         initialSelection={modalMedias?.initialSelection ?? 0}
         onClosed={() => setModalMedias(null)}
       />

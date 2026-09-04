@@ -870,6 +870,33 @@ describe('ActorDatabase', () => {
         ])
       })
 
+      it('automatically resolves local custom emoji when profile fields are updated', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `autoresolve-fields-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+
+        await database.createCustomEmoji({
+          shortcode: 'fieldblob',
+          url: 'https://example.com/fieldblob.png',
+          staticUrl: 'https://example.com/fieldblob.png'
+        })
+
+        await database.updateActor({
+          actorId,
+          fields: [{ name: 'Pronouns', value: ':fieldblob:' }]
+        })
+
+        const actor = await database.getActorFromId({ id: actorId })
+        expect(actor?.tags).toEqual([
+          {
+            type: 'emoji',
+            name: ':fieldblob:',
+            value: 'https://example.com/fieldblob.png'
+          }
+        ])
+      })
+
       it('serializes suspended actors with suspended: true and silenced actors with limited: true', async () => {
         await withFreshDatabase(async (database) => {
           const suffix = crypto.randomUUID().slice(0, 8)

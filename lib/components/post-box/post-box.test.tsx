@@ -1050,6 +1050,43 @@ describe('PostBox markdown preview', () => {
     )
   })
 
+  it('renders custom emoji shortcodes in content warning preview', async () => {
+    ;(getCustomEmojis as jest.Mock).mockResolvedValueOnce([
+      {
+        shortcode: 'blobcat',
+        url: 'https://activities.local/emojis/blobcat.png',
+        static_url: 'https://activities.local/emojis/blobcat.png',
+        visible_in_picker: true,
+        category: null
+      }
+    ])
+
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add content warning' }))
+    const cwInput = screen.getByPlaceholderText('Write your warning here')
+    fireEvent.change(cwInput, { target: { value: 'CW :blobcat:' } })
+    const textarea = screen.getByPlaceholderText('What is on your mind?')
+    fireEvent.change(textarea, { target: { value: 'hidden secret' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle preview' }))
+
+    const image = await screen.findByAltText(':blobcat:')
+    expect(image).toHaveAttribute(
+      'src',
+      'https://activities.local/emojis/blobcat.png'
+    )
+    expect(screen.getAllByText('hidden secret')).toHaveLength(2)
+  })
+
   it('shows nothing to preview message when textarea is empty', async () => {
     render(
       <PostBox
