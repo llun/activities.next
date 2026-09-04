@@ -39,4 +39,27 @@ describe('ContentWarning', () => {
 
     expect(screen.queryByText('Hidden details')).not.toBeInTheDocument()
   })
+
+  it('renders custom emoji images in summary when matching tags are provided', () => {
+    render(
+      <ContentWarning
+        summary="CW :blobcat: beware"
+        tags={[
+          {
+            type: 'emoji',
+            name: ':blobcat:',
+            value: 'https://example.com/blobcat.png'
+          }
+        ]}
+      >
+        <p>Hidden details</p>
+      </ContentWarning>
+    )
+
+    const img = screen.getByRole('img', { name: ':blobcat:' })
+    expect(img).toBeInTheDocument()
+    expect(img).toHaveAttribute('src', 'https://example.com/blobcat.png')
+    expect(screen.getByText(/CW/)).toBeInTheDocument()
+    expect(screen.getByText(/beware/)).toBeInTheDocument()
+  })
 })

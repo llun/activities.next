@@ -5,6 +5,7 @@ import { Check } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 
 import { votePoll } from '@/lib/client'
+import { CustomEmojiText } from '@/lib/components/actors/ActorDisplayName'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 
@@ -182,7 +183,7 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
                     ))}
                 </span>
                 <span className="min-w-0 flex-1 truncate">
-                  {titleFor(index)}
+                  <CustomEmojiText text={titleFor(index)} tags={status.tags} />
                 </span>
               </label>
             )
@@ -212,7 +213,7 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
                     mine && 'font-semibold'
                   )}
                 >
-                  {titleFor(index)}
+                  <CustomEmojiText text={titleFor(index)} tags={status.tags} />
                   {mine && <span className="text-primary"> ✓</span>}
                 </span>
                 <span className="shrink-0 tabular-nums text-muted-foreground">

@@ -15,6 +15,7 @@ import {
 import type { ReactNode } from 'react'
 
 import { SearchResult, SearchType, search as searchClient } from '@/lib/client'
+import { CustomEmojiText } from '@/lib/components/actors/ActorDisplayName'
 import { PageHeader } from '@/lib/components/page-header'
 import { Posts } from '@/lib/components/posts/posts'
 import { TrendingNowBlock } from '@/lib/components/trends/trending-now-block'
@@ -211,12 +212,14 @@ const AccountRow = ({
       </Avatar>
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-          <p className="truncate text-sm font-medium">{label}</p>
+          <p className="truncate text-sm font-medium">
+            <CustomEmojiText text={label} emojis={account.emojis} />
+          </p>
           <p className="truncate text-xs text-muted-foreground">{handle}</p>
         </div>
         {note && (
           <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-            {note}
+            <CustomEmojiText text={note} emojis={account.emojis} />
           </p>
         )}
       </div>

@@ -4,6 +4,7 @@ import { Heart } from 'lucide-react'
 import Link from 'next/link'
 import { FC, useEffect, useMemo, useState } from 'react'
 
+import { CustomEmojiText } from '@/lib/components/actors/ActorDisplayName'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -120,7 +121,10 @@ export const StatusLikes: FC<Props> = ({
                   <AvatarFallback>{getInitials(account)}</AvatarFallback>
                 </Avatar>
                 <span className="max-w-40 truncate">
-                  {getDisplayName(account)}
+                  <CustomEmojiText
+                    text={getDisplayName(account)}
+                    emojis={account.emojis}
+                  />
                 </span>
               </Link>
             ))}
@@ -185,7 +189,10 @@ export const StatusLikes: FC<Props> = ({
                     </Avatar>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">
-                        {getDisplayName(account)}
+                        <CustomEmojiText
+                          text={getDisplayName(account)}
+                          emojis={account.emojis}
+                        />
                       </p>
                       <p className="truncate text-xs text-muted-foreground">
                         @{account.acct}

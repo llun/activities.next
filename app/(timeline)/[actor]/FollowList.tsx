@@ -3,7 +3,10 @@
 import Link from 'next/link'
 import { FC, useMemo } from 'react'
 
-import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
+import {
+  ActorDisplayName,
+  CustomEmojiText
+} from '@/lib/components/actors/ActorDisplayName'
 import { FollowAction } from '@/lib/components/follow-action/follow-action'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { ActorProfile } from '@/lib/types/domain/actor'
@@ -70,7 +73,7 @@ export const FollowList: FC<Props> = ({
               </div>
               {summary ? (
                 <div className="mt-1 line-clamp-1 text-sm text-muted-foreground">
-                  {summary}
+                  <CustomEmojiText text={summary} tags={user.tags} />
                 </div>
               ) : null}
             </div>

@@ -125,4 +125,29 @@ describe('MediasModal', () => {
     altElements[1].dispatchEvent(touchStartEvent)
     expect(stopPropagationSpy).toHaveBeenCalled()
   })
+
+  it('renders custom emoji images in alt text when matching tags are passed', () => {
+    const attachment = buildAttachment({
+      name: 'Image caption with :blobcat:'
+    })
+
+    render(
+      <MediasModal
+        medias={[attachment]}
+        tags={[
+          {
+            type: 'emoji',
+            name: ':blobcat:',
+            value: 'https://example.com/blobcat.png'
+          }
+        ]}
+        initialSelection={0}
+        onClosed={vi.fn()}
+      />
+    )
+
+    const imgs = screen.getAllByRole('img', { name: ':blobcat:' })
+    expect(imgs.length).toBeGreaterThanOrEqual(1)
+    expect(imgs[0]).toHaveAttribute('src', 'https://example.com/blobcat.png')
+  })
 })

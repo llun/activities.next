@@ -2,9 +2,12 @@ import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
+import { CustomEmojiText } from '@/lib/components/actors/ActorDisplayName'
 import { Media } from '@/lib/components/posts/media'
 import { Button } from '@/lib/components/ui/button'
+import { ActorEmojiTag } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
+import { Tag } from '@/lib/types/domain/tag'
 import { cn } from '@/lib/utils'
 
 const MIN_SWIPE_DISTANCE = 50 // Minimum distance in pixels for a swipe to be recognized
@@ -13,12 +16,20 @@ const INTERACTIVE_SWIPE_IGNORE_SELECTOR =
 
 interface Props {
   medias: Attachment[] | null
+  tags?:
+    | (
+        | Pick<Tag, 'type' | 'name' | 'value'>
+        | ActorEmojiTag
+        | { type: string; name: string; value: string }
+      )[]
+    | null
   initialSelection: number
   onClosed: () => void
 }
 
 export const MediasModal: FC<Props> = ({
   medias,
+  tags,
   initialSelection,
   onClosed
 }) => {
@@ -300,7 +311,10 @@ export const MediasModal: FC<Props> = ({
                         onTouchStart={(e) => e.stopPropagation()}
                         className="mt-2 max-h-24 max-w-2xl overflow-y-auto px-4 text-center text-sm leading-relaxed text-white/85 select-text"
                       >
-                        {medias[index].name.trim()}
+                        <CustomEmojiText
+                          text={medias[index].name.trim()}
+                          tags={tags}
+                        />
                       </p>
                     ) : null}
                   </div>
