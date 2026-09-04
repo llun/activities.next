@@ -262,4 +262,55 @@ describe('ActorMediaGallery', () => {
     ).toBeInTheDocument()
     expect(screen.queryByText('Load more')).not.toBeInTheDocument()
   })
+
+  it('renders the gallery grid inside a framed card with reduced padding for both standard and Pixelfed profiles', () => {
+    const attachment = buildAttachment({
+      id: 'photo-1',
+      name: 'Sample image'
+    })
+
+    const { container: standardContainer } = render(
+      <ActorMediaGallery
+        actorId="https://activities.local/users/llun"
+        initialAttachments={[attachment]}
+        isPixelfed={false}
+      />
+    )
+
+    const standardFrame = standardContainer.querySelector(
+      '.rounded-xl.border.bg-card.p-1.shadow-sm'
+    )
+    expect(standardFrame).toBeInTheDocument()
+    expect(standardFrame).toHaveClass('sm:p-2')
+
+    const { container: pixelfedContainer } = render(
+      <ActorMediaGallery
+        actorId="https://pixelfed.example/users/user"
+        initialAttachments={[attachment]}
+        isPixelfed={true}
+      />
+    )
+
+    const pixelfedFrame = pixelfedContainer.querySelector(
+      '.rounded-xl.border.bg-card.p-1.shadow-sm'
+    )
+    expect(pixelfedFrame).toBeInTheDocument()
+    expect(pixelfedFrame).toHaveClass('sm:p-2')
+  })
+
+  it('merges custom className onto the framed card container', () => {
+    const attachment = buildAttachment({ id: 'photo-1' })
+    const { container } = render(
+      <ActorMediaGallery
+        actorId="https://activities.local/users/llun"
+        initialAttachments={[attachment]}
+        className="custom-test-class"
+      />
+    )
+
+    const frame = container.querySelector(
+      '.rounded-xl.border.bg-card.p-1.shadow-sm'
+    )
+    expect(frame).toHaveClass('custom-test-class')
+  })
 })
