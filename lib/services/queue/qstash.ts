@@ -12,12 +12,13 @@ export const QStashConfig = z.object({
   url: z.string().url(),
   token: z.string(),
   currentSigningKey: z.string(),
-  nextSigningKey: z.string()
+  nextSigningKey: z.string(),
+  maxRetries: z.number().int().nonnegative().optional()
 })
 export type QStashConfig = z.infer<typeof QStashConfig>
 
 const MAX_JOB_TIMEOUT_SECONDS = 30
-const MAX_JOB_RETRIES = 0
+const DEFAULT_MAX_JOB_RETRIES = 3
 
 export class QStashQueue implements Queue {
   // QStash only enqueues on `publish`; the job runs out of band, not inline.
@@ -25,9 +26,11 @@ export class QStashQueue implements Queue {
 
   private _client: Client
   private _url: string
+  private _maxRetries: number
 
   constructor(config: QStashConfig) {
     this._url = config.url
+    this._maxRetries = config.maxRetries ?? DEFAULT_MAX_JOB_RETRIES
     this._client = new Client({
       token: config.token
     })
@@ -42,7 +45,7 @@ export class QStashQueue implements Queue {
         url: this._url,
         body: message,
         timeout: MAX_JOB_TIMEOUT_SECONDS,
-        retries: MAX_JOB_RETRIES,
+        retries: this._maxRetries,
         deduplicationId: Buffer.from(message.id).toString('base64url'),
         ...(Object.keys(traceHeaders).length > 0
           ? { headers: traceHeaders }

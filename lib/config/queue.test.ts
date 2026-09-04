@@ -35,8 +35,32 @@ describe('Queue config', () => {
 
       expect(config).not.toBeNull()
       expect(config?.queue.type).toBe('qstash')
-      expect(config?.queue.url).toBe('https://qstash.upstash.io')
-      expect(config?.queue.token).toBe('test-token')
+      if (config?.queue.type === 'qstash') {
+        expect(config.queue.url).toBe('https://qstash.upstash.io')
+        expect(config.queue.token).toBe('test-token')
+      }
+    })
+
+    it('returns cloudtasks config when queue type is cloudtasks', () => {
+      process.env.ACTIVITIES_QUEUE_TYPE = 'cloudtasks'
+      process.env.ACTIVITIES_QUEUE_CLOUDTASKS_SERVICE_ACCOUNT =
+        'sa@example.iam.gserviceaccount.com'
+      process.env.ACTIVITIES_QUEUE_CLOUDTASKS_AUDIENCE = 'https://example.com'
+      process.env.ACTIVITIES_QUEUE_CLOUDTASKS_SECRET = 'secret123'
+      process.env.ACTIVITIES_QUEUE_CLOUDTASKS_MAX_RETRIES = '3'
+
+      const config = getQueueConfig()
+
+      expect(config).not.toBeNull()
+      expect(config?.queue.type).toBe('cloudtasks')
+      if (config?.queue.type === 'cloudtasks') {
+        expect(config.queue.serviceAccount).toBe(
+          'sa@example.iam.gserviceaccount.com'
+        )
+        expect(config.queue.audience).toBe('https://example.com')
+        expect(config.queue.secret).toBe('secret123')
+        expect(config.queue.maxRetries).toBe(3)
+      }
     })
   })
 })

@@ -360,13 +360,18 @@ a basemap change, to re-render them.
 
 For asynchronous processing of ActivityPub delivery, file processing, etc.
 
-| Variable                               | Description                                                                                                                                                                                      |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `ACTIVITIES_QUEUE_TYPE`                | Queue backend: `qstash`.                                                                                                                                                                         |
-| `ACTIVITIES_QUEUE_URL`                 | Full QStash callback endpoint URL of this instance's queue handler, e.g. `https://your-domain.tld/api/v1/queue/qstash`. QStash delivers job messages to exactly this URL — it is not a base URL. |
-| `ACTIVITIES_QUEUE_TOKEN`               | QStash API token.                                                                                                                                                                                |
-| `ACTIVITIES_QUEUE_CURRENT_SIGNING_KEY` | QStash current signing key (for webhook verification).                                                                                                                                           |
-| `ACTIVITIES_QUEUE_NEXT_SIGNING_KEY`    | QStash next signing key (for key rotation).                                                                                                                                                      |
+| Variable                                      | Description                                                                                                                                                                                      |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ACTIVITIES_QUEUE_TYPE`                       | Queue backend: `qstash` or `cloudtasks`.                                                                                                                                                         |
+| `ACTIVITIES_QUEUE_URL`                        | Full QStash callback endpoint URL of this instance's queue handler, e.g. `https://your-domain.tld/api/v1/queue/qstash`. QStash delivers job messages to exactly this URL — it is not a base URL. |
+| `ACTIVITIES_QUEUE_TOKEN`                      | QStash API token.                                                                                                                                                                                |
+| `ACTIVITIES_QUEUE_CURRENT_SIGNING_KEY`        | QStash current signing key (for webhook verification).                                                                                                                                           |
+| `ACTIVITIES_QUEUE_NEXT_SIGNING_KEY`           | QStash next signing key (for key rotation).                                                                                                                                                      |
+| `ACTIVITIES_QUEUE_QSTASH_MAX_RETRIES`         | Maximum retry attempts before delivering failed task to QStash DLQ (default 3).                                                                                                                  |
+| `ACTIVITIES_QUEUE_CLOUDTASKS_SERVICE_ACCOUNT` | Authorized Google Cloud service account email for Cloud Tasks OIDC authentication.                                                                                                               |
+| `ACTIVITIES_QUEUE_CLOUDTASKS_AUDIENCE`        | Expected audience for Cloud Tasks OIDC token verification.                                                                                                                                       |
+| `ACTIVITIES_QUEUE_CLOUDTASKS_SECRET`          | Pre-shared webhook secret / bearer token for Cloud Tasks endpoint authentication.                                                                                                                |
+| `ACTIVITIES_QUEUE_CLOUDTASKS_MAX_RETRIES`     | Maximum retry attempts before capturing failed task in dead letter queue (default 5).                                                                                                            |
 
 ## Push Notifications
 

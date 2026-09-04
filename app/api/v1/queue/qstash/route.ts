@@ -15,8 +15,10 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 const getReceiver = memoize(
   (config: Config) =>
     new Receiver({
-      currentSigningKey: config.queue?.currentSigningKey || '',
-      nextSigningKey: config.queue?.nextSigningKey || ''
+      currentSigningKey:
+        config.queue?.type === 'qstash' ? config.queue.currentSigningKey : '',
+      nextSigningKey:
+        config.queue?.type === 'qstash' ? config.queue.nextSigningKey : ''
     })
 )
 
@@ -57,7 +59,15 @@ export const POST = traceApiRoute(
         err: toLoggableError(e),
         message: 'Failed to process qstash message'
       })
-      return apiErrorResponse(400)
+      return apiResponse({
+        req: request,
+        allowedMethods: [HttpMethod.enum.POST],
+        data: {
+          error: err.message,
+          stack: err.stack ?? null
+        },
+        responseStatusCode: 500
+      })
     }
     return apiResponse({
       req: request,
