@@ -197,6 +197,20 @@ export const isPixelfedActor = async (person: Actor): Promise<boolean> => {
   }
 }
 
+export const isPeerTubeDomain = async (domain: string): Promise<boolean> => {
+  const software = await getServerSoftware(domain)
+  return software === 'peertube'
+}
+
+export const isPeerTubeActor = async (person: Actor): Promise<boolean> => {
+  try {
+    const actorUrl = new URL(person.id)
+    return isPeerTubeDomain(actorUrl.host)
+  } catch {
+    return false
+  }
+}
+
 const MISSKEY_FAMILY_SOFTWARE = new Set([
   'misskey',
   'sharkey',
