@@ -3,6 +3,8 @@
  */
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
+import fs from 'node:fs'
+import path from 'node:path'
 
 import Loading, { TimelineLoading } from './loading'
 
@@ -48,5 +50,17 @@ describe('timeline loading', () => {
     const postsSection = screen.getByLabelText('Timeline posts')
     expect(postsSection).toBeInTheDocument()
     expect(postsSection.children).toHaveLength(3)
+  })
+
+  it('is scoped to the home route group so it does not cascade to other (timeline) subroutes', () => {
+    // Next.js cascades loading.tsx to all nested route segments in the same
+    // directory tree. To prevent TimelineLoading from appearing on /notifications,
+    // /bookmarks, /settings, etc., it must remain in (home)/ and not at the root
+    // of (timeline)/.
+    const rootTimelineLoadingPath = path.resolve(
+      process.cwd(),
+      'app/(timeline)/loading.tsx'
+    )
+    expect(fs.existsSync(rootTimelineLoadingPath)).toBe(false)
   })
 })

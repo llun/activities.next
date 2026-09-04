@@ -45,7 +45,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
   }
 
   // Logged-out visitors render without the nav sidebar. The home route renders
-  // a full-bleed landing (see app/(timeline)/page.tsx), so this branch stays
+  // a full-bleed landing (see app/(timeline)/(home)/page.tsx), so this branch stays
   // chrome-less; the federated reading surfaces that still need the public top
   // bar + footer (single status, profiles, hashtags) wrap themselves in
   // `PublicShell` via their own sub-layouts (`[actor]/layout.tsx`,
