@@ -431,14 +431,12 @@ export const ActorTimelines: FC<Props> = ({
 
         <TabsContent value="media" className="mt-0">
           {attachments.length > 0 ? (
-            <div className="rounded-xl border bg-card p-2 shadow-sm sm:p-4">
-              <ActorMediaGallery
-                actorId={actorId}
-                initialAttachments={attachments}
-                statuses={currentStatuses}
-                isPixelfed={false}
-              />
-            </div>
+            <ActorMediaGallery
+              actorId={actorId}
+              initialAttachments={attachments}
+              statuses={currentStatuses}
+              isPixelfed={false}
+            />
           ) : (
             <EmptyState>No media yet</EmptyState>
           )}

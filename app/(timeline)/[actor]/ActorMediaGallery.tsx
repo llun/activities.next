@@ -9,6 +9,7 @@ import { Media } from '@/lib/components/posts/media'
 import { Button } from '@/lib/components/ui/button'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
+import { cn } from '@/lib/utils'
 
 const compactNumberFormatter = new Intl.NumberFormat('en', {
   notation: 'compact',
@@ -23,13 +24,15 @@ interface Props {
   initialAttachments: Attachment[]
   statuses?: Status[]
   isPixelfed?: boolean
+  className?: string
 }
 
 export const ActorMediaGallery: FC<Props> = ({
   actorId,
   initialAttachments,
   statuses,
-  isPixelfed = false
+  isPixelfed = false,
+  className
 }) => {
   const [modalIndex, setModalIndex] = useState<number | null>(null)
   const [attachments, setAttachments] =
@@ -87,106 +90,113 @@ export const ActorMediaGallery: FC<Props> = ({
 
   return (
     <>
-      <div className="grid grid-cols-3 gap-1 sm:gap-2">
-        {attachments.map((attachment, index) => {
-          const parentStatus = statusMap.get(attachment.statusId)
-          const totalLikes = parentStatus?.totalLikes ?? 0
-          const totalShares = parentStatus?.totalShares ?? 0
-          const totalReplies =
-            parentStatus?.totalReplies ?? parentStatus?.replies.length ?? 0
-          const attachmentCount = parentStatus?.attachments.length ?? 1
-          const isVideo =
-            attachment.mediaType.startsWith('video') ||
-            attachment.url.endsWith('.mp4') ||
-            attachment.url.endsWith('.webm')
+      <div
+        className={cn(
+          'rounded-xl border bg-card p-1 shadow-sm sm:p-2',
+          className
+        )}
+      >
+        <div className="grid grid-cols-3 gap-1 sm:gap-2">
+          {attachments.map((attachment, index) => {
+            const parentStatus = statusMap.get(attachment.statusId)
+            const totalLikes = parentStatus?.totalLikes ?? 0
+            const totalShares = parentStatus?.totalShares ?? 0
+            const totalReplies =
+              parentStatus?.totalReplies ?? parentStatus?.replies.length ?? 0
+            const attachmentCount = parentStatus?.attachments.length ?? 1
+            const isVideo =
+              attachment.mediaType.startsWith('video') ||
+              attachment.url.endsWith('.mp4') ||
+              attachment.url.endsWith('.webm')
 
-          return (
-            <button
-              key={attachment.id}
-              type="button"
-              className="group relative aspect-square overflow-hidden bg-muted/20 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
-              onClick={() => setModalIndex(index)}
-              aria-label={
-                attachment.name
-                  ? `Open media: ${attachment.name}`
-                  : `Open media ${index + 1}`
-              }
-            >
-              <Media
-                attachment={attachment}
-                className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
-              />
-
-              {/* Multiple attachments badge */}
-              {attachmentCount > 1 ? (
-                <span
-                  className="pointer-events-none absolute top-1.5 right-1.5 z-10 flex items-center rounded bg-black/60 p-1 text-white shadow-sm backdrop-blur-xs"
-                  aria-label="Multiple items"
-                  data-testid="album-indicator"
-                >
-                  <Copy className="size-3.5 sm:size-4" aria-hidden="true" />
-                </span>
-              ) : isVideo ? (
-                <span
-                  className="pointer-events-none absolute top-1.5 right-1.5 z-10 flex items-center rounded bg-black/60 p-1 text-white shadow-sm backdrop-blur-xs"
-                  aria-label="Video"
-                  data-testid="video-indicator"
-                >
-                  <Video className="size-3.5 sm:size-4" aria-hidden="true" />
-                </span>
-              ) : null}
-
-              {/* Alt text badge */}
-              {attachment.name?.trim() ? (
-                <span
-                  className="pointer-events-none absolute bottom-1.5 left-1.5 z-10 flex items-center rounded bg-black/60 px-1 py-0.5 text-[10px] font-semibold text-white shadow-sm backdrop-blur-xs"
-                  aria-hidden="true"
-                >
-                  ALT
-                </span>
-              ) : null}
-
-              {/* Engagement counts overlay on hover/focus */}
-              <div
-                className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-black/40 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100"
-                data-testid={`media-overlay-${attachment.id}`}
+            return (
+              <button
+                key={attachment.id}
+                type="button"
+                className="group relative aspect-square overflow-hidden bg-muted/20 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
+                onClick={() => setModalIndex(index)}
+                aria-label={
+                  attachment.name
+                    ? `Open media: ${attachment.name}`
+                    : `Open media ${index + 1}`
+                }
               >
-                <div className="flex flex-wrap items-center justify-center gap-3 px-2 text-white font-semibold text-sm sm:gap-4 sm:text-base">
+                <Media
+                  attachment={attachment}
+                  className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
+                />
+
+                {/* Multiple attachments badge */}
+                {attachmentCount > 1 ? (
                   <span
-                    className="flex items-center gap-1.5"
-                    title={`${totalLikes} favorites`}
+                    className="pointer-events-none absolute top-1.5 right-1.5 z-10 flex items-center rounded bg-black/60 p-1 text-white shadow-sm backdrop-blur-xs"
+                    aria-label="Multiple items"
+                    data-testid="album-indicator"
                   >
-                    <Heart
-                      className="size-4 sm:size-5 fill-white text-white"
-                      aria-hidden="true"
-                    />
-                    <span>{formatCount(totalLikes)}</span>
+                    <Copy className="size-3.5 sm:size-4" aria-hidden="true" />
                   </span>
+                ) : isVideo ? (
                   <span
-                    className="flex items-center gap-1.5"
-                    title={`${totalReplies} comments`}
+                    className="pointer-events-none absolute top-1.5 right-1.5 z-10 flex items-center rounded bg-black/60 p-1 text-white shadow-sm backdrop-blur-xs"
+                    aria-label="Video"
+                    data-testid="video-indicator"
                   >
-                    <MessageCircle
-                      className="size-4 sm:size-5 fill-white text-white"
-                      aria-hidden="true"
-                    />
-                    <span>{formatCount(totalReplies)}</span>
+                    <Video className="size-3.5 sm:size-4" aria-hidden="true" />
                   </span>
+                ) : null}
+
+                {/* Alt text badge */}
+                {attachment.name?.trim() ? (
                   <span
-                    className="flex items-center gap-1.5"
-                    title={`${totalShares} reposts`}
+                    className="pointer-events-none absolute bottom-1.5 left-1.5 z-10 flex items-center rounded bg-black/60 px-1 py-0.5 text-[10px] font-semibold text-white shadow-sm backdrop-blur-xs"
+                    aria-hidden="true"
                   >
-                    <Repeat2
-                      className="size-4 sm:size-5 text-white"
-                      aria-hidden="true"
-                    />
-                    <span>{formatCount(totalShares)}</span>
+                    ALT
                   </span>
+                ) : null}
+
+                {/* Engagement counts overlay on hover/focus */}
+                <div
+                  className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-black/40 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100"
+                  data-testid={`media-overlay-${attachment.id}`}
+                >
+                  <div className="flex flex-wrap items-center justify-center gap-3 px-2 text-white font-semibold text-sm sm:gap-4 sm:text-base">
+                    <span
+                      className="flex items-center gap-1.5"
+                      title={`${totalLikes} favorites`}
+                    >
+                      <Heart
+                        className="size-4 sm:size-5 fill-white text-white"
+                        aria-hidden="true"
+                      />
+                      <span>{formatCount(totalLikes)}</span>
+                    </span>
+                    <span
+                      className="flex items-center gap-1.5"
+                      title={`${totalReplies} comments`}
+                    >
+                      <MessageCircle
+                        className="size-4 sm:size-5 fill-white text-white"
+                        aria-hidden="true"
+                      />
+                      <span>{formatCount(totalReplies)}</span>
+                    </span>
+                    <span
+                      className="flex items-center gap-1.5"
+                      title={`${totalShares} reposts`}
+                    >
+                      <Repeat2
+                        className="size-4 sm:size-5 text-white"
+                        aria-hidden="true"
+                      />
+                      <span>{formatCount(totalShares)}</span>
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </button>
-          )
-        })}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {error && (
