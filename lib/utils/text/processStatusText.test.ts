@@ -135,6 +135,36 @@ describe('processStatusText', () => {
       )
     })
 
+    it('preserves emoji shortcodes when convertEmojis is false', async () => {
+      const statusWithEmoji = await database.createNote({
+        id: `${ACTOR1_ID}/statuses/emoji-preserve-test`,
+        url: `${ACTOR1_ID}/statuses/emoji-preserve-test`,
+        actorId: ACTOR1_ID,
+        text: 'Status with :emoji:',
+        to: [],
+        cc: []
+      })
+
+      await database.createTag({
+        statusId: statusWithEmoji.id,
+        type: 'emoji',
+        name: ':emoji:',
+        value: 'https://test.host/emoji.png'
+      })
+
+      const statusWithTags = (await database.getStatus({
+        statusId: statusWithEmoji.id,
+        withReplies: false
+      })) as Status
+
+      const result = processStatusText(mockHost, statusWithTags, {
+        convertEmojis: false
+      })
+
+      expect(result).toBe('<p>Status with :emoji:</p>')
+      expect(result).not.toContain('<img')
+    })
+
     it('sanitizes custom emoji image URLs after emoji injection', async () => {
       const statusWithEmoji = await database.createNote({
         id: `${ACTOR1_ID}/statuses/emoji-xss-test`,

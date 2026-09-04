@@ -33,27 +33,41 @@ export const getActualStatus = (status: Status) => {
  * raw text + tag list (e.g. the postbox preview) can reuse the exact same
  * pipeline instead of introducing a second rendering path.
  */
+export interface ProcessStatusTextOptions {
+  convertEmojis?: boolean
+}
+
 export const processStatusTextContent = (
   host: string,
   text: string,
   tags: Tag[],
-  isLocalActor: boolean
-) =>
-  _.chain(text)
+  isLocalActor: boolean,
+  options?: ProcessStatusTextOptions
+) => {
+  const convertEmojis = options?.convertEmojis ?? true
+  return _.chain(text)
     .thru(isLocalActor ? convertMarkdownText(host) : _.identity)
     .thru(sanitizeText)
-    .thru(_.curryRight(convertEmojisToImages)(tags))
-    .thru(sanitizeTrustedStatusText)
+    .thru(
+      convertEmojis ? _.curryRight(convertEmojisToImages)(tags) : _.identity
+    )
+    .thru(convertEmojis ? sanitizeTrustedStatusText : _.identity)
     .thru(_.trim)
     .value()
+}
 
-export const processStatusText = (host: string, status: Status) => {
+export const processStatusText = (
+  host: string,
+  status: Status,
+  options?: ProcessStatusTextOptions
+) => {
   const actualStatus = getActualStatus(status)
 
   return processStatusTextContent(
     host,
     actualStatus.text,
     actualStatus.tags,
-    actualStatus.isLocalActor
+    actualStatus.isLocalActor,
+    options
   )
 }
