@@ -58,10 +58,10 @@ const setBoundedEntry = (
 // hostile `.well-known/nodeinfo` redirect the probe at an arbitrary server. The
 // `typeof href === 'string'` guard was missing on the old rel-less fallback.
 const isSameHostNodeInfoLink = (
-  link: { rel?: string; href?: string },
+  link: { rel?: string; href?: string } | null | undefined,
   expectedHost: string
 ): boolean => {
-  if (typeof link.href !== 'string') return false
+  if (typeof link?.href !== 'string') return false
   try {
     return new URL(link.href).host.toLowerCase() === expectedHost
   } catch {
@@ -105,7 +105,9 @@ export const getServerSoftwareInfo = async (
         links?: Array<{ rel?: string; href?: string }>
       }
 
-      const links = nodeInfoWellKnown.links ?? []
+      const links = Array.isArray(nodeInfoWellKnown?.links)
+        ? nodeInfoWellKnown.links
+        : []
       const nodeInfoLink =
         links.find(
           (link) =>
@@ -141,8 +143,8 @@ export const getServerSoftwareInfo = async (
       }
 
       const rawName =
-        typeof schema.software?.name === 'string'
-          ? schema.software.name.trim().toLowerCase()
+        typeof schema?.software?.name === 'string'
+          ? schema.software.name.trim().toLowerCase().slice(0, 100)
           : ''
 
       if (!rawName) {
@@ -151,8 +153,8 @@ export const getServerSoftwareInfo = async (
       }
 
       const rawVersion =
-        typeof schema.software?.version === 'string'
-          ? schema.software.version.trim()
+        typeof schema?.software?.version === 'string'
+          ? schema.software.version.trim().slice(0, 100)
           : null
       const version = rawVersion || null
 

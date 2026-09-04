@@ -299,7 +299,7 @@ const Page: FC<Props> = async ({ params }) => {
           {formattedSoftware && (
             <div
               className={cn(
-                'text-sm text-muted-foreground',
+                'text-sm text-muted-foreground break-words',
                 statusesCount !== null ||
                   followingCount !== null ||
                   followersCount !== null

@@ -330,7 +330,8 @@ export const getProfileData = async (
     followersCount: collectionCounts.followersCount,
     isInternalAccount: false,
     hasFitnessData: false,
-    isPixelfed: await isPixelfedActor(person),
+    isPixelfed:
+      serverSoftware?.name === 'pixelfed' || (await isPixelfedActor(person)),
     serverSoftware
   }
 }

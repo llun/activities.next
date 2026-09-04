@@ -1,4 +1,4 @@
-import { ServerSoftware } from '@/lib/services/federation/serverSoftware'
+import type { ServerSoftware } from '@/lib/services/federation/serverSoftware'
 
 const KNOWN_SOFTWARE_NAMES: Record<string, string> = {
   mastodon: 'Mastodon',
@@ -28,9 +28,9 @@ export const formatServerSoftware = (software: ServerSoftware): string => {
   if (!rawName) return ''
 
   const lookupKey = rawName.toLowerCase()
-  const formattedName =
-    KNOWN_SOFTWARE_NAMES[lookupKey] ??
-    rawName.charAt(0).toUpperCase() + rawName.slice(1)
+  const formattedName = Object.hasOwn(KNOWN_SOFTWARE_NAMES, lookupKey)
+    ? KNOWN_SOFTWARE_NAMES[lookupKey]
+    : rawName.charAt(0).toUpperCase() + rawName.slice(1)
 
   const trimmedVersion = software.version?.trim()
   if (trimmedVersion) {

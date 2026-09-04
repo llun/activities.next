@@ -49,4 +49,16 @@ describe('formatServerSoftware', () => {
     expect(formatServerSoftware({ name: '', version: '1.0' })).toBe('')
     expect(formatServerSoftware({ name: '   ', version: '1.0' })).toBe('')
   })
+
+  it('safely handles Object prototype property names without collision', () => {
+    expect(formatServerSoftware({ name: 'constructor', version: null })).toBe(
+      'Constructor'
+    )
+    expect(formatServerSoftware({ name: 'toString', version: '1.0' })).toBe(
+      'ToString/1.0'
+    )
+    expect(formatServerSoftware({ name: 'valueOf', version: null })).toBe(
+      'ValueOf'
+    )
+  })
 })

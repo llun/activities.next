@@ -257,6 +257,7 @@ describe('[actor] page header handle link', () => {
     expect(softwareElement).toHaveClass(
       'text-sm',
       'text-muted-foreground',
+      'break-words',
       'mt-3'
     )
   })
@@ -293,6 +294,75 @@ describe('[actor] page header handle link', () => {
 
     const softwareElement = screen.getByText('Mastodon')
     expect(softwareElement).toBeInTheDocument()
-    expect(softwareElement).toHaveClass('text-sm', 'text-muted-foreground')
+    expect(softwareElement).toHaveClass(
+      'text-sm',
+      'text-muted-foreground',
+      'break-words'
+    )
+  })
+
+  it('applies mt-5 when all counts are null and software is present', async () => {
+    mockGetProfileData.mockResolvedValue({
+      person: {
+        id: 'https://mastodon.social/users/bob',
+        type: 'Person',
+        preferredUsername: 'bob',
+        name: 'Bob',
+        summary: '',
+        url: 'https://mastodon.social/@bob'
+      } as unknown as Actor,
+      statuses: [],
+      statusesCount: null,
+      statusPagination: { nextPageUrl: null, prevPageUrl: null },
+      attachments: [],
+      followingCount: null,
+      followersCount: null,
+      isInternalAccount: false,
+      hasFitnessData: false,
+      isPixelfed: false,
+      serverSoftware: {
+        name: 'mastodon',
+        version: '4.3.0'
+      }
+    })
+
+    const element = await Page({
+      params: Promise.resolve({ actor: '@bob@mastodon.social' })
+    })
+    render(element)
+
+    const softwareElement = screen.getByText('Mastodon/4.3.0')
+    expect(softwareElement).toBeInTheDocument()
+    expect(softwareElement).toHaveClass('mt-5')
+  })
+
+  it('omits software container when serverSoftware is null', async () => {
+    mockGetProfileData.mockResolvedValue({
+      person: {
+        id: 'https://mastodon.social/users/bob',
+        type: 'Person',
+        preferredUsername: 'bob',
+        name: 'Bob',
+        summary: '',
+        url: 'https://mastodon.social/@bob'
+      } as unknown as Actor,
+      statuses: [],
+      statusesCount: 10,
+      statusPagination: { nextPageUrl: null, prevPageUrl: null },
+      attachments: [],
+      followingCount: 5,
+      followersCount: 15,
+      isInternalAccount: false,
+      hasFitnessData: false,
+      isPixelfed: false,
+      serverSoftware: null
+    })
+
+    const element = await Page({
+      params: Promise.resolve({ actor: '@bob@mastodon.social' })
+    })
+    render(element)
+
+    expect(screen.queryByText(/mastodon/i)).not.toBeInTheDocument()
   })
 })

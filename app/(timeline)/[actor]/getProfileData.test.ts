@@ -134,6 +134,8 @@ describe('getProfileData', () => {
       null
     )
     ;(getPersonFromActor as jest.Mock).mockReturnValue(mockPerson)
+    vi.mocked(getServerSoftwareInfo).mockResolvedValue(null)
+    vi.mocked(isPixelfedActor).mockResolvedValue(false)
   })
 
   describe('when actor is local (has account)', () => {
