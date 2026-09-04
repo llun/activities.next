@@ -66,6 +66,13 @@ export const fetchCollectionRoot = async ({
   }
 }
 
+export const parseTotalItems = (val: unknown): number | null => {
+  if (typeof val !== 'number' || !Number.isFinite(val) || val < 0) {
+    return null
+  }
+  return Math.floor(val)
+}
+
 export const getActorCollections = async ({
   person,
   field,
@@ -111,7 +118,9 @@ export const getActorCollections = async ({
             type: 'OrderedCollectionPage' as const,
             orderedItems: collection.orderedItems
           },
-          totalItems: collection.totalItems ?? collection.orderedItems.length
+          totalItems:
+            parseTotalItems(collection.totalItems) ??
+            collection.orderedItems.length
         }
       }
 
@@ -120,13 +129,6 @@ export const getActorCollections = async ({
         pageUrl && isCollectionPageUrl(pageUrl, person[field])
           ? pageUrl
           : firstPageUrl
-
-      const parseTotalItems = (val: unknown): number | null => {
-        if (typeof val !== 'number' || !Number.isFinite(val) || val < 0) {
-          return null
-        }
-        return Math.floor(val)
-      }
 
       const collectionTotalItems = parseTotalItems(collection.totalItems)
 

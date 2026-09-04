@@ -273,11 +273,7 @@ export const getProfileData = async (
   )
 
   const resolvedStatusesCount =
-    collectionCounts.statusesCount ??
-    (actorPostsResponse.statusesCount !== null &&
-    actorPostsResponse.statusesCount !== undefined
-      ? actorPostsResponse.statusesCount
-      : null)
+    collectionCounts.statusesCount ?? actorPostsResponse.statusesCount ?? null
 
   // Persist the freshly-fetched collection sizes for known actors so the
   // Mastodon API (which reads the counter rows) serves the same counts this
