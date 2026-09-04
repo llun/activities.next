@@ -1,0 +1,26 @@
+lib/components/post-box/quoted-preview.test.tsx
+  h_580a04e334fef4 1-257
+lib/components/post-box/quoted-preview.tsx
+  h_580a04e334fef4 34,40-42
+lib/components/post-box/reply-preview.test.tsx
+  h_580a04e334fef4 153-172
+lib/components/post-box/reply-preview.tsx
+  h_580a04e334fef4 32,38-40
+lib/components/posts/actor.tsx
+  h_580a04e334fef4 8,18,239-244,257,264,269,273-277
+lib/components/posts/quote-card.test.tsx
+  h_580a04e334fef4 52-59,62
+lib/components/posts/quote-card.tsx
+  h_580a04e334fef4 112,116-117,125,128-131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "847c35e84d5599f57cfe376668058e458c72012a",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
