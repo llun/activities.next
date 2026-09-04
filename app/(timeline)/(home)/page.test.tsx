@@ -34,6 +34,15 @@ const mockGetCachedLocalPublicStatusesCount = vi.fn()
 const mockGetFilteredStatusPage = vi.fn()
 const mockGetFilteredTimelinePage = vi.fn()
 const mockGetActorSettings = vi.fn()
+const mockLoggerError = vi.fn()
+
+vi.mock('@/lib/utils/logger', () => ({
+  logger: {
+    error: (...args: unknown[]) => mockLoggerError(...args),
+    info: vi.fn(),
+    warn: vi.fn()
+  }
+}))
 
 vi.mock('@/lib/config', () => ({
   getConfig: () => mockGetConfig()
@@ -149,6 +158,12 @@ describe('(timeline)/(home) page', () => {
     expect(landing?.props.serviceName).toBe('Activities')
     expect(landing?.props.signupOpen).toBe(true)
     expect(landing?.props.statuses).toHaveLength(1)
+    expect(mockGetFilteredStatusPage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        limit: 20,
+        surface: 'public'
+      })
+    )
   })
 
   it('renders Landing for logged-out visitors without preview posts when below threshold', async () => {
@@ -160,6 +175,23 @@ describe('(timeline)/(home) page', () => {
     expect(landing).not.toBeNull()
     expect(landing?.props.statuses).toHaveLength(0)
     expect(mockGetFilteredStatusPage).not.toHaveBeenCalled()
+  })
+
+  it('degrades to Landing without posts and logs error when fetching public posts fails', async () => {
+    mockGetCachedLocalPublicStatusesCount.mockRejectedValue(
+      new Error('Database timeout')
+    )
+
+    const node = await Page()
+    const landing = findElementByType(node, Landing)
+
+    expect(landing).not.toBeNull()
+    expect(landing?.props.statuses).toHaveLength(0)
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Failed to load public posts for the landing page'
+      })
+    )
   })
 
   it('renders MainPageTimeline for signed-in actors', async () => {
