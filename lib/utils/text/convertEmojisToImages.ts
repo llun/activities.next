@@ -66,7 +66,10 @@ const HTML_TAG_SPLIT_REGEX = /(<[^>]*>)/
  * A rejected tag renders as nothing: the literal `:shortcode:` stays in the
  * text, which is what a reader on a server lacking that emoji sees anyway.
  */
-export const convertEmojisToImages = (text: string, tags: Tag[]) => {
+export const convertEmojisToImages = (
+  text: string,
+  tags: Pick<Tag, 'type' | 'name' | 'value'>[]
+) => {
   const urlByShortcode = new Map<string, string>()
   for (const tag of tags) {
     if (tag.type !== 'emoji') continue

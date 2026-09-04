@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
 import { switchActor } from '@/lib/client'
+import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 
 interface ActorInfo {
@@ -12,6 +13,7 @@ interface ActorInfo {
   domain: string
   name?: string | null
   iconUrl?: string | null
+  tags?: { type: string; name: string; value: string }[] | null
 }
 
 interface ActorSelectionListProps {
@@ -61,7 +63,10 @@ export function ActorSelectionList({ actors }: ActorSelectionListProps) {
           </Avatar>
           <div className="flex-1 overflow-hidden text-left">
             <p className="text-base font-medium truncate">
-              {actor.name || actor.username}
+              <ActorDisplayName
+                name={actor.name || actor.username}
+                tags={actor.tags}
+              />
             </p>
             <p className="text-sm text-muted-foreground truncate">
               {getHandle(actor)}

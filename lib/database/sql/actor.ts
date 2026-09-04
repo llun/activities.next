@@ -85,6 +85,10 @@ import {
   toPublicIdLookupKey
 } from '@/lib/utils/publicId'
 import { generateKeyPair } from '@/lib/utils/signature'
+import {
+  getEmojiTags,
+  toEmojiShortcodeToken
+} from '@/lib/utils/text/getEmojiTags'
 
 export interface SQLActorDatabase extends ActorDatabase {
   getActor: (
@@ -120,6 +124,48 @@ const getActorCounterSummary = async (
   }
 }
 
+const getConfiguredActorDomain = () => {
+  const host = getConfig().host
+  return host.includes('://') ? new URL(host).host : host
+}
+
+const resolveLocalEmojiTags = async (
+  database: Knex,
+  text: string
+): Promise<{ type: 'emoji'; name: string; value: string }[]> => {
+  if (!text) return []
+  const rows = await database('customEmojis')
+    .select('shortcode', 'url')
+    .where('disabled', false)
+  const tags = getEmojiTags(text, rows)
+  return tags.map((tag) => ({
+    type: 'emoji' as const,
+    name: tag.name,
+    value: tag.value
+  }))
+}
+
+const getAccountEmojisFromTags = (
+  tags?: { type: string; name: string; value: string }[]
+): Mastodon.CustomEmoji[] => {
+  if (!tags) return []
+  return tags
+    .filter((tag) => tag.type === 'emoji')
+    .flatMap((tag) => {
+      const token = toEmojiShortcodeToken(tag.name)
+      if (!token) return []
+      return [
+        {
+          shortcode: token.slice(1, -1),
+          url: tag.value,
+          static_url: tag.value,
+          visible_in_picker: true,
+          category: null
+        }
+      ]
+    })
+}
+
 const insertActorWithSearchIndex = async (
   database: Knex,
   {
@@ -133,6 +179,7 @@ const insertActorWithSearchIndex = async (
     headerImageUrl,
     manuallyApprovesFollowers,
     fields,
+    tags,
     followersUrl,
     inboxUrl,
     sharedInboxUrl,
@@ -142,6 +189,18 @@ const insertActorWithSearchIndex = async (
   }: CreateActorParams
 ) => {
   const currentTime = new Date()
+  let resolvedTags = tags
+  if (resolvedTags === undefined && (name || summary)) {
+    const isLocal =
+      domain.toLowerCase() === getConfiguredActorDomain().toLowerCase()
+    if (isLocal) {
+      resolvedTags = await resolveLocalEmojiTags(
+        database,
+        `${name ?? ''} ${summary ?? ''}`
+      )
+    }
+  }
+
   const settings: ActorSettings = {
     iconUrl,
     headerImageUrl,
@@ -151,7 +210,8 @@ const insertActorWithSearchIndex = async (
     ...(manuallyApprovesFollowers !== undefined
       ? { manuallyApprovesFollowers }
       : null),
-    ...(fields !== undefined ? { fields } : null)
+    ...(fields !== undefined ? { fields } : null),
+    ...(resolvedTags && resolvedTags.length > 0 ? { tags: resolvedTags } : null)
   }
   const actor = {
     id: actorId,
@@ -178,11 +238,6 @@ const insertActorWithSearchIndex = async (
 }
 
 const getStatusUrlHash = (url: string): string => getHashFromString(url)
-
-const getConfiguredActorDomain = () => {
-  const host = getConfig().host
-  return host.includes('://') ? new URL(host).host : host
-}
 
 const getFederationSigningActorSettings = (
   actorId: string,
@@ -311,7 +366,7 @@ const getMastodonAccountFromSQLActor = ({
     header_description: settings.headerDescription ?? '',
 
     fields: profileFields,
-    emojis: [],
+    emojis: getAccountEmojisFromTags(settings.tags),
 
     // Moderation flags: emitted only when set, matching Mastodon's Account
     // entity (extra "only when suspended/silenced" attributes).
@@ -776,6 +831,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         ? { headerImageUrl: settings.headerImageUrl }
         : null),
       manuallyApprovesFollowers: settings.manuallyApprovesFollowers ?? true,
+      ...(settings.tags ? { tags: settings.tags } : null),
       // Booleans use !== undefined so a persisted `false` survives the
       // row-to-domain round-trip (a truthy spread would drop it).
       ...(settings.readingExpandMedia !== undefined
@@ -921,6 +977,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     headerImageUrl,
     manuallyApprovesFollowers,
     fields,
+    tags,
     bot,
     discoverable,
     indexable,
@@ -959,6 +1016,26 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       .first()
     if (!persistedActor) return null
 
+    let resolvedTags = tags
+    if (
+      resolvedTags === undefined &&
+      (name !== undefined || summary !== undefined)
+    ) {
+      const isLocal =
+        persistedActor.domain.toLowerCase() ===
+        getConfiguredActorDomain().toLowerCase()
+      if (isLocal) {
+        const targetName =
+          name !== undefined ? name : (persistedActor.name ?? '')
+        const targetSummary =
+          summary !== undefined ? summary : (persistedActor.summary ?? '')
+        resolvedTags = await resolveLocalEmojiTags(
+          database,
+          `${targetName} ${targetSummary}`
+        )
+      }
+    }
+
     const persistedSettings = getCompatibleJSON(persistedActor.settings)
     // The explicit settings changes requested by this call (undefined fields
     // mean "no change"). Kept as a standalone object so the
@@ -971,6 +1048,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         ? { manuallyApprovesFollowers }
         : null),
       ...(fields !== undefined ? { fields } : null),
+      ...(resolvedTags !== undefined ? { tags: resolvedTags } : null),
       ...(bot !== undefined ? { bot } : null),
       ...(discoverable !== undefined ? { discoverable } : null),
       ...(indexable !== undefined ? { indexable } : null),

@@ -10,6 +10,7 @@ import {
   type NotificationWithAccount,
   hasStatusActor
 } from '@/app/(timeline)/notifications/types'
+import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
 import type { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 import type { Mastodon } from '@/lib/types/activitypub'
 import type { Status } from '@/lib/types/domain/status'
@@ -133,7 +134,10 @@ export const NotificationItem = ({
             prefetch={false}
             className="font-semibold text-foreground hover:underline"
           >
-            {getGroupedName(name, notification.groupedCount)}
+            <ActorDisplayName
+              name={getGroupedName(name, notification.groupedCount)}
+              emojis={acc.emojis}
+            />
           </Link>{' '}
           {cfg.verb}
         </span>

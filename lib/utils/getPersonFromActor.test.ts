@@ -34,4 +34,36 @@ describe('getPersonFromActor', () => {
       }
     })
   })
+
+  it('serializes custom emoji tags and includes toot:Emoji in @context', () => {
+    const actor = MockActor({})
+    const actorWithTags = {
+      ...actor,
+      name: 'Alice :blobcat:',
+      tags: [
+        {
+          type: 'emoji' as const,
+          name: ':blobcat:',
+          value: 'https://chat.llun.dev/emojis/blobcat.png'
+        }
+      ]
+    }
+    const person = getPersonFromActor(actorWithTags)
+    expect(person['@context']).toContainEqual({
+      toot: 'http://joinmastodon.org/ns#',
+      Emoji: 'toot:Emoji'
+    })
+    expect(person.tag).toEqual([
+      {
+        type: 'Emoji',
+        id: 'https://chat.llun.dev/emojis/blobcat.png',
+        name: ':blobcat:',
+        updated: expect.toBeString(),
+        icon: {
+          type: 'Image',
+          url: 'https://chat.llun.dev/emojis/blobcat.png'
+        }
+      }
+    ])
+  })
 })
