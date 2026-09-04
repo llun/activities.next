@@ -23,7 +23,7 @@ import { toLoggableError } from '@/lib/utils/toLoggableError'
 type ProfileData = {
   person: Actor
   statuses: Status[]
-  statusesCount: number
+  statusesCount: number | null
   statusPagination: {
     nextPageUrl: string | null
     prevPageUrl: string | null
@@ -272,18 +272,24 @@ export const getProfileData = async (
     ]
   )
 
+  const resolvedStatusesCount =
+    collectionCounts.statusesCount ??
+    (actorPostsResponse.statusesCount !== null &&
+    actorPostsResponse.statusesCount !== undefined
+      ? actorPostsResponse.statusesCount
+      : null)
+
   // Persist the freshly-fetched collection sizes for known actors so the
   // Mastodon API (which reads the counter rows) serves the same counts this
   // page displays. getActorCollectionCounts distinguishes a fetch failure
-  // (null, preserves the stored counter) from a real zero. getActorPosts
-  // reports 0 for both, so only positive status counts are trusted here.
+  // (null, preserves the stored counter) from a real zero.
   // Best-effort — the page renders from the live values either way.
   try {
     await database.setActorCounters({
       actorId: person.id,
       followersCount: collectionCounts.followersCount,
       followingCount: collectionCounts.followingCount,
-      statusCount: actorPostsResponse.statusesCount || null
+      statusCount: resolvedStatusesCount
     })
   } catch (error) {
     logger.warn({
@@ -296,6 +302,7 @@ export const getProfileData = async (
   return {
     ...actorPostsResponse,
     person,
+    statusesCount: resolvedStatusesCount,
     statusPagination: {
       nextPageUrl: actorPostsResponse.nextPageUrl ?? null,
       prevPageUrl: actorPostsResponse.prevPageUrl ?? null

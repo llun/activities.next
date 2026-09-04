@@ -377,7 +377,7 @@ const fetchRemoteFollowCollectionPage = async ({
           accounts,
           nextPageUrl: getPageUrl(collection.page.next, collectionUrl),
           prevPageUrl: getPageUrl(collection.page.prev, collectionUrl),
-          totalItems: collection.totalItems
+          totalItems: collection.totalItems ?? 0
         }
       }
     }
