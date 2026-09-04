@@ -13,6 +13,8 @@ import {
   getServerSoftwareInfo,
   isMisskeyActor,
   isMisskeyDomain,
+  isPeerTubeActor,
+  isPeerTubeDomain,
   isPixelfedActor,
   isPixelfedDomain
 } from './serverSoftware'
@@ -79,6 +81,48 @@ describe('serverSoftware', () => {
       id: `https://${domain}/users/dansup`
     }) as Actor
     expect(await isPixelfedActor(person)).toBe(true)
+  })
+
+  it('detects PeerTube instances via NodeInfo', async () => {
+    const domain = 'peertube.example'
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `https://${domain}/.well-known/nodeinfo`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            links: [
+              {
+                rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
+                href: `https://${domain}/nodeinfo/2.0.json`
+              }
+            ]
+          })
+        }
+      }
+      if (req.url === `https://${domain}/nodeinfo/2.0.json`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            software: {
+              name: 'peertube',
+              version: '8.2.4'
+            }
+          })
+        }
+      }
+      return { status: 404, body: 'Not Found' }
+    })
+
+    const software = await getServerSoftware(domain)
+    expect(software).toBe('peertube')
+
+    const isPeerTube = await isPeerTubeDomain(domain)
+    expect(isPeerTube).toBe(true)
+
+    const person = MockActivityPubPerson({
+      id: `https://${domain}/accounts/framasoft`
+    }) as Actor
+    expect(await isPeerTubeActor(person)).toBe(true)
   })
 
   it('returns false for Mastodon or other non-Pixelfed instances', async () => {

@@ -7,6 +7,7 @@ import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import {
   getServerSoftwareInfo,
+  isPeerTubeActor,
   isPixelfedActor
 } from '@/lib/services/federation/serverSoftware'
 import { Actor } from '@/lib/types/activitypub'
@@ -27,6 +28,7 @@ vi.mock('@/lib/services/federation/domainPolicy')
 vi.mock('@/lib/services/federation/getFederationSigningActor')
 vi.mock('@/lib/services/federation/serverSoftware', () => ({
   isPixelfedActor: vi.fn().mockResolvedValue(false),
+  isPeerTubeActor: vi.fn().mockResolvedValue(false),
   getServerSoftwareInfo: vi.fn().mockResolvedValue(null)
 }))
 vi.mock('@/lib/utils/getPersonFromActor')
@@ -195,6 +197,19 @@ describe('getProfileData', () => {
         name: 'activities.next',
         version: expect.any(String)
       })
+    })
+
+    it('returns isMediaOnly as false for internal local accounts', async () => {
+      const result = await getProfileData(
+        mockDatabase,
+        '@localuser@example.com',
+        true,
+        { currentActor: null }
+      )
+
+      expect(result).not.toBeNull()
+      expect(result?.isInternalAccount).toBe(true)
+      expect(result?.isMediaOnly).toBe(false)
     })
 
     it('should return hasFitnessData as false when actor has no fitness data', async () => {
@@ -726,7 +741,134 @@ describe('getProfileData', () => {
 
       expect(result).not.toBeNull()
       expect(result?.isPixelfed).toBe(true)
+      expect(result?.isMediaOnly).toBe(true)
       expect(result?.attachments).toEqual([mockAttachment])
+    })
+
+    it('returns isMediaOnly as true when isPeerTubeActor is true', async () => {
+      vi.mocked(isPeerTubeActor).mockResolvedValueOnce(true)
+      const mockAttachment: Attachment = {
+        id: 'att-video-1',
+        actorId: mockPerson.id,
+        statusId: 'status-video-1',
+        type: 'Document',
+        mediaType: 'video/mp4',
+        url: 'https://peertube.example/video.mp4',
+        name: 'PeerTube Video',
+        createdAt: 1000,
+        updatedAt: 1000
+      }
+      vi.mocked(getActorPosts).mockResolvedValueOnce({
+        statuses: [
+          {
+            id: 'status-video-1',
+            url: 'https://peertube.example/videos/watch/1',
+            actorId: mockPerson.id,
+            actor: null,
+            type: StatusType.enum.Note,
+            text: 'Video description',
+            to: [],
+            cc: [],
+            edits: [],
+            reply: '',
+            replies: [],
+            totalReplies: 0,
+            actorAnnounceStatusId: null,
+            isActorLiked: false,
+            isActorBookmarked: false,
+            totalLikes: 10,
+            totalShares: 3,
+            attachments: [mockAttachment],
+            tags: [],
+            createdAt: 1000,
+            updatedAt: 1000,
+            isLocalActor: false
+          }
+        ],
+        statusesCount: 1,
+        nextPageUrl: null,
+        prevPageUrl: null
+      })
+      vi.mocked(mockDatabase.getAttachmentsForActor).mockResolvedValueOnce([])
+
+      const result = await getProfileData(
+        mockDatabase,
+        '@remoteuser@remote.com',
+        true,
+        { currentActor: null }
+      )
+
+      expect(result).not.toBeNull()
+      expect(result?.isMediaOnly).toBe(true)
+      expect(result?.attachments).toEqual([mockAttachment])
+    })
+
+    it('filters out non-visual attachments in fallback attachments', async () => {
+      vi.mocked(isPeerTubeActor).mockResolvedValueOnce(true)
+      const mockVideoAttachment: Attachment = {
+        id: 'att-video-1',
+        actorId: mockPerson.id,
+        statusId: 'status-video-1',
+        type: 'Document',
+        mediaType: 'video/mp4',
+        url: 'https://peertube.example/video.mp4',
+        name: 'PeerTube Video',
+        createdAt: 1000,
+        updatedAt: 1000
+      }
+      const mockAudioAttachment: Attachment = {
+        id: 'att-audio-1',
+        actorId: mockPerson.id,
+        statusId: 'status-video-1',
+        type: 'Document',
+        mediaType: 'audio/mp3',
+        url: 'https://peertube.example/audio.mp3',
+        name: 'Audio Track',
+        createdAt: 1000,
+        updatedAt: 1000
+      }
+      vi.mocked(getActorPosts).mockResolvedValueOnce({
+        statuses: [
+          {
+            id: 'status-video-1',
+            url: 'https://peertube.example/videos/watch/1',
+            actorId: mockPerson.id,
+            actor: null,
+            type: StatusType.enum.Note,
+            text: 'Video description',
+            to: [],
+            cc: [],
+            edits: [],
+            reply: '',
+            replies: [],
+            totalReplies: 0,
+            actorAnnounceStatusId: null,
+            isActorLiked: false,
+            isActorBookmarked: false,
+            totalLikes: 10,
+            totalShares: 3,
+            attachments: [mockVideoAttachment, mockAudioAttachment],
+            tags: [],
+            createdAt: 1000,
+            updatedAt: 1000,
+            isLocalActor: false
+          }
+        ],
+        statusesCount: 1,
+        nextPageUrl: null,
+        prevPageUrl: null
+      })
+      vi.mocked(mockDatabase.getAttachmentsForActor).mockResolvedValueOnce([])
+
+      const result = await getProfileData(
+        mockDatabase,
+        '@remoteuser@remote.com',
+        true,
+        { currentActor: null }
+      )
+
+      expect(result).not.toBeNull()
+      expect(result?.attachments).toEqual([mockVideoAttachment])
     })
 
     it('should return null for anonymous user without calling remote APIs', async () => {

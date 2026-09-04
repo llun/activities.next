@@ -155,12 +155,16 @@ export const normalizeActivityPubAnnounce = (data: unknown) => {
 
 export const normalizeActivityPubContent = (data: unknown) => {
   if (!isRecord(data)) return data
+  const type = normalizeActivityPubType(data.type) ?? data.type
   return {
     ...data,
-    type: normalizeActivityPubType(data.type) ?? data.type,
+    type,
     attributedTo: extractActivityPubId(data.attributedTo) ?? data.attributedTo,
     inReplyTo: extractActivityPubId(data.inReplyTo) ?? data.inReplyTo,
-    url: extractActivityPubId(data.url) ?? data.url,
+    url:
+      type === 'Video'
+        ? data.url
+        : (extractActivityPubId(data.url) ?? data.url),
     to: normalizeActivityPubRecipients(data.to) ?? data.to,
     cc: normalizeActivityPubRecipients(data.cc) ?? data.cc
   }

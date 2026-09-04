@@ -10,6 +10,7 @@ import { getFederationSigningActorSafe } from '@/lib/services/federation/getFede
 import {
   ServerSoftware,
   getServerSoftwareInfo,
+  isPeerTubeActor,
   isPixelfedActor
 } from '@/lib/services/federation/serverSoftware'
 import {
@@ -18,7 +19,7 @@ import {
 } from '@/lib/services/statusAccess'
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
-import { Attachment } from '@/lib/types/domain/attachment'
+import { Attachment, isVisualAttachment } from '@/lib/types/domain/attachment'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 import { logger } from '@/lib/utils/logger'
@@ -40,6 +41,7 @@ type ProfileData = {
   hasFitnessData: boolean
   isPixelfed?: boolean
   serverSoftware?: ServerSoftware | null
+  isMediaOnly?: boolean
 }
 
 type ProfileDataOptions = {
@@ -164,7 +166,8 @@ export const getProfileData = async (
       serverSoftware: {
         name: 'activities.next',
         version: VERSION
-      }
+      },
+      isMediaOnly: false
     }
   }
 
@@ -312,6 +315,12 @@ export const getProfileData = async (
     })
   }
 
+  const isPixelfed =
+    serverSoftware?.name === 'pixelfed' || (await isPixelfedActor(person))
+  const isPeerTube =
+    serverSoftware?.name === 'peertube' || (await isPeerTubeActor(person))
+  const isMediaOnly = Boolean(isPixelfed) || isPeerTube
+
   return {
     ...actorPostsResponse,
     person,
@@ -323,15 +332,17 @@ export const getProfileData = async (
     attachments:
       attachments.length > 0
         ? attachments
-        : actorPostsResponse.statuses.flatMap((status) =>
-            status.type === StatusType.enum.Note ? status.attachments : []
-          ),
+        : actorPostsResponse.statuses
+            .flatMap((status) =>
+              status.type === StatusType.enum.Note ? status.attachments : []
+            )
+            .filter(isVisualAttachment),
     followingCount: collectionCounts.followingCount,
     followersCount: collectionCounts.followersCount,
     isInternalAccount: false,
     hasFitnessData: false,
-    isPixelfed:
-      serverSoftware?.name === 'pixelfed' || (await isPixelfedActor(person)),
+    isPixelfed,
+    isMediaOnly,
     serverSoftware
   }
 }

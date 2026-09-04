@@ -1,5 +1,6 @@
 import { getNote } from '@/lib/activities'
 import { compactActivityPub } from '@/lib/activities/jsonld'
+import { BaseNote, BaseNoteSchema } from '@/lib/activities/note'
 import { Database } from '@/lib/database/types'
 import { isPixelfedActor } from '@/lib/services/federation/serverSoftware'
 import { detectLanguageFromHtml } from '@/lib/services/language-detection'
@@ -9,7 +10,6 @@ import {
   AnnounceAction,
   CreateAction
 } from '@/lib/types/activitypub/activities'
-import { Note } from '@/lib/types/activitypub/objects'
 import { ActorProfile, Actor as DomainActor } from '@/lib/types/domain/actor'
 import {
   Status,
@@ -18,6 +18,7 @@ import {
   fromNote
 } from '@/lib/types/domain/status'
 import {
+  isSameActivityPubOrigin,
   normalizeActivityPubAnnounce,
   normalizeActivityPubContent
 } from '@/lib/utils/activitypub'
@@ -46,10 +47,7 @@ type GetActorPostsFunction = (params: {
   prevPageUrl: string | null
 }>
 
-const getErrorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : String(error)
-
-const getStatusFromNote = (note: Note) => {
+const getStatusFromNote = (note: BaseNote) => {
   try {
     const status = fromNote(note)
     // Ephemeral status (not persisted), so content-detected language is
@@ -58,7 +56,10 @@ const getStatusFromNote = (note: Note) => {
       detectLanguageFromHtml(status.text)?.language ?? null
     return status
   } catch (error) {
-    logger.error(`[getActorPosts] ${getErrorMessage(error)}`)
+    logger.error({
+      message: 'Fail to convert note to status',
+      err: toLoggableError(error)
+    })
     return null
   }
 }
@@ -155,9 +156,11 @@ export const getActorPosts: GetActorPostsFunction = async ({
                 statusId: announce.object,
                 signingActor
               })
-              if (!note) return null
+              if (!note || !isSameActivityPubOrigin(announce.object, note.id)) {
+                return null
+              }
 
-              const noteResult = Note.safeParse(
+              const noteResult = BaseNoteSchema.safeParse(
                 normalizeActivityPubContent(note)
               )
               if (!noteResult.success) return null
@@ -181,19 +184,52 @@ export const getActorPosts: GetActorPostsFunction = async ({
           // Unsupported activity
           if (activity.type !== CreateAction) return null
           // Unsupported Object
-          if (!activity.object || typeof activity.object === 'string')
-            return null
-          const obj = activity.object as {
-            type?: string
-            [key: string]: unknown
-          }
-          if (obj.type !== 'Note') return null
+          if (!activity.object) return null
 
-          const noteResult = Note.safeParse(normalizeActivityPubContent(obj))
+          let rawObject: unknown = activity.object
+          if (typeof rawObject === 'string') {
+            if (!isSameActivityPubOrigin(person.id, rawObject)) {
+              return null
+            }
+
+            const localStatus = await database.getStatus({
+              statusId: rawObject
+            })
+            if (localStatus && localStatus.type !== StatusType.enum.Announce) {
+              if (localStatus.actorId === person.id) {
+                if (actor) localStatus.actor = actor
+                return localStatus
+              }
+              return null
+            }
+            const fetchedNote = await getNote({
+              statusId: rawObject,
+              signingActor
+            })
+            if (
+              !fetchedNote ||
+              !isSameActivityPubOrigin(rawObject, fetchedNote.id)
+            ) {
+              return null
+            }
+            rawObject = fetchedNote
+          }
+
+          if (!rawObject || typeof rawObject !== 'object') return null
+          const noteResult = BaseNoteSchema.safeParse(
+            normalizeActivityPubContent(rawObject as Record<string, unknown>)
+          )
           if (!noteResult.success) return null
 
           const status = getStatusFromNote(noteResult.data)
           if (!status) return null
+
+          if (
+            status.actorId !== person.id &&
+            !isSameActivityPubOrigin(person.id, status.actorId)
+          ) {
+            return null
+          }
 
           if (actor) status.actor = actor
           return status

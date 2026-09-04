@@ -242,6 +242,55 @@ describe('note entity utilities', () => {
 
       expect(result[0].mediaType).toEqual('video/mp4')
     })
+
+    it('extracts video stream and thumbnail for PeerTube Video object', () => {
+      const peertubeVideo = {
+        type: 'Video',
+        id: 'https://framatube.org/videos/watch/abc',
+        name: 'PeerTube Video Title',
+        url: [
+          {
+            type: 'Link',
+            mediaType: 'text/html',
+            href: 'https://framatube.org/videos/watch/abc'
+          },
+          {
+            type: 'Link',
+            mediaType: 'application/x-mpegURL',
+            href: 'https://framatube.org/static/streaming-playlists/hls/abc/master.m3u8'
+          },
+          {
+            type: 'Link',
+            mediaType: 'video/mp4',
+            href: 'https://framatube.org/static/webseed/abc-1080.mp4',
+            height: 1080,
+            width: 1920
+          }
+        ],
+        icon: [
+          {
+            type: 'Image',
+            mediaType: 'image/jpeg',
+            url: 'https://framatube.org/static/thumbnails/abc.jpg',
+            width: 1920,
+            height: 1080
+          }
+        ]
+      } as unknown as BaseNote
+
+      const result = getAttachments(peertubeVideo)
+
+      expect(result).toHaveLength(1)
+      expect(result[0].mediaType).toEqual('video/mp4')
+      expect(result[0].url).toEqual(
+        'https://framatube.org/static/webseed/abc-1080.mp4'
+      )
+      expect(result[0].width).toEqual(1920)
+      expect(result[0].height).toEqual(1080)
+      expect(result[0].thumbnailUrl).toEqual(
+        'https://framatube.org/static/thumbnails/abc.jpg'
+      )
+    })
   })
 
   describe('getTags', () => {
@@ -345,6 +394,51 @@ describe('note entity utilities', () => {
       } as unknown as BaseNote
 
       expect(getContent(note)).toEqual('')
+    })
+
+    it('prepends Video name to content when object is a Video', () => {
+      const video = {
+        type: 'Video',
+        name: 'My Cool Video',
+        content: '<p>Description of the video</p>'
+      } as unknown as BaseNote
+
+      expect(getContent(video)).toEqual(
+        '<p><strong>My Cool Video</strong></p>\n<p>Description of the video</p>'
+      )
+    })
+
+    it('returns Video name in paragraph when Video has no content', () => {
+      const video = {
+        type: 'Video',
+        name: 'My Cool Video'
+      } as unknown as BaseNote
+
+      expect(getContent(video)).toEqual('<p><strong>My Cool Video</strong></p>')
+    })
+
+    it('escapes HTML in Video name', () => {
+      const video = {
+        type: 'Video',
+        name: 'Tom & Jerry <Live>',
+        content: '<p>Episode 1</p>'
+      } as unknown as BaseNote
+
+      expect(getContent(video)).toEqual(
+        '<p><strong>Tom &amp; Jerry &lt;Live&gt;</strong></p>\n<p>Episode 1</p>'
+      )
+    })
+
+    it('does not duplicate title if Video content already starts with formatted title', () => {
+      const video = {
+        type: 'Video',
+        name: 'My Cool Video',
+        content: '<p><strong>My Cool Video</strong></p>\n<p>Description</p>'
+      } as unknown as BaseNote
+
+      expect(getContent(video)).toEqual(
+        '<p><strong>My Cool Video</strong></p>\n<p>Description</p>'
+      )
     })
   })
 

@@ -53,6 +53,7 @@ interface Props {
   isMediaUploadEnabled?: boolean
   isPixelfed?: boolean
   isInternalAccount?: boolean
+  isMediaOnly?: boolean
 }
 
 const LOAD_MORE_PAGE_LIMIT = 5
@@ -131,8 +132,10 @@ export const ActorTimelines: FC<Props> = ({
   hasFitnessData = false,
   isMediaUploadEnabled,
   isPixelfed = false,
-  isInternalAccount = true
+  isInternalAccount = true,
+  isMediaOnly = false
 }) => {
+  const isMediaView = isPixelfed || isMediaOnly
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
   const [currentStatusPagination, setCurrentStatusPagination] = useState({
     nextPageUrl: statusPagination?.nextPageUrl ?? null,
@@ -179,7 +182,7 @@ export const ActorTimelines: FC<Props> = ({
   }, [showRepliesTab, hasMedia, showFitnessTab])
 
   const [activeTab, setActiveTab] = useState<ProfileTab>(
-    isPixelfed ? 'media' : 'posts'
+    isMediaView ? 'media' : 'posts'
   )
 
   const effectiveActiveTab = useMemo(() => {
@@ -208,7 +211,7 @@ export const ActorTimelines: FC<Props> = ({
   // also paginates via this outbox cursor.
   const canLoadMore =
     Boolean(currentStatusPagination.nextPageUrl) &&
-    (isPixelfed
+    (isMediaView
       ? activeTab === 'media'
       : effectiveActiveTab === 'posts' ||
         (showRepliesTab && effectiveActiveTab === 'replies') ||
@@ -402,7 +405,7 @@ export const ActorTimelines: FC<Props> = ({
       <EmptyState>{emptyMessage}</EmptyState>
     )
 
-  if (isPixelfed) {
+  if (isMediaView) {
     return (
       <div className="space-y-4">
         {attachments.length > 0 ||
@@ -413,7 +416,8 @@ export const ActorTimelines: FC<Props> = ({
             actorId={actorId}
             initialAttachments={attachments}
             statuses={currentStatuses}
-            isPixelfed={true}
+            isPixelfed={isPixelfed}
+            isMediaOnly={isMediaOnly}
           />
         ) : (
           <EmptyState>No media yet</EmptyState>

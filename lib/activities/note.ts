@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 import { normalizeLanguageCode } from '@/lib/services/translation/types'
 import {
   ArticleContent,
@@ -11,9 +13,19 @@ import {
   type Tag,
   VideoContent
 } from '@/lib/types/activitypub'
+import { escapeHtml } from '@/lib/utils/text/escapeHtml'
 
 export type BaseNote =
   Note | ImageContent | PageContent | ArticleContent | VideoContent | Question
+
+export const BaseNoteSchema = z.union([
+  Note,
+  ImageContent,
+  PageContent,
+  ArticleContent,
+  VideoContent,
+  Question
+])
 
 type UrlValue = string | { href?: string } | (string | { href?: string })[]
 
@@ -66,19 +78,107 @@ export const getAttachments = (object: BaseNote): Document[] => {
   if (['Image', 'Video'].includes(object.type)) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const unsafeObject = object as any
-    const url = getUrl(unsafeObject.url)
+    let url: string | undefined
+    let mediaType: string | undefined
+    let width: number | undefined
+    let height: number | undefined
+
+    if (object.type === 'Video' && Array.isArray(unsafeObject.url)) {
+      let mediaItem = unsafeObject.url.find(
+        (item: unknown) =>
+          item &&
+          typeof item === 'object' &&
+          'mediaType' in item &&
+          typeof (item as { mediaType?: unknown }).mediaType === 'string' &&
+          (item as { mediaType: string }).mediaType.startsWith('video/')
+      ) as
+        | {
+            href?: string
+            url?: string
+            mediaType?: string
+            width?: number
+            height?: number
+          }
+        | undefined
+
+      if (!mediaItem) {
+        mediaItem = unsafeObject.url.find(
+          (item: unknown) =>
+            item &&
+            typeof item === 'object' &&
+            'mediaType' in item &&
+            (item as { mediaType?: unknown }).mediaType ===
+              'application/x-mpegURL'
+        ) as
+          | {
+              href?: string
+              url?: string
+              mediaType?: string
+              width?: number
+              height?: number
+            }
+          | undefined
+      }
+
+      if (mediaItem) {
+        url = mediaItem.href || mediaItem.url
+        mediaType =
+          mediaItem.mediaType === 'application/x-mpegURL'
+            ? 'video/mp4'
+            : mediaItem.mediaType
+        width = mediaItem.width
+        height = mediaItem.height
+      } else {
+        const videoFileItem = unsafeObject.url.find(
+          (item: unknown) =>
+            item &&
+            typeof item === 'object' &&
+            'href' in item &&
+            typeof (item as { href?: unknown }).href === 'string' &&
+            /\.(mp4|webm|m3u8)(?:[?#]|$)/i.test((item as { href: string }).href)
+        ) as { href?: string; width?: number; height?: number } | undefined
+        if (videoFileItem) {
+          url = videoFileItem.href
+          mediaType = 'video/mp4'
+          width = videoFileItem.width
+          height = videoFileItem.height
+        }
+      }
+    }
+
+    if (!url) {
+      url = getUrl(unsafeObject.url)
+      mediaType =
+        unsafeObject.mediaType ||
+        (object.type === 'Image' ? 'image/jpeg' : 'video/mp4')
+    }
+
+    let thumbnailUrl: string | undefined
+    if (unsafeObject.icon) {
+      if (Array.isArray(unsafeObject.icon)) {
+        thumbnailUrl = unsafeObject.icon.find(
+          (item: { url?: unknown }) => typeof item?.url === 'string'
+        )?.url
+      } else if (
+        typeof unsafeObject.icon === 'object' &&
+        typeof unsafeObject.icon.url === 'string'
+      ) {
+        thumbnailUrl = unsafeObject.icon.url
+      }
+    }
+
     if (url) {
       attachments.push({
         type: 'Document',
         mediaType:
-          unsafeObject.mediaType ||
-          (object.type === 'Image' ? 'image/jpeg' : 'video/mp4'),
+          mediaType || (object.type === 'Image' ? 'image/jpeg' : 'video/mp4'),
         url,
         name: unsafeObject.name,
-        width: unsafeObject.width,
-        height: unsafeObject.height,
+        width: unsafeObject.width ?? width,
+        height: unsafeObject.height ?? height,
         blurhash: unsafeObject.blurhash,
-        focalPoint: unsafeObject.focalPoint
+        focalPoint: unsafeObject.focalPoint,
+        ...(thumbnailUrl ? { thumbnailUrl } : {})
       })
     }
   }
@@ -98,27 +198,40 @@ export const getTags = (object: BaseNote): KnownTag[] => {
 }
 
 export const getContent = (object: BaseNote) => {
+  let content = ''
   if (object.content) {
     // Wordpress uses array in contentMap instead of locale map.
     // This is a temporary fixed to support it.
     if (Array.isArray(object.content)) {
-      return object.content[0]
+      content = object.content[0]
+    } else {
+      content = object.content
     }
-    return object.content
-  }
-
-  if (object.contentMap) {
+  } else if (object.contentMap) {
     if (Array.isArray(object.contentMap)) {
-      return object.contentMap[0]
+      content = object.contentMap[0]
+    } else {
+      const keys = Object.keys(object.contentMap)
+      if (keys.length > 0) {
+        content = object.contentMap[keys[0]]
+      }
     }
-
-    const keys = Object.keys(object.contentMap)
-    if (keys.length === 0) return ''
-
-    const key = Object.keys(object.contentMap)[0]
-    return object.contentMap[key]
   }
-  return ''
+
+  if (
+    object.type === 'Video' &&
+    'name' in object &&
+    typeof object.name === 'string' &&
+    object.name.trim()
+  ) {
+    const title = escapeHtml(object.name.trim())
+    const titleHeader = `<p><strong>${title}</strong></p>`
+    if (!content.startsWith(titleHeader)) {
+      return content ? `${titleHeader}\n${content}` : titleHeader
+    }
+  }
+
+  return content
 }
 
 const firstLocaleKey = (

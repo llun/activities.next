@@ -3,6 +3,8 @@ import { z } from 'zod'
 
 import { AnnounceStatus } from '@/lib/activities/announceStatus'
 import {
+  BaseNote,
+  getAttachments,
   getContent,
   getLanguage,
   getReply,
@@ -15,7 +17,6 @@ import {
 } from '@/lib/activities/quoteNoteFields'
 import { MAX_FEDERATION_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import type { Announce as ActivityPubAnnounce } from '@/lib/types/activitypub/activities'
-import { Document } from '@/lib/types/activitypub/objects'
 import {
   ENTITY_TYPE_QUESTION,
   Note,
@@ -294,7 +295,7 @@ const getActorIdFromAttributedTo = (
 // or array of Link objects (some ActivityPub implementations like Mastodon return arrays)
 // Note: The TypeScript schema types url as string | null | undefined, but some
 // implementations like Mastodon/ruby.social actually send arrays
-const getUrlFromNote = (note: Note): string => {
+const getUrlFromNote = (note: BaseNote): string => {
   const noteUrl = note.url as unknown
   if (typeof noteUrl === 'string') {
     return noteUrl
@@ -321,11 +322,9 @@ const getUrlFromNote = (note: Note): string => {
   return note.id
 }
 
-export const fromNote = (note: Note): StatusNote => {
+export const fromNote = (note: BaseNote): StatusNote => {
   const currentTime = Date.now()
-  const attachments = (
-    Array.isArray(note.attachment) ? note.attachment : [note.attachment]
-  ).filter((item): item is Document => item?.type === 'Document')
+  const attachments = getAttachments(note)
 
   const actorId = getActorIdFromAttributedTo(note.attributedTo)
 
@@ -371,6 +370,10 @@ export const fromNote = (note: Note): StatusNote => {
       mediaType: attachment.mediaType,
       url: attachment.url,
       name: attachment.name ?? '',
+      thumbnailUrl: attachment.thumbnailUrl ?? null,
+      width: attachment.width,
+      height: attachment.height,
+      blurhash: attachment.blurhash,
 
       createdAt: currentTime,
       updatedAt: currentTime
