@@ -42,8 +42,11 @@ describe('timeline loading', () => {
     const stickyHeader = container.querySelector('.sticky')
     expect(stickyHeader).toBeInTheDocument()
     expect(stickyHeader).toHaveClass('top-0')
+    expect(stickyHeader?.querySelector('.max-w-content')).toBeInTheDocument()
 
     expect(screen.getByLabelText('Post composer')).toBeInTheDocument()
-    expect(screen.getByLabelText('Timeline posts')).toBeInTheDocument()
+    const postsSection = screen.getByLabelText('Timeline posts')
+    expect(postsSection).toBeInTheDocument()
+    expect(postsSection.children).toHaveLength(3)
   })
 })
