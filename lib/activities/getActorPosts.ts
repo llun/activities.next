@@ -1,3 +1,5 @@
+import { Span } from '@opentelemetry/api'
+
 import { getNote } from '@/lib/activities'
 import { compactActivityPub } from '@/lib/activities/jsonld'
 import { BaseNote, BaseNoteSchema } from '@/lib/activities/note'
@@ -51,7 +53,7 @@ type GetActorPostsFunction = (params: {
   prevPageUrl: string | null
 }>
 
-const getStatusFromNote = (note: BaseNote) => {
+const getStatusFromNote = (note: BaseNote, span?: Span) => {
   try {
     const status = fromNote(note)
     // Ephemeral status (not persisted), so content-detected language is
@@ -60,10 +62,7 @@ const getStatusFromNote = (note: BaseNote) => {
       detectLanguageFromHtml(status.text)?.language ?? null
     return status
   } catch (error) {
-    logger.error({
-      message: 'Failed to build status from note',
-      err: toLoggableError(error)
-    })
+    span?.recordException(toLoggableError(error))
     return null
   }
 }
@@ -80,7 +79,7 @@ export const getActorPosts: GetActorPostsFunction = async ({
     {
       actorId: person.id
     },
-    async () => {
+    async (span) => {
       const actor = await database.getActorFromId({ id: person.id })
       const actorProfileCache = new Map<string, Promise<ActorProfile | null>>()
       const getActorProfile = (actorId: string) => {
@@ -183,7 +182,7 @@ export const getActorPosts: GetActorPostsFunction = async ({
                 )
                 if (!noteResult.success) return null
 
-                originalStatus = getStatusFromNote(noteResult.data)
+                originalStatus = getStatusFromNote(noteResult.data, span)
                 if (!originalStatus) return null
               }
 
@@ -242,7 +241,7 @@ export const getActorPosts: GetActorPostsFunction = async ({
             )
             if (!noteResult.success) return null
 
-            const status = getStatusFromNote(noteResult.data)
+            const status = getStatusFromNote(noteResult.data, span)
             if (!status) return null
 
             if (
@@ -255,10 +254,7 @@ export const getActorPosts: GetActorPostsFunction = async ({
             if (actor) status.actor = actor
             return status
           } catch (error) {
-            logger.warn({
-              message: 'Failed to parse outbox activity item',
-              err: toLoggableError(error)
-            })
+            span.recordException(toLoggableError(error))
             return null
           }
         })
@@ -281,6 +277,7 @@ export const getActorPosts: GetActorPostsFunction = async ({
               return pixelfedResult
             }
           } catch (err) {
+            span.recordException(toLoggableError(err))
             logger.warn({
               message:
                 'Failed to fetch Pixelfed posts via API, falling back to Atom feed',
