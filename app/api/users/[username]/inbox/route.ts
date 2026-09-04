@@ -106,7 +106,8 @@ const ReferenceUndo = z
       z.string(),
       z
         .object({
-          type: z.string()
+          id: z.string().optional(),
+          type: z.string().optional()
         })
         .passthrough()
     ])
@@ -450,6 +451,7 @@ export const POST = traceApiRoute(
               case 'Follow': {
                 const follow = await createFollower({
                   followRequest: activity as FollowRequest,
+                  recipientActorId: actor.id,
                   database
                 })
                 if (!follow) {

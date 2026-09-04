@@ -1,10 +1,12 @@
 import {
+  actorIdsMatch,
   extractActivityPubId,
   isSameActivityPubOrigin,
   normalizeActivityPubAnnounce,
   normalizeActivityPubContent,
   normalizeActivityPubRecipients,
-  normalizeActivityPubType
+  normalizeActivityPubType,
+  normalizeActorId
 } from './activitypub'
 
 describe('normalizeActivityPubType', () => {
@@ -371,5 +373,97 @@ describe('isSameActivityPubOrigin', () => {
     expect(isSameActivityPubOrigin(first, second)).toEqual(expected)
     // The question is symmetric; a caller must not have to know the order.
     expect(isSameActivityPubOrigin(second, first)).toEqual(expected)
+  })
+})
+
+describe('normalizeActorId', () => {
+  it.each([
+    {
+      description: 'strips hash fragment',
+      input: 'https://example.com/users/alice#main-key',
+      expected: 'https://example.com/users/alice'
+    },
+    {
+      description: 'strips trailing slashes from path',
+      input: 'https://example.com/users/alice/',
+      expected: 'https://example.com/users/alice'
+    },
+    {
+      description: 'strips trailing slashes and hash fragment',
+      input: 'https://example.com/users/alice/#main-key',
+      expected: 'https://example.com/users/alice'
+    },
+    {
+      description: 'normalizes origin root trailing slash',
+      input: 'https://example.com/',
+      expected: 'https://example.com'
+    },
+    {
+      description: 'lowercases scheme and host',
+      input: 'HTTPS://EXAMPLE.COM/Users/Alice',
+      expected: 'https://example.com/Users/Alice'
+    },
+    {
+      description: 'returns null for null / undefined / empty string',
+      input: null,
+      expected: null
+    },
+    {
+      description: 'returns null for blank node',
+      input: '_:b0',
+      expected: null
+    }
+  ])('$description', ({ input, expected }) => {
+    expect(normalizeActorId(input)).toEqual(expected)
+  })
+})
+
+describe('actorIdsMatch', () => {
+  it.each([
+    {
+      description: 'matches identical URIs',
+      first: 'https://example.com/users/alice',
+      second: 'https://example.com/users/alice',
+      expected: true
+    },
+    {
+      description: 'matches URIs differing only by trailing slash',
+      first: 'https://example.com/users/alice',
+      second: 'https://example.com/users/alice/',
+      expected: true
+    },
+    {
+      description: 'matches URIs with key fragments',
+      first: 'https://example.com/users/alice#main-key',
+      second: 'https://example.com/users/alice',
+      expected: true
+    },
+    {
+      description: 'matches URIs with trailing slash and key fragments',
+      first: 'https://example.com/users/alice/#main-key',
+      second: 'https://example.com/users/alice',
+      expected: true
+    },
+    {
+      description: 'does not match different users',
+      first: 'https://example.com/users/alice',
+      second: 'https://example.com/users/bob',
+      expected: false
+    },
+    {
+      description: 'does not match different domains',
+      first: 'https://example.com/users/alice',
+      second: 'https://another.com/users/alice',
+      expected: false
+    },
+    {
+      description: 'returns false when either actor is null or undefined',
+      first: 'https://example.com/users/alice',
+      second: null,
+      expected: false
+    }
+  ])('$description', ({ first, second, expected }) => {
+    expect(actorIdsMatch(first, second)).toBe(expected)
+    expect(actorIdsMatch(second, first)).toBe(expected)
   })
 })

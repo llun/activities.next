@@ -63,7 +63,9 @@ export const extractFollowIdCandidates = (uri: string): string[] => {
       candidates.push(segments[segments.length - 1])
     }
   }
-  return [...new Set(candidates)].filter((id) => UUID_REGEX.test(id))
+  return [...new Set(candidates)]
+    .filter((id) => UUID_REGEX.test(id))
+    .slice(0, 8)
 }
 
 export const extractFollowIdFromUri = (uri: string): string | null => {
