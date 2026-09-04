@@ -5,6 +5,7 @@ import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { getMentionDomainFromActorID } from '@/lib/types/domain/actor'
 import type { ActorProfile } from '@/lib/types/domain/actor'
+import { cn } from '@/lib/utils'
 import {
   getActorIdUsername,
   isOpaqueActorUsernameValue
@@ -14,6 +15,7 @@ interface Props {
   actor?: ActorProfile | null
   actorId?: string
   statusUrl?: string | null
+  className?: string
 }
 
 type ActorIdParts = {
@@ -234,7 +236,12 @@ export const ActorAvatar: FC<Props> = ({ actor, actorId, statusUrl }) => {
   )
 }
 
-export const ActorInfo: FC<Props> = ({ actor, actorId, statusUrl }) => {
+export const ActorInfo: FC<Props> = ({
+  actor,
+  actorId,
+  statusUrl,
+  className
+}) => {
   if (!actor && !actorId) return null
 
   const href = getActorProfileHref(actor, actorId, statusUrl)
@@ -247,23 +254,27 @@ export const ActorInfo: FC<Props> = ({ actor, actorId, statusUrl }) => {
 
   return (
     <div
-      className="flex min-w-0 max-w-full items-center gap-1"
+      className={cn('flex min-w-0 max-w-full items-center gap-1', className)}
       onClick={(e) => e.stopPropagation()}
     >
       {href ? (
         <Link
           href={href}
           prefetch={false}
-          className="font-semibold hover:underline truncate"
+          className="shrink-0 max-w-full font-semibold hover:underline truncate"
         >
           <ActorDisplayName name={name} tags={actor?.tags} />
         </Link>
       ) : (
-        <span className="font-semibold truncate">
+        <span className="shrink-0 max-w-full font-semibold truncate">
           <ActorDisplayName name={name} tags={actor?.tags} />
         </span>
       )}
-      <span className="text-muted-foreground truncate">{mutedHandle}</span>
+      {mutedHandle ? (
+        <span className="min-w-0 flex-1 text-muted-foreground truncate">
+          {mutedHandle}
+        </span>
+      ) : null}
     </div>
   )
 }

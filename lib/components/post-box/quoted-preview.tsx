@@ -31,15 +31,15 @@ export const QuotedPreview: FC<Props> = ({
   return (
     <section
       className={cn(
-        'rounded-xl border border-border/60 border-l-4 border-l-primary/40 bg-muted/20 px-3 py-2',
+        'overflow-hidden rounded-xl border border-border/60 border-l-4 border-l-primary/40 bg-muted/20 px-3 py-2',
         className
       )}
     >
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="font-medium">Quoting</span>
-            <div className="text-sm text-foreground">
+          <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+            <span className="shrink-0 font-medium">Quoting</span>
+            <div className="min-w-0 flex-1 text-sm text-foreground">
               <ActorInfo actor={status.actor} actorId={status.actorId || ''} />
             </div>
           </div>
