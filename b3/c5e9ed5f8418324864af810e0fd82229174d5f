@@ -1,0 +1,14 @@
+lib/config/queue.ts
+  h_580a04e334fef4 7-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "b3c5e9ed5f8418324864af810e0fd82229174d5f",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
