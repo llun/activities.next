@@ -12,7 +12,8 @@ import {
   getQuoteTargetId,
   getReply,
   getSummary,
-  getTags
+  getTags,
+  getUrl
 } from '@/lib/activities/note'
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import {
@@ -122,7 +123,7 @@ export const createNoteJob = createJobHandle(
       recordActorIfNeeded({ actorId, database }),
       database.createNoteWithResult({
         id: note.id,
-        url: typeof note.url === 'string' ? note.url : note.id,
+        url: getUrl(note.url) || note.id,
 
         actorId,
 

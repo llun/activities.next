@@ -36,7 +36,7 @@ export const ActorMediaGallery: FC<Props> = ({
   isMediaOnly = false,
   className
 }) => {
-  const isMediaStream = isPixelfed || isMediaOnly
+  const isMediaGrid = isPixelfed || isMediaOnly
   const [modalIndex, setModalIndex] = useState<number | null>(null)
   const [attachments, setAttachments] =
     useState<Attachment[]>(initialAttachments)
@@ -45,7 +45,7 @@ export const ActorMediaGallery: FC<Props> = ({
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (isMediaStream && statuses && statuses.length > 0) {
+    if (isMediaGrid && statuses && statuses.length > 0) {
       const derived = statuses
         .flatMap((s) => (s.type === StatusType.enum.Note ? s.attachments : []))
         .filter(isVisualAttachment)
@@ -55,7 +55,7 @@ export const ActorMediaGallery: FC<Props> = ({
     } else if (initialAttachments.length > 0) {
       setAttachments(initialAttachments)
     }
-  }, [isMediaStream, statuses, initialAttachments])
+  }, [isMediaGrid, statuses, initialAttachments])
 
   const statusMap = useMemo(() => {
     const map = new Map<string, StatusNote>()
@@ -109,8 +109,7 @@ export const ActorMediaGallery: FC<Props> = ({
             const attachmentCount = parentStatus?.attachments.length ?? 1
             const isVideo =
               attachment.mediaType.startsWith('video') ||
-              attachment.url.endsWith('.mp4') ||
-              attachment.url.endsWith('.webm')
+              /\.(mp4|webm|m3u8)(?:[?#]|$)/i.test(attachment.url)
 
             return (
               <button
@@ -125,7 +124,16 @@ export const ActorMediaGallery: FC<Props> = ({
                 }
               >
                 <Media
-                  attachment={attachment}
+                  attachment={
+                    attachment.thumbnailUrl
+                      ? {
+                          ...attachment,
+                          mediaType: 'image/jpeg',
+                          url: attachment.thumbnailUrl
+                        }
+                      : attachment
+                  }
+                  loading="lazy"
                   className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
                 />
 
@@ -208,7 +216,7 @@ export const ActorMediaGallery: FC<Props> = ({
         </div>
       )}
 
-      {!isMediaStream && hasMore && (
+      {!isMediaGrid && hasMore && (
         <div className="mt-4 text-center">
           <Button
             variant="outline"

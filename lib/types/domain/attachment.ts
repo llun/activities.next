@@ -98,9 +98,16 @@ const hasFitnessExtension = (value: string) => {
  * frame, and a fitness file or a PDF has nothing to render at all, so both are
  * kept out of the picture layouts and handled separately by their surface.
  */
-export const isVisualAttachment = (attachment: Pick<Attachment, 'mediaType'>) =>
+export const isVisualAttachment = (
+  attachment: Pick<Attachment, 'mediaType'> & {
+    url?: string
+    thumbnailUrl?: string | null
+  }
+) =>
   attachment.mediaType.startsWith('image') ||
-  attachment.mediaType.startsWith('video')
+  attachment.mediaType.startsWith('video') ||
+  Boolean(attachment.thumbnailUrl) ||
+  Boolean(attachment.url && /\.(mp4|webm|m3u8)(?:[?#]|$)/i.test(attachment.url))
 
 /** Media that plays but has no frame — an `<audio controls>` element. */
 export const isAudibleAttachment = (
