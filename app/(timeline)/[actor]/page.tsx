@@ -18,6 +18,7 @@ import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getMastodonFeaturedTag } from '@/lib/services/mastodon/getMastodonFeaturedTag'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { cn } from '@/lib/utils'
+import { getActorImageUrl } from '@/lib/utils/activitypubActor'
 import { formatServerSoftware } from '@/lib/utils/formatServerSoftware'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -145,6 +146,7 @@ const Page: FC<Props> = async ({ params }) => {
     hasFitnessData,
     isPixelfed,
     isInternalAccount,
+    isMediaOnly,
     serverSoftware
   } = actorProfile
 
@@ -177,30 +179,32 @@ const Page: FC<Props> = async ({ params }) => {
 
   const getHeaderImage = () => {
     if (!person.image) return null
-    if (typeof person.image === 'string') return null
-    if (Array.isArray(person.image)) return null
-    if (person.image.type !== 'Image') return null
-    return {
-      url: person.image.url,
-      mediaType: person.image.mediaType ?? null
+    const imageItem = Array.isArray(person.image)
+      ? person.image.find(
+          (item) =>
+            item &&
+            typeof item === 'object' &&
+            'url' in item &&
+            typeof item.url === 'string'
+        )
+      : person.image
+    if (
+      !imageItem ||
+      imageItem.type !== 'Image' ||
+      typeof imageItem.url !== 'string'
+    ) {
+      return null
     }
-  }
-
-  const getIconImage = () => {
-    if (!person.icon) return null
-    if (typeof person.icon === 'string') return null
-    if (Array.isArray(person.icon)) return null
-    if (person.icon.type !== 'Image') return null
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const image = person.icon as any
-    if (typeof image.url !== 'string') return null
-    return image.url
+    return {
+      url: imageItem.url,
+      mediaType: imageItem.mediaType ?? null
+    }
   }
 
   const headerImage = getHeaderImage()
   const headerImageUrl = headerImage?.url ?? null
   const headerImageMediaType = headerImage?.mediaType ?? null
-  const iconImageUrl = getIconImage()
+  const iconImageUrl = getActorImageUrl(person.icon) ?? null
   const rawUrl = person.url ? getUrl(person.url) : null
   const profileUrl =
     (rawUrl && /^https?:\/\//i.test(rawUrl) ? rawUrl : null) ||
@@ -327,6 +331,7 @@ const Page: FC<Props> = async ({ params }) => {
         currentActor={currentActor ? getActorProfile(currentActor) : undefined}
         isCurrentUser={isCurrentUser}
         isPixelfed={isLoggedIn && Boolean(isPixelfed)}
+        isMediaOnly={isLoggedIn && Boolean(isMediaOnly)}
         hasFitnessData={hasFitnessData}
         isMediaUploadEnabled={Boolean(mediaStorage)}
         isInternalAccount={isInternalAccount}

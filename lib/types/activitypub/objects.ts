@@ -23,7 +23,8 @@ export const Document = z.object({
   width: z.number().optional(),
   height: z.number().optional(),
   name: z.string().optional().nullable(),
-  focalPoint: z.tuple([z.number(), z.number()]).optional()
+  focalPoint: z.tuple([z.number(), z.number()]).optional(),
+  thumbnailUrl: z.string().optional()
 })
 
 export type Document = z.infer<typeof Document>
@@ -258,10 +259,18 @@ export type ArticleContent = z.infer<typeof ArticleContent>
 export const VideoContent = BaseContent.extend({
   type: z.literal('Video'),
   name: z.string().nullish(),
+  url: z
+    .union([
+      z.string(),
+      z.looseObject({}),
+      z.union([z.string(), z.looseObject({})]).array()
+    ])
+    .nullish(),
   mediaType: z.string().nullish(),
   width: z.number().nullish(),
   height: z.number().nullish(),
-  blurhash: z.string().nullish()
+  blurhash: z.string().nullish(),
+  icon: z.union([Image, Image.array()]).nullish()
 })
 export type VideoContent = z.infer<typeof VideoContent>
 

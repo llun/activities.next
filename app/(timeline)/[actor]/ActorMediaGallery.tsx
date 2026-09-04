@@ -24,6 +24,7 @@ interface Props {
   initialAttachments: Attachment[]
   statuses?: Status[]
   isPixelfed?: boolean
+  isMediaOnly?: boolean
   className?: string
 }
 
@@ -32,8 +33,10 @@ export const ActorMediaGallery: FC<Props> = ({
   initialAttachments,
   statuses,
   isPixelfed = false,
+  isMediaOnly = false,
   className
 }) => {
+  const isMediaStream = isPixelfed || isMediaOnly
   const [modalIndex, setModalIndex] = useState<number | null>(null)
   const [attachments, setAttachments] =
     useState<Attachment[]>(initialAttachments)
@@ -42,7 +45,7 @@ export const ActorMediaGallery: FC<Props> = ({
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (isPixelfed && statuses && statuses.length > 0) {
+    if (isMediaStream && statuses && statuses.length > 0) {
       const derived = statuses.flatMap((s) =>
         s.type === StatusType.enum.Note ? s.attachments : []
       )
@@ -52,7 +55,7 @@ export const ActorMediaGallery: FC<Props> = ({
     } else if (initialAttachments.length > 0) {
       setAttachments(initialAttachments)
     }
-  }, [isPixelfed, statuses, initialAttachments])
+  }, [isMediaStream, statuses, initialAttachments])
 
   const statusMap = useMemo(() => {
     const map = new Map<string, StatusNote>()
@@ -205,7 +208,7 @@ export const ActorMediaGallery: FC<Props> = ({
         </div>
       )}
 
-      {!isPixelfed && hasMore && (
+      {!isMediaStream && hasMore && (
         <div className="mt-4 text-center">
           <Button
             variant="outline"

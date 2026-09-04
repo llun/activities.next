@@ -112,7 +112,7 @@ vi.mock('@/lib/components/posts/posts', () => ({
 }))
 
 vi.mock('./ActorMediaGallery', () => ({
-  ActorMediaGallery: () => null
+  ActorMediaGallery: () => <div data-testid="mock-media-gallery" />
 }))
 
 vi.mock('@/lib/components/ui/tabs', () => ({
@@ -801,6 +801,78 @@ describe('ActorTimelines', () => {
       await waitFor(() => {
         expect(mockGetActorStatuses).toHaveBeenCalledWith({
           actorId: 'https://pixelfed.social/users/dansup',
+          pageUrl: nextPageUrl
+        })
+      })
+    })
+
+    it('renders media gallery directly and skips tabs when isMediaOnly is true', () => {
+      render(
+        <ActorTimelines
+          host="localhost:3000"
+          actorId="https://framatube.org/accounts/framasoft"
+          statuses={[]}
+          attachments={[
+            {
+              id: 'att-1',
+              statusId: 'status-1',
+              actorId: 'https://framatube.org/accounts/framasoft',
+              mediaType: 'video/mp4',
+              url: 'https://framatube.org/video.mp4',
+              name: 'Test Video',
+              createdAt: FIXED_CURRENT_TIME,
+              updatedAt: FIXED_CURRENT_TIME
+            }
+          ]}
+          currentTime={FIXED_CURRENT_TIME}
+          currentActor={currentActorProfile}
+          isMediaOnly={true}
+          statusPagination={{ nextPageUrl: null, prevPageUrl: null }}
+        />
+      )
+
+      expect(
+        screen.queryByRole('button', { name: 'Posts' })
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Replies' })
+      ).not.toBeInTheDocument()
+      expect(screen.getByTestId('mock-media-gallery')).toBeInTheDocument()
+    })
+
+    it('enables load more when isMediaOnly is true', async () => {
+      const mockGetActorStatuses = vi.mocked(getActorStatuses)
+      const nextPageUrl = 'https://framatube.org/api/page2'
+      const newStatus = createStatus('https://framatube.org/videos/watch/2')
+
+      mockGetActorStatuses.mockResolvedValueOnce({
+        statuses: [newStatus],
+        statusesCount: 1,
+        nextPageUrl: null,
+        prevPageUrl: null
+      })
+
+      render(
+        <ActorTimelines
+          host="localhost:3000"
+          actorId="https://framatube.org/accounts/framasoft"
+          statuses={[]}
+          attachments={[]}
+          currentTime={FIXED_CURRENT_TIME}
+          currentActor={currentActorProfile}
+          isMediaOnly={true}
+          statusPagination={{ nextPageUrl, prevPageUrl: null }}
+        />
+      )
+
+      const loadMoreButton = screen.getByRole('button', { name: 'Load more' })
+      expect(loadMoreButton).toBeInTheDocument()
+
+      fireEvent.click(loadMoreButton)
+
+      await waitFor(() => {
+        expect(mockGetActorStatuses).toHaveBeenCalledWith({
+          actorId: 'https://framatube.org/accounts/framasoft',
           pageUrl: nextPageUrl
         })
       })

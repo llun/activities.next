@@ -10,6 +10,7 @@ import { getFederationSigningActorSafe } from '@/lib/services/federation/getFede
 import {
   ServerSoftware,
   getServerSoftwareInfo,
+  isPeerTubeActor,
   isPixelfedActor
 } from '@/lib/services/federation/serverSoftware'
 import {
@@ -40,6 +41,7 @@ type ProfileData = {
   hasFitnessData: boolean
   isPixelfed?: boolean
   serverSoftware?: ServerSoftware | null
+  isMediaOnly?: boolean
 }
 
 type ProfileDataOptions = {
@@ -147,6 +149,17 @@ export const getProfileData = async (
       )
     ).filter((status): status is Status => status !== null)
 
+    const isMediaOnly =
+      statuses.length > 0 &&
+      statuses.every(
+        (status) =>
+          status.type === StatusType.enum.Note &&
+          status.attachments.length > 0 &&
+          status.attachments.every((attachment) =>
+            attachment.mediaType.startsWith('video/')
+          )
+      )
+
     return {
       person: getPersonFromActor(persistedActor),
       statuses,
@@ -164,7 +177,8 @@ export const getProfileData = async (
       serverSoftware: {
         name: 'activities.next',
         version: VERSION
-      }
+      },
+      isMediaOnly
     }
   }
 
@@ -312,6 +326,23 @@ export const getProfileData = async (
     })
   }
 
+  const isPixelfed =
+    serverSoftware?.name === 'pixelfed' || (await isPixelfedActor(person))
+  const isPeerTube =
+    serverSoftware?.name === 'peertube' || (await isPeerTubeActor(person))
+  const isMediaOnly =
+    Boolean(isPixelfed) ||
+    isPeerTube ||
+    (actorPostsResponse.statuses.length > 0 &&
+      actorPostsResponse.statuses.every(
+        (status) =>
+          status.type === StatusType.enum.Note &&
+          status.attachments.length > 0 &&
+          status.attachments.every((attachment) =>
+            attachment.mediaType.startsWith('video/')
+          )
+      ))
+
   return {
     ...actorPostsResponse,
     person,
@@ -330,8 +361,8 @@ export const getProfileData = async (
     followersCount: collectionCounts.followersCount,
     isInternalAccount: false,
     hasFitnessData: false,
-    isPixelfed:
-      serverSoftware?.name === 'pixelfed' || (await isPixelfedActor(person)),
+    isPixelfed,
+    isMediaOnly,
     serverSoftware
   }
 }
