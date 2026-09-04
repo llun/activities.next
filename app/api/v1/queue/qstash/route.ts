@@ -59,7 +59,15 @@ export const POST = traceApiRoute(
         err: toLoggableError(e),
         message: 'Failed to process qstash message'
       })
-      return apiErrorResponse(400)
+      return apiResponse({
+        req: request,
+        allowedMethods: [HttpMethod.enum.POST],
+        data: {
+          error: err.message,
+          stack: err.stack ?? null
+        },
+        responseStatusCode: 500
+      })
     }
     return apiResponse({
       req: request,

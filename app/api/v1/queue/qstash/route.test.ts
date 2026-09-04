@@ -106,7 +106,7 @@ describe('POST /api/v1/queue/qstash', () => {
     expect(mockHandle).toHaveBeenCalledWith(body)
   })
 
-  it('records exception on trace span and returns 400 when queue handle throws', async () => {
+  it('records exception on trace span and returns 500 when queue handle throws', async () => {
     mockVerify.mockResolvedValue(true)
     const queueError = new Error('Queue handle failure')
     mockHandle.mockRejectedValue(queueError)
@@ -124,7 +124,7 @@ describe('POST /api/v1/queue/qstash', () => {
     )
 
     const response = await POST(request, { params: Promise.resolve({}) })
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(500)
 
     const spans = harness.recordedSpans
     const routeSpan = spans.find((s) => s.name === 'api.processQueueJob')

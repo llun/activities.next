@@ -17,13 +17,21 @@ const mockJobs = [
   }
 ]
 
-const mockDatabase = {
-  getDeadLetterJobs: vi.fn(),
-  countDeadLetterJobs: vi.fn()
+const mockDLQProvider = {
+  type: 'database' as 'database' | 'qstash',
+  getJobs: vi.fn(),
+  retryJob: vi.fn(),
+  discardJob: vi.fn(),
+  retryAll: vi.fn(),
+  clearDiscarded: vi.fn()
 }
 
 vi.mock('@/lib/database', () => ({
-  getDatabase: vi.fn(() => mockDatabase)
+  getDatabase: vi.fn(() => ({}))
+}))
+
+vi.mock('@/lib/services/queue/dlq', () => ({
+  getDLQProvider: () => mockDLQProvider
 }))
 
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -48,11 +56,11 @@ vi.mock('next/navigation', () => ({
 describe('/admin/queues page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDatabase.getDeadLetterJobs.mockResolvedValue(mockJobs)
-    mockDatabase.countDeadLetterJobs.mockImplementation(({ status } = {}) => {
-      if (!status) return Promise.resolve(1)
-      if (status === 'failed') return Promise.resolve(1)
-      return Promise.resolve(0)
+    mockDLQProvider.type = 'database'
+    mockDLQProvider.getJobs.mockResolvedValue({
+      jobs: mockJobs,
+      total: 1,
+      counts: { all: 1, failed: 1, retried: 0, discarded: 0 }
     })
   })
 
@@ -67,15 +75,24 @@ describe('/admin/queues page', () => {
     expect(markup).toContain('failed')
     expect(markup).toContain('Attempts: 5')
     expect(markup).toContain('Retry all failed')
+    expect(markup).toContain('Cloud Tasks (Database DLQ)')
   })
 
-  it('passes status filter to database query', async () => {
+  it('passes status filter to provider query', async () => {
     await Page({ searchParams: Promise.resolve({ status: 'failed' }) })
 
-    expect(mockDatabase.getDeadLetterJobs).toHaveBeenCalledWith({
+    expect(mockDLQProvider.getJobs).toHaveBeenCalledWith({
       status: 'failed',
       limit: 20,
       offset: 0
     })
+  })
+
+  it('renders QStash backend badge and tabs when qstash provider is active', async () => {
+    mockDLQProvider.type = 'qstash'
+    const markup = renderToStaticMarkup(
+      await Page({ searchParams: Promise.resolve({}) })
+    )
+    expect(markup).toContain('Upstash QStash (Native DLQ)')
   })
 })

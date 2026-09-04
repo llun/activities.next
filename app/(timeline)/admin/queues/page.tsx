@@ -6,6 +6,7 @@ import { PageHeader } from '@/lib/components/page-header'
 import { Button } from '@/lib/components/ui/button'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getDLQProvider } from '@/lib/services/queue/dlq'
 import { DeadLetterJobStatus } from '@/lib/types/database/operations'
 import { cn } from '@/lib/utils'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
@@ -41,25 +42,16 @@ const Page = async ({ searchParams }: Props) => {
   const page = Math.max(1, parseInt(params.page ?? '1', 10) || 1)
   const offset = (page - 1) * ITEMS_PER_PAGE
 
-  const [
+  const provider = getDLQProvider()
+  const {
     jobs,
-    totalCount,
-    allCount,
-    failedCount,
-    retriedCount,
-    discardedCount
-  ] = await Promise.all([
-    database.getDeadLetterJobs({
-      status: activeStatus,
-      limit: ITEMS_PER_PAGE,
-      offset
-    }),
-    database.countDeadLetterJobs({ status: activeStatus }),
-    database.countDeadLetterJobs(),
-    database.countDeadLetterJobs({ status: 'failed' }),
-    database.countDeadLetterJobs({ status: 'retried' }),
-    database.countDeadLetterJobs({ status: 'discarded' })
-  ])
+    total: totalCount,
+    counts
+  } = await provider.getJobs({
+    status: activeStatus,
+    limit: ITEMS_PER_PAGE,
+    offset
+  })
 
   const totalPages = Math.max(1, Math.ceil(totalCount / ITEMS_PER_PAGE))
 
@@ -82,12 +74,17 @@ const Page = async ({ searchParams }: Props) => {
   }
 
   const tabs: { label: string; status?: DeadLetterJobStatus; count: number }[] =
-    [
-      { label: 'All', count: allCount },
-      { label: 'Failed', status: 'failed', count: failedCount },
-      { label: 'Retried', status: 'retried', count: retriedCount },
-      { label: 'Discarded', status: 'discarded', count: discardedCount }
-    ]
+    provider.type === 'qstash'
+      ? [
+          { label: 'All', count: counts.all },
+          { label: 'Failed', status: 'failed', count: counts.failed }
+        ]
+      : [
+          { label: 'All', count: counts.all },
+          { label: 'Failed', status: 'failed', count: counts.failed },
+          { label: 'Retried', status: 'retried', count: counts.retried },
+          { label: 'Discarded', status: 'discarded', count: counts.discarded }
+        ]
 
   return (
     <div className="space-y-6">
@@ -95,6 +92,15 @@ const Page = async ({ searchParams }: Props) => {
         title="Queues & Dead Letter Queue"
         description="Inspect terminally failed background tasks, inspect payloads and stack traces, and trigger retries."
       />
+
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <span>Queue Backend:</span>
+        <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 font-medium text-foreground">
+          {provider.type === 'qstash'
+            ? 'Upstash QStash (Native DLQ)'
+            : 'Cloud Tasks (Database DLQ)'}
+        </span>
+      </div>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-2">
@@ -128,8 +134,8 @@ const Page = async ({ searchParams }: Props) => {
         </div>
 
         <AdminQueuesToolbar
-          failedCount={failedCount}
-          discardedCount={discardedCount}
+          failedCount={counts.failed}
+          discardedCount={counts.discarded}
         />
       </div>
 

@@ -230,14 +230,20 @@ Long-running operations (sending activities to remote servers, processing file u
 - **Google Cloud Tasks** — Managed HTTP-based task queue with OIDC verification and dead-letter queue support
 - **Synchronous** — Jobs execute inline (default, suitable for small instances and local development)
 
-#### Cloud Tasks & Dead Letter Queue (DLQ)
+#### Queues & Dead Letter Queue (DLQ) Management
 
-When running with `ACTIVITIES_QUEUE_TYPE=cloudtasks`, Cloud Tasks triggers the webhook endpoint at `/api/v1/queue/cloudtasks`.
+Instance administrators can inspect terminally failed tasks, view formatted payloads and error stack traces, re-dispatch jobs, or purge discarded records via the Admin UI at `/admin/queues`. The admin interface is queue-backend agnostic and seamlessly adapts to the active provider:
 
-- Tasks are authenticated via Google Cloud OIDC tokens (validating audience and service account email) or pre-shared webhook secrets / service account headers.
-- If task execution fails, the endpoint logs a warning and returns HTTP 500 while retry attempts are below the configured maximum (`ACTIVITIES_QUEUE_CLOUDTASKS_MAX_RETRIES`), prompting Cloud Tasks to retry with exponential backoff.
-- When maximum retries are exhausted (terminal failure), the job payload, failure message, error stack trace, and attempt count are captured in the database table `dead_letter_jobs`, and HTTP 200 is returned to acknowledge delivery and prevent infinite retries.
-- Instance administrators can inspect failed tasks, view formatted payloads and error stack traces, re-dispatch jobs, or purge discarded records via the Admin UI at `/admin/queues`.
+- **Google Cloud Tasks (`ACTIVITIES_QUEUE_TYPE=cloudtasks`)**:
+  - Webhook endpoint: `/api/v1/queue/cloudtasks`.
+  - Tasks are authenticated via Google Cloud OIDC tokens (validating audience and service account email) or pre-shared webhook secrets / service account headers.
+  - While retries are below `ACTIVITIES_QUEUE_CLOUDTASKS_MAX_RETRIES` (default 5), the endpoint returns HTTP 500 so Cloud Tasks applies exponential backoff.
+  - On terminal failure, the task is captured in the database `dead_letter_jobs` table and HTTP 200 is returned to acknowledge delivery. The Admin UI queries and manages these records in the database.
+- **Upstash QStash (`ACTIVITIES_QUEUE_TYPE=qstash`)**:
+  - Webhook endpoint: `/api/v1/queue/qstash`.
+  - Deliveries are verified using QStash HMAC signing keys.
+  - While retries are below `ACTIVITIES_QUEUE_QSTASH_MAX_RETRIES` (default 3), the endpoint returns HTTP 500 with error details so QStash retries with exponential backoff.
+  - On terminal failure, QStash automatically retains the task in Upstash's hosted Dead Letter Queue. The Admin UI connects directly to QStash's native DLQ API (`client.dlq`) to list, retry (`client.dlq.retry`), or delete (`client.dlq.delete`) dead-lettered messages without duplicate database storage.
 
 Note the difference where a job is delayed: QStash and Cloud Tasks honour `delaySeconds`, while
 the synchronous backend has no scheduler and **drops** any delayed message. Code
