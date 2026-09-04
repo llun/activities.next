@@ -18,6 +18,7 @@ import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getMastodonFeaturedTag } from '@/lib/services/mastodon/getMastodonFeaturedTag'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { cn } from '@/lib/utils'
+import { formatServerSoftware } from '@/lib/utils/formatServerSoftware'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { ActorRedirectCard } from './ActorRedirectCard'
@@ -143,7 +144,8 @@ const Page: FC<Props> = async ({ params }) => {
     followersCount,
     hasFitnessData,
     isPixelfed,
-    isInternalAccount
+    isInternalAccount,
+    serverSoftware
   } = actorProfile
 
   const isCurrentUser = currentActor?.id === person.id
@@ -204,6 +206,10 @@ const Page: FC<Props> = async ({ params }) => {
     (rawUrl && /^https?:\/\//i.test(rawUrl) ? rawUrl : null) ||
     (/^https?:\/\//i.test(person.id) ? person.id : null) ||
     `https://${actorDomain}/@${actorUsername}`
+
+  const formattedSoftware = serverSoftware
+    ? formatServerSoftware(serverSoftware)
+    : null
 
   return (
     <div className={cn('space-y-6', isLoggedIn && 'pt-6 sm:pt-8')}>
@@ -287,6 +293,21 @@ const Page: FC<Props> = async ({ params }) => {
                   <span className="text-muted-foreground">Followers</span>
                 </Link>
               )}
+            </div>
+          )}
+
+          {formattedSoftware && (
+            <div
+              className={cn(
+                'text-sm text-muted-foreground',
+                statusesCount !== null ||
+                  followingCount !== null ||
+                  followersCount !== null
+                  ? 'mt-3'
+                  : 'mt-5'
+              )}
+            >
+              {formattedSoftware}
             </div>
           )}
 

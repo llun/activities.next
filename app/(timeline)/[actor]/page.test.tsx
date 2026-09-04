@@ -221,4 +221,78 @@ describe('[actor] page header handle link', () => {
       expect.objectContaining({ isInternalAccount: true })
     )
   })
+
+  it('renders software name and version under the counts block', async () => {
+    mockGetProfileData.mockResolvedValue({
+      person: {
+        id: 'https://mastodon.social/users/bob',
+        type: 'Person',
+        preferredUsername: 'bob',
+        name: 'Bob',
+        summary: '',
+        url: 'https://mastodon.social/@bob'
+      } as unknown as Actor,
+      statuses: [],
+      statusesCount: 10,
+      statusPagination: { nextPageUrl: null, prevPageUrl: null },
+      attachments: [],
+      followingCount: 5,
+      followersCount: 15,
+      isInternalAccount: false,
+      hasFitnessData: false,
+      isPixelfed: false,
+      serverSoftware: {
+        name: 'mastodon',
+        version: '4.3.0'
+      }
+    })
+
+    const element = await Page({
+      params: Promise.resolve({ actor: '@bob@mastodon.social' })
+    })
+    render(element)
+
+    const softwareElement = screen.getByText('Mastodon/4.3.0')
+    expect(softwareElement).toBeInTheDocument()
+    expect(softwareElement).toHaveClass(
+      'text-sm',
+      'text-muted-foreground',
+      'mt-3'
+    )
+  })
+
+  it('renders software name without version when version is omitted', async () => {
+    mockGetProfileData.mockResolvedValue({
+      person: {
+        id: 'https://mastodon.social/users/bob',
+        type: 'Person',
+        preferredUsername: 'bob',
+        name: 'Bob',
+        summary: '',
+        url: 'https://mastodon.social/@bob'
+      } as unknown as Actor,
+      statuses: [],
+      statusesCount: 10,
+      statusPagination: { nextPageUrl: null, prevPageUrl: null },
+      attachments: [],
+      followingCount: 5,
+      followersCount: 15,
+      isInternalAccount: false,
+      hasFitnessData: false,
+      isPixelfed: false,
+      serverSoftware: {
+        name: 'mastodon',
+        version: null
+      }
+    })
+
+    const element = await Page({
+      params: Promise.resolve({ actor: '@bob@mastodon.social' })
+    })
+    render(element)
+
+    const softwareElement = screen.getByText('Mastodon')
+    expect(softwareElement).toBeInTheDocument()
+    expect(softwareElement).toHaveClass('text-sm', 'text-muted-foreground')
+  })
 })

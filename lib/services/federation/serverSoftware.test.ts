@@ -10,6 +10,7 @@ import {
   clearServerSoftwareCache,
   getServerSoftware,
   getServerSoftwareCacheSizeForTests,
+  getServerSoftwareInfo,
   isMisskeyActor,
   isMisskeyDomain,
   isPixelfedActor,
@@ -65,6 +66,12 @@ describe('serverSoftware', () => {
     const software = await getServerSoftware(domain)
     expect(software).toBe('pixelfed')
 
+    const softwareInfo = await getServerSoftwareInfo(domain)
+    expect(softwareInfo).toEqual({
+      name: 'pixelfed',
+      version: '0.12.9'
+    })
+
     const isPixelfed = await isPixelfedDomain(domain)
     expect(isPixelfed).toBe(true)
 
@@ -104,8 +111,50 @@ describe('serverSoftware', () => {
       return { status: 404, body: 'Not Found' }
     })
 
+    const softwareInfo = await getServerSoftwareInfo(domain)
+    expect(softwareInfo).toEqual({
+      name: 'mastodon',
+      version: '4.3.0'
+    })
+
     const isPixelfed = await isPixelfedDomain(domain)
     expect(isPixelfed).toBe(false)
+  })
+
+  it('handles server software without a version', async () => {
+    const domain = 'noversion.example'
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `https://${domain}/.well-known/nodeinfo`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            links: [
+              {
+                rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
+                href: `https://${domain}/nodeinfo/2.0`
+              }
+            ]
+          })
+        }
+      }
+      if (req.url === `https://${domain}/nodeinfo/2.0`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            software: {
+              name: 'pleroma'
+            }
+          })
+        }
+      }
+      return { status: 404, body: 'Not Found' }
+    })
+
+    const softwareInfo = await getServerSoftwareInfo(domain)
+    expect(softwareInfo).toEqual({
+      name: 'pleroma',
+      version: null
+    })
   })
 
   it('handles 404 on NodeInfo gracefully and caches negative result', async () => {

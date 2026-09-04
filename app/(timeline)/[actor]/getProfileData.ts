@@ -7,7 +7,11 @@ import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstr
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
-import { isPixelfedActor } from '@/lib/services/federation/serverSoftware'
+import {
+  ServerSoftware,
+  getServerSoftwareInfo,
+  isPixelfedActor
+} from '@/lib/services/federation/serverSoftware'
 import {
   canActorReadStatus,
   resolveActorStatusesAudience
@@ -19,6 +23,7 @@ import { Status, StatusType } from '@/lib/types/domain/status'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
+import { VERSION } from '@/lib/utils/version'
 
 type ProfileData = {
   person: Actor
@@ -34,6 +39,7 @@ type ProfileData = {
   isInternalAccount: boolean
   hasFitnessData: boolean
   isPixelfed?: boolean
+  serverSoftware?: ServerSoftware | null
 }
 
 type ProfileDataOptions = {
@@ -154,7 +160,11 @@ export const getProfileData = async (
       followersCount,
       isInternalAccount: true,
       hasFitnessData,
-      isPixelfed: false
+      isPixelfed: false,
+      serverSoftware: {
+        name: 'activities.next',
+        version: VERSION
+      }
     }
   }
 
@@ -256,8 +266,15 @@ export const getProfileData = async (
     followersAudience: remoteAudience.followersAudience
   }
 
-  const [actorPostsResponse, attachments, collectionCounts] = await Promise.all(
-    [
+  let remoteDomain: string | null = null
+  try {
+    remoteDomain = new URL(person.id).host
+  } catch {
+    // Malformed person.id
+  }
+
+  const [actorPostsResponse, attachments, collectionCounts, serverSoftware] =
+    await Promise.all([
       getActorPosts({
         database,
         person,
@@ -268,9 +285,9 @@ export const getProfileData = async (
         actorId: person.id,
         ...remoteVisibilityScope
       }),
-      getActorCollectionCounts({ person, ...signingParams })
-    ]
-  )
+      getActorCollectionCounts({ person, ...signingParams }),
+      remoteDomain ? getServerSoftwareInfo(remoteDomain) : Promise.resolve(null)
+    ])
 
   const resolvedStatusesCount =
     collectionCounts.statusesCount ?? actorPostsResponse.statusesCount ?? null
@@ -313,6 +330,7 @@ export const getProfileData = async (
     followersCount: collectionCounts.followersCount,
     isInternalAccount: false,
     hasFitnessData: false,
-    isPixelfed: await isPixelfedActor(person)
+    isPixelfed: await isPixelfedActor(person),
+    serverSoftware
   }
 }
