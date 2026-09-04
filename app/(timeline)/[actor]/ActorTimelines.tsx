@@ -52,6 +52,7 @@ interface Props {
   hasFitnessData?: boolean
   isMediaUploadEnabled?: boolean
   isPixelfed?: boolean
+  isInternalAccount?: boolean
 }
 
 const LOAD_MORE_PAGE_LIMIT = 5
@@ -129,11 +130,9 @@ export const ActorTimelines: FC<Props> = ({
   isCurrentUser = false,
   hasFitnessData = false,
   isMediaUploadEnabled,
-  isPixelfed = false
+  isPixelfed = false,
+  isInternalAccount = true
 }) => {
-  const [activeTab, setActiveTab] = useState<ProfileTab>(
-    isPixelfed ? 'media' : 'posts'
-  )
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
   const [currentStatusPagination, setCurrentStatusPagination] = useState({
     nextPageUrl: statusPagination?.nextPageUrl ?? null,
@@ -147,6 +146,42 @@ export const ActorTimelines: FC<Props> = ({
 
   const showActions = Boolean(currentActor)
   const showFitnessTab = Boolean(hasFitnessData)
+  const showRepliesTab = Boolean(isInternalAccount)
+
+  const hasMedia = useMemo(
+    () =>
+      attachments.length > 0 ||
+      currentStatuses.some(
+        (status) =>
+          status.type === StatusType.enum.Note && status.attachments.length > 0
+      ),
+    [attachments, currentStatuses]
+  )
+
+  const availableTabs = useMemo(() => {
+    const tabs: ProfileTab[] = ['posts']
+    if (showRepliesTab) {
+      tabs.push('replies')
+    }
+    if (hasMedia) {
+      tabs.push('media')
+    }
+    if (showFitnessTab) {
+      tabs.push('fitness')
+    }
+    return tabs
+  }, [showRepliesTab, hasMedia, showFitnessTab])
+
+  const [activeTab, setActiveTab] = useState<ProfileTab>(
+    isPixelfed ? 'media' : 'posts'
+  )
+
+  const effectiveActiveTab = useMemo(() => {
+    if (availableTabs.includes(activeTab)) {
+      return activeTab
+    }
+    return availableTabs[0] ?? 'posts'
+  }, [activeTab, availableTabs])
 
   const postStatuses = useMemo(
     () => currentStatuses.filter((status) => !isReply(status)),
@@ -167,10 +202,13 @@ export const ActorTimelines: FC<Props> = ({
   // also paginates via this outbox cursor.
   const canLoadMore =
     Boolean(currentStatusPagination.nextPageUrl) &&
-    (activeTab === 'posts' ||
-      activeTab === 'replies' ||
-      activeTab === 'fitness' ||
-      (isPixelfed && activeTab === 'media'))
+    (isPixelfed
+      ? activeTab === 'media'
+      : availableTabs.length <= 1
+        ? availableTabs[0] === 'posts'
+        : effectiveActiveTab === 'posts' ||
+          (showRepliesTab && effectiveActiveTab === 'replies') ||
+          (showFitnessTab && effectiveActiveTab === 'fitness'))
 
   const handleStatusCreated = useCallback(
     (status: Status) => {
@@ -397,10 +435,60 @@ export const ActorTimelines: FC<Props> = ({
     )
   }
 
+  if (availableTabs.length <= 1) {
+    const singleTab = availableTabs[0] ?? 'posts'
+    return (
+      <div className="space-y-4">
+        {singleTab === 'posts' && renderFeed(postStatuses, 'No posts yet')}
+        {singleTab === 'replies' && renderFeed(replyStatuses, 'No replies yet')}
+        {singleTab === 'media' && (
+          <ActorMediaGallery
+            actorId={actorId}
+            initialAttachments={attachments}
+            statuses={currentStatuses}
+            isPixelfed={false}
+          />
+        )}
+        {singleTab === 'fitness' && (
+          <div className="space-y-4">
+            {isCurrentUser && (
+              <div className="flex justify-end">
+                <Button variant="outline" asChild>
+                  <Link href="/fitness">
+                    <Activity className="size-4" aria-hidden="true" />
+                    Fitness dashboard
+                  </Link>
+                </Button>
+              </div>
+            )}
+            {renderFeed(fitnessStatuses, 'No fitness activities yet')}
+          </div>
+        )}
+
+        {canLoadMore && (
+          <div ref={loadMoreRef} className="text-center">
+            {loadMoreError && (
+              <p className="mb-3 text-sm text-destructive" role="alert">
+                {loadMoreError}
+              </p>
+            )}
+            <Button
+              variant="outline"
+              disabled={isLoadingMoreStatuses}
+              onClick={loadMoreStatuses}
+            >
+              {isLoadingMoreStatuses ? 'Loading...' : 'Load more'}
+            </Button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       <Tabs
-        value={activeTab}
+        value={effectiveActiveTab}
         onValueChange={(value) => setActiveTab(value as ProfileTab)}
         className="w-full gap-4"
       >
@@ -408,12 +496,16 @@ export const ActorTimelines: FC<Props> = ({
           <TabsTrigger value="posts" className="flex-1 sm:flex-none">
             Posts
           </TabsTrigger>
-          <TabsTrigger value="replies" className="flex-1 sm:flex-none">
-            Replies
-          </TabsTrigger>
-          <TabsTrigger value="media" className="flex-1 sm:flex-none">
-            Media
-          </TabsTrigger>
+          {showRepliesTab && (
+            <TabsTrigger value="replies" className="flex-1 sm:flex-none">
+              Replies
+            </TabsTrigger>
+          )}
+          {hasMedia && (
+            <TabsTrigger value="media" className="flex-1 sm:flex-none">
+              Media
+            </TabsTrigger>
+          )}
           {showFitnessTab && (
             <TabsTrigger value="fitness" className="flex-1 sm:flex-none">
               Fitness
@@ -425,22 +517,22 @@ export const ActorTimelines: FC<Props> = ({
           {renderFeed(postStatuses, 'No posts yet')}
         </TabsContent>
 
-        <TabsContent value="replies" className="mt-0">
-          {renderFeed(replyStatuses, 'No replies yet')}
-        </TabsContent>
+        {showRepliesTab && (
+          <TabsContent value="replies" className="mt-0">
+            {renderFeed(replyStatuses, 'No replies yet')}
+          </TabsContent>
+        )}
 
-        <TabsContent value="media" className="mt-0">
-          {attachments.length > 0 ? (
+        {hasMedia && (
+          <TabsContent value="media" className="mt-0">
             <ActorMediaGallery
               actorId={actorId}
               initialAttachments={attachments}
               statuses={currentStatuses}
               isPixelfed={false}
             />
-          ) : (
-            <EmptyState>No media yet</EmptyState>
-          )}
-        </TabsContent>
+          </TabsContent>
+        )}
 
         {showFitnessTab && (
           <TabsContent value="fitness" className="mt-0 space-y-4">

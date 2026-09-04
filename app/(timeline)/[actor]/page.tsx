@@ -142,7 +142,8 @@ const Page: FC<Props> = async ({ params }) => {
     followingCount,
     followersCount,
     hasFitnessData,
-    isPixelfed
+    isPixelfed,
+    isInternalAccount
   } = actorProfile
 
   const isCurrentUser = currentActor?.id === person.id
@@ -307,6 +308,7 @@ const Page: FC<Props> = async ({ params }) => {
         isPixelfed={isLoggedIn && Boolean(isPixelfed)}
         hasFitnessData={hasFitnessData}
         isMediaUploadEnabled={Boolean(mediaStorage)}
+        isInternalAccount={isInternalAccount}
       />
     </div>
   )

@@ -13,6 +13,7 @@ import { ReactNode } from 'react'
 
 import { getActorStatuses } from '@/lib/client'
 import { ActorProfile } from '@/lib/types/domain/actor'
+import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusType } from '@/lib/types/domain/status'
 
 import { ActorTimelines } from './ActorTimelines'
@@ -198,6 +199,18 @@ const createFitnessStatus = (id: string): Status =>
 const currentActorProfile = {
   id: 'https://local.example/users/me'
 } as ActorProfile
+
+const sampleAttachment: Attachment = {
+  id: 'att-1',
+  actorId: 'https://mastodon.social/users/someone',
+  statusId: 'status-1',
+  type: 'Document',
+  mediaType: 'image/jpeg',
+  url: 'https://mastodon.social/media/1.jpg',
+  width: 200,
+  height: 200,
+  blurhash: null
+}
 
 const FIXED_CURRENT_TIME = new Date('2026-04-30T10:05:00.000Z').getTime()
 
@@ -729,13 +742,13 @@ describe('ActorTimelines', () => {
       ).not.toBeInTheDocument()
     })
 
-    it('renders standard Posts, Replies, and Media tabs when isPixelfed is false', () => {
+    it('renders standard Posts, Replies, and Media tabs when isPixelfed is false and media is present', () => {
       const { container } = render(
         <ActorTimelines
           host="localhost:3000"
           actorId="https://mastodon.social/users/someone"
           statuses={[]}
-          attachments={[]}
+          attachments={[sampleAttachment]}
           currentTime={FIXED_CURRENT_TIME}
           currentActor={currentActorProfile}
           isPixelfed={false}
@@ -791,6 +804,113 @@ describe('ActorTimelines', () => {
           pageUrl: nextPageUrl
         })
       })
+    })
+  })
+
+  describe('Profile tabs visibility', () => {
+    it('omits the Replies tab when isInternalAccount is false (external account)', () => {
+      render(
+        <ActorTimelines
+          host="localhost:3000"
+          actorId="https://mastodon.social/users/someone"
+          statuses={[
+            createStatus('https://mastodon.social/users/someone/statuses/1')
+          ]}
+          attachments={[sampleAttachment]}
+          currentTime={FIXED_CURRENT_TIME}
+          isInternalAccount={false}
+        />
+      )
+
+      expect(screen.getByRole('button', { name: 'Posts' })).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Replies' })
+      ).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Media' })).toBeInTheDocument()
+    })
+
+    it('omits the Media tab when there are no attachments or statuses with media', () => {
+      render(
+        <ActorTimelines
+          host="localhost:3000"
+          actorId="https://local.example/users/someone"
+          statuses={[createStatus('https://local.example/statuses/1')]}
+          attachments={[]}
+          currentTime={FIXED_CURRENT_TIME}
+          isInternalAccount={true}
+        />
+      )
+
+      expect(screen.getByRole('button', { name: 'Posts' })).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Replies' })
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Media' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('does not show tabs when only one tab (Posts) is available', () => {
+      const { container } = render(
+        <ActorTimelines
+          host="localhost:3000"
+          actorId="https://mastodon.social/users/verge"
+          statuses={[createStatus('https://mastodon.social/statuses/1')]}
+          attachments={[]}
+          currentTime={FIXED_CURRENT_TIME}
+          isInternalAccount={false}
+        />
+      )
+
+      expect(
+        screen.queryByRole('button', { name: 'Posts' })
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Replies' })
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Media' })
+      ).not.toBeInTheDocument()
+      expect(
+        container.querySelector('[data-active-tab]')
+      ).not.toBeInTheDocument()
+      expect(
+        screen.getByText('https://mastodon.social/statuses/1')
+      ).toBeInTheDocument()
+    })
+
+    it('renders load more control when only one tab is available and more pages exist', async () => {
+      const getActorStatusesMock = getActorStatuses as jest.Mock
+      getActorStatusesMock.mockResolvedValueOnce({
+        statuses: [createStatus('https://mastodon.social/statuses/2')],
+        statusesCount: 2,
+        nextPageUrl: null,
+        prevPageUrl: null
+      })
+
+      const { container } = render(
+        <ActorTimelines
+          host="localhost:3000"
+          actorId="https://mastodon.social/users/verge"
+          statuses={[createStatus('https://mastodon.social/statuses/1')]}
+          attachments={[]}
+          currentTime={FIXED_CURRENT_TIME}
+          isInternalAccount={false}
+          statusPagination={{
+            nextPageUrl: 'https://mastodon.social/users/verge/outbox?page=2',
+            prevPageUrl: null
+          }}
+        />
+      )
+
+      expect(
+        container.querySelector('[data-active-tab]')
+      ).not.toBeInTheDocument()
+      const loadMoreButton = screen.getByRole('button', { name: 'Load more' })
+      expect(loadMoreButton).toBeInTheDocument()
+
+      fireEvent.click(loadMoreButton)
+      await screen.findByText('https://mastodon.social/statuses/2')
     })
   })
 })
