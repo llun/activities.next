@@ -981,4 +981,62 @@ describe('getActorPosts', () => {
     expect(response.nextPageUrl).toBeNull()
     expect(response.prevPageUrl).toBeNull()
   })
+
+  it('returns null statusesCount when remote outbox has no totalItems', async () => {
+    const actorId = 'https://blob.cat/users/critical'
+    const statusId = `${actorId}/statuses/1`
+    const person = MockActivityPubPerson({
+      id: actorId,
+      preferredUsername: 'critical',
+      withContext: true
+    }) as Actor
+
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `${actorId}/outbox`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            '@context': 'https://www.w3.org/ns/activitystreams',
+            id: `${actorId}/outbox`,
+            type: 'OrderedCollection',
+            first: `${actorId}/outbox?page=true`
+          })
+        }
+      }
+
+      if (req.url === `${actorId}/outbox?page=true`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            id: `${actorId}/outbox?page=true`,
+            type: 'OrderedCollectionPage',
+            partOf: `${actorId}/outbox`,
+            orderedItems: [
+              {
+                id: `${statusId}/activity`,
+                type: 'Create',
+                actor: actorId,
+                published: new Date().toISOString(),
+                object: MockMastodonActivityPubNote({
+                  id: statusId,
+                  from: actorId,
+                  content: 'Test post content',
+                  withContext: true
+                })
+              }
+            ]
+          })
+        }
+      }
+
+      return { status: 404, body: 'Not Found' }
+    })
+
+    const response = await getActorPosts({ database, person })
+
+    expect(response.statusesCount).toBeNull()
+    expect(response.statuses).toHaveLength(1)
+    expect(response.statuses[0].id).toBe(statusId)
+  })
 })

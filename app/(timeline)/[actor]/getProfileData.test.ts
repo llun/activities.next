@@ -398,12 +398,12 @@ describe('getProfileData', () => {
       ;(getActorPerson as jest.Mock).mockResolvedValue(mockPerson)
       ;(getActorPosts as jest.Mock).mockResolvedValue({
         statuses: mockStatuses,
-        statusesCount: 0
+        statusesCount: null
       })
       ;(getActorCollectionCounts as jest.Mock).mockResolvedValue({
         followersCount: 20,
         followingCount: 10,
-        statusesCount: 0
+        statusesCount: null
       })
       ;(getFederationSigningActorSafe as jest.Mock).mockResolvedValue(
         mockFederationSigningActor
@@ -518,13 +518,13 @@ describe('getProfileData', () => {
       expect(result).toMatchObject({
         followersCount: null,
         followingCount: null,
-        statusesCount: 0
+        statusesCount: 100
       })
       expect(mockDatabase.setActorCounters).toHaveBeenCalledWith({
         actorId: mockPerson.id,
         followersCount: null,
         followingCount: null,
-        statusCount: null
+        statusCount: 100
       })
     })
 
@@ -559,7 +559,7 @@ describe('getProfileData', () => {
         actorId: mockPerson.id,
         followersCount: 100,
         followingCount: 50,
-        statusCount: null
+        statusCount: 10
       })
     })
 

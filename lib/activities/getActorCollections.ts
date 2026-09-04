@@ -121,13 +121,22 @@ export const getActorCollections = async ({
           ? pageUrl
           : firstPageUrl
 
+      const parseTotalItems = (val: unknown): number | null => {
+        if (typeof val !== 'number' || !Number.isFinite(val) || val < 0) {
+          return null
+        }
+        return Math.floor(val)
+      }
+
+      const collectionTotalItems = parseTotalItems(collection.totalItems)
+
       // Return totalItems even if page URL is not available
       // This is common for remote actors where Mastodon only provides totalItems
       // without exposing the actual list of followers/following
       if (!collectionPageUrl) {
         return {
           page: null,
-          totalItems: collection.totalItems ?? 0
+          totalItems: collectionTotalItems
         }
       }
 
@@ -152,12 +161,14 @@ export const getActorCollections = async ({
           // Return totalItems even if page fetch fails
           return {
             page: null,
-            totalItems: collection.totalItems ?? 0
+            totalItems: collectionTotalItems
           }
         }
+        const page = JSON.parse(response.body) as OrderedCollectionPage
+        const pageTotalItems = parseTotalItems(page.totalItems)
         return {
-          page: JSON.parse(response.body) as OrderedCollectionPage,
-          totalItems: collection.totalItems ?? 0
+          page,
+          totalItems: collectionTotalItems ?? pageTotalItems
         }
       } catch (error) {
         const nodeError = error as NodeJS.ErrnoException
@@ -166,7 +177,7 @@ export const getActorCollections = async ({
         // Return totalItems even on error
         return {
           page: null,
-          totalItems: collection.totalItems ?? 0
+          totalItems: collectionTotalItems
         }
       }
     }
