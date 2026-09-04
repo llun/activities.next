@@ -850,6 +850,29 @@ describe('ActorTimelines', () => {
       ).not.toBeInTheDocument()
     })
 
+    it('includes the Media tab when attachments prop is empty but statuses contain media', () => {
+      const statusWithMedia = createStatus(
+        'https://remote.example/statuses/with-media',
+        { attachments: [sampleAttachment] }
+      )
+      render(
+        <ActorTimelines
+          host="localhost:3000"
+          actorId="https://mastodon.social/users/someone"
+          statuses={[statusWithMedia]}
+          attachments={[]}
+          currentTime={FIXED_CURRENT_TIME}
+          isInternalAccount={false}
+        />
+      )
+
+      expect(screen.getByRole('button', { name: 'Posts' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Media' })).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Replies' })
+      ).not.toBeInTheDocument()
+    })
+
     it('does not show tabs when only one tab (Posts) is available', () => {
       const { container } = render(
         <ActorTimelines
