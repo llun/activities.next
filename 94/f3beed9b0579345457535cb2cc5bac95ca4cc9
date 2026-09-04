@@ -1,0 +1,24 @@
+AGENTS.md
+  h_580a04e334fef4 1408-1411
+lib/services/mastodon/getMastodonStatus.test.ts
+  h_580a04e334fef4 899-909
+lib/services/mastodon/getMastodonStatus.ts
+  h_580a04e334fef4 664-667
+lib/services/mastodon/getMastodonStatusEdits.ts
+  h_580a04e334fef4 74-82
+lib/utils/text/processStatusText.test.ts
+  h_580a04e334fef4 138-167
+lib/utils/text/processStatusText.ts
+  h_580a04e334fef4 36-39,44-48,51-54,57,59-63,70-71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "94f3beed9b0579345457535cb2cc5bac95ca4cc9",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
