@@ -344,3 +344,19 @@ jobs:
             -c http.https://github.com/.extraheader="AUTHORIZATION: basic ${auth_header}" \
             -c credential.helper= \
             push origin HEAD:oltp
+
+      - name: Dispatch sync to activities.prod
+        if: steps.synced.outputs.skip == 'false'
+        uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.PAT_TOKEN }}
+          script: |
+            await github.rest.repos.createDispatchEvent({
+              owner: 'llun',
+              repo: 'activities.prod',
+              event_type: 'sync-from-activities-next',
+              client_payload: {
+                branch: 'oltp',
+                main_sha: '${{ env.MAIN_SHA }}',
+              },
+            })
