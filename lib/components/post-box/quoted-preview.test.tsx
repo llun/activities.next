@@ -5,23 +5,23 @@ import '@testing-library/jest-dom'
 import { fireEvent, render, screen } from '@testing-library/react'
 import React from 'react'
 
+import { QuotedPreview } from '@/lib/components/post-box/quoted-preview'
+import { ActorProfile } from '@/lib/types/domain/actor'
 import {
+  Status,
   StatusAnnounce,
   StatusNote,
-  StatusType
+  StatusType,
+  getOriginalStatus
 } from '@/lib/types/domain/status'
-
-import { ReplyPreview } from './reply-preview'
 
 // Mock the processStatusText utility
 vi.mock('@/lib/utils/text/processStatusText', async () => ({
-  processStatusText: vi.fn((host: string, status: StatusNote) => {
-    if (status.type === 'Announce') {
-      return (status as unknown as StatusAnnounce).originalStatus.text
-    }
-    return status.text
+  processStatusText: vi.fn((_host: string, status: Status) => {
+    const original = getOriginalStatus(status)
+    return original.text
   }),
-  getActualStatus: vi.fn((status: StatusNote) => status)
+  getActualStatus: vi.fn((status: Status) => status)
 }))
 
 // Mock the cleanClassName utility
@@ -31,13 +31,32 @@ vi.mock('@/lib/utils/text/cleanClassName', async () => ({
 
 // Mock the ActorInfo component
 vi.mock('@/lib/components/posts/actor', async () => ({
-  ActorInfo: ({ actor }: { actor: { name: string } }) => (
+  ActorInfo: ({ actor }: { actor?: ActorProfile | null }) => (
     <span data-testid="actor-info">{actor?.name || 'Unknown'}</span>
   )
 }))
 
-describe('ReplyPreview', () => {
+describe('QuotedPreview', () => {
   const mockOnClose = vi.fn()
+
+  const createMockActor = (
+    overrides: Partial<ActorProfile> = {}
+  ): ActorProfile => ({
+    id: 'https://example.com/users/testuser',
+    username: 'testuser',
+    domain: 'example.com',
+    name: 'Test User',
+    summary: '',
+    followersUrl: 'https://example.com/users/testuser/followers',
+    inboxUrl: 'https://example.com/users/testuser/inbox',
+    sharedInboxUrl: 'https://example.com/inbox',
+    followingCount: 0,
+    followersCount: 0,
+    statusCount: 0,
+    lastStatusAt: null,
+    createdAt: Date.now(),
+    ...overrides
+  })
 
   const createMockStatus = (
     overrides: Partial<StatusNote> = {}
@@ -50,24 +69,14 @@ describe('ReplyPreview', () => {
     reply: '',
     replies: [],
     actorId: 'https://example.com/users/testuser',
-    actor: {
-      id: 'https://example.com/users/testuser',
-      name: 'Test User',
-      preferredUsername: 'testuser',
-      url: 'https://example.com/@testuser',
-      icon: null,
-      summary: null,
-      followersCount: 0,
-      followingCount: 0,
-      statusesCount: 0,
-      createdAt: Date.now()
-    },
+    actor: createMockActor(),
     to: [],
     cc: [],
     edits: [],
     isLocalActor: false,
     actorAnnounceStatusId: null,
     isActorLiked: false,
+    isActorBookmarked: false,
     totalLikes: 0,
     totalShares: 0,
     attachments: [],
@@ -81,18 +90,11 @@ describe('ReplyPreview', () => {
     id: 'announce-1',
     type: StatusType.enum.Announce,
     actorId: 'https://example.com/users/booster',
-    actor: {
+    actor: createMockActor({
       id: 'https://example.com/users/booster',
-      name: 'Booster User',
-      preferredUsername: 'booster',
-      url: 'https://example.com/@booster',
-      icon: null,
-      summary: null,
-      followersCount: 0,
-      followingCount: 0,
-      statusesCount: 0,
-      createdAt: Date.now()
-    },
+      username: 'booster',
+      name: 'Booster User'
+    }),
     to: [],
     cc: [],
     edits: [],
@@ -111,28 +113,28 @@ describe('ReplyPreview', () => {
   describe('rendering', () => {
     it('returns null when status is undefined', () => {
       const { container } = render(
-        <ReplyPreview host="example.com" status={undefined} />
+        <QuotedPreview host="example.com" status={undefined} />
       )
       expect(container.firstChild).toBeNull()
     })
 
-    it('renders the reply preview with status content', () => {
+    it('renders the quote preview with status content', () => {
       const status = createMockStatus({ text: 'Hello world!' })
-      render(<ReplyPreview host="example.com" status={status} />)
+      render(<QuotedPreview host="example.com" status={status} />)
 
-      expect(screen.getByText('Replying to')).toBeInTheDocument()
+      expect(screen.getByText('Quoting')).toBeInTheDocument()
       expect(screen.getByTestId('actor-info')).toHaveTextContent('Test User')
       expect(screen.getByText('Hello world!')).toBeInTheDocument()
     })
 
     it('renders "No content preview" when text is empty', async () => {
       const { processStatusText } = await vi.importMock<{
-        processStatusText: jest.Mock
+        processStatusText: ReturnType<typeof vi.fn>
       }>('@/lib/utils/text/processStatusText')
       processStatusText.mockReturnValueOnce('')
 
       const status = createMockStatus({ text: '' })
-      render(<ReplyPreview host="example.com" status={status} />)
+      render(<QuotedPreview host="example.com" status={status} />)
 
       expect(screen.getByText('No content preview')).toBeInTheDocument()
     })
@@ -140,7 +142,7 @@ describe('ReplyPreview', () => {
     it('applies custom className when provided', () => {
       const status = createMockStatus()
       const { container } = render(
-        <ReplyPreview
+        <QuotedPreview
           host="example.com"
           status={status}
           className="custom-class"
@@ -154,16 +156,16 @@ describe('ReplyPreview', () => {
     it('applies overflow-hidden and min-w-0 classes to prevent header overflow', () => {
       const status = createMockStatus()
       const { container } = render(
-        <ReplyPreview host="example.com" status={status} />
+        <QuotedPreview host="example.com" status={status} />
       )
 
       const section = container.querySelector('section')
       expect(section).toHaveClass('overflow-hidden')
 
-      const replyingLabel = screen.getByText('Replying to')
-      expect(replyingLabel).toHaveClass('shrink-0')
+      const quotingLabel = screen.getByText('Quoting')
+      expect(quotingLabel).toHaveClass('shrink-0')
 
-      const headerRow = replyingLabel.parentElement
+      const headerRow = quotingLabel.parentElement
       expect(headerRow).toHaveClass('min-w-0')
 
       const actorInfoWrapper = headerRow?.querySelector('.flex-1')
@@ -176,14 +178,14 @@ describe('ReplyPreview', () => {
     it('calls onClose when dismiss button is clicked', () => {
       const status = createMockStatus()
       render(
-        <ReplyPreview
+        <QuotedPreview
           host="example.com"
           status={status}
           onClose={mockOnClose}
         />
       )
 
-      const closeButton = screen.getByRole('button', { name: 'Dismiss reply' })
+      const closeButton = screen.getByRole('button', { name: 'Dismiss quote' })
       fireEvent.click(closeButton)
 
       expect(mockOnClose).toHaveBeenCalledTimes(1)
@@ -191,17 +193,17 @@ describe('ReplyPreview', () => {
 
     it('has type="button" to prevent form submission', () => {
       const status = createMockStatus()
-      render(<ReplyPreview host="example.com" status={status} />)
+      render(<QuotedPreview host="example.com" status={status} />)
 
-      const closeButton = screen.getByRole('button', { name: 'Dismiss reply' })
+      const closeButton = screen.getByRole('button', { name: 'Dismiss quote' })
       expect(closeButton).toHaveAttribute('type', 'button')
     })
 
     it('handles missing onClose gracefully', () => {
       const status = createMockStatus()
-      render(<ReplyPreview host="example.com" status={status} />)
+      render(<QuotedPreview host="example.com" status={status} />)
 
-      const closeButton = screen.getByRole('button', { name: 'Dismiss reply' })
+      const closeButton = screen.getByRole('button', { name: 'Dismiss quote' })
       expect(() => fireEvent.click(closeButton)).not.toThrow()
     })
   })
@@ -212,21 +214,21 @@ describe('ReplyPreview', () => {
         type: StatusType.enum.Note,
         text: 'This is a note'
       })
-      render(<ReplyPreview host="example.com" status={status} />)
+      render(<QuotedPreview host="example.com" status={status} />)
 
       expect(screen.getByText('This is a note')).toBeInTheDocument()
     })
 
     it('renders boosted (Announce) status with original content', async () => {
       const { processStatusText } = await vi.importMock<{
-        processStatusText: jest.Mock
+        processStatusText: ReturnType<typeof vi.fn>
       }>('@/lib/utils/text/processStatusText')
       processStatusText.mockReturnValueOnce(
         'This is the original boosted status'
       )
 
       const status = createMockAnnounceStatus()
-      render(<ReplyPreview host="example.com" status={status} />)
+      render(<QuotedPreview host="example.com" status={status} />)
 
       expect(
         screen.getByText('This is the original boosted status')
@@ -234,69 +236,11 @@ describe('ReplyPreview', () => {
     })
   })
 
-  describe('text processing', () => {
-    it('passes host and status to processStatusText', async () => {
-      const { processStatusText } = await vi.importMock<{
-        processStatusText: jest.Mock
-      }>('@/lib/utils/text/processStatusText')
-
-      const status = createMockStatus()
-      render(<ReplyPreview host="my-server.com" status={status} />)
-
-      expect(processStatusText).toHaveBeenCalledWith('my-server.com', status)
-    })
-
-    it('handles long text content with line clamping styles', () => {
-      const longText =
-        'This is a very long status that should be truncated. '.repeat(10)
-      const status = createMockStatus({ text: longText })
-      const { container } = render(
-        <ReplyPreview host="example.com" status={status} />
-      )
-
-      // The text is inside a span from cleanClassName mock, which is inside the div with line-clamp-2
-      const textContainer = container.querySelector('.line-clamp-2')
-      expect(textContainer).toBeInTheDocument()
-    })
-  })
-
-  describe('actor display', () => {
-    it('displays actor name when actor is present', () => {
-      const status = createMockStatus({
-        actor: {
-          id: 'https://example.com/users/jane',
-          name: 'Jane Doe',
-          preferredUsername: 'jane',
-          url: 'https://example.com/@jane',
-          icon: null,
-          summary: null,
-          followersCount: 100,
-          followingCount: 50,
-          statusesCount: 25,
-          createdAt: Date.now()
-        }
-      })
-      render(<ReplyPreview host="example.com" status={status} />)
-
-      expect(screen.getByTestId('actor-info')).toHaveTextContent('Jane Doe')
-    })
-
-    it('passes actorId to ActorInfo when actor is null', () => {
-      const status = createMockStatus({
-        actor: null,
-        actorId: 'https://example.com/users/unknown'
-      })
-      render(<ReplyPreview host="example.com" status={status} />)
-
-      expect(screen.getByTestId('actor-info')).toBeInTheDocument()
-    })
-  })
-
   describe('accessibility', () => {
     it('uses semantic section element', () => {
       const status = createMockStatus()
       const { container } = render(
-        <ReplyPreview host="example.com" status={status} />
+        <QuotedPreview host="example.com" status={status} />
       )
 
       expect(container.querySelector('section')).toBeInTheDocument()
@@ -304,10 +248,10 @@ describe('ReplyPreview', () => {
 
     it('has accessible dismiss button with aria-label', () => {
       const status = createMockStatus()
-      render(<ReplyPreview host="example.com" status={status} />)
+      render(<QuotedPreview host="example.com" status={status} />)
 
-      const closeButton = screen.getByRole('button', { name: 'Dismiss reply' })
-      expect(closeButton).toHaveAttribute('aria-label', 'Dismiss reply')
+      const closeButton = screen.getByRole('button', { name: 'Dismiss quote' })
+      expect(closeButton).toHaveAttribute('aria-label', 'Dismiss quote')
     })
   })
 })

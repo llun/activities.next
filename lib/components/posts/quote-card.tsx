@@ -109,12 +109,12 @@ export const QuoteCard: FC<Props> = ({ quote, currentTime, className }) => {
     <a
       href={quotedStatus.url || quote.quotedStatusId}
       className={cn(
-        'mt-2 block rounded-xl border border-border/60 border-l-4 border-l-primary/40 bg-muted/20 px-3 py-2 transition-colors hover:bg-muted/40',
+        'mt-2 block overflow-hidden rounded-xl border border-border/60 border-l-4 border-l-primary/40 bg-muted/20 px-3 py-2 transition-colors hover:bg-muted/40',
         className
       )}
     >
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Avatar className="size-5">
+      <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+        <Avatar className="size-5 shrink-0">
           <AvatarImage src={account.avatar} alt="" />
           <AvatarFallback>
             {(account.display_name || account.username || '?')
@@ -122,11 +122,13 @@ export const QuoteCard: FC<Props> = ({ quote, currentTime, className }) => {
               .toUpperCase()}
           </AvatarFallback>
         </Avatar>
-        <span className="font-medium text-foreground">
+        <span className="shrink-0 max-w-full truncate font-medium text-foreground">
           {account.display_name || account.username}
         </span>
-        <span className="truncate">@{account.acct}</span>
-        <span aria-hidden>·</span>
+        <span className="min-w-0 flex-1 truncate">@{account.acct}</span>
+        <span aria-hidden className="shrink-0">
+          ·
+        </span>
         <span className="shrink-0">{relativeTime}</span>
       </div>
       <div className="mt-1 line-clamp-3 text-sm text-foreground/90 break-words">
