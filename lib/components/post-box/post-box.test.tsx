@@ -463,6 +463,128 @@ describe('PostBox edit media', () => {
     )
   })
 
+  it('keeps post button disabled when replying to own status with empty content', async () => {
+    const ownStatus = {
+      id: 'https://activities.local/users/llun/statuses/own-1',
+      url: 'https://activities.local/@llun/own-1',
+      actorId: profile.id,
+      actor: profile,
+      type: StatusType.enum.Note,
+      text: 'my own post',
+      tags: [],
+      to: [],
+      cc: []
+    } as unknown as Status
+
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        replyStatus={ownStatus}
+        onDiscardReply={vi.fn()}
+        onDiscardQuote={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
+      />
+    )
+
+    const textbox = screen.getByPlaceholderText('What is on your mind?')
+    expect(textbox).toHaveValue('')
+    const postButton = screen.getByRole('button', { name: 'Post' })
+    expect(postButton).toBeDisabled()
+  })
+
+  it('unwraps announced status when quoting a boost', async () => {
+    const originalStatus = {
+      id: 'https://activities.local/users/bob/statuses/1',
+      url: 'https://activities.local/@bob/1',
+      actorId: 'https://activities.local/users/bob',
+      actor: {
+        id: 'https://activities.local/users/bob',
+        username: 'bob',
+        domain: 'activities.local',
+        name: 'Bob'
+      },
+      type: StatusType.enum.Note,
+      text: 'quote me please',
+      tags: [],
+      to: [],
+      cc: []
+    } as unknown as Status
+
+    const announceStatus = {
+      id: 'https://activities.local/users/alice/statuses/2',
+      actorId: 'https://activities.local/users/alice',
+      type: StatusType.enum.Announce,
+      originalStatus,
+      to: [],
+      cc: []
+    } as unknown as Status
+
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        quotedStatus={announceStatus}
+        onDiscardReply={vi.fn()}
+        onDiscardQuote={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
+      />
+    )
+
+    const textbox = screen.getByPlaceholderText('What is on your mind?')
+    expect(textbox).toHaveValue('RE: https://activities.local/@bob/1\n\n')
+  })
+
+  it('strips the RE: quote prefix and preserves commentary even when separated by a single newline', async () => {
+    const onDiscardQuote = vi.fn()
+    const quotedStatus = {
+      id: 'https://activities.local/users/bob/statuses/1',
+      url: 'https://activities.local/@bob/1',
+      actorId: 'https://activities.local/users/bob',
+      actor: {
+        id: 'https://activities.local/users/bob',
+        username: 'bob',
+        domain: 'activities.local',
+        name: 'Bob'
+      },
+      type: StatusType.enum.Note,
+      text: 'quote me please',
+      tags: [],
+      to: [],
+      cc: []
+    } as unknown as Status
+
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        quotedStatus={quotedStatus}
+        onDiscardReply={vi.fn()}
+        onDiscardQuote={onDiscardQuote}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
+      />
+    )
+
+    const textbox = screen.getByPlaceholderText('What is on your mind?')
+    fireEvent.change(textbox, {
+      target: {
+        value: 'RE: https://activities.local/@bob/1\nmy commentary'
+      }
+    })
+
+    const dismissButton = screen.getByRole('button', { name: 'Dismiss quote' })
+    fireEvent.click(dismissButton)
+
+    expect(onDiscardQuote).toHaveBeenCalled()
+    expect(textbox).toHaveValue('my commentary')
+  })
+
   it('disables the poll toggle while composing a quote (mutually exclusive)', async () => {
     const quotedStatus = {
       id: 'https://activities.local/users/bob/statuses/1',

@@ -161,6 +161,9 @@ const hasNewPostContent = (
     extension.attachments.length > 0 ||
     Boolean(extension.fitnessFile))
 
+const escapeRegExp = (value: string) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
 const getQuoteUrl = (quotedStatus: Status) => {
   const original = getOriginalStatus(quotedStatus)
   return original.url || original.id
@@ -773,10 +776,14 @@ export const PostBox: FC<Props> = ({
 
   const onCloseQuote = () => {
     if (quotedStatus) {
-      const quotePrefix = getQuotePrefix(quotedStatus)
-      const quoteUrl = getQuoteUrl(quotedStatus)
-      if (text.startsWith(quotePrefix)) {
-        const nextText = text.slice(quotePrefix.length)
+      const original = getOriginalStatus(quotedStatus)
+      const urls = [original.url, original.id].filter(Boolean) as string[]
+      const prefixRegex = new RegExp(
+        `^RE: (${urls.map(escapeRegExp).join('|')})\\s*`
+      )
+      const match = text.match(prefixRegex)
+      if (match) {
+        const nextText = text.slice(match[0].length)
         setText(nextText)
         textRef.current = nextText
         setAllowPost(
@@ -785,12 +792,6 @@ export const PostBox: FC<Props> = ({
             postExtensionRef.current,
             maxStatusCharacters
           )
-        )
-      } else if (text.trim() === `RE: ${quoteUrl}`) {
-        setText('')
-        textRef.current = ''
-        setAllowPost(
-          hasNewPostContent('', postExtensionRef.current, maxStatusCharacters)
         )
       }
     }
@@ -1023,32 +1024,24 @@ export const PostBox: FC<Props> = ({
         ? getDefaultMessage(profile, replyStatus)
         : null
 
-    if (defaultReplyMessage) {
-      const [replyText, replyStart, replyEnd] = defaultReplyMessage
+    if (defaultReplyMessage || quotePrefix) {
+      const [replyText, replyStart, replyEnd] = defaultReplyMessage ?? [
+        '',
+        0,
+        0
+      ]
       const initialText = `${quotePrefix}${replyText}`
       const start = quotePrefix.length + replyStart
       const end = quotePrefix.length + replyEnd
       setText(initialText)
       textRef.current = initialText
-      setAllowPost(true)
-
-      setTimeout(() => {
-        if (postBoxRef.current) {
-          postBoxRef.current.selectionStart = start
-          postBoxRef.current.selectionEnd = end
-          postBoxRef.current.focus()
-        }
-      }, 0)
-      return
-    }
-
-    if (quotePrefix) {
-      const initialText = quotePrefix
-      const start = quotePrefix.length
-      const end = quotePrefix.length
-      setText(initialText)
-      textRef.current = initialText
-      setAllowPost(true)
+      setAllowPost(
+        hasNewPostContent(
+          initialText,
+          postExtensionRef.current,
+          maxStatusCharacters
+        )
+      )
 
       setTimeout(() => {
         if (postBoxRef.current) {
