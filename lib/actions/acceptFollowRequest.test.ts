@@ -263,5 +263,33 @@ describe('Accept follow action', () => {
       expect(updatedRequest).toBeTruthy()
       expect(updatedRequest?.id).toEqual(followRequest.id)
     })
+
+    it('does not send duplicate notification alerts if already Accepted', async () => {
+      const targetActorId =
+        'https://somewhere.test/actors/request-following-dup'
+      const followRequest = await database.createFollow({
+        actorId: ACTOR1_ID,
+        targetActorId,
+        status: FollowStatus.enum.Accepted,
+        inbox: 'https://somewhere.test/inbox',
+        sharedInbox: 'https://somewhere.test/inbox'
+      })
+
+      const activity = MockFollowRequestResponse({
+        actorId: ACTOR1_ID,
+        targetActorId,
+        followResponseStatus: 'Accept',
+        followId: followRequest.id
+      }) as AcceptFollow
+
+      const result = await acceptFollowRequest({
+        activity,
+        database
+      })
+
+      expect(result).toBeTruthy()
+      expect(result?.status).toEqual(FollowStatus.enum.Accepted)
+      expect(sendNotificationAlerts).not.toHaveBeenCalled()
+    })
   })
 })

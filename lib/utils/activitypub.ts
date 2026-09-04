@@ -72,6 +72,19 @@ export const isSameActivityPubOrigin = (
 export const normalizeActorId = (actorId: string | null | undefined) =>
   normalizeActivityPubUri(actorId?.split('#')[0])
 
+export const actorIdsMatch = (
+  firstActorId: string | null | undefined,
+  secondActorId: string | null | undefined
+): boolean => {
+  const normalizedFirstActorId = normalizeActorId(firstActorId)
+  const normalizedSecondActorId = normalizeActorId(secondActorId)
+
+  return (
+    Boolean(normalizedFirstActorId) &&
+    normalizedFirstActorId === normalizedSecondActorId
+  )
+}
+
 const ACTIVITY_STREAMS_NAMESPACE = 'https://www.w3.org/ns/activitystreams#'
 
 /**

@@ -63,7 +63,16 @@ export type Block = z.infer<typeof Block>
 export const FollowOrObjectRef = z.union([
   Follow,
   z
-    .object({ id: z.string(), type: z.literal(ENTITY_TYPE_FOLLOW) })
+    .object({
+      id: z.string().optional(),
+      type: z.literal(ENTITY_TYPE_FOLLOW)
+    })
+    .passthrough(),
+  z
+    .object({
+      id: z.string(),
+      type: z.undefined().optional()
+    })
     .passthrough(),
   z.string()
 ])
@@ -71,7 +80,7 @@ export type FollowOrObjectRef = z.infer<typeof FollowOrObjectRef>
 
 export const Accept = z.object({
   id: z.string(),
-  actor: z.string(),
+  actor: z.string().min(1),
   type: z.literal('Accept'),
   object: FollowOrObjectRef
 })
@@ -84,7 +93,7 @@ export type Accept = z.infer<typeof Accept>
 
 export const Reject = z.object({
   id: z.string(),
-  actor: z.string(),
+  actor: z.string().min(1),
   type: z.literal('Reject'),
   object: FollowOrObjectRef
 })

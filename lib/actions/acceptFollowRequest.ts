@@ -54,17 +54,18 @@ export const acceptFollowRequest = async ({
       })
       .catch((error) => {
         logger.warn({
+          err: toLoggableError(error),
           message: 'Failed to queue Undo Follow federation',
           actorId: follow.actorId,
           targetActorId: follow.targetActorId,
-          followId: follow.id,
-          error
+          followId: follow.id
         })
       })
 
     return follow
   }
 
+  const wasAlreadyAccepted = follow.status === FollowStatus.enum.Accepted
   await database.updateFollowStatus({
     followId: follow.id,
     status: FollowStatus.enum.Accepted
@@ -75,7 +76,7 @@ export const acceptFollowRequest = async ({
     database.getActorFromId({ id: follow.targetActorId })
   ])
 
-  if (actor && targetActor?.account) {
+  if (!wasAlreadyAccepted && actor && targetActor?.account) {
     sendNotificationAlerts({
       database,
       actorId: targetActor.id,
@@ -100,8 +101,8 @@ export const acceptFollowRequest = async ({
   // updateFollowStatus committed Accepted so the job sees the follow.
   // Dedup id is per follow row (#backfill suffix keeps it clear of every
   // other job's id space; an Accept redelivery dedups, and the job is
-  // idempotent past the dedup window anyway).
-  if (actor?.privateKey) {
+  // safe against repeated execution anyway).
+  if (actor?.account) {
     getQueue()
       .publish({
         id: getHashFromString(`${follow.id}#backfill`),
@@ -118,5 +119,8 @@ export const acceptFollowRequest = async ({
       })
   }
 
-  return follow
+  return {
+    ...follow,
+    status: FollowStatus.enum.Accepted
+  }
 }

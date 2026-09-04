@@ -46,7 +46,7 @@ import {
   Reject,
   Undo
 } from '@/lib/types/activitypub'
-import { normalizeActorId } from '@/lib/utils/activitypub'
+import { actorIdsMatch } from '@/lib/utils/activitypub'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -137,16 +137,6 @@ const RelayHandshake = z
     object: z.union([z.string(), z.object({ id: z.string() }).passthrough()])
   })
   .passthrough()
-
-const actorIdsMatch = (firstActorId: string, secondActorId: string) => {
-  const normalizedFirstActorId = normalizeActorId(firstActorId)
-  const normalizedSecondActorId = normalizeActorId(secondActorId)
-
-  return (
-    Boolean(normalizedFirstActorId) &&
-    normalizedFirstActorId === normalizedSecondActorId
-  )
-}
 
 const logAcceptedWithoutSideEffects = ({
   activity,
@@ -393,8 +383,8 @@ export const POST = traceApiRoute(
                   return apiResponse({
                     req,
                     allowedMethods: CORS_HEADERS,
-                    data: ERROR_404,
-                    responseStatusCode: 404
+                    data: DEFAULT_202,
+                    responseStatusCode: 202
                   })
                 }
                 return apiResponse({
@@ -446,8 +436,8 @@ export const POST = traceApiRoute(
                   return apiResponse({
                     req,
                     allowedMethods: CORS_HEADERS,
-                    data: ERROR_404,
-                    responseStatusCode: 404
+                    data: DEFAULT_202,
+                    responseStatusCode: 202
                   })
                 }
                 return apiResponse({
@@ -585,12 +575,39 @@ export const POST = traceApiRoute(
                 }
 
                 const undoFollow = Follow.safeParse(undoObject)
-                if (undoFollow.success) {
-                  if (!actorIdsMatch(activity.actor, undoFollow.data.actor)) {
+                const undoFollowRef =
+                  !undoFollow.success &&
+                  typeof undoObject === 'object' &&
+                  undoObject !== null &&
+                  'id' in undoObject &&
+                  typeof undoObject.id === 'string' &&
+                  (!('type' in undoObject) || undoObject.type === 'Follow')
+                    ? {
+                        id: undoObject.id,
+                        actor:
+                          'actor' in undoObject &&
+                          typeof undoObject.actor === 'string'
+                            ? undoObject.actor
+                            : activity.actor,
+                        object:
+                          'object' in undoObject &&
+                          typeof undoObject.object === 'string'
+                            ? undoObject.object
+                            : actor.id,
+                        type: 'Follow' as const
+                      }
+                    : null
+
+                const followData = undoFollow.success
+                  ? undoFollow.data
+                  : undoFollowRef
+
+                if (followData) {
+                  if (!actorIdsMatch(activity.actor, followData.actor)) {
                     annotateInboxRejection('sender_actor_mismatch', {
                       verified_sender: activity.actor,
                       ...getActivityTraceAttributes(activity),
-                      activity_actor: undoFollow.data.actor
+                      activity_actor: followData.actor
                     })
                     return apiResponse({
                       req,
@@ -604,7 +621,7 @@ export const POST = traceApiRoute(
                     database,
                     request: {
                       ...activity,
-                      object: undoFollow.data
+                      object: followData
                     } as UndoFollow
                   })
                   if (!result) {
@@ -622,7 +639,7 @@ export const POST = traceApiRoute(
                   return apiResponse({
                     req,
                     allowedMethods: CORS_HEADERS,
-                    data: { target: undoFollow.data.object },
+                    data: { target: followData.object },
                     responseStatusCode: 202
                   })
                 }
