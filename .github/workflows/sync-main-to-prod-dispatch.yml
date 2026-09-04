@@ -1,4 +1,4 @@
-name: Queue Main to OLTP Sync
+name: Queue Main to Activities.prod Sync
 
 on:
   workflow_run:
@@ -14,7 +14,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: queue-main-to-oltp-${{ github.event.workflow_run.head_sha }}
+  group: queue-main-to-prod-${{ github.event.workflow_run.head_sha }}
   cancel-in-progress: true
 
 jobs:
@@ -76,7 +76,7 @@ jobs:
             const pending = []
             const failed = []
 
-            core.summary.addHeading('Main-to-OLTP Sync Gate')
+            core.summary.addHeading('Main-to-Activities.prod Sync Gate')
             core.summary.addRaw(`Commit: \`${headSha}\`\n\n`)
 
             for (const workflowName of requiredWorkflows) {
@@ -127,7 +127,7 @@ jobs:
             await github.rest.repos.createDispatchEvent({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              event_type: 'sync-main-to-oltp',
+              event_type: 'sync-main-to-prod',
               client_payload: {
                 main_sha: '${{ steps.check.outputs.head_sha }}',
               },
