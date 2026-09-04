@@ -1,0 +1,16 @@
+app/(timeline)/[actor]/page.test.tsx
+  h_580a04e334fef4 257-261,267-270,305-309,314-316,351
+app/(timeline)/[actor]/page.tsx
+  h_580a04e334fef4 1,306,314-315
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "c0b74bdcf813684aaaae96e237ef4936513d15b1",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
