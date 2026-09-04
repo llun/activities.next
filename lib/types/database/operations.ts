@@ -4268,5 +4268,7 @@ export interface DeadLetterJobDatabase {
     status: DeadLetterJobStatus
   ): Promise<DeadLetterJob | null>
   deleteDeadLetterJob(id: string): Promise<boolean>
+  deleteDeadLetterJobs(ids: string[]): Promise<number>
   deleteDeadLetterJobsByStatus(status: DeadLetterJobStatus): Promise<number>
+  deleteAllDeadLetterJobs(): Promise<number>
 }

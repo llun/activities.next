@@ -6,16 +6,20 @@ import {
   ChevronDown,
   ChevronUp,
   Copy,
-  RotateCw
+  RotateCw,
+  Trash2
 } from 'lucide-react'
 import { FC, useState, useTransition } from 'react'
 
 import {
+  deleteSelectedDeadLetterJobs,
   discardDeadLetterJob,
-  retryDeadLetterJob
+  retryDeadLetterJob,
+  retrySelectedDeadLetterJobs
 } from '@/app/(timeline)/admin/queues/actions'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
+import { Checkbox } from '@/lib/components/ui/checkbox'
 import { DeadLetterJob } from '@/lib/types/database/operations'
 
 interface Props {
@@ -26,8 +30,56 @@ export const AdminQueuesList: FC<Props> = ({ jobs }) => {
   const [expandedJobIds, setExpandedJobIds] = useState<Record<string, boolean>>(
     {}
   )
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+
+  const allSelected =
+    jobs.length > 0 && jobs.every((job) => selectedIds.has(job.id))
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(jobs.map((job) => job.id)))
+    }
+  }
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
+  const handleRetrySelected = () => {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) return
+    startTransition(async () => {
+      await retrySelectedDeadLetterJobs(ids)
+      setSelectedIds(new Set())
+    })
+  }
+
+  const handleDeleteSelected = () => {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) return
+    if (
+      !confirm(
+        `Are you sure you want to delete ${ids.length} selected job${ids.length === 1 ? '' : 's'}?`
+      )
+    )
+      return
+    startTransition(async () => {
+      await deleteSelectedDeadLetterJobs(ids)
+      setSelectedIds(new Set())
+    })
+  }
 
   const toggleExpand = (id: string) => {
     setExpandedJobIds((prev) => ({ ...prev, [id]: !prev[id] }))
@@ -67,6 +119,56 @@ export const AdminQueuesList: FC<Props> = ({ jobs }) => {
 
   return (
     <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-background/50 px-3 py-2 text-xs">
+        <div className="flex items-center gap-2">
+          <Checkbox
+            checked={allSelected}
+            onChange={toggleSelectAll}
+            disabled={isPending}
+            aria-label="Select all jobs"
+          />
+          <span className="font-medium text-muted-foreground">
+            {selectedIds.size > 0
+              ? `${selectedIds.size} of ${jobs.length} selected`
+              : 'Select all'}
+          </span>
+        </div>
+
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isPending}
+              onClick={handleRetrySelected}
+              className="gap-1 text-xs"
+            >
+              <RotateCw className="h-3 w-3" />
+              Retry selected ({selectedIds.size})
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isPending}
+              onClick={handleDeleteSelected}
+              className="gap-1 text-xs text-destructive hover:bg-destructive/10"
+            >
+              <Trash2 className="h-3 w-3" />
+              Delete selected ({selectedIds.size})
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={isPending}
+              onClick={() => setSelectedIds(new Set())}
+              className="text-xs text-muted-foreground"
+            >
+              Clear
+            </Button>
+          </div>
+        )}
+      </div>
+
       {jobs.map((job) => {
         const isExpanded = !!expandedJobIds[job.id]
         const formattedPayload = JSON.stringify(job.payload, null, 2)
@@ -78,32 +180,41 @@ export const AdminQueuesList: FC<Props> = ({ jobs }) => {
             className="rounded-xl border bg-background/80 p-4 shadow-sm transition-colors"
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0 space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-semibold text-sm sm:text-base">
-                    {job.jobName}
-                  </span>
-                  <Badge
-                    tone={
-                      job.status === 'failed'
-                        ? 'destructive'
-                        : job.status === 'retried'
-                          ? 'success'
-                          : 'gray'
-                    }
-                  >
-                    {job.status}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">
-                    Attempts: {job.attempts}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {dateString}
-                  </span>
+              <div className="flex items-start gap-3 min-w-0">
+                <Checkbox
+                  checked={selectedIds.has(job.id)}
+                  onChange={() => toggleSelect(job.id)}
+                  disabled={isPending}
+                  aria-label={`Select job ${job.jobName} (${job.id})`}
+                  className="mt-1 shrink-0"
+                />
+                <div className="min-w-0 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold text-sm sm:text-base">
+                      {job.jobName}
+                    </span>
+                    <Badge
+                      tone={
+                        job.status === 'failed'
+                          ? 'destructive'
+                          : job.status === 'retried'
+                            ? 'success'
+                            : 'gray'
+                      }
+                    >
+                      {job.status}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      Attempts: {job.attempts}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {dateString}
+                    </span>
+                  </div>
+                  <p className="truncate text-sm text-destructive font-mono">
+                    {job.errorMessage}
+                  </p>
                 </div>
-                <p className="truncate text-sm text-destructive font-mono">
-                  {job.errorMessage}
-                </p>
               </div>
 
               <div className="flex shrink-0 items-center gap-2">

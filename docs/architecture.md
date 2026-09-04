@@ -232,7 +232,7 @@ Long-running operations (sending activities to remote servers, processing file u
 
 #### Queues & Dead Letter Queue (DLQ) Management
 
-Instance administrators can inspect terminally failed tasks, view formatted payloads and error stack traces, re-dispatch jobs, or purge discarded records via the Admin UI at `/admin/queues`. The admin interface is queue-backend agnostic and seamlessly adapts to the active provider:
+Instance administrators can inspect terminally failed tasks, view formatted payloads and error stack traces, re-dispatch jobs, drop all messages, or purge discarded records via the Admin UI at `/admin/queues`. Messages are sorted by failure time in descending order (most recent terminal failures first). The admin interface is queue-backend agnostic and seamlessly adapts to the active provider:
 
 - **Google Cloud Tasks (`ACTIVITIES_QUEUE_TYPE=cloudtasks`)**:
   - Webhook endpoint: `/api/v1/queue/cloudtasks`.

@@ -61,3 +61,31 @@ export async function clearDiscardedJobs() {
   revalidatePath(ADMIN_QUEUES_PATH)
   return result
 }
+
+export async function dropAllDeadLetterJobs() {
+  await verifyAdmin()
+  const provider = getDLQProvider()
+  const result = await provider.dropAll()
+  revalidatePath(ADMIN_QUEUES_PATH)
+  return result
+}
+
+export async function retrySelectedDeadLetterJobs(ids: string[]) {
+  await verifyAdmin()
+  if (!Array.isArray(ids) || ids.length === 0)
+    return { success: false, error: 'No jobs selected' }
+  const provider = getDLQProvider()
+  const result = await provider.retryJobs(ids)
+  revalidatePath(ADMIN_QUEUES_PATH)
+  return result
+}
+
+export async function deleteSelectedDeadLetterJobs(ids: string[]) {
+  await verifyAdmin()
+  if (!Array.isArray(ids) || ids.length === 0)
+    return { success: false, error: 'No jobs selected' }
+  const provider = getDLQProvider()
+  const result = await provider.deleteJobs(ids)
+  revalidatePath(ADMIN_QUEUES_PATH)
+  return result
+}
