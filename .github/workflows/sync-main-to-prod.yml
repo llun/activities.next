@@ -1,9 +1,15 @@
-name: Sync Main to OLTP
+name: Sync Main to Activities.prod
 
 on:
   repository_dispatch:
     types:
-      - sync-main-to-oltp
+      - sync-main-to-prod
+  workflow_dispatch:
+    inputs:
+      main_sha:
+        description: 'Commit SHA from activities.next main to sync (defaults to latest main)'
+        required: false
+        type: string
 
 permissions:
   actions: write
@@ -11,39 +17,42 @@ permissions:
   id-token: write
 
 concurrency:
-  group: sync-main-to-oltp
+  group: sync-main-to-prod
   cancel-in-progress: true
 
 env:
   GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-  MAIN_SHA: ${{ github.event.client_payload.main_sha }}
+  MAIN_SHA: ${{ github.event.client_payload.main_sha || github.event.inputs.main_sha }}
+  PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
   YARN_ENABLE_IMMUTABLE_INSTALLS: 'false'
 
 jobs:
   sync:
-    name: Merge main into oltp
+    name: Merge main into activities.prod main
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - name: Validate dispatch payload
+      - name: Validate environment and inputs
         shell: bash
         run: |
-          if [ -z "${MAIN_SHA}" ]; then
-            echo "Missing repository_dispatch client_payload.main_sha" >&2
-            exit 1
-          fi
-
           if [ -z "${GEMINI_API_KEY}" ]; then
             echo "Missing secrets.GEMINI_API_KEY" >&2
             exit 1
           fi
 
-      - name: Checkout oltp branch
-        uses: actions/checkout@v7
+          if [ -z "${PAT_TOKEN}" ]; then
+            echo "Missing secrets.PAT_TOKEN" >&2
+            exit 1
+          fi
+
+      - name: Checkout activities.prod
+        uses: actions/checkout@v4
         with:
-          ref: oltp
+          repository: llun/activities.prod
+          token: ${{ secrets.PAT_TOKEN }}
+          ref: main
           fetch-depth: 0
-          persist-credentials: false
+          persist-credentials: true
 
       - name: Enable corepack
         shell: bash
@@ -61,20 +70,31 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
-      - name: Fetch main and oltp
+      - name: Fetch activities.next main
         shell: bash
         run: |
-          git fetch --no-tags origin main oltp
-          git rev-parse "${MAIN_SHA}^{commit}"
+          git remote add next https://github.com/llun/activities.next.git
+          git fetch --no-tags next main
+
+          if [ -z "${MAIN_SHA}" ]; then
+            RESOLVED_SHA=$(git rev-parse next/main)
+            echo "MAIN_SHA=${RESOLVED_SHA}" >> "$GITHUB_ENV"
+            echo "Resolved MAIN_SHA to latest next/main: ${RESOLVED_SHA}"
+          else
+            git rev-parse "${MAIN_SHA}^{commit}"
+            echo "Using provided MAIN_SHA: ${MAIN_SHA}"
+          fi
 
       - name: Skip if main is already synced
         id: synced
         shell: bash
         run: |
-          if git merge-base --is-ancestor "${MAIN_SHA}" origin/oltp; then
+          if git merge-base --is-ancestor "${MAIN_SHA}" HEAD; then
             echo "skip=true" >> "${GITHUB_OUTPUT}"
+            echo "activities.prod is already up to date with ${MAIN_SHA}."
           else
             echo "skip=false" >> "${GITHUB_OUTPUT}"
+            echo "New commits to merge from activities.next."
           fi
 
       - name: Prepare merge state
@@ -82,7 +102,7 @@ jobs:
         if: steps.synced.outputs.skip == 'false'
         shell: bash
         run: |
-          git checkout -B oltp-sync origin/oltp
+          git checkout -B prod-sync main
 
           if git merge --no-commit --no-ff "${MAIN_SHA}"; then
             echo "Clean merge without conflicts."
@@ -116,6 +136,9 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ env.GEMINI_API_KEY }}
         run: |
+          # Ensure activities.next-internal sync workflows never enter activities.prod
+          git rm -f .github/workflows/sync-main-to-oltp*.yml .github/workflows/sync-main-to-prod*.yml 2>/dev/null || true
+
           mapfile -t unmerged < <(git diff --name-only --diff-filter=U)
 
           if [ ${#unmerged[@]} -eq 0 ]; then
@@ -128,15 +151,29 @@ jobs:
           code_files=()
           for f in "${unmerged[@]}"; do
             if [ "$f" = "yarn.lock" ]; then
-              # This merge checks out 'oltp' first and merges main's commit in
-              # (see "Prepare merge state" above), so --ours is oltp's STALE
-              # lockfile and --theirs is main's. Taking --ours silently
-              # dropped every lockfile-only bump from main (Dependabot,
-              # security patches) on any sync that conflicted here. Take
-              # main's lockfile instead; the unconditional `yarn install`
-              # below reconciles it against the merged package.json.
-              echo "Reconciling yarn.lock conflict via main's version..."
+              echo "Reconciling yarn.lock conflict via next/main version..."
               git checkout --theirs yarn.lock
+            elif [[ "$f" =~ ^infrastructure/ ]]; then
+              echo "Preserving activities.prod infrastructure file: $f"
+              git checkout --ours "$f"
+            elif [ "$f" = ".gitignore" ]; then
+              echo "Preserving activities.prod .gitignore"
+              git checkout --ours .gitignore
+            elif [ "$f" = ".dockerignore" ]; then
+              echo "Preserving activities.prod .dockerignore"
+              git checkout --ours .dockerignore
+            elif [ "$f" = "cloudbuild.yaml" ]; then
+              echo "Preserving activities.prod cloudbuild.yaml"
+              git checkout --ours cloudbuild.yaml
+            elif [[ "$f" =~ ^\.github/workflows/deploy-gcp\.yml ]]; then
+              echo "Preserving activities.prod deploy-gcp.yml"
+              git checkout --ours "$f"
+            elif [[ "$f" =~ ^\.github/workflows/deploy-infra\.yml ]]; then
+              echo "Preserving activities.prod deploy-infra.yml"
+              git checkout --ours "$f"
+            elif [[ "$f" =~ ^\.github/workflows/sync-main-to- ]]; then
+              echo "Removing activities.next-internal sync workflow: $f"
+              git rm -f "$f"
             else
               code_files+=("$f")
             fi
@@ -181,6 +218,9 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ env.GEMINI_API_KEY }}
         run: |
+          # Ensure activities.next-internal sync workflows never enter activities.prod
+          git rm -f .github/workflows/sync-main-to-oltp*.yml .github/workflows/sync-main-to-prod*.yml 2>/dev/null || true
+
           yarn install --no-immutable
 
           heal_attempts=2
@@ -200,7 +240,7 @@ jobs:
             if [ -n "$lint_error" ]; then
               if [ "$attempt" -lt "$heal_attempts" ]; then
                 echo "Attempting to fix lint errors with Gemini..."
-                mapfile -t changed_files < <(git diff --name-only origin/oltp)
+                mapfile -t changed_files < <(git diff --name-only origin/main)
                 target_files=()
                 for cf in "${changed_files[@]}"; do
                   if [[ "$cf" =~ \.(ts|tsx|js|mjs|cjs|json)$ && "$cf" != "yarn.lock" && -f "$cf" ]]; then
@@ -239,7 +279,7 @@ jobs:
             if [ -n "$typecheck_error" ]; then
               if [ "$attempt" -lt "$heal_attempts" ]; then
                 echo "Attempting to fix typecheck errors with Gemini..."
-                mapfile -t changed_files < <(git diff --name-only origin/oltp)
+                mapfile -t changed_files < <(git diff --name-only origin/main)
                 target_files=()
                 for cf in "${changed_files[@]}"; do
                   if [[ "$cf" =~ \.(ts|tsx|js|mjs|cjs|json)$ && "$cf" != "yarn.lock" && -f "$cf" ]]; then
@@ -269,7 +309,7 @@ jobs:
             fi
 
             build_error=""
-            if ! build_out=$(yarn build 2>&1); then
+            if ! build_out=$(BUILD_STANDALONE=true yarn build 2>&1); then
               echo "Build failed on attempt $attempt:"
               echo "$build_out"
               build_error="$build_out"
@@ -278,7 +318,7 @@ jobs:
             if [ -n "$build_error" ]; then
               if [ "$attempt" -lt "$heal_attempts" ]; then
                 echo "Attempting to fix build errors with Gemini..."
-                mapfile -t changed_files < <(git diff --name-only origin/oltp)
+                mapfile -t changed_files < <(git diff --name-only origin/main)
                 target_files=()
                 for cf in "${changed_files[@]}"; do
                   if [[ "$cf" =~ \.(ts|tsx|js|mjs|cjs|json)$ && "$cf" != "yarn.lock" && -f "$cf" ]]; then
@@ -316,12 +356,10 @@ jobs:
         shell: bash
         run: |
           git add -A
-
           git commit \
-            -m "Merge branch 'main' into oltp" \
-            -m "Source commit: ${MAIN_SHA}"
+            -m "chore: sync main from activities.next (${MAIN_SHA})"
 
-      - name: Push oltp
+      - name: Push to activities.prod main
         if: steps.synced.outputs.skip == 'false'
         shell: bash
         env:
@@ -343,4 +381,4 @@ jobs:
           git \
             -c http.https://github.com/.extraheader="AUTHORIZATION: basic ${auth_header}" \
             -c credential.helper= \
-            push origin HEAD:oltp
+            push origin HEAD:main
