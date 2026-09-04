@@ -1,0 +1,38 @@
+app/(timeline)/[actor]/ActorMediaGallery.tsx
+  h_580a04e334fef4 10,49-51,112
+app/(timeline)/[actor]/ActorTimelines.tsx
+  h_580a04e334fef4 18,157-161
+app/(timeline)/[actor]/getProfileData.ts
+  h_580a04e334fef4 22,341-345
+app/(timeline)/[actor]/page.test.tsx
+  h_580a04e334fef4 257-261,267-270,305-309,314-316,351
+app/(timeline)/[actor]/page.tsx
+  h_580a04e334fef4 1,343,351-352
+lib/activities/note.test.ts
+  h_580a04e334fef4 321-382
+lib/activities/note.ts
+  h_580a04e334fef4 115-125,127-136,139-164,191
+lib/jobs/fetchRemoteStatusJob.ts
+  h_580a04e334fef4 7,223
+lib/types/activitypub/objects.ts
+  h_580a04e334fef4 238,274
+lib/types/domain/attachment.test.ts
+  h_580a04e334fef4 322-334,336-342
+lib/types/domain/attachment.ts
+  h_580a04e334fef4 101-106,108-110
+lib/utils/activitypub.ts
+  h_580a04e334fef4 162-164,166-171,175
+package.json
+  h_580a04e334fef4 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "0982acdf68e3245cd8b95ae60b431c330dd62010",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
