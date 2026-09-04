@@ -856,7 +856,7 @@ export const acceptFollow = async (
     async (span) => {
       const activity: AcceptFollow = {
         '@context': ACTIVITY_STREAM_URL,
-        id: `${currentActor.id}#accepts/followers`,
+        id: `${currentActor.id}#accepts/followers/${crypto.randomUUID()}`,
         type: 'Accept',
         actor: currentActor.id,
         object: {
@@ -892,7 +892,7 @@ export const rejectFollow = async (
     async (span) => {
       const activity: RejectFollow = {
         '@context': ACTIVITY_STREAM_URL,
-        id: `${currentActor.id}#rejects/followers`,
+        id: `${currentActor.id}#rejects/followers/${crypto.randomUUID()}`,
         type: 'Reject',
         actor: currentActor.id,
         object: {

@@ -65,5 +65,77 @@ describe('Reject follow action', () => {
       const updatedRequest = await rejectFollowRequest({ activity, database })
       expect(updatedRequest).toBeNull()
     })
+
+    it('handles Reject activity where object is a string URI (Lemmy / PeerTube format)', async () => {
+      const targetActorId = 'https://somewhere.test/actors/request-following-2'
+      const follow = await database.createFollow({
+        actorId: ACTOR1_ID,
+        targetActorId,
+        status: FollowStatus.enum.Requested,
+        inbox: 'https://somewhere.test/inbox',
+        sharedInbox: 'https://somewhere.test/inbox'
+      })
+
+      const activity: RejectFollow = {
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: 'https://somewhere.test/activities/reject-1',
+        type: 'Reject',
+        actor: targetActorId,
+        object: `https://llun.test/${follow.id}`
+      }
+      const updated = await rejectFollowRequest({ activity, database })
+      expect(updated).toBeTruthy()
+      expect(updated?.id).toEqual(follow.id)
+      expect(updated?.status).toEqual(FollowStatus.enum.Rejected)
+    })
+
+    it('resolves follow via recipientActorId fallback when object is an arbitrary URI', async () => {
+      const targetActorId = 'https://somewhere.test/actors/request-following-3'
+      const follow = await database.createFollow({
+        actorId: ACTOR1_ID,
+        targetActorId,
+        status: FollowStatus.enum.Requested,
+        inbox: 'https://somewhere.test/inbox',
+        sharedInbox: 'https://somewhere.test/inbox'
+      })
+
+      const activity: RejectFollow = {
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: 'https://somewhere.test/activities/reject-2',
+        type: 'Reject',
+        actor: targetActorId,
+        object: 'https://somewhere.test/arbitrary-follow-id'
+      }
+      const updated = await rejectFollowRequest({
+        activity,
+        database,
+        recipientActorId: ACTOR1_ID
+      })
+      expect(updated).toBeTruthy()
+      expect(updated?.id).toEqual(follow.id)
+      expect(updated?.status).toEqual(FollowStatus.enum.Rejected)
+    })
+
+    it('returns follow immediately if already Rejected (idempotent)', async () => {
+      const targetActorId = 'https://somewhere.test/actors/request-following-4'
+      const follow = await database.createFollow({
+        actorId: ACTOR1_ID,
+        targetActorId,
+        status: FollowStatus.enum.Rejected,
+        inbox: 'https://somewhere.test/inbox',
+        sharedInbox: 'https://somewhere.test/inbox'
+      })
+
+      const activity: RejectFollow = {
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: 'https://somewhere.test/activities/reject-3',
+        type: 'Reject',
+        actor: targetActorId,
+        object: `https://llun.test/${follow.id}`
+      }
+      const updated = await rejectFollowRequest({ activity, database })
+      expect(updated).toBeTruthy()
+      expect(updated?.status).toEqual(FollowStatus.enum.Rejected)
+    })
   })
 })
