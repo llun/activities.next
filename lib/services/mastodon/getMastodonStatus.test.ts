@@ -896,9 +896,17 @@ describe('getMastodonStatus', () => {
 
     const mastodonStatus = await getMastodonStatus(database, statusWithTags)
 
-    expect(mastodonStatus?.content).toContain(
-      '<img class="emoji" src="https://test.host/emoji.png" alt=":emoji:" />'
-    )
+    expect(mastodonStatus?.content).toBe('<p>Status with :emoji:</p>')
+    expect(mastodonStatus?.content).not.toContain('<img')
+    expect(mastodonStatus?.emojis).toEqual([
+      {
+        shortcode: 'emoji',
+        url: 'https://test.host/emoji.png',
+        static_url: 'https://test.host/emoji.png',
+        visible_in_picker: true,
+        category: null
+      }
+    ])
   })
 
   it('returns content with HTML formatting', async () => {

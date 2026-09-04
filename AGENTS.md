@@ -1405,9 +1405,10 @@ null }` remains the precise "this retirement never happened" — it reopens the
   false. Attaching it unconditionally does not delay the fetch — it loses it.
 - **Extraction runs the WHOLE `processStatusTextContent` and walks its output.**
   Not a rearrangement of its parts — the same function the rendered post, the
-  notifications and the Mastodon API all use, in full, for local and remote
-  statuses alike. That is the only way to know what the reader sees, and
-  every time this ran a subset of the pipeline something got through:
+  notifications and (with emoji replacement disabled per the client spec) the
+  Mastodon API all use, for local and remote statuses alike. That is the only way
+  to know what the reader sees, and every time this ran a subset of the pipeline
+  something got through:
   walking marked's tokens missed hidden ancestors and entity-only link text;
   sanitizing but skipping the emoji step MEASURED TEXT THE RENDERER THEN
   DELETED (`sanitizeTrustedStatusText` serves emoji images over https only and
