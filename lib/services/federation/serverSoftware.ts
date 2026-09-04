@@ -4,10 +4,15 @@ import { request } from '@/lib/utils/request'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
 
+export interface ServerSoftware {
+  name: string
+  version: string | null
+}
+
 type CacheEntry = {
-  // '' is the negative-cache value (probe failed / not resolvable), kept
+  // null is the negative-cache value (probe failed / not resolvable), kept
   // distinct from "not cached" so a failure does not re-probe until it expires.
-  software: string
+  software: ServerSoftware | null
   expiresAt: number
 }
 
@@ -30,7 +35,11 @@ const domainSoftwareCache = new Map<string, CacheEntry>()
 // `actorPublicStatusesCount.ts` and `setBoundedCacheValue` in
 // `lib/utils/host.ts` — both are private to their own domains, so this is a
 // deliberate copy rather than an export widened for one caller.
-const setBoundedEntry = (domain: string, software: string, ttlMs: number) => {
+const setBoundedEntry = (
+  domain: string,
+  software: ServerSoftware | null,
+  ttlMs: number
+) => {
   if (domainSoftwareCache.has(domain)) {
     domainSoftwareCache.delete(domain)
   } else if (domainSoftwareCache.size >= MAX_CACHED_DOMAINS) {
@@ -49,10 +58,10 @@ const setBoundedEntry = (domain: string, software: string, ttlMs: number) => {
 // hostile `.well-known/nodeinfo` redirect the probe at an arbitrary server. The
 // `typeof href === 'string'` guard was missing on the old rel-less fallback.
 const isSameHostNodeInfoLink = (
-  link: { rel?: string; href?: string },
+  link: { rel?: string; href?: string } | null | undefined,
   expectedHost: string
 ): boolean => {
-  if (typeof link.href !== 'string') return false
+  if (typeof link?.href !== 'string') return false
   try {
     return new URL(link.href).host.toLowerCase() === expectedHost
   } catch {
@@ -66,16 +75,16 @@ export const clearServerSoftwareCache = () => {
 
 export const getServerSoftwareCacheSizeForTests = () => domainSoftwareCache.size
 
-export const getServerSoftware = async (
+export const getServerSoftwareInfo = async (
   domain: string
-): Promise<string | null> =>
-  withSpan('federation', 'getServerSoftware', { domain }, async () => {
+): Promise<ServerSoftware | null> =>
+  withSpan('federation', 'getServerSoftwareInfo', { domain }, async () => {
     const normalizedDomain = domain.trim().toLowerCase()
     if (!normalizedDomain) return null
 
     const cached = domainSoftwareCache.get(normalizedDomain)
     if (cached && cached.expiresAt > Date.now()) {
-      return cached.software || null
+      return cached.software
     }
 
     try {
@@ -88,7 +97,7 @@ export const getServerSoftware = async (
       })
 
       if (statusCode !== 200 || !body || typeof body !== 'string') {
-        setBoundedEntry(normalizedDomain, '', FAILURE_TTL_MS)
+        setBoundedEntry(normalizedDomain, null, FAILURE_TTL_MS)
         return null
       }
 
@@ -96,7 +105,9 @@ export const getServerSoftware = async (
         links?: Array<{ rel?: string; href?: string }>
       }
 
-      const links = nodeInfoWellKnown.links ?? []
+      const links = Array.isArray(nodeInfoWellKnown?.links)
+        ? nodeInfoWellKnown.links
+        : []
       const nodeInfoLink =
         links.find(
           (link) =>
@@ -110,7 +121,7 @@ export const getServerSoftware = async (
         links.find((link) => isSameHostNodeInfoLink(link, normalizedDomain))
 
       if (!nodeInfoLink?.href) {
-        setBoundedEntry(normalizedDomain, '', FAILURE_TTL_MS)
+        setBoundedEntry(normalizedDomain, null, FAILURE_TTL_MS)
         return null
       }
 
@@ -123,31 +134,54 @@ export const getServerSoftware = async (
       })
 
       if (infoStatus !== 200 || !infoBody || typeof infoBody !== 'string') {
-        setBoundedEntry(normalizedDomain, '', FAILURE_TTL_MS)
+        setBoundedEntry(normalizedDomain, null, FAILURE_TTL_MS)
         return null
       }
 
       const schema = JSON.parse(infoBody) as {
-        software?: { name?: string }
+        software?: { name?: unknown; version?: unknown }
       }
 
-      const softwareName = schema.software?.name?.trim().toLowerCase() ?? ''
-      setBoundedEntry(
-        normalizedDomain,
-        softwareName,
-        softwareName ? SUCCESS_TTL_MS : FAILURE_TTL_MS
-      )
-      return softwareName || null
+      const rawName =
+        typeof schema?.software?.name === 'string'
+          ? schema.software.name.trim().toLowerCase().slice(0, 100)
+          : ''
+
+      if (!rawName) {
+        setBoundedEntry(normalizedDomain, null, FAILURE_TTL_MS)
+        return null
+      }
+
+      const rawVersion =
+        typeof schema?.software?.version === 'string'
+          ? schema.software.version.trim().slice(0, 100)
+          : null
+      const version = rawVersion || null
+
+      const software: ServerSoftware = {
+        name: rawName,
+        version
+      }
+
+      setBoundedEntry(normalizedDomain, software, SUCCESS_TTL_MS)
+      return software
     } catch (error) {
       logger.warn({
         message: 'Failed to resolve server software via NodeInfo',
         domain: normalizedDomain,
         err: toLoggableError(error)
       })
-      setBoundedEntry(normalizedDomain, '', FAILURE_TTL_MS)
+      setBoundedEntry(normalizedDomain, null, FAILURE_TTL_MS)
       return null
     }
   })
+
+export const getServerSoftware = async (
+  domain: string
+): Promise<string | null> => {
+  const info = await getServerSoftwareInfo(domain)
+  return info?.name ?? null
+}
 
 export const isPixelfedDomain = async (domain: string): Promise<boolean> => {
   const software = await getServerSoftware(domain)

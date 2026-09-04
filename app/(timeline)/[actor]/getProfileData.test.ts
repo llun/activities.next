@@ -5,7 +5,10 @@ import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
-import { isPixelfedActor } from '@/lib/services/federation/serverSoftware'
+import {
+  getServerSoftwareInfo,
+  isPixelfedActor
+} from '@/lib/services/federation/serverSoftware'
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
@@ -23,7 +26,8 @@ vi.mock('@/lib/activities/getWebfingerSelf')
 vi.mock('@/lib/services/federation/domainPolicy')
 vi.mock('@/lib/services/federation/getFederationSigningActor')
 vi.mock('@/lib/services/federation/serverSoftware', () => ({
-  isPixelfedActor: vi.fn().mockResolvedValue(false)
+  isPixelfedActor: vi.fn().mockResolvedValue(false),
+  getServerSoftwareInfo: vi.fn().mockResolvedValue(null)
 }))
 vi.mock('@/lib/utils/getPersonFromActor')
 vi.mock('@/lib/utils/logger', () => ({
@@ -130,6 +134,8 @@ describe('getProfileData', () => {
       null
     )
     ;(getPersonFromActor as jest.Mock).mockReturnValue(mockPerson)
+    vi.mocked(getServerSoftwareInfo).mockResolvedValue(null)
+    vi.mocked(isPixelfedActor).mockResolvedValue(false)
   })
 
   describe('when actor is local (has account)', () => {
@@ -175,6 +181,20 @@ describe('getProfileData', () => {
       // Should not call remote APIs
       expect(getWebfingerSelf).not.toHaveBeenCalled()
       expect(getActorPerson).not.toHaveBeenCalled()
+    })
+
+    it('should return serverSoftware as activities.next for local actors', async () => {
+      const result = await getProfileData(
+        mockDatabase,
+        '@localuser@example.com',
+        true,
+        { currentActor: null }
+      )
+
+      expect(result?.serverSoftware).toEqual({
+        name: 'activities.next',
+        version: expect.any(String)
+      })
     })
 
     it('should return hasFitnessData as false when actor has no fitness data', async () => {
@@ -461,6 +481,26 @@ describe('getProfileData', () => {
       expect(getActorCollectionCounts).toHaveBeenCalledWith({
         person: mockPerson,
         signingActor: mockFederationSigningActor
+      })
+    })
+
+    it('resolves serverSoftware for remote actors', async () => {
+      vi.mocked(getServerSoftwareInfo).mockResolvedValueOnce({
+        name: 'mastodon',
+        version: '4.3.0'
+      })
+
+      const result = await getProfileData(
+        mockDatabase,
+        '@remoteuser@remote.com',
+        true,
+        { currentActor: null }
+      )
+
+      expect(getServerSoftwareInfo).toHaveBeenCalledWith('remote.com')
+      expect(result?.serverSoftware).toEqual({
+        name: 'mastodon',
+        version: '4.3.0'
       })
     })
 
