@@ -1,9 +1,10 @@
 import { z } from 'zod'
 
-export { QStashConfig } from '@/lib/services/queue/qstash'
 import { QStashConfig } from '@/lib/services/queue/qstash'
 
 import { matcher } from './utils'
+
+export { QStashConfig } from '@/lib/services/queue/qstash'
 
 export const CloudTasksConfig = z.object({
   type: z.literal('cloudtasks'),
