@@ -31,7 +31,13 @@ export const Follow = z.object({
   id: z.string(),
   type: z.literal(ENTITY_TYPE_FOLLOW),
   actor: z.string(),
-  object: z.string()
+  object: z.union([
+    z.string(),
+    z
+      .object({ id: z.string() })
+      .passthrough()
+      .transform((o) => o.id)
+  ])
 })
 
 export type Follow = z.infer<typeof Follow>

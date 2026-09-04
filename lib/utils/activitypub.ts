@@ -69,8 +69,14 @@ export const isSameActivityPubOrigin = (
   }
 }
 
-export const normalizeActorId = (actorId: string | null | undefined) =>
-  normalizeActivityPubUri(actorId?.split('#')[0])
+export const normalizeActorId = (
+  actorId: string | null | undefined
+): string | null => {
+  const withoutFragment = actorId?.split('#')[0]
+  const normalized = normalizeActivityPubUri(withoutFragment)
+  if (!normalized) return null
+  return normalized.replace(/\/+$/, '')
+}
 
 export const actorIdsMatch = (
   firstActorId: string | null | undefined,

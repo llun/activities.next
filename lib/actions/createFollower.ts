@@ -9,13 +9,16 @@ import { followGroupKey } from '@/lib/services/notifications/followGrouping'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { NotificationType } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
+import { actorIdsMatch } from '@/lib/utils/activitypub'
 
 interface CreateFollowerParams {
   followRequest: FollowRequest
+  recipientActorId?: string
   database: Database
 }
 export const createFollower = async ({
   followRequest,
+  recipientActorId,
   database
 }: CreateFollowerParams) => {
   let targetActor = await database.getActorFromId({
@@ -27,6 +30,14 @@ export const createFollower = async ({
     })
   }
   if (!targetActor) return null
+
+  if (recipientActorId && !actorIdsMatch(targetActor.id, recipientActorId)) {
+    return null
+  }
+
+  if (!targetActor.privateKey) {
+    return null
+  }
 
   const followerActor = await recordActorIfNeeded({
     actorId: followRequest.actor,

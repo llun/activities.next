@@ -173,4 +173,58 @@ describe('createFollower', () => {
     expect(follow).toEqual(request)
     expect(acceptFollow).not.toHaveBeenCalled()
   })
+
+  it('returns null if recipientActorId does not match target actor', async () => {
+    const request = MockFollowRequest({
+      actorId: 'https://another.network/users/intruder',
+      targetActorId: actor.id
+    })
+    const follow = await createFollower({
+      database,
+      followRequest: request,
+      recipientActorId: 'https://somewhere.else/users/someone-else'
+    })
+    expect(follow).toBeNull()
+  })
+
+  it('returns null if target actor has no privateKey (remote actor)', async () => {
+    vi.spyOn(database, 'getActorFromId').mockResolvedValueOnce({
+      ...actor,
+      id: 'https://remote.example.com/users/cached',
+      privateKey: ''
+    })
+    const request = MockFollowRequest({
+      actorId: 'https://another.network/users/intruder',
+      targetActorId: 'https://remote.example.com/users/cached'
+    })
+    const follow = await createFollower({
+      database,
+      followRequest: request
+    })
+    expect(follow).toBeNull()
+  })
+
+  it('accepts follow request when recipientActorId matches target actor with trailing slash', async () => {
+    getActorSettingsSpy = vi
+      .spyOn(database, 'getActorSettings')
+      .mockResolvedValueOnce({
+        iconUrl: undefined,
+        headerImageUrl: undefined,
+        followersUrl: actor.followersUrl,
+        inboxUrl: actor.inboxUrl,
+        sharedInboxUrl: actor.sharedInboxUrl,
+        manuallyApprovesFollowers: false
+      })
+
+    const request = MockFollowRequest({
+      actorId: 'https://another.network/users/trailing-recipient',
+      targetActorId: actor.id
+    })
+    const follow = await createFollower({
+      database,
+      followRequest: request,
+      recipientActorId: `${actor.id}/`
+    })
+    expect(follow).toEqual(request)
+  })
 })

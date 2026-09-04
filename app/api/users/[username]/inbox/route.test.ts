@@ -425,7 +425,8 @@ describe('POST /api/users/[username]/inbox', () => {
       followRequest: expect.objectContaining({
         actor: 'https://remote.test/users/alice',
         type: 'Follow'
-      })
+      }),
+      recipientActorId: 'https://activities.local/users/llun'
     })
   })
 
@@ -452,7 +453,36 @@ describe('POST /api/users/[username]/inbox', () => {
       followRequest: expect.objectContaining({
         actor: 'https://remote.test/users/alice',
         type: 'Follow'
-      })
+      }),
+      recipientActorId: 'https://activities.local/users/llun'
+    })
+  })
+
+  it('processes verified actor inbox Follow request when object is an embedded actor object', async () => {
+    mockActivityBody = {
+      id: 'https://remote.test/users/alice/follows/2',
+      type: 'Follow',
+      actor: 'https://remote.test/users/alice',
+      object: {
+        id: 'https://activities.local/users/llun',
+        type: 'Person'
+      }
+    }
+    mockConsumeRequestBody = true
+
+    const response = await POST(createFollowRequest(), {
+      params: Promise.resolve({ username: 'llun' })
+    })
+
+    expect(response.status).toBe(202)
+    expect(mockCreateFollower).toHaveBeenCalledWith({
+      database: mockDatabase,
+      followRequest: expect.objectContaining({
+        actor: 'https://remote.test/users/alice',
+        type: 'Follow',
+        object: 'https://activities.local/users/llun'
+      }),
+      recipientActorId: 'https://activities.local/users/llun'
     })
   })
 
@@ -713,6 +743,45 @@ describe('POST /api/users/[username]/inbox', () => {
           object: {
             id: 'https://activities.local/follows/1',
             type: 'Follow'
+          }
+        })
+      }),
+      { params: Promise.resolve({ username: 'llun' }) }
+    )
+
+    expect(response.status).toBe(202)
+    expect(mockUndoFollowRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        database: mockDatabase,
+        request: expect.objectContaining({
+          type: 'Undo',
+          actor: 'https://remote.test/users/alice',
+          object: expect.objectContaining({
+            id: 'https://activities.local/follows/1',
+            actor: 'https://remote.test/users/alice',
+            object: 'https://activities.local/users/llun',
+            type: 'Follow'
+          })
+        })
+      })
+    )
+  })
+
+  it('dispatches untyped reference-object Undo of Follow to undoFollowRequest and returns 202', async () => {
+    mockApplyRemoteUnblock.mockResolvedValueOnce(null)
+    mockUndoFollowRequest.mockResolvedValueOnce(true)
+
+    const response = await POST(
+      new NextRequest('https://activities.local/api/users/llun/inbox', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id: 'https://remote.test/users/alice/activities/undo-ref-obj-untyped',
+          type: 'Undo',
+          actor: 'https://remote.test/users/alice',
+          object: {
+            id: 'https://activities.local/follows/1',
+            custom: 'extra-property'
           }
         })
       }),
