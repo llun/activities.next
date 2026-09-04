@@ -382,7 +382,8 @@ export const POST = traceApiRoute(
                 }
                 const follow = await acceptFollowRequest({
                   activity: acceptFollow.data,
-                  database
+                  database,
+                  recipientActorId: actor.id
                 })
                 if (!follow) {
                   annotateInboxRejection('follow_request_not_found', {
@@ -434,7 +435,8 @@ export const POST = traceApiRoute(
                 }
                 const follow = await rejectFollowRequest({
                   activity: rejectFollow.data,
-                  database
+                  database,
+                  recipientActorId: actor.id
                 })
                 if (!follow) {
                   annotateInboxRejection('follow_request_not_found', {
@@ -547,6 +549,29 @@ export const POST = traceApiRoute(
                     })
                   }
 
+                  const undoneFollow = await undoFollowRequest({
+                    database,
+                    request: {
+                      id: activity.id,
+                      actor: activity.actor,
+                      type: 'Undo',
+                      object: {
+                        id: undoObject,
+                        actor: activity.actor,
+                        object: actor.id,
+                        type: 'Follow'
+                      }
+                    } as UndoFollow
+                  })
+                  if (undoneFollow) {
+                    return apiResponse({
+                      req,
+                      allowedMethods: CORS_HEADERS,
+                      data: { target: actor.id },
+                      responseStatusCode: 202
+                    })
+                  }
+
                   logAcceptedWithoutSideEffects({
                     activity,
                     reason: 'reference-only Undo object'
@@ -590,8 +615,8 @@ export const POST = traceApiRoute(
                     return apiResponse({
                       req,
                       allowedMethods: CORS_HEADERS,
-                      data: ERROR_404,
-                      responseStatusCode: 404
+                      data: DEFAULT_202,
+                      responseStatusCode: 202
                     })
                   }
                   return apiResponse({

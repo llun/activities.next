@@ -1,3 +1,4 @@
+import { resolveFollowFromActivity } from '@/lib/actions/resolveFollowFromActivity'
 import { AcceptFollow } from '@/lib/activities/acceptFollow'
 import { Database } from '@/lib/database/types'
 import {
@@ -16,16 +17,21 @@ import { toLoggableError } from '@/lib/utils/toLoggableError'
 interface AcceptFollowRequestParams {
   activity: AcceptFollow
   database: Database
+  recipientActorId?: string
 }
 
 export const acceptFollowRequest = async ({
   activity,
-  database
+  database,
+  recipientActorId
 }: AcceptFollowRequestParams) => {
-  const followRequestId = new URL(activity.object.id)
-  const followId = followRequestId.pathname.slice(1)
-  const follow = await database.getFollowFromId({ followId })
+  const follow = await resolveFollowFromActivity({
+    activity,
+    database,
+    recipientActorId
+  })
   if (!follow) return null
+
   if (
     await database.isEitherBlocking({
       actorIdA: follow.actorId,
@@ -33,7 +39,7 @@ export const acceptFollowRequest = async ({
     })
   ) {
     await database.updateFollowStatus({
-      followId,
+      followId: follow.id,
       status: FollowStatus.enum.Undo
     })
 
@@ -51,7 +57,7 @@ export const acceptFollowRequest = async ({
           message: 'Failed to queue Undo Follow federation',
           actorId: follow.actorId,
           targetActorId: follow.targetActorId,
-          followId,
+          followId: follow.id,
           error
         })
       })
@@ -60,7 +66,7 @@ export const acceptFollowRequest = async ({
   }
 
   await database.updateFollowStatus({
-    followId,
+    followId: follow.id,
     status: FollowStatus.enum.Accepted
   })
 

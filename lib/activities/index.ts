@@ -600,7 +600,7 @@ export const unfollow = async (
     async (span) => {
       const activity: UndoFollow = {
         '@context': ACTIVITY_STREAM_URL,
-        id: `https://${currentActor.domain}/${currentActor.id}#follows/${follow.id}/undo`,
+        id: `${currentActor.id}#follows/${follow.id}/undo`,
         type: 'Undo',
         actor: currentActor.id,
         object: {

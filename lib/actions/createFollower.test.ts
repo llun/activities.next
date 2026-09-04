@@ -30,6 +30,7 @@ describe('createFollower', () => {
   })
 
   afterEach(() => {
+    vi.clearAllMocks()
     if (getActorSettingsSpy) {
       getActorSettingsSpy.mockRestore()
     }
@@ -123,5 +124,53 @@ describe('createFollower', () => {
       followRequest: request
     })
     expect(follow).toBeNull()
+  })
+
+  it('normalizes targetActorId with trailing slash', async () => {
+    getActorSettingsSpy = vi
+      .spyOn(database, 'getActorSettings')
+      .mockResolvedValueOnce({
+        iconUrl: undefined,
+        headerImageUrl: undefined,
+        followersUrl: actor.followersUrl,
+        inboxUrl: actor.inboxUrl,
+        sharedInboxUrl: actor.sharedInboxUrl,
+        manuallyApprovesFollowers: false
+      })
+
+    const request = MockFollowRequest({
+      actorId: 'https://another.network/users/slash-friend',
+      targetActorId: `${actor.id}/`
+    })
+    const follow = await createFollower({
+      database,
+      followRequest: request
+    })
+    expect(follow).toEqual(request)
+  })
+
+  it('deduplicates duplicate follow requests for already requested follows', async () => {
+    getActorSettingsSpy = vi
+      .spyOn(database, 'getActorSettings')
+      .mockResolvedValue({
+        iconUrl: undefined,
+        headerImageUrl: undefined,
+        followersUrl: actor.followersUrl,
+        inboxUrl: actor.inboxUrl,
+        sharedInboxUrl: actor.sharedInboxUrl,
+        manuallyApprovesFollowers: true
+      })
+
+    const request = MockFollowRequest({
+      actorId: 'https://another.network/users/friend2',
+      targetActorId: actor.id
+    })
+
+    const follow = await createFollower({
+      database,
+      followRequest: request
+    })
+    expect(follow).toEqual(request)
+    expect(acceptFollow).not.toHaveBeenCalled()
   })
 })
