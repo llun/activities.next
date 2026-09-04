@@ -19,12 +19,12 @@ export const Document = z.object({
   type: z.literal('Document'),
   mediaType: z.string(),
   url: z.string(),
+  thumbnailUrl: z.string().optional().nullable(),
   blurhash: z.string().optional(),
   width: z.number().optional(),
   height: z.number().optional(),
   name: z.string().optional().nullable(),
-  focalPoint: z.tuple([z.number(), z.number()]).optional(),
-  thumbnailUrl: z.string().optional()
+  focalPoint: z.tuple([z.number(), z.number()]).optional()
 })
 
 export type Document = z.infer<typeof Document>
@@ -92,7 +92,14 @@ export type Attachment = z.infer<typeof Attachment>
 
 export const BaseContent = z.object({
   id: z.string(),
-  url: z.string().describe('Note URL. This is optional for Pleloma').nullish(),
+  url: z
+    .union([
+      z.string(),
+      z.array(z.union([z.string(), z.looseObject({})])),
+      z.looseObject({})
+    ])
+    .describe('Note URL. This is optional for Pleroma')
+    .nullish(),
   attributedTo: z.string().describe('Note publisher'),
 
   to: z.union([z.string(), z.string().array()]),
@@ -123,9 +130,9 @@ export const BaseContent = z.object({
         .array()
     ])
     .nullish(),
-  replies: Collection.nullish(),
-  likes: Collection.nullish(),
-  shares: Collection.nullish(),
+  replies: z.union([z.string(), Collection, z.looseObject({})]).nullish(),
+  likes: z.union([z.string(), Collection, z.looseObject({})]).nullish(),
+  shares: z.union([z.string(), Collection, z.looseObject({})]).nullish(),
 
   attachment: z.union([Attachment, Attachment.array()]).nullish(),
   tag: z.union([Tag, Tag.array()]).nullish(),
@@ -227,7 +234,8 @@ export const ImageContent = BaseContent.extend({
   mediaType: z.string().nullish(),
   width: z.number().nullish(),
   height: z.number().nullish(),
-  blurhash: z.string().nullish()
+  blurhash: z.string().nullish(),
+  focalPoint: z.array(z.number()).nullish()
 })
 export type ImageContent = z.infer<typeof ImageContent>
 
@@ -259,18 +267,18 @@ export type ArticleContent = z.infer<typeof ArticleContent>
 export const VideoContent = BaseContent.extend({
   type: z.literal('Video'),
   name: z.string().nullish(),
-  url: z
-    .union([
-      z.string(),
-      z.looseObject({}),
-      z.union([z.string(), z.looseObject({})]).array()
-    ])
-    .nullish(),
   mediaType: z.string().nullish(),
   width: z.number().nullish(),
   height: z.number().nullish(),
   blurhash: z.string().nullish(),
-  icon: z.union([Image, Image.array()]).nullish()
+  focalPoint: z.array(z.number()).nullish(),
+  icon: z
+    .union([
+      z.string(),
+      z.looseObject({}),
+      z.array(z.union([z.string(), z.looseObject({})]))
+    ])
+    .nullish()
 })
 export type VideoContent = z.infer<typeof VideoContent>
 

@@ -22,6 +22,21 @@ describe('formatServerSoftware', () => {
     expect(
       formatServerSoftware({ name: 'activities-next', version: '1.158.3' })
     ).toBe('activities.next/1.158.3')
+    expect(formatServerSoftware({ name: 'nodebb', version: '3.6.0' })).toBe(
+      'NodeBB/3.6.0'
+    )
+    expect(formatServerSoftware({ name: 'owncast', version: '0.1.3' })).toBe(
+      'Owncast/0.1.3'
+    )
+    expect(formatServerSoftware({ name: 'writefreely', version: null })).toBe(
+      'WriteFreely'
+    )
+    expect(formatServerSoftware({ name: 'funkwhale', version: null })).toBe(
+      'Funkwhale'
+    )
+    expect(formatServerSoftware({ name: 'castopod', version: null })).toBe(
+      'Castopod'
+    )
   })
 
   it('omits version slash when version is null or empty', () => {

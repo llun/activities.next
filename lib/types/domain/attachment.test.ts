@@ -319,9 +319,27 @@ describe('attachment', () => {
         description: 'returns false for an unknown media type',
         mediaType: '',
         expected: false
+      },
+      {
+        description:
+          'returns true for video stream URL with application/octet-stream',
+        mediaType: 'application/octet-stream',
+        url: 'https://example.com/stream.m3u8?token=xyz',
+        expected: true
+      },
+      {
+        description: 'returns true for attachment with thumbnailUrl',
+        mediaType: 'application/octet-stream',
+        thumbnailUrl: 'https://example.com/thumb.jpg',
+        expected: true
       }
-    ])('$description', ({ mediaType, expected }) => {
-      const result = isVisualAttachment({ ...baseAttachment, mediaType })
+    ])('$description', ({ mediaType, url, thumbnailUrl, expected }) => {
+      const result = isVisualAttachment({
+        ...baseAttachment,
+        mediaType,
+        url: url ?? 'https://example.com/media/file.bin',
+        thumbnailUrl: thumbnailUrl ?? null
+      })
 
       expect(result).toBe(expected)
     })

@@ -243,26 +243,21 @@ describe('note entity utilities', () => {
       expect(result[0].mediaType).toEqual('video/mp4')
     })
 
-    it('extracts video stream and thumbnail for PeerTube Video object', () => {
+    it('extracts playable video stream and icon thumbnail from PeerTube Video object', () => {
       const peertubeVideo = {
         type: 'Video',
-        id: 'https://framatube.org/videos/watch/abc',
-        name: 'PeerTube Video Title',
+        id: 'https://framatube.org/videos/watch/123',
+        mediaType: 'text/markdown',
         url: [
           {
             type: 'Link',
             mediaType: 'text/html',
-            href: 'https://framatube.org/videos/watch/abc'
-          },
-          {
-            type: 'Link',
-            mediaType: 'application/x-mpegURL',
-            href: 'https://framatube.org/static/streaming-playlists/hls/abc/master.m3u8'
+            href: 'https://framatube.org/videos/watch/123'
           },
           {
             type: 'Link',
             mediaType: 'video/mp4',
-            href: 'https://framatube.org/static/webseed/abc-1080.mp4',
+            href: 'https://framatube.org/static/webseed/123.mp4',
             height: 1080,
             width: 1920
           }
@@ -270,8 +265,7 @@ describe('note entity utilities', () => {
         icon: [
           {
             type: 'Image',
-            mediaType: 'image/jpeg',
-            url: 'https://framatube.org/static/thumbnails/abc.jpg',
+            url: 'https://framatube.org/lazy-static/video-thumbnails/123.jpg',
             width: 1920,
             height: 1080
           }
@@ -281,15 +275,110 @@ describe('note entity utilities', () => {
       const result = getAttachments(peertubeVideo)
 
       expect(result).toHaveLength(1)
-      expect(result[0].mediaType).toEqual('video/mp4')
-      expect(result[0].url).toEqual(
-        'https://framatube.org/static/webseed/abc-1080.mp4'
-      )
-      expect(result[0].width).toEqual(1920)
-      expect(result[0].height).toEqual(1080)
-      expect(result[0].thumbnailUrl).toEqual(
-        'https://framatube.org/static/thumbnails/abc.jpg'
-      )
+      expect(result[0]).toMatchObject({
+        type: 'Document',
+        mediaType: 'video/mp4',
+        url: 'https://framatube.org/static/webseed/123.mp4',
+        thumbnailUrl:
+          'https://framatube.org/lazy-static/video-thumbnails/123.jpg',
+        width: 1920,
+        height: 1080
+      })
+    })
+
+    it('does not extract attachment if video url array only contains html watch pages', () => {
+      const videoWithoutStreams = {
+        type: 'Video',
+        id: 'https://peertube.example/videos/watch/123',
+        url: [
+          {
+            type: 'Link',
+            mediaType: 'text/html',
+            href: 'https://peertube.example/videos/watch/123'
+          }
+        ]
+      } as unknown as BaseNote
+
+      const result = getAttachments(videoWithoutStreams)
+      expect(result).toHaveLength(0)
+    })
+
+    it('resolves nested link icon for Video thumbnail', () => {
+      const videoWithNestedIcon = {
+        type: 'Video',
+        id: 'https://example.com/video/1',
+        url: 'https://example.com/stream.m3u8',
+        icon: {
+          type: 'Link',
+          href: 'https://example.com/thumb.jpg'
+        }
+      } as unknown as BaseNote
+
+      const result = getAttachments(videoWithNestedIcon)
+      expect(result).toHaveLength(1)
+      expect(result[0].thumbnailUrl).toBe('https://example.com/thumb.jpg')
+    })
+
+    it('prioritizes direct MP4 stream over HLS playlist in video url array', () => {
+      const video = {
+        type: 'Video',
+        id: 'https://peertube.example/videos/1',
+        url: [
+          {
+            type: 'Link',
+            mediaType: 'application/x-mpegURL',
+            href: 'https://peertube.example/master.m3u8'
+          },
+          {
+            type: 'Link',
+            mediaType: 'video/mp4',
+            href: 'https://peertube.example/video.mp4',
+            width: 1920,
+            height: 1080
+          }
+        ]
+      } as unknown as BaseNote
+
+      const result = getAttachments(video)
+      expect(result).toHaveLength(1)
+      expect(result[0].url).toBe('https://peertube.example/video.mp4')
+      expect(result[0].mediaType).toBe('video/mp4')
+    })
+
+    it('extracts direct video stream from string URLs in url array', () => {
+      const video = {
+        type: 'Video',
+        id: 'https://example.com/video/1',
+        url: ['https://example.com/video.mp4']
+      } as unknown as BaseNote
+
+      const result = getAttachments(video)
+      expect(result).toHaveLength(1)
+      expect(result[0].url).toBe('https://example.com/video.mp4')
+    })
+
+    it('tolerates non-string mediaType or href without throwing TypeError', () => {
+      const malformedVideo = {
+        type: 'Video',
+        id: 'https://example.com/video/1',
+        url: [
+          {
+            type: 'Link',
+            mediaType: 12345,
+            href: null
+          },
+          {
+            type: 'Link',
+            mediaType: 'video/mp4',
+            href: 'https://example.com/good.mp4'
+          }
+        ]
+      } as unknown as BaseNote
+
+      expect(() => getAttachments(malformedVideo)).not.toThrow()
+      const result = getAttachments(malformedVideo)
+      expect(result).toHaveLength(1)
+      expect(result[0].url).toBe('https://example.com/good.mp4')
     })
   })
 

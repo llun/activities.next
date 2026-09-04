@@ -1335,4 +1335,95 @@ describe('getActorPosts', () => {
     const response = await getActorPosts({ database, person })
     expect(response.statuses).toHaveLength(0)
   })
+
+  it('fetches and resolves Create activity where object is a string URI (PeerTube pattern)', async () => {
+    const actorId = 'https://framatube.org/accounts/peertube'
+    const videoUri = 'https://framatube.org/videos/watch/abc-123'
+    const person = MockActivityPubPerson({
+      id: actorId,
+      preferredUsername: 'peertube',
+      withContext: true
+    }) as Actor
+
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `${actorId}/outbox`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            '@context': 'https://www.w3.org/ns/activitystreams',
+            id: `${actorId}/outbox`,
+            type: 'OrderedCollection',
+            totalItems: 1,
+            first: `${actorId}/outbox?page=1`
+          })
+        }
+      }
+
+      if (req.url === `${actorId}/outbox?page=1`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            id: `${actorId}/outbox?page=1`,
+            type: 'OrderedCollectionPage',
+            partOf: `${actorId}/outbox`,
+            orderedItems: [
+              {
+                id: `${actorId}/outbox/activity/1`,
+                type: 'Create',
+                actor: actorId,
+                published: new Date().toISOString(),
+                object: videoUri
+              }
+            ]
+          })
+        }
+      }
+
+      if (req.url === videoUri) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            '@context': 'https://www.w3.org/ns/activitystreams',
+            id: videoUri,
+            type: 'Video',
+            attributedTo: actorId,
+            to: ['https://www.w3.org/ns/activitystreams#Public'],
+            cc: [],
+            published: new Date().toISOString(),
+            content: 'Watch my video',
+            mediaType: 'text/markdown',
+            url: [
+              {
+                type: 'Link',
+                mediaType: 'video/mp4',
+                href: 'https://framatube.org/video.mp4',
+                width: 1920,
+                height: 1080
+              }
+            ],
+            icon: [
+              {
+                type: 'Image',
+                url: 'https://framatube.org/thumb.jpg'
+              }
+            ]
+          })
+        }
+      }
+
+      return { status: 404, body: 'Not Found' }
+    })
+
+    const response = await getActorPosts({ database, person })
+    expect(response.statuses).toHaveLength(1)
+    expect(response.statuses[0].id).toBe(videoUri)
+    expect(response.statuses[0].attachments).toHaveLength(1)
+    expect(response.statuses[0].attachments[0].url).toBe(
+      'https://framatube.org/video.mp4'
+    )
+    expect(response.statuses[0].attachments[0].thumbnailUrl).toBe(
+      'https://framatube.org/thumb.jpg'
+    )
+  })
 })

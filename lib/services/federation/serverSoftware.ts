@@ -63,7 +63,8 @@ const isSameHostNodeInfoLink = (
 ): boolean => {
   if (typeof link?.href !== 'string') return false
   try {
-    return new URL(link.href).host.toLowerCase() === expectedHost
+    const resolved = new URL(link.href, `https://${expectedHost}`)
+    return resolved.host.toLowerCase() === expectedHost
   } catch {
     return false
   }
@@ -228,6 +229,22 @@ export const isMisskeyActor = async (person: Actor): Promise<boolean> => {
   try {
     const actorUrl = new URL(person.id)
     return isMisskeyDomain(actorUrl.host)
+  } catch {
+    return false
+  }
+}
+
+const MEDIA_ONLY_SOFTWARE = new Set(['pixelfed', 'peertube'])
+
+export const isMediaOnlyDomain = async (domain: string): Promise<boolean> => {
+  const software = await getServerSoftware(domain)
+  return software ? MEDIA_ONLY_SOFTWARE.has(software) : false
+}
+
+export const isMediaOnlyActor = async (person: Actor): Promise<boolean> => {
+  try {
+    const actorUrl = new URL(person.id)
+    return isMediaOnlyDomain(actorUrl.host)
   } catch {
     return false
   }

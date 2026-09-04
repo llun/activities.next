@@ -169,6 +169,50 @@ describe('Status', () => {
       expect(status.detectedLanguage).toBeNull()
     })
 
+    it('creates StatusNote from PeerTube Video object with video stream and thumbnail', () => {
+      const peertubeVideo = {
+        type: 'Video',
+        id: 'https://framatube.org/videos/watch/123',
+        attributedTo: ACTOR1_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        published: '2026-01-01T00:00:00Z',
+        content: 'Watch this video',
+        mediaType: 'text/markdown',
+        url: [
+          {
+            type: 'Link',
+            mediaType: 'text/html',
+            href: 'https://framatube.org/videos/watch/123'
+          },
+          {
+            type: 'Link',
+            mediaType: 'video/mp4',
+            href: 'https://framatube.org/static/webseed/123.mp4',
+            width: 1920,
+            height: 1080
+          }
+        ],
+        icon: [
+          {
+            type: 'Image',
+            url: 'https://framatube.org/lazy-static/video-thumbnails/123.jpg'
+          }
+        ]
+      }
+      const status = fromNote(peertubeVideo as unknown as BaseNote)
+      expect(status.type).toBe(StatusType.enum.Note)
+      expect(status.attachments).toHaveLength(1)
+      expect(status.attachments[0]).toMatchObject({
+        mediaType: 'video/mp4',
+        url: 'https://framatube.org/static/webseed/123.mp4',
+        thumbnailUrl:
+          'https://framatube.org/lazy-static/video-thumbnails/123.jpg',
+        width: 1920,
+        height: 1080
+      })
+    })
+
     it('handles inReplyTo as an object with id property', () => {
       const note = MockMastodonActivityPubNote({
         content: 'Hello',

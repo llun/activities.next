@@ -18,7 +18,6 @@ import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getMastodonFeaturedTag } from '@/lib/services/mastodon/getMastodonFeaturedTag'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { cn } from '@/lib/utils'
-import { getActorImageUrl } from '@/lib/utils/activitypubActor'
 import { formatServerSoftware } from '@/lib/utils/formatServerSoftware'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -31,6 +30,12 @@ import { getNonLocalActorRedirectTarget } from './resolveActorRedirect'
 
 interface Props {
   params: Promise<{ actor: string }>
+}
+
+const numberFormatter = new Intl.NumberFormat('en-US')
+const formatNumber = (count: number): string => {
+  if (typeof count !== 'number' || Number.isNaN(count)) return '0'
+  return numberFormatter.format(Math.max(0, count))
 }
 
 const getInitials = (name: string, fallback: string) => {
@@ -145,6 +150,7 @@ const Page: FC<Props> = async ({ params }) => {
     followersCount,
     hasFitnessData,
     isPixelfed,
+    isMediaService,
     isInternalAccount,
     isMediaOnly,
     serverSoftware
@@ -179,32 +185,58 @@ const Page: FC<Props> = async ({ params }) => {
 
   const getHeaderImage = () => {
     if (!person.image) return null
-    const imageItem = Array.isArray(person.image)
-      ? person.image.find(
-          (item) =>
-            item &&
-            typeof item === 'object' &&
-            'url' in item &&
-            typeof item.url === 'string'
-        )
-      : person.image
-    if (
-      !imageItem ||
-      imageItem.type !== 'Image' ||
-      typeof imageItem.url !== 'string'
-    ) {
-      return null
+    if (typeof person.image === 'string') {
+      return { url: person.image, mediaType: null }
     }
-    return {
-      url: imageItem.url,
-      mediaType: imageItem.mediaType ?? null
+    const imgObj = Array.isArray(person.image) ? person.image[0] : person.image
+    if (!imgObj) return null
+    if (typeof imgObj === 'string') {
+      return { url: imgObj, mediaType: null }
     }
+    if (typeof imgObj === 'object') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const image = imgObj as any
+      const url =
+        typeof image.url === 'string'
+          ? image.url
+          : typeof image.href === 'string'
+            ? image.href
+            : null
+      if (url) {
+        return {
+          url,
+          mediaType:
+            typeof image.mediaType === 'string' ? image.mediaType : null
+        }
+      }
+    }
+    return null
+  }
+
+  const getIconImage = () => {
+    if (!person.icon) return null
+    if (typeof person.icon === 'string') return person.icon
+    const iconObj = Array.isArray(person.icon) ? person.icon[0] : person.icon
+    if (!iconObj) return null
+    if (typeof iconObj === 'string') return iconObj
+    if (typeof iconObj === 'object') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const image = iconObj as any
+      const url =
+        typeof image.url === 'string'
+          ? image.url
+          : typeof image.href === 'string'
+            ? image.href
+            : null
+      if (url) return url
+    }
+    return null
   }
 
   const headerImage = getHeaderImage()
   const headerImageUrl = headerImage?.url ?? null
   const headerImageMediaType = headerImage?.mediaType ?? null
-  const iconImageUrl = getActorImageUrl(person.icon) ?? null
+  const iconImageUrl = getIconImage()
   const rawUrl = person.url ? getUrl(person.url) : null
   const profileUrl =
     (rawUrl && /^https?:\/\//i.test(rawUrl) ? rawUrl : null) ||
@@ -273,7 +305,9 @@ const Page: FC<Props> = async ({ params }) => {
             <div className="mt-5 flex flex-wrap gap-6 text-sm">
               {statusesCount !== null && (
                 <div>
-                  <span className="font-semibold">{statusesCount}</span>{' '}
+                  <span className="font-semibold">
+                    {formatNumber(statusesCount)}
+                  </span>{' '}
                   <span className="text-muted-foreground">Posts</span>
                 </div>
               )}
@@ -283,7 +317,9 @@ const Page: FC<Props> = async ({ params }) => {
                   prefetch={false}
                   className="hover:underline"
                 >
-                  <span className="font-semibold">{followingCount}</span>{' '}
+                  <span className="font-semibold">
+                    {formatNumber(followingCount)}
+                  </span>{' '}
                   <span className="text-muted-foreground">Following</span>
                 </Link>
               )}
@@ -293,7 +329,9 @@ const Page: FC<Props> = async ({ params }) => {
                   prefetch={false}
                   className="hover:underline"
                 >
-                  <span className="font-semibold">{followersCount}</span>{' '}
+                  <span className="font-semibold">
+                    {formatNumber(followersCount)}
+                  </span>{' '}
                   <span className="text-muted-foreground">Followers</span>
                 </Link>
               )}
@@ -331,8 +369,9 @@ const Page: FC<Props> = async ({ params }) => {
         postLineLimit={actorSettings?.postLineLimit}
         currentActor={currentActor ? getActorProfile(currentActor) : undefined}
         isCurrentUser={isCurrentUser}
-        isPixelfed={isLoggedIn && Boolean(isPixelfed)}
-        isMediaOnly={isLoggedIn && Boolean(isMediaOnly)}
+        isPixelfed={Boolean(isPixelfed)}
+        isMediaService={Boolean(isMediaService ?? isMediaOnly)}
+        isMediaOnly={Boolean(isMediaOnly ?? isMediaService)}
         hasFitnessData={hasFitnessData}
         isMediaUploadEnabled={Boolean(mediaStorage)}
         isInternalAccount={isInternalAccount}

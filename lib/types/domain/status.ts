@@ -369,11 +369,11 @@ export const fromNote = (note: BaseNote): StatusNote => {
       type: 'Document',
       mediaType: attachment.mediaType,
       url: attachment.url,
-      name: attachment.name ?? '',
+      width: attachment.width ?? undefined,
+      height: attachment.height ?? undefined,
+      blurhash: attachment.blurhash ?? null,
       thumbnailUrl: attachment.thumbnailUrl ?? null,
-      width: attachment.width,
-      height: attachment.height,
-      blurhash: attachment.blurhash,
+      name: attachment.name ?? '',
 
       createdAt: currentTime,
       updatedAt: currentTime
@@ -386,7 +386,12 @@ export const fromNote = (note: BaseNote): StatusNote => {
     isLocalActor: false,
     totalLikes: 0,
 
-    createdAt: new Date(note.published).getTime(),
+    createdAt: (() => {
+      const publishedTime = note.published
+        ? new Date(note.published).getTime()
+        : currentTime
+      return Number.isNaN(publishedTime) ? currentTime : publishedTime
+    })(),
     updatedAt: currentTime
   })
 }
@@ -416,7 +421,12 @@ export const fromAnnounce = (
 
     isLocalActor: false,
 
-    createdAt: new Date(announce.published).getTime(),
+    createdAt: (() => {
+      const publishedTime = announce.published
+        ? new Date(announce.published).getTime()
+        : currentTime
+      return Number.isNaN(publishedTime) ? currentTime : publishedTime
+    })(),
     updatedAt: currentTime
   })
 }

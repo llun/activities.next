@@ -27,16 +27,28 @@ export const BaseNoteSchema = z.union([
   Question
 ])
 
-type UrlValue = string | { href?: string } | (string | { href?: string })[]
+type UrlValue =
+  | string
+  | { href?: unknown; [key: string]: unknown }
+  | (string | { href?: unknown; [key: string]: unknown })[]
+  | null
+  | undefined
 
 export const getUrl = (url: UrlValue): string | undefined => {
+  if (!url) return undefined
   if (Array.isArray(url)) {
     const first = url[0]
     if (typeof first === 'string') return first
-    return first?.href
+    if (first && typeof first === 'object' && typeof first.href === 'string') {
+      return first.href
+    }
+    return undefined
   }
   if (typeof url === 'string') return url
-  return url?.href
+  if (typeof url === 'object' && typeof url.href === 'string') {
+    return url.href
+  }
+  return undefined
 }
 
 type ReplyValue = string | { id?: string } | null | undefined
@@ -61,6 +73,24 @@ export const getQuoteTargetId = (object: BaseNote): string | null => {
   return object.quoteUrl || object.quoteUri || object._misskey_quote || null
 }
 
+const resolveIconUrl = (icon: unknown): string | null => {
+  if (!icon) return null
+  if (typeof icon === 'string') return icon
+  if (typeof icon === 'object') {
+    const rec = icon as { url?: unknown; href?: unknown }
+    if (typeof rec.url === 'string') return rec.url
+    if (
+      typeof rec.url === 'object' &&
+      rec.url !== null &&
+      typeof (rec.url as { href?: unknown }).href === 'string'
+    ) {
+      return (rec.url as { href: string }).href
+    }
+    if (typeof rec.href === 'string') return rec.href
+  }
+  return null
+}
+
 const isDocument = (attachment: Attachment): attachment is Document =>
   Document.safeParse(attachment).success
 
@@ -78,107 +108,105 @@ export const getAttachments = (object: BaseNote): Document[] => {
   if (['Image', 'Video'].includes(object.type)) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const unsafeObject = object as any
-    let url: string | undefined
-    let mediaType: string | undefined
-    let width: number | undefined
-    let height: number | undefined
+    let url = getUrl(unsafeObject.url)
+    let mediaType =
+      unsafeObject.mediaType ||
+      (object.type === 'Image' ? 'image/jpeg' : 'video/mp4')
+    let width = unsafeObject.width
+    let height = unsafeObject.height
+    let thumbnailUrl: string | null = null
 
-    if (object.type === 'Video' && Array.isArray(unsafeObject.url)) {
-      let mediaItem = unsafeObject.url.find(
-        (item: unknown) =>
-          item &&
-          typeof item === 'object' &&
-          'mediaType' in item &&
-          typeof (item as { mediaType?: unknown }).mediaType === 'string' &&
-          (item as { mediaType: string }).mediaType.startsWith('video/')
-      ) as
-        | {
-            href?: string
-            url?: string
-            mediaType?: string
-            width?: number
-            height?: number
+    if (object.type === 'Video') {
+      if (Array.isArray(unsafeObject.url)) {
+        type VideoLink = {
+          mediaType?: string
+          href?: string
+          width?: number
+          height?: number
+        }
+
+        const parseVideoLink = (u: unknown): VideoLink | null => {
+          if (typeof u === 'string') {
+            return { href: u }
           }
-        | undefined
-
-      if (!mediaItem) {
-        mediaItem = unsafeObject.url.find(
-          (item: unknown) =>
-            item &&
-            typeof item === 'object' &&
-            'mediaType' in item &&
-            (item as { mediaType?: unknown }).mediaType ===
-              'application/x-mpegURL'
-        ) as
-          | {
-              href?: string
-              url?: string
-              mediaType?: string
-              width?: number
-              height?: number
+          if (typeof u === 'object' && u !== null) {
+            const rawHref = (u as { href?: unknown }).href
+            const rawMediaType = (u as { mediaType?: unknown }).mediaType
+            const rawWidth = (u as { width?: unknown }).width
+            const rawHeight = (u as { height?: unknown }).height
+            return {
+              href: typeof rawHref === 'string' ? rawHref : undefined,
+              mediaType:
+                typeof rawMediaType === 'string' ? rawMediaType : undefined,
+              width: typeof rawWidth === 'number' ? rawWidth : undefined,
+              height: typeof rawHeight === 'number' ? rawHeight : undefined
             }
-          | undefined
+          }
+          return null
+        }
+
+        const isDirectVideo = (link: VideoLink) => {
+          const mt = (link.mediaType || '').toLowerCase()
+          const href = (link.href || '').toLowerCase()
+          return (
+            mt.startsWith('video/') || /\.(mp4|webm|ogv)(?:[?#]|$)/i.test(href)
+          )
+        }
+
+        const isHlsVideo = (link: VideoLink) => {
+          const mt = (link.mediaType || '').toLowerCase()
+          const href = (link.href || '').toLowerCase()
+          return mt.includes('mpegurl') || /\.m3u8(?:[?#]|$)/i.test(href)
+        }
+
+        const parsedLinks = (unsafeObject.url as unknown[])
+          .map(parseVideoLink)
+          .filter((link): link is VideoLink => Boolean(link && link.href))
+
+        const directLink = parsedLinks.find(isDirectVideo)
+        const hlsLink = parsedLinks.find(isHlsVideo)
+        const videoLink = directLink ?? hlsLink
+
+        if (videoLink && videoLink.href) {
+          url = videoLink.href
+          if (videoLink.mediaType) {
+            mediaType = videoLink.mediaType
+          }
+          if (typeof videoLink.width === 'number') width = videoLink.width
+          if (typeof videoLink.height === 'number') height = videoLink.height
+        } else {
+          url = undefined
+        }
       }
 
-      if (mediaItem) {
-        url = mediaItem.href || mediaItem.url
-        mediaType =
-          mediaItem.mediaType === 'application/x-mpegURL'
-            ? 'video/mp4'
-            : mediaItem.mediaType
-        width = mediaItem.width
-        height = mediaItem.height
-      } else {
-        const videoFileItem = unsafeObject.url.find(
-          (item: unknown) =>
-            item &&
-            typeof item === 'object' &&
-            'href' in item &&
-            typeof (item as { href?: unknown }).href === 'string' &&
-            /\.(mp4|webm|m3u8)(?:[?#]|$)/i.test((item as { href: string }).href)
-        ) as { href?: string; width?: number; height?: number } | undefined
-        if (videoFileItem) {
-          url = videoFileItem.href
-          mediaType = 'video/mp4'
-          width = videoFileItem.width
-          height = videoFileItem.height
+      // PeerTube video objects have mediaType: 'text/markdown' for the description.
+      // If mediaType is not a video type, default to 'video/mp4'.
+      if (!mediaType || !mediaType.startsWith('video/')) {
+        mediaType = 'video/mp4'
+      }
+
+      if (unsafeObject.icon) {
+        if (Array.isArray(unsafeObject.icon)) {
+          thumbnailUrl = resolveIconUrl(unsafeObject.icon[0])
+        } else {
+          thumbnailUrl = resolveIconUrl(unsafeObject.icon)
         }
       }
     }
 
-    if (!url) {
-      url = getUrl(unsafeObject.url)
-      mediaType =
-        unsafeObject.mediaType ||
-        (object.type === 'Image' ? 'image/jpeg' : 'video/mp4')
-    }
-
-    let thumbnailUrl: string | undefined
-    if (unsafeObject.icon) {
-      if (Array.isArray(unsafeObject.icon)) {
-        thumbnailUrl = unsafeObject.icon.find(
-          (item: { url?: unknown }) => typeof item?.url === 'string'
-        )?.url
-      } else if (
-        typeof unsafeObject.icon === 'object' &&
-        typeof unsafeObject.icon.url === 'string'
-      ) {
-        thumbnailUrl = unsafeObject.icon.url
-      }
-    }
-
-    if (url) {
+    if (url && !attachments.some((a) => a.url === url)) {
       attachments.push({
         type: 'Document',
-        mediaType:
-          mediaType || (object.type === 'Image' ? 'image/jpeg' : 'video/mp4'),
+        mediaType,
         url,
+        ...(thumbnailUrl ? { thumbnailUrl } : {}),
         name: unsafeObject.name,
-        width: unsafeObject.width ?? width,
-        height: unsafeObject.height ?? height,
+        width: typeof width === 'number' ? width : undefined,
+        height: typeof height === 'number' ? height : undefined,
         blurhash: unsafeObject.blurhash,
-        focalPoint: unsafeObject.focalPoint,
-        ...(thumbnailUrl ? { thumbnailUrl } : {})
+        ...(unsafeObject.focalPoint
+          ? { focalPoint: unsafeObject.focalPoint }
+          : {})
       })
     }
   }

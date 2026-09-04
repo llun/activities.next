@@ -155,16 +155,37 @@ export const normalizeActivityPubAnnounce = (data: unknown) => {
 
 export const normalizeActivityPubContent = (data: unknown) => {
   if (!isRecord(data)) return data
-  const type = normalizeActivityPubType(data.type) ?? data.type
+  const isVideoOrComplexUrl =
+    Array.isArray(data.url) &&
+    (data.type === 'Video' ||
+      data.url.some((u) => {
+        if (typeof u === 'string') {
+          return /\.(mp4|m3u8|webm|ogv)(?:[?#]|$)/i.test(u)
+        }
+        if (typeof u === 'object' && u !== null) {
+          const rawMt =
+            (u as { mediaType?: unknown }).mediaType ||
+            (u as { mimeType?: unknown }).mimeType
+          const mt = typeof rawMt === 'string' ? rawMt.toLowerCase() : ''
+          const rawHref = (u as { href?: unknown }).href
+          const href = typeof rawHref === 'string' ? rawHref.toLowerCase() : ''
+          return (
+            mt.startsWith('video/') ||
+            mt.includes('mpegurl') ||
+            /\.(mp4|m3u8|webm|ogv)(?:[?#]|$)/i.test(href)
+          )
+        }
+        return false
+      }))
+
   return {
     ...data,
-    type,
+    type: normalizeActivityPubType(data.type) ?? data.type,
     attributedTo: extractActivityPubId(data.attributedTo) ?? data.attributedTo,
     inReplyTo: extractActivityPubId(data.inReplyTo) ?? data.inReplyTo,
-    url:
-      type === 'Video'
-        ? data.url
-        : (extractActivityPubId(data.url) ?? data.url),
+    url: isVideoOrComplexUrl
+      ? data.url
+      : (extractActivityPubId(data.url) ?? data.url),
     to: normalizeActivityPubRecipients(data.to) ?? data.to,
     cc: normalizeActivityPubRecipients(data.cc) ?? data.cc
   }
