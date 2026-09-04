@@ -270,6 +270,18 @@ CREATE TABLE public."customEmojis" (
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE public.dead_letter_jobs (
+    id character varying(255) NOT NULL,
+    job_name character varying(255) NOT NULL,
+    payload jsonb NOT NULL,
+    error_message text NOT NULL,
+    error_stack text,
+    attempts integer DEFAULT 1 NOT NULL,
+    status character varying(32) DEFAULT 'failed'::character varying NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE public.direct_conversation_memberships (
     id bigint NOT NULL,
     "actorId" character varying(255) NOT NULL,
@@ -1404,6 +1416,9 @@ ALTER TABLE ONLY public."customEmojis"
 ALTER TABLE ONLY public."customEmojis"
     ADD CONSTRAINT customemojis_shortcode_unique UNIQUE (shortcode);
 
+ALTER TABLE ONLY public.dead_letter_jobs
+    ADD CONSTRAINT dead_letter_jobs_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.direct_conversation_memberships
     ADD CONSTRAINT direct_conversation_memberships_pkey PRIMARY KEY (id);
 
@@ -1764,6 +1779,12 @@ CREATE INDEX collections_owner_created ON public.collections USING btree ("owner
 CREATE INDEX "countersIndex" ON public.counters USING btree (id, "createdAt", "updatedAt");
 
 CREATE INDEX counters_bucket_hour_index ON public.counters USING btree ("bucketHour");
+
+CREATE INDEX dead_letter_jobs_created_at_idx ON public.dead_letter_jobs USING btree (created_at);
+
+CREATE INDEX dead_letter_jobs_job_name_idx ON public.dead_letter_jobs USING btree (job_name);
+
+CREATE INDEX dead_letter_jobs_status_idx ON public.dead_letter_jobs USING btree (status);
 
 CREATE INDEX direct_conversation_status ON public.direct_conversation_statuses USING btree ("statusId");
 

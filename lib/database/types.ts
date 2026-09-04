@@ -19,6 +19,7 @@ import {
   BookmarkDatabase,
   CollectionDatabase,
   CustomEmojiDatabase,
+  DeadLetterJobDatabase,
   DirectConversationDatabase,
   EndorsementDatabase,
   FeaturedTagDatabase,
@@ -83,6 +84,7 @@ export type Database = AccountDatabase &
   ServerSettingDatabase &
   BookmarkDatabase &
   CustomEmojiDatabase &
+  DeadLetterJobDatabase &
   DirectConversationDatabase &
   FollowDatabase &
   LikeDatabase &

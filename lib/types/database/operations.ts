@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { JobMessage } from '@/lib/services/queue/type'
 import { Timeline } from '@/lib/services/timelines/types'
 import {
   ActorSettings,
@@ -4216,4 +4217,56 @@ export interface CustomEmojiDatabase {
     params: UpdateCustomEmojiParams
   ): Promise<CustomEmojiData | null>
   deleteCustomEmoji(id: string): Promise<CustomEmojiData | null>
+}
+
+// ============================================================================
+// Dead Letter Jobs Database
+// ============================================================================
+
+export type DeadLetterJobStatus = 'failed' | 'retried' | 'discarded'
+
+export interface DeadLetterJob {
+  id: string
+  jobName: string
+  payload: JobMessage
+  errorMessage: string
+  errorStack?: string | null
+  attempts: number
+  status: DeadLetterJobStatus
+  createdAt: number
+  updatedAt: number
+}
+
+export interface CreateDeadLetterJobParams {
+  id?: string
+  jobName?: string
+  job_name?: string
+  payload: JobMessage
+  errorMessage?: string
+  error_message?: string
+  errorStack?: string | null
+  error_stack?: string | null
+  attempts?: number
+  status?: DeadLetterJobStatus
+}
+
+export interface GetDeadLetterJobsParams {
+  status?: DeadLetterJobStatus
+  limit?: number
+  offset?: number
+}
+
+export interface DeadLetterJobDatabase {
+  createDeadLetterJob(params: CreateDeadLetterJobParams): Promise<DeadLetterJob>
+  getDeadLetterJobs(params?: GetDeadLetterJobsParams): Promise<DeadLetterJob[]>
+  countDeadLetterJobs(params?: {
+    status?: DeadLetterJobStatus
+  }): Promise<number>
+  getDeadLetterJobById(id: string): Promise<DeadLetterJob | null>
+  updateDeadLetterJobStatus(
+    id: string,
+    status: DeadLetterJobStatus
+  ): Promise<DeadLetterJob | null>
+  deleteDeadLetterJob(id: string): Promise<boolean>
+  deleteDeadLetterJobsByStatus(status: DeadLetterJobStatus): Promise<number>
 }
