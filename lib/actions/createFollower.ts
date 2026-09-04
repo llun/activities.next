@@ -18,9 +18,14 @@ export const createFollower = async ({
   followRequest,
   database
 }: CreateFollowerParams) => {
-  const targetActor = await database.getActorFromId({
+  let targetActor = await database.getActorFromId({
     id: followRequest.object
   })
+  if (!targetActor && followRequest.object.endsWith('/')) {
+    targetActor = await database.getActorFromId({
+      id: followRequest.object.replace(/\/+$/, '')
+    })
+  }
   if (!targetActor) return null
 
   const followerActor = await recordActorIfNeeded({
@@ -46,6 +51,23 @@ export const createFollower = async ({
     actorId: targetActor.id
   })
   const manuallyApprovesFollowers = settings?.manuallyApprovesFollowers ?? true
+
+  const existingFollow =
+    (await database.getAcceptedOrRequestedFollow({
+      actorId: followerActor.id,
+      targetActorId: targetActor.id
+    })) ??
+    (await database.getAcceptedOrRequestedFollow({
+      actorId: followerActor.id.replace(/\/+$/, ''),
+      targetActorId: targetActor.id.replace(/\/+$/, '')
+    }))
+
+  if (existingFollow) {
+    if (existingFollow.status === FollowStatus.enum.Accepted) {
+      await acceptFollow(targetActor, followerActor.inboxUrl, followRequest)
+    }
+    return followRequest
+  }
 
   if (manuallyApprovesFollowers) {
     // Create follow with Requested status, don't auto-accept

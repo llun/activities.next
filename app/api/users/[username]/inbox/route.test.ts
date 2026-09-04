@@ -639,6 +639,66 @@ describe('POST /api/users/[username]/inbox', () => {
     expect(mockApplyRemoteUnblock).not.toHaveBeenCalled()
   })
 
+  it('dispatches reference-only Undo of Follow to undoFollowRequest and returns 202', async () => {
+    mockApplyRemoteUnblock.mockResolvedValueOnce(null)
+
+    const response = await POST(
+      new NextRequest('https://activities.local/api/users/llun/inbox', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id: 'https://remote.test/users/alice/activities/undo-ref',
+          type: 'Undo',
+          actor: 'https://remote.test/users/alice',
+          object: 'https://activities.local/users/llun'
+        })
+      }),
+      { params: Promise.resolve({ username: 'llun' }) }
+    )
+
+    expect(response.status).toBe(202)
+    expect(mockUndoFollowRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        database: mockDatabase,
+        request: expect.objectContaining({
+          type: 'Undo',
+          actor: 'https://remote.test/users/alice',
+          object: expect.objectContaining({
+            actor: 'https://remote.test/users/alice',
+            object: 'https://activities.local/users/llun',
+            type: 'Follow'
+          })
+        })
+      })
+    )
+  })
+
+  it('returns 202 instead of 404 when undoFollowRequest returns false (already undone or not found)', async () => {
+    mockUndoFollowRequest.mockResolvedValueOnce(false)
+
+    const response = await POST(
+      new NextRequest('https://activities.local/api/users/llun/inbox', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id: 'https://remote.test/users/alice/activities/undo-follow',
+          type: 'Undo',
+          actor: 'https://remote.test/users/alice',
+          object: {
+            id: 'https://remote.test/users/alice/follows/1',
+            type: 'Follow',
+            actor: 'https://remote.test/users/alice',
+            object: 'https://activities.local/users/llun'
+          }
+        })
+      }),
+      { params: Promise.resolve({ username: 'llun' }) }
+    )
+
+    expect(response.status).toBe(202)
+    expect(mockUndoFollowRequest).toHaveBeenCalled()
+  })
+
   it('treats partial Undo Like objects as accepted no-ops', async () => {
     const response = await POST(
       new NextRequest('https://activities.local/api/users/llun/inbox', {
@@ -943,6 +1003,39 @@ describe('POST /api/users/[username]/inbox', () => {
           })
         )
         expect(other()).not.toHaveBeenCalled()
+      }
+    )
+
+    it.each([
+      {
+        type: 'Accept' as const,
+        handler: () => mockAcceptFollowRequest
+      },
+      {
+        type: 'Reject' as const,
+        handler: () => mockRejectFollowRequest
+      }
+    ])(
+      'routes a $type with a string URI object (Lemmy/PeerTube style) to follow handshake',
+      async ({ type, handler }) => {
+        mockHandleQuoteResponse.mockResolvedValue(false)
+
+        const response = await POST(
+          quoteResponseRequest(type, 'https://activities.local/follows/1'),
+          { params: Promise.resolve({ username: 'llun' }) }
+        )
+
+        expect(response.status).toBe(202)
+        expect(handler()).toHaveBeenCalledWith(
+          expect.objectContaining({
+            database: mockDatabase,
+            recipientActorId: 'https://activities.local/users/llun',
+            activity: expect.objectContaining({
+              type,
+              object: 'https://activities.local/follows/1'
+            })
+          })
+        )
       }
     )
 

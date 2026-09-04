@@ -1,6 +1,7 @@
 import { WebFinger } from '@/lib/types/activitypub/webfinger'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
 
 type GetWebfingerSelfFunction = (params: {
@@ -9,17 +10,15 @@ type GetWebfingerSelfFunction = (params: {
 
 export const getWebfingerSelf: GetWebfingerSelfFunction = async ({ account }) =>
   withSpan('activity', 'getWebfingerSelf', { account }, async (span) => {
-    const [user, domain, ...rest] = account.split('@')
-    if (!user || !domain) {
-      return null
-    }
-    if (rest.length > 0) {
+    const cleanedAccount = account.replace(/^acct:/i, '').replace(/^@+/, '')
+    const [user, domain, ...rest] = cleanedAccount.split('@')
+    if (!user || !domain || rest.length > 0) {
       return null
     }
 
     try {
       const url = new URL(`https://${domain}/.well-known/webfinger`)
-      url.searchParams.set('resource', `acct:${account}`)
+      url.searchParams.set('resource', `acct:${user}@${domain}`)
 
       const { statusCode, body } = await request({
         url: url.toString(),
@@ -38,9 +37,13 @@ export const getWebfingerSelf: GetWebfingerSelfFunction = async ({ account }) =>
       }
       return item.href
     } catch (error) {
-      const nodeError = error as NodeJS.ErrnoException
-      span.recordException(nodeError)
-      logger.error(`[getWebfingerSelf] ${nodeError.message}`)
+      const loggable = toLoggableError(error)
+      span.recordException(loggable)
+      logger.error({
+        message: 'Failed to fetch webfinger self link',
+        account,
+        err: loggable
+      })
       return null
     }
   })

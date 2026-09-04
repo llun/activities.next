@@ -264,6 +264,7 @@ describe('activities', () => {
       expect(undoCall).toBeDefined()
       const body = JSON.parse(undoCall![1]?.body as string)
       expect(body.type).toEqual('Undo')
+      expect(body.id).toEqual(`${actor1.id}#follows/${followRecord.id}/undo`)
       expect(body.object.type).toEqual('Follow')
     })
   })
