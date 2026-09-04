@@ -256,32 +256,38 @@ const Page: FC<Props> = async ({ params }) => {
 
           <Bio summary={person.summary} tags={getActorEmojiTags(person)} />
 
-          <div className="mt-5 flex flex-wrap gap-6 text-sm">
-            <div>
-              <span className="font-semibold">{statusesCount}</span>{' '}
-              <span className="text-muted-foreground">Posts</span>
+          {(statusesCount !== null ||
+            followingCount !== null ||
+            followersCount !== null) && (
+            <div className="mt-5 flex flex-wrap gap-6 text-sm">
+              {statusesCount !== null && (
+                <div>
+                  <span className="font-semibold">{statusesCount}</span>{' '}
+                  <span className="text-muted-foreground">Posts</span>
+                </div>
+              )}
+              {followingCount !== null && (
+                <Link
+                  href={`/@${person.preferredUsername}@${actorDomain}/following`}
+                  prefetch={false}
+                  className="hover:underline"
+                >
+                  <span className="font-semibold">{followingCount}</span>{' '}
+                  <span className="text-muted-foreground">Following</span>
+                </Link>
+              )}
+              {followersCount !== null && (
+                <Link
+                  href={`/@${person.preferredUsername}@${actorDomain}/followers`}
+                  prefetch={false}
+                  className="hover:underline"
+                >
+                  <span className="font-semibold">{followersCount}</span>{' '}
+                  <span className="text-muted-foreground">Followers</span>
+                </Link>
+              )}
             </div>
-            {followingCount !== null && (
-              <Link
-                href={`/@${person.preferredUsername}@${actorDomain}/following`}
-                prefetch={false}
-                className="hover:underline"
-              >
-                <span className="font-semibold">{followingCount}</span>{' '}
-                <span className="text-muted-foreground">Following</span>
-              </Link>
-            )}
-            {followersCount !== null && (
-              <Link
-                href={`/@${person.preferredUsername}@${actorDomain}/followers`}
-                prefetch={false}
-                className="hover:underline"
-              >
-                <span className="font-semibold">{followersCount}</span>{' '}
-                <span className="text-muted-foreground">Followers</span>
-              </Link>
-            )}
-          </div>
+          )}
 
           <FeaturedTagsBlock tags={featuredTags} />
         </div>

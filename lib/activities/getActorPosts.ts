@@ -40,7 +40,7 @@ type GetActorPostsFunction = (params: {
   signingActor?: DomainActor
   pageUrl?: string
 }) => Promise<{
-  statusesCount: number
+  statusesCount: number | null
   statuses: Status[]
   nextPageUrl: string | null
   prevPageUrl: string | null
@@ -116,7 +116,7 @@ export const getActorPosts: GetActorPostsFunction = async ({
       })
       if (!value) {
         return {
-          statusesCount: 0,
+          statusesCount: null,
           statuses: [],
           nextPageUrl: null,
           prevPageUrl: null
@@ -236,7 +236,7 @@ export const getActorPosts: GetActorPostsFunction = async ({
       }
 
       return {
-        statusesCount: value.totalItems ?? validStatuses.length,
+        statusesCount: value.totalItems,
         statuses: validStatuses,
         nextPageUrl: value.page?.next ?? null,
         prevPageUrl: value.page?.prev ?? null
