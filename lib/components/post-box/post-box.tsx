@@ -47,7 +47,8 @@ import {
   QuoteApprovalPolicy,
   Status,
   StatusNote,
-  StatusType
+  StatusType,
+  getOriginalStatus
 } from '@/lib/types/domain/status'
 import { Tag } from '@/lib/types/domain/tag'
 import type { CustomEmoji } from '@/lib/types/mastodon/customEmoji'
@@ -159,6 +160,19 @@ const hasNewPostContent = (
   (value.trim().length > 0 ||
     extension.attachments.length > 0 ||
     Boolean(extension.fitnessFile))
+
+const escapeRegExp = (value: string) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const getQuoteUrl = (quotedStatus: Status) => {
+  const original = getOriginalStatus(quotedStatus)
+  return original.url || original.id
+}
+
+const getQuotePrefix = (quotedStatus?: Status) => {
+  if (!quotedStatus) return ''
+  return `RE: ${getQuoteUrl(quotedStatus)}\n\n`
+}
 
 const hasEditPostContent = (
   status: EditableStatus,
@@ -761,6 +775,26 @@ export const PostBox: FC<Props> = ({
   }
 
   const onCloseQuote = () => {
+    if (quotedStatus) {
+      const original = getOriginalStatus(quotedStatus)
+      const urls = [original.url, original.id].filter(Boolean) as string[]
+      const prefixRegex = new RegExp(
+        `^RE: (${urls.map(escapeRegExp).join('|')})\\s*`
+      )
+      const match = text.match(prefixRegex)
+      if (match) {
+        const nextText = text.slice(match[0].length)
+        setText(nextText)
+        textRef.current = nextText
+        setAllowPost(
+          hasNewPostContent(
+            nextText,
+            postExtensionRef.current,
+            maxStatusCharacters
+          )
+        )
+      }
+    }
     onDiscardQuote?.()
   }
 
@@ -977,36 +1011,48 @@ export const PostBox: FC<Props> = ({
     if (!replyStatus) {
       // Reset visibility to default when not replying
       dispatch(setVisibility('public'))
-      return
+    } else {
+      // Initialize visibility from reply status to inherit parent visibility
+      const replyVisibility = getVisibility(replyStatus.to, replyStatus.cc)
+      dispatch(setVisibility(replyVisibility))
     }
 
-    // Initialize visibility from reply status to inherit parent visibility
-    const replyVisibility = getVisibility(replyStatus.to, replyStatus.cc)
-    dispatch(setVisibility(replyVisibility))
+    const quotePrefix = getQuotePrefix(quotedStatus)
 
-    if (replyStatus.type !== StatusType.enum.Note) {
+    const defaultReplyMessage =
+      replyStatus && replyStatus.type === StatusType.enum.Note
+        ? getDefaultMessage(profile, replyStatus)
+        : null
+
+    if (defaultReplyMessage || quotePrefix) {
+      const [replyText, replyStart, replyEnd] = defaultReplyMessage ?? [
+        '',
+        0,
+        0
+      ]
+      const initialText = `${quotePrefix}${replyText}`
+      const start = quotePrefix.length + replyStart
+      const end = quotePrefix.length + replyEnd
+      setText(initialText)
+      textRef.current = initialText
+      setAllowPost(
+        hasNewPostContent(
+          initialText,
+          postExtensionRef.current,
+          maxStatusCharacters
+        )
+      )
+
+      setTimeout(() => {
+        if (postBoxRef.current) {
+          postBoxRef.current.selectionStart = start
+          postBoxRef.current.selectionEnd = end
+          postBoxRef.current.focus()
+        }
+      }, 0)
       return
     }
-
-    const defaultMessage = getDefaultMessage(profile, replyStatus)
-    if (!defaultMessage) {
-      return
-    }
-
-    const [value, start, end] = defaultMessage
-    setText(value)
-    setAllowPost(true)
-
-    // We need to wait for render to focus and set selection
-    // Using setTimeout as a simple way to wait for next tick after render
-    setTimeout(() => {
-      if (postBoxRef.current) {
-        postBoxRef.current.selectionStart = start
-        postBoxRef.current.selectionEnd = end
-        postBoxRef.current.focus()
-      }
-    }, 0)
-  }, [profile, replyStatus, editStatus])
+  }, [profile, replyStatus, editStatus, quotedStatus])
 
   return (
     <div>
