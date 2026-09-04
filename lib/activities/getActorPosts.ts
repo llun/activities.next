@@ -188,12 +188,19 @@ export const getActorPosts: GetActorPostsFunction = async ({
 
           let rawObject: unknown = activity.object
           if (typeof rawObject === 'string') {
+            if (!isSameActivityPubOrigin(person.id, rawObject)) {
+              return null
+            }
+
             const localStatus = await database.getStatus({
               statusId: rawObject
             })
             if (localStatus && localStatus.type !== StatusType.enum.Announce) {
-              if (actor) localStatus.actor = actor
-              return localStatus
+              if (localStatus.actorId === person.id) {
+                if (actor) localStatus.actor = actor
+                return localStatus
+              }
+              return null
             }
             const fetchedNote = await getNote({
               statusId: rawObject,
@@ -216,6 +223,13 @@ export const getActorPosts: GetActorPostsFunction = async ({
 
           const status = getStatusFromNote(noteResult.data)
           if (!status) return null
+
+          if (
+            status.actorId !== person.id &&
+            !isSameActivityPubOrigin(person.id, status.actorId)
+          ) {
+            return null
+          }
 
           if (actor) status.actor = actor
           return status

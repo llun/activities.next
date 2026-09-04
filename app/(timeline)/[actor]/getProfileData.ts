@@ -19,7 +19,7 @@ import {
 } from '@/lib/services/statusAccess'
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
-import { Attachment } from '@/lib/types/domain/attachment'
+import { Attachment, isVisualAttachment } from '@/lib/types/domain/attachment'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 import { logger } from '@/lib/utils/logger'
@@ -149,17 +149,6 @@ export const getProfileData = async (
       )
     ).filter((status): status is Status => status !== null)
 
-    const isMediaOnly =
-      statuses.length > 0 &&
-      statuses.every(
-        (status) =>
-          status.type === StatusType.enum.Note &&
-          status.attachments.length > 0 &&
-          status.attachments.every((attachment) =>
-            attachment.mediaType.startsWith('video/')
-          )
-      )
-
     return {
       person: getPersonFromActor(persistedActor),
       statuses,
@@ -178,7 +167,7 @@ export const getProfileData = async (
         name: 'activities.next',
         version: VERSION
       },
-      isMediaOnly
+      isMediaOnly: false
     }
   }
 
@@ -330,18 +319,7 @@ export const getProfileData = async (
     serverSoftware?.name === 'pixelfed' || (await isPixelfedActor(person))
   const isPeerTube =
     serverSoftware?.name === 'peertube' || (await isPeerTubeActor(person))
-  const isMediaOnly =
-    Boolean(isPixelfed) ||
-    isPeerTube ||
-    (actorPostsResponse.statuses.length > 0 &&
-      actorPostsResponse.statuses.every(
-        (status) =>
-          status.type === StatusType.enum.Note &&
-          status.attachments.length > 0 &&
-          status.attachments.every((attachment) =>
-            attachment.mediaType.startsWith('video/')
-          )
-      ))
+  const isMediaOnly = Boolean(isPixelfed) || isPeerTube
 
   return {
     ...actorPostsResponse,
@@ -354,9 +332,11 @@ export const getProfileData = async (
     attachments:
       attachments.length > 0
         ? attachments
-        : actorPostsResponse.statuses.flatMap((status) =>
-            status.type === StatusType.enum.Note ? status.attachments : []
-          ),
+        : actorPostsResponse.statuses
+            .flatMap((status) =>
+              status.type === StatusType.enum.Note ? status.attachments : []
+            )
+            .filter(isVisualAttachment),
     followingCount: collectionCounts.followingCount,
     followersCount: collectionCounts.followersCount,
     isInternalAccount: false,

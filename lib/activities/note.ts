@@ -13,6 +13,7 @@ import {
   type Tag,
   VideoContent
 } from '@/lib/types/activitypub'
+import { escapeHtml } from '@/lib/utils/text/escapeHtml'
 
 export type BaseNote =
   Note | ImageContent | PageContent | ArticleContent | VideoContent | Question
@@ -79,6 +80,8 @@ export const getAttachments = (object: BaseNote): Document[] => {
     const unsafeObject = object as any
     let url: string | undefined
     let mediaType: string | undefined
+    let width: number | undefined
+    let height: number | undefined
 
     if (object.type === 'Video' && Array.isArray(unsafeObject.url)) {
       let mediaItem = unsafeObject.url.find(
@@ -88,7 +91,15 @@ export const getAttachments = (object: BaseNote): Document[] => {
           'mediaType' in item &&
           typeof (item as { mediaType?: unknown }).mediaType === 'string' &&
           (item as { mediaType: string }).mediaType.startsWith('video/')
-      ) as { href?: string; url?: string; mediaType?: string } | undefined
+      ) as
+        | {
+            href?: string
+            url?: string
+            mediaType?: string
+            width?: number
+            height?: number
+          }
+        | undefined
 
       if (!mediaItem) {
         mediaItem = unsafeObject.url.find(
@@ -98,12 +109,25 @@ export const getAttachments = (object: BaseNote): Document[] => {
             'mediaType' in item &&
             (item as { mediaType?: unknown }).mediaType ===
               'application/x-mpegURL'
-        ) as { href?: string; url?: string; mediaType?: string } | undefined
+        ) as
+          | {
+              href?: string
+              url?: string
+              mediaType?: string
+              width?: number
+              height?: number
+            }
+          | undefined
       }
 
       if (mediaItem) {
         url = mediaItem.href || mediaItem.url
-        mediaType = mediaItem.mediaType
+        mediaType =
+          mediaItem.mediaType === 'application/x-mpegURL'
+            ? 'video/mp4'
+            : mediaItem.mediaType
+        width = mediaItem.width
+        height = mediaItem.height
       } else {
         const videoFileItem = unsafeObject.url.find(
           (item: unknown) =>
@@ -112,10 +136,12 @@ export const getAttachments = (object: BaseNote): Document[] => {
             'href' in item &&
             typeof (item as { href?: unknown }).href === 'string' &&
             /\.(mp4|webm|m3u8)(?:[?#]|$)/i.test((item as { href: string }).href)
-        ) as { href?: string } | undefined
+        ) as { href?: string; width?: number; height?: number } | undefined
         if (videoFileItem) {
           url = videoFileItem.href
           mediaType = 'video/mp4'
+          width = videoFileItem.width
+          height = videoFileItem.height
         }
       }
     }
@@ -148,8 +174,8 @@ export const getAttachments = (object: BaseNote): Document[] => {
           mediaType || (object.type === 'Image' ? 'image/jpeg' : 'video/mp4'),
         url,
         name: unsafeObject.name,
-        width: unsafeObject.width,
-        height: unsafeObject.height,
+        width: unsafeObject.width ?? width,
+        height: unsafeObject.height ?? height,
         blurhash: unsafeObject.blurhash,
         focalPoint: unsafeObject.focalPoint,
         ...(thumbnailUrl ? { thumbnailUrl } : {})
@@ -198,11 +224,10 @@ export const getContent = (object: BaseNote) => {
     typeof object.name === 'string' &&
     object.name.trim()
   ) {
-    const title = object.name.trim()
-    if (!content.includes(title)) {
-      return content
-        ? `<p><strong>${title}</strong></p>\n${content}`
-        : `<p><strong>${title}</strong></p>`
+    const title = escapeHtml(object.name.trim())
+    const titleHeader = `<p><strong>${title}</strong></p>`
+    if (!content.startsWith(titleHeader)) {
+      return content ? `${titleHeader}\n${content}` : titleHeader
     }
   }
 

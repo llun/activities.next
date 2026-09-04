@@ -1205,6 +1205,134 @@ describe('getActorPosts', () => {
 
     const response = await getActorPosts({ database, person })
     expect(response.statuses).toHaveLength(0)
->>>>>>> fba3895d6 (feat: support PeerTube remote profiles and video-only media grid)
+  })
+
+  it('rejects string-referenced objects whose URL is cross-origin relative to person.id', async () => {
+    const actorId = 'https://framatube.org/accounts/framasoft'
+    const crossOriginUrl = 'https://other-instance.example/videos/watch/abc'
+    const outboxPageUrl = `${actorId}/outbox?page=true`
+    const person = MockActivityPubPerson({
+      id: actorId,
+      withContext: true
+    }) as Actor
+
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `${actorId}/outbox`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            '@context': 'https://www.w3.org/ns/activitystreams',
+            id: `${actorId}/outbox`,
+            type: 'OrderedCollection',
+            totalItems: 1,
+            first: outboxPageUrl
+          })
+        }
+      }
+      if (req.url === outboxPageUrl) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            '@context': 'https://www.w3.org/ns/activitystreams',
+            id: outboxPageUrl,
+            type: 'OrderedCollectionPage',
+            partOf: `${actorId}/outbox`,
+            orderedItems: [
+              {
+                '@context': 'https://www.w3.org/ns/activitystreams',
+                id: 'https://framatube.org/videos/watch/abc/activity',
+                type: 'Create',
+                actor: actorId,
+                to: [ACTIVITY_STREAM_PUBLIC],
+                object: crossOriginUrl
+              }
+            ]
+          })
+        }
+      }
+      return { status: 404, body: 'Not Found' }
+    })
+
+    const response = await getActorPosts({ database, person })
+    expect(response.statuses).toHaveLength(0)
+  })
+
+  it('rejects local database status when status actorId does not match person.id', async () => {
+    const actorId = 'https://framatube.org/accounts/framasoft'
+    const otherActorId = 'https://framatube.org/accounts/otheruser'
+    const statusId = 'https://framatube.org/videos/watch/123'
+    const outboxPageUrl = `${actorId}/outbox?page=true`
+    const person = MockActivityPubPerson({
+      id: actorId,
+      withContext: true
+    }) as Actor
+
+    // Status exists in database but belongs to otherActorId
+    vi.spyOn(database, 'getStatus').mockResolvedValueOnce({
+      id: statusId,
+      url: statusId,
+      actorId: otherActorId,
+      actor: null,
+      type: StatusType.enum.Note,
+      text: 'Private other status',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      edits: [],
+      reply: '',
+      replies: [],
+      totalReplies: 0,
+      actorAnnounceStatusId: null,
+      isActorLiked: false,
+      isActorBookmarked: false,
+      totalLikes: 0,
+      totalShares: 0,
+      attachments: [],
+      tags: [],
+      createdAt: 1000,
+      updatedAt: 1000,
+      isLocalActor: false
+    })
+
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `${actorId}/outbox`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            '@context': 'https://www.w3.org/ns/activitystreams',
+            id: `${actorId}/outbox`,
+            type: 'OrderedCollection',
+            totalItems: 1,
+            first: outboxPageUrl
+          })
+        }
+      }
+      if (req.url === outboxPageUrl) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            '@context': 'https://www.w3.org/ns/activitystreams',
+            id: outboxPageUrl,
+            type: 'OrderedCollectionPage',
+            partOf: `${actorId}/outbox`,
+            orderedItems: [
+              {
+                '@context': 'https://www.w3.org/ns/activitystreams',
+                id: `${statusId}/activity`,
+                type: 'Create',
+                actor: actorId,
+                to: [ACTIVITY_STREAM_PUBLIC],
+                object: statusId
+              }
+            ]
+          })
+        }
+      }
+      return { status: 404, body: 'Not Found' }
+    })
+
+    const response = await getActorPosts({ database, person })
+    expect(response.statuses).toHaveLength(0)
   })
 })

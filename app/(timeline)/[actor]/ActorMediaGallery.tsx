@@ -7,7 +7,7 @@ import { getActorMedia } from '@/lib/client'
 import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
 import { Media } from '@/lib/components/posts/media'
 import { Button } from '@/lib/components/ui/button'
-import { Attachment } from '@/lib/types/domain/attachment'
+import { Attachment, isVisualAttachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 
@@ -46,9 +46,9 @@ export const ActorMediaGallery: FC<Props> = ({
 
   useEffect(() => {
     if (isMediaStream && statuses && statuses.length > 0) {
-      const derived = statuses.flatMap((s) =>
-        s.type === StatusType.enum.Note ? s.attachments : []
-      )
+      const derived = statuses
+        .flatMap((s) => (s.type === StatusType.enum.Note ? s.attachments : []))
+        .filter(isVisualAttachment)
       if (derived.length > 0) {
         setAttachments(derived)
       }

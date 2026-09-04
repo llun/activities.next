@@ -285,6 +285,8 @@ describe('note entity utilities', () => {
       expect(result[0].url).toEqual(
         'https://framatube.org/static/webseed/abc-1080.mp4'
       )
+      expect(result[0].width).toEqual(1920)
+      expect(result[0].height).toEqual(1080)
       expect(result[0].thumbnailUrl).toEqual(
         'https://framatube.org/static/thumbnails/abc.jpg'
       )
@@ -415,14 +417,28 @@ describe('note entity utilities', () => {
       expect(getContent(video)).toEqual('<p><strong>My Cool Video</strong></p>')
     })
 
-    it('does not duplicate title if Video content already contains name', () => {
+    it('escapes HTML in Video name', () => {
+      const video = {
+        type: 'Video',
+        name: 'Tom & Jerry <Live>',
+        content: '<p>Episode 1</p>'
+      } as unknown as BaseNote
+
+      expect(getContent(video)).toEqual(
+        '<p><strong>Tom &amp; Jerry &lt;Live&gt;</strong></p>\n<p>Episode 1</p>'
+      )
+    })
+
+    it('does not duplicate title if Video content already starts with formatted title', () => {
       const video = {
         type: 'Video',
         name: 'My Cool Video',
-        content: '<p>My Cool Video is awesome</p>'
+        content: '<p><strong>My Cool Video</strong></p>\n<p>Description</p>'
       } as unknown as BaseNote
 
-      expect(getContent(video)).toEqual('<p>My Cool Video is awesome</p>')
+      expect(getContent(video)).toEqual(
+        '<p><strong>My Cool Video</strong></p>\n<p>Description</p>'
+      )
     })
   })
 
