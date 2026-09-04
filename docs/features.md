@@ -19,7 +19,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Account blocks** — Block or unblock remote accounts and list blocked accounts
 - ✅ **Domain blocks** — Block or unblock an entire remote domain and list your blocked domains via `/api/v1/domain_blocks`; blocking hides that domain's posts (and boosts) from your timelines, is reflected in `domain_blocking` on relationships, and severs follows in both directions
 - ✅ **Follow requests** — Review, authorize, and reject follow requests
-- ✅ **Custom emoji** — Instance-defined custom emoji with a sticker/emoji picker in the post box
+- ✅ **Custom emoji** — Instance-defined custom emoji with a sticker/emoji picker in the post box, and custom emoji shortcode (`:shortcode:`) support in user display names across the web UI, Mastodon API, and ActivityPub federation
 - ✅ **Featured hashtags** — Feature hashtags on your profile and manage them from settings
 - ✅ **Status translation** — Translate posts into your language via DeepL, LibreTranslate, or an OpenAI-compatible backend
 - ✅ **Public & logged-out pages** — Logged-out landing page plus publicly viewable profile and status pages, with design-system error pages (404/500)

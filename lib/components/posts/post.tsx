@@ -6,6 +6,7 @@ import { Activity, ExternalLink, Repeat2 } from 'lucide-react'
 import Link from 'next/link'
 import { FC } from 'react'
 
+import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
 import { FitnessStatGrid } from '@/lib/components/fitness/FitnessStatGrid'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
@@ -121,10 +122,10 @@ export const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
             className="font-medium text-foreground hover:underline"
             onClick={(e) => e.stopPropagation()}
           >
-            {actorName}
+            <ActorDisplayName name={actorName} tags={status.actor?.tags} />
           </Link>
         ) : (
-          actorName
+          <ActorDisplayName name={actorName} tags={status.actor?.tags} />
         )}
       </span>
     </div>

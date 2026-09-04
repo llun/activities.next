@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { FC, useMemo } from 'react'
 
+import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
 import { FollowAction } from '@/lib/components/follow-action/follow-action'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { ActorProfile } from '@/lib/types/domain/actor'
@@ -38,9 +39,11 @@ export const FollowList: FC<Props> = ({
     <div className="divide-y">
       {users.map((user) => {
         const displayName = user.name || user.username
-        const initials = displayName
-          .split(' ')
+        const cleanName = displayName.replaceAll(/:[^\s:]{1,64}:/g, '').trim()
+        const initials = (cleanName || displayName)
+          .split(/\s+/)
           .map((n) => n[0])
+          .filter(Boolean)
           .join('')
           .toUpperCase()
         const summary = htmlToPlainText(user.summary)
@@ -60,7 +63,7 @@ export const FollowList: FC<Props> = ({
                 prefetch={false}
                 className="block truncate font-semibold hover:underline"
               >
-                {displayName}
+                <ActorDisplayName name={displayName} tags={user.tags} />
               </Link>
               <div className="truncate text-sm text-muted-foreground">
                 @{user.username}@{user.domain}

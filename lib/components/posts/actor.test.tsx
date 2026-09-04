@@ -241,6 +241,14 @@ describe('ActorAvatar', () => {
       description: 'the actor id handle when there is no actor',
       props: { actorId: 'https://llun.test/users/test' },
       initials: 'T'
+    },
+    {
+      description: 'the actor name without leading emoji shortcode',
+      props: {
+        actor: { ...actor, name: ':blobcat: Alice' },
+        actorId: 'https://llun.test/users/test'
+      },
+      initials: 'A'
     }
   ])(
     'builds the fallback initials from $description',
@@ -250,4 +258,25 @@ describe('ActorAvatar', () => {
       expect(screen.getByText(initials)).toBeInTheDocument()
     }
   )
+
+  it('renders custom emoji image in ActorInfo when actor has emoji tags', () => {
+    render(
+      <ActorInfo
+        actor={{
+          ...actor,
+          name: 'Alice :blobcat:',
+          tags: [
+            {
+              type: 'emoji',
+              name: ':blobcat:',
+              value: 'https://llun.test/blobcat.png'
+            }
+          ]
+        }}
+      />
+    )
+    const img = screen.getByRole('img', { name: ':blobcat:' })
+    expect(img).toBeInTheDocument()
+    expect(img).toHaveAttribute('src', 'https://llun.test/blobcat.png')
+  })
 })
