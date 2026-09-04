@@ -124,20 +124,9 @@ jobs:
         with:
           github-token: ${{ secrets.PAT_TOKEN }}
           script: |
-            // Dispatch locally to activities.next runner
             await github.rest.repos.createDispatchEvent({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              event_type: 'sync-main-to-prod',
-              client_payload: {
-                main_sha: '${{ steps.check.outputs.head_sha }}',
-              },
-            })
-
-            // Also dispatch event to activities.prod
-            await github.rest.repos.createDispatchEvent({
-              owner: 'llun',
-              repo: 'activities.prod',
               event_type: 'sync-main-to-prod',
               client_payload: {
                 main_sha: '${{ steps.check.outputs.head_sha }}',

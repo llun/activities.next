@@ -136,8 +136,8 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ env.GEMINI_API_KEY }}
         run: |
-          # Ensure activities.next-internal oltp workflows never enter activities.prod
-          git rm -f .github/workflows/sync-main-to-oltp*.yml 2>/dev/null || true
+          # Ensure activities.next-internal sync workflows never enter activities.prod
+          git rm -f .github/workflows/sync-main-to-oltp*.yml .github/workflows/sync-main-to-prod*.yml 2>/dev/null || true
 
           mapfile -t unmerged < <(git diff --name-only --diff-filter=U)
 
@@ -171,9 +171,9 @@ jobs:
             elif [[ "$f" =~ ^\.github/workflows/deploy-infra\.yml ]]; then
               echo "Preserving activities.prod deploy-infra.yml"
               git checkout --ours "$f"
-            elif [[ "$f" =~ ^\.github/workflows/sync-from-activities-next\.yml ]]; then
-              echo "Preserving activities.prod sync workflow"
-              git checkout --ours "$f"
+            elif [[ "$f" =~ ^\.github/workflows/sync-main-to- ]]; then
+              echo "Removing activities.next-internal sync workflow: $f"
+              git rm -f "$f"
             else
               code_files+=("$f")
             fi
@@ -218,8 +218,8 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ env.GEMINI_API_KEY }}
         run: |
-          # Ensure activities.next-internal oltp workflows never enter activities.prod
-          git rm -f .github/workflows/sync-main-to-oltp*.yml 2>/dev/null || true
+          # Ensure activities.next-internal sync workflows never enter activities.prod
+          git rm -f .github/workflows/sync-main-to-oltp*.yml .github/workflows/sync-main-to-prod*.yml 2>/dev/null || true
 
           yarn install --no-immutable
 
