@@ -1,4 +1,7 @@
-import { fetchCollectionRoot } from '@/lib/activities/getActorCollections'
+import {
+  fetchCollectionRoot,
+  parseTotalItems
+} from '@/lib/activities/getActorCollections'
 import { getMisskeyCollectionCounts } from '@/lib/activities/getMisskeyCollectionCounts'
 import { isMisskeyActor } from '@/lib/services/federation/serverSoftware'
 import { Actor } from '@/lib/types/activitypub'
@@ -32,15 +35,7 @@ const getCollectionTotalItems = async (
 
   try {
     const { collection } = await fetchCollectionRoot({ url, signingActor })
-    const totalItems = collection?.totalItems
-    if (
-      typeof totalItems !== 'number' ||
-      !Number.isFinite(totalItems) ||
-      totalItems < 0
-    ) {
-      return null
-    }
-    return Math.floor(totalItems)
+    return parseTotalItems(collection?.totalItems)
   } catch (error) {
     logger.warn({
       message: 'Failed to fetch actor collection total items',
