@@ -47,7 +47,8 @@ import {
   QuoteApprovalPolicy,
   Status,
   StatusNote,
-  StatusType
+  StatusType,
+  getOriginalStatus
 } from '@/lib/types/domain/status'
 import { Tag } from '@/lib/types/domain/tag'
 import type { CustomEmoji } from '@/lib/types/mastodon/customEmoji'
@@ -159,6 +160,16 @@ const hasNewPostContent = (
   (value.trim().length > 0 ||
     extension.attachments.length > 0 ||
     Boolean(extension.fitnessFile))
+
+const getQuoteUrl = (quotedStatus: Status) => {
+  const original = getOriginalStatus(quotedStatus)
+  return original.url || original.id
+}
+
+const getQuotePrefix = (quotedStatus?: Status) => {
+  if (!quotedStatus) return ''
+  return `RE: ${getQuoteUrl(quotedStatus)}\n\n`
+}
 
 const hasEditPostContent = (
   status: EditableStatus,
@@ -761,6 +772,28 @@ export const PostBox: FC<Props> = ({
   }
 
   const onCloseQuote = () => {
+    if (quotedStatus) {
+      const quotePrefix = getQuotePrefix(quotedStatus)
+      const quoteUrl = getQuoteUrl(quotedStatus)
+      if (text.startsWith(quotePrefix)) {
+        const nextText = text.slice(quotePrefix.length)
+        setText(nextText)
+        textRef.current = nextText
+        setAllowPost(
+          hasNewPostContent(
+            nextText,
+            postExtensionRef.current,
+            maxStatusCharacters
+          )
+        )
+      } else if (text.trim() === `RE: ${quoteUrl}`) {
+        setText('')
+        textRef.current = ''
+        setAllowPost(
+          hasNewPostContent('', postExtensionRef.current, maxStatusCharacters)
+        )
+      }
+    }
     onDiscardQuote?.()
   }
 
@@ -977,36 +1010,56 @@ export const PostBox: FC<Props> = ({
     if (!replyStatus) {
       // Reset visibility to default when not replying
       dispatch(setVisibility('public'))
+    } else {
+      // Initialize visibility from reply status to inherit parent visibility
+      const replyVisibility = getVisibility(replyStatus.to, replyStatus.cc)
+      dispatch(setVisibility(replyVisibility))
+    }
+
+    const quotePrefix = getQuotePrefix(quotedStatus)
+
+    const defaultReplyMessage =
+      replyStatus && replyStatus.type === StatusType.enum.Note
+        ? getDefaultMessage(profile, replyStatus)
+        : null
+
+    if (defaultReplyMessage) {
+      const [replyText, replyStart, replyEnd] = defaultReplyMessage
+      const initialText = `${quotePrefix}${replyText}`
+      const start = quotePrefix.length + replyStart
+      const end = quotePrefix.length + replyEnd
+      setText(initialText)
+      textRef.current = initialText
+      setAllowPost(true)
+
+      setTimeout(() => {
+        if (postBoxRef.current) {
+          postBoxRef.current.selectionStart = start
+          postBoxRef.current.selectionEnd = end
+          postBoxRef.current.focus()
+        }
+      }, 0)
       return
     }
 
-    // Initialize visibility from reply status to inherit parent visibility
-    const replyVisibility = getVisibility(replyStatus.to, replyStatus.cc)
-    dispatch(setVisibility(replyVisibility))
+    if (quotePrefix) {
+      const initialText = quotePrefix
+      const start = quotePrefix.length
+      const end = quotePrefix.length
+      setText(initialText)
+      textRef.current = initialText
+      setAllowPost(true)
 
-    if (replyStatus.type !== StatusType.enum.Note) {
+      setTimeout(() => {
+        if (postBoxRef.current) {
+          postBoxRef.current.selectionStart = start
+          postBoxRef.current.selectionEnd = end
+          postBoxRef.current.focus()
+        }
+      }, 0)
       return
     }
-
-    const defaultMessage = getDefaultMessage(profile, replyStatus)
-    if (!defaultMessage) {
-      return
-    }
-
-    const [value, start, end] = defaultMessage
-    setText(value)
-    setAllowPost(true)
-
-    // We need to wait for render to focus and set selection
-    // Using setTimeout as a simple way to wait for next tick after render
-    setTimeout(() => {
-      if (postBoxRef.current) {
-        postBoxRef.current.selectionStart = start
-        postBoxRef.current.selectionEnd = end
-        postBoxRef.current.focus()
-      }
-    }, 0)
-  }, [profile, replyStatus, editStatus])
+  }, [profile, replyStatus, editStatus, quotedStatus])
 
   return (
     <div>
