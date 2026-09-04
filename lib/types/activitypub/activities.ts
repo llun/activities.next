@@ -60,11 +60,20 @@ export type Block = z.infer<typeof Block>
 // Accept Activity
 // ============================================================================
 
+export const FollowOrObjectRef = z.union([
+  Follow,
+  z
+    .object({ id: z.string(), type: z.literal(ENTITY_TYPE_FOLLOW) })
+    .passthrough(),
+  z.string()
+])
+export type FollowOrObjectRef = z.infer<typeof FollowOrObjectRef>
+
 export const Accept = z.object({
   id: z.string(),
   actor: z.string(),
   type: z.literal('Accept'),
-  object: Follow
+  object: FollowOrObjectRef
 })
 
 export type Accept = z.infer<typeof Accept>
@@ -77,7 +86,7 @@ export const Reject = z.object({
   id: z.string(),
   actor: z.string(),
   type: z.literal('Reject'),
-  object: Follow
+  object: FollowOrObjectRef
 })
 
 export type Reject = z.infer<typeof Reject>

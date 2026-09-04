@@ -213,5 +213,55 @@ describe('Accept follow action', () => {
 
       expect(updatedRequest).toBeTruthy()
     })
+
+    it('handles Accept activity where object is a string URI (Lemmy / PeerTube format)', async () => {
+      const targetActorId = 'https://somewhere.test/actors/request-following'
+      const followRequest = await database.getAcceptedOrRequestedFollow({
+        actorId: ACTOR1_ID,
+        targetActorId
+      })
+      if (!followRequest) fail('Follow request must exist')
+
+      const activity: AcceptFollow = {
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: 'https://somewhere.test/activities/accept-1',
+        type: 'Accept',
+        actor: targetActorId,
+        object: `https://llun.test/${followRequest.id}`
+      }
+      const updatedRequest = await acceptFollowRequest({
+        activity,
+        database
+      })
+
+      expect(updatedRequest).toBeTruthy()
+      expect(updatedRequest?.id).toEqual(followRequest.id)
+      expect(updatedRequest?.status).toEqual(FollowStatus.enum.Accepted)
+    })
+
+    it('resolves follow via recipientActorId fallback when object is an arbitrary URI', async () => {
+      const targetActorId = 'https://somewhere.test/actors/request-following'
+      const followRequest = await database.getAcceptedOrRequestedFollow({
+        actorId: ACTOR1_ID,
+        targetActorId
+      })
+      if (!followRequest) fail('Follow request must exist')
+
+      const activity: AcceptFollow = {
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: 'https://somewhere.test/activities/accept-2',
+        type: 'Accept',
+        actor: targetActorId,
+        object: 'https://somewhere.test/activities/custom-follow-id'
+      }
+      const updatedRequest = await acceptFollowRequest({
+        activity,
+        database,
+        recipientActorId: ACTOR1_ID
+      })
+
+      expect(updatedRequest).toBeTruthy()
+      expect(updatedRequest?.id).toEqual(followRequest.id)
+    })
   })
 })
