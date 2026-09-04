@@ -1,9 +1,11 @@
+import { ExternalLink } from 'lucide-react'
 import { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
 import { getActorEmojiTags } from '@/lib/actions/utils'
+import { getUrl } from '@/lib/activities/note'
 import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
 import { Bio } from '@/lib/components/bio/Bio'
 import { FeaturedTagsBlock } from '@/lib/components/profile/FeaturedTagsBlock'
@@ -196,6 +198,11 @@ const Page: FC<Props> = async ({ params }) => {
   const headerImageUrl = headerImage?.url ?? null
   const headerImageMediaType = headerImage?.mediaType ?? null
   const iconImageUrl = getIconImage()
+  const rawUrl = person.url ? getUrl(person.url) : null
+  const profileUrl =
+    (rawUrl && /^https?:\/\//i.test(rawUrl) ? rawUrl : null) ||
+    (/^https?:\/\//i.test(person.id) ? person.id : null) ||
+    `https://${actorDomain}/@${actorUsername}`
 
   return (
     <div className={cn('space-y-6', isLoggedIn && 'pt-6 sm:pt-8')}>
@@ -221,7 +228,16 @@ const Page: FC<Props> = async ({ params }) => {
                 />
               </h1>
               <p className="truncate text-muted-foreground">
-                @{person.preferredUsername}
+                <a
+                  href={profileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 hover:underline hover:text-foreground"
+                  title="Open profile page"
+                >
+                  <span>@{person.preferredUsername}</span>
+                  <ExternalLink className="size-3.5" />
+                </a>
               </p>
             </div>
             {isCurrentUser ? (
