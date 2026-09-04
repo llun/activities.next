@@ -1,12 +1,14 @@
 /**
  * @vitest-environment jsdom
  */
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  deleteSelectedDeadLetterJobs,
   discardDeadLetterJob,
-  retryDeadLetterJob
+  retryDeadLetterJob,
+  retrySelectedDeadLetterJobs
 } from '@/app/(timeline)/admin/queues/actions'
 import { DeadLetterJob } from '@/lib/types/database/operations'
 
@@ -14,7 +16,9 @@ import { AdminQueuesList } from './AdminQueuesList'
 
 vi.mock('@/app/(timeline)/admin/queues/actions', () => ({
   retryDeadLetterJob: vi.fn().mockResolvedValue({ success: true }),
-  discardDeadLetterJob: vi.fn().mockResolvedValue({ success: true })
+  discardDeadLetterJob: vi.fn().mockResolvedValue({ success: true }),
+  retrySelectedDeadLetterJobs: vi.fn().mockResolvedValue({ success: true }),
+  deleteSelectedDeadLetterJobs: vi.fn().mockResolvedValue({ success: true })
 }))
 
 const sampleJob: DeadLetterJob = {
@@ -66,7 +70,9 @@ describe('AdminQueuesList', () => {
     render(<AdminQueuesList jobs={[sampleJob]} />)
 
     const retryBtn = screen.getByRole('button', { name: /retry/i })
-    fireEvent.click(retryBtn)
+    await act(async () => {
+      fireEvent.click(retryBtn)
+    })
     await vi.waitFor(() => {
       expect(retryDeadLetterJob).toHaveBeenCalledWith('job-123')
     })
@@ -76,9 +82,67 @@ describe('AdminQueuesList', () => {
     render(<AdminQueuesList jobs={[sampleJob]} />)
 
     const discardBtn = screen.getByRole('button', { name: /discard/i })
-    fireEvent.click(discardBtn)
+    await act(async () => {
+      fireEvent.click(discardBtn)
+    })
     await vi.waitFor(() => {
       expect(discardDeadLetterJob).toHaveBeenCalledWith('job-123')
+    })
+  })
+
+  it('selects all jobs and triggers selective retry', async () => {
+    const job2 = { ...sampleJob, id: 'job-456', jobName: 'job2' }
+    render(<AdminQueuesList jobs={[sampleJob, job2]} />)
+
+    const selectAllCheckbox = screen.getByRole('checkbox', {
+      name: /select all jobs/i
+    })
+    await act(async () => {
+      fireEvent.click(selectAllCheckbox)
+    })
+
+    expect(screen.getByText('2 of 2 selected')).toBeDefined()
+
+    const retrySelectedBtn = screen.getByRole('button', {
+      name: /retry selected \(2\)/i
+    })
+    await act(async () => {
+      fireEvent.click(retrySelectedBtn)
+    })
+
+    await vi.waitFor(() => {
+      expect(retrySelectedDeadLetterJobs).toHaveBeenCalledWith([
+        'job-123',
+        'job-456'
+      ])
+    })
+  })
+
+  it('selects single job and triggers selective delete with confirmation', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    render(<AdminQueuesList jobs={[sampleJob]} />)
+
+    const jobCheckbox = screen.getByRole('checkbox', {
+      name: /select job syncProfile/i
+    })
+    await act(async () => {
+      fireEvent.click(jobCheckbox)
+    })
+
+    expect(screen.getByText('1 of 1 selected')).toBeDefined()
+
+    const deleteSelectedBtn = screen.getByRole('button', {
+      name: /delete selected \(1\)/i
+    })
+    await act(async () => {
+      fireEvent.click(deleteSelectedBtn)
+    })
+
+    expect(window.confirm).toHaveBeenCalledWith(
+      'Are you sure you want to delete 1 selected job?'
+    )
+    await vi.waitFor(() => {
+      expect(deleteSelectedDeadLetterJobs).toHaveBeenCalledWith(['job-123'])
     })
   })
 })
