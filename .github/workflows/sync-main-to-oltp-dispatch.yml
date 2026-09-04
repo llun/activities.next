@@ -132,3 +132,13 @@ jobs:
                 main_sha: '${{ steps.check.outputs.head_sha }}',
               },
             })
+
+            await github.rest.repos.createDispatchEvent({
+              owner: 'llun',
+              repo: 'activities.prod',
+              event_type: 'sync-from-activities-next',
+              client_payload: {
+                branch: 'main',
+                main_sha: '${{ steps.check.outputs.head_sha }}',
+              },
+            })
