@@ -1,0 +1,26 @@
+app/(timeline)/[actor]/getProfileData.test.ts
+  h_580a04e334fef4 137-138
+app/(timeline)/[actor]/getProfileData.ts
+  h_580a04e334fef4 333-334
+app/(timeline)/[actor]/page.test.tsx
+  h_580a04e334fef4 260,297-366
+app/(timeline)/[actor]/page.tsx
+  h_580a04e334fef4 302
+lib/services/federation/serverSoftware.ts
+  h_580a04e334fef4 61,64,108-110,146-147,156-157
+lib/utils/formatServerSoftware.test.ts
+  h_580a04e334fef4 52-63
+lib/utils/formatServerSoftware.ts
+  h_580a04e334fef4 1,31-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "409509a1b7594e34b466f0b4df642bd7dc74abf5",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,28 @@
+app/(timeline)/[actor]/getProfileData.test.ts
+  h_580a04e334fef4 8-11,29-30,184-197,485-504
+app/(timeline)/[actor]/getProfileData.ts
+  h_580a04e334fef4 10-14,26,42,163-167,269-277,288-290,333-334
+app/(timeline)/[actor]/page.test.tsx
+  h_580a04e334fef4 224-297
+app/(timeline)/[actor]/page.tsx
+  h_580a04e334fef4 21,146,148,210-213,299-313
+lib/services/federation/serverSoftware.test.ts
+  h_580a04e334fef4 13,69-74,114-119,124-159
+lib/services/federation/serverSoftware.ts
+  h_580a04e334fef4 7-11,13,15,38-42,78,80-81,87,100,122,135,140-150,153-165,172,177-183
+lib/utils/formatServerSoftware.test.ts
+  h_580a04e334fef4 1-52
+lib/utils/formatServerSoftware.ts
+  h_580a04e334fef4 1-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "20d14084e1417271068835674e301c31e5381c43",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
