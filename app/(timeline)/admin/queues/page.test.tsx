@@ -23,7 +23,8 @@ const mockDLQProvider = {
   retryJob: vi.fn(),
   discardJob: vi.fn(),
   retryAll: vi.fn(),
-  clearDiscarded: vi.fn()
+  clearDiscarded: vi.fn(),
+  dropAll: vi.fn()
 }
 
 vi.mock('@/lib/database', () => ({
@@ -75,6 +76,7 @@ describe('/admin/queues page', () => {
     expect(markup).toContain('failed')
     expect(markup).toContain('Attempts: 5')
     expect(markup).toContain('Retry all failed')
+    expect(markup).toContain('Drop all messages')
     expect(markup).toContain('Cloud Tasks (Database DLQ)')
   })
 

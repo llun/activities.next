@@ -120,4 +120,41 @@ export class DatabaseDLQProvider implements DLQProvider {
     const count = await database.deleteDeadLetterJobsByStatus('discarded')
     return { success: true, count }
   }
+
+  async dropAll(): Promise<DLQActionResult> {
+    const database = this.getDatabase()
+    const count = await database.deleteAllDeadLetterJobs()
+    return { success: true, count }
+  }
+
+  async retryJobs(ids: string[]): Promise<DLQActionResult> {
+    const database = this.getDatabase()
+    const queue = getQueue()
+    let retriedCount = 0
+
+    for (const id of ids) {
+      const job = await database.getDeadLetterJobById(id)
+      if (!job) continue
+
+      try {
+        await queue.publish(job.payload)
+        await database.updateDeadLetterJobStatus(id, 'retried')
+        retriedCount++
+      } catch (error) {
+        logger.error({
+          err: error,
+          jobId: id,
+          message: 'Failed to retry dead letter job'
+        })
+      }
+    }
+
+    return { success: true, count: retriedCount }
+  }
+
+  async deleteJobs(ids: string[]): Promise<DLQActionResult> {
+    const database = this.getDatabase()
+    const count = await database.deleteDeadLetterJobs(ids)
+    return { success: true, count }
+  }
 }

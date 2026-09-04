@@ -70,6 +70,10 @@ export class QStashDLQProvider implements DLQProvider {
         }
       })
 
+      allFormatted.sort(
+        (a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id)
+      )
+
       const filteredJobs = isFailedOrAll ? allFormatted : []
       const pagedJobs = filteredJobs.slice(offset, offset + limit)
 
@@ -147,6 +151,55 @@ export class QStashDLQProvider implements DLQProvider {
         message: 'Failed to clear all QStash DLQ jobs'
       })
       return { success: false, error: 'Failed to clear jobs in QStash' }
+    }
+  }
+
+  async dropAll(): Promise<DLQActionResult> {
+    try {
+      const res = await this._client.dlq.delete({ all: true })
+      return { success: true, count: res.deleted ?? 0 }
+    } catch (error) {
+      logger.error({
+        err: error,
+        message: 'Failed to drop all QStash DLQ messages'
+      })
+      return { success: false, error: 'Failed to drop all messages in QStash' }
+    }
+  }
+
+  async retryJobs(ids: string[]): Promise<DLQActionResult> {
+    if (ids.length === 0) return { success: true, count: 0 }
+    try {
+      const res = await this._client.dlq.retry({ dlqIds: ids })
+      return { success: true, count: res.responses?.length ?? 0 }
+    } catch (error) {
+      logger.error({
+        err: error,
+        ids,
+        message: 'Failed to retry selected QStash DLQ jobs'
+      })
+      return {
+        success: false,
+        error: 'Failed to retry selected jobs in QStash'
+      }
+    }
+  }
+
+  async deleteJobs(ids: string[]): Promise<DLQActionResult> {
+    if (ids.length === 0) return { success: true, count: 0 }
+    try {
+      const res = await this._client.dlq.delete({ dlqIds: ids })
+      return { success: true, count: res.deleted ?? 0 }
+    } catch (error) {
+      logger.error({
+        err: error,
+        ids,
+        message: 'Failed to delete selected QStash DLQ jobs'
+      })
+      return {
+        success: false,
+        error: 'Failed to delete selected jobs in QStash'
+      }
     }
   }
 }

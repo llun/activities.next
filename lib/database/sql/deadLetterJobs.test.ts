@@ -112,6 +112,36 @@ describe('DeadLetterJobSQLDatabaseMixin', () => {
     })
   })
 
+  it('retrieves jobs ordered descending by created_at (last fail first)', async () => {
+    await withFreshDatabase(async (database) => {
+      // Insert with slight delay or different timestamps
+      const j1 = await database.createDeadLetterJob({
+        jobName: 'first-fail',
+        payload: samplePayload,
+        errorMessage: 'err1'
+      })
+      // Small pause to guarantee different timestamp if stored in seconds/ms
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      const j2 = await database.createDeadLetterJob({
+        jobName: 'second-fail',
+        payload: samplePayload,
+        errorMessage: 'err2'
+      })
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      const j3 = await database.createDeadLetterJob({
+        jobName: 'third-fail',
+        payload: samplePayload,
+        errorMessage: 'err3'
+      })
+
+      const jobs = await database.getDeadLetterJobs()
+      expect(jobs).toHaveLength(3)
+      expect(jobs[0].id).toBe(j3.id)
+      expect(jobs[1].id).toBe(j2.id)
+      expect(jobs[2].id).toBe(j1.id)
+    })
+  })
+
   it('counts dead letter jobs correctly', async () => {
     await withFreshDatabase(async (database) => {
       await database.createDeadLetterJob({
@@ -218,6 +248,64 @@ describe('DeadLetterJobSQLDatabaseMixin', () => {
       const remaining = await database.getDeadLetterJobs()
       expect(remaining).toHaveLength(1)
       expect(remaining[0].status).toBe('failed')
+    })
+  })
+
+  it('deletes all dead letter jobs with deleteAllDeadLetterJobs', async () => {
+    await withFreshDatabase(async (database) => {
+      await database.createDeadLetterJob({
+        jobName: 'j1',
+        payload: samplePayload,
+        errorMessage: 'err1',
+        status: 'discarded'
+      })
+      await database.createDeadLetterJob({
+        jobName: 'j2',
+        payload: samplePayload,
+        errorMessage: 'err2',
+        status: 'failed'
+      })
+      await database.createDeadLetterJob({
+        jobName: 'j3',
+        payload: samplePayload,
+        errorMessage: 'err3',
+        status: 'retried'
+      })
+
+      const deletedCount = await database.deleteAllDeadLetterJobs()
+      expect(deletedCount).toBe(3)
+
+      const remaining = await database.getDeadLetterJobs()
+      expect(remaining).toHaveLength(0)
+    })
+  })
+
+  it('deletes selected dead letter jobs with deleteDeadLetterJobs', async () => {
+    await withFreshDatabase(async (database) => {
+      const j1 = await database.createDeadLetterJob({
+        jobName: 'j1',
+        payload: samplePayload,
+        errorMessage: 'err1'
+      })
+      const j2 = await database.createDeadLetterJob({
+        jobName: 'j2',
+        payload: samplePayload,
+        errorMessage: 'err2'
+      })
+      const j3 = await database.createDeadLetterJob({
+        jobName: 'j3',
+        payload: samplePayload,
+        errorMessage: 'err3'
+      })
+
+      const deletedCount = await database.deleteDeadLetterJobs([j1.id, j3.id])
+      expect(deletedCount).toBe(2)
+
+      const remaining = await database.getDeadLetterJobs()
+      expect(remaining).toHaveLength(1)
+      expect(remaining[0].id).toBe(j2.id)
+
+      expect(await database.deleteDeadLetterJobs([])).toBe(0)
     })
   })
 })

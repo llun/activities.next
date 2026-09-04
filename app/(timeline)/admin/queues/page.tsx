@@ -134,6 +134,7 @@ const Page = async ({ searchParams }: Props) => {
         </div>
 
         <AdminQueuesToolbar
+          allCount={counts.all}
           failedCount={counts.failed}
           discardedCount={counts.discarded}
         />

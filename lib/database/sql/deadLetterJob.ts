@@ -85,6 +85,7 @@ export const DeadLetterJobSQLDatabaseMixin = (
 
     const rows = await query
       .orderBy('created_at', 'desc')
+      .orderBy('id', 'desc')
       .limit(limit)
       .offset(offset)
 
@@ -132,7 +133,16 @@ export const DeadLetterJobSQLDatabaseMixin = (
     return count > 0
   },
 
+  async deleteDeadLetterJobs(ids: string[]) {
+    if (ids.length === 0) return 0
+    return await database('dead_letter_jobs').whereIn('id', ids).delete()
+  },
+
   async deleteDeadLetterJobsByStatus(status: DeadLetterJobStatus) {
     return await database('dead_letter_jobs').where({ status }).delete()
+  },
+
+  async deleteAllDeadLetterJobs() {
+    return await database('dead_letter_jobs').delete()
   }
 })

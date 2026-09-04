@@ -5,16 +5,21 @@ import { DeadLetterJob } from '@/lib/types/database/operations'
 
 import {
   clearDiscardedJobs,
+  deleteSelectedDeadLetterJobs,
   discardDeadLetterJob,
+  dropAllDeadLetterJobs,
   retryAllDeadLetterJobs,
-  retryDeadLetterJob
+  retryDeadLetterJob,
+  retrySelectedDeadLetterJobs
 } from './actions'
 
 const mockDatabase = {
   getDeadLetterJobById: vi.fn(),
   updateDeadLetterJobStatus: vi.fn(),
   getDeadLetterJobs: vi.fn(),
-  deleteDeadLetterJobsByStatus: vi.fn()
+  deleteDeadLetterJobsByStatus: vi.fn(),
+  deleteAllDeadLetterJobs: vi.fn(),
+  deleteDeadLetterJobs: vi.fn()
 }
 
 const mockQueue = {
@@ -136,6 +141,57 @@ describe('Admin Queues Actions', () => {
       expect(mockDatabase.deleteDeadLetterJobsByStatus).toHaveBeenCalledWith(
         'discarded'
       )
+    })
+  })
+
+  describe('dropAllDeadLetterJobs', () => {
+    it('drops all dead letter jobs', async () => {
+      mockDatabase.deleteAllDeadLetterJobs.mockResolvedValue(10)
+
+      const res = await dropAllDeadLetterJobs()
+      expect(res.success).toBe(true)
+      expect(res.count).toBe(10)
+      expect(mockDatabase.deleteAllDeadLetterJobs).toHaveBeenCalled()
+    })
+  })
+
+  describe('retrySelectedDeadLetterJobs', () => {
+    it('retries selected dead letter jobs in batch', async () => {
+      mockDatabase.getDeadLetterJobById.mockResolvedValue(sampleJob)
+      mockQueue.publish.mockResolvedValue(undefined)
+      mockDatabase.updateDeadLetterJobStatus.mockResolvedValue({})
+
+      const res = await retrySelectedDeadLetterJobs(['j1', 'j2'])
+      expect(res.success).toBe(true)
+      expect(res.count).toBe(2)
+      expect(mockQueue.publish).toHaveBeenCalledTimes(2)
+    })
+
+    it('returns error if no ids provided', async () => {
+      const res = await retrySelectedDeadLetterJobs([])
+      expect(res.success).toBe(false)
+      expect(res.error).toBe('No jobs selected')
+    })
+  })
+
+  describe('deleteSelectedDeadLetterJobs', () => {
+    it('deletes selected dead letter jobs', async () => {
+      mockDatabase.deleteDeadLetterJobs.mockResolvedValue(3)
+
+      const res = await deleteSelectedDeadLetterJobs(['j1', 'j2', 'j3'])
+      expect(res.success).toBe(true)
+      expect(res.count).toBe(3)
+      expect(mockDatabase.deleteDeadLetterJobs).toHaveBeenCalledWith([
+        'j1',
+        'j2',
+        'j3'
+      ])
+    })
+
+    it('returns error if no ids provided', async () => {
+      const res = await deleteSelectedDeadLetterJobs([])
+      expect(res.success).toBe(false)
+      expect(res.error).toBe('No jobs selected')
     })
   })
 })

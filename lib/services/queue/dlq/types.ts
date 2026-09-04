@@ -35,4 +35,7 @@ export interface DLQProvider {
   discardJob(id: string): Promise<DLQActionResult>
   retryAll(): Promise<DLQActionResult>
   clearDiscarded(): Promise<DLQActionResult>
+  dropAll(): Promise<DLQActionResult>
+  retryJobs(ids: string[]): Promise<DLQActionResult>
+  deleteJobs(ids: string[]): Promise<DLQActionResult>
 }
