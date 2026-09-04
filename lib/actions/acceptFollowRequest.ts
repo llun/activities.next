@@ -62,7 +62,10 @@ export const acceptFollowRequest = async ({
         })
       })
 
-    return follow
+    return {
+      ...follow,
+      status: FollowStatus.enum.Undo
+    }
   }
 
   const wasAlreadyAccepted = follow.status === FollowStatus.enum.Accepted

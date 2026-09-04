@@ -291,5 +291,38 @@ describe('Accept follow action', () => {
       expect(result?.status).toEqual(FollowStatus.enum.Accepted)
       expect(sendNotificationAlerts).not.toHaveBeenCalled()
     })
+
+    it('sets follow status to Undo and returns follow with Undo status when actors are blocking', async () => {
+      const targetActorId =
+        'https://somewhere.test/actors/request-following-blocking'
+      const followRequest = await database.createFollow({
+        actorId: ACTOR1_ID,
+        targetActorId,
+        status: FollowStatus.enum.Requested,
+        inbox: 'https://somewhere.test/inbox',
+        sharedInbox: 'https://somewhere.test/inbox'
+      })
+
+      vi.spyOn(database, 'isEitherBlocking').mockResolvedValueOnce(true)
+
+      const activity = MockFollowRequestResponse({
+        actorId: ACTOR1_ID,
+        targetActorId,
+        followResponseStatus: 'Accept',
+        followId: followRequest.id
+      }) as AcceptFollow
+
+      const result = await acceptFollowRequest({
+        activity,
+        database
+      })
+
+      expect(result).toBeTruthy()
+      expect(result?.status).toEqual(FollowStatus.enum.Undo)
+      const updatedFollow = await database.getFollowFromId({
+        followId: followRequest.id
+      })
+      expect(updatedFollow?.status).toEqual(FollowStatus.enum.Undo)
+    })
   })
 })

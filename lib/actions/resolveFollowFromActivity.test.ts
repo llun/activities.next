@@ -59,6 +59,16 @@ describe('resolveFollowFromActivity', () => {
       const candidates = extractFollowIdCandidates(`urn:follow:${uuid}`)
       expect(candidates).toContain(uuid)
     })
+
+    it('caps candidate count to at most 8', () => {
+      const uuids = Array.from(
+        { length: 15 },
+        (_, i) => `01955ffb-46cb-7833-8a3c-${String(i).padStart(12, '0')}`
+      )
+      const uri = `https://activities.local/follows/${uuids.join('/')}`
+      const candidates = extractFollowIdCandidates(uri)
+      expect(candidates.length).toEqual(8)
+    })
   })
 
   describe('extractFollowIdFromUri', () => {
