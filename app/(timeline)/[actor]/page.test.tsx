@@ -49,8 +49,12 @@ vi.mock('./getProfileData', () => ({
   getProfileData: vi.fn()
 }))
 
+const mockActorTimelines = vi.fn()
 vi.mock('./ActorTimelines', () => ({
-  ActorTimelines: () => <div data-testid="actor-timelines" />
+  ActorTimelines: (props: unknown) => {
+    mockActorTimelines(props)
+    return <div data-testid="actor-timelines" />
+  }
 }))
 
 vi.mock('./ProfileHeaderImage', () => ({
@@ -115,6 +119,9 @@ describe('[actor] page header handle link', () => {
     expect(link).toHaveAttribute('target', '_blank')
     expect(link).toHaveAttribute('rel', 'noopener noreferrer')
     expect(link).toHaveAttribute('title', 'Open profile page')
+    expect(mockActorTimelines).toHaveBeenCalledWith(
+      expect.objectContaining({ isInternalAccount: false })
+    )
   })
 
   it('renders handle link for remote user with object url', async () => {
@@ -210,5 +217,8 @@ describe('[actor] page header handle link', () => {
     expect(link).toHaveAttribute('href', 'https://llun.social/@localuser')
     expect(link).toHaveAttribute('target', '_blank')
     expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+    expect(mockActorTimelines).toHaveBeenCalledWith(
+      expect.objectContaining({ isInternalAccount: true })
+    )
   })
 })
