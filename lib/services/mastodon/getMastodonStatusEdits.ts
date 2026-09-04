@@ -71,11 +71,15 @@ export const getMastodonStatusEdits = async (
     // extended fields; fall back to the status's current values for those.
     const sensitive = revision.sensitive ?? status.sensitive ?? false
     const pollOptions = revision.pollOptions ?? currentPollOptions
-    const rawContent = processStatusText(host, {
-      ...status,
-      text: revision.text,
-      summary: revision.summary
-    } as Status)
+    const rawContent = processStatusText(
+      host,
+      {
+        ...status,
+        text: revision.text,
+        summary: revision.summary
+      } as Status,
+      { convertEmojis: false }
+    )
     const fallbackUrl =
       status.quote?.quotedStatusUrl || status.quote?.quotedStatusId
     return {

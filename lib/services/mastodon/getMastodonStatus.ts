@@ -661,7 +661,10 @@ export const getMastodonStatus = async (
     | { state: string; quoted_status: Mastodon.Status | null }
     | { state: string; quoted_status_id: string | null }
     | undefined
-  let statusContent = processStatusText(host, status)
+  // In the Mastodon client API specification, `content` keeps custom emoji as
+  // literal `:shortcode:` tokens within the HTML; clients (e.g. Ivory, Elk)
+  // use `status.emojis` to render them natively and strip <img> tags in posts.
+  let statusContent = processStatusText(host, status, { convertEmojis: false })
   const edge = status.quote
   if (edge) {
     // Resolve the viewer-relative state and the readable quoted status once, then
