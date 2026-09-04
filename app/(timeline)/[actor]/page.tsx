@@ -1,4 +1,4 @@
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, Info } from 'lucide-react'
 import { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -303,7 +303,7 @@ const Page: FC<Props> = async ({ params }) => {
           {formattedSoftware && (
             <div
               className={cn(
-                'text-sm text-muted-foreground break-words',
+                'flex items-center gap-1.5 text-sm text-muted-foreground break-words',
                 statusesCount !== null ||
                   followingCount !== null ||
                   followersCount !== null
@@ -311,7 +311,8 @@ const Page: FC<Props> = async ({ params }) => {
                   : 'mt-5'
               )}
             >
-              {formattedSoftware}
+              <Info className="size-3.5 shrink-0" aria-hidden="true" />
+              <span>{formattedSoftware}</span>
             </div>
           )}
 
