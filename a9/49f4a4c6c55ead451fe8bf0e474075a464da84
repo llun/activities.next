@@ -1,0 +1,14 @@
+lib/activities/getActorPosts.ts
+  h_580a04e334fef4 1-2,56,65,82,185,244,257,280
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "a949f4a4c6c55ead451fe8bf0e474075a464da84",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
