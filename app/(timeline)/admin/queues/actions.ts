@@ -72,7 +72,7 @@ export async function dropAllDeadLetterJobs() {
 
 export async function retrySelectedDeadLetterJobs(ids: string[]) {
   await verifyAdmin()
-  if (!ids || ids.length === 0)
+  if (!Array.isArray(ids) || ids.length === 0)
     return { success: false, error: 'No jobs selected' }
   const provider = getDLQProvider()
   const result = await provider.retryJobs(ids)
@@ -82,7 +82,7 @@ export async function retrySelectedDeadLetterJobs(ids: string[]) {
 
 export async function deleteSelectedDeadLetterJobs(ids: string[]) {
   await verifyAdmin()
-  if (!ids || ids.length === 0)
+  if (!Array.isArray(ids) || ids.length === 0)
     return { success: false, error: 'No jobs selected' }
   const provider = getDLQProvider()
   const result = await provider.deleteJobs(ids)

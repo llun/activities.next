@@ -171,6 +171,10 @@ describe('Admin Queues Actions', () => {
       const res = await retrySelectedDeadLetterJobs([])
       expect(res.success).toBe(false)
       expect(res.error).toBe('No jobs selected')
+
+      const resInvalid = await retrySelectedDeadLetterJobs(null as any)
+      expect(resInvalid.success).toBe(false)
+      expect(resInvalid.error).toBe('No jobs selected')
     })
   })
 
@@ -192,6 +196,12 @@ describe('Admin Queues Actions', () => {
       const res = await deleteSelectedDeadLetterJobs([])
       expect(res.success).toBe(false)
       expect(res.error).toBe('No jobs selected')
+
+      const resInvalid = await deleteSelectedDeadLetterJobs(
+        'not-an-array' as any
+      )
+      expect(resInvalid.success).toBe(false)
+      expect(resInvalid.error).toBe('No jobs selected')
     })
   })
 })

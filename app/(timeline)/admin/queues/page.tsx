@@ -140,7 +140,7 @@ const Page = async ({ searchParams }: Props) => {
         />
       </div>
 
-      <AdminQueuesList jobs={jobs} />
+      <AdminQueuesList key={`${activeStatus ?? 'all'}-${page}`} jobs={jobs} />
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between border-t pt-4">

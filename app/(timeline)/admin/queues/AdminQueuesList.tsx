@@ -124,6 +124,7 @@ export const AdminQueuesList: FC<Props> = ({ jobs }) => {
           <Checkbox
             checked={allSelected}
             onChange={toggleSelectAll}
+            disabled={isPending}
             aria-label="Select all jobs"
           />
           <span className="font-medium text-muted-foreground">
@@ -183,7 +184,8 @@ export const AdminQueuesList: FC<Props> = ({ jobs }) => {
                 <Checkbox
                   checked={selectedIds.has(job.id)}
                   onChange={() => toggleSelect(job.id)}
-                  aria-label={`Select job ${job.jobName}`}
+                  disabled={isPending}
+                  aria-label={`Select job ${job.jobName} (${job.id})`}
                   className="mt-1 shrink-0"
                 />
                 <div className="min-w-0 space-y-1">
