@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { FC } from 'react'
 
+import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { getMentionDomainFromActorID } from '@/lib/types/domain/actor'
 import type { ActorProfile } from '@/lib/types/domain/actor'
@@ -21,14 +22,17 @@ type ActorIdParts = {
   href?: string
 }
 
-const getInitials = (value: string) =>
-  value
+const getInitials = (value: string) => {
+  const clean = value.replaceAll(/:[^\s:]{1,64}:/g, '').trim()
+  return (clean || value)
     .replace(/^@/, '')
-    .split(' ')
+    .split(/\s+/)
     .map((n) => n[0])
+    .filter(Boolean)
     .join('')
     .toUpperCase()
     .slice(0, 2)
+}
 
 const getDisplayUsername = (username: string) =>
   username.replace(/^@+/, '').split('@')[0]
@@ -252,10 +256,12 @@ export const ActorInfo: FC<Props> = ({ actor, actorId, statusUrl }) => {
           prefetch={false}
           className="font-semibold hover:underline truncate"
         >
-          {name}
+          <ActorDisplayName name={name} tags={actor?.tags} />
         </Link>
       ) : (
-        <span className="font-semibold truncate">{name}</span>
+        <span className="font-semibold truncate">
+          <ActorDisplayName name={name} tags={actor?.tags} />
+        </span>
       )}
       <span className="text-muted-foreground truncate">{mutedHandle}</span>
     </div>

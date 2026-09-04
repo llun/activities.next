@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
 import { switchActor } from '@/lib/client'
+import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import {
   DropdownMenu,
@@ -23,6 +24,7 @@ export interface ActorInfo {
   domain: string
   name?: string | null
   iconUrl?: string | null
+  tags?: { type: string; name: string; value: string }[] | null
   deletionStatus?: string | null
   deletionScheduledAt?: number | null
 }
@@ -106,7 +108,9 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
 
   const identity = (
     <div className="flex-1 overflow-hidden">
-      <p className="text-sm font-medium truncate">{displayName}</p>
+      <p className="text-sm font-medium truncate">
+        <ActorDisplayName name={displayName} tags={currentActor.tags} />
+      </p>
       <p className="text-xs text-muted-foreground truncate">
         {getHandle(currentActor)}
       </p>
@@ -183,7 +187,10 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
                   className={`flex-1 overflow-hidden ${reducedOpacity ? 'opacity-60' : ''}`}
                 >
                   <p className="text-sm font-medium truncate">
-                    {actor.name || actor.username}
+                    <ActorDisplayName
+                      name={actor.name || actor.username}
+                      tags={actor.tags}
+                    />
                   </p>
                   <p className="text-xs text-muted-foreground truncate">
                     {isPendingDeletion ? (

@@ -2,6 +2,7 @@ import omit from 'lodash/omit'
 
 import { MockActor } from '@/lib/stub/actor'
 import {
+  ActorProfile,
   getActorProfile,
   getActorURL,
   getMention,
@@ -64,6 +65,38 @@ describe('Actor', () => {
       expect(getMentionFromActorID('https://chat.llun.me/me', true)).toEqual(
         '@me@chat.llun.me'
       )
+    })
+  })
+
+  describe('ActorProfile with emoji tags', () => {
+    it('parses actor profile with emoji tags', () => {
+      const profile = ActorProfile.parse({
+        id: 'https://chat.llun.dev/users/me',
+        username: 'me',
+        domain: 'chat.llun.dev',
+        followersUrl: 'https://chat.llun.dev/users/me/followers',
+        inboxUrl: 'https://chat.llun.dev/users/me/inbox',
+        sharedInboxUrl: 'https://chat.llun.dev/inbox',
+        followingCount: 0,
+        followersCount: 0,
+        statusCount: 0,
+        lastStatusAt: 0,
+        createdAt: Date.now(),
+        tags: [
+          {
+            type: 'emoji',
+            name: ':blobcat:',
+            value: 'https://example.com/emojis/blobcat.png'
+          }
+        ]
+      })
+      expect(profile.tags).toEqual([
+        {
+          type: 'emoji',
+          name: ':blobcat:',
+          value: 'https://example.com/emojis/blobcat.png'
+        }
+      ])
     })
   })
 })

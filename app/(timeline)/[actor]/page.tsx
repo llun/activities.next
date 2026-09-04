@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
+import { getActorEmojiTags } from '@/lib/actions/utils'
+import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
 import { Bio } from '@/lib/components/bio/Bio'
 import { FeaturedTagsBlock } from '@/lib/components/profile/FeaturedTagsBlock'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
@@ -27,8 +29,9 @@ interface Props {
   params: Promise<{ actor: string }>
 }
 
-const getInitials = (name: string, fallback: string) =>
-  (name || fallback)
+const getInitials = (name: string, fallback: string) => {
+  const cleanName = name.replaceAll(/:[^\s:]{1,64}:/g, '').trim()
+  return (cleanName || fallback)
     .trim()
     .split(/\s+/)
     .map((part) => Array.from(part)[0])
@@ -36,6 +39,7 @@ const getInitials = (name: string, fallback: string) =>
     .slice(0, 2)
     .join('')
     .toUpperCase()
+}
 
 export const generateMetadata = async ({
   params
@@ -211,7 +215,10 @@ const Page: FC<Props> = async ({ params }) => {
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div className="min-w-0">
               <h1 className="text-2xl font-semibold break-words">
-                {person.name}
+                <ActorDisplayName
+                  name={person.name}
+                  tags={getActorEmojiTags(person)}
+                />
               </h1>
               <p className="truncate text-muted-foreground">
                 @{person.preferredUsername}

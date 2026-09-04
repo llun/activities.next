@@ -14,6 +14,13 @@ export const ACTOR_TYPES = [
 export const ActorType = z.enum(ACTOR_TYPES)
 export type ActorType = z.infer<typeof ActorType>
 
+export const ActorEmojiTag = z.object({
+  type: z.literal('emoji'),
+  name: z.string(),
+  value: z.string()
+})
+export type ActorEmojiTag = z.infer<typeof ActorEmojiTag>
+
 export const ActorProfile = z.object({
   id: z.string(),
   publicId: z.string().nullable().optional(),
@@ -25,6 +32,7 @@ export const ActorProfile = z.object({
   iconUrl: z.string().optional(),
   headerImageUrl: z.string().optional(),
   manuallyApprovesFollowers: z.boolean().optional(),
+  tags: ActorEmojiTag.array().optional(),
 
   followersUrl: z.string(),
   inboxUrl: z.string(),

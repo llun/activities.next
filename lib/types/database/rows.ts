@@ -15,6 +15,8 @@ export interface ActorSettings {
   // Profile metadata fields (Mastodon update_credentials `fields_attributes`).
   // Stored as plain name/value pairs; URL verification is not performed.
   fields?: { name: string; value: string }[]
+  // Custom emoji tags in display name/bio.
+  tags?: { type: 'emoji'; name: string; value: string }[]
   // Mastodon `bot`/`discoverable` flags. `bot` marks an automated account;
   // `discoverable` opts into discovery features (profile directory). When unset
   // the builder falls back to a sensible default for the actor type.

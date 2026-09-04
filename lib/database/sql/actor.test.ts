@@ -802,6 +802,74 @@ describe('ActorDatabase', () => {
         expect(actor?.source.attribution_domains).toEqual(['blog.example.com'])
       })
 
+      it('serializes custom emojis from actor settings tags', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `emoji-actor-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+        await database.updateActor({
+          actorId,
+          tags: [
+            {
+              type: 'emoji',
+              name: ':blobcat:',
+              value: 'https://example.com/emojis/blobcat.png'
+            }
+          ]
+        })
+
+        const actor = await database.getMastodonActorFromId({ id: actorId })
+        expect(actor?.emojis).toEqual([
+          {
+            shortcode: 'blobcat',
+            url: 'https://example.com/emojis/blobcat.png',
+            static_url: 'https://example.com/emojis/blobcat.png',
+            visible_in_picker: true,
+            category: null
+          }
+        ])
+      })
+
+      it('automatically resolves local custom emoji when display name is updated', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `autoresolve-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+
+        await database.createCustomEmoji({
+          shortcode: 'partyblob',
+          url: 'https://example.com/partyblob.png',
+          staticUrl: 'https://example.com/partyblob.png'
+        })
+
+        await database.updateActor({
+          actorId,
+          name: 'Alice :partyblob:'
+        })
+
+        const actor = await database.getActorFromId({ id: actorId })
+        expect(actor?.tags).toEqual([
+          {
+            type: 'emoji',
+            name: ':partyblob:',
+            value: 'https://example.com/partyblob.png'
+          }
+        ])
+
+        const mastodonActor = await database.getMastodonActorFromId({
+          id: actorId
+        })
+        expect(mastodonActor?.emojis).toEqual([
+          {
+            shortcode: 'partyblob',
+            url: 'https://example.com/partyblob.png',
+            static_url: 'https://example.com/partyblob.png',
+            visible_in_picker: true,
+            category: null
+          }
+        ])
+      })
+
       it('serializes suspended actors with suspended: true and silenced actors with limited: true', async () => {
         await withFreshDatabase(async (database) => {
           const suffix = crypto.randomUUID().slice(0, 8)

@@ -74,6 +74,7 @@ export type CreateActorParams = {
   manuallyApprovesFollowers?: boolean
   // Mastodon profile metadata fields (name/value pairs).
   fields?: { name: string; value: string }[]
+  tags?: { type: 'emoji'; name: string; value: string }[]
 
   inboxUrl: string
   sharedInboxUrl: string
@@ -135,6 +136,7 @@ export type UpdateActorParams = {
   manuallyApprovesFollowers?: boolean
   // Mastodon profile metadata fields (name/value pairs).
   fields?: { name: string; value: string }[]
+  tags?: { type: 'emoji'; name: string; value: string }[]
   // Mastodon `bot`/`discoverable` flags and `source.*` posting defaults.
   bot?: boolean
   discoverable?: boolean

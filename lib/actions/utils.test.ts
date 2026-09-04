@@ -3,7 +3,11 @@ import knex from 'knex'
 import { getSQLDatabase } from '@/lib/database/sql'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 
-import { BlockedFederationDomainError, recordActorIfNeeded } from './utils'
+import {
+  BlockedFederationDomainError,
+  getPersistableProfile,
+  recordActorIfNeeded
+} from './utils'
 
 const mockGetActorPerson = vi.fn()
 const mockGetActorCollectionCounts = vi.fn()
@@ -305,5 +309,76 @@ describe('recordActorIfNeeded', () => {
     } finally {
       await database.destroy()
     }
+  })
+
+  describe('getPersistableProfile', () => {
+    it('extracts custom emoji tags from person.tag', () => {
+      const person = {
+        id: 'https://remote.test/users/alice',
+        type: 'Person' as const,
+        preferredUsername: 'alice',
+        name: 'Alice :blobcat:',
+        inbox: 'https://remote.test/users/alice/inbox',
+        publicKey: {
+          id: 'https://remote.test/users/alice#main-key',
+          owner: 'https://remote.test/users/alice',
+          publicKeyPem: 'KEY'
+        },
+        tag: [
+          {
+            type: 'Emoji' as const,
+            name: ':blobcat:',
+            icon: {
+              type: 'Image' as const,
+              url: 'https://remote.test/emojis/blobcat.png'
+            },
+            updated: '2023-01-01T00:00:00Z'
+          }
+        ]
+      }
+      const profile = getPersistableProfile(person as never)
+      expect(profile.tags).toEqual([
+        {
+          type: 'emoji',
+          name: ':blobcat:',
+          value: 'https://remote.test/emojis/blobcat.png'
+        }
+      ])
+    })
+
+    it('handles single object person.tag or absent tag', () => {
+      const personWithSingleTag = {
+        id: 'https://remote.test/users/alice',
+        type: 'Person' as const,
+        preferredUsername: 'alice',
+        inbox: 'https://remote.test/users/alice/inbox',
+        tag: {
+          type: 'Emoji' as const,
+          name: ':blobcat:',
+          icon: {
+            type: 'Image' as const,
+            url: 'https://remote.test/emojis/blobcat.png'
+          },
+          updated: '2023-01-01T00:00:00Z'
+        }
+      }
+      expect(getPersistableProfile(personWithSingleTag as never).tags).toEqual([
+        {
+          type: 'emoji',
+          name: ':blobcat:',
+          value: 'https://remote.test/emojis/blobcat.png'
+        }
+      ])
+
+      const personWithoutTag = {
+        id: 'https://remote.test/users/bob',
+        type: 'Person' as const,
+        preferredUsername: 'bob',
+        inbox: 'https://remote.test/users/bob/inbox'
+      }
+      expect(
+        getPersistableProfile(personWithoutTag as never).tags
+      ).toBeUndefined()
+    })
   })
 })

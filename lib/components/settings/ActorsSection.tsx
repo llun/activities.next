@@ -6,6 +6,7 @@ import { useState } from 'react'
 
 import { switchActor } from '@/lib/client'
 import { ActorInfo, AddActorDialog } from '@/lib/components/actor-switcher'
+import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -154,7 +155,10 @@ export function ActorsSection({
               <div className="flex-1 overflow-hidden">
                 <div className="flex items-center gap-1.5">
                   <p className="text-sm font-medium truncate">
-                    {selectedActor?.name || selectedActor?.username}
+                    <ActorDisplayName
+                      name={selectedActor?.name || selectedActor?.username}
+                      tags={selectedActor?.tags}
+                    />
                   </p>
                   {selectedActorId === currentActor.id && (
                     <span className="text-xs text-muted-foreground shrink-0">
@@ -207,7 +211,10 @@ export function ActorsSection({
                     className={`flex-1 overflow-hidden ${reducedOpacity ? 'opacity-60' : ''}`}
                   >
                     <p className="text-sm font-medium truncate">
-                      {actor.name || actor.username}
+                      <ActorDisplayName
+                        name={actor.name || actor.username}
+                        tags={actor.tags}
+                      />
                     </p>
                     <p className="text-xs text-muted-foreground truncate">
                       {isPendingDeletion ? (

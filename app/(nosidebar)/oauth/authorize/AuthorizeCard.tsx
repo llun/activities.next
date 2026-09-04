@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { FC, useState } from 'react'
 
 import { switchActor } from '@/lib/client'
+import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -313,7 +314,10 @@ export const AuthorizeCard: FC<Props> = ({
                     </Avatar>
                     <div className="flex-1 overflow-hidden">
                       <p className="text-sm font-medium truncate">
-                        {selectedActor?.name || selectedActor?.username}
+                        <ActorDisplayName
+                          name={selectedActor?.name || selectedActor?.username}
+                          tags={selectedActor?.tags}
+                        />
                       </p>
                       <p className="text-xs text-muted-foreground truncate">
                         {selectedActor && getHandle(selectedActor)}
@@ -338,7 +342,10 @@ export const AuthorizeCard: FC<Props> = ({
                       </Avatar>
                       <div className="flex-1 overflow-hidden">
                         <p className="text-sm font-medium truncate">
-                          {actor.name || actor.username}
+                          <ActorDisplayName
+                            name={actor.name || actor.username}
+                            tags={actor.tags}
+                          />
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
                           {getHandle(actor)}

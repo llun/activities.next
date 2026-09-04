@@ -62,6 +62,37 @@ const syncActorCollectionCounts = async (
   }
 }
 
+export const getActorEmojiTags = (
+  person: ActivityPubActor
+): { type: 'emoji'; name: string; value: string }[] => {
+  if (!person.tag) return []
+  const rawTags = Array.isArray(person.tag) ? person.tag : [person.tag]
+  return rawTags.flatMap((tag) => {
+    if (
+      typeof tag === 'object' &&
+      tag !== null &&
+      'type' in tag &&
+      tag.type === 'Emoji' &&
+      'name' in tag &&
+      typeof tag.name === 'string' &&
+      'icon' in tag &&
+      typeof tag.icon === 'object' &&
+      tag.icon !== null &&
+      'url' in tag.icon &&
+      typeof tag.icon.url === 'string'
+    ) {
+      return [
+        {
+          type: 'emoji' as const,
+          name: tag.name,
+          value: tag.icon.url
+        }
+      ]
+    }
+    return []
+  })
+}
+
 // The remote profile data persisted whenever a remote actor is recorded or
 // refreshed (recordActorIfNeeded here, plus the web profile page), so
 // Mastodon clients see the actor's real display name, bio, images, metadata
@@ -69,6 +100,7 @@ const syncActorCollectionCounts = async (
 export const getPersistableProfile = (person: ActivityPubActor) => {
   const iconUrl = getActorImageUrl(person.icon)
   const headerImageUrl = getActorImageUrl(person.image)
+  const tags = getActorEmojiTags(person)
   return {
     type: person.type,
     ...(person.name ? { name: person.name } : {}),
@@ -81,7 +113,8 @@ export const getPersistableProfile = (person: ActivityPubActor) => {
     followersUrl: person.followers ?? '',
     inboxUrl: person.inbox,
     sharedInboxUrl: person.endpoints?.sharedInbox ?? person.inbox,
-    publicKey: person.publicKey?.publicKeyPem || ''
+    publicKey: person.publicKey?.publicKeyPem || '',
+    ...(tags.length > 0 ? { tags } : {})
   }
 }
 

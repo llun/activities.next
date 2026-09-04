@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { FC } from 'react'
 
+import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
 import { FollowAction } from '@/lib/components/follow-action/follow-action'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
@@ -14,8 +15,9 @@ import {
 } from '@/lib/components/ui/card'
 import { ActorProfile } from '@/lib/types/domain/actor'
 
-const getInitials = (name: string, fallback: string) =>
-  (name || fallback)
+const getInitials = (name: string, fallback: string) => {
+  const cleanName = name.replaceAll(/:[^\s:]{1,64}:/g, '').trim()
+  return (cleanName || fallback)
     .trim()
     .split(/\s+/)
     .map((part) => Array.from(part)[0])
@@ -23,11 +25,12 @@ const getInitials = (name: string, fallback: string) =>
     .slice(0, 2)
     .join('')
     .toUpperCase()
+}
 
 interface AuthorizeInteractionCardProps {
   actor: Pick<
     ActorProfile,
-    'id' | 'username' | 'domain' | 'name' | 'iconUrl' | 'type'
+    'id' | 'username' | 'domain' | 'name' | 'iconUrl' | 'type' | 'tags'
   >
   isSelf: boolean
 }
@@ -63,7 +66,9 @@ export const AuthorizeInteractionCard: FC<AuthorizeInteractionCardProps> = ({
         </Avatar>
         <div className="text-center">
           {actor.name ? (
-            <p className="text-lg font-semibold">{actor.name}</p>
+            <p className="text-lg font-semibold">
+              <ActorDisplayName name={actor.name} tags={actor.tags} />
+            </p>
           ) : null}
           <p className="text-muted-foreground">{handle}</p>
         </div>
