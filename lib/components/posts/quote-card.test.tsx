@@ -49,10 +49,17 @@ describe('QuoteCard', () => {
     render(<QuoteCard quote={quote()} currentTime={CURRENT_TIME} />)
 
     expect(await screen.findByText('the quoted content')).toBeInTheDocument()
-    expect(screen.getByText('Bob')).toBeInTheDocument()
-    expect(screen.getByText('@bob@remote.example')).toBeInTheDocument()
+    const name = screen.getByText('Bob')
+    expect(name).toBeInTheDocument()
+    expect(name).toHaveClass('shrink-0', 'max-w-full', 'truncate')
+
+    const handle = screen.getByText('@bob@remote.example')
+    expect(handle).toBeInTheDocument()
+    expect(handle).toHaveClass('min-w-0', 'flex-1', 'truncate')
+
     const link = screen.getByRole('link')
     expect(link).toHaveAttribute('href', 'https://remote.example/@bob/1')
+    expect(link).toHaveClass('overflow-hidden')
   })
 
   it('shows an unavailable tombstone when the quoted post is not readable', async () => {
