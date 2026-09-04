@@ -254,12 +254,20 @@ describe('[actor] page header handle link', () => {
 
     const softwareElement = screen.getByText('Mastodon/4.3.0')
     expect(softwareElement).toBeInTheDocument()
-    expect(softwareElement).toHaveClass(
+    const container = softwareElement.closest('div')
+    expect(container).toHaveClass(
+      'flex',
+      'items-center',
+      'gap-1.5',
       'text-sm',
       'text-muted-foreground',
       'break-words',
       'mt-3'
     )
+    const icon = container?.querySelector('svg')
+    expect(icon).toBeInTheDocument()
+    expect(icon).toHaveClass('lucide-info', 'size-3.5')
+    expect(icon).toHaveAttribute('aria-hidden', 'true')
   })
 
   it('renders software name without version when version is omitted', async () => {
@@ -294,11 +302,18 @@ describe('[actor] page header handle link', () => {
 
     const softwareElement = screen.getByText('Mastodon')
     expect(softwareElement).toBeInTheDocument()
-    expect(softwareElement).toHaveClass(
+    const container = softwareElement.closest('div')
+    expect(container).toHaveClass(
+      'flex',
+      'items-center',
+      'gap-1.5',
       'text-sm',
       'text-muted-foreground',
       'break-words'
     )
+    const icon = container?.querySelector('svg')
+    expect(icon).toBeInTheDocument()
+    expect(icon).toHaveClass('lucide-info', 'size-3.5')
   })
 
   it('applies mt-5 when all counts are null and software is present', async () => {
@@ -333,7 +348,7 @@ describe('[actor] page header handle link', () => {
 
     const softwareElement = screen.getByText('Mastodon/4.3.0')
     expect(softwareElement).toBeInTheDocument()
-    expect(softwareElement).toHaveClass('mt-5')
+    expect(softwareElement.closest('div')).toHaveClass('mt-5')
   })
 
   it('omits software container when serverSoftware is null', async () => {
