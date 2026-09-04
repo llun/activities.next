@@ -699,6 +699,44 @@ describe('POST /api/users/[username]/inbox', () => {
     expect(mockUndoFollowRequest).toHaveBeenCalled()
   })
 
+  it('dispatches reference-object Undo of Follow without embedded actor to undoFollowRequest and returns 202', async () => {
+    mockUndoFollowRequest.mockResolvedValueOnce(true)
+
+    const response = await POST(
+      new NextRequest('https://activities.local/api/users/llun/inbox', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id: 'https://remote.test/users/alice/activities/undo-ref-obj',
+          type: 'Undo',
+          actor: 'https://remote.test/users/alice',
+          object: {
+            id: 'https://activities.local/follows/1',
+            type: 'Follow'
+          }
+        })
+      }),
+      { params: Promise.resolve({ username: 'llun' }) }
+    )
+
+    expect(response.status).toBe(202)
+    expect(mockUndoFollowRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        database: mockDatabase,
+        request: expect.objectContaining({
+          type: 'Undo',
+          actor: 'https://remote.test/users/alice',
+          object: expect.objectContaining({
+            id: 'https://activities.local/follows/1',
+            actor: 'https://remote.test/users/alice',
+            object: 'https://activities.local/users/llun',
+            type: 'Follow'
+          })
+        })
+      })
+    )
+  })
+
   it('treats partial Undo Like objects as accepted no-ops', async () => {
     const response = await POST(
       new NextRequest('https://activities.local/api/users/llun/inbox', {
@@ -1036,6 +1074,30 @@ describe('POST /api/users/[username]/inbox', () => {
             })
           })
         )
+      }
+    )
+
+    it.each([
+      {
+        type: 'Accept' as const,
+        handler: () => mockAcceptFollowRequest
+      },
+      {
+        type: 'Reject' as const,
+        handler: () => mockRejectFollowRequest
+      }
+    ])(
+      'returns 202 instead of 404 when $type follow is not found',
+      async ({ type, handler }) => {
+        mockHandleQuoteResponse.mockResolvedValue(false)
+        handler().mockResolvedValue(null)
+
+        const response = await POST(
+          quoteResponseRequest(type, 'https://activities.local/follows/1'),
+          { params: Promise.resolve({ username: 'llun' }) }
+        )
+
+        expect(response.status).toBe(202)
       }
     )
 

@@ -2,6 +2,7 @@ import { extractFollowIdCandidates } from '@/lib/actions/resolveFollowFromActivi
 import { UndoFollow } from '@/lib/activities/undoFollow'
 import { Database } from '@/lib/database/types'
 import { FollowStatus } from '@/lib/types/domain/follow'
+import { actorIdsMatch } from '@/lib/utils/activitypub'
 
 interface UndoFollowRequestParams {
   database: Database
@@ -19,12 +20,7 @@ export const undoFollowRequest = async ({
         followId: candidateId
       })
       if (followById) {
-        if (
-          !request.actor ||
-          followById.actorId === request.actor ||
-          followById.actorId.replace(/\/+$/, '') ===
-            request.actor.replace(/\/+$/, '')
-        ) {
+        if (actorIdsMatch(followById.actorId, request.actor)) {
           if (followById.status === FollowStatus.enum.Undo) {
             return true
           }
@@ -41,16 +37,31 @@ export const undoFollowRequest = async ({
   const actorId = request.object.actor
   const targetActorId = request.object.object
 
+  if (!actorIdsMatch(request.actor, actorId)) {
+    return false
+  }
+
+  const strippedActorId = actorId.replace(/\/+$/, '')
+  const strippedTargetActorId = targetActorId.replace(/\/+$/, '')
+
   const follow =
     (await database.getAcceptedOrRequestedFollow({
       actorId,
       targetActorId
     })) ??
     (await database.getAcceptedOrRequestedFollow({
-      actorId: actorId.replace(/\/+$/, ''),
-      targetActorId: targetActorId.replace(/\/+$/, '')
+      actorId: strippedActorId,
+      targetActorId: strippedTargetActorId
+    })) ??
+    (await database.getAcceptedOrRequestedFollow({
+      actorId: `${strippedActorId}/`,
+      targetActorId: `${strippedTargetActorId}/`
     }))
   if (!follow) return false
+
+  if (follow.status === FollowStatus.enum.Undo) {
+    return true
+  }
 
   await database.updateFollowStatus({
     followId: follow.id,

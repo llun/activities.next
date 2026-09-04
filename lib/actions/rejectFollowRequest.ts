@@ -27,5 +27,8 @@ export const rejectFollowRequest = async ({
     followId: follow.id,
     status: FollowStatus.enum.Rejected
   })
-  return follow
+  return {
+    ...follow,
+    status: FollowStatus.enum.Rejected
+  }
 }
