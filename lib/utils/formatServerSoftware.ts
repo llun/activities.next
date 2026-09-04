@@ -20,7 +20,15 @@ const KNOWN_SOFTWARE_NAMES: Record<string, string> = {
   diaspora: 'Diaspora',
   threads: 'Threads',
   'micro.blog': 'Micro.blog',
-  microdotblog: 'Micro.blog'
+  microdotblog: 'Micro.blog',
+  nodebb: 'NodeBB',
+  owncast: 'Owncast',
+  writefreely: 'WriteFreely',
+  funkwhale: 'Funkwhale',
+  castopod: 'Castopod',
+  ghost: 'Ghost',
+  mbin: 'Mbin',
+  kbin: 'Kbin'
 }
 
 export const formatServerSoftware = (software: ServerSoftware): string => {

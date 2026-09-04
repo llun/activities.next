@@ -40,6 +40,8 @@ type ProfileData = {
   isInternalAccount: boolean
   hasFitnessData: boolean
   isPixelfed?: boolean
+  isPeerTube?: boolean
+  isMediaService?: boolean
   serverSoftware?: ServerSoftware | null
   isMediaOnly?: boolean
 }
@@ -163,6 +165,8 @@ export const getProfileData = async (
       isInternalAccount: true,
       hasFitnessData,
       isPixelfed: false,
+      isPeerTube: false,
+      isMediaService: false,
       serverSoftware: {
         name: 'activities.next',
         version: VERSION
@@ -293,7 +297,11 @@ export const getProfileData = async (
     ])
 
   const resolvedStatusesCount =
-    collectionCounts.statusesCount ?? actorPostsResponse.statusesCount ?? null
+    collectionCounts.statusesCount ??
+    actorPostsResponse.statusesCount ??
+    (actorPostsResponse.statuses.length > 0
+      ? actorPostsResponse.statuses.length
+      : null)
 
   // Persist the freshly-fetched collection sizes for known actors so the
   // Mastodon API (which reads the counter rows) serves the same counts this
@@ -319,7 +327,8 @@ export const getProfileData = async (
     serverSoftware?.name === 'pixelfed' || (await isPixelfedActor(person))
   const isPeerTube =
     serverSoftware?.name === 'peertube' || (await isPeerTubeActor(person))
-  const isMediaOnly = Boolean(isPixelfed) || isPeerTube
+  const isMediaService = isPixelfed || isPeerTube
+  const isMediaOnly = isMediaService
 
   return {
     ...actorPostsResponse,
@@ -342,6 +351,8 @@ export const getProfileData = async (
     isInternalAccount: false,
     hasFitnessData: false,
     isPixelfed,
+    isPeerTube,
+    isMediaService,
     isMediaOnly,
     serverSoftware
   }

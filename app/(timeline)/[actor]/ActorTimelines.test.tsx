@@ -421,6 +421,46 @@ describe('ActorTimelines', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('stops trying and removes load more when an empty feed yields no statuses', async () => {
+    const nextPageUrl =
+      'https://remote.example/users/actor/outbox?page=true&max_id=1'
+
+    getActorStatusesMock.mockResolvedValue({
+      statuses: [],
+      statusesCount: 0,
+      nextPageUrl:
+        'https://remote.example/users/actor/outbox?page=true&max_id=2',
+      prevPageUrl: 'https://remote.example/users/actor/outbox?page=true'
+    })
+
+    render(
+      <ActorTimelines
+        host="localhost:3000"
+        actorId="https://remote.example/users/actor"
+        statuses={[]}
+        attachments={[]}
+        currentTime={FIXED_CURRENT_TIME}
+        statusPagination={{
+          nextPageUrl,
+          prevPageUrl: null
+        }}
+      />
+    )
+
+    const loadMoreButton = screen.getByRole('button', { name: 'Load more' })
+    expect(loadMoreButton).toBeInTheDocument()
+
+    fireEvent.click(loadMoreButton)
+
+    await waitForElementToBeRemoved(() =>
+      screen.queryByRole('button', { name: 'Loading...' })
+    )
+
+    expect(
+      screen.queryByRole('button', { name: 'Load more' })
+    ).not.toBeInTheDocument()
+  })
+
   it('renders posts using the currentTime prop, not a freshly computed Date.now()', () => {
     // Regression test for React hydration mismatch (error #418): the relative
     // timestamps in Posts must derive from the server-provided currentTime prop
@@ -840,7 +880,7 @@ describe('ActorTimelines', () => {
       expect(screen.getByTestId('mock-media-gallery')).toBeInTheDocument()
     })
 
-    it('enables load more when isMediaOnly is true', async () => {
+    it('enables load more when isMediaOnly or isMediaService is true', async () => {
       const mockGetActorStatuses = vi.mocked(getActorStatuses)
       const nextPageUrl = 'https://framatube.org/api/page2'
       const newStatus = createStatus('https://framatube.org/videos/watch/2')
@@ -860,7 +900,7 @@ describe('ActorTimelines', () => {
           attachments={[]}
           currentTime={FIXED_CURRENT_TIME}
           currentActor={currentActorProfile}
-          isMediaOnly={true}
+          isMediaService={true}
           statusPagination={{ nextPageUrl, prevPageUrl: null }}
         />
       )
@@ -875,6 +915,47 @@ describe('ActorTimelines', () => {
           actorId: 'https://framatube.org/accounts/framasoft',
           pageUrl: nextPageUrl
         })
+      })
+    })
+
+    it('displays error message when load more fails and allows retrying', async () => {
+      const mockGetActorStatuses = vi.mocked(getActorStatuses)
+      const nextPageUrl = 'https://framatube.org/api/page2'
+
+      mockGetActorStatuses.mockRejectedValueOnce(new Error('Network failure'))
+
+      render(
+        <ActorTimelines
+          host="localhost:3000"
+          actorId="https://framatube.org/accounts/framasoft"
+          statuses={[createStatus('https://framatube.org/videos/watch/1')]}
+          attachments={[]}
+          currentTime={FIXED_CURRENT_TIME}
+          currentActor={currentActorProfile}
+          isMediaService={true}
+          statusPagination={{ nextPageUrl, prevPageUrl: null }}
+        />
+      )
+
+      const loadMoreButton = screen.getByRole('button', { name: 'Load more' })
+      fireEvent.click(loadMoreButton)
+
+      const errorAlert = await screen.findByRole('alert')
+      expect(errorAlert).toHaveTextContent(
+        'Failed to load more posts. Please try again.'
+      )
+
+      mockGetActorStatuses.mockResolvedValueOnce({
+        statuses: [createStatus('https://framatube.org/videos/watch/2')],
+        statusesCount: 2,
+        nextPageUrl: null,
+        prevPageUrl: null
+      })
+
+      fireEvent.click(loadMoreButton)
+
+      await waitFor(() => {
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
       })
     })
   })

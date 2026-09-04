@@ -4,6 +4,7 @@ import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { getNote } from '@/lib/activities'
 import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
 import { compactActivityPub } from '@/lib/activities/jsonld'
+import { BaseNoteSchema, getUrl } from '@/lib/activities/note'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
@@ -90,7 +91,7 @@ const fetchRemoteStatus = async (
   try {
     await database.createNote({
       id: sanitizedNote.id,
-      url: sanitizedNote.url || sanitizedNote.id,
+      url: getUrl(sanitizedNote.url) || sanitizedNote.id,
       actorId: sanitizedNote.attributedTo,
       text: Array.isArray(sanitizedNote.content)
         ? sanitizedNote.content.join('')
@@ -219,7 +220,7 @@ export const fetchRemoteStatusJob = createJobHandle(
           ...forValidation
         } = doc
 
-        const noteResult = Note.safeParse(
+        const noteResult = BaseNoteSchema.safeParse(
           normalizeActivityPubContent(forValidation)
         )
         if (!noteResult.success) return null
@@ -258,7 +259,7 @@ export const fetchRemoteStatusJob = createJobHandle(
         try {
           await database.createNote({
             id: sanitizedReply.id,
-            url: sanitizedReply.url || sanitizedReply.id,
+            url: getUrl(sanitizedReply.url) || sanitizedReply.id,
             actorId: sanitizedReply.attributedTo,
             text: Array.isArray(sanitizedReply.content)
               ? sanitizedReply.content.join('')

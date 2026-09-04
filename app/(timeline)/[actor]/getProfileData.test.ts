@@ -209,6 +209,8 @@ describe('getProfileData', () => {
 
       expect(result).not.toBeNull()
       expect(result?.isInternalAccount).toBe(true)
+      expect(result?.isMediaService).toBe(false)
+      expect(result?.isPeerTube).toBe(false)
       expect(result?.isMediaOnly).toBe(false)
     })
 
@@ -741,6 +743,7 @@ describe('getProfileData', () => {
 
       expect(result).not.toBeNull()
       expect(result?.isPixelfed).toBe(true)
+      expect(result?.isMediaService).toBe(true)
       expect(result?.isMediaOnly).toBe(true)
       expect(result?.attachments).toEqual([mockAttachment])
     })
@@ -799,6 +802,8 @@ describe('getProfileData', () => {
       )
 
       expect(result).not.toBeNull()
+      expect(result?.isPeerTube).toBe(true)
+      expect(result?.isMediaService).toBe(true)
       expect(result?.isMediaOnly).toBe(true)
       expect(result?.attachments).toEqual([mockAttachment])
     })

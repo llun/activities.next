@@ -11,6 +11,8 @@ import {
   getServerSoftware,
   getServerSoftwareCacheSizeForTests,
   getServerSoftwareInfo,
+  isMediaOnlyActor,
+  isMediaOnlyDomain,
   isMisskeyActor,
   isMisskeyDomain,
   isPeerTubeActor,
@@ -471,5 +473,115 @@ describe('serverSoftware', () => {
     })
 
     expect(await isMisskeyDomain(mastodonDomain)).toBe(false)
+  })
+
+  it('detects PeerTube instances correctly with isPeerTubeDomain and isPeerTubeActor', async () => {
+    const peertubeDomain = 'framatube.org'
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `https://${peertubeDomain}/.well-known/nodeinfo`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            links: [
+              {
+                rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
+                href: `https://${peertubeDomain}/nodeinfo/2.0`
+              }
+            ]
+          })
+        }
+      }
+      if (req.url === `https://${peertubeDomain}/nodeinfo/2.0`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            software: {
+              name: 'peertube',
+              version: '6.0.0'
+            }
+          })
+        }
+      }
+      return { status: 404, body: 'Not Found' }
+    })
+
+    expect(await isPeerTubeDomain(peertubeDomain)).toBe(true)
+    const person = MockActivityPubPerson({
+      id: `https://${peertubeDomain}/accounts/framasoft`
+    }) as Actor
+    expect(await isPeerTubeActor(person)).toBe(true)
+    expect(await isMediaOnlyDomain(peertubeDomain)).toBe(true)
+    expect(await isMediaOnlyActor(person)).toBe(true)
+  })
+
+  it('detects Pixelfed instances as media-only with isMediaOnlyDomain and isMediaOnlyActor', async () => {
+    const pixelfedDomain = 'pixelfed.social'
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `https://${pixelfedDomain}/.well-known/nodeinfo`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            links: [
+              {
+                rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
+                href: `https://${pixelfedDomain}/nodeinfo/2.0`
+              }
+            ]
+          })
+        }
+      }
+      if (req.url === `https://${pixelfedDomain}/nodeinfo/2.0`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            software: {
+              name: 'pixelfed',
+              version: '0.12.9'
+            }
+          })
+        }
+      }
+      return { status: 404, body: 'Not Found' }
+    })
+
+    expect(await isMediaOnlyDomain(pixelfedDomain)).toBe(true)
+    const person = MockActivityPubPerson({
+      id: `https://${pixelfedDomain}/users/gargron`
+    }) as Actor
+    expect(await isMediaOnlyActor(person)).toBe(true)
+  })
+
+  it('returns false for general microblogging platforms in isMediaOnlyDomain', async () => {
+    const mastodonDomain = 'mastodon.social'
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `https://${mastodonDomain}/.well-known/nodeinfo`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            links: [
+              {
+                rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
+                href: `https://${mastodonDomain}/nodeinfo/2.0`
+              }
+            ]
+          })
+        }
+      }
+      if (req.url === `https://${mastodonDomain}/nodeinfo/2.0`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            software: {
+              name: 'mastodon',
+              version: '4.3.0'
+            }
+          })
+        }
+      }
+      return { status: 404, body: 'Not Found' }
+    })
+
+    expect(await isPeerTubeDomain(mastodonDomain)).toBe(false)
+    expect(await isMediaOnlyDomain(mastodonDomain)).toBe(false)
   })
 })

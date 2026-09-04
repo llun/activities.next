@@ -9,8 +9,8 @@ export const CollectionWithFirstPage = z.object({
   type: CollectionType,
   first: z.object({
     type: CollectionPageType,
-    next: z.string(),
-    partOf: z.string(),
+    next: z.string().optional(),
+    partOf: z.string().optional(),
     items: z.union([z.any(), z.array(z.any())])
   })
 })

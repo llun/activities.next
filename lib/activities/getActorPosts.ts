@@ -26,6 +26,10 @@ import {
   getActorProfileFromPerson,
   isOpaqueActorUsername
 } from '@/lib/utils/activitypubActor'
+import {
+  ACTIVITY_STREAM_PUBLIC,
+  ACTIVITY_STREAM_PUBLIC_COMPACT
+} from '@/lib/utils/activitystream'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
@@ -57,7 +61,7 @@ const getStatusFromNote = (note: BaseNote) => {
     return status
   } catch (error) {
     logger.error({
-      message: 'Fail to convert note to status',
+      message: 'Failed to build status from note',
       err: toLoggableError(error)
     })
     return null
@@ -124,115 +128,139 @@ export const getActorPosts: GetActorPostsFunction = async ({
         }
       }
 
-      const items = value.page?.orderedItems ?? []
+      const rawItems = value.page?.orderedItems
+      const items = Array.isArray(rawItems) ? rawItems : []
       const statuses = await Promise.all(
         items.map(async (item) => {
-          // This should be impossible for status api
-          if (typeof item === 'string') return null
+          try {
+            // This should be impossible for status api
+            if (typeof item === 'string') return null
 
-          // Canonicalise the activity (and any embedded object) via JSON-LD
-          // compaction before validating, so dialect variations in `type`,
-          // recipients and id references collapse to a predictable shape.
-          const activity = await compactActivityPub(item)
+            // Canonicalise the activity (and any embedded object) via JSON-LD
+            // compaction before validating, so dialect variations in `type`,
+            // recipients and id references collapse to a predictable shape.
+            const activity = await compactActivityPub(item)
 
-          if (activity.type === AnnounceAction) {
-            const announceResult = Announce.safeParse(
-              normalizeActivityPubAnnounce(activity)
-            )
-            if (!announceResult.success) return null
+            if (activity.type === AnnounceAction) {
+              const announceResult = Announce.safeParse(
+                normalizeActivityPubAnnounce(activity)
+              )
+              if (!announceResult.success) return null
 
-            const announce = announceResult.data
-            const localStatus = await database.getStatus({
-              statusId: announce.object
-            })
-
-            let originalStatus =
-              localStatus?.type !== StatusType.enum.Announce
-                ? localStatus
-                : null
-
-            if (!originalStatus) {
-              const note = await getNote({
-                statusId: announce.object,
-                signingActor
+              const announce = announceResult.data
+              const localStatus = await database.getStatus({
+                statusId: announce.object
               })
-              if (!note || !isSameActivityPubOrigin(announce.object, note.id)) {
+
+              let originalStatus =
+                localStatus?.type !== StatusType.enum.Announce
+                  ? localStatus
+                  : null
+
+              if (originalStatus) {
+                const isPublic =
+                  originalStatus.to.includes(ACTIVITY_STREAM_PUBLIC) ||
+                  originalStatus.cc.includes(ACTIVITY_STREAM_PUBLIC) ||
+                  originalStatus.to.includes(ACTIVITY_STREAM_PUBLIC_COMPACT) ||
+                  originalStatus.cc.includes(ACTIVITY_STREAM_PUBLIC_COMPACT)
+                if (!isPublic) return null
+              }
+
+              if (!originalStatus) {
+                const note = await getNote({
+                  statusId: announce.object,
+                  signingActor
+                })
+                if (
+                  !note ||
+                  !isSameActivityPubOrigin(announce.object, note.id)
+                ) {
+                  return null
+                }
+
+                const noteResult = BaseNoteSchema.safeParse(
+                  normalizeActivityPubContent(note)
+                )
+                if (!noteResult.success) return null
+
+                originalStatus = getStatusFromNote(noteResult.data)
+                if (!originalStatus) return null
+              }
+
+              const originalStatusWithActor = {
+                ...originalStatus,
+                actor: await getActorProfile(originalStatus.actorId)
+              }
+              const announceStatus = fromAnnounce(
+                announce,
+                originalStatusWithActor
+              )
+              if (actor) announceStatus.actor = actor
+              return announceStatus
+            }
+
+            // Unsupported activity
+            if (activity.type !== CreateAction) return null
+            // Unsupported Object
+            if (!activity.object) return null
+
+            let rawObject: unknown = activity.object
+            if (typeof rawObject === 'string') {
+              if (!isSameActivityPubOrigin(person.id, rawObject)) {
                 return null
               }
 
-              const noteResult = BaseNoteSchema.safeParse(
-                normalizeActivityPubContent(note)
-              )
-              if (!noteResult.success) return null
-
-              originalStatus = getStatusFromNote(noteResult.data)
-              if (!originalStatus) return null
-            }
-
-            const originalStatusWithActor = {
-              ...originalStatus,
-              actor: await getActorProfile(originalStatus.actorId)
-            }
-            const announceStatus = fromAnnounce(
-              announce,
-              originalStatusWithActor
-            )
-            if (actor) announceStatus.actor = actor
-            return announceStatus
-          }
-
-          // Unsupported activity
-          if (activity.type !== CreateAction) return null
-          // Unsupported Object
-          if (!activity.object) return null
-
-          let rawObject: unknown = activity.object
-          if (typeof rawObject === 'string') {
-            if (!isSameActivityPubOrigin(person.id, rawObject)) {
-              return null
-            }
-
-            const localStatus = await database.getStatus({
-              statusId: rawObject
-            })
-            if (localStatus && localStatus.type !== StatusType.enum.Announce) {
-              if (localStatus.actorId === person.id) {
-                if (actor) localStatus.actor = actor
-                return localStatus
+              const localStatus = await database.getStatus({
+                statusId: rawObject
+              })
+              if (
+                localStatus &&
+                localStatus.type !== StatusType.enum.Announce
+              ) {
+                if (localStatus.actorId === person.id) {
+                  if (actor) localStatus.actor = actor
+                  return localStatus
+                }
+                return null
               }
-              return null
+              const fetchedNote = await getNote({
+                statusId: rawObject,
+                signingActor
+              })
+              if (
+                !fetchedNote ||
+                !isSameActivityPubOrigin(rawObject, fetchedNote.id)
+              ) {
+                return null
+              }
+              rawObject = fetchedNote
             }
-            const fetchedNote = await getNote({
-              statusId: rawObject,
-              signingActor
-            })
+
+            if (!rawObject || typeof rawObject !== 'object') return null
+            const noteResult = BaseNoteSchema.safeParse(
+              normalizeActivityPubContent(rawObject as Record<string, unknown>)
+            )
+            if (!noteResult.success) return null
+
+            const status = getStatusFromNote(noteResult.data)
+            if (!status) return null
+
             if (
-              !fetchedNote ||
-              !isSameActivityPubOrigin(rawObject, fetchedNote.id)
+              status.actorId !== person.id &&
+              !isSameActivityPubOrigin(person.id, status.actorId)
             ) {
               return null
             }
-            rawObject = fetchedNote
-          }
 
-          if (!rawObject || typeof rawObject !== 'object') return null
-          const noteResult = BaseNoteSchema.safeParse(
-            normalizeActivityPubContent(rawObject as Record<string, unknown>)
-          )
-          if (!noteResult.success) return null
-
-          const status = getStatusFromNote(noteResult.data)
-          if (!status) return null
-
-          if (
-            status.actorId !== person.id &&
-            !isSameActivityPubOrigin(person.id, status.actorId)
-          ) {
+            if (actor) status.actor = actor
+            return status
+          } catch (error) {
+            logger.warn({
+              message: 'Failed to parse outbox activity item',
+              err: toLoggableError(error)
+            })
             return null
           }
-
-          if (actor) status.actor = actor
-          return status
         })
       )
 

@@ -15,7 +15,7 @@ import {
 } from '@/lib/components/ui/tabs'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
-import { Attachment } from '@/lib/types/domain/attachment'
+import { Attachment, isVisualAttachment } from '@/lib/types/domain/attachment'
 import {
   Status,
   StatusNote,
@@ -52,6 +52,7 @@ interface Props {
   hasFitnessData?: boolean
   isMediaUploadEnabled?: boolean
   isPixelfed?: boolean
+  isMediaService?: boolean
   isInternalAccount?: boolean
   isMediaOnly?: boolean
 }
@@ -132,10 +133,11 @@ export const ActorTimelines: FC<Props> = ({
   hasFitnessData = false,
   isMediaUploadEnabled,
   isPixelfed = false,
+  isMediaService = false,
   isInternalAccount = true,
-  isMediaOnly = false
+  isMediaOnly: isMediaOnlyProp = false
 }) => {
-  const isMediaView = isPixelfed || isMediaOnly
+  const isMediaOnly = Boolean(isPixelfed || isMediaService || isMediaOnlyProp)
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
   const [currentStatusPagination, setCurrentStatusPagination] = useState({
     nextPageUrl: statusPagination?.nextPageUrl ?? null,
@@ -144,6 +146,8 @@ export const ActorTimelines: FC<Props> = ({
   const [isLoadingMoreStatuses, setLoadingMoreStatuses] =
     useState<boolean>(false)
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null)
+  const [requireManualLoadMore, setRequireManualLoadMore] =
+    useState<boolean>(false)
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const isLoadingRef = useRef<boolean>(false)
 
@@ -152,9 +156,11 @@ export const ActorTimelines: FC<Props> = ({
   const showRepliesTab = Boolean(isInternalAccount)
 
   const mediaAttachments = useMemo(() => {
-    const statusAttachments = currentStatuses.flatMap((status) =>
-      status.type === StatusType.enum.Note ? status.attachments : []
-    )
+    const statusAttachments = currentStatuses
+      .flatMap((status) =>
+        status.type === StatusType.enum.Note ? status.attachments : []
+      )
+      .filter(isVisualAttachment)
     if (attachments.length === 0) {
       return statusAttachments
     }
@@ -166,6 +172,12 @@ export const ActorTimelines: FC<Props> = ({
   }, [attachments, currentStatuses])
 
   const hasMedia = mediaAttachments.length > 0
+
+  const hasLoadedMedia =
+    attachments.length > 0 ||
+    currentStatuses.some(
+      (s) => s.type === StatusType.enum.Note && s.attachments.length > 0
+    )
 
   const availableTabs = useMemo(() => {
     const tabs: ProfileTab[] = ['posts']
@@ -182,15 +194,15 @@ export const ActorTimelines: FC<Props> = ({
   }, [showRepliesTab, hasMedia, showFitnessTab])
 
   const [activeTab, setActiveTab] = useState<ProfileTab>(
-    isMediaView ? 'media' : 'posts'
+    isMediaOnly ? 'media' : 'posts'
   )
 
   const effectiveActiveTab = useMemo(() => {
     if (availableTabs.includes(activeTab)) {
       return activeTab
     }
-    return availableTabs[0] ?? 'posts'
-  }, [activeTab, availableTabs])
+    return 'posts'
+  }, [availableTabs, activeTab])
 
   const postStatuses = useMemo(
     () => currentStatuses.filter((status) => !isReply(status)),
@@ -207,11 +219,11 @@ export const ActorTimelines: FC<Props> = ({
 
   // The outbox cursor feeds the post/reply/fitness feeds (all derived from the
   // loaded status list), so the standalone load more control is offered on
-  // those tabs. For Pixelfed profiles, the media grid is the status feed, so it
+  // those tabs. For media-only profiles, the media grid is the status feed, so it
   // also paginates via this outbox cursor.
   const canLoadMore =
     Boolean(currentStatusPagination.nextPageUrl) &&
-    (isMediaView
+    (isMediaOnly
       ? activeTab === 'media'
       : effectiveActiveTab === 'posts' ||
         (showRepliesTab && effectiveActiveTab === 'replies') ||
@@ -337,8 +349,22 @@ export const ActorTimelines: FC<Props> = ({
         }
       }
 
+      const isCompletelyEmpty =
+        nextStatuses.length === 0 &&
+        currentStatuses.length === 0 &&
+        mediaAttachments.length === 0
+
+      if (
+        nextStatuses.length === 0 &&
+        (currentStatuses.length > 0 || mediaAttachments.length > 0)
+      ) {
+        setRequireManualLoadMore(true)
+      } else {
+        setRequireManualLoadMore(false)
+      }
+
       setCurrentStatusPagination({
-        nextPageUrl: pageUrl,
+        nextPageUrl: isCompletelyEmpty ? null : pageUrl,
         prevPageUrl
       })
       if (nextStatuses.length > 0) {
@@ -355,13 +381,24 @@ export const ActorTimelines: FC<Props> = ({
   }, [
     actorId,
     currentStatusPagination.nextPageUrl,
-    currentStatusPagination.prevPageUrl
+    currentStatusPagination.prevPageUrl,
+    currentStatuses.length,
+    mediaAttachments.length
   ])
+
+  const handleManualLoadMore = useCallback(() => {
+    setRequireManualLoadMore(false)
+    loadMoreStatuses()
+  }, [loadMoreStatuses])
 
   useEffect(() => {
     const loadMoreElement = loadMoreRef.current
     if (!loadMoreElement) return
     if (typeof IntersectionObserver === 'undefined') return
+    if (loadMoreError) return
+    if (requireManualLoadMore) return
+    // Don't auto-trigger infinite scroll on an empty feed — let the user click "Load more"
+    if (currentStatuses.length === 0 && mediaAttachments.length === 0) return
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -381,7 +418,14 @@ export const ActorTimelines: FC<Props> = ({
     return () => {
       observer.disconnect()
     }
-  }, [loadMoreStatuses, canLoadMore])
+  }, [
+    loadMoreStatuses,
+    canLoadMore,
+    loadMoreError,
+    requireManualLoadMore,
+    currentStatuses.length,
+    mediaAttachments.length
+  ])
 
   const renderFeed = (feedStatuses: Status[], emptyMessage: string) =>
     feedStatuses.length > 0 ? (
@@ -405,13 +449,10 @@ export const ActorTimelines: FC<Props> = ({
       <EmptyState>{emptyMessage}</EmptyState>
     )
 
-  if (isMediaView) {
+  if (isMediaOnly) {
     return (
       <div className="space-y-4">
-        {attachments.length > 0 ||
-        currentStatuses.some(
-          (s) => s.type === StatusType.enum.Note && s.attachments.length > 0
-        ) ? (
+        {hasLoadedMedia ? (
           <ActorMediaGallery
             actorId={actorId}
             initialAttachments={attachments}
@@ -433,7 +474,7 @@ export const ActorTimelines: FC<Props> = ({
             <Button
               variant="outline"
               disabled={isLoadingMoreStatuses}
-              onClick={loadMoreStatuses}
+              onClick={handleManualLoadMore}
             >
               {isLoadingMoreStatuses ? 'Loading...' : 'Load more'}
             </Button>
@@ -458,7 +499,7 @@ export const ActorTimelines: FC<Props> = ({
             <Button
               variant="outline"
               disabled={isLoadingMoreStatuses}
-              onClick={loadMoreStatuses}
+              onClick={handleManualLoadMore}
             >
               {isLoadingMoreStatuses ? 'Loading...' : 'Load more'}
             </Button>
@@ -544,7 +585,7 @@ export const ActorTimelines: FC<Props> = ({
           <Button
             variant="outline"
             disabled={isLoadingMoreStatuses}
-            onClick={loadMoreStatuses}
+            onClick={handleManualLoadMore}
           >
             {isLoadingMoreStatuses ? 'Loading...' : 'Load more'}
           </Button>
