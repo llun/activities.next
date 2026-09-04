@@ -150,7 +150,11 @@ export const createPollFromUserInput = async ({
       )
     ])
 
-    await persistEmojiTagsForStatus({ database, statusId, text })
+    await persistEmojiTagsForStatus({
+      database,
+      statusId,
+      text: [text, summary ?? '', ...choices]
+    })
 
     const status = await database.getStatus({ statusId, withReplies: false })
     if (!status) {

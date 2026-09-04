@@ -6,6 +6,7 @@ import {
   getInitials
 } from '@/app/(timeline)/notifications/notificationConfig'
 import type { NotificationWithStatus } from '@/app/(timeline)/notifications/types'
+import { CustomEmojiText } from '@/lib/components/actors/ActorDisplayName'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { cn } from '@/lib/utils'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
@@ -51,7 +52,7 @@ export const StatusNotification: FC<Props> = ({
           prefetch={false}
           className="truncate text-[13px] font-semibold hover:underline"
         >
-          {groupedName}
+          <CustomEmojiText text={groupedName} emojis={account.emojis} />
         </Link>
       </div>
       <div

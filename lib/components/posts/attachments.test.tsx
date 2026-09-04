@@ -1290,4 +1290,70 @@ describe('Attachments', () => {
 
     expect(parentOnClick).not.toHaveBeenCalled()
   })
+
+  it('renders custom emoji images in single-image alt text', () => {
+    const status = {
+      ...buildNoteStatus([
+        buildAttachment({
+          width: 800,
+          height: 600,
+          name: 'A photo with :blobcat: emoji'
+        })
+      ]),
+      tags: [
+        {
+          id: 'tag-1',
+          statusId: 'status-1',
+          type: 'emoji' as const,
+          name: ':blobcat:',
+          value: 'https://example.com/blobcat.png',
+          createdAt: 0,
+          updatedAt: 0
+        }
+      ]
+    }
+
+    render(<Attachments status={status} onMediaSelected={vi.fn()} />)
+
+    const img = screen.getByRole('img', { name: ':blobcat:' })
+    expect(img).toBeInTheDocument()
+    expect(img).toHaveAttribute('src', 'https://example.com/blobcat.png')
+    expect(screen.getByText(/A photo with/)).toBeInTheDocument()
+  })
+
+  it('renders custom emoji images in multi-image alt text drawer', () => {
+    const status = {
+      ...buildNoteStatus([
+        buildAttachment({
+          id: 'att-1',
+          width: 800,
+          height: 600,
+          name: 'First :blobcat:'
+        }),
+        buildAttachment({
+          id: 'att-2',
+          width: 800,
+          height: 600,
+          name: 'Second :blobcat:'
+        })
+      ]),
+      tags: [
+        {
+          id: 'tag-1',
+          statusId: 'status-1',
+          type: 'emoji' as const,
+          name: ':blobcat:',
+          value: 'https://example.com/blobcat.png',
+          createdAt: 0,
+          updatedAt: 0
+        }
+      ]
+    }
+
+    render(<Attachments status={status} onMediaSelected={vi.fn()} />)
+
+    const imgs = screen.getAllByRole('img', { name: ':blobcat:' })
+    expect(imgs.length).toBeGreaterThanOrEqual(1)
+    expect(imgs[0]).toHaveAttribute('src', 'https://example.com/blobcat.png')
+  })
 })

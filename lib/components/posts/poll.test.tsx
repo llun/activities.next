@@ -203,4 +203,43 @@ describe('Poll', () => {
     expect(screen.getByText('0%')).toBeInTheDocument()
     expect(screen.getByText(/1 vote/)).toBeInTheDocument()
   })
+
+  it('renders custom emoji images in poll choices', () => {
+    const statusWithEmoji: StatusPoll = {
+      ...pollStatus,
+      tags: [
+        {
+          id: 'tag-1',
+          statusId: pollStatus.id,
+          type: 'emoji',
+          name: ':blobcat:',
+          value: 'https://example.com/blobcat.png',
+          createdAt: currentTime,
+          updatedAt: currentTime
+        }
+      ],
+      choices: [
+        {
+          statusId: pollStatus.id,
+          title: 'Option :blobcat:',
+          totalVotes: 0,
+          createdAt: currentTime,
+          updatedAt: currentTime
+        }
+      ]
+    }
+
+    render(
+      <Poll
+        status={statusWithEmoji}
+        currentTime={currentTime}
+        currentActorId="https://activities.local/actors/llun"
+      />
+    )
+
+    const img = screen.getByRole('img', { name: ':blobcat:' })
+    expect(img).toBeInTheDocument()
+    expect(img).toHaveAttribute('src', 'https://example.com/blobcat.png')
+    expect(screen.getByText(/Option/)).toBeInTheDocument()
+  })
 })

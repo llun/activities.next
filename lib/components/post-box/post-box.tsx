@@ -28,6 +28,7 @@ import {
   uploadFitnessFile
 } from '@/lib/client'
 import { useInstanceLimits } from '@/lib/components/instance-limits'
+import { ContentWarning } from '@/lib/components/posts/content-warning'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import { Duration } from '@/lib/services/statuses/pollDurations'
@@ -391,8 +392,9 @@ export const PostBox: FC<Props> = ({
   // convertEmojisToImages pipeline the rendered Post uses. The synthetic ids are
   // preview-only and never persisted.
   const buildSyntheticEmojiTags = useCallback(
-    (value: string): Tag[] =>
-      getEmojiTags(value, customEmojis).map((emojiTag, index) => ({
+    (value: string | string[]): Tag[] => {
+      const textToScan = Array.isArray(value) ? value.join(' ') : value
+      return getEmojiTags(textToScan, customEmojis).map((emojiTag, index) => ({
         id: `preview-${index}`,
         statusId: 'preview',
         type: 'emoji' as const,
@@ -400,7 +402,8 @@ export const PostBox: FC<Props> = ({
         value: emojiTag.value,
         createdAt: 0,
         updatedAt: 0
-      })),
+      }))
+    },
     [customEmojis]
   )
 
@@ -1058,7 +1061,31 @@ export const PostBox: FC<Props> = ({
                 <div className="mb-2 flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                   <Eye className="size-3" /> Preview
                 </div>
-                {text ? (
+                {postExtension.contentWarningVisible &&
+                postExtension.contentWarning ? (
+                  <ContentWarning
+                    summary={postExtension.contentWarning}
+                    tags={buildSyntheticEmojiTags([
+                      text,
+                      postExtension.contentWarning
+                    ])}
+                    defaultOpen
+                  >
+                    <div className="markdown-content max-w-none text-sm">
+                      {cleanClassName(
+                        processStatusTextContent(
+                          host,
+                          text,
+                          buildSyntheticEmojiTags([
+                            text,
+                            postExtension.contentWarning
+                          ]),
+                          true
+                        )
+                      )}
+                    </div>
+                  </ContentWarning>
+                ) : text ? (
                   <div className="markdown-content max-w-none text-sm">
                     {cleanClassName(
                       processStatusTextContent(

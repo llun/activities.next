@@ -3,6 +3,7 @@
 import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { CSSProperties, FC, MouseEvent, useId, useMemo, useState } from 'react'
 
+import { CustomEmojiText } from '@/lib/components/actors/ActorDisplayName'
 import {
   Attachment,
   isAudibleAttachment,
@@ -286,7 +287,7 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
               onClick={(e) => e.stopPropagation()}
               className="mt-1.5 text-sm leading-relaxed text-muted-foreground break-words select-text"
             >
-              {altText}
+              <CustomEmojiText text={altText} tags={status.tags} />
             </p>
           ) : null}
         </div>
@@ -451,7 +452,9 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
                       <sup className="shrink-0 pt-0.5 text-xs font-semibold select-none">
                         {entry.indices.join(' ')}
                       </sup>
-                      <span className="break-words">{entry.text}</span>
+                      <span className="break-words">
+                        <CustomEmojiText text={entry.text} tags={status.tags} />
+                      </span>
                     </div>
                   ))}
                 </div>

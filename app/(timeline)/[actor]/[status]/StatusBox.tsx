@@ -15,6 +15,7 @@ import {
   StatusType,
   getOriginalStatus
 } from '@/lib/types/domain/status'
+import { Tag } from '@/lib/types/domain/tag'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 import type { PublicMapProvider } from '@/lib/utils/mapProvider'
 
@@ -48,6 +49,7 @@ export const StatusBox: FC<Props> = ({
   const router = useRouter()
   const [modalMedias, setModalMedias] = useState<{
     medias: Attachment[]
+    tags?: Tag[]
     initialSelection: number
   } | null>(null)
   // Reply/quote/edit share the same inline composer used by every feed so the
@@ -74,11 +76,16 @@ export const StatusBox: FC<Props> = ({
           replies={replies}
           isMediaUploadEnabled={isMediaUploadEnabled}
           onShowAttachment={(allMedias, index) => {
-            setModalMedias({ medias: allMedias, initialSelection: index })
+            setModalMedias({
+              medias: allMedias,
+              tags: actualStatus.tags,
+              initialSelection: index
+            })
           }}
         />
         <MediasModal
           medias={modalMedias?.medias ?? null}
+          tags={modalMedias?.tags ?? null}
           initialSelection={modalMedias?.initialSelection ?? 0}
           onClosed={() => setModalMedias(null)}
         />
@@ -125,7 +132,11 @@ export const StatusBox: FC<Props> = ({
           }
           onOpenStatus={variant === 'comment' ? openStatus : undefined}
           onShowAttachment={(allMedias, index) => {
-            setModalMedias({ medias: allMedias, initialSelection: index })
+            setModalMedias({
+              medias: allMedias,
+              tags: actualStatus.tags,
+              initialSelection: index
+            })
           }}
         />
         {variant === 'detail' && currentActor && (
@@ -150,6 +161,7 @@ export const StatusBox: FC<Props> = ({
       </article>
       <MediasModal
         medias={modalMedias?.medias ?? null}
+        tags={modalMedias?.tags ?? null}
         initialSelection={modalMedias?.initialSelection ?? 0}
         onClosed={() => setModalMedias(null)}
       />

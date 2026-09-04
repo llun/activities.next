@@ -3,7 +3,7 @@
  */
 import { render, screen } from '@testing-library/react'
 
-import { ActorDisplayName } from './ActorDisplayName'
+import { ActorDisplayName, CustomEmojiText } from './ActorDisplayName'
 
 describe('ActorDisplayName', () => {
   it('renders null when name is not provided', () => {
@@ -113,5 +113,24 @@ describe('ActorDisplayName', () => {
       />
     )
     expect(container.querySelector('.custom-title-class')).not.toBeNull()
+  })
+
+  it('supports text prop via CustomEmojiText export', () => {
+    render(
+      <CustomEmojiText
+        text="Content Warning :blobcat:"
+        tags={[
+          {
+            type: 'emoji',
+            name: ':blobcat:',
+            value: 'https://example.com/blobcat.png'
+          }
+        ]}
+      />
+    )
+    const img = screen.getByRole('img', { name: ':blobcat:' })
+    expect(img).toBeDefined()
+    expect(img.getAttribute('src')).toBe('https://example.com/blobcat.png')
+    expect(screen.getByText(/Content Warning/)).toBeDefined()
   })
 })
