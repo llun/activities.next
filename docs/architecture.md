@@ -230,7 +230,7 @@ Long-running operations (sending activities to remote servers, processing file u
 - **Google Cloud Tasks** — Managed HTTP-based task queue with OIDC verification and dead-letter queue support
 - **Synchronous** — Jobs execute inline (default, suitable for small instances and local development)
 
-Both external queue clients (`@upstash/qstash` and `@google-cloud/tasks`) and the PostgreSQL driver (`pg`) are isolated into dedicated Yarn workspaces under `packages/` (`@activities/qstash`, `@activities/cloudtasks`, `@activities/pg`). They are loaded on demand via dynamic imports (`dynamicImport`), preventing optional SDKs from being unconditionally bundled into the minimal standalone application.
+External queue clients (`@upstash/qstash` and `@google-cloud/tasks`) and the PostgreSQL driver (`pg`) are isolated into dedicated Yarn workspaces under `packages/` (`@activities/qstash`, `@activities/cloudtasks`, `@activities/pg`). They are loaded on demand dynamically (via `dynamicImport` with type stubs for queue clients, or Knex dynamic driver loading for PostgreSQL), preventing optional SDKs from being unconditionally bundled into the minimal standalone application.
 
 #### Queues & Dead Letter Queue (DLQ) Management
 
