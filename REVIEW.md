@@ -401,6 +401,14 @@ change doesn't touch.
 - `(timeline)` pages use `PageHeader` from `@/lib/components/page-header` and share
   the single `max-w-content` (940px) width. No reintroduced `max-w-2xl`/`max-w-4xl`
   split, `contentWidth` prop, or `data-layout-width="wide"`.
+- Route loading skeletons (`loading.tsx`) in `(timeline)` reuse `PageHeader` from
+  `@/lib/components/page-header` directly with `.skeleton` placeholders (title
+  `h-7`, description `h-4`, action button vertically centered via
+  `.shrink-0.self-center` in `actions`) so the header height (79px) and action
+  placement match the hydrated page with 0px shift. Look at Timeline, Favorites,
+  and Messages skeletons as reference. Skeletons must not hand-roll sticky
+  headers or misalign panel metrics (e.g. double borders from `divide-y`,
+  truncated 2-line conversation items, or wrong button heights).
 - Settings-style sections (settings, fitness, admin) use the shared
   `SectionNavDropdown` on every breakpoint — no re-inlined dropdown markup and no
   desktop vertical icon rail. Sentence-case labels ("Blocked accounts").
