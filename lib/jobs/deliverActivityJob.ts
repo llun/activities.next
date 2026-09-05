@@ -8,8 +8,11 @@ import {
   classifyDeliveryError
 } from '@/lib/services/federation/deliveryError'
 import { JobHandle } from '@/lib/services/queue/type'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
+import { UNFOLLOW_NETWORK_ERROR_CODES } from '@/lib/utils/response'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { createJobHandle } from './createJobHandle'
 import { DELIVER_ACTIVITY_JOB_NAME } from './names'
@@ -108,6 +111,37 @@ export const deliverActivityJob: JobHandle = createJobHandle(
     } catch (error) {
       if (error instanceof SalvageableDeliveryError) {
         throw error
+      }
+
+      const nodeError = error as NodeJS.ErrnoException | null | undefined
+      if (
+        nodeError?.code &&
+        UNFOLLOW_NETWORK_ERROR_CODES.includes(nodeError.code)
+      ) {
+        try {
+          const follows = await database.getLocalFollowsFromInboxUrl({
+            followerInboxUrl: inbox,
+            targetActorId: actor.id
+          })
+          await Promise.all(
+            follows.map((follow) =>
+              database.updateFollowStatus({
+                followId: follow.id,
+                status: FollowStatus.enum.Rejected
+              })
+            )
+          )
+          span?.addEvent('delivery_follower_unfollowed', {
+            'delivery.inbox': inbox,
+            'delivery.unfollowed_count': follows.length,
+            'error.code': nodeError.code
+          })
+        } catch (unfollowError) {
+          logger.warn(
+            { inbox, err: toLoggableError(unfollowError) },
+            'DeliverActivityJob: failed to reject follow for failing inbox'
+          )
+        }
       }
 
       const classification = classifyDeliveryError({ error })

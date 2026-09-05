@@ -21,7 +21,9 @@ vi.mock('@/lib/activities/activityPubHeaders', () => ({
 describe('deliverActivityJob', () => {
   let harness: ReturnType<typeof setupRecordingTracer>
   const mockDatabase = {
-    getActorFromId: vi.fn()
+    getActorFromId: vi.fn(),
+    getLocalFollowsFromInboxUrl: vi.fn(),
+    updateFollowStatus: vi.fn()
   } as unknown as Database
 
   beforeEach(() => {
@@ -195,5 +197,47 @@ describe('deliverActivityJob', () => {
     expect(span).toBeDefined()
     const eventNames = span?.events.map((e) => e.name)
     expect(eventNames).toContain('delivery_unsalvageable_discarded')
+  })
+
+  it('rejects local follow when delivery fails with UNFOLLOW_NETWORK_ERROR_CODES', async () => {
+    const err = new Error('Self signed certificate') as NodeJS.ErrnoException
+    err.code = 'DEPTH_ZERO_SELF_SIGNED_CERT'
+    vi.mocked(request).mockRejectedValue(err)
+    vi.mocked(mockDatabase.getLocalFollowsFromInboxUrl).mockResolvedValue([
+      { id: 'follow-1' } as any
+    ])
+    vi.mocked(mockDatabase.updateFollowStatus).mockResolvedValue(
+      undefined as any
+    )
+
+    const message = {
+      id: 'msg-unfollow',
+      name: 'DeliverActivityJob',
+      data: {
+        inbox: 'https://bad-cert.example/inbox',
+        actorId: 'https://activities.local/users/alice',
+        activity: { type: 'Create', id: 'https://activities.local/status/1' }
+      }
+    }
+
+    await expect(
+      deliverActivityJob(mockDatabase, message)
+    ).resolves.toBeUndefined()
+
+    expect(mockDatabase.getLocalFollowsFromInboxUrl).toHaveBeenCalledWith({
+      followerInboxUrl: 'https://bad-cert.example/inbox',
+      targetActorId: 'https://activities.local/users/alice'
+    })
+    expect(mockDatabase.updateFollowStatus).toHaveBeenCalledWith({
+      followId: 'follow-1',
+      status: 'Rejected'
+    })
+
+    const span = harness.recordedSpans.find(
+      (s) => s.name === 'job.DeliverActivityJob'
+    )
+    expect(span?.events.map((e) => e.name)).toContain(
+      'delivery_follower_unfollowed'
+    )
   })
 })
