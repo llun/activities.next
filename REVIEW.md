@@ -415,8 +415,8 @@ change doesn't touch.
   - Child routes in section layouts (`settings`, `fitness`, `admin`, `account`)
     must not render sticky breakout headers in skeletons since the layout owns
     the sticky section header; use in-panel section title skeletons instead.
-  - Non-header routes (status permalinks, profile pages) mirror their bespoke card
-    or banner geometry.
+  - Non-header routes (status permalinks, profile pages, tag pages) mirror their
+    bespoke card, banner, or title geometry.
   - Content panel skeletons must mirror real component metrics (no double borders
     from `divide-y`, correct card heights and button sizes).
 - Settings-style sections (settings, fitness, admin) use the shared
