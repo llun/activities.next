@@ -7,6 +7,7 @@ import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
+import { FollowStatus } from '@/lib/types/domain/follow'
 
 enableFetchMocks()
 
@@ -238,7 +239,7 @@ describe('sendNoteJob', () => {
       targetActorId: actor1.id,
       inbox: 'https://friend2.test/inbox/user2',
       sharedInbox: 'https://friend2.test/inbox',
-      status: 'Accepted' as any
+      status: FollowStatus.enum.Accepted
     })
 
     await database.createFollow({
@@ -246,7 +247,7 @@ describe('sendNoteJob', () => {
       targetActorId: actor1.id,
       inbox: 'https://friend3.test/inbox/user3',
       sharedInbox: 'https://friend3.test/inbox',
-      status: 'Accepted' as any
+      status: FollowStatus.enum.Accepted
     })
 
     hoisted.failInbox = 'https://friend3.test/inbox'

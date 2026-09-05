@@ -1,6 +1,7 @@
 #!/usr/bin/env -S node scripts/run.cjs
 import { loadEnvConfig } from '@next/env'
 
+import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { startDatabaseQueueRunner } from '@/lib/services/queue/databaseRunner'
 
@@ -14,9 +15,9 @@ async function runQueueWorker() {
     process.exit(1)
   }
 
-  const pollIntervalMs = process.env.ACTIVITIES_QUEUE_DATABASE_POLL_INTERVAL_MS
-    ? parseInt(process.env.ACTIVITIES_QUEUE_DATABASE_POLL_INTERVAL_MS, 10)
-    : 1000
+  const config = getConfig()
+  const pollIntervalMs =
+    config.queue?.type === 'database' ? config.queue.pollIntervalMs : 1000
 
   console.log(
     `Starting database queue worker (poll interval: ${pollIntervalMs}ms)...`

@@ -6,6 +6,7 @@ import { NextRequest } from 'next/server'
 import { Config, getConfig } from '@/lib/config'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getQueue } from '@/lib/services/queue'
+import { JobMessage } from '@/lib/services/queue/type'
 import { dynamicImport } from '@/lib/utils/dynamicImport'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -67,8 +68,7 @@ export const POST = traceApiRoute(
         { body: jsonBody, retriedCount },
         'Received message from qstash'
       )
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await getQueue().handle(jsonBody as any)
+      await getQueue().handle(jsonBody as JobMessage)
     } catch (e) {
       const span = trace.getActiveSpan()
       const err = toLoggableError(e)
