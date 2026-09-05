@@ -1,27 +1,15 @@
-import { CSSProperties, FC } from 'react'
+import { FC } from 'react'
 
-const breakoutStyle: CSSProperties = {
-  marginLeft: 'calc(-50vw + 50% + var(--sidebar-w, 0px) / 2)',
-  marginRight: 'calc(-50vw + 50% + var(--sidebar-w, 0px) / 2)'
-}
+import { PageHeader } from '@/lib/components/page-header'
 
 export const TimelineLoading: FC = () => {
   return (
     <div aria-busy="true" aria-label="Loading timeline" className="space-y-6">
-      <div
-        className="sticky top-0 z-20 border-b bg-background/85 backdrop-blur"
-        style={breakoutStyle}
-      >
-        <div className="mx-auto max-w-content px-4 py-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-1">
-              <div className="skeleton h-6 w-24 rounded-md" />
-              <div className="skeleton h-3.5 w-48 rounded" />
-            </div>
-            <div className="skeleton size-9 shrink-0 rounded-md" />
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title={<span className="skeleton block h-7 w-24 rounded-md" />}
+        description={<span className="skeleton block h-4 w-48 rounded" />}
+        actions={<div className="skeleton size-9 rounded-md" />}
+      />
 
       <section
         aria-label="Post composer"
