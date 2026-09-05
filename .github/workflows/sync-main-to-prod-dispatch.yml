@@ -11,7 +11,6 @@ on:
 
 permissions:
   actions: read
-  contents: write
 
 concurrency:
   group: queue-main-to-prod-${{ github.event.workflow_run.head_sha }}
@@ -125,9 +124,9 @@ jobs:
           github-token: ${{ secrets.PAT_TOKEN }}
           script: |
             await github.rest.repos.createDispatchEvent({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              event_type: 'sync-main-to-prod',
+              owner: 'llun',
+              repo: 'activities.prod',
+              event_type: 'sync-upstream',
               client_payload: {
                 main_sha: '${{ steps.check.outputs.head_sha }}',
               },
