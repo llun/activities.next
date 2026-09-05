@@ -1,0 +1,14 @@
+Dockerfile
+  h_580a04e334fef4 6,31,36,54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "c49e58f084c6328a1f610e86cb1814da58893e6e",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
