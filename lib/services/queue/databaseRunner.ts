@@ -14,6 +14,7 @@ export interface ProcessDueQueueJobsOptions {
   now?: Date
   handleJob?: (message: JobMessage) => Promise<void>
   backoffOptions?: BackoffOptions
+  stalledTimeoutMs?: number
 }
 
 export interface QueueRunnerOptions extends ProcessDueQueueJobsOptions {
@@ -29,14 +30,24 @@ export const processDueQueueJobs = async (
     limit = 50,
     now = new Date(),
     handleJob = defaultJobHandle('database'),
-    backoffOptions
+    backoffOptions,
+    stalledTimeoutMs = 15 * 60 * 1000
   } = options
 
-  const dueJobs = await database.getDueQueueJobs({ limit, now })
+  const stalledBefore =
+    typeof stalledTimeoutMs === 'number' && stalledTimeoutMs > 0
+      ? new Date(now.getTime() - stalledTimeoutMs)
+      : undefined
+
+  const dueJobs = await database.getDueQueueJobs({
+    limit,
+    now,
+    stalledTimeoutMs
+  })
   let processedCount = 0
 
   for (const job of dueJobs) {
-    const claimed = await database.claimQueueJob(job.id)
+    const claimed = await database.claimQueueJob(job.id, stalledBefore)
     if (!claimed) {
       // Another worker/runner already claimed this job
       continue
@@ -155,7 +166,8 @@ export const startDatabaseQueueRunner = (
     pollIntervalMs = 1000,
     batchSize = 10,
     handleJob,
-    backoffOptions
+    backoffOptions,
+    stalledTimeoutMs
   } = options
 
   let running = true
@@ -168,7 +180,8 @@ export const startDatabaseQueueRunner = (
       const processed = await processDueQueueJobs(database, {
         limit: batchSize,
         handleJob,
-        backoffOptions
+        backoffOptions,
+        stalledTimeoutMs
       })
       // If we processed a batch that filled the limit, tick sooner to drain backlog
       const nextDelay = processed >= batchSize ? 50 : pollIntervalMs

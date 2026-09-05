@@ -170,4 +170,41 @@ describe('databaseRunner', () => {
     await new Promise((resolve) => setTimeout(resolve, 100))
     expect(callCount).toBe(countAfterStop)
   })
+
+  it('reclaims and processes orphaned jobs stuck in processing status past stalled timeout', async () => {
+    const now = Date.now()
+
+    await database.createQueueJob({
+      id: 'job-stalled-runner-1',
+      name: 'deliverActivity',
+      payload: sampleMessage,
+      status: 'processing'
+    })
+
+    // Backdate updated_at to simulate a worker that crashed 20 minutes ago
+    await knexDatabase('queue_jobs')
+      .where({ id: 'job-stalled-runner-1' })
+      .update({
+        status: 'processing',
+        updated_at: new Date(now - 20 * 60 * 1000)
+      })
+
+    const executed: string[] = []
+    const handleJob = async (message: JobMessage) => {
+      executed.push(message.id)
+    }
+
+    const processed = await processDueQueueJobs(database, {
+      limit: 10,
+      now: new Date(now),
+      handleJob,
+      stalledTimeoutMs: 15 * 60 * 1000
+    })
+
+    expect(processed).toBe(1)
+    expect(executed).toContain('test-runner-msg-1')
+
+    const job = await database.getQueueJobById('job-stalled-runner-1')
+    expect(job?.status).toBe('completed')
+  })
 })
