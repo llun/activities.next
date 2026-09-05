@@ -36,8 +36,14 @@ const nextConfig: NextConfig = {
   // which "node_modules/sharp/**" also covers) into the trace. The Dockerfile
   // re-copies these as a guaranteed fallback in case hoisting or glob matching
   // ever changes.
+  // Similarly, @google-cloud/tasks dynamically loads protos/protos.json and
+  // client configs via json-helper.cjs which @vercel/nft misses.
   outputFileTracingIncludes: {
-    '/**/*': ['./node_modules/sharp/**/*', './node_modules/@img/**/*']
+    '/**/*': [
+      './node_modules/sharp/**/*',
+      './node_modules/@img/**/*',
+      './node_modules/@google-cloud/tasks/**/*'
+    ]
   },
   assetPrefix: '/activities',
   allowedDevOrigins:
