@@ -1,5 +1,7 @@
 import { Metadata } from 'next'
 
+import { MainPageTimeline } from '@/app/(timeline)/MainPageTimeline'
+import { Landing } from '@/app/(timeline)/landing/Landing'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -15,9 +17,6 @@ import { Status } from '@/lib/types/domain/status'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { logger } from '@/lib/utils/logger'
-
-import { MainPageTimeline } from './MainPageTimeline'
-import { Landing } from './landing/Landing'
 
 // Number of recent public posts previewed in the logged-out landing feed.
 const LANDING_FEED_LIMIT = 20
