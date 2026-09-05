@@ -4,10 +4,8 @@ import { memoize } from 'lodash'
 import { NextRequest } from 'next/server'
 
 import { Config, getConfig } from '@/lib/config'
-import { getDatabase } from '@/lib/database'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getQueue } from '@/lib/services/queue'
-import { JobMessage } from '@/lib/services/queue/type'
 import { dynamicImport } from '@/lib/utils/dynamicImport'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -86,37 +84,12 @@ export const POST = traceApiRoute(
           retriedCount,
           message: 'Failed to process qstash message, returning 500 for retry'
         })
-        return apiResponse({
-          req: request,
-          allowedMethods: [HttpMethod.enum.POST],
-          data: {
-            error: err.message,
-            stack: err.stack ?? null
-          },
-          responseStatusCode: 500
-        })
-      }
-
-      logger.error({
-        err,
-        retriedCount,
-        message: 'QStash job failed terminally, capturing in dead letter queue'
-      })
-
-      const database = getDatabase()
-      if (
-        database &&
-        jsonBody &&
-        typeof jsonBody === 'object' &&
-        'name' in jsonBody
-      ) {
-        await database.createDeadLetterJob({
-          jobName: String((jsonBody as { name: unknown }).name),
-          payload: jsonBody as JobMessage,
-          errorMessage: err.message || 'Job execution failed terminally',
-          errorStack: err.stack ?? null,
-          attempts: retriedCount + 1,
-          status: 'failed'
+      } else {
+        logger.error({
+          err,
+          retriedCount,
+          message:
+            'QStash job failed terminally, returning 500 for native DLQ capture'
         })
       }
 
@@ -124,10 +97,10 @@ export const POST = traceApiRoute(
         req: request,
         allowedMethods: [HttpMethod.enum.POST],
         data: {
-          error:
-            err.message || 'Job execution failed terminally (captured in DLQ)'
+          error: err.message,
+          stack: err.stack ?? null
         },
-        responseStatusCode: 200
+        responseStatusCode: 500
       })
     }
 

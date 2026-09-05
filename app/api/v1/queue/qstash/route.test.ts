@@ -4,7 +4,6 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getConfig } from '@/lib/config'
-import { getDatabase } from '@/lib/database'
 import { getQueue } from '@/lib/services/queue'
 import { setupRecordingTracer } from '@/lib/testing/recordingTracer'
 
@@ -18,7 +17,6 @@ const MockReceiver = vi.fn().mockImplementation(function (this: unknown) {
 })
 
 vi.mock('@/lib/config')
-vi.mock('@/lib/database')
 vi.mock('@/lib/services/queue')
 vi.mock('@upstash/qstash', () => ({
   Receiver: MockReceiver
@@ -27,7 +25,6 @@ vi.mock('@upstash/qstash', () => ({
 describe('POST /api/v1/queue/qstash', () => {
   let harness: ReturnType<typeof setupRecordingTracer>
   const mockHandle = vi.fn()
-  const mockCreateDeadLetterJob = vi.fn()
 
   beforeEach(() => {
     harness = setupRecordingTracer()
@@ -43,10 +40,6 @@ describe('POST /api/v1/queue/qstash', () => {
         maxRetries: 3
       }
     } as ReturnType<typeof getConfig>)
-
-    vi.mocked(getDatabase).mockReturnValue({
-      createDeadLetterJob: mockCreateDeadLetterJob
-    } as unknown as ReturnType<typeof getDatabase>)
 
     vi.mocked(getQueue).mockReturnValue({
       publish: vi.fn(),
@@ -168,13 +161,11 @@ describe('POST /api/v1/queue/qstash', () => {
 
     const response = await POST(request, { params: Promise.resolve({}) })
     expect(response.status).toBe(500)
-    expect(mockCreateDeadLetterJob).not.toHaveBeenCalled()
   })
 
-  it('returns 200 and captures record in dead_letter_jobs on terminal retry failure', async () => {
+  it('returns 500 on terminal retry failure so QStash captures message to native DLQ', async () => {
     mockVerify.mockResolvedValue(true)
     mockHandle.mockRejectedValue(new Error('Terminal failure'))
-    mockCreateDeadLetterJob.mockResolvedValue({})
 
     const body = { id: 'msg-terminal', name: 'DeliverActivityJob', data: {} }
     const request = new NextRequest(
@@ -190,14 +181,11 @@ describe('POST /api/v1/queue/qstash', () => {
     )
 
     const response = await POST(request, { params: Promise.resolve({}) })
-    expect(response.status).toBe(200)
-    expect(mockCreateDeadLetterJob).toHaveBeenCalledWith(
+    expect(response.status).toBe(500)
+    const json = await response.json()
+    expect(json).toEqual(
       expect.objectContaining({
-        jobName: 'DeliverActivityJob',
-        payload: body,
-        errorMessage: 'Terminal failure',
-        attempts: 4,
-        status: 'failed'
+        error: 'Terminal failure'
       })
     )
   })
