@@ -3,7 +3,7 @@ import knex from 'knex'
 import { noop } from 'lodash'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { Client as PostgresClient } from 'pg'
+import type { Client as PostgresClient } from 'pg'
 
 import { getSQLDatabase } from '@/lib/database/sql'
 import { Database } from '@/lib/database/types'
@@ -129,7 +129,10 @@ const DATABASES: Record<string, GetTestDatabase> = {
         applyPostgresSchema
       ),
       prepare: async () => {
-        const client = new PostgresClient({
+        const { Client: DynamicPostgresClient } = await import('pg')
+        const client = new (
+          DynamicPostgresClient as unknown as typeof PostgresClient
+        )({
           ...TEST_PG_CONNECTION,
           database: 'postgres'
         })
@@ -213,7 +216,10 @@ export const getTestDatabaseWithInstance = (
     ),
     instance,
     prepare: async () => {
-      const client = new PostgresClient({
+      const { Client: DynamicPostgresClient } = await import('pg')
+      const client = new (
+        DynamicPostgresClient as unknown as typeof PostgresClient
+      )({
         ...TEST_PG_CONNECTION,
         database: 'postgres'
       })

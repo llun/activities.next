@@ -1,26 +1,29 @@
 import { SpanStatusCode, trace } from '@opentelemetry/api'
-import { Receiver } from '@upstash/qstash'
+import type { Receiver } from '@upstash/qstash'
 import { memoize } from 'lodash'
 import { NextRequest } from 'next/server'
 
 import { Config, getConfig } from '@/lib/config'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getQueue } from '@/lib/services/queue'
+import { dynamicImport } from '@/lib/utils/dynamicImport'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import { apiErrorResponse, apiResponse } from '@/lib/utils/response'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
-const getReceiver = memoize(
-  (config: Config) =>
-    new Receiver({
-      currentSigningKey:
-        config.queue?.type === 'qstash' ? config.queue.currentSigningKey : '',
-      nextSigningKey:
-        config.queue?.type === 'qstash' ? config.queue.nextSigningKey : ''
-    })
-)
+const getReceiver = memoize(async (config: Config): Promise<Receiver> => {
+  const { Receiver: QStashReceiver } = await dynamicImport<{
+    Receiver: typeof Receiver
+  }>('@upstash/qstash')
+  return new QStashReceiver({
+    currentSigningKey:
+      config.queue?.type === 'qstash' ? config.queue.currentSigningKey : '',
+    nextSigningKey:
+      config.queue?.type === 'qstash' ? config.queue.nextSigningKey : ''
+  })
+})
 
 export const POST = traceApiRoute(
   'processQueueJob',
@@ -30,7 +33,7 @@ export const POST = traceApiRoute(
       return apiErrorResponse(404)
     }
 
-    const receiver = getReceiver(config)
+    const receiver = await getReceiver(config)
     const body = await request.text()
     const signature = request.headers.get('upstash-signature') ?? ''
 

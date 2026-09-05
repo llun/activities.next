@@ -1,7 +1,8 @@
 import { context, propagation } from '@opentelemetry/api'
-import { Client } from '@upstash/qstash'
+import type { Client } from '@upstash/qstash'
 import { z } from 'zod'
 
+import { dynamicImport } from '@/lib/utils/dynamicImport'
 import { withSpan } from '@/lib/utils/trace'
 
 import { defaultJobHandle } from './base'
@@ -24,16 +25,27 @@ export class QStashQueue implements Queue {
   // QStash only enqueues on `publish`; the job runs out of band, not inline.
   readonly runsInline = false
 
-  private _client: Client
+  private _client?: Client
   private _url: string
   private _maxRetries: number
+  private _token: string
 
   constructor(config: QStashConfig) {
     this._url = config.url
     this._maxRetries = config.maxRetries ?? DEFAULT_MAX_JOB_RETRIES
-    this._client = new Client({
-      token: config.token
-    })
+    this._token = config.token
+  }
+
+  private async getClient(): Promise<Client> {
+    if (!this._client) {
+      const { Client: QStashClient } = await dynamicImport<{
+        Client: typeof Client
+      }>('@upstash/qstash')
+      this._client = new QStashClient({
+        token: this._token
+      })
+    }
+    return this._client
   }
 
   async publish(message: JobMessage): Promise<void> {
@@ -41,7 +53,8 @@ export class QStashQueue implements Queue {
       const traceHeaders: Record<string, string> = {}
       propagation.inject(context.active(), traceHeaders)
 
-      await this._client.publishJSON({
+      const client = await this.getClient()
+      await client.publishJSON({
         url: this._url,
         body: message,
         timeout: MAX_JOB_TIMEOUT_SECONDS,

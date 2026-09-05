@@ -28,9 +28,10 @@ WORKDIR /opt/activities.next
 USER app
 
 FROM base AS build
+ARG WORKSPACES="activities.next"
 ADD --chown=app:app . /opt/activities.next/
 RUN yarn config set -H enableGlobalCache true
-RUN yarn install --immutable
+RUN yarn workspaces focus ${WORKSPACES}
 RUN yarn dedupe
 RUN ACTIVITIES_SECRET_PHASE=build-placeholder yarn knex migrate:latest --disable-transactions
 RUN ACTIVITIES_SECRET_PHASE=build-placeholder BUILD_STANDALONE=true yarn build
@@ -48,12 +49,8 @@ COPY --from=build --chown=app:app /opt/activities.next/data.sqlite /opt/activiti
 # the image. Without it the instrumentation hook fails to load and every
 # request 500s. Re-copy the full sharp install so the .node binary and its
 # sibling libvips .so ship together with their original layout intact.
-# Similarly, @google-cloud/tasks dynamically requires protos/protos.json and
-# configuration files via json-helper.cjs which the standalone tracer misses.
-# Re-copy it as a guaranteed fallback.
 COPY --from=build --chown=app:app /opt/activities.next/node_modules/sharp /opt/activities.next/node_modules/sharp
 COPY --from=build --chown=app:app /opt/activities.next/node_modules/@img /opt/activities.next/node_modules/@img
-COPY --from=build --chown=app:app /opt/activities.next/node_modules/@google-cloud/tasks /opt/activities.next/node_modules/@google-cloud/tasks
 RUN rm -rf /opt/activities.next/.yarn
 EXPOSE 3000
 CMD ["node", "server.js"]

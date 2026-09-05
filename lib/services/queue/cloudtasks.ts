@@ -1,7 +1,8 @@
-import { CloudTasksClient, protos } from '@google-cloud/tasks'
+import type { CloudTasksClient, protos } from '@google-cloud/tasks'
 import { context, propagation } from '@opentelemetry/api'
 
 import { CloudTasksConfig } from '@/lib/config/queue'
+import { dynamicImport } from '@/lib/utils/dynamicImport'
 import { withSpan } from '@/lib/utils/trace'
 
 import { defaultJobHandle } from './base'
@@ -18,9 +19,12 @@ export class CloudTasksQueue implements Queue {
     this._client = client
   }
 
-  private getClient(): CloudTasksClient {
+  private async getClient(): Promise<CloudTasksClient> {
     if (!this._client) {
-      this._client = new CloudTasksClient()
+      const { CloudTasksClient: ClientClass } = await dynamicImport<{
+        CloudTasksClient: typeof CloudTasksClient
+      }>('@google-cloud/tasks')
+      this._client = new ClientClass()
     }
     return this._client
   }
@@ -37,7 +41,7 @@ export class CloudTasksQueue implements Queue {
         throw new Error('Cloud Tasks queue name is not configured')
       }
 
-      const client = this.getClient()
+      const client = await this.getClient()
       const project = this._config?.project || (await client.getProjectId())
       const location = this._config?.location || 'europe-west1'
       const parent = client.queuePath(project, location, queue)

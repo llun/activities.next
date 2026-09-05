@@ -1,0 +1,13 @@
+{
+  "name": "@activities/pg",
+  "version": "1.159.0",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1"
+  }
+}

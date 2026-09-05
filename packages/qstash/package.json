@@ -1,0 +1,10 @@
+{
+  "name": "@activities/qstash",
+  "version": "1.159.0",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "@upstash/qstash": "^2.11.3"
+  }
+}
