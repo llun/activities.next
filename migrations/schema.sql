@@ -1009,6 +1009,20 @@ CREATE TABLE public.push_subscriptions (
     "accessToken" text
 );
 
+CREATE TABLE public.queue_jobs (
+    id character varying(255) NOT NULL,
+    name character varying(255) NOT NULL,
+    payload jsonb NOT NULL,
+    attempts integer DEFAULT 0 NOT NULL,
+    max_retries integer DEFAULT 16 NOT NULL,
+    next_run_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    status character varying(32) DEFAULT 'pending'::character varying NOT NULL,
+    last_error_message text,
+    last_error_stack text,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE public.recipients (
     id character varying(255) NOT NULL,
     "statusId" character varying(255),
@@ -1641,6 +1655,9 @@ ALTER TABLE ONLY public.push_subscriptions
 ALTER TABLE ONLY public.push_subscriptions
     ADD CONSTRAINT push_subscriptions_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.queue_jobs
+    ADD CONSTRAINT queue_jobs_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.recipients
     ADD CONSTRAINT recipients_pkey PRIMARY KEY (id);
 
@@ -1903,6 +1920,12 @@ CREATE INDEX poll_answers_statusid_actorid_index ON public.poll_answers USING bt
 CREATE INDEX poll_voters_statusid_index ON public.poll_voters USING btree ("statusId");
 
 CREATE INDEX push_subscriptions_actor_idx ON public.push_subscriptions USING btree ("actorId");
+
+CREATE INDEX queue_jobs_created_at_idx ON public.queue_jobs USING btree (created_at);
+
+CREATE INDEX queue_jobs_name_idx ON public.queue_jobs USING btree (name);
+
+CREATE INDEX queue_jobs_status_next_run_at_idx ON public.queue_jobs USING btree (status, next_run_at);
 
 CREATE INDEX "recipiences_statusId_type_idx" ON public.recipients USING btree ("statusId", type, "createdAt", "updatedAt");
 
