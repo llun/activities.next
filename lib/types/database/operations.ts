@@ -4272,3 +4272,62 @@ export interface DeadLetterJobDatabase {
   deleteDeadLetterJobsByStatus(status: DeadLetterJobStatus): Promise<number>
   deleteAllDeadLetterJobs(): Promise<number>
 }
+
+// ============================================================================
+// Queue Jobs Database (Option B - Transactional Outbox)
+// ============================================================================
+
+export type QueueJobStatus = 'pending' | 'processing' | 'completed' | 'failed'
+
+export interface QueueJob {
+  id: string
+  name: string
+  payload: JobMessage
+  attempts: number
+  maxRetries: number
+  nextRunAt: number
+  status: QueueJobStatus
+  lastErrorMessage?: string | null
+  lastErrorStack?: string | null
+  createdAt: number
+  updatedAt: number
+}
+
+export interface CreateQueueJobParams {
+  id?: string
+  name: string
+  payload: JobMessage
+  attempts?: number
+  maxRetries?: number
+  nextRunAt?: number | Date
+  status?: QueueJobStatus
+  lastErrorMessage?: string | null
+  lastErrorStack?: string | null
+}
+
+export interface GetDueQueueJobsParams {
+  limit?: number
+  now?: Date
+  stalledTimeoutMs?: number
+}
+
+export interface QueueJobDatabase {
+  createQueueJob(params: CreateQueueJobParams): Promise<QueueJob>
+  getDueQueueJobs(params?: GetDueQueueJobsParams): Promise<QueueJob[]>
+  claimQueueJob(id: string, stalledBefore?: Date): Promise<boolean>
+  completeQueueJob(id: string): Promise<boolean>
+  scheduleQueueJobRetry(params: {
+    id: string
+    nextRunAt: Date | number
+    attempts: number
+    error?: Error | unknown
+  }): Promise<boolean>
+  failQueueJob(params: {
+    id: string
+    attempts?: number
+    error?: Error | unknown
+  }): Promise<boolean>
+  getQueueJobById(id: string): Promise<QueueJob | null>
+  deleteQueueJob(id: string): Promise<boolean>
+  countQueueJobs(params?: { status?: QueueJobStatus }): Promise<number>
+}

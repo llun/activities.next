@@ -1,16 +1,17 @@
+import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 
-import { sendNote } from '@/lib/activities'
+import { CreateStatus } from '@/lib/activities/createStatus'
+import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { loadStatusAndActor } from '@/lib/jobs/loadStatusAndActor'
-import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { DELIVER_ACTIVITY_JOB_NAME, SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { getFederatedStatusDeliveryInboxes } from '@/lib/services/federation/statusDelivery'
+import { getQueue } from '@/lib/services/queue'
 import { JobHandle } from '@/lib/services/queue/type'
-import { FollowStatus } from '@/lib/types/domain/follow'
+import { CreateAction } from '@/lib/types/activitypub/activities'
 import { StatusType } from '@/lib/types/domain/status'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
-import { logger } from '@/lib/utils/logger'
-import { UNFOLLOW_NETWORK_ERROR_CODES } from '@/lib/utils/response'
 import { withSpan } from '@/lib/utils/trace'
 
 export const JobData = z.object({
@@ -49,34 +50,83 @@ export const sendNoteJob: JobHandle = createJobHandle(
         status
       })
 
-      await Promise.all(
-        federatedInboxes.map(async (inbox) => {
-          try {
-            await sendNote({
-              currentActor: actor,
-              inbox,
-              note
+      const activity: CreateStatus = {
+        '@context': NOTE_ACTIVITY_CONTEXT,
+        id: note.id,
+        type: CreateAction,
+        actor: note.attributedTo,
+        published: note.published,
+        to: note.to,
+        cc: note.cc,
+        object: note
+      }
+
+      const queue = getQueue()
+
+      span.addEvent('fanout_started', {
+        'fanout.inbox_count': federatedInboxes.length,
+        'fanout.actor_id': actor.id,
+        'fanout.status_id': status.id,
+        'queue.runs_inline': queue.runsInline
+      })
+
+      if (queue.runsInline) {
+        const results = await Promise.allSettled(
+          federatedInboxes.map((inbox) =>
+            queue.publish({
+              id: randomUUID(),
+              name: DELIVER_ACTIVITY_JOB_NAME,
+              data: {
+                inbox,
+                actorId: actor.id,
+                activity: activity as unknown as Record<string, unknown>
+              }
             })
-          } catch (e) {
-            logger.error({ inbox }, `Fail to send note`)
-            const nodeError = e as NodeJS.ErrnoException
-            if (UNFOLLOW_NETWORK_ERROR_CODES.includes(nodeError.code ?? '')) {
-              const follows = await database.getLocalFollowsFromInboxUrl({
-                followerInboxUrl: inbox,
-                targetActorId: actor.id
-              })
-              await Promise.all(
-                follows.map((follow) =>
-                  database.updateFollowStatus({
-                    followId: follow.id,
-                    status: FollowStatus.enum.Rejected
-                  })
-                )
-              )
-            }
+          )
+        )
+
+        let failureCount = 0
+        for (let i = 0; i < results.length; i++) {
+          const result = results[i]
+          if (result.status === 'rejected') {
+            failureCount++
+            const err =
+              result.reason instanceof Error
+                ? result.reason
+                : new Error(String(result.reason))
+            span.addEvent('inbox_delivery_inline_error', {
+              'delivery.inbox': federatedInboxes[i],
+              'error.message': err.message
+            })
           }
+        }
+
+        span.addEvent('fanout_completed', {
+          'fanout.inbox_count': federatedInboxes.length,
+          'fanout.failure_count': failureCount,
+          'queue.runs_inline': true
         })
-      )
+      } else {
+        await Promise.all(
+          federatedInboxes.map((inbox) =>
+            queue.publish({
+              id: randomUUID(),
+              name: DELIVER_ACTIVITY_JOB_NAME,
+              data: {
+                inbox,
+                actorId: actor.id,
+                activity: activity as unknown as Record<string, unknown>
+              }
+            })
+          )
+        )
+
+        span.addEvent('fanout_completed', {
+          'fanout.inbox_count': federatedInboxes.length,
+          'fanout.failure_count': 0,
+          'queue.runs_inline': false
+        })
+      }
     })
   }
 )

@@ -6,6 +6,7 @@ import { NextRequest } from 'next/server'
 import { Config, getConfig } from '@/lib/config'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getQueue } from '@/lib/services/queue'
+import { JobMessage } from '@/lib/services/queue/type'
 import { dynamicImport } from '@/lib/utils/dynamicImport'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -37,31 +38,61 @@ export const POST = traceApiRoute(
     const body = await request.text()
     const signature = request.headers.get('upstash-signature') ?? ''
 
-    try {
-      const isValid = await receiver.verify({
-        body,
-        signature,
-        url: `https://${headerHost(request.headers)}/api/v1/queue/qstash`
-      })
-      if (!isValid) {
-        return apiErrorResponse(400)
-      }
+    const isValid = await receiver.verify({
+      body,
+      signature,
+      url: `https://${headerHost(request.headers)}/api/v1/queue/qstash`
+    })
+    if (!isValid) {
+      return apiErrorResponse(400)
+    }
 
-      const jsonBody = JSON.parse(body)
-      logger.debug({ body: jsonBody }, 'Received message from qstash')
-      await getQueue().handle(jsonBody)
+    let jsonBody: unknown
+    try {
+      jsonBody = JSON.parse(body)
+    } catch {
+      return apiResponse({
+        req: request,
+        allowedMethods: [HttpMethod.enum.POST],
+        data: { error: 'Invalid JSON payload' },
+        responseStatusCode: 400
+      })
+    }
+
+    const retriedHeader = request.headers.get('upstash-retried')
+    const retriedCount = retriedHeader ? parseInt(retriedHeader, 10) : 0
+    const maxRetries = config.queue.maxRetries ?? 3
+
+    try {
+      logger.debug(
+        { body: jsonBody, retriedCount },
+        'Received message from qstash'
+      )
+      await getQueue().handle(jsonBody as JobMessage)
     } catch (e) {
       const span = trace.getActiveSpan()
-      const err = e instanceof Error ? e : new Error(String(e))
+      const err = toLoggableError(e)
       span?.recordException(err)
       span?.setStatus({
         code: SpanStatusCode.ERROR,
         message: err.message
       })
-      logger.error({
-        err: toLoggableError(e),
-        message: 'Failed to process qstash message'
-      })
+
+      if (retriedCount < maxRetries) {
+        logger.warn({
+          err,
+          retriedCount,
+          message: 'Failed to process qstash message, returning 500 for retry'
+        })
+      } else {
+        logger.error({
+          err,
+          retriedCount,
+          message:
+            'QStash job failed terminally, returning 500 for native DLQ capture'
+        })
+      }
+
       return apiResponse({
         req: request,
         allowedMethods: [HttpMethod.enum.POST],
@@ -72,6 +103,7 @@ export const POST = traceApiRoute(
         responseStatusCode: 500
       })
     }
+
     return apiResponse({
       req: request,
       allowedMethods: [HttpMethod.enum.POST],

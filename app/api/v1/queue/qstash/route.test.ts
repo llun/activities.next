@@ -36,7 +36,8 @@ describe('POST /api/v1/queue/qstash', () => {
         url: 'https://example.com/queue',
         token: 'token',
         currentSigningKey: 'currentKey',
-        nextSigningKey: 'nextKey'
+        nextSigningKey: 'nextKey',
+        maxRetries: 3
       }
     } as ReturnType<typeof getConfig>)
 
@@ -139,5 +140,53 @@ describe('POST /api/v1/queue/qstash', () => {
     expect(routeSpan).toBeDefined()
     expect(routeSpan?.exception).toBe(queueError)
     expect(routeSpan?.status?.code).toBe(SpanStatusCode.ERROR)
+  })
+
+  it('returns 500 on intermediate retry failure', async () => {
+    mockVerify.mockResolvedValue(true)
+    mockHandle.mockRejectedValue(new Error('Intermediate failure'))
+
+    const body = { id: 'msg-retry', name: 'testJob', data: {} }
+    const request = new NextRequest(
+      'https://activities.local/api/v1/queue/qstash',
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+        headers: {
+          'upstash-signature': 'valid-signature',
+          'upstash-retried': '1'
+        }
+      }
+    )
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+    expect(response.status).toBe(500)
+  })
+
+  it('returns 500 on terminal retry failure so QStash captures message to native DLQ', async () => {
+    mockVerify.mockResolvedValue(true)
+    mockHandle.mockRejectedValue(new Error('Terminal failure'))
+
+    const body = { id: 'msg-terminal', name: 'DeliverActivityJob', data: {} }
+    const request = new NextRequest(
+      'https://activities.local/api/v1/queue/qstash',
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+        headers: {
+          'upstash-signature': 'valid-signature',
+          'upstash-retried': '3'
+        }
+      }
+    )
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+    expect(response.status).toBe(500)
+    const json = await response.json()
+    expect(json).toEqual(
+      expect.objectContaining({
+        error: 'Terminal failure'
+      })
+    )
   })
 })

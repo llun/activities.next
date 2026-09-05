@@ -285,3 +285,7 @@ CREATE TABLE `dead_letter_jobs` (`id` varchar(255), `job_name` varchar(255) not 
 CREATE INDEX `dead_letter_jobs_job_name_idx` on `dead_letter_jobs` (`job_name`);
 CREATE INDEX `dead_letter_jobs_status_idx` on `dead_letter_jobs` (`status`);
 CREATE INDEX `dead_letter_jobs_created_at_idx` on `dead_letter_jobs` (`created_at`);
+CREATE TABLE `queue_jobs` (`id` varchar(255), `name` varchar(255) not null, `payload` json not null, `attempts` integer not null default '0', `max_retries` integer not null default '16', `next_run_at` datetime not null default CURRENT_TIMESTAMP, `status` varchar(32) not null default 'pending', `last_error_message` text null, `last_error_stack` text null, `created_at` datetime default CURRENT_TIMESTAMP, `updated_at` datetime default CURRENT_TIMESTAMP, primary key (`id`));
+CREATE INDEX `queue_jobs_status_next_run_at_idx` on `queue_jobs` (`status`, `next_run_at`);
+CREATE INDEX `queue_jobs_name_idx` on `queue_jobs` (`name`);
+CREATE INDEX `queue_jobs_created_at_idx` on `queue_jobs` (`created_at`);

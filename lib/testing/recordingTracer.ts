@@ -44,11 +44,17 @@ export class AsyncLocalStorageContextManager implements ContextManager {
   }
 }
 
+export interface RecordedSpanEvent {
+  name: string
+  attributes?: Record<string, unknown>
+}
+
 export interface RecordedSpan {
   name: string
   spanId: string
   parentSpanId?: string
   attributes: Record<string, unknown>
+  events: RecordedSpanEvent[]
   status?: SpanStatus
   exception?: Error
   ended: boolean
@@ -79,6 +85,7 @@ export function createRecordingTracerProvider() {
         spanId: id,
         parentSpanId: parentSpan?.spanContext().spanId,
         attributes: { ...(options?.attributes ?? {}) },
+        events: [],
         ended: false
       }
       recordedSpans.push(this._rec)
@@ -95,7 +102,16 @@ export function createRecordingTracerProvider() {
       Object.assign(this._rec.attributes, attributes)
       return this
     }
-    addEvent(): this {
+    addEvent(name: string, attributesOrStartTime?: unknown): this {
+      this._rec.events.push({
+        name,
+        attributes:
+          typeof attributesOrStartTime === 'object' &&
+          attributesOrStartTime !== null &&
+          !(attributesOrStartTime instanceof Date)
+            ? (attributesOrStartTime as Record<string, unknown>)
+            : undefined
+      })
       return this
     }
     addLink(): this {
