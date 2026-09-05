@@ -24,13 +24,13 @@ describe('timeline loading', () => {
   })
 
   it('renders every placeholder with the shimmer skeleton utility', () => {
-    // jsdom paints no CSS so classes are the observable; every leaf <div> in
-    // this skeleton is a placeholder (containers always hold further divs),
+    // jsdom paints no CSS so classes are the observable; every leaf <div>/<span> in
+    // this skeleton is a placeholder (containers always hold further elements),
     // and a bare `length > 0` missed both a partial strip and a future
     // unstyled row; the `.skeleton` definition itself is guarded by
     // app/globals.skeleton.test.ts.
     const { container } = render(<Loading />)
-    const leaves = Array.from(container.querySelectorAll('div')).filter(
+    const leaves = Array.from(container.querySelectorAll('div, span')).filter(
       (el) => el.children.length === 0
     )
     expect(leaves.length).toBeGreaterThan(0)
@@ -45,6 +45,15 @@ describe('timeline loading', () => {
     expect(stickyHeader).toBeInTheDocument()
     expect(stickyHeader).toHaveClass('top-0')
     expect(stickyHeader?.querySelector('.max-w-content')).toBeInTheDocument()
+
+    // Skeletons in the header mirror PageHeader font and action metrics
+    // (text-xl 28px -> h-7, text-xs 16px -> h-4, action button -> size-9 with self-center)
+    expect(stickyHeader?.querySelector('h1 .skeleton')).toHaveClass('h-7')
+    expect(stickyHeader?.querySelector('h1 + div .skeleton')).toHaveClass('h-4')
+    expect(stickyHeader?.querySelector('.shrink-0')).toHaveClass('self-center')
+    expect(stickyHeader?.querySelector('.shrink-0 .skeleton')).toHaveClass(
+      'size-9'
+    )
 
     expect(screen.getByLabelText('Post composer')).toBeInTheDocument()
     const postsSection = screen.getByLabelText('Timeline posts')
