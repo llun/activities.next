@@ -1,7 +1,8 @@
-import { Client } from '@upstash/qstash'
+import type { Client } from '@upstash/qstash'
 
 import { QStashConfig } from '@/lib/services/queue/qstash'
 import { JobMessage } from '@/lib/services/queue/type'
+import { dynamicImport } from '@/lib/utils/dynamicImport'
 import { logger } from '@/lib/utils/logger'
 
 import {
@@ -14,10 +15,21 @@ import {
 
 export class QStashDLQProvider implements DLQProvider {
   readonly type = 'qstash' as const
-  private _client: Client
+  private _client?: Client
+  private _token: string
 
   constructor(config: QStashConfig) {
-    this._client = new Client({ token: config.token })
+    this._token = config.token
+  }
+
+  private async getClient(): Promise<Client> {
+    if (!this._client) {
+      const { Client: QStashClient } = await dynamicImport<{
+        Client: typeof Client
+      }>('@upstash/qstash')
+      this._client = new QStashClient({ token: this._token })
+    }
+    return this._client
   }
 
   async getJobs(params?: GetDLQJobsParams): Promise<GetDLQJobsResult> {
@@ -25,7 +37,8 @@ export class QStashDLQProvider implements DLQProvider {
     const offset = params?.offset ?? 0
 
     try {
-      const res = await this._client.dlq.listMessages({ count: 100 })
+      const client = await this.getClient()
+      const res = await client.dlq.listMessages({ count: 100 })
       const messages = res.messages ?? []
 
       const isFailedOrAll = !params?.status || params.status === 'failed'
@@ -102,7 +115,8 @@ export class QStashDLQProvider implements DLQProvider {
 
   async retryJob(id: string): Promise<DLQActionResult> {
     try {
-      await this._client.dlq.retry(id)
+      const client = await this.getClient()
+      await client.dlq.retry(id)
       return { success: true }
     } catch (error) {
       logger.error({
@@ -116,7 +130,8 @@ export class QStashDLQProvider implements DLQProvider {
 
   async discardJob(id: string): Promise<DLQActionResult> {
     try {
-      await this._client.dlq.delete(id)
+      const client = await this.getClient()
+      await client.dlq.delete(id)
       return { success: true }
     } catch (error) {
       logger.error({
@@ -130,7 +145,8 @@ export class QStashDLQProvider implements DLQProvider {
 
   async retryAll(): Promise<DLQActionResult> {
     try {
-      const res = await this._client.dlq.retry({ all: true })
+      const client = await this.getClient()
+      const res = await client.dlq.retry({ all: true })
       return { success: true, count: res.responses?.length ?? 0 }
     } catch (error) {
       logger.error({
@@ -143,7 +159,8 @@ export class QStashDLQProvider implements DLQProvider {
 
   async clearDiscarded(): Promise<DLQActionResult> {
     try {
-      const res = await this._client.dlq.delete({ all: true })
+      const client = await this.getClient()
+      const res = await client.dlq.delete({ all: true })
       return { success: true, count: res.deleted ?? 0 }
     } catch (error) {
       logger.error({
@@ -156,7 +173,8 @@ export class QStashDLQProvider implements DLQProvider {
 
   async dropAll(): Promise<DLQActionResult> {
     try {
-      const res = await this._client.dlq.delete({ all: true })
+      const client = await this.getClient()
+      const res = await client.dlq.delete({ all: true })
       return { success: true, count: res.deleted ?? 0 }
     } catch (error) {
       logger.error({
@@ -170,7 +188,8 @@ export class QStashDLQProvider implements DLQProvider {
   async retryJobs(ids: string[]): Promise<DLQActionResult> {
     if (ids.length === 0) return { success: true, count: 0 }
     try {
-      const res = await this._client.dlq.retry({ dlqIds: ids })
+      const client = await this.getClient()
+      const res = await client.dlq.retry({ dlqIds: ids })
       return { success: true, count: res.responses?.length ?? 0 }
     } catch (error) {
       logger.error({
@@ -188,7 +207,8 @@ export class QStashDLQProvider implements DLQProvider {
   async deleteJobs(ids: string[]): Promise<DLQActionResult> {
     if (ids.length === 0) return { success: true, count: 0 }
     try {
-      const res = await this._client.dlq.delete({ dlqIds: ids })
+      const client = await this.getClient()
+      const res = await client.dlq.delete({ dlqIds: ids })
       return { success: true, count: res.deleted ?? 0 }
     } catch (error) {
       logger.error({

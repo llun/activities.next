@@ -1,4 +1,4 @@
-import { Client } from '@upstash/qstash'
+import type { Client } from '@upstash/qstash'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getConfig } from '@/lib/config'
@@ -7,17 +7,28 @@ import { DatabaseDLQProvider } from './database'
 import { getDLQProvider } from './index'
 import { QStashDLQProvider } from './qstash'
 
+const mockListMessages = vi.fn()
+const mockRetry = vi.fn()
+const mockDelete = vi.fn()
+const MockClient = vi.fn().mockImplementation(function (this: unknown) {
+  return {
+    dlq: {
+      listMessages: mockListMessages,
+      retry: mockRetry,
+      delete: mockDelete
+    }
+  }
+})
+
 vi.mock('@/lib/config')
-vi.mock('@upstash/qstash')
+vi.mock('@upstash/qstash', () => ({
+  Client: MockClient
+}))
 
 describe('DLQ Providers', () => {
-  const mockListMessages = vi.fn()
-  const mockRetry = vi.fn()
-  const mockDelete = vi.fn()
-
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(Client).mockImplementation(function (this: unknown) {
+    MockClient.mockImplementation(function (this: unknown) {
       return {
         dlq: {
           listMessages: mockListMessages,
@@ -25,7 +36,7 @@ describe('DLQ Providers', () => {
           delete: mockDelete
         }
       } as unknown as Client
-    } as unknown as typeof Client)
+    })
   })
 
   describe('getDLQProvider', () => {

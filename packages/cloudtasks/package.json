@@ -1,0 +1,10 @@
+{
+  "name": "@activities/cloudtasks",
+  "version": "1.159.0",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "@google-cloud/tasks": "^7.0.0"
+  }
+}

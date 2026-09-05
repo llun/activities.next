@@ -5,12 +5,21 @@ import {
   TextMapSetter,
   propagation
 } from '@opentelemetry/api'
-import { Client } from '@upstash/qstash'
+import type { Client } from '@upstash/qstash'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { QStashQueue } from './qstash'
 
-vi.mock('@upstash/qstash')
+const mockPublishJSON = vi.fn()
+const MockClient = vi.fn().mockImplementation(function (this: unknown) {
+  return {
+    publishJSON: mockPublishJSON
+  }
+})
+
+vi.mock('@upstash/qstash', () => ({
+  Client: MockClient
+}))
 vi.mock('@/lib/utils/trace', () => ({
   withSpan: vi.fn(
     (
@@ -28,14 +37,13 @@ vi.mock('@/lib/utils/trace', () => ({
 }))
 
 describe('QStashQueue', () => {
-  const mockPublishJSON = vi.fn()
-
   beforeEach(() => {
-    vi.mocked(Client).mockImplementation(function (this: unknown) {
+    MockClient.mockClear()
+    MockClient.mockImplementation(function (this: unknown) {
       return {
         publishJSON: mockPublishJSON
       } as unknown as Client
-    } as unknown as typeof Client)
+    })
     mockPublishJSON.mockClear()
   })
 
