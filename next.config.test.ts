@@ -113,6 +113,18 @@ describe('next config runtime isolation', () => {
     ])
   })
 
+  it('includes required standalone packages in outputFileTracingIncludes', async () => {
+    const { default: loadedNextConfig } = await loadNextConfig()
+
+    expect(loadedNextConfig.outputFileTracingIncludes?.['/**/*']).toEqual(
+      expect.arrayContaining([
+        './node_modules/sharp/**/*',
+        './node_modules/@img/**/*',
+        './node_modules/@google-cloud/tasks/**/*'
+      ])
+    )
+  })
+
   it('does not reference ACTIVITIES runtime variables in next config source', () => {
     expect(
       fs.readFileSync(path.join(originalCwd, 'next.config.ts'), 'utf-8')
