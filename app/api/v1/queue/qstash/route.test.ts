@@ -4,6 +4,7 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getConfig } from '@/lib/config'
+import { getDatabase } from '@/lib/database'
 import { getQueue } from '@/lib/services/queue'
 import { setupRecordingTracer } from '@/lib/testing/recordingTracer'
 
@@ -17,6 +18,7 @@ const MockReceiver = vi.fn().mockImplementation(function (this: unknown) {
 })
 
 vi.mock('@/lib/config')
+vi.mock('@/lib/database')
 vi.mock('@/lib/services/queue')
 vi.mock('@upstash/qstash', () => ({
   Receiver: MockReceiver
@@ -25,6 +27,7 @@ vi.mock('@upstash/qstash', () => ({
 describe('POST /api/v1/queue/qstash', () => {
   let harness: ReturnType<typeof setupRecordingTracer>
   const mockHandle = vi.fn()
+  const mockCreateDeadLetterJob = vi.fn()
 
   beforeEach(() => {
     harness = setupRecordingTracer()
@@ -36,9 +39,14 @@ describe('POST /api/v1/queue/qstash', () => {
         url: 'https://example.com/queue',
         token: 'token',
         currentSigningKey: 'currentKey',
-        nextSigningKey: 'nextKey'
+        nextSigningKey: 'nextKey',
+        maxRetries: 3
       }
     } as ReturnType<typeof getConfig>)
+
+    vi.mocked(getDatabase).mockReturnValue({
+      createDeadLetterJob: mockCreateDeadLetterJob
+    } as unknown as ReturnType<typeof getDatabase>)
 
     vi.mocked(getQueue).mockReturnValue({
       publish: vi.fn(),
@@ -139,5 +147,58 @@ describe('POST /api/v1/queue/qstash', () => {
     expect(routeSpan).toBeDefined()
     expect(routeSpan?.exception).toBe(queueError)
     expect(routeSpan?.status?.code).toBe(SpanStatusCode.ERROR)
+  })
+
+  it('returns 500 on intermediate retry failure', async () => {
+    mockVerify.mockResolvedValue(true)
+    mockHandle.mockRejectedValue(new Error('Intermediate failure'))
+
+    const body = { id: 'msg-retry', name: 'testJob', data: {} }
+    const request = new NextRequest(
+      'https://activities.local/api/v1/queue/qstash',
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+        headers: {
+          'upstash-signature': 'valid-signature',
+          'upstash-retried': '1'
+        }
+      }
+    )
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+    expect(response.status).toBe(500)
+    expect(mockCreateDeadLetterJob).not.toHaveBeenCalled()
+  })
+
+  it('returns 200 and captures record in dead_letter_jobs on terminal retry failure', async () => {
+    mockVerify.mockResolvedValue(true)
+    mockHandle.mockRejectedValue(new Error('Terminal failure'))
+    mockCreateDeadLetterJob.mockResolvedValue({})
+
+    const body = { id: 'msg-terminal', name: 'DeliverActivityJob', data: {} }
+    const request = new NextRequest(
+      'https://activities.local/api/v1/queue/qstash',
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+        headers: {
+          'upstash-signature': 'valid-signature',
+          'upstash-retried': '3'
+        }
+      }
+    )
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+    expect(response.status).toBe(200)
+    expect(mockCreateDeadLetterJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobName: 'DeliverActivityJob',
+        payload: body,
+        errorMessage: 'Terminal failure',
+        attempts: 4,
+        status: 'failed'
+      })
+    )
   })
 })
