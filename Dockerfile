@@ -51,7 +51,11 @@ COPY --from=build --chown=app:app /opt/activities.next/data.sqlite /opt/activiti
 # sibling libvips .so ship together with their original layout intact.
 COPY --from=build --chown=app:app /opt/activities.next/node_modules/sharp /opt/activities.next/node_modules/sharp
 COPY --from=build --chown=app:app /opt/activities.next/node_modules/@img /opt/activities.next/node_modules/@img
+COPY --from=build --chown=app:app /opt/activities.next/node_modules/pg /opt/activities.next/node_modules/pg
 COPY --from=build --chown=app:app /opt/activities.next/node_modules/@upstash /opt/activities.next/node_modules/@upstash
+COPY --from=build --chown=app:app /opt/activities.next/node_modules/crypto-js /opt/activities.next/node_modules/crypto-js
+COPY --from=build --chown=app:app /opt/activities.next/node_modules/jose /opt/activities.next/node_modules/jose
+COPY --from=build --chown=app:app /opt/activities.next/node_modules/neverthrow /opt/activities.next/node_modules/neverthrow
 RUN rm -rf /opt/activities.next/.yarn
 EXPOSE 3000
 CMD ["node", "server.js"]
