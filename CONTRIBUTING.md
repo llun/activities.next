@@ -46,6 +46,8 @@ This project follows the standard open source code of conduct. Be respectful, in
    yarn install
    ```
 
+   > **Note:** `yarn install` at the repository root installs all workspaces (the core app plus optional packages under `packages/`), providing all database drivers and queue clients out of the box for development.
+
 4. **Set up your environment**:
 
    ```bash
@@ -363,6 +365,10 @@ activities.next/
 │   ├── types/                 # TypeScript type definitions
 │   └── utils/                 # Utility functions
 ├── migrations/                # Database migrations (Knex)
+├── packages/                  # Modular optional workspace packages
+│   ├── cloudtasks/            #   Google Cloud Tasks queue adapter (@activities/cloudtasks)
+│   ├── pg/                    #   PostgreSQL database driver (@activities/pg)
+│   └── qstash/                #   Upstash QStash queue adapter (@activities/qstash)
 ├── docs/                      # Documentation
 ├── lint/                      # Local Oxlint JS plugin (AGENTS.md conventions)
 ├── public/                    # Static assets
@@ -371,7 +377,8 @@ activities.next/
 
 ### Important Files
 
-- `package.json` — Dependencies and scripts
+- `package.json` — Dependencies, scripts, and workspace configuration
+- `packages/` — Optional dependency workspaces (`@activities/cloudtasks`, `@activities/pg`, `@activities/qstash`)
 - `tsconfig.json` — TypeScript configuration (editors, `yarn tsc`)
 - `tsconfig.build.json` — what `next build` type-checks (excludes tests)
 - `tsconfig.typecheck.json` — what `yarn typecheck` checks (whole project, minus the ratchet)

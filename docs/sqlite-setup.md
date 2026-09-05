@@ -1,6 +1,6 @@
 # SQLite Setup Guide
 
-This guide will help you set up Activity.next using SQLite as your database backend. SQLite is a great choice for development environments or small instances with limited traffic.
+This guide will help you set up Activity.next using SQLite as your database backend. SQLite is the default database backend bundled with Activity.next (requiring no external database server or optional drivers) and is the backend included in the official minimal Docker image. It is a great choice for development environments or small instances with limited traffic.
 
 ## Prerequisites
 
@@ -91,7 +91,7 @@ Remember that SQLite is best suited for low to moderate traffic instances. For h
 
 ### Docker Deployment with SQLite
 
-To deploy Activity.next with SQLite using Docker:
+To deploy Activity.next with SQLite using Docker (the official minimal `ghcr.io/llun/activities.next:main` image is pre-configured with SQLite):
 
 ```bash
 docker run -p 3000:3000 \

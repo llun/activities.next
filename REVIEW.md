@@ -24,6 +24,12 @@ change doesn't touch.
 - A build must succeed with `ACTIVITIES_*` missing or set to placeholder values.
   Changes to runtime-config handling should ship a regression test asserting the
   build config does not consume those values.
+- Optional external SDKs and database drivers (`@google-cloud/tasks`,
+  `@upstash/qstash`, `pg`) must reside in dedicated workspace packages under
+  `packages/*` and be imported dynamically (via `dynamicImport` with type stubs
+  in `lib/types/optional-modules.d.ts` for queue SDKs, or Knex dynamic driver
+  loading for database clients), never through static top-level imports in
+  core `app/` or `lib/` modules, so minimal standalone builds run without them.
 
 ## API routes
 
