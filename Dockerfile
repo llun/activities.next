@@ -48,8 +48,12 @@ COPY --from=build --chown=app:app /opt/activities.next/data.sqlite /opt/activiti
 # the image. Without it the instrumentation hook fails to load and every
 # request 500s. Re-copy the full sharp install so the .node binary and its
 # sibling libvips .so ship together with their original layout intact.
+# Similarly, @google-cloud/tasks dynamically requires protos/protos.json and
+# configuration files via json-helper.cjs which the standalone tracer misses.
+# Re-copy it as a guaranteed fallback.
 COPY --from=build --chown=app:app /opt/activities.next/node_modules/sharp /opt/activities.next/node_modules/sharp
 COPY --from=build --chown=app:app /opt/activities.next/node_modules/@img /opt/activities.next/node_modules/@img
+COPY --from=build --chown=app:app /opt/activities.next/node_modules/@google-cloud/tasks /opt/activities.next/node_modules/@google-cloud/tasks
 RUN rm -rf /opt/activities.next/.yarn
 EXPOSE 3000
 CMD ["node", "server.js"]
