@@ -1,0 +1,40 @@
+Dockerfile
+  h_580a04e334fef4 31,34
+app/api/v1/queue/qstash/route.ts
+  h_580a04e334fef4 2,9,16-26,36
+lib/services/queue/cloudtasks.ts
+  h_580a04e334fef4 1,5,22,24-27,44
+lib/services/queue/dlq/qstash.ts
+  h_580a04e334fef4 1,5,18-19,22-32,40-41,118-119,133-134,148-149,162-163,176-177,191-192,210-211
+lib/services/queue/qstash.ts
+  h_580a04e334fef4 2,5,28,31,36-48,56-57
+lib/types/optional-modules.d.ts
+  h_580a04e334fef4 1-85
+lib/utils/dynamicImport.test.ts
+  h_580a04e334fef4 1-16
+lib/utils/dynamicImport.ts
+  h_580a04e334fef4 1-9
+next.config.ts
+  h_580a04e334fef4 58,67
+package.json
+  h_580a04e334fef4 6-8
+packages/cloudtasks/package.json
+  h_580a04e334fef4 1-10
+packages/pg/package.json
+  h_580a04e334fef4 1-13
+packages/qstash/package.json
+  h_580a04e334fef4 1-10
+yarn.lock
+  h_580a04e334fef4 8-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "b39e2ef5ff359d2e9387c75d5d542c1e75d24d0d",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
