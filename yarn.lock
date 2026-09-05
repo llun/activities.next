@@ -5,6 +5,31 @@ __metadata:
   version: 10
   cacheKey: 10c0
 
+"@activities/cloudtasks@workspace:packages/cloudtasks":
+  version: 0.0.0-use.local
+  resolution: "@activities/cloudtasks@workspace:packages/cloudtasks"
+  dependencies:
+    "@google-cloud/tasks": "npm:^7.0.0"
+  languageName: unknown
+  linkType: soft
+
+"@activities/pg@workspace:packages/pg":
+  version: 0.0.0-use.local
+  resolution: "@activities/pg@workspace:packages/pg"
+  dependencies:
+    "@types/pg": "npm:^8.23.1"
+    pg: "npm:^8.23.0"
+  languageName: unknown
+  linkType: soft
+
+"@activities/qstash@workspace:packages/qstash":
+  version: 0.0.0-use.local
+  resolution: "@activities/qstash@workspace:packages/qstash"
+  dependencies:
+    "@upstash/qstash": "npm:^2.11.3"
+  languageName: unknown
+  linkType: soft
+
 "@adobe/css-tools@npm:^4.4.0":
   version: 4.4.4
   resolution: "@adobe/css-tools@npm:4.4.4"
@@ -3738,7 +3763,6 @@ __metadata:
     "@better-auth/utils": "npm:0.5.0"
     "@better-fetch/fetch": "npm:1.3.1"
     "@date-fns/utc": "npm:^2.1.1"
-    "@google-cloud/tasks": "npm:^7.0.0"
     "@next/env": "npm:16.3.4"
     "@opentelemetry/api": "npm:^1.9.1"
     "@radix-ui/react-avatar": "npm:^1.2.6"
@@ -3774,7 +3798,6 @@ __metadata:
     "@types/sanitize-html": "npm:^2.16.1"
     "@types/web-push": "npm:^3.6.4"
     "@types/yauzl": "npm:^3.4.0"
-    "@upstash/qstash": "npm:^2.11.3"
     "@vitest/coverage-v8": "npm:^4.1.11"
     bcrypt: "npm:^6.0.0"
     better-auth: "npm:1.7.2"
@@ -3807,7 +3830,6 @@ __metadata:
     next: "npm:16.3.4"
     nodemailer: "npm:9.1.1"
     oxlint: "npm:^1.81.0"
-    pg: "npm:^8.23.0"
     pino: "npm:^10.3.1"
     pino-pretty: "npm:^13.1.3"
     postcss: "npm:^8.5.26"
