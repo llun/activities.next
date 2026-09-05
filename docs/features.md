@@ -104,9 +104,9 @@ This document tracks the implemented and planned features for Activity.next.
 
 ### Infrastructure
 
-- ✅ **Background jobs** — Async processing via Upstash QStash (with synchronous fallback)
+- ✅ **Background jobs** — Async processing via Upstash QStash or Google Cloud Tasks (with synchronous fallback)
 - ✅ **Email sending** — SMTP, Resend, AWS SES, or AWS Lambda
-- ✅ **Docker support** — Official container image at `ghcr.io/llun/activities.next`
+- ✅ **Docker support** — Official minimal container image at `ghcr.io/llun/activities.next` (SQLite default; modular workspaces for PostgreSQL and external queues)
 - ✅ **Vercel deployment** — Deploy as a serverless Next.js application
 - ✅ **Federation controls** — Admin allow/block rules, import for domain blocks, and allowlist mode
 - ✅ **Database-backed server settings** — Edit instance identity, registrations, post/poll/upload limits, and federation policy from the admin area, resolved `env → database → default` (an environment variable wins and locks the field). See [Environment Variables](environment-variables.md#database-backed-server-settings-env--database--default)

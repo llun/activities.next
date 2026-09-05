@@ -131,14 +131,29 @@ ACTIVITIES_EMAIL_SES_REGION=us-east-1
 
 Background jobs (sending ActivityPub activities, processing uploads) use a queue. Without a queue configured, jobs run synchronously.
 
+> **Note:** Client libraries for queue providers (`@upstash/qstash` and `@google-cloud/tasks`) are optional dependencies packaged as Yarn workspaces (`@activities/qstash` and `@activities/cloudtasks`). They are dynamically imported when the respective queue is enabled.
+
 #### Upstash QStash
 
 ```bash
 ACTIVITIES_QUEUE_TYPE=qstash
-ACTIVITIES_QUEUE_URL=https://your-domain.tld
+ACTIVITIES_QUEUE_URL=https://your-domain.tld/api/v1/queue/qstash
 ACTIVITIES_QUEUE_TOKEN=your-qstash-token
 ACTIVITIES_QUEUE_CURRENT_SIGNING_KEY=your-signing-key
 ACTIVITIES_QUEUE_NEXT_SIGNING_KEY=your-next-signing-key
+```
+
+#### Google Cloud Tasks
+
+```bash
+ACTIVITIES_QUEUE_TYPE=cloudtasks
+ACTIVITIES_QUEUE_URL=https://your-domain.tld/api/v1/queue/cloudtasks
+ACTIVITIES_QUEUE_CLOUDTASKS_LOCATION=europe-west1
+ACTIVITIES_QUEUE_CLOUDTASKS_PROJECT_ID=your-gcp-project-id
+# Optional authentication:
+ACTIVITIES_QUEUE_CLOUDTASKS_SERVICE_ACCOUNT=service-account@project.iam.gserviceaccount.com
+ACTIVITIES_QUEUE_CLOUDTASKS_AUDIENCE=https://your-domain.tld
+ACTIVITIES_QUEUE_CLOUDTASKS_SECRET=your-shared-webhook-secret
 ```
 
 ### Push Notifications (Optional)
@@ -191,7 +206,7 @@ To deploy on Vercel:
 
 ### Docker Deployment
 
-Activity.next provides official Docker images at `ghcr.io/llun/activities.next:main` (the image is published with the `main` tag; there is no `latest` tag).
+Activity.next provides official minimal Docker images at `ghcr.io/llun/activities.next:main` (the image is published with the `main` tag; there is no `latest` tag). The official image includes only the core application and SQLite dependencies to keep the image slim.
 
 Basic Docker run command (uses SQLite by default):
 
@@ -207,6 +222,21 @@ docker run -p 3000:3000 \
 ```
 
 > **Important:** Mount persistent data under `/opt/activities.next/data` as above — do **not** bind-mount `/opt/activities.next` itself. That directory contains the application (the standalone `server.js`, static assets, etc.), so a host-path mount would shadow it and the container cannot start. See the [SQLite Docker guide](sqlite-setup.md#docker-deployment-with-sqlite) for preparing the mounted database file.
+
+#### Custom Docker Builds with Optional Workspaces
+
+Optional dependencies (such as PostgreSQL, Cloud Tasks, and QStash) are isolated in Yarn workspaces under `packages/`:
+
+- `@activities/pg` — PostgreSQL driver (`pg`)
+- `@activities/cloudtasks` — Google Cloud Tasks client (`@google-cloud/tasks`)
+- `@activities/qstash` — Upstash QStash client (`@upstash/qstash`)
+
+To include optional workspaces when building a Docker container, pass the `WORKSPACES` build argument:
+
+```bash
+# Example: Build with PostgreSQL and QStash support
+docker build --build-arg WORKSPACES="activities.next @activities/pg @activities/qstash" -t activities.next:custom .
+```
 
 For database-specific Docker deployment instructions:
 

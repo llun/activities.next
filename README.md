@@ -118,7 +118,7 @@ docker run -p 3000:3000 \
   ghcr.io/llun/activities.next:main
 ```
 
-The image is published with the `main` tag (there is no `latest` tag), and the production runtime rejects an `ACTIVITIES_SECRET_PHASE` shorter than 32 characters. Mount persistent data under `/opt/activities.next/data` as above — do **not** bind-mount `/opt/activities.next` itself, because that directory contains the application and a host-path mount would shadow it. The image ships a pre-migrated SQLite database at `/opt/activities.next/data.sqlite`; when you point `ACTIVITIES_DATABASE_SQLITE_FILENAME` at a mounted path instead, run the Knex migrations against that file first (see the [SQLite Setup](docs/sqlite-setup.md) guide).
+The official image is published with the `main` tag (there is no `latest` tag) and is a minimal build pre-configured for SQLite. Optional dependencies (such as PostgreSQL via `@activities/pg`, Google Cloud Tasks via `@activities/cloudtasks`, or Upstash QStash via `@activities/qstash`) are modularized into Yarn workspaces and can be included by building a custom image with `--build-arg WORKSPACES="..."`. The production runtime rejects an `ACTIVITIES_SECRET_PHASE` shorter than 32 characters. Mount persistent data under `/opt/activities.next/data` as above — do **not** bind-mount `/opt/activities.next` itself, because that directory contains the application and a host-path mount would shadow it. The image ships a pre-migrated SQLite database at `/opt/activities.next/data.sqlite`; when you point `ACTIVITIES_DATABASE_SQLITE_FILENAME` at a mounted path instead, run the Knex migrations against that file first (see the [SQLite Setup](docs/sqlite-setup.md) guide).
 
 For PostgreSQL or advanced Docker setups, see:
 

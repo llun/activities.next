@@ -78,6 +78,8 @@ corepack enable
 yarn install
 ```
 
+> **Note:** `yarn install` at the repository root installs all workspaces by default (including `@activities/pg`), so PostgreSQL support is available immediately for development. You can also focus specifically on the core app and PostgreSQL workspace with `yarn workspaces focus activities.next @activities/pg`.
+
 3. Configure the environment (in addition to database settings above):
 
 ```bash
@@ -144,6 +146,12 @@ ACTIVITIES_DATABASE='{"client":"pg","connection":{"host":"your-postgres-host.exa
 
 ## Docker Deployment with PostgreSQL
 
+> **Important:** The official pre-built Docker image (`ghcr.io/llun/activities.next:main`) is a minimal image configured for SQLite; optional dependencies such as the PostgreSQL driver (`pg`) are omitted to keep image size small. To run Activity.next with PostgreSQL in Docker, build a container image from a checkout with the `@activities/pg` workspace included:
+>
+> ```bash
+> docker build --build-arg WORKSPACES="activities.next @activities/pg" -t activities.next:pg .
+> ```
+
 To deploy Activity.next with PostgreSQL using Docker:
 
 ```bash
@@ -151,12 +159,12 @@ docker run -p 3000:3000 \
   -e ACTIVITIES_HOST=your.domain.tld \
   -e ACTIVITIES_SECRET_PHASE=change-me-to-a-random-secret-at-least-32-chars \
   -e ACTIVITIES_DATABASE='{"client":"pg","connection":{"host":"postgres-host","port":5432,"user":"activitynext","password":"your_strong_password","database":"activitynext"},"pool":{"min":2,"max":10}}' \
-  ghcr.io/llun/activities.next:main
+  activities.next:pg
 ```
 
-> **Notes:** The image is published with the `main` tag — there is no `latest` tag on the registry. The production runtime rejects an `ACTIVITIES_SECRET_PHASE` shorter than 32 characters. The runtime image does not include the Knex CLI, so run `yarn migrate` against the PostgreSQL server from a checkout (using the individual `ACTIVITIES_DATABASE_*` variables) before the first start.
+> **Notes:** The production runtime rejects an `ACTIVITIES_SECRET_PHASE` shorter than 32 characters. The runtime image does not include the Knex CLI, so run `yarn migrate` against the PostgreSQL server from a checkout (using the individual `ACTIVITIES_DATABASE_*` variables) before the first start.
 
-For a complete setup with both PostgreSQL and Activity.next in Docker, you can use Docker Compose:
+For a complete setup with both PostgreSQL and Activity.next in Docker, you can use Docker Compose with a local build:
 
 ```yaml
 services:
@@ -171,7 +179,10 @@ services:
     restart: unless-stopped
 
   activitynext:
-    image: ghcr.io/llun/activities.next:main
+    build:
+      context: .
+      args:
+        WORKSPACES: 'activities.next @activities/pg'
     depends_on:
       - postgres
     environment:
