@@ -1,4 +1,0 @@
-- name: gemini/gemini-3.8-flash
-  edit_format: diff-fenced
-- name: gemini/gemini-3.7-flash
-  edit_format: diff-fenced
