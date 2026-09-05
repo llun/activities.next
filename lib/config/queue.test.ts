@@ -24,6 +24,34 @@ describe('Queue config', () => {
       expect(config).toBeNull()
     })
 
+    it('returns database config when queue type is database', () => {
+      process.env.ACTIVITIES_QUEUE_TYPE = 'database'
+      process.env.ACTIVITIES_QUEUE_DATABASE_MAX_RETRIES = '8'
+      process.env.ACTIVITIES_QUEUE_DATABASE_POLL_INTERVAL_MS = '2500'
+
+      const config = getQueueConfig()
+
+      expect(config).not.toBeNull()
+      expect(config?.queue.type).toBe('database')
+      if (config?.queue.type === 'database') {
+        expect(config.queue.maxRetries).toBe(8)
+        expect(config.queue.pollIntervalMs).toBe(2500)
+      }
+    })
+
+    it('uses defaults for database queue when specific env vars are omitted', () => {
+      process.env.ACTIVITIES_QUEUE_TYPE = 'database'
+
+      const config = getQueueConfig()
+
+      expect(config).not.toBeNull()
+      expect(config?.queue.type).toBe('database')
+      if (config?.queue.type === 'database') {
+        expect(config.queue.maxRetries).toBe(16)
+        expect(config.queue.pollIntervalMs).toBe(1000)
+      }
+    })
+
     it('returns qstash config when queue type is qstash', () => {
       process.env.ACTIVITIES_QUEUE_TYPE = 'qstash'
       process.env.ACTIVITIES_QUEUE_URL = 'https://qstash.upstash.io'

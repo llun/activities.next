@@ -226,6 +226,7 @@ On follow accept, `acceptFollowRequest` enqueues `FollowTimelineBackfillJob`. Fi
 
 Long-running operations (sending activities to remote servers, processing file uploads) are dispatched to a background queue. Supported backends:
 
+- **Database Queue (Transactional Outbox)** — Built-in resilient queue stored in `queue_jobs` table (`ACTIVITIES_QUEUE_TYPE=database`). Executes jobs asynchronously with polynomial backoff retries and dead-letter queue persistence.
 - **Upstash QStash** — Managed HTTP-based message queue (recommended for production)
 - **Google Cloud Tasks** — Managed HTTP-based task queue with OIDC verification and dead-letter queue support
 - **Synchronous** — Jobs execute inline (default, suitable for small instances and local development)
@@ -236,6 +237,12 @@ External queue clients (`@upstash/qstash` and `@google-cloud/tasks`) and the Pos
 
 Instance administrators can inspect terminally failed tasks, view formatted payloads and error stack traces, re-dispatch jobs, drop all messages, or purge discarded records via the Admin UI at `/admin/queues`. Messages are sorted by failure time in descending order (most recent terminal failures first). The admin interface is queue-backend agnostic and seamlessly adapts to the active provider:
 
+- **Database Queue (`ACTIVITIES_QUEUE_TYPE=database`)**:
+  - Tasks are persisted directly into the `queue_jobs` table in the database.
+  - Processed asynchronously by the in-process runner (bootstrapped via `instrumentation.ts` when configured) or by a standalone worker process (`scripts/maintenance/runQueueWorker.ts`).
+  - Workers atomically claim batches of due jobs (`pending` -> `processing`).
+  - Unhandled job errors trigger polynomial backoff retry scheduling (`attempt^4 + 15` seconds, up to `ACTIVITIES_QUEUE_DATABASE_MAX_RETRIES` / default 16 attempts spanning ~7.5 days, matching Mastodon queue retry resilience).
+  - Upon reaching maximum retries, failed tasks are stored in `dead_letter_jobs` and marked failed in `queue_jobs`, making them manageable via the Admin UI at `/admin/queues`.
 - **Google Cloud Tasks (`ACTIVITIES_QUEUE_TYPE=cloudtasks`)**:
   - Webhook endpoint: `/api/v1/queue/cloudtasks`.
   - Tasks are authenticated via Google Cloud OIDC tokens (validating audience and service account email) or pre-shared webhook secrets / service account headers.
@@ -247,7 +254,7 @@ Instance administrators can inspect terminally failed tasks, view formatted payl
   - While retries are below `ACTIVITIES_QUEUE_QSTASH_MAX_RETRIES` (default 3), the endpoint returns HTTP 500 with error details so QStash retries with exponential backoff.
   - On terminal failure, QStash automatically retains the task in Upstash's hosted Dead Letter Queue. The Admin UI connects directly to QStash's native DLQ API (`client.dlq`) to list, retry (`client.dlq.retry`), or delete (`client.dlq.delete`) dead-lettered messages without duplicate database storage.
 
-Note the difference where a job is delayed: QStash and Cloud Tasks honour `delaySeconds`, while
+Note the difference where a job is delayed: Database queue, QStash, and Cloud Tasks honour `delaySeconds`, while
 the synchronous backend has no scheduler and **drops** any delayed message. Code
 that wants a delay must therefore check `getQueue().runsInline` and skip the
 delay rather than losing the job (see `syncStatusLinkPreview`).

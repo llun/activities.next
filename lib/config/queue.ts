@@ -1,9 +1,11 @@
 import { z } from 'zod'
 
+import { DatabaseQueueConfig } from '@/lib/services/queue/database'
 import { QStashConfig } from '@/lib/services/queue/qstash'
 
 import { matcher } from './utils'
 
+export { DatabaseQueueConfig } from '@/lib/services/queue/database'
 export { QStashConfig } from '@/lib/services/queue/qstash'
 
 export const CloudTasksConfig = z.object({
@@ -20,6 +22,7 @@ export const CloudTasksConfig = z.object({
 export type CloudTasksConfig = z.infer<typeof CloudTasksConfig>
 
 export const QueueConfig = z.discriminatedUnion('type', [
+  DatabaseQueueConfig,
   QStashConfig,
   CloudTasksConfig
 ])
@@ -30,6 +33,20 @@ export const getQueueConfig = (): { queue: QueueConfig } | null => {
   if (!hasEnvironmentQueue) return null
 
   switch (process.env.ACTIVITIES_QUEUE_TYPE) {
+    case 'database': {
+      const maxRetriesStr = process.env.ACTIVITIES_QUEUE_DATABASE_MAX_RETRIES
+      const pollIntervalMsStr =
+        process.env.ACTIVITIES_QUEUE_DATABASE_POLL_INTERVAL_MS
+      return {
+        queue: {
+          type: 'database',
+          maxRetries: maxRetriesStr ? parseInt(maxRetriesStr, 10) : 16,
+          pollIntervalMs: pollIntervalMsStr
+            ? parseInt(pollIntervalMsStr, 10)
+            : 1000
+        }
+      }
+    }
     case 'qstash': {
       const maxRetriesStr = process.env.ACTIVITIES_QUEUE_QSTASH_MAX_RETRIES
       return {
