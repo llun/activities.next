@@ -9,6 +9,7 @@ import { getActorProfile } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { SearchPageClient } from './SearchPageClient'
+import { SearchLoading } from './loading'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
@@ -31,13 +32,7 @@ const Page = async () => {
   const settings = await database.getActorSettings({ actorId: actor.id })
 
   return (
-    <Suspense
-      fallback={
-        <div className="p-8 text-center text-muted-foreground">
-          <p className="text-sm font-medium">Loading search...</p>
-        </div>
-      }
-    >
+    <Suspense fallback={<SearchLoading />}>
       <SearchPageClient
         host={host}
         currentActor={getActorProfile(actor)}
