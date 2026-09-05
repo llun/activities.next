@@ -173,4 +173,78 @@ describe('QueueJobDatabase', () => {
     const notFound = await database.getQueueJobById('custom-id-1')
     expect(notFound).toBeNull()
   })
+
+  it('re-enqueues or upserts an existing job on duplicate id without primary key collision', async () => {
+    // Create a job that eventually failed
+    await database.createQueueJob({
+      id: 'retry-upsert-1',
+      name: 'deliverActivity',
+      payload: samplePayload,
+      attempts: 16,
+      status: 'failed',
+      lastErrorMessage: 'Original terminal failure'
+    })
+
+    const failedJob = await database.getQueueJobById('retry-upsert-1')
+    expect(failedJob?.status).toBe('failed')
+    expect(failedJob?.attempts).toBe(16)
+
+    // Re-enqueue with the same ID (e.g. from DLQ retry)
+    const reEnqueued = await database.createQueueJob({
+      id: 'retry-upsert-1',
+      name: 'deliverActivity',
+      payload: samplePayload,
+      attempts: 0,
+      status: 'pending'
+    })
+
+    expect(reEnqueued.id).toBe('retry-upsert-1')
+    expect(reEnqueued.status).toBe('pending')
+    expect(reEnqueued.attempts).toBe(0)
+
+    const fetched = await database.getQueueJobById('retry-upsert-1')
+    expect(fetched?.status).toBe('pending')
+    expect(fetched?.attempts).toBe(0)
+  })
+
+  it('recovers stalled processing jobs when stalledTimeoutMs is passed', async () => {
+    const now = Date.now()
+
+    // Create a job stuck in 'processing' since 30 minutes ago
+    await database.createQueueJob({
+      id: 'stalled-1',
+      name: 'deliverActivity',
+      payload: samplePayload,
+      status: 'processing'
+    })
+
+    // Manually backdate updated_at to simulate a crashed worker
+    await knexDatabase('queue_jobs')
+      .where({ id: 'stalled-1' })
+      .update({
+        status: 'processing',
+        updated_at: new Date(now - 30 * 60 * 1000)
+      })
+
+    // Without stalled timeout, getDueQueueJobs ignores it
+    const normalDue = await database.getDueQueueJobs({
+      now: new Date(now),
+      stalledTimeoutMs: 0
+    })
+    expect(normalDue.some((j) => j.id === 'stalled-1')).toBe(false)
+
+    // With stalled timeout (15 min), it is returned
+    const recoveredDue = await database.getDueQueueJobs({
+      now: new Date(now),
+      stalledTimeoutMs: 15 * 60 * 1000
+    })
+    expect(recoveredDue.some((j) => j.id === 'stalled-1')).toBe(true)
+
+    // And can be claimed by passing stalledBefore
+    const claimed = await database.claimQueueJob(
+      'stalled-1',
+      new Date(now - 15 * 60 * 1000)
+    )
+    expect(claimed).toBe(true)
+  })
 })

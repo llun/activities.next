@@ -68,7 +68,20 @@ export const QueueJobSQLDatabaseMixin = (database: Knex): QueueJobDatabase => ({
       updated_at: currentTime
     }
 
-    await database('queue_jobs').insert(row)
+    await database('queue_jobs')
+      .insert(row)
+      .onConflict('id')
+      .merge({
+        name,
+        payload: JSON.stringify(params.payload),
+        attempts,
+        max_retries: maxRetries,
+        next_run_at: nextRunAt,
+        status,
+        last_error_message: lastErrorMessage,
+        last_error_stack: lastErrorStack,
+        updated_at: currentTime
+      })
 
     return {
       id,
@@ -86,10 +99,21 @@ export const QueueJobSQLDatabaseMixin = (database: Knex): QueueJobDatabase => ({
   },
 
   async getDueQueueJobs(params: GetDueQueueJobsParams = {}) {
-    const { limit = 50, now = new Date() } = params
+    const { limit = 50, now = new Date(), stalledTimeoutMs } = params
     const rows = await database<SQLQueueJob>('queue_jobs')
-      .where('status', 'pending')
-      .where('next_run_at', '<=', now)
+      .where((builder) => {
+        builder.where('status', 'pending').andWhere('next_run_at', '<=', now)
+        if (typeof stalledTimeoutMs === 'number' && stalledTimeoutMs > 0) {
+          const stalledBefore = new Date(now.getTime() - stalledTimeoutMs)
+          builder.orWhere((b) => {
+            b.where('status', 'processing').andWhere(
+              'updated_at',
+              '<=',
+              stalledBefore
+            )
+          })
+        }
+      })
       .orderBy('next_run_at', 'asc')
       .orderBy('id', 'asc')
       .limit(limit)
@@ -97,10 +121,22 @@ export const QueueJobSQLDatabaseMixin = (database: Knex): QueueJobDatabase => ({
     return rows.map(toQueueJob)
   },
 
-  async claimQueueJob(id: string) {
+  async claimQueueJob(id: string, stalledBefore?: Date) {
     const updatedAt = new Date()
     const updatedCount = await database('queue_jobs')
-      .where({ id, status: 'pending' })
+      .where('id', id)
+      .where((builder) => {
+        builder.where('status', 'pending')
+        if (stalledBefore) {
+          builder.orWhere((b) => {
+            b.where('status', 'processing').andWhere(
+              'updated_at',
+              '<=',
+              stalledBefore
+            )
+          })
+        }
+      })
       .update({
         status: 'processing',
         updated_at: updatedAt

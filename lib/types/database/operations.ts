@@ -4308,12 +4308,13 @@ export interface CreateQueueJobParams {
 export interface GetDueQueueJobsParams {
   limit?: number
   now?: Date
+  stalledTimeoutMs?: number
 }
 
 export interface QueueJobDatabase {
   createQueueJob(params: CreateQueueJobParams): Promise<QueueJob>
   getDueQueueJobs(params?: GetDueQueueJobsParams): Promise<QueueJob[]>
-  claimQueueJob(id: string): Promise<boolean>
+  claimQueueJob(id: string, stalledBefore?: Date): Promise<boolean>
   completeQueueJob(id: string): Promise<boolean>
   scheduleQueueJobRetry(params: {
     id: string

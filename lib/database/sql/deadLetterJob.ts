@@ -60,7 +60,18 @@ export const DeadLetterJobSQLDatabaseMixin = (
       updated_at: currentTime
     }
 
-    await database('dead_letter_jobs').insert(row)
+    await database('dead_letter_jobs')
+      .insert(row)
+      .onConflict('id')
+      .merge({
+        job_name: jobName,
+        payload: JSON.stringify(params.payload),
+        error_message: errorMessage,
+        error_stack: errorStack,
+        attempts,
+        status,
+        updated_at: currentTime
+      })
 
     return {
       id,

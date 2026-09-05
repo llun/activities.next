@@ -68,4 +68,32 @@ describe('DatabaseQueue', () => {
     expect(job).not.toBeNull()
     expect(job?.nextRunAt).toBeGreaterThanOrEqual(before + 115 * 1000)
   })
+
+  it('re-publishes job with same ID cleanly without constraint violation (DLQ retry)', async () => {
+    const queue = new DatabaseQueue(undefined, database)
+    const message: JobMessage = {
+      id: 'db-queue-dlq-retry-1',
+      name: 'deliverActivity',
+      data: { original: true }
+    }
+
+    await queue.publish(message)
+
+    // Simulate job failing terminally in database
+    await database.failQueueJob({
+      id: 'db-queue-dlq-retry-1',
+      attempts: 16,
+      error: new Error('Terminal failure')
+    })
+    const failed = await database.getQueueJobById('db-queue-dlq-retry-1')
+    expect(failed?.status).toBe('failed')
+    expect(failed?.attempts).toBe(16)
+
+    // Re-publish from DLQ retry
+    await expect(queue.publish(message)).resolves.toBeUndefined()
+
+    const retried = await database.getQueueJobById('db-queue-dlq-retry-1')
+    expect(retried?.status).toBe('pending')
+    expect(retried?.attempts).toBe(0)
+  })
 })
