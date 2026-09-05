@@ -1,0 +1,18 @@
+migrations/20260905193000_create_queue_jobs.js
+  h_580a04e334fef4 1-34
+migrations/schema.sql
+  h_580a04e334fef4 1012-1025,1658-1660,1924-1929
+migrations/schema.sqlite.sql
+  h_580a04e334fef4 288-291
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "28a4a64c2964c03108e8f1ba0962d9fe60481ccc",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+lib/database/sql/deadLetterJob.ts
+  h_580a04e334fef4 63-74
+lib/database/sql/queueJob.test.ts
+  h_580a04e334fef4 176-249
+lib/database/sql/queueJob.ts
+  h_580a04e334fef4 71-84,102,104-116,124,127-139
+lib/services/queue/database.test.ts
+  h_580a04e334fef4 71-98
+lib/types/database/operations.ts
+  h_580a04e334fef4 4311,4317
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "7d6dc555a00e2b6f71adbdc4a5e6d0bf0e0c9e04",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
