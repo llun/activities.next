@@ -147,6 +147,7 @@ ACTIVITIES_QUEUE_NEXT_SIGNING_KEY=your-next-signing-key
 
 ```bash
 ACTIVITIES_QUEUE_TYPE=cloudtasks
+ACTIVITIES_QUEUE_NAME=activities-queue
 ACTIVITIES_QUEUE_URL=https://your-domain.tld/api/v1/queue/cloudtasks
 ACTIVITIES_QUEUE_CLOUDTASKS_LOCATION=europe-west1
 ACTIVITIES_QUEUE_CLOUDTASKS_PROJECT_ID=your-gcp-project-id

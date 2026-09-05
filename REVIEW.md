@@ -26,8 +26,9 @@ change doesn't touch.
   build config does not consume those values.
 - Optional external SDKs and database drivers (`@google-cloud/tasks`,
   `@upstash/qstash`, `pg`) must reside in dedicated workspace packages under
-  `packages/*` and be imported dynamically via `dynamicImport` (with type stubs
-  in `lib/types/optional-modules.d.ts`), never through static top-level imports in
+  `packages/*` and be imported dynamically (via `dynamicImport` with type stubs
+  in `lib/types/optional-modules.d.ts` for queue SDKs, or Knex dynamic driver
+  loading for database clients), never through static top-level imports in
   core `app/` or `lib/` modules, so minimal standalone builds run without them.
 
 ## API routes

@@ -174,6 +174,8 @@ services:
       POSTGRES_USER: activitynext
       POSTGRES_PASSWORD: your_strong_password
       POSTGRES_DB: activitynext
+    ports:
+      - '5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
