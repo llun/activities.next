@@ -3,7 +3,7 @@ ARG UID="1001"
 ARG GID="1001"
 ARG ACTIVITIES_HOST="localhost"
 ARG ACTIVITIES_DATABASE_TYPE="knex"
-ARG ACTIVITIES_DATABASE_CLIENT="better-sqlite3"
+ARG ACTIVITIES_DATABASE_CLIENT="pg"
 ARG ACTIVITIES_DATABASE_SQLITE_FILENAME="/opt/activities.next/data.sqlite"
 ENV ACTIVITIES_HOST=${ACTIVITIES_HOST}
 ENV ACTIVITIES_DATABASE_TYPE=${ACTIVITIES_DATABASE_TYPE}
@@ -28,12 +28,12 @@ WORKDIR /opt/activities.next
 USER app
 
 FROM base AS build
-ARG WORKSPACES="activities.next"
+ARG WORKSPACES="activities.next @activities/pg @activities/qstash"
 ADD --chown=app:app . /opt/activities.next/
 RUN yarn config set -H enableGlobalCache true
 RUN yarn workspaces focus ${WORKSPACES}
 RUN yarn dedupe
-RUN ACTIVITIES_SECRET_PHASE=build-placeholder yarn knex migrate:latest --disable-transactions
+RUN if [ "$ACTIVITIES_DATABASE_CLIENT" = "better-sqlite3" ] || [ "$ACTIVITIES_DATABASE_CLIENT" = "sqlite3" ]; then ACTIVITIES_SECRET_PHASE=build-placeholder yarn knex migrate:latest --disable-transactions; else touch /opt/activities.next/data.sqlite; fi
 RUN ACTIVITIES_SECRET_PHASE=build-placeholder BUILD_STANDALONE=true yarn build
 
 FROM base AS output
@@ -51,6 +51,7 @@ COPY --from=build --chown=app:app /opt/activities.next/data.sqlite /opt/activiti
 # sibling libvips .so ship together with their original layout intact.
 COPY --from=build --chown=app:app /opt/activities.next/node_modules/sharp /opt/activities.next/node_modules/sharp
 COPY --from=build --chown=app:app /opt/activities.next/node_modules/@img /opt/activities.next/node_modules/@img
+COPY --from=build --chown=app:app /opt/activities.next/node_modules/@upstash /opt/activities.next/node_modules/@upstash
 RUN rm -rf /opt/activities.next/.yarn
 EXPOSE 3000
 CMD ["node", "server.js"]
