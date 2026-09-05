@@ -7,6 +7,7 @@ import { Config, getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getQueue } from '@/lib/services/queue'
+import { JobMessage } from '@/lib/services/queue/type'
 import { dynamicImport } from '@/lib/utils/dynamicImport'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -47,7 +48,7 @@ export const POST = traceApiRoute(
       return apiErrorResponse(400)
     }
 
-    let jsonBody: unknown = undefined
+    let jsonBody: unknown
     try {
       jsonBody = JSON.parse(body)
     } catch {
@@ -111,7 +112,7 @@ export const POST = traceApiRoute(
       ) {
         await database.createDeadLetterJob({
           jobName: String((jsonBody as { name: unknown }).name),
-          payload: jsonBody,
+          payload: jsonBody as JobMessage,
           errorMessage: err.message || 'Job execution failed terminally',
           errorStack: err.stack ?? null,
           attempts: retriedCount + 1,

@@ -2,9 +2,9 @@ import { z } from 'zod'
 
 import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
 import {
-  classifyDeliveryError,
   DeliveryDisposition,
-  SalvageableDeliveryError
+  SalvageableDeliveryError,
+  classifyDeliveryError
 } from '@/lib/services/federation/deliveryError'
 import { JobHandle } from '@/lib/services/queue/type'
 import { logger } from '@/lib/utils/logger'

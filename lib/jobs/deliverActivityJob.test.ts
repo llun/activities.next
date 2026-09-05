@@ -2,11 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Database } from '@/lib/database/types'
 import { SalvageableDeliveryError } from '@/lib/services/federation/deliveryError'
+import { Actor } from '@/lib/types/domain/actor'
 import { request } from '@/lib/utils/request'
 
 import {
-  deliverActivityJob,
-  DeliverActivityJobData
+  DeliverActivityJobData,
+  deliverActivityJob
 } from './deliverActivityJob'
 
 vi.mock('@/lib/utils/request')
@@ -26,7 +27,7 @@ describe('deliverActivityJob', () => {
     vi.mocked(mockDatabase.getActorFromId).mockResolvedValue({
       id: 'https://activities.local/users/alice',
       privateKey: 'mock-key'
-    } as any)
+    } as unknown as Actor)
   })
 
   it('validates job data with schema', () => {
@@ -49,7 +50,7 @@ describe('deliverActivityJob', () => {
     vi.mocked(request).mockResolvedValue({
       statusCode: 200,
       body: '',
-      headers: new Headers()
+      headers: {}
     })
 
     const message = {
@@ -71,7 +72,7 @@ describe('deliverActivityJob', () => {
     vi.mocked(request).mockResolvedValue({
       statusCode: 503,
       body: 'Unavailable',
-      headers: new Headers()
+      headers: {}
     })
 
     const message = {
@@ -93,7 +94,7 @@ describe('deliverActivityJob', () => {
     vi.mocked(request).mockResolvedValue({
       statusCode: 410,
       body: 'Gone',
-      headers: new Headers()
+      headers: {}
     })
 
     const message = {

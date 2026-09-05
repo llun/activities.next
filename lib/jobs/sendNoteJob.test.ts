@@ -3,7 +3,6 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { DELIVER_ACTIVITY_JOB_NAME, SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { sendNoteJob } from '@/lib/jobs/sendNoteJob'
-import { getQueue } from '@/lib/services/queue'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
@@ -22,8 +21,7 @@ vi.mock('@/lib/services/queue', () => ({
       hoisted.publishSpy(message)
       const { JOBS } = await import('@/lib/jobs')
       const job = (JOBS as Record<string, unknown>)[message.name] as
-        | ((db: unknown, msg: unknown) => Promise<void>)
-        | undefined
+        ((db: unknown, msg: unknown) => Promise<void>) | undefined
       if (job && hoisted.database) {
         await job(hoisted.database, message)
       }
