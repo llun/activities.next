@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Database } from '@/lib/database/types'
 import { SalvageableDeliveryError } from '@/lib/services/federation/deliveryError'
+import { setupRecordingTracer } from '@/lib/testing/recordingTracer'
 import { Actor } from '@/lib/types/domain/actor'
 import { request } from '@/lib/utils/request'
 
@@ -18,16 +19,22 @@ vi.mock('@/lib/activities/activityPubHeaders', () => ({
 }))
 
 describe('deliverActivityJob', () => {
+  let harness: ReturnType<typeof setupRecordingTracer>
   const mockDatabase = {
     getActorFromId: vi.fn()
   } as unknown as Database
 
   beforeEach(() => {
     vi.clearAllMocks()
+    harness = setupRecordingTracer()
     vi.mocked(mockDatabase.getActorFromId).mockResolvedValue({
       id: 'https://activities.local/users/alice',
       privateKey: 'mock-key'
     } as unknown as Actor)
+  })
+
+  afterEach(() => {
+    harness.cleanup()
   })
 
   it('validates job data with schema', () => {
@@ -66,6 +73,14 @@ describe('deliverActivityJob', () => {
     await expect(
       deliverActivityJob(mockDatabase, message)
     ).resolves.toBeUndefined()
+
+    const span = harness.recordedSpans.find(
+      (s) => s.name === 'job.DeliverActivityJob'
+    )
+    expect(span).toBeDefined()
+    const eventNames = span?.events.map((e) => e.name)
+    expect(eventNames).toContain('delivery_attempt_start')
+    expect(eventNames).toContain('delivery_success')
   })
 
   it('throws SalvageableDeliveryError on HTTP 503', async () => {
@@ -88,6 +103,14 @@ describe('deliverActivityJob', () => {
     await expect(deliverActivityJob(mockDatabase, message)).rejects.toThrow(
       SalvageableDeliveryError
     )
+
+    const span = harness.recordedSpans.find(
+      (s) => s.name === 'job.DeliverActivityJob'
+    )
+    expect(span).toBeDefined()
+    const eventNames = span?.events.map((e) => e.name)
+    expect(eventNames).toContain('delivery_attempt_start')
+    expect(eventNames).toContain('delivery_salvageable_failure')
   })
 
   it('completes cleanly without throwing on unsalvageable HTTP 404 or 410', async () => {
@@ -110,6 +133,14 @@ describe('deliverActivityJob', () => {
     await expect(
       deliverActivityJob(mockDatabase, message)
     ).resolves.toBeUndefined()
+
+    const span = harness.recordedSpans.find(
+      (s) => s.name === 'job.DeliverActivityJob'
+    )
+    expect(span).toBeDefined()
+    const eventNames = span?.events.map((e) => e.name)
+    expect(eventNames).toContain('delivery_attempt_start')
+    expect(eventNames).toContain('delivery_unsalvageable_discarded')
   })
 
   it('throws SalvageableDeliveryError on connection timeout', async () => {
@@ -130,6 +161,14 @@ describe('deliverActivityJob', () => {
     await expect(deliverActivityJob(mockDatabase, message)).rejects.toThrow(
       SalvageableDeliveryError
     )
+
+    const span = harness.recordedSpans.find(
+      (s) => s.name === 'job.DeliverActivityJob'
+    )
+    expect(span).toBeDefined()
+    const eventNames = span?.events.map((e) => e.name)
+    expect(eventNames).toContain('delivery_attempt_start')
+    expect(eventNames).toContain('delivery_salvageable_failure')
   })
 
   it('discards cleanly if actor is not found', async () => {
@@ -149,5 +188,12 @@ describe('deliverActivityJob', () => {
       deliverActivityJob(mockDatabase, message)
     ).resolves.toBeUndefined()
     expect(request).not.toHaveBeenCalled()
+
+    const span = harness.recordedSpans.find(
+      (s) => s.name === 'job.DeliverActivityJob'
+    )
+    expect(span).toBeDefined()
+    const eventNames = span?.events.map((e) => e.name)
+    expect(eventNames).toContain('delivery_unsalvageable_discarded')
   })
 })

@@ -62,19 +62,71 @@ export const sendNoteJob: JobHandle = createJobHandle(
       }
 
       const queue = getQueue()
-      await Promise.all(
-        federatedInboxes.map((inbox) =>
-          queue.publish({
-            id: randomUUID(),
-            name: DELIVER_ACTIVITY_JOB_NAME,
-            data: {
-              inbox,
-              actorId: actor.id,
-              activity: activity as unknown as Record<string, unknown>
-            }
-          })
+
+      span.addEvent('fanout_started', {
+        'fanout.inbox_count': federatedInboxes.length,
+        'fanout.actor_id': actor.id,
+        'fanout.status_id': status.id,
+        'queue.runs_inline': queue.runsInline
+      })
+
+      if (queue.runsInline) {
+        const results = await Promise.allSettled(
+          federatedInboxes.map((inbox) =>
+            queue.publish({
+              id: randomUUID(),
+              name: DELIVER_ACTIVITY_JOB_NAME,
+              data: {
+                inbox,
+                actorId: actor.id,
+                activity: activity as unknown as Record<string, unknown>
+              }
+            })
+          )
         )
-      )
+
+        let failureCount = 0
+        for (let i = 0; i < results.length; i++) {
+          const result = results[i]
+          if (result.status === 'rejected') {
+            failureCount++
+            const err =
+              result.reason instanceof Error
+                ? result.reason
+                : new Error(String(result.reason))
+            span.addEvent('inbox_delivery_inline_error', {
+              'delivery.inbox': federatedInboxes[i],
+              'error.message': err.message
+            })
+          }
+        }
+
+        span.addEvent('fanout_completed', {
+          'fanout.inbox_count': federatedInboxes.length,
+          'fanout.failure_count': failureCount,
+          'queue.runs_inline': true
+        })
+      } else {
+        await Promise.all(
+          federatedInboxes.map((inbox) =>
+            queue.publish({
+              id: randomUUID(),
+              name: DELIVER_ACTIVITY_JOB_NAME,
+              data: {
+                inbox,
+                actorId: actor.id,
+                activity: activity as unknown as Record<string, unknown>
+              }
+            })
+          )
+        )
+
+        span.addEvent('fanout_completed', {
+          'fanout.inbox_count': federatedInboxes.length,
+          'fanout.failure_count': 0,
+          'queue.runs_inline': false
+        })
+      }
     })
   }
 )

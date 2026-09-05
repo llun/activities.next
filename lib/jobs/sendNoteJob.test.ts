@@ -12,13 +12,19 @@ enableFetchMocks()
 
 const hoisted = vi.hoisted(() => ({
   database: null as unknown,
-  publishSpy: vi.fn()
+  publishSpy: vi.fn(),
+  runsInline: true,
+  failInbox: null as string | null
 }))
 
 vi.mock('@/lib/services/queue', () => ({
   getQueue: () => ({
-    publish: async (message: { name: string; data: unknown }) => {
+    runsInline: hoisted.runsInline,
+    publish: async (message: { name: string; data: { inbox?: string } }) => {
       hoisted.publishSpy(message)
+      if (hoisted.failInbox && message.data?.inbox === hoisted.failInbox) {
+        throw new Error('Simulated inbox delivery rejection')
+      }
       const { JOBS } = await import('@/lib/jobs')
       const job = (JOBS as Record<string, unknown>)[message.name] as
         ((db: unknown, msg: unknown) => Promise<void>) | undefined
@@ -52,6 +58,7 @@ describe('sendNoteJob', () => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
     hoisted.publishSpy.mockClear()
+    hoisted.failInbox = null
   })
 
   it('does nothing when status is not found', async () => {
@@ -221,5 +228,56 @@ describe('sendNoteJob', () => {
         }
       })
     ).resolves.toBeUndefined()
+  })
+
+  it('continues delivering to sibling inboxes when one inbox fails under inline queue (Promise.allSettled)', async () => {
+    if (!actor1) fail('Actor1 is required')
+
+    await database.createFollow({
+      actorId: 'https://friend2.test/actors/user2',
+      targetActorId: actor1.id,
+      inbox: 'https://friend2.test/inbox/user2',
+      sharedInbox: 'https://friend2.test/inbox',
+      status: 'Accepted' as any
+    })
+
+    await database.createFollow({
+      actorId: 'https://friend3.test/actors/user3',
+      targetActorId: actor1.id,
+      inbox: 'https://friend3.test/inbox/user3',
+      sharedInbox: 'https://friend3.test/inbox',
+      status: 'Accepted' as any
+    })
+
+    hoisted.failInbox = 'https://friend3.test/inbox'
+
+    const statusId = `${actor1.id}/statuses/resilient-fanout-${Date.now()}`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: actor1.id,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [`${actor1.id}/followers`],
+      text: 'Resilient fanout to multiple followers',
+      createdAt: Date.now()
+    })
+
+    await expect(
+      sendNoteJob(database, {
+        id: 'job-resilient',
+        name: SEND_NOTE_JOB_NAME,
+        data: {
+          actorId: actor1.id,
+          statusId
+        }
+      })
+    ).resolves.toBeUndefined()
+
+    expect(hoisted.publishSpy).toHaveBeenCalled()
+    expect(
+      fetchMock.mock.calls.some(
+        (call) => call[0] === 'https://friend2.test/inbox'
+      )
+    ).toBe(true)
   })
 })
