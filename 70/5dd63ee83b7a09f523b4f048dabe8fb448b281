@@ -1,0 +1,20 @@
+docs/environment-variables.md
+  h_580a04e334fef4 365-367
+instrumentation.ts
+  h_580a04e334fef4 12-13
+lib/database/sql/queueJob.ts
+  h_580a04e334fef4 43,114-117,201
+lib/services/queue/database.test.ts
+  h_580a04e334fef4 34-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "705dd63ee83b7a09f523b4f048dabe8fb448b281",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

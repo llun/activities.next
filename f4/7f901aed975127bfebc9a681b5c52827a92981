@@ -1,0 +1,20 @@
+lib/jobs/deliverActivityJob.test.ts
+  h_580a04e334fef4 1-152
+lib/jobs/deliverActivityJob.ts
+  h_580a04e334fef4 1-96
+lib/jobs/index.ts
+  h_580a04e334fef4 10,29,124-125
+lib/jobs/names.ts
+  h_580a04e334fef4 40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "f47f901aed975127bfebc9a681b5c52827a92981",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

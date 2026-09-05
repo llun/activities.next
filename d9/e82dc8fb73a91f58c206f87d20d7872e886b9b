@@ -1,0 +1,16 @@
+lib/services/queue/retry.test.ts
+  h_580a04e334fef4 1-34
+lib/services/queue/retry.ts
+  h_580a04e334fef4 1-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "d9e82dc8fb73a91f58c206f87d20d7872e886b9b",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
