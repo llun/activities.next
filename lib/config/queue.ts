@@ -8,6 +8,10 @@ export { QStashConfig } from '@/lib/services/queue/qstash'
 
 export const CloudTasksConfig = z.object({
   type: z.literal('cloudtasks'),
+  url: z.string().optional(),
+  queue: z.string().optional(),
+  location: z.string().optional(),
+  project: z.string().optional(),
   serviceAccount: z.string().optional(),
   audience: z.string().optional(),
   secret: z.string().optional(),
@@ -46,6 +50,13 @@ export const getQueueConfig = (): { queue: QueueConfig } | null => {
       return {
         queue: {
           type: 'cloudtasks',
+          url: process.env.ACTIVITIES_QUEUE_URL,
+          queue: process.env.ACTIVITIES_QUEUE_NAME,
+          location:
+            process.env.ACTIVITIES_QUEUE_CLOUDTASKS_LOCATION || 'europe-west1',
+          project:
+            process.env.ACTIVITIES_QUEUE_CLOUDTASKS_PROJECT_ID ||
+            process.env.FIREBASE_PROJECT_ID,
           serviceAccount:
             process.env.ACTIVITIES_QUEUE_CLOUDTASKS_SERVICE_ACCOUNT,
           audience: process.env.ACTIVITIES_QUEUE_CLOUDTASKS_AUDIENCE,

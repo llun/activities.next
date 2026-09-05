@@ -47,6 +47,7 @@ const nextConfig: NextConfig = {
     '@aws-sdk/client-s3',
     '@aws-sdk/util-utf8-node',
     '@google-cloud/firestore',
+    '@google-cloud/tasks',
     '@keyv/redis',
     'knex',
     'bcrypt',
