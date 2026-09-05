@@ -1,8 +1,9 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { DELIVER_ACTIVITY_JOB_NAME, SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { sendNoteJob } from '@/lib/jobs/sendNoteJob'
+import { getQueue } from '@/lib/services/queue'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
@@ -10,11 +11,32 @@ import { Actor } from '@/lib/types/domain/actor'
 
 enableFetchMocks()
 
+const hoisted = vi.hoisted(() => ({
+  database: null as unknown,
+  publishSpy: vi.fn()
+}))
+
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: () => ({
+    publish: async (message: { name: string; data: unknown }) => {
+      hoisted.publishSpy(message)
+      const { JOBS } = await import('@/lib/jobs')
+      const job = (JOBS as Record<string, unknown>)[message.name] as
+        | ((db: unknown, msg: unknown) => Promise<void>)
+        | undefined
+      if (job && hoisted.database) {
+        await job(hoisted.database, message)
+      }
+    }
+  })
+}))
+
 describe('sendNoteJob', () => {
   const database = getTestSQLDatabase()
   let actor1: Actor | undefined
 
   beforeAll(async () => {
+    hoisted.database = database
     await database.migrate()
     await seedDatabase(database)
     actor1 = await database.getActorFromUsername({
@@ -31,6 +53,7 @@ describe('sendNoteJob', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
+    hoisted.publishSpy.mockClear()
   })
 
   it('does nothing when status is not found', async () => {
@@ -104,6 +127,40 @@ describe('sendNoteJob', () => {
         (call) => call[0] === 'https://somewhere.test/inbox'
       )
     ).toBe(true)
+  })
+
+  it('enqueues a DeliverActivityJob for each federated inbox', async () => {
+    if (!actor1) fail('Actor1 is required')
+
+    const statusId = `${actor1.id}/statuses/fanout-test-${Date.now()}`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: actor1.id,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [`${actor1.id}/followers`],
+      text: 'Note content to test fanout',
+      createdAt: Date.now()
+    })
+
+    await sendNoteJob(database, {
+      id: 'job-fanout',
+      name: SEND_NOTE_JOB_NAME,
+      data: {
+        actorId: actor1.id,
+        statusId
+      }
+    })
+
+    expect(hoisted.publishSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: DELIVER_ACTIVITY_JOB_NAME,
+        data: expect.objectContaining({
+          inbox: 'https://somewhere.test/inbox',
+          actorId: actor1.id
+        })
+      })
+    )
   })
 
   it('does not send notes to suspended domains', async () => {
