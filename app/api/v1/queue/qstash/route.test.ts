@@ -1,5 +1,5 @@
 import { SpanStatusCode } from '@opentelemetry/api'
-import { Receiver } from '@upstash/qstash'
+import type { Receiver } from '@upstash/qstash'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,14 +9,22 @@ import { setupRecordingTracer } from '@/lib/testing/recordingTracer'
 
 import { POST } from './route'
 
+const mockVerify = vi.fn()
+const MockReceiver = vi.fn().mockImplementation(function (this: unknown) {
+  return {
+    verify: mockVerify
+  }
+})
+
 vi.mock('@/lib/config')
 vi.mock('@/lib/services/queue')
-vi.mock('@upstash/qstash')
+vi.mock('@upstash/qstash', () => ({
+  Receiver: MockReceiver
+}))
 
 describe('POST /api/v1/queue/qstash', () => {
   let harness: ReturnType<typeof setupRecordingTracer>
   const mockHandle = vi.fn()
-  const mockVerify = vi.fn()
 
   beforeEach(() => {
     harness = setupRecordingTracer()
@@ -38,11 +46,11 @@ describe('POST /api/v1/queue/qstash', () => {
       runsInline: false
     } as unknown as ReturnType<typeof getQueue>)
 
-    vi.mocked(Receiver).mockImplementation(function (this: unknown) {
+    MockReceiver.mockImplementation(function (this: unknown) {
       return {
         verify: mockVerify
       } as unknown as Receiver
-    } as unknown as typeof Receiver)
+    })
   })
 
   afterEach(() => {
