@@ -401,6 +401,24 @@ change doesn't touch.
 - `(timeline)` pages use `PageHeader` from `@/lib/components/page-header` and share
   the single `max-w-content` (940px) width. No reintroduced `max-w-2xl`/`max-w-4xl`
   split, `contentWidth` prop, or `data-layout-width="wide"`.
+- Route loading skeletons (`loading.tsx`) in `(timeline)` reuse `PageHeader` from
+  `@/lib/components/page-header` directly with `.skeleton` placeholders (title
+  `h-7`, description `h-4`, action button vertically centered via
+  `.shrink-0.self-center` in `actions`) so the header height (79px) and action
+  placement match the hydrated page with 0px shift. Look at Timeline, Favorites,
+  Messages, and Search skeletons as reference.
+  - Top-level timeline routes (`(home)`, `favorites`, `messages`, `search`,
+    `bookmarks`, `notifications`, `explore`, `lists`, `collections`,
+    `followers`/`following`) must use `PageHeader` in skeletons. Never hand-roll
+    sticky breakout headers (e.g. 75px hand-rolled headers cause 4px layout shifts).
+  - Notifications skeleton must preserve the sticky subnav tab container.
+  - Child routes in section layouts (`settings`, `fitness`, `admin`, `account`)
+    must not render sticky breakout headers in skeletons since the layout owns
+    the sticky section header; use in-panel section title skeletons instead.
+  - Non-header routes (status permalinks, profile pages, tag pages) mirror their
+    bespoke card, banner, or title geometry.
+  - Content panel skeletons must mirror real component metrics (no double borders
+    from `divide-y`, correct card heights and button sizes).
 - Settings-style sections (settings, fitness, admin) use the shared
   `SectionNavDropdown` on every breakpoint — no re-inlined dropdown markup and no
   desktop vertical icon rail. Sentence-case labels ("Blocked accounts").
