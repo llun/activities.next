@@ -137,7 +137,7 @@ jobs:
           GEMINI_API_KEY: ${{ env.GEMINI_API_KEY }}
         run: |
           # Ensure activities.next-internal sync workflows and unwanted workflows never enter activities.prod
-          git rm -f --ignore-unmatch '.github/workflows/sync-main-to-*' '.github/workflows/package.yml' '.github/workflows/cloudbuild.yml' '.github/workflows/deploy-infra.yml' 2>/dev/null || true
+          git rm -f --ignore-unmatch '.github/workflows/sync-main-to-*' '.github/workflows/package.yml' '.github/workflows/cloudbuild.yml' '.github/workflows/deploy-infra.yml' '.github/workflows/codeql.yml' '.github/workflows/tag-version.yml' '.github/workflows/version-bump.yml' 2>/dev/null || true
 
           mapfile -t unmerged < <(git diff --name-only --diff-filter=U)
 
@@ -168,7 +168,7 @@ jobs:
             elif [[ "$f" =~ ^\.github/workflows/deploy-gcp\.yml ]]; then
               echo "Preserving activities.prod deploy-gcp.yml"
               git checkout --ours "$f"
-            elif [[ "$f" =~ ^\.github/workflows/(sync-main-to-|package\.yml|deploy-infra\.yml|cloudbuild\.yml) ]]; then
+            elif [[ "$f" =~ ^\.github/workflows/(sync-main-to-|package\.yml|deploy-infra\.yml|cloudbuild\.yml|codeql\.yml|tag-version\.yml|version-bump\.yml) ]]; then
               echo "Removing unwanted workflow from activities.prod: $f"
               git rm -f --ignore-unmatch "$f" 2>/dev/null || true
             else
@@ -216,7 +216,7 @@ jobs:
           GEMINI_API_KEY: ${{ env.GEMINI_API_KEY }}
         run: |
           # Ensure activities.next-internal sync workflows and unwanted workflows never enter activities.prod
-          git rm -f --ignore-unmatch '.github/workflows/sync-main-to-*' '.github/workflows/package.yml' '.github/workflows/cloudbuild.yml' '.github/workflows/deploy-infra.yml' 2>/dev/null || true
+          git rm -f --ignore-unmatch '.github/workflows/sync-main-to-*' '.github/workflows/package.yml' '.github/workflows/cloudbuild.yml' '.github/workflows/deploy-infra.yml' '.github/workflows/codeql.yml' '.github/workflows/tag-version.yml' '.github/workflows/version-bump.yml' 2>/dev/null || true
 
           yarn install --no-immutable
 
@@ -352,7 +352,7 @@ jobs:
         if: steps.synced.outputs.skip == 'false'
         shell: bash
         run: |
-          git rm -f --ignore-unmatch '.github/workflows/sync-main-to-*' '.github/workflows/package.yml' '.github/workflows/cloudbuild.yml' '.github/workflows/deploy-infra.yml' 2>/dev/null || true
+          git rm -f --ignore-unmatch '.github/workflows/sync-main-to-*' '.github/workflows/package.yml' '.github/workflows/cloudbuild.yml' '.github/workflows/deploy-infra.yml' '.github/workflows/codeql.yml' '.github/workflows/tag-version.yml' '.github/workflows/version-bump.yml' 2>/dev/null || true
           git add -A
           git commit \
             -m "chore: sync main from activities.next (${MAIN_SHA})"
