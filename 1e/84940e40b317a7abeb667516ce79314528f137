@@ -1,0 +1,30 @@
+AGENTS.md
+  h_580a04e334fef4 24,37
+CONTRIBUTING.md
+  h_580a04e334fef4 49-50,368-371,380-381
+README.md
+  h_580a04e334fef4 121
+REVIEW.md
+  h_580a04e334fef4 27-31
+docs/architecture.md
+  h_580a04e334fef4 233-234,446-461
+docs/features.md
+  h_580a04e334fef4 107,109
+docs/postgresql-setup.md
+  h_580a04e334fef4 81-82,149-154,162,165,167,182-185
+docs/setup.md
+  h_580a04e334fef4 134-135,140,146-158,209,226-240
+docs/sqlite-setup.md
+  h_580a04e334fef4 3,94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "1e84940e40b317a7abeb667516ce79314528f137",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
