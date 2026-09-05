@@ -9,9 +9,8 @@ export async function register() {
       const { getDatabase } = await import('@/lib/database')
       const database = getDatabase()
       if (database) {
-        const { startDatabaseQueueRunner } = await import(
-          '@/lib/services/queue/databaseRunner'
-        )
+        const { startDatabaseQueueRunner } =
+          await import('@/lib/services/queue/databaseRunner')
         startDatabaseQueueRunner(database, {
           pollIntervalMs: config.queue.pollIntervalMs
         })

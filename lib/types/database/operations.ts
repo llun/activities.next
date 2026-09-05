@@ -4330,4 +4330,3 @@ export interface QueueJobDatabase {
   deleteQueueJob(id: string): Promise<boolean>
   countQueueJobs(params?: { status?: QueueJobStatus }): Promise<number>
 }
-

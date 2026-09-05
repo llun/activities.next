@@ -40,9 +40,7 @@ export const toQueueJob = (row: SQLQueueJob): QueueJob => ({
   updatedAt: getCompatibleTime(row.updated_at)
 })
 
-export const QueueJobSQLDatabaseMixin = (
-  database: Knex
-): QueueJobDatabase => ({
+export const QueueJobSQLDatabaseMixin = (database: Knex): QueueJobDatabase => ({
   async createQueueJob(params: CreateQueueJobParams) {
     const currentTime = new Date()
     const id = params.id || randomUUID()
@@ -113,12 +111,10 @@ export const QueueJobSQLDatabaseMixin = (
 
   async completeQueueJob(id: string) {
     const updatedAt = new Date()
-    const updatedCount = await database('queue_jobs')
-      .where({ id })
-      .update({
-        status: 'completed',
-        updated_at: updatedAt
-      })
+    const updatedCount = await database('queue_jobs').where({ id }).update({
+      status: 'completed',
+      updated_at: updatedAt
+    })
 
     return updatedCount > 0
   },
@@ -202,9 +198,7 @@ export const QueueJobSQLDatabaseMixin = (
   },
 
   async getQueueJobById(id: string) {
-    const row = await database<SQLQueueJob>('queue_jobs')
-      .where({ id })
-      .first()
+    const row = await database<SQLQueueJob>('queue_jobs').where({ id }).first()
 
     if (!row) return null
     return toQueueJob(row)

@@ -31,7 +31,10 @@ describe('DatabaseQueue', () => {
   })
 
   it('publishes immediate job to database with pending status', async () => {
-    const queue = new DatabaseQueue({ type: 'database', maxRetries: 5 }, database)
+    const queue = new DatabaseQueue(
+      { type: 'database', maxRetries: 5 },
+      database
+    )
     const message: JobMessage = {
       id: 'db-queue-job-1',
       name: 'deliverActivity',
