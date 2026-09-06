@@ -320,7 +320,7 @@ Also:
   - What problem does this solve?
   - What approach did you take?
   - Any breaking changes?
-  - Screenshots for UI changes
+  - Screenshots for UI changes (optional, not required)
 - **Link issues**: Reference related issues using `Fixes #123` or `Relates to #456`
 - **Keep PRs focused**: One feature/fix per PR
 

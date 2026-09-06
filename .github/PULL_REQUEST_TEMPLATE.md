@@ -9,8 +9,8 @@ See AGENTS.md → Commit & Pull Request Guidelines. -->
 
 ## Screenshots
 
-<!-- Required for UI changes (before/after where useful). Delete this section
-for changes with no visual surface. -->
+<!-- Optional for UI changes (not required). Delete this section if not
+providing screenshots or for changes with no visual surface. -->
 
 ## Checklist
 
