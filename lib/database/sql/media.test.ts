@@ -1,6 +1,12 @@
 import {
+  SQLITE_MAX_BINDINGS,
+  chunkArray,
+  isSQLiteClient
+} from '@/lib/database/sql/utils/knex'
+import {
   databaseBeforeAll,
-  getTestDatabaseTable
+  getTestDatabaseTable,
+  getTestDatabaseWithInstance
 } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
@@ -747,6 +753,303 @@ describe('MediaDatabase', () => {
         const item = result.items.find((m) => m.id === media!.id)
         expect(item).toBeDefined()
         expect(item?.statusId).toBe(statuses[0].id)
+      })
+
+      it('prevents cross-account attachments from contributing statusId to requesting account', async () => {
+        const actor1 = await database.getActorFromId({
+          id: actors.primary.id
+        })
+        const actor2 = await database.getActorFromId({
+          id: actors.replyAuthor.id
+        })
+        expect(actor1?.account).toBeDefined()
+        expect(actor2?.account).toBeDefined()
+        const account1Id = actor1!.account!.id
+        const account2Id = actor2!.account!.id
+        expect(account1Id).not.toBe(account2Id)
+
+        const mediaAccount1 = await database.createMedia({
+          actorId: actors.primary.id,
+          original: {
+            path: '/test/cross-account-attachment-test.jpg',
+            bytes: 1234,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          }
+        })
+        expect(mediaAccount1).toBeDefined()
+
+        const foreignStatuses = await database.getActorStatuses({
+          actorId: actors.replyAuthor.id,
+          limit: 1
+        })
+        expect(foreignStatuses.length).toBeGreaterThan(0)
+        const foreignStatusId = foreignStatuses[0].id
+
+        await database.createAttachment({
+          actorId: actors.replyAuthor.id,
+          statusId: foreignStatusId,
+          mediaType: 'image/jpeg',
+          url: mediaAccount1!.original.path,
+          width: 100,
+          height: 100,
+          mediaId: mediaAccount1!.id
+        })
+
+        const resultAccount1 = await database.getMediasWithStatusForAccount({
+          accountId: account1Id,
+          limit: 100
+        })
+
+        const item = resultAccount1.items.find(
+          (m) => m.id === String(mediaAccount1!.id)
+        )
+        expect(item).toBeDefined()
+        expect(item?.statusId).toBeUndefined()
+
+        const ownStatuses = await database.getActorStatuses({
+          actorId: actors.primary.id,
+          limit: 1
+        })
+        expect(ownStatuses.length).toBeGreaterThan(0)
+        const ownStatusId = ownStatuses[0].id
+
+        await database.createAttachment({
+          actorId: actors.primary.id,
+          statusId: ownStatusId,
+          mediaType: 'image/jpeg',
+          url: mediaAccount1!.original.path,
+          width: 100,
+          height: 100,
+          mediaId: mediaAccount1!.id
+        })
+
+        const resultWithOwn = await database.getMediasWithStatusForAccount({
+          accountId: account1Id,
+          limit: 100
+        })
+
+        const itemWithOwn = resultWithOwn.items.find(
+          (m) => m.id === String(mediaAccount1!.id)
+        )
+        expect(itemWithOwn).toBeDefined()
+        expect(itemWithOwn?.statusId).toBe(ownStatusId)
+      })
+
+      it('chunks attachment lookups under SQLite parameter limits while preserving ownership filtering and status IDs', async () => {
+        const {
+          database: isolatedDb,
+          instance,
+          prepare: prepareIsolated
+        } = getTestDatabaseWithInstance(true, databaseType)
+        await prepareIsolated()
+        await isolatedDb.migrate()
+
+        try {
+          await seedDatabase(isolatedDb)
+
+          const actor1 = await isolatedDb.getActorFromId({
+            id: actors.primary.id
+          })
+          const actor2 = await isolatedDb.getActorFromId({
+            id: actors.replyAuthor.id
+          })
+          expect(actor1?.account).toBeDefined()
+          expect(actor2?.account).toBeDefined()
+          const account1Id = actor1!.account!.id
+          const account2Id = actor2!.account!.id
+          expect(account1Id).not.toBe(account2Id)
+
+          // Insert 1000 owned media rows for account1. With 2 reserved bindings
+          // (actors.accountId and attachments.statusId <> ''), SQLite batch size
+          // is 997 (SQLITE_MAX_BINDINGS - 2), so 1000 items cross into a second chunk.
+          const mediaCount = 1000
+          const now = Date.now()
+          const mediaRows = Array.from({ length: mediaCount }, (_, index) => ({
+            id: index + 1,
+            actorId: actors.primary.id,
+            accountId: account1Id,
+            original: `/test/chunk-boundary-media-${index + 1}.jpg`,
+            originalBytes: 1024,
+            originalMimeType: 'image/jpeg',
+            originalMetaData: '{}',
+            createdAt: new Date(now - index * 1000),
+            updatedAt: new Date(now - index * 1000)
+          }))
+
+          for (const chunk of chunkArray(mediaRows, 50)) {
+            await instance('medias').insert(chunk)
+          }
+
+          // Media 1 (chunk 1): own attachment -> should return 'own-status-1'
+          // Media 2 (chunk 1): own attachment ('status-own-2') AND foreign attachment ('aaa-foreign-status-2').
+          //   Ownership filtering must ignore 'aaa-foreign-status-2' even though it sorts earlier in MIN(statusId).
+          // Media 500 (chunk 1): foreign attachment only -> should return undefined
+          // Media 501 (chunk 1): empty statusId attachment -> should return undefined
+          // Media 1000 (chunk 2): own attachment -> should return 'own-status-1000'
+          await instance('attachments').insert([
+            {
+              id: 'att-chunk-1',
+              actorId: actors.primary.id,
+              mediaId: '1',
+              statusId: 'own-status-1',
+              mediaType: 'image/jpeg',
+              type: 'Document',
+              url: '/test/chunk-boundary-media-1.jpg',
+              createdAt: new Date(now),
+              updatedAt: new Date(now)
+            },
+            {
+              id: 'att-chunk-2-own',
+              actorId: actors.primary.id,
+              mediaId: '2',
+              statusId: 'status-own-2',
+              mediaType: 'image/jpeg',
+              type: 'Document',
+              url: '/test/chunk-boundary-media-2.jpg',
+              createdAt: new Date(now),
+              updatedAt: new Date(now)
+            },
+            {
+              id: 'att-chunk-2-foreign',
+              actorId: actors.replyAuthor.id,
+              mediaId: '2',
+              statusId: 'aaa-foreign-status-2',
+              mediaType: 'image/jpeg',
+              type: 'Document',
+              url: '/test/chunk-boundary-media-2.jpg',
+              createdAt: new Date(now),
+              updatedAt: new Date(now)
+            },
+            {
+              id: 'att-chunk-500-foreign',
+              actorId: actors.replyAuthor.id,
+              mediaId: '500',
+              statusId: 'foreign-status-500',
+              mediaType: 'image/jpeg',
+              type: 'Document',
+              url: '/test/chunk-boundary-media-500.jpg',
+              createdAt: new Date(now),
+              updatedAt: new Date(now)
+            },
+            {
+              id: 'att-chunk-501-empty',
+              actorId: actors.primary.id,
+              mediaId: '501',
+              statusId: '',
+              mediaType: 'image/jpeg',
+              type: 'Document',
+              url: '/test/chunk-boundary-media-501.jpg',
+              createdAt: new Date(now),
+              updatedAt: new Date(now)
+            },
+            {
+              id: 'att-chunk-1000',
+              actorId: actors.primary.id,
+              mediaId: '1000',
+              statusId: 'own-status-1000',
+              mediaType: 'image/jpeg',
+              type: 'Document',
+              url: '/test/chunk-boundary-media-1000.jpg',
+              createdAt: new Date(now),
+              updatedAt: new Date(now)
+            }
+          ])
+
+          const attachmentQueries: { sql: string; bindings: unknown[] }[] = []
+          const onQuery = ({
+            sql,
+            bindings
+          }: {
+            sql: string
+            bindings?: unknown[]
+          }) => {
+            const normalizedSql = sql.toLowerCase()
+            if (
+              normalizedSql.includes('attachments') &&
+              normalizedSql.includes('medias') &&
+              normalizedSql.includes('group by')
+            ) {
+              attachmentQueries.push({ sql, bindings: bindings ?? [] })
+            }
+          }
+
+          instance.on('query', onQuery)
+          let result
+          try {
+            result = await isolatedDb.getMediasWithStatusForAccount({
+              accountId: account1Id,
+              limit: mediaCount
+            })
+          } finally {
+            instance.off('query', onQuery)
+          }
+
+          expect(attachmentQueries.length).toBeGreaterThan(0)
+          expect(result.items).toHaveLength(mediaCount)
+
+          if (isSQLiteClient(instance)) {
+            // 1000 items with batch size 997 produces exactly 2 chunks (997 and 3 items).
+            expect(attachmentQueries).toHaveLength(2)
+
+            // Every SQLite attachment query must strictly satisfy the parameter ceiling.
+            for (const query of attachmentQueries) {
+              expect(query.bindings.length).toBeLessThanOrEqual(
+                SQLITE_MAX_BINDINGS
+              )
+            }
+
+            // Chunk 1 has 997 IDs + 2 non-ID bindings (accountId and attachments.statusId <> '') = 999.
+            // If getWhereInBatchSize only reserved 1, chunk 1 would have 998 IDs + 2 = 1000 bindings,
+            // exceeding SQLite's limit.
+            expect(attachmentQueries[0].bindings).toHaveLength(
+              SQLITE_MAX_BINDINGS
+            )
+            expect(attachmentQueries[0].bindings[0]).toBe(account1Id)
+            expect(
+              attachmentQueries[0].bindings[
+                attachmentQueries[0].bindings.length - 1
+              ]
+            ).toBe('')
+
+            // Chunk 2 has remaining 3 IDs + 2 non-ID bindings = 5 bindings.
+            expect(attachmentQueries[1].bindings).toHaveLength(5)
+            expect(attachmentQueries[1].bindings[0]).toBe(account1Id)
+            expect(
+              attachmentQueries[1].bindings[
+                attachmentQueries[1].bindings.length - 1
+              ]
+            ).toBe('')
+          }
+
+          // Verify ownership filtering and correct status IDs across chunks:
+          // Chunk 1:
+          const item1 = result.items.find((m) => m.id === '1')
+          expect(item1).toBeDefined()
+          expect(item1?.statusId).toBe('own-status-1')
+
+          // Item 2 has own status 'status-own-2' preserved over foreign 'aaa-foreign-status-2'
+          const item2 = result.items.find((m) => m.id === '2')
+          expect(item2).toBeDefined()
+          expect(item2?.statusId).toBe('status-own-2')
+
+          // Item 500 only has foreign attachment, so statusId must remain undefined
+          const item500 = result.items.find((m) => m.id === '500')
+          expect(item500).toBeDefined()
+          expect(item500?.statusId).toBeUndefined()
+
+          // Item 501 has empty statusId, so statusId must remain undefined
+          const item501 = result.items.find((m) => m.id === '501')
+          expect(item501).toBeDefined()
+          expect(item501?.statusId).toBeUndefined()
+
+          // Chunk 2 (across the chunk boundary):
+          const item1000 = result.items.find((m) => m.id === '1000')
+          expect(item1000).toBeDefined()
+          expect(item1000?.statusId).toBe('own-status-1000')
+        } finally {
+          await isolatedDb.destroy()
+        }
       })
     })
 

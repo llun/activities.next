@@ -618,10 +618,12 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     const statusIdByMediaId = new Map<string, string>()
 
     if (numericIds.length > 0) {
-      const batchSize = getWhereInBatchSize(database)
+      const batchSize = getWhereInBatchSize(database, 2)
       for (const chunk of chunkArray(numericIds, batchSize)) {
         const attachmentRows = await database('attachments')
           .join('medias', 'medias.id', 'attachments.mediaId')
+          .join('actors', 'attachments.actorId', 'actors.id')
+          .where('actors.accountId', accountId)
           .whereIn('medias.id', chunk)
           .whereNotNull('attachments.statusId')
           .where('attachments.statusId', '<>', '')
