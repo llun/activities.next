@@ -184,4 +184,46 @@ describe('getRemoteStatus', () => {
     await expect(getRemoteStatus({ statusId: STATUS_ID })).resolves.toBeNull()
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
+
+  it('fetches a public remote status when cc is omitted (e.g. Bridgy Fed)', async () => {
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === STATUS_ID) {
+        return JSON.stringify({
+          id: STATUS_ID,
+          type: 'Note',
+          attributedTo: ACTOR_ID,
+          content: 'Hello from bridgy fed without cc',
+          to: [PUBLIC_STREAM],
+          published: new Date('2026-04-30T12:00:00.000Z').toISOString()
+        })
+      }
+
+      if (req.url === ACTOR_ID) {
+        return JSON.stringify({
+          id: ACTOR_ID,
+          type: 'Person',
+          preferredUsername: 'alice',
+          name: 'Alice',
+          inbox: `${ACTOR_ID}/inbox`,
+          outbox: `${ACTOR_ID}/outbox`,
+          followers: `${ACTOR_ID}/followers`,
+          publicKey: {
+            id: `${ACTOR_ID}#main-key`,
+            owner: ACTOR_ID,
+            publicKeyPem: 'public key'
+          }
+        })
+      }
+
+      return { status: 404, body: 'Not Found' }
+    })
+
+    await expect(
+      getRemoteStatus({ statusId: STATUS_ID })
+    ).resolves.toMatchObject({
+      id: STATUS_ID,
+      actorId: ACTOR_ID,
+      text: 'Hello from bridgy fed without cc'
+    })
+  })
 })

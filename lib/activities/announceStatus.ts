@@ -6,7 +6,7 @@ import { BaseActivity } from './actionsBase'
 export interface AnnounceStatus extends BaseActivity, ContextEntity {
   type: AnnounceAction
   published: string
-  to: string[]
-  cc: string[]
+  to?: string | string[] | null
+  cc?: string | string[] | null
   object: string
 }

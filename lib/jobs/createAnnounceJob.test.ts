@@ -485,4 +485,27 @@ describe('Announce action', () => {
       database.getStatus({ statusId: `${statusId}/activity` })
     ).resolves.toBeNull()
   })
+
+  it('accepts announce payload when cc is omitted', async () => {
+    const statusId = stubNoteId()
+    const announceStatusId = 'https://somewhere.test/statuses/announce-status'
+    const announce = MockAnnounceStatus({
+      actorId: ACTOR1_ID,
+      statusId,
+      announceStatusId
+    })
+    delete (announce as unknown as Record<string, unknown>).cc
+
+    await createAnnounceJob(database, {
+      id: 'id-without-cc',
+      name: CREATE_ANNOUNCE_JOB_NAME,
+      data: announce
+    })
+
+    const status = (await database.getStatus({
+      statusId: `${statusId}/activity`
+    })) as StatusAnnounce
+    expect(status).toBeDefined()
+    expect(status.cc).toEqual([])
+  })
 })

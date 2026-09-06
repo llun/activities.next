@@ -102,8 +102,8 @@ export const BaseContent = z.object({
     .nullish(),
   attributedTo: z.string().describe('Note publisher'),
 
-  to: z.union([z.string(), z.string().array()]),
-  cc: z.union([z.string(), z.string().array()]),
+  to: z.union([z.string(), z.string().array()]).nullish(),
+  cc: z.union([z.string(), z.string().array()]).nullish(),
 
   inReplyTo: z.string().nullish(),
 

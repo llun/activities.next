@@ -14,8 +14,8 @@ import { Signature } from '@/lib/types/activitypub/webfinger'
 export interface CreateStatus extends BaseActivity, ContextEntity {
   type: CreateAction
   published: string
-  to: string | string[]
-  cc: string | string[]
+  to?: string | string[] | null
+  cc?: string | string[] | null
   object:
     Note | Question | ImageContent | PageContent | ArticleContent | VideoContent
   signature?: Signature

@@ -155,8 +155,8 @@ export const Announce = z.object({
   actor: z.string(),
 
   published: z.string().describe('Object published datetime'),
-  to: z.union([z.string(), z.string().array()]),
-  cc: z.union([z.string(), z.string().array()]),
+  to: z.union([z.string(), z.string().array()]).nullish(),
+  cc: z.union([z.string(), z.string().array()]).nullish(),
   object: z.string()
 })
 export type Announce = z.infer<typeof Announce>
