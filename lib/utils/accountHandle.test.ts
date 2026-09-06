@@ -142,7 +142,7 @@ describe('parseActorUrlAccountHandle', () => {
       expected: { username: 'null', domain: 'example.com' }
     },
     {
-      description: 'decodes a valid percent encoded username',
+      description: 'parses a username with underscore',
       input: 'https://example.com/users/user_name',
       expected: { username: 'user_name', domain: 'example.com' }
     },
@@ -150,6 +150,11 @@ describe('parseActorUrlAccountHandle', () => {
       description: 'preserves host with explicit port',
       input: 'http://localhost:3000/users/test',
       expected: { username: 'test', domain: 'localhost:3000' }
+    },
+    {
+      description: 'rejects non-http/https protocol',
+      input: 'ftp://example.com/users/test',
+      expected: null
     },
     {
       description: 'rejects a profile url',
@@ -184,6 +189,17 @@ describe('parseAccountUrlHandle', () => {
       username: 'test',
       domain: 'example.com'
     })
+  })
+
+  it('resolves a profile URL with explicit port', () => {
+    expect(parseAccountUrlHandle('http://localhost:3000/@test')).toEqual({
+      username: 'test',
+      domain: 'localhost:3000'
+    })
+  })
+
+  it('returns null for non-http protocols', () => {
+    expect(parseAccountUrlHandle('ftp://example.com/@test')).toBeNull()
   })
 
   it('returns null for non-account URLs', () => {

@@ -36,10 +36,7 @@ const getAccountFromResource = (
   if (!trimmedResource) return null
 
   // Support ActivityPub actor URLs (/users/:username) and profile URLs (/@:username)
-  if (
-    trimmedResource.startsWith('https://') ||
-    trimmedResource.startsWith('http://')
-  ) {
+  if (/^https?:\/\//i.test(trimmedResource)) {
     const urlHandle = parseAccountUrlHandle(trimmedResource)
     if (urlHandle) {
       return {
@@ -48,6 +45,7 @@ const getAccountFromResource = (
         normalizedDomain: urlHandle.domain.toLowerCase()
       }
     }
+    return null
   }
 
   const account = trimmedResource.toLowerCase().startsWith('acct:')
@@ -107,8 +105,7 @@ export const getWebFingerResponse = async ({
     !actor &&
     'getActorFromId' in database &&
     typeof database.getActorFromId === 'function' &&
-    (trimmedResource.startsWith('https://') ||
-      trimmedResource.startsWith('http://'))
+    /^https?:\/\//i.test(trimmedResource)
   ) {
     actor = await database.getActorFromId({ id: trimmedResource })
   }

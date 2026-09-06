@@ -26,6 +26,7 @@ export const stripAcctPrefix = (value: string) => {
 export const parseProfileUrlAccountHandle = (value: string) => {
   try {
     const url = new URL(value)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
     const match = /^\/@([^/]+)\/?$/.exec(url.pathname)
     if (!match) return null
 
@@ -46,6 +47,7 @@ export const parseProfileUrlAccountHandle = (value: string) => {
 export const parseActorUrlAccountHandle = (value: string) => {
   try {
     const url = new URL(value)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
     const match = /^\/users\/([^/]+)\/?$/.exec(url.pathname)
     if (!match) return null
 

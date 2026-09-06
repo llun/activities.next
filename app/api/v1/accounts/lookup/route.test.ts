@@ -169,6 +169,17 @@ describe('GET /api/v1/accounts/lookup', () => {
     })
   })
 
+  it('returns 400 when acct is a non-account URL', async () => {
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/lookup?acct=https%3A%2F%2Fllun.test%2Fusers%2Ftest1%2Fstatuses%2F123'
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockGetActorFromUsername).not.toHaveBeenCalled()
+  })
+
   it('does not remotely resolve handles for trusted instance domains', async () => {
     mockGetActorFromUsername.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue({

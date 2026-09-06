@@ -636,8 +636,7 @@ describe('getWebFingerResponse', () => {
     })
   })
 
-  it('falls back to getActorFromId for custom actor URL', async () => {
-    mockDatabase.getActorFromUsername.mockResolvedValue(null)
+  it('falls back to getActorFromId for custom actor URL even when fallbackDomain is set', async () => {
     mockDatabase.getActorFromId.mockResolvedValue({
       id: 'https://example.com/custom/path/actor',
       username: 'custom',
@@ -647,9 +646,11 @@ describe('getWebFingerResponse', () => {
 
     const result = await getWebFingerResponse({
       database: mockDatabase as unknown as Database,
-      resource: 'https://example.com/custom/path/actor'
+      resource: 'https://example.com/custom/path/actor',
+      fallbackDomain: 'example.com'
     })
 
+    expect(mockDatabase.getActorFromUsername).not.toHaveBeenCalled()
     expect(mockDatabase.getActorFromId).toHaveBeenCalledWith({
       id: 'https://example.com/custom/path/actor'
     })

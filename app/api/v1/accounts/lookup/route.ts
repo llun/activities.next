@@ -37,9 +37,9 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 const parseAccountHandle = (value: string, localDomain: string) => {
   const trimmed = value.trim()
-  if (trimmed.startsWith('https://') || trimmed.startsWith('http://')) {
+  if (/^https?:\/\//i.test(trimmed)) {
     const urlHandle = parseAccountUrlHandle(trimmed)
-    if (urlHandle) return urlHandle
+    return urlHandle ?? null
   }
 
   const normalized = trimmed.replace(/^@/, '')
