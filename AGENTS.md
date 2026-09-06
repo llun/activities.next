@@ -2128,13 +2128,11 @@ preserving legacy and fitness attachments` pins the surviving-null behaviour.
   build, four parallel test shards aggregated into an `All Tests` step, and
   Schema Dump Sync (regenerates the SQLite schema dump from the migrations and
   fails on drift) on every push and PR. Branch protection on `main` requires
-  exactly three status checks — `Lint and Prettier`, `Build`, `All Tests` — not
-  the `CI Success` aggregate job; `Schema Dump Sync` and `Type Check` are **not**
-  required checks, so a red **Type Check** currently blocks nothing at merge
-  time even though it is the only gate covering `*.test.ts(x)`. Adding
-  `Type Check` to the required list is a repo-settings change a maintainer has
-  to make; until then, treat it as advisory and check it by hand before
-  merging.
+  four status checks — `All Tests`, `Lint and Prettier`, `Build`, and `CI Success`
+  (strict: false). The `CI Success` aggregate job is fail-closed over all upstream
+  jobs (`Lint and Prettier`, `Type Check`, `Build`, `All Tests`, and
+  `Schema Dump Sync`), so failures in `Type Check` (the gate covering
+  `*.test.ts(x)`) or `Schema Dump Sync` block merging via `CI Success`.
   The test job pins `TEST_DATABASE_TYPE: sqlite`; `lib/database/testUtils.ts`
   also supports `TEST_DATABASE_TYPE=pg` (with `TEST_DATABASE_HOST` /
   `TEST_DATABASE_USERNAME` / `TEST_DATABASE_PASSWORD`; the port is fixed at 5432) for running the suite against a throwaway **local** PostgreSQL. In that

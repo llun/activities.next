@@ -324,6 +324,17 @@ Also:
 - **Link issues**: Reference related issues using `Fixes #123` or `Relates to #456`
 - **Keep PRs focused**: One feature/fix per PR
 
+### CI Status Checks
+
+Branch protection on `main` requires four status checks:
+
+- `All Tests`
+- `Lint and Prettier`
+- `Build`
+- `CI Success`
+
+`CI Success` is required and fail-closed over all upstream CI checks: lint (`Lint and Prettier`), typecheck (`Type Check`), build (`Build`), test shards (`All Tests`), and schema dump checks (`Schema Dump Sync`). If any upstream check fails, `CI Success` fails and blocks merging.
+
 ### PR Checklist
 
 - [ ] Code follows project style guidelines
@@ -333,6 +344,7 @@ Also:
 - [ ] TypeScript types are proper (no `any`)
 - [ ] Commit messages follow convention
 - [ ] `yarn run prettier --write .`, `yarn lint`, `yarn typecheck`, `yarn build`, and `yarn test` pass
+- [ ] All CI status checks pass (including required check `CI Success`, fail-closed over lint, typecheck, build, tests, and schema dump checks)
 
 ## Project Structure
 
