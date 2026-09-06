@@ -1,0 +1,23 @@
+.github/PULL_REQUEST_TEMPLATE.md
+  s_c587d6e0f997cb::t_491e390c5f3898 12-13
+AGENTS.md
+  s_c587d6e0f997cb::t_1bc53c8788ae1f 14,2365,2392
+CONTRIBUTING.md
+  s_c587d6e0f997cb::t_f7043d976450a0 323
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "0cbfcc853313923ff7afae1896cf31d3e0140f9d",
+  "prompts": {},
+  "sessions": {
+    "s_c587d6e0f997cb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a077c9-2bf2-7110-89c4-bfded1f36b16",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
