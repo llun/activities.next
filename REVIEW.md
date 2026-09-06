@@ -1201,3 +1201,14 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   explicitly `minor:`/`major:`.
 - Pre-commit gate is green in order: `yarn run prettier --write .`, `yarn lint`,
   `yarn typecheck`, `yarn build`, `yarn test`.
+- All required CI status checks pass (`All Tests`, `Lint and Prettier`, `Build`,
+  and `CI Success`).
+
+## CI checklist
+
+- Branch protection on `main` requires four status checks: `All Tests`,
+  `Lint and Prettier`, `Build`, and `CI Success`.
+- `CI Success` is required and fail-closed over lint (`Lint and Prettier`),
+  typecheck (`Type Check`), build (`Build`), tests (`All Tests`), and schema dump
+  checks (`Schema Dump Sync`). A failure in any upstream check blocks merging via
+  `CI Success`.
