@@ -9,8 +9,10 @@ import {
   addCollectionAccounts,
   approveCollectionMembership,
   bookmarkStatus,
+  cancelActorDeletion,
   cancelFitnessRouteHeatmap,
   clearFitnessRouteHeatmaps,
+  createActor,
   createCollection,
   createDirectMessage,
   createPoll,
@@ -19,6 +21,7 @@ import {
   deleteFitnessRouteHeatmap,
   deleteStatus,
   follow,
+  getActorDomains,
   getActorStatuses,
   getBookmarks,
   getCollectionFeed,
@@ -36,6 +39,7 @@ import {
   revokeCollectionMembership,
   search,
   startStravaArchiveImport,
+  switchActor,
   triggerFitnessRouteHeatmap,
   undoBookmarkStatus,
   unfollow,
@@ -1499,4 +1503,266 @@ describe('client collection helpers', () => {
       expect(feedUrl.searchParams.get('min_id')).toBe(minStatusId)
     }
   )
+})
+
+describe('client actor management helpers', () => {
+  beforeEach(() => {
+    fetchMock.resetMocks()
+  })
+
+  describe('getActorDomains', () => {
+    it('fetches allowed domains and host with GET and forwards abort signal', async () => {
+      const controller = new AbortController()
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          domains: ['example.com', 'activities.local'],
+          host: 'activities.local'
+        }),
+        { status: 200 }
+      )
+
+      const result = await getActorDomains({ signal: controller.signal })
+
+      expect(result).toEqual({
+        domains: ['example.com', 'activities.local'],
+        host: 'activities.local'
+      })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/actors/domains',
+        expect.objectContaining({
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          signal: controller.signal
+        })
+      )
+    })
+
+    it('decodes API error message on failure', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({ error: 'Unauthorized to view domains' }),
+        { status: 401 }
+      )
+
+      await expect(getActorDomains()).rejects.toThrow(
+        'Unauthorized to view domains'
+      )
+    })
+
+    it('falls back to default error message on 500 without error body', async () => {
+      fetchMock.mockResponseOnce('', { status: 500 })
+
+      await expect(getActorDomains()).rejects.toThrow(
+        'Failed to fetch actor domains'
+      )
+    })
+
+    it('propagates network failure', async () => {
+      fetchMock.mockRejectOnce(new Error('Network error'))
+
+      await expect(getActorDomains()).rejects.toThrow('Network error')
+    })
+  })
+
+  describe('createActor', () => {
+    it('sends POST with username and domain', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          id: 'new-actor-1',
+          username: 'newuser',
+          domain: 'activities.local'
+        }),
+        { status: 200 }
+      )
+
+      const result = await createActor({
+        username: 'newuser',
+        domain: 'activities.local'
+      })
+
+      expect(result).toEqual({
+        id: 'new-actor-1',
+        username: 'newuser',
+        domain: 'activities.local'
+      })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/actors',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: 'newuser',
+            domain: 'activities.local'
+          })
+        })
+      )
+    })
+
+    it('omits domain from request body when domain is undefined', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          id: 'new-actor-1',
+          username: 'newuser',
+          domain: 'activities.local'
+        }),
+        { status: 200 }
+      )
+
+      await createActor({ username: 'newuser' })
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/actors',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: 'newuser'
+          })
+        })
+      )
+    })
+
+    it('preserves explicit empty string domain in request body for server validation', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          id: 'new-actor-1',
+          username: 'newuser',
+          domain: ''
+        }),
+        { status: 200 }
+      )
+
+      await createActor({ username: 'newuser', domain: '' })
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/actors',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: 'newuser',
+            domain: ''
+          })
+        })
+      )
+    })
+
+    it('decodes API error message when username exists', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({ error: 'Username already exists' }),
+        { status: 400 }
+      )
+
+      await expect(
+        createActor({ username: 'existing', domain: 'activities.local' })
+      ).rejects.toThrow('Username already exists')
+    })
+
+    it('falls back to default error message when creating actor fails', async () => {
+      fetchMock.mockResponseOnce('', { status: 500 })
+
+      await expect(
+        createActor({ username: 'bob', domain: 'activities.local' })
+      ).rejects.toThrow('Failed to create actor')
+    })
+
+    it('propagates network error', async () => {
+      fetchMock.mockRejectOnce(new Error('Failed to fetch'))
+
+      await expect(
+        createActor({ username: 'bob', domain: 'activities.local' })
+      ).rejects.toThrow('Failed to fetch')
+    })
+  })
+
+  describe('cancelActorDeletion', () => {
+    it('sends POST with actorId to cancel deletion', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          actorId: 'actor-1',
+          status: 'cancelled'
+        }),
+        { status: 200 }
+      )
+
+      const result = await cancelActorDeletion({ actorId: 'actor-1' })
+
+      expect(result).toEqual({
+        actorId: 'actor-1',
+        status: 'cancelled'
+      })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/actors/cancel-deletion',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ actorId: 'actor-1' })
+        })
+      )
+    })
+
+    it('decodes API error message on failure', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          error: 'Cannot cancel deletion that is already in progress'
+        }),
+        { status: 400 }
+      )
+
+      await expect(cancelActorDeletion({ actorId: 'actor-1' })).rejects.toThrow(
+        'Cannot cancel deletion that is already in progress'
+      )
+    })
+
+    it('falls back to default error message on failure', async () => {
+      fetchMock.mockResponseOnce('', { status: 500 })
+
+      await expect(cancelActorDeletion({ actorId: 'actor-1' })).rejects.toThrow(
+        'Failed to cancel actor deletion'
+      )
+    })
+
+    it('propagates network failure', async () => {
+      fetchMock.mockRejectOnce(new Error('Network error'))
+
+      await expect(cancelActorDeletion({ actorId: 'actor-1' })).rejects.toThrow(
+        'Network error'
+      )
+    })
+  })
+
+  describe('switchActor', () => {
+    it('sends POST with actorId and returns true on ok response', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ success: true }), {
+        status: 200
+      })
+
+      const result = await switchActor({ actorId: 'actor-2' })
+
+      expect(result).toBe(true)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/actors/switch',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ actorId: 'actor-2' })
+        })
+      )
+    })
+
+    it('returns false when response is not ok', async () => {
+      fetchMock.mockResponseOnce('', { status: 400 })
+
+      const result = await switchActor({ actorId: 'actor-2' })
+
+      expect(result).toBe(false)
+    })
+
+    it('propagates network failure', async () => {
+      fetchMock.mockRejectOnce(new Error('Network disconnected'))
+
+      await expect(switchActor({ actorId: 'actor-2' })).rejects.toThrow(
+        'Network disconnected'
+      )
+    })
+  })
 })
