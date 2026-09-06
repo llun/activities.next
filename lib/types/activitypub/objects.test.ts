@@ -167,3 +167,34 @@ describe('VideoContent and ImageContent schemas', () => {
     }
   })
 })
+
+describe('Note audience fields', () => {
+  const base = {
+    id: 'https://remote.example/notes/1',
+    type: 'Note' as const,
+    attributedTo: 'https://remote.example/users/alice',
+    to: ['https://www.w3.org/ns/activitystreams#Public'],
+    cc: ['https://remote.example/users/alice/followers'],
+    content: 'Hello world',
+    published: '2026-01-01T00:00:00Z'
+  }
+
+  it('accepts notes when cc is omitted (e.g. Bridgy Fed / Bluesky bridge)', () => {
+    const { cc: _cc, ...withoutCc } = base
+    const parsed = Note.safeParse(withoutCc)
+    expect(parsed.success).toBe(true)
+  })
+
+  it('accepts notes when to is omitted or nullish', () => {
+    const { to: _to, ...withoutTo } = base
+    const parsedWithoutTo = Note.safeParse(withoutTo)
+    expect(parsedWithoutTo.success).toBe(true)
+
+    const parsedWithNull = Note.safeParse({
+      ...base,
+      to: null,
+      cc: null
+    })
+    expect(parsedWithNull.success).toBe(true)
+  })
+})

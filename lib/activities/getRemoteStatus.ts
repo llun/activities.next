@@ -27,7 +27,9 @@ const publicStreams = [
 
 const hasPublicAudience = (value: BaseNote['to'] | BaseNote['cc']) => {
   const items = Array.isArray(value) ? value : [value]
-  return items.some((item) => publicStreams.includes(item))
+  return items.some(
+    (item) => typeof item === 'string' && publicStreams.includes(item)
+  )
 }
 
 export const getRemoteStatus = async ({
