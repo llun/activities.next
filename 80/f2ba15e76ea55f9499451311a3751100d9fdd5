@@ -1,0 +1,25 @@
+app/api/v1/queue/cloudtasks/route.test.ts
+  s_c587d6e0f997cb::t_f265e6d87b9f26 12,17,55-72,90-219,241-360,369,379,388,398-433,439,459-510,523,546,574,594-654,662,668,676,682
+app/api/v1/queue/cloudtasks/route.ts
+  s_c587d6e0f997cb::t_f8f3b8a56cda59 13,31-32,37-38,40-44,50-52,57-60,64,67-70,87,91
+docs/architecture.md
+  s_c587d6e0f997cb::t_bac762c8b3a3b6 247-249
+docs/environment-variables.md
+  s_c587d6e0f997cb::t_eda5d3b1377024 363-379
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "80f2ba15e76ea55f9499451311a3751100d9fdd5",
+  "prompts": {},
+  "sessions": {
+    "s_c587d6e0f997cb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a077c9-2bf2-7110-89c4-bfded1f36b16",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
