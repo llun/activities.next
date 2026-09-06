@@ -2137,7 +2137,8 @@ preserving legacy and fitness attachments` pins the surviving-null behaviour.
   merging.
   The test job pins `TEST_DATABASE_TYPE: sqlite`; `lib/database/testUtils.ts`
   also supports `TEST_DATABASE_TYPE=pg` (with `TEST_DATABASE_HOST` /
-  `TEST_DATABASE_USERNAME` / `TEST_DATABASE_PASSWORD`; the port is fixed at 5432) for running the suite against a throwaway **local** PostgreSQL. In that
+  `TEST_DATABASE_USERNAME` / `TEST_DATABASE_PASSWORD`, and optional
+  `TEST_DATABASE_PORT` defaulting to 5432) for running the suite against a throwaway **local** PostgreSQL. In that
   mode each Vitest worker drops and recreates its **own** database named
   `test_<VITEST_POOL_ID>` — a single shared database would let one worker
   destroy the schema another worker is mid-test on. The schema loader also has
