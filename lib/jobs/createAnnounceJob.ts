@@ -8,6 +8,10 @@ import { dispatchCreateNoteOrPollJob } from '@/lib/jobs/dispatchCreateNoteOrPoll
 import { CREATE_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { JobHandle } from '@/lib/services/queue/type'
+import {
+  isPublicOrUnlisted,
+  isStatusPubliclyReadable
+} from '@/lib/services/statusAccess'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Announce } from '@/lib/types/activitypub'
 import {
@@ -116,6 +120,23 @@ export const createAnnounceJob: JobHandle = createJobHandle(
     if (!targetStatus) {
       return
     }
+
+    const announceTo = toRecipientArray(status.to)
+    const announceCc = toRecipientArray(status.cc)
+
+    if (
+      isPublicOrUnlisted({ to: announceTo, cc: announceCc }) &&
+      !isStatusPubliclyReadable(targetStatus)
+    ) {
+      logger.warn({
+        message:
+          'Ignoring public or unlisted announce whose original status is not publicly readable',
+        announceId: status.id,
+        originalStatusId: targetStatus.id
+      })
+      return
+    }
+
     const existingAnnounce = await database.getStatus({
       statusId: status.id,
       withReplies: false
@@ -128,8 +149,8 @@ export const createAnnounceJob: JobHandle = createJobHandle(
       database.createAnnounce({
         id: status.id,
         actorId: status.actor,
-        to: toRecipientArray(status.to),
-        cc: toRecipientArray(status.cc),
+        to: announceTo,
+        cc: announceCc,
         originalStatusId: targetStatus.id
       })
     ])

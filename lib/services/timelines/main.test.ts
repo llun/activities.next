@@ -51,6 +51,49 @@ const createAnnounce = async (
   return status
 }
 
+const createCustomStatus = async (
+  database: Database,
+  actorId: string,
+  text: string,
+  options?: {
+    to?: string[]
+    cc?: string[]
+    reply?: string
+  }
+) => {
+  const id = randomBytes(16).toString('hex')
+  const status = await database.createNote({
+    id: `${actorId}/statuses/${id}`,
+    url: `${actorId}/statuses/${id}`,
+    actorId,
+    to: options?.to ?? [ACTIVITY_STREAM_PUBLIC],
+    cc: options?.cc ?? [`${actorId}/followers`],
+    reply: options?.reply,
+    text
+  })
+  return status
+}
+
+const createCustomAnnounce = async (
+  database: Database,
+  actorId: string,
+  originalStatusId: string,
+  options?: {
+    to?: string[]
+    cc?: string[]
+  }
+) => {
+  const id = randomBytes(16).toString('hex')
+  const status = await database.createAnnounce({
+    actorId,
+    to: options?.to ?? [ACTIVITY_STREAM_PUBLIC],
+    cc: options?.cc ?? [`${actorId}/followers`],
+    id: `${actorId}/statuses/${id}/activity`,
+    originalStatusId
+  })
+  return status
+}
+
 describe('mainTimelineRule', () => {
   const database = getTestSQLDatabase()
 
@@ -400,6 +443,485 @@ describe('mainTimelineRule', () => {
         database,
         currentActor,
         status: followingAnnounce
+      })
+    ).toBeNull()
+  })
+
+  it('returns null for announce of an unauthorized followers-only status', async () => {
+    const currentActor = (await database.getActorFromId({
+      id: ACTOR3_ID
+    })) as Actor
+    const privateStatus = await createCustomStatus(
+      database,
+      ACTOR1_ID,
+      'Private status for Actor1 followers',
+      { to: [`${ACTOR1_ID}/followers`], cc: [] }
+    )
+    const announce = await createCustomAnnounce(
+      database,
+      ACTOR2_ID,
+      privateStatus.id
+    )
+    if (!announce) fail('Announce must be defined')
+    expect(
+      await mainTimelineRule({ database, currentActor, status: announce })
+    ).toBeNull()
+  })
+
+  it('returns null for announce of an unauthorized direct status', async () => {
+    const currentActor = (await database.getActorFromId({
+      id: ACTOR3_ID
+    })) as Actor
+    const directStatus = await createCustomStatus(
+      database,
+      ACTOR1_ID,
+      'Direct note for Actor2 only',
+      { to: [ACTOR2_ID], cc: [] }
+    )
+    const announce = await createCustomAnnounce(
+      database,
+      ACTOR2_ID,
+      directStatus.id
+    )
+    if (!announce) fail('Announce must be defined')
+    expect(
+      await mainTimelineRule({ database, currentActor, status: announce })
+    ).toBeNull()
+  })
+
+  it('returns main timeline for announce of an authorized followers-only status', async () => {
+    const currentActor = (await database.getActorFromId({
+      id: ACTOR3_ID
+    })) as Actor
+    const nonFollowedRoot = await createStatus(
+      database,
+      ACTOR1_ID,
+      'Non-followed root'
+    )
+    const authorizedFollowersStatus = await createCustomStatus(
+      database,
+      ACTOR4_ID,
+      'Followers-only reply to non-followed actor',
+      {
+        to: [`${ACTOR4_ID}/followers`],
+        cc: [],
+        reply: nonFollowedRoot.id
+      }
+    )
+    expect(
+      await mainTimelineRule({
+        database,
+        currentActor,
+        status: authorizedFollowersStatus
+      })
+    ).toBeNull()
+
+    const announce = await createCustomAnnounce(
+      database,
+      ACTOR2_ID,
+      authorizedFollowersStatus.id
+    )
+    if (!announce) fail('Announce must be defined')
+    expect(
+      await mainTimelineRule({ database, currentActor, status: announce })
+    ).toEqual(Timeline.MAIN)
+  })
+
+  it('returns main timeline for announce of an authorized direct status', async () => {
+    const currentActor = (await database.getActorFromId({
+      id: ACTOR3_ID
+    })) as Actor
+    const authorizedDirectStatus = await createCustomStatus(
+      database,
+      ACTOR1_ID,
+      'Direct note addressed to Actor2 and Actor3',
+      { to: [ACTOR2_ID, ACTOR3_ID], cc: [] }
+    )
+    expect(
+      await mainTimelineRule({
+        database,
+        currentActor,
+        status: authorizedDirectStatus
+      })
+    ).toBeNull()
+
+    const announce = await createCustomAnnounce(
+      database,
+      ACTOR2_ID,
+      authorizedDirectStatus.id
+    )
+    if (!announce) fail('Announce must be defined')
+    expect(
+      await mainTimelineRule({ database, currentActor, status: announce })
+    ).toEqual(Timeline.MAIN)
+  })
+
+  it('returns main timeline for announce of an unlisted status from non-followed actor', async () => {
+    const currentActor = (await database.getActorFromId({
+      id: ACTOR3_ID
+    })) as Actor
+    const unlistedStatus = await createCustomStatus(
+      database,
+      ACTOR1_ID,
+      'Unlisted status from non-followed actor',
+      { to: [`${ACTOR1_ID}/followers`], cc: [ACTIVITY_STREAM_PUBLIC] }
+    )
+    const announce = await createCustomAnnounce(
+      database,
+      ACTOR2_ID,
+      unlistedStatus.id
+    )
+    if (!announce) fail('Announce must be defined')
+    expect(
+      await mainTimelineRule({ database, currentActor, status: announce })
+    ).toEqual(Timeline.MAIN)
+  })
+
+  it('returns null for announce of an unlisted status from a followed actor (already in timeline)', async () => {
+    const currentActor = (await database.getActorFromId({
+      id: ACTOR3_ID
+    })) as Actor
+    const unlistedStatus = await createCustomStatus(
+      database,
+      ACTOR4_ID,
+      'Unlisted status from followed actor',
+      { to: [`${ACTOR4_ID}/followers`], cc: [ACTIVITY_STREAM_PUBLIC] }
+    )
+    expect(
+      await mainTimelineRule({
+        database,
+        currentActor,
+        status: unlistedStatus
+      })
+    ).toEqual(Timeline.MAIN)
+
+    const announce = await createCustomAnnounce(
+      database,
+      ACTOR2_ID,
+      unlistedStatus.id
+    )
+    if (!announce) fail('Announce must be defined')
+    expect(
+      await mainTimelineRule({ database, currentActor, status: announce })
+    ).toBeNull()
+  })
+
+  it('returns null for self-boost of a status already in timeline (own status)', async () => {
+    const currentActor = (await database.getActorFromId({
+      id: ACTOR3_ID
+    })) as Actor
+    const selfStatus = await createStatus(database, ACTOR3_ID, 'My own status')
+    const selfAnnounce = await createCustomAnnounce(
+      database,
+      ACTOR3_ID,
+      selfStatus.id
+    )
+    if (!selfAnnounce) fail('Announce must be defined')
+    expect(
+      await mainTimelineRule({
+        database,
+        currentActor,
+        status: selfAnnounce
+      })
+    ).toBeNull()
+  })
+
+  it('returns null for self-boost of an unauthorized private status', async () => {
+    const currentActor = (await database.getActorFromId({
+      id: ACTOR3_ID
+    })) as Actor
+    const privateStatus = await createCustomStatus(
+      database,
+      ACTOR1_ID,
+      'Private status Actor3 cannot read',
+      { to: [`${ACTOR1_ID}/followers`], cc: [] }
+    )
+    const selfAnnounce = await createCustomAnnounce(
+      database,
+      ACTOR3_ID,
+      privateStatus.id
+    )
+    if (!selfAnnounce) fail('Announce must be defined')
+    expect(
+      await mainTimelineRule({
+        database,
+        currentActor,
+        status: selfAnnounce
+      })
+    ).toBeNull()
+  })
+
+  it('returns null for nested announce of an unauthorized private original', async () => {
+    const currentActor = (await database.getActorFromId({
+      id: ACTOR3_ID
+    })) as Actor
+    const privateStatus = await createCustomStatus(
+      database,
+      ACTOR1_ID,
+      'Private note for nested announce test',
+      { to: [`${ACTOR1_ID}/followers`], cc: [] }
+    )
+    const innerAnnounce = await createCustomAnnounce(
+      database,
+      ACTOR5_ID,
+      privateStatus.id
+    )
+    if (!innerAnnounce) fail('Inner announce must be defined')
+
+    const outerAnnounce = await createCustomAnnounce(
+      database,
+      ACTOR2_ID,
+      innerAnnounce.id
+    )
+    if (!outerAnnounce) fail('Outer announce must be defined')
+
+    expect(
+      await mainTimelineRule({
+        database,
+        currentActor,
+        status: outerAnnounce
+      })
+    ).toBeNull()
+  })
+
+  it('returns main timeline for nested announce of an authorized status not in timeline', async () => {
+    const currentActor = (await database.getActorFromId({
+      id: ACTOR3_ID
+    })) as Actor
+    const publicStatus = await createStatus(
+      database,
+      ACTOR1_ID,
+      'Public note for nested announce test'
+    )
+    const innerAnnounce = await createCustomAnnounce(
+      database,
+      ACTOR5_ID,
+      publicStatus.id
+    )
+    if (!innerAnnounce) fail('Inner announce must be defined')
+
+    const outerAnnounce = await createCustomAnnounce(
+      database,
+      ACTOR2_ID,
+      innerAnnounce.id
+    )
+    if (!outerAnnounce) fail('Outer announce must be defined')
+
+    expect(
+      await mainTimelineRule({
+        database,
+        currentActor,
+        status: outerAnnounce
+      })
+    ).toEqual(Timeline.MAIN)
+  })
+
+  it('returns null for nested announce when root original is already in timeline', async () => {
+    const currentActor = (await database.getActorFromId({
+      id: ACTOR3_ID
+    })) as Actor
+    const rootStatus = await createStatus(
+      database,
+      ACTOR4_ID,
+      'Root note followed by Actor3'
+    )
+    expect(
+      await mainTimelineRule({
+        database,
+        currentActor,
+        status: rootStatus
+      })
+    ).toEqual(Timeline.MAIN)
+
+    const innerAnnounce = await createCustomAnnounce(
+      database,
+      ACTOR5_ID,
+      rootStatus.id
+    )
+    if (!innerAnnounce) fail('Inner announce must be defined')
+
+    const outerAnnounce = await createCustomAnnounce(
+      database,
+      ACTOR2_ID,
+      innerAnnounce.id
+    )
+    if (!outerAnnounce) fail('Outer announce must be defined')
+
+    expect(
+      await mainTimelineRule({
+        database,
+        currentActor,
+        status: outerAnnounce
+      })
+    ).toBeNull()
+  })
+
+  it('returns null for announce when original status is independently selected in timeline', async () => {
+    const currentActor = (await database.getActorFromId({
+      id: ACTOR3_ID
+    })) as Actor
+    const originalStatus = await createStatus(
+      database,
+      ACTOR2_ID,
+      'Independently selected original status'
+    )
+    expect(
+      await mainTimelineRule({
+        database,
+        currentActor,
+        status: originalStatus
+      })
+    ).toEqual(Timeline.MAIN)
+
+    const announce = await createCustomAnnounce(
+      database,
+      ACTOR4_ID,
+      originalStatus.id
+    )
+    if (!announce) fail('Announce must be defined')
+    expect(
+      await mainTimelineRule({
+        database,
+        currentActor,
+        status: announce
+      })
+    ).toBeNull()
+  })
+
+  it('returns null for announce when announce wrapper is direct to another actor (unreadable wrapper)', async () => {
+    const currentActor = (await database.getActorFromId({
+      id: ACTOR3_ID
+    })) as Actor
+    const publicStatus = await createStatus(
+      database,
+      ACTOR1_ID,
+      'Public note with direct announce wrapper'
+    )
+    const announce = await createCustomAnnounce(
+      database,
+      ACTOR2_ID,
+      publicStatus.id,
+      { to: [ACTOR1_ID], cc: [] }
+    )
+    if (!announce) fail('Announce must be defined')
+    expect(
+      await mainTimelineRule({ database, currentActor, status: announce })
+    ).toBeNull()
+  })
+
+  it('returns null for nested announce when inner announce wrapper is unauthorized', async () => {
+    const currentActor = (await database.getActorFromId({
+      id: ACTOR3_ID
+    })) as Actor
+    const publicStatus = await createStatus(
+      database,
+      ACTOR1_ID,
+      'Public note for nested announce with unauthorized inner wrapper'
+    )
+    const innerAnnounce = await createCustomAnnounce(
+      database,
+      ACTOR5_ID,
+      publicStatus.id,
+      { to: [ACTOR1_ID], cc: [] }
+    )
+    if (!innerAnnounce) fail('Inner announce must be defined')
+
+    const outerAnnounce = await createCustomAnnounce(
+      database,
+      ACTOR2_ID,
+      innerAnnounce.id
+    )
+    if (!outerAnnounce) fail('Outer announce must be defined')
+
+    expect(
+      await mainTimelineRule({
+        database,
+        currentActor,
+        status: outerAnnounce
+      })
+    ).toBeNull()
+  })
+
+  it('returns main timeline for authorized followers-only announce wrapper of a public status', async () => {
+    const currentActor = (await database.getActorFromId({
+      id: ACTOR3_ID
+    })) as Actor
+    const publicStatus = await createStatus(
+      database,
+      ACTOR1_ID,
+      'Public note for followers-only announce wrapper'
+    )
+    const announce = await createCustomAnnounce(
+      database,
+      ACTOR2_ID,
+      publicStatus.id,
+      { to: [`${ACTOR2_ID}/followers`], cc: [] }
+    )
+    if (!announce) fail('Announce must be defined')
+    expect(
+      await mainTimelineRule({ database, currentActor, status: announce })
+    ).toEqual(Timeline.MAIN)
+  })
+
+  it('returns main timeline for authorized direct announce wrapper of a public status', async () => {
+    const currentActor = (await database.getActorFromId({
+      id: ACTOR3_ID
+    })) as Actor
+    const publicStatus = await createStatus(
+      database,
+      ACTOR1_ID,
+      'Public note for direct announce wrapper'
+    )
+    const announce = await createCustomAnnounce(
+      database,
+      ACTOR2_ID,
+      publicStatus.id,
+      { to: [ACTOR3_ID], cc: [] }
+    )
+    if (!announce) fail('Announce must be defined')
+    expect(
+      await mainTimelineRule({ database, currentActor, status: announce })
+    ).toEqual(Timeline.MAIN)
+  })
+
+  it('returns null for nested announce when all boosters and original author are followed and root is already in timeline', async () => {
+    const currentActor = (await database.getActorFromId({
+      id: ACTOR3_ID
+    })) as Actor
+    const rootStatus = await createStatus(
+      database,
+      ACTOR4_ID,
+      'Root note by followed Actor4'
+    )
+    expect(
+      await mainTimelineRule({
+        database,
+        currentActor,
+        status: rootStatus
+      })
+    ).toEqual(Timeline.MAIN)
+
+    // Actor3 follows Actor2
+    const innerAnnounce = await createCustomAnnounce(
+      database,
+      ACTOR2_ID,
+      rootStatus.id
+    )
+    if (!innerAnnounce) fail('Inner announce must be defined')
+
+    // Actor3 follows Actor4
+    const outerAnnounce = await createCustomAnnounce(
+      database,
+      ACTOR4_ID,
+      innerAnnounce.id
+    )
+    if (!outerAnnounce) fail('Outer announce must be defined')
+
+    expect(
+      await mainTimelineRule({
+        database,
+        currentActor,
+        status: outerAnnounce
       })
     ).toBeNull()
   })
