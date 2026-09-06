@@ -11,7 +11,7 @@ Every change, however small, is done only when ALL of these hold:
 3. Every document the change makes stale is updated in the same PR (see **Documentation Maintenance**).
 4. If a migration was added/edited/removed, BOTH schema dumps are regenerated (see **Database Backends & Local Setup**; CI fails on SQLite-dump drift).
 5. The commit subject and PR title carry the correct conventional prefix, and `package.json` `version` is untouched (see **Commit & Pull Request Guidelines**).
-6. UI changes are verified in a real browser (see **Local Manual / Browser Testing**) with screenshots in the PR.
+6. UI changes are verified in a real browser (see **Local Manual / Browser Testing**) (screenshots in the PR are not required).
 
 For the most common task shapes, follow the step-by-step **Task Recipes** section below instead of improvising.
 
@@ -2362,7 +2362,7 @@ each ends with the Definition of Done gate.
 3. Pass timestamps as `Date.now()` numbers from Server Components; Client Components accept `currentTime: number` and never call `Date.now()`/`new Date()` during render (see **Date Serialization**).
 4. If the page shows status posts, render them through the shared `Posts`/`Post` components and turn actions on with `currentActor` + `showActions` — never a bespoke post/action row or per-status action callbacks (see **Status Posts & Actions**).
 5. All client-side data calls go through named functions in `lib/client.ts` (lint-enforced).
-6. Add component tests (`/** @vitest-environment jsdom */` docblock) and verify the page in a real browser (see **Local Manual / Browser Testing**); include screenshots in the PR.
+6. Add component tests (`/** @vitest-environment jsdom */` docblock) and verify the page in a real browser (see **Local Manual / Browser Testing**); screenshots in the PR are not required.
 7. Run the Definition of Done gate.
 
 ## Documentation Maintenance
@@ -2389,7 +2389,7 @@ each ends with the Definition of Done gate.
   - `minor:` for backwards-compatible new features (minor version bump)
   - `fix:`, `feat:`, `chore:`, `refactor:`, `test:`, `docs:`, etc. for everything else (patch version bump)
 - PRs should include a clear summary, linked issues (if any), test results, and notes for config/migrations.
-- Include screenshots or clips for UI changes.
+- Screenshots or clips for UI changes are optional and not required.
 - **Never put production or operational SQL in PR descriptions** (or anywhere committed in the repo). One-off database mutations for a deployment — hotfix `UPDATE`/`INSERT`/`DELETE` statements, data backfills, or any copy-pasteable production runbook — must not live in the PR body. Describe **what** operational change is needed and **why** in prose, and deliver the actual SQL through the deployment runbook or a private ops channel instead. This targets operational/runbook SQL — it does **not** restrict application query code: Knex query-builder calls and `knex.raw`/`whereRaw` in `lib/` are normal application code and unaffected. The database files that legitimately live in the repo, all under `migrations/`, are the Knex migrations (JavaScript/TypeScript that define schema changes — not raw `.sql`) and the reference schema dumps (`migrations/schema.sql`, `migrations/schema.sqlite.sql`); illustrative SQL in the `docs/` setup and maintenance guides (e.g. `docs/postgresql-setup.md` and the schema-dump steps) is also fine. This keeps environment-specific identifiers, hostnames, and runbooks out of the public Git history.
 
 ### Version Bump Prefixes
