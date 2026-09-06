@@ -1,0 +1,37 @@
+lib/jobs/createAnnounceJob.test.ts
+  s_c587d6e0f997cb::t_c4efba5495b555 20,512-689
+lib/jobs/createAnnounceJob.ts
+  s_c587d6e0f997cb::t_31ef3e495cb4e0 11-14,123-139,152-153
+lib/services/statusAccess.ts
+  s_c587d6e0f997cb::t_b6207b639a007f 9-11
+lib/services/timelines/main.test.ts
+  s_c587d6e0f997cb::t_980d9f2ecb5a53 54-96,449-927
+lib/services/timelines/main.ts
+  s_c587d6e0f997cb::t_1f27a983e1477c 1,3,61-69,77-87
+lib/services/statusAccess.test.ts
+  s_fce2006fd4d565::t_2a75fa7ca4cad3 8,57-83,120,275
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "889149ca7daecbcc563a76321c54d6c04ffa1d2a",
+  "prompts": {},
+  "sessions": {
+    "s_c587d6e0f997cb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a077c9-2bf2-7110-89c4-bfded1f36b16",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_fce2006fd4d565": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07814-7b67-7181-84fd-c11b40dc2d48",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
