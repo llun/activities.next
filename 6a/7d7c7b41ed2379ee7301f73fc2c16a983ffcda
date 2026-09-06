@@ -1,0 +1,21 @@
+lib/database/sql/media.test.ts
+  s_c587d6e0f997cb::t_aeb706ed174b4a 1-5,8-9,757-1053
+lib/database/sql/media.ts
+  s_c587d6e0f997cb::t_e5eb4960992341 621,625-626
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "6a7d7c7b41ed2379ee7301f73fc2c16a983ffcda",
+  "prompts": {},
+  "sessions": {
+    "s_c587d6e0f997cb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a077c9-2bf2-7110-89c4-bfded1f36b16",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
