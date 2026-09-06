@@ -1,5 +1,4 @@
-import { z } from 'zod'
-
+import { DatabaseQueueConfig } from '@/lib/config/queue'
 import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
 import { withSpan } from '@/lib/utils/trace'
@@ -7,12 +6,7 @@ import { withSpan } from '@/lib/utils/trace'
 import { defaultJobHandle } from './base'
 import { JobMessage, Queue } from './type'
 
-export const DatabaseQueueConfig = z.object({
-  type: z.literal('database'),
-  maxRetries: z.number().int().positive().optional(),
-  pollIntervalMs: z.number().int().positive().optional()
-})
-export type DatabaseQueueConfig = z.infer<typeof DatabaseQueueConfig>
+export { DatabaseQueueConfig } from '@/lib/config/queue'
 
 export class DatabaseQueue implements Queue {
   readonly runsInline = false

@@ -1,8 +1,12 @@
 import knex, { Knex } from 'knex'
 
+import { DatabaseQueueConfig as LeafDatabaseQueueConfig } from '@/lib/config/queue'
 import { getSQLDatabase } from '@/lib/database/sql'
 import { Database } from '@/lib/database/types'
-import { DatabaseQueue } from '@/lib/services/queue/database'
+import {
+  DatabaseQueue,
+  DatabaseQueueConfig
+} from '@/lib/services/queue/database'
 import { JobMessage } from '@/lib/services/queue/type'
 
 describe('DatabaseQueue', () => {
@@ -23,6 +27,16 @@ describe('DatabaseQueue', () => {
 
   afterAll(async () => {
     await database.destroy()
+  })
+
+  it('re-exports DatabaseQueueConfig matching leaf queue config', () => {
+    expect(DatabaseQueueConfig).toBe(LeafDatabaseQueueConfig)
+    const parsed = DatabaseQueueConfig.safeParse({
+      type: 'database',
+      maxRetries: 5,
+      pollIntervalMs: 2000
+    })
+    expect(parsed.success).toBe(true)
   })
 
   it('declares runsInline as false', () => {
