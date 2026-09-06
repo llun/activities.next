@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
-import { switchActor } from '@/lib/client'
+import { cancelActorDeletion, switchActor } from '@/lib/client'
 import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import {
@@ -39,6 +39,7 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isSwitching, setIsSwitching] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const getAvatarInitial = (username: string) => {
     if (!username) return '?'
@@ -55,13 +56,18 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
     if (actor?.deletionStatus) return
 
     setIsSwitching(true)
+    setError(null)
     try {
       const didSwitch = await switchActor({ actorId })
 
       if (didSwitch) {
         // Use hard navigation to ensure full page reload with new actor
         window.location.reload()
+      } else {
+        setError('Failed to switch actor')
       }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to switch actor')
     } finally {
       setIsSwitching(false)
     }
@@ -72,16 +78,14 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
     if (isCancelling) return
 
     setIsCancelling(true)
+    setError(null)
     try {
-      const response = await fetch('/api/v1/actors/cancel-deletion', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actorId })
-      })
-
-      if (response.ok) {
-        router.refresh()
-      }
+      await cancelActorDeletion({ actorId })
+      router.refresh()
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Failed to cancel actor deletion'
+      )
     } finally {
       setIsCancelling(false)
     }
@@ -228,6 +232,12 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {error ? (
+        <p role="alert" className="text-sm text-destructive mt-1 px-2">
+          {error}
+        </p>
+      ) : null}
 
       <AddActorDialog
         open={isDialogOpen}

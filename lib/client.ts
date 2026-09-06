@@ -825,7 +825,7 @@ export const acceptFollowRequest = ({ id }: FollowRequestParams) =>
 export const rejectFollowRequest = ({ id }: FollowRequestParams) =>
   respondToFollowRequest(id, 'reject')
 
-interface SwitchActorParams {
+export interface SwitchActorParams {
   actorId: string
 }
 
@@ -839,6 +839,106 @@ export const switchActor = async ({ actorId }: SwitchActorParams) => {
     body: JSON.stringify({ actorId })
   })
   return response.ok
+}
+
+export interface ActorDomainsResult {
+  domains: string[]
+  host: string
+}
+
+export interface GetActorDomainsParams {
+  signal?: AbortSignal
+}
+
+/**
+ * Fetches the allowed domains for actor creation
+ */
+export const getActorDomains = async ({
+  signal
+}: GetActorDomainsParams = {}): Promise<ActorDomainsResult> => {
+  const response = await fetch('/api/v1/actors/domains', {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    },
+    signal
+  })
+
+  if (!response.ok) {
+    await throwApiError(response, 'Failed to fetch actor domains')
+  }
+
+  const data = await response.json()
+  return {
+    domains: Array.isArray(data?.domains) ? data.domains : [],
+    host: typeof data?.host === 'string' ? data.host : ''
+  }
+}
+
+export interface CreateActorParams {
+  username: string
+  domain?: string
+}
+
+export interface CreateActorResult {
+  id: string
+  username: string
+  domain: string
+}
+
+/**
+ * Creates a new actor for the current account
+ */
+export const createActor = async ({
+  username,
+  domain
+}: CreateActorParams): Promise<CreateActorResult> => {
+  const response = await fetch('/api/v1/actors', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      username,
+      domain
+    })
+  })
+
+  if (!response.ok) {
+    await throwApiError(response, 'Failed to create actor')
+  }
+
+  return (await response.json()) as CreateActorResult
+}
+
+export interface CancelActorDeletionParams {
+  actorId: string
+}
+
+export interface CancelActorDeletionResult {
+  actorId: string
+  status: string
+}
+
+/**
+ * Cancels a scheduled actor deletion
+ */
+export const cancelActorDeletion = async ({
+  actorId
+}: CancelActorDeletionParams): Promise<CancelActorDeletionResult> => {
+  const response = await fetch('/api/v1/actors/cancel-deletion', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ actorId })
+  })
+
+  if (!response.ok) {
+    await throwApiError(response, 'Failed to cancel actor deletion')
+  }
+
+  return (await response.json()) as CancelActorDeletionResult
 }
 
 interface MarkNotificationsReadParams {

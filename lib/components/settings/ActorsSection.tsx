@@ -4,7 +4,7 @@ import { Check, ChevronDown, Clock, Plus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
-import { switchActor } from '@/lib/client'
+import { cancelActorDeletion, switchActor } from '@/lib/client'
 import { ActorInfo, AddActorDialog } from '@/lib/components/actor-switcher'
 import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
@@ -108,16 +108,16 @@ export function ActorsSection({
     if (isCancelling) return
 
     setIsCancelling(true)
+    setMessage(null)
     try {
-      const response = await fetch('/api/v1/actors/cancel-deletion', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actorId })
+      await cancelActorDeletion({ actorId })
+      router.refresh()
+    } catch (err) {
+      setMessage({
+        type: 'error',
+        text:
+          err instanceof Error ? err.message : 'Failed to cancel actor deletion'
       })
-
-      if (response.ok) {
-        router.refresh()
-      }
     } finally {
       setIsCancelling(false)
     }
@@ -191,12 +191,8 @@ export function ActorsSection({
                       setSelectedActorId(actor.id)
                     }
                   }}
-                  disabled={
-                    isSwitching ||
-                    isSavingDefault ||
-                    isPendingDeletion ||
-                    isDeleting
-                  }
+                  // Keep the row clickable for cancellation when deletion is scheduled.
+                  disabled={isSwitching || isSavingDefault || isDeleting}
                   className="flex items-center gap-3"
                 >
                   <Avatar

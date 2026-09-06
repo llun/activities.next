@@ -241,9 +241,7 @@
               "app/(nosidebar)/auth/reset-password/ResetPasswordForm.tsx",
               "lib/components/settings/DeleteActorDialog.tsx",
               "lib/components/settings/MediaManagement.tsx",
-              "lib/components/settings/ActorsSection.tsx",
-              "lib/components/actor-switcher/ActorSwitcher.tsx",
-              "lib/components/actor-switcher/AddActorDialog.tsx"
+              "lib/components/settings/ActorsSection.tsx"
             ]
           }
         ]

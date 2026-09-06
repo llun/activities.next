@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 
-import { switchActor } from '@/lib/client'
+import { createActor, getActorDomains, switchActor } from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
@@ -42,30 +42,39 @@ export function AddActorDialog({
       return
     }
 
+    const controller = new AbortController()
+    let isCancelled = false
+
     const fetchDomains = async () => {
       try {
-        const response = await fetch('/api/v1/actors/domains')
-        if (response.ok) {
-          const data = await response.json()
-          if (data.domains && Array.isArray(data.domains) && data.host) {
-            setAvailableDomains(data.domains)
-            setHostDomain(data.host)
-            // Set the default domain to host if available
-            if (data.domains.includes(data.host)) {
-              setSelectedDomain(data.host)
-            } else if (data.domains.length > 0) {
-              setSelectedDomain(data.domains[0])
-            }
+        const data = await getActorDomains({ signal: controller.signal })
+        if (isCancelled) return
+
+        if (data.domains && Array.isArray(data.domains) && data.host) {
+          setAvailableDomains(data.domains)
+          setHostDomain(data.host)
+          // Set the default domain to host if available
+          if (data.domains.includes(data.host)) {
+            setSelectedDomain(data.host)
+          } else if (data.domains.length > 0) {
+            setSelectedDomain(data.domains[0])
           }
-          setDomainsLoaded(true)
         }
-      } catch {
-        // If fetch fails, keep the default domain
         setDomainsLoaded(true)
+      } catch (err) {
+        if (isCancelled || controller.signal.aborted) {
+          return
+        }
+        setError(err instanceof Error ? err.message : 'Failed to load domains')
       }
     }
 
     fetchDomains()
+
+    return () => {
+      isCancelled = true
+      controller.abort()
+    }
   }, [open, domainsLoaded])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -84,33 +93,33 @@ export function AddActorDialog({
 
     setIsLoading(true)
     try {
-      const response = await fetch('/api/v1/actors', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: username.trim(),
-          domain: selectedDomain
-        })
+      const data = await createActor({
+        username: username.trim(),
+        domain: selectedDomain
       })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        setError(data.error || 'Failed to create actor')
-        return
-      }
 
       // Switch to the new actor
       await switchActor({ actorId: data.id })
 
       setUsername('')
       onSuccess()
-    } catch {
-      setError('An error occurred while creating the actor')
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'An error occurred while creating the actor'
+      )
     } finally {
       setIsLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (!open) {
+      setUsername('')
+      setError(null)
+    }
+  }, [open])
 
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
