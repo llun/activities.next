@@ -1,0 +1,32 @@
+app/api/v1/accounts/lookup/route.test.ts
+  h_580a04e334fef4 134-171
+app/api/v1/accounts/lookup/route.ts
+  h_580a04e334fef4 21,39-45
+app/api/v1/accounts/search/route.test.ts
+  h_580a04e334fef4 243-274
+app/api/v1/accounts/search/route.ts
+  h_580a04e334fef4 13-16,98-101
+app/api/well-known/webfinger/route.test.ts
+  h_580a04e334fef4 114-140
+app/api/well-known/webfinger/route.ts
+  h_580a04e334fef4 4,43,46-47
+lib/services/wellknown/index.test.ts
+  h_580a04e334fef4 281-282,569-659
+lib/services/wellknown/webfinger.ts
+  h_580a04e334fef4 3,28,31-34,36-52,56-57,59-61,63-68,70-79,81-82,87-88,90-114
+lib/utils/accountHandle.test.ts
+  h_580a04e334fef4 3-4,126-195
+lib/utils/accountHandle.ts
+  h_580a04e334fef4 35,41-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "f2178cd47a52ecf1dd73888f03e3ad215134d899",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
