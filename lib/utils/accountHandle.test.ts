@@ -1,5 +1,7 @@
 import {
   parseAccountHandle,
+  parseAccountUrlHandle,
+  parseActorUrlAccountHandle,
   parseProfileUrlAccountHandle,
   stripAcctPrefix
 } from './accountHandle'
@@ -119,5 +121,91 @@ describe('parseProfileUrlAccountHandle', () => {
     }
   ])('$description', ({ input, expected }) => {
     expect(parseProfileUrlAccountHandle(input)).toEqual(expected)
+  })
+})
+
+describe('parseActorUrlAccountHandle', () => {
+  it.each([
+    {
+      description: 'parses a canonical actor url',
+      input: 'https://example.com/users/user',
+      expected: { username: 'user', domain: 'example.com' }
+    },
+    {
+      description: 'accepts a trailing slash',
+      input: 'https://example.com/users/user/',
+      expected: { username: 'user', domain: 'example.com' }
+    },
+    {
+      description: 'decodes a percent encoded username',
+      input: 'https://example.com/users/%6eull',
+      expected: { username: 'null', domain: 'example.com' }
+    },
+    {
+      description: 'parses a username with underscore',
+      input: 'https://example.com/users/user_name',
+      expected: { username: 'user_name', domain: 'example.com' }
+    },
+    {
+      description: 'preserves host with explicit port',
+      input: 'http://localhost:3000/users/test',
+      expected: { username: 'test', domain: 'localhost:3000' }
+    },
+    {
+      description: 'rejects non-http/https protocol',
+      input: 'ftp://example.com/users/test',
+      expected: null
+    },
+    {
+      description: 'rejects a profile url',
+      input: 'https://example.com/@user',
+      expected: null
+    },
+    {
+      description: 'rejects a status url under users',
+      input: 'https://example.com/users/user/statuses/123',
+      expected: null
+    },
+    {
+      description: 'rejects a non-url',
+      input: 'user@example.com',
+      expected: null
+    }
+  ])('$description', ({ input, expected }) => {
+    expect(parseActorUrlAccountHandle(input)).toEqual(expected)
+  })
+})
+
+describe('parseAccountUrlHandle', () => {
+  it('resolves an ActivityPub actor URL', () => {
+    expect(parseAccountUrlHandle('https://example.com/users/test')).toEqual({
+      username: 'test',
+      domain: 'example.com'
+    })
+  })
+
+  it('resolves a profile URL', () => {
+    expect(parseAccountUrlHandle('https://example.com/@test')).toEqual({
+      username: 'test',
+      domain: 'example.com'
+    })
+  })
+
+  it('resolves a profile URL with explicit port', () => {
+    expect(parseAccountUrlHandle('http://localhost:3000/@test')).toEqual({
+      username: 'test',
+      domain: 'localhost:3000'
+    })
+  })
+
+  it('returns null for non-http protocols', () => {
+    expect(parseAccountUrlHandle('ftp://example.com/@test')).toBeNull()
+  })
+
+  it('returns null for non-account URLs', () => {
+    expect(
+      parseAccountUrlHandle('https://example.com/users/test/statuses/1')
+    ).toBeNull()
+    expect(parseAccountUrlHandle('user@example.com')).toBeNull()
   })
 })

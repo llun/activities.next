@@ -1,5 +1,6 @@
 import { getBaseURL } from '@/lib/config'
 import { Database } from '@/lib/database/types'
+import { parseAccountUrlHandle } from '@/lib/utils/accountHandle'
 
 // Standard OStatus rel other servers look for to discover where to send a
 // visitor who typed their handle into a remote "follow from your server"
@@ -24,45 +25,90 @@ export interface WebFingerResponse {
 interface GetWebFingerParams {
   database: Database
   resource: string
+  fallbackDomain?: string
 }
 
-const getAccountFromResource = (resource: string) => {
+const getAccountFromResource = (
+  resource: string,
+  fallbackDomain?: string
+): { username: string; domain: string; normalizedDomain: string } | null => {
   const trimmedResource = resource.trim()
+  if (!trimmedResource) return null
+
+  // Support ActivityPub actor URLs (/users/:username) and profile URLs (/@:username)
+  if (/^https?:\/\//i.test(trimmedResource)) {
+    const urlHandle = parseAccountUrlHandle(trimmedResource)
+    if (urlHandle) {
+      return {
+        username: urlHandle.username,
+        domain: urlHandle.domain,
+        normalizedDomain: urlHandle.domain.toLowerCase()
+      }
+    }
+    return null
+  }
+
   const account = trimmedResource.toLowerCase().startsWith('acct:')
     ? trimmedResource.slice('acct:'.length)
     : trimmedResource
-  const parts = account.split('@')
+  const normalizedAccount = account.replace(/^@/, '')
+  const parts = normalizedAccount.split('@')
 
-  if (parts.length !== 2) return null
+  if (parts.length === 2) {
+    const [username, domain] = parts.map((part) => part.trim())
+    if (!username || !domain) return null
 
-  const [username, domain] = parts.map((part) => part.trim())
-  if (!username || !domain) return null
-
-  return {
-    username,
-    domain,
-    normalizedDomain: domain.toLowerCase()
+    return {
+      username,
+      domain,
+      normalizedDomain: domain.toLowerCase()
+    }
   }
+
+  if (parts.length === 1 && fallbackDomain) {
+    const username = parts[0].trim()
+    const domain = fallbackDomain.trim()
+    if (!username || !domain) return null
+
+    return {
+      username,
+      domain,
+      normalizedDomain: domain.toLowerCase()
+    }
+  }
+
+  return null
 }
 
 export const getWebFingerResponse = async ({
   database,
-  resource
+  resource,
+  fallbackDomain
 }: GetWebFingerParams): Promise<WebFingerResponse | null> => {
-  const account = getAccountFromResource(resource)
-  if (!account) return null
+  const trimmedResource = resource.trim()
+  const account = getAccountFromResource(trimmedResource, fallbackDomain)
 
-  const actor =
-    (await database.getActorFromUsername({
-      username: account.username,
-      domain: account.domain
-    })) ??
-    (account.domain === account.normalizedDomain
-      ? null
-      : await database.getActorFromUsername({
-          username: account.username,
-          domain: account.normalizedDomain
-        }))
+  let actor = account
+    ? ((await database.getActorFromUsername({
+        username: account.username,
+        domain: account.domain
+      })) ??
+      (account.domain === account.normalizedDomain
+        ? null
+        : await database.getActorFromUsername({
+            username: account.username,
+            domain: account.normalizedDomain
+          })))
+    : null
+
+  if (
+    !actor &&
+    'getActorFromId' in database &&
+    typeof database.getActorFromId === 'function' &&
+    /^https?:\/\//i.test(trimmedResource)
+  ) {
+    actor = await database.getActorFromId({ id: trimmedResource })
+  }
 
   // This is not local actors
   if (!actor?.privateKey) return null

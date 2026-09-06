@@ -10,7 +10,10 @@ import {
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { Scope } from '@/lib/types/database/operations'
-import { parseAccountHandle } from '@/lib/utils/accountHandle'
+import {
+  parseAccountHandle,
+  parseAccountUrlHandle
+} from '@/lib/utils/accountHandle'
 import { clampedLimit, clampedOffset } from '@/lib/utils/clampedLimit'
 import { isOwnInstanceHost } from '@/lib/utils/host'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -92,7 +95,10 @@ export const GET = traceApiRoute(
       // hand, so its refresh only has to finish before serialization and runs
       // alongside the index search. This route is always authenticated
       // (OAuthGuardAnyScope).
-      const handle = resolve && offset === 0 ? parseAccountHandle(query) : null
+      const handle =
+        resolve && offset === 0
+          ? (parseAccountHandle(query) ?? parseAccountUrlHandle(query))
+          : null
       const storedExactActor = handle
         ? await database.getActorFromUsername({
             username: handle.username,

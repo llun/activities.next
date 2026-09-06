@@ -26,15 +26,46 @@ export const stripAcctPrefix = (value: string) => {
 export const parseProfileUrlAccountHandle = (value: string) => {
   try {
     const url = new URL(value)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
     const match = /^\/@([^/]+)\/?$/.exec(url.pathname)
     if (!match) return null
 
     const profileHandle = decodeURIComponent(match[1])
     const handle = profileHandle.includes('@')
       ? `@${profileHandle.replace(/^@/, '')}`
-      : `@${profileHandle}@${url.hostname}`
+      : `@${profileHandle}@${url.host}`
     return parseAccountHandle(handle)
   } catch {
     return null
   }
+}
+
+/**
+ * Reads the account handle out of an ActivityPub actor URL (`https://d/users/user`).
+ * Returns null for any other URL shape.
+ */
+export const parseActorUrlAccountHandle = (value: string) => {
+  try {
+    const url = new URL(value)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
+    const match = /^\/users\/([^/]+)\/?$/.exec(url.pathname)
+    if (!match) return null
+
+    const username = decodeURIComponent(match[1])
+    return parseAccountHandle(`@${username}@${url.host}`)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Reads the account handle out of any supported account URL:
+ * - ActivityPub actor URL: `https://d/users/user`
+ * - Profile URL: `https://d/@user` or `https://d/@user@other`
+ * Returns null for any other URL shape or non-URL value.
+ */
+export const parseAccountUrlHandle = (value: string) => {
+  return (
+    parseActorUrlAccountHandle(value) ?? parseProfileUrlAccountHandle(value)
+  )
 }

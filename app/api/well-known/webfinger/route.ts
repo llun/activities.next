@@ -1,6 +1,7 @@
 import { type NextRequest } from 'next/server'
 
 import { getDatabase } from '@/lib/database'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { getWebFingerResponse } from '@/lib/services/wellknown'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -39,9 +40,11 @@ export const GET = traceApiRoute('webfinger', async (req: NextRequest) => {
     })
 
   const firstResource = Array.isArray(resource) ? resource[0] : resource
+  const host = headerHost(req.headers)
   const response = await getWebFingerResponse({
     database,
-    resource: firstResource
+    resource: firstResource,
+    fallbackDomain: host
   })
 
   if (!response)
