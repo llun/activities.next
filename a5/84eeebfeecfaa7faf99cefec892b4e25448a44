@@ -1,0 +1,23 @@
+AGENTS.md
+  s_c587d6e0f997cb::t_c5a715510c83c5 2131-2135
+CONTRIBUTING.md
+  s_c587d6e0f997cb::t_be4771dcd5bde3 327-337,347
+REVIEW.md
+  s_c587d6e0f997cb::t_a3ad271a1d77ab 1204-1214
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "a584eeebfeecfaa7faf99cefec892b4e25448a44",
+  "prompts": {},
+  "sessions": {
+    "s_c587d6e0f997cb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a077c9-2bf2-7110-89c4-bfded1f36b16",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
