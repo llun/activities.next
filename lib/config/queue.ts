@@ -1,12 +1,23 @@
 import { z } from 'zod'
 
-import { DatabaseQueueConfig } from '@/lib/services/queue/database'
-import { QStashConfig } from '@/lib/services/queue/qstash'
-
 import { matcher } from './utils'
 
-export { DatabaseQueueConfig } from '@/lib/services/queue/database'
-export { QStashConfig } from '@/lib/services/queue/qstash'
+export const DatabaseQueueConfig = z.object({
+  type: z.literal('database'),
+  maxRetries: z.number().int().positive().optional(),
+  pollIntervalMs: z.number().int().positive().optional()
+})
+export type DatabaseQueueConfig = z.infer<typeof DatabaseQueueConfig>
+
+export const QStashConfig = z.object({
+  type: z.literal('qstash'),
+  url: z.string().url(),
+  token: z.string(),
+  currentSigningKey: z.string(),
+  nextSigningKey: z.string(),
+  maxRetries: z.number().int().nonnegative().optional()
+})
+export type QStashConfig = z.infer<typeof QStashConfig>
 
 export const CloudTasksConfig = z.object({
   type: z.literal('cloudtasks'),

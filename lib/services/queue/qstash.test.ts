@@ -8,7 +8,9 @@ import {
 import type { Client } from '@upstash/qstash'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { QStashQueue } from './qstash'
+import { QStashConfig as LeafQStashConfig } from '@/lib/config/queue'
+
+import { QStashConfig, QStashQueue } from './qstash'
 
 const mockPublishJSON = vi.fn()
 const MockClient = vi.fn().mockImplementation(function (this: unknown) {
@@ -45,6 +47,18 @@ describe('QStashQueue', () => {
       } as unknown as Client
     })
     mockPublishJSON.mockClear()
+  })
+
+  it('re-exports QStashConfig matching leaf queue config', () => {
+    expect(QStashConfig).toBe(LeafQStashConfig)
+    const parsed = QStashConfig.safeParse({
+      type: 'qstash',
+      url: 'https://example.com/queue',
+      token: 'token',
+      currentSigningKey: 'key',
+      nextSigningKey: 'nextKey'
+    })
+    expect(parsed.success).toBe(true)
   })
 
   it('uses message id as deduplicationId', async () => {

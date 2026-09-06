@@ -1,22 +1,14 @@
 import { context, propagation } from '@opentelemetry/api'
 import type { Client } from '@upstash/qstash'
-import { z } from 'zod'
 
+import { QStashConfig } from '@/lib/config/queue'
 import { dynamicImport } from '@/lib/utils/dynamicImport'
 import { withSpan } from '@/lib/utils/trace'
 
 import { defaultJobHandle } from './base'
 import { JobMessage, Queue } from './type'
 
-export const QStashConfig = z.object({
-  type: z.literal('qstash'),
-  url: z.string().url(),
-  token: z.string(),
-  currentSigningKey: z.string(),
-  nextSigningKey: z.string(),
-  maxRetries: z.number().int().nonnegative().optional()
-})
-export type QStashConfig = z.infer<typeof QStashConfig>
+export { QStashConfig } from '@/lib/config/queue'
 
 const MAX_JOB_TIMEOUT_SECONDS = 30
 const DEFAULT_MAX_JOB_RETRIES = 3
