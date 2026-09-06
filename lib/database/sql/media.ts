@@ -36,6 +36,7 @@ import { Attachment } from '@/lib/types/domain/attachment'
 
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
 import { getCompatibleTime } from './utils/getCompatibleTime'
+import { chunkArray, getWhereInBatchSize } from './utils/knex'
 
 // PostgreSQL `integer` upper bound. An id above it does not merely miss: the
 // driver sends it as a parameter to an integer column and PostgreSQL answers
@@ -584,28 +585,10 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     // Then get the paginated items
     let itemsQuery = database('medias')
       .join('actors', 'medias.actorId', 'actors.id')
-      .leftJoin('attachments', 'medias.id', 'attachments.mediaId')
       .where('actors.accountId', accountId)
-      .distinct(
-        'medias.id',
-        'medias.actorId',
-        'medias.original',
-        'medias.originalBytes',
-        'medias.originalMimeType',
-        'medias.originalMetaData',
-        'medias.originalFileName',
-        'medias.thumbnail',
-        'medias.thumbnailBytes',
-        'medias.thumbnailMimeType',
-        'medias.thumbnailMetaData',
-        'medias.description',
-        'medias.focusX',
-        'medias.focusY',
-        'medias.blurhash',
-        'medias.createdAt',
-        'attachments.statusId'
-      )
+      .select(MEDIA_COLUMNS.map((column) => `medias.${column}`))
       .orderBy('medias.createdAt', 'desc')
+      .orderBy('medias.id', 'desc')
 
     if (maxCreatedAt) {
       itemsQuery = itemsQuery.where(
@@ -619,38 +602,52 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     const offset = (page - 1) * limit
     itemsQuery = itemsQuery.limit(limit).offset(offset)
 
-    const [total, data] = await Promise.all([totalPromise, itemsQuery])
+    const [total, data] = await Promise.all([
+      totalPromise,
+      itemsQuery as Promise<MediaRow[]>
+    ])
 
-    const items = data.map((item) => ({
-      id: String(item.id),
-      actorId: item.actorId,
-      original: {
-        path: item.original,
-        bytes: Number(item.originalBytes),
-        mimeType: item.originalMimeType,
-        metaData: parseMediaMetaData(item.originalMetaData),
-        ...(item.originalFileName ? { fileName: item.originalFileName } : {})
-      },
-      ...(item.thumbnail
-        ? {
-            thumbnail: {
-              path: item.thumbnail,
-              bytes: Number(item.thumbnailBytes),
-              mimeType: item.thumbnailMimeType,
-              metaData: parseMediaMetaData(item.thumbnailMetaData)
-            }
+    if (data.length === 0) {
+      return { items: [], total }
+    }
+
+    const numericIds = data
+      .map((item) => toMediaRowId(String(item.id)))
+      .filter((id): id is number => id !== null)
+
+    const statusIdByMediaId = new Map<string, string>()
+
+    if (numericIds.length > 0) {
+      const batchSize = getWhereInBatchSize(database)
+      for (const chunk of chunkArray(numericIds, batchSize)) {
+        const attachmentRows = await database('attachments')
+          .join('medias', 'medias.id', 'attachments.mediaId')
+          .whereIn('medias.id', chunk)
+          .whereNotNull('attachments.statusId')
+          .where('attachments.statusId', '<>', '')
+          .groupBy('medias.id')
+          .select('medias.id as mediaId')
+          .min({ statusId: 'attachments.statusId' })
+
+        for (const row of attachmentRows as {
+          mediaId: string | number
+          statusId: string | null
+        }[]) {
+          if (row.statusId) {
+            statusIdByMediaId.set(String(row.mediaId), row.statusId)
           }
-        : {}),
-      ...(item.description ? { description: item.description } : {}),
-      ...(item.focusX !== null &&
-      item.focusX !== undefined &&
-      item.focusY !== null &&
-      item.focusY !== undefined
-        ? { focus: { x: Number(item.focusX), y: Number(item.focusY) } }
-        : {}),
-      ...(item.blurhash ? { blurhash: item.blurhash } : {}),
-      ...(item.statusId ? { statusId: item.statusId } : {})
-    }))
+        }
+      }
+    }
+
+    const items = data.map((item) => {
+      const media = parseMediaRow(item)
+      const statusId = statusIdByMediaId.get(media.id)
+      return {
+        ...media,
+        ...(statusId ? { statusId } : {})
+      }
+    })
 
     return { items, total }
   },

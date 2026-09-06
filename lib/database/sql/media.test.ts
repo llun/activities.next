@@ -13,7 +13,7 @@ describe('MediaDatabase', () => {
     await databaseBeforeAll(table)
   })
 
-  describe.each(table)('%s', (_, database) => {
+  describe.each(table)('%s', (databaseType, database) => {
     beforeAll(async () => {
       await seedDatabase(database)
     })
@@ -318,6 +318,435 @@ describe('MediaDatabase', () => {
         const testMedia = result.items.find((m) => m.id === String(media!.id))
         expect(testMedia).toBeDefined()
         expect(testMedia?.statusId).toBe(statuses[0].id)
+      })
+
+      it('does not duplicate media attached to multiple statuses and picks deterministic MIN statusId', async () => {
+        const actor = await database.getActorFromId({
+          id: actors.primary.id
+        })
+        expect(actor?.account).toBeDefined()
+        const accountId = actor!.account!.id
+
+        const media = await database.createMedia({
+          actorId: actors.primary.id,
+          original: {
+            path: '/test/multi-attached-media.jpg',
+            bytes: 2048,
+            mimeType: 'image/jpeg',
+            metaData: { width: 400, height: 400 }
+          }
+        })
+        expect(media).toBeDefined()
+
+        const statuses = await database.getActorStatuses({
+          actorId: actors.primary.id,
+          limit: 3
+        })
+        expect(statuses.length).toBeGreaterThanOrEqual(2)
+
+        const statusId1 = statuses[0].id
+        const statusId2 = statuses[1].id
+        const expectedMinStatusId =
+          statusId1 < statusId2 ? statusId1 : statusId2
+
+        // Attach the same media to both statuses
+        await database.createAttachment({
+          actorId: actors.primary.id,
+          statusId: statusId1,
+          mediaType: 'image/jpeg',
+          url: media!.original.path,
+          width: 400,
+          height: 400,
+          mediaId: media!.id
+        })
+        await database.createAttachment({
+          actorId: actors.primary.id,
+          statusId: statusId2,
+          mediaType: 'image/jpeg',
+          url: media!.original.path,
+          width: 400,
+          height: 400,
+          mediaId: media!.id
+        })
+
+        const result = await database.getMediasWithStatusForAccount({
+          accountId,
+          limit: 100
+        })
+
+        // Must appear exactly once in items
+        const matches = result.items.filter(
+          (item) => item.id === String(media!.id)
+        )
+        expect(matches).toHaveLength(1)
+        expect(matches[0].statusId).toBe(expectedMinStatusId)
+      })
+
+      it('returns unattached media with undefined statusId alongside attached media', async () => {
+        const actor = await database.getActorFromId({
+          id: actors.primary.id
+        })
+        expect(actor?.account).toBeDefined()
+        const accountId = actor!.account!.id
+
+        const unattached = await database.createMedia({
+          actorId: actors.primary.id,
+          original: {
+            path: '/test/regression-unattached.jpg',
+            bytes: 1200,
+            mimeType: 'image/jpeg',
+            metaData: { width: 300, height: 300 }
+          }
+        })
+
+        const attached = await database.createMedia({
+          actorId: actors.primary.id,
+          original: {
+            path: '/test/regression-attached.jpg',
+            bytes: 1400,
+            mimeType: 'image/jpeg',
+            metaData: { width: 300, height: 300 }
+          }
+        })
+
+        const statuses = await database.getActorStatuses({
+          actorId: actors.primary.id,
+          limit: 1
+        })
+        await database.createAttachment({
+          actorId: actors.primary.id,
+          statusId: statuses[0].id,
+          mediaType: 'image/jpeg',
+          url: attached!.original.path,
+          width: 300,
+          height: 300,
+          mediaId: attached!.id
+        })
+
+        const result = await database.getMediasWithStatusForAccount({
+          accountId,
+          limit: 100
+        })
+
+        const unattachedItem = result.items.find(
+          (item) => item.id === String(unattached!.id)
+        )
+        const attachedItem = result.items.find(
+          (item) => item.id === String(attached!.id)
+        )
+
+        expect(unattachedItem).toBeDefined()
+        expect(unattachedItem?.statusId).toBeUndefined()
+        expect('statusId' in unattachedItem!).toBe(false)
+
+        expect(attachedItem).toBeDefined()
+        expect(attachedItem?.statusId).toBe(statuses[0].id)
+      })
+
+      it('orders deterministically by createdAt DESC, id DESC when timestamps are equal', async () => {
+        const actor = await database.getActorFromId({
+          id: actors.extra.id
+        })
+        expect(actor?.account).toBeDefined()
+        const accountId = actor!.account!.id
+
+        // Create multiple media items in rapid succession so they share the same CURRENT_TIMESTAMP
+        const media1 = await database.createMedia({
+          actorId: actors.extra.id,
+          original: {
+            path: '/test/equal-time-1.jpg',
+            bytes: 1000,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          }
+        })
+        const media2 = await database.createMedia({
+          actorId: actors.extra.id,
+          original: {
+            path: '/test/equal-time-2.jpg',
+            bytes: 1000,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          }
+        })
+        const media3 = await database.createMedia({
+          actorId: actors.extra.id,
+          original: {
+            path: '/test/equal-time-3.jpg',
+            bytes: 1000,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          }
+        })
+
+        expect(media1).toBeDefined()
+        expect(media2).toBeDefined()
+        expect(media3).toBeDefined()
+
+        const id1 = Number(media1!.id)
+        const id2 = Number(media2!.id)
+        const id3 = Number(media3!.id)
+        expect(id1).toBeLessThan(id2)
+        expect(id2).toBeLessThan(id3)
+
+        const result = await database.getMediasWithStatusForAccount({
+          accountId,
+          limit: 100
+        })
+
+        const idx1 = result.items.findIndex(
+          (item) => item.id === String(media1!.id)
+        )
+        const idx2 = result.items.findIndex(
+          (item) => item.id === String(media2!.id)
+        )
+        const idx3 = result.items.findIndex(
+          (item) => item.id === String(media3!.id)
+        )
+
+        expect(idx1).toBeGreaterThanOrEqual(0)
+        expect(idx2).toBeGreaterThanOrEqual(0)
+        expect(idx3).toBeGreaterThanOrEqual(0)
+
+        // id DESC: media3 (largest id) comes before media2, which comes before media1
+        expect(idx3).toBeLessThan(idx2)
+        expect(idx2).toBeLessThan(idx1)
+      })
+
+      it('pages unique media cleanly across page boundaries without duplicates or offset drift', async () => {
+        const actor = await database.getActorFromId({
+          id: actors.followRequester.id
+        })
+        expect(actor?.account).toBeDefined()
+        const accountId = actor!.account!.id
+
+        // Create 4 distinct media items
+        const createdMedias = []
+        for (let i = 0; i < 4; i++) {
+          const media = await database.createMedia({
+            actorId: actors.followRequester.id,
+            original: {
+              path: `/test/page-boundary-${i}.jpg`,
+              bytes: 1000 * (i + 1),
+              mimeType: 'image/jpeg',
+              metaData: { width: 100, height: 100 }
+            }
+          })
+          createdMedias.push(media!)
+        }
+
+        // Attach the first two medias to multiple statuses to verify attachments do not shift pagination
+        const statuses = await database.getActorStatuses({
+          actorId: actors.primary.id,
+          limit: 2
+        })
+        for (const media of createdMedias.slice(0, 2)) {
+          for (const status of statuses) {
+            await database.createAttachment({
+              actorId: actors.followRequester.id,
+              statusId: status.id,
+              mediaType: 'image/jpeg',
+              url: media.original.path,
+              width: 100,
+              height: 100,
+              mediaId: media.id
+            })
+          }
+        }
+
+        const page1 = await database.getMediasWithStatusForAccount({
+          accountId,
+          limit: 2,
+          page: 1
+        })
+        const page2 = await database.getMediasWithStatusForAccount({
+          accountId,
+          limit: 2,
+          page: 2
+        })
+
+        expect(page1.items).toHaveLength(2)
+        expect(page2.items).toHaveLength(2)
+
+        const page1Ids = page1.items.map((m) => m.id)
+        const page2Ids = page2.items.map((m) => m.id)
+
+        // No item on page 1 should appear on page 2
+        for (const id of page1Ids) {
+          expect(page2Ids).not.toContain(id)
+        }
+
+        // Total should match across pages
+        expect(page1.total).toBe(page2.total)
+        expect(page1.total).toBeGreaterThanOrEqual(4)
+      })
+
+      it('isolates media and attachments between different accounts', async () => {
+        const actor1 = await database.getActorFromId({
+          id: actors.primary.id
+        })
+        const actor2 = await database.getActorFromId({
+          id: actors.replyAuthor.id
+        })
+        expect(actor1?.account).toBeDefined()
+        expect(actor2?.account).toBeDefined()
+        const account1Id = actor1!.account!.id
+        const account2Id = actor2!.account!.id
+        expect(account1Id).not.toBe(account2Id)
+
+        const mediaAccount1 = await database.createMedia({
+          actorId: actors.primary.id,
+          original: {
+            path: '/test/isolation-account-1.jpg',
+            bytes: 1111,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          }
+        })
+
+        const mediaAccount2 = await database.createMedia({
+          actorId: actors.replyAuthor.id,
+          original: {
+            path: '/test/isolation-account-2.jpg',
+            bytes: 2222,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          }
+        })
+
+        const statuses = await database.getActorStatuses({
+          actorId: actors.replyAuthor.id,
+          limit: 1
+        })
+        await database.createAttachment({
+          actorId: actors.replyAuthor.id,
+          statusId: statuses[0].id,
+          mediaType: 'image/jpeg',
+          url: mediaAccount2!.original.path,
+          width: 100,
+          height: 100,
+          mediaId: mediaAccount2!.id
+        })
+
+        const resultAccount1 = await database.getMediasWithStatusForAccount({
+          accountId: account1Id,
+          limit: 100
+        })
+        const resultAccount2 = await database.getMediasWithStatusForAccount({
+          accountId: account2Id,
+          limit: 100
+        })
+
+        // Account 1 sees mediaAccount1, never mediaAccount2
+        expect(
+          resultAccount1.items.some((m) => m.id === String(mediaAccount1!.id))
+        ).toBe(true)
+        expect(
+          resultAccount1.items.some((m) => m.id === String(mediaAccount2!.id))
+        ).toBe(false)
+
+        // Account 2 sees mediaAccount2, never mediaAccount1
+        expect(
+          resultAccount2.items.some((m) => m.id === String(mediaAccount2!.id))
+        ).toBe(true)
+        expect(
+          resultAccount2.items.some((m) => m.id === String(mediaAccount1!.id))
+        ).toBe(false)
+      })
+
+      it('validates and preserves numeric IDs across queries and attachment resolution', async () => {
+        const actor = await database.getActorFromId({
+          id: actors.primary.id
+        })
+        expect(actor?.account).toBeDefined()
+        const accountId = actor!.account!.id
+
+        const media = await database.createMedia({
+          actorId: actors.primary.id,
+          original: {
+            path: '/test/numeric-id-media.jpg',
+            bytes: 3333,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          }
+        })
+        expect(media).toBeDefined()
+
+        // Verify ID is a numeric string
+        expect(typeof media!.id).toBe('string')
+        expect(/^\d+$/.test(media!.id)).toBe(true)
+        expect(Number(media!.id)).toBeGreaterThan(0)
+
+        const statuses = await database.getActorStatuses({
+          actorId: actors.primary.id,
+          limit: 1
+        })
+        await database.createAttachment({
+          actorId: actors.primary.id,
+          statusId: statuses[0].id,
+          mediaType: 'image/jpeg',
+          url: media!.original.path,
+          width: 100,
+          height: 100,
+          mediaId: media!.id
+        })
+
+        const result = await database.getMediasWithStatusForAccount({
+          accountId,
+          limit: 100
+        })
+
+        const item = result.items.find((m) => m.id === media!.id)
+        expect(item).toBeDefined()
+        expect(item?.id).toBe(media!.id)
+        expect(item?.statusId).toBe(statuses[0].id)
+      })
+
+      it('resolves statusId when attachment has decimal numeric mediaId form', async () => {
+        const actor = await database.getActorFromId({
+          id: actors.primary.id
+        })
+        const accountId = actor!.account!.id
+
+        const media = await database.createMedia({
+          actorId: actors.primary.id,
+          original: {
+            path: '/test/decimal-mediaId.jpg',
+            bytes: 1500,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          }
+        })
+
+        const statuses = await database.getActorStatuses({
+          actorId: actors.primary.id,
+          limit: 1
+        })
+        // attachments.mediaId is varchar(255) on SQLite, where decimal string forms
+        // like '27.0' can be stored from legacy number-bound IDs and exercise SQLite's
+        // dynamic type affinity in the join. On PostgreSQL, attachments.mediaId is an
+        // integer column, so fixtures must use the valid integer representation.
+        const attachmentMediaId =
+          databaseType === 'sqlite' ? `${media!.id}.0` : media!.id
+
+        await database.createAttachment({
+          actorId: actors.primary.id,
+          statusId: statuses[0].id,
+          mediaType: 'image/jpeg',
+          url: media!.original.path,
+          width: 100,
+          height: 100,
+          mediaId: attachmentMediaId
+        })
+
+        const result = await database.getMediasWithStatusForAccount({
+          accountId,
+          limit: 100
+        })
+
+        const item = result.items.find((m) => m.id === media!.id)
+        expect(item).toBeDefined()
+        expect(item?.statusId).toBe(statuses[0].id)
       })
     })
 
