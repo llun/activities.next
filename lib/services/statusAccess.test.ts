@@ -5,6 +5,7 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 import {
   canActorReadStatus,
+  isPublicOrUnlisted,
   isStatusPubliclyReadable,
   resolveActorStatusesAudience
 } from './statusAccess'
@@ -53,6 +54,33 @@ describe('status access helpers', () => {
     ).toBe(true)
   })
 
+  it('correctly identifies public and unlisted recipients via isPublicOrUnlisted', () => {
+    expect(
+      isPublicOrUnlisted({
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+    ).toBe(true)
+    expect(
+      isPublicOrUnlisted({
+        to: [FOLLOWERS_URL],
+        cc: [ACTIVITY_STREAM_PUBLIC]
+      })
+    ).toBe(true)
+    expect(
+      isPublicOrUnlisted({
+        to: [FOLLOWERS_URL],
+        cc: []
+      })
+    ).toBe(false)
+    expect(
+      isPublicOrUnlisted({
+        to: [FOLLOWER_ID],
+        cc: []
+      })
+    ).toBe(false)
+  })
+
   it('does not treat followers-only or direct statuses as publicly readable', () => {
     expect(
       isStatusPubliclyReadable(
@@ -89,7 +117,7 @@ describe('status access helpers', () => {
       to: [ACTIVITY_STREAM_PUBLIC],
       cc: [],
       originalStatus: privateOriginal
-    } as Status
+    } as unknown as Status
 
     expect(isStatusPubliclyReadable(announce)).toBe(false)
   })
@@ -244,7 +272,7 @@ describe('status access helpers', () => {
       to: [ACTIVITY_STREAM_PUBLIC],
       cc: [],
       originalStatus
-    } as Status
+    } as unknown as Status
 
     await expect(
       canActorReadStatus({

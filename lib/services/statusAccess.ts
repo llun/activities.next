@@ -6,7 +6,9 @@ import { getVisibility } from '@/lib/utils/getVisibility'
 
 import { getViewerFollow } from './getViewerFollow'
 
-const isPublicOrUnlisted = (status: Status): boolean => {
+export const isPublicOrUnlisted = (
+  status: Pick<Status, 'to' | 'cc'>
+): boolean => {
   const visibility = getVisibility(status.to, status.cc)
   return visibility === 'public' || visibility === 'unlisted'
 }

@@ -161,7 +161,6 @@
     "lib/services/notifications/getMastodonNotification.test.ts",
     "lib/services/notifications/groupNotifications.test.ts",
     "lib/services/oauth/userinfo.test.ts",
-    "lib/services/statusAccess.test.ts",
     "lib/services/strava/archiveReader.open.test.ts",
     "lib/services/timelines/getFilteredTimelinePage.test.ts",
     "lib/services/translation/translateStatus.test.ts",

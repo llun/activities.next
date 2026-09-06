@@ -1,5 +1,6 @@
+import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { FollowStatus } from '@/lib/types/domain/follow'
-import { StatusType } from '@/lib/types/domain/status'
+import { StatusType, getOriginalStatus } from '@/lib/types/domain/status'
 import { withSpan } from '@/lib/utils/trace'
 
 import { MainTimelineRule, Timeline } from './types'
@@ -57,6 +58,15 @@ export const mainTimelineRule: MainTimelineRule = async ({
           }
         }
 
+        const isAuthorized = await canActorReadStatus({
+          database,
+          currentActor,
+          status
+        })
+        if (!isAuthorized) {
+          return null
+        }
+
         const originalStatus = status.originalStatus
         const timeline = await mainTimelineRule({
           database,
@@ -64,6 +74,17 @@ export const mainTimelineRule: MainTimelineRule = async ({
           status: originalStatus
         })
         if (timeline === Timeline.MAIN) return null
+
+        const rootStatus = getOriginalStatus(status)
+        if (rootStatus.id !== originalStatus.id) {
+          const rootTimeline = await mainTimelineRule({
+            database,
+            currentActor,
+            status: rootStatus
+          })
+          if (rootTimeline === Timeline.MAIN) return null
+        }
+
         return Timeline.MAIN
       }
 
