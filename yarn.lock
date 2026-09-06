@@ -82,9 +82,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/client-lambda@npm:3.1124.0":
-  version: 3.1124.0
-  resolution: "@aws-sdk/client-lambda@npm:3.1124.0"
+"@aws-sdk/client-lambda@npm:3.1125.0":
+  version: 3.1125.0
+  resolution: "@aws-sdk/client-lambda@npm:3.1125.0"
   dependencies:
     "@aws-sdk/core": "npm:^3.977.9"
     "@aws-sdk/credential-provider-node": "npm:^3.972.82"
@@ -94,13 +94,13 @@ __metadata:
     "@smithy/node-http-handler": "npm:^4.11.3"
     "@smithy/types": "npm:^4.17.2"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/6e5c82b0d189e906c597bdd7a14ca7b2ffe09d29a5a8a3cc9e12134e20f0ec93fefc30b86c6d498e6506ff7e75baa444e1a342d11b44ef25a26d11cd30a75b35
+  checksum: 10c0/62a3a51cf62b2edd9a5106f7844a06c1b66d20db99f76caa60f9f6b1646d227db0bf42219fa65cd0b6d347a8946085022ce974accd7178b5b73ff042c755c6f7
   languageName: node
   linkType: hard
 
-"@aws-sdk/client-s3@npm:3.1124.0":
-  version: 3.1124.0
-  resolution: "@aws-sdk/client-s3@npm:3.1124.0"
+"@aws-sdk/client-s3@npm:3.1125.0":
+  version: 3.1125.0
+  resolution: "@aws-sdk/client-s3@npm:3.1125.0"
   dependencies:
     "@aws-sdk/checksums": "npm:^3.1000.29"
     "@aws-sdk/core": "npm:^3.977.9"
@@ -113,13 +113,13 @@ __metadata:
     "@smithy/node-http-handler": "npm:^4.11.3"
     "@smithy/types": "npm:^4.17.2"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/a67fd7326be84d6a787223e18561e01832f47103646310f7d25aed2ca0a24980770685349810fbfe08dbcb5ef6b698c749544ba4c5736109c20ff72b16729a56
+  checksum: 10c0/94faa367465fc28179e9d93731c27f2e6d6bc13b51bb7fc84725c5b0f06e57588efe72cc4aafa2a6c6bbd4b6cc6c30fab29e5f10c2153d7aaf1462d9c7e18692
   languageName: node
   linkType: hard
 
-"@aws-sdk/client-ses@npm:3.1124.0":
-  version: 3.1124.0
-  resolution: "@aws-sdk/client-ses@npm:3.1124.0"
+"@aws-sdk/client-ses@npm:3.1125.0":
+  version: 3.1125.0
+  resolution: "@aws-sdk/client-ses@npm:3.1125.0"
   dependencies:
     "@aws-sdk/core": "npm:^3.977.9"
     "@aws-sdk/credential-provider-node": "npm:^3.972.82"
@@ -129,7 +129,7 @@ __metadata:
     "@smithy/node-http-handler": "npm:^4.11.3"
     "@smithy/types": "npm:^4.17.2"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/3038309ae880be5add26d7d7c7b2622b93320211d42e3e53764f1f3162058ffbab66f5f3876109085c2038454988d75736213320c19fb1663374e5888f4e2589
+  checksum: 10c0/f4db554c5e0938ec39388e4f012c58dcd7d44999ac31ffb2bb51bc76679b49e881ad1d8b6d2b185aac7e4d8b96d96d40a11dbf494209c5bf3d502923560c5a6a
   languageName: node
   linkType: hard
 
@@ -312,9 +312,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/s3-request-presigner@npm:3.1124.0":
-  version: 3.1124.0
-  resolution: "@aws-sdk/s3-request-presigner@npm:3.1124.0"
+"@aws-sdk/s3-request-presigner@npm:3.1125.0":
+  version: 3.1125.0
+  resolution: "@aws-sdk/s3-request-presigner@npm:3.1125.0"
   dependencies:
     "@aws-sdk/core": "npm:^3.977.9"
     "@aws-sdk/signature-v4-multi-region": "npm:^3.996.46"
@@ -322,7 +322,7 @@ __metadata:
     "@smithy/core": "npm:^3.33.3"
     "@smithy/types": "npm:^4.17.2"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/04f1a33b6b1de4dca2372271373541d28bb1988d5f1dc50e0d1d7316dd3361fe090cb35867d4c31639da9d8d43e176c103544b58a31d4f01c308b4e7c1ea49aa
+  checksum: 10c0/49c52551d223fa5be3ecc9c6066402325d0544cde26b5e22b82bec34104885a85639b269efc92647dbe237c6f1db896aadaa129b32256a9888b304aced03470e
   languageName: node
   linkType: hard
 
@@ -3752,10 +3752,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "activities.next@workspace:."
   dependencies:
-    "@aws-sdk/client-lambda": "npm:3.1124.0"
-    "@aws-sdk/client-s3": "npm:3.1124.0"
-    "@aws-sdk/client-ses": "npm:3.1124.0"
-    "@aws-sdk/s3-request-presigner": "npm:3.1124.0"
+    "@aws-sdk/client-lambda": "npm:3.1125.0"
+    "@aws-sdk/client-s3": "npm:3.1125.0"
+    "@aws-sdk/client-ses": "npm:3.1125.0"
+    "@aws-sdk/s3-request-presigner": "npm:3.1125.0"
     "@aws-sdk/util-utf8-node": "npm:^3.259.0"
     "@better-auth/core": "npm:1.7.2"
     "@better-auth/oauth-provider": "npm:^1.7.2"
@@ -3826,7 +3826,7 @@ __metadata:
     lucide-react: "npm:1.39.0"
     marked: "npm:^18.0.11"
     mime-types: "npm:^3.0.2"
-    nanostores: "npm:^1.5.2"
+    nanostores: "npm:^1.5.3"
     next: "npm:16.3.4"
     nodemailer: "npm:9.1.1"
     oxlint: "npm:^1.81.0"
@@ -6287,10 +6287,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"nanostores@npm:^1.3.0, nanostores@npm:^1.5.2":
+"nanostores@npm:^1.3.0":
   version: 1.5.2
   resolution: "nanostores@npm:1.5.2"
   checksum: 10c0/937d5a0619009d438e0f938784a9099d70ae265590e2dafe5b2ff62ff43b01a646f017f9aaeb17b8c5480dc07743b803a5c16f220ffbe763f8db3211cd55b765
+  languageName: node
+  linkType: hard
+
+"nanostores@npm:^1.5.3":
+  version: 1.5.3
+  resolution: "nanostores@npm:1.5.3"
+  checksum: 10c0/c364320b2fb2534c92d46866b7beb988a8f699d8056d29f4f7136894bf966bf91f430381d46182c90189dfd937b4ac4b0afa955a65331aadcb75ba2704378e2a
   languageName: node
   linkType: hard
 
