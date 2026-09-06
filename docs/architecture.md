@@ -244,8 +244,9 @@ Instance administrators can inspect terminally failed tasks, view formatted payl
   - Unhandled job errors trigger polynomial backoff retry scheduling (`attempt^4 + 15` seconds, up to `ACTIVITIES_QUEUE_DATABASE_MAX_RETRIES` / default 16 attempts spanning ~7.5 days, matching Mastodon queue retry resilience).
   - Upon reaching maximum retries, failed tasks are stored in `dead_letter_jobs` and marked failed in `queue_jobs`, making them manageable via the Admin UI at `/admin/queues`.
 - **Google Cloud Tasks (`ACTIVITIES_QUEUE_TYPE=cloudtasks`)**:
-  - Webhook endpoint: `/api/v1/queue/cloudtasks`.
-  - Tasks are authenticated via Google Cloud OIDC tokens (validating audience and service account email) or pre-shared webhook secrets / service account headers.
+  - Webhook endpoint: `/api/v1/queue/cloudtasks` (returns 404 unless the configured queue is CloudTasks).
+  - Tasks are authenticated via Google Cloud OIDC tokens or pre-shared webhook secrets (`Authorization: Bearer <secret>`, `x-cloudtasks-secret`, or `x-cloudtasks-token`). Plain service account headers (`x-service-account` / `x-cloudtasks-serviceaccount`) are not accepted.
+  - OIDC verification requires a configured service account email and validates Google issuer, cryptographic signature, audience (`ACTIVITIES_QUEUE_CLOUDTASKS_AUDIENCE` falling back to `ACTIVITIES_QUEUE_URL`), service account email match, and `email_verified === true`. An audience alone never authorizes arbitrary Google identities.
   - While retries are below `ACTIVITIES_QUEUE_CLOUDTASKS_MAX_RETRIES` (default 5), the endpoint returns HTTP 500 so Cloud Tasks applies exponential backoff.
   - On terminal failure, the task is captured in the database `dead_letter_jobs` table and HTTP 200 is returned to acknowledge delivery. The Admin UI queries and manages these records in the database.
 - **Upstash QStash (`ACTIVITIES_QUEUE_TYPE=qstash`)**:

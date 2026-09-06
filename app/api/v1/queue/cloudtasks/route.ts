@@ -10,6 +10,7 @@ import { JobMessage } from '@/lib/services/queue/type'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import { apiErrorResponse, apiResponse } from '@/lib/utils/response'
+import { timingSafeStringEqual } from '@/lib/utils/timingSafeStringEqual'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -27,41 +28,46 @@ export const verifyCloudTasksAuth = async (
   request: NextRequest,
   config?: CloudTasksConfig
 ): Promise<boolean> => {
-  if (!config?.serviceAccount && !config?.audience && !config?.secret) {
-    return true
+  if (!config) {
+    return false
   }
 
   const authHeader = request.headers.get('authorization') ?? ''
-  const secretHeader =
-    request.headers.get('x-cloudtasks-secret') ||
-    request.headers.get('x-cloudtasks-token')
-
   if (config.secret) {
+    const xCloudTasksSecret = request.headers.get('x-cloudtasks-secret')
+    const xCloudTasksToken = request.headers.get('x-cloudtasks-token')
     if (
-      authHeader === `Bearer ${config.secret}` ||
-      secretHeader === config.secret
+      timingSafeStringEqual(authHeader, `Bearer ${config.secret}`) ||
+      (xCloudTasksSecret &&
+        timingSafeStringEqual(xCloudTasksSecret, config.secret)) ||
+      (xCloudTasksToken &&
+        timingSafeStringEqual(xCloudTasksToken, config.secret))
     ) {
       return true
     }
   }
 
-  const serviceAccountHeader =
-    request.headers.get('x-service-account') ||
-    request.headers.get('x-cloudtasks-serviceaccount')
-
-  if (config.serviceAccount && serviceAccountHeader === config.serviceAccount) {
-    return true
+  const expectedAudience = config.audience ?? config.url
+  if (!config.serviceAccount || !expectedAudience) {
+    return false
   }
 
   if (authHeader.startsWith('Bearer ')) {
     const token = authHeader.slice(7).trim()
+    if (!token) {
+      return false
+    }
+
     try {
       const { payload } = await jwtVerify(token, getGoogleJWKS(), {
         issuer: ['https://accounts.google.com', 'accounts.google.com'],
-        ...(config.audience ? { audience: config.audience } : {})
+        audience: expectedAudience
       })
 
-      if (config.serviceAccount && payload.email !== config.serviceAccount) {
+      if (
+        payload.email !== config.serviceAccount ||
+        payload.email_verified !== true
+      ) {
         return false
       }
 
@@ -78,12 +84,11 @@ export const POST = traceApiRoute(
   'processCloudTasksJob',
   async (request: NextRequest) => {
     const config = getConfig()
-    if (config.queue && config.queue.type !== 'cloudtasks') {
+    if (config.queue?.type !== 'cloudtasks') {
       return apiErrorResponse(404)
     }
 
-    const cloudTasksConfig =
-      config.queue?.type === 'cloudtasks' ? config.queue : undefined
+    const cloudTasksConfig = config.queue
 
     const isAuthorized = await verifyCloudTasksAuth(request, cloudTasksConfig)
     if (!isAuthorized) {
