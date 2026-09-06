@@ -146,7 +146,12 @@ describe('ActorsSection', () => {
     })
   })
 
-  it('does not switch selected actor when clicking the scheduled item row', async () => {
+  it('does not switch selected actor when clicking the scheduled item row and instead cancels deletion', async () => {
+    vi.mocked(cancelActorDeletion).mockResolvedValue({
+      actorId: 'actor-3',
+      status: 'cancelled'
+    })
+
     render(
       <ActorsSection
         currentActor={actors[0]}
@@ -165,6 +170,127 @@ describe('ActorsSection', () => {
     // Trigger still displays Alice (current actor not changed)
     expect(trigger).toHaveTextContent('Alice')
     expect(switchActor).not.toHaveBeenCalled()
+    expect(cancelActorDeletion).toHaveBeenCalledWith({ actorId: 'actor-3' })
+    await waitFor(() => {
+      expect(mockRefresh).toHaveBeenCalled()
+    })
+  })
+
+  it('cancels deletion via keyboard selection of scheduled actor row', async () => {
+    vi.mocked(cancelActorDeletion).mockResolvedValue({
+      actorId: 'actor-3',
+      status: 'cancelled'
+    })
+
+    render(
+      <ActorsSection
+        currentActor={actors[0]}
+        actors={[actors[0], scheduledActor]}
+        currentDefault={actors[0].id}
+      />
+    )
+
+    const trigger = screen.getByRole('button', { name: /alice/i })
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+    await screen.findByRole('menu')
+
+    const menuItems = screen.getAllByRole('menuitem')
+    const scheduledItem = menuItems.find((item) =>
+      item.textContent?.includes('Charlie')
+    )
+    expect(scheduledItem).toBeDefined()
+
+    fireEvent.keyDown(scheduledItem!, { key: 'Enter' })
+
+    expect(cancelActorDeletion).toHaveBeenCalledWith({ actorId: 'actor-3' })
+    expect(switchActor).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(mockRefresh).toHaveBeenCalled()
+    })
+  })
+
+  it('prevents duplicate cancel requests until refreshed state arrives', async () => {
+    vi.mocked(cancelActorDeletion).mockResolvedValue({
+      actorId: 'actor-3',
+      status: 'cancelled'
+    })
+
+    const { rerender } = render(
+      <ActorsSection
+        currentActor={actors[0]}
+        actors={[actors[0], scheduledActor]}
+        currentDefault={actors[0].id}
+      />
+    )
+
+    const trigger = screen.getByRole('button', { name: /alice/i })
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+    await screen.findByRole('menu')
+
+    const cancelButton = screen.getByRole('button', { name: 'Cancel' })
+    expect(cancelButton).toHaveAttribute('type', 'button')
+
+    // First cancel click
+    fireEvent.click(cancelButton)
+
+    expect(cancelActorDeletion).toHaveBeenCalledTimes(1)
+    expect(cancelActorDeletion).toHaveBeenCalledWith({ actorId: 'actor-3' })
+
+    // Duplicate cancel click before refreshed state arrives
+    fireEvent.click(cancelButton)
+    expect(cancelActorDeletion).toHaveBeenCalledTimes(1)
+
+    // Selecting row also does not send duplicate cancel
+    const charlieText = screen.getByText('Charlie')
+    fireEvent.click(charlieText)
+    expect(cancelActorDeletion).toHaveBeenCalledTimes(1)
+
+    // Refreshed state arrives from server
+    rerender(
+      <ActorsSection
+        currentActor={actors[0]}
+        actors={[actors[0], { ...scheduledActor, deletionStatus: null }]}
+        currentDefault={actors[0].id}
+      />
+    )
+
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+    await screen.findByRole('menu')
+    expect(
+      screen.queryByRole('button', { name: 'Cancel' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('sets explicit type="button" on all action buttons and cancel button', async () => {
+    render(
+      <ActorsSection
+        currentActor={actors[0]}
+        actors={[actors[0], scheduledActor]}
+        currentDefault={actors[0].id}
+      />
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Switch to actor' })
+    ).toHaveAttribute('type', 'button')
+    expect(
+      screen.getByRole('button', { name: 'Set as default' })
+    ).toHaveAttribute('type', 'button')
+    expect(screen.getByRole('button', { name: 'Add actor' })).toHaveAttribute(
+      'type',
+      'button'
+    )
+
+    const trigger = screen.getByRole('button', { name: /alice/i })
+    expect(trigger).toHaveAttribute('type', 'button')
+
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+    await screen.findByRole('menu')
+
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveAttribute(
+      'type',
+      'button'
+    )
   })
 
   it('surfaces error message when cancelActorDeletion fails', async () => {

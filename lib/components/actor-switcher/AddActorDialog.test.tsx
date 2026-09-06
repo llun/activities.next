@@ -418,6 +418,37 @@ describe('AddActorDialog', () => {
       expect(switchActor).not.toHaveBeenCalled()
       expect(mockOnSuccess).not.toHaveBeenCalled()
     })
+
+    it('does not call onSuccess or reload when switchActor returns false', async () => {
+      vi.mocked(createActor).mockResolvedValue({
+        id: 'new-actor-id',
+        username: 'eve',
+        domain: defaultDomain
+      })
+      vi.mocked(switchActor).mockResolvedValue(false)
+
+      renderDialog()
+
+      const input = screen.getByLabelText('Username')
+      fireEvent.change(input, { target: { value: 'eve' } })
+      fireEvent.submit(input.closest('form')!)
+
+      await waitFor(() => {
+        expect(createActor).toHaveBeenCalledWith({
+          username: 'eve',
+          domain: defaultDomain
+        })
+      })
+
+      expect(switchActor).toHaveBeenCalledWith({ actorId: 'new-actor-id' })
+      expect(mockOnSuccess).not.toHaveBeenCalled()
+
+      await waitFor(() => {
+        expect(screen.getByText('Failed to switch actor')).toBeInTheDocument()
+      })
+
+      expect(screen.getByRole('button', { name: 'Create actor' })).toBeEnabled()
+    })
   })
 
   describe('dialog cancellation and close behavior', () => {
@@ -464,6 +495,164 @@ describe('AddActorDialog', () => {
 
       expect(screen.queryByText('Failed')).not.toBeInTheDocument()
       expect(screen.getByLabelText('Username')).toHaveValue('')
+    })
+
+    it('does not reload or set stale visible state when closed during in-flight create', async () => {
+      const deferred = createDeferred<{
+        id: string
+        username: string
+        domain: string
+      }>()
+      vi.mocked(createActor).mockReturnValue(deferred.promise)
+      vi.mocked(switchActor).mockResolvedValue(true)
+
+      const { rerender } = renderDialog({ open: true })
+
+      const input = screen.getByLabelText('Username')
+      fireEvent.change(input, { target: { value: 'frank' } })
+      fireEvent.submit(input.closest('form')!)
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole('button', { name: 'Creating...' })
+        ).toBeDisabled()
+      })
+
+      // Close dialog while create is in-flight
+      rerender(
+        <AddActorDialog
+          open={false}
+          onOpenChange={mockOnOpenChange}
+          domain={defaultDomain}
+          onSuccess={mockOnSuccess}
+        />
+      )
+
+      // Resolve in-flight creation after dialog closure
+      await act(async () => {
+        deferred.resolve({
+          id: 'frank-id',
+          username: 'frank',
+          domain: defaultDomain
+        })
+      })
+
+      expect(mockOnSuccess).not.toHaveBeenCalled()
+      expect(switchActor).not.toHaveBeenCalled()
+
+      // Reopen dialog: visible state must be clean and not stale
+      rerender(
+        <AddActorDialog
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          domain={defaultDomain}
+          onSuccess={mockOnSuccess}
+        />
+      )
+
+      expect(screen.getByLabelText('Username')).toHaveValue('')
+      expect(
+        screen.queryByText('Failed to switch actor')
+      ).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Create actor' })
+      ).toBeDisabled()
+      expect(mockOnSuccess).not.toHaveBeenCalled()
+    })
+
+    it('does not set stale error state when closed during in-flight create rejection', async () => {
+      const deferred = createDeferred<{
+        id: string
+        username: string
+        domain: string
+      }>()
+      vi.mocked(createActor).mockReturnValue(deferred.promise)
+
+      const { rerender } = renderDialog({ open: true })
+
+      const input = screen.getByLabelText('Username')
+      fireEvent.change(input, { target: { value: 'grace' } })
+      fireEvent.submit(input.closest('form')!)
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole('button', { name: 'Creating...' })
+        ).toBeDisabled()
+      })
+
+      // Close dialog while in flight
+      rerender(
+        <AddActorDialog
+          open={false}
+          onOpenChange={mockOnOpenChange}
+          domain={defaultDomain}
+          onSuccess={mockOnSuccess}
+        />
+      )
+
+      // Reject in-flight creation after dialog closure
+      await act(async () => {
+        deferred.reject(new Error('Backend error'))
+      })
+
+      // Reopen dialog: must not show the rejected error
+      rerender(
+        <AddActorDialog
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          domain={defaultDomain}
+          onSuccess={mockOnSuccess}
+        />
+      )
+
+      expect(screen.queryByText('Backend error')).not.toBeInTheDocument()
+      expect(screen.getByLabelText('Username')).toHaveValue('')
+    })
+
+    it('prevents dismissal while switchActor is pending and reloads successfully when resolved', async () => {
+      const deferredSwitch = createDeferred<boolean>()
+      vi.mocked(createActor).mockResolvedValue({
+        id: 'heidi-id',
+        username: 'heidi',
+        domain: defaultDomain
+      })
+      vi.mocked(switchActor).mockReturnValue(deferredSwitch.promise)
+
+      renderDialog({ open: true })
+
+      const input = screen.getByLabelText('Username')
+      fireEvent.change(input, { target: { value: 'heidi' } })
+      fireEvent.submit(input.closest('form')!)
+
+      await waitFor(() => {
+        expect(createActor).toHaveBeenCalled()
+        expect(switchActor).toHaveBeenCalledWith({ actorId: 'heidi-id' })
+      })
+
+      // While switchActor is pending, user dismissal is prevented
+      const cancelButton = screen.getByRole('button', { name: 'Cancel' })
+      expect(cancelButton).toBeDisabled()
+      fireEvent.click(cancelButton)
+      expect(mockOnOpenChange).not.toHaveBeenCalled()
+
+      expect(
+        screen.queryByRole('button', { name: 'Close' })
+      ).not.toBeInTheDocument()
+
+      fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+      expect(mockOnOpenChange).not.toHaveBeenCalled()
+
+      fireEvent.pointerDown(document.body)
+      expect(mockOnOpenChange).not.toHaveBeenCalled()
+
+      // Resolve switchActor: normal successful reload remains
+      await act(async () => {
+        deferredSwitch.resolve(true)
+      })
+
+      await waitFor(() => {
+        expect(mockOnSuccess).toHaveBeenCalled()
+      })
     })
   })
 })

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { createActor, getActorDomains, switchActor } from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
@@ -36,6 +36,8 @@ export function AddActorDialog({
   const [domainsLoaded, setDomainsLoaded] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const createRequestIdRef = useRef(0)
 
   useEffect(() => {
     if (!open || domainsLoaded) {
@@ -91,6 +93,7 @@ export function AddActorDialog({
       return
     }
 
+    const currentRequestId = ++createRequestIdRef.current
     setIsLoading(true)
     try {
       const data = await createActor({
@@ -98,40 +101,90 @@ export function AddActorDialog({
         domain: selectedDomain
       })
 
+      if (currentRequestId !== createRequestIdRef.current) {
+        return
+      }
+
       // Switch to the new actor
-      await switchActor({ actorId: data.id })
+      const didSwitch = await switchActor({
+        actorId: data.id
+      })
+
+      if (currentRequestId !== createRequestIdRef.current) {
+        return
+      }
+
+      if (!didSwitch) {
+        setError('Failed to switch actor')
+        return
+      }
 
       setUsername('')
       onSuccess()
     } catch (err) {
+      if (currentRequestId !== createRequestIdRef.current) {
+        return
+      }
       setError(
         err instanceof Error
           ? err.message
           : 'An error occurred while creating the actor'
       )
     } finally {
-      setIsLoading(false)
+      if (currentRequestId === createRequestIdRef.current) {
+        setIsLoading(false)
+      }
     }
   }
 
   useEffect(() => {
     if (!open) {
+      createRequestIdRef.current++
       setUsername('')
       setError(null)
+      setIsLoading(false)
     }
   }, [open])
 
+  useEffect(() => {
+    return () => {
+      createRequestIdRef.current++
+    }
+  }, [])
+
   const handleOpenChange = (newOpen: boolean) => {
+    if (!newOpen && isLoading) {
+      return
+    }
     if (!newOpen) {
+      createRequestIdRef.current++
       setUsername('')
       setError(null)
+      setIsLoading(false)
     }
     onOpenChange(newOpen)
   }
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent>
+      <DialogContent
+        showCloseButton={!isLoading}
+        onEscapeKeyDown={(e) => {
+          if (isLoading) {
+            e.preventDefault()
+          }
+        }}
+        onPointerDownOutside={(e) => {
+          if (isLoading) {
+            e.preventDefault()
+          }
+        }}
+        onInteractOutside={(e) => {
+          if (isLoading) {
+            e.preventDefault()
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Add another actor</DialogTitle>
           <DialogDescription>

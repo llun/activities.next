@@ -256,7 +256,12 @@ describe('ActorSwitcher', () => {
       expect(switchActor).not.toHaveBeenCalled()
     })
 
-    it('does not switch actor if actor is scheduled for deletion', async () => {
+    it('does not switch actor if actor is scheduled for deletion and instead cancels deletion', async () => {
+      vi.mocked(cancelActorDeletion).mockResolvedValue({
+        actorId: 'actor-3',
+        status: 'cancelled'
+      })
+
       render(
         <ActorSwitcher currentActor={alice} actors={[alice, scheduledActor]} />
       )
@@ -268,6 +273,85 @@ describe('ActorSwitcher', () => {
       const scheduledItem = screen.getByText('Charlie')
       fireEvent.click(scheduledItem)
       expect(switchActor).not.toHaveBeenCalled()
+      expect(cancelActorDeletion).toHaveBeenCalledWith({ actorId: 'actor-3' })
+      await waitFor(() => {
+        expect(mockRefresh).toHaveBeenCalled()
+      })
+    })
+
+    it('cancels scheduled deletion on keyboard selection and does not silently close without action', async () => {
+      vi.mocked(cancelActorDeletion).mockResolvedValue({
+        actorId: 'actor-3',
+        status: 'cancelled'
+      })
+
+      render(
+        <ActorSwitcher currentActor={alice} actors={[alice, scheduledActor]} />
+      )
+
+      const trigger = screen.getByRole('button')
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+      await screen.findByRole('menu')
+
+      const menuItems = screen.getAllByRole('menuitem')
+      const scheduledItem = menuItems.find((item) =>
+        item.textContent?.includes('Charlie')
+      )
+      expect(scheduledItem).toBeDefined()
+
+      fireEvent.keyDown(scheduledItem!, { key: 'Enter' })
+
+      expect(cancelActorDeletion).toHaveBeenCalledWith({ actorId: 'actor-3' })
+      expect(switchActor).not.toHaveBeenCalled()
+      await waitFor(() => {
+        expect(mockRefresh).toHaveBeenCalled()
+      })
+    })
+
+    it('prevents duplicate cancel requests until refreshed state arrives and sets type="button"', async () => {
+      vi.mocked(cancelActorDeletion).mockResolvedValue({
+        actorId: 'actor-3',
+        status: 'cancelled'
+      })
+
+      const { rerender } = render(
+        <ActorSwitcher currentActor={alice} actors={[alice, scheduledActor]} />
+      )
+
+      const trigger = screen.getByRole('button')
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+      await screen.findByRole('menu')
+
+      const cancelButton = screen.getByTitle('Cancel deletion')
+      expect(cancelButton).toHaveAttribute('type', 'button')
+
+      // First cancel click
+      fireEvent.click(cancelButton)
+
+      expect(cancelActorDeletion).toHaveBeenCalledTimes(1)
+      expect(cancelActorDeletion).toHaveBeenCalledWith({ actorId: 'actor-3' })
+
+      // Duplicate cancel click before refreshed state arrives
+      fireEvent.click(cancelButton)
+      expect(cancelActorDeletion).toHaveBeenCalledTimes(1)
+
+      // Also selecting the row while cancellation is in progress does not send duplicate cancel
+      const scheduledItem = screen.getByText('Charlie')
+      fireEvent.click(scheduledItem)
+      expect(cancelActorDeletion).toHaveBeenCalledTimes(1)
+
+      // Refreshed state arrives from server
+      rerender(
+        <ActorSwitcher
+          currentActor={alice}
+          actors={[alice, { ...scheduledActor, deletionStatus: null }]}
+        />
+      )
+
+      // Reopen menu: Charlie is no longer pending deletion
+      fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+      await screen.findByRole('menu')
+      expect(screen.queryByTitle('Cancel deletion')).not.toBeInTheDocument()
     })
 
     it('does not switch actor if actor is deleting', async () => {

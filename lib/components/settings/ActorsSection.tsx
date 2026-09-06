@@ -2,7 +2,7 @@
 
 import { Check, ChevronDown, Clock, Plus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { cancelActorDeletion, switchActor } from '@/lib/client'
 import { ActorInfo, AddActorDialog } from '@/lib/components/actor-switcher'
@@ -38,11 +38,17 @@ export function ActorsSection({
   )
   const [isSwitching, setIsSwitching] = useState(false)
   const [isSavingDefault, setIsSavingDefault] = useState(false)
+  const isCancellingRef = useRef(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [message, setMessage] = useState<{
     type: 'success' | 'error'
     text: string
   } | null>(null)
+
+  useEffect(() => {
+    isCancellingRef.current = false
+    setIsCancelling(false)
+  }, [actors])
 
   const selectedActor =
     actors.find((actor) => actor.id === selectedActorId) || actors[0]
@@ -104,22 +110,27 @@ export function ActorsSection({
     }
   }
 
-  const handleCancelDeletion = async (actorId: string) => {
-    if (isCancelling) return
+  const handleCancelDeletion = async (
+    actorId: string,
+    e?: React.MouseEvent | React.SyntheticEvent
+  ) => {
+    e?.stopPropagation()
+    if (isCancellingRef.current || isCancelling) return
 
+    isCancellingRef.current = true
     setIsCancelling(true)
     setMessage(null)
     try {
       await cancelActorDeletion({ actorId })
       router.refresh()
     } catch (err) {
+      isCancellingRef.current = false
+      setIsCancelling(false)
       setMessage({
         type: 'error',
         text:
           err instanceof Error ? err.message : 'Failed to cancel actor deletion'
       })
-    } finally {
-      setIsCancelling(false)
     }
   }
 
@@ -142,7 +153,7 @@ export function ActorsSection({
             <button
               type="button"
               className="flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-muted cursor-pointer"
-              disabled={isSwitching || isSavingDefault}
+              disabled={isSwitching || isSavingDefault || isCancelling}
             >
               <Avatar className="h-10 w-10">
                 {selectedActor?.iconUrl && (
@@ -182,17 +193,21 @@ export function ActorsSection({
               const isDeleting = actor.deletionStatus === 'deleting'
               const reducedOpacity = isPendingDeletion || isDeleting
               const isCurrent = actor.id === currentActor.id
+              const isDisabled =
+                isSwitching || isSavingDefault || isDeleting || isCancelling
 
               return (
                 <DropdownMenuItem
                   key={actor.id}
-                  onClick={() => {
-                    if (!isPendingDeletion && !isDeleting) {
+                  onSelect={() => {
+                    if (isPendingDeletion) {
+                      handleCancelDeletion(actor.id)
+                    } else if (!isDeleting) {
                       setSelectedActorId(actor.id)
                     }
                   }}
                   // Keep the row clickable for cancellation when deletion is scheduled.
-                  disabled={isSwitching || isSavingDefault || isDeleting}
+                  disabled={isDisabled}
                   className="flex items-center gap-3"
                 >
                   <Avatar
@@ -235,11 +250,11 @@ export function ActorsSection({
                   )}
                   {isPendingDeletion && (
                     <Button
+                      type="button"
                       size="sm"
                       variant="outline"
                       onClick={(e) => {
-                        e.stopPropagation()
-                        handleCancelDeletion(actor.id)
+                        handleCancelDeletion(actor.id, e)
                       }}
                       disabled={isCancelling}
                     >
@@ -262,21 +277,28 @@ export function ActorsSection({
 
         <div className="flex flex-col sm:flex-row sm:justify-end gap-2">
           <Button
+            type="button"
             onClick={handleSwitchActor}
             disabled={
-              isSwitching || !canSwitch || isSavingDefault || !hasMultipleActors
+              isSwitching ||
+              !canSwitch ||
+              isSavingDefault ||
+              !hasMultipleActors ||
+              isCancelling
             }
             className="w-full sm:w-auto"
           >
             {isSwitching ? 'Switching...' : 'Switch to actor'}
           </Button>
           <Button
+            type="button"
             onClick={handleSaveDefault}
             disabled={
               isSavingDefault ||
               !hasChanges ||
               isSwitching ||
-              !hasMultipleActors
+              !hasMultipleActors ||
+              isCancelling
             }
             variant="outline"
             className="w-full sm:w-auto"
@@ -284,9 +306,10 @@ export function ActorsSection({
             {isSavingDefault ? 'Saving...' : 'Set as default'}
           </Button>
           <Button
+            type="button"
             variant="outline"
             onClick={() => setIsDialogOpen(true)}
-            disabled={isSwitching || isSavingDefault}
+            disabled={isSwitching || isSavingDefault || isCancelling}
             className="w-full sm:w-auto"
           >
             <Plus className="h-4 w-4 mr-2" />

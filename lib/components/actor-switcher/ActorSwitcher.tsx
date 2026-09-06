@@ -3,7 +3,7 @@
 import { Check, ChevronDown, Clock, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { cancelActorDeletion, switchActor } from '@/lib/client'
 import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
@@ -38,8 +38,14 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
   const router = useRouter()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isSwitching, setIsSwitching] = useState(false)
+  const isCancellingRef = useRef(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    isCancellingRef.current = false
+    setIsCancelling(false)
+  }, [actors])
 
   const getAvatarInitial = (username: string) => {
     if (!username) return '?'
@@ -73,21 +79,25 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
     }
   }
 
-  const handleCancelDeletion = async (actorId: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (isCancelling) return
+  const handleCancelDeletion = async (
+    actorId: string,
+    e?: React.MouseEvent | React.SyntheticEvent
+  ) => {
+    e?.stopPropagation()
+    if (isCancellingRef.current || isCancelling) return
 
+    isCancellingRef.current = true
     setIsCancelling(true)
     setError(null)
     try {
       await cancelActorDeletion({ actorId })
       router.refresh()
     } catch (err) {
+      isCancellingRef.current = false
+      setIsCancelling(false)
       setError(
         err instanceof Error ? err.message : 'Failed to cancel actor deletion'
       )
-    } finally {
-      setIsCancelling(false)
     }
   }
 
@@ -167,15 +177,22 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
           {actors.map((actor) => {
             const isPendingDeletion = actor.deletionStatus === 'scheduled'
             const isDeleting = actor.deletionStatus === 'deleting'
-            // Keep the row clickable for cancellation when deletion is scheduled.
-            const isDisabled = isSwitching || isDeleting
+            // Keep the row clickable for cancellation when deletion is scheduled,
+            // and disable when switching, deleting, or cancellation is in progress.
+            const isDisabled = isSwitching || isDeleting || isCancelling
 
             const reducedOpacity = isPendingDeletion || isDeleting
 
             return (
               <DropdownMenuItem
                 key={actor.id}
-                onClick={() => handleSwitchActor(actor.id)}
+                onSelect={() => {
+                  if (isPendingDeletion) {
+                    handleCancelDeletion(actor.id)
+                  } else if (!isDeleting) {
+                    handleSwitchActor(actor.id)
+                  }
+                }}
                 disabled={isDisabled}
                 className="flex items-center gap-3"
               >
@@ -214,7 +231,10 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
                   !isDeleting && <Check className="h-4 w-4 text-primary" />}
                 {isPendingDeletion && (
                   <button
-                    onClick={(e) => handleCancelDeletion(actor.id, e)}
+                    type="button"
+                    onClick={(e) => {
+                      handleCancelDeletion(actor.id, e)
+                    }}
                     disabled={isCancelling}
                     className="text-xs text-primary hover:text-primary/80 px-2 py-1 rounded hover:bg-muted cursor-pointer"
                     title="Cancel deletion"
