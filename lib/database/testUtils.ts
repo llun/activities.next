@@ -77,12 +77,32 @@ const TEST_PG_WORKER_ID = (process.env.VITEST_POOL_ID ?? '').replace(/\D/g, '')
 const TEST_PG_DATABASE = TEST_PG_WORKER_ID
   ? `test_${TEST_PG_WORKER_ID}`
   : 'test'
-const TEST_PG_CONNECTION = {
+export const getTestPgPort = (
+  rawPort: string | undefined = process.env.TEST_DATABASE_PORT
+): number => {
+  if (rawPort === undefined) {
+    return 5432
+  }
+  if (!/^[1-9]\d*$/.test(rawPort)) {
+    throw new Error(
+      `Invalid TEST_DATABASE_PORT "${rawPort}": must be a decimal integer between 1 and 65535`
+    )
+  }
+  const port = Number.parseInt(rawPort, 10)
+  if (port > 65535) {
+    throw new Error(
+      `Invalid TEST_DATABASE_PORT "${rawPort}": must be a decimal integer between 1 and 65535`
+    )
+  }
+  return port
+}
+
+export const getTestPgConnection = () => ({
   host: process.env.TEST_DATABASE_HOST,
-  port: 5432,
+  port: getTestPgPort(),
   user: process.env.TEST_DATABASE_USERNAME,
   password: process.env.TEST_DATABASE_PASSWORD
-}
+})
 
 export type PrepareFunction = () => Promise<void> | void
 export type TestDatabaseTableItem = [string, Database, PrepareFunction]
@@ -114,10 +134,11 @@ const DATABASES: Record<string, GetTestDatabase> = {
     }
   },
   pg: () => {
+    const connection = getTestPgConnection()
     const instance = knex({
       client: 'pg',
       connection: {
-        ...TEST_PG_CONNECTION,
+        ...connection,
         database: TEST_PG_DATABASE
       }
     })
@@ -133,7 +154,7 @@ const DATABASES: Record<string, GetTestDatabase> = {
         const client = new (
           DynamicPostgresClient as unknown as typeof PostgresClient
         )({
-          ...TEST_PG_CONNECTION,
+          ...connection,
           database: 'postgres'
         })
         await client.connect()
@@ -200,13 +221,14 @@ export const getTestDatabaseWithInstance = (
   // isolated caller destroys its instance before the next begins, so reusing
   // the name keeps the server's database count bounded by the worker count
   // instead of growing with the number of such tests.
+  const connection = getTestPgConnection()
   const databaseName = isolated
     ? `${TEST_PG_DATABASE}_isolated`
     : TEST_PG_DATABASE
 
   const instance = knex({
     client: 'pg',
-    connection: { ...TEST_PG_CONNECTION, database: databaseName }
+    connection: { ...connection, database: databaseName }
   })
   return {
     database: withSchemaDumpMigrate(
@@ -220,7 +242,7 @@ export const getTestDatabaseWithInstance = (
       const client = new (
         DynamicPostgresClient as unknown as typeof PostgresClient
       )({
-        ...TEST_PG_CONNECTION,
+        ...connection,
         database: 'postgres'
       })
       await client.connect()
