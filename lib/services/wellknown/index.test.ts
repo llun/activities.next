@@ -278,7 +278,8 @@ describe('wellknown services', () => {
 describe('getWebFingerResponse', () => {
   // Mock database for webfinger tests
   const mockDatabase = {
-    getActorFromUsername: vi.fn()
+    getActorFromUsername: vi.fn(),
+    getActorFromId: vi.fn()
   }
 
   beforeEach(() => {
@@ -563,6 +564,97 @@ describe('getWebFingerResponse', () => {
           href: 'https://fitness.example/users/runner'
         })
       ])
+    })
+  })
+
+  it('resolves actor from ActivityPub actor URL resource', async () => {
+    mockDatabase.getActorFromUsername.mockResolvedValue({
+      id: 'https://llun.dev/users/null',
+      username: 'null',
+      domain: 'llun.dev',
+      privateKey: 'key'
+    })
+
+    const result = await getWebFingerResponse({
+      database: mockDatabase as unknown as Database,
+      resource: 'https://llun.dev/users/null'
+    })
+
+    expect(mockDatabase.getActorFromUsername).toHaveBeenCalledWith({
+      username: 'null',
+      domain: 'llun.dev'
+    })
+    expect(result).toMatchObject({
+      subject: 'acct:null@llun.dev',
+      aliases: ['https://llun.dev/@null', 'https://llun.dev/users/null']
+    })
+  })
+
+  it('resolves actor from profile URL resource', async () => {
+    mockDatabase.getActorFromUsername.mockResolvedValue({
+      id: 'https://llun.dev/users/null',
+      username: 'null',
+      domain: 'llun.dev',
+      privateKey: 'key'
+    })
+
+    const result = await getWebFingerResponse({
+      database: mockDatabase as unknown as Database,
+      resource: 'https://llun.dev/@null'
+    })
+
+    expect(mockDatabase.getActorFromUsername).toHaveBeenCalledWith({
+      username: 'null',
+      domain: 'llun.dev'
+    })
+    expect(result).toMatchObject({
+      subject: 'acct:null@llun.dev',
+      aliases: ['https://llun.dev/@null', 'https://llun.dev/users/null']
+    })
+  })
+
+  it('uses fallbackDomain for bare acct or username resource', async () => {
+    mockDatabase.getActorFromUsername.mockResolvedValue({
+      id: 'https://llun.dev/users/null',
+      username: 'null',
+      domain: 'llun.dev',
+      privateKey: 'key'
+    })
+
+    const result = await getWebFingerResponse({
+      database: mockDatabase as unknown as Database,
+      resource: 'acct:null',
+      fallbackDomain: 'llun.dev'
+    })
+
+    expect(mockDatabase.getActorFromUsername).toHaveBeenCalledWith({
+      username: 'null',
+      domain: 'llun.dev'
+    })
+    expect(result).toMatchObject({
+      subject: 'acct:null@llun.dev'
+    })
+  })
+
+  it('falls back to getActorFromId for custom actor URL', async () => {
+    mockDatabase.getActorFromUsername.mockResolvedValue(null)
+    mockDatabase.getActorFromId.mockResolvedValue({
+      id: 'https://example.com/custom/path/actor',
+      username: 'custom',
+      domain: 'example.com',
+      privateKey: 'key'
+    })
+
+    const result = await getWebFingerResponse({
+      database: mockDatabase as unknown as Database,
+      resource: 'https://example.com/custom/path/actor'
+    })
+
+    expect(mockDatabase.getActorFromId).toHaveBeenCalledWith({
+      id: 'https://example.com/custom/path/actor'
+    })
+    expect(result).toMatchObject({
+      subject: 'acct:custom@example.com'
     })
   })
 })

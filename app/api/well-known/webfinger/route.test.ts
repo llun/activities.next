@@ -111,4 +111,31 @@ describe('GET /api/well-known/webfinger', () => {
 
     expect(response.status).toBe(404)
   })
+
+  it('returns WebFinger JRD when queried with an actor URL resource', async () => {
+    database.getActorFromUsername.mockResolvedValue({
+      id: 'https://example.com/users/test',
+      username: 'test',
+      domain: 'example.com',
+      privateKey: 'key'
+    } as never)
+
+    const response = await GET(
+      new NextRequest(
+        'https://example.com/.well-known/webfinger?resource=https%3A%2F%2Fexample.com%2Fusers%2Ftest'
+      ),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(database.getActorFromUsername).toHaveBeenCalledWith({
+      username: 'test',
+      domain: 'example.com'
+    })
+    const data = await response.json()
+    expect(data).toMatchObject({
+      subject: 'acct:test@example.com',
+      aliases: ['https://example.com/@test', 'https://example.com/users/test']
+    })
+  })
 })

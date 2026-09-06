@@ -131,6 +131,44 @@ describe('GET /api/v1/accounts/lookup', () => {
     })
   })
 
+  it('resolves lookup when acct is an ActivityPub actor URL', async () => {
+    const actor = { id: 'https://llun.test/users/test1' }
+    const account = { id: 'test1', username: 'test1', acct: 'test1' }
+    mockGetActorFromUsername.mockResolvedValue(actor)
+    mockGetMastodonActorFromId.mockResolvedValue(account)
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/lookup?acct=https%3A%2F%2Fllun.test%2Fusers%2Ftest1'
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetActorFromUsername).toHaveBeenCalledWith({
+      username: 'test1',
+      domain: 'llun.test'
+    })
+  })
+
+  it('resolves lookup when acct is a profile URL', async () => {
+    const actor = { id: 'https://llun.test/users/test1' }
+    const account = { id: 'test1', username: 'test1', acct: 'test1' }
+    mockGetActorFromUsername.mockResolvedValue(actor)
+    mockGetMastodonActorFromId.mockResolvedValue(account)
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/lookup?acct=https%3A%2F%2Fllun.test%2F%40test1'
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetActorFromUsername).toHaveBeenCalledWith({
+      username: 'test1',
+      domain: 'llun.test'
+    })
+  })
+
   it('does not remotely resolve handles for trusted instance domains', async () => {
     mockGetActorFromUsername.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue({

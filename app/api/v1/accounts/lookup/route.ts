@@ -18,6 +18,7 @@ import {
 } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { Scope } from '@/lib/types/database/operations'
+import { parseAccountUrlHandle } from '@/lib/utils/accountHandle'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { isOwnInstanceHost } from '@/lib/utils/host'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -35,7 +36,13 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 const parseAccountHandle = (value: string, localDomain: string) => {
-  const normalized = value.trim().replace(/^@/, '')
+  const trimmed = value.trim()
+  if (trimmed.startsWith('https://') || trimmed.startsWith('http://')) {
+    const urlHandle = parseAccountUrlHandle(trimmed)
+    if (urlHandle) return urlHandle
+  }
+
+  const normalized = trimmed.replace(/^@/, '')
   const segments = normalized.split('@')
   if (segments.length > 2) return null
 

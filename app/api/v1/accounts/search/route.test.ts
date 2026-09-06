@@ -240,6 +240,38 @@ describe('GET /api/v1/accounts/search', () => {
     })
   })
 
+  it('resolves exact actor when query is an ActivityPub actor URL', async () => {
+    const localActor = {
+      id: 'https://llun.test/users/test1',
+      username: 'test1',
+      domain: 'llun.test',
+      account: { id: 'test1' }
+    }
+    mockGetActorFromUsername.mockResolvedValue(localActor)
+    mockSearchAccountIds.mockResolvedValue([localActor.id])
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v1/accounts/search?q=https%3A%2F%2Fllun.test%2Fusers%2Ftest1&resolve=true',
+        { headers: { Authorization: 'Bearer read-accounts-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetActorFromUsername).toHaveBeenCalledWith({
+      username: 'test1',
+      domain: 'llun.test'
+    })
+    expect(mockSearchAccountIds).toHaveBeenCalledWith({
+      q: 'https://llun.test/users/test1',
+      limit: 40,
+      offset: 0,
+      localDomain: 'llun.test',
+      exactActorIds: [localActor.id]
+    })
+  })
+
   it('clamps deep search offsets to the maximum', async () => {
     const response = await GET(
       new NextRequest(
