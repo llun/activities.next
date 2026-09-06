@@ -1,0 +1,21 @@
+app/(timeline)/MainPageTimeline.test.tsx
+  s_c587d6e0f997cb::t_e53bb920f7eb83 5,8-9,11-16,43-44,48,52-115,121-140,160-163,181,183,185-205,220-223,254-527
+app/(timeline)/MainPageTimeline.tsx
+  s_c587d6e0f997cb::t_b6fd8c7a835cfc 16-20,71-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "3b2a9bba93e90cf245f660f5e309033d7d3ad3a1",
+  "prompts": {},
+  "sessions": {
+    "s_c587d6e0f997cb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a077c9-2bf2-7110-89c4-bfded1f36b16",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
