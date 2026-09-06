@@ -13,7 +13,11 @@ import { Button } from '@/lib/components/ui/button'
 import { Timeline } from '@/lib/services/timelines/types'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
-import { Status } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusType,
+  getOriginalStatus
+} from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 
 interface MainPageTimelineProps {
@@ -64,14 +68,26 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   }
 
   const onPostDeleted = (status: Status) => {
-    const statusIndex = currentStatuses.indexOf(status)
-    const newStatuses = [
-      ...currentStatuses.slice(0, statusIndex),
-      ...currentStatuses.slice(statusIndex + 1)
-    ]
-    setCurrentStatuses(newStatuses)
-    lastStatusIdRef.current =
-      newStatuses.length > 0 ? newStatuses[newStatuses.length - 1].id : null
+    const deletedStatusId = status.id
+    setCurrentStatuses((previousStatuses) => {
+      const nextStatuses = previousStatuses.filter((item) => {
+        if (item.id === deletedStatusId) {
+          return false
+        }
+        if (
+          item.type === StatusType.enum.Announce &&
+          (item.originalStatus.id === deletedStatusId ||
+            getOriginalStatus(item).id === deletedStatusId)
+        ) {
+          return false
+        }
+        return true
+      })
+      if (nextStatuses.length === previousStatuses.length) {
+        return previousStatuses
+      }
+      return nextStatuses
+    })
   }
 
   const loadMoreStatuses = useCallback(async () => {

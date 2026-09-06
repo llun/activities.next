@@ -19,7 +19,6 @@
     // tsconfig.json.
     "app/(nosidebar)/oauth/authorize/AuthorizeCard.test.tsx",
     "app/(nosidebar)/oauth/authorize/page.test.tsx",
-    "app/(timeline)/MainPageTimeline.test.tsx",
     "app/(timeline)/[actor]/ActorTimelines.test.tsx",
     "app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx",
     "app/(timeline)/[actor]/[status]/StatusBox.test.tsx",
