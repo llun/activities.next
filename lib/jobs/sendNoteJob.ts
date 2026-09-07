@@ -21,7 +21,7 @@ export const getDeliveryJobId = (
   inbox: string
 ): string => {
   return getHashFromString(
-    `${DELIVER_ACTIVITY_JOB_NAME}:${parentMessageId}:${inbox}`
+    JSON.stringify([DELIVER_ACTIVITY_JOB_NAME, parentMessageId, inbox])
   )
 }
 
@@ -30,7 +30,7 @@ export const JobData = z.object({
   statusId: z.string()
 })
 
-async function runWithConcurrencyLimit<T, R>(
+export async function runWithConcurrencyLimit<T, R>(
   items: readonly T[],
   limit: number,
   fn: (item: T) => Promise<R>
@@ -38,6 +38,7 @@ async function runWithConcurrencyLimit<T, R>(
   const results: PromiseSettledResult<R>[] = new Array(items.length)
   if (items.length === 0) return results
 
+  const concurrency = Math.max(1, Math.min(limit, items.length))
   let nextIndex = 0
   const worker = async () => {
     while (nextIndex < items.length) {
@@ -51,8 +52,7 @@ async function runWithConcurrencyLimit<T, R>(
     }
   }
 
-  const workerCount = Math.min(limit, items.length)
-  const workers = Array.from({ length: workerCount }, () => worker())
+  const workers = Array.from({ length: concurrency }, () => worker())
   await Promise.all(workers)
   return results
 }
@@ -157,19 +157,24 @@ export const sendNoteJob: JobHandle = createJobHandle(
             failures[0].reason instanceof Error
               ? failures[0].reason
               : new Error(String(failures[0].reason))
-          span.recordException(firstError)
+          const errorToThrow =
+            failures.length === 1
+              ? firstError
+              : new AggregateError(
+                  failures.map((f) =>
+                    f.reason instanceof Error
+                      ? f.reason
+                      : new Error(String(f.reason))
+                  ),
+                  `Failed to publish ${failures.length} delivery jobs: ${firstError.message}`
+                )
+          span.recordException(errorToThrow)
           span.addEvent('fanout_failed', {
             'fanout.inbox_count': inboxes.length,
             'fanout.failure_count': failures.length,
             'queue.runs_inline': false
           })
-          if (failures.length === 1) {
-            throw firstError
-          }
-          throw new AggregateError(
-            failures.map((f) => f.reason),
-            `Failed to publish ${failures.length} delivery jobs: ${firstError.message}`
-          )
+          throw errorToThrow
         }
 
         span.addEvent('fanout_completed', {

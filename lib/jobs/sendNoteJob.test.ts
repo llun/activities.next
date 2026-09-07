@@ -1,10 +1,12 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { DELIVER_ACTIVITY_JOB_NAME, SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import {
   MAX_CONCURRENT_DELIVERY_PUBLICATIONS,
   getDeliveryJobId,
+  runWithConcurrencyLimit,
   sendNoteJob
 } from '@/lib/jobs/sendNoteJob'
 import { mockRequests } from '@/lib/stub/activities'
@@ -20,6 +22,7 @@ const hoisted = vi.hoisted(() => ({
   publishSpy: vi.fn(),
   runsInline: true,
   failInbox: null as string | null,
+  failInboxes: [] as string[],
   activePublishes: 0,
   maxConcurrentPublishes: 0,
   publishDelayMs: 0
@@ -41,8 +44,12 @@ vi.mock('@/lib/services/queue', () => ({
             setTimeout(resolve, hoisted.publishDelayMs)
           )
         }
-        if (hoisted.failInbox && message.data?.inbox === hoisted.failInbox) {
-          throw new Error('Simulated inbox delivery rejection')
+        const inbox = message.data?.inbox
+        if (
+          (hoisted.failInbox && inbox === hoisted.failInbox) ||
+          (inbox && hoisted.failInboxes.includes(inbox))
+        ) {
+          throw new Error(`Simulated inbox delivery rejection: ${inbox}`)
         }
         if (hoisted.runsInline) {
           const { JOBS } = await import('@/lib/jobs')
@@ -83,6 +90,7 @@ describe('sendNoteJob', () => {
     mockRequests(fetchMock)
     hoisted.publishSpy.mockClear()
     hoisted.failInbox = null
+    hoisted.failInboxes = []
     hoisted.runsInline = true
     hoisted.activePublishes = 0
     hoisted.maxConcurrentPublishes = 0
@@ -344,6 +352,11 @@ describe('sendNoteJob', () => {
         })
       })
     )
+
+    // Structured tuple hashing must avoid delimiter collision across fields
+    expect(getDeliveryJobId('parent:1', 'https://friend2.test/inbox')).not.toBe(
+      getDeliveryJobId('parent', '1:https://friend2.test/inbox')
+    )
   })
 
   it('produces stable child delivery IDs on parent retry and distinct IDs across parent generations', async () => {
@@ -542,5 +555,236 @@ describe('sendNoteJob', () => {
     )
     expect(hoisted.maxConcurrentPublishes).toBeGreaterThan(1)
     expect(hoisted.publishSpy.mock.calls.length).toBeGreaterThanOrEqual(15)
+  })
+
+  it('retains identical child delivery job IDs on retry after a partial publication failure', async () => {
+    if (!actor1) fail('Actor1 is required')
+
+    hoisted.runsInline = false
+
+    const inbox1 = 'https://partial-fail-1.test/inbox'
+    const inbox2 = 'https://partial-fail-2.test/inbox'
+
+    await database.createFollow({
+      actorId: 'https://partial-fail-1.test/actors/user1',
+      targetActorId: actor1.id,
+      inbox: inbox1,
+      status: FollowStatus.enum.Accepted
+    })
+
+    await database.createFollow({
+      actorId: 'https://partial-fail-2.test/actors/user2',
+      targetActorId: actor1.id,
+      inbox: inbox2,
+      status: FollowStatus.enum.Accepted
+    })
+
+    const statusId = `${actor1.id}/statuses/partial-fail-retry-${Date.now()}`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: actor1.id,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [`${actor1.id}/followers`],
+      text: 'Note for partial fail retry test',
+      createdAt: Date.now()
+    })
+
+    const parentJobId = 'parent-partial-fail-retry-job'
+
+    // Attempt 1: inbox2 fails
+    hoisted.failInbox = inbox2
+    await expect(
+      sendNoteJob(database, {
+        id: parentJobId,
+        name: SEND_NOTE_JOB_NAME,
+        data: {
+          actorId: actor1.id,
+          statusId
+        }
+      })
+    ).rejects.toThrow('Simulated inbox delivery rejection')
+
+    const firstRunCalls = [...hoisted.publishSpy.mock.calls]
+    const firstRunInbox1Call = firstRunCalls.find(
+      (c) => (c[0] as { data?: { inbox?: string } }).data?.inbox === inbox1
+    )
+    expect(firstRunInbox1Call).toBeDefined()
+    const firstRunInbox1Id = (firstRunInbox1Call![0] as { id: string }).id
+
+    // Attempt 2: retry with same parent job ID, now succeeding
+    hoisted.publishSpy.mockClear()
+    hoisted.failInbox = null
+    await sendNoteJob(database, {
+      id: parentJobId,
+      name: SEND_NOTE_JOB_NAME,
+      data: {
+        actorId: actor1.id,
+        statusId
+      }
+    })
+
+    const retryCalls = [...hoisted.publishSpy.mock.calls]
+    const retryInbox1Call = retryCalls.find(
+      (c) => (c[0] as { data?: { inbox?: string } }).data?.inbox === inbox1
+    )
+    expect(retryInbox1Call).toBeDefined()
+    const retryInbox1Id = (retryInbox1Call![0] as { id: string }).id
+
+    expect(retryInbox1Id).toBe(firstRunInbox1Id)
+    expect(retryInbox1Id).toBe(getDeliveryJobId(parentJobId, inbox1))
+  })
+
+  it('throws an AggregateError containing all failures when multiple publications fail simultaneously', async () => {
+    if (!actor1) fail('Actor1 is required')
+
+    hoisted.runsInline = false
+
+    const inboxA = 'https://multi-fail-a.test/inbox'
+    const inboxB = 'https://multi-fail-b.test/inbox'
+    const inboxC = 'https://multi-fail-c.test/inbox'
+
+    await database.createFollow({
+      actorId: 'https://multi-fail-a.test/actors/userA',
+      targetActorId: actor1.id,
+      inbox: inboxA,
+      status: FollowStatus.enum.Accepted
+    })
+
+    await database.createFollow({
+      actorId: 'https://multi-fail-b.test/actors/userB',
+      targetActorId: actor1.id,
+      inbox: inboxB,
+      status: FollowStatus.enum.Accepted
+    })
+
+    await database.createFollow({
+      actorId: 'https://multi-fail-c.test/actors/userC',
+      targetActorId: actor1.id,
+      inbox: inboxC,
+      status: FollowStatus.enum.Accepted
+    })
+
+    hoisted.failInboxes = [inboxA, inboxC]
+
+    const statusId = `${actor1.id}/statuses/multi-fail-test-${Date.now()}`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: actor1.id,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [`${actor1.id}/followers`],
+      text: 'Note for multi fail test',
+      createdAt: Date.now()
+    })
+
+    let caughtError: unknown
+    try {
+      await sendNoteJob(database, {
+        id: 'parent-multi-fail-job',
+        name: SEND_NOTE_JOB_NAME,
+        data: {
+          actorId: actor1.id,
+          statusId
+        }
+      })
+    } catch (err) {
+      caughtError = err
+    }
+
+    expect(caughtError).toBeInstanceOf(AggregateError)
+    const aggErr = caughtError as AggregateError
+    expect(aggErr.errors).toHaveLength(2)
+    expect(aggErr.message).toContain('Failed to publish 2 delivery jobs')
+
+    // Confirm all 3 inboxes were attempted
+    const attemptedInboxes = hoisted.publishSpy.mock.calls.map(
+      (c) => (c[0] as { data?: { inbox?: string } }).data?.inbox
+    )
+    expect(attemptedInboxes).toContain(inboxA)
+    expect(attemptedInboxes).toContain(inboxB)
+    expect(attemptedInboxes).toContain(inboxC)
+  })
+
+  it('preserves recipient selection, signed payload structure, and JSON-LD context', async () => {
+    if (!actor1) fail('Actor1 is required')
+
+    const statusId = `${actor1.id}/statuses/payload-structure-test-${Date.now()}`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: actor1.id,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [`${actor1.id}/followers`],
+      text: 'Note payload structure validation',
+      createdAt: Date.now()
+    })
+
+    await sendNoteJob(database, {
+      id: 'parent-payload-check',
+      name: SEND_NOTE_JOB_NAME,
+      data: {
+        actorId: actor1.id,
+        statusId
+      }
+    })
+
+    const publishedCall = hoisted.publishSpy.mock.calls.find(
+      (c) => (c[0] as { name: string }).name === DELIVER_ACTIVITY_JOB_NAME
+    )
+    expect(publishedCall).toBeDefined()
+
+    const publishedJob = publishedCall![0] as {
+      id: string
+      name: string
+      data: {
+        inbox: string
+        actorId: string
+        activity: Record<string, unknown>
+      }
+    }
+
+    expect(publishedJob.name).toBe(DELIVER_ACTIVITY_JOB_NAME)
+    expect(publishedJob.data.actorId).toBe(actor1.id)
+
+    const activity = publishedJob.data.activity
+    expect(activity['@context']).toEqual(NOTE_ACTIVITY_CONTEXT)
+    expect(activity.type).toBe('Create')
+    expect(activity.actor).toBe(actor1.id)
+    expect(activity.to).toEqual([
+      'https://www.w3.org/ns/activitystreams#Public'
+    ])
+    expect(activity.cc).toEqual([`${actor1.id}/followers`])
+
+    const object = activity.object as Record<string, unknown>
+    expect(object.id).toBe(statusId)
+    expect(object.type).toBe('Note')
+    expect(object.attributedTo).toBe(actor1.id)
+    expect(object.content).toBe('<p>Note payload structure validation</p>')
+  })
+
+  it('runWithConcurrencyLimit handles edge cases: empty lists, non-positive limits, and preserves result order', async () => {
+    const emptyResult = await runWithConcurrencyLimit([], 5, async (x) => x)
+    expect(emptyResult).toEqual([])
+
+    // Limit <= 0 should be safely clamped to at least 1
+    const clampedResult = await runWithConcurrencyLimit(
+      [10, 20],
+      0,
+      async (x) => x * 2
+    )
+    expect(clampedResult).toEqual([
+      { status: 'fulfilled', value: 20 },
+      { status: 'fulfilled', value: 40 }
+    ])
+
+    // Preserves exact ordering across mixed results
+    const mixed = await runWithConcurrencyLimit([1, 2, 3], 2, async (x) => {
+      if (x === 2) throw new Error('two fails')
+      return `val-${x}`
+    })
+    expect(mixed[0]).toEqual({ status: 'fulfilled', value: 'val-1' })
+    expect(mixed[1].status).toBe('rejected')
+    expect(mixed[2]).toEqual({ status: 'fulfilled', value: 'val-3' })
   })
 })
