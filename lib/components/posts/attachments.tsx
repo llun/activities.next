@@ -194,7 +194,7 @@ const AltTextToggle: FC<AltTextToggleProps> = ({
       e.stopPropagation()
       onToggle()
     }}
-    className="flex items-center gap-1 self-start text-xs font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer select-none"
+    className="flex items-center gap-1 self-start text-xs font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 rounded-sm"
   >
     <span>Alt text</span>
     <ChevronDown
@@ -244,6 +244,21 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
       })),
     [pictures]
   )
+
+  const altEntries = useMemo(() => {
+    const entries: { indices: number[]; text: string }[] = []
+    pictures.forEach((pic, i) => {
+      const text = pic.name?.trim()
+      if (!text) return
+      const existing = entries.find((e) => e.text === text)
+      if (existing) {
+        existing.indices.push(i + 1)
+      } else {
+        entries.push({ indices: [i + 1], text })
+      }
+    })
+    return entries
+  }, [pictures])
 
   const strip = useMediaStripScroll(items.map((item) => item.width).join(','))
   const { canScrollLeft, canScrollRight } = strip
@@ -340,21 +355,6 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
       </>
     )
   }
-
-  const altEntries = useMemo(() => {
-    const entries: { indices: number[]; text: string }[] = []
-    pictures.forEach((pic, i) => {
-      const text = pic.name?.trim()
-      if (!text) return
-      const existing = entries.find((e) => e.text === text)
-      if (existing) {
-        existing.indices.push(i + 1)
-      } else {
-        entries.push({ indices: [i + 1], text })
-      }
-    })
-    return entries
-  }, [pictures])
 
   const stripStyle: CSSProperties = {
     height: STRIP_ROW_HEIGHT,
