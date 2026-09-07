@@ -5,18 +5,16 @@ import { FC, useCallback, useRef, useState } from 'react'
 import { getFavourites } from '@/lib/client'
 import { PageHeader } from '@/lib/components/page-header'
 import { Posts } from '@/lib/components/posts/posts'
+import {
+  removeOriginalStatus,
+  updateMatchingStatus
+} from '@/lib/components/posts/statusArray'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
 import { Button } from '@/lib/components/ui/button'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
-import {
-  Status,
-  StatusNote,
-  StatusPoll,
-  StatusType,
-  getOriginalStatus
-} from '@/lib/types/domain/status'
+import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 
 const MAX_EMPTY_FAVOURITE_CONTINUATIONS = 5
@@ -49,46 +47,69 @@ export const FavoritesTimeline: FC<FavoritesTimelineProps> = ({
   const isLoadingRef = useRef<boolean>(false)
   const lastFavouriteIdRef = useRef<string | null>(initialNextMaxFavouriteId)
 
-  const removeStatus = (status: Status) => {
+  const onPostDeleted = useCallback((status: Status) => {
     setCurrentStatuses((previousStatuses) =>
-      previousStatuses.filter((item) => {
-        const actualStatus =
-          item.type === StatusType.enum.Announce
-            ? getOriginalStatus(item)
-            : item
-        return actualStatus.id !== status.id
-      })
+      removeOriginalStatus(previousStatuses, status.id)
     )
-  }
+  }, [])
 
-  const updateStatus = (status: Status) => {
-    // Announce-aware (like removeStatus): also refreshes a boost row whose
+  const onPostUpdated = useCallback((status: Status) => {
+    // Announce-aware (like onPostDeleted): also refreshes a boost row whose
     // original was the edited post. An edited status is always a note/poll.
     setCurrentStatuses((previousStatuses) =>
-      previousStatuses.map((item) => {
-        if (item.type === StatusType.enum.Announce) {
-          return item.originalStatus.id === status.id
-            ? { ...item, originalStatus: status as StatusNote | StatusPoll }
-            : item
-        }
-        return item.id === status.id ? status : item
-      })
+      updateMatchingStatus(
+        previousStatuses,
+        status.id,
+        () => status as StatusNote | StatusPoll
+      )
     )
-  }
+  }, [])
 
-  const onLikeChanged = (status: StatusNote | StatusPoll, isLiked: boolean) => {
-    if (!isLiked) removeStatus(status)
-  }
+  const onLikeChanged = useCallback(
+    (status: StatusNote | StatusPoll, isLiked: boolean) => {
+      if (!isLiked) {
+        setCurrentStatuses((previousStatuses) =>
+          removeOriginalStatus(previousStatuses, status.id)
+        )
+      } else {
+        setCurrentStatuses((previousStatuses) =>
+          updateMatchingStatus(previousStatuses, status.id, (target) => ({
+            ...target,
+            isActorLiked: isLiked,
+            totalLikes: target.totalLikes + 1
+          }))
+        )
+      }
+    },
+    []
+  )
+
+  const onBookmarkChanged = useCallback(
+    (status: StatusNote | StatusPoll, isBookmarked: boolean) => {
+      setCurrentStatuses((previousStatuses) =>
+        updateMatchingStatus(previousStatuses, status.id, (target) => ({
+          ...target,
+          isActorBookmarked: isBookmarked
+        }))
+      )
+    },
+    []
+  )
 
   // Keep this page's copy in step with a reaction the viewer just added, so a
   // later edit (which replaces the status object) doesn't re-render the reaction
   // row from a stale `reactions` prop and drop the chip.
-  const onReactionsChanged = (
-    status: StatusNote | StatusPoll,
-    reactions: StatusReaction[]
-  ) => {
-    updateStatus({ ...status, reactions })
-  }
+  const onReactionsChanged = useCallback(
+    (status: StatusNote | StatusPoll, reactions: StatusReaction[]) => {
+      setCurrentStatuses((previousStatuses) =>
+        updateMatchingStatus(previousStatuses, status.id, (target) => ({
+          ...target,
+          reactions
+        }))
+      )
+    },
+    []
+  )
 
   const loadMoreStatuses = useCallback(async () => {
     let nextFavouriteId = lastFavouriteIdRef.current
@@ -157,9 +178,10 @@ export const FavoritesTimeline: FC<FavoritesTimelineProps> = ({
           showActions
           isMediaUploadEnabled={isMediaUploadEnabled}
           postLineLimit={postLineLimit}
-          onPostDeleted={removeStatus}
-          onPostUpdated={updateStatus}
+          onPostDeleted={onPostDeleted}
+          onPostUpdated={onPostUpdated}
           onLikeChanged={onLikeChanged}
+          onBookmarkChanged={onBookmarkChanged}
           onReactionsChanged={onReactionsChanged}
         />
       ) : (

@@ -5,7 +5,11 @@ import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { getBookmarks, undoBookmarkStatus } from '@/lib/client'
-import { StatusNote, StatusType } from '@/lib/types/domain/status'
+import {
+  StatusAnnounce,
+  StatusNote,
+  StatusType
+} from '@/lib/types/domain/status'
 
 import { BookmarksTimeline } from './BookmarksTimeline'
 
@@ -74,6 +78,27 @@ const bookmarkedStatus: StatusNote = {
   totalShares: 0,
   attachments: [],
   tags: []
+}
+
+const boostActor = {
+  ...actor,
+  id: 'https://activities.local/users/booster',
+  username: 'booster',
+  name: 'Booster'
+}
+
+const boostedBookmarkedStatus: StatusAnnounce = {
+  id: 'https://activities.local/users/booster/statuses/boost-1',
+  actorId: boostActor.id,
+  actor: boostActor,
+  to: [],
+  cc: [],
+  edits: [],
+  isLocalActor: true,
+  createdAt: currentTime,
+  updatedAt: currentTime,
+  type: StatusType.enum.Announce,
+  originalStatus: bookmarkedStatus
 }
 
 describe('BookmarksTimeline', () => {
@@ -206,6 +231,87 @@ describe('BookmarksTimeline', () => {
     await screen.findByText('Bookmarked post')
     await waitFor(() => {
       expect(intersectionObserverDisconnect).toHaveBeenCalled()
+    })
+  })
+
+  it('removes a boosted post when unbookmarking it', async () => {
+    render(
+      <BookmarksTimeline
+        host="activities.local"
+        currentActor={actor}
+        currentTime={currentTime}
+        statuses={[boostedBookmarkedStatus]}
+        initialNextMaxBookmarkId={null}
+      />
+    )
+
+    expect(screen.getByText('Bookmarked post')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Remove bookmark' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('Bookmarked post')).not.toBeInTheDocument()
+    })
+    expect(undoBookmarkStatus).toHaveBeenCalledWith({
+      statusId: bookmarkedStatus.id
+    })
+    expect(screen.getByText('No bookmarks yet')).toBeInTheDocument()
+  })
+
+  it('removes both direct and boosted representations when post is unbookmarked', async () => {
+    render(
+      <BookmarksTimeline
+        host="activities.local"
+        currentActor={actor}
+        currentTime={currentTime}
+        statuses={[bookmarkedStatus, boostedBookmarkedStatus]}
+        initialNextMaxBookmarkId={null}
+      />
+    )
+
+    const unbookmarkButtons = screen.getAllByRole('button', {
+      name: 'Remove bookmark'
+    })
+    expect(unbookmarkButtons).toHaveLength(2)
+
+    fireEvent.click(unbookmarkButtons[0])
+
+    await waitFor(() => {
+      expect(screen.queryByText('Bookmarked post')).not.toBeInTheDocument()
+    })
+    expect(screen.getByText('No bookmarks yet')).toBeInTheDocument()
+  })
+
+  it('preserves server-provided cursor for next-page loading after a post is removed', async () => {
+    ;(getBookmarks as jest.Mock).mockResolvedValueOnce({
+      statuses: [
+        { ...bookmarkedStatus, id: 'next-bm-1', text: 'Second page post' }
+      ],
+      nextMaxBookmarkId: null,
+      prevMinBookmarkId: 'cursor-1'
+    })
+
+    render(
+      <BookmarksTimeline
+        host="activities.local"
+        currentActor={actor}
+        currentTime={currentTime}
+        statuses={[bookmarkedStatus]}
+        initialNextMaxBookmarkId="cursor-1"
+      />
+    )
+
+    // Remove the post by unbookmarking
+    fireEvent.click(screen.getByRole('button', { name: 'Remove bookmark' }))
+    await waitFor(() => {
+      expect(screen.queryByText('Bookmarked post')).not.toBeInTheDocument()
+    })
+
+    // Click load more - must use cursor-1, not reconstructed status ID
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+    await screen.findByText('Second page post')
+    expect(getBookmarks).toHaveBeenCalledWith({
+      maxBookmarkId: 'cursor-1'
     })
   })
 })
