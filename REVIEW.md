@@ -194,8 +194,8 @@ change doesn't touch.
 - Any PR that adds/edits/removes a migration regenerates **both**
   `migrations/schema.sql` (PostgreSQL) and `migrations/schema.sqlite.sql` (SQLite)
   in the same PR, against fresh local DBs — never hand-edited. Commit a
-  schema-only regeneration as `none:`. (CI's Schema Dump Sync job catches
-  SQLite-dump drift; the PostgreSQL dump is not CI-checked.)
+  schema-only regeneration as `none:`. (CI's SQLite and PostgreSQL Schema Dump Sync
+  jobs catch schema-dump drift.)
 - The viewer's own follow row is read with `getViewerFollow`
   (`lib/services/getViewerFollow.ts`) on **read** paths — it is
   `cache()`d, so a profile render resolves it once instead of once per call site
@@ -1210,5 +1210,5 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   `Lint and Prettier`, `Build`, and `CI Success`.
 - `CI Success` is required and fail-closed over lint (`Lint and Prettier`),
   typecheck (`Type Check`), build (`Build`), tests (`All Tests`), and schema dump
-  checks (`Schema Dump Sync`). A failure in any upstream check blocks merging via
+  checks (`SQLite Schema Dump Sync` and `PostgreSQL Schema Dump Sync`). A failure in any upstream check blocks merging via
   `CI Success`.
