@@ -1,3 +1,5 @@
+import { NextRequest } from 'next/server'
+
 import { IMPORT_STRAVA_ARCHIVE_JOB_NAME } from '@/lib/jobs/names'
 import {
   deleteFitnessFile,
@@ -56,10 +58,11 @@ vi.mock('@/lib/services/fitness-files', () => ({
   verifyPresignedFitnessFileUpload: vi.fn()
 }))
 
+const mockPublish = vi.fn()
 vi.mock('@/lib/services/queue', () => ({
-  getQueue: vi.fn().mockReturnValue({
-    publish: vi.fn().mockResolvedValue(undefined)
-  })
+  getQueue: vi.fn(() => ({
+    publish: mockPublish
+  }))
 }))
 
 vi.mock('next/headers', () => ({
@@ -95,6 +98,7 @@ describe('Strava archive import route', () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: 'llun@activities.local' }
     })
+    mockPublish.mockResolvedValue(undefined)
     mockDatabase = db
 
     db.getActiveStravaArchiveImportByActor.mockResolvedValue(null)
@@ -405,18 +409,21 @@ describe('Strava archive import route', () => {
         'strava-archive-source:550e8400-e29b-41d4-a716-446655440001'
     })
 
-    const req = new Request('http://localhost/api/v1/fitness/strava/archive', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Origin: 'https://test.llun.dev'
-      },
-      body: JSON.stringify({
-        fitnessFileId: 'pre-created-fitness-file-id',
-        archiveId: '550e8400-e29b-41d4-a716-446655440001',
-        visibility: 'private'
-      })
-    })
+    const req = new NextRequest(
+      'http://localhost/api/v1/fitness/strava/archive',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://test.llun.dev'
+        },
+        body: JSON.stringify({
+          fitnessFileId: 'pre-created-fitness-file-id',
+          archiveId: '550e8400-e29b-41d4-a716-446655440001',
+          visibility: 'private'
+        })
+      }
+    )
 
     const response = await POST(req, { params: Promise.resolve({}) })
     expect(response.status).toBe(200)
@@ -439,7 +446,7 @@ describe('Strava archive import route', () => {
   })
 
   it('POST with presigned fitnessFileId rolls back verified upload when queueing fails', async () => {
-    getQueue().publish.mockRejectedValueOnce(new Error('queue unavailable'))
+    mockPublish.mockRejectedValueOnce(new Error('queue unavailable'))
     db.getFitnessFile.mockResolvedValueOnce({
       id: 'pre-created-fitness-file-id',
       actorId: 'https://llun.test/users/llun',
@@ -452,18 +459,21 @@ describe('Strava archive import route', () => {
         'strava-archive-source:550e8400-e29b-41d4-a716-446655440006'
     })
 
-    const req = new Request('http://localhost/api/v1/fitness/strava/archive', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Origin: 'https://test.llun.dev'
-      },
-      body: JSON.stringify({
-        fitnessFileId: 'pre-created-fitness-file-id',
-        archiveId: '550e8400-e29b-41d4-a716-446655440006',
-        visibility: 'private'
-      })
-    })
+    const req = new NextRequest(
+      'http://localhost/api/v1/fitness/strava/archive',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://test.llun.dev'
+        },
+        body: JSON.stringify({
+          fitnessFileId: 'pre-created-fitness-file-id',
+          archiveId: '550e8400-e29b-41d4-a716-446655440006',
+          visibility: 'private'
+        })
+      }
+    )
 
     const response = await POST(req, { params: Promise.resolve({}) })
 
@@ -491,18 +501,21 @@ describe('Strava archive import route', () => {
         'strava-archive-source:550e8400-e29b-41d4-a716-446655440005'
     })
 
-    const req = new Request('http://localhost/api/v1/fitness/strava/archive', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Origin: 'https://test.llun.dev'
-      },
-      body: JSON.stringify({
-        fitnessFileId: 'pre-created-fitness-file-id',
-        archiveId: '550e8400-e29b-41d4-a716-446655440005',
-        visibility: 'private'
-      })
-    })
+    const req = new NextRequest(
+      'http://localhost/api/v1/fitness/strava/archive',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://test.llun.dev'
+        },
+        body: JSON.stringify({
+          fitnessFileId: 'pre-created-fitness-file-id',
+          archiveId: '550e8400-e29b-41d4-a716-446655440005',
+          visibility: 'private'
+        })
+      }
+    )
 
     const response = await POST(req, { params: Promise.resolve({}) })
 
@@ -518,18 +531,21 @@ describe('Strava archive import route', () => {
       path: 'fitness/2024-01-01/xyz.zip'
     })
 
-    const req = new Request('http://localhost/api/v1/fitness/strava/archive', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Origin: 'https://test.llun.dev'
-      },
-      body: JSON.stringify({
-        fitnessFileId: 'someone-elses-file',
-        archiveId: '550e8400-e29b-41d4-a716-446655440002',
-        visibility: 'private'
-      })
-    })
+    const req = new NextRequest(
+      'http://localhost/api/v1/fitness/strava/archive',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://test.llun.dev'
+        },
+        body: JSON.stringify({
+          fitnessFileId: 'someone-elses-file',
+          archiveId: '550e8400-e29b-41d4-a716-446655440002',
+          visibility: 'private'
+        })
+      }
+    )
 
     const response = await POST(req, { params: Promise.resolve({}) })
     expect(response.status).toBe(403)
@@ -548,18 +564,21 @@ describe('Strava archive import route', () => {
         'strava-archive-source:550e8400-e29b-41d4-a716-446655440003'
     })
 
-    const req = new Request('http://localhost/api/v1/fitness/strava/archive', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Origin: 'https://test.llun.dev'
-      },
-      body: JSON.stringify({
-        fitnessFileId: 'pre-created-fitness-file-id',
-        archiveId: '550e8400-e29b-41d4-a716-446655440003',
-        visibility: 'private'
-      })
-    })
+    const req = new NextRequest(
+      'http://localhost/api/v1/fitness/strava/archive',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://test.llun.dev'
+        },
+        body: JSON.stringify({
+          fitnessFileId: 'pre-created-fitness-file-id',
+          archiveId: '550e8400-e29b-41d4-a716-446655440003',
+          visibility: 'private'
+        })
+      }
+    )
 
     const response = await POST(req, { params: Promise.resolve({}) })
     expect(response.status).toBe(422)
@@ -578,18 +597,21 @@ describe('Strava archive import route', () => {
       importBatchId: 'strava-archive-source:different-archive-id'
     })
 
-    const req = new Request('http://localhost/api/v1/fitness/strava/archive', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Origin: 'https://test.llun.dev'
-      },
-      body: JSON.stringify({
-        fitnessFileId: 'pre-created-fitness-file-id',
-        archiveId: '550e8400-e29b-41d4-a716-446655440004',
-        visibility: 'private'
-      })
-    })
+    const req = new NextRequest(
+      'http://localhost/api/v1/fitness/strava/archive',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://test.llun.dev'
+        },
+        body: JSON.stringify({
+          fitnessFileId: 'pre-created-fitness-file-id',
+          archiveId: '550e8400-e29b-41d4-a716-446655440004',
+          visibility: 'private'
+        })
+      }
+    )
 
     const response = await POST(req, { params: Promise.resolve({}) })
     expect(response.status).toBe(422)
@@ -597,7 +619,7 @@ describe('Strava archive import route', () => {
   })
 
   it('POST attempts archive rollback even when delete returns false', async () => {
-    getQueue().publish.mockRejectedValueOnce(new Error('queue unavailable'))
+    mockPublish.mockRejectedValueOnce(new Error('queue unavailable'))
     mockDeleteFitnessFile.mockResolvedValueOnce(false)
 
     const formData = new FormData()
