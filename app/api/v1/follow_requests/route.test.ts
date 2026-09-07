@@ -172,7 +172,7 @@ describe('GET /api/v1/follow_requests', () => {
 
   it('returns pending follow requests as accounts newest first', async () => {
     vi.useFakeTimers({
-      doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
+      toNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
     })
     try {
       await createFollowRequest(ACTOR1_ID, new Date('2024-01-01T00:00:00Z'))
@@ -195,7 +195,7 @@ describe('GET /api/v1/follow_requests', () => {
 
   it('paginates with Mastodon Link headers using follow ids', async () => {
     vi.useFakeTimers({
-      doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
+      toNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
     })
     try {
       await createFollowRequest(ACTOR1_ID, new Date('2024-01-01T00:00:00Z'))
@@ -238,7 +238,7 @@ describe('GET /api/v1/follow_requests', () => {
   it('returns newer requests after a since_id cursor', async () => {
     const created: { id: string }[] = []
     vi.useFakeTimers({
-      doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
+      toNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
     })
     try {
       created.push(
@@ -269,7 +269,7 @@ describe('GET /api/v1/follow_requests', () => {
   it('returns newer requests after a min_id cursor', async () => {
     const created: { id: string }[] = []
     vi.useFakeTimers({
-      doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
+      toNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
     })
     try {
       created.push(
@@ -304,7 +304,7 @@ describe('GET /api/v1/follow_requests', () => {
     // follow rows so a full page still advertises rel="next".
     const ghostRequester = 'https://remote.test/users/ghost-follow-request'
     vi.useFakeTimers({
-      doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
+      toNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
     })
     try {
       await createFollowRequest(ACTOR1_ID, new Date('2024-01-01T00:00:00Z'))
