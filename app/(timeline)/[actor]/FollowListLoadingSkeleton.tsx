@@ -1,12 +1,10 @@
-import { CSSProperties, FC } from 'react'
+import { FC } from 'react'
+
+import { PageHeader } from '@/lib/components/page-header'
 
 interface FollowListLoadingSkeletonProps {
   label: string
-}
-
-const breakoutStyle: CSSProperties = {
-  marginLeft: 'calc(-50vw + 50% + var(--sidebar-w, 0px) / 2)',
-  marginRight: 'calc(-50vw + 50% + var(--sidebar-w, 0px) / 2)'
+  route?: 'followers' | 'following'
 }
 
 /**
@@ -19,32 +17,34 @@ const breakoutStyle: CSSProperties = {
  * loading state.
  */
 export const FollowListLoadingSkeleton: FC<FollowListLoadingSkeletonProps> = ({
-  label
+  label,
+  route
 }) => {
   return (
-    <div aria-busy="true" aria-label={label} className="space-y-6">
-      {/* Signed-in header: mirrors PageHeader (sticky top-0, breakout, py-4) */}
-      <div
-        className="sticky top-0 z-20 border-b bg-background/85 backdrop-blur group-data-[shell=public]/shell:hidden"
-        style={breakoutStyle}
-      >
-        <div className="mx-auto max-w-content px-4 py-4">
-          <div className="flex items-start gap-2">
-            <div className="skeleton mt-0.5 size-5 shrink-0 rounded-md" />
-            <div className="space-y-1">
-              <div className="skeleton h-6 w-28 rounded-md" />
-              <div className="skeleton h-3.5 w-24 rounded" />
-            </div>
-          </div>
-        </div>
-      </div>
+    <div
+      aria-busy="true"
+      aria-label={label}
+      data-route={route}
+      className="space-y-6"
+    >
+      {/* Signed-in header: reuses PageHeader directly for pixel-exact alignment */}
+      <PageHeader
+        className="group-data-[shell=public]/shell:hidden"
+        title={
+          <span className="flex items-center gap-2">
+            <span className="skeleton size-5 shrink-0 rounded-md" />
+            <span className="skeleton block h-7 w-28 rounded-md" />
+          </span>
+        }
+        description={<span className="skeleton block h-4 w-24 rounded" />}
+      />
 
       {/* Anonymous header: mirrors the non-sticky header inside PublicShell */}
       <div className="hidden items-start gap-2 group-data-[shell=public]/shell:flex">
         <div className="skeleton mt-0.5 size-5 shrink-0 rounded-md" />
         <div className="space-y-1">
-          <div className="skeleton h-6 w-28 rounded-md" />
-          <div className="skeleton h-3.5 w-24 rounded" />
+          <div className="skeleton h-7 w-28 rounded-md" />
+          <div className="skeleton h-4 w-24 rounded" />
         </div>
       </div>
 
