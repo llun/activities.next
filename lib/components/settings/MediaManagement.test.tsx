@@ -2,7 +2,9 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+
+import { deleteAccountMedia } from '@/lib/client'
 
 import { MediaManagement } from './MediaManagement'
 
@@ -11,6 +13,10 @@ vi.mock('next/navigation', () => ({
   useRouter: vi.fn(() => ({
     push: vi.fn()
   }))
+}))
+
+vi.mock('@/lib/client', () => ({
+  deleteAccountMedia: vi.fn()
 }))
 
 describe('MediaManagement', () => {
@@ -163,6 +169,59 @@ describe('MediaManagement', () => {
 
       const link = screen.queryByText('View in post →')
       expect(link).not.toBeInTheDocument()
+    })
+  })
+
+  describe('media deletion', () => {
+    it('calls deleteAccountMedia and removes item from list on confirm', async () => {
+      const medias = [
+        {
+          id: 'media-to-delete',
+          actorId: 'https://example.com/users/alice',
+          bytes: 1024,
+          mimeType: 'image/png',
+          width: 800,
+          height: 600,
+          url: '/api/v1/files/test.png'
+        }
+      ]
+
+      vi.mocked(deleteAccountMedia).mockResolvedValueOnce(true)
+
+      render(
+        <MediaManagement
+          used={1024}
+          limit={10485760}
+          medias={medias}
+          currentPage={1}
+          itemsPerPage={25}
+          totalItems={1}
+        />
+      )
+
+      expect(screen.getByText('ID: media-to-delete')).toBeInTheDocument()
+
+      const deleteTrigger = screen.getByRole('button', { name: 'Delete' })
+      fireEvent.click(deleteTrigger)
+
+      // Dialog opens
+      const dialog = screen.getByRole('dialog')
+      expect(dialog).toBeInTheDocument()
+
+      const confirmButton = screen.getByRole('button', {
+        name: 'Delete'
+      })
+      fireEvent.click(confirmButton)
+
+      expect(deleteAccountMedia).toHaveBeenCalledWith({
+        mediaId: 'media-to-delete'
+      })
+
+      await waitFor(() => {
+        expect(
+          screen.queryByText('ID: media-to-delete')
+        ).not.toBeInTheDocument()
+      })
     })
   })
 })

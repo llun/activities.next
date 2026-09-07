@@ -4,7 +4,7 @@ import { Check, ChevronDown, Clock, Plus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 
-import { cancelActorDeletion, switchActor } from '@/lib/client'
+import { cancelActorDeletion, setDefaultActor, switchActor } from '@/lib/client'
 import { ActorInfo, AddActorDialog } from '@/lib/components/actor-switcher'
 import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
@@ -91,20 +91,11 @@ export function ActorsSection({
     setMessage(null)
 
     try {
-      const response = await fetch('/api/v1/actors/default', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actorId: selectedActorId })
-      })
-
-      if (response.ok) {
-        setMessage({ type: 'success', text: 'Default actor updated' })
-        router.refresh()
-      } else {
-        setMessage({ type: 'error', text: 'Failed to update default actor' })
-      }
+      await setDefaultActor({ actorId: selectedActorId })
+      setMessage({ type: 'success', text: 'Default actor updated' })
+      router.refresh()
     } catch {
-      setMessage({ type: 'error', text: 'An error occurred' })
+      setMessage({ type: 'error', text: 'Failed to update default actor' })
     } finally {
       setIsSavingDefault(false)
     }

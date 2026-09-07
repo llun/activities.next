@@ -4,7 +4,7 @@
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
-import { cancelActorDeletion, switchActor } from '@/lib/client'
+import { cancelActorDeletion, setDefaultActor, switchActor } from '@/lib/client'
 
 import { ActorsSection } from './ActorsSection'
 
@@ -21,6 +21,7 @@ vi.mock('@/lib/components/actor-switcher', () => ({
 
 vi.mock('@/lib/client', () => ({
   cancelActorDeletion: vi.fn(),
+  setDefaultActor: vi.fn(),
   switchActor: vi.fn()
 }))
 
@@ -346,5 +347,76 @@ describe('ActorsSection', () => {
     expect(deletingItem).toBeDefined()
     expect(deletingItem).toHaveAttribute('data-disabled')
     expect(deletingItem).toHaveAttribute('aria-disabled', 'true')
+  })
+
+  it('updates default actor via setDefaultActor and refreshes', async () => {
+    vi.mocked(setDefaultActor).mockResolvedValue({
+      defaultActorId: 'actor-2',
+      id: 'actor-2',
+      username: 'bob',
+      domain: 'activities.local'
+    })
+
+    render(
+      <ActorsSection
+        currentActor={actors[0]}
+        actors={actors}
+        currentDefault={actors[0].id}
+      />
+    )
+
+    // Select Bob from dropdown
+    const trigger = screen.getByRole('button', { name: /alice/i })
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+    await screen.findByRole('menu')
+
+    const bobItem = screen.getByText('Bob')
+    fireEvent.click(bobItem)
+
+    const saveDefaultButton = screen.getByRole('button', {
+      name: 'Set as default'
+    })
+    expect(saveDefaultButton).not.toBeDisabled()
+    fireEvent.click(saveDefaultButton)
+
+    expect(setDefaultActor).toHaveBeenCalledWith({ actorId: 'actor-2' })
+    await waitFor(() => {
+      expect(screen.getByText('Default actor updated')).toBeInTheDocument()
+      expect(mockRefresh).toHaveBeenCalled()
+    })
+  })
+
+  it('displays error message when setDefaultActor fails', async () => {
+    vi.mocked(setDefaultActor).mockRejectedValueOnce(
+      new Error('Failed to update')
+    )
+
+    render(
+      <ActorsSection
+        currentActor={actors[0]}
+        actors={actors}
+        currentDefault={actors[0].id}
+      />
+    )
+
+    // Select Bob from dropdown
+    const trigger = screen.getByRole('button', { name: /alice/i })
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+    await screen.findByRole('menu')
+
+    const bobItem = screen.getByText('Bob')
+    fireEvent.click(bobItem)
+
+    const saveDefaultButton = screen.getByRole('button', {
+      name: 'Set as default'
+    })
+    fireEvent.click(saveDefaultButton)
+
+    expect(setDefaultActor).toHaveBeenCalledWith({ actorId: 'actor-2' })
+    await waitFor(() => {
+      expect(
+        screen.getByText('Failed to update default actor')
+      ).toBeInTheDocument()
+    })
   })
 })
