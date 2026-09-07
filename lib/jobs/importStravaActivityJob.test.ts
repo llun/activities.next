@@ -707,7 +707,10 @@ describe('importStravaActivityJob', () => {
     // Gated on the same opt-in as the file-backed path: this test drives the
     // webhook shape, so the fallback note federates.
     expect(mockGetQueue().publish).toHaveBeenCalledWith(
-      expect.objectContaining({ name: SEND_NOTE_JOB_NAME })
+      expect.objectContaining({
+        name: SEND_NOTE_JOB_NAME,
+        id: getHashFromString('actor-1:strava-note:125')
+      })
     )
   })
 
@@ -1028,6 +1031,7 @@ describe('importStravaActivityJob', () => {
         statusId: 'status-existing'
       }
     ] as never)
+    database.getFitnessFile.mockReset()
     database.getFitnessFile.mockResolvedValueOnce({
       id: 'existing-file',
       actorId: 'actor-1',
@@ -1049,9 +1053,95 @@ describe('importStravaActivityJob', () => {
       }
     })
 
-    expect(mockGetQueue().publish).toHaveBeenCalledWith(
-      expect.objectContaining({ name: REGENERATE_FITNESS_MAPS_JOB_NAME })
+    const expectedChildId = getHashFromString(
+      'status-existing:existing-file:job-regen-map:regenerate-map'
     )
+    expect(mockGetQueue().publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: REGENERATE_FITNESS_MAPS_JOB_NAME,
+        id: expectedChildId,
+        data: {
+          actorId: 'actor-1',
+          fitnessFileIds: ['existing-file']
+        }
+      })
+    )
+  })
+
+  it('derives map regeneration fallback child ID from message.id (identical on redelivery, distinct across generations)', async () => {
+    const arrangeReimportWithoutMap = () => {
+      database.getFitnessFilesByBatchId.mockResolvedValue([
+        {
+          id: 'existing-file',
+          actorId: 'actor-1',
+          statusId: 'status-existing'
+        }
+      ] as never)
+      database.getFitnessFile.mockReset()
+      database.getFitnessFile.mockResolvedValue({
+        id: 'existing-file',
+        actorId: 'actor-1',
+        statusId: 'status-existing',
+        hasMapData: false
+      } as never)
+      database.getStatus.mockResolvedValue({
+        id: 'status-existing',
+        type: 'Note',
+        text: 'Already imported'
+      } as never)
+    }
+
+    // Generation 1 execution
+    arrangeReimportWithoutMap()
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-regen-gen1',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '123'
+      }
+    })
+
+    const gen1Calls = (mockGetQueue().publish as jest.Mock).mock.calls
+    const gen1Job = gen1Calls[gen1Calls.length - 1][0]
+    const expectedGen1Id = getHashFromString(
+      'status-existing:existing-file:job-regen-gen1:regenerate-map'
+    )
+    expect(gen1Job.id).toBe(expectedGen1Id)
+
+    // Parent redelivery of Generation 1: identical parent message.id produces identical child ID
+    arrangeReimportWithoutMap()
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-regen-gen1',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '123'
+      }
+    })
+
+    const redeliveryCalls = (mockGetQueue().publish as jest.Mock).mock.calls
+    const redeliveryJob = redeliveryCalls[redeliveryCalls.length - 1][0]
+    expect(redeliveryJob.id).toBe(expectedGen1Id)
+
+    // Generation 2 execution: different parent message.id produces different child ID
+    arrangeReimportWithoutMap()
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-regen-gen2',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '123'
+      }
+    })
+
+    const gen2Calls = (mockGetQueue().publish as jest.Mock).mock.calls
+    const gen2Job = gen2Calls[gen2Calls.length - 1][0]
+    const expectedGen2Id = getHashFromString(
+      'status-existing:existing-file:job-regen-gen2:regenerate-map'
+    )
+    expect(gen2Job.id).toBe(expectedGen2Id)
+    expect(gen2Job.id).not.toBe(expectedGen1Id)
   })
 
   it('does not queue map regeneration on a fresh import (processing handles the primary map)', async () => {
@@ -1467,6 +1557,107 @@ describe('importStravaActivityJob', () => {
         actorId: 'actor-1',
         statusId: 'status-1'
       })
+      expect(updates[0].id).toBe(
+        getHashFromString(
+          'status-1:123:job-federation-photo-update:strava-photos:send-update-note'
+        )
+      )
+    })
+
+    it('derives photo update child ID from parent message.id (identical on redelivery, distinct across generations)', async () => {
+      database.getAttachments.mockResolvedValue([])
+      database.createAttachment.mockResolvedValue({} as never)
+      mockGetStravaActivityPhotos.mockResolvedValue([
+        { id: 'photo-1', url: 'https://images.example.com/photo-1.jpg' }
+      ] as never)
+      const fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(() =>
+        Promise.resolve(
+          new Response(Buffer.from('jpg'), {
+            headers: { 'content-type': 'image/jpeg', 'content-length': '3' }
+          })
+        )
+      )
+
+      const setupFreshImport = () => {
+        database.getFitnessFile
+          .mockResolvedValueOnce({
+            id: 'new-file',
+            actorId: 'actor-1',
+            statusId: undefined
+          } as never)
+          .mockResolvedValueOnce({
+            id: 'new-file',
+            actorId: 'actor-1',
+            statusId: 'status-1'
+          } as never)
+      }
+
+      try {
+        // Generation 1 execution
+        setupFreshImport()
+        await importStravaActivityJob(database as unknown as Database, {
+          id: 'job-photo-gen1',
+          name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+          data: {
+            actorId: 'actor-1',
+            stravaActivityId: '123',
+            publishSendNote: true
+          }
+        })
+
+        const gen1Updates = (mockGetQueue().publish as jest.Mock).mock.calls
+          .map(([message]) => message)
+          .filter((message) => message.name === SEND_UPDATE_NOTE_JOB_NAME)
+        const gen1Update = gen1Updates[gen1Updates.length - 1]
+        const expectedGen1Id = getHashFromString(
+          'status-1:123:job-photo-gen1:strava-photos:send-update-note'
+        )
+        expect(gen1Update.id).toBe(expectedGen1Id)
+
+        // Parent redelivery of Generation 1: identical parent message.id produces identical child ID
+        setupFreshImport()
+        await importStravaActivityJob(database as unknown as Database, {
+          id: 'job-photo-gen1',
+          name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+          data: {
+            actorId: 'actor-1',
+            stravaActivityId: '123',
+            publishSendNote: true
+          }
+        })
+
+        const redeliveryUpdates = (
+          mockGetQueue().publish as jest.Mock
+        ).mock.calls
+          .map(([message]) => message)
+          .filter((message) => message.name === SEND_UPDATE_NOTE_JOB_NAME)
+        const redeliveryUpdate = redeliveryUpdates[redeliveryUpdates.length - 1]
+        expect(redeliveryUpdate.id).toBe(expectedGen1Id)
+
+        // Generation 2 execution: different parent message.id produces different child ID
+        setupFreshImport()
+        await importStravaActivityJob(database as unknown as Database, {
+          id: 'job-photo-gen2',
+          name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+          data: {
+            actorId: 'actor-1',
+            stravaActivityId: '123',
+            publishSendNote: true
+          }
+        })
+
+        const gen2Updates = (mockGetQueue().publish as jest.Mock).mock.calls
+          .map(([message]) => message)
+          .filter((message) => message.name === SEND_UPDATE_NOTE_JOB_NAME)
+        const gen2Update = gen2Updates[gen2Updates.length - 1]
+        const expectedGen2Id = getHashFromString(
+          'status-1:123:job-photo-gen2:strava-photos:send-update-note'
+        )
+        expect(gen2Update.id).toBe(expectedGen2Id)
+        expect(gen2Update.id).not.toBe(expectedGen1Id)
+      } finally {
+        fetchSpy.mockRestore()
+      }
     })
 
     it('sends no photo update for an import that did not opt into federation', async () => {

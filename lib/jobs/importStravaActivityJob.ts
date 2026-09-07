@@ -888,7 +888,7 @@ export const importStravaActivityJob = createJobHandle(
       try {
         await getQueue().publish({
           id: getHashFromString(
-            `${importedFitnessFile.statusId}:${stravaActivityId}:strava-photos:send-update-note`
+            `${importedFitnessFile.statusId}:${stravaActivityId}:${message.id}:strava-photos:send-update-note`
           ),
           name: SEND_UPDATE_NOTE_JOB_NAME,
           data: { actorId, statusId: importedFitnessFile.statusId }
@@ -923,7 +923,7 @@ export const importStravaActivityJob = createJobHandle(
     ) {
       await getQueue().publish({
         id: getHashFromString(
-          `${importedFitnessFile.statusId}:${importedFitnessFile.id}:regenerate-map`
+          `${importedFitnessFile.statusId}:${importedFitnessFile.id}:${message.id}:regenerate-map`
         ),
         name: REGENERATE_FITNESS_MAPS_JOB_NAME,
         data: {

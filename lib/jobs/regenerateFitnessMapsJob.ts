@@ -407,7 +407,9 @@ export const regenerateFitnessMapsJob = createJobHandle(
     await Promise.all(
       [...statusesNeedingUpdate].map((statusId) => {
         return getQueue().publish({
-          id: getHashFromString(`${statusId}:send-update-note:fitness-map`),
+          id: getHashFromString(
+            `${statusId}:${message.id}:send-update-note:fitness-map`
+          ),
           name: SEND_UPDATE_NOTE_JOB_NAME,
           data: {
             actorId,
