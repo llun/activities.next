@@ -882,6 +882,30 @@ An attachment federated to this instance carries a URL its remote author chose, 
 
 A URL is treated as local storage only when its host is this instance's own — `ACTIVITIES_HOST` or one of `ACTIVITIES_TRUSTED_HOSTS`, wildcard entries such as `*.example.com` included, matched the same way a request's `Host` header is. Every other activities.next instance serves attachments under the same `/api/v1/files/` path, so the host is what tells the two apart. A path that walks upwards once decoded is refused rather than handed to storage.
 
+## Import Remote Status
+
+The `importRemoteStatus.ts` script fetches an arbitrary remote post (by its web URL or ActivityPub URI) and processes it through `createNoteJob`. This persists the status, populates tags and mentions, resolves author profiles, links reply threads, and fans out the post to timelines for local followers and recipients.
+
+### When to Use
+
+Use this script to recover federated statuses that were dropped due to federation downtime, delivery errors, or network outages (such as missed inbox deliveries).
+
+### Usage
+
+```bash
+# Preview what would be imported (dry-run mode)
+NODE_ENV=production node scripts/run.cjs scripts/maintenance/importRemoteStatus.ts <statusUrl> --dry-run
+
+# Import and persist the status into the database
+NODE_ENV=production node scripts/run.cjs scripts/maintenance/importRemoteStatus.ts <statusUrl>
+```
+
+### Examples
+
+```bash
+NODE_ENV=production node scripts/run.cjs scripts/maintenance/importRemoteStatus.ts https://mastodon.in.th/@lluu/117228726176772772
+```
+
 ## Related Documentation
 
 - [Setup Guide](setup.md) — Initial setup and configuration
