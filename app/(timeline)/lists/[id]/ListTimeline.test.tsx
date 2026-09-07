@@ -7,7 +7,12 @@ import { ReactNode } from 'react'
 
 import { getListTimeline } from '@/lib/client'
 import { ActorProfile } from '@/lib/types/domain/actor'
-import { Status, StatusAnnounce, StatusType } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusAnnounce,
+  StatusNote,
+  StatusType
+} from '@/lib/types/domain/status'
 import { ListEntity } from '@/lib/types/mastodon/list'
 
 import { ListTimeline } from './ListTimeline'
@@ -63,10 +68,11 @@ vi.mock('@/lib/components/posts/posts', () => ({
     <div>
       <div data-testid="posts-current-time">{currentTime}</div>
       {statuses.map((status) => {
-        const target =
+        const target = (
           status.type === StatusType.enum.Announce
             ? status.originalStatus
             : status
+        ) as StatusNote
         return (
           <div key={status.id} data-testid={`post-${status.id}`}>
             <span data-testid={`post-id-${status.id}`}>id:{status.id}</span>
@@ -169,7 +175,10 @@ const list: ListEntity = {
   exclusive: false
 }
 
-const createStatus = (id: string, overrides: Partial<Status> = {}): Status => ({
+const createStatus = (
+  id: string,
+  overrides: Partial<StatusNote> = {}
+): StatusNote => ({
   id,
   actorId: profile.id,
   actor: profile,
@@ -189,6 +198,7 @@ const createStatus = (id: string, overrides: Partial<Status> = {}): Status => ({
   isActorLiked: false,
   isActorBookmarked: false,
   totalLikes: 0,
+  totalShares: 0,
   attachments: [],
   tags: [],
   ...overrides

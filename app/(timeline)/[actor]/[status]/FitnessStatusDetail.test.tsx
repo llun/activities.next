@@ -375,6 +375,7 @@ const buildFitnessFile = (
   sourceUrl: null,
   gearId: null,
   gearName: null,
+  movingTimeSeconds: null,
   deviceGearId: null,
   deviceGearName: null,
   ...overrides
@@ -1479,7 +1480,7 @@ describe('FitnessStatusDetail', () => {
 
       expect(layers).toContain(HIT_LAYER)
       const hitLayer = map.addLayer.mock.calls
-        .map(([layer]) => layer as Record<string, never>)
+        .map(([layer]) => layer as Record<string, unknown>)
         .find((layer) => layer.id === HIT_LAYER) as unknown as {
         filter: unknown
         paint: Record<string, number | string>
