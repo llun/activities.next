@@ -2126,13 +2126,14 @@ preserving legacy and fitness attachments` pins the surviving-null behaviour.
   is unchanged.
 - CI (`.github/workflows/ci.yml`) runs lint + prettier-check, **type check**,
   build, four parallel test shards aggregated into an `All Tests` step, and
-  Schema Dump Sync (regenerates the SQLite schema dump from the migrations and
-  fails on drift) on every push and PR. Branch protection on `main` requires
+  schema dump sync jobs (regenerating SQLite and PostgreSQL schema dumps from
+  the migrations and failing on drift) on every push and PR. Branch protection on `main` requires
   four status checks — `All Tests`, `Lint and Prettier`, `Build`, and `CI Success`
   (strict: false). The `CI Success` aggregate job is fail-closed over all upstream
-  jobs (`Lint and Prettier`, `Type Check`, `Build`, `All Tests`, and
-  `Schema Dump Sync`), so failures in `Type Check` (the gate covering
-  `*.test.ts(x)`) or `Schema Dump Sync` block merging via `CI Success`.
+  jobs (`Lint and Prettier`, `Type Check`, `Build`, `All Tests`,
+  `SQLite Schema Dump Sync`, and `PostgreSQL Schema Dump Sync`), so failures in
+  `Type Check` (the gate covering `*.test.ts(x)`) or schema dump drift block
+  merging via `CI Success`.
   The test job pins `TEST_DATABASE_TYPE: sqlite`; `lib/database/testUtils.ts`
   also supports `TEST_DATABASE_TYPE=pg` (with `TEST_DATABASE_HOST` /
   `TEST_DATABASE_USERNAME` / `TEST_DATABASE_PASSWORD`, and optional
@@ -2343,7 +2344,7 @@ each ends with the Definition of Done gate.
 1. `yarn migrate:make <name>` — never hand-write the file (migrations are ESM `.js` with named `up`/`down` from `migration.stub`).
 2. Use the Knex query builder; the migration must work on SQLite and PostgreSQL and avoid breaking MySQL-compatible clients (see **Database Compatibility Guidelines**).
 3. Apply it locally against a throwaway SQLite file with inline env vars: `ACTIVITIES_DATABASE_CLIENT=better-sqlite3 ACTIVITIES_DATABASE_SQLITE_FILENAME=./throwaway.sqlite3 yarn migrate`.
-4. Regenerate BOTH reference schema dumps (see **Keeping the reference schema dumps in sync**). This is not optional: the Vitest suite builds its databases from the dumps, and CI's Schema Dump Sync job fails on SQLite-dump drift.
+4. Regenerate BOTH reference schema dumps (see **Keeping the reference schema dumps in sync**). This is not optional: the Vitest suite builds its databases from the dumps, and CI's SQLite and PostgreSQL Schema Dump Sync jobs fail on schema-dump drift.
 5. Update the affected `lib/database/` code and types, plus tests.
 6. Run the Definition of Done gate.
 
@@ -2583,7 +2584,7 @@ Use the one that matches the database you are reasoning about:
 
 The app (`yarn migrate`) runs Knex migrations, but the test suite does **not** — `lib/database/testUtils.ts` builds every test database directly from these dumps (see Testing Guidelines). If the dumps drift from the migrations, tests run against a stale schema, so keeping them in lockstep is load-bearing, not just hygiene. They are gitignored by the blanket `*.sql` rule and re-included by explicit `!` negations in `.gitignore`.
 
-- **Any PR that adds, edits, or removes a Knex migration in `migrations/` MUST regenerate BOTH `migrations/schema.sql` and `migrations/schema.sqlite.sql` in the same PR.** Keep them in lockstep — they must always describe the same migration set. CI's **Schema Dump Sync** job regenerates the SQLite dump from the migrations on every push/PR and fails on drift; the PostgreSQL dump has no CI gate, so regenerating it stays on you.
+- **Any PR that adds, edits, or removes a Knex migration in `migrations/` MUST regenerate BOTH `migrations/schema.sql` and `migrations/schema.sqlite.sql` in the same PR.** Keep them in lockstep — they must always describe the same migration set. CI's **SQLite Schema Dump Sync** and **PostgreSQL Schema Dump Sync** jobs regenerate both reference dumps from the migrations on every push/PR and fail on drift.
 - Regenerate them canonically rather than hand-editing — run every migration against a fresh database of each type and dump the result. In both cases verify `SELECT count(*) FROM knex_migrations` equals the number of `migrations/*.js` files first.
 
   Pass the DB settings **inline** on the `yarn migrate` line — do **not** write a `.env.local` (you'd clobber an existing one, and the cleanup would delete it). Because `knexfile.js` uses `dotenv-flow`, which never overrides variables already in the environment, inline values win over any `.env.local`; for the same reason, run in a shell with **no** other `ACTIVITIES_DATABASE*` vars exported (a stray one would be merged in and could target a remote DB — check `env | grep ACTIVITIES_DATABASE`).

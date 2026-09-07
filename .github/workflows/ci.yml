@@ -160,10 +160,9 @@ jobs:
   # This job replays all migrations against a fresh SQLite database, applies
   # the documented dump-and-strip pipeline (CONTRIBUTING.md → "SQLite —
   # migrations/schema.sqlite.sql"), and fails if the result differs from the
-  # committed file. The PostgreSQL dump (migrations/schema.sql) is still
-  # regenerated manually per the same guide.
+  # committed file.
   schema-dump-check:
-    name: Schema Dump Sync
+    name: SQLite Schema Dump Sync
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -202,6 +201,83 @@ jobs:
             exit 1
           fi
 
+  # Drift gate for the committed PostgreSQL reference schema dump. This job
+  # starts a PostgreSQL 17 service container, waits for readiness, replays all
+  # migrations against a fresh database, verifies that every migration file ran,
+  # generates a schema-only dump using PostgreSQL 17 tooling, applies the
+  # documented normalization (CONTRIBUTING.md → "PostgreSQL —
+  # migrations/schema.sql"), and fails if the result differs from the committed file.
+  schema-dump-check-pg:
+    name: PostgreSQL Schema Dump Sync
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: activities
+          POSTGRES_PASSWORD: activities
+          POSTGRES_DB: activities
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Enable corepack
+        run: corepack enable
+      - name: Use Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: yarn
+      - name: Install dependencies
+        run: yarn install --immutable
+      - name: Wait for PostgreSQL readiness
+        run: |
+          until docker exec ${{ job.services.postgres.id }} pg_isready -U activities -d activities -q; do
+            sleep 1
+          done
+      - name: Run migrations against a fresh PostgreSQL database
+        run: |
+          ACTIVITIES_DATABASE_CLIENT=pg \
+          ACTIVITIES_DATABASE_PG_HOST=127.0.0.1 \
+          ACTIVITIES_DATABASE_PG_PORT=${{ job.services.postgres.ports['5432'] }} \
+          ACTIVITIES_DATABASE_PG_USER=activities \
+          ACTIVITIES_DATABASE_PG_PASSWORD=activities \
+          ACTIVITIES_DATABASE_PG_DATABASE=activities \
+            yarn migrate
+      - name: Verify every migration file ran
+        run: |
+          applied=$(docker exec ${{ job.services.postgres.id }} psql -U activities -d activities -tAc 'SELECT count(*) FROM knex_migrations;')
+          files=$(ls migrations/*.js | wc -l)
+          echo "applied=$applied files=$files"
+          if [ "$applied" -ne "$files" ]; then
+            echo "::error::knex_migrations has $applied rows but migrations/ has $files files"
+            exit 1
+          fi
+      - name: Diff regenerated dump against migrations/schema.sql
+        run: |
+          docker exec ${{ job.services.postgres.id }} \
+            pg_dump -U activities -d activities --schema-only --no-owner --no-privileges \
+            > /tmp/schema_raw.sql
+          awk '
+            /^SET statement_timeout/ { started = 1 }
+            !started { next }
+            /^--/ { next }
+            /^\\(un)?restrict/ { next }
+            /^SET default_tablespace/ { next }
+            /^SET default_table_access_method/ { next }
+            { print }
+          ' /tmp/schema_raw.sql | cat -s > /tmp/schema-regenerated.sql
+          if ! diff -u migrations/schema.sql /tmp/schema-regenerated.sql; then
+            echo "::error::migrations/schema.sql is out of sync with the migrations. Regenerate BOTH schema dumps in this PR — see AGENTS.md → 'Keeping the reference schema dumps in sync'."
+            exit 1
+          fi
+
   # Aggregate gate: this is the single check to mark required in branch
   # protection. It always runs (`if: always()`) and fails unless every upstream
   # job succeeded, so a failure in any one of the parallel jobs fails the overall
@@ -211,12 +287,20 @@ jobs:
   ci-success:
     name: CI Success
     runs-on: ubuntu-latest
-    needs: [lint-prettier, typecheck, build, test, schema-dump-check]
+    needs:
+      [
+        lint-prettier,
+        typecheck,
+        build,
+        test,
+        schema-dump-check,
+        schema-dump-check-pg
+      ]
     if: ${{ always() }}
     steps:
       - name: Verify all CI jobs succeeded
         env:
-          RESULTS: ${{ needs.lint-prettier.result }} ${{ needs.typecheck.result }} ${{ needs.build.result }} ${{ needs.test.result }} ${{ needs.schema-dump-check.result }}
+          RESULTS: ${{ needs.lint-prettier.result }} ${{ needs.typecheck.result }} ${{ needs.build.result }} ${{ needs.test.result }} ${{ needs.schema-dump-check.result }} ${{ needs.schema-dump-check-pg.result }}
         run: |
           echo "Upstream job results: $RESULTS"
           for result in $RESULTS; do

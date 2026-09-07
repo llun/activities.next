@@ -333,7 +333,7 @@ Branch protection on `main` requires four status checks:
 - `Build`
 - `CI Success`
 
-`CI Success` is required and fail-closed over all upstream CI checks: lint (`Lint and Prettier`), typecheck (`Type Check`), build (`Build`), test shards (`All Tests`), and schema dump checks (`Schema Dump Sync`). If any upstream check fails, `CI Success` fails and blocks merging.
+`CI Success` is required and fail-closed over all upstream CI checks: lint (`Lint and Prettier`), typecheck (`Type Check`), build (`Build`), test shards (`All Tests`), and schema dump checks (`SQLite Schema Dump Sync` and `PostgreSQL Schema Dump Sync`). If any upstream check fails, `CI Success` fails and blocks merging.
 
 ### PR Checklist
 
