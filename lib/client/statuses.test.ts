@@ -5,6 +5,7 @@ import {
   createNote,
   createPoll,
   deleteStatus,
+  getDefaultQuotePolicy,
   getStatusById,
   getStatusFavouritedBy,
   getStatusQuotes,
@@ -13,12 +14,15 @@ import {
   likeStatus,
   reactToStatus,
   repostStatus,
+  retryFitnessProcessing,
+  revokeStatusQuote,
   translateStatus,
   undoBookmarkStatus,
   undoLikeStatus,
   undoRepostStatus,
   unreactFromStatus,
   updateNote,
+  updateStatusInteractionPolicy,
   updateStatusVisibility,
   votePoll
 } from './statuses'
@@ -698,6 +702,130 @@ describe('client statuses module', () => {
 
       const res = await getStatusById('missing-status')
       expect(res).toBeNull()
+    })
+  })
+
+  describe('revokeStatusQuote', () => {
+    it('revokes quote successfully', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({ id: 'quoted-1', text: 'Quoted' }),
+        { status: 200 }
+      )
+
+      const res = await revokeStatusQuote({
+        quotedStatusId: 'quoted-1',
+        quotingStatusId: 'quoting-2'
+      })
+      expect(res).toEqual({ id: 'quoted-1', text: 'Quoted' })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/statuses/quoted-1/quotes/quoting-2/revoke',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        })
+      )
+    })
+
+    it('returns null on error', async () => {
+      fetchMock.mockResponse('', { status: 500 })
+
+      const res = await revokeStatusQuote({
+        quotedStatusId: 'quoted-1',
+        quotingStatusId: 'quoting-2'
+      })
+      expect(res).toBeNull()
+    })
+  })
+
+  describe('updateStatusInteractionPolicy', () => {
+    it('updates policy successfully', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({ id: 'status-1', text: 'Status' }),
+        { status: 200 }
+      )
+
+      const res = await updateStatusInteractionPolicy({
+        statusId: 'status-1',
+        quoteApprovalPolicy: 'nobody'
+      })
+      expect(res).toEqual({ id: 'status-1', text: 'Status' })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/statuses/status-1/interaction_policy',
+        expect.objectContaining({
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ quote_approval_policy: 'nobody' })
+        })
+      )
+    })
+
+    it('returns null on failure', async () => {
+      fetchMock.mockResponse('', { status: 400 })
+
+      const res = await updateStatusInteractionPolicy({
+        statusId: 'status-1',
+        quoteApprovalPolicy: 'nobody'
+      })
+      expect(res).toBeNull()
+    })
+  })
+
+  describe('getDefaultQuotePolicy', () => {
+    it('returns preferences policy when valid', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({ 'posting:default:quote_policy': 'followers' }),
+        { status: 200 }
+      )
+
+      const policy = await getDefaultQuotePolicy()
+      expect(policy).toBe('followers')
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/preferences',
+        expect.objectContaining({
+          method: 'GET',
+          headers: { Accept: 'application/json' }
+        })
+      )
+    })
+
+    it('falls back to public on failure or invalid policy', async () => {
+      fetchMock.mockResponse('', { status: 500 })
+      const policy1 = await getDefaultQuotePolicy()
+      expect(policy1).toBe('public')
+
+      fetchMock.mockResponse(
+        JSON.stringify({ 'posting:default:quote_policy': 'invalid-choice' }),
+        { status: 200 }
+      )
+      const policy2 = await getDefaultQuotePolicy()
+      expect(policy2).toBe('public')
+    })
+  })
+
+  describe('retryFitnessProcessing', () => {
+    it('sends POST and returns payload on success', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({ statusId: 'status-123', retried: 1 }),
+        { status: 200 }
+      )
+
+      const res = await retryFitnessProcessing('status-123')
+      expect(res).toEqual({ statusId: 'status-123', retried: 1 })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/statuses/status-123/retry-fitness',
+        { method: 'POST' }
+      )
+    })
+
+    it('throws on non-ok response', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({ error: 'Processing retry failed' }),
+        { status: 400 }
+      )
+
+      await expect(retryFitnessProcessing('status-123')).rejects.toThrow(
+        'Processing retry failed'
+      )
     })
   })
 })

@@ -20,7 +20,6 @@ import type { FeaturedTag } from '@/lib/types/mastodon/featuredTag'
 import type { Filter as MastodonFilter } from '@/lib/types/mastodon/filter'
 import type { ListEntity } from '@/lib/types/mastodon/list'
 import type { PreviewCard } from '@/lib/types/mastodon/previewCard'
-import type { Status as MastodonStatus } from '@/lib/types/mastodon/status'
 import type { Tag } from '@/lib/types/mastodon/tag'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { getMediaWidthAndHeight } from '@/lib/utils/getMediaWidthAndHeight'
@@ -43,18 +42,21 @@ import {
   type GetStatusQuotesParams,
   type GetStatusQuotesResult,
   type ReactionUpdateResult,
+  type RevokeStatusQuoteParams,
   type StatusFavouritedByResult,
   type TranslateStatusParams,
   type TranslationCapability,
   type TranslationLanguages,
   type UpdateNoteParams,
   type UpdateNoteResult,
+  type UpdateStatusInteractionPolicyParams,
   type UpdateStatusVisibilityParams,
   type VotePollParams,
   bookmarkStatus,
   createNote,
   createPoll,
   deleteStatus,
+  getDefaultQuotePolicy,
   getStatusById,
   getStatusFavouritedBy,
   getStatusQuotes,
@@ -63,12 +65,15 @@ import {
   likeStatus,
   reactToStatus,
   repostStatus,
+  retryFitnessProcessing,
+  revokeStatusQuote,
   translateStatus,
   undoBookmarkStatus,
   undoLikeStatus,
   undoRepostStatus,
   unreactFromStatus,
   updateNote,
+  updateStatusInteractionPolicy,
   updateStatusVisibility,
   votePoll
 } from './client/statuses'
@@ -110,7 +115,13 @@ export {
   type GetStatusQuotesParams,
   type GetStatusQuotesResult,
   getStatusQuotes,
-  getStatusById
+  getStatusById,
+  type RevokeStatusQuoteParams,
+  revokeStatusQuote,
+  type UpdateStatusInteractionPolicyParams,
+  updateStatusInteractionPolicy,
+  getDefaultQuotePolicy,
+  retryFitnessProcessing
 }
 
 export type ReportCategory = 'spam' | 'legal' | 'violation' | 'other'
@@ -587,59 +598,6 @@ export const getBlocks = async ({
     accounts: (await response.json()) as MastodonAccount[],
     nextMaxId: getCursorFromLinkHeader(linkHeader, 'next'),
     prevMinId: getCursorFromLinkHeader(linkHeader, 'prev')
-  }
-}
-
-export const revokeStatusQuote = async ({
-  quotedStatusId,
-  quotingStatusId
-}: {
-  quotedStatusId: string
-  quotingStatusId: string
-}): Promise<MastodonStatus | null> => {
-  const response = await fetch(
-    `/api/v1/statuses/${toIdPathSegment(quotedStatusId)}/quotes/${toIdPathSegment(quotingStatusId)}/revoke`,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' } }
-  )
-  if (response.status !== 200) return null
-  return (await response.json()) as MastodonStatus
-}
-
-export const updateStatusInteractionPolicy = async ({
-  statusId,
-  quoteApprovalPolicy
-}: {
-  statusId: string
-  quoteApprovalPolicy: QuoteApprovalPolicy
-}): Promise<MastodonStatus | null> => {
-  const response = await fetch(
-    `/api/v1/statuses/${toIdPathSegment(statusId)}/interaction_policy`,
-    {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quote_approval_policy: quoteApprovalPolicy })
-    }
-  )
-  if (response.status !== 200) return null
-  return (await response.json()) as MastodonStatus
-}
-
-// The default quote-approval policy for new statuses (Mastodon 4.5
-// posting:default:quote_policy). Falls back to 'public' on any failure.
-export const getDefaultQuotePolicy = async (): Promise<QuoteApprovalPolicy> => {
-  try {
-    const response = await fetch('/api/v1/preferences', {
-      method: 'GET',
-      headers: { Accept: 'application/json' }
-    })
-    if (response.status !== 200) return 'public'
-    const preferences = (await response.json()) as Record<string, unknown>
-    const policy = preferences['posting:default:quote_policy']
-    return QuoteApprovalPolicy.safeParse(policy).success
-      ? (policy as QuoteApprovalPolicy)
-      : 'public'
-  } catch {
-    return 'public'
   }
 }
 
@@ -1976,25 +1934,6 @@ export const retryAllFitnessImports = async (): Promise<{
     const errorDetails = await parseApiError(
       response,
       'Failed to retry fitness imports.'
-    )
-    throw new Error(errorDetails)
-  }
-
-  return response.json()
-}
-
-export const retryFitnessProcessing = async (
-  statusId: string
-): Promise<{ statusId: string; retried: number }> => {
-  const response = await fetch(
-    `/api/v1/statuses/${toIdPathSegment(statusId)}/retry-fitness`,
-    { method: 'POST' }
-  )
-
-  if (!response.ok) {
-    const errorDetails = await parseApiError(
-      response,
-      'Failed to retry fitness processing.'
     )
     throw new Error(errorDetails)
   }

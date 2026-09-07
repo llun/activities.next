@@ -9,7 +9,7 @@ import type { Translation } from '@/lib/types/mastodon/translation'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { toIdPathSegment } from '@/lib/utils/urlToId'
 
-import { throwApiError } from './http'
+import { parseApiError, throwApiError } from './http'
 
 export interface CreateNoteParams {
   message: string
@@ -698,4 +698,80 @@ export const getStatusById = async (
   )
   if (response.status !== 200) return null
   return (await response.json()) as MastodonStatus
+}
+
+export interface RevokeStatusQuoteParams {
+  quotedStatusId: string
+  quotingStatusId: string
+}
+
+export const revokeStatusQuote = async ({
+  quotedStatusId,
+  quotingStatusId
+}: RevokeStatusQuoteParams): Promise<MastodonStatus | null> => {
+  const response = await fetch(
+    `/api/v1/statuses/${toIdPathSegment(quotedStatusId)}/quotes/${toIdPathSegment(quotingStatusId)}/revoke`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' } }
+  )
+  if (response.status !== 200) return null
+  return (await response.json()) as MastodonStatus
+}
+
+export interface UpdateStatusInteractionPolicyParams {
+  statusId: string
+  quoteApprovalPolicy: QuoteApprovalPolicy
+}
+
+export const updateStatusInteractionPolicy = async ({
+  statusId,
+  quoteApprovalPolicy
+}: UpdateStatusInteractionPolicyParams): Promise<MastodonStatus | null> => {
+  const response = await fetch(
+    `/api/v1/statuses/${toIdPathSegment(statusId)}/interaction_policy`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quote_approval_policy: quoteApprovalPolicy })
+    }
+  )
+  if (response.status !== 200) return null
+  return (await response.json()) as MastodonStatus
+}
+
+// The default quote-approval policy for new statuses (Mastodon 4.5
+// posting:default:quote_policy). Falls back to 'public' on any failure.
+export const getDefaultQuotePolicy = async (): Promise<QuoteApprovalPolicy> => {
+  try {
+    const response = await fetch('/api/v1/preferences', {
+      method: 'GET',
+      headers: { Accept: 'application/json' }
+    })
+    if (response.status !== 200) return 'public'
+    const preferences = (await response.json()) as Record<string, unknown>
+    const policy = preferences['posting:default:quote_policy']
+    return QuoteApprovalPolicy.safeParse(policy).success
+      ? (policy as QuoteApprovalPolicy)
+      : 'public'
+  } catch {
+    return 'public'
+  }
+}
+
+export const retryFitnessProcessing = async (
+  statusId: string
+): Promise<{ statusId: string; retried: number }> => {
+  const response = await fetch(
+    `/api/v1/statuses/${toIdPathSegment(statusId)}/retry-fitness`,
+    { method: 'POST' }
+  )
+
+  if (!response.ok) {
+    const errorDetails = await parseApiError(
+      response,
+      'Failed to retry fitness processing.'
+    )
+    throw new Error(errorDetails)
+  }
+
+  return response.json()
 }
