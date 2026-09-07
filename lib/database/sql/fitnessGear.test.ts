@@ -1,3 +1,13 @@
+import { Knex } from 'knex'
+
+import { FitnessGearSQLDatabaseMixin } from '@/lib/database/sql/fitnessGear'
+import { FitnessGearComponentsSQLDatabaseMixin } from '@/lib/database/sql/fitnessGearComponents'
+import {
+  getOwnedComponentRow,
+  getOwnedGearRow,
+  parseSQLFitnessGear,
+  parseSQLFitnessGearComponent
+} from '@/lib/database/sql/fitnessGearRows'
 import {
   databaseBeforeAll,
   getTestDatabaseTable
@@ -3151,6 +3161,77 @@ describe('FitnessGearDatabase', () => {
           ).toEqual([])
         })
       })
+
+      describe('modularized mixin facade and rows module', () => {
+        it('composes component operations into the FitnessGearSQLDatabaseMixin facade', async () => {
+          const bike = await database.createFitnessGear({
+            actorId: actors.primary.id,
+            kind: 'bike',
+            name: 'Facade Modular Test Bike'
+          })
+          const component = await database.createFitnessGearComponent({
+            gearId: bike.id,
+            actorId: actors.primary.id,
+            componentType: 'Crankset',
+            brand: 'Shimano',
+            model: 'Dura-Ace'
+          })
+          expect(component).not.toBeNull()
+          expect(component?.componentType).toBe('Crankset')
+
+          const components = await database.getFitnessGearComponents({
+            gearId: bike.id,
+            actorId: actors.primary.id
+          })
+          expect(components.some((item) => item.id === component!.id)).toBe(
+            true
+          )
+        })
+
+        it('exports neutral row conversion and ownership helpers', () => {
+          expect(typeof parseSQLFitnessGear).toBe('function')
+          expect(typeof parseSQLFitnessGearComponent).toBe('function')
+          expect(typeof getOwnedGearRow).toBe('function')
+          expect(typeof getOwnedComponentRow).toBe('function')
+        })
+      })
+    })
+  })
+
+  describe('FitnessGearComponentsSQLDatabaseMixin', () => {
+    it('provides standalone component operations on a Knex instance', () => {
+      const dummyKnex = {} as unknown as Knex
+      const mixin = FitnessGearComponentsSQLDatabaseMixin(dummyKnex)
+      expect(typeof mixin.createFitnessGearComponent).toBe('function')
+      expect(typeof mixin.getFitnessGearComponents).toBe('function')
+      expect(typeof mixin.updateFitnessGearComponent).toBe('function')
+      expect(typeof mixin.deleteFitnessGearComponent).toBe('function')
+      expect(typeof mixin.retireFitnessGearComponent).toBe('function')
+      expect(typeof mixin.refitFitnessGearComponent).toBe('function')
+      expect(typeof mixin.getFitnessGearComponentDistanceRollups).toBe(
+        'function'
+      )
+      expect(typeof mixin.setFitnessGearComponentLastAlertedDistance).toBe(
+        'function'
+      )
+    })
+
+    it('composes into FitnessGearSQLDatabaseMixin', () => {
+      const dummyKnex = {} as unknown as Knex
+      const facade = FitnessGearSQLDatabaseMixin(dummyKnex)
+      expect(typeof facade.createFitnessGear).toBe('function')
+      expect(typeof facade.createFitnessGearComponent).toBe('function')
+      expect(typeof facade.getFitnessGearComponents).toBe('function')
+      expect(typeof facade.updateFitnessGearComponent).toBe('function')
+      expect(typeof facade.deleteFitnessGearComponent).toBe('function')
+      expect(typeof facade.retireFitnessGearComponent).toBe('function')
+      expect(typeof facade.refitFitnessGearComponent).toBe('function')
+      expect(typeof facade.getFitnessGearComponentDistanceRollups).toBe(
+        'function'
+      )
+      expect(typeof facade.setFitnessGearComponentLastAlertedDistance).toBe(
+        'function'
+      )
     })
   })
 })
