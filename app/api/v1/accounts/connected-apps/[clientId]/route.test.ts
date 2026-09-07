@@ -38,10 +38,25 @@ vi.mock('next/headers', () => ({
 const account = {
   id: 'account-1',
   email: seedActor1.email,
-  defaultActorId: ACTOR1_ID
+  defaultActorId: ACTOR1_ID,
+  twoFactorEnabled: false,
+  emailVerified: true,
+  createdAt: Date.now(),
+  updatedAt: Date.now()
 }
 
-const actor = { ...seedActor1, id: ACTOR1_ID, account }
+const actor = {
+  ...seedActor1,
+  id: ACTOR1_ID,
+  account,
+  followersUrl: `${ACTOR1_ID}/followers`,
+  inboxUrl: `${ACTOR1_ID}/inbox`,
+  sharedInboxUrl: 'https://llun.test/inbox',
+  statusCount: 0,
+  lastStatusAt: null,
+  createdAt: Date.now(),
+  updatedAt: Date.now()
+}
 
 const buildRequest = (url: string) =>
   new NextRequest(url, {
