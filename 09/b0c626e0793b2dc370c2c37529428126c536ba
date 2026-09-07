@@ -1,0 +1,20 @@
+lib/client.test.ts
+  h_580a04e334fef4 51,70,99,110,200-213
+lib/client.ts
+  h_580a04e334fef4 90-97,541-547
+lib/client/fitnessGeneralSettings.test.ts
+  h_580a04e334fef4 1-109
+lib/client/fitnessGeneralSettings.ts
+  h_580a04e334fef4 1-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "09b0c626e0793b2dc370c2c37529428126c536ba",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
