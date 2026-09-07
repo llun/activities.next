@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 
 import { CreateStatus } from '@/lib/activities/createStatus'
@@ -11,13 +10,52 @@ import { getQueue } from '@/lib/services/queue'
 import { JobHandle } from '@/lib/services/queue/type'
 import { CreateAction } from '@/lib/types/activitypub/activities'
 import { StatusType } from '@/lib/types/domain/status'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { withSpan } from '@/lib/utils/trace'
+
+export const MAX_CONCURRENT_DELIVERY_PUBLICATIONS = 10
+
+export const getDeliveryJobId = (
+  parentMessageId: string,
+  inbox: string
+): string => {
+  return getHashFromString(
+    `${DELIVER_ACTIVITY_JOB_NAME}:${parentMessageId}:${inbox}`
+  )
+}
 
 export const JobData = z.object({
   actorId: z.string(),
   statusId: z.string()
 })
+
+async function runWithConcurrencyLimit<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<PromiseSettledResult<R>[]> {
+  const results: PromiseSettledResult<R>[] = new Array(items.length)
+  if (items.length === 0) return results
+
+  let nextIndex = 0
+  const worker = async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex++
+      try {
+        const val = await fn(items[index])
+        results[index] = { status: 'fulfilled', value: val }
+      } catch (reason) {
+        results[index] = { status: 'rejected', reason }
+      }
+    }
+  }
+
+  const workerCount = Math.min(limit, items.length)
+  const workers = Array.from({ length: workerCount }, () => worker())
+  await Promise.all(workers)
+  return results
+}
 
 export const sendNoteJob: JobHandle = createJobHandle(
   SEND_NOTE_JOB_NAME,
@@ -50,6 +88,8 @@ export const sendNoteJob: JobHandle = createJobHandle(
         status
       })
 
+      const inboxes = Array.from(new Set(federatedInboxes))
+
       const activity: CreateStatus = {
         '@context': NOTE_ACTIVITY_CONTEXT,
         id: note.id,
@@ -64,27 +104,28 @@ export const sendNoteJob: JobHandle = createJobHandle(
       const queue = getQueue()
 
       span.addEvent('fanout_started', {
-        'fanout.inbox_count': federatedInboxes.length,
+        'fanout.inbox_count': inboxes.length,
         'fanout.actor_id': actor.id,
         'fanout.status_id': status.id,
         'queue.runs_inline': queue.runsInline
       })
 
-      if (queue.runsInline) {
-        const results = await Promise.allSettled(
-          federatedInboxes.map((inbox) =>
-            queue.publish({
-              id: randomUUID(),
-              name: DELIVER_ACTIVITY_JOB_NAME,
-              data: {
-                inbox,
-                actorId: actor.id,
-                activity: activity as unknown as Record<string, unknown>
-              }
-            })
-          )
-        )
+      const results = await runWithConcurrencyLimit(
+        inboxes,
+        MAX_CONCURRENT_DELIVERY_PUBLICATIONS,
+        (inbox) =>
+          queue.publish({
+            id: getDeliveryJobId(message.id, inbox),
+            name: DELIVER_ACTIVITY_JOB_NAME,
+            data: {
+              inbox,
+              actorId: actor.id,
+              activity: activity as unknown as Record<string, unknown>
+            }
+          })
+      )
 
+      if (queue.runsInline) {
         let failureCount = 0
         for (let i = 0; i < results.length; i++) {
           const result = results[i]
@@ -95,34 +136,44 @@ export const sendNoteJob: JobHandle = createJobHandle(
                 ? result.reason
                 : new Error(String(result.reason))
             span.addEvent('inbox_delivery_inline_error', {
-              'delivery.inbox': federatedInboxes[i],
+              'delivery.inbox': inboxes[i],
               'error.message': err.message
             })
           }
         }
 
         span.addEvent('fanout_completed', {
-          'fanout.inbox_count': federatedInboxes.length,
+          'fanout.inbox_count': inboxes.length,
           'fanout.failure_count': failureCount,
           'queue.runs_inline': true
         })
       } else {
-        await Promise.all(
-          federatedInboxes.map((inbox) =>
-            queue.publish({
-              id: randomUUID(),
-              name: DELIVER_ACTIVITY_JOB_NAME,
-              data: {
-                inbox,
-                actorId: actor.id,
-                activity: activity as unknown as Record<string, unknown>
-              }
-            })
-          )
+        const failures = results.filter(
+          (r): r is PromiseRejectedResult => r.status === 'rejected'
         )
 
+        if (failures.length > 0) {
+          const firstError =
+            failures[0].reason instanceof Error
+              ? failures[0].reason
+              : new Error(String(failures[0].reason))
+          span.recordException(firstError)
+          span.addEvent('fanout_failed', {
+            'fanout.inbox_count': inboxes.length,
+            'fanout.failure_count': failures.length,
+            'queue.runs_inline': false
+          })
+          if (failures.length === 1) {
+            throw firstError
+          }
+          throw new AggregateError(
+            failures.map((f) => f.reason),
+            `Failed to publish ${failures.length} delivery jobs: ${firstError.message}`
+          )
+        }
+
         span.addEvent('fanout_completed', {
-          'fanout.inbox_count': federatedInboxes.length,
+          'fanout.inbox_count': inboxes.length,
           'fanout.failure_count': 0,
           'queue.runs_inline': false
         })
