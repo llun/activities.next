@@ -1,0 +1,20 @@
+lib/jobs/createRelayAnnounceJob.test.ts
+  h_580a04e334fef4 213-308
+lib/jobs/createRelayAnnounceJob.ts
+  h_580a04e334fef4 11,99-101
+lib/jobs/processForwardedActivityJob.test.ts
+  h_580a04e334fef4 390-566
+lib/jobs/processForwardedActivityJob.ts
+  h_580a04e334fef4 10-13,65-68,71-76,147,182-185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "815f6b88f7b64ba3ce18c30b059e842b1f18ed52",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
