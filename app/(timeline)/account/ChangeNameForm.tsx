@@ -2,6 +2,7 @@
 
 import { FC, useState } from 'react'
 
+import { updateAccountName } from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
@@ -23,24 +24,15 @@ export const ChangeNameForm: FC<Props> = ({ currentName }) => {
     setIsLoading(true)
 
     try {
-      const response = await fetch('/api/v1/accounts/name', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ name })
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        setError(data.error || 'Failed to update name')
-        return
-      }
+      await updateAccountName({ name })
 
       setMessage('Name updated successfully!')
-    } catch (_err) {
-      setError('An error occurred. Please try again.')
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'An error occurred. Please try again.'
+      )
     } finally {
       setIsLoading(false)
     }

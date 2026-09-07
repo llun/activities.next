@@ -2,6 +2,7 @@
 
 import { FC, useState } from 'react'
 
+import { requestEmailChange } from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
@@ -24,28 +25,19 @@ export const ChangeEmailForm: FC<Props> = ({ currentEmail: _currentEmail }) => {
     setIsLoading(true)
 
     try {
-      const response = await fetch('/api/v1/accounts/email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ newEmail })
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        setError(data.error || 'Failed to request email change')
-        return
-      }
+      await requestEmailChange({ newEmail })
 
       setMessage(
         'Verification email sent! Please check your inbox and click the verification link.'
       )
       setIsChanging(false)
       setNewEmail('')
-    } catch (_err) {
-      setError('An error occurred. Please try again.')
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'An error occurred. Please try again.'
+      )
     } finally {
       setIsLoading(false)
     }
@@ -100,9 +92,10 @@ export const ChangeEmailForm: FC<Props> = ({ currentEmail: _currentEmail }) => {
           variant="outline"
           onClick={() => {
             setIsChanging(false)
-            setNewEmail('')
             setError('')
+            setNewEmail('')
           }}
+          disabled={isLoading}
         >
           Cancel
         </Button>

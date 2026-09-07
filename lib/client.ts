@@ -5136,3 +5136,59 @@ export const getRemoteFollowUrl = async ({
   }
   return data.url
 }
+
+export const requestEmailChange = async ({
+  newEmail
+}: {
+  newEmail: string
+}): Promise<{ message: string }> => {
+  const response = await fetch('/api/v1/accounts/email', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ newEmail })
+  })
+  if (!response.ok) {
+    await throwApiError(response, 'Failed to request email change')
+  }
+  return response.json()
+}
+
+export const updateAccountName = async ({
+  name
+}: {
+  name: string
+}): Promise<{ success: boolean }> => {
+  const response = await fetch('/api/v1/accounts/name', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ name })
+  })
+  if (!response.ok) {
+    await throwApiError(response, 'Failed to update name')
+  }
+  return response.json()
+}
+
+export const changeAccountPassword = async ({
+  currentPassword,
+  newPassword
+}: {
+  currentPassword: string
+  newPassword: string
+}): Promise<{ success: boolean; message?: string }> => {
+  const response = await fetch('/api/v1/accounts/password', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ currentPassword, newPassword })
+  })
+  if (!response.ok) {
+    await throwApiError(response, 'Failed to change password')
+  }
+  return response.json()
+}
