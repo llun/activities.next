@@ -17,13 +17,10 @@
     // type-clean; NEVER add one — a new or edited test file must pass. When
     // this list is empty, delete this file and point `yarn typecheck` at
 
-    "app/api/v1/fitness/general/regenerate-maps/route.test.ts",
     "app/api/v1/fitness/import/[batchId]/route.test.ts",
     "app/api/v1/fitness/strava/archive/presigned/route.test.ts",
     "app/api/v1/fitness/strava/archive/route.test.ts",
-    "app/api/v1/fitness/strava/route.test.ts",
     "app/api/v1/follow_requests/route.test.ts",
-    "app/api/v1/instance/translation_languages/route.test.ts",
     "app/api/v1/notifications/clear/route.test.ts",
     "app/api/v1/push/subscription/route.test.ts",
     "app/api/v1/statuses/[id]/favourite/route.test.ts",

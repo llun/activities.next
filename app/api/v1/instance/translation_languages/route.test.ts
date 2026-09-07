@@ -11,26 +11,31 @@ vi.mock('@/lib/services/translation', () => ({
 const request = () =>
   new NextRequest('https://llun.test/api/v1/instance/translation_languages')
 
+const routeContext = { params: Promise.resolve({}) }
+
 describe('GET /api/v1/instance/translation_languages', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('returns an empty map when no backend is configured', async () => {
-    ;(getTranslationProvider as jest.Mock).mockReturnValue(null)
+    vi.mocked(getTranslationProvider).mockReturnValue(null)
 
-    const response = await GET(request())
+    const response = await GET(request(), routeContext)
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({})
   })
 
   it('maps every source language to the supported targets', async () => {
-    ;(getTranslationProvider as jest.Mock).mockReturnValue({
+    vi.mocked(getTranslationProvider).mockReturnValue({
+      providerName: 'mock',
+      cacheKey: 'mock',
+      translate: vi.fn(),
       async languages() {
         return { source: ['en', 'de'], target: ['en', 'de', 'fr'] }
       }
     })
 
-    const response = await GET(request())
+    const response = await GET(request(), routeContext)
 
     expect(await response.json()).toEqual({
       en: ['en', 'de', 'fr'],
@@ -39,13 +44,16 @@ describe('GET /api/v1/instance/translation_languages', () => {
   })
 
   it('falls back to an empty map when the backend cannot report languages', async () => {
-    ;(getTranslationProvider as jest.Mock).mockReturnValue({
+    vi.mocked(getTranslationProvider).mockReturnValue({
+      providerName: 'mock',
+      cacheKey: 'mock',
+      translate: vi.fn(),
       async languages() {
         throw new Error('backend down')
       }
     })
 
-    const response = await GET(request())
+    const response = await GET(request(), routeContext)
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({})
