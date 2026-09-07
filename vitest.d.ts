@@ -1,4 +1,9 @@
 /// <reference types="vitest/globals" />
+/// <reference types="jest-extended" />
+/// <reference types="@testing-library/jest-dom" />
+
+import type { TestingLibraryMatchers } from '@testing-library/jest-dom/matchers'
+import 'vitest'
 // Back-compat type aliases so existing `jest.Mock` / `jest.MockedFunction` /
 // `jest.Mocked` annotations keep type-checking under Vitest without touching
 // hundreds of call sites. Runtime `jest.*` calls were codemodded to `vi.*`;
@@ -10,6 +15,15 @@ import type {
   MockedClass as ViMockedClass,
   MockedFunction as ViMockedFunction
 } from 'vitest'
+
+declare module 'vitest' {
+  interface Assertion<R = any, T = any>
+    extends jest.Matchers<R, T>,
+      TestingLibraryMatchers<any, R> {}
+  interface AsymmetricMatchersContaining
+    extends jest.Matchers<any, any>,
+      TestingLibraryMatchers<any, any> {}
+}
 
 declare global {
   // Jest-compatible global assertion helper provided by vitest.setup.ts.

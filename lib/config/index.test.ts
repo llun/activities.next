@@ -1,3 +1,5 @@
+vi.unmock('@/lib/config')
+
 vi.mock('@/lib/utils/logger', () => ({
   logger: {
     error: vi.fn(),
@@ -12,7 +14,6 @@ describe('Config', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
-    vi.unmock('@/lib/config')
     process.env = { ...originalEnv }
     process.chdir(originalCwd)
   })
