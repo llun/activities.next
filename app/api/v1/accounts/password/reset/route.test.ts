@@ -37,7 +37,12 @@ describe('POST /api/v1/accounts/password/reset', () => {
     mockBcryptHash.mockResolvedValue('new-password-hash')
     mockDb.validatePasswordResetCode.mockResolvedValue('account-1')
     mockDb.resetPasswordWithCode.mockResolvedValue({
-      id: 'account-1'
+      id: 'account-1',
+      email: 'test@llun.test',
+      twoFactorEnabled: false,
+      emailVerified: true,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     })
   })
 

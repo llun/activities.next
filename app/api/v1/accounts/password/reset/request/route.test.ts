@@ -2,7 +2,10 @@ import { NextRequest } from 'next/server'
 
 import { Database } from '@/lib/database/types'
 
-import { POST } from './route'
+import { POST as routePost } from './route'
+
+const POST = (req: NextRequest, _context?: unknown) =>
+  routePost(req, { params: Promise.resolve({}) })
 
 const mockSendMail = vi.fn()
 vi.mock('@/lib/services/email', () => ({
@@ -82,6 +85,8 @@ describe('POST /api/v1/accounts/password/reset/request', () => {
       email: 'test@llun.test',
       passwordResetCode: 'existing-reset-code',
       passwordResetCodeExpiresAt: Date.now() + 60_000,
+      twoFactorEnabled: false,
+      emailVerified: true,
       createdAt: Date.now(),
       updatedAt: Date.now()
     })
@@ -114,6 +119,8 @@ describe('POST /api/v1/accounts/password/reset/request', () => {
       email: 'test@llun.test',
       passwordResetCode: 'existing-reset-code',
       passwordResetCodeExpiresAt: previousExpiresAt,
+      twoFactorEnabled: false,
+      emailVerified: true,
       createdAt: Date.now(),
       updatedAt: Date.now()
     })
