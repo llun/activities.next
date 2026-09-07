@@ -361,11 +361,14 @@ describe('publishScheduledStatusJob', () => {
       data: { scheduledStatusId: scheduled.id }
     })
     expect(publishArgs.delaySeconds).toBeGreaterThan(60)
-    // The early re-enqueue uses a distinct dedup id (suffixed `-reenqueue`) so
-    // QStash does not drop it as a duplicate of the original create enqueue.
-    expect(publishArgs.id).toBe(
-      getHashFromString(`${scheduled.id}-${scheduled.scheduledAt}-reenqueue`)
+    // The early re-enqueue uses a distinct dedup id derived from message.id and
+    // scheduledAt so it cannot collide with the job currently executing or the
+    // original enqueue id.
+    const expectedReenqueueId = getHashFromString(
+      `job-early:${scheduled.scheduledAt}:reenqueue`
     )
+    expect(publishArgs.id).toBe(expectedReenqueueId)
+    expect(publishArgs.id).not.toBe('job-early')
     expect(publishArgs.id).not.toBe(
       getHashFromString(`${scheduled.id}-${scheduled.scheduledAt}`)
     )
@@ -375,6 +378,63 @@ describe('publishScheduledStatusJob', () => {
     expect(statuses.some((status) => status.text.includes(text))).toBe(false)
     const row = await database.getScheduledStatusById({ id: scheduled.id })
     expect(row).not.toBeNull()
+  })
+
+  it('produces distinct replacement IDs for repeated early delivery and identical IDs on redelivery', async () => {
+    const text = `Future scheduled note repeated early ${Date.now()}`
+    const scheduled = await database.createScheduledStatus({
+      actorId: actor1.id,
+      scheduledAt: Date.now() + 15 * 60 * 1000,
+      params: baseParams({ text })
+    })
+
+    // First early execution
+    await publishScheduledStatusJob(database, {
+      id: 'job-early-gen1',
+      name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+      data: {
+        scheduledStatusId: scheduled.id,
+        scheduledAt: scheduled.scheduledAt
+      }
+    })
+
+    const gen1Publish = (getQueue().publish as jest.Mock).mock.calls[0][0]
+    const gen1ReplacementId = gen1Publish.id
+    expect(gen1ReplacementId).toBe(
+      getHashFromString(`job-early-gen1:${scheduled.scheduledAt}:reenqueue`)
+    )
+    expect(gen1ReplacementId).not.toBe('job-early-gen1')
+
+    // Parent redelivery: identical message ID produces identical replacement ID
+    await publishScheduledStatusJob(database, {
+      id: 'job-early-gen1',
+      name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+      data: {
+        scheduledStatusId: scheduled.id,
+        scheduledAt: scheduled.scheduledAt
+      }
+    })
+    const redeliveryPublish = (getQueue().publish as jest.Mock).mock.calls[1][0]
+    expect(redeliveryPublish.id).toBe(gen1ReplacementId)
+
+    // Repeated early delivery: the replacement job itself fires prematurely
+    await publishScheduledStatusJob(database, {
+      id: gen1ReplacementId,
+      name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+      data: {
+        scheduledStatusId: scheduled.id,
+        scheduledAt: scheduled.scheduledAt
+      }
+    })
+    const gen2Publish = (getQueue().publish as jest.Mock).mock.calls[2][0]
+    const gen2ReplacementId = gen2Publish.id
+    expect(gen2ReplacementId).toBe(
+      getHashFromString(
+        `${gen1ReplacementId}:${scheduled.scheduledAt}:reenqueue`
+      )
+    )
+    expect(gen2ReplacementId).not.toBe(gen1ReplacementId)
+    expect(gen2ReplacementId).not.toBe('job-early-gen1')
   })
 
   it('drops the scheduled row without publishing when the actor no longer exists', async () => {

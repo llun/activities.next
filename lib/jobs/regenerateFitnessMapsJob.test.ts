@@ -13,6 +13,7 @@ import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 
 vi.mock('@/lib/services/queue', async () => ({
@@ -298,13 +299,68 @@ describe('regenerateFitnessMapsJob', () => {
     expect(oldMedia).toBeNull()
 
     expect(getQueue().publish).toHaveBeenCalledWith({
-      id: expect.any(String),
+      id: getHashFromString(
+        `${statusId}:job-regenerate-success:send-update-note:fitness-map`
+      ),
       name: SEND_UPDATE_NOTE_JOB_NAME,
       data: {
         actorId: actor.id,
         statusId
       }
     })
+  })
+
+  it('derives repeatable child job IDs from parent message.id (identical on redelivery, distinct across generations)', async () => {
+    const { statusId, fitnessFileId } = await setupStatusWithOldMap()
+
+    // Generation 1 execution
+    await regenerateFitnessMapsJob(database, {
+      id: 'job-regen-gen1',
+      name: REGENERATE_FITNESS_MAPS_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        fitnessFileIds: [fitnessFileId]
+      }
+    })
+
+    const gen1Calls = (getQueue().publish as jest.Mock).mock.calls
+    const gen1Call = gen1Calls[gen1Calls.length - 1][0]
+    const expectedGen1Id = getHashFromString(
+      `${statusId}:job-regen-gen1:send-update-note:fitness-map`
+    )
+    expect(gen1Call.id).toBe(expectedGen1Id)
+
+    // Parent redelivery of Generation 1: identical parent message.id produces identical child ID
+    await regenerateFitnessMapsJob(database, {
+      id: 'job-regen-gen1',
+      name: REGENERATE_FITNESS_MAPS_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        fitnessFileIds: [fitnessFileId]
+      }
+    })
+
+    const redeliveryCalls = (getQueue().publish as jest.Mock).mock.calls
+    const redeliveryCall = redeliveryCalls[redeliveryCalls.length - 1][0]
+    expect(redeliveryCall.id).toBe(expectedGen1Id)
+
+    // Generation 2 execution: new parent message.id produces a different child ID
+    await regenerateFitnessMapsJob(database, {
+      id: 'job-regen-gen2',
+      name: REGENERATE_FITNESS_MAPS_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        fitnessFileIds: [fitnessFileId]
+      }
+    })
+
+    const gen2Calls = (getQueue().publish as jest.Mock).mock.calls
+    const gen2Call = gen2Calls[gen2Calls.length - 1][0]
+    const expectedGen2Id = getHashFromString(
+      `${statusId}:job-regen-gen2:send-update-note:fitness-map`
+    )
+    expect(gen2Call.id).toBe(expectedGen2Id)
+    expect(gen2Call.id).not.toBe(expectedGen1Id)
   })
 
   // Every branch records the reason in `mapError` and leaves the file
