@@ -10,6 +10,7 @@ import {
   deleteActor,
   follow,
   getActorDomains,
+  getActorStatuses,
   getBlocks,
   getFollowStatus,
   getRelationship,
@@ -697,6 +698,50 @@ describe('client accounts module', () => {
       fetchMock.mockResponse('', { status: 404 })
       const res = await unmute({ targetActorId: 'actor-1' })
       expect(res).toBeNull()
+    })
+  })
+
+  describe('getActorStatuses', () => {
+    beforeEach(() => {
+      Object.defineProperty(globalThis, 'window', {
+        configurable: true,
+        value: { origin: 'https://local.example' }
+      })
+    })
+
+    afterEach(() => {
+      Reflect.deleteProperty(globalThis, 'window')
+    })
+
+    it('fetches actor statuses with pageUrl if provided', async () => {
+      const mockResult = {
+        statuses: [],
+        statusesCount: 0,
+        nextPageUrl: null,
+        prevPageUrl: null
+      }
+      fetchMock.mockResponse(JSON.stringify(mockResult), { status: 200 })
+
+      const res = await getActorStatuses({
+        actorId: 'actor-123',
+        pageUrl: 'https://local.example/next'
+      })
+      expect(res).toEqual(mockResult)
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://local.example/api/v1/accounts/actor-123/remote-statuses?page_url=https%3A%2F%2Flocal.example%2Fnext',
+        expect.objectContaining({
+          method: 'GET',
+          headers: { Accept: 'application/json' }
+        })
+      )
+    })
+
+    it('throws when status is not 200', async () => {
+      fetchMock.mockResponse('', { status: 500 })
+
+      await expect(getActorStatuses({ actorId: 'actor-123' })).rejects.toThrow(
+        'Failed to load actor statuses: 500'
+      )
     })
   })
 })
