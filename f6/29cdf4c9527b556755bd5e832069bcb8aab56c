@@ -1,0 +1,30 @@
+.oxlintrc.json
+  h_580a04e334fef4 241
+lib/client.test.ts
+  h_580a04e334fef4 20-21,43,1771-1975
+lib/client.ts
+  h_580a04e334fef4 944-1033
+lib/components/settings/ActorsSection.test.tsx
+  h_580a04e334fef4 7,24,351-421
+lib/components/settings/ActorsSection.tsx
+  h_580a04e334fef4 7,94-96,98
+lib/components/settings/DeleteActorDialog.test.tsx
+  h_580a04e334fef4 1-144
+lib/components/settings/DeleteActorDialog.tsx
+  h_580a04e334fef4 7,47-49,54-59
+lib/components/settings/MediaManagement.test.tsx
+  h_580a04e334fef4 5-7,18-21,174-226
+lib/components/settings/MediaManagement.tsx
+  h_580a04e334fef4 7,84,86-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "f629cdf4c9527b556755bd5e832069bcb8aab56c",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
