@@ -264,12 +264,53 @@ describe('verifyQuoteAuthorizationStamp', () => {
     await expect(check()).resolves.toBe('verified')
   })
 
-  it('refuses a stamp uri outside the quoted author authority without fetching', async () => {
-    const request = await mockStamp({ statusCode: 200, body: validStampBody() })
+  it.each([
+    {
+      description: 'cross-host URL',
+      stampUri: 'https://evil.example/quote_authorizations/1'
+    },
+    { description: 'malformed URI', stampUri: 'not-a-valid-uri' },
+    { description: 'hostless URI', stampUri: 'urn:uuid:stamp-1' },
+    {
+      description: 'port mismatch',
+      stampUri: 'https://llun.test:8080/users/target/quote_authorizations/1'
+    }
+  ])(
+    'refuses a stamp uri with invalid or mismatched origin ($description) without fetching',
+    async ({ stampUri }) => {
+      const request = await mockStamp({
+        statusCode: 200,
+        body: validStampBody()
+      })
+      await expect(check({ stampUri })).resolves.toBe('mismatch')
+      expect(request).not.toHaveBeenCalled()
+    }
+  )
+
+  it('accepts a stamp uri matching quoted author with explicit port', async () => {
+    const authorWithPort = 'https://llun.test:8080/users/target'
+    const stampWithPort =
+      'https://llun.test:8080/users/target/quote_authorizations/1'
+    await mockStamp({
+      statusCode: 200,
+      body: JSON.stringify({
+        id: stampWithPort,
+        type: 'QuoteAuthorization',
+        attributedTo: authorWithPort,
+        interactingObject: QUOTING_NOTE_ID,
+        interactionTarget: QUOTED_STATUS_ID
+      })
+    })
+
     await expect(
-      check({ stampUri: 'https://evil.example/quote_authorizations/1' })
-    ).resolves.toBe('mismatch')
-    expect(request).not.toHaveBeenCalled()
+      verifyQuoteAuthorizationStamp({
+        database,
+        stampUri: stampWithPort,
+        quotedAuthorId: authorWithPort,
+        quotingStatusId: QUOTING_NOTE_ID,
+        quotedStatusId: QUOTED_STATUS_ID
+      })
+    ).resolves.toBe('verified')
   })
 
   it.each([

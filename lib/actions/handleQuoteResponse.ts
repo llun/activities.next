@@ -3,7 +3,10 @@ import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
 import { verifyQuoteAuthorizationStamp } from '@/lib/services/quotes/verifyRemoteQuote'
 import { getOriginalStatus } from '@/lib/types/domain/status'
-import { normalizeActorId } from '@/lib/utils/activitypub'
+import {
+  isSameActivityPubOrigin,
+  normalizeActorId
+} from '@/lib/utils/activitypub'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 
@@ -27,15 +30,6 @@ const refId = (value: unknown): string | null => {
     return (value as { id: string }).id
   }
   return null
-}
-
-// Two ids share authority when served from the same host.
-const sameHost = (a: string, b: string): boolean => {
-  try {
-    return new URL(a).host === new URL(b).host
-  } catch {
-    return false
-  }
 }
 
 /**
@@ -119,16 +113,15 @@ export const handleQuoteResponse = async ({
     // leave every receiver rendering an approved quote as unapproved — the
     // exact failure this whole change exists to fix. That trade is only safe
     // because a planted uri can no longer swallow an unrelated Delete.
-    const stampCheck =
-      stampUri && sameHost(stampUri, edge.quotedStatusId)
-        ? await verifyQuoteAuthorizationStamp({
-            database,
-            stampUri,
-            quotedAuthorId,
-            quotingStatusId: edge.statusId,
-            quotedStatusId: edge.quotedStatusId
-          })
-        : 'mismatch'
+    const stampCheck = isSameActivityPubOrigin(stampUri, edge.quotedStatusId)
+      ? await verifyQuoteAuthorizationStamp({
+          database,
+          stampUri: stampUri!,
+          quotedAuthorId,
+          quotingStatusId: edge.statusId,
+          quotedStatusId: edge.quotedStatusId
+        })
+      : 'mismatch'
     const authorizationUri =
       stampUri && stampCheck !== 'mismatch' ? stampUri : undefined
     if (stampCheck === 'unavailable') {

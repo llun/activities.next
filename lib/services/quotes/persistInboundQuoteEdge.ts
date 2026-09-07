@@ -4,6 +4,7 @@ import { Database } from '@/lib/database/types'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { verifyRemoteQuote } from '@/lib/services/quotes/verifyRemoteQuote'
 import { Status } from '@/lib/types/domain/status'
+import { isSameActivityPubOrigin } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
@@ -34,15 +35,6 @@ type PersistInboundQuoteEdgeParams = {
   quotedStatus: Status | null
   // The quoted status id the caller resolved from the note.
   quotedStatusId: string
-}
-
-// Two ids share authority when served from the same host.
-const sameHost = (a: string, b: string): boolean => {
-  try {
-    return new URL(a).host === new URL(b).host
-  } catch {
-    return false
-  }
 }
 
 /**
@@ -149,7 +141,7 @@ export const persistInboundQuoteEdge = async ({
   const authorizationUri =
     state === 'accepted' &&
     note.quoteAuthorization &&
-    sameHost(note.quoteAuthorization, quotedStatusId)
+    isSameActivityPubOrigin(note.quoteAuthorization, quotedStatusId)
       ? note.quoteAuthorization
       : undefined
 

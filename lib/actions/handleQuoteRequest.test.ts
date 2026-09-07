@@ -190,18 +190,59 @@ describe('handleQuoteRequest', () => {
     )
   })
 
-  it('returns false when a bare-id instrument is hosted on a foreign authority', async () => {
-    const createSpy = vi.fn()
-    const database = makeDatabase({ createSpy })
+  it.each([
+    {
+      description: 'cross-host URL',
+      instrument: 'https://evil.example/users/mallory/statuses/1'
+    },
+    { description: 'malformed URI', instrument: 'not-a-valid-uri' },
+    { description: 'hostless URI', instrument: 'urn:uuid:instrument-1' },
+    {
+      description: 'port mismatch',
+      instrument: 'https://remote.example:8443/users/quoter/statuses/9'
+    }
+  ])(
+    'returns false when instrument has invalid or mismatched origin ($description)',
+    async ({ instrument }) => {
+      const createSpy = vi.fn()
+      const database = makeDatabase({ createSpy })
+      const handled = await handleQuoteRequest({
+        database,
+        activity: activity({ instrument }),
+        inboxActor
+      })
+      expect(handled).toBe(false)
+      expect(createSpy).not.toHaveBeenCalled()
+    }
+  )
+
+  it('accepts an instrument matching requester with explicit port', async () => {
+    const quoterWithPort = 'https://remote.example:8443/users/quoter'
+    const instrumentWithPort =
+      'https://remote.example:8443/users/quoter/statuses/9'
+    const createSpy = vi.fn().mockResolvedValue({})
+    const database = {
+      ...makeDatabase({ createSpy }),
+      getActorFromId: vi.fn().mockResolvedValue({ id: quoterWithPort })
+    } as unknown as Database
+
     const handled = await handleQuoteRequest({
       database,
       activity: activity({
-        instrument: 'https://evil.example/users/mallory/statuses/1'
+        actor: quoterWithPort,
+        instrument: instrumentWithPort,
+        id: `${instrumentWithPort}/quote-request`
       }),
       inboxActor
     })
-    expect(handled).toBe(false)
-    expect(createSpy).not.toHaveBeenCalled()
+
+    expect(handled).toBe(true)
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusId: instrumentWithPort,
+        state: 'accepted'
+      })
+    )
   })
 
   it('returns false when the instrument is on our own host (never inbound)', async () => {
