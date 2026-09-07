@@ -1,0 +1,16 @@
+lib/components/posts/attachments.test.tsx
+  h_580a04e334fef4 296-308,312-313,315-335,337-355,374-376,396,400-423,609-613,652-654,699,704,724,726-732,735,779,1415,1453
+lib/components/posts/attachments.tsx
+  h_580a04e334fef4 177-209,216,319-320,323-336,468-472
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "848cbdcf722f0f9f18f9e7f5d776c0031dbf6dbf",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
