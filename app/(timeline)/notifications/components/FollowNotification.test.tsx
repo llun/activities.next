@@ -12,31 +12,45 @@ import { FollowNotification } from './FollowNotification'
 // `@/lib/client` is deliberately NOT mocked: the regression this covers lives
 // in the client helper's id handling, not in the component. Stubbing fetch
 // instead lets the assertion read the request the button actually sends.
-const buildAccount = (id: string): Mastodon.Account =>
-  ({
-    id,
-    username: 'ride',
-    acct: 'ride@llun.social',
-    uri: 'https://llun.social/users/ride',
-    url: 'https://llun.social/users/ride',
-    display_name: 'Ride',
+const buildAccount = (id: string): Mastodon.Account => ({
+  id,
+  username: 'ride',
+  acct: 'ride@llun.social',
+  uri: 'https://llun.social/users/ride',
+  url: 'https://llun.social/users/ride',
+  display_name: 'Ride',
+  note: '',
+  avatar: '',
+  avatar_static: '',
+  header: '',
+  header_static: '',
+  avatar_description: '',
+  header_description: '',
+  locked: false,
+  fields: [],
+  emojis: [],
+  bot: false,
+  group: false,
+  discoverable: true,
+  indexable: true,
+  hide_collections: false,
+  noindex: false,
+  roles: [],
+  source: {
     note: '',
-    avatar: '',
-    avatar_static: '',
-    header: '',
-    header_static: '',
-    locked: false,
     fields: [],
-    emojis: [],
-    bot: false,
-    group: false,
-    discoverable: true,
-    created_at: '2026-01-01T00:00:00.000Z',
-    last_status_at: '2026-05-10',
-    statuses_count: 1,
-    followers_count: 0,
-    following_count: 0
-  }) as Mastodon.Account
+    privacy: 'public',
+    sensitive: false,
+    language: 'en',
+    attribution_domains: [],
+    follow_requests_count: 0
+  },
+  created_at: '2026-01-01T00:00:00.000Z',
+  last_status_at: '2026-05-10',
+  statuses_count: 1,
+  followers_count: 0,
+  following_count: 0
+})
 
 describe('FollowNotification', () => {
   const fetchMock = vi.fn()
