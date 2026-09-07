@@ -2,7 +2,6 @@ import { NextRequest } from 'next/server'
 
 import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
-import { isAccountConfirmationPending } from '@/lib/services/auth/canCreateSessionForAccount'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { Scope } from '@/lib/types/database/operations'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -11,9 +10,10 @@ import { HttpMethod } from '@/lib/utils/http-headers'
 import { HTTP_STATUS, apiResponse } from '@/lib/utils/response'
 
 import {
+  isAccountConfirmationPending,
   isActorConfirmationPending,
   isActorModerationBlocked
-} from './OAuthGuard'
+} from './accountState'
 import { hasSameOriginProof } from './sameOriginProof'
 import { AppRouterParams } from './types'
 

@@ -2,7 +2,7 @@ import { getConfig } from '@/lib/config'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { Database } from '@/lib/database/types'
 import { DEFAULT_ROLE } from '@/lib/services/accounts/credentialAccount'
-import { isAccountConfirmationPending } from '@/lib/services/auth/canCreateSessionForAccount'
+import { isAccountConfirmationPending } from '@/lib/services/guards/accountState'
 import { Mastodon } from '@/lib/types/activitypub'
 import {
   AdminAccountIp,
