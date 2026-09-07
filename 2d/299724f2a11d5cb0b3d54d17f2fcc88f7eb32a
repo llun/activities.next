@@ -1,0 +1,18 @@
+app/api/v1/fitness/general/regenerate-maps/route.test.ts
+  h_580a04e334fef4 72,75-82,85-97
+app/api/v1/fitness/strava/route.test.ts
+  h_580a04e334fef4 5,55-65,95,98-105,107-125,152-157,181-187,239-244,357-362
+app/api/v1/instance/translation_languages/route.test.ts
+  h_580a04e334fef4 14-15,20,22,29-32,38,47-50,56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "2d299724f2a11d5cb0b3d54d17f2fcc88f7eb32a",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
