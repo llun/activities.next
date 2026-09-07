@@ -1,10 +1,15 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import {
+  acceptFollowRequest,
+  createActor,
   createReport,
   follow,
+  getActorDomains,
   getFollowStatus,
   isFollowing,
+  rejectFollowRequest,
+  switchActor,
   unfollow
 } from './accounts'
 
@@ -166,6 +171,168 @@ describe('client accounts module', () => {
 
       const res = await unfollow({ targetActorId: 'actor-123' })
       expect(res).toBe(false)
+    })
+  })
+
+  describe('acceptFollowRequest', () => {
+    it('calls authorize endpoint and returns true on success', async () => {
+      fetchMock.mockResponse('', { status: 200 })
+
+      const res = await acceptFollowRequest({ id: 'req-123' })
+      expect(res).toBe(true)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/follow_requests/req-123/authorize',
+        expect.objectContaining({ method: 'POST' })
+      )
+    })
+
+    it('returns false when response is not ok', async () => {
+      fetchMock.mockResponse('', { status: 404 })
+
+      const res = await acceptFollowRequest({ id: 'req-123' })
+      expect(res).toBe(false)
+    })
+  })
+
+  describe('rejectFollowRequest', () => {
+    it('calls reject endpoint and returns true on success', async () => {
+      fetchMock.mockResponse('', { status: 200 })
+
+      const res = await rejectFollowRequest({ id: 'req-123' })
+      expect(res).toBe(true)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/follow_requests/req-123/reject',
+        expect.objectContaining({ method: 'POST' })
+      )
+    })
+
+    it('returns false when response is not ok', async () => {
+      fetchMock.mockResponse('', { status: 404 })
+
+      const res = await rejectFollowRequest({ id: 'req-123' })
+      expect(res).toBe(false)
+    })
+  })
+
+  describe('switchActor', () => {
+    it('calls switch endpoint with actorId and returns true on success', async () => {
+      fetchMock.mockResponse('', { status: 200 })
+
+      const res = await switchActor({ actorId: 'actor-456' })
+      expect(res).toBe(true)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/actors/switch',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ actorId: 'actor-456' })
+        })
+      )
+    })
+
+    it('returns false when switch fails', async () => {
+      fetchMock.mockResponse('', { status: 400 })
+
+      const res = await switchActor({ actorId: 'actor-456' })
+      expect(res).toBe(false)
+    })
+  })
+
+  describe('getActorDomains', () => {
+    it('fetches actor domains successfully', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({
+          domains: ['example.com', 'test.org'],
+          host: 'example.com'
+        }),
+        { status: 200 }
+      )
+
+      const res = await getActorDomains()
+      expect(res).toEqual({
+        domains: ['example.com', 'test.org'],
+        host: 'example.com'
+      })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/actors/domains',
+        expect.objectContaining({
+          method: 'GET',
+          headers: { Accept: 'application/json' }
+        })
+      )
+    })
+
+    it('handles missing domains or host gracefully in response', async () => {
+      fetchMock.mockResponse(JSON.stringify({}), { status: 200 })
+
+      const res = await getActorDomains()
+      expect(res).toEqual({
+        domains: [],
+        host: ''
+      })
+    })
+
+    it('throws error when fetch fails', async () => {
+      fetchMock.mockResponse(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401
+      })
+
+      await expect(getActorDomains()).rejects.toThrow('Unauthorized')
+
+      fetchMock.mockResponse(JSON.stringify({}), {
+        status: 500
+      })
+
+      await expect(getActorDomains()).rejects.toThrow(
+        'Failed to fetch actor domains'
+      )
+    })
+  })
+
+  describe('createActor', () => {
+    it('creates actor and returns result on success', async () => {
+      const mockResult = {
+        id: 'actor-new',
+        username: 'alice',
+        domain: 'example.com'
+      }
+      fetchMock.mockResponse(JSON.stringify(mockResult), { status: 200 })
+
+      const res = await createActor({
+        username: 'alice',
+        domain: 'example.com'
+      })
+      expect(res).toEqual(mockResult)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/actors',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: 'alice',
+            domain: 'example.com'
+          })
+        })
+      )
+    })
+
+    it('throws error when actor creation fails', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({ error: 'Username already exists' }),
+        { status: 422 }
+      )
+
+      await expect(
+        createActor({ username: 'alice', domain: 'example.com' })
+      ).rejects.toThrow('Username already exists')
+
+      fetchMock.mockResponse(JSON.stringify({}), {
+        status: 500
+      })
+
+      await expect(
+        createActor({ username: 'alice', domain: 'example.com' })
+      ).rejects.toThrow('Failed to create actor')
     })
   })
 })
