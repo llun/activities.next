@@ -2,6 +2,7 @@
 
 import { FC, useState } from 'react'
 
+import { changeAccountPassword } from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
@@ -32,27 +33,18 @@ export const ChangePasswordForm: FC = () => {
     setIsLoading(true)
 
     try {
-      const response = await fetch('/api/v1/accounts/password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ currentPassword, newPassword })
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        setError(data.error || 'Failed to change password')
-        return
-      }
+      await changeAccountPassword({ currentPassword, newPassword })
 
       setMessage('Password changed successfully!')
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
-    } catch (_err) {
-      setError('An error occurred. Please try again.')
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'An error occurred. Please try again.'
+      )
     } finally {
       setIsLoading(false)
     }
@@ -98,6 +90,7 @@ export const ChangePasswordForm: FC = () => {
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
           required
+          minLength={8}
         />
       </div>
 
@@ -105,7 +98,7 @@ export const ChangePasswordForm: FC = () => {
       {message && <p className="text-sm text-green-600">{message}</p>}
 
       <Button type="submit" disabled={isLoading}>
-        {isLoading ? 'Changing...' : 'Change Password'}
+        {isLoading ? 'Changing Password...' : 'Change Password'}
       </Button>
     </form>
   )

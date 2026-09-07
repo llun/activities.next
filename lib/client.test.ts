@@ -11,6 +11,7 @@ import {
   bookmarkStatus,
   cancelActorDeletion,
   cancelFitnessRouteHeatmap,
+  changeAccountPassword,
   clearFitnessRouteHeatmaps,
   createActor,
   createCollection,
@@ -38,6 +39,7 @@ import {
   getTrendingTags,
   likeStatus,
   removeCollectionAccounts,
+  requestEmailChange,
   revokeCollectionMembership,
   search,
   setDefaultActor,
@@ -46,6 +48,7 @@ import {
   triggerFitnessRouteHeatmap,
   undoBookmarkStatus,
   unfollow,
+  updateAccountName,
   updateCollection,
   updateNote,
   uploadAttachment
@@ -1971,6 +1974,169 @@ describe('client actor management helpers', () => {
       await expect(deleteAccountMedia({ mediaId: 'media-1' })).rejects.toThrow(
         'Network error'
       )
+    })
+  })
+
+  describe('requestEmailChange', () => {
+    it('requests email change with newEmail payload', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({ message: 'Verification email sent' }),
+        { status: 200 }
+      )
+
+      const result = await requestEmailChange({ newEmail: 'new@example.com' })
+
+      expect(result).toEqual({ message: 'Verification email sent' })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/accounts/email',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ newEmail: 'new@example.com' })
+        })
+      )
+    })
+
+    it('decodes API error message on failure', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({ error: 'Email already in use' }),
+        { status: 400 }
+      )
+
+      await expect(
+        requestEmailChange({ newEmail: 'used@example.com' })
+      ).rejects.toThrow('Email already in use')
+    })
+
+    it('falls back to default error message on non-JSON failure', async () => {
+      fetchMock.mockResponseOnce('Internal Server Error', { status: 500 })
+
+      await expect(
+        requestEmailChange({ newEmail: 'fail@example.com' })
+      ).rejects.toThrow('Failed to request email change')
+    })
+
+    it('propagates network failure', async () => {
+      fetchMock.mockRejectOnce(new Error('Network failed'))
+
+      await expect(
+        requestEmailChange({ newEmail: 'net@example.com' })
+      ).rejects.toThrow('Network failed')
+    })
+  })
+
+  describe('updateAccountName', () => {
+    it('updates account name with name payload', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ success: true }), {
+        status: 200
+      })
+
+      const result = await updateAccountName({ name: 'Alice Wonderland' })
+
+      expect(result).toEqual({ success: true })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/accounts/name',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'Alice Wonderland' })
+        })
+      )
+    })
+
+    it('decodes API error message on validation failure', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ error: 'Invalid name' }), {
+        status: 422
+      })
+
+      await expect(
+        updateAccountName({ name: 'x'.repeat(300) })
+      ).rejects.toThrow('Invalid name')
+    })
+
+    it('falls back to default error message on failure', async () => {
+      fetchMock.mockResponseOnce('', { status: 500 })
+
+      await expect(updateAccountName({ name: 'Bob' })).rejects.toThrow(
+        'Failed to update name'
+      )
+    })
+
+    it('propagates network failure', async () => {
+      fetchMock.mockRejectOnce(new Error('Connection reset'))
+
+      await expect(updateAccountName({ name: 'Bob' })).rejects.toThrow(
+        'Connection reset'
+      )
+    })
+  })
+
+  describe('changeAccountPassword', () => {
+    it('changes password with current and new password payload', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          success: true,
+          message: 'Password changed successfully'
+        }),
+        { status: 200 }
+      )
+
+      const result = await changeAccountPassword({
+        currentPassword: 'old-password',
+        newPassword: 'new-password'
+      })
+
+      expect(result).toEqual({
+        success: true,
+        message: 'Password changed successfully'
+      })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/accounts/password',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            currentPassword: 'old-password',
+            newPassword: 'new-password'
+          })
+        })
+      )
+    })
+
+    it('decodes API error when current password is incorrect', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({ error: 'Current password is incorrect' }),
+        { status: 400 }
+      )
+
+      await expect(
+        changeAccountPassword({
+          currentPassword: 'wrong-password',
+          newPassword: 'new-password'
+        })
+      ).rejects.toThrow('Current password is incorrect')
+    })
+
+    it('falls back to default error on non-JSON failure', async () => {
+      fetchMock.mockResponseOnce('Bad Gateway', { status: 502 })
+
+      await expect(
+        changeAccountPassword({
+          currentPassword: 'old-password',
+          newPassword: 'new-password'
+        })
+      ).rejects.toThrow('Failed to change password')
+    })
+
+    it('propagates network failure', async () => {
+      fetchMock.mockRejectOnce(new Error('Network timeout'))
+
+      await expect(
+        changeAccountPassword({
+          currentPassword: 'old-password',
+          newPassword: 'new-password'
+        })
+      ).rejects.toThrow('Network timeout')
     })
   })
 })
