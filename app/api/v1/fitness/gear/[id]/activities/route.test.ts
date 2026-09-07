@@ -84,20 +84,37 @@ describe('Fitness gear activities API', () => {
     mockDatabase = mockDb
   })
 
+  const mockAccount = {
+    id: 'account-1',
+    email: seedActor1.email,
+    defaultActorId: ACTOR1_ID,
+    twoFactorEnabled: false,
+    emailVerified: true,
+    createdAt: 1000,
+    updatedAt: 1000
+  }
+
+  const mockActor = {
+    ...seedActor1,
+    id: ACTOR1_ID,
+    followersUrl: `${ACTOR1_ID}/followers`,
+    inboxUrl: `${ACTOR1_ID}/inbox`,
+    sharedInboxUrl: 'https://llun.test/inbox',
+    statusCount: 0,
+    lastStatusAt: null,
+    createdAt: 1000,
+    updatedAt: 1000,
+    account: mockAccount
+  }
+
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
-    mockDb.getAccountFromEmail.mockResolvedValue({
-      id: 'account-1',
-      email: seedActor1.email,
-      defaultActorId: ACTOR1_ID
-    })
-    mockDb.getActorsForAccount.mockResolvedValue([
-      { ...seedActor1, id: ACTOR1_ID }
-    ])
-    mockDb.getActorFromId.mockResolvedValue({ ...seedActor1, id: ACTOR1_ID })
+    mockDb.getAccountFromEmail.mockResolvedValue(mockAccount)
+    mockDb.getActorsForAccount.mockResolvedValue([mockActor])
+    mockDb.getActorFromId.mockResolvedValue(mockActor)
     mockDb.getFitnessGear.mockResolvedValue(gear())
     mockDb.getFitnessGearActivities.mockResolvedValue([])
     mockDb.getStatusesByIds.mockResolvedValue([])
