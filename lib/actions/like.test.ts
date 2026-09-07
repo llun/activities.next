@@ -110,5 +110,26 @@ describe('Like action', () => {
         )
       ).toBe(false)
     })
+
+    it('records actor if needed when processing like request', async () => {
+      const recordActorSpy = vi.spyOn(
+        await import('@/lib/actions/utils'),
+        'recordActorIfNeeded'
+      )
+      await likeRequest({
+        activity: {
+          actor: ACTOR2_ID,
+          id: `${ACTOR2_ID}/like-post-record-actor`,
+          type: 'Like',
+          object: `${ACTOR1_ID}/statuses/post-1`
+        },
+        database
+      })
+      expect(recordActorSpy).toHaveBeenCalledWith({
+        actorId: ACTOR2_ID,
+        database
+      })
+      recordActorSpy.mockRestore()
+    })
   })
 })

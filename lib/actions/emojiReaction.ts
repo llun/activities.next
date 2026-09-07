@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
@@ -13,6 +14,7 @@ import {
 import { EmojiReact, Like } from '@/lib/types/activitypub'
 import { NotificationType } from '@/lib/types/database/operations'
 import { logger } from '@/lib/utils/logger'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 // A reaction-bearing activity is either a litepub `EmojiReact` (Pleroma/Akkoma,
 // FEP-c0e0) or a Misskey-style `Like` carrying the emoji. Both are handled
@@ -220,6 +222,19 @@ export const emojiReactionRequest = async ({
   // hold, or an actor past the per-status cap. Notifying anyway would let a
   // sender replay one activity into unbounded notifications.
   if (!stored) return
+
+  try {
+    await recordActorIfNeeded({
+      actorId: activity.actor,
+      database
+    })
+  } catch (error) {
+    logger.warn({
+      message: 'Failed to record actor for emoji reaction request',
+      actorId: activity.actor,
+      err: toLoggableError(error)
+    })
+  }
 
   const status = await database.getStatus({ statusId, withReplies: false })
   if (!status) return
