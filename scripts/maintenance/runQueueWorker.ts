@@ -27,14 +27,39 @@ async function runQueueWorker() {
     pollIntervalMs
   })
 
-  const shutdown = () => {
-    console.log('Shutting down queue worker gracefully...')
-    runner.stop()
-    process.exit(0)
+  let isShuttingDown = false
+  const shutdown = async (signal: string) => {
+    if (isShuttingDown) {
+      console.log(`Received ${signal} again, forcing immediate exit...`)
+      process.exit(1)
+    }
+    isShuttingDown = true
+    console.log(`Received ${signal}. Shutting down queue worker gracefully...`)
+
+    const forceExitTimer = setTimeout(() => {
+      console.error('Graceful shutdown timed out after 30s. Forcing exit.')
+      process.exit(1)
+    }, 30000)
+    forceExitTimer.unref()
+
+    try {
+      await runner.stop()
+      console.log('Queue worker drained and stopped successfully.')
+      clearTimeout(forceExitTimer)
+      process.exit(0)
+    } catch (error) {
+      console.error('Error while stopping queue worker:', error)
+      clearTimeout(forceExitTimer)
+      process.exit(1)
+    }
   }
 
-  process.on('SIGINT', shutdown)
-  process.on('SIGTERM', shutdown)
+  process.on('SIGINT', () => {
+    void shutdown('SIGINT')
+  })
+  process.on('SIGTERM', () => {
+    void shutdown('SIGTERM')
+  })
 }
 
 runQueueWorker().catch((error) => {

@@ -15,6 +15,8 @@ export interface ProcessDueQueueJobsOptions {
   handleJob?: (message: JobMessage) => Promise<void>
   backoffOptions?: BackoffOptions
   stalledTimeoutMs?: number
+  signal?: AbortSignal
+  shouldStop?: () => boolean
 }
 
 export interface QueueRunnerOptions extends ProcessDueQueueJobsOptions {
@@ -47,6 +49,10 @@ export const processDueQueueJobs = async (
   let processedCount = 0
 
   for (const job of dueJobs) {
+    if (options.shouldStop?.() || options.signal?.aborted) {
+      break
+    }
+
     const claimedJob = await database.claimQueueJob({
       id: job.id,
       now,
@@ -205,7 +211,7 @@ export const processDueQueueJobs = async (
 }
 
 export interface DatabaseQueueRunnerHandle {
-  stop: () => void
+  stop: (timeoutMs?: number) => Promise<void>
 }
 
 export const startDatabaseQueueRunner = (
@@ -222,6 +228,7 @@ export const startDatabaseQueueRunner = (
 
   let running = true
   let timeoutId: NodeJS.Timeout | null = null
+  let activeTickPromise: Promise<void> | null = null
 
   const tick = async () => {
     if (!running) return
@@ -231,30 +238,52 @@ export const startDatabaseQueueRunner = (
         limit: batchSize,
         handleJob,
         backoffOptions,
-        stalledTimeoutMs
+        stalledTimeoutMs,
+        shouldStop: () => !running
       })
       // If we processed a batch that filled the limit, tick sooner to drain backlog
       const nextDelay = processed >= batchSize ? 50 : pollIntervalMs
       if (running) {
-        timeoutId = setTimeout(tick, nextDelay)
+        scheduleTick(nextDelay)
       }
     } catch (error) {
       const err = toLoggableError(error)
       logger.error({ err }, 'Unexpected error in database queue runner loop')
       if (running) {
-        timeoutId = setTimeout(tick, pollIntervalMs)
+        scheduleTick(pollIntervalMs)
       }
+    } finally {
+      activeTickPromise = null
     }
   }
 
-  timeoutId = setTimeout(tick, 0)
+  const scheduleTick = (delay: number) => {
+    if (!running) return
+    timeoutId = setTimeout(() => {
+      timeoutId = null
+      if (!running) return
+      activeTickPromise = tick()
+    }, delay)
+  }
+
+  scheduleTick(0)
 
   return {
-    stop: () => {
+    stop: async (timeoutMs?: number): Promise<void> => {
       running = false
       if (timeoutId) {
         clearTimeout(timeoutId)
         timeoutId = null
+      }
+      if (activeTickPromise) {
+        if (typeof timeoutMs === 'number' && timeoutMs > 0) {
+          await Promise.race([
+            activeTickPromise,
+            new Promise((resolve) => setTimeout(resolve, timeoutMs))
+          ])
+        } else {
+          await activeTickPromise
+        }
       }
     }
   }

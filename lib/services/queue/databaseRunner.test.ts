@@ -28,6 +28,11 @@ describe('databaseRunner', () => {
     await database.destroy()
   })
 
+  afterEach(async () => {
+    await knexDatabase('queue_jobs').delete()
+    await knexDatabase('dead_letter_jobs').delete()
+  })
+
   const sampleMessage: JobMessage = {
     id: 'test-runner-msg-1',
     name: 'deliverActivity',
@@ -325,11 +330,126 @@ describe('databaseRunner', () => {
 
     // Let it tick once
     await new Promise((resolve) => setTimeout(resolve, 60))
-    runner.stop()
+    await runner.stop()
 
     const countAfterStop = callCount
     await new Promise((resolve) => setTimeout(resolve, 100))
     expect(callCount).toBe(countAfterStop)
+  })
+
+  it('awaits currently running job and avoids claiming subsequent jobs on shutdown drain', async () => {
+    await database.createQueueJob({
+      id: 'job-drain-1',
+      name: 'deliverActivity',
+      payload: { ...sampleMessage, id: 'drain-msg-1' },
+      nextRunAt: new Date(Date.now() - 1000)
+    })
+    await database.createQueueJob({
+      id: 'job-drain-2',
+      name: 'deliverActivity',
+      payload: { ...sampleMessage, id: 'drain-msg-2' },
+      nextRunAt: new Date(Date.now() - 1000)
+    })
+
+    let job1Started = false
+    let resolveJob1: () => void = () => {}
+    const job1Promise = new Promise<void>((resolve) => {
+      resolveJob1 = resolve
+    })
+    const executed: string[] = []
+
+    const handleJob = async (message: JobMessage) => {
+      executed.push(message.id)
+      if (message.id === 'drain-msg-1') {
+        job1Started = true
+        await job1Promise
+      }
+    }
+
+    const runner = startDatabaseQueueRunner(database, {
+      pollIntervalMs: 100,
+      batchSize: 5,
+      handleJob
+    })
+
+    // Wait until job 1 has started executing
+    while (!job1Started) {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+
+    // Initiate stop while job 1 is in-flight
+    let stopResolved = false
+    const stopPromise = runner.stop().then(() => {
+      stopResolved = true
+    })
+
+    // Brief delay to ensure stop() didn't immediately resolve
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(stopResolved).toBe(false)
+
+    // Complete job 1
+    resolveJob1()
+    await stopPromise
+    expect(stopResolved).toBe(true)
+
+    // Job 1 should be completed
+    const job1 = await database.getQueueJobById('job-drain-1')
+    expect(job1?.status).toBe('completed')
+
+    // Job 2 should never have been claimed
+    const job2 = await database.getQueueJobById('job-drain-2')
+    expect(job2?.status).toBe('pending')
+    expect(executed).toEqual(['drain-msg-1'])
+  })
+
+  it('respects timeoutMs when draining if in-flight job takes too long', async () => {
+    await database.createQueueJob({
+      id: 'job-timeout-drain-1',
+      name: 'deliverActivity',
+      payload: { ...sampleMessage, id: 'timeout-msg-1' },
+      nextRunAt: new Date(Date.now() - 1000)
+    })
+
+    let jobStarted = false
+    let resolveJob: () => void = () => {}
+    const jobPromise = new Promise<void>((resolve) => {
+      resolveJob = resolve
+    })
+
+    const handleJob = async () => {
+      jobStarted = true
+      await jobPromise
+    }
+
+    const runner = startDatabaseQueueRunner(database, {
+      pollIntervalMs: 100,
+      batchSize: 5,
+      handleJob
+    })
+
+    while (!jobStarted) {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+
+    const before = Date.now()
+    // Stop with 50ms timeout
+    await runner.stop(50)
+    const elapsed = Date.now() - before
+
+    expect(elapsed).toBeGreaterThanOrEqual(40)
+    expect(elapsed).toBeLessThan(500)
+
+    // Clean up hanging promise
+    resolveJob()
+  })
+
+  it('allows idempotent stop calls', async () => {
+    const runner = startDatabaseQueueRunner(database, {
+      pollIntervalMs: 50,
+      handleJob: async () => {}
+    })
+
+    await Promise.all([runner.stop(), runner.stop(), runner.stop()])
   })
 
   it('reclaims and processes orphaned jobs stuck in processing status past stalled timeout', async () => {
