@@ -1,0 +1,18 @@
+lib/database/sql/queueJob.test.ts
+  h_580a04e334fef4 388-431
+lib/services/queue/databaseRunner.test.ts
+  h_580a04e334fef4 236-314
+lib/services/queue/databaseRunner.ts
+  h_580a04e334fef4 85-97,138-151,193-206
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "8ac6a278b8e0d91a562df6dd25316da58d4652ec",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

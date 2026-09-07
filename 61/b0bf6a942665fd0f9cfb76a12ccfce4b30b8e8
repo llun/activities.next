@@ -1,0 +1,34 @@
+docs/architecture.md
+  h_580a04e334fef4 243-244
+knexfile.js
+  h_580a04e334fef4 10
+lib/database/sql/queueJob.test.ts
+  h_580a04e334fef4 1,5-9,12,14,26,41,77,84-91,94-95,99-158,161,168-182,187-194,197,204-205,210-220,223,233,236-245,248,255-256,259-269,272,281,283-340,381,386
+lib/database/sql/queueJob.ts
+  h_580a04e334fef4 8-9,25,40,98,129-134,136,140-142,155,159-170,173-179,181-187,194,200,219,222,235,240,259,270
+lib/services/queue/database.test.ts
+  h_580a04e334fef4 97-100,103
+lib/services/queue/databaseRunner.test.ts
+  h_580a04e334fef4 138,154-235
+lib/services/queue/databaseRunner.ts
+  h_580a04e334fef4 50-56,64-65,68-71,74-77,79-85,88,90,97-99,105-125,127-129,134-140,142-166
+lib/types/database/operations.ts
+  h_580a04e334fef4 4290,4297-4300,4319-4324,4328-4329,4332,4339
+migrations/20260907071402_add_queue_job_claim_token.js
+  h_580a04e334fef4 1-19
+migrations/schema.sql
+  h_580a04e334fef4 1023-1024,2116
+migrations/schema.sqlite.sql
+  h_580a04e334fef4 288
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "61b0bf6a942665fd0f9cfb76a12ccfce4b30b8e8",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
