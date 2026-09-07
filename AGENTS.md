@@ -2131,8 +2131,8 @@ preserving legacy and fitness attachments` pins the surviving-null behaviour.
   four status checks — `All Tests`, `Lint and Prettier`, `Build`, and `CI Success`
   (strict: false). The `CI Success` aggregate job is fail-closed over all upstream
   jobs (`Lint and Prettier`, `Type Check`, `Build`, `All Tests`,
-  `SQLite Schema Dump Sync`, and `PostgreSQL Schema Dump Sync`), so failures in
-  `Type Check` (the gate covering `*.test.ts(x)`) or schema dump drift block
+  `PostgreSQL Database Tests`, `SQLite Schema Dump Sync`, and `PostgreSQL Schema Dump Sync`), so failures in
+  `Type Check` (the gate covering `*.test.ts(x)`), database portability, or schema dump drift block
   merging via `CI Success`.
   The test job pins `TEST_DATABASE_TYPE: sqlite`; `lib/database/testUtils.ts`
   also supports `TEST_DATABASE_TYPE=pg` (with `TEST_DATABASE_HOST` /

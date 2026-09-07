@@ -255,6 +255,44 @@ yarn test
 
 The suite runs on [Vitest](https://vitest.dev/) (native ESM; use the `vi.*` API, e.g. `vi.fn()` / `vi.mock()` / `vi.importMock()` — there is no `jest` global). All tests run in parallel using isolated SQLite in-memory databases for fast execution.
 
+### Running PostgreSQL Database Integration Tests
+
+While the full test suite runs with SQLite in-memory databases for fast execution, database integration test suites can be executed against a local PostgreSQL 17 instance to verify cross-backend portability.
+
+The backend-aware database test harness (`lib/database/testUtils.ts`) configures per-worker databases (`test_<VITEST_POOL_ID>`) dropped and migrated from `migrations/schema.sql`.
+
+1. Start a local disposable PostgreSQL 17 container:
+
+```bash
+docker run --rm -d --name test-postgres -p 5432:5432 \
+  -e POSTGRES_USER=activities \
+  -e POSTGRES_PASSWORD=activities \
+  -e POSTGRES_DB=postgres \
+  postgres:17
+```
+
+2. Run the PostgreSQL database test suites with bounded worker concurrency (e.g. `--maxWorkers=2` to avoid connection exhaustion):
+
+```bash
+TEST_DATABASE_TYPE=pg \
+TEST_DATABASE_HOST=127.0.0.1 \
+TEST_DATABASE_PORT=5432 \
+TEST_DATABASE_USERNAME=activities \
+TEST_DATABASE_PASSWORD=activities \
+yarn test --maxWorkers=2 \
+  lib/database/sql/media.test.ts \
+  lib/database/sql/fitnessFile.test.ts \
+  lib/database/sql/fitnessGear.test.ts \
+  lib/database/sql/fitnessGearComponentPeriods.test.ts \
+  lib/database/sql/fitnessRouteHeatmapTile.test.ts
+```
+
+3. When finished, stop the container:
+
+```bash
+docker stop test-postgres
+```
+
 ### Writing Tests
 
 - **Co-locate tests** with the code being tested
@@ -333,7 +371,7 @@ Branch protection on `main` requires four status checks:
 - `Build`
 - `CI Success`
 
-`CI Success` is required and fail-closed over all upstream CI checks: lint (`Lint and Prettier`), typecheck (`Type Check`), build (`Build`), test shards (`All Tests`), and schema dump checks (`SQLite Schema Dump Sync` and `PostgreSQL Schema Dump Sync`). If any upstream check fails, `CI Success` fails and blocks merging.
+`CI Success` is required and fail-closed over all upstream CI checks: lint (`Lint and Prettier`), typecheck (`Type Check`), build (`Build`), test shards (`All Tests`), PostgreSQL database tests (`PostgreSQL Database Tests`), and schema dump checks (`SQLite Schema Dump Sync` and `PostgreSQL Schema Dump Sync`). If any upstream check fails, `CI Success` fails and blocks merging.
 
 ### PR Checklist
 
@@ -344,7 +382,7 @@ Branch protection on `main` requires four status checks:
 - [ ] TypeScript types are proper (no `any`)
 - [ ] Commit messages follow convention
 - [ ] `yarn run prettier --write .`, `yarn lint`, `yarn typecheck`, `yarn build`, and `yarn test` pass
-- [ ] All CI status checks pass (including required check `CI Success`, fail-closed over lint, typecheck, build, tests, and schema dump checks)
+- [ ] All CI status checks pass (including required check `CI Success`, fail-closed over lint, typecheck, build, tests, PostgreSQL database tests, and schema dump checks)
 
 ## Project Structure
 

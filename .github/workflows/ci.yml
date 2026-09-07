@@ -1,7 +1,7 @@
 name: CI
 
 # Runs on every commit (push to any branch + pull requests). The lint/prettier,
-# typecheck, build, test, and schema-dump-sync jobs run in parallel (no `needs:` chain
+# typecheck, build, test, postgresql database test, and schema-dump-sync jobs run in parallel (no `needs:` chain
 # between them) so the check finishes as fast as the slowest single job instead
 # of the sum of all of them. If any one of them fails, the run is reported as failed: the
 # `CI / CI Success` job aggregates every job's result and fails unless all
@@ -153,6 +153,59 @@ jobs:
           fi
           echo "All test shards succeeded."
 
+  # Bounded PostgreSQL integration test job covering database access layers:
+  # media, fitness files, gear, component periods, and heatmap tiles.
+  # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
+  # database connections or overloading disposable service containers.
+  test-pg:
+    name: PostgreSQL Database Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: activities
+          POSTGRES_PASSWORD: activities
+          POSTGRES_DB: postgres
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Enable corepack
+        run: corepack enable
+      - name: Use Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: yarn
+      - name: Install dependencies
+        run: yarn install --immutable
+      - name: Wait for PostgreSQL readiness
+        run: |
+          until docker exec ${{ job.services.postgres.id }} pg_isready -U activities -d postgres -q; do
+            sleep 1
+          done
+      - name: Run PostgreSQL database integration tests
+        run: |
+          yarn test --maxWorkers=2 \
+            lib/database/sql/media.test.ts \
+            lib/database/sql/fitnessFile.test.ts \
+            lib/database/sql/fitnessGear.test.ts \
+            lib/database/sql/fitnessGearComponentPeriods.test.ts \
+            lib/database/sql/fitnessRouteHeatmapTile.test.ts
+        env:
+          TEST_DATABASE_TYPE: pg
+          TEST_DATABASE_HOST: 127.0.0.1
+          TEST_DATABASE_PORT: ${{ job.services.postgres.ports['5432'] }}
+          TEST_DATABASE_USERNAME: activities
+          TEST_DATABASE_PASSWORD: activities
+
   # Drift gate for the committed SQLite reference schema dump. The Vitest
   # suite builds every test database from migrations/schema.sqlite.sql (via
   # lib/database/testUtils.ts) instead of running the Knex migration chain, so
@@ -293,6 +346,7 @@ jobs:
         typecheck,
         build,
         test,
+        test-pg,
         schema-dump-check,
         schema-dump-check-pg
       ]
@@ -300,7 +354,7 @@ jobs:
     steps:
       - name: Verify all CI jobs succeeded
         env:
-          RESULTS: ${{ needs.lint-prettier.result }} ${{ needs.typecheck.result }} ${{ needs.build.result }} ${{ needs.test.result }} ${{ needs.schema-dump-check.result }} ${{ needs.schema-dump-check-pg.result }}
+          RESULTS: ${{ needs.lint-prettier.result }} ${{ needs.typecheck.result }} ${{ needs.build.result }} ${{ needs.test.result }} ${{ needs.test-pg.result }} ${{ needs.schema-dump-check.result }} ${{ needs.schema-dump-check-pg.result }}
         run: |
           echo "Upstream job results: $RESULTS"
           for result in $RESULTS; do
