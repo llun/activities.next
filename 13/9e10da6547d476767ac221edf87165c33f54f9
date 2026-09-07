@@ -1,0 +1,18 @@
+app/api/v1/conversations/route.test.ts
+  h_580a04e334fef4 55-56,68-69,91-92,110-111,132-133,150-151
+app/api/v1/custom_emojis/route.test.ts
+  h_580a04e334fef4 44,46-47,67,69-70
+app/api/v1/emails/confirmations/route.test.ts
+  h_580a04e334fef4 74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "139e10da6547d476767ac221edf87165c33f54f9",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
