@@ -4329,6 +4329,10 @@ export interface FailQueueJobWithDeadLetterParams {
   error?: Error | unknown
 }
 
+export interface ReplayQueueJobParams {
+  id: string
+}
+
 export interface QueueJobDatabase {
   createQueueJob(params: CreateQueueJobParams): Promise<QueueJob>
   getDueQueueJobs(params?: GetDueQueueJobsParams): Promise<QueueJob[]>
@@ -4350,6 +4354,7 @@ export interface QueueJobDatabase {
   failQueueJobWithDeadLetter(
     params: FailQueueJobWithDeadLetterParams
   ): Promise<boolean>
+  replayQueueJob(params: ReplayQueueJobParams): Promise<boolean>
   getQueueJobById(id: string): Promise<QueueJob | null>
   deleteQueueJob(id: string): Promise<boolean>
   countQueueJobs(params?: { status?: QueueJobStatus }): Promise<number>

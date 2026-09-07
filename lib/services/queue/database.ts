@@ -64,4 +64,12 @@ export class DatabaseQueue implements Queue {
   async handle(message: JobMessage): Promise<void> {
     return defaultJobHandle('database')(message)
   }
+
+  async replay(id: string): Promise<boolean> {
+    const database = this.database ?? getDatabase()
+    if (!database) {
+      throw new Error('Database is not available for DatabaseQueue')
+    }
+    return database.replayQueueJob({ id })
+  }
 }

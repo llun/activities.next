@@ -12,8 +12,11 @@ import {
   GetDueQueueJobsParams,
   QueueJob,
   QueueJobDatabase,
-  QueueJobStatus
+  QueueJobStatus,
+  ReplayQueueJobParams
 } from '@/lib/types/database/operations'
+import { logger } from '@/lib/utils/logger'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 export interface SQLQueueJob {
   id: string
@@ -73,35 +76,17 @@ export const QueueJobSQLDatabaseMixin = (database: Knex): QueueJobDatabase => ({
       updated_at: currentTime
     }
 
-    await database('queue_jobs')
-      .insert(row)
-      .onConflict('id')
-      .merge({
-        name,
-        payload: JSON.stringify(params.payload),
-        attempts,
-        max_retries: maxRetries,
-        next_run_at: nextRunAt,
-        status,
-        last_error_message: lastErrorMessage,
-        last_error_stack: lastErrorStack,
-        updated_at: currentTime
-      })
+    await database('queue_jobs').insert(row).onConflict('id').ignore()
 
-    return {
-      id,
-      name,
-      payload: params.payload,
-      attempts,
-      maxRetries,
-      nextRunAt: nextRunAt.getTime(),
-      status,
-      claimToken: null,
-      lastErrorMessage,
-      lastErrorStack,
-      createdAt: currentTime.getTime(),
-      updatedAt: currentTime.getTime()
+    const persisted = await database<SQLQueueJob>('queue_jobs')
+      .where({ id })
+      .first()
+
+    if (!persisted) {
+      throw new Error(`Failed to persist or fetch queue job: ${id}`)
     }
+
+    return toQueueJob(persisted)
   },
 
   async getDueQueueJobs(params: GetDueQueueJobsParams = {}) {
@@ -366,6 +351,50 @@ export const QueueJobSQLDatabaseMixin = (database: Knex): QueueJobDatabase => ({
 
       return true
     })
+  },
+
+  async replayQueueJob({ id }: ReplayQueueJobParams): Promise<boolean> {
+    try {
+      return await database.transaction(async (trx) => {
+        const updatedDlq = await trx('dead_letter_jobs')
+          .where({ id, status: 'failed' })
+          .update({
+            status: 'retried',
+            updated_at: new Date()
+          })
+
+        if (updatedDlq === 0) {
+          return false
+        }
+
+        const updatedJob = await trx('queue_jobs')
+          .where({ id, status: 'failed' })
+          .update({
+            status: 'pending',
+            attempts: 0,
+            next_run_at: new Date(),
+            claim_token: null,
+            last_error_message: null,
+            last_error_stack: null,
+            updated_at: new Date()
+          })
+
+        if (updatedJob === 0) {
+          throw new Error(
+            `Cannot replay queue job ${id}: job not found or not in failed state in queue_jobs`
+          )
+        }
+
+        return true
+      })
+    } catch (error) {
+      logger.error({
+        err: toLoggableError(error),
+        jobId: id,
+        message: 'Failed to replay queue job'
+      })
+      return false
+    }
   },
 
   async getQueueJobById(id: string) {

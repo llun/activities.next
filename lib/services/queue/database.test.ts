@@ -83,35 +83,49 @@ describe('DatabaseQueue', () => {
     expect(job?.nextRunAt).toBeGreaterThanOrEqual(before + 115 * 1000)
   })
 
-  it('re-publishes job with same ID cleanly without constraint violation (DLQ retry)', async () => {
+  it('preserves existing job state on duplicate publish and resets attempts only on explicit replay', async () => {
     const queue = new DatabaseQueue(undefined, database)
     const message: JobMessage = {
-      id: 'db-queue-dlq-retry-1',
+      id: 'db-queue-idempotent-1',
       name: 'deliverActivity',
       data: { original: true }
     }
 
     await queue.publish(message)
 
-    // Simulate job failing terminally in database
+    // Simulate job failing terminally in database with dead letter
     const claimed = await database.claimQueueJob({
-      id: 'db-queue-dlq-retry-1'
+      id: 'db-queue-idempotent-1'
     })
     expect(claimed).not.toBeNull()
-    await database.failQueueJob({
-      id: 'db-queue-dlq-retry-1',
+    await database.failQueueJobWithDeadLetter({
+      id: 'db-queue-idempotent-1',
       claimToken: claimed!.claimToken,
       attempts: 16,
       error: new Error('Terminal failure')
     })
-    const failed = await database.getQueueJobById('db-queue-dlq-retry-1')
+    const failed = await database.getQueueJobById('db-queue-idempotent-1')
     expect(failed?.status).toBe('failed')
     expect(failed?.attempts).toBe(16)
 
-    // Re-publish from DLQ retry
-    await expect(queue.publish(message)).resolves.toBeUndefined()
+    // Re-publish with duplicate ID must preserve existing failed status and attempts (idempotent enqueue)
+    await expect(
+      queue.publish({
+        ...message,
+        data: { modified: true }
+      })
+    ).resolves.toBeUndefined()
 
-    const retried = await database.getQueueJobById('db-queue-dlq-retry-1')
+    const stillFailed = await database.getQueueJobById('db-queue-idempotent-1')
+    expect(stillFailed?.status).toBe('failed')
+    expect(stillFailed?.attempts).toBe(16)
+    expect(stillFailed?.payload).toEqual(message)
+
+    // Explicit replay resets attempts and status to pending
+    const replaySuccess = await queue.replay('db-queue-idempotent-1')
+    expect(replaySuccess).toBe(true)
+
+    const retried = await database.getQueueJobById('db-queue-idempotent-1')
     expect(retried?.status).toBe('pending')
     expect(retried?.attempts).toBe(0)
   })
