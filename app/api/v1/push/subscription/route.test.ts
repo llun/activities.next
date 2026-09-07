@@ -1,13 +1,13 @@
 import { NextRequest } from 'next/server'
 
-import { getConfig } from '@/lib/config'
+import { type Config, getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { Scope } from '@/lib/types/database/operations'
 
 import { DELETE, GET, POST, PUT } from './route'
 
-const mockGetConfig = getConfig as jest.Mock
+const mockGetConfig = vi.mocked(getConfig)
 
 const mockOAuthGuard = vi.fn()
 const mockCurrentActor = { ...seedActor1, id: ACTOR1_ID }
@@ -390,7 +390,7 @@ describe('push subscription when push is not configured', () => {
       host: 'llun.test',
       allowEmails: [],
       allowActorDomains: []
-    }
+    } as unknown as Config
     mockGetConfig.mockReturnValue(noPushConfig)
 
     const post = new NextRequest('http://localhost/api/v1/push/subscription', {
@@ -427,8 +427,12 @@ describe('push subscription when push is not configured', () => {
 
     mockGetConfig.mockReturnValue({
       ...noPushConfig,
-      push: { vapidPublicKey: 'test-vapid-public-key' }
-    })
+      push: {
+        vapidPublicKey: 'test-vapid-public-key',
+        vapidPrivateKey: 'test-vapid-private-key',
+        vapidEmail: 'test@llun.test'
+      }
+    } as unknown as Config)
   })
 
   it('DELETE still succeeds when push is not configured (cleanup is always allowed)', async () => {
@@ -436,7 +440,7 @@ describe('push subscription when push is not configured', () => {
       host: 'llun.test',
       allowEmails: [],
       allowActorDomains: []
-    }
+    } as unknown as Config
     mockGetConfig.mockReturnValue(noPushConfig)
 
     const del = new NextRequest('http://localhost/api/v1/push/subscription', {
@@ -449,7 +453,11 @@ describe('push subscription when push is not configured', () => {
 
     mockGetConfig.mockReturnValue({
       ...noPushConfig,
-      push: { vapidPublicKey: 'test-vapid-public-key' }
-    })
+      push: {
+        vapidPublicKey: 'test-vapid-public-key',
+        vapidPrivateKey: 'test-vapid-private-key',
+        vapidEmail: 'test@llun.test'
+      }
+    } as unknown as Config)
   })
 })
