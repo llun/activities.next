@@ -62,20 +62,27 @@ const sameHost = (first: string, second: string): boolean => {
   }
 }
 
-const isTombstoneBody = async (
+interface ValidatedTombstone {
+  id: string
+}
+
+const getValidatedTombstone = async (
   body: string,
   objectId: string
-): Promise<boolean> => {
+): Promise<ValidatedTombstone | null> => {
   try {
     const compacted = await compactActivityPub(JSON.parse(body))
     const parsed = Tombstone.safeParse(compacted)
-    return (
+    if (
       parsed.success &&
       isHttpUrl(parsed.data.id) &&
       isSameActivityPubOrigin(parsed.data.id, objectId)
-    )
+    ) {
+      return { id: parsed.data.id }
+    }
+    return null
   } catch {
-    return false
+    return null
   }
 }
 
@@ -141,10 +148,12 @@ export const processForwardedActivityJob = createJobHandle(
           span.setAttribute('outcome', 'origin_unreachable')
           return
         }
+        const tombstone =
+          statusCode === 200
+            ? await getValidatedTombstone(body, objectId)
+            : null
         const confirmed =
-          statusCode === 404 ||
-          statusCode === 410 ||
-          (statusCode === 200 && (await isTombstoneBody(body, objectId)))
+          statusCode === 404 || statusCode === 410 || Boolean(tombstone)
         if (!confirmed) {
           span.setAttribute('outcome', 'delete_unconfirmed')
           span.setAttribute('originStatusCode', statusCode)
@@ -154,10 +163,17 @@ export const processForwardedActivityJob = createJobHandle(
         // Still scope to the claimed author: a forged pointer at someone
         // else's (coincidentally 404ing) id must not delete a status the
         // claimed author does not own.
+        const actorId = normalizeActorId(activity.actor) ?? undefined
         await database.deleteStatus({
           statusId: objectId,
-          actorId: normalizeActorId(activity.actor) ?? undefined
+          actorId
         })
+        if (tombstone && tombstone.id !== objectId) {
+          await database.deleteStatus({
+            statusId: tombstone.id,
+            actorId
+          })
+        }
         span.setAttribute('outcome', 'delete_confirmed')
         return
       }
