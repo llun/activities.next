@@ -317,7 +317,9 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
       replies: [],
       actorAnnounceStatusId: null,
       isActorLiked: false,
+      isActorBookmarked: false,
       totalLikes: 0,
+      totalShares: 0,
       attachments: [],
       tags: []
     } as Status
@@ -745,8 +747,10 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
         replies: [],
         actorAnnounceStatusId: null,
         isActorLiked: false,
+        isActorBookmarked: false,
         isLocalActor: false,
         totalLikes: 0,
+        totalShares: 0,
         attachments: [],
         tags: [],
         createdAt: Date.now(),
