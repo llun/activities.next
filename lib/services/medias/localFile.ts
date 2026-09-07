@@ -16,8 +16,7 @@ import { logger } from '@/lib/utils/logger'
 import { MAX_HEIGHT, MAX_WIDTH, STORED_IMAGE_RESIZE_OPTIONS } from './constants'
 import { MediaValidationError } from './errors'
 import { extractVideoMeta } from './extractVideoMeta'
-import { getStoredMediaExtension, sanitizeStoredFileName } from './fileName'
-import { getMediaAttachment } from './getMediaAttachment'
+import { getStoredMediaExtension } from './fileName'
 import {
   DEFAULT_IMAGE_OUTPUT_FORMAT,
   type ImageOutputFormat,
@@ -25,7 +24,8 @@ import {
   getImageOutputFormatDetail
 } from './imageOutputFormat'
 import { getMediaFileUrl } from './mediaFileUrl'
-import { checkQuotaAvailable, getUploadQuotaReservation } from './quota'
+import { checkQuotaAvailable } from './quota'
+import { saveMediaFile } from './saveMediaFile'
 import { assertStorageFilePath, resolveStorageFilePath } from './storagePath'
 import { readValidThumbnail } from './thumbnailInput'
 import {
@@ -130,92 +130,19 @@ export class LocalFileStorage implements MediaStorage {
   }
 
   async saveFile(actor: Actor, media: MediaSchema) {
-    const { file } = media
-    if (!file.type.startsWith('image') && !file.type.startsWith('video')) {
-      return null
-    }
-    // Read and validate the thumbnail before anything is written, so unusable
-    // bytes cannot leave a stored original behind.
-    const thumbnailBuffer = media.thumbnail
-      ? await readValidThumbnail(media.thumbnail)
-      : null
-
-    // Check quota before saving; see `getUploadQuotaReservation` for why the
-    // thumbnail's share of it is an estimate.
-    const quotaCheck = await checkQuotaAvailable(
-      this._database,
+    return saveMediaFile({
+      database: this._database,
+      host: this._host,
       actor,
-      getUploadQuotaReservation(media)
-    )
-    if (!quotaCheck.available) {
-      throw new MediaValidationError(
-        `Storage quota exceeded. Used: ${quotaCheck.used} bytes, Limit: ${quotaCheck.limit} bytes`
-      )
-    }
-
-    const { path, metaData, previewImage, blurhash, focus } =
-      file.type.startsWith('video')
-        ? await this._saveVideoFile(file, { manualFocus: media.focus })
-        : await this._saveImageFile(file, { manualFocus: media.focus })
-    // A caller-supplied thumbnail wins; a video otherwise falls back to the
-    // frame extracted from it.
-    const thumbnailSource = thumbnailBuffer ?? previewImage
-    let thumbnail
-    try {
-      thumbnail = thumbnailSource
-        ? await this._saveImageBuffer(thumbnailSource, { isThumbnail: true })
-        : null
-    } catch (error) {
-      // The thumbnail's bytes were validated above, so this is a storage fault
-      // of ours: keep the error — it has to stay a logged 500, not a 422 the
-      // client will not retry — but put the original back first.
-      await this._reclaimStored(path)
-      throw error
-    }
-    let storedMedia
-    try {
-      storedMedia = await this._database.createMedia({
-        actorId: actor.id,
-        original: {
-          path,
-          bytes: file.size,
-          mimeType: file.type,
-          metaData: {
-            width: metaData.width ?? 0,
-            height: metaData.height ?? 0
-          },
-          fileName: sanitizeStoredFileName(file.name)
-        },
-        ...(thumbnail
-          ? {
-              // Use the resized image's actual size/dimensions (outputInfo), not
-              // the input image's metadata.
-              thumbnail: {
-                path: thumbnail.path,
-                bytes: thumbnail.outputInfo.size,
-                mimeType: thumbnail.contentType,
-                metaData: {
-                  width: thumbnail.outputInfo.width,
-                  height: thumbnail.outputInfo.height
-                }
-              }
-            }
-          : null),
-        ...(media.description ? { description: media.description } : null),
-        ...(focus ? { focus } : null),
-        ...(blurhash ? { blurhash } : null)
-      })
-    } catch (error) {
-      await this._reclaimStored(path, thumbnail?.path)
-      throw error
-    }
-
-    if (!storedMedia) {
-      await this._reclaimStored(path, thumbnail?.path)
-      throw new Error('Fail to store media')
-    }
-
-    return getMediaAttachment(storedMedia, this._host)
+      media,
+      driver: {
+        saveVideoFile: (file, options) => this._saveVideoFile(file, options),
+        saveImageFile: (file, options) => this._saveImageFile(file, options),
+        saveThumbnailBuffer: (buffer) =>
+          this._saveImageBuffer(buffer, { isThumbnail: true }),
+        deleteFile: (filePath) => this.deleteFile(filePath)
+      }
+    })
   }
 
   async saveThumbnail(
@@ -291,16 +218,6 @@ export class LocalFileStorage implements MediaStorage {
         height: outputInfo.height
       }
     }
-  }
-
-  // A stored path is reachable only through its `medias` row, so anything that
-  // fails before that row exists has to take the files back out.
-  private async _reclaimStored(originalPath: string, thumbnailPath?: string) {
-    await Promise.all(
-      [originalPath, thumbnailPath]
-        .filter((stored) => stored !== undefined)
-        .map((stored) => this.deleteFile(stored).catch(() => false))
-    )
   }
 
   private async _saveImageFile(
