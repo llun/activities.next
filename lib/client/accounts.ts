@@ -1,3 +1,4 @@
+import type { Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
 import { toIdPathSegment } from '@/lib/utils/urlToId'
@@ -499,4 +500,39 @@ export const unmute = async ({
   })
   if (response.status !== 200) return null
   return (await response.json()) as MastodonRelationship
+}
+
+export interface GetActorStatusesParams {
+  actorId: string
+  pageUrl?: string | null
+}
+
+export interface GetActorStatusesResult {
+  statuses: Status[]
+  statusesCount: number
+  nextPageUrl: string | null
+  prevPageUrl: string | null
+}
+
+export const getActorStatuses = async ({
+  actorId,
+  pageUrl
+}: GetActorStatusesParams): Promise<GetActorStatusesResult> => {
+  const path = `/api/v1/accounts/${toIdPathSegment(actorId)}/remote-statuses`
+  const url = new URL(`${window.origin}${path}`)
+  if (pageUrl) {
+    url.searchParams.append('page_url', pageUrl)
+  }
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  })
+  if (response.status !== 200) {
+    throw new Error(`Failed to load actor statuses: ${response.status}`)
+  }
+
+  return (await response.json()) as GetActorStatusesResult
 }

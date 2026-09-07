@@ -15,7 +15,6 @@ import type { AdminReport } from '@/lib/types/mastodon/admin/report'
 import type { Announcement } from '@/lib/types/mastodon/announcement'
 import type { CollectionEntity } from '@/lib/types/mastodon/collection'
 import type { CustomEmoji } from '@/lib/types/mastodon/customEmoji'
-import type { FeaturedTag } from '@/lib/types/mastodon/featuredTag'
 import type { Filter as MastodonFilter } from '@/lib/types/mastodon/filter'
 import type { ListEntity } from '@/lib/types/mastodon/list'
 import type { PreviewCard } from '@/lib/types/mastodon/previewCard'
@@ -46,6 +45,8 @@ import {
   type FollowRequestParams,
   type FollowStatusType,
   type GetActorDomainsParams,
+  type GetActorStatusesParams,
+  type GetActorStatusesResult,
   type GetBlocksParams,
   type GetBlocksResult,
   type MuteParams,
@@ -62,6 +63,7 @@ import {
   deleteActor,
   follow,
   getActorDomains,
+  getActorStatuses,
   getBlocks,
   getCursorFromLinkHeader,
   getFollowStatus,
@@ -119,6 +121,13 @@ import {
   updateStatusVisibility,
   votePoll
 } from './client/statuses'
+import {
+  type AddFeaturedTagResult,
+  addFeaturedTag,
+  getFeaturedTagSuggestions,
+  getFeaturedTags,
+  removeFeaturedTag
+} from './client/tags'
 
 export { ApiRequestError }
 
@@ -180,6 +189,8 @@ export {
   type FollowRequestParams,
   type FollowStatusType,
   type GetActorDomainsParams,
+  type GetActorStatusesParams,
+  type GetActorStatusesResult,
   type GetBlocksParams,
   type GetBlocksResult,
   type MuteParams,
@@ -196,6 +207,7 @@ export {
   deleteActor,
   follow,
   getActorDomains,
+  getActorStatuses,
   getBlocks,
   getFollowStatus,
   getRelationship,
@@ -207,6 +219,14 @@ export {
   unblock,
   unfollow,
   unmute
+}
+
+export {
+  type AddFeaturedTagResult,
+  addFeaturedTag,
+  getFeaturedTags,
+  getFeaturedTagSuggestions,
+  removeFeaturedTag
 }
 
 interface MarkNotificationsReadParams {
@@ -500,123 +520,6 @@ export const getHashtagTimeline = async ({
   }
 
   return result
-}
-
-interface GetActorStatusesParams {
-  actorId: string
-  pageUrl?: string | null
-}
-
-export interface GetActorStatusesResult {
-  statuses: Status[]
-  statusesCount: number
-  nextPageUrl: string | null
-  prevPageUrl: string | null
-}
-
-export const getActorStatuses = async ({
-  actorId,
-  pageUrl
-}: GetActorStatusesParams): Promise<GetActorStatusesResult> => {
-  const path = `/api/v1/accounts/${toIdPathSegment(actorId)}/remote-statuses`
-  const url = new URL(`${window.origin}${path}`)
-  if (pageUrl) {
-    url.searchParams.append('page_url', pageUrl)
-  }
-
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json'
-    }
-  })
-  if (response.status !== 200) {
-    throw new Error(`Failed to load actor statuses: ${response.status}`)
-  }
-
-  return (await response.json()) as GetActorStatusesResult
-}
-
-// Featured hashtags (https://docs.joinmastodon.org/methods/featured_tags/).
-// The hashtags an account pins to its profile. Backed by the featured_tags
-// endpoints; every call goes through here so components never call fetch().
-
-// Throws on a non-OK response (rather than returning []) so the editor's load
-// handler can tell "you have no featured tags" apart from "the request failed"
-// and show its load-error UI. Featured tags are the critical data for the page;
-// suggestions below stay best-effort.
-export const getFeaturedTags = async (): Promise<FeaturedTag[]> => {
-  const response = await fetch('/api/v1/featured_tags', {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json'
-    }
-  })
-  if (!response.ok) {
-    throw new Error(`Failed to load featured tags: ${response.status}`)
-  }
-  return (await response.json()) as FeaturedTag[]
-}
-
-export interface AddFeaturedTagResult {
-  tag?: FeaturedTag
-  error?: string
-}
-
-export const addFeaturedTag = async (
-  name: string
-): Promise<AddFeaturedTagResult> => {
-  try {
-    const response = await fetch('/api/v1/featured_tags', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ name })
-    })
-    if (!response.ok) {
-      const data = (await response.json().catch(() => ({}))) as {
-        error?: string
-      }
-      return { error: data.error || 'Failed to feature hashtag' }
-    }
-    // Only treat it as a success when the body parses into a real entity —
-    // a malformed 2xx body must not surface as a tag with missing fields.
-    return { tag: (await response.json()) as FeaturedTag }
-  } catch {
-    // Network failure / unparseable body — surface as an error result rather
-    // than rejecting, so callers can always settle their loading state.
-    return { error: 'Failed to feature hashtag' }
-  }
-}
-
-export const removeFeaturedTag = async (id: string): Promise<boolean> => {
-  try {
-    const response = await fetch(
-      `/api/v1/featured_tags/${encodeURIComponent(id)}`,
-      {
-        method: 'DELETE',
-        headers: {
-          Accept: 'application/json'
-        }
-      }
-    )
-    return response.ok
-  } catch {
-    // Network failure — report as not-removed instead of rejecting.
-    return false
-  }
-}
-
-export const getFeaturedTagSuggestions = async (): Promise<Tag[]> => {
-  const response = await fetch('/api/v1/featured_tags/suggestions', {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json'
-    }
-  })
-  if (!response.ok) return []
-  return (await response.json()) as Tag[]
 }
 
 // Trends (https://docs.joinmastodon.org/methods/trends/). All three endpoints
