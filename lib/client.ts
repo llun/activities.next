@@ -5230,3 +5230,40 @@ export const resetPassword = async ({
   }
   return response.json()
 }
+
+export interface OAuthConsentResponse {
+  redirect?: boolean
+  url?: string
+  // Legacy shape from the original custom consent handler.
+  redirect_uri?: string
+}
+
+export type ConsentResponse = OAuthConsentResponse
+
+export interface SubmitOAuthConsentParams {
+  accept: boolean
+  scope?: string
+  oauth_query: string
+}
+
+export const submitOAuthConsent = async ({
+  accept,
+  scope,
+  oauth_query
+}: SubmitOAuthConsentParams): Promise<OAuthConsentResponse> => {
+  const response = await fetch('/api/auth/oauth2/consent', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      accept,
+      ...(scope !== undefined ? { scope } : {}),
+      oauth_query
+    })
+  })
+  if (!response.ok) {
+    await throwApiError(response, 'Failed to submit consent')
+  }
+  return response.json()
+}

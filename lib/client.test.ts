@@ -46,6 +46,7 @@ import {
   search,
   setDefaultActor,
   startStravaArchiveImport,
+  submitOAuthConsent,
   switchActor,
   triggerFitnessRouteHeatmap,
   undoBookmarkStatus,
@@ -2265,6 +2266,115 @@ describe('client actor management helpers', () => {
           newPassword: 'new-password-123'
         })
       ).rejects.toThrow('Network offline')
+    })
+  })
+
+  describe('submitOAuthConsent', () => {
+    beforeEach(() => {
+      fetchMock.resetMocks()
+    })
+
+    it('submits approval with exact keys and parses redirect response', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          redirect: true,
+          url: 'https://client.example.com/callback?code=oauth-code'
+        }),
+        { status: 200 }
+      )
+
+      const result = await submitOAuthConsent({
+        accept: true,
+        scope: 'read write follow push',
+        oauth_query: 'client_id=flow-test-client&response_type=code'
+      })
+
+      expect(result).toEqual({
+        redirect: true,
+        url: 'https://client.example.com/callback?code=oauth-code'
+      })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/auth/oauth2/consent',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            accept: true,
+            scope: 'read write follow push',
+            oauth_query: 'client_id=flow-test-client&response_type=code'
+          })
+        })
+      )
+    })
+
+    it('submits denial with exact keys (omitting scope) and parses legacy redirect_uri', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          redirect: true,
+          redirect_uri:
+            'https://client.example.com/callback?error=access_denied'
+        }),
+        { status: 200 }
+      )
+
+      const result = await submitOAuthConsent({
+        accept: false,
+        oauth_query: 'client_id=flow-test-client&response_type=code'
+      })
+
+      expect(result).toEqual({
+        redirect: true,
+        redirect_uri: 'https://client.example.com/callback?error=access_denied'
+      })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/auth/oauth2/consent',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            accept: false,
+            oauth_query: 'client_id=flow-test-client&response_type=code'
+          })
+        })
+      )
+    })
+
+    it('decodes API error message on non-ok response', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({ error: 'invalid_request: missing oauth query' }),
+        { status: 400 }
+      )
+
+      await expect(
+        submitOAuthConsent({
+          accept: true,
+          scope: 'read',
+          oauth_query: ''
+        })
+      ).rejects.toThrow('invalid_request: missing oauth query')
+    })
+
+    it('falls back to default error on non-JSON failure', async () => {
+      fetchMock.mockResponseOnce('Internal Server Error', { status: 500 })
+
+      await expect(
+        submitOAuthConsent({
+          accept: true,
+          scope: 'read',
+          oauth_query: 'client_id=flow-test-client'
+        })
+      ).rejects.toThrow('Failed to submit consent')
+    })
+
+    it('propagates network failure', async () => {
+      fetchMock.mockRejectOnce(new Error('Network error'))
+
+      await expect(
+        submitOAuthConsent({
+          accept: false,
+          oauth_query: 'client_id=flow-test-client'
+        })
+      ).rejects.toThrow('Network error')
     })
   })
 })

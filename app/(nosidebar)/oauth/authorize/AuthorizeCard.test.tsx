@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
+import * as clientModule from '@/lib/client'
 import { createDeferred } from '@/lib/testing/deferred'
 import { Actor } from '@/lib/types/domain/actor'
 import { Client } from '@/lib/types/oauth2/client'
@@ -17,6 +18,14 @@ const mockNavigate = vi.fn()
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush })
 }))
+
+vi.mock('@/lib/client', () => ({
+  switchActor: vi.fn(),
+  submitOAuthConsent: vi.fn()
+}))
+
+const mockSwitchActor = vi.mocked(clientModule.switchActor)
+const mockSubmitOAuthConsent = vi.mocked(clientModule.submitOAuthConsent)
 
 const client: Client = {
   id: 'db-client-id',
@@ -83,11 +92,9 @@ describe('AuthorizeCard', () => {
   beforeEach(() => {
     mockPush.mockReset()
     mockNavigate.mockReset()
+    mockSwitchActor.mockReset().mockResolvedValue(true)
+    mockSubmitOAuthConsent.mockReset().mockResolvedValue({})
     window.history.replaceState({}, '', '/')
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({})
-    }) as jest.Mock
   })
 
   afterEach(() => {
@@ -131,25 +138,18 @@ describe('AuthorizeCard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/auth/oauth2/consent',
-        expect.objectContaining({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        })
-      )
+      expect(mockSubmitOAuthConsent).toHaveBeenCalledWith({
+        accept: true,
+        scope: 'read write follow push',
+        oauth_query: window.location.search.slice(1)
+      })
     })
 
-    const consentCall = (global.fetch as jest.Mock).mock.calls.find(
-      ([url]) => url === '/api/auth/oauth2/consent'
-    )
-    const [, requestInit] = consentCall
-    const body = JSON.parse(requestInit.body)
+    const submitted = mockSubmitOAuthConsent.mock.calls[0][0]
+    expect(submitted.accept).toBe(true)
+    expect(submitted.scope).toBe('read write follow push')
 
-    expect(body.accept).toBe(true)
-    expect(body.scope).toBe('read write follow push')
-
-    const oauthQuery = new URLSearchParams(body.oauth_query)
+    const oauthQuery = new URLSearchParams(submitted.oauth_query)
     expect(oauthQuery.get('client_id')).toBe('phanpy-client')
     expect(oauthQuery.get('scope')).toBe('read write follow push')
     expect(oauthQuery.get('state')).toBe('return-state')
@@ -159,7 +159,7 @@ describe('AuthorizeCard', () => {
     expect(oauthQuery.get('ba_pl')).toBe('payload')
     expect(oauthQuery.get('sig')).toBe('signed-query')
     expect(oauthQuery.get('exp')).toBe('1779800000')
-    expect(body.oauth_query).toBe(window.location.search.slice(1))
+    expect(submitted.oauth_query).toBe(window.location.search.slice(1))
   })
 
   it('persists the selected actor before approving consent', async () => {
@@ -176,23 +176,15 @@ describe('AuthorizeCard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
 
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2))
-
-    const [switchUrl, switchRequestInit] = (global.fetch as jest.Mock).mock
-      .calls[0]
-    expect(switchUrl).toBe('/api/v1/actors/switch')
-    expect(switchRequestInit).toEqual(
-      expect.objectContaining({
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          actorId: 'https://activities.local/users/testactor2'
-        })
+    await waitFor(() => {
+      expect(mockSwitchActor).toHaveBeenCalledWith({
+        actorId: 'https://activities.local/users/testactor2'
       })
-    )
+      expect(mockSubmitOAuthConsent).toHaveBeenCalled()
+    })
 
-    expect((global.fetch as jest.Mock).mock.calls[1][0]).toBe(
-      '/api/auth/oauth2/consent'
+    expect(mockSwitchActor.mock.invocationCallOrder[0]).toBeLessThan(
+      mockSubmitOAuthConsent.mock.invocationCallOrder[0]
     )
   })
 
@@ -242,11 +234,8 @@ describe('AuthorizeCard', () => {
   })
 
   it('submits denial with the signed Better Auth query and follows url redirects', async () => {
-    ;(global.fetch as jest.Mock).mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        url: 'https://phanpy.local/?error=access_denied&state=return-state'
-      })
+    mockSubmitOAuthConsent.mockResolvedValueOnce({
+      url: 'https://phanpy.local/?error=access_denied&state=return-state'
     })
 
     render(
@@ -263,30 +252,21 @@ describe('AuthorizeCard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Deny' }))
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/auth/oauth2/consent',
-        expect.objectContaining({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        })
-      )
+      expect(mockSubmitOAuthConsent).toHaveBeenCalledWith({
+        accept: false,
+        oauth_query:
+          'response_type=code' +
+          '&client_id=phanpy-client' +
+          '&redirect_uri=not-a-url' +
+          '&scope=read+write+follow+push' +
+          '&state=return-state' +
+          '&code_challenge=challenge' +
+          '&code_challenge_method=S256' +
+          '&exp=1779800000' +
+          '&sig=signed-query'
+      })
     })
 
-    const [, requestInit] = (global.fetch as jest.Mock).mock.calls[0]
-    const body = JSON.parse(requestInit.body)
-
-    expect(body.accept).toBe(false)
-    expect(body.oauth_query).toBe(
-      'response_type=code' +
-        '&client_id=phanpy-client' +
-        '&redirect_uri=not-a-url' +
-        '&scope=read+write+follow+push' +
-        '&state=return-state' +
-        '&code_challenge=challenge' +
-        '&code_challenge_method=S256' +
-        '&exp=1779800000' +
-        '&sig=signed-query'
-    )
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith(
         'https://phanpy.local/?error=access_denied&state=return-state'
@@ -295,8 +275,8 @@ describe('AuthorizeCard', () => {
   })
 
   it('shows a denying label on the deny button only while denial is in flight', async () => {
-    const deferred = createDeferred<unknown>()
-    ;(global.fetch as jest.Mock).mockReturnValueOnce(deferred.promise)
+    const deferred = createDeferred<clientModule.OAuthConsentResponse>()
+    mockSubmitOAuthConsent.mockReturnValueOnce(deferred.promise)
 
     render(
       <AuthorizeCard
@@ -323,10 +303,7 @@ describe('AuthorizeCard', () => {
     expect(approveButton).toBeDisabled()
 
     deferred.resolve({
-      ok: true,
-      json: async () => ({
-        url: 'https://phanpy.local/?error=access_denied&state=return-state'
-      })
+      url: 'https://phanpy.local/?error=access_denied&state=return-state'
     })
 
     await waitFor(() => {
@@ -335,12 +312,9 @@ describe('AuthorizeCard', () => {
   })
 
   it('shows an approving label on the approve button only while approval is in flight', async () => {
-    const deferred = createDeferred<unknown>()
-    ;(global.fetch as jest.Mock)
-      // persistSelectedActor() posts to /api/v1/actors/switch first.
-      .mockResolvedValueOnce({ ok: true, json: async () => ({}) })
-      // The consent request stays pending so the loading label is observable.
-      .mockReturnValueOnce(deferred.promise)
+    const deferred = createDeferred<clientModule.OAuthConsentResponse>()
+    mockSwitchActor.mockResolvedValueOnce(true)
+    mockSubmitOAuthConsent.mockReturnValueOnce(deferred.promise)
 
     render(
       <AuthorizeCard
@@ -367,10 +341,7 @@ describe('AuthorizeCard', () => {
     expect(denyButton).toBeDisabled()
 
     deferred.resolve({
-      ok: true,
-      json: async () => ({
-        url: 'https://phanpy.local/?code=auth-code&state=return-state'
-      })
+      url: 'https://phanpy.local/?code=auth-code&state=return-state'
     })
 
     await waitFor(() => {
@@ -474,28 +445,23 @@ describe('AuthorizeCard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/auth/oauth2/consent',
-        expect.objectContaining({ method: 'POST' })
+      expect(mockSubmitOAuthConsent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          accept: true,
+          scope: 'openid profile email'
+        })
       )
     })
 
-    const consentCall = (global.fetch as jest.Mock).mock.calls.find(
-      ([url]) => url === '/api/auth/oauth2/consent'
-    )
-    const body = JSON.parse(consentCall[1].body)
-    expect(body.accept).toBe(true)
-    expect(body.scope).toBe('openid profile email')
-
     // persistSelectedActor() still runs in OIDC mode: it switches to (and so
     // persists) the current actor before consent, even though the picker is
-    // hidden. The switch is the first fetch call.
-    expect((global.fetch as jest.Mock).mock.calls[0][0]).toBe(
-      '/api/v1/actors/switch'
+    // hidden.
+    expect(mockSwitchActor).toHaveBeenCalledWith({
+      actorId: 'https://activities.local/users/llun'
+    })
+    expect(mockSwitchActor.mock.invocationCallOrder[0]).toBeLessThan(
+      mockSubmitOAuthConsent.mock.invocationCallOrder[0]
     )
-    expect(
-      JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body)
-    ).toEqual({ actorId: 'https://activities.local/users/llun' })
   })
 
   it('renders the email once as the identity when the account has no name (OIDC)', () => {
@@ -654,17 +620,12 @@ describe('AuthorizeCard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/auth/oauth2/consent',
-        expect.objectContaining({ method: 'POST' })
+      expect(mockSubmitOAuthConsent).toHaveBeenCalledWith(
+        expect.objectContaining({ accept: true })
       )
     })
-    const consentCall = (global.fetch as jest.Mock).mock.calls.find(
-      ([url]) => url === '/api/auth/oauth2/consent'
-    )
-    const submittedScopes: string[] = JSON.parse(
-      consentCall[1].body
-    ).scope.split(' ')
+    const submitted = mockSubmitOAuthConsent.mock.calls[0][0]
+    const submittedScopes = submitted.scope?.split(' ') ?? []
     expect(submittedScopes).toContain('openid')
     expect(submittedScopes).not.toContain('profile')
     expect(submittedScopes).not.toContain('email')
@@ -696,15 +657,10 @@ describe('AuthorizeCard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/auth/oauth2/consent',
-        expect.objectContaining({ method: 'POST' })
+      expect(mockSubmitOAuthConsent).toHaveBeenCalledWith(
+        expect.objectContaining({ accept: true, scope: 'openid' })
       )
     })
-    const consentCall = (global.fetch as jest.Mock).mock.calls.find(
-      ([url]) => url === '/api/auth/oauth2/consent'
-    )
-    expect(JSON.parse(consentCall[1].body).scope).toBe('openid')
   })
 
   it('flips to the OIDC identity view when openid co-occurs with Mastodon scopes', async () => {
@@ -730,15 +686,10 @@ describe('AuthorizeCard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/auth/oauth2/consent',
-        expect.objectContaining({ method: 'POST' })
+      expect(mockSubmitOAuthConsent).toHaveBeenCalledWith(
+        expect.objectContaining({ accept: true, scope: 'openid read write' })
       )
     })
-    const consentCall = (global.fetch as jest.Mock).mock.calls.find(
-      ([url]) => url === '/api/auth/oauth2/consent'
-    )
-    expect(JSON.parse(consentCall[1].body).scope).toBe('openid read write')
   })
 
   it('uses sign-in header copy for OIDC requests', () => {
@@ -790,5 +741,276 @@ describe('AuthorizeCard', () => {
     // neither renders a blank subject.
     expect(screen.getByText('Sign in to this application')).toBeInTheDocument()
     expect(screen.getByText('This application')).toBeInTheDocument()
+  })
+
+  it('follows redirect response on approve and supports legacy redirect_uri', async () => {
+    mockSubmitOAuthConsent.mockResolvedValueOnce({
+      redirect_uri: 'https://phanpy.local/?code=legacy-code&state=return-state'
+    })
+
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={{
+          ...signedSearchParams,
+          redirect_uri: 'https://phanpy.local/'
+        }}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith(
+        'https://phanpy.local/?code=legacy-code&state=return-state'
+      )
+    })
+  })
+
+  it('redirects to server_error when approval response is missing a redirect URL', async () => {
+    mockSubmitOAuthConsent.mockResolvedValueOnce({})
+
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={{
+          ...signedSearchParams,
+          redirect_uri: 'https://phanpy.local/'
+        }}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith(
+        'https://phanpy.local/?error=server_error&state=return-state'
+      )
+    })
+  })
+
+  it('redirects to server_error when approval response has invalid redirect URL', async () => {
+    mockSubmitOAuthConsent.mockResolvedValueOnce({
+      url: 'javascript:alert(1)'
+    })
+
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={{
+          ...signedSearchParams,
+          redirect_uri: 'https://phanpy.local/'
+        }}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith(
+        'https://phanpy.local/?error=server_error&state=return-state'
+      )
+    })
+  })
+
+  it('redirects to server_error when consent submission rejects with a server error', async () => {
+    mockSubmitOAuthConsent.mockRejectedValueOnce(
+      new Error('Internal Server Error')
+    )
+
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={{
+          ...signedSearchParams,
+          redirect_uri: 'https://phanpy.local/'
+        }}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith(
+        'https://phanpy.local/?error=server_error&state=return-state'
+      )
+    })
+  })
+
+  it('redirects to server_error when consent submission encounters a network error', async () => {
+    mockSubmitOAuthConsent.mockRejectedValueOnce(
+      new TypeError('Failed to fetch')
+    )
+
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={{
+          ...signedSearchParams,
+          redirect_uri: 'https://phanpy.local/'
+        }}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith(
+        'https://phanpy.local/?error=server_error&state=return-state'
+      )
+    })
+  })
+
+  it('redirects to server_error and skips consent when persisting the selected actor fails', async () => {
+    mockSwitchActor.mockResolvedValueOnce(false)
+
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={{
+          ...signedSearchParams,
+          redirect_uri: 'https://phanpy.local/'
+        }}
+        actors={alternateActors}
+        currentActorId="https://activities.local/users/testactor2"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith(
+        'https://phanpy.local/?error=server_error&state=return-state'
+      )
+    })
+    expect(mockSubmitOAuthConsent).not.toHaveBeenCalled()
+  })
+
+  it('redirects to access_denied when denial response has an invalid redirect URL', async () => {
+    mockSubmitOAuthConsent.mockResolvedValueOnce({
+      url: 'javascript:alert(1)'
+    })
+
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={{
+          ...signedSearchParams,
+          redirect_uri: 'https://phanpy.local/'
+        }}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Deny' }))
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith(
+        'https://phanpy.local/?error=access_denied&state=return-state'
+      )
+    })
+  })
+
+  it('redirects to server_error when denial encounters a server error', async () => {
+    mockSubmitOAuthConsent.mockRejectedValueOnce(
+      new Error('Internal Server Error')
+    )
+
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={{
+          ...signedSearchParams,
+          redirect_uri: 'https://phanpy.local/'
+        }}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Deny' }))
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith(
+        'https://phanpy.local/?error=server_error&state=return-state'
+      )
+    })
+  })
+
+  it('redirects to server_error when denial encounters a network error', async () => {
+    mockSubmitOAuthConsent.mockRejectedValueOnce(
+      new TypeError('Network failure')
+    )
+
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={{
+          ...signedSearchParams,
+          redirect_uri: 'https://phanpy.local/'
+        }}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Deny' }))
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith(
+        'https://phanpy.local/?error=server_error&state=return-state'
+      )
+    })
+  })
+
+  it('falls back to router push when redirect_uri is malformed on server error', async () => {
+    mockSubmitOAuthConsent.mockRejectedValueOnce(new Error('Server error'))
+
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={signedSearchParams}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('https://phanpy.local')
+    })
+    expect(mockNavigate).not.toHaveBeenCalled()
   })
 })
