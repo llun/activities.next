@@ -2,6 +2,11 @@
 
 import { FC, useEffect, useState } from 'react'
 
+import {
+  deleteStravaSettings,
+  getStravaSettings,
+  saveStravaSettings
+} from '@/lib/client'
 import { VisibilitySelector } from '@/lib/components/post-box/visibility-selector'
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -29,10 +34,19 @@ const isMastodonVisibility = (value: unknown): value is MastodonVisibility => {
   return MastodonVisibilitySchema.safeParse(value).success
 }
 
+const isAbortError = (err: unknown) =>
+  Boolean(
+    (err instanceof Error && err.name === 'AbortError') ||
+    (typeof DOMException !== 'undefined' &&
+      err instanceof DOMException &&
+      err.name === 'AbortError')
+  )
+
 export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
   serverActorHandle
 }) => {
   const [clientId, setClientId] = useState('')
+
   const [clientSecret, setClientSecret] = useState('')
   const [isConfigured, setIsConfigured] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
@@ -49,15 +63,12 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
     const controller = new AbortController()
     const fetchSettings = async () => {
       try {
-        const response = await fetch('/api/v1/fitness/strava', {
-          signal: controller.signal
-        })
-        const data = await response.json()
+        const data = await getStravaSettings({ signal: controller.signal })
 
         if (data.configured) {
           setIsConfigured(true)
           setIsConnected(data.connected || false)
-          setClientId(data.clientId)
+          setClientId(data.clientId || '')
           setClientSecret('••••••••')
           setWebhookUrl(data.webhookUrl || '')
         }
@@ -73,7 +84,7 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
           setArchiveActorHandle(serverActorHandle)
         }
       } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') {
+        if (isAbortError(err) || controller.signal.aborted) {
           return
         }
         setError('Failed to load settings')
@@ -117,7 +128,7 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
     return () => {
       controller.abort()
     }
-  }, [])
+  }, [serverActorHandle])
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -126,24 +137,11 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
     setIsLoading(true)
 
     try {
-      const response = await fetch('/api/v1/fitness/strava', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(
-          isConfigured
-            ? { defaultVisibility }
-            : { clientId, clientSecret, defaultVisibility }
-        )
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        setError(data.error || 'Failed to save settings')
-        return
-      }
+      const data = await saveStravaSettings(
+        isConfigured
+          ? { defaultVisibility }
+          : { clientId, clientSecret, defaultVisibility }
+      )
 
       setIsConfigured(true)
       if (!isConfigured) {
@@ -157,8 +155,12 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
       }
 
       setMessage(data.message || 'Strava settings saved successfully!')
-    } catch (_err) {
-      setError('An error occurred. Please try again.')
+    } catch (err) {
+      setError(
+        err instanceof Error && err.message
+          ? err.message
+          : 'An error occurred. Please try again.'
+      )
     } finally {
       setIsLoading(false)
     }
@@ -170,18 +172,9 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
     setIsLoading(true)
 
     try {
-      const response = await fetch('/api/v1/fitness/strava', {
-        method: 'DELETE'
-      })
+      const data = await deleteStravaSettings()
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        setError(data.error || 'Failed to remove settings')
-        return
-      }
-
-      setMessage('Settings removed successfully!')
+      setMessage(data.message || 'Settings removed successfully!')
       setIsConfigured(false)
       setIsConnected(false)
       setClientId('')
@@ -189,8 +182,12 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
       setWebhookUrl('')
       setDefaultVisibility(DEFAULT_STRAVA_VISIBILITY)
       setShowUnlinkDialog(false)
-    } catch (_err) {
-      setError('An error occurred. Please try again.')
+    } catch (err) {
+      setError(
+        err instanceof Error && err.message
+          ? err.message
+          : 'Failed to remove settings'
+      )
     } finally {
       setIsLoading(false)
     }

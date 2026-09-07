@@ -231,13 +231,12 @@
         "agents/no-component-fetch": [
           "error",
           {
-            "allowFiles": [
-              "app/(timeline)/fitness/strava/StravaSettingsForm.tsx"
-            ]
+            "allowFiles": []
           }
         ]
       }
     },
+
     {
       "files": [
         "**/*.test.js",
