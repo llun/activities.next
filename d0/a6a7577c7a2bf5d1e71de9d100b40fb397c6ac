@@ -1,0 +1,18 @@
+app/(timeline)/[actor]/[status]/ActivityMapPanel.test.tsx
+  h_580a04e334fef4 1-721
+app/(timeline)/[actor]/[status]/ActivityMapPanel.tsx
+  h_580a04e334fef4 1-714
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  h_580a04e334fef4 30,76,80,870-872,903-904
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "d0a6a7577c7a2bf5d1e71de9d100b40fb397c6ac",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
