@@ -387,4 +387,181 @@ describe('processForwardedActivityJob', () => {
     expect(status.type).toEqual(StatusType.enum.Poll)
     expect(status.choices[0].totalVotes).toEqual(10)
   })
+
+  it('rejects a forwarded Create whose fetched note id is cross-origin', async () => {
+    const evilNoteId = 'https://attacker.example/statuses/evil'
+    fetchMock.mockResponseOnce(
+      JSON.stringify(
+        noteDocument({
+          id: evilNoteId
+        })
+      )
+    )
+
+    await processForwardedActivityJob(
+      database,
+      jobMessage(forwardedActivity('Create', { id: NOTE_ID, type: 'Note' }))
+    )
+
+    const requestedStatus = await database.getStatus({ statusId: NOTE_ID })
+    expect(requestedStatus).toBeNull()
+    const evilStatus = await database.getStatus({ statusId: evilNoteId })
+    expect(evilStatus).toBeNull()
+  })
+
+  it('rejects a forwarded Create whose fetched note id is malformed or non-http', async () => {
+    fetchMock.mockResponseOnce(
+      JSON.stringify(
+        noteDocument({
+          id: 'not-a-valid-url'
+        })
+      )
+    )
+
+    await processForwardedActivityJob(
+      database,
+      jobMessage(forwardedActivity('Create', { id: NOTE_ID, type: 'Note' }))
+    )
+
+    const status = await database.getStatus({ statusId: NOTE_ID })
+    expect(status).toBeNull()
+  })
+
+  it('accepts a forwarded Create with a same-host canonical alias', async () => {
+    const canonicalNoteId = `${NOTE_ID}-canonical`
+    fetchMock.mockResponseOnce(
+      JSON.stringify(
+        noteDocument({
+          id: canonicalNoteId
+        })
+      )
+    )
+
+    await processForwardedActivityJob(
+      database,
+      jobMessage(forwardedActivity('Create', { id: NOTE_ID, type: 'Note' }))
+    )
+
+    const status = await database.getStatus({ statusId: canonicalNoteId })
+    expect(status).toBeDefined()
+    expect(status?.actorId).toEqual(AUTHOR)
+  })
+
+  it('rejects a forwarded Update whose fetched note id is cross-origin', async () => {
+    await database.createNote({
+      id: NOTE_ID,
+      url: NOTE_ID,
+      actorId: AUTHOR,
+      text: 'original text',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+
+    const evilNoteId = 'https://attacker.example/statuses/evil-update'
+    fetchMock.mockResponseOnce(
+      JSON.stringify(
+        noteDocument({
+          id: evilNoteId,
+          content: '<p>malicious update</p>'
+        })
+      )
+    )
+
+    await processForwardedActivityJob(
+      database,
+      jobMessage(forwardedActivity('Update', { id: NOTE_ID, type: 'Note' }))
+    )
+
+    const stored = await database.getStatus({ statusId: NOTE_ID })
+    expect(stored).toBeDefined()
+    if (stored?.type === 'Note') {
+      expect(stored.text).toEqual('original text')
+    } else {
+      expect.fail('Expected stored status to be a Note')
+    }
+  })
+
+  it('does not confirm Delete when origin serves a Tombstone with cross-origin id', async () => {
+    await database.createNote({
+      id: NOTE_ID,
+      url: NOTE_ID,
+      actorId: AUTHOR,
+      text: 'surviving note',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+
+    fetchMock.mockResponseOnce(
+      JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: 'https://attacker.example/statuses/other',
+        type: 'Tombstone'
+      }),
+      { status: 200 }
+    )
+
+    await processForwardedActivityJob(
+      database,
+      jobMessage(forwardedActivity('Delete', NOTE_ID))
+    )
+
+    const stored = await database.getStatus({ statusId: NOTE_ID })
+    expect(stored).toBeDefined()
+  })
+
+  it('does not confirm Delete when origin serves a Tombstone with malformed id', async () => {
+    await database.createNote({
+      id: NOTE_ID,
+      url: NOTE_ID,
+      actorId: AUTHOR,
+      text: 'surviving note',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+
+    fetchMock.mockResponseOnce(
+      JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: 'malformed-id',
+        type: 'Tombstone'
+      }),
+      { status: 200 }
+    )
+
+    await processForwardedActivityJob(
+      database,
+      jobMessage(forwardedActivity('Delete', NOTE_ID))
+    )
+
+    const stored = await database.getStatus({ statusId: NOTE_ID })
+    expect(stored).toBeDefined()
+  })
+
+  it('confirms Delete when origin serves a Tombstone with same-host canonical alias id', async () => {
+    await database.createNote({
+      id: NOTE_ID,
+      url: NOTE_ID,
+      actorId: AUTHOR,
+      text: 'note to delete',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+
+    fetchMock.mockResponseOnce(
+      JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: `${NOTE_ID}-canonical`,
+        type: 'Tombstone'
+      }),
+      { status: 200 }
+    )
+
+    await processForwardedActivityJob(
+      database,
+      jobMessage(forwardedActivity('Delete', NOTE_ID))
+    )
+
+    const stored = await database.getStatus({ statusId: NOTE_ID })
+    expect(stored).toBeNull()
+  })
 })

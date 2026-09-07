@@ -210,4 +210,100 @@ describe('createRelayAnnounceJob', () => {
     expect(stored.type).toEqual(StatusType.enum.Poll)
     expect(stored.choices).toHaveLength(2)
   })
+
+  it('rejects a relayed note whose fetched id is cross-origin', async () => {
+    const requestedNote = 'https://somewhere.test/statuses/requested-note'
+    const evilNote = 'https://attacker.test/statuses/evil-note'
+    fetchMock.mockOnceIf(
+      requestedNote,
+      JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: evilNote,
+        type: 'Note',
+        attributedTo: 'https://somewhere.test/actors/author',
+        content: '<p>Malicious cross-host id</p>',
+        published: '2026-08-30T00:00:00Z',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+    )
+
+    await createRelayAnnounceJob(database, {
+      id: 'job-cross-host',
+      name: RELAY_ANNOUNCE_JOB_NAME,
+      data: announceOf(requestedNote, `${RELAY_ACTOR}/announce/cross-host`)
+    })
+
+    const requestedStatus = await database.getStatus({
+      statusId: requestedNote
+    })
+    expect(requestedStatus).toBeNull()
+    const evilStatus = await database.getStatus({ statusId: evilNote })
+    expect(evilStatus).toBeNull()
+
+    const federated = await database.getTimeline({
+      timeline: Timeline.FEDERATED_PUBLIC
+    })
+    expect(federated.map((status) => status.id)).not.toContain(requestedNote)
+    expect(federated.map((status) => status.id)).not.toContain(evilNote)
+  })
+
+  it('rejects a relayed note whose fetched id is malformed or non-http', async () => {
+    const requestedNote = 'https://somewhere.test/statuses/malformed-fetched-id'
+    fetchMock.mockOnceIf(
+      requestedNote,
+      JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: 'not-a-valid-url',
+        type: 'Note',
+        attributedTo: 'https://somewhere.test/actors/author',
+        content: '<p>Malformed id</p>',
+        published: '2026-08-30T00:00:00Z',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+    )
+
+    await createRelayAnnounceJob(database, {
+      id: 'job-malformed-returned-id',
+      name: RELAY_ANNOUNCE_JOB_NAME,
+      data: announceOf(requestedNote, `${RELAY_ACTOR}/announce/malformed-id`)
+    })
+
+    const requestedStatus = await database.getStatus({
+      statusId: requestedNote
+    })
+    expect(requestedStatus).toBeNull()
+  })
+
+  it('accepts a relayed note with a valid same-host canonical alias', async () => {
+    const requestedNote = 'https://somewhere.test/statuses/alias-note/'
+    const canonicalNote = 'https://somewhere.test/statuses/alias-note'
+    fetchMock.mockOnceIf(
+      requestedNote,
+      JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: canonicalNote,
+        type: 'Note',
+        attributedTo: 'https://somewhere.test/actors/author',
+        content: '<p>Canonical alias</p>',
+        published: '2026-08-30T00:00:00Z',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+    )
+
+    await createRelayAnnounceJob(database, {
+      id: 'job-canonical-alias',
+      name: RELAY_ANNOUNCE_JOB_NAME,
+      data: announceOf(requestedNote, `${RELAY_ACTOR}/announce/canonical-alias`)
+    })
+
+    const stored = await database.getStatus({ statusId: canonicalNote })
+    expect(stored).toBeDefined()
+    const federated = await database.getTimeline({
+      timeline: Timeline.FEDERATED_PUBLIC
+    })
+    expect(federated.map((status) => status.id)).toContain(canonicalNote)
+  })
 })
