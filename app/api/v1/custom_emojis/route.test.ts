@@ -41,8 +41,10 @@ describe('/api/v1/custom_emojis', () => {
       }
     ])
 
+    const routeContext = { params: Promise.resolve({}) }
     const response = await GET(
-      new NextRequest('https://llun.test/api/v1/custom_emojis')
+      new NextRequest('https://llun.test/api/v1/custom_emojis'),
+      routeContext
     )
     const data = await response.json()
 
@@ -62,8 +64,10 @@ describe('/api/v1/custom_emojis', () => {
 
   it('returns an empty array when there are no emoji', async () => {
     mockDatabase.getCustomEmojis.mockResolvedValue([])
+    const routeContext = { params: Promise.resolve({}) }
     const response = await GET(
-      new NextRequest('https://llun.test/api/v1/custom_emojis')
+      new NextRequest('https://llun.test/api/v1/custom_emojis'),
+      routeContext
     )
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual([])
