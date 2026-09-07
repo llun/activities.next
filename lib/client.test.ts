@@ -14,6 +14,7 @@ import {
   cancelFitnessRouteHeatmap,
   changeAccountPassword,
   clearFitnessRouteHeatmaps,
+  completeUploadPresignedUrl,
   createActor,
   createCollection,
   createDirectMessage,
@@ -22,6 +23,7 @@ import {
   createNote,
   createPoll,
   createReport,
+  createUploadPresignedUrl,
   deleteAccountMedia,
   deleteActor,
   deleteCollection,
@@ -77,11 +79,14 @@ import {
   updateFitnessGearComponent,
   updateNote,
   updateStatusVisibility,
-  uploadAttachment
+  uploadAttachment,
+  uploadFileToPresignedUrl,
+  uploadMedia
 } from './client'
 import * as fitnessGearModule from './client/fitnessGear'
 import * as fitnessHeatmapsModule from './client/fitnessHeatmaps'
 import * as httpModule from './client/http'
+import * as mediaModule from './client/media'
 import * as statusesModule from './client/statuses'
 
 enableFetchMocks()
@@ -96,9 +101,17 @@ describe('client facade statuses re-exports', () => {
   })
 })
 
-vi.mock('@/lib/utils/getMediaWidthAndHeight', () => ({
-  getMediaWidthAndHeight: vi.fn().mockResolvedValue({ width: 10, height: 20 })
-}))
+describe('client facade media re-exports', () => {
+  it('re-exports extracted media functions', () => {
+    expect(uploadMedia).toBe(mediaModule.uploadMedia)
+    expect(createUploadPresignedUrl).toBe(mediaModule.createUploadPresignedUrl)
+    expect(uploadFileToPresignedUrl).toBe(mediaModule.uploadFileToPresignedUrl)
+    expect(completeUploadPresignedUrl).toBe(
+      mediaModule.completeUploadPresignedUrl
+    )
+    expect(uploadAttachment).toBe(mediaModule.uploadAttachment)
+  })
+})
 
 describe('client updateNote', () => {
   beforeEach(() => {
@@ -748,182 +761,6 @@ describe('client search', () => {
     await expect(search({ q: 'trail' })).rejects.toThrow(
       `Search request failed (502): ${'x'.repeat(200)}...`
     )
-  })
-})
-
-describe('client uploadAttachment presigned completion', () => {
-  let setTimeoutSpy: jest.SpyInstance
-
-  const presignedResponse = {
-    presigned: {
-      url: 'https://storage.example/upload',
-      saveFileOutput: {
-        id: 'media-1',
-        type: 'image',
-        mime_type: 'image/png',
-        url: 'https://llun.test/api/v1/files/media-1.png',
-        preview_url: null,
-        text_url: null,
-        remote_url: null,
-        meta: {
-          original: {
-            width: 10,
-            height: 20,
-            size: '10x20',
-            aspect: 0.5
-          }
-        },
-        description: ''
-      },
-      headers: {
-        'x-amz-meta-checksumsha1': 'checksum'
-      }
-    }
-  }
-
-  beforeEach(() => {
-    fetchMock.resetMocks()
-    setTimeoutSpy = vi
-      .spyOn(globalThis, 'setTimeout')
-      .mockImplementation((handler: Parameters<typeof setTimeout>[0]) => {
-        if (typeof handler === 'function') {
-          handler()
-        }
-        return 0 as unknown as ReturnType<typeof setTimeout>
-      })
-  })
-
-  afterEach(() => {
-    setTimeoutSpy.mockRestore()
-  })
-
-  it('retries presigned upload completion after the file PUT succeeds', async () => {
-    fetchMock
-      .mockResponseOnce(JSON.stringify(presignedResponse), { status: 200 })
-      .mockResponseOnce('', { status: 200 })
-      .mockResponseOnce('', { status: 503 })
-      .mockResponseOnce('', { status: 503 })
-      .mockResponseOnce(
-        JSON.stringify({
-          media: presignedResponse.presigned.saveFileOutput
-        }),
-        { status: 200 }
-      )
-
-    await expect(
-      uploadAttachment(
-        new File(['file-bytes'], 'photo.png', { type: 'image/png' })
-      )
-    ).resolves.toMatchObject({
-      id: 'media-1',
-      name: ''
-    })
-
-    expect(fetchMock).toHaveBeenCalledTimes(5)
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      3,
-      '/api/v1/medias/presigned',
-      expect.objectContaining({ method: 'PATCH' })
-    )
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      5,
-      '/api/v1/medias/presigned',
-      expect.objectContaining({ method: 'PATCH' })
-    )
-    expect(setTimeoutSpy).toHaveBeenNthCalledWith(1, expect.any(Function), 250)
-    expect(setTimeoutSpy).toHaveBeenNthCalledWith(2, expect.any(Function), 500)
-  })
-
-  it('cleans up pending media when presigned upload completion is exhausted', async () => {
-    fetchMock
-      .mockResponseOnce(JSON.stringify(presignedResponse), { status: 200 })
-      .mockResponseOnce('', { status: 200 })
-      .mockResponseOnce('', { status: 503 })
-      .mockResponseOnce('', { status: 503 })
-      .mockResponseOnce('', { status: 503 })
-      .mockResponseOnce(JSON.stringify({ success: true }), { status: 200 })
-
-    await expect(
-      uploadAttachment(
-        new File(['file-bytes'], 'photo.png', { type: 'image/png' })
-      )
-    ).resolves.toBeNull()
-
-    expect(fetchMock).toHaveBeenLastCalledWith(
-      '/api/v1/accounts/media/media-1',
-      expect.objectContaining({ method: 'DELETE' })
-    )
-  })
-
-  it('does not retry or clean up permanent presigned upload completion failures', async () => {
-    fetchMock
-      .mockResponseOnce(JSON.stringify(presignedResponse), { status: 200 })
-      .mockResponseOnce('', { status: 200 })
-      .mockResponseOnce('', { status: 422 })
-
-    await expect(
-      uploadAttachment(
-        new File(['file-bytes'], 'photo.png', { type: 'image/png' })
-      )
-    ).resolves.toBeNull()
-
-    expect(fetchMock).toHaveBeenCalledTimes(3)
-    expect(setTimeoutSpy).not.toHaveBeenCalled()
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      3,
-      '/api/v1/medias/presigned',
-      expect.objectContaining({ method: 'PATCH' })
-    )
-    expect(fetchMock).not.toHaveBeenCalledWith(
-      '/api/v1/accounts/media/media-1',
-      expect.anything()
-    )
-  })
-
-  it('cleans up pending media when presigned upload completion is unauthorized', async () => {
-    fetchMock
-      .mockResponseOnce(JSON.stringify(presignedResponse), { status: 200 })
-      .mockResponseOnce('', { status: 200 })
-      .mockResponseOnce('', { status: 401 })
-      .mockResponseOnce(JSON.stringify({ success: true }), { status: 200 })
-
-    await expect(
-      uploadAttachment(
-        new File(['file-bytes'], 'photo.png', { type: 'image/png' })
-      )
-    ).resolves.toBeNull()
-
-    expect(fetchMock).toHaveBeenCalledTimes(4)
-    expect(setTimeoutSpy).not.toHaveBeenCalled()
-    expect(fetchMock).toHaveBeenLastCalledWith(
-      '/api/v1/accounts/media/media-1',
-      expect.objectContaining({ method: 'DELETE' })
-    )
-  })
-
-  it('returns media description from upload response instead of file name on direct upload', async () => {
-    fetchMock.mockResponseOnce(JSON.stringify(null), { status: 404 })
-    fetchMock.mockResponseOnce(
-      JSON.stringify({
-        id: 'media-123',
-        type: 'image',
-        mime_type: 'image/png',
-        url: 'https://llun.test/files/123.png',
-        preview_url: null,
-        meta: { original: { width: 100, height: 100 } },
-        description: 'AI alt description'
-      }),
-      { status: 200 }
-    )
-
-    const result = await uploadAttachment(
-      new File(['test'], 'photo.png', { type: 'image/png' })
-    )
-
-    expect(result).toMatchObject({
-      id: 'media-123',
-      name: 'AI alt description'
-    })
   })
 })
 
