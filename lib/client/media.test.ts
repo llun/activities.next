@@ -3,6 +3,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import {
   completeUploadPresignedUrl,
   createUploadPresignedUrl,
+  getActorMedia,
   uploadAttachment,
   uploadFileToPresignedUrl,
   uploadMedia
@@ -329,6 +330,53 @@ describe('client media module', () => {
         id: 'media-123',
         name: 'AI alt description'
       })
+    })
+  })
+
+  describe('getActorMedia', () => {
+    beforeEach(() => {
+      Object.defineProperty(globalThis, 'window', {
+        configurable: true,
+        value: { origin: 'https://llun.test' }
+      })
+    })
+
+    afterEach(() => {
+      Reflect.deleteProperty(globalThis, 'window')
+    })
+
+    it('fetches actor media with query parameters', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify([{ id: 'media-1', type: 'image' }]),
+        { status: 200 }
+      )
+
+      const result = await getActorMedia({
+        actorId: 'https://llun.test/users/test',
+        maxCreatedAt: 12345678,
+        limit: 10
+      })
+
+      expect(result).toEqual([{ id: 'media-1', type: 'image' }])
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining(
+          '/api/v1/accounts/llun.test:users:test/media?max_created_at=12345678&limit=10'
+        ),
+        expect.objectContaining({
+          method: 'GET',
+          headers: { Accept: 'application/json' }
+        })
+      )
+    })
+
+    it('returns empty array when status is not 200', async () => {
+      fetchMock.mockResponseOnce('', { status: 404 })
+
+      const result = await getActorMedia({
+        actorId: 'actor-1'
+      })
+
+      expect(result).toEqual([])
     })
   })
 })

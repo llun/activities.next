@@ -4,7 +4,6 @@ import type { AdminRule } from '@/lib/services/rules/adminRule'
 import { TimelineFormat } from '@/lib/services/timelines/const'
 import { Timeline } from '@/lib/services/timelines/types'
 import type { DirectConversation } from '@/lib/types/database/operations'
-import { Attachment } from '@/lib/types/domain/attachment'
 import type { AdminCustomEmoji } from '@/lib/types/domain/customEmoji'
 import type { FilterAction, FilterContext } from '@/lib/types/domain/filter'
 import { QuoteApprovalPolicy, Status } from '@/lib/types/domain/status'
@@ -46,8 +45,11 @@ import {
   type GetActorStatusesResult,
   type GetBlocksParams,
   type GetBlocksResult,
+  type GetMutesParams,
+  type GetMutesResult,
   type MuteParams,
   type ReportCategory,
+  type RevokeConnectedAppParams,
   type SetDefaultActorParams,
   type SetDefaultActorResult,
   type SwitchActorParams,
@@ -63,12 +65,13 @@ import {
   getActorDomains,
   getActorStatuses,
   getBlocks,
-  getCursorFromLinkHeader,
   getFollowStatus,
+  getMutes,
   getRelationship,
   isFollowing,
   mute,
   rejectFollowRequest,
+  revokeConnectedApp,
   revokeOtherSessions,
   setDefaultActor,
   switchActor,
@@ -80,10 +83,12 @@ import { ApiRequestError, parseApiError, throwApiError } from './client/http'
 import {
   type CompleteUploadPresignedUrlParams,
   type CreateUploadPresignedUrlParams,
+  type GetActorMediaParams,
   type UploadFileToPresignedUrlParams,
   type UploadMediaParams,
   completeUploadPresignedUrl,
   createUploadPresignedUrl,
+  getActorMedia,
   uploadAttachment,
   uploadFileToPresignedUrl,
   uploadMedia
@@ -92,6 +97,10 @@ import {
   type CreateNoteParams,
   type CreatePollParams,
   type DefaultStatusParams,
+  type GetBookmarksParams,
+  type GetBookmarksResult,
+  type GetFavouritesParams,
+  type GetFavouritesResult,
   type GetStatusFavouritedByParams,
   type GetStatusQuotesParams,
   type GetStatusQuotesResult,
@@ -110,7 +119,9 @@ import {
   createNote,
   createPoll,
   deleteStatus,
+  getBookmarks,
   getDefaultQuotePolicy,
+  getFavourites,
   getStatusById,
   getStatusFavouritedBy,
   getStatusQuotes,
@@ -176,6 +187,12 @@ export {
   type GetStatusFavouritedByParams,
   type StatusFavouritedByResult,
   getStatusFavouritedBy,
+  type GetBookmarksParams,
+  type GetBookmarksResult,
+  getBookmarks,
+  type GetFavouritesParams,
+  type GetFavouritesResult,
+  getFavourites,
   type VotePollParams,
   votePoll,
   type GetStatusQuotesParams,
@@ -209,8 +226,11 @@ export {
   type GetActorStatusesResult,
   type GetBlocksParams,
   type GetBlocksResult,
+  type GetMutesParams,
+  type GetMutesResult,
   type MuteParams,
   type ReportCategory,
+  type RevokeConnectedAppParams,
   type SetDefaultActorParams,
   type SetDefaultActorResult,
   type SwitchActorParams,
@@ -227,10 +247,12 @@ export {
   getActorStatuses,
   getBlocks,
   getFollowStatus,
+  getMutes,
   getRelationship,
   isFollowing,
   mute,
   rejectFollowRequest,
+  revokeConnectedApp,
   revokeOtherSessions,
   setDefaultActor,
   switchActor,
@@ -252,10 +274,12 @@ export { getTrendingLinks, getTrendingStatuses, getTrendingTags }
 export {
   type CompleteUploadPresignedUrlParams,
   type CreateUploadPresignedUrlParams,
+  type GetActorMediaParams,
   type UploadFileToPresignedUrlParams,
   type UploadMediaParams,
   completeUploadPresignedUrl,
   createUploadPresignedUrl,
+  getActorMedia,
   uploadAttachment,
   uploadFileToPresignedUrl,
   uploadMedia
@@ -281,136 +305,6 @@ export const markNotificationsRead = async ({
     })
   })
   return response.ok
-}
-
-interface GetMutesParams {
-  limit?: number
-  maxId?: string
-  minId?: string
-}
-
-interface GetMutesResult {
-  accounts: MastodonAccount[]
-  nextMaxId: string | null
-  prevMinId: string | null
-}
-
-export const getMutes = async ({
-  limit,
-  maxId,
-  minId
-}: GetMutesParams = {}): Promise<GetMutesResult> => {
-  const url = new URL(`${window.origin}/api/v1/mutes`)
-  if (limit) url.searchParams.set('limit', `${limit}`)
-  if (maxId) url.searchParams.set('max_id', maxId)
-  if (minId) url.searchParams.set('min_id', minId)
-
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json'
-    }
-  })
-  if (response.status !== 200) {
-    return { accounts: [], nextMaxId: null, prevMinId: null }
-  }
-
-  const linkHeader = response.headers.get('Link')
-  return {
-    accounts: (await response.json()) as MastodonAccount[],
-    nextMaxId: getCursorFromLinkHeader(linkHeader, 'next'),
-    prevMinId: getCursorFromLinkHeader(linkHeader, 'prev')
-  }
-}
-
-export interface GetBookmarksParams {
-  limit?: number
-  maxBookmarkId?: string
-  minBookmarkId?: string
-}
-
-export interface GetBookmarksResult {
-  statuses: Status[]
-  nextMaxBookmarkId: string | null
-  prevMinBookmarkId: string | null
-}
-
-export const getBookmarks = async ({
-  limit,
-  maxBookmarkId,
-  minBookmarkId
-}: GetBookmarksParams = {}): Promise<GetBookmarksResult> => {
-  const url = new URL(`${window.origin}/api/v1/bookmarks`)
-  url.searchParams.set('format', TimelineFormat.enum.activities_next)
-  if (limit) url.searchParams.set('limit', `${limit}`)
-  if (maxBookmarkId) url.searchParams.set('max_id', maxBookmarkId)
-  if (minBookmarkId) url.searchParams.set('min_id', minBookmarkId)
-
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json'
-    }
-  })
-  if (response.status !== 200) {
-    return {
-      statuses: [],
-      nextMaxBookmarkId: null,
-      prevMinBookmarkId: null
-    }
-  }
-
-  const data = (await response.json()) as Partial<GetBookmarksResult>
-  return {
-    statuses: data.statuses ?? [],
-    nextMaxBookmarkId: data.nextMaxBookmarkId ?? null,
-    prevMinBookmarkId: data.prevMinBookmarkId ?? null
-  }
-}
-
-export interface GetFavouritesParams {
-  limit?: number
-  maxFavouriteId?: string
-  minFavouriteId?: string
-}
-
-export interface GetFavouritesResult {
-  statuses: Status[]
-  nextMaxFavouriteId: string | null
-  prevMinFavouriteId: string | null
-}
-
-export const getFavourites = async ({
-  limit,
-  maxFavouriteId,
-  minFavouriteId
-}: GetFavouritesParams = {}): Promise<GetFavouritesResult> => {
-  const url = new URL(`${window.origin}/api/v1/favourites`)
-  url.searchParams.set('format', TimelineFormat.enum.activities_next)
-  if (limit) url.searchParams.set('limit', `${limit}`)
-  if (maxFavouriteId) url.searchParams.set('max_id', maxFavouriteId)
-  if (minFavouriteId) url.searchParams.set('min_id', minFavouriteId)
-
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json'
-    }
-  })
-  if (response.status !== 200) {
-    return {
-      statuses: [],
-      nextMaxFavouriteId: null,
-      prevMinFavouriteId: null
-    }
-  }
-
-  const data = (await response.json()) as Partial<GetFavouritesResult>
-  return {
-    statuses: data.statuses ?? [],
-    nextMaxFavouriteId: data.nextMaxFavouriteId ?? null,
-    prevMinFavouriteId: data.prevMinFavouriteId ?? null
-  }
 }
 
 interface GetTimelineParams {
@@ -552,56 +446,6 @@ export const getHashtagTimeline = async ({
   }
 
   return result
-}
-
-interface RevokeConnectedAppParams {
-  clientId: string
-  actorId: string | null
-}
-// Revoke a connected app / SSO sign-in grant for the given actor.
-export const revokeConnectedApp = async ({
-  clientId,
-  actorId
-}: RevokeConnectedAppParams): Promise<boolean> => {
-  const query = actorId ? `?actorId=${encodeURIComponent(actorId)}` : ''
-  const response = await fetch(
-    `/api/v1/accounts/connected-apps/${encodeURIComponent(clientId)}${query}`,
-    {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    }
-  )
-  return response.ok
-}
-
-interface GetActorMediaParams {
-  actorId: string
-  maxCreatedAt?: number
-  limit?: number
-}
-export const getActorMedia = async ({
-  actorId,
-  maxCreatedAt,
-  limit = 25
-}: GetActorMediaParams): Promise<Attachment[]> => {
-  const encodedId = toIdPathSegment(actorId)
-  const url = new URL(`${window.origin}/api/v1/accounts/${encodedId}/media`)
-  if (maxCreatedAt) {
-    url.searchParams.append('max_created_at', `${maxCreatedAt}`)
-  }
-  if (limit) {
-    url.searchParams.append('limit', `${limit}`)
-  }
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json'
-    }
-  })
-  if (response.status !== 200) return []
-  return response.json()
 }
 
 export interface UploadFitnessFileResult {

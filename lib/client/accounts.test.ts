@@ -14,10 +14,12 @@ import {
   getActorStatuses,
   getBlocks,
   getFollowStatus,
+  getMutes,
   getRelationship,
   isFollowing,
   mute,
   rejectFollowRequest,
+  revokeConnectedApp,
   revokeOtherSessions,
   setDefaultActor,
   switchActor,
@@ -789,6 +791,96 @@ describe('client accounts module', () => {
       fetchMock.mockResponse('', { status: 500 })
 
       const res = await revokeOtherSessions()
+      expect(res).toBe(false)
+    })
+  })
+
+  describe('getMutes', () => {
+    beforeEach(() => {
+      Object.defineProperty(globalThis, 'window', {
+        configurable: true,
+        value: { origin: 'https://llun.test' }
+      })
+    })
+
+    afterEach(() => {
+      Reflect.deleteProperty(globalThis, 'window')
+    })
+
+    it('fetches mutes and parses link headers', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify([{ id: 'actor-1', username: 'muted_user' }]),
+        {
+          status: 200,
+          headers: {
+            Link: '<https://llun.test/api/v1/mutes?max_id=next-cursor>; rel="next", <https://llun.test/api/v1/mutes?min_id=prev-cursor>; rel="prev"'
+          }
+        }
+      )
+
+      const res = await getMutes({ limit: 20, maxId: 'm1', minId: 'm2' })
+      expect(res.accounts).toEqual([{ id: 'actor-1', username: 'muted_user' }])
+      expect(res.nextMaxId).toBe('next-cursor')
+      expect(res.prevMinId).toBe('prev-cursor')
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/mutes?limit=20&max_id=m1&min_id=m2'),
+        expect.objectContaining({ method: 'GET' })
+      )
+    })
+
+    it('returns empty accounts array when status is not 200', async () => {
+      fetchMock.mockResponseOnce('', { status: 500 })
+
+      const res = await getMutes()
+      expect(res).toEqual({
+        accounts: [],
+        nextMaxId: null,
+        prevMinId: null
+      })
+    })
+  })
+
+  describe('revokeConnectedApp', () => {
+    it('revokes a connected app with actorId query', async () => {
+      fetchMock.mockResponseOnce('', { status: 200 })
+
+      const res = await revokeConnectedApp({
+        clientId: 'app-client-123',
+        actorId: 'https://llun.test/users/actor-1'
+      })
+
+      expect(res).toBe(true)
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining(
+          '/api/v1/accounts/connected-apps/app-client-123?actorId=https%3A%2F%2Fllun.test%2Fusers%2Factor-1'
+        ),
+        expect.objectContaining({ method: 'DELETE' })
+      )
+    })
+
+    it('revokes a connected app without actorId query', async () => {
+      fetchMock.mockResponseOnce('', { status: 200 })
+
+      const res = await revokeConnectedApp({
+        clientId: 'app-client-123',
+        actorId: null
+      })
+
+      expect(res).toBe(true)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/accounts/connected-apps/app-client-123',
+        expect.objectContaining({ method: 'DELETE' })
+      )
+    })
+
+    it('returns false when status is not ok', async () => {
+      fetchMock.mockResponseOnce('', { status: 500 })
+
+      const res = await revokeConnectedApp({
+        clientId: 'app-client-123',
+        actorId: null
+      })
+
       expect(res).toBe(false)
     })
   })
