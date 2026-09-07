@@ -1,0 +1,28 @@
+app/api/v1/accounts/fitness-files/[fitnessFileId]/route.test.ts
+  h_580a04e334fef4 23-36,109-116
+app/api/v1/accounts/fitness-files/[fitnessFileId]/route.ts
+  h_580a04e334fef4 137
+app/api/v1/accounts/media/[mediaId]/route.test.ts
+  h_580a04e334fef4 1-265
+app/api/v1/accounts/media/[mediaId]/route.ts
+  h_580a04e334fef4 123
+app/api/v1/accounts/media/route.test.ts
+  h_580a04e334fef4 62-64
+app/api/v1/accounts/media/route.ts
+  h_580a04e334fef4 70,72
+lib/services/guards/AuthenticatedGuard.test.ts
+  h_580a04e334fef4 1,7,585-737
+lib/services/guards/AuthenticatedGuard.ts
+  h_580a04e334fef4 12,60-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "b7e20fcdcf361ee0f9a640813953dedfe34599f2",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
