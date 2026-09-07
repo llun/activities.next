@@ -564,4 +564,33 @@ describe('processForwardedActivityJob', () => {
     const stored = await database.getStatus({ statusId: NOTE_ID })
     expect(stored).toBeNull()
   })
+
+  it('deletes status stored under same-host canonical alias ID when forwarded Delete specifies non-canonical objectId', async () => {
+    const canonicalNoteId = `${NOTE_ID}-canonical`
+    await database.createNote({
+      id: canonicalNoteId,
+      url: canonicalNoteId,
+      actorId: AUTHOR,
+      text: 'canonical note to delete',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+
+    fetchMock.mockResponseOnce(
+      JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: canonicalNoteId,
+        type: 'Tombstone'
+      }),
+      { status: 200 }
+    )
+
+    await processForwardedActivityJob(
+      database,
+      jobMessage(forwardedActivity('Delete', NOTE_ID))
+    )
+
+    const stored = await database.getStatus({ statusId: canonicalNoteId })
+    expect(stored).toBeNull()
+  })
 })
