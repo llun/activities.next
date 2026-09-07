@@ -5,7 +5,11 @@ import {
   createNote,
   createPoll,
   deleteStatus,
+  getStatusById,
+  getStatusFavouritedBy,
+  getStatusQuotes,
   getTranslationCapability,
+  getTranslationLanguages,
   likeStatus,
   reactToStatus,
   repostStatus,
@@ -15,7 +19,8 @@ import {
   undoRepostStatus,
   unreactFromStatus,
   updateNote,
-  updateStatusVisibility
+  updateStatusVisibility,
+  votePoll
 } from './statuses'
 
 enableFetchMocks()
@@ -517,6 +522,182 @@ describe('client statuses module', () => {
       })
 
       expect(res).toEqual({ ok: false })
+    })
+  })
+
+  describe('getTranslationLanguages', () => {
+    it('returns translation languages map on success', async () => {
+      fetchMock.mockResponse(JSON.stringify({ en: ['es', 'fr'] }), {
+        status: 200
+      })
+
+      const res = await getTranslationLanguages()
+      expect(res).toEqual({ en: ['es', 'fr'] })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/instance/translation_languages'
+      )
+    })
+  })
+
+  describe('getStatusFavouritedBy', () => {
+    it('returns accounts with pagination headers', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify([{ id: 'acc-1', username: 'alice' }]),
+        {
+          status: 200,
+          headers: {
+            'X-Offset': '10',
+            'X-Total-Count': '25',
+            'X-Limit': '5'
+          }
+        }
+      )
+
+      const res = await getStatusFavouritedBy({
+        statusId: 'status-1',
+        limit: 5,
+        offset: 10
+      })
+
+      expect(res).toEqual({
+        accounts: [{ id: 'acc-1', username: 'alice' }],
+        total: 25,
+        limit: 5,
+        offset: 10
+      })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/statuses/status-1/favourited_by?limit=5&offset=10',
+        expect.objectContaining({
+          headers: { 'Content-Type': 'application/json' }
+        })
+      )
+    })
+
+    it('returns empty result on non-200 response', async () => {
+      fetchMock.mockResponse('', { status: 404 })
+
+      const res = await getStatusFavouritedBy({
+        statusId: 'status-1',
+        limit: 10
+      })
+
+      expect(res).toEqual({
+        accounts: [],
+        total: 0,
+        limit: 10,
+        offset: 0
+      })
+    })
+  })
+
+  describe('votePoll', () => {
+    it('submits vote choices and returns response JSON', async () => {
+      fetchMock.mockResponse(JSON.stringify({ poll: { id: 'poll-1' } }), {
+        status: 200
+      })
+
+      const res = await votePoll({
+        statusId: 'status-1',
+        choices: [0, 2]
+      })
+
+      expect(res).toEqual({ poll: { id: 'poll-1' } })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/accounts/vote',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ statusId: 'status-1', choices: [0, 2] })
+        })
+      )
+    })
+
+    it('throws on non-200 response', async () => {
+      fetchMock.mockResponse('', { status: 422 })
+
+      await expect(
+        votePoll({ statusId: 'status-1', choices: [1] })
+      ).rejects.toThrow('Failed to vote')
+    })
+  })
+
+  describe('getStatusQuotes', () => {
+    beforeEach(() => {
+      Reflect.set(globalThis, 'window', {
+        origin: 'https://local.example'
+      })
+    })
+
+    afterEach(() => {
+      Reflect.deleteProperty(globalThis, 'window')
+    })
+
+    it('returns quoted statuses with pagination cursors from Link header', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify([{ id: 'quote-1', text: 'Quoted post' }]),
+        {
+          status: 200,
+          headers: {
+            Link: '<https://local.example/api/v1/statuses/status-1/quotes?max_id=quote-1>; rel="next", <https://local.example/api/v1/statuses/status-1/quotes?since_id=quote-5>; rel="prev"'
+          }
+        }
+      )
+
+      const res = await getStatusQuotes({
+        statusId: 'status-1',
+        limit: 10,
+        maxId: 'cursor-max',
+        sinceId: 'cursor-since'
+      })
+
+      expect(res).toEqual({
+        statuses: [{ id: 'quote-1', text: 'Quoted post' }],
+        nextMaxId: 'quote-1',
+        prevSinceId: 'quote-5'
+      })
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://local.example/api/v1/statuses/status-1/quotes?limit=10&max_id=cursor-max&since_id=cursor-since',
+        expect.objectContaining({
+          method: 'GET',
+          headers: { Accept: 'application/json' }
+        })
+      )
+    })
+
+    it('returns empty result on non-200 response', async () => {
+      fetchMock.mockResponse('', { status: 404 })
+
+      const res = await getStatusQuotes({ statusId: 'status-1' })
+      expect(res).toEqual({
+        statuses: [],
+        nextMaxId: null,
+        prevSinceId: null
+      })
+    })
+  })
+
+  describe('getStatusById', () => {
+    it('returns status on 200 OK', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({ id: 'status-123', content: 'hello' }),
+        { status: 200 }
+      )
+
+      const res = await getStatusById('status-123')
+      expect(res).toEqual({ id: 'status-123', content: 'hello' })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/statuses/status-123',
+        expect.objectContaining({
+          method: 'GET',
+          headers: { Accept: 'application/json' }
+        })
+      )
+    })
+
+    it('returns null on 404 or error', async () => {
+      fetchMock.mockResponse('', { status: 404 })
+
+      const res = await getStatusById('missing-status')
+      expect(res).toBeNull()
     })
   })
 })

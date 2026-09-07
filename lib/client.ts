@@ -39,17 +39,27 @@ import {
   type CreateNoteParams,
   type CreatePollParams,
   type DefaultStatusParams,
+  type GetStatusFavouritedByParams,
+  type GetStatusQuotesParams,
+  type GetStatusQuotesResult,
   type ReactionUpdateResult,
+  type StatusFavouritedByResult,
   type TranslateStatusParams,
   type TranslationCapability,
+  type TranslationLanguages,
   type UpdateNoteParams,
   type UpdateNoteResult,
   type UpdateStatusVisibilityParams,
+  type VotePollParams,
   bookmarkStatus,
   createNote,
   createPoll,
   deleteStatus,
+  getStatusById,
+  getStatusFavouritedBy,
+  getStatusQuotes,
   getTranslationCapability,
+  getTranslationLanguages,
   likeStatus,
   reactToStatus,
   repostStatus,
@@ -59,7 +69,8 @@ import {
   undoRepostStatus,
   unreactFromStatus,
   updateNote,
-  updateStatusVisibility
+  updateStatusVisibility,
+  votePoll
 } from './client/statuses'
 
 export { ApiRequestError }
@@ -88,7 +99,18 @@ export {
   unreactFromStatus,
   bookmarkStatus,
   undoBookmarkStatus,
-  undoLikeStatus
+  undoLikeStatus,
+  type TranslationLanguages,
+  getTranslationLanguages,
+  type GetStatusFavouritedByParams,
+  type StatusFavouritedByResult,
+  getStatusFavouritedBy,
+  type VotePollParams,
+  votePoll,
+  type GetStatusQuotesParams,
+  type GetStatusQuotesResult,
+  getStatusQuotes,
+  getStatusById
 }
 
 export type ReportCategory = 'spam' | 'legal' | 'violation' | 'other'
@@ -128,133 +150,6 @@ export const createReport = async ({
     })
   })
   return response.status === 200
-}
-
-// A map of source language (ISO 639-1) → the target languages the configured
-// backend can translate it into.
-export type TranslationLanguages = Record<string, string[]>
-
-let translationLanguagesPromise: Promise<TranslationLanguages> | null = null
-
-/**
- * Reads the supported source→target language pairs from
- * `/api/v1/instance/translation_languages`, memoized for the session. Used to
- * populate the Translate control's target-language picker.
- * @see https://docs.joinmastodon.org/methods/instance/#translation_languages
- */
-export const getTranslationLanguages = (): Promise<TranslationLanguages> => {
-  if (!translationLanguagesPromise) {
-    translationLanguagesPromise = fetch(
-      '/api/v1/instance/translation_languages'
-    )
-      .then((response) => {
-        // Throw on a non-OK status so an HTTP 5xx falls through to the catch
-        // and clears the memo too — not just network rejections.
-        if (!response.ok) {
-          throw new Error('Failed to fetch translation languages')
-        }
-        return response.json()
-      })
-      .then((data): TranslationLanguages =>
-        data && typeof data === 'object' ? data : {}
-      )
-      .catch(() => {
-        // Don't pin a transient failure for the whole session — clear the memo
-        // so a later call can retry once the network/backend recovers.
-        translationLanguagesPromise = null
-        return {}
-      })
-  }
-  return translationLanguagesPromise
-}
-
-export interface GetStatusFavouritedByParams extends DefaultStatusParams {
-  limit?: number
-  offset?: number
-}
-
-export interface StatusFavouritedByResult {
-  accounts: MastodonAccount[]
-  total: number
-  limit: number
-  offset: number
-}
-
-export const getStatusFavouritedBy = async ({
-  statusId,
-  limit,
-  offset = 0
-}: GetStatusFavouritedByParams): Promise<StatusFavouritedByResult> => {
-  const query = new URLSearchParams()
-  if (typeof limit === 'number') {
-    query.append('limit', `${limit}`)
-  }
-  if (offset > 0) {
-    query.append('offset', `${offset}`)
-  }
-  const path = `/api/v1/statuses/${toIdPathSegment(statusId)}/favourited_by${
-    query.toString().length > 0 ? `?${query.toString()}` : ''
-  }`
-
-  const response = await fetch(path, {
-    headers: { 'Content-Type': 'application/json' }
-  })
-
-  if (response.status !== 200) {
-    return {
-      accounts: [],
-      total: 0,
-      limit: limit ?? 0,
-      offset
-    }
-  }
-
-  const parseHeaderNumber = (value: string | null, fallback: number) => {
-    const parsed = parseInt(value ?? '', 10)
-    return Number.isNaN(parsed) ? fallback : parsed
-  }
-
-  const accounts = (
-    (await response.json()) as (MastodonAccount | null)[]
-  ).filter((account): account is MastodonAccount => Boolean(account))
-  const resolvedOffset = parseHeaderNumber(
-    response.headers.get('X-Offset'),
-    offset
-  )
-  const resolvedTotal = parseHeaderNumber(
-    response.headers.get('X-Total-Count'),
-    accounts.length
-  )
-  const resolvedLimit = parseHeaderNumber(
-    response.headers.get('X-Limit'),
-    limit ?? accounts.length
-  )
-
-  return {
-    accounts,
-    total: resolvedTotal,
-    limit: resolvedLimit,
-    offset: resolvedOffset
-  }
-}
-
-interface VotePollParams {
-  statusId: string
-  choices: number[]
-}
-
-export const votePoll = async ({ statusId, choices }: VotePollParams) => {
-  const response = await fetch('/api/v1/accounts/vote', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ statusId, choices })
-  })
-  if (response.status !== 200) {
-    throw new Error('Failed to vote')
-  }
-  return response.json()
 }
 
 interface FollowParams {
@@ -693,80 +588,6 @@ export const getBlocks = async ({
     nextMaxId: getCursorFromLinkHeader(linkHeader, 'next'),
     prevMinId: getCursorFromLinkHeader(linkHeader, 'prev')
   }
-}
-
-// Reads a specific cursor query param from a rel in the Link header. The quotes
-// endpoint paginates with max_id (next) / since_id (prev) rather than min_id.
-const getLinkCursor = (
-  linkHeader: string | null,
-  rel: string,
-  param: string
-) => {
-  if (!linkHeader) return null
-  const link = linkHeader
-    .split(',')
-    .map((item) => item.trim())
-    .find((item) => item.endsWith(`rel="${rel}"`))
-  const url = link?.match(/<([^>]+)>/)?.[1]
-  if (!url) return null
-  return new URL(url).searchParams.get(param)
-}
-
-export interface GetStatusQuotesParams {
-  statusId: string
-  limit?: number
-  maxId?: string
-  sinceId?: string
-}
-export interface GetStatusQuotesResult {
-  statuses: MastodonStatus[]
-  nextMaxId: string | null
-  prevSinceId: string | null
-}
-export const getStatusQuotes = async ({
-  statusId,
-  limit,
-  maxId,
-  sinceId
-}: GetStatusQuotesParams): Promise<GetStatusQuotesResult> => {
-  const url = new URL(
-    `${window.origin}/api/v1/statuses/${toIdPathSegment(statusId)}/quotes`
-  )
-  if (limit) url.searchParams.set('limit', `${limit}`)
-  if (maxId) url.searchParams.set('max_id', maxId)
-  if (sinceId) url.searchParams.set('since_id', sinceId)
-
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: { Accept: 'application/json' }
-  })
-  if (response.status !== 200) {
-    return { statuses: [], nextMaxId: null, prevSinceId: null }
-  }
-
-  const linkHeader = response.headers.get('Link')
-  return {
-    statuses: (await response.json()) as MastodonStatus[],
-    nextMaxId: getLinkCursor(linkHeader, 'next', 'max_id'),
-    prevSinceId: getLinkCursor(linkHeader, 'prev', 'since_id')
-  }
-}
-
-// Fetch a single status by id (Mastodon shape). Returns null when the status is
-// not found OR not readable by the caller (the route 404s in both cases), so a
-// quote card never renders content the viewer isn't allowed to see.
-export const getStatusById = async (
-  statusId: string
-): Promise<MastodonStatus | null> => {
-  const response = await fetch(
-    `/api/v1/statuses/${toIdPathSegment(statusId)}`,
-    {
-      method: 'GET',
-      headers: { Accept: 'application/json' }
-    }
-  )
-  if (response.status !== 200) return null
-  return (await response.json()) as MastodonStatus
 }
 
 export const revokeStatusQuote = async ({
