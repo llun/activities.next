@@ -43,10 +43,7 @@ const getInitials = (account: MastodonAccount) => {
 
 const getPageOffset = (page: number) => (page - 1) * DIALOG_PAGE_SIZE
 
-export const StatusLikes: FC<Props> = ({
-  statusId,
-  totalLikes: _totalLikes
-}) => {
+export const StatusLikes: FC<Props> = ({ statusId, totalLikes }) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
 
@@ -73,8 +70,9 @@ export const StatusLikes: FC<Props> = ({
     enabled: isDialogOpen
   })
 
-  // Use the most recent total count from either source
-  const likesCount = isDialogOpen ? dialogTotalCount : recentTotalCount
+  // Prefer the status's known totalLikes, falling back to fetched counts
+  const fetchedCount = isDialogOpen ? dialogTotalCount : recentTotalCount
+  const likesCount = Math.max(totalLikes, fetchedCount)
 
   const totalPages = useMemo(() => {
     if (likesCount <= 0) return 1

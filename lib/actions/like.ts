@@ -1,3 +1,4 @@
+import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { LikeStatus } from '@/lib/activities/likeAction'
 import { Database } from '@/lib/database/types'
 import { buildLikeEmail } from '@/lib/services/email/templates/like'
@@ -6,6 +7,8 @@ import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotific
 import { shouldCreateNotification } from '@/lib/services/notifications/shouldNotify'
 import { NotificationType } from '@/lib/types/database/operations'
 import { getOriginalStatus } from '@/lib/types/domain/status'
+import { logger } from '@/lib/utils/logger'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 interface LikeRequestParams {
   activity: LikeStatus
@@ -24,6 +27,19 @@ export const likeRequest = async ({
     statusId,
     actorId: request.actor
   })
+
+  try {
+    await recordActorIfNeeded({
+      actorId: request.actor,
+      database
+    })
+  } catch (error) {
+    logger.warn({
+      message: 'Failed to record actor for like request',
+      actorId: request.actor,
+      err: toLoggableError(error)
+    })
+  }
 
   // Create like notification
   const status = await database.getStatus({ statusId })
