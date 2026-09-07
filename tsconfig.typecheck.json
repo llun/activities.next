@@ -17,9 +17,6 @@
     // type-clean; NEVER add one — a new or edited test file must pass. When
     // this list is empty, delete this file and point `yarn typecheck` at
 
-    "app/api/v1/accounts/password/reset/request/route.test.ts",
-    "app/api/v1/accounts/password/reset/route.test.ts",
-    "app/api/v1/accounts/password/route.test.ts",
     "app/api/v1/accounts/push-notifications/route.test.ts",
     "app/api/v1/accounts/reading-preferences/route.test.ts",
     "app/api/v1/accounts/sessions/route.test.ts",

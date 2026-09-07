@@ -50,6 +50,8 @@ const account = {
   email: seedActor1.email,
   defaultActorId: ACTOR1_ID,
   passwordHash: 'password-hash',
+  twoFactorEnabled: false,
+  emailVerified: true,
   createdAt: Date.now(),
   updatedAt: Date.now()
 }
@@ -222,6 +224,7 @@ describe('POST /api/v1/accounts/password', () => {
         account: {
           ...account,
           verificationCode: 'pending-code',
+          twoFactorEnabled: false,
           emailVerified: false
         }
       }
