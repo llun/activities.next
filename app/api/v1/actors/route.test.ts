@@ -31,11 +31,12 @@ vi.mock('next/headers', async () => ({
 }))
 
 vi.mock('crypto', async () => {
-  const actual = await vi.importActual('crypto')
-  const { promisify } = await vi.importActual('util')
-  const mockGenerateKeyPair = vi.fn()
-  mockGenerateKeyPair[promisify.custom] = () =>
-    Promise.resolve({ publicKey: 'public-key', privateKey: 'private-key' })
+  const actual = await vi.importActual<typeof import('crypto')>('crypto')
+  const { promisify } = await vi.importActual<typeof import('util')>('util')
+  const mockGenerateKeyPair = Object.assign(vi.fn(), {
+    [promisify.custom]: () =>
+      Promise.resolve({ publicKey: 'public-key', privateKey: 'private-key' })
+  })
   return {
     ...actual,
     generateKeyPair: mockGenerateKeyPair

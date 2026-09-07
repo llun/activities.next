@@ -80,6 +80,8 @@ describe('apps route', () => {
     process.env = originalEnv
   })
 
+  const routeContext = { params: Promise.resolve({}) }
+
   test('does not derive registration limits from untrusted forwarded IP headers', async () => {
     const req = new NextRequest('https://llun.test/api/v1/apps', {
       method: 'POST',
@@ -95,7 +97,7 @@ describe('apps route', () => {
       })
     })
 
-    await POST(req)
+    await POST(req, routeContext)
 
     expect(mockCreateApplication).toHaveBeenCalledWith(expect.any(Object), {
       registrationKey: undefined
@@ -120,7 +122,7 @@ describe('apps route', () => {
       })
     })
 
-    await POST(forwardedReq)
+    await POST(forwardedReq, routeContext)
 
     expect(mockCreateApplication).toHaveBeenCalledWith(expect.any(Object), {
       registrationKey: hashIpRegistrationKey('198.51.100.30')
@@ -146,7 +148,7 @@ describe('apps route', () => {
       })
     })
 
-    await POST(directReq)
+    await POST(directReq, routeContext)
 
     expect(mockCreateApplication).toHaveBeenCalledWith(expect.any(Object), {
       registrationKey: undefined
@@ -170,8 +172,8 @@ describe('apps route', () => {
         })
       })
 
-    await POST(createRequest('first'))
-    await POST(createRequest('second'))
+    await POST(createRequest('first'), routeContext)
+    await POST(createRequest('second'), routeContext)
 
     expect(mockCreateApplication).toHaveBeenCalledTimes(2)
     expect(mockLoggerWarn).toHaveBeenCalledTimes(1)
@@ -190,7 +192,7 @@ describe('apps route', () => {
       })
     })
 
-    const response = await POST(req)
+    const response = await POST(req, routeContext)
 
     expect(response.status).toBe(200)
     expect(mockCreateApplication).toHaveBeenCalledWith(
@@ -218,7 +220,7 @@ describe('apps route', () => {
       })
     })
 
-    const response = await POST(req)
+    const response = await POST(req, routeContext)
     const body = await response.json()
 
     expect(response.status).toBe(200)
@@ -246,7 +248,7 @@ describe('apps route', () => {
       })
     })
 
-    const response = await POST(req)
+    const response = await POST(req, routeContext)
     const body = await response.json()
 
     expect(body.vapid_key).toBeNull()
@@ -268,7 +270,7 @@ describe('apps route', () => {
       })
     })
 
-    const response = await POST(req)
+    const response = await POST(req, routeContext)
 
     await expect(response.json()).resolves.toEqual({
       error: 'Too Many Requests'
@@ -291,7 +293,7 @@ describe('apps route', () => {
       })
     })
 
-    const response = await POST(req)
+    const response = await POST(req, routeContext)
     expect(response.status).toBe(422)
 
     const rejectionLog = mockLoggerWarn.mock.calls.find(
