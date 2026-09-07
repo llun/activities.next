@@ -47,6 +47,8 @@ describe('GET /api/v1/fitness-files/by-status', () => {
     await database.destroy()
   })
 
+  const routeContext = { params: Promise.resolve({}) }
+
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -58,16 +60,16 @@ describe('GET /api/v1/fitness-files/by-status', () => {
       id: `${ACTOR1_ID}/statuses/public-status-files`,
       url: `${ACTOR1_ID}/statuses/public-status-files`,
       actorId: ACTOR1_ID,
-      text: 'Public import',
+      text: 'public status with files',
       to: [ACTIVITY_STREAM_PUBLIC],
-      cc: [ACTOR1_FOLLOWER_URL]
+      cc: []
     })
 
     const first = await database.createFitnessFile({
       actorId: ACTOR1_ID,
       statusId: status.id,
-      path: 'fitness/status-file-a.fit',
-      fileName: 'status-file-a.fit',
+      path: 'fitness/first.fit',
+      fileName: 'first.fit',
       fileType: 'fit',
       mimeType: 'application/vnd.ant.fit',
       bytes: 1_024
@@ -75,8 +77,8 @@ describe('GET /api/v1/fitness-files/by-status', () => {
     const second = await database.createFitnessFile({
       actorId: ACTOR1_ID,
       statusId: status.id,
-      path: 'fitness/status-file-b.fit',
-      fileName: 'status-file-b.fit',
+      path: 'fitness/second.fit',
+      fileName: 'second.fit',
       fileType: 'fit',
       mimeType: 'application/vnd.ant.fit',
       bytes: 1_024
@@ -87,7 +89,7 @@ describe('GET /api/v1/fitness-files/by-status', () => {
     const request = new NextRequest(
       `https://llun.test/api/v1/fitness-files/by-status?statusId=${encodeURIComponent(status.id)}`
     )
-    const response = await GET(request)
+    const response = await GET(request, routeContext)
     const json = (await response.json()) as { files: Array<{ id: string }> }
 
     expect(response.status).toBe(200)
@@ -145,7 +147,7 @@ describe('GET /api/v1/fitness-files/by-status', () => {
     const request = new NextRequest(
       `https://llun.test/api/v1/fitness-files/by-status?statusId=${encodeURIComponent(status.id)}`
     )
-    const response = await GET(request)
+    const response = await GET(request, routeContext)
     const json = (await response.json()) as {
       files: Array<{
         id: string
@@ -222,7 +224,8 @@ describe('GET /api/v1/fitness-files/by-status', () => {
     const response = await GET(
       new NextRequest(
         `https://llun.test/api/v1/fitness-files/by-status?statusId=${encodeURIComponent(status.id)}`
-      )
+      ),
+      routeContext
     )
     const json = (await response.json()) as {
       files: Array<{
@@ -271,7 +274,7 @@ describe('GET /api/v1/fitness-files/by-status', () => {
     const request = new NextRequest(
       `https://llun.test/api/v1/fitness-files/by-status?statusId=${encodeURIComponent(status.id)}`
     )
-    const response = await GET(request)
+    const response = await GET(request, routeContext)
     const json = (await response.json()) as {
       files: Array<{ processingStatus: string; processingStuck: boolean }>
     }
@@ -306,7 +309,7 @@ describe('GET /api/v1/fitness-files/by-status', () => {
     const request = new NextRequest(
       `https://llun.test/api/v1/fitness-files/by-status?statusId=${encodeURIComponent(status.id)}`
     )
-    const response = await GET(request)
+    const response = await GET(request, routeContext)
 
     expect(response.status).toBe(404)
   })
@@ -338,7 +341,7 @@ describe('GET /api/v1/fitness-files/by-status', () => {
     const request = new NextRequest(
       `https://llun.test/api/v1/fitness-files/by-status?statusId=${encodeURIComponent(status.id)}`
     )
-    const response = await GET(request)
+    const response = await GET(request, routeContext)
 
     expect(response.status).toBe(200)
   })

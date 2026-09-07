@@ -164,8 +164,6 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
     await database.createFitnessSettings({
       actorId: ACTOR1_ID,
       serviceType: 'general',
-      privacyHomeLatitude: null,
-      privacyHomeLongitude: null,
       privacyHideRadiusMeters: 0
     })
   }
