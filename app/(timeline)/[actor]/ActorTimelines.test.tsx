@@ -14,7 +14,13 @@ import { ReactNode } from 'react'
 import { getActorStatuses } from '@/lib/client'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
-import { Status, StatusType } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusNote,
+  StatusPoll,
+  StatusType,
+  getOriginalStatus
+} from '@/lib/types/domain/status'
 
 import { ActorTimelines } from './ActorTimelines'
 
@@ -41,8 +47,11 @@ vi.mock('@/lib/components/posts/posts', () => ({
     onStatusCreated?: (status: Status) => void
     onPostUpdated?: (status: Status) => void
     onPostDeleted?: (status: Status) => void
-    onLikeChanged?: (status: Status, isLiked: boolean) => void
-    onBookmarkChanged?: (status: Status, isBookmarked: boolean) => void
+    onLikeChanged?: (status: StatusNote | StatusPoll, isLiked: boolean) => void
+    onBookmarkChanged?: (
+      status: StatusNote | StatusPoll,
+      isBookmarked: boolean
+    ) => void
   }) => (
     <div>
       <div data-testid="posts-current-time">{currentTime}</div>
@@ -65,10 +74,7 @@ vi.mock('@/lib/components/posts/posts', () => ({
       {statuses.map((status) => {
         // For a boost, the action callbacks fire with the unwrapped original
         // status (mirroring the real Posts/Actions wiring).
-        const target =
-          status.type === StatusType.enum.Announce
-            ? status.originalStatus
-            : status
+        const target = getOriginalStatus(status)
         return (
           <div key={status.id}>
             <span>{status.id}</span>
@@ -200,6 +206,8 @@ const currentActorProfile = {
   id: 'https://local.example/users/me'
 } as ActorProfile
 
+const FIXED_CURRENT_TIME = new Date('2026-04-30T10:05:00.000Z').getTime()
+
 const sampleAttachment: Attachment = {
   id: 'att-1',
   actorId: 'https://mastodon.social/users/someone',
@@ -209,10 +217,11 @@ const sampleAttachment: Attachment = {
   url: 'https://mastodon.social/media/1.jpg',
   width: 200,
   height: 200,
-  blurhash: null
+  blurhash: null,
+  name: 'sample attachment',
+  createdAt: FIXED_CURRENT_TIME,
+  updatedAt: FIXED_CURRENT_TIME
 }
-
-const FIXED_CURRENT_TIME = new Date('2026-04-30T10:05:00.000Z').getTime()
 
 describe('ActorTimelines', () => {
   const getActorStatusesMock = getActorStatuses as jest.Mock
@@ -885,6 +894,7 @@ describe('ActorTimelines', () => {
               id: 'att-1',
               statusId: 'status-1',
               actorId: 'https://framatube.org/accounts/framasoft',
+              type: 'Document',
               mediaType: 'video/mp4',
               url: 'https://framatube.org/video.mp4',
               name: 'Test Video',

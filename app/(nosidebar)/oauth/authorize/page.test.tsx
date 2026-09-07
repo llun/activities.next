@@ -159,7 +159,7 @@ describe('/oauth/authorize Mastodon authorize params', () => {
     redirectMock.mockClear()
     vi.mocked(getConfig).mockReturnValue({
       host: TEST_DOMAIN,
-      trustedHosts: []
+      trustedHosts: [] as string[]
     } as ReturnType<typeof getConfig>)
     vi.mocked(getBaseURL).mockReturnValue(`https://${TEST_DOMAIN}`)
     vi.mocked(getActorFromSession).mockResolvedValue(null)
@@ -268,7 +268,7 @@ describe('/oauth/authorize unregistered client', () => {
     redirectMock.mockClear()
     vi.mocked(getConfig).mockReturnValue({
       host: TEST_DOMAIN,
-      trustedHosts: []
+      trustedHosts: [] as string[]
     } as ReturnType<typeof getConfig>)
     vi.mocked(getBaseURL).mockReturnValue(`https://${TEST_DOMAIN}`)
     headersMock.mockReturnValue(
@@ -378,7 +378,7 @@ describe('/oauth/authorize account summary', () => {
     redirectMock.mockClear()
     vi.mocked(getConfig).mockReturnValue({
       host: TEST_DOMAIN,
-      trustedHosts: []
+      trustedHosts: [] as string[]
     } as ReturnType<typeof getConfig>)
     vi.mocked(getBaseURL).mockReturnValue(`https://${TEST_DOMAIN}`)
     headersMock.mockReturnValue(
