@@ -1,13 +1,14 @@
 'use client'
 
 import { RefreshCw } from 'lucide-react'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import { FC, useCallback, useRef, useState } from 'react'
 
 import { getTimeline } from '@/lib/client'
 import { AnnouncementBanner } from '@/lib/components/announcements/AnnouncementBanner'
 import { PageHeader } from '@/lib/components/page-header'
 import { PostBox } from '@/lib/components/post-box/post-box'
 import { Posts } from '@/lib/components/posts/posts'
+import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
 import { Button } from '@/lib/components/ui/button'
 import { Timeline } from '@/lib/services/timelines/types'
@@ -45,8 +46,6 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   )
   const [isLoadingMoreStatuses, setLoadingMoreStatuses] =
     useState<boolean>(false)
-  const [isLoadMoreVisible, setIsLoadMoreVisible] = useState<boolean>(false)
-  const loadMoreRef = useRef<HTMLDivElement>(null)
   const isLoadingRef = useRef<boolean>(false)
   const lastStatusIdRef = useRef<string | null>(
     initialNextMaxStatusId ||
@@ -120,35 +119,10 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     }
   }, [])
 
-  // Set up IntersectionObserver for automatic loading
-  useEffect(() => {
-    const loadMoreElement = loadMoreRef.current
-    if (!loadMoreElement) return
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const [entry] = entries
-        setIsLoadMoreVisible(entry.isIntersecting)
-
-        // Automatically load more when the button comes into view
-        // The loadMoreStatuses callback has its own guard against duplicate loads
-        if (entry.isIntersecting) {
-          loadMoreStatuses()
-        }
-      },
-      {
-        root: null,
-        rootMargin: '0px',
-        threshold: 0.1
-      }
-    )
-
-    observer.observe(loadMoreElement)
-
-    return () => {
-      observer.disconnect()
-    }
-  }, [loadMoreStatuses])
+  const { loadMoreRef, isLoadMoreVisible } = useLoadMoreOnVisible({
+    enabled: hasMoreStatuses,
+    onLoadMore: loadMoreStatuses
+  })
 
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false)
 
