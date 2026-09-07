@@ -19,6 +19,7 @@ import {
   createDirectMessage,
   createFitnessGear,
   createFitnessGearComponent,
+  createNote,
   createPoll,
   createReport,
   deleteAccountMedia,
@@ -75,13 +76,25 @@ import {
   updateFitnessGear,
   updateFitnessGearComponent,
   updateNote,
+  updateStatusVisibility,
   uploadAttachment
 } from './client'
 import * as fitnessGearModule from './client/fitnessGear'
 import * as fitnessHeatmapsModule from './client/fitnessHeatmaps'
 import * as httpModule from './client/http'
+import * as statusesModule from './client/statuses'
 
 enableFetchMocks()
+
+describe('client facade statuses re-exports', () => {
+  it('re-exports extracted status functions', () => {
+    expect(createNote).toBe(statusesModule.createNote)
+    expect(updateNote).toBe(statusesModule.updateNote)
+    expect(updateStatusVisibility).toBe(statusesModule.updateStatusVisibility)
+    expect(createPoll).toBe(statusesModule.createPoll)
+    expect(deleteStatus).toBe(statusesModule.deleteStatus)
+  })
+})
 
 vi.mock('@/lib/utils/getMediaWidthAndHeight', () => ({
   getMediaWidthAndHeight: vi.fn().mockResolvedValue({ width: 10, height: 20 })
