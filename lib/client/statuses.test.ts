@@ -4,6 +4,11 @@ import {
   createNote,
   createPoll,
   deleteStatus,
+  getTranslationCapability,
+  likeStatus,
+  repostStatus,
+  translateStatus,
+  undoRepostStatus,
   updateNote,
   updateStatusVisibility
 } from './statuses'
@@ -221,6 +226,126 @@ describe('client statuses module', () => {
       fetchMock.mockResponse('', { status: 404 })
 
       const res = await deleteStatus({ statusId: 'missing-status' })
+      expect(res).toBe(false)
+    })
+  })
+
+  describe('repostStatus', () => {
+    it('returns new statusId on success', async () => {
+      fetchMock.mockResponse(JSON.stringify({ id: 'boost-123' }), {
+        status: 200
+      })
+
+      const res = await repostStatus({ statusId: 'target-status' })
+      expect(res).toEqual({ statusId: 'boost-123' })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/statuses/target-status/reblog',
+        expect.objectContaining({ method: 'POST' })
+      )
+    })
+
+    it('returns null on failure', async () => {
+      fetchMock.mockResponse('', { status: 404 })
+
+      const res = await repostStatus({ statusId: 'target-status' })
+      expect(res).toBeNull()
+    })
+  })
+
+  describe('undoRepostStatus', () => {
+    it('returns statusId on success', async () => {
+      fetchMock.mockResponse(JSON.stringify({ id: 'original-123' }), {
+        status: 200
+      })
+
+      const res = await undoRepostStatus({ statusId: 'target-status' })
+      expect(res).toEqual({ statusId: 'original-123' })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/statuses/target-status/unreblog',
+        expect.objectContaining({ method: 'POST' })
+      )
+    })
+
+    it('returns null on failure', async () => {
+      fetchMock.mockResponse('', { status: 404 })
+
+      const res = await undoRepostStatus({ statusId: 'target-status' })
+      expect(res).toBeNull()
+    })
+  })
+
+  describe('translateStatus', () => {
+    it('returns translation entity when successful', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({
+          content: 'Hello world',
+          detected_source_language: 'es',
+          provider: 'LibreTranslate'
+        }),
+        { status: 200 }
+      )
+
+      const res = await translateStatus({
+        statusId: 'status-1',
+        language: 'en'
+      })
+      expect(res).toEqual({
+        content: 'Hello world',
+        detected_source_language: 'es',
+        provider: 'LibreTranslate'
+      })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/statuses/status-1/translate',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ lang: 'en' })
+        })
+      )
+    })
+
+    it('returns null on error', async () => {
+      fetchMock.mockResponse('', { status: 500 })
+
+      const res = await translateStatus({ statusId: 'status-1' })
+      expect(res).toBeNull()
+    })
+  })
+
+  describe('getTranslationCapability', () => {
+    it('returns capability from /api/v2/instance', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({
+          configuration: { translation: { enabled: true } },
+          languages: ['en', 'th']
+        }),
+        { status: 200 }
+      )
+
+      const res = await getTranslationCapability()
+      expect(res).toEqual({
+        enabled: true,
+        defaultLanguage: 'en'
+      })
+      expect(fetchMock).toHaveBeenCalledWith('/api/v2/instance')
+    })
+  })
+
+  describe('likeStatus', () => {
+    it('returns true on 200 OK', async () => {
+      fetchMock.mockResponse('', { status: 200 })
+
+      const res = await likeStatus({ statusId: 'status-to-like' })
+      expect(res).toBe(true)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/statuses/status-to-like/favourite',
+        expect.objectContaining({ method: 'POST' })
+      )
+    })
+
+    it('returns false on error', async () => {
+      fetchMock.mockResponse('', { status: 404 })
+
+      const res = await likeStatus({ statusId: 'status-to-like' })
       expect(res).toBe(false)
     })
   })
