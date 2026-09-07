@@ -1,8 +1,12 @@
 import { NextRequest } from 'next/server'
 
 import { resetRefreshRemoteActorStateForTesting } from '@/lib/services/actors/refreshRemoteActor'
+import type { Actor } from '@/lib/types/domain/actor'
+import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 
-import { GET } from './route'
+import { GET as routeGet } from './route'
+
+const GET = (req: NextRequest) => routeGet(req, { params: Promise.resolve({}) })
 
 const mockGetActorFromUsername = vi.fn()
 const mockGetActorFromId = vi.fn()
@@ -544,7 +548,7 @@ describe('GET /api/v1/accounts/lookup', () => {
       username: 'person',
       acct: 'person@remote.test',
       url: 'https://remote.test/users/person'
-    } as MastodonActor)
+    } as MastodonAccount)
     // Default mockStoredToken (null) makes any presented bearer invalid.
 
     const response = await GET(
