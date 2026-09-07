@@ -1,4 +1,9 @@
-import { Status, StatusType } from '@/lib/types/domain/status'
+import { ActorProfile } from '@/lib/types/domain/actor'
+import {
+  StatusAnnounce,
+  StatusNote,
+  StatusType
+} from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { generatePublicId } from '@/lib/utils/publicId'
 
@@ -11,14 +16,25 @@ describe('resolveStatusFromPath', () => {
   const originalUrl = 'https://remote.example/@original/123'
   const statusHash = getHashFromString(originalUrl)
 
-  const originalStatus = {
+  const buildActor = (actorId: string, username: string): ActorProfile => ({
+    id: actorId,
+    username,
+    domain: new URL(actorId).host,
+    followersUrl: `${actorId}/followers`,
+    inboxUrl: `${actorId}/inbox`,
+    sharedInboxUrl: `${actorId}/sharedInbox`,
+    followingCount: 0,
+    followersCount: 0,
+    statusCount: 0,
+    lastStatusAt: null,
+    createdAt: 0
+  })
+
+  const originalStatus: StatusNote = {
     id: 'https://remote.example/users/original/statuses/123',
     url: originalUrl,
     actorId: originalActorId,
-    actor: {
-      username: 'original',
-      domain: 'remote.example'
-    },
+    actor: buildActor(originalActorId, 'original'),
     type: StatusType.enum.Note,
     to: [],
     cc: [],
@@ -31,28 +47,26 @@ describe('resolveStatusFromPath', () => {
     replies: [],
     actorAnnounceStatusId: null,
     isActorLiked: false,
+    isActorBookmarked: false,
     totalLikes: 0,
+    totalShares: 0,
     attachments: [],
     tags: []
-  } as Status
+  }
 
-  const createAnnounce = (actorId = boosterActorId) =>
-    ({
-      id: `${actorId}/statuses/456/activity`,
-      actorId,
-      actor: {
-        username: 'booster',
-        domain: new URL(actorId).host
-      },
-      type: StatusType.enum.Announce,
-      to: [],
-      cc: [],
-      edits: [],
-      originalStatus,
-      isLocalActor: false,
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    }) as Status
+  const createAnnounce = (actorId = boosterActorId): StatusAnnounce => ({
+    id: `${actorId}/statuses/456/activity`,
+    actorId,
+    actor: buildActor(actorId, 'booster'),
+    type: StatusType.enum.Announce,
+    to: [],
+    cc: [],
+    edits: [],
+    originalStatus,
+    isLocalActor: false,
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  })
 
   const createDatabase = () => ({
     getActorFromUsername: vi.fn().mockResolvedValue({ id: originalActorId }),
