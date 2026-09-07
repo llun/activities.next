@@ -1,0 +1,16 @@
+lib/jobs/sendNoteJob.test.ts
+  h_580a04e334fef4 5-9,22-25,32-36,38-56,86-89,311-545
+lib/jobs/sendNoteJob.ts
+  h_580a04e334fef4 13,17-27,33-59,91-92,107,113-126,128,139,146,151-152,155-174,176
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "a2e521b721dc66bd90dd80848e9c32372d74af38",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
