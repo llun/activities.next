@@ -1,0 +1,33 @@
+.oxlintrc.json
+  s_5b26a7eb03aae6::t_2e2feba5e3181c 236
+app/(nosidebar)/auth/forgot-password/RequestPasswordResetForm.test.tsx
+  s_5b26a7eb03aae6::t_de094e6bd84b8c 5-7,11-16,18-21,31-185
+app/(nosidebar)/auth/forgot-password/RequestPasswordResetForm.tsx
+  s_5b26a7eb03aae6::t_7f547ae01439f7 5,18-21,27-37
+app/(nosidebar)/auth/reset-password/ResetPasswordForm.test.tsx
+  s_5b26a7eb03aae6::t_18f5ad62020618 5-7,11-16,18-21,31-263
+app/(nosidebar)/auth/reset-password/ResetPasswordForm.tsx
+  s_5b26a7eb03aae6::t_59bd845d0efdf4 6,26-29,51,54,57-62
+app/api/v1/accounts/password/reset/route.test.ts
+  s_5b26a7eb03aae6::t_ce26daf5dcadf4 68-173
+lib/client.test.ts
+  s_5b26a7eb03aae6::t_3eccfdcc2fd525 43-44,2144-2269
+lib/client.ts
+  s_5b26a7eb03aae6::t_fcf5a54465efe6 5195-5232
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "d718f80589121531a311cf549053ba1fc19720b6",
+  "prompts": {},
+  "sessions": {
+    "s_5b26a7eb03aae6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07bce-f22c-7dd0-b732-df163c63a832",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
