@@ -48,9 +48,12 @@ import {
   getFitnessRouteHeatmapTiles,
   getFitnessRouteHeatmaps,
   getFollowStatus,
+  getHashtagTimeline,
+  getListTimeline,
   getMutes,
   getPublicHeatmapTiles,
   getStravaSettings,
+  getTimeline,
   getTrendingLinks,
   getTrendingStatuses,
   getTrendingTags,
@@ -93,6 +96,7 @@ import * as fitnessHeatmapsModule from './client/fitnessHeatmaps'
 import * as httpModule from './client/http'
 import * as mediaModule from './client/media'
 import * as statusesModule from './client/statuses'
+import * as timelinesModule from './client/timelines'
 
 enableFetchMocks()
 
@@ -105,6 +109,16 @@ describe('client facade statuses re-exports', () => {
     expect(deleteStatus).toBe(statusesModule.deleteStatus)
     expect(getBookmarks).toBe(statusesModule.getBookmarks)
     expect(getFavourites).toBe(statusesModule.getFavourites)
+  })
+})
+
+describe('client facade timelines re-exports', () => {
+  it('re-exports extracted timeline functions', () => {
+    expect(getTimeline).toBe(timelinesModule.getTimeline)
+    expect(getHashtagTimeline).toBe(timelinesModule.getHashtagTimeline)
+    expect(getListTimeline).toBe(timelinesModule.getListTimeline)
+    expect(getCollectionTimeline).toBe(timelinesModule.getCollectionTimeline)
+    expect(getCollectionFeed).toBe(timelinesModule.getCollectionFeed)
   })
 })
 
