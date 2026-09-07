@@ -5,7 +5,11 @@ import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { getFavourites, undoLikeStatus } from '@/lib/client'
-import { StatusNote, StatusType } from '@/lib/types/domain/status'
+import {
+  StatusAnnounce,
+  StatusNote,
+  StatusType
+} from '@/lib/types/domain/status'
 
 import { FavoritesTimeline } from './FavoritesTimeline'
 
@@ -74,6 +78,27 @@ const favouritedStatus: StatusNote = {
   totalShares: 0,
   attachments: [],
   tags: []
+}
+
+const boostActor = {
+  ...actor,
+  id: 'https://activities.local/users/booster',
+  username: 'booster',
+  name: 'Booster'
+}
+
+const boostedFavouritedStatus: StatusAnnounce = {
+  id: 'https://activities.local/users/booster/statuses/boost-1',
+  actorId: boostActor.id,
+  actor: boostActor,
+  to: [],
+  cc: [],
+  edits: [],
+  isLocalActor: true,
+  createdAt: currentTime,
+  updatedAt: currentTime,
+  type: StatusType.enum.Announce,
+  originalStatus: favouritedStatus
 }
 
 describe('FavoritesTimeline', () => {
@@ -206,6 +231,85 @@ describe('FavoritesTimeline', () => {
     await screen.findByText('Favourited post')
     await waitFor(() => {
       expect(intersectionObserverDisconnect).toHaveBeenCalled()
+    })
+  })
+
+  it('removes a boosted post when unliking it', async () => {
+    render(
+      <FavoritesTimeline
+        host="activities.local"
+        currentActor={actor}
+        currentTime={currentTime}
+        statuses={[boostedFavouritedStatus]}
+        initialNextMaxFavouriteId={null}
+      />
+    )
+
+    expect(screen.getByText('Favourited post')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Unlike/ }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('Favourited post')).not.toBeInTheDocument()
+    })
+    expect(undoLikeStatus).toHaveBeenCalledWith({
+      statusId: favouritedStatus.id
+    })
+    expect(screen.getByText('No favorites yet')).toBeInTheDocument()
+  })
+
+  it('removes both direct and boosted representations when post is unfavourited', async () => {
+    render(
+      <FavoritesTimeline
+        host="activities.local"
+        currentActor={actor}
+        currentTime={currentTime}
+        statuses={[favouritedStatus, boostedFavouritedStatus]}
+        initialNextMaxFavouriteId={null}
+      />
+    )
+
+    const unlikeButtons = screen.getAllByRole('button', { name: /Unlike/ })
+    expect(unlikeButtons).toHaveLength(2)
+
+    fireEvent.click(unlikeButtons[0])
+
+    await waitFor(() => {
+      expect(screen.queryByText('Favourited post')).not.toBeInTheDocument()
+    })
+    expect(screen.getByText('No favorites yet')).toBeInTheDocument()
+  })
+
+  it('preserves server-provided cursor for next-page loading after a post is removed', async () => {
+    ;(getFavourites as jest.Mock).mockResolvedValueOnce({
+      statuses: [
+        { ...favouritedStatus, id: 'next-fav-1', text: 'Second page post' }
+      ],
+      nextMaxFavouriteId: null,
+      prevMinFavouriteId: 'cursor-1'
+    })
+
+    render(
+      <FavoritesTimeline
+        host="activities.local"
+        currentActor={actor}
+        currentTime={currentTime}
+        statuses={[favouritedStatus]}
+        initialNextMaxFavouriteId="cursor-1"
+      />
+    )
+
+    // Remove the post by unliking
+    fireEvent.click(screen.getByRole('button', { name: /Unlike/ }))
+    await waitFor(() => {
+      expect(screen.queryByText('Favourited post')).not.toBeInTheDocument()
+    })
+
+    // Click load more - must use cursor-1, not reconstructed status ID
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+    await screen.findByText('Second page post')
+    expect(getFavourites).toHaveBeenCalledWith({
+      maxFavouriteId: 'cursor-1'
     })
   })
 })

@@ -5,18 +5,17 @@ import { FC, useCallback, useRef, useState } from 'react'
 import { getBookmarks } from '@/lib/client'
 import { PageHeader } from '@/lib/components/page-header'
 import { Posts } from '@/lib/components/posts/posts'
+import {
+  removeOriginalStatus,
+  updateMatchingStatus
+} from '@/lib/components/posts/statusArray'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
 import { Button } from '@/lib/components/ui/button'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
-import {
-  Status,
-  StatusNote,
-  StatusPoll,
-  StatusType,
-  getOriginalStatus
-} from '@/lib/types/domain/status'
+import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
+import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 
 const MAX_EMPTY_BOOKMARK_CONTINUATIONS = 5
 
@@ -48,33 +47,66 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
   const isLoadingRef = useRef<boolean>(false)
   const lastBookmarkIdRef = useRef<string | null>(initialNextMaxBookmarkId)
 
-  const removeStatus = (status: Status) => {
+  const onPostDeleted = useCallback((status: Status) => {
     setCurrentStatuses((previousStatuses) =>
-      previousStatuses.filter((item) => item.id !== status.id)
+      removeOriginalStatus(previousStatuses, status.id)
     )
-  }
+  }, [])
 
-  const updateStatus = (status: Status) => {
+  const onPostUpdated = useCallback((status: Status) => {
     setCurrentStatuses((previousStatuses) =>
-      previousStatuses.map((item) => (item.id === status.id ? status : item))
+      updateMatchingStatus(
+        previousStatuses,
+        status.id,
+        () => status as StatusNote | StatusPoll
+      )
     )
-  }
+  }, [])
 
-  const onBookmarkChanged = (
-    status: StatusNote | StatusPoll,
-    isBookmarked: boolean
-  ) => {
-    if (isBookmarked) return
-    setCurrentStatuses((previousStatuses) =>
-      previousStatuses.filter((item) => {
-        const actualStatus =
-          item.type === StatusType.enum.Announce
-            ? getOriginalStatus(item)
-            : item
-        return actualStatus.id !== status.id
-      })
-    )
-  }
+  const onBookmarkChanged = useCallback(
+    (status: StatusNote | StatusPoll, isBookmarked: boolean) => {
+      if (!isBookmarked) {
+        setCurrentStatuses((previousStatuses) =>
+          removeOriginalStatus(previousStatuses, status.id)
+        )
+      } else {
+        setCurrentStatuses((previousStatuses) =>
+          updateMatchingStatus(previousStatuses, status.id, (target) => ({
+            ...target,
+            isActorBookmarked: isBookmarked
+          }))
+        )
+      }
+    },
+    []
+  )
+
+  const onLikeChanged = useCallback(
+    (status: StatusNote | StatusPoll, isLiked: boolean) => {
+      setCurrentStatuses((previousStatuses) =>
+        updateMatchingStatus(previousStatuses, status.id, (target) => ({
+          ...target,
+          isActorLiked: isLiked,
+          totalLikes: isLiked
+            ? target.totalLikes + 1
+            : Math.max(0, target.totalLikes - 1)
+        }))
+      )
+    },
+    []
+  )
+
+  const onReactionsChanged = useCallback(
+    (status: StatusNote | StatusPoll, reactions: StatusReaction[]) => {
+      setCurrentStatuses((previousStatuses) =>
+        updateMatchingStatus(previousStatuses, status.id, (target) => ({
+          ...target,
+          reactions
+        }))
+      )
+    },
+    []
+  )
 
   const loadMoreStatuses = useCallback(async () => {
     let nextBookmarkId = lastBookmarkIdRef.current
@@ -146,9 +178,11 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
           showActions
           isMediaUploadEnabled={isMediaUploadEnabled}
           postLineLimit={postLineLimit}
-          onPostDeleted={removeStatus}
-          onPostUpdated={updateStatus}
+          onPostDeleted={onPostDeleted}
+          onPostUpdated={onPostUpdated}
           onBookmarkChanged={onBookmarkChanged}
+          onLikeChanged={onLikeChanged}
+          onReactionsChanged={onReactionsChanged}
         />
       ) : (
         <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm">
