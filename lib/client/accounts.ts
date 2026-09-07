@@ -1,3 +1,4 @@
+import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
 import { toIdPathSegment } from '@/lib/utils/urlToId'
 
@@ -381,4 +382,121 @@ export const getRelationship = async ({
 
   const relationships = (await response.json()) as MastodonRelationship[]
   return relationships[0] ?? null
+}
+
+export const block = async ({
+  targetActorId
+}: FollowParams): Promise<MastodonRelationship | null> => {
+  const encodedId = toIdPathSegment(targetActorId)
+  const response = await fetch(`/api/v1/accounts/${encodedId}/block`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  })
+  if (response.status !== 200) return null
+  return (await response.json()) as MastodonRelationship
+}
+
+export const unblock = async ({
+  targetActorId
+}: FollowParams): Promise<MastodonRelationship | null> => {
+  const encodedId = toIdPathSegment(targetActorId)
+  const response = await fetch(`/api/v1/accounts/${encodedId}/unblock`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  })
+  if (response.status !== 200) return null
+  return (await response.json()) as MastodonRelationship
+}
+
+export interface GetBlocksParams {
+  limit?: number
+  maxId?: string
+  minId?: string
+}
+
+export interface GetBlocksResult {
+  accounts: MastodonAccount[]
+  nextMaxId: string | null
+  prevMinId: string | null
+}
+
+export const getCursorFromLinkHeader = (
+  linkHeader: string | null,
+  rel: string
+) => {
+  if (!linkHeader) return null
+
+  const links = linkHeader.split(',').map((item) => item.trim())
+  const matchingLink = links.find((link) => link.endsWith(`rel="${rel}"`))
+  const url = matchingLink?.match(/<([^>]+)>/)?.[1]
+  if (!url) return null
+
+  return new URL(url).searchParams.get(rel === 'next' ? 'max_id' : 'min_id')
+}
+
+export const getBlocks = async ({
+  limit,
+  maxId,
+  minId
+}: GetBlocksParams = {}): Promise<GetBlocksResult> => {
+  const url = new URL(`${window.origin}/api/v1/blocks`)
+  if (limit) url.searchParams.set('limit', `${limit}`)
+  if (maxId) url.searchParams.set('max_id', maxId)
+  if (minId) url.searchParams.set('min_id', minId)
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  })
+  if (response.status !== 200) {
+    return { accounts: [], nextMaxId: null, prevMinId: null }
+  }
+
+  const linkHeader = response.headers.get('Link')
+  return {
+    accounts: (await response.json()) as MastodonAccount[],
+    nextMaxId: getCursorFromLinkHeader(linkHeader, 'next'),
+    prevMinId: getCursorFromLinkHeader(linkHeader, 'prev')
+  }
+}
+
+export interface MuteParams {
+  targetActorId: string
+  notifications?: boolean
+}
+
+export const mute = async ({
+  targetActorId,
+  notifications
+}: MuteParams): Promise<MastodonRelationship | null> => {
+  const encodedId = toIdPathSegment(targetActorId)
+  const response = await fetch(`/api/v1/accounts/${encodedId}/mute`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(notifications === undefined ? {} : { notifications })
+  })
+  if (response.status !== 200) return null
+  return (await response.json()) as MastodonRelationship
+}
+
+export const unmute = async ({
+  targetActorId
+}: FollowParams): Promise<MastodonRelationship | null> => {
+  const encodedId = toIdPathSegment(targetActorId)
+  const response = await fetch(`/api/v1/accounts/${encodedId}/unmute`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  })
+  if (response.status !== 200) return null
+  return (await response.json()) as MastodonRelationship
 }
