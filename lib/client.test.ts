@@ -12,6 +12,7 @@ import {
   bookmarkStatus,
   cancelActorDeletion,
   cancelFitnessRouteHeatmap,
+  cancelStravaArchiveImport,
   changeAccountPassword,
   clearFitnessRouteHeatmaps,
   completeUploadPresignedUrl,
@@ -23,6 +24,7 @@ import {
   createNote,
   createPoll,
   createReport,
+  createStravaArchivePresignedUrl,
   createUploadPresignedUrl,
   deleteAccountMedia,
   deleteActor,
@@ -33,6 +35,7 @@ import {
   deleteStatus,
   deleteStravaSettings,
   follow,
+  getActiveStravaArchiveImport,
   getActorDomains,
   getActorMedia,
   getActorStatuses,
@@ -64,6 +67,7 @@ import {
   requestPasswordReset,
   resetPassword,
   retireFitnessGearComponent,
+  retryStravaArchiveImport,
   revokeCollectionMembership,
   revokeConnectedApp,
   saveStravaSettings,
@@ -72,6 +76,7 @@ import {
   setFitnessGearRetired,
   setFitnessRouteHeatmapRegionName,
   shareFitnessRouteHeatmap,
+  startFitnessImport,
   startStravaArchiveImport,
   submitOAuthConsent,
   switchActor,
@@ -88,11 +93,13 @@ import {
   updateStatusVisibility,
   uploadAttachment,
   uploadFileToPresignedUrl,
+  uploadFitnessFile,
   uploadMedia
 } from './client'
 import * as accountsModule from './client/accounts'
 import * as fitnessGearModule from './client/fitnessGear'
 import * as fitnessHeatmapsModule from './client/fitnessHeatmaps'
+import * as fitnessImportsModule from './client/fitnessImports'
 import * as httpModule from './client/http'
 import * as mediaModule from './client/media'
 import * as statusesModule from './client/statuses'
@@ -139,6 +146,28 @@ describe('client facade accounts re-exports', () => {
   it('re-exports extracted accounts functions', () => {
     expect(getMutes).toBe(accountsModule.getMutes)
     expect(revokeConnectedApp).toBe(accountsModule.revokeConnectedApp)
+  })
+})
+
+describe('client facade fitness imports re-exports', () => {
+  it('re-exports extracted fitness import functions', () => {
+    expect(uploadFitnessFile).toBe(fitnessImportsModule.uploadFitnessFile)
+    expect(startFitnessImport).toBe(fitnessImportsModule.startFitnessImport)
+    expect(createStravaArchivePresignedUrl).toBe(
+      fitnessImportsModule.createStravaArchivePresignedUrl
+    )
+    expect(startStravaArchiveImport).toBe(
+      fitnessImportsModule.startStravaArchiveImport
+    )
+    expect(getActiveStravaArchiveImport).toBe(
+      fitnessImportsModule.getActiveStravaArchiveImport
+    )
+    expect(retryStravaArchiveImport).toBe(
+      fitnessImportsModule.retryStravaArchiveImport
+    )
+    expect(cancelStravaArchiveImport).toBe(
+      fitnessImportsModule.cancelStravaArchiveImport
+    )
   })
 })
 
