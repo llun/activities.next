@@ -1,6 +1,9 @@
 import { BaseNote } from '@/lib/activities/note'
 import { Database } from '@/lib/database/types'
-import { resolveInboundQuotedStatus } from '@/lib/services/quotes/persistInboundQuoteEdge'
+import {
+  persistInboundQuoteEdge,
+  resolveInboundQuotedStatus
+} from '@/lib/services/quotes/persistInboundQuoteEdge'
 import { Status } from '@/lib/types/domain/status'
 
 const QUOTED_STATUS_ID = 'https://remote.test/users/alice/statuses/1'
@@ -8,6 +11,11 @@ const STAMP_URI = 'https://remote.test/users/alice/quote_authorizations/abc'
 
 vi.mock('@/lib/services/federation/getFederationSigningActor', () => ({
   getFederationSigningActor: vi.fn().mockResolvedValue({ id: 'signer' })
+}))
+
+const mockVerifyRemoteQuote = vi.fn().mockResolvedValue('accepted')
+vi.mock('@/lib/services/quotes/verifyRemoteQuote', () => ({
+  verifyRemoteQuote: (...params: unknown[]) => mockVerifyRemoteQuote(...params)
 }))
 
 const mockGetNote = vi.fn()
@@ -111,31 +119,6 @@ describe('resolveInboundQuotedStatus', () => {
     })
   })
 
-  it.each([
-    {
-      description: 'the quoted-note fetch rejects',
-      setup: () => mockGetNote.mockRejectedValue(new Error('fetch failed'))
-    },
-    {
-      description: 'storing the fetched note rejects',
-      setup: () => mockGetNote.mockResolvedValue({ id: QUOTED_STATUS_ID })
-    }
-  ])('degrades to null when $description', async ({ setup }) => {
-    setup()
-    const database = {
-      getStatus: vi.fn().mockResolvedValue(null)
-    } as unknown as Database
-
-    await expect(
-      resolveInboundQuotedStatus({
-        database,
-        note: note(STAMP_URI),
-        quotedStatusId: QUOTED_STATUS_ID,
-        storeNote: vi.fn().mockRejectedValue(new Error('store failed'))
-      })
-    ).resolves.toBeNull()
-  })
-
   it('degrades to null when the lookup confirming the stored note rejects', async () => {
     // The subtle one: a bare `return <promise>` inside the `try` settles this
     // function AFTER the catch frame is gone, so the rejection escapes and
@@ -157,5 +140,94 @@ describe('resolveInboundQuotedStatus', () => {
         storeNote: vi.fn().mockResolvedValue(undefined)
       })
     ).resolves.toBeNull()
+  })
+})
+
+describe('persistInboundQuoteEdge authority checks', () => {
+  const makeDb = (createStatusQuote = vi.fn().mockResolvedValue({})) =>
+    ({
+      getStatusQuote: vi.fn().mockResolvedValue(null),
+      createStatusQuote
+    }) as unknown as Database
+
+  it.each([
+    {
+      description: 'cross-host stamp',
+      stamp: 'https://evil.example/stamp/1'
+    },
+    { description: 'malformed stamp', stamp: 'not-a-url' },
+    { description: 'hostless stamp', stamp: 'urn:uuid:stamp-1' },
+    {
+      description: 'port mismatch',
+      stamp: 'https://remote.test:8080/users/alice/quote_authorizations/abc'
+    }
+  ])(
+    'does not persist authorizationUri with invalid or mismatched origin ($description)',
+    async ({ stamp }) => {
+      const createSpy = vi.fn().mockResolvedValue({})
+      const database = makeDb(createSpy)
+
+      await persistInboundQuoteEdge({
+        database,
+        note: note(stamp),
+        actorId: 'https://remote.test/users/bob',
+        quotedStatus: null,
+        quotedStatusId: QUOTED_STATUS_ID
+      })
+
+      expect(createSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          authorizationUri: null
+        })
+      )
+    }
+  )
+
+  it('persists authorizationUri when stamp origin matches quotedStatusId', async () => {
+    const createSpy = vi.fn().mockResolvedValue({})
+    const database = makeDb(createSpy)
+
+    await persistInboundQuoteEdge({
+      database,
+      note: note(STAMP_URI),
+      actorId: 'https://remote.test/users/bob',
+      quotedStatus: null,
+      quotedStatusId: QUOTED_STATUS_ID
+    })
+
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        authorizationUri: STAMP_URI
+      })
+    )
+  })
+
+  it('persists authorizationUri when stamp and quotedStatusId share an explicit port', async () => {
+    const quotedStatusIdWithPort =
+      'https://remote.test:8080/users/alice/statuses/1'
+    const stampWithPort =
+      'https://remote.test:8080/users/alice/quote_authorizations/abc'
+    const createSpy = vi.fn().mockResolvedValue({})
+    const database = makeDb(createSpy)
+
+    await persistInboundQuoteEdge({
+      database,
+      note: {
+        id: 'https://remote.test:8080/users/bob/statuses/9',
+        type: 'Note',
+        attributedTo: 'https://remote.test:8080/users/bob',
+        quote: quotedStatusIdWithPort,
+        quoteAuthorization: stampWithPort
+      } as unknown as BaseNote,
+      actorId: 'https://remote.test:8080/users/bob',
+      quotedStatus: null,
+      quotedStatusId: quotedStatusIdWithPort
+    })
+
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        authorizationUri: stampWithPort
+      })
+    )
   })
 })

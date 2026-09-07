@@ -27,6 +27,7 @@ const makeDatabase = (
     edge: { statusId: string; quotedStatusId: string } | null
     edgeState: string
     updateSpy: ReturnType<typeof vi.fn>
+    getStatus: (params: { statusId: string }) => Promise<unknown>
   }> = {}
 ): Database =>
   ({
@@ -38,19 +39,26 @@ const makeDatabase = (
             state: overrides.edgeState ?? 'pending'
           }
         : overrides.edge
+          ? {
+              state: overrides.edgeState ?? 'pending',
+              ...overrides.edge
+            }
+          : null
     ),
     updateStatusQuoteState:
       overrides.updateSpy ?? vi.fn().mockResolvedValue(null),
-    getStatus: vi.fn().mockImplementation(({ statusId }) =>
-      Promise.resolve(
-        statusId === QUOTED_STATUS_ID
-          ? { type: 'Note', id: QUOTED_STATUS_ID, actorId: QUOTED_AUTHOR }
-          : {
-              id: QUOTING_STATUS_ID,
-              actorId: 'https://remote.example/users/me'
-            }
+    getStatus:
+      overrides.getStatus ??
+      vi.fn().mockImplementation(({ statusId }) =>
+        Promise.resolve(
+          statusId === QUOTED_STATUS_ID
+            ? { type: 'Note', id: QUOTED_STATUS_ID, actorId: QUOTED_AUTHOR }
+            : {
+                id: QUOTING_STATUS_ID,
+                actorId: 'https://remote.example/users/me'
+              }
+        )
       )
-    )
   }) as unknown as Database
 
 describe('handleQuoteResponse', () => {
@@ -227,24 +235,85 @@ describe('handleQuoteResponse', () => {
     )
   })
 
-  it('does not store a stamp hosted on a foreign authority', async () => {
+  it.each([
+    {
+      description: 'cross-host stamp',
+      stamp: 'https://evil.example/stamp/1'
+    },
+    { description: 'malformed URI', stamp: 'not-a-valid-uri' },
+    { description: 'hostless URI', stamp: 'urn:uuid:stamp-1' },
+    {
+      description: 'port mismatch',
+      stamp: 'https://target.example:8443/users/alice/quote_authorizations/abc'
+    }
+  ])(
+    'does not store a stamp with invalid or mismatched origin ($description)',
+    async ({ stamp }) => {
+      const updateSpy = vi.fn().mockResolvedValue(null)
+      const database = makeDatabase({ updateSpy })
+      await handleQuoteResponse({
+        database,
+        verifiedSenderActorId: QUOTED_AUTHOR,
+        activity: {
+          type: 'Accept',
+          actor: QUOTED_AUTHOR,
+          object: QUOTE_REQUEST_ID,
+          result: stamp
+        }
+      })
+
+      expect(updateSpy).toHaveBeenCalledWith({
+        statusId: QUOTING_STATUS_ID,
+        state: 'accepted',
+        authorizationUri: undefined
+      })
+    }
+  )
+
+  it('stores a stamp when stamp and quoted status share an explicit port', async () => {
+    const quotedStatusIdWithPort =
+      'https://target.example:8443/users/alice/statuses/1'
+    const quotedAuthorWithPort = 'https://target.example:8443/users/alice'
+    const stampWithPort =
+      'https://target.example:8443/users/alice/quote_authorizations/abc'
     const updateSpy = vi.fn().mockResolvedValue(null)
-    const database = makeDatabase({ updateSpy })
+    const database = makeDatabase({
+      edge: {
+        statusId: QUOTING_STATUS_ID,
+        quotedStatusId: quotedStatusIdWithPort
+      },
+      getStatus: vi.fn().mockImplementation(({ statusId }) =>
+        Promise.resolve(
+          statusId === quotedStatusIdWithPort
+            ? {
+                type: 'Note',
+                id: quotedStatusIdWithPort,
+                actorId: quotedAuthorWithPort
+              }
+            : {
+                id: QUOTING_STATUS_ID,
+                actorId: 'https://remote.example/users/me'
+              }
+        )
+      ),
+      updateSpy
+    })
+
     await handleQuoteResponse({
       database,
-      verifiedSenderActorId: QUOTED_AUTHOR,
+      verifiedSenderActorId: quotedAuthorWithPort,
       activity: {
         type: 'Accept',
-        actor: QUOTED_AUTHOR,
+        actor: quotedAuthorWithPort,
         object: QUOTE_REQUEST_ID,
-        result: 'https://evil.example/stamp/1'
+        result: stampWithPort
       }
     })
 
     expect(updateSpy).toHaveBeenCalledWith({
       statusId: QUOTING_STATUS_ID,
       state: 'accepted',
-      authorizationUri: undefined
+      authorizationUri: stampWithPort
     })
   })
 

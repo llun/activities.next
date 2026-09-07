@@ -11,6 +11,7 @@ import { buildQuoteAuthorizationUri } from '@/lib/services/quotes/quoteAuthoriza
 import { verifyQuoteInstrument } from '@/lib/services/quotes/verifyQuoteInstrument'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Actor } from '@/lib/types/domain/actor'
+import { isSameActivityPubOrigin } from '@/lib/utils/activitypub'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 
@@ -34,15 +35,6 @@ const getInstrumentId = (instrument: unknown): string | null => {
     return (instrument as { id: string }).id
   }
   return null
-}
-
-// Two ids share authority when served from the same host.
-const sameHost = (a: string, b: string): boolean => {
-  try {
-    return new URL(a).host === new URL(b).host
-  } catch {
-    return false
-  }
 }
 
 /**
@@ -70,7 +62,7 @@ export const handleQuoteRequest = async ({
   // obvious forgeries — authorship is proven authoritatively below, since host
   // equality alone is not enough on a multi-user instance where the requester
   // could name a co-resident's note.
-  if (!sameHost(instrumentId, request.actor)) return false
+  if (!isSameActivityPubOrigin(instrumentId, request.actor)) return false
   try {
     if (new URL(instrumentId).host === getConfig().host) return false
   } catch {

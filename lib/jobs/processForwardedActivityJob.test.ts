@@ -105,6 +105,68 @@ describe('processForwardedActivityJob', () => {
     expect(status).toBeNull()
   })
 
+  it.each([
+    {
+      description: 'cross-host URL',
+      objectId: 'https://elsewhere.example/statuses/1'
+    },
+    { description: 'malformed URL', objectId: 'not-a-url' },
+    { description: 'hostless URN', objectId: 'urn:uuid:12345' },
+    {
+      description: 'different port',
+      objectId: 'https://writing.example:8443/users/ninetiger/statuses/1'
+    }
+  ])(
+    'never fetches an object pointer with invalid or mismatched origin ($description)',
+    async ({ objectId }) => {
+      await processForwardedActivityJob(
+        database,
+        jobMessage(forwardedActivity('Create', { id: objectId, type: 'Note' }))
+      )
+
+      const calls = fetchMock.mock.calls.filter(
+        (call) =>
+          typeof call?.[0] === 'string' &&
+          (call[0].includes('elsewhere.example') ||
+            call[0].includes('8443') ||
+            call[0].includes('urn:'))
+      )
+      expect(calls).toHaveLength(0)
+      const status = await database.getStatus({ statusId: objectId })
+      expect(status).toBeNull()
+    }
+  )
+
+  it('accepts and fetches an object pointer matching actor with explicit port', async () => {
+    const authorWithPort = 'https://writing.example:8443/users/ninetiger'
+    const noteWithPort =
+      'https://writing.example:8443/users/ninetiger/statuses/1'
+    fetchMock.mockResponseOnce(
+      JSON.stringify(
+        noteDocument({
+          id: noteWithPort,
+          url: noteWithPort,
+          attributedTo: authorWithPort
+        })
+      )
+    )
+
+    await processForwardedActivityJob(
+      database,
+      jobMessage({
+        id: `${authorWithPort}/statuses/1/activity`,
+        type: 'Create',
+        actor: authorWithPort,
+        object: { id: noteWithPort, type: 'Note' }
+      })
+    )
+
+    const status = await database.getStatus({ statusId: noteWithPort })
+    expect(status).toBeDefined()
+    expect(status?.actorId).toEqual(authorWithPort)
+    await database.deleteStatus({ statusId: noteWithPort })
+  })
+
   it.each([[404], [410]])(
     'deletes a stored status when origin confirms with %i',
     async (status) => {

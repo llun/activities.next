@@ -9,6 +9,7 @@ import {
   Status,
   getOriginalStatus
 } from '@/lib/types/domain/status'
+import { isSameActivityPubOrigin } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
@@ -21,19 +22,6 @@ type VerifyRemoteQuoteParams = {
   actorId: string
   // The quoted status, if we already have it locally; null otherwise.
   quotedStatus: Status | null
-}
-
-// Two ActivityPub ids share authority when they are served from the same host.
-// The stamp is authoritative only if the quoted author's own server hosts it, so
-// a stamp fetched from (or claiming an id on) any other host is not trusted —
-// this is what stops a quoter from serving a forged authorization that merely
-// *names* the quoted author in `attributedTo`.
-const sameAuthority = (a: string, b: string): boolean => {
-  try {
-    return new URL(a).host === new URL(b).host
-  } catch {
-    return false
-  }
 }
 
 /**
@@ -70,11 +58,11 @@ export const verifyQuoteAuthorizationStamp = async ({
   quotingStatusId: string
   quotedStatusId: string
 }): Promise<QuoteAuthorizationStampCheck> => {
-  if (!sameAuthority(stampUri, quotedAuthorId)) return 'mismatch'
+  if (!isSameActivityPubOrigin(stampUri, quotedAuthorId)) return 'mismatch'
   const stamp = await fetchQuoteAuthorization(database, stampUri)
   if (!stamp) return 'unavailable'
   const matches =
-    sameAuthority(stamp.id, quotedAuthorId) &&
+    isSameActivityPubOrigin(stamp.id, quotedAuthorId) &&
     stamp.attributedTo === quotedAuthorId &&
     stamp.interactingObject === quotingStatusId &&
     stamp.interactionTarget === quotedStatusId
@@ -157,8 +145,8 @@ export const verifyRemoteQuote = async ({
     // The stamp must actually be hosted under the quoted author's authority —
     // both the URL we fetched and the id the document claims — otherwise a
     // quoter could serve a forged stamp naming the author in `attributedTo`.
-    sameAuthority(stampUri, quotedAuthorId) &&
-    sameAuthority(stamp.id, quotedAuthorId) &&
+    isSameActivityPubOrigin(stampUri, quotedAuthorId) &&
+    isSameActivityPubOrigin(stamp.id, quotedAuthorId) &&
     // FEP-044f three-field match: issued by the quoted author, for this exact
     // quoting note, targeting this exact quoted status.
     stamp.attributedTo === quotedAuthorId &&

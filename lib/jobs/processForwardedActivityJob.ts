@@ -54,14 +54,6 @@ const isHttpUrl = (value: string): boolean => {
 const getObjectId = (object: string | { id: string }): string =>
   typeof object === 'string' ? object : object.id
 
-const sameHost = (first: string, second: string): boolean => {
-  try {
-    return new URL(first).host === new URL(second).host
-  } catch {
-    return false
-  }
-}
-
 interface ValidatedTombstone {
   id: string
 }
@@ -107,7 +99,7 @@ export const processForwardedActivityJob = createJobHandle(
       // The pointer must live on the claimed author's own origin: that is what
       // makes the re-fetch authoritative for THIS activity, and it stops a
       // forwarder from steering this instance into fetching arbitrary hosts.
-      if (!sameHost(objectId, activity.actor)) {
+      if (!isSameActivityPubOrigin(objectId, activity.actor)) {
         span.setAttribute('outcome', 'cross_origin_object')
         return
       }
