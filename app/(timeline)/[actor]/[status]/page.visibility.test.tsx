@@ -7,7 +7,7 @@ import { render, screen } from '@testing-library/react'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { Actor } from '@/lib/types/domain/actor'
 import { FollowStatus } from '@/lib/types/domain/follow'
-import { Status } from '@/lib/types/domain/status'
+import { Status, StatusNote } from '@/lib/types/domain/status'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
@@ -87,7 +87,7 @@ const AUTHOR_ID = 'https://activities.local/users/anna'
 // `/followers` — used to exercise the exact-match followers audience check.
 const REMOTE_AUTHOR_ID = 'https://remote.example/users/anna'
 
-const buildNote = (overrides: Partial<Status> = {}): Status =>
+const buildNote = (overrides: Partial<StatusNote> = {}): StatusNote =>
   ({
     id: 'note-id',
     type: 'Note',
@@ -111,7 +111,7 @@ const buildNote = (overrides: Partial<Status> = {}): Status =>
     createdAt: 1,
     updatedAt: 1,
     ...overrides
-  }) as unknown as Status
+  }) as unknown as StatusNote
 
 const buildAnnounce = (
   originalStatus: Status,
@@ -336,7 +336,7 @@ describe('Page visibility for logged-out visitors', () => {
         url: 'https://activities.local/fit/run.fit',
         processingStatus: 'completed'
       }
-    } as unknown as Partial<Status>)
+    } as unknown as Partial<StatusNote>)
 
     mockResolveStatusFromPath.mockResolvedValue({
       status: focused,

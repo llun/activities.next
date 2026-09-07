@@ -9,7 +9,7 @@ import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { getQueue } from '@/lib/services/queue'
 import { Actor } from '@/lib/types/domain/actor'
-import { Status } from '@/lib/types/domain/status'
+import { StatusNote } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { logger } from '@/lib/utils/logger'
@@ -128,7 +128,7 @@ const buildViewer = (): Actor =>
     updatedAt: 1
   }) as unknown as Actor
 
-const buildRemoteNote = (): Status =>
+const buildRemoteNote = (): StatusNote =>
   ({
     id: REMOTE_STATUS_URL,
     type: 'Note',
@@ -151,7 +151,7 @@ const buildRemoteNote = (): Status =>
     tags: [],
     createdAt: 1,
     updatedAt: 1
-  }) as unknown as Status
+  }) as unknown as StatusNote
 
 const renderRemoteStatusPage = async () => {
   const element = await Page({
