@@ -1,0 +1,22 @@
+lib/services/medias/S3StorageFile.ts
+  h_580a04e334fef4 42-43,467-469,471-478,480-483
+lib/services/medias/index.ts
+  h_580a04e334fef4 14
+lib/services/medias/localFile.ts
+  h_580a04e334fef4 19,27-28,133-135,137-145
+lib/services/medias/saveMediaFile.test.ts
+  h_580a04e334fef4 1-279
+lib/services/medias/saveMediaFile.ts
+  h_580a04e334fef4 1-177
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "8eb12852d6974265b214dbe743ca5773702de03a",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
