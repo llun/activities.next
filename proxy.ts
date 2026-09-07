@@ -81,18 +81,21 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // Next.js App Router treats ANY POST request to a page route as a Server Action invocation.
-  // If the page does not define Server Actions and no action ID is provided, Next.js throws
-  // "Failed to find Server Action" and produces a 500 error.
+  // Next.js App Router inspects incoming requests to determine if they are Server
+  // Action invocations based on request method (POST), headers (e.g. Next-Action /
+  // ACTION_HEADER), and content type (multipart/form-data or urlencoded). If a request
+  // resembles an action or targets an action route but cannot be resolved, Next.js can
+  // reject or fail the request.
   // In activities.next, POST requests are only valid on API route handlers (/api/*), OAuth
-  // route handlers (/oauth/*), admin Server Actions (/admin/* or with Next-Action header),
+  // route handlers (/oauth/*), admin Server Actions (/admin, /admin/*, or with Next-Action header),
   // and rewritten API routes (/inbox, /users/*).
   // All other page POSTs are rejected cleanly here.
   if (
     request.method === 'POST' &&
     !pathname.startsWith('/api/') &&
     !pathname.startsWith('/oauth/') &&
-    !pathname.startsWith('/admin') &&
+    pathname !== '/admin' &&
+    !pathname.startsWith('/admin/') &&
     !isRewrittenApiRoute(pathname) &&
     !request.headers.has('next-action')
   ) {
