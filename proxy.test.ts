@@ -456,6 +456,32 @@ describe('proxy', () => {
     expect(actionResponse?.status).toBe(200)
   })
 
+  it('allows POST requests to rewritten inbox routes', async () => {
+    for (const path of ['/inbox', '/users/alice/inbox']) {
+      const request = new NextRequest(`https://llun.social${path}`, {
+        method: 'POST'
+      })
+
+      const response = await proxy(request)
+
+      expect(response?.status).toBe(200)
+    }
+  })
+
+  it('allows mutating methods on rewritten routes', async () => {
+    for (const method of ['PUT', 'DELETE', 'PATCH']) {
+      for (const path of ['/inbox', '/users/alice']) {
+        const request = new NextRequest(`https://llun.social${path}`, {
+          method
+        })
+
+        const response = await proxy(request)
+
+        expect(response?.status).toBe(200)
+      }
+    }
+  })
+
   it('rewrites actor handles on HEAD requests', async () => {
     const request = new NextRequest('https://internal.example.com/@alice', {
       method: 'HEAD',

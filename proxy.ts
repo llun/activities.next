@@ -47,6 +47,10 @@ const VALID_AUTH_PAGES = new Set([
   '/auth/two-factor'
 ])
 
+const isRewrittenApiRoute = (pathname: string): boolean => {
+  return pathname === '/inbox' || pathname.startsWith('/users/')
+}
+
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
@@ -81,13 +85,15 @@ export async function proxy(request: NextRequest) {
   // If the page does not define Server Actions and no action ID is provided, Next.js throws
   // "Failed to find Server Action" and produces a 500 error.
   // In activities.next, POST requests are only valid on API route handlers (/api/*), OAuth
-  // route handlers (/oauth/*), and admin Server Actions (/admin/* or with Next-Action header).
+  // route handlers (/oauth/*), admin Server Actions (/admin/* or with Next-Action header),
+  // and rewritten API routes (/inbox, /users/*).
   // All other page POSTs are rejected cleanly here.
   if (
     request.method === 'POST' &&
     !pathname.startsWith('/api/') &&
     !pathname.startsWith('/oauth/') &&
     !pathname.startsWith('/admin') &&
+    !isRewrittenApiRoute(pathname) &&
     !request.headers.has('next-action')
   ) {
     return withContentSecurityPolicy(
@@ -102,7 +108,8 @@ export async function proxy(request: NextRequest) {
       request.method === 'DELETE' ||
       request.method === 'PATCH') &&
     !pathname.startsWith('/api/') &&
-    !pathname.startsWith('/oauth/')
+    !pathname.startsWith('/oauth/') &&
+    !isRewrittenApiRoute(pathname)
   ) {
     return withContentSecurityPolicy(
       new NextResponse(null, {
