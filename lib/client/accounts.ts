@@ -1,5 +1,7 @@
 import { toIdPathSegment } from '@/lib/utils/urlToId'
 
+import { throwApiError } from './http'
+
 export type ReportCategory = 'spam' | 'legal' | 'violation' | 'other'
 
 export interface CreateReportParams {
@@ -119,4 +121,121 @@ export const unfollow = async ({ targetActorId }: FollowParams) => {
   })
   if (response.status !== 200) return false
   return true
+}
+
+export interface FollowRequestParams {
+  id: string
+}
+
+const respondToFollowRequest = async (
+  id: string,
+  action: 'authorize' | 'reject'
+) => {
+  const response = await fetch(
+    `/api/v1/follow_requests/${encodeURIComponent(id)}/${action}`,
+    {
+      method: 'POST'
+    }
+  )
+  return response.ok
+}
+
+/**
+ * Accepts a pending follow request using Mastodon-compatible API
+ * @see https://docs.joinmastodon.org/methods/follow_requests/#accept
+ */
+export const acceptFollowRequest = ({ id }: FollowRequestParams) =>
+  respondToFollowRequest(id, 'authorize')
+
+/**
+ * Rejects a pending follow request using Mastodon-compatible API
+ * @see https://docs.joinmastodon.org/methods/follow_requests/#reject
+ */
+export const rejectFollowRequest = ({ id }: FollowRequestParams) =>
+  respondToFollowRequest(id, 'reject')
+
+export interface SwitchActorParams {
+  actorId: string
+}
+
+/**
+ * Switches the current session to another actor owned by the account
+ */
+export const switchActor = async ({ actorId }: SwitchActorParams) => {
+  const response = await fetch('/api/v1/actors/switch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ actorId })
+  })
+  return response.ok
+}
+
+export interface ActorDomainsResult {
+  domains: string[]
+  host: string
+}
+
+export interface GetActorDomainsParams {
+  signal?: AbortSignal
+}
+
+/**
+ * Fetches the allowed domains for actor creation
+ */
+export const getActorDomains = async ({
+  signal
+}: GetActorDomainsParams = {}): Promise<ActorDomainsResult> => {
+  const response = await fetch('/api/v1/actors/domains', {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    },
+    signal
+  })
+
+  if (!response.ok) {
+    await throwApiError(response, 'Failed to fetch actor domains')
+  }
+
+  const data = await response.json()
+  return {
+    domains: Array.isArray(data?.domains) ? data.domains : [],
+    host: typeof data?.host === 'string' ? data.host : ''
+  }
+}
+
+export interface CreateActorParams {
+  username: string
+  domain?: string
+}
+
+export interface CreateActorResult {
+  id: string
+  username: string
+  domain: string
+}
+
+/**
+ * Creates a new actor for the current account
+ */
+export const createActor = async ({
+  username,
+  domain
+}: CreateActorParams): Promise<CreateActorResult> => {
+  const response = await fetch('/api/v1/actors', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      username,
+      domain
+    })
+  })
+
+  if (!response.ok) {
+    await throwApiError(response, 'Failed to create actor')
+  }
+
+  return (await response.json()) as CreateActorResult
 }
