@@ -67,20 +67,12 @@ export const GET = traceApiRoute(
     })
   }),
   {
-    addAttributes: async (req, context) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { currentActor } = context as any
-      const account = currentActor?.account
+    addAttributes: async (req) => {
       const { page, limit } = parseAccountMediaPagination(req.url)
-
-      const attributes: Record<string, string | number | boolean> = {
+      return {
         page,
         limit
       }
-      if (account?.id) {
-        attributes.accountId = account.id
-      }
-      return attributes
     }
   }
 )

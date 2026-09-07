@@ -20,6 +20,20 @@ vi.mock('@/lib/services/queue', () => ({
   getQueue: () => ({ publish: mockPublish })
 }))
 
+const mockSpan = {
+  setAttribute: vi.fn(),
+  setStatus: vi.fn(),
+  end: vi.fn(),
+  recordException: vi.fn()
+}
+
+vi.mock('@/lib/utils/trace', () => ({
+  getTracer: () => ({
+    startActiveSpan: (_name: string, fn: (span: typeof mockSpan) => unknown) =>
+      fn(mockSpan)
+  })
+}))
+
 vi.mock('@/lib/services/fitness-files', () => ({
   deleteFitnessFile: vi.fn()
 }))
@@ -92,5 +106,13 @@ describe('DELETE /api/v1/accounts/fitness-files/[fitnessFileId]', () => {
     expect(mockDeleteFitnessFileFromStorage).toHaveBeenCalledTimes(1)
     // Heatmap regeneration is decoupled from delete, so nothing is enqueued.
     expect(mockPublish).not.toHaveBeenCalled()
+    expect(mockSpan.setAttribute).toHaveBeenCalledWith(
+      'fitnessFileId',
+      'fitness-file-1'
+    )
+    expect(mockSpan.setAttribute).not.toHaveBeenCalledWith(
+      'accountId',
+      expect.anything()
+    )
   })
 })

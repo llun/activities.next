@@ -9,6 +9,7 @@ import {
   isActorConfirmationPending,
   isActorModerationBlocked
 } from './accountState'
+import { annotateAuthSuccess } from './authTrace'
 import { getRedirectUrl } from './getRedirectUrl'
 import { hasSameOriginProof } from './sameOriginProof'
 import { AppRouterParams, AuthenticatedApiHandle } from './types'
@@ -55,6 +56,15 @@ export const AuthenticatedGuard =
     ) {
       return apiErrorResponse(403)
     }
+
+    annotateAuthSuccess({
+      authType: 'session',
+      actorId: currentActor.id,
+      userId:
+        currentActor.account?.id ??
+        (session.user as { id?: string })?.id ??
+        null
+    })
 
     return handle(req, { currentActor, database, params: context.params })
   }
