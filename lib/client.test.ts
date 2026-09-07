@@ -39,6 +39,7 @@ import {
   getFitnessGearComponents,
   getFitnessGearList,
   getFitnessRouteHeatmap,
+  getFitnessRouteHeatmapRegionNames,
   getFitnessRouteHeatmapTiles,
   getFitnessRouteHeatmaps,
   getFollowStatus,
@@ -59,12 +60,15 @@ import {
   search,
   setDefaultActor,
   setFitnessGearRetired,
+  setFitnessRouteHeatmapRegionName,
+  shareFitnessRouteHeatmap,
   startStravaArchiveImport,
   submitOAuthConsent,
   switchActor,
   triggerFitnessRouteHeatmap,
   undoBookmarkStatus,
   unfollow,
+  unshareFitnessRouteHeatmap,
   updateAccountName,
   updateCollection,
   updateFitnessFileGear,
@@ -74,6 +78,7 @@ import {
   uploadAttachment
 } from './client'
 import * as fitnessGearModule from './client/fitnessGear'
+import * as fitnessHeatmapsModule from './client/fitnessHeatmaps'
 import * as httpModule from './client/http'
 
 enableFetchMocks()
@@ -729,281 +734,6 @@ describe('client search', () => {
 
     await expect(search({ q: 'trail' })).rejects.toThrow(
       `Search request failed (502): ${'x'.repeat(200)}...`
-    )
-  })
-})
-
-describe('fitness route heatmap client calls', () => {
-  beforeEach(() => {
-    fetchMock.resetMocks()
-    Object.defineProperty(globalThis, 'window', {
-      configurable: true,
-      value: {
-        origin: 'http://llun.test'
-      }
-    })
-  })
-
-  afterEach(() => {
-    Reflect.deleteProperty(globalThis, 'window')
-  })
-
-  const lastUrl = () =>
-    new URL(fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0] as string)
-
-  const TILE_BATCH = {
-    z: 8,
-    tiles: [
-      { x: 132, y: 85 },
-      { x: 133, y: 85 }
-    ],
-    version: 4
-  }
-
-  it('asks the owner route for a tile batch at one zoom', async () => {
-    fetchMock.mockResponseOnce(
-      JSON.stringify({ version: 4, tiles: { '132:85': '{}', '133:85': null } }),
-      { status: 200 }
-    )
-
-    await expect(
-      getFitnessRouteHeatmapTiles({
-        actorId: 'https://llun.test/users/test1',
-        region: 'rect:52.00,5.00,51.00,6.00',
-        ...TILE_BATCH
-      })
-    ).resolves.toEqual({
-      version: 4,
-      tiles: { '132:85': '{}', '133:85': null }
-    })
-
-    const url = lastUrl()
-    expect(url.pathname).toBe(
-      '/api/v1/accounts/llun.test:users:test1/fitness-route-heatmap/tiles'
-    )
-    expect(url.searchParams.get('z')).toBe('8')
-    expect(url.searchParams.get('tiles')).toBe('132:85,133:85')
-    expect(url.searchParams.get('v')).toBe('4')
-    expect(url.searchParams.get('region')).toBe('rect:52.00,5.00,51.00,6.00')
-  })
-
-  it('omits the region from an owner tile request that has none', async () => {
-    fetchMock.mockResponseOnce(JSON.stringify({ version: 4, tiles: {} }), {
-      status: 200
-    })
-
-    await getFitnessRouteHeatmapTiles({
-      actorId: 'https://llun.test/users/test1',
-      ...TILE_BATCH
-    })
-    expect(lastUrl().searchParams.has('region')).toBe(false)
-  })
-
-  it('asks the public route by token, sending no region at all', async () => {
-    fetchMock.mockResponseOnce(
-      JSON.stringify({ version: 4, tiles: { '132:85': '{}' } }),
-      { status: 200 }
-    )
-
-    await getPublicHeatmapTiles({ token: 'tok 123', ...TILE_BATCH })
-
-    const url = lastUrl()
-    expect(url.pathname).toBe('/embed/heatmap/tok%20123/tiles')
-    expect(url.searchParams.get('z')).toBe('8')
-    expect(url.searchParams.get('tiles')).toBe('132:85,133:85')
-    expect(url.searchParams.get('v')).toBe('4')
-    // The server clips to the shared row's own scope; a region from the caller
-    // would be exactly the wrong thing to honour.
-    expect(url.searchParams.has('region')).toBe(false)
-  })
-
-  it('reads a public 404 as the empty batch its own type documents', async () => {
-    // The public route REFUSES rather than describing — a share the pyramid
-    // cannot answer is a 404 — so the fetcher translates it into the version 0
-    // the owner route returns for the same situation, and a caller gets one
-    // "no tiles, draw the untiled geometry" branch instead of two.
-    fetchMock.mockResponseOnce('', { status: 404 })
-
-    await expect(
-      getPublicHeatmapTiles({ token: 'tok123', ...TILE_BATCH })
-    ).resolves.toEqual({
-      version: 0,
-      tiles: { '132:85': null, '133:85': null }
-    })
-  })
-
-  it.each([
-    { description: 'a server error', status: 500 },
-    { description: 'a bad request', status: 400 }
-  ])(
-    'still throws on $description from the public route',
-    async ({ status }) => {
-      fetchMock.mockResponseOnce(JSON.stringify({ message: 'nope' }), {
-        status
-      })
-
-      await expect(
-        getPublicHeatmapTiles({ token: 'tok123', ...TILE_BATCH })
-      ).rejects.toThrow(`Failed to load route heatmap tiles (${status}): nope`)
-    }
-  )
-
-  it('throws when an owner tile request fails', async () => {
-    fetchMock.mockResponseOnce(JSON.stringify({ message: 'owner only' }), {
-      status: 403
-    })
-
-    await expect(
-      getFitnessRouteHeatmapTiles({
-        actorId: 'https://llun.test/users/test1',
-        ...TILE_BATCH
-      })
-    ).rejects.toThrow('Failed to load route heatmap tiles (403): owner only')
-  })
-
-  it('preserves JSON error details when the focused route heatmap request fails', async () => {
-    fetchMock.mockResponseOnce(JSON.stringify({ message: 'owner only' }), {
-      status: 403
-    })
-
-    await expect(
-      getFitnessRouteHeatmap({
-        actorId: 'https://llun.test/users/test1',
-        periodType: 'monthly',
-        periodKey: '2026-04'
-      })
-    ).rejects.toThrow('Failed to load route heatmap (403): owner only')
-  })
-
-  it('preserves raw text error details when the route heatmap history request fails', async () => {
-    fetchMock.mockResponseOnce('upstream unavailable', {
-      status: 503,
-      statusText: 'Service Unavailable'
-    })
-
-    await expect(
-      getFitnessRouteHeatmaps({
-        actorId: 'https://llun.test/users/test1'
-      })
-    ).rejects.toThrow(
-      'Failed to load route heatmaps (503): upstream unavailable'
-    )
-  })
-
-  it('clears all route heatmaps for an actor', async () => {
-    fetchMock.mockResponseOnce(JSON.stringify({ deleted: 3 }), { status: 200 })
-
-    await expect(
-      clearFitnessRouteHeatmaps({
-        actorId: 'https://llun.test/users/test1'
-      })
-    ).resolves.toBe(3)
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      'http://llun.test/api/v1/accounts/llun.test:users:test1/fitness-route-heatmaps',
-      expect.objectContaining({
-        method: 'DELETE',
-        headers: { Accept: 'application/json' }
-      })
-    )
-  })
-
-  it('removes a single route heatmap by key', async () => {
-    fetchMock.mockResponseOnce(JSON.stringify({ deleted: true }), {
-      status: 200
-    })
-
-    await expect(
-      deleteFitnessRouteHeatmap({
-        actorId: 'https://llun.test/users/test1',
-        activityType: 'running',
-        periodType: 'monthly',
-        periodKey: '2026-04',
-        region: 'netherlands'
-      })
-    ).resolves.toBe(true)
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      'http://llun.test/api/v1/accounts/llun.test:users:test1/fitness-route-heatmap?period_type=monthly&period_key=2026-04&activity_type=running&region=netherlands',
-      expect.objectContaining({
-        method: 'DELETE',
-        headers: { Accept: 'application/json' }
-      })
-    )
-  })
-
-  it('throws a detailed error when removing a route heatmap fails', async () => {
-    fetchMock.mockResponseOnce(JSON.stringify({ error: 'owner only' }), {
-      status: 403
-    })
-
-    await expect(
-      deleteFitnessRouteHeatmap({
-        actorId: 'https://llun.test/users/test1',
-        periodType: 'all_time',
-        periodKey: 'all'
-      })
-    ).rejects.toThrow('Failed to load route heatmap (403): owner only')
-  })
-
-  it('sends a cancel flag when cancelling a route heatmap job', async () => {
-    fetchMock.mockResponseOnce(JSON.stringify({ cancelled: true }), {
-      status: 200
-    })
-
-    await expect(
-      cancelFitnessRouteHeatmap({
-        actorId: 'https://llun.test/users/test1',
-        activityType: 'running',
-        periodType: 'monthly',
-        periodKey: '2026-04',
-        region: 'netherlands'
-      })
-    ).resolves.toBe(true)
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      'http://llun.test/api/v1/accounts/llun.test:users:test1/fitness-route-heatmap',
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({
-          period_type: 'monthly',
-          period_key: '2026-04',
-          activity_type: 'running',
-          region: 'netherlands',
-          cancel: true
-        })
-      })
-    )
-  })
-
-  it('sends an explicit retry flag when triggering a retry route heatmap job', async () => {
-    fetchMock.mockResponseOnce(JSON.stringify({ queued: true }), {
-      status: 202
-    })
-
-    await expect(
-      triggerFitnessRouteHeatmap({
-        actorId: 'https://llun.test/users/test1',
-        activityType: 'running',
-        periodType: 'monthly',
-        periodKey: '2026-04',
-        region: 'netherlands',
-        retry: true
-      })
-    ).resolves.toBe(true)
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      'http://llun.test/api/v1/accounts/llun.test:users:test1/fitness-route-heatmap',
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({
-          period_type: 'monthly',
-          period_key: '2026-04',
-          activity_type: 'running',
-          region: 'netherlands',
-          retry: true
-        })
-      })
     )
   })
 })
@@ -2725,5 +2455,44 @@ describe('client facade exports', () => {
       fitnessGearModule.refitFitnessGearComponent
     )
     expect(updateFitnessFileGear).toBe(fitnessGearModule.updateFitnessFileGear)
+  })
+
+  it('re-exports all fitness heatmap functions from fitnessHeatmaps module', () => {
+    expect(getFitnessRouteHeatmap).toBe(
+      fitnessHeatmapsModule.getFitnessRouteHeatmap
+    )
+    expect(getFitnessRouteHeatmapTiles).toBe(
+      fitnessHeatmapsModule.getFitnessRouteHeatmapTiles
+    )
+    expect(getPublicHeatmapTiles).toBe(
+      fitnessHeatmapsModule.getPublicHeatmapTiles
+    )
+    expect(triggerFitnessRouteHeatmap).toBe(
+      fitnessHeatmapsModule.triggerFitnessRouteHeatmap
+    )
+    expect(cancelFitnessRouteHeatmap).toBe(
+      fitnessHeatmapsModule.cancelFitnessRouteHeatmap
+    )
+    expect(shareFitnessRouteHeatmap).toBe(
+      fitnessHeatmapsModule.shareFitnessRouteHeatmap
+    )
+    expect(unshareFitnessRouteHeatmap).toBe(
+      fitnessHeatmapsModule.unshareFitnessRouteHeatmap
+    )
+    expect(deleteFitnessRouteHeatmap).toBe(
+      fitnessHeatmapsModule.deleteFitnessRouteHeatmap
+    )
+    expect(getFitnessRouteHeatmaps).toBe(
+      fitnessHeatmapsModule.getFitnessRouteHeatmaps
+    )
+    expect(clearFitnessRouteHeatmaps).toBe(
+      fitnessHeatmapsModule.clearFitnessRouteHeatmaps
+    )
+    expect(getFitnessRouteHeatmapRegionNames).toBe(
+      fitnessHeatmapsModule.getFitnessRouteHeatmapRegionNames
+    )
+    expect(setFitnessRouteHeatmapRegionName).toBe(
+      fitnessHeatmapsModule.setFitnessRouteHeatmapRegionName
+    )
   })
 })
