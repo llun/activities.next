@@ -4287,10 +4287,15 @@ export interface QueueJob {
   maxRetries: number
   nextRunAt: number
   status: QueueJobStatus
+  claimToken?: string | null
   lastErrorMessage?: string | null
   lastErrorStack?: string | null
   createdAt: number
   updatedAt: number
+}
+
+export interface ClaimedQueueJob extends QueueJob {
+  claimToken: string
 }
 
 export interface CreateQueueJobParams {
@@ -4311,19 +4316,27 @@ export interface GetDueQueueJobsParams {
   stalledTimeoutMs?: number
 }
 
+export interface ClaimQueueJobParams {
+  id: string
+  now?: Date
+  stalledBefore?: Date
+}
+
 export interface QueueJobDatabase {
   createQueueJob(params: CreateQueueJobParams): Promise<QueueJob>
   getDueQueueJobs(params?: GetDueQueueJobsParams): Promise<QueueJob[]>
-  claimQueueJob(id: string, stalledBefore?: Date): Promise<boolean>
-  completeQueueJob(id: string): Promise<boolean>
+  claimQueueJob(params: ClaimQueueJobParams): Promise<ClaimedQueueJob | null>
+  completeQueueJob(params: { id: string; claimToken: string }): Promise<boolean>
   scheduleQueueJobRetry(params: {
     id: string
+    claimToken: string
     nextRunAt: Date | number
     attempts: number
     error?: Error | unknown
   }): Promise<boolean>
   failQueueJob(params: {
     id: string
+    claimToken: string
     attempts?: number
     error?: Error | unknown
   }): Promise<boolean>

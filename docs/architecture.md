@@ -240,7 +240,8 @@ Instance administrators can inspect terminally failed tasks, view formatted payl
 - **Database Queue (`ACTIVITIES_QUEUE_TYPE=database`)**:
   - Tasks are persisted directly into the `queue_jobs` table in the database.
   - Processed asynchronously by the in-process runner (bootstrapped via `instrumentation.ts` when configured) or by a standalone worker process (`scripts/maintenance/runQueueWorker.ts`).
-  - Workers atomically claim batches of due jobs (`pending` -> `processing`).
+  - Workers atomically claim batches of due jobs (`pending` -> `processing`) using unique UUID ownership tokens (`claim_token`). Completion, retry, and failure settlement require matching the active token.
+  - Operational note: Old workers must be drained before a mixed-version rollout to ensure claims are settled with compatible token parameters. Claim tokens protect against concurrent or stale queue state transitions, but do not promise exactly-once external effects.
   - Unhandled job errors trigger polynomial backoff retry scheduling (`attempt^4 + 15` seconds, up to `ACTIVITIES_QUEUE_DATABASE_MAX_RETRIES` / default 16 attempts spanning ~7.5 days, matching Mastodon queue retry resilience).
   - Upon reaching maximum retries, failed tasks are stored in `dead_letter_jobs` and marked failed in `queue_jobs`, making them manageable via the Admin UI at `/admin/queues`.
 - **Google Cloud Tasks (`ACTIVITIES_QUEUE_TYPE=cloudtasks`)**:

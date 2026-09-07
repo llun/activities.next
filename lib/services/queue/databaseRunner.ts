@@ -47,9 +47,13 @@ export const processDueQueueJobs = async (
   let processedCount = 0
 
   for (const job of dueJobs) {
-    const claimed = await database.claimQueueJob(job.id, stalledBefore)
-    if (!claimed) {
-      // Another worker/runner already claimed this job
+    const claimedJob = await database.claimQueueJob({
+      id: job.id,
+      now,
+      stalledBefore
+    })
+    if (!claimedJob) {
+      // Another worker/runner already claimed this job or it was rescheduled
       continue
     }
 
@@ -57,95 +61,151 @@ export const processDueQueueJobs = async (
       'queue',
       'databaseRunner.processJob',
       {
-        'job.id': job.id,
-        'job.name': job.name
+        'job.id': claimedJob.id,
+        'job.name': claimedJob.name
       },
       async (span) => {
-        span.addEvent('job_claimed', { 'job.id': job.id })
+        span.addEvent('job_claimed', {
+          'job.id': claimedJob.id,
+          'job.claim_token': claimedJob.claimToken
+        })
 
         try {
-          await handleJob(job.payload)
-          await database.completeQueueJob(job.id)
-          span.addEvent('job_completed', {
-            'job.id': job.id,
-            'job.attempts': job.attempts
+          await handleJob(claimedJob.payload)
+          const completed = await database.completeQueueJob({
+            id: claimedJob.id,
+            claimToken: claimedJob.claimToken
           })
-          processedCount++
+          if (completed) {
+            span.addEvent('job_completed', {
+              'job.id': claimedJob.id,
+              'job.attempts': claimedJob.attempts
+            })
+            processedCount++
+          } else {
+            span.addEvent('job_settlement_rejected_stale_claim', {
+              'job.id': claimedJob.id,
+              'job.action': 'complete'
+            })
+            logger.warn(
+              {
+                jobId: claimedJob.id,
+                jobName: claimedJob.name,
+                claimToken: claimedJob.claimToken
+              },
+              'Database queue job completion rejected: claim token is stale or superseded'
+            )
+          }
         } catch (error) {
           const err = toLoggableError(error)
-          const nextAttempts = job.attempts + 1
+          const nextAttempts = claimedJob.attempts + 1
 
-          if (nextAttempts < job.maxRetries) {
+          if (nextAttempts < claimedJob.maxRetries) {
             const delaySeconds = calculatePolynomialBackoffSeconds(
               nextAttempts,
               backoffOptions
             )
             const nextRunAt = new Date(Date.now() + delaySeconds * 1000)
 
-            await database.scheduleQueueJobRetry({
-              id: job.id,
+            const retried = await database.scheduleQueueJobRetry({
+              id: claimedJob.id,
+              claimToken: claimedJob.claimToken,
               nextRunAt,
               attempts: nextAttempts,
               error: err
             })
 
-            span.addEvent('job_retry_scheduled', {
-              'job.id': job.id,
-              'job.attempts': nextAttempts,
-              'job.delay_seconds': delaySeconds,
-              'job.next_run_at': nextRunAt.toISOString(),
-              'error.message': err.message
-            })
+            if (retried) {
+              span.addEvent('job_retry_scheduled', {
+                'job.id': claimedJob.id,
+                'job.attempts': nextAttempts,
+                'job.delay_seconds': delaySeconds,
+                'job.next_run_at': nextRunAt.toISOString(),
+                'error.message': err.message
+              })
 
-            logger.warn(
-              {
-                jobId: job.id,
-                jobName: job.name,
-                attempts: nextAttempts,
-                nextRunAt,
-                err
-              },
-              'Database queue job failed, retry scheduled'
-            )
+              logger.warn(
+                {
+                  jobId: claimedJob.id,
+                  jobName: claimedJob.name,
+                  attempts: nextAttempts,
+                  nextRunAt,
+                  err
+                },
+                'Database queue job failed, retry scheduled'
+              )
+              processedCount++
+            } else {
+              span.addEvent('job_settlement_rejected_stale_claim', {
+                'job.id': claimedJob.id,
+                'job.action': 'retry'
+              })
+              logger.warn(
+                {
+                  jobId: claimedJob.id,
+                  jobName: claimedJob.name,
+                  claimToken: claimedJob.claimToken,
+                  err
+                },
+                'Database queue job retry rejected: claim token is stale or superseded'
+              )
+            }
           } else {
-            await database.failQueueJob({
-              id: job.id,
+            const failed = await database.failQueueJob({
+              id: claimedJob.id,
+              claimToken: claimedJob.claimToken,
               attempts: nextAttempts,
               error: err
             })
 
-            await database.createDeadLetterJob({
-              id: job.id,
-              jobName: job.name,
-              payload: job.payload,
-              errorMessage: err.message,
-              errorStack: err.stack ?? null,
-              attempts: nextAttempts,
-              status: 'failed'
-            })
-
-            span.addEvent('job_terminal_failure', {
-              'job.id': job.id,
-              'job.attempts': nextAttempts,
-              'error.message': err.message
-            })
-            span.recordException(err)
-            span.setStatus({
-              code: SpanStatusCode.ERROR,
-              message: err.message
-            })
-
-            logger.error(
-              {
-                jobId: job.id,
-                jobName: job.name,
+            if (failed) {
+              await database.createDeadLetterJob({
+                id: claimedJob.id,
+                jobName: claimedJob.name,
+                payload: claimedJob.payload,
+                errorMessage: err.message,
+                errorStack: err.stack ?? null,
                 attempts: nextAttempts,
-                err
-              },
-              'Database queue job failed terminally, captured in dead_letter_jobs'
-            )
+                status: 'failed'
+              })
+
+              span.addEvent('job_terminal_failure', {
+                'job.id': claimedJob.id,
+                'job.attempts': nextAttempts,
+                'error.message': err.message
+              })
+              span.recordException(err)
+              span.setStatus({
+                code: SpanStatusCode.ERROR,
+                message: err.message
+              })
+
+              logger.error(
+                {
+                  jobId: claimedJob.id,
+                  jobName: claimedJob.name,
+                  attempts: nextAttempts,
+                  err
+                },
+                'Database queue job failed terminally, captured in dead_letter_jobs'
+              )
+              processedCount++
+            } else {
+              span.addEvent('job_settlement_rejected_stale_claim', {
+                'job.id': claimedJob.id,
+                'job.action': 'fail'
+              })
+              logger.warn(
+                {
+                  jobId: claimedJob.id,
+                  jobName: claimedJob.name,
+                  claimToken: claimedJob.claimToken,
+                  err
+                },
+                'Database queue job terminal failure rejected: claim token is stale or superseded'
+              )
+            }
           }
-          processedCount++
         }
       }
     )

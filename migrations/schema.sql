@@ -1020,7 +1020,8 @@ CREATE TABLE public.queue_jobs (
     last_error_message text,
     last_error_stack text,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    claim_token character varying(255) DEFAULT NULL::character varying
 );
 
 CREATE TABLE public.recipients (
@@ -2112,3 +2113,4 @@ ALTER TABLE ONLY public.status_pins
 
 ALTER TABLE ONLY public."twoFactor"
     ADD CONSTRAINT twofactor_userid_foreign FOREIGN KEY ("userId") REFERENCES public.accounts(id) ON DELETE CASCADE;
+

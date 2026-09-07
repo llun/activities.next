@@ -135,7 +135,7 @@ describe('databaseRunner', () => {
     })
 
     // Simulate concurrent worker claiming it first
-    await database.claimQueueJob('job-concurrent-1')
+    await database.claimQueueJob({ id: 'job-concurrent-1' })
 
     let called = false
     const handleJob = async () => {
@@ -149,6 +149,167 @@ describe('databaseRunner', () => {
 
     expect(processed).toBe(0)
     expect(called).toBe(false)
+  })
+
+  it('executes the fresh claimed payload, not discovery query older row', async () => {
+    const originalMessage: JobMessage = {
+      id: 'fresh-payload-msg-old',
+      name: 'deliverActivity',
+      data: { version: 1 }
+    }
+    const updatedMessage: JobMessage = {
+      id: 'fresh-payload-msg-new',
+      name: 'deliverActivity',
+      data: { version: 2 }
+    }
+
+    await database.createQueueJob({
+      id: 'job-fresh-payload-1',
+      name: 'deliverActivity',
+      payload: originalMessage,
+      nextRunAt: new Date(Date.now() - 1000)
+    })
+
+    // Update database payload directly before runner claims
+    await knexDatabase('queue_jobs')
+      .where({ id: 'job-fresh-payload-1' })
+      .update({
+        payload: JSON.stringify(updatedMessage)
+      })
+
+    const executedPayloads: JobMessage[] = []
+    const handleJob = async (message: JobMessage) => {
+      executedPayloads.push(message)
+    }
+
+    const processed = await processDueQueueJobs(database, {
+      limit: 10,
+      handleJob
+    })
+
+    expect(processed).toBe(1)
+    expect(executedPayloads).toHaveLength(1)
+    expect(executedPayloads[0].id).toBe('fresh-payload-msg-new')
+    expect(executedPayloads[0].data).toEqual({ version: 2 })
+  })
+
+  it('rejects stale settlement when job is reclaimed by another worker during execution', async () => {
+    await database.createQueueJob({
+      id: 'job-stale-settlement-1',
+      name: 'deliverActivity',
+      payload: sampleMessage,
+      nextRunAt: new Date(Date.now() - 1000)
+    })
+
+    let reclaimDone = false
+    const handleJob = async () => {
+      // While handler is executing, backdate and simulate a concurrent stalled reclaim
+      const now = Date.now()
+      await knexDatabase('queue_jobs')
+        .where({ id: 'job-stale-settlement-1' })
+        .update({
+          updated_at: new Date(now - 30 * 60 * 1000)
+        })
+
+      const reclaimer = await database.claimQueueJob({
+        id: 'job-stale-settlement-1',
+        now: new Date(now),
+        stalledBefore: new Date(now - 15 * 60 * 1000)
+      })
+      expect(reclaimer).not.toBeNull()
+      reclaimDone = true
+    }
+
+    const processed = await processDueQueueJobs(database, {
+      limit: 10,
+      handleJob
+    })
+
+    expect(reclaimDone).toBe(true)
+    // First worker's completeQueueJob should have returned false due to token mismatch, so processedCount = 0
+    expect(processed).toBe(0)
+
+    const job = await database.getQueueJobById('job-stale-settlement-1')
+    expect(job?.status).toBe('processing')
+  })
+
+  it('rejects stale retry settlement when job is reclaimed by another worker during execution', async () => {
+    await database.createQueueJob({
+      id: 'job-stale-retry-1',
+      name: 'deliverActivity',
+      payload: sampleMessage,
+      attempts: 0,
+      maxRetries: 3,
+      nextRunAt: new Date(Date.now() - 1000)
+    })
+
+    const handleJob = async () => {
+      const now = Date.now()
+      await knexDatabase('queue_jobs')
+        .where({ id: 'job-stale-retry-1' })
+        .update({
+          updated_at: new Date(now - 30 * 60 * 1000)
+        })
+
+      await database.claimQueueJob({
+        id: 'job-stale-retry-1',
+        now: new Date(now),
+        stalledBefore: new Date(now - 15 * 60 * 1000)
+      })
+
+      throw new Error('Temporary 503')
+    }
+
+    const processed = await processDueQueueJobs(database, {
+      limit: 10,
+      handleJob
+    })
+
+    expect(processed).toBe(0)
+    const job = await database.getQueueJobById('job-stale-retry-1')
+    expect(job?.status).toBe('processing')
+    expect(job?.attempts).toBe(0)
+  })
+
+  it('rejects stale terminal failure settlement when job is reclaimed by another worker during execution', async () => {
+    await database.createQueueJob({
+      id: 'job-stale-fail-1',
+      name: 'deliverActivity',
+      payload: sampleMessage,
+      attempts: 2,
+      maxRetries: 3,
+      nextRunAt: new Date(Date.now() - 1000)
+    })
+
+    const handleJob = async () => {
+      const now = Date.now()
+      await knexDatabase('queue_jobs')
+        .where({ id: 'job-stale-fail-1' })
+        .update({
+          updated_at: new Date(now - 30 * 60 * 1000)
+        })
+
+      await database.claimQueueJob({
+        id: 'job-stale-fail-1',
+        now: new Date(now),
+        stalledBefore: new Date(now - 15 * 60 * 1000)
+      })
+
+      throw new Error('Permanent 500')
+    }
+
+    const processed = await processDueQueueJobs(database, {
+      limit: 10,
+      handleJob
+    })
+
+    expect(processed).toBe(0)
+    const job = await database.getQueueJobById('job-stale-fail-1')
+    expect(job?.status).toBe('processing')
+    expect(job?.attempts).toBe(2)
+
+    const dlq = await database.getDeadLetterJobById('job-stale-fail-1')
+    expect(dlq).toBeNull()
   })
 
   it('starts and stops the queue runner loop', async () => {

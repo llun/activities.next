@@ -5,6 +5,8 @@ import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { JobMessage } from '@/lib/services/queue/type'
 import {
+  ClaimQueueJobParams,
+  ClaimedQueueJob,
   CreateQueueJobParams,
   GetDueQueueJobsParams,
   QueueJob,
@@ -20,6 +22,7 @@ export interface SQLQueueJob {
   max_retries: number
   next_run_at: number | Date | string
   status: QueueJobStatus
+  claim_token: string | null
   last_error_message: string | null
   last_error_stack: string | null
   created_at: number | Date | string
@@ -34,6 +37,7 @@ export const toQueueJob = (row: SQLQueueJob): QueueJob => ({
   maxRetries: row.max_retries,
   nextRunAt: getCompatibleTime(row.next_run_at),
   status: row.status,
+  claimToken: row.claim_token ?? null,
   lastErrorMessage: row.last_error_message,
   lastErrorStack: row.last_error_stack,
   createdAt: getCompatibleTime(row.created_at),
@@ -91,6 +95,7 @@ export const QueueJobSQLDatabaseMixin = (database: Knex): QueueJobDatabase => ({
       maxRetries,
       nextRunAt: nextRunAt.getTime(),
       status,
+      claimToken: null,
       lastErrorMessage,
       lastErrorStack,
       createdAt: currentTime.getTime(),
@@ -121,12 +126,20 @@ export const QueueJobSQLDatabaseMixin = (database: Knex): QueueJobDatabase => ({
     return rows.map(toQueueJob)
   },
 
-  async claimQueueJob(id: string, stalledBefore?: Date) {
+  async claimQueueJob({
+    id,
+    now = new Date(),
+    stalledBefore
+  }: ClaimQueueJobParams): Promise<ClaimedQueueJob | null> {
+    const claimToken = randomUUID()
     const updatedAt = new Date()
+
     const updatedCount = await database('queue_jobs')
       .where('id', id)
       .where((builder) => {
-        builder.where('status', 'pending')
+        builder.where((b) => {
+          b.where('status', 'pending').andWhere('next_run_at', '<=', now)
+        })
         if (stalledBefore) {
           builder.orWhere((b) => {
             b.where('status', 'processing').andWhere(
@@ -139,29 +152,52 @@ export const QueueJobSQLDatabaseMixin = (database: Knex): QueueJobDatabase => ({
       })
       .update({
         status: 'processing',
+        claim_token: claimToken,
+        updated_at: updatedAt
+      })
+
+    if (updatedCount === 0) return null
+
+    const row = await database<SQLQueueJob>('queue_jobs')
+      .where({ id, claim_token: claimToken })
+      .first()
+
+    if (!row) return null
+
+    return {
+      ...toQueueJob(row),
+      claimToken
+    }
+  },
+
+  async completeQueueJob({
+    id,
+    claimToken
+  }: {
+    id: string
+    claimToken: string
+  }) {
+    const updatedAt = new Date()
+    const updatedCount = await database('queue_jobs')
+      .where({ id, claim_token: claimToken, status: 'processing' })
+      .update({
+        status: 'completed',
+        claim_token: null,
         updated_at: updatedAt
       })
 
     return updatedCount > 0
   },
 
-  async completeQueueJob(id: string) {
-    const updatedAt = new Date()
-    const updatedCount = await database('queue_jobs').where({ id }).update({
-      status: 'completed',
-      updated_at: updatedAt
-    })
-
-    return updatedCount > 0
-  },
-
   async scheduleQueueJobRetry({
     id,
+    claimToken,
     nextRunAt,
     attempts,
     error
   }: {
     id: string
+    claimToken: string
     nextRunAt: Date | number
     attempts: number
     error?: Error | unknown
@@ -180,9 +216,10 @@ export const QueueJobSQLDatabaseMixin = (database: Knex): QueueJobDatabase => ({
 
     const updatedAt = new Date()
     const updatedCount = await database('queue_jobs')
-      .where({ id })
+      .where({ id, claim_token: claimToken, status: 'processing' })
       .update({
         status: 'pending',
+        claim_token: null,
         next_run_at: new Date(nextRunAt),
         attempts,
         last_error_message: lastErrorMessage,
@@ -195,10 +232,12 @@ export const QueueJobSQLDatabaseMixin = (database: Knex): QueueJobDatabase => ({
 
   async failQueueJob({
     id,
+    claimToken,
     attempts,
     error
   }: {
     id: string
+    claimToken: string
     attempts?: number
     error?: Error | unknown
   }) {
@@ -217,6 +256,7 @@ export const QueueJobSQLDatabaseMixin = (database: Knex): QueueJobDatabase => ({
     const updatedAt = new Date()
     const updateData: Record<string, unknown> = {
       status: 'failed',
+      claim_token: null,
       last_error_message: lastErrorMessage,
       last_error_stack: lastErrorStack,
       updated_at: updatedAt
@@ -227,7 +267,7 @@ export const QueueJobSQLDatabaseMixin = (database: Knex): QueueJobDatabase => ({
     }
 
     const updatedCount = await database('queue_jobs')
-      .where({ id })
+      .where({ id, claim_token: claimToken, status: 'processing' })
       .update(updateData)
 
     return updatedCount > 0
