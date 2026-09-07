@@ -5,8 +5,9 @@ import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
-import { search } from '@/lib/client'
+import { type SearchResult, search } from '@/lib/client'
 import { createDeferred } from '@/lib/testing/deferred'
+import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 
 import { SearchPageClient } from './SearchPageClient'
 
@@ -48,10 +49,15 @@ const currentActor = {
   createdAt: 1
 }
 
-const account = (id: string, displayName: string, acct: string) => ({
+const account = (
+  id: string,
+  displayName: string,
+  acct: string
+): MastodonAccount => ({
   id,
   username: acct.split('@')[0],
   acct,
+  uri: `https://remote.example/@${acct}`,
   url: `https://remote.example/@${acct}`,
   display_name: displayName,
   note: '<p>Trail runner</p>',
@@ -59,8 +65,22 @@ const account = (id: string, displayName: string, acct: string) => ({
   avatar_static: '',
   header: '',
   header_static: '',
+  avatar_description: '',
+  header_description: '',
   locked: false,
-  source: {},
+  roles: [],
+  indexable: true,
+  hide_collections: false,
+  noindex: false,
+  source: {
+    note: '',
+    fields: [],
+    privacy: 'public',
+    sensitive: false,
+    language: 'en',
+    attribution_domains: [],
+    follow_requests_count: 0
+  },
   fields: [],
   emojis: [],
   bot: false,
@@ -78,7 +98,7 @@ const hashtag = (name: string) => ({
   url: `https://local.example/tags/${name}`
 })
 
-const emptySearchResult = () => ({
+const emptySearchResult = (): SearchResult => ({
   accounts: [],
   statuses: [],
   hashtags: []
