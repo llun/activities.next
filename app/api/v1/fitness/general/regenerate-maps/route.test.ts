@@ -69,31 +69,32 @@ describe('POST /api/v1/fitness/general/regenerate-maps', () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
-    mockDb.getAccountFromEmail.mockResolvedValue({
+    const mockAccount = {
       id: 'account-1',
       email: seedActor1.email,
-      defaultActorId: ACTOR1_ID
-    })
-    mockDb.getActorsForAccount.mockResolvedValue([
-      {
-        ...seedActor1,
-        id: ACTOR1_ID,
-        account: {
-          id: 'account-1',
-          email: seedActor1.email,
-          defaultActorId: ACTOR1_ID
-        }
-      }
-    ])
-    mockDb.getActorFromId.mockResolvedValue({
+      defaultActorId: ACTOR1_ID,
+      twoFactorEnabled: false,
+      emailVerified: true,
+      createdAt: 1000,
+      updatedAt: 1000
+    }
+
+    const mockActor = {
       ...seedActor1,
       id: ACTOR1_ID,
-      account: {
-        id: 'account-1',
-        email: seedActor1.email,
-        defaultActorId: ACTOR1_ID
-      }
-    })
+      followersUrl: `${ACTOR1_ID}/followers`,
+      inboxUrl: `${ACTOR1_ID}/inbox`,
+      sharedInboxUrl: 'https://llun.test/inbox',
+      statusCount: 0,
+      lastStatusAt: null,
+      createdAt: 1000,
+      updatedAt: 1000,
+      account: mockAccount
+    }
+
+    mockDb.getAccountFromEmail.mockResolvedValue(mockAccount)
+    mockDb.getActorsForAccount.mockResolvedValue([mockActor])
+    mockDb.getActorFromId.mockResolvedValue(mockActor)
     mockDb.updateFitnessFilesProcessingStatus.mockResolvedValue(0)
     mockDb.updateFitnessFileProcessingStatus.mockResolvedValue(true)
     mockPublish.mockResolvedValue(undefined)

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { Database } from '@/lib/database/types'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import type { FitnessSettings } from '@/lib/types/database/fitnessSettings'
 
 import { DELETE, GET, POST } from './route'
 
@@ -51,6 +52,17 @@ vi.mock('@/lib/services/strava/webhookSubscription', () => ({
   ensureWebhookSubscription: vi.fn().mockResolvedValue({ success: true })
 }))
 
+const mockFitnessSettings = (
+  overrides: Partial<FitnessSettings> = {}
+): FitnessSettings => ({
+  id: 'fitness-settings-1',
+  actorId: ACTOR1_ID,
+  serviceType: 'strava',
+  createdAt: 1000,
+  updatedAt: 1000,
+  ...overrides
+})
+
 describe('Strava Settings API', () => {
   // Mock database object
   const mockDb: jest.Mocked<MockDatabase> = {
@@ -80,23 +92,37 @@ describe('Strava Settings API', () => {
     // Reset mocks
     vi.clearAllMocks()
 
-    // Default mock implementations
-    mockDb.getFitnessSettings.mockResolvedValue(null)
-    mockDb.createFitnessSettings.mockResolvedValue({})
-    mockDb.deleteFitnessSettings.mockResolvedValue(undefined)
-    mockDb.updateFitnessSettings.mockResolvedValue({})
-    mockDb.getAccountFromEmail.mockResolvedValue({
+    const mockAccount = {
       id: 'account-1',
       email: seedActor1.email,
-      defaultActorId: ACTOR1_ID
-    })
-    mockDb.getActorsForAccount.mockResolvedValue([
-      { ...seedActor1, id: ACTOR1_ID }
-    ])
-    mockDb.getActorFromId.mockResolvedValue({
+      defaultActorId: ACTOR1_ID,
+      twoFactorEnabled: false,
+      emailVerified: true,
+      createdAt: 1000,
+      updatedAt: 1000
+    }
+
+    const mockActor = {
       ...seedActor1,
-      id: ACTOR1_ID
-    })
+      id: ACTOR1_ID,
+      followersUrl: `${ACTOR1_ID}/followers`,
+      inboxUrl: `${ACTOR1_ID}/inbox`,
+      sharedInboxUrl: 'https://llun.test/inbox',
+      statusCount: 0,
+      lastStatusAt: null,
+      createdAt: 1000,
+      updatedAt: 1000,
+      account: mockAccount
+    }
+
+    // Default mock implementations
+    mockDb.getFitnessSettings.mockResolvedValue(null)
+    mockDb.createFitnessSettings.mockResolvedValue(mockFitnessSettings())
+    mockDb.deleteFitnessSettings.mockResolvedValue(undefined)
+    mockDb.updateFitnessSettings.mockResolvedValue(mockFitnessSettings())
+    mockDb.getAccountFromEmail.mockResolvedValue(mockAccount)
+    mockDb.getActorsForAccount.mockResolvedValue([mockActor])
+    mockDb.getActorFromId.mockResolvedValue(mockActor)
   })
 
   describe('GET /api/v1/fitness/strava', () => {
@@ -123,12 +149,12 @@ describe('Strava Settings API', () => {
     })
 
     it('returns clientId without secret when configured', async () => {
-      mockDb.getFitnessSettings.mockResolvedValue({
-        actorId: ACTOR1_ID,
-        serviceType: 'strava',
-        clientId: '12345',
-        clientSecret: 'secret123'
-      })
+      mockDb.getFitnessSettings.mockResolvedValue(
+        mockFitnessSettings({
+          clientId: '12345',
+          clientSecret: 'secret123'
+        })
+      )
 
       const request = new NextRequest(
         'http://llun.test/api/v1/fitness/strava',
@@ -152,13 +178,13 @@ describe('Strava Settings API', () => {
     })
 
     it('returns saved default visibility when configured', async () => {
-      mockDb.getFitnessSettings.mockResolvedValue({
-        actorId: ACTOR1_ID,
-        serviceType: 'strava',
-        clientId: '12345',
-        clientSecret: 'secret123',
-        defaultVisibility: 'unlisted'
-      })
+      mockDb.getFitnessSettings.mockResolvedValue(
+        mockFitnessSettings({
+          clientId: '12345',
+          clientSecret: 'secret123',
+          defaultVisibility: 'unlisted'
+        })
+      )
 
       const request = new NextRequest(
         'http://llun.test/api/v1/fitness/strava',
@@ -210,13 +236,12 @@ describe('Strava Settings API', () => {
     })
 
     it('updates visibility without requiring credentials for existing settings', async () => {
-      mockDb.getFitnessSettings.mockResolvedValue({
-        id: 'fitness-settings-1',
-        actorId: ACTOR1_ID,
-        serviceType: 'strava',
-        clientId: '12345',
-        clientSecret: 'secret123'
-      })
+      mockDb.getFitnessSettings.mockResolvedValue(
+        mockFitnessSettings({
+          clientId: '12345',
+          clientSecret: 'secret123'
+        })
+      )
 
       const request = new NextRequest(
         'http://llun.test/api/v1/fitness/strava',
@@ -329,12 +354,12 @@ describe('Strava Settings API', () => {
 
   describe('DELETE /api/v1/fitness/strava', () => {
     it('removes existing Strava settings', async () => {
-      mockDb.getFitnessSettings.mockResolvedValue({
-        actorId: ACTOR1_ID,
-        serviceType: 'strava',
-        clientId: '99999',
-        clientSecret: 'deleteme'
-      })
+      mockDb.getFitnessSettings.mockResolvedValue(
+        mockFitnessSettings({
+          clientId: '99999',
+          clientSecret: 'deleteme'
+        })
+      )
 
       mockGetSubscription.mockResolvedValueOnce({
         id: 12345
