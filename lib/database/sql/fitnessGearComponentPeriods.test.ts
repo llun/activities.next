@@ -1,3 +1,4 @@
+import { FitnessGearComponentsSQLDatabaseMixin } from '@/lib/database/sql/fitnessGearComponents'
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
 
 /**
@@ -91,7 +92,7 @@ describe('fitness gear component periods', () => {
     return gear
   }
 
-  // Nothing in `lib/database/sql/fitnessGear.ts` can produce a component with
+  // Nothing in `lib/database/sql/fitnessGearComponents.ts` can produce a component with
   // no period — the pair is inserted in one transaction. The guard matters
   // anyway, because without `p.id IS NOT NULL` in the join BOTH window tests
   // read as TRUE against the missing row's NULLs, and the component silently
@@ -206,5 +207,28 @@ describe('fitness gear component periods', () => {
       distanceMeters: 50_000,
       activityCount: 2
     })
+  })
+
+  it('exposes component operations through FitnessGearComponentsSQLDatabaseMixin', async () => {
+    const componentDatabase = FitnessGearComponentsSQLDatabaseMixin(instance)
+    const gear = await database.createFitnessGear({
+      actorId,
+      kind: 'bike',
+      name: 'Mixin Test Bike'
+    })
+    const component = await componentDatabase.createFitnessGearComponent({
+      gearId: gear.id,
+      actorId,
+      componentType: 'Handlebars'
+    })
+    expect(component).not.toBeNull()
+    expect(component?.componentType).toBe('Handlebars')
+
+    const components = await componentDatabase.getFitnessGearComponents({
+      gearId: gear.id,
+      actorId
+    })
+    expect(components).toHaveLength(1)
+    expect(components[0].id).toBe(component!.id)
   })
 })
