@@ -1,0 +1,22 @@
+.oxlintrc.json
+  h_580a04e334fef4 234,239
+app/(timeline)/fitness/strava/StravaSettingsForm.test.tsx
+  h_580a04e334fef4 5,8-9,12-20,22-26,28-31,34,43-66,70-73,78-195,197-224,228-237,239-408,411-422,424-439,442-545,547-550,553-581,583-617
+app/(timeline)/fitness/strava/StravaSettingsForm.tsx
+  h_580a04e334fef4 5-9,37-44,49,66,71,87,131,140-144,158-163,175,177,185-190
+lib/client.test.ts
+  h_580a04e334fef4 26,38,48,2383-2673
+lib/client.ts
+  h_580a04e334fef4 5270-5374
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "f1888bae9eacf941e77743f22d6143a21092480e",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
