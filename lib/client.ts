@@ -35,23 +35,35 @@ import { waitFor } from '@/lib/utils/waitFor'
 
 import {
   type ActorDomainsResult,
+  type CancelActorDeletionParams,
+  type CancelActorDeletionResult,
   type CreateActorParams,
   type CreateActorResult,
   type CreateReportParams,
+  type DeleteAccountMediaParams,
+  type DeleteActorParams,
+  type DeleteActorResult,
   type FollowParams,
   type FollowRequestParams,
   type FollowStatusType,
   type GetActorDomainsParams,
   type ReportCategory,
+  type SetDefaultActorParams,
+  type SetDefaultActorResult,
   type SwitchActorParams,
   acceptFollowRequest,
+  cancelActorDeletion,
   createActor,
   createReport,
+  deleteAccountMedia,
+  deleteActor,
   follow,
   getActorDomains,
   getFollowStatus,
+  getRelationship,
   isFollowing,
   rejectFollowRequest,
+  setDefaultActor,
   switchActor,
   unfollow
 } from './client/accounts'
@@ -148,145 +160,37 @@ export {
 
 export {
   type ActorDomainsResult,
+  type CancelActorDeletionParams,
+  type CancelActorDeletionResult,
   type CreateActorParams,
   type CreateActorResult,
   type CreateReportParams,
+  type DeleteAccountMediaParams,
+  type DeleteActorParams,
+  type DeleteActorResult,
   type FollowParams,
   type FollowRequestParams,
   type FollowStatusType,
   type GetActorDomainsParams,
   type ReportCategory,
+  type SetDefaultActorParams,
+  type SetDefaultActorResult,
   type SwitchActorParams,
   acceptFollowRequest,
+  cancelActorDeletion,
   createActor,
   createReport,
+  deleteAccountMedia,
+  deleteActor,
   follow,
   getActorDomains,
   getFollowStatus,
+  getRelationship,
   isFollowing,
   rejectFollowRequest,
+  setDefaultActor,
   switchActor,
   unfollow
-}
-
-export interface CancelActorDeletionParams {
-  actorId: string
-}
-
-export interface CancelActorDeletionResult {
-  actorId: string
-  status: string
-}
-
-/**
- * Cancels a scheduled actor deletion
- */
-export const cancelActorDeletion = async ({
-  actorId
-}: CancelActorDeletionParams): Promise<CancelActorDeletionResult> => {
-  const response = await fetch('/api/v1/actors/cancel-deletion', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ actorId })
-  })
-
-  if (!response.ok) {
-    await throwApiError(response, 'Failed to cancel actor deletion')
-  }
-
-  return (await response.json()) as CancelActorDeletionResult
-}
-
-export interface SetDefaultActorParams {
-  actorId: string
-}
-
-export interface SetDefaultActorResult {
-  defaultActorId: string
-  id: string
-  username: string
-  domain: string
-}
-
-/**
- * Sets the default actor for the current account
- */
-export const setDefaultActor = async ({
-  actorId
-}: SetDefaultActorParams): Promise<SetDefaultActorResult> => {
-  const response = await fetch('/api/v1/actors/default', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ actorId })
-  })
-
-  if (!response.ok) {
-    await throwApiError(response, 'Failed to update default actor')
-  }
-
-  return (await response.json()) as SetDefaultActorResult
-}
-
-export interface DeleteActorParams {
-  actorId: string
-  delayDays?: number
-}
-
-export interface DeleteActorResult {
-  actorId: string
-  status: string
-  scheduledAt: string | null
-  immediate: boolean
-}
-
-/**
- * Schedules or immediately executes deletion of an actor
- */
-export const deleteActor = async ({
-  actorId,
-  delayDays = 0
-}: DeleteActorParams): Promise<DeleteActorResult> => {
-  const response = await fetch('/api/v1/actors/delete', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ actorId, delayDays })
-  })
-
-  if (!response.ok) {
-    await throwApiError(response, 'Failed to delete actor')
-  }
-
-  return (await response.json()) as DeleteActorResult
-}
-
-export interface DeleteAccountMediaParams {
-  mediaId: string
-}
-
-/**
- * Deletes a media item owned by the current account
- */
-export const deleteAccountMedia = async ({
-  mediaId
-}: DeleteAccountMediaParams): Promise<boolean> => {
-  const response = await fetch(
-    `/api/v1/accounts/media/${encodeURIComponent(mediaId)}`,
-    {
-      method: 'DELETE'
-    }
-  )
-
-  if (!response.ok) {
-    await throwApiError(response, 'Failed to delete media')
-  }
-
-  return true
 }
 
 interface MarkNotificationsReadParams {
@@ -309,24 +213,6 @@ export const markNotificationsRead = async ({
     })
   })
   return response.ok
-}
-
-export const getRelationship = async ({
-  targetActorId
-}: FollowParams): Promise<MastodonRelationship | null> => {
-  const response = await fetch(
-    `/api/v1/accounts/relationships?id[]=${encodeURIComponent(targetActorId)}`,
-    {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json'
-      }
-    }
-  )
-  if (response.status !== 200) return null
-
-  const relationships = (await response.json()) as MastodonRelationship[]
-  return relationships[0] ?? null
 }
 
 export const block = async ({
