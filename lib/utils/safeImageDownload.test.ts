@@ -335,7 +335,12 @@ describe('safeImageFetch redirect handling', () => {
   })
 
   it('aborts a hop when the per-hop timeout fires, even with a live caller signal', async () => {
-    fetchMock.mockResolvedValue(imageResponse())
+    fetchMock.mockImplementation(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(() => resolve(imageResponse()), 100)
+        )
+    )
     // Never aborts on its own, so only the hop timeout can trip the composite.
     const controller = new AbortController()
 
@@ -345,7 +350,6 @@ describe('safeImageFetch redirect handling', () => {
     })
 
     const signal = fetchMock.mock.calls[0][1].signal as AbortSignal
-    await new Promise((resolve) => setTimeout(resolve, 30))
     expect(signal.aborted).toBe(true)
   })
 
