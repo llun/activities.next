@@ -35,11 +35,13 @@ import {
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
+import { isRecord } from '@/lib/utils/typeGuards'
 
 import { getActorCollections } from './getActorCollections'
 import { getActorPerson } from './getActorPerson'
 import { getActorPostsFromAtomFeed } from './getActorPostsFromAtomFeed'
 import { getPixelfedPosts } from './getPixelfedPosts'
+import { applyInheritedContext } from './inheritActivityPubContext'
 
 type GetActorPostsFunction = (params: {
   database: Database
@@ -127,6 +129,7 @@ export const getActorPosts: GetActorPostsFunction = async ({
         }
       }
 
+      const pageContext = value.page?.['@context']
       const rawItems = value.page?.orderedItems
       const items = Array.isArray(rawItems) ? rawItems : []
       const statuses = await Promise.all(
@@ -135,10 +138,14 @@ export const getActorPosts: GetActorPostsFunction = async ({
             // This should be impossible for status api
             if (typeof item === 'string') return null
 
+            const itemToCompact = isRecord(item)
+              ? applyInheritedContext(pageContext, item)
+              : item
+
             // Canonicalise the activity (and any embedded object) via JSON-LD
             // compaction before validating, so dialect variations in `type`,
             // recipients and id references collapse to a predictable shape.
-            const activity = await compactActivityPub(item)
+            const activity = await compactActivityPub(itemToCompact)
 
             if (activity.type === AnnounceAction) {
               const announceResult = Announce.safeParse(
