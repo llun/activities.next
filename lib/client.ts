@@ -10,7 +10,6 @@ import type { AdminCustomEmoji } from '@/lib/types/domain/customEmoji'
 import type { FilterAction, FilterContext } from '@/lib/types/domain/filter'
 import { QuoteApprovalPolicy, Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
-import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
 import type { AdminAccount } from '@/lib/types/mastodon/admin/account'
 import type { AdminReport } from '@/lib/types/mastodon/admin/report'
 import type { Announcement } from '@/lib/types/mastodon/announcement'
@@ -47,11 +46,15 @@ import {
   type FollowRequestParams,
   type FollowStatusType,
   type GetActorDomainsParams,
+  type GetBlocksParams,
+  type GetBlocksResult,
+  type MuteParams,
   type ReportCategory,
   type SetDefaultActorParams,
   type SetDefaultActorResult,
   type SwitchActorParams,
   acceptFollowRequest,
+  block,
   cancelActorDeletion,
   createActor,
   createReport,
@@ -59,13 +62,18 @@ import {
   deleteActor,
   follow,
   getActorDomains,
+  getBlocks,
+  getCursorFromLinkHeader,
   getFollowStatus,
   getRelationship,
   isFollowing,
+  mute,
   rejectFollowRequest,
   setDefaultActor,
   switchActor,
-  unfollow
+  unblock,
+  unfollow,
+  unmute
 } from './client/accounts'
 import { ApiRequestError, parseApiError, throwApiError } from './client/http'
 import {
@@ -172,11 +180,15 @@ export {
   type FollowRequestParams,
   type FollowStatusType,
   type GetActorDomainsParams,
+  type GetBlocksParams,
+  type GetBlocksResult,
+  type MuteParams,
   type ReportCategory,
   type SetDefaultActorParams,
   type SetDefaultActorResult,
   type SwitchActorParams,
   acceptFollowRequest,
+  block,
   cancelActorDeletion,
   createActor,
   createReport,
@@ -184,13 +196,17 @@ export {
   deleteActor,
   follow,
   getActorDomains,
+  getBlocks,
   getFollowStatus,
   getRelationship,
   isFollowing,
+  mute,
   rejectFollowRequest,
   setDefaultActor,
   switchActor,
-  unfollow
+  unblock,
+  unfollow,
+  unmute
 }
 
 interface MarkNotificationsReadParams {
@@ -213,120 +229,6 @@ export const markNotificationsRead = async ({
     })
   })
   return response.ok
-}
-
-export const block = async ({
-  targetActorId
-}: FollowParams): Promise<MastodonRelationship | null> => {
-  const encodedId = toIdPathSegment(targetActorId)
-  const response = await fetch(`/api/v1/accounts/${encodedId}/block`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  })
-  if (response.status !== 200) return null
-  return (await response.json()) as MastodonRelationship
-}
-
-export const unblock = async ({
-  targetActorId
-}: FollowParams): Promise<MastodonRelationship | null> => {
-  const encodedId = toIdPathSegment(targetActorId)
-  const response = await fetch(`/api/v1/accounts/${encodedId}/unblock`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  })
-  if (response.status !== 200) return null
-  return (await response.json()) as MastodonRelationship
-}
-
-interface GetBlocksParams {
-  limit?: number
-  maxId?: string
-  minId?: string
-}
-
-interface GetBlocksResult {
-  accounts: MastodonAccount[]
-  nextMaxId: string | null
-  prevMinId: string | null
-}
-
-const getCursorFromLinkHeader = (linkHeader: string | null, rel: string) => {
-  if (!linkHeader) return null
-
-  const links = linkHeader.split(',').map((item) => item.trim())
-  const matchingLink = links.find((link) => link.endsWith(`rel="${rel}"`))
-  const url = matchingLink?.match(/<([^>]+)>/)?.[1]
-  if (!url) return null
-
-  return new URL(url).searchParams.get(rel === 'next' ? 'max_id' : 'min_id')
-}
-
-export const getBlocks = async ({
-  limit,
-  maxId,
-  minId
-}: GetBlocksParams = {}): Promise<GetBlocksResult> => {
-  const url = new URL(`${window.origin}/api/v1/blocks`)
-  if (limit) url.searchParams.set('limit', `${limit}`)
-  if (maxId) url.searchParams.set('max_id', maxId)
-  if (minId) url.searchParams.set('min_id', minId)
-
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json'
-    }
-  })
-  if (response.status !== 200) {
-    return { accounts: [], nextMaxId: null, prevMinId: null }
-  }
-
-  const linkHeader = response.headers.get('Link')
-  return {
-    accounts: (await response.json()) as MastodonAccount[],
-    nextMaxId: getCursorFromLinkHeader(linkHeader, 'next'),
-    prevMinId: getCursorFromLinkHeader(linkHeader, 'prev')
-  }
-}
-
-interface MuteParams {
-  targetActorId: string
-  notifications?: boolean
-}
-
-export const mute = async ({
-  targetActorId,
-  notifications
-}: MuteParams): Promise<MastodonRelationship | null> => {
-  const encodedId = toIdPathSegment(targetActorId)
-  const response = await fetch(`/api/v1/accounts/${encodedId}/mute`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(notifications === undefined ? {} : { notifications })
-  })
-  if (response.status !== 200) return null
-  return (await response.json()) as MastodonRelationship
-}
-
-export const unmute = async ({
-  targetActorId
-}: FollowParams): Promise<MastodonRelationship | null> => {
-  const encodedId = toIdPathSegment(targetActorId)
-  const response = await fetch(`/api/v1/accounts/${encodedId}/unmute`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  })
-  if (response.status !== 200) return null
-  return (await response.json()) as MastodonRelationship
 }
 
 interface GetMutesParams {

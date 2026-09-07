@@ -2,6 +2,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import {
   acceptFollowRequest,
+  block,
   cancelActorDeletion,
   createActor,
   createReport,
@@ -9,13 +10,17 @@ import {
   deleteActor,
   follow,
   getActorDomains,
+  getBlocks,
   getFollowStatus,
   getRelationship,
   isFollowing,
+  mute,
   rejectFollowRequest,
   setDefaultActor,
   switchActor,
-  unfollow
+  unblock,
+  unfollow,
+  unmute
 } from './accounts'
 
 enableFetchMocks()
@@ -535,6 +540,162 @@ describe('client accounts module', () => {
       fetchMock.mockResponse(JSON.stringify([]), { status: 200 })
 
       const res = await getRelationship({ targetActorId: 'actor-target' })
+      expect(res).toBeNull()
+    })
+  })
+
+  describe('block', () => {
+    it('blocks an account and returns the relationship on 200', async () => {
+      const mockRel = { id: 'actor-1', blocking: true }
+      fetchMock.mockResponse(JSON.stringify(mockRel), { status: 200 })
+
+      const res = await block({ targetActorId: 'actor-1' })
+      expect(res).toEqual(mockRel)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/accounts/actor-1/block',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        })
+      )
+    })
+
+    it('returns null on non-200', async () => {
+      fetchMock.mockResponse('', { status: 400 })
+      const res = await block({ targetActorId: 'actor-1' })
+      expect(res).toBeNull()
+    })
+  })
+
+  describe('unblock', () => {
+    it('unblocks an account and returns the relationship on 200', async () => {
+      const mockRel = { id: 'actor-1', blocking: false }
+      fetchMock.mockResponse(JSON.stringify(mockRel), { status: 200 })
+
+      const res = await unblock({ targetActorId: 'actor-1' })
+      expect(res).toEqual(mockRel)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/accounts/actor-1/unblock',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        })
+      )
+    })
+
+    it('returns null on non-200', async () => {
+      fetchMock.mockResponse('', { status: 500 })
+      const res = await unblock({ targetActorId: 'actor-1' })
+      expect(res).toBeNull()
+    })
+  })
+
+  describe('getBlocks', () => {
+    beforeEach(() => {
+      Object.defineProperty(globalThis, 'window', {
+        configurable: true,
+        value: { origin: 'https://local.example' }
+      })
+    })
+
+    afterEach(() => {
+      Reflect.deleteProperty(globalThis, 'window')
+    })
+
+    it('fetches blocks with pagination query params and parses Link header', async () => {
+      const mockAccounts = [{ id: 'acc-1' }]
+      fetchMock.mockResponse(JSON.stringify(mockAccounts), {
+        status: 200,
+        headers: {
+          Link: '<https://local.example/api/v1/blocks?max_id=next-max>; rel="next", <https://local.example/api/v1/blocks?min_id=prev-min>; rel="prev"'
+        }
+      })
+
+      const res = await getBlocks({ limit: 10, maxId: 'm1', minId: 'm2' })
+      expect(res).toEqual({
+        accounts: mockAccounts,
+        nextMaxId: 'next-max',
+        prevMinId: 'prev-min'
+      })
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://local.example/api/v1/blocks?limit=10&max_id=m1&min_id=m2',
+        expect.objectContaining({
+          method: 'GET',
+          headers: { Accept: 'application/json' }
+        })
+      )
+    })
+
+    it('returns empty result on non-200', async () => {
+      fetchMock.mockResponse('', { status: 500 })
+      const res = await getBlocks()
+      expect(res).toEqual({
+        accounts: [],
+        nextMaxId: null,
+        prevMinId: null
+      })
+    })
+  })
+
+  describe('mute', () => {
+    it('mutes account with notifications flag and returns relationship', async () => {
+      const mockRel = { id: 'actor-1', muting: true }
+      fetchMock.mockResponse(JSON.stringify(mockRel), { status: 200 })
+
+      const res = await mute({ targetActorId: 'actor-1', notifications: true })
+      expect(res).toEqual(mockRel)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/accounts/actor-1/mute',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notifications: true })
+        })
+      )
+    })
+
+    it('mutes account without notifications flag when omitted', async () => {
+      const mockRel = { id: 'actor-1', muting: true }
+      fetchMock.mockResponse(JSON.stringify(mockRel), { status: 200 })
+
+      const res = await mute({ targetActorId: 'actor-1' })
+      expect(res).toEqual(mockRel)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/accounts/actor-1/mute',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        })
+      )
+    })
+
+    it('returns null on non-200', async () => {
+      fetchMock.mockResponse('', { status: 400 })
+      const res = await mute({ targetActorId: 'actor-1' })
+      expect(res).toBeNull()
+    })
+  })
+
+  describe('unmute', () => {
+    it('unmutes account and returns relationship on 200', async () => {
+      const mockRel = { id: 'actor-1', muting: false }
+      fetchMock.mockResponse(JSON.stringify(mockRel), { status: 200 })
+
+      const res = await unmute({ targetActorId: 'actor-1' })
+      expect(res).toEqual(mockRel)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/accounts/actor-1/unmute',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        })
+      )
+    })
+
+    it('returns null on non-200', async () => {
+      fetchMock.mockResponse('', { status: 404 })
+      const res = await unmute({ targetActorId: 'actor-1' })
       expect(res).toBeNull()
     })
   })
