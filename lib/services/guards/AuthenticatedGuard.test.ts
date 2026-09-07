@@ -1,8 +1,10 @@
+import { trace } from '@opentelemetry/api'
 import { NextRequest, NextResponse } from 'next/server'
 
 import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { setupRecordingTracer } from '@/lib/testing/recordingTracer'
 import { Actor } from '@/lib/types/domain/actor'
 
 import { AuthenticatedGuard } from './AuthenticatedGuard'
@@ -578,6 +580,159 @@ describe('AuthenticatedGuard', () => {
 
       expect(response.status).toBe(200)
       expect(mockHandler).toHaveBeenCalled()
+    })
+  })
+
+  describe('telemetry and trace annotations', () => {
+    let harness: ReturnType<typeof setupRecordingTracer>
+    let primaryActor: Actor
+
+    beforeAll(async () => {
+      const actor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      if (!actor) throw new Error('Actor not found')
+      primaryActor = actor
+    })
+
+    beforeEach(() => {
+      harness = setupRecordingTracer()
+    })
+
+    afterEach(() => {
+      harness.cleanup()
+    })
+
+    const runGuardInSpan = async (
+      guard: ReturnType<typeof AuthenticatedGuard>,
+      req: NextRequest
+    ) => {
+      return trace
+        .getTracer('test')
+        .startActiveSpan('testRoute', async (span) => {
+          try {
+            return await guard(req, { params: Promise.resolve({}) })
+          } finally {
+            span.end()
+          }
+        })
+    }
+
+    it('records authentication success attributes when authorized', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+
+      const guard = AuthenticatedGuard(mockHandler)
+      const req = createRequest()
+      const response = await runGuardInSpan(guard, req)
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
+      expect(harness.recordedSpans).toHaveLength(1)
+      expect(harness.recordedSpans[0].attributes).toMatchObject({
+        'auth.authenticated': true,
+        'auth.auth_type': 'session',
+        'auth.actor_id': primaryActor.id,
+        'auth.user_id': primaryActor.account!.id
+      })
+    })
+
+    it('does not record auth success attributes when session is absent', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const guard = AuthenticatedGuard(mockHandler)
+      const req = createRequest()
+      const response = await runGuardInSpan(guard, req)
+
+      expect(response.status).toBe(307)
+      expect(mockHandler).not.toHaveBeenCalled()
+      expect(harness.recordedSpans).toHaveLength(1)
+      expect(
+        harness.recordedSpans[0].attributes['auth.authenticated']
+      ).toBeUndefined()
+      expect(
+        harness.recordedSpans[0].attributes['auth.auth_type']
+      ).toBeUndefined()
+    })
+
+    it('does not record auth success attributes when cross-origin mutation is rejected', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+
+      const guard = AuthenticatedGuard(mockHandler)
+      const req = createRequest('POST', { Origin: 'https://attacker.test' })
+      const response = await runGuardInSpan(guard, req)
+
+      expect(response.status).toBe(403)
+      expect(mockHandler).not.toHaveBeenCalled()
+      expect(harness.recordedSpans).toHaveLength(1)
+      expect(
+        harness.recordedSpans[0].attributes['auth.authenticated']
+      ).toBeUndefined()
+    })
+
+    it('does not record auth success attributes when actor is moderation-blocked', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      await database.setActorSuspended({
+        actorId: primaryActor.id,
+        suspended: true
+      })
+
+      try {
+        const guard = AuthenticatedGuard(mockHandler)
+        const req = createRequest()
+        const response = await runGuardInSpan(guard, req)
+
+        expect(response.status).toBe(403)
+        expect(mockHandler).not.toHaveBeenCalled()
+        expect(harness.recordedSpans).toHaveLength(1)
+        expect(
+          harness.recordedSpans[0].attributes['auth.authenticated']
+        ).toBeUndefined()
+      } finally {
+        await database.setActorSuspended({
+          actorId: primaryActor.id,
+          suspended: false
+        })
+      }
+    })
+
+    it('succeeds when tracing is disabled (no recording span)', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+
+      const guard = AuthenticatedGuard(mockHandler)
+      const req = createRequest()
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
+    })
+
+    it('proceeds and returns handler response when tracing throws an error', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+
+      const spy = vi.spyOn(trace, 'getActiveSpan').mockImplementation(() => {
+        throw new Error('Telemetry explosion')
+      })
+
+      try {
+        const guard = AuthenticatedGuard(mockHandler)
+        const req = createRequest()
+        const response = await guard(req, { params: Promise.resolve({}) })
+
+        expect(response.status).toBe(200)
+        expect(mockHandler).toHaveBeenCalled()
+      } finally {
+        spy.mockRestore()
+      }
     })
   })
 })

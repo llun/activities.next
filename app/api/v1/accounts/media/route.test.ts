@@ -59,11 +59,9 @@ vi.mock('@/lib/services/guards/AuthenticatedGuard', () => ({
       })
 }))
 
-const createRouteContext = () =>
-  ({
-    params: Promise.resolve({}),
-    currentActor: mockCurrentActor
-  }) as unknown as { params: Promise<object> }
+const createRouteContext = () => ({
+  params: Promise.resolve({})
+})
 
 vi.mock('@/lib/services/medias/quota', () => ({
   getQuotaLimit: vi.fn().mockReturnValue(4294967296)
@@ -163,7 +161,6 @@ describe('GET /api/v1/accounts/media', () => {
 
     expect(mockSpan.setAttribute).toHaveBeenCalledWith('page', 1)
     expect(mockSpan.setAttribute).toHaveBeenCalledWith('limit', 25)
-    expect(mockSpan.setAttribute).toHaveBeenCalledWith('accountId', 'account-1')
   })
 
   it('passes custom valid page and limit to database, response, and trace attributes', async () => {

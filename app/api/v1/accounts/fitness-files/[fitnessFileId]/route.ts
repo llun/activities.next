@@ -134,17 +134,10 @@ export const DELETE = traceApiRoute(
   }),
   {
     addAttributes: async (_req, context) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { currentActor, params } = context as any
-      const { fitnessFileId } = (await params) ?? { fitnessFileId: undefined }
-      const account = currentActor?.account
-
+      const { fitnessFileId } = (await context?.params) ?? {}
       const attributes: Record<string, string | number | boolean> = {}
       if (fitnessFileId) {
         attributes.fitnessFileId = fitnessFileId
-      }
-      if (account?.id) {
-        attributes.accountId = account.id
       }
       return attributes
     }
