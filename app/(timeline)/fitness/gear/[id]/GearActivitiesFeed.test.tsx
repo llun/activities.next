@@ -10,7 +10,7 @@ import {
 } from '@/lib/client'
 import { createDeferred } from '@/lib/testing/deferred'
 import { ActorProfile } from '@/lib/types/domain/actor'
-import { Status, StatusType } from '@/lib/types/domain/status'
+import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 
 import { GearActivitiesFeed } from './GearActivitiesFeed'
 
@@ -43,17 +43,21 @@ vi.mock('@/lib/components/posts/posts', () => ({
     >
       {props.statuses.map((status) => (
         <div key={status.id}>
-          {status.text}
+          {status.type === StatusType.enum.Note ? status.text : null}
           <button type="button" onClick={() => props.onPostDeleted?.(status)}>
             {`delete ${status.id}`}
           </button>
           <button
             type="button"
             onClick={() =>
-              props.onPostUpdated?.({
-                ...status,
-                text: `${status.text} (edited)`
-              })
+              props.onPostUpdated?.(
+                status.type === StatusType.enum.Note
+                  ? {
+                      ...status,
+                      text: `${status.text} (edited)`
+                    }
+                  : status
+              )
             }
           >
             {`edit ${status.id}`}
@@ -86,7 +90,7 @@ const profile: ActorProfile = {
   createdAt: FIXED_CURRENT_TIME
 }
 
-const createStatus = (id: string, text = id): Status => ({
+const createStatus = (id: string, text = id): StatusNote => ({
   id,
   actorId: profile.id,
   actor: profile,
@@ -104,7 +108,9 @@ const createStatus = (id: string, text = id): Status => ({
   replies: [],
   actorAnnounceStatusId: null,
   isActorLiked: false,
+  isActorBookmarked: false,
   totalLikes: 0,
+  totalShares: 0,
   attachments: [],
   tags: []
 })
