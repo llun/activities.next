@@ -385,4 +385,48 @@ describe('QueueJobDatabase', () => {
     expect(fetched?.attempts).toBe(0)
     expect(fetched?.claimToken).toBeNull()
   })
+
+  it('recovers stalled processing jobs when stalledTimeoutMs is passed', async () => {
+    const now = Date.now()
+
+    // Create a job stuck in 'processing' since 30 minutes ago
+    await database.createQueueJob({
+      id: 'stalled-1',
+      name: 'deliverActivity',
+      payload: samplePayload,
+      status: 'processing'
+    })
+
+    // Manually backdate updated_at to simulate a crashed worker
+    await knexDatabase('queue_jobs')
+      .where({ id: 'stalled-1' })
+      .update({
+        status: 'processing',
+        updated_at: new Date(now - 30 * 60 * 1000)
+      })
+
+    // Without stalled timeout, getDueQueueJobs ignores it
+    const normalDue = await database.getDueQueueJobs({
+      now: new Date(now),
+      stalledTimeoutMs: 0
+    })
+    expect(normalDue.some((j) => j.id === 'stalled-1')).toBe(false)
+
+    // With stalled timeout (15 min), it is returned
+    const recoveredDue = await database.getDueQueueJobs({
+      now: new Date(now),
+      stalledTimeoutMs: 15 * 60 * 1000
+    })
+    expect(recoveredDue.some((j) => j.id === 'stalled-1')).toBe(true)
+
+    // And can be claimed by passing stalledBefore
+    const claimed = await database.claimQueueJob({
+      id: 'stalled-1',
+      now: new Date(now),
+      stalledBefore: new Date(now - 15 * 60 * 1000)
+    })
+    expect(claimed).not.toBeNull()
+    expect(claimed?.id).toBe('stalled-1')
+    expect(claimed?.claimToken).toBeDefined()
+  })
 })

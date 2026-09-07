@@ -82,6 +82,19 @@ export const processDueQueueJobs = async (
               'job.attempts': claimedJob.attempts
             })
             processedCount++
+          } else {
+            span.addEvent('job_settlement_rejected_stale_claim', {
+              'job.id': claimedJob.id,
+              'job.action': 'complete'
+            })
+            logger.warn(
+              {
+                jobId: claimedJob.id,
+                jobName: claimedJob.name,
+                claimToken: claimedJob.claimToken
+              },
+              'Database queue job completion rejected: claim token is stale or superseded'
+            )
           }
         } catch (error) {
           const err = toLoggableError(error)
@@ -122,6 +135,20 @@ export const processDueQueueJobs = async (
                 'Database queue job failed, retry scheduled'
               )
               processedCount++
+            } else {
+              span.addEvent('job_settlement_rejected_stale_claim', {
+                'job.id': claimedJob.id,
+                'job.action': 'retry'
+              })
+              logger.warn(
+                {
+                  jobId: claimedJob.id,
+                  jobName: claimedJob.name,
+                  claimToken: claimedJob.claimToken,
+                  err
+                },
+                'Database queue job retry rejected: claim token is stale or superseded'
+              )
             }
           } else {
             const failed = await database.failQueueJob({
@@ -163,6 +190,20 @@ export const processDueQueueJobs = async (
                 'Database queue job failed terminally, captured in dead_letter_jobs'
               )
               processedCount++
+            } else {
+              span.addEvent('job_settlement_rejected_stale_claim', {
+                'job.id': claimedJob.id,
+                'job.action': 'fail'
+              })
+              logger.warn(
+                {
+                  jobId: claimedJob.id,
+                  jobName: claimedJob.name,
+                  claimToken: claimedJob.claimToken,
+                  err
+                },
+                'Database queue job terminal failure rejected: claim token is stale or superseded'
+              )
             }
           }
         }

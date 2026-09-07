@@ -233,6 +233,85 @@ describe('databaseRunner', () => {
     expect(job?.status).toBe('processing')
   })
 
+  it('rejects stale retry settlement when job is reclaimed by another worker during execution', async () => {
+    await database.createQueueJob({
+      id: 'job-stale-retry-1',
+      name: 'deliverActivity',
+      payload: sampleMessage,
+      attempts: 0,
+      maxRetries: 3,
+      nextRunAt: new Date(Date.now() - 1000)
+    })
+
+    const handleJob = async () => {
+      const now = Date.now()
+      await knexDatabase('queue_jobs')
+        .where({ id: 'job-stale-retry-1' })
+        .update({
+          updated_at: new Date(now - 30 * 60 * 1000)
+        })
+
+      await database.claimQueueJob({
+        id: 'job-stale-retry-1',
+        now: new Date(now),
+        stalledBefore: new Date(now - 15 * 60 * 1000)
+      })
+
+      throw new Error('Temporary 503')
+    }
+
+    const processed = await processDueQueueJobs(database, {
+      limit: 10,
+      handleJob
+    })
+
+    expect(processed).toBe(0)
+    const job = await database.getQueueJobById('job-stale-retry-1')
+    expect(job?.status).toBe('processing')
+    expect(job?.attempts).toBe(0)
+  })
+
+  it('rejects stale terminal failure settlement when job is reclaimed by another worker during execution', async () => {
+    await database.createQueueJob({
+      id: 'job-stale-fail-1',
+      name: 'deliverActivity',
+      payload: sampleMessage,
+      attempts: 2,
+      maxRetries: 3,
+      nextRunAt: new Date(Date.now() - 1000)
+    })
+
+    const handleJob = async () => {
+      const now = Date.now()
+      await knexDatabase('queue_jobs')
+        .where({ id: 'job-stale-fail-1' })
+        .update({
+          updated_at: new Date(now - 30 * 60 * 1000)
+        })
+
+      await database.claimQueueJob({
+        id: 'job-stale-fail-1',
+        now: new Date(now),
+        stalledBefore: new Date(now - 15 * 60 * 1000)
+      })
+
+      throw new Error('Permanent 500')
+    }
+
+    const processed = await processDueQueueJobs(database, {
+      limit: 10,
+      handleJob
+    })
+
+    expect(processed).toBe(0)
+    const job = await database.getQueueJobById('job-stale-fail-1')
+    expect(job?.status).toBe('processing')
+    expect(job?.attempts).toBe(2)
+
+    const dlq = await database.getDeadLetterJobById('job-stale-fail-1')
+    expect(dlq).toBeNull()
+  })
+
   it('starts and stops the queue runner loop', async () => {
     let callCount = 0
     const handleJob = async () => {
