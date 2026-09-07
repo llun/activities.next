@@ -1,0 +1,20 @@
+lib/client.test.ts
+  h_580a04e334fef4 42,63-64,71,81,2459-2497
+lib/client.ts
+  h_580a04e334fef4 2913
+lib/client/fitnessHeatmaps.test.ts
+  h_580a04e334fef4 1-624
+lib/client/fitnessHeatmaps.ts
+  h_580a04e334fef4 1-542
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "e4d46775439b3688907825ac58cf8450b4fa6150",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
