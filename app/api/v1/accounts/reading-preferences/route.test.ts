@@ -39,7 +39,17 @@ vi.mock('next/headers', () => ({
   })
 }))
 
-const actor = { ...seedActor1, id: ACTOR1_ID }
+const actor = {
+  ...seedActor1,
+  id: ACTOR1_ID,
+  followersUrl: `${ACTOR1_ID}/followers`,
+  inboxUrl: `${ACTOR1_ID}/inbox`,
+  sharedInboxUrl: 'https://llun.test/inbox',
+  statusCount: 0,
+  lastStatusAt: null,
+  createdAt: Date.now(),
+  updatedAt: Date.now()
+}
 
 const buildRequest = (body: string) =>
   new NextRequest('http://localhost/api/v1/accounts/reading-preferences', {
@@ -72,11 +82,15 @@ describe('POST /api/v1/accounts/reading-preferences', () => {
     mockDb.getAccountFromEmail.mockResolvedValue({
       id: 'account1',
       email: seedActor1.email,
-      defaultActorId: ACTOR1_ID
+      defaultActorId: ACTOR1_ID,
+      twoFactorEnabled: false,
+      emailVerified: true,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     })
     mockDb.getActorsForAccount.mockResolvedValue([actor])
     mockDb.getActorFromId.mockResolvedValue(actor)
-    mockDb.getActorSettings.mockResolvedValue(null)
+    mockDb.getActorSettings.mockResolvedValue(undefined)
     mockDb.updateActor.mockResolvedValue(undefined as never)
   })
 
