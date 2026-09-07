@@ -1,7 +1,7 @@
 name: CI
 
 # Runs on every commit (push to any branch + pull requests). The lint/prettier,
-# typecheck, build, test, postgresql database test, and schema-dump-sync jobs run in parallel (no `needs:` chain
+# typecheck, build, test, postgresql database test, schema-dump-sync, and docker-smoke jobs run in parallel (no `needs:` chain
 # between them) so the check finishes as fast as the slowest single job instead
 # of the sum of all of them. If any one of them fails, the run is reported as failed: the
 # `CI / CI Success` job aggregates every job's result and fails unless all
@@ -331,6 +331,40 @@ jobs:
             exit 1
           fi
 
+  # Build and verify both minimal and full Docker images. Tests that the minimal
+  # image starts with SQLite, serves /api/v2/instance, exercises Sharp, and omits
+  # optional SDKs. Tests that the full image loads optional queue SDKs and
+  # executes queries against a local PostgreSQL database without contacting cloud
+  # services. Does not publish images to any registry.
+  docker-smoke:
+    name: Docker Images Smoke Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Enable corepack
+        run: corepack enable
+      - name: Use Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: yarn
+      - name: Install dependencies
+        run: yarn install --immutable
+      - name: Build minimal Docker image
+        run: docker build -t activities:test-minimal .
+      - name: Build full Docker image with optional workspaces
+        run: |
+          docker build -t activities:test-full \
+            --build-arg WORKSPACES="activities.next @activities/pg @activities/cloudtasks @activities/qstash" \
+            .
+      - name: Verify minimal and full Docker images
+        run: |
+          node scripts/run.cjs scripts/maintenance/verifyDockerImages.ts \
+            --skip-build \
+            --minimal-image activities:test-minimal \
+            --full-image activities:test-full
+
   # Aggregate gate: this is the single check to mark required in branch
   # protection. It always runs (`if: always()`) and fails unless every upstream
   # job succeeded, so a failure in any one of the parallel jobs fails the overall
@@ -348,13 +382,14 @@ jobs:
         test,
         test-pg,
         schema-dump-check,
-        schema-dump-check-pg
+        schema-dump-check-pg,
+        docker-smoke
       ]
     if: ${{ always() }}
     steps:
       - name: Verify all CI jobs succeeded
         env:
-          RESULTS: ${{ needs.lint-prettier.result }} ${{ needs.typecheck.result }} ${{ needs.build.result }} ${{ needs.test.result }} ${{ needs.test-pg.result }} ${{ needs.schema-dump-check.result }} ${{ needs.schema-dump-check-pg.result }}
+          RESULTS: ${{ needs.lint-prettier.result }} ${{ needs.typecheck.result }} ${{ needs.build.result }} ${{ needs.test.result }} ${{ needs.test-pg.result }} ${{ needs.schema-dump-check.result }} ${{ needs.schema-dump-check-pg.result }} ${{ needs.docker-smoke.result }}
         run: |
           echo "Upstream job results: $RESULTS"
           for result in $RESULTS; do
