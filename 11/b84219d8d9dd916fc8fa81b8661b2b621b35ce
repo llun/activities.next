@@ -1,0 +1,22 @@
+app/(timeline)/messages/MessagesPage.test.tsx
+  h_580a04e334fef4 25,80,170,1063,1091,1126
+app/(timeline)/notifications/NotificationItem.test.tsx
+  h_580a04e334fef4 27,32,35-39,47,99,106-109,114-115,121-130,133,353,661
+app/(timeline)/notifications/components/FollowNotification.test.tsx
+  h_580a04e334fef4 15-39,42-53
+app/(timeline)/notifications/components/FollowRequestNotification.test.tsx
+  h_580a04e334fef4 26,34-35,37-40,47
+tsconfig.typecheck.json
+  h_580a04e334fef4 19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "11b84219d8d9dd916fc8fa81b8661b2b621b35ce",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
