@@ -94,8 +94,13 @@ describe('DatabaseQueue', () => {
     await queue.publish(message)
 
     // Simulate job failing terminally in database
+    const claimed = await database.claimQueueJob({
+      id: 'db-queue-dlq-retry-1'
+    })
+    expect(claimed).not.toBeNull()
     await database.failQueueJob({
       id: 'db-queue-dlq-retry-1',
+      claimToken: claimed!.claimToken,
       attempts: 16,
       error: new Error('Terminal failure')
     })
