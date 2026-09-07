@@ -292,13 +292,16 @@ export const QueueJobSQLDatabaseMixin = (database: Knex): QueueJobDatabase => ({
       let lastErrorMessage: string | null = null
       let lastErrorStack: string | null = null
 
-      if (error) {
+      if (error !== undefined) {
         if (error instanceof Error) {
           lastErrorMessage = error.message
           lastErrorStack = error.stack ?? null
-        } else {
+        } else if (error !== null) {
           lastErrorMessage = String(error)
         }
+      } else {
+        lastErrorMessage = job.last_error_message
+        lastErrorStack = job.last_error_stack
       }
 
       const updatedAt = new Date()
@@ -323,8 +326,20 @@ export const QueueJobSQLDatabaseMixin = (database: Knex): QueueJobDatabase => ({
         return false
       }
 
-      const payload = JSON.stringify(getCompatibleJSON(job.payload))
-      const errorMessage = lastErrorMessage || 'Job execution failed terminally'
+      let payload: string
+      if (typeof job.payload === 'string') {
+        try {
+          payload = JSON.stringify(JSON.parse(job.payload))
+        } catch {
+          payload = JSON.stringify({ raw: job.payload })
+        }
+      } else {
+        payload = JSON.stringify(job.payload)
+      }
+      const errorMessage =
+        lastErrorMessage ||
+        job.last_error_message ||
+        'Job execution failed terminally'
 
       await trx('dead_letter_jobs')
         .insert({

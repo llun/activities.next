@@ -475,6 +475,76 @@ describe('QueueJobDatabase', () => {
         )
       }
     })
+
+    it('preserves existing job error and stack when error is omitted', async () => {
+      await database.createQueueJob({
+        id: 'fail-dlq-no-err-1',
+        name: 'deliverActivity',
+        payload: samplePayload
+      })
+
+      const claim1 = await database.claimQueueJob({ id: 'fail-dlq-no-err-1' })
+      expect(claim1).not.toBeNull()
+
+      // Schedule retry with an error to store error info on the row
+      await database.scheduleQueueJobRetry({
+        id: 'fail-dlq-no-err-1',
+        claimToken: claim1!.claimToken,
+        nextRunAt: new Date(Date.now() - 1000),
+        attempts: 15,
+        error: new Error('Prior retry failure message')
+      })
+
+      // Reclaim for final attempt
+      const claim2 = await database.claimQueueJob({ id: 'fail-dlq-no-err-1' })
+      expect(claim2).not.toBeNull()
+
+      // Terminal failure without passing error explicitly
+      const success = await database.failQueueJobWithDeadLetter({
+        id: 'fail-dlq-no-err-1',
+        claimToken: claim2!.claimToken,
+        attempts: 16
+      })
+
+      expect(success).toBe(true)
+
+      const queueJob = await database.getQueueJobById('fail-dlq-no-err-1')
+      expect(queueJob?.lastErrorMessage).toBe('Prior retry failure message')
+      expect(queueJob?.lastErrorStack).toBeDefined()
+
+      const dlq = await database.getDeadLetterJobById('fail-dlq-no-err-1')
+      expect(dlq?.errorMessage).toBe('Prior retry failure message')
+      expect(dlq?.errorStack).toBeDefined()
+    })
+
+    it('safely handles corrupt non-JSON payload in queue_jobs without throwing', async () => {
+      await database.createQueueJob({
+        id: 'fail-dlq-corrupt-1',
+        name: 'deliverActivity',
+        payload: samplePayload
+      })
+
+      const claim = await database.claimQueueJob({ id: 'fail-dlq-corrupt-1' })
+      expect(claim).not.toBeNull()
+
+      // Corrupt the payload directly in the database after claim
+      await knexDatabase('queue_jobs')
+        .where({ id: 'fail-dlq-corrupt-1' })
+        .update({ payload: 'corrupt-non-json-payload{{{' })
+
+      const success = await database.failQueueJobWithDeadLetter({
+        id: 'fail-dlq-corrupt-1',
+        claimToken: claim!.claimToken,
+        attempts: 16,
+        error: new Error('Corrupt job terminal error')
+      })
+
+      expect(success).toBe(true)
+
+      const dlq = await database.getDeadLetterJobById('fail-dlq-corrupt-1')
+      expect(dlq).not.toBeNull()
+      expect(dlq?.payload).toEqual({ raw: 'corrupt-non-json-payload{{{' })
+    })
   })
 
   it('reclaims stalled processing job with fresh claimToken and rejects stale worker settlement', async () => {
