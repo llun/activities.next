@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { notFound } from 'next/navigation'
 
 import { getProfileData } from '@/app/(timeline)/[actor]/getProfileData'
@@ -14,6 +14,7 @@ import Page, { generateMetadata } from './page'
 
 const mockDatabase = {
   getFollowing: vi.fn(),
+  getActorsFromIds: vi.fn(),
   getActorFromId: vi.fn()
 }
 
@@ -50,8 +51,20 @@ vi.mock('@/app/(timeline)/[actor]/getProfileData', () => ({
 }))
 
 vi.mock('@/app/(timeline)/[actor]/FollowList', () => ({
-  FollowList: ({ emptyMessage }: { emptyMessage?: string }) => (
-    <div data-testid="follow-list" data-empty-message={emptyMessage} />
+  FollowList: ({
+    emptyMessage,
+    users
+  }: {
+    emptyMessage?: string
+    users?: { id: string; username: string }[]
+  }) => (
+    <div data-testid="follow-list" data-empty-message={emptyMessage}>
+      {users?.map((u) => (
+        <span key={u.id} data-testid={`user-${u.id}`}>
+          {u.username}
+        </span>
+      ))}
+    </div>
   )
 }))
 
@@ -169,23 +182,25 @@ describe('[actor] following page', () => {
         updatedAt: 0
       }
     ])
-    mockDatabase.getActorFromId.mockResolvedValue({
-      id: 'https://llun.social/users/targetuser',
-      username: 'targetuser',
-      domain: 'llun.social',
-      name: 'Target User',
-      summary: '',
-      iconUrl: '',
-      headerImageUrl: '',
-      followersUrl: 'https://llun.social/users/targetuser/followers',
-      inboxUrl: 'https://llun.social/users/targetuser/inbox',
-      sharedInboxUrl: 'https://llun.social/inbox',
-      followingCount: 0,
-      followersCount: 0,
-      statusCount: 0,
-      lastStatusAt: null,
-      createdAt: 0
-    })
+    mockDatabase.getActorsFromIds.mockResolvedValue([
+      {
+        id: 'https://llun.social/users/targetuser',
+        username: 'targetuser',
+        domain: 'llun.social',
+        name: 'Target User',
+        summary: '',
+        iconUrl: '',
+        headerImageUrl: '',
+        followersUrl: 'https://llun.social/users/targetuser/followers',
+        inboxUrl: 'https://llun.social/users/targetuser/inbox',
+        sharedInboxUrl: 'https://llun.social/inbox',
+        followingCount: 0,
+        followersCount: 0,
+        statusCount: 0,
+        lastStatusAt: null,
+        createdAt: 0
+      }
+    ])
 
     const element = await Page({
       params: Promise.resolve({ actor: '@localuser@llun.social' })
@@ -194,6 +209,9 @@ describe('[actor] following page', () => {
 
     expect(screen.getByTestId('follow-list')).toBeInTheDocument()
     expect(screen.getByText('1 accounts')).toBeInTheDocument()
+    expect(mockDatabase.getActorsFromIds).toHaveBeenCalledWith({
+      ids: ['https://llun.social/users/targetuser']
+    })
     expect(mockNotFound).not.toHaveBeenCalled()
   })
 
@@ -372,5 +390,104 @@ describe('[actor] following page', () => {
 
     expect(screen.getByText('Following')).toBeInTheDocument()
     expect(screen.queryByText(/accounts/)).not.toBeInTheDocument()
+  })
+
+  it('hydrates followings in batch preserving follow order and filtering missing actors', async () => {
+    mockGetServerAuthSession.mockResolvedValue(null)
+    mockIsLocalFederationDomain.mockResolvedValue(true)
+    mockGetProfileData.mockResolvedValue({
+      person: {
+        id: 'https://llun.social/users/localuser',
+        preferredUsername: 'localuser'
+      } as never,
+      followersCount: 0,
+      followingCount: 2,
+      statusesCount: 0,
+      attachments: [],
+      isInternalAccount: true,
+      hasFitnessData: false,
+      statuses: [],
+      statusPagination: { nextPageUrl: null, prevPageUrl: null }
+    })
+    mockDatabase.getFollowing.mockResolvedValue([
+      {
+        id: 'follow-1',
+        actorId: 'https://llun.social/users/localuser',
+        targetActorId: 'https://llun.social/users/target1',
+        status: 'Accepted',
+        createdAt: 2,
+        updatedAt: 2
+      },
+      {
+        id: 'follow-2',
+        actorId: 'https://llun.social/users/localuser',
+        targetActorId: 'https://llun.social/users/missing',
+        status: 'Accepted',
+        createdAt: 1,
+        updatedAt: 1
+      },
+      {
+        id: 'follow-3',
+        actorId: 'https://llun.social/users/localuser',
+        targetActorId: 'https://llun.social/users/target2',
+        status: 'Accepted',
+        createdAt: 0,
+        updatedAt: 0
+      }
+    ])
+    mockDatabase.getActorsFromIds.mockResolvedValue([
+      {
+        id: 'https://llun.social/users/target2',
+        username: 'target2',
+        domain: 'llun.social',
+        name: 'Target 2',
+        summary: '',
+        iconUrl: '',
+        headerImageUrl: '',
+        followersUrl: 'https://llun.social/users/target2/followers',
+        inboxUrl: 'https://llun.social/users/target2/inbox',
+        sharedInboxUrl: 'https://llun.social/inbox',
+        followingCount: 0,
+        followersCount: 0,
+        statusCount: 0,
+        lastStatusAt: null,
+        createdAt: 0
+      },
+      {
+        id: 'https://llun.social/users/target1',
+        username: 'target1',
+        domain: 'llun.social',
+        name: 'Target 1',
+        summary: '',
+        iconUrl: '',
+        headerImageUrl: '',
+        followersUrl: 'https://llun.social/users/target1/followers',
+        inboxUrl: 'https://llun.social/users/target1/inbox',
+        sharedInboxUrl: 'https://llun.social/inbox',
+        followingCount: 0,
+        followersCount: 0,
+        statusCount: 0,
+        lastStatusAt: null,
+        createdAt: 0
+      }
+    ])
+
+    const element = await Page({
+      params: Promise.resolve({ actor: '@localuser@llun.social' })
+    })
+    render(element)
+
+    expect(mockDatabase.getActorsFromIds).toHaveBeenCalledWith({
+      ids: [
+        'https://llun.social/users/target1',
+        'https://llun.social/users/missing',
+        'https://llun.social/users/target2'
+      ]
+    })
+    const followList = screen.getByTestId('follow-list')
+    const renderedUsers = within(followList).getAllByTestId(/^user-/)
+    expect(renderedUsers).toHaveLength(2)
+    expect(renderedUsers[0]).toHaveTextContent('target1')
+    expect(renderedUsers[1]).toHaveTextContent('target2')
   })
 })
