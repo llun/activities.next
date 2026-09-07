@@ -5,12 +5,17 @@ import { FC, useCallback, useRef, useState } from 'react'
 
 import { getHashtagTimeline } from '@/lib/client'
 import { Posts } from '@/lib/components/posts/posts'
+import {
+  removeOriginalStatus,
+  updateMatchingStatus
+} from '@/lib/components/posts/statusArray'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
 import { Button } from '@/lib/components/ui/button'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
-import { Status } from '@/lib/types/domain/status'
+import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
+import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 
 interface HashtagTimelineProps {
   tag: string
@@ -47,25 +52,60 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
       (statuses.length > 0 ? statuses[statuses.length - 1].id : null)
   )
 
-  const onPostDeleted = (status: Status) => {
-    const statusIndex = currentStatuses.findIndex(
-      (item) => item.id === status.id
-    )
-    if (statusIndex === -1) return
-    const newStatuses = [
-      ...currentStatuses.slice(0, statusIndex),
-      ...currentStatuses.slice(statusIndex + 1)
-    ]
-    setCurrentStatuses(newStatuses)
-    lastStatusIdRef.current =
-      newStatuses.length > 0 ? newStatuses[newStatuses.length - 1].id : null
-  }
-
-  const updateStatus = (status: Status) => {
+  const onPostDeleted = useCallback((status: Status) => {
     setCurrentStatuses((previousStatuses) =>
-      previousStatuses.map((item) => (item.id === status.id ? status : item))
+      removeOriginalStatus(previousStatuses, status.id)
     )
-  }
+  }, [])
+
+  const onPostUpdated = useCallback((status: Status) => {
+    setCurrentStatuses((previousStatuses) =>
+      updateMatchingStatus(
+        previousStatuses,
+        status.id,
+        () => status as StatusNote | StatusPoll
+      )
+    )
+  }, [])
+
+  const onLikeChanged = useCallback(
+    (status: StatusNote | StatusPoll, isLiked: boolean) => {
+      setCurrentStatuses((previousStatuses) =>
+        updateMatchingStatus(previousStatuses, status.id, (target) => ({
+          ...target,
+          isActorLiked: isLiked,
+          totalLikes: isLiked
+            ? target.totalLikes + 1
+            : Math.max(0, target.totalLikes - 1)
+        }))
+      )
+    },
+    []
+  )
+
+  const onBookmarkChanged = useCallback(
+    (status: StatusNote | StatusPoll, isBookmarked: boolean) => {
+      setCurrentStatuses((previousStatuses) =>
+        updateMatchingStatus(previousStatuses, status.id, (target) => ({
+          ...target,
+          isActorBookmarked: isBookmarked
+        }))
+      )
+    },
+    []
+  )
+
+  const onReactionsChanged = useCallback(
+    (status: StatusNote | StatusPoll, reactions: StatusReaction[]) => {
+      setCurrentStatuses((previousStatuses) =>
+        updateMatchingStatus(previousStatuses, status.id, (target) => ({
+          ...target,
+          reactions
+        }))
+      )
+    },
+    []
+  )
 
   const loadMoreStatuses = useCallback(async () => {
     const lastStatusId = lastStatusIdRef.current
@@ -127,7 +167,10 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
           isMediaUploadEnabled={isMediaUploadEnabled}
           postLineLimit={postLineLimit}
           onPostDeleted={onPostDeleted}
-          onPostUpdated={updateStatus}
+          onPostUpdated={onPostUpdated}
+          onLikeChanged={onLikeChanged}
+          onBookmarkChanged={onBookmarkChanged}
+          onReactionsChanged={onReactionsChanged}
         />
       ) : (
         <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm">

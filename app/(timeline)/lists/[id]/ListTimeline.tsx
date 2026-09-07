@@ -7,13 +7,18 @@ import { FC, useCallback, useRef, useState } from 'react'
 import { getListTimeline } from '@/lib/client'
 import { PageHeader } from '@/lib/components/page-header'
 import { Posts } from '@/lib/components/posts/posts'
+import {
+  removeOriginalStatus,
+  updateMatchingStatus
+} from '@/lib/components/posts/statusArray'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
 import { Button } from '@/lib/components/ui/button'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
-import { Status } from '@/lib/types/domain/status'
+import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
 import { ListEntity } from '@/lib/types/mastodon/list'
+import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 
 interface ListTimelineProps {
   host: string
@@ -52,17 +57,60 @@ export const ListTimeline: FC<ListTimelineProps> = ({
     statuses.length > 0 ? statuses[statuses.length - 1].id : null
   )
 
-  const removeStatus = (status: Status) => {
+  const onPostDeleted = useCallback((status: Status) => {
     setCurrentStatuses((previousStatuses) =>
-      previousStatuses.filter((item) => item.id !== status.id)
+      removeOriginalStatus(previousStatuses, status.id)
     )
-  }
+  }, [])
 
-  const updateStatus = (status: Status) => {
+  const onPostUpdated = useCallback((status: Status) => {
     setCurrentStatuses((previousStatuses) =>
-      previousStatuses.map((item) => (item.id === status.id ? status : item))
+      updateMatchingStatus(
+        previousStatuses,
+        status.id,
+        () => status as StatusNote | StatusPoll
+      )
     )
-  }
+  }, [])
+
+  const onLikeChanged = useCallback(
+    (status: StatusNote | StatusPoll, isLiked: boolean) => {
+      setCurrentStatuses((previousStatuses) =>
+        updateMatchingStatus(previousStatuses, status.id, (target) => ({
+          ...target,
+          isActorLiked: isLiked,
+          totalLikes: isLiked
+            ? target.totalLikes + 1
+            : Math.max(0, target.totalLikes - 1)
+        }))
+      )
+    },
+    []
+  )
+
+  const onBookmarkChanged = useCallback(
+    (status: StatusNote | StatusPoll, isBookmarked: boolean) => {
+      setCurrentStatuses((previousStatuses) =>
+        updateMatchingStatus(previousStatuses, status.id, (target) => ({
+          ...target,
+          isActorBookmarked: isBookmarked
+        }))
+      )
+    },
+    []
+  )
+
+  const onReactionsChanged = useCallback(
+    (status: StatusNote | StatusPoll, reactions: StatusReaction[]) => {
+      setCurrentStatuses((previousStatuses) =>
+        updateMatchingStatus(previousStatuses, status.id, (target) => ({
+          ...target,
+          reactions
+        }))
+      )
+    },
+    []
+  )
 
   const loadMoreStatuses = useCallback(async () => {
     const maxStatusId = lastStatusIdRef.current
@@ -136,8 +184,11 @@ export const ListTimeline: FC<ListTimelineProps> = ({
           showActions
           isMediaUploadEnabled={isMediaUploadEnabled}
           postLineLimit={postLineLimit}
-          onPostDeleted={removeStatus}
-          onPostUpdated={updateStatus}
+          onPostDeleted={onPostDeleted}
+          onPostUpdated={onPostUpdated}
+          onLikeChanged={onLikeChanged}
+          onBookmarkChanged={onBookmarkChanged}
+          onReactionsChanged={onReactionsChanged}
         />
       ) : (
         <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm">

@@ -8,17 +8,18 @@ import { AnnouncementBanner } from '@/lib/components/announcements/AnnouncementB
 import { PageHeader } from '@/lib/components/page-header'
 import { PostBox } from '@/lib/components/post-box/post-box'
 import { Posts } from '@/lib/components/posts/posts'
+import {
+  removeOriginalStatus,
+  updateMatchingStatus
+} from '@/lib/components/posts/statusArray'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
 import { Button } from '@/lib/components/ui/button'
 import { Timeline } from '@/lib/services/timelines/types'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
-import {
-  Status,
-  StatusType,
-  getOriginalStatus
-} from '@/lib/types/domain/status'
+import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
+import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import { cn } from '@/lib/utils'
 
 interface MainPageTimelineProps {
@@ -58,36 +59,62 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     setCurrentStatuses((previousValue) => [status, ...previousValue])
   }
 
-  const onPostUpdated = (updatedStatus: Status) => {
+  const onPostUpdated = useCallback((status: Status) => {
+    // Announce-aware (like onPostDeleted): also refreshes a boost row whose
+    // original was the edited post. An edited status is always a note/poll.
     setCurrentStatuses((previousStatuses) =>
-      previousStatuses.map((status) =>
-        status.id === updatedStatus.id ? updatedStatus : status
+      updateMatchingStatus(
+        previousStatuses,
+        status.id,
+        () => status as StatusNote | StatusPoll
       )
     )
-  }
+  }, [])
 
-  const onPostDeleted = (status: Status) => {
-    const deletedStatusId = status.id
-    setCurrentStatuses((previousStatuses) => {
-      const nextStatuses = previousStatuses.filter((item) => {
-        if (item.id === deletedStatusId) {
-          return false
-        }
-        if (
-          item.type === StatusType.enum.Announce &&
-          (item.originalStatus.id === deletedStatusId ||
-            getOriginalStatus(item).id === deletedStatusId)
-        ) {
-          return false
-        }
-        return true
-      })
-      if (nextStatuses.length === previousStatuses.length) {
-        return previousStatuses
-      }
-      return nextStatuses
-    })
-  }
+  const onPostDeleted = useCallback((status: Status) => {
+    setCurrentStatuses((previousStatuses) =>
+      removeOriginalStatus(previousStatuses, status.id)
+    )
+  }, [])
+
+  const onLikeChanged = useCallback(
+    (status: StatusNote | StatusPoll, isLiked: boolean) => {
+      setCurrentStatuses((previousStatuses) =>
+        updateMatchingStatus(previousStatuses, status.id, (target) => ({
+          ...target,
+          isActorLiked: isLiked,
+          totalLikes: isLiked
+            ? target.totalLikes + 1
+            : Math.max(0, target.totalLikes - 1)
+        }))
+      )
+    },
+    []
+  )
+
+  const onBookmarkChanged = useCallback(
+    (status: StatusNote | StatusPoll, isBookmarked: boolean) => {
+      setCurrentStatuses((previousStatuses) =>
+        updateMatchingStatus(previousStatuses, status.id, (target) => ({
+          ...target,
+          isActorBookmarked: isBookmarked
+        }))
+      )
+    },
+    []
+  )
+
+  const onReactionsChanged = useCallback(
+    (status: StatusNote | StatusPoll, reactions: StatusReaction[]) => {
+      setCurrentStatuses((previousStatuses) =>
+        updateMatchingStatus(previousStatuses, status.id, (target) => ({
+          ...target,
+          reactions
+        }))
+      )
+    },
+    []
+  )
 
   const loadMoreStatuses = useCallback(async () => {
     const lastStatusId = lastStatusIdRef.current
@@ -208,6 +235,9 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
             onStatusCreated={onStatusCreated}
             onPostUpdated={onPostUpdated}
             onPostDeleted={onPostDeleted}
+            onLikeChanged={onLikeChanged}
+            onBookmarkChanged={onBookmarkChanged}
+            onReactionsChanged={onReactionsChanged}
           />
         ) : isLoadingMoreStatuses || isRefreshing ? (
           <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm">
