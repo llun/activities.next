@@ -174,13 +174,46 @@ const STRIP_FOCUS_CLASS =
 const CHEVRON_CLASS =
   'absolute top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full border bg-popover text-foreground shadow-sm hover:bg-muted'
 
+interface AltTextToggleProps {
+  isExpanded: boolean
+  controlsId: string
+  onToggle: () => void
+}
+
+const AltTextToggle: FC<AltTextToggleProps> = ({
+  isExpanded,
+  controlsId,
+  onToggle
+}) => (
+  <button
+    type="button"
+    aria-expanded={isExpanded}
+    aria-controls={isExpanded ? controlsId : undefined}
+    aria-label={isExpanded ? 'Collapse alt text' : 'Expand alt text'}
+    onClick={(e) => {
+      e.stopPropagation()
+      onToggle()
+    }}
+    className="flex items-center gap-1 self-start text-xs font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 rounded-sm"
+  >
+    <span>Alt text</span>
+    <ChevronDown
+      className={cn(
+        'size-3.5 transition-transform duration-200',
+        isExpanded && 'rotate-180'
+      )}
+      aria-hidden="true"
+    />
+  </button>
+)
+
 interface Props {
   status: Status
   onMediaSelected: OnMediaSelectedHandle
 }
 
 export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
-  const [isAltExpanded, setIsAltExpanded] = useState(true)
+  const [isAltExpanded, setIsAltExpanded] = useState(false)
   const altListId = useId()
   const attachments = useMemo(
     () => (status.type === StatusType.enum.Note ? status.attachments : []),
@@ -211,6 +244,21 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
       })),
     [pictures]
   )
+
+  const altEntries = useMemo(() => {
+    const entries: { indices: number[]; text: string }[] = []
+    pictures.forEach((pic, i) => {
+      const text = pic.name?.trim()
+      if (!text) return
+      const existing = entries.find((e) => e.text === text)
+      if (existing) {
+        existing.indices.push(i + 1)
+      } else {
+        entries.push({ indices: [i + 1], text })
+      }
+    })
+    return entries
+  }, [pictures])
 
   const strip = useMediaStripScroll(items.map((item) => item.width).join(','))
   const { canScrollLeft, canScrollRight } = strip
@@ -283,33 +331,30 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
             />
           </button>
           {altText ? (
-            <p
+            <div
+              className="mt-2 flex flex-col gap-1 text-sm text-muted-foreground select-text"
               onClick={(e) => e.stopPropagation()}
-              className="mt-1.5 text-sm leading-relaxed text-muted-foreground break-words select-text"
             >
-              <CustomEmojiText text={altText} tags={status.tags} />
-            </p>
+              <AltTextToggle
+                isExpanded={isAltExpanded}
+                controlsId={altListId}
+                onToggle={() => setIsAltExpanded((prev) => !prev)}
+              />
+              {isAltExpanded ? (
+                <p
+                  id={altListId}
+                  className="text-sm leading-relaxed text-muted-foreground break-words"
+                >
+                  <CustomEmojiText text={altText} tags={status.tags} />
+                </p>
+              ) : null}
+            </div>
           ) : null}
         </div>
         {audioPlayers}
       </>
     )
   }
-
-  const altEntries = useMemo(() => {
-    const entries: { indices: number[]; text: string }[] = []
-    pictures.forEach((pic, i) => {
-      const text = pic.name?.trim()
-      if (!text) return
-      const existing = entries.find((e) => e.text === text)
-      if (existing) {
-        existing.indices.push(i + 1)
-      } else {
-        entries.push({ indices: [i + 1], text })
-      }
-    })
-    return entries
-  }, [pictures])
 
   const stripStyle: CSSProperties = {
     height: STRIP_ROW_HEIGHT,
@@ -420,28 +465,11 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
               className="mt-2 flex flex-col gap-1 text-sm text-muted-foreground select-text"
               onClick={(e) => e.stopPropagation()}
             >
-              <button
-                type="button"
-                aria-expanded={isAltExpanded}
-                aria-controls={isAltExpanded ? altListId : undefined}
-                aria-label={
-                  isAltExpanded ? 'Collapse alt text' : 'Expand alt text'
-                }
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setIsAltExpanded((prev) => !prev)
-                }}
-                className="flex items-center gap-1 self-start text-xs font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer select-none"
-              >
-                <span>Alt text</span>
-                <ChevronDown
-                  className={cn(
-                    'size-3.5 transition-transform duration-200',
-                    isAltExpanded && 'rotate-180'
-                  )}
-                  aria-hidden="true"
-                />
-              </button>
+              <AltTextToggle
+                isExpanded={isAltExpanded}
+                controlsId={altListId}
+                onToggle={() => setIsAltExpanded((prev) => !prev)}
+              />
               {isAltExpanded ? (
                 <div id={altListId} className="flex flex-col gap-1">
                   {altEntries.map((entry) => (
