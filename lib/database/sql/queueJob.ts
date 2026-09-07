@@ -8,6 +8,7 @@ import {
   ClaimQueueJobParams,
   ClaimedQueueJob,
   CreateQueueJobParams,
+  FailQueueJobWithDeadLetterParams,
   GetDueQueueJobsParams,
   QueueJob,
   QueueJobDatabase,
@@ -271,6 +272,100 @@ export const QueueJobSQLDatabaseMixin = (database: Knex): QueueJobDatabase => ({
       .update(updateData)
 
     return updatedCount > 0
+  },
+
+  async failQueueJobWithDeadLetter({
+    id,
+    claimToken,
+    attempts,
+    error
+  }: FailQueueJobWithDeadLetterParams): Promise<boolean> {
+    return await database.transaction(async (trx) => {
+      const job = await trx<SQLQueueJob>('queue_jobs')
+        .where({ id, claim_token: claimToken, status: 'processing' })
+        .first()
+
+      if (!job) {
+        return false
+      }
+
+      let lastErrorMessage: string | null = null
+      let lastErrorStack: string | null = null
+
+      if (error !== undefined) {
+        if (error instanceof Error) {
+          lastErrorMessage = error.message
+          lastErrorStack = error.stack ?? null
+        } else if (error !== null) {
+          lastErrorMessage = String(error)
+        }
+      } else {
+        lastErrorMessage = job.last_error_message
+        lastErrorStack = job.last_error_stack
+      }
+
+      const updatedAt = new Date()
+      const finalAttempts = attempts !== undefined ? attempts : job.attempts
+      const updateData: Record<string, unknown> = {
+        status: 'failed',
+        claim_token: null,
+        last_error_message: lastErrorMessage,
+        last_error_stack: lastErrorStack,
+        updated_at: updatedAt
+      }
+
+      if (attempts !== undefined) {
+        updateData.attempts = attempts
+      }
+
+      const updatedCount = await trx('queue_jobs')
+        .where({ id, claim_token: claimToken, status: 'processing' })
+        .update(updateData)
+
+      if (updatedCount === 0) {
+        return false
+      }
+
+      let payload: string
+      if (typeof job.payload === 'string') {
+        try {
+          payload = JSON.stringify(JSON.parse(job.payload))
+        } catch {
+          payload = JSON.stringify({ raw: job.payload })
+        }
+      } else {
+        payload = JSON.stringify(job.payload)
+      }
+      const errorMessage =
+        lastErrorMessage ||
+        job.last_error_message ||
+        'Job execution failed terminally'
+
+      await trx('dead_letter_jobs')
+        .insert({
+          id: job.id,
+          job_name: job.name,
+          payload,
+          error_message: errorMessage,
+          error_stack: lastErrorStack,
+          attempts: finalAttempts,
+          status: 'failed',
+          created_at: updatedAt,
+          updated_at: updatedAt
+        })
+        .onConflict('id')
+        .merge({
+          job_name: job.name,
+          payload,
+          error_message: errorMessage,
+          error_stack: lastErrorStack,
+          attempts: finalAttempts,
+          status: 'failed',
+          updated_at: updatedAt
+        })
+
+      return true
+    })
   },
 
   async getQueueJobById(id: string) {

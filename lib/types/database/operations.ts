@@ -4322,6 +4322,13 @@ export interface ClaimQueueJobParams {
   stalledBefore?: Date
 }
 
+export interface FailQueueJobWithDeadLetterParams {
+  id: string
+  claimToken: string
+  attempts?: number
+  error?: Error | unknown
+}
+
 export interface QueueJobDatabase {
   createQueueJob(params: CreateQueueJobParams): Promise<QueueJob>
   getDueQueueJobs(params?: GetDueQueueJobsParams): Promise<QueueJob[]>
@@ -4340,6 +4347,9 @@ export interface QueueJobDatabase {
     attempts?: number
     error?: Error | unknown
   }): Promise<boolean>
+  failQueueJobWithDeadLetter(
+    params: FailQueueJobWithDeadLetterParams
+  ): Promise<boolean>
   getQueueJobById(id: string): Promise<QueueJob | null>
   deleteQueueJob(id: string): Promise<boolean>
   countQueueJobs(params?: { status?: QueueJobStatus }): Promise<number>

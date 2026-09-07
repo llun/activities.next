@@ -171,7 +171,22 @@ export const POST = traceApiRoute(
       })
 
       const database = getDatabase()
-      if (database) {
+      if (!database) {
+        logger.error({
+          job: jobMessage,
+          err,
+          message:
+            'Database unavailable for capturing dead letter job; returning 500 for retry'
+        })
+        return apiResponse({
+          req: request,
+          allowedMethods: [HttpMethod.enum.POST],
+          data: { error: 'Database unavailable' },
+          responseStatusCode: 500
+        })
+      }
+
+      try {
         await database.createDeadLetterJob({
           jobName: String(jobMessage.name),
           payload: jobMessage,
@@ -179,6 +194,19 @@ export const POST = traceApiRoute(
           errorStack: err.stack ?? null,
           attempts: retryCount + 1,
           status: 'failed'
+        })
+      } catch (dlqError) {
+        const deadLetterErr = toLoggableError(dlqError)
+        logger.error({
+          job: jobMessage,
+          err: deadLetterErr,
+          message: 'Failed to persist dead letter job; returning 500 for retry'
+        })
+        return apiResponse({
+          req: request,
+          allowedMethods: [HttpMethod.enum.POST],
+          data: { error: 'Failed to record dead letter job' },
+          responseStatusCode: 500
         })
       }
 
