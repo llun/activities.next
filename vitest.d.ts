@@ -1,7 +1,6 @@
 /// <reference types="vitest/globals" />
 /// <reference types="jest-extended" />
 /// <reference types="@testing-library/jest-dom" />
-
 import type { TestingLibraryMatchers } from '@testing-library/jest-dom/matchers'
 import 'vitest'
 // Back-compat type aliases so existing `jest.Mock` / `jest.MockedFunction` /
@@ -17,12 +16,12 @@ import type {
 } from 'vitest'
 
 declare module 'vitest' {
-  interface Assertion<R = any, T = any>
-    extends jest.Matchers<R, T>,
-      TestingLibraryMatchers<any, R> {}
+  interface Assertion<R = unknown, T = unknown>
+    extends jest.Matchers<R, T>, TestingLibraryMatchers<unknown, R> {}
   interface AsymmetricMatchersContaining
-    extends jest.Matchers<any, any>,
-      TestingLibraryMatchers<any, any> {}
+    extends
+      jest.Matchers<unknown, unknown>,
+      TestingLibraryMatchers<unknown, unknown> {}
 }
 
 declare global {
