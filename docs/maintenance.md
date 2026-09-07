@@ -906,6 +906,36 @@ NODE_ENV=production node scripts/run.cjs scripts/maintenance/importRemoteStatus.
 NODE_ENV=production node scripts/run.cjs scripts/maintenance/importRemoteStatus.ts https://mastodon.in.th/@lluu/117228726176772772
 ```
 
+## Docker Image Verification
+
+The `verifyDockerImages.ts` script verifies both the minimal and full Docker images.
+
+### What it does
+
+1. **Minimal image verification:**
+   - Verifies that optional workspace SDKs (`@google-cloud/tasks`, `@upstash/qstash`, `pg`) are completely absent from the runtime image.
+   - Exercises native Sharp image processing.
+   - Starts the minimal container with local SQLite, polls `/api/v2/instance` for readiness, and validates the response metadata.
+2. **Full image verification:**
+   - Verifies that optional queue SDKs (`@google-cloud/tasks`, `@upstash/qstash`) and the PostgreSQL client (`pg`) can be loaded and initialized without contacting cloud services.
+   - Verifies that the container can connect to and query a local PostgreSQL instance.
+
+### Usage
+
+```bash
+# Verify both minimal and full images (builds images if not present)
+node scripts/run.cjs scripts/maintenance/verifyDockerImages.ts
+
+# Force rebuild before verification
+node scripts/run.cjs scripts/maintenance/verifyDockerImages.ts --build
+
+# Verify specific image tags without rebuilding
+node scripts/run.cjs scripts/maintenance/verifyDockerImages.ts \
+  --skip-build \
+  --minimal-image activities:test-minimal \
+  --full-image activities:test-full
+```
+
 ## Related Documentation
 
 - [Setup Guide](setup.md) — Initial setup and configuration

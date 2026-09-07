@@ -31,8 +31,8 @@ FROM base AS build
 ARG WORKSPACES="activities.next"
 ADD --chown=app:app . /opt/activities.next/
 RUN yarn config set -H enableGlobalCache true
+RUN yarn config set -H enableImmutableInstalls true
 RUN yarn workspaces focus ${WORKSPACES}
-RUN yarn dedupe
 RUN ACTIVITIES_SECRET_PHASE=build-placeholder yarn knex migrate:latest --disable-transactions
 RUN ACTIVITIES_SECRET_PHASE=build-placeholder BUILD_STANDALONE=true yarn build
 

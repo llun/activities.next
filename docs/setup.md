@@ -237,6 +237,15 @@ To include optional workspaces when building a Docker container, pass the `WORKS
 ```bash
 # Example: Build with PostgreSQL and QStash support
 docker build --build-arg WORKSPACES="activities.next @activities/pg @activities/qstash" -t activities.next:custom .
+
+# Example: Build with all optional workspaces
+docker build --build-arg WORKSPACES="activities.next @activities/pg @activities/cloudtasks @activities/qstash" -t activities.next:full .
+```
+
+To verify built Docker images locally:
+
+```bash
+node scripts/run.cjs scripts/maintenance/verifyDockerImages.ts
 ```
 
 For database-specific Docker deployment instructions:

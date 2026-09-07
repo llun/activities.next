@@ -151,6 +151,8 @@ ACTIVITIES_DATABASE='{"client":"pg","connection":{"host":"your-postgres-host.exa
 > ```bash
 > docker build --build-arg WORKSPACES="activities.next @activities/pg" -t activities.next:pg .
 > ```
+>
+> You can verify the built image using `node scripts/run.cjs scripts/maintenance/verifyDockerImages.ts --full-image activities.next:pg --skip-build`.
 
 To deploy Activity.next with PostgreSQL using Docker:
 
