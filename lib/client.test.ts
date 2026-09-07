@@ -48,6 +48,7 @@ import {
   getFitnessGearActivities,
   getFitnessGearComponents,
   getFitnessGearList,
+  getFitnessGeneralSettings,
   getFitnessImportBatch,
   getFitnessProcessingState,
   getFitnessRouteHeatmap,
@@ -66,6 +67,7 @@ import {
   getTrendingTags,
   likeStatus,
   refitFitnessGearComponent,
+  regenerateFitnessMaps,
   removeCollectionAccounts,
   requestEmailChange,
   requestPasswordReset,
@@ -94,6 +96,7 @@ import {
   updateFitnessFileGear,
   updateFitnessGear,
   updateFitnessGearComponent,
+  updateFitnessGeneralSettings,
   updateNote,
   updateStatusVisibility,
   uploadAttachment,
@@ -104,6 +107,7 @@ import {
 import * as accountsModule from './client/accounts'
 import * as fitnessFilesModule from './client/fitnessFiles'
 import * as fitnessGearModule from './client/fitnessGear'
+import * as fitnessGeneralSettingsModule from './client/fitnessGeneralSettings'
 import * as fitnessHeatmapsModule from './client/fitnessHeatmaps'
 import * as fitnessImportsModule from './client/fitnessImports'
 import * as httpModule from './client/http'
@@ -190,6 +194,20 @@ describe('client facade fitness files re-exports', () => {
       fitnessFilesModule.getFitnessFilesByStatus
     )
     expect(getAppleMapsToken).toBe(fitnessFilesModule.getAppleMapsToken)
+  })
+})
+
+describe('client facade fitness general settings re-exports', () => {
+  it('re-exports extracted fitness general settings functions', () => {
+    expect(getFitnessGeneralSettings).toBe(
+      fitnessGeneralSettingsModule.getFitnessGeneralSettings
+    )
+    expect(updateFitnessGeneralSettings).toBe(
+      fitnessGeneralSettingsModule.updateFitnessGeneralSettings
+    )
+    expect(regenerateFitnessMaps).toBe(
+      fitnessGeneralSettingsModule.regenerateFitnessMaps
+    )
   })
 })
 
