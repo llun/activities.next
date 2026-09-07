@@ -1,0 +1,24 @@
+lib/database/sql/fitnessGear.test.ts
+  h_580a04e334fef4 1-10,3164-3234
+lib/database/sql/fitnessGear.ts
+  h_580a04e334fef4 4-15,22,25-27,74-75
+lib/database/sql/fitnessGearComponentPeriods.test.ts
+  h_580a04e334fef4 1,95,211-233
+lib/database/sql/fitnessGearComponents.ts
+  h_580a04e334fef4 1-561
+lib/database/sql/fitnessGearRows.ts
+  h_580a04e334fef4 1-135
+lib/database/sql/fitnessGearTypes.ts
+  h_580a04e334fef4 1-220
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "19523b3539ba0f41b991ba4e91819c4a50827f4e",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
