@@ -4,6 +4,14 @@ import { ERROR_401 } from '@/lib/utils/response'
 
 import { GET, OPTIONS } from './route'
 
+vi.mock('@/lib/utils/logger', () => ({
+  logger: {
+    warn: vi.fn(),
+    info: vi.fn(),
+    error: vi.fn()
+  }
+}))
+
 const mockSpan = {
   setAttribute: vi.fn(),
   setStatus: vi.fn(),
@@ -226,47 +234,117 @@ describe('GET /api/v1/accounts/media', () => {
     expect(mockSpan.setAttribute).toHaveBeenCalledWith('limit', 100)
   })
 
-  it('clamps out-of-bounds page inputs', async () => {
+  it('handles empty parameter values by falling back to defaults across db, response, and trace', async () => {
+    const req = new NextRequest(
+      'https://llun.test/api/v1/accounts/media?page=&limit='
+    )
+    const res = await GET(req, createRouteContext())
+
+    expect(res.status).toBe(200)
+    expect(mockDatabase.getMediasWithStatusForAccount).toHaveBeenCalledWith({
+      accountId: 'account-1',
+      page: 1,
+      limit: 25
+    })
+
+    const json = await res.json()
+    expect(json.page).toBe(1)
+    expect(json.itemsPerPage).toBe(25)
+
+    expect(mockSpan.setAttribute).toHaveBeenCalledWith('page', 1)
+    expect(mockSpan.setAttribute).toHaveBeenCalledWith('limit', 25)
+  })
+
+  it('clamps out-of-bounds page inputs with parity across db, response, and trace', async () => {
     // Negative page
+    vi.clearAllMocks()
     const reqNegative = new NextRequest(
       'https://llun.test/api/v1/accounts/media?page=-10'
     )
-    await GET(reqNegative, { params: Promise.resolve({}) })
-    expect(mockDatabase.getMediasWithStatusForAccount).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 1 })
-    )
+    const resNegative = await GET(reqNegative, createRouteContext())
+    expect(mockDatabase.getMediasWithStatusForAccount).toHaveBeenCalledWith({
+      accountId: 'account-1',
+      page: 1,
+      limit: 25
+    })
+    const jsonNegative = await resNegative.json()
+    expect(jsonNegative.page).toBe(1)
+    expect(jsonNegative.itemsPerPage).toBe(25)
+    expect(mockSpan.setAttribute).toHaveBeenCalledWith('page', 1)
+    expect(mockSpan.setAttribute).toHaveBeenCalledWith('limit', 25)
 
     // Zero page
+    vi.clearAllMocks()
     const reqZero = new NextRequest(
       'https://llun.test/api/v1/accounts/media?page=0'
     )
-    await GET(reqZero, { params: Promise.resolve({}) })
-    expect(mockDatabase.getMediasWithStatusForAccount).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 1 })
-    )
+    const resZero = await GET(reqZero, createRouteContext())
+    expect(mockDatabase.getMediasWithStatusForAccount).toHaveBeenCalledWith({
+      accountId: 'account-1',
+      page: 1,
+      limit: 25
+    })
+    const jsonZero = await resZero.json()
+    expect(jsonZero.page).toBe(1)
+    expect(jsonZero.itemsPerPage).toBe(25)
+    expect(mockSpan.setAttribute).toHaveBeenCalledWith('page', 1)
+    expect(mockSpan.setAttribute).toHaveBeenCalledWith('limit', 25)
 
     // Above max page (10,000)
+    vi.clearAllMocks()
     const reqHuge = new NextRequest(
       'https://llun.test/api/v1/accounts/media?page=50000'
     )
-    await GET(reqHuge, { params: Promise.resolve({}) })
-    expect(mockDatabase.getMediasWithStatusForAccount).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 10000 })
-    )
+    const resHuge = await GET(reqHuge, createRouteContext())
+    expect(mockDatabase.getMediasWithStatusForAccount).toHaveBeenCalledWith({
+      accountId: 'account-1',
+      page: 10000,
+      limit: 25
+    })
+    const jsonHuge = await resHuge.json()
+    expect(jsonHuge.page).toBe(10000)
+    expect(jsonHuge.itemsPerPage).toBe(25)
+    expect(mockSpan.setAttribute).toHaveBeenCalledWith('page', 10000)
+    expect(mockSpan.setAttribute).toHaveBeenCalledWith('limit', 25)
   })
 
-  it('defaults unsupported limits to 25', async () => {
+  it('defaults unsupported limits to 25 with parity across db, response, and trace', async () => {
     const unsupported = [10, 20, 30, 75, 200, -25]
     for (const limit of unsupported) {
       vi.clearAllMocks()
       const req = new NextRequest(
         `https://llun.test/api/v1/accounts/media?limit=${limit}`
       )
-      await GET(req, { params: Promise.resolve({}) })
-      expect(mockDatabase.getMediasWithStatusForAccount).toHaveBeenCalledWith(
-        expect.objectContaining({ limit: 25 })
-      )
+      const res = await GET(req, createRouteContext())
+      expect(mockDatabase.getMediasWithStatusForAccount).toHaveBeenCalledWith({
+        accountId: 'account-1',
+        page: 1,
+        limit: 25
+      })
+      const json = await res.json()
+      expect(json.page).toBe(1)
+      expect(json.itemsPerPage).toBe(25)
+      expect(mockSpan.setAttribute).toHaveBeenCalledWith('page', 1)
+      expect(mockSpan.setAttribute).toHaveBeenCalledWith('limit', 25)
     }
+  })
+
+  it('isolates URL hash fragments from query pagination', async () => {
+    // Hash fragment should never leak into query pagination
+    const req = new NextRequest(
+      'https://llun.test/api/v1/accounts/media?page=2#heading&limit=100'
+    )
+    const res = await GET(req, createRouteContext())
+    expect(mockDatabase.getMediasWithStatusForAccount).toHaveBeenCalledWith({
+      accountId: 'account-1',
+      page: 2,
+      limit: 25
+    })
+    const json = await res.json()
+    expect(json.page).toBe(2)
+    expect(json.itemsPerPage).toBe(25)
+    expect(mockSpan.setAttribute).toHaveBeenCalledWith('page', 2)
+    expect(mockSpan.setAttribute).toHaveBeenCalledWith('limit', 25)
   })
 
   it('handles media items without thumbnails', async () => {

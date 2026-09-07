@@ -21,29 +21,70 @@ export interface AccountMediaPagination {
  * - Restricts `limit` strictly to 25, 50, or 100; defaults any other value or malformed input to 25.
  * - Guaranteed to return finite numbers for both `page` and `limit` (never `NaN` or `Infinity`).
  */
+function extractSearchParams(
+  input?: URLSearchParams | URL | Request | string | null
+): URLSearchParams {
+  if (!input) {
+    return new URLSearchParams()
+  }
+  if (input instanceof URLSearchParams) {
+    return input
+  }
+  if (input instanceof URL) {
+    return input.searchParams
+  }
+  if (typeof input === 'object') {
+    if (
+      'searchParams' in input &&
+      input.searchParams instanceof URLSearchParams
+    ) {
+      return input.searchParams
+    }
+    if (
+      'nextUrl' in input &&
+      input.nextUrl &&
+      typeof input.nextUrl === 'object' &&
+      'searchParams' in input.nextUrl &&
+      input.nextUrl.searchParams instanceof URLSearchParams
+    ) {
+      return input.nextUrl.searchParams
+    }
+    if ('url' in input && typeof input.url === 'string') {
+      input = input.url
+    } else {
+      return new URLSearchParams()
+    }
+  }
+
+  if (typeof input === 'string') {
+    const withoutHash = input.split('#')[0]
+    const queryIndex = withoutHash.indexOf('?')
+    if (queryIndex !== -1) {
+      return new URLSearchParams(withoutHash.slice(queryIndex + 1))
+    }
+    if (withoutHash.includes('/') || withoutHash.includes('://')) {
+      return new URLSearchParams()
+    }
+    return new URLSearchParams(withoutHash)
+  }
+
+  return new URLSearchParams()
+}
+
+/**
+ * Parses pagination parameters (`page` and `limit`) for the account media route.
+ *
+ * - Accepts URLSearchParams, URL, Request, or string (full URL, relative path, or query string).
+ * - Preserves `parseInt` prefix acceptance (e.g. `'25foo'` -> 25).
+ * - Clamps `page` to 1..10,000.
+ * - Defaults malformed/non-finite `page` input to 1.
+ * - Restricts `limit` strictly to 25, 50, or 100; defaults any other value or malformed input to 25.
+ * - Guaranteed to return finite numbers for both `page` and `limit` (never `NaN` or `Infinity`).
+ */
 export function parseAccountMediaPagination(
   input?: URLSearchParams | URL | Request | string | null
 ): AccountMediaPagination {
-  let searchParams: URLSearchParams
-
-  if (input instanceof URLSearchParams) {
-    searchParams = input
-  } else if (input instanceof URL) {
-    searchParams = input.searchParams
-  } else if (typeof input === 'object' && input !== null && 'url' in input) {
-    const rawUrl = (input as Request).url
-    const queryIndex = rawUrl.indexOf('?')
-    searchParams = new URLSearchParams(
-      queryIndex !== -1 ? rawUrl.slice(queryIndex + 1) : ''
-    )
-  } else if (typeof input === 'string') {
-    const queryIndex = input.indexOf('?')
-    searchParams = new URLSearchParams(
-      queryIndex !== -1 ? input.slice(queryIndex + 1) : input
-    )
-  } else {
-    searchParams = new URLSearchParams()
-  }
+  const searchParams = extractSearchParams(input)
 
   const pageParam = searchParams.get('page')
   const limitParam = searchParams.get('limit')

@@ -270,13 +270,66 @@ describe('parseAccountMediaPagination', () => {
       })
     })
 
-    it('accepts a Request or NextRequest instance', () => {
+    it('accepts a Request instance', () => {
       const request = new Request(
         'https://myinstance.social/api/v1/accounts/media?page=9&limit=50'
       )
       expect(parseAccountMediaPagination(request)).toEqual({
         page: 9,
         limit: 50
+      })
+    })
+
+    it('accepts a NextRequest-like object with nextUrl', () => {
+      const nextRequest = {
+        nextUrl: new URL(
+          'https://myinstance.social/api/v1/accounts/media?page=6&limit=100'
+        )
+      }
+      expect(
+        parseAccountMediaPagination(nextRequest as unknown as Request)
+      ).toEqual({
+        page: 6,
+        limit: 100
+      })
+    })
+
+    it('isolates hash fragments so fragments never leak into query parameters', () => {
+      // URL with query and hash containing conflicting parameters
+      expect(
+        parseAccountMediaPagination(
+          'https://myinstance.social/api/v1/accounts/media?page=2#section&limit=100'
+        )
+      ).toEqual({
+        page: 2,
+        limit: 25
+      })
+
+      // URL with only a hash fragment (no query string)
+      expect(
+        parseAccountMediaPagination(
+          'https://myinstance.social/api/v1/accounts/media#page=5&limit=100'
+        )
+      ).toEqual({
+        page: 1,
+        limit: 25
+      })
+
+      // Query string with hash fragment at the end
+      expect(
+        parseAccountMediaPagination('page=3&limit=50#hash&limit=100')
+      ).toEqual({
+        page: 3,
+        limit: 50
+      })
+
+      // Request object with hash in URL
+      const requestWithHash = new Request(
+        'https://myinstance.social/api/v1/accounts/media?page=4#something&limit=100'
+      )
+      expect(parseAccountMediaPagination(requestWithHash)).toEqual({
+        page: 4,
+        limit: 25
       })
     })
   })
