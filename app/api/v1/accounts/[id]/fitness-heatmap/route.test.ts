@@ -78,6 +78,7 @@ describe('/api/v1/accounts/[id]/fitness-heatmap legacy adapter', () => {
       segments: [],
       activityCount: 1,
       pointCount: 2,
+      totalCount: 1,
       cursorOffset: 0,
       isPartial: false,
       createdAt: createdTime,

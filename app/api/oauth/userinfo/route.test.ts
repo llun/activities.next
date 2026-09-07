@@ -49,6 +49,7 @@ const makeAccount = (overrides: Partial<Account> = {}): Account => {
     // default-filled `verifiedAt` this fixture used to rely on.
     emailVerified: true,
     emailVerifiedAt: now,
+    twoFactorEnabled: false,
     createdAt: now,
     updatedAt: now,
     ...overrides
@@ -61,16 +62,19 @@ const makeActor = (account: Account | null): Actor => ({
   domain: 'example.com',
   name: 'Test User',
   iconUrl: 'https://example.com/avatar.png',
-  headerImageUrl: null,
   summary: 'A test user',
   followersUrl: 'https://example.com/users/testuser/followers',
   inboxUrl: 'https://example.com/users/testuser/inbox',
   sharedInboxUrl: 'https://example.com/inbox',
+  followingCount: 0,
+  followersCount: 0,
+  statusCount: 0,
+  lastStatusAt: null,
   publicKey: 'public-key',
   privateKey: 'private-key',
   createdAt: Date.now(),
   updatedAt: Date.now(),
-  ...(account ? { account } : { account: null })
+  account: account ?? undefined
 })
 
 const callGet = () =>
