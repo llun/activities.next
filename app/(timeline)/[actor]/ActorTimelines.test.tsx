@@ -750,6 +750,34 @@ describe('ActorTimelines', () => {
     expect(screen.queryByText(originalId)).not.toBeInTheDocument()
   })
 
+  it('updates a boost of a post when that post is updated', () => {
+    const originalId = 'https://local.example/statuses/original'
+    const boostId = 'https://local.example/statuses/boost'
+    const original = createStatus(originalId)
+    render(
+      <ActorTimelines
+        host="localhost:3000"
+        actorId="https://local.example/users/me"
+        statuses={[createAnnounceStatus(boostId, original)]}
+        attachments={[]}
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={currentActorProfile}
+        isCurrentUser
+        statusPagination={{ nextPageUrl: null, prevPageUrl: null }}
+      />
+    )
+
+    expect(screen.getByTestId(`like-flag-${originalId}`)).toHaveTextContent(
+      'false:0'
+    )
+
+    fireEvent.click(screen.getByTestId(`trigger-update-${originalId}`))
+
+    expect(screen.getByTestId(`like-flag-${originalId}`)).toHaveTextContent(
+      'false:99'
+    )
+  })
+
   describe('Pixelfed profile timeline view', () => {
     it('removes the tab bar completely when isPixelfed is true', () => {
       const { container } = render(
