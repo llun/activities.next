@@ -423,7 +423,11 @@ describe('proxy', () => {
       '/notifications',
       '/inbox-invalid',
       '/inbox/invalid',
-      '/users'
+      '/users',
+      '/administrator',
+      '/administrator/callback',
+      '/admin-invalid/callback',
+      '/admin123'
     ]) {
       const request = new NextRequest(`https://llun.social${path}`, {
         method: 'POST'
@@ -432,6 +436,9 @@ describe('proxy', () => {
       const response = await proxy(request)
 
       expect(response?.status).toBe(404)
+      expect(response?.headers.get('Content-Security-Policy')).toContain(
+        "default-src 'none'"
+      )
     }
   })
 
@@ -448,11 +455,25 @@ describe('proxy', () => {
     const oauthResponse = await proxy(oauthRequest)
     expect(oauthResponse?.status).toBe(200)
 
-    const adminRequest = new NextRequest('https://llun.social/admin/queues', {
-      method: 'POST'
-    })
-    const adminResponse = await proxy(adminRequest)
-    expect(adminResponse?.status).toBe(200)
+    for (const adminPath of ['/admin', '/admin/queues', '/admin/relays']) {
+      const adminRequest = new NextRequest(`https://llun.social${adminPath}`, {
+        method: 'POST'
+      })
+      const adminResponse = await proxy(adminRequest)
+      expect(adminResponse?.status).toBe(200)
+    }
+
+    const formData = new FormData()
+    formData.append('inboxUrl', 'https://relay.example/inbox')
+    const adminFormRequest = new NextRequest(
+      'https://llun.social/admin/relays',
+      {
+        method: 'POST',
+        body: formData
+      }
+    )
+    const adminFormResponse = await proxy(adminFormRequest)
+    expect(adminFormResponse?.status).toBe(200)
 
     const actionRequest = new NextRequest('https://llun.social/custom-action', {
       method: 'POST',
@@ -462,6 +483,18 @@ describe('proxy', () => {
     })
     const actionResponse = await proxy(actionRequest)
     expect(actionResponse?.status).toBe(200)
+
+    const lookalikeActionRequest = new NextRequest(
+      'https://llun.social/administrator/callback',
+      {
+        method: 'POST',
+        headers: {
+          'next-action': 'action-id-123'
+        }
+      }
+    )
+    const lookalikeActionResponse = await proxy(lookalikeActionRequest)
+    expect(lookalikeActionResponse?.status).toBe(200)
   })
 
   it('allows POST requests to rewritten API routes', async () => {
