@@ -1,0 +1,16 @@
+app/api/v1/accounts/[id]/fitness-route-heatmap/route.test.ts
+  h_580a04e334fef4 400,466,526,584,640,845
+app/api/v1/accounts/[id]/statuses/route.test.ts
+  h_580a04e334fef4 320,322,750,753
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "ff4c2b5260a6d9550648780d5afb2d3818683b62",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
