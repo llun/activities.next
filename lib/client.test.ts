@@ -6,6 +6,7 @@ import { generatePublicId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import {
+  ApiRequestError,
   addCollectionAccounts,
   approveCollectionMembership,
   bookmarkStatus,
@@ -16,11 +17,15 @@ import {
   createActor,
   createCollection,
   createDirectMessage,
+  createFitnessGear,
+  createFitnessGearComponent,
   createPoll,
   createReport,
   deleteAccountMedia,
   deleteActor,
   deleteCollection,
+  deleteFitnessGear,
+  deleteFitnessGearComponent,
   deleteFitnessRouteHeatmap,
   deleteStatus,
   deleteStravaSettings,
@@ -30,6 +35,9 @@ import {
   getBookmarks,
   getCollectionFeed,
   getCollectionTimeline,
+  getFitnessGearActivities,
+  getFitnessGearComponents,
+  getFitnessGearList,
   getFitnessRouteHeatmap,
   getFitnessRouteHeatmapTiles,
   getFitnessRouteHeatmaps,
@@ -40,14 +48,17 @@ import {
   getTrendingStatuses,
   getTrendingTags,
   likeStatus,
+  refitFitnessGearComponent,
   removeCollectionAccounts,
   requestEmailChange,
   requestPasswordReset,
   resetPassword,
+  retireFitnessGearComponent,
   revokeCollectionMembership,
   saveStravaSettings,
   search,
   setDefaultActor,
+  setFitnessGearRetired,
   startStravaArchiveImport,
   submitOAuthConsent,
   switchActor,
@@ -56,9 +67,14 @@ import {
   unfollow,
   updateAccountName,
   updateCollection,
+  updateFitnessFileGear,
+  updateFitnessGear,
+  updateFitnessGearComponent,
   updateNote,
   uploadAttachment
 } from './client'
+import * as fitnessGearModule from './client/fitnessGear'
+import * as httpModule from './client/http'
 
 enableFetchMocks()
 
@@ -2670,5 +2686,44 @@ describe('client actor management helpers', () => {
         await expect(deleteStravaSettings()).rejects.toThrow('Network timeout')
       })
     })
+  })
+})
+
+describe('client facade exports', () => {
+  it('re-exports ApiRequestError from http module', () => {
+    expect(ApiRequestError).toBe(httpModule.ApiRequestError)
+    const error = new ApiRequestError('Error message', 400)
+    expect(error).toBeInstanceOf(ApiRequestError)
+    expect(error.status).toBe(400)
+  })
+
+  it('re-exports all fitness gear functions from fitnessGear module', () => {
+    expect(getFitnessGearList).toBe(fitnessGearModule.getFitnessGearList)
+    expect(createFitnessGear).toBe(fitnessGearModule.createFitnessGear)
+    expect(updateFitnessGear).toBe(fitnessGearModule.updateFitnessGear)
+    expect(deleteFitnessGear).toBe(fitnessGearModule.deleteFitnessGear)
+    expect(setFitnessGearRetired).toBe(fitnessGearModule.setFitnessGearRetired)
+    expect(getFitnessGearActivities).toBe(
+      fitnessGearModule.getFitnessGearActivities
+    )
+    expect(getFitnessGearComponents).toBe(
+      fitnessGearModule.getFitnessGearComponents
+    )
+    expect(createFitnessGearComponent).toBe(
+      fitnessGearModule.createFitnessGearComponent
+    )
+    expect(updateFitnessGearComponent).toBe(
+      fitnessGearModule.updateFitnessGearComponent
+    )
+    expect(deleteFitnessGearComponent).toBe(
+      fitnessGearModule.deleteFitnessGearComponent
+    )
+    expect(retireFitnessGearComponent).toBe(
+      fitnessGearModule.retireFitnessGearComponent
+    )
+    expect(refitFitnessGearComponent).toBe(
+      fitnessGearModule.refitFitnessGearComponent
+    )
+    expect(updateFitnessFileGear).toBe(fitnessGearModule.updateFitnessFileGear)
   })
 })
