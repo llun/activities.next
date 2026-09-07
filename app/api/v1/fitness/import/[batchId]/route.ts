@@ -422,6 +422,8 @@ export const POST = traceApiRoute(
 
     const parsed = (await req.json().catch(() => ({}))) as {
       visibility?: string
+      generationId?: string
+      generation_id?: string
     }
     const visibility = parsed.visibility ?? 'public'
 
@@ -435,13 +437,17 @@ export const POST = traceApiRoute(
       })
     }
 
+    const generationId =
+      parsed.generationId ?? parsed.generation_id ?? crypto.randomUUID()
+
     try {
       const { retried } = await retryFitnessImportBatch({
         database,
         batchId,
         batchActorId,
         files,
-        visibility: visibilityParsed.data
+        visibility: visibilityParsed.data,
+        generationId
       })
 
       return apiResponse({

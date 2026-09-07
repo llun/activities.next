@@ -72,10 +72,13 @@ export const syncStatusLinkPreview = async ({
     // A remote post reaches many servers at once; a local one has an author
     // waiting to see the card, and is a single request either way.
     const shouldDelay = !status.isLocalActor && !getQueue().runsInline
+    const statusRevision = status.updatedAt ?? status.createdAt ?? 0
     await getQueue().publish({
-      // Stable per (status, url): a redelivered message dedupes, while an edit
-      // pointing somewhere new gets its own job.
-      id: getHashFromString(`${status.id}:link-preview:${url}`),
+      // Stable per (status, revision, url): a redelivered message dedupes, while
+      // an edit pointing somewhere new or returning to a previous URL gets its own job.
+      id: getHashFromString(
+        `${status.id}:${statusRevision}:link-preview:${url}`
+      ),
       name: FETCH_LINK_PREVIEW_JOB_NAME,
       data: { statusId: status.id, url },
       // NoQueue has no scheduler and silently drops a delayed message, so the

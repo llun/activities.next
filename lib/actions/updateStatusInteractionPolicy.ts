@@ -17,6 +17,7 @@ interface UpdateStatusInteractionPolicyFromUserInput {
   publish?: boolean
   status?: Status
   database: Database
+  operationId?: string
 }
 
 /**
@@ -33,7 +34,8 @@ export const updateStatusInteractionPolicyFromUserInput = async ({
   quoteApprovalPolicy,
   publish = true,
   status: preloadedStatus,
-  database
+  database,
+  operationId
 }: UpdateStatusInteractionPolicyFromUserInput): Promise<Status | null> =>
   withSpan(
     'actions',
@@ -60,8 +62,11 @@ export const updateStatusInteractionPolicyFromUserInput = async ({
       }
 
       if (publish) {
+        const effectiveOperationId = operationId ?? crypto.randomUUID()
         await getQueue().publish({
-          id: getHashFromString(`${statusId}#interaction-policy`),
+          id: getHashFromString(
+            `${statusId}#interaction-policy:${effectiveOperationId}`
+          ),
           name: SEND_UPDATE_NOTE_JOB_NAME,
           data: { actorId: currentActor.id, statusId }
         })

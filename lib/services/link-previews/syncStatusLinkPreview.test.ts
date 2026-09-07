@@ -52,6 +52,8 @@ const makeStatus = (overrides: Partial<Status> = {}): Status =>
     actorId: 'https://llun.test/users/me',
     isLocalActor: true,
     text: 'Read https://example.com/article today',
+    createdAt: 1_000,
+    updatedAt: 1_000,
     ...overrides
   }) as unknown as Status
 
@@ -293,5 +295,48 @@ describe('syncStatusLinkPreview', () => {
     })
 
     expect(publish.mock.calls[0][0].id).not.toBe(firstId)
+  })
+
+  it('enqueues work again when returning to a previous URL (URL A -> B -> A sequence) while preserving redelivery stability', async () => {
+    // 1. Initial status with URL A at revision 1000
+    const statusRev1 = makeStatus({
+      updatedAt: 1_000,
+      text: 'First version https://example.com/url-a'
+    })
+    await syncStatusLinkPreview({ database, status: statusRev1 })
+    const jobA1Id = publish.mock.calls[0][0].id
+
+    // Redelivery of revision 1 produces stable id
+    publish.mockReset()
+    await syncStatusLinkPreview({ database, status: statusRev1 })
+    expect(publish.mock.calls[0][0].id).toBe(jobA1Id)
+
+    // 2. Status edited to URL B at revision 2000
+    publish.mockReset()
+    const statusRev2 = makeStatus({
+      updatedAt: 2_000,
+      text: 'Second version https://example.com/url-b'
+    })
+    await syncStatusLinkPreview({ database, status: statusRev2 })
+    const jobBId = publish.mock.calls[0][0].id
+    expect(jobBId).not.toBe(jobA1Id)
+
+    // 3. Status edited BACK to URL A at revision 3000
+    publish.mockReset()
+    const statusRev3 = makeStatus({
+      updatedAt: 3_000,
+      text: 'Third version back to https://example.com/url-a'
+    })
+    await syncStatusLinkPreview({ database, status: statusRev3 })
+    const jobA2Id = publish.mock.calls[0][0].id
+
+    // Job ID for URL A at revision 3 must NOT collide with revision 1, so it can enqueue again
+    expect(jobA2Id).not.toBe(jobA1Id)
+    expect(jobA2Id).not.toBe(jobBId)
+
+    // Redelivery of revision 3 is stable
+    publish.mockReset()
+    await syncStatusLinkPreview({ database, status: statusRev3 })
+    expect(publish.mock.calls[0][0].id).toBe(jobA2Id)
   })
 })

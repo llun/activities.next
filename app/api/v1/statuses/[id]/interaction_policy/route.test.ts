@@ -145,4 +145,83 @@ describe('PUT /api/v1/statuses/[id]/interaction_policy', () => {
 
     expect(response.status).toBe(422)
   })
+
+  it('preserves job id on redelivery with operation_id or operationId', async () => {
+    const statusId = `${ACTOR1_ID}/statuses/interaction-policy-redelivery`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: ACTOR1_ID,
+      text: 'my post',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+
+    const publish = getQueue().publish as jest.Mock
+
+    const res1 = await PUT(
+      putRequest(urlToId(statusId), {
+        quote_approval_policy: 'followers',
+        operation_id: 'op-fixed-id'
+      }),
+      { params: Promise.resolve({ id: urlToId(statusId) }) }
+    )
+    expect(res1.status).toBe(200)
+    const firstJobId = publish.mock.calls[0][0].id
+
+    publish.mockClear()
+    const res2 = await PUT(
+      putRequest(urlToId(statusId), {
+        quote_approval_policy: 'followers',
+        operation_id: 'op-fixed-id'
+      }),
+      { params: Promise.resolve({ id: urlToId(statusId) }) }
+    )
+    expect(res2.status).toBe(200)
+    const secondJobId = publish.mock.calls[0][0].id
+
+    expect(secondJobId).toBe(firstJobId)
+
+    // Also test camelCase operationId
+    publish.mockClear()
+    const res3 = await PUT(
+      putRequest(urlToId(statusId), {
+        quote_approval_policy: 'followers',
+        operationId: 'op-fixed-id'
+      }),
+      { params: Promise.resolve({ id: urlToId(statusId) }) }
+    )
+    expect(res3.status).toBe(200)
+    const thirdJobId = publish.mock.calls[0][0].id
+    expect(thirdJobId).toBe(firstJobId)
+  })
+
+  it('generates distinct job ids for successive policy changes without operation_id', async () => {
+    const statusId = `${ACTOR1_ID}/statuses/interaction-policy-successive`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: ACTOR1_ID,
+      text: 'my post',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+
+    const publish = getQueue().publish as jest.Mock
+
+    await PUT(
+      putRequest(urlToId(statusId), { quote_approval_policy: 'followers' }),
+      { params: Promise.resolve({ id: urlToId(statusId) }) }
+    )
+    const firstJobId = publish.mock.calls[0][0].id
+
+    publish.mockClear()
+    await PUT(
+      putRequest(urlToId(statusId), { quote_approval_policy: 'nobody' }),
+      { params: Promise.resolve({ id: urlToId(statusId) }) }
+    )
+    const secondJobId = publish.mock.calls[0][0].id
+
+    expect(secondJobId).not.toBe(firstJobId)
+  })
 })

@@ -41,6 +41,12 @@ export const POST = traceApiRoute(
     // bounded (no fan-out of concurrent queries/updates). A single batch's
     // failure must not block the rest — retryFitnessImportBatch rolls back its
     // own batch, and we count and log the failure here so it stays visible.
+    const body = (await req.json().catch(() => ({}))) as {
+      generationId?: string
+      generation_id?: string
+    }
+    const generationId =
+      body.generationId ?? body.generation_id ?? crypto.randomUUID()
     let retried = 0
     let batches = 0
     let failedBatches = 0
@@ -60,6 +66,7 @@ export const POST = traceApiRoute(
           batchActorId: currentActor.id,
           files: ownedFiles,
           visibility: RETRY_VISIBILITY,
+          generationId,
           now
         })
 

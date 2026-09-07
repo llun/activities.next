@@ -59,6 +59,7 @@ interface RetryFitnessImportBatchParams {
   batchActorId: string
   files: FitnessFile[]
   visibility: RetryFitnessVisibility
+  generationId?: string
   now?: number
 }
 
@@ -84,6 +85,7 @@ export const retryFitnessImportBatch = async ({
   batchActorId,
   files,
   visibility,
+  generationId,
   now = Date.now()
 }: RetryFitnessImportBatchParams): Promise<{ retried: number }> => {
   const retriableFiles = files
@@ -132,6 +134,7 @@ export const retryFitnessImportBatch = async ({
     })
   }
 
+  const effectiveGenerationId = generationId ?? crypto.randomUUID()
   const stravaActivityId = getStravaActivityIdFromBatchId(batchId)
   const retryJob = stravaActivityId
     ? {
@@ -140,7 +143,7 @@ export const retryFitnessImportBatch = async ({
         // is intentionally OMITTED here so the job falls back to the account's
         // configured default visibility from fitness settings. Do not add it back.
         id: getHashFromString(
-          `${batchActorId}:strava-activity-retry:${batchId}`
+          `${batchActorId}:strava-activity-retry:${batchId}:${effectiveGenerationId}`
         ),
         name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
         data: {
@@ -150,7 +153,7 @@ export const retryFitnessImportBatch = async ({
       }
     : {
         id: getHashFromString(
-          `${batchActorId}:fitness-import-retry:${batchId}`
+          `${batchActorId}:fitness-import-retry:${batchId}:${effectiveGenerationId}`
         ),
         name: IMPORT_FITNESS_FILES_JOB_NAME,
         data: {
