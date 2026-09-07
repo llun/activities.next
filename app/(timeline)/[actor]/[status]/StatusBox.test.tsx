@@ -59,6 +59,7 @@ describe('StatusBox', () => {
     render(
       <StatusBox
         host="activities.local"
+        mapProvider={{ type: 'osm' }}
         currentActor={pollStatusFixture.actor}
         currentTime={pollStatusCurrentTime}
         status={pollStatusFixture}
@@ -89,6 +90,7 @@ describe('StatusBox', () => {
     render(
       <StatusBox
         host="activities.local"
+        mapProvider={{ type: 'osm' }}
         currentActor={pollStatusFixture.actor}
         currentTime={pollStatusCurrentTime}
         status={pollStatusFixture}
@@ -103,6 +105,7 @@ describe('StatusBox', () => {
     render(
       <StatusBox
         host="activities.local"
+        mapProvider={{ type: 'osm' }}
         currentActor={null}
         currentTime={pollStatusCurrentTime}
         status={pollStatusFixture}
@@ -117,6 +120,7 @@ describe('StatusBox', () => {
     render(
       <StatusBox
         host="activities.local"
+        mapProvider={{ type: 'osm' }}
         currentActor={pollStatusFixture.actor}
         currentTime={pollStatusCurrentTime}
         status={pollStatusFixture}
@@ -138,6 +142,7 @@ describe('StatusBox', () => {
     render(
       <StatusBox
         host="activities.local"
+        mapProvider={{ type: 'osm' }}
         currentActor={pollStatusFixture.actor}
         currentTime={pollStatusCurrentTime}
         status={pollStatusFixture}

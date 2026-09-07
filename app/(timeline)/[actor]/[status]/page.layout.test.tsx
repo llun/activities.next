@@ -6,7 +6,7 @@ import { render, screen } from '@testing-library/react'
 
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { Actor } from '@/lib/types/domain/actor'
-import { Status } from '@/lib/types/domain/status'
+import { StatusNote } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -82,64 +82,66 @@ const mockGetActorFromSession = vi.mocked(getActorFromSession)
 const AUTHOR_ID = 'https://activities.local/users/anna'
 const VIEWER_ID = 'https://activities.local/users/viewer'
 
-const buildNote = (overrides: Partial<Status> = {}): Status =>
-  ({
-    id: 'note-id',
-    type: 'Note',
-    actorId: AUTHOR_ID,
-    actor: null,
-    url: `${AUTHOR_ID}/statuses/note-id`,
-    text: 'body',
-    reply: '',
-    replies: [],
-    to: [ACTIVITY_STREAM_PUBLIC],
-    cc: [],
-    edits: [],
-    isLocalActor: true,
-    isActorLiked: false,
-    isActorBookmarked: false,
-    actorAnnounceStatusId: null,
-    totalLikes: 0,
-    totalShares: 0,
-    attachments: [],
-    tags: [],
-    createdAt: 1,
-    updatedAt: 1,
-    ...overrides
-  }) as unknown as Status
+const buildNote = (overrides: Partial<StatusNote> = {}): StatusNote => ({
+  id: 'note-id',
+  type: 'Note',
+  actorId: AUTHOR_ID,
+  actor: null,
+  url: `${AUTHOR_ID}/statuses/note-id`,
+  text: 'body',
+  reply: '',
+  replies: [],
+  to: [ACTIVITY_STREAM_PUBLIC],
+  cc: [],
+  edits: [],
+  isLocalActor: true,
+  isActorLiked: false,
+  isActorBookmarked: false,
+  actorAnnounceStatusId: null,
+  totalLikes: 0,
+  totalShares: 0,
+  attachments: [],
+  tags: [],
+  createdAt: 1,
+  updatedAt: 1,
+  ...overrides
+})
 
 // `isFitnessDashboard` keys off a completed fitness file, and that branch is a
 // separate card from the conversation one below — same defect, its own chrome.
-const buildFitnessNote = (): Status =>
+const buildFitnessNote = (): StatusNote =>
   buildNote({
     id: 'ride-1',
+    url: `${AUTHOR_ID}/statuses/ride-1`,
     fitness: {
       id: 'fit-1',
       fileName: 'ride.fit',
       fileType: 'fit',
+      mimeType: 'application/octet-stream',
+      bytes: 1000,
+      url: 'https://activities.local/files/fit-1',
       processingStatus: 'completed',
       activityType: 'ride',
       hasMapData: false
     }
-  } as Partial<Status>)
+  })
 
-const buildViewer = (): Actor =>
-  ({
-    id: VIEWER_ID,
-    type: 'Person',
-    username: 'viewer',
-    domain: 'activities.local',
-    followersUrl: `${VIEWER_ID}/followers`,
-    inboxUrl: `${VIEWER_ID}/inbox`,
-    sharedInboxUrl: 'https://activities.local/inbox',
-    publicKey: 'public-key',
-    followingCount: 0,
-    followersCount: 0,
-    statusCount: 0,
-    lastStatusAt: null,
-    createdAt: 1,
-    updatedAt: 1
-  }) as unknown as Actor
+const buildViewer = (): Actor => ({
+  id: VIEWER_ID,
+  type: 'Person',
+  username: 'viewer',
+  domain: 'activities.local',
+  followersUrl: `${VIEWER_ID}/followers`,
+  inboxUrl: `${VIEWER_ID}/inbox`,
+  sharedInboxUrl: 'https://activities.local/inbox',
+  publicKey: 'public-key',
+  followingCount: 0,
+  followersCount: 0,
+  statusCount: 0,
+  lastStatusAt: null,
+  createdAt: 1,
+  updatedAt: 1
+})
 
 const renderPage = async () => {
   const element = await Page({
