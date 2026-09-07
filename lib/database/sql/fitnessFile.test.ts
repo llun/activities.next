@@ -207,6 +207,209 @@ describe('FitnessFileDatabase', () => {
           }
         }
       })
+
+      it('maintains parity with getFitnessFilesByActor across individual and combined filters', async () => {
+        const actorId = actors.followRequester.id
+        const createdIds: string[] = []
+
+        const filesData = [
+          {
+            key: 'primary-run-completed',
+            isPrimary: true,
+            processingStatus: 'completed',
+            activityType: 'Run',
+            activityStartTime: new Date('2026-03-01T10:00:00Z')
+          },
+          {
+            key: 'sibling-run-completed',
+            isPrimary: false,
+            processingStatus: 'completed',
+            activityType: 'Run',
+            activityStartTime: new Date('2026-03-01T10:00:00Z')
+          },
+          {
+            key: 'primary-ride-failed',
+            isPrimary: true,
+            processingStatus: 'failed',
+            activityType: 'Ride',
+            activityStartTime: new Date('2026-03-05T10:00:00Z')
+          },
+          {
+            key: 'primary-null-completed',
+            isPrimary: true,
+            processingStatus: 'completed',
+            activityType: null,
+            activityStartTime: new Date('2026-03-10T10:00:00Z')
+          },
+          {
+            key: 'primary-walk-start-boundary',
+            isPrimary: true,
+            processingStatus: 'completed',
+            activityType: 'Walk',
+            activityStartTime: new Date('2026-03-15T00:00:00Z')
+          },
+          {
+            key: 'primary-walk-end-boundary',
+            isPrimary: true,
+            processingStatus: 'completed',
+            activityType: 'Walk',
+            activityStartTime: new Date('2026-03-20T23:59:59Z')
+          },
+          {
+            key: 'sibling-null-pending',
+            isPrimary: false,
+            processingStatus: 'pending',
+            activityType: null,
+            activityStartTime: new Date('2026-03-25T10:00:00Z')
+          }
+        ]
+
+        try {
+          for (const item of filesData) {
+            const file = await database.createFitnessFile({
+              actorId,
+              path: `fitness/parity-${item.key}.fit`,
+              fileName: `parity-${item.key}.fit`,
+              fileType: 'fit',
+              mimeType: 'application/vnd.ant.fit',
+              bytes: 1024
+            })
+            createdIds.push(file!.id)
+
+            await database.updateFitnessFileActivityData(file!.id, {
+              activityType: item.activityType,
+              activityStartTime: item.activityStartTime
+            })
+            await database.updateFitnessFileProcessingStatus(
+              file!.id,
+              item.processingStatus
+            )
+            await database.updateFitnessFilePrimary(file!.id, item.isPrimary)
+          }
+
+          const filterCases = [
+            { name: 'all files for actor', filter: { actorId } },
+            {
+              name: 'primary files only',
+              filter: { actorId, isPrimary: true }
+            },
+            {
+              name: 'non-primary (sibling) files only',
+              filter: { actorId, isPrimary: false }
+            },
+            {
+              name: 'processingStatus: failed',
+              filter: { actorId, processingStatus: 'failed' }
+            },
+            {
+              name: 'processingStatus: completed',
+              filter: { actorId, processingStatus: 'completed' }
+            },
+            {
+              name: 'processingStatus: pending',
+              filter: { actorId, processingStatus: 'pending' }
+            },
+            {
+              name: 'null activity type',
+              filter: { actorId, activityType: null }
+            },
+            {
+              name: 'activityType: Run',
+              filter: { actorId, activityType: 'Run' }
+            },
+            {
+              name: 'activityType: Walk',
+              filter: { actorId, activityType: 'Walk' }
+            },
+            {
+              name: 'activityType: Ride',
+              filter: { actorId, activityType: 'Ride' }
+            },
+            {
+              name: 'non-existent activityType',
+              filter: { actorId, activityType: 'Swim' }
+            },
+            {
+              name: 'inclusive date range (March 15 to March 20)',
+              filter: {
+                actorId,
+                startDate: new Date('2026-03-15T00:00:00Z'),
+                endDate: new Date('2026-03-20T23:59:59Z')
+              }
+            },
+            {
+              name: 'exact date point (start boundary exact)',
+              filter: {
+                actorId,
+                startDate: new Date('2026-03-15T00:00:00Z'),
+                endDate: new Date('2026-03-15T00:00:00Z')
+              }
+            },
+            {
+              name: 'combined: completed primary Run',
+              filter: {
+                actorId,
+                processingStatus: 'completed',
+                isPrimary: true,
+                activityType: 'Run'
+              }
+            },
+            {
+              name: 'combined: completed primary with null activityType',
+              filter: {
+                actorId,
+                processingStatus: 'completed',
+                isPrimary: true,
+                activityType: null
+              }
+            },
+            {
+              name: 'combined: failed primary Ride',
+              filter: {
+                actorId,
+                processingStatus: 'failed',
+                isPrimary: true,
+                activityType: 'Ride'
+              }
+            },
+            {
+              name: 'combined: pending non-primary null activityType',
+              filter: {
+                actorId,
+                processingStatus: 'pending',
+                isPrimary: false,
+                activityType: null
+              }
+            },
+            {
+              name: 'combined: date window + completed + primary + Walk',
+              filter: {
+                actorId,
+                startDate: new Date('2026-03-14T00:00:00Z'),
+                endDate: new Date('2026-03-21T00:00:00Z'),
+                processingStatus: 'completed',
+                isPrimary: true,
+                activityType: 'Walk'
+              }
+            }
+          ]
+
+          for (const { name: _name, filter } of filterCases) {
+            const list = await database.getFitnessFilesByActor({
+              ...filter,
+              limit: 1000,
+              offset: 0
+            })
+            const count = await database.countFitnessFilesByActor(filter)
+
+            expect(count).toBe(list.length)
+          }
+        } finally {
+          for (const id of createdIds) {
+            await database.deleteFitnessFile({ id })
+          }
+        }
+      })
     })
 
     describe('getFitnessFileByStatus/updateFitnessFileStatus', () => {

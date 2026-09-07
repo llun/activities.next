@@ -370,6 +370,46 @@ const parseSQLFitnessFile = (row: SQLFitnessFile): FitnessFile => ({
   deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined
 })
 
+const buildFitnessFilesByActorQuery = (
+  database: Knex,
+  params: CountFitnessFilesByActorParams
+): Knex.QueryBuilder<SQLFitnessFile> => {
+  const {
+    actorId,
+    processingStatus,
+    isPrimary,
+    activityType,
+    startDate,
+    endDate
+  } = params
+
+  let query = database<SQLFitnessFile>('fitness_files')
+    .where('actorId', actorId)
+    .whereNull('deletedAt')
+
+  if (processingStatus) {
+    query = query.where('processingStatus', processingStatus)
+  }
+  if (isPrimary !== undefined) {
+    query = query.where('isPrimary', isPrimary)
+  }
+  if (activityType !== undefined) {
+    if (activityType === null) {
+      query = query.whereNull('activityType')
+    } else {
+      query = query.where('activityType', activityType)
+    }
+  }
+  if (startDate) {
+    query = query.where('activityStartTime', '>=', startDate)
+  }
+  if (endDate) {
+    query = query.where('activityStartTime', '<=', endDate)
+  }
+
+  return query
+}
+
 export const FitnessFileSQLDatabaseMixin = (
   database: Knex
 ): FitnessFileDatabase => ({
@@ -469,41 +509,15 @@ export const FitnessFileSQLDatabaseMixin = (
       .filter((item): item is FitnessFile => Boolean(item))
   },
 
-  async getFitnessFilesByActor({
-    actorId,
-    limit = 25,
-    offset = 0,
-    processingStatus,
-    isPrimary,
-    activityType,
-    startDate,
-    endDate,
-    orderDirection = 'desc',
-    afterCursor
-  }: GetFitnessFilesByActorParams) {
-    let query = database<SQLFitnessFile>('fitness_files')
-      .where('actorId', actorId)
-      .whereNull('deletedAt')
+  async getFitnessFilesByActor(params: GetFitnessFilesByActorParams) {
+    const {
+      limit = 25,
+      offset = 0,
+      orderDirection = 'desc',
+      afterCursor
+    } = params
 
-    if (processingStatus) {
-      query = query.where('processingStatus', processingStatus)
-    }
-    if (isPrimary !== undefined) {
-      query = query.where('isPrimary', isPrimary)
-    }
-    if (activityType !== undefined) {
-      if (activityType === null) {
-        query = query.whereNull('activityType')
-      } else {
-        query = query.where('activityType', activityType)
-      }
-    }
-    if (startDate) {
-      query = query.where('activityStartTime', '>=', startDate)
-    }
-    if (endDate) {
-      query = query.where('activityStartTime', '<=', endDate)
-    }
+    let query = buildFitnessFilesByActorQuery(database, params)
 
     if (afterCursor && orderDirection === 'asc') {
       // Strictly after (createdAt, id) in the sort's own order, written as a
@@ -529,37 +543,8 @@ export const FitnessFileSQLDatabaseMixin = (
     return rows.map(parseSQLFitnessFile)
   },
 
-  async countFitnessFilesByActor({
-    actorId,
-    processingStatus,
-    isPrimary,
-    activityType,
-    startDate,
-    endDate
-  }: CountFitnessFilesByActorParams) {
-    let query = database<SQLFitnessFile>('fitness_files')
-      .where('actorId', actorId)
-      .whereNull('deletedAt')
-
-    if (processingStatus) {
-      query = query.where('processingStatus', processingStatus)
-    }
-    if (isPrimary !== undefined) {
-      query = query.where('isPrimary', isPrimary)
-    }
-    if (activityType !== undefined) {
-      if (activityType === null) {
-        query = query.whereNull('activityType')
-      } else {
-        query = query.where('activityType', activityType)
-      }
-    }
-    if (startDate) {
-      query = query.where('activityStartTime', '>=', startDate)
-    }
-    if (endDate) {
-      query = query.where('activityStartTime', '<=', endDate)
-    }
+  async countFitnessFilesByActor(params: CountFitnessFilesByActorParams) {
+    const query = buildFitnessFilesByActorQuery(database, params)
 
     const [row] = await query.count<{ count: string | number }[]>({
       count: '*'
