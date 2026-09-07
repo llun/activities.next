@@ -39,13 +39,17 @@ import {
   getActorDomains,
   getActorMedia,
   getActorStatuses,
+  getAppleMapsToken,
   getBookmarks,
   getCollectionFeed,
   getCollectionTimeline,
   getFavourites,
+  getFitnessFilesByStatus,
   getFitnessGearActivities,
   getFitnessGearComponents,
   getFitnessGearList,
+  getFitnessImportBatch,
+  getFitnessProcessingState,
   getFitnessRouteHeatmap,
   getFitnessRouteHeatmapRegionNames,
   getFitnessRouteHeatmapTiles,
@@ -67,6 +71,7 @@ import {
   requestPasswordReset,
   resetPassword,
   retireFitnessGearComponent,
+  retryFitnessImportBatch,
   retryStravaArchiveImport,
   revokeCollectionMembership,
   revokeConnectedApp,
@@ -97,6 +102,7 @@ import {
   uploadMedia
 } from './client'
 import * as accountsModule from './client/accounts'
+import * as fitnessFilesModule from './client/fitnessFiles'
 import * as fitnessGearModule from './client/fitnessGear'
 import * as fitnessHeatmapsModule from './client/fitnessHeatmaps'
 import * as fitnessImportsModule from './client/fitnessImports'
@@ -168,6 +174,22 @@ describe('client facade fitness imports re-exports', () => {
     expect(cancelStravaArchiveImport).toBe(
       fitnessImportsModule.cancelStravaArchiveImport
     )
+  })
+})
+
+describe('client facade fitness files re-exports', () => {
+  it('re-exports extracted fitness file functions', () => {
+    expect(getFitnessImportBatch).toBe(fitnessFilesModule.getFitnessImportBatch)
+    expect(retryFitnessImportBatch).toBe(
+      fitnessFilesModule.retryFitnessImportBatch
+    )
+    expect(getFitnessProcessingState).toBe(
+      fitnessFilesModule.getFitnessProcessingState
+    )
+    expect(getFitnessFilesByStatus).toBe(
+      fitnessFilesModule.getFitnessFilesByStatus
+    )
+    expect(getAppleMapsToken).toBe(fitnessFilesModule.getAppleMapsToken)
   })
 })
 
