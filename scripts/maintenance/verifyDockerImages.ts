@@ -362,7 +362,7 @@ export async function verifyFullImage(imageTag: string): Promise<void> {
       throw new Error('PostgreSQL container failed to become ready in 30s')
     }
 
-    // Run query using pg in full container
+    // Run query using pg in full container with connection retries
     const pgQueryRes = runCommand(
       'docker',
       [
@@ -375,28 +375,45 @@ export async function verifyFullImage(imageTag: string): Promise<void> {
         '-e',
         `
         const { Client } = require('pg');
-        const client = new Client({
-          host: '${pgContainerName}',
-          port: 5432,
-          user: 'activities',
-          password: 'activities',
-          database: 'activities'
-        });
+        const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-        client.connect()
-          .then(() => client.query('SELECT 42 AS answer'))
-          .then(res => {
-            if (!res.rows[0] || res.rows[0].answer !== 42) {
-              console.error('FAILURE: Unexpected query result:', res.rows);
-              process.exit(1);
+        async function testConnection() {
+          const deadline = Date.now() + 30000;
+          let lastErr = null;
+
+          while (Date.now() < deadline) {
+            const client = new Client({
+              host: '${pgContainerName}',
+              port: 5432,
+              user: 'activities',
+              password: 'activities',
+              database: 'activities',
+              connectionTimeoutMillis: 2000
+            });
+
+            try {
+              await client.connect();
+              const res = await client.query('SELECT 42 AS answer');
+              if (!res.rows[0] || res.rows[0].answer !== 42) {
+                console.error('FAILURE: Unexpected query result:', res.rows);
+                await client.end();
+                process.exit(1);
+              }
+              console.log('PASS: Local PostgreSQL query succeeded with result:', res.rows[0].answer);
+              await client.end();
+              return;
+            } catch (err) {
+              lastErr = err;
+              try { await client.end(); } catch (_) {}
+              await sleep(1000);
             }
-            console.log('PASS: Local PostgreSQL query succeeded with result:', res.rows[0].answer);
-            return client.end();
-          })
-          .catch(err => {
-            console.error('FAILURE: PostgreSQL connection/query error:', err);
-            process.exit(1);
-          });
+          }
+
+          console.error('FAILURE: PostgreSQL connection/query error timed out after 30s:', lastErr);
+          process.exit(1);
+        }
+
+        testConnection();
       `
       ],
       { capture: true }
