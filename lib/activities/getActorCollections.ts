@@ -9,6 +9,9 @@ import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
 import { withSpan } from '@/lib/utils/trace'
+import { isRecord } from '@/lib/utils/typeGuards'
+
+import { applyInheritedContext } from './inheritActivityPubContext'
 
 interface Params {
   person: Actor
@@ -166,7 +169,12 @@ export const getActorCollections = async ({
             totalItems: collectionTotalItems
           }
         }
-        const page = JSON.parse(response.body) as OrderedCollectionPage
+        const rawPage = JSON.parse(response.body) as OrderedCollectionPage
+        const page = (
+          isRecord(rawPage)
+            ? applyInheritedContext(collection['@context'], rawPage)
+            : rawPage
+        ) as OrderedCollectionPage
         const pageTotalItems = parseTotalItems(page.totalItems)
         return {
           page,
