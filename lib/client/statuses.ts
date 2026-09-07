@@ -1,4 +1,5 @@
 import { Duration } from '@/lib/services/statuses/pollDurations'
+import { TimelineFormat } from '@/lib/services/timelines/const'
 import { Attachment, PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { QuoteApprovalPolicy, Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
@@ -774,4 +775,94 @@ export const retryFitnessProcessing = async (
   }
 
   return response.json()
+}
+
+export interface GetBookmarksParams {
+  limit?: number
+  maxBookmarkId?: string
+  minBookmarkId?: string
+}
+
+export interface GetBookmarksResult {
+  statuses: Status[]
+  nextMaxBookmarkId: string | null
+  prevMinBookmarkId: string | null
+}
+
+export const getBookmarks = async ({
+  limit,
+  maxBookmarkId,
+  minBookmarkId
+}: GetBookmarksParams = {}): Promise<GetBookmarksResult> => {
+  const url = new URL(`${window.origin}/api/v1/bookmarks`)
+  url.searchParams.set('format', TimelineFormat.enum.activities_next)
+  if (limit) url.searchParams.set('limit', `${limit}`)
+  if (maxBookmarkId) url.searchParams.set('max_id', maxBookmarkId)
+  if (minBookmarkId) url.searchParams.set('min_id', minBookmarkId)
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  })
+  if (response.status !== 200) {
+    return {
+      statuses: [],
+      nextMaxBookmarkId: null,
+      prevMinBookmarkId: null
+    }
+  }
+
+  const data = (await response.json()) as Partial<GetBookmarksResult>
+  return {
+    statuses: data.statuses ?? [],
+    nextMaxBookmarkId: data.nextMaxBookmarkId ?? null,
+    prevMinBookmarkId: data.prevMinBookmarkId ?? null
+  }
+}
+
+export interface GetFavouritesParams {
+  limit?: number
+  maxFavouriteId?: string
+  minFavouriteId?: string
+}
+
+export interface GetFavouritesResult {
+  statuses: Status[]
+  nextMaxFavouriteId: string | null
+  prevMinFavouriteId: string | null
+}
+
+export const getFavourites = async ({
+  limit,
+  maxFavouriteId,
+  minFavouriteId
+}: GetFavouritesParams = {}): Promise<GetFavouritesResult> => {
+  const url = new URL(`${window.origin}/api/v1/favourites`)
+  url.searchParams.set('format', TimelineFormat.enum.activities_next)
+  if (limit) url.searchParams.set('limit', `${limit}`)
+  if (maxFavouriteId) url.searchParams.set('max_id', maxFavouriteId)
+  if (minFavouriteId) url.searchParams.set('min_id', minFavouriteId)
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  })
+  if (response.status !== 200) {
+    return {
+      statuses: [],
+      nextMaxFavouriteId: null,
+      prevMinFavouriteId: null
+    }
+  }
+
+  const data = (await response.json()) as Partial<GetFavouritesResult>
+  return {
+    statuses: data.statuses ?? [],
+    nextMaxFavouriteId: data.nextMaxFavouriteId ?? null,
+    prevMinFavouriteId: data.prevMinFavouriteId ?? null
+  }
 }

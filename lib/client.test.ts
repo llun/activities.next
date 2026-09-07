@@ -34,10 +34,12 @@ import {
   deleteStravaSettings,
   follow,
   getActorDomains,
+  getActorMedia,
   getActorStatuses,
   getBookmarks,
   getCollectionFeed,
   getCollectionTimeline,
+  getFavourites,
   getFitnessGearActivities,
   getFitnessGearComponents,
   getFitnessGearList,
@@ -46,6 +48,7 @@ import {
   getFitnessRouteHeatmapTiles,
   getFitnessRouteHeatmaps,
   getFollowStatus,
+  getMutes,
   getPublicHeatmapTiles,
   getStravaSettings,
   getTrendingLinks,
@@ -59,6 +62,7 @@ import {
   resetPassword,
   retireFitnessGearComponent,
   revokeCollectionMembership,
+  revokeConnectedApp,
   saveStravaSettings,
   search,
   setDefaultActor,
@@ -83,6 +87,7 @@ import {
   uploadFileToPresignedUrl,
   uploadMedia
 } from './client'
+import * as accountsModule from './client/accounts'
 import * as fitnessGearModule from './client/fitnessGear'
 import * as fitnessHeatmapsModule from './client/fitnessHeatmaps'
 import * as httpModule from './client/http'
@@ -98,6 +103,8 @@ describe('client facade statuses re-exports', () => {
     expect(updateStatusVisibility).toBe(statusesModule.updateStatusVisibility)
     expect(createPoll).toBe(statusesModule.createPoll)
     expect(deleteStatus).toBe(statusesModule.deleteStatus)
+    expect(getBookmarks).toBe(statusesModule.getBookmarks)
+    expect(getFavourites).toBe(statusesModule.getFavourites)
   })
 })
 
@@ -110,6 +117,14 @@ describe('client facade media re-exports', () => {
       mediaModule.completeUploadPresignedUrl
     )
     expect(uploadAttachment).toBe(mediaModule.uploadAttachment)
+    expect(getActorMedia).toBe(mediaModule.getActorMedia)
+  })
+})
+
+describe('client facade accounts re-exports', () => {
+  it('re-exports extracted accounts functions', () => {
+    expect(getMutes).toBe(accountsModule.getMutes)
+    expect(revokeConnectedApp).toBe(accountsModule.revokeConnectedApp)
   })
 })
 

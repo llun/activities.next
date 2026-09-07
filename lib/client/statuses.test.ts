@@ -5,7 +5,9 @@ import {
   createNote,
   createPoll,
   deleteStatus,
+  getBookmarks,
   getDefaultQuotePolicy,
+  getFavourites,
   getStatusById,
   getStatusFavouritedBy,
   getStatusQuotes,
@@ -826,6 +828,118 @@ describe('client statuses module', () => {
       await expect(retryFitnessProcessing('status-123')).rejects.toThrow(
         'Processing retry failed'
       )
+    })
+  })
+
+  describe('getBookmarks', () => {
+    beforeEach(() => {
+      Object.defineProperty(globalThis, 'window', {
+        configurable: true,
+        value: { origin: 'https://llun.test' }
+      })
+    })
+
+    afterEach(() => {
+      Reflect.deleteProperty(globalThis, 'window')
+    })
+
+    it('fetches bookmarks with format activities_next and pagination', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          statuses: [{ id: 'status-1' }],
+          nextMaxBookmarkId: 'next-1',
+          prevMinBookmarkId: 'prev-1'
+        }),
+        { status: 200 }
+      )
+
+      const res = await getBookmarks({
+        limit: 10,
+        maxBookmarkId: 'max-1',
+        minBookmarkId: 'min-1'
+      })
+
+      expect(res).toEqual({
+        statuses: [{ id: 'status-1' }],
+        nextMaxBookmarkId: 'next-1',
+        prevMinBookmarkId: 'prev-1'
+      })
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining(
+          '/api/v1/bookmarks?format=activities_next&limit=10&max_id=max-1&min_id=min-1'
+        ),
+        expect.objectContaining({
+          method: 'GET',
+          headers: { Accept: 'application/json' }
+        })
+      )
+    })
+
+    it('returns empty result when status is not 200', async () => {
+      fetchMock.mockResponseOnce('', { status: 500 })
+
+      const res = await getBookmarks()
+      expect(res).toEqual({
+        statuses: [],
+        nextMaxBookmarkId: null,
+        prevMinBookmarkId: null
+      })
+    })
+  })
+
+  describe('getFavourites', () => {
+    beforeEach(() => {
+      Object.defineProperty(globalThis, 'window', {
+        configurable: true,
+        value: { origin: 'https://llun.test' }
+      })
+    })
+
+    afterEach(() => {
+      Reflect.deleteProperty(globalThis, 'window')
+    })
+
+    it('fetches favourites with format activities_next and pagination', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          statuses: [{ id: 'status-fav' }],
+          nextMaxFavouriteId: 'next-f',
+          prevMinFavouriteId: 'prev-f'
+        }),
+        { status: 200 }
+      )
+
+      const res = await getFavourites({
+        limit: 15,
+        maxFavouriteId: 'max-f',
+        minFavouriteId: 'min-f'
+      })
+
+      expect(res).toEqual({
+        statuses: [{ id: 'status-fav' }],
+        nextMaxFavouriteId: 'next-f',
+        prevMinFavouriteId: 'prev-f'
+      })
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining(
+          '/api/v1/favourites?format=activities_next&limit=15&max_id=max-f&min_id=min-f'
+        ),
+        expect.objectContaining({
+          method: 'GET',
+          headers: { Accept: 'application/json' }
+        })
+      )
+    })
+
+    it('returns empty result when status is not 200', async () => {
+      fetchMock.mockResponseOnce('', { status: 500 })
+
+      const res = await getFavourites()
+      expect(res).toEqual({
+        statuses: [],
+        nextMaxFavouriteId: null,
+        prevMinFavouriteId: null
+      })
     })
   })
 })

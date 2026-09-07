@@ -1,6 +1,10 @@
 import type { PresignedUrlOutput } from '@/lib/services/medias/types'
-import type { UploadedAttachment } from '@/lib/types/domain/attachment'
+import type {
+  Attachment,
+  UploadedAttachment
+} from '@/lib/types/domain/attachment'
 import { getMediaWidthAndHeight } from '@/lib/utils/getMediaWidthAndHeight'
+import { toIdPathSegment } from '@/lib/utils/urlToId'
 import { waitFor } from '@/lib/utils/waitFor'
 
 export interface UploadMediaParams {
@@ -229,4 +233,33 @@ export const uploadAttachment = async (
   }
 
   return completion.completed
+}
+
+export interface GetActorMediaParams {
+  actorId: string
+  maxCreatedAt?: number
+  limit?: number
+}
+
+export const getActorMedia = async ({
+  actorId,
+  maxCreatedAt,
+  limit = 25
+}: GetActorMediaParams): Promise<Attachment[]> => {
+  const encodedId = toIdPathSegment(actorId)
+  const url = new URL(`${window.origin}/api/v1/accounts/${encodedId}/media`)
+  if (maxCreatedAt) {
+    url.searchParams.append('max_created_at', `${maxCreatedAt}`)
+  }
+  if (limit) {
+    url.searchParams.append('limit', `${limit}`)
+  }
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  })
+  if (response.status !== 200) return []
+  return response.json()
 }

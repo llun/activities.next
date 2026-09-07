@@ -502,6 +502,69 @@ export const unmute = async ({
   return (await response.json()) as MastodonRelationship
 }
 
+export interface GetMutesParams {
+  limit?: number
+  maxId?: string
+  minId?: string
+}
+
+export interface GetMutesResult {
+  accounts: MastodonAccount[]
+  nextMaxId: string | null
+  prevMinId: string | null
+}
+
+export const getMutes = async ({
+  limit,
+  maxId,
+  minId
+}: GetMutesParams = {}): Promise<GetMutesResult> => {
+  const url = new URL(`${window.origin}/api/v1/mutes`)
+  if (limit) url.searchParams.set('limit', `${limit}`)
+  if (maxId) url.searchParams.set('max_id', maxId)
+  if (minId) url.searchParams.set('min_id', minId)
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  })
+  if (response.status !== 200) {
+    return { accounts: [], nextMaxId: null, prevMinId: null }
+  }
+
+  const linkHeader = response.headers.get('Link')
+  return {
+    accounts: (await response.json()) as MastodonAccount[],
+    nextMaxId: getCursorFromLinkHeader(linkHeader, 'next'),
+    prevMinId: getCursorFromLinkHeader(linkHeader, 'prev')
+  }
+}
+
+export interface RevokeConnectedAppParams {
+  clientId: string
+  actorId: string | null
+}
+
+// Revoke a connected app / SSO sign-in grant for the given actor.
+export const revokeConnectedApp = async ({
+  clientId,
+  actorId
+}: RevokeConnectedAppParams): Promise<boolean> => {
+  const query = actorId ? `?actorId=${encodeURIComponent(actorId)}` : ''
+  const response = await fetch(
+    `/api/v1/accounts/connected-apps/${encodeURIComponent(clientId)}${query}`,
+    {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }
+  )
+  return response.ok
+}
+
 export interface GetActorStatusesParams {
   actorId: string
   pageUrl?: string | null
