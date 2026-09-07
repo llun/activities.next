@@ -6,6 +6,10 @@ import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { getActorStatuses } from '@/lib/client'
 import { Posts } from '@/lib/components/posts/posts'
+import {
+  removeOriginalStatus,
+  updateMatchingStatus
+} from '@/lib/components/posts/statusArray'
 import { Button } from '@/lib/components/ui/button'
 import {
   Tabs,
@@ -76,30 +80,6 @@ const isReply = (status: Status) => {
 
 const hasFitnessFile = (status: Status) =>
   status.type === StatusType.enum.Note && Boolean(status.fitness)
-
-// Apply an interactive-state patch (like/bookmark toggle) to the status with
-// the given id, reaching inside a boost to patch its original status too, so
-// every rendered copy (Posts/Replies/Fitness tabs share `currentStatuses`)
-// stays consistent across tab switches and remounts.
-const updateMatchingStatus = (
-  statuses: Status[],
-  targetId: string,
-  patch: (target: StatusNote | StatusPoll) => StatusNote | StatusPoll
-): Status[] =>
-  statuses.map((item) => {
-    if (item.type === StatusType.enum.Announce) {
-      const original = item.originalStatus
-      // Boosts wrap a Note/Poll; nested boosts aren't an interactive target.
-      if (
-        original.type !== StatusType.enum.Announce &&
-        original.id === targetId
-      ) {
-        return { ...item, originalStatus: patch(original) }
-      }
-      return item
-    }
-    return item.id === targetId ? patch(item) : item
-  })
 
 const appendUniqueStatuses = (
   previousStatuses: Status[],
@@ -256,14 +236,7 @@ export const ActorTimelines: FC<Props> = ({
 
   const handlePostDeleted = useCallback((status: Status) => {
     setCurrentStatuses((previousStatuses) =>
-      previousStatuses.filter(
-        (item) =>
-          item.id !== status.id &&
-          !(
-            item.type === StatusType.enum.Announce &&
-            item.originalStatus.id === status.id
-          )
-      )
+      removeOriginalStatus(previousStatuses, status.id)
     )
   }, [])
 
