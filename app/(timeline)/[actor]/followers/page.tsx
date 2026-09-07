@@ -103,14 +103,13 @@ const Page: FC<Props> = async ({ params }) => {
     limit: 100
   })
 
-  const followers = (
-    await Promise.all(
-      follows.map((follow: Follow) =>
-        database.getActorFromId({ id: follow.actorId })
-      )
-    )
-  )
-    .filter((item): item is Actor => !!item)
+  const rawActors = await database.getActorsFromIds({
+    ids: follows.map((follow: Follow) => follow.actorId)
+  })
+  const actorById = new Map(rawActors.map((actor) => [actor.id, actor]))
+  const followers = follows
+    .map((follow) => actorById.get(follow.actorId))
+    .filter((item): item is Actor => Boolean(item))
     .map((actor) => ActorProfile.parse(actor))
   const blockedActorIds = await getFollowListBlockedActorIds(
     database,
