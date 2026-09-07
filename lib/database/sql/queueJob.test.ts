@@ -412,13 +412,8 @@ describe('QueueJobDatabase', () => {
       expect(initialDlq?.errorMessage).toBe('First failure')
       expect(initialDlq?.attempts).toBe(1)
 
-      // Re-enqueue with the same ID and claim again
-      await database.createQueueJob({
-        id: 'fail-dlq-dup-1',
-        name: 'deliverActivity',
-        payload: samplePayload,
-        status: 'pending'
-      })
+      // Replay the failed job with explicit replay and claim again
+      await database.replayQueueJob({ id: 'fail-dlq-dup-1' })
 
       const claim2 = await database.claimQueueJob({ id: 'fail-dlq-dup-1' })
       expect(claim2).not.toBeNull()
@@ -607,39 +602,205 @@ describe('QueueJobDatabase', () => {
     expect(notFound).toBeNull()
   })
 
-  it('re-enqueues or upserts an existing job on duplicate id without primary key collision', async () => {
-    // Create a job that eventually failed
-    await database.createQueueJob({
-      id: 'retry-upsert-1',
+  it('preserves payload, attempts, schedule, state, and claim token on duplicate enqueue across all states', async () => {
+    // 1. Pending state
+    const originalPending = await database.createQueueJob({
+      id: 'dup-pending-1',
       name: 'deliverActivity',
-      payload: samplePayload,
-      attempts: 16,
-      status: 'failed',
-      lastErrorMessage: 'Original terminal failure'
+      payload: {
+        id: 'dup-pending-1',
+        name: 'deliverActivity',
+        data: { version: 1 }
+      },
+      attempts: 2,
+      maxRetries: 10,
+      nextRunAt: new Date(Date.now() + 50000),
+      status: 'pending'
     })
 
-    const failedJob = await database.getQueueJobById('retry-upsert-1')
-    expect(failedJob?.status).toBe('failed')
-    expect(failedJob?.attempts).toBe(16)
+    const duplicatePending = await database.createQueueJob({
+      id: 'dup-pending-1',
+      name: 'deliverActivityOverwritten',
+      payload: {
+        id: 'dup-pending-1',
+        name: 'deliverActivityOverwritten',
+        data: { version: 2 }
+      },
+      attempts: 0,
+      maxRetries: 5,
+      nextRunAt: new Date(Date.now() + 100000),
+      status: 'failed'
+    })
 
-    // Re-enqueue with the same ID (e.g. from DLQ retry)
-    const reEnqueued = await database.createQueueJob({
-      id: 'retry-upsert-1',
+    expect(duplicatePending.payload).toEqual(originalPending.payload)
+    expect(duplicatePending.attempts).toBe(originalPending.attempts)
+    expect(duplicatePending.maxRetries).toBe(originalPending.maxRetries)
+    expect(duplicatePending.nextRunAt).toBe(originalPending.nextRunAt)
+    expect(duplicatePending.status).toBe('pending')
+
+    // 2. Processing state (with claimToken)
+    await database.createQueueJob({
+      id: 'dup-processing-1',
       name: 'deliverActivity',
-      payload: samplePayload,
+      payload: samplePayload
+    })
+    const claimed = await database.claimQueueJob({ id: 'dup-processing-1' })
+    expect(claimed).not.toBeNull()
+    expect(claimed?.claimToken).toBeDefined()
+
+    const duplicateProcessing = await database.createQueueJob({
+      id: 'dup-processing-1',
+      name: 'deliverActivityOverwritten',
+      payload: { ...samplePayload, data: { overwritten: true } },
       attempts: 0,
       status: 'pending'
     })
 
-    expect(reEnqueued.id).toBe('retry-upsert-1')
-    expect(reEnqueued.status).toBe('pending')
-    expect(reEnqueued.attempts).toBe(0)
-    expect(reEnqueued.claimToken).toBeNull()
+    expect(duplicateProcessing.status).toBe('processing')
+    expect(duplicateProcessing.claimToken).toBe(claimed?.claimToken)
+    expect(duplicateProcessing.payload).toEqual(samplePayload)
 
-    const fetched = await database.getQueueJobById('retry-upsert-1')
-    expect(fetched?.status).toBe('pending')
-    expect(fetched?.attempts).toBe(0)
-    expect(fetched?.claimToken).toBeNull()
+    // 3. Completed state
+    await database.completeQueueJob({
+      id: 'dup-processing-1',
+      claimToken: claimed!.claimToken
+    })
+    const duplicateCompleted = await database.createQueueJob({
+      id: 'dup-processing-1',
+      name: 'deliverActivityOverwritten',
+      payload: { ...samplePayload, data: { overwritten: true } },
+      status: 'pending'
+    })
+    expect(duplicateCompleted.status).toBe('completed')
+    expect(duplicateCompleted.claimToken).toBeNull()
+
+    // 4. Failed state
+    await database.createQueueJob({
+      id: 'dup-failed-1',
+      name: 'deliverActivity',
+      payload: samplePayload
+    })
+    const claimedFailed = await database.claimQueueJob({ id: 'dup-failed-1' })
+    await database.failQueueJob({
+      id: 'dup-failed-1',
+      claimToken: claimedFailed!.claimToken,
+      attempts: 16,
+      error: new Error('Original terminal failure')
+    })
+    const duplicateFailed = await database.createQueueJob({
+      id: 'dup-failed-1',
+      name: 'deliverActivityOverwritten',
+      payload: { ...samplePayload, data: { overwritten: true } },
+      attempts: 0,
+      status: 'pending'
+    })
+    expect(duplicateFailed.status).toBe('failed')
+    expect(duplicateFailed.attempts).toBe(16)
+    expect(duplicateFailed.lastErrorMessage).toBe('Original terminal failure')
+  })
+
+  it('explicitly replays failed database jobs transactionally, resetting attempts, errors, and claim ownership', async () => {
+    const jobPayload: JobMessage = {
+      id: 'replay-test-1',
+      name: 'deliverActivity',
+      data: { replay: true }
+    }
+
+    await database.createQueueJob({
+      id: 'replay-test-1',
+      name: 'deliverActivity',
+      payload: jobPayload
+    })
+    const claimed = await database.claimQueueJob({ id: 'replay-test-1' })
+    expect(claimed).not.toBeNull()
+
+    await database.failQueueJobWithDeadLetter({
+      id: 'replay-test-1',
+      claimToken: claimed!.claimToken,
+      attempts: 16,
+      error: new Error('Terminal crash')
+    })
+
+    const failedJob = await database.getQueueJobById('replay-test-1')
+    expect(failedJob?.status).toBe('failed')
+    expect(failedJob?.attempts).toBe(16)
+    expect(failedJob?.lastErrorMessage).toBe('Terminal crash')
+
+    const dlqJob = await knexDatabase('dead_letter_jobs')
+      .where({ id: 'replay-test-1' })
+      .first()
+    expect(dlqJob?.status).toBe('failed')
+
+    // Replay job
+    const success = await database.replayQueueJob({ id: 'replay-test-1' })
+    expect(success).toBe(true)
+
+    const replayedJob = await database.getQueueJobById('replay-test-1')
+    expect(replayedJob?.status).toBe('pending')
+    expect(replayedJob?.attempts).toBe(0)
+    expect(replayedJob?.claimToken).toBeNull()
+    expect(replayedJob?.lastErrorMessage).toBeNull()
+    expect(replayedJob?.lastErrorStack).toBeNull()
+
+    const replayedDlq = await knexDatabase('dead_letter_jobs')
+      .where({ id: 'replay-test-1' })
+      .first()
+    expect(replayedDlq?.status).toBe('retried')
+  })
+
+  it('rolls back DLQ status update if queue job replay fails', async () => {
+    // Insert a dead letter job without a corresponding queue_jobs row
+    await knexDatabase('dead_letter_jobs').insert({
+      id: 'missing-queue-job-1',
+      job_name: 'deliverActivity',
+      payload: JSON.stringify(samplePayload),
+      error_message: 'Some error',
+      attempts: 16,
+      status: 'failed',
+      created_at: new Date(),
+      updated_at: new Date()
+    })
+
+    const success = await database.replayQueueJob({ id: 'missing-queue-job-1' })
+    expect(success).toBe(false)
+
+    // Verify DLQ status was NOT changed to retried because transaction rolled back
+    const dlqRecord = await knexDatabase('dead_letter_jobs')
+      .where({ id: 'missing-queue-job-1' })
+      .first()
+    expect(dlqRecord?.status).toBe('failed')
+  })
+
+  it('handles concurrent replay safely so only one replay commits', async () => {
+    await database.createQueueJob({
+      id: 'concurrent-replay-1',
+      name: 'deliverActivity',
+      payload: samplePayload
+    })
+    const claimed = await database.claimQueueJob({ id: 'concurrent-replay-1' })
+    await database.failQueueJobWithDeadLetter({
+      id: 'concurrent-replay-1',
+      claimToken: claimed!.claimToken,
+      attempts: 16,
+      error: new Error('Fail once')
+    })
+
+    const results = await Promise.all([
+      database.replayQueueJob({ id: 'concurrent-replay-1' }),
+      database.replayQueueJob({ id: 'concurrent-replay-1' })
+    ])
+
+    expect(results.filter(Boolean)).toHaveLength(1)
+    expect(results.filter((r) => !r)).toHaveLength(1)
+
+    const job = await database.getQueueJobById('concurrent-replay-1')
+    expect(job?.status).toBe('pending')
+    expect(job?.attempts).toBe(0)
+
+    const dlqRecord = await knexDatabase('dead_letter_jobs')
+      .where({ id: 'concurrent-replay-1' })
+      .first()
+    expect(dlqRecord?.status).toBe('retried')
   })
 
   it('recovers stalled processing jobs when stalledTimeoutMs is passed', async () => {

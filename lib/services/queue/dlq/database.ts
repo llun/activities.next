@@ -1,6 +1,10 @@
 import { getDatabase } from '@/lib/database'
+import { Database } from '@/lib/database/types'
 import { getQueue } from '@/lib/services/queue'
+import { DatabaseQueue } from '@/lib/services/queue/database'
+import { Queue } from '@/lib/services/queue/type'
 import { logger } from '@/lib/utils/logger'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import {
   DLQActionResult,
@@ -13,12 +17,24 @@ import {
 export class DatabaseDLQProvider implements DLQProvider {
   readonly type = 'database' as const
 
+  private database?: Database
+  private queue?: Queue
+
+  constructor(database?: Database, queue?: Queue) {
+    this.database = database
+    this.queue = queue
+  }
+
   private getDatabase() {
-    const database = getDatabase()
+    const database = this.database ?? getDatabase()
     if (!database) {
       throw new Error('Database is not initialized')
     }
     return database
+  }
+
+  private getQueue(): Queue {
+    return this.queue ?? getQueue()
   }
 
   async getJobs(params?: GetDLQJobsParams): Promise<GetDLQJobsResult> {
@@ -63,6 +79,20 @@ export class DatabaseDLQProvider implements DLQProvider {
 
   async retryJob(id: string): Promise<DLQActionResult> {
     const database = this.getDatabase()
+    const queue = this.getQueue()
+
+    if (queue instanceof DatabaseQueue) {
+      const success = await database.replayQueueJob({ id })
+      if (!success) {
+        logger.warn(
+          { id },
+          'Cannot replay dead letter job: not found in database or not failed'
+        )
+        return { success: false, error: 'Job not found' }
+      }
+      return { success: true }
+    }
+
     const job = await database.getDeadLetterJobById(id)
     if (!job) {
       logger.warn({ id }, 'Cannot retry dead letter job: not found in database')
@@ -70,12 +100,12 @@ export class DatabaseDLQProvider implements DLQProvider {
     }
 
     try {
-      await getQueue().publish(job.payload)
+      await queue.publish(job.payload)
       await database.updateDeadLetterJobStatus(id, 'retried')
       return { success: true }
     } catch (error) {
       logger.error({
-        err: error,
+        err: toLoggableError(error),
         id,
         message: 'Failed to re-dispatch dead letter job'
       })
@@ -91,12 +121,23 @@ export class DatabaseDLQProvider implements DLQProvider {
 
   async retryAll(): Promise<DLQActionResult> {
     const database = this.getDatabase()
+    const queue = this.getQueue()
     const failedJobs = await database.getDeadLetterJobs({
       status: 'failed',
       limit: 1000
     })
 
-    const queue = getQueue()
+    if (queue instanceof DatabaseQueue) {
+      let retriedCount = 0
+      for (const job of failedJobs) {
+        const success = await database.replayQueueJob({ id: job.id })
+        if (success) {
+          retriedCount++
+        }
+      }
+      return { success: true, count: retriedCount }
+    }
+
     let retriedCount = 0
     for (const job of failedJobs) {
       try {
@@ -105,7 +146,7 @@ export class DatabaseDLQProvider implements DLQProvider {
         retriedCount++
       } catch (error) {
         logger.error({
-          err: error,
+          err: toLoggableError(error),
           jobId: job.id,
           message: 'Failed to retry dead letter job in batch'
         })
@@ -129,9 +170,20 @@ export class DatabaseDLQProvider implements DLQProvider {
 
   async retryJobs(ids: string[]): Promise<DLQActionResult> {
     const database = this.getDatabase()
-    const queue = getQueue()
-    let retriedCount = 0
+    const queue = this.getQueue()
 
+    if (queue instanceof DatabaseQueue) {
+      let retriedCount = 0
+      for (const id of ids) {
+        const success = await database.replayQueueJob({ id })
+        if (success) {
+          retriedCount++
+        }
+      }
+      return { success: true, count: retriedCount }
+    }
+
+    let retriedCount = 0
     for (const id of ids) {
       const job = await database.getDeadLetterJobById(id)
       if (!job) continue
@@ -142,7 +194,7 @@ export class DatabaseDLQProvider implements DLQProvider {
         retriedCount++
       } catch (error) {
         logger.error({
-          err: error,
+          err: toLoggableError(error),
           jobId: id,
           message: 'Failed to retry dead letter job'
         })
