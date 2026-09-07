@@ -5,6 +5,8 @@ import { logger } from '@/lib/utils/logger'
 import { ERROR_401, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
+import { parseAccountMediaPagination } from './pagination'
+
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
@@ -25,15 +27,7 @@ export const GET = traceApiRoute(
       })
     }
 
-    // Parse pagination parameters from URL with defaults and validation
-    const url = new URL(req.url)
-    const pageParam = url.searchParams.get('page')
-    const limitParam = url.searchParams.get('limit')
-
-    const page = Math.max(1, Math.min(10000, parseInt(pageParam || '1', 10)))
-    const limit = [25, 50, 100].includes(parseInt(limitParam || '25', 10))
-      ? parseInt(limitParam || '25', 10)
-      : 25
+    const { page, limit } = parseAccountMediaPagination(req.url)
 
     // Get storage usage
     const used = await database.getStorageUsageForAccount({
@@ -77,13 +71,7 @@ export const GET = traceApiRoute(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { currentActor } = context as any
       const account = currentActor?.account
-      const url = new URL(req.url)
-      const pageParam = url.searchParams.get('page')
-      const limitParam = url.searchParams.get('limit')
-      const page = Math.max(1, Math.min(10000, parseInt(pageParam || '1', 10)))
-      const limit = [25, 50, 100].includes(parseInt(limitParam || '25', 10))
-        ? parseInt(limitParam || '25', 10)
-        : 25
+      const { page, limit } = parseAccountMediaPagination(req.url)
 
       const attributes: Record<string, string | number | boolean> = {
         page,
