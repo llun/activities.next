@@ -39,10 +39,8 @@ import {
   getImageOutputFormatDetail
 } from '@/lib/services/medias/imageOutputFormat'
 import { getMediaFileUrl } from '@/lib/services/medias/mediaFileUrl'
-import {
-  checkQuotaAvailable,
-  getUploadQuotaReservation
-} from '@/lib/services/medias/quota'
+import { checkQuotaAvailable } from '@/lib/services/medias/quota'
+import { saveMediaFile } from '@/lib/services/medias/saveMediaFile'
 import { readValidThumbnail } from '@/lib/services/medias/thumbnailInput'
 import {
   ImageRenditionOutput,
@@ -465,99 +463,24 @@ export class S3FileStorage implements MediaStorage {
   }
 
   async saveFile(actor: Actor, media: MediaSchema) {
-    const { file } = media
     const currentTime = Date.now()
-    if (!file.type.startsWith('image') && !file.type.startsWith('video')) {
-      return null
-    }
-    // Read and validate the thumbnail before anything is uploaded, so unusable
-    // bytes cannot leave a stored original behind.
-    const thumbnailBuffer = media.thumbnail
-      ? await readValidThumbnail(media.thumbnail)
-      : null
-
-    // Check quota before saving; see `getUploadQuotaReservation` for why the
-    // thumbnail's share of it is an estimate.
-    const quotaCheck = await checkQuotaAvailable(
-      this._database,
+    return saveMediaFile({
+      database: this._database,
+      host: this._host,
       actor,
-      getUploadQuotaReservation(media)
-    )
-    if (!quotaCheck.available) {
-      throw new MediaValidationError(
-        `Storage quota exceeded. Used: ${quotaCheck.used} bytes, Limit: ${quotaCheck.limit} bytes`
-      )
-    }
-
-    const { path, metaData, previewImage, blurhash, focus } =
-      file.type.startsWith('video')
-        ? await this._uploadVideoToS3(currentTime, file, {
-            manualFocus: media.focus
-          })
-        : await this._uploadImageToS3(currentTime, file, {
-            manualFocus: media.focus
-          })
-    // Same precedence as the local driver: a caller-supplied thumbnail wins, and
-    // a video otherwise falls back to the frame extracted from it. `previewImage`
-    // is null for an image upload — a video whose frame cannot be decoded
-    // rejects rather than resolving null.
-    const thumbnailSource = thumbnailBuffer ?? previewImage
-    let thumbnail
-    try {
-      thumbnail = thumbnailSource
-        ? await this._uploadImageBufferToS3(currentTime, thumbnailSource, {
+      media,
+      driver: {
+        saveVideoFile: (file, options) =>
+          this._uploadVideoToS3(currentTime, file, options),
+        saveImageFile: (file, options) =>
+          this._uploadImageToS3(currentTime, file, options),
+        saveThumbnailBuffer: (buffer) =>
+          this._uploadImageBufferToS3(currentTime, buffer, {
             isThumbnail: true
-          })
-        : null
-    } catch (error) {
-      // The thumbnail's bytes were validated above, so this is a storage fault
-      // of ours: keep the error — it has to stay a logged 500, not a 422 the
-      // client will not retry — but put the original back first.
-      await this._reclaimStored(path)
-      throw error
-    }
-
-    let storedMedia
-    try {
-      storedMedia = await this._database.createMedia({
-        actorId: actor.id,
-        original: {
-          path,
-          bytes: file.size,
-          mimeType: file.type,
-          metaData: {
-            width: metaData.width ?? 0,
-            height: metaData.height ?? 0
-          },
-          fileName: sanitizeStoredFileName(file.name)
-        },
-        ...(thumbnail
-          ? {
-              // Use the resized image's actual size/dimensions (outputInfo).
-              thumbnail: {
-                path: thumbnail.path,
-                bytes: thumbnail.outputInfo.size,
-                mimeType: thumbnail.contentType,
-                metaData: {
-                  width: thumbnail.outputInfo.width,
-                  height: thumbnail.outputInfo.height
-                }
-              }
-            }
-          : null),
-        ...(media.description ? { description: media.description } : null),
-        ...(focus ? { focus } : null),
-        ...(blurhash ? { blurhash } : null)
-      })
-    } catch (error) {
-      await this._reclaimStored(path, thumbnail?.path)
-      throw error
-    }
-    if (!storedMedia) {
-      await this._reclaimStored(path, thumbnail?.path)
-      throw new Error('Fail to store media')
-    }
-    return this._getSaveFileOutput(storedMedia)
+          }),
+        deleteFile: (filePath) => this.deleteFile(filePath)
+      }
+    })
   }
 
   async saveThumbnail(
@@ -637,16 +560,6 @@ export class S3FileStorage implements MediaStorage {
         height: outputInfo.height
       }
     }
-  }
-
-  // A stored path is reachable only through its `medias` row, so anything that
-  // fails before that row exists has to take the files back out.
-  private async _reclaimStored(originalPath: string, thumbnailPath?: string) {
-    await Promise.all(
-      [originalPath, thumbnailPath]
-        .filter((stored) => stored !== undefined)
-        .map((stored) => this.deleteFile(stored).catch(() => false))
-    )
   }
 
   private async _uploadImageToS3(
