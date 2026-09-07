@@ -1029,6 +1029,40 @@ describe('FitnessStatusDetail', () => {
       )
     })
 
+    it('renders a flat series without dividing by zero and scrubs accurately', async () => {
+      mockGetFitnessRouteData.mockResolvedValue({
+        ...routeData,
+        altitudeSeries: [50, 50, 50, 50]
+      })
+
+      const panel = await openAnalysis()
+      expect(within(panel).getByText(/^Scale 50 m - 50 m$/)).toBeInTheDocument()
+
+      const [elevationPath] = Array.from(panel.querySelectorAll('path'))
+      const pathData = elevationPath.getAttribute('d') ?? ''
+      expect(pathData).not.toContain('NaN')
+      expect(pathData).not.toContain('Infinity')
+
+      hoverChart(panel, 200)
+      expect(screen.getAllByTestId('chart-hover-value')[0]).toHaveTextContent(
+        /^50m$/
+      )
+    })
+
+    it('renders a single-point series without error', async () => {
+      mockGetFitnessRouteData.mockResolvedValue({
+        ...routeData,
+        altitudeSeries: [42]
+      })
+
+      const panel = await openAnalysis()
+      expect(within(panel).getByText(/^Scale 42 m - 42 m$/)).toBeInTheDocument()
+
+      const [elevationPath] = Array.from(panel.querySelectorAll('path'))
+      const pathData = elevationPath.getAttribute('d') ?? ''
+      expect(pathData).toBe('M 0.00 250.00')
+    })
+
     it('scrubs on touch as well as on hover', async () => {
       const panel = await openAnalysis()
       const [elevationChart] = Array.from(panel.querySelectorAll('svg'))

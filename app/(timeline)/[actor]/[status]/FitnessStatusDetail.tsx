@@ -92,7 +92,6 @@ import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 import {
-  formatFitnessDuration,
   getFitnessPaceOrSpeed,
   getFitnessSourceLabel,
   normalizeFitnessSourceUrl
@@ -109,60 +108,29 @@ import {
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import { processStatusText } from '@/lib/utils/text/processStatusText'
 
-const clampNumber = (value: number, min: number, max: number) => {
-  return Math.max(min, Math.min(max, value))
-}
-
-// How densely a chart series is plotted, as samples-per-drawn-point.
-//
-// The series used to be flattened to a fixed 120 points, which is what made
-// every graph on this page read as a smoothed cartoon of the activity beside
-// the same ride on Strava: a 1h44 recording arrives as 6,123 one-second
-// samples, so each of those 120 bins averaged ~51 seconds — roughly 370 m of a
-// 44 km ride — and every short climb, descent and sprint inside a bin was
-// averaged flat.
-//
-// 8 is Strava's own ratio, read off two of its activity Analysis pages rather
-// than guessed: it ships the whole stream to the browser and draws exactly one
-// point per 8 of them (5,913 samples -> 740 drawn; 5,272 -> 659). A fixed point
-// COUNT would not reproduce that — it is a density, so a longer recording gets
-// proportionally more points rather than being squeezed into the same budget.
-const ANALYSIS_SAMPLES_PER_POINT = 8
-// Floors and ceilings on that ratio. The floor keeps a short activity at least
-// as detailed as it was before this change (a 10-minute 1 Hz recording is 600
-// samples, which Strava's ratio alone would draw as 75 points); the ceiling
-// bounds the path strings — memoized, so a hover never rebuilds them — for a
-// recording long enough that the ratio would otherwise run away.
-const ANALYSIS_SERIES_MIN_POINTS = 120
-const ANALYSIS_SERIES_MAX_POINTS = 1_200
-
-const downsampleSeries = (series: number[], targetCount: number) => {
-  if (series.length <= targetCount) return series
-  const ratio = series.length / targetCount
-  const result: number[] = []
-  for (let i = 0; i < targetCount; i++) {
-    const start = Math.floor(i * ratio)
-    const end = Math.floor((i + 1) * ratio)
-    const chunk = series.slice(start, end)
-    const sum = chunk.reduce((a, b) => a + b, 0)
-    result.push(sum / chunk.length)
-  }
-  return result
-}
-
-// Reduce one raw series to the point count Strava would draw it at. An empty
-// series stays empty — a chart with no data is not rendered at all.
-const plotAtStravaDensity = (series: number[]) => {
-  if (series.length === 0) return []
-  return downsampleSeries(
-    series,
-    clampNumber(
-      Math.round(series.length / ANALYSIS_SAMPLES_PER_POINT),
-      ANALYSIS_SERIES_MIN_POINTS,
-      ANALYSIS_SERIES_MAX_POINTS
-    )
-  )
-}
+import {
+  GRAPH_VIEW_HEIGHT,
+  type HeartRateZone,
+  OVERVIEW_TICK_COUNT,
+  buildChartAreaPath,
+  buildChartPath,
+  buildXAxisLabels,
+  clampNumber,
+  computeChartHighlight,
+  computeCombinedChartHighlights,
+  computeHeartRateStats,
+  computeHeartRateZones,
+  computeHighlightedIndex,
+  computePowerHistogramMinutes,
+  fillHeartRateDropouts,
+  filterPositiveHeartRateSeries,
+  formatChartValue,
+  formatDuration,
+  getSeriesMinMax,
+  plotAtStravaDensity,
+  scaleCombinedChartSeries,
+  shouldFlipChartReadout
+} from './fitnessChartData'
 
 interface Props {
   host: string
@@ -329,15 +297,6 @@ const ANALYSIS_GRAPH_STYLES: Record<
   }
 }
 
-// `toFixed` keeps the sign of a value that rounds to zero, so an elevation bin
-// straddling sea level reads "-0 m". Round first, then add zero — `-0 + 0` is
-// `+0` — so a chart can only ever show a plain "0". EVERY number a chart prints
-// goes through this, not just the hover readout: the scale labels are derived
-// from the same downsampled bins, so fixing one and not the others left a chart
-// reading "Scale -0 m - 55 m" beside a readout saying "0 m".
-const formatChartValue = (value: number, fractionDigits: number) =>
-  (Number(value.toFixed(fractionDigits)) + 0).toFixed(fractionDigits)
-
 const VISIBILITY_META: Record<
   MastodonVisibility,
   { label: string; icon: LucideIcon }
@@ -347,74 +306,6 @@ const VISIBILITY_META: Record<
   private: { label: 'Followers only', icon: Lock },
   direct: { label: 'Direct', icon: Mail }
 }
-
-interface HeartRateZoneDefinition {
-  name: string
-  label: string
-  lo: number
-  hi: number | null
-  color: string
-}
-
-// Fixed heart-rate zone boundaries (bpm), mirroring the design system's
-// five-zone model. Real activity files carry a heart-rate sample series but no
-// personalised zones, so we bucket the samples against these shared cut-offs.
-const HEART_RATE_ZONES: HeartRateZoneDefinition[] = [
-  { name: 'Z1', label: 'Recovery', lo: 0, hi: 122, color: 'hsl(205 45% 62%)' },
-  {
-    name: 'Z2',
-    label: 'Endurance',
-    lo: 122,
-    hi: 142,
-    color: 'hsl(142 60% 45%)'
-  },
-  { name: 'Z3', label: 'Tempo', lo: 142, hi: 158, color: 'hsl(45 92% 50%)' },
-  {
-    name: 'Z4',
-    label: 'Threshold',
-    lo: 158,
-    hi: 172,
-    color: 'hsl(24 95% 50%)'
-  },
-  { name: 'Z5', label: 'Anaerobic', lo: 172, hi: null, color: 'hsl(2 78% 55%)' }
-]
-
-interface HeartRateZone extends HeartRateZoneDefinition {
-  seconds: number
-  // Rounded percentage for display; rawPct (unrounded) drives bar widths so
-  // the stacked segments don't under/overflow from rounding.
-  pct: number
-  rawPct: number
-}
-
-const computeHeartRateZones = (
-  series: number[],
-  durationSeconds: number
-): HeartRateZone[] => {
-  const counts = HEART_RATE_ZONES.map(() => 0)
-  for (const bpm of series) {
-    // Heart-rate monitors report 0 (or negative) bpm during sensor dropouts;
-    // skip those so they don't inflate the Z1 (Recovery) bucket.
-    if (bpm <= 0) continue
-    const index = HEART_RATE_ZONES.findIndex(
-      (zone) => bpm >= zone.lo && (zone.hi === null || bpm < zone.hi)
-    )
-    if (index >= 0) counts[index] += 1
-  }
-  const totalSamples = counts.reduce((sum, value) => sum + value, 0)
-  return HEART_RATE_ZONES.map((zone, index) => {
-    const fraction = totalSamples > 0 ? counts[index] / totalSamples : 0
-    return {
-      ...zone,
-      pct: Math.round(fraction * 100),
-      rawPct: fraction * 100,
-      seconds: Math.round(fraction * durationSeconds)
-    }
-  })
-}
-
-const formatDuration = (durationSeconds?: number) =>
-  formatFitnessDuration(durationSeconds, { fallback: '0:00' }) ?? '0:00'
 
 const formatUtcDate = (timestamp: number, pattern: string) => {
   return format(new UTCDate(timestamp), pattern)
@@ -467,7 +358,6 @@ const getActivityLabel = (activityType?: string) => {
   return `${activityType[0].toUpperCase()}${activityType.slice(1)}`
 }
 
-const GRAPH_VIEW_HEIGHT = 250
 const GRAPH_HEIGHT_CLASSNAME = 'h-[190px] lg:h-[250px]'
 const MAP_ROUTE_SOURCE_ID = 'activity-route'
 const MAP_ROUTE_HIDDEN_HIT_LAYER_ID = 'activity-route-line-hidden-hit'
@@ -522,53 +412,12 @@ const normalizeRouteSegments = ({
   return []
 }
 
-// The one projection from (sample index, sample value) to plot coordinates.
-// `buildChartPath` draws the line with it and the hover crosshair places the
-// dot and the readout with it, and those two have to agree to the pixel or the
-// dot floats off the line it is supposed to sit on. That used to be two copies
-// of the same arithmetic kept in step by hand, which was survivable while both
-// lived in the same SVG — the dot is now an HTML element positioned from these
-// same numbers as a percentage, so the agreement now spans two rendering
-// systems. Change the scale here and everything follows.
-const getChartXPosition = (index: number, count: number, width: number) => {
-  return (index / Math.max(1, count - 1)) * width
-}
-
-const getChartYPosition = (
-  value: number,
-  height: number,
-  minValue: number,
-  maxValue: number
-) => {
-  const range = Math.max(1, maxValue - minValue)
-  return height - ((value - minValue) / range) * height
-}
-
 const clampLongitude = (value: number) => {
   return clampNumber(value, -180, 180)
 }
 
 const clampLatitude = (value: number) => {
   return clampNumber(value, -85, 85)
-}
-
-const getSeriesMinMax = (values: number[]) => {
-  if (values.length === 0) {
-    return { minValue: 0, maxValue: 0 }
-  }
-
-  let minValue = values[0]
-  let maxValue = values[0]
-
-  for (let index = 1; index < values.length; index += 1) {
-    if (values[index] < minValue) {
-      minValue = values[index]
-    } else if (values[index] > maxValue) {
-      maxValue = values[index]
-    }
-  }
-
-  return { minValue, maxValue }
 }
 
 const getRouteBoundsCoordinates = (samples: FitnessRouteSample[]) => {
@@ -591,41 +440,6 @@ const getRouteBoundsCoordinates = (samples: FitnessRouteSample[]) => {
     south,
     north
   }
-}
-
-const buildChartPath = (
-  values: number[],
-  width: number,
-  height: number,
-  minValue?: number,
-  maxValue?: number
-) => {
-  if (values.length === 0) return ''
-
-  const defaultMinMax = getSeriesMinMax(values)
-  const min = typeof minValue === 'number' ? minValue : defaultMinMax.minValue
-  const max = typeof maxValue === 'number' ? maxValue : defaultMinMax.maxValue
-
-  return values
-    .map((value, index) => {
-      const x = getChartXPosition(index, values.length, width)
-      const y = getChartYPosition(value, height, min, max)
-      return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`
-    })
-    .join(' ')
-}
-
-// Ticks are evenly spaced over the duration, so the sample count has no say in
-// them — it used to be the first parameter and was never read, which made the
-// labels look series-dependent when they are not.
-const buildXAxisLabels = (durationSeconds: number, tickCount = 6) => {
-  const labels: string[] = []
-  for (let i = 0; i < tickCount; i++) {
-    const ratio = i / (tickCount - 1)
-    const seconds = Math.round(ratio * durationSeconds)
-    labels.push(formatDuration(seconds))
-  }
-  return labels
 }
 
 interface ChartScrubOptions {
@@ -668,29 +482,21 @@ const useChartScrub = ({
   // `isHighlighted` boolean: a boolean beside them narrows nothing, so every
   // consumer had to re-assert that x, y and value were numbers before it could
   // pass them anywhere typed.
-  const highlightedIndex =
-    canScrub && typeof highlightedElapsedSeconds === 'number'
-      ? clampNumber(
-          Math.round(
-            (highlightedElapsedSeconds / durationSeconds) * (values.length - 1)
-          ),
-          0,
-          values.length - 1
-        )
-      : null
-  const highlight =
-    highlightedIndex === null
-      ? null
-      : {
-          value: values[highlightedIndex],
-          x: getChartXPosition(highlightedIndex, values.length, width),
-          y: getChartYPosition(
-            values[highlightedIndex],
-            height,
-            minValue,
-            maxValue
-          )
-        }
+  const highlightedIndex = canScrub
+    ? computeHighlightedIndex(
+        highlightedElapsedSeconds,
+        durationSeconds,
+        values.length
+      )
+    : null
+  const highlight = computeChartHighlight(
+    values,
+    highlightedIndex,
+    width,
+    height,
+    minValue,
+    maxValue
+  )
 
   // One scrub for pointer and touch alike: both report a viewport x, and the
   // instant it lands on is the same either way.
@@ -791,7 +597,7 @@ const ChartHoverMarker: FC<{
   // is also smaller ("1234 m" is ~67px against that 77px), so the right edge
   // lands at 0.62 x 212 + 12 + 67 = 210px — inside the 212px plot, before
   // touching the card's 20px padding. Re-derive BOTH if this moves.
-  const shouldFlipReadout = x / width > 0.62
+  const shouldFlipReadout = shouldFlipChartReadout(x, width)
 
   return (
     <>
@@ -1045,8 +851,8 @@ const ElevationProfileChart: FC<{
     [values, height, minValue, maxValue]
   )
   const area = useMemo(
-    () => `${line} L ${width.toFixed(2)} ${height} L 0 ${height} Z`,
-    [line, height]
+    () => buildChartAreaPath(line, width, height),
+    [line, height, width]
   )
   // Four ticks, not the helper's default six. This card is narrower than the
   // Analysis panel (a `p-5` Card inside the same column, so 212px of content at
@@ -1065,7 +871,10 @@ const ElevationProfileChart: FC<{
   // at six ticks, a still-comfortable 157px at four. Pinned by a test, since
   // the failure is silent — nothing errors, the labels just merge.
   const xLabels = useMemo(
-    () => (durationSeconds ? buildXAxisLabels(durationSeconds, 4) : null),
+    () =>
+      durationSeconds
+        ? buildXAxisLabels(durationSeconds, OVERVIEW_TICK_COUNT)
+        : null,
     [durationSeconds]
   )
   const scrub = useChartScrub({
@@ -1379,16 +1188,7 @@ const CombinedChartPanel: FC<{
   // run to Strava's density (up to 1,200 points each) and must not rebuild on a
   // pointer move.
   const plotted = useMemo(
-    () =>
-      series.map((entry) => {
-        const { minValue, maxValue } = getSeriesMinMax(entry.values)
-        return {
-          ...entry,
-          minValue,
-          maxValue,
-          path: buildChartPath(entry.values, width, height, minValue, maxValue)
-        }
-      }),
+    () => scaleCombinedChartSeries(series, width, height),
     [series]
   )
 
@@ -1422,32 +1222,10 @@ const CombinedChartPanel: FC<{
   // The crosshair marks the shared time; each dot sits on its own line, at that
   // series' own sample for the instant.
   const crosshairX = ratio === null ? null : ratio * width
-  const highlights =
-    ratio === null
-      ? []
-      : plotted
-          .map((entry) => {
-            if (entry.values.length === 0) return null
-            const index = clampNumber(
-              Math.round(ratio * (entry.values.length - 1)),
-              0,
-              entry.values.length - 1
-            )
-            return {
-              key: entry.key,
-              unit: entry.unit,
-              fractionDigits: entry.fractionDigits,
-              value: entry.values[index],
-              x: getChartXPosition(index, entry.values.length, width),
-              y: getChartYPosition(
-                entry.values[index],
-                height,
-                entry.minValue,
-                entry.maxValue
-              )
-            }
-          })
-          .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+  const highlights = useMemo(
+    () => computeCombinedChartHighlights(plotted, ratio, width, height),
+    [plotted, ratio]
+  )
 
   const xLabels = useMemo(
     () => (durationSeconds ? buildXAxisLabels(durationSeconds) : null),
@@ -1456,7 +1234,8 @@ const CombinedChartPanel: FC<{
 
   // Flip the readout to the left of the crosshair near the right edge, on the
   // same fraction the single-series `ChartHoverMarker` uses so both charts agree.
-  const shouldFlipReadout = crosshairX !== null && crosshairX / width > 0.62
+  const shouldFlipReadout =
+    crosshairX !== null && shouldFlipChartReadout(crosshairX, width)
 
   return (
     <div className="bg-background p-4">
@@ -2686,7 +2465,7 @@ export const FitnessStatusDetail: FC<Props> = ({
   // the avg/max and the zone buckets, which are order-free tallies (unlike
   // power, 0 bpm is never a real reading). Mirrors computeHeartRateZones.
   const positiveHeartRateSeries = useMemo(
-    () => heartRateSeries.filter((bpm) => bpm > 0),
+    () => filterPositiveHeartRateSeries(heartRateSeries),
     [heartRateSeries]
   )
 
@@ -2698,26 +2477,15 @@ export const FitnessStatusDetail: FC<Props> = ({
   // beside it correctly on 15:00 and nothing on screen to say so. Hold the last
   // good reading across a gap instead (back-filling a leading one), which keeps
   // the length and still keeps 0 bpm off the plot.
-  const heartRateChartSeries = useMemo(() => {
-    const firstReading = heartRateSeries.find((bpm) => bpm > 0)
-    if (firstReading === undefined) return []
+  const heartRateChartSeries = useMemo(
+    () => fillHeartRateDropouts(heartRateSeries),
+    [heartRateSeries]
+  )
 
-    let lastReading = firstReading
-    return heartRateSeries.map((bpm) => {
-      if (bpm > 0) lastReading = bpm
-      return lastReading
-    })
-  }, [heartRateSeries])
-
-  const heartRateStats = useMemo(() => {
-    if (positiveHeartRateSeries.length === 0) return null
-    const { maxValue } = getSeriesMinMax(positiveHeartRateSeries)
-    const avg = Math.round(
-      positiveHeartRateSeries.reduce((a, b) => a + b, 0) /
-        positiveHeartRateSeries.length
-    )
-    return { avg, max: Math.round(maxValue) }
-  }, [positiveHeartRateSeries])
+  const heartRateStats = useMemo(
+    () => computeHeartRateStats(positiveHeartRateSeries),
+    [positiveHeartRateSeries]
+  )
 
   const heartRateZones = useMemo(
     () => computeHeartRateZones(positiveHeartRateSeries, durationSeconds),
@@ -2846,28 +2614,10 @@ export const FitnessStatusDetail: FC<Props> = ({
     [visibleAnalysisCharts]
   )
 
-  const histogramMinutes = useMemo(() => {
-    if (powerSeries.length === 0) return []
-
-    // Use the stack-safe helper rather than spreading a long series into
-    // Math.max, which can overflow the call stack on large arrays.
-    const computedMaxPower = Math.max(
-      getSeriesMinMax(powerSeries).maxValue,
-      100
-    )
-    const bucketCount = Math.ceil((computedMaxPower + 25) / 25)
-
-    const buckets = new Array(bucketCount).fill(0)
-    // Actual power data represents samples (usually 1 per second)
-    for (const p of powerSeries) {
-      const bucketIndex = Math.floor(p / 25)
-      if (bucketIndex >= 0 && bucketIndex < bucketCount) {
-        buckets[bucketIndex] += 1
-      }
-    }
-    // Convert samples (seconds) to minutes
-    return buckets.map((seconds) => seconds / 60)
-  }, [powerSeries])
+  const histogramMinutes = useMemo(
+    () => computePowerHistogramMinutes(powerSeries),
+    [powerSeries]
+  )
 
   const histogramLayout = useMemo(() => {
     const histogramViewHeight = GRAPH_VIEW_HEIGHT
