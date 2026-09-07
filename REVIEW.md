@@ -1209,6 +1209,6 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
 - Branch protection on `main` requires four status checks: `All Tests`,
   `Lint and Prettier`, `Build`, and `CI Success`.
 - `CI Success` is required and fail-closed over lint (`Lint and Prettier`),
-  typecheck (`Type Check`), build (`Build`), tests (`All Tests`), and schema dump
-  checks (`SQLite Schema Dump Sync` and `PostgreSQL Schema Dump Sync`). A failure in any upstream check blocks merging via
-  `CI Success`.
+  typecheck (`Type Check`), build (`Build`), tests (`All Tests`), PostgreSQL database tests
+  (`PostgreSQL Database Tests`), and schema dump checks (`SQLite Schema Dump Sync` and `PostgreSQL Schema Dump Sync`).
+  A failure in any upstream check blocks merging via `CI Success`.
