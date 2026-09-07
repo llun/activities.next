@@ -2,10 +2,10 @@
 
 import { FC, useState } from 'react'
 
+import { requestPasswordReset } from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
-import { parseFetchResponseData } from '@/lib/utils/parseFetchResponseData'
 
 export const RequestPasswordResetForm: FC = () => {
   const [email, setEmail] = useState('')
@@ -15,35 +15,26 @@ export const RequestPasswordResetForm: FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isLoading) {
+      return
+    }
+
     setError('')
     setMessage('')
     setIsLoading(true)
 
     try {
-      const response = await fetch('/api/v1/accounts/password/reset/request', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ email })
-      })
-      const data = await parseFetchResponseData(response)
-      const responseError =
-        typeof data.error === 'string'
-          ? data.error
-          : 'Failed to request password reset'
-      const responseMessage =
-        typeof data.message === 'string'
-          ? data.message
-          : 'If an account exists for that email, a password reset link has been sent.'
-      if (!response.ok) {
-        setError(responseError)
-        return
-      }
-
-      setMessage(responseMessage)
-    } catch (_error) {
-      setError('An unexpected error occurred. Please try again.')
+      const data = await requestPasswordReset({ email })
+      setMessage(
+        data.message ||
+          'If an account exists for that email, a password reset link has been sent.'
+      )
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'An unexpected error occurred. Please try again.'
+      )
     } finally {
       setIsLoading(false)
     }
