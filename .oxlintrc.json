@@ -233,9 +233,7 @@
           {
             "allowFiles": [
               "app/(timeline)/fitness/strava/StravaSettingsForm.tsx",
-              "app/(nosidebar)/oauth/authorize/AuthorizeCard.tsx",
-              "app/(nosidebar)/auth/forgot-password/RequestPasswordResetForm.tsx",
-              "app/(nosidebar)/auth/reset-password/ResetPasswordForm.tsx"
+              "app/(nosidebar)/oauth/authorize/AuthorizeCard.tsx"
             ]
           }
         ]

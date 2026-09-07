@@ -3,10 +3,10 @@
 import Link from 'next/link'
 import { FC, useState } from 'react'
 
+import { resetPassword } from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
-import { parseFetchResponseData } from '@/lib/utils/parseFetchResponseData'
 
 type Props = {
   initialCode?: string
@@ -23,6 +23,10 @@ export const ResetPasswordForm: FC<Props> = ({ initialCode }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isLoading || isSuccess) {
+      return
+    }
+
     setError('')
     setMessage('')
 
@@ -44,33 +48,18 @@ export const ResetPasswordForm: FC<Props> = ({ initialCode }) => {
     setIsLoading(true)
 
     try {
-      const response = await fetch('/api/v1/accounts/password/reset', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ code, newPassword })
-      })
-
-      const data = await parseFetchResponseData(response)
-      const responseError =
-        typeof data.error === 'string' ? data.error : 'Failed to reset password'
-      const responseMessage =
-        typeof data.message === 'string'
-          ? data.message
-          : 'Password reset successfully'
-
-      if (!response.ok) {
-        setError(responseError)
-        return
-      }
+      const data = await resetPassword({ code, newPassword })
 
       setIsSuccess(true)
-      setMessage(responseMessage)
+      setMessage(data.message || 'Password reset successfully')
       setNewPassword('')
       setConfirmPassword('')
-    } catch (_error) {
-      setError('An unexpected error occurred. Please try again.')
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'An unexpected error occurred. Please try again.'
+      )
     } finally {
       setIsLoading(false)
     }

@@ -5192,3 +5192,41 @@ export const changeAccountPassword = async ({
   }
   return response.json()
 }
+
+export const requestPasswordReset = async ({
+  email
+}: {
+  email: string
+}): Promise<{ success: boolean; message: string }> => {
+  const response = await fetch('/api/v1/accounts/password/reset/request', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ email })
+  })
+  if (!response.ok) {
+    await throwApiError(response, 'Failed to request password reset')
+  }
+  return response.json()
+}
+
+export const resetPassword = async ({
+  code,
+  newPassword
+}: {
+  code: string
+  newPassword: string
+}): Promise<{ success: boolean; message: string }> => {
+  const response = await fetch('/api/v1/accounts/password/reset', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ code, newPassword })
+  })
+  if (!response.ok) {
+    await throwApiError(response, 'Failed to reset password')
+  }
+  return response.json()
+}

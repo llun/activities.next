@@ -40,6 +40,8 @@ import {
   likeStatus,
   removeCollectionAccounts,
   requestEmailChange,
+  requestPasswordReset,
+  resetPassword,
   revokeCollectionMembership,
   search,
   setDefaultActor,
@@ -2137,6 +2139,132 @@ describe('client actor management helpers', () => {
           newPassword: 'new-password'
         })
       ).rejects.toThrow('Network timeout')
+    })
+  })
+
+  describe('requestPasswordReset', () => {
+    it('requests password reset with email payload', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          success: true,
+          message:
+            'If an account exists for that email, a password reset link has been sent.'
+        }),
+        { status: 200 }
+      )
+
+      const result = await requestPasswordReset({
+        email: 'test@example.com'
+      })
+
+      expect(result).toEqual({
+        success: true,
+        message:
+          'If an account exists for that email, a password reset link has been sent.'
+      })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/accounts/password/reset/request',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: 'test@example.com' })
+        })
+      )
+    })
+
+    it('decodes API error message on failure', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ error: 'Bad Request' }), {
+        status: 400
+      })
+
+      await expect(
+        requestPasswordReset({ email: 'invalid-email' })
+      ).rejects.toThrow('Bad Request')
+    })
+
+    it('falls back to default error message on non-JSON failure', async () => {
+      fetchMock.mockResponseOnce('Server Error', { status: 500 })
+
+      await expect(
+        requestPasswordReset({ email: 'test@example.com' })
+      ).rejects.toThrow('Failed to request password reset')
+    })
+
+    it('propagates network failure', async () => {
+      fetchMock.mockRejectOnce(new Error('Network connection failed'))
+
+      await expect(
+        requestPasswordReset({ email: 'test@example.com' })
+      ).rejects.toThrow('Network connection failed')
+    })
+  })
+
+  describe('resetPassword', () => {
+    it('resets password with code and newPassword payload', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          success: true,
+          message: 'Password reset successfully'
+        }),
+        { status: 200 }
+      )
+
+      const result = await resetPassword({
+        code: 'valid-reset-code',
+        newPassword: 'new-password-123'
+      })
+
+      expect(result).toEqual({
+        success: true,
+        message: 'Password reset successfully'
+      })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/accounts/password/reset',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: 'valid-reset-code',
+            newPassword: 'new-password-123'
+          })
+        })
+      )
+    })
+
+    it('decodes API error when reset code is invalid or expired', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({ error: 'Invalid or expired reset code' }),
+        { status: 400 }
+      )
+
+      await expect(
+        resetPassword({
+          code: 'expired-code',
+          newPassword: 'new-password-123'
+        })
+      ).rejects.toThrow('Invalid or expired reset code')
+    })
+
+    it('falls back to default error on non-JSON failure', async () => {
+      fetchMock.mockResponseOnce('Internal Server Error', { status: 500 })
+
+      await expect(
+        resetPassword({
+          code: 'any-code',
+          newPassword: 'new-password-123'
+        })
+      ).rejects.toThrow('Failed to reset password')
+    })
+
+    it('propagates network failure', async () => {
+      fetchMock.mockRejectOnce(new Error('Network offline'))
+
+      await expect(
+        resetPassword({
+          code: 'any-code',
+          newPassword: 'new-password-123'
+        })
+      ).rejects.toThrow('Network offline')
     })
   })
 })
