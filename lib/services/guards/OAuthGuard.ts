@@ -4,7 +4,6 @@ import { NextRequest } from 'next/server'
 
 import { getBaseURL } from '@/lib/config'
 import { getDatabase, getKnex } from '@/lib/database'
-import { isAccountConfirmationPending } from '@/lib/services/auth/canCreateSessionForAccount'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { oauthLogger } from '@/lib/services/oauth/logging'
 import { Scope } from '@/lib/types/database/operations'
@@ -22,6 +21,10 @@ import {
 } from '@/lib/utils/response'
 import { selectAccountActor } from '@/lib/utils/selectAccountActor'
 
+import {
+  isActorConfirmationPending,
+  isActorModerationBlocked
+} from './accountState'
 import {
   annotateAuthAnonymous,
   annotateAuthRejection,
@@ -94,31 +97,11 @@ export const isBearerAuthorizationHeader = (
 ): boolean =>
   authorizationHeader?.trim().split(/\s+/, 1)[0]?.toLowerCase() === 'bearer'
 
-// A suspended actor, or an actor whose owning account is disabled, is blocked
-// from every authenticated API surface (bearer and cookie). Silence is NOT
-// checked here — silenced actors keep full API access; their statuses are only
-// hidden from public timelines. Reads columns already present on the loaded
-// domain Actor, so this adds no query to the hot auth path.
-export const isActorModerationBlocked = (actor: Actor): boolean =>
-  Boolean(actor.suspendedAt) || Boolean(actor.account?.disabledAt)
-
-// An account whose confirmation e-mail has not been clicked yet may not act
-// through a credential, which is the same answer Mastodon's `require_user!`
-// gives ("Your login is missing a confirmed e-mail address", 403) before any
-// API call runs. It matters because `POST /api/v1/accounts` hands out a real
-// user access token the moment an account is registered: without this, an
-// anonymous party holding only an app token can mint fully usable accounts for
-// addresses nobody has proven they control.
-//
-// Reads a column already present on the loaded domain Actor, so this adds no
-// query to the hot auth path. An actor with no account is left alone — the same
-// direction `isActorModerationBlocked` fails in, and the only accountless local
-// actor is the federation signing actor, which never authenticates.
-export const isActorConfirmationPending = (actor: Actor): boolean => {
-  const { account } = actor
-  if (!account) return false
-  return isAccountConfirmationPending(account)
-}
+export {
+  isAccountConfirmationPending,
+  isActorConfirmationPending,
+  isActorModerationBlocked
+} from './accountState'
 
 type ScopeMatchMode = 'all' | 'any'
 

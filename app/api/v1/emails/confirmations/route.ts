@@ -11,11 +11,11 @@ import { z } from 'zod'
 
 import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import { sendConfirmationEmail } from '@/lib/services/accounts/sendConfirmationEmail'
-import { isAccountConfirmationPending } from '@/lib/services/auth/canCreateSessionForAccount'
 import {
   OAuthGuardAnyScope,
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
+import { isAccountConfirmationPending } from '@/lib/services/guards/accountState'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { Scope } from '@/lib/types/database/operations'
 import { getRequestBody } from '@/lib/utils/getRequestBody'

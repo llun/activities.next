@@ -8,7 +8,7 @@ import { apiErrorResponse } from '@/lib/utils/response'
 import {
   isActorConfirmationPending,
   isActorModerationBlocked
-} from './OAuthGuard'
+} from './accountState'
 import { getRedirectUrl } from './getRedirectUrl'
 import { hasSameOriginProof } from './sameOriginProof'
 import { AppRouterParams, AuthenticatedApiHandle } from './types'

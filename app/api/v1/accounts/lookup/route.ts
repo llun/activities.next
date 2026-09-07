@@ -12,10 +12,12 @@ import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import {
   OptionalOAuthGuard,
   corsErrorResponse,
-  isActorConfirmationPending,
-  isActorModerationBlocked,
   isBearerAuthorizationHeader
 } from '@/lib/services/guards/OAuthGuard'
+import {
+  isActorConfirmationPending,
+  isActorModerationBlocked
+} from '@/lib/services/guards/accountState'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { Scope } from '@/lib/types/database/operations'
 import { parseAccountUrlHandle } from '@/lib/utils/accountHandle'
