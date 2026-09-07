@@ -1,0 +1,19 @@
+lib/actions/deleteStatus.ts
+  s_5b26a7eb03aae6::t_4ae8dfb7b8bb2b 1,5-6,42-79,89,94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "03d2cee1791d707fe15489e4b8e943f4a714b00d",
+  "prompts": {},
+  "sessions": {
+    "s_5b26a7eb03aae6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07bce-f22c-7dd0-b732-df163c63a832",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
