@@ -27,7 +27,9 @@ interface Params {
 }
 
 const BodySchema = z.object({
-  quote_approval_policy: QuoteApprovalPolicy
+  quote_approval_policy: QuoteApprovalPolicy,
+  operation_id: z.string().optional(),
+  operationId: z.string().optional()
 })
 
 // PUT /api/v1/statuses/:id/interaction_policy — the author sets who may quote
@@ -69,6 +71,7 @@ export const PUT = traceApiRoute(
         statusId,
         currentActor,
         quoteApprovalPolicy: parsed.quote_approval_policy,
+        operationId: parsed.operation_id ?? parsed.operationId,
         database
       })
       // null = not found, not owned, or not a Note/Poll — author-only.

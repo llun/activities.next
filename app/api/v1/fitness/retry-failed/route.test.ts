@@ -235,4 +235,76 @@ describe('POST /api/v1/fitness/retry-failed', () => {
     expect(json.batches).toBe(1)
     expect(json.failedBatches).toBe(1)
   })
+
+  it('generates distinct job ids on successive retry-all calls', async () => {
+    db.getRetriableFitnessImportBatchIds.mockResolvedValue([
+      'strava-activity:100'
+    ])
+    db.getFitnessFilesByBatchId.mockResolvedValue([
+      fitnessFile({
+        id: 'f100',
+        importBatchId: 'strava-activity:100',
+        importStatus: 'failed'
+      })
+    ] as never)
+
+    const publish = getQueue().publish as jest.Mock
+    publish.mockResolvedValue(undefined)
+
+    await POST(buildRequest(), routeContext)
+    const firstJobId = publish.mock.calls[0][0].id
+
+    publish.mockClear()
+    await POST(buildRequest(), routeContext)
+    const secondJobId = publish.mock.calls[0][0].id
+
+    expect(secondJobId).not.toBe(firstJobId)
+  })
+
+  it('preserves job id on redelivery of the same generationId or generation_id', async () => {
+    db.getRetriableFitnessImportBatchIds.mockResolvedValue([
+      'strava-activity:100'
+    ])
+    db.getFitnessFilesByBatchId.mockResolvedValue([
+      fitnessFile({
+        id: 'f100',
+        importBatchId: 'strava-activity:100',
+        importStatus: 'failed'
+      })
+    ] as never)
+
+    const publish = getQueue().publish as jest.Mock
+    publish.mockResolvedValue(undefined)
+
+    const req1 = new NextRequest(
+      'https://llun.test/api/v1/fitness/retry-failed',
+      {
+        method: 'POST',
+        headers: {
+          Origin: 'https://llun.test',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ generation_id: 'retry-all-fixed-id' })
+      }
+    )
+    await POST(req1, routeContext)
+    const firstJobId = publish.mock.calls[0][0].id
+
+    publish.mockClear()
+    const req2 = new NextRequest(
+      'https://llun.test/api/v1/fitness/retry-failed',
+      {
+        method: 'POST',
+        headers: {
+          Origin: 'https://llun.test',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ generation_id: 'retry-all-fixed-id' })
+      }
+    )
+    await POST(req2, routeContext)
+    const secondJobId = publish.mock.calls[0][0].id
+
+    expect(secondJobId).toBe(firstJobId)
+  })
 })

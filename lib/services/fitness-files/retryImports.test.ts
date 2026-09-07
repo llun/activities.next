@@ -270,4 +270,102 @@ describe('retryFitnessImportBatch', () => {
       'x'
     )
   })
+
+  it('gives the same job id on redelivery of the same generation', async () => {
+    const database = makeDatabase()
+    const generationId = 'gen-123'
+
+    await retryFitnessImportBatch({
+      database,
+      batchId: 'manual-batch',
+      batchActorId: 'actor-1',
+      files: [file({ id: 'failed', importStatus: 'failed' })],
+      visibility: 'private',
+      generationId,
+      now: NOW
+    })
+    const firstJobId = (getQueue().publish as jest.Mock).mock.calls[0][0].id
+
+    vi.clearAllMocks()
+    await retryFitnessImportBatch({
+      database,
+      batchId: 'manual-batch',
+      batchActorId: 'actor-1',
+      files: [file({ id: 'failed', importStatus: 'failed' })],
+      visibility: 'private',
+      generationId,
+      now: NOW
+    })
+    const secondJobId = (getQueue().publish as jest.Mock).mock.calls[0][0].id
+
+    expect(secondJobId).toBe(firstJobId)
+  })
+
+  it('gives different job ids for two successive retries of the same batch', async () => {
+    const database = makeDatabase()
+
+    await retryFitnessImportBatch({
+      database,
+      batchId: 'manual-batch',
+      batchActorId: 'actor-1',
+      files: [file({ id: 'failed', importStatus: 'failed' })],
+      visibility: 'private',
+      now: NOW
+    })
+    const firstJobId = (getQueue().publish as jest.Mock).mock.calls[0][0].id
+
+    vi.clearAllMocks()
+    await retryFitnessImportBatch({
+      database,
+      batchId: 'manual-batch',
+      batchActorId: 'actor-1',
+      files: [file({ id: 'failed', importStatus: 'failed' })],
+      visibility: 'private',
+      now: NOW
+    })
+    const secondJobId = (getQueue().publish as jest.Mock).mock.calls[0][0].id
+
+    expect(secondJobId).not.toBe(firstJobId)
+  })
+
+  it('gives different job ids for two successive retries of a Strava batch while redelivery stays stable', async () => {
+    const database = makeDatabase()
+    const generationId = 'strava-gen-fixed'
+
+    await retryFitnessImportBatch({
+      database,
+      batchId: 'strava-activity:999',
+      batchActorId: 'actor-1',
+      files: [file({ id: 'failed', importStatus: 'failed' })],
+      visibility: 'private',
+      generationId,
+      now: NOW
+    })
+    const fixedJobId1 = (getQueue().publish as jest.Mock).mock.calls[0][0].id
+
+    vi.clearAllMocks()
+    await retryFitnessImportBatch({
+      database,
+      batchId: 'strava-activity:999',
+      batchActorId: 'actor-1',
+      files: [file({ id: 'failed', importStatus: 'failed' })],
+      visibility: 'private',
+      generationId,
+      now: NOW
+    })
+    const fixedJobId2 = (getQueue().publish as jest.Mock).mock.calls[0][0].id
+    expect(fixedJobId2).toBe(fixedJobId1)
+
+    vi.clearAllMocks()
+    await retryFitnessImportBatch({
+      database,
+      batchId: 'strava-activity:999',
+      batchActorId: 'actor-1',
+      files: [file({ id: 'failed', importStatus: 'failed' })],
+      visibility: 'private',
+      now: NOW
+    })
+    const freshJobId = (getQueue().publish as jest.Mock).mock.calls[0][0].id
+    expect(freshJobId).not.toBe(fixedJobId1)
+  })
 })

@@ -904,4 +904,133 @@ describe('fitness import batch route', () => {
       'failed'
     )
   })
+
+  it('preserves job id on redelivery of the same generationId', async () => {
+    db.getFitnessFilesByBatchId.mockResolvedValue([
+      {
+        id: 'file-1',
+        actorId: 'https://llun.test/users/llun',
+        fileName: 'failed.fit',
+        fileType: 'fit',
+        path: 'fitness/failed.fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1024,
+        importStatus: 'failed',
+        processingStatus: 'failed',
+        createdAt: 1,
+        updatedAt: 1
+      }
+    ])
+
+    const request1 = {
+      headers: new Headers(),
+      json: async () => ({ visibility: 'private', generationId: 'test-gen-1' })
+    } as unknown as Parameters<typeof POST>[0]
+
+    await POST(request1, {
+      params: Promise.resolve({ batchId: 'batch-1' })
+    })
+    const firstJobId = getQueue().publish.mock.calls[0][0].id
+
+    getQueue().publish.mockClear()
+    const request2 = {
+      headers: new Headers(),
+      json: async () => ({ visibility: 'private', generationId: 'test-gen-1' })
+    } as unknown as Parameters<typeof POST>[0]
+
+    await POST(request2, {
+      params: Promise.resolve({ batchId: 'batch-1' })
+    })
+    const secondJobId = getQueue().publish.mock.calls[0][0].id
+
+    expect(secondJobId).toBe(firstJobId)
+  })
+
+  it('preserves job id on redelivery of the same generation_id (snake_case)', async () => {
+    db.getFitnessFilesByBatchId.mockResolvedValue([
+      {
+        id: 'file-1',
+        actorId: 'https://llun.test/users/llun',
+        fileName: 'failed.fit',
+        fileType: 'fit',
+        path: 'fitness/failed.fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1024,
+        importStatus: 'failed',
+        processingStatus: 'failed',
+        createdAt: 1,
+        updatedAt: 1
+      }
+    ])
+
+    const request1 = {
+      headers: new Headers(),
+      json: async () => ({
+        visibility: 'private',
+        generation_id: 'test-gen-snake'
+      })
+    } as unknown as Parameters<typeof POST>[0]
+
+    await POST(request1, {
+      params: Promise.resolve({ batchId: 'batch-1' })
+    })
+    const firstJobId = getQueue().publish.mock.calls[0][0].id
+
+    getQueue().publish.mockClear()
+    const request2 = {
+      headers: new Headers(),
+      json: async () => ({
+        visibility: 'private',
+        generation_id: 'test-gen-snake'
+      })
+    } as unknown as Parameters<typeof POST>[0]
+
+    await POST(request2, {
+      params: Promise.resolve({ batchId: 'batch-1' })
+    })
+    const secondJobId = getQueue().publish.mock.calls[0][0].id
+
+    expect(secondJobId).toBe(firstJobId)
+  })
+
+  it('generates distinct job ids on successive retry invocations without explicit generationId', async () => {
+    db.getFitnessFilesByBatchId.mockResolvedValue([
+      {
+        id: 'file-1',
+        actorId: 'https://llun.test/users/llun',
+        fileName: 'failed.fit',
+        fileType: 'fit',
+        path: 'fitness/failed.fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 1024,
+        importStatus: 'failed',
+        processingStatus: 'failed',
+        createdAt: 1,
+        updatedAt: 1
+      }
+    ])
+
+    const request1 = {
+      headers: new Headers(),
+      json: async () => ({ visibility: 'private' })
+    } as unknown as Parameters<typeof POST>[0]
+
+    await POST(request1, {
+      params: Promise.resolve({ batchId: 'batch-1' })
+    })
+    const firstJobId = getQueue().publish.mock.calls[0][0].id
+
+    getQueue().publish.mockClear()
+    const request2 = {
+      headers: new Headers(),
+      json: async () => ({ visibility: 'private' })
+    } as unknown as Parameters<typeof POST>[0]
+
+    await POST(request2, {
+      params: Promise.resolve({ batchId: 'batch-1' })
+    })
+    const secondJobId = getQueue().publish.mock.calls[0][0].id
+
+    expect(secondJobId).not.toBe(firstJobId)
+  })
 })
