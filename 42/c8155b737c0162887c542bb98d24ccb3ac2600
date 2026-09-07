@@ -1,0 +1,16 @@
+lib/jobs/index.test.ts
+  h_580a04e334fef4 1-20
+lib/jobs/index.ts
+  h_580a04e334fef4 87-203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "42c8155b737c0162887c542bb98d24ccb3ac2600",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
