@@ -1,0 +1,18 @@
+app/api/v1/accounts/email/verify/route.test.ts
+  h_580a04e334fef4 42-43
+app/api/v1/accounts/lookup/route.test.ts
+  h_580a04e334fef4 4-5,7-9,551
+app/api/v1/accounts/navigation-preferences/route.test.ts
+  h_580a04e334fef4 42-52,85-89,93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "9d568d94d9cf36c48115661ade66d943fd1296b5",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
