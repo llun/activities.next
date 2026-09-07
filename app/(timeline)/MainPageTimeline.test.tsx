@@ -41,11 +41,19 @@ vi.mock('@/lib/components/posts/posts', () => ({
   Posts: ({
     statuses,
     currentTime,
-    onPostDeleted
+    onPostDeleted,
+    onPostUpdated,
+    onLikeChanged,
+    onBookmarkChanged,
+    onReactionsChanged
   }: {
     statuses: Status[]
     currentTime: number
     onPostDeleted?: (status: Status) => void
+    onPostUpdated?: (status: Status) => void
+    onLikeChanged?: (status: StatusNote, isLiked: boolean) => void
+    onBookmarkChanged?: (status: StatusNote, isBookmarked: boolean) => void
+    onReactionsChanged?: (status: StatusNote, reactions: any[]) => void
   }) => (
     <div>
       <div data-testid="posts-current-time">{currentTime}</div>
@@ -82,13 +90,27 @@ vi.mock('@/lib/components/posts/posts', () => ({
         delete unknown
       </button>
       {statuses.map((status) => {
-        const target =
+        const target = (
           status.type === StatusType.enum.Announce
             ? status.originalStatus
             : status
+        ) as StatusNote
         return (
           <div key={status.id} data-testid={`post-${status.id}`}>
             <span data-testid={`post-id-${status.id}`}>{status.id}</span>
+            <span data-testid={`post-text-${status.id}`}>{target.text}</span>
+            <span data-testid={`post-liked-${status.id}`}>
+              {String(target.isActorLiked)}
+            </span>
+            <span data-testid={`post-bookmarked-${status.id}`}>
+              {String(target.isActorBookmarked)}
+            </span>
+            <span data-testid={`post-likes-${status.id}`}>
+              {target.totalLikes}
+            </span>
+            <span data-testid={`post-reactions-${status.id}`}>
+              {target.reactions?.length ?? 0}
+            </span>
             <button
               type="button"
               data-testid={`trigger-delete-${status.id}`}
@@ -109,6 +131,54 @@ vi.mock('@/lib/components/posts/posts', () => ({
               onClick={() => onPostDeleted?.({ ...target })}
             >
               delete clone
+            </button>
+            <button
+              type="button"
+              data-testid={`trigger-update-${status.id}`}
+              onClick={() =>
+                onPostUpdated?.({ ...target, text: 'updated text' } as any)
+              }
+            >
+              update status
+            </button>
+            <button
+              type="button"
+              data-testid={`trigger-like-${status.id}`}
+              onClick={() => onLikeChanged?.(target as any, true)}
+            >
+              like status
+            </button>
+            <button
+              type="button"
+              data-testid={`trigger-unlike-${status.id}`}
+              onClick={() => onLikeChanged?.(target as any, false)}
+            >
+              unlike status
+            </button>
+            <button
+              type="button"
+              data-testid={`trigger-bookmark-${status.id}`}
+              onClick={() => onBookmarkChanged?.(target as any, true)}
+            >
+              bookmark status
+            </button>
+            <button
+              type="button"
+              data-testid={`trigger-unbookmark-${status.id}`}
+              onClick={() => onBookmarkChanged?.(target as any, false)}
+            >
+              unbookmark status
+            </button>
+            <button
+              type="button"
+              data-testid={`trigger-react-${status.id}`}
+              onClick={() =>
+                onReactionsChanged?.(target as any, [
+                  { name: '🎉', count: 1, me: true }
+                ])
+              }
+            >
+              react status
             </button>
           </div>
         )
@@ -766,6 +836,191 @@ describe('MainPageTimeline', () => {
 
       // Disconnect was called during unmount
       expect(disconnectMock).toHaveBeenCalled()
+    })
+  })
+
+  describe('status updates and engagement sync', () => {
+    it('updates matching status in place on onPostUpdated', () => {
+      const post1 = createStatus('https://activities.local/users/llun/s/1')
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post1]}
+        />
+      )
+
+      expect(
+        screen.getByTestId('post-text-https://activities.local/users/llun/s/1')
+      ).toHaveTextContent('https://activities.local/users/llun/s/1')
+
+      fireEvent.click(
+        screen.getByTestId(
+          'trigger-update-https://activities.local/users/llun/s/1'
+        )
+      )
+
+      expect(
+        screen.getByTestId('post-text-https://activities.local/users/llun/s/1')
+      ).toHaveTextContent('updated text')
+    })
+
+    it('updates announce wrapper when original post is updated', () => {
+      const original = createStatus('https://activities.local/users/other/s/1')
+      const announce = createAnnounceStatus(
+        'https://activities.local/users/llun/s/announce-1',
+        original
+      )
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[announce]}
+        />
+      )
+
+      expect(
+        screen.getByTestId(
+          'post-text-https://activities.local/users/llun/s/announce-1'
+        )
+      ).toHaveTextContent('https://activities.local/users/other/s/1')
+
+      fireEvent.click(
+        screen.getByTestId(
+          'trigger-update-https://activities.local/users/llun/s/announce-1'
+        )
+      )
+
+      expect(
+        screen.getByTestId(
+          'post-text-https://activities.local/users/llun/s/announce-1'
+        )
+      ).toHaveTextContent('updated text')
+    })
+
+    it('updates like count and liked status when onLikeChanged is triggered', () => {
+      const post1 = createStatus('https://activities.local/users/llun/s/1')
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post1]}
+        />
+      )
+
+      expect(
+        screen.getByTestId('post-liked-https://activities.local/users/llun/s/1')
+      ).toHaveTextContent('false')
+      expect(
+        screen.getByTestId('post-likes-https://activities.local/users/llun/s/1')
+      ).toHaveTextContent('0')
+
+      fireEvent.click(
+        screen.getByTestId(
+          'trigger-like-https://activities.local/users/llun/s/1'
+        )
+      )
+
+      expect(
+        screen.getByTestId('post-liked-https://activities.local/users/llun/s/1')
+      ).toHaveTextContent('true')
+      expect(
+        screen.getByTestId('post-likes-https://activities.local/users/llun/s/1')
+      ).toHaveTextContent('1')
+
+      fireEvent.click(
+        screen.getByTestId(
+          'trigger-unlike-https://activities.local/users/llun/s/1'
+        )
+      )
+
+      expect(
+        screen.getByTestId('post-liked-https://activities.local/users/llun/s/1')
+      ).toHaveTextContent('false')
+      expect(
+        screen.getByTestId('post-likes-https://activities.local/users/llun/s/1')
+      ).toHaveTextContent('0')
+    })
+
+    it('updates bookmark status when onBookmarkChanged is triggered', () => {
+      const post1 = createStatus('https://activities.local/users/llun/s/1')
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post1]}
+        />
+      )
+
+      expect(
+        screen.getByTestId(
+          'post-bookmarked-https://activities.local/users/llun/s/1'
+        )
+      ).toHaveTextContent('false')
+
+      fireEvent.click(
+        screen.getByTestId(
+          'trigger-bookmark-https://activities.local/users/llun/s/1'
+        )
+      )
+
+      expect(
+        screen.getByTestId(
+          'post-bookmarked-https://activities.local/users/llun/s/1'
+        )
+      ).toHaveTextContent('true')
+
+      fireEvent.click(
+        screen.getByTestId(
+          'trigger-unbookmark-https://activities.local/users/llun/s/1'
+        )
+      )
+
+      expect(
+        screen.getByTestId(
+          'post-bookmarked-https://activities.local/users/llun/s/1'
+        )
+      ).toHaveTextContent('false')
+    })
+
+    it('updates reactions when onReactionsChanged is triggered', () => {
+      const post1 = createStatus('https://activities.local/users/llun/s/1')
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post1]}
+        />
+      )
+
+      expect(
+        screen.getByTestId(
+          'post-reactions-https://activities.local/users/llun/s/1'
+        )
+      ).toHaveTextContent('0')
+
+      fireEvent.click(
+        screen.getByTestId(
+          'trigger-react-https://activities.local/users/llun/s/1'
+        )
+      )
+
+      expect(
+        screen.getByTestId(
+          'post-reactions-https://activities.local/users/llun/s/1'
+        )
+      ).toHaveTextContent('1')
     })
   })
 })
