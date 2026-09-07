@@ -1,14 +1,19 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import {
+  bookmarkStatus,
   createNote,
   createPoll,
   deleteStatus,
   getTranslationCapability,
   likeStatus,
+  reactToStatus,
   repostStatus,
   translateStatus,
+  undoBookmarkStatus,
+  undoLikeStatus,
   undoRepostStatus,
+  unreactFromStatus,
   updateNote,
   updateStatusVisibility
 } from './statuses'
@@ -347,6 +352,171 @@ describe('client statuses module', () => {
 
       const res = await likeStatus({ statusId: 'status-to-like' })
       expect(res).toBe(false)
+    })
+  })
+
+  describe('undoLikeStatus', () => {
+    it('returns true on 200 OK', async () => {
+      fetchMock.mockResponse('', { status: 200 })
+
+      const res = await undoLikeStatus({ statusId: 'status-to-unlike' })
+      expect(res).toBe(true)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/statuses/status-to-unlike/unfavourite',
+        expect.objectContaining({ method: 'POST' })
+      )
+    })
+
+    it('returns false on error', async () => {
+      fetchMock.mockResponse('', { status: 404 })
+
+      const res = await undoLikeStatus({ statusId: 'status-to-unlike' })
+      expect(res).toBe(false)
+    })
+  })
+
+  describe('bookmarkStatus', () => {
+    it('returns true on 200 OK', async () => {
+      fetchMock.mockResponse('', { status: 200 })
+
+      const res = await bookmarkStatus({ statusId: 'status-to-bookmark' })
+      expect(res).toBe(true)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/statuses/status-to-bookmark/bookmark',
+        expect.objectContaining({ method: 'POST' })
+      )
+    })
+
+    it('returns false on error', async () => {
+      fetchMock.mockResponse('', { status: 500 })
+
+      const res = await bookmarkStatus({ statusId: 'status-to-bookmark' })
+      expect(res).toBe(false)
+    })
+  })
+
+  describe('undoBookmarkStatus', () => {
+    it('returns true on 200 OK', async () => {
+      fetchMock.mockResponse('', { status: 200 })
+
+      const res = await undoBookmarkStatus({ statusId: 'status-to-unbookmark' })
+      expect(res).toBe(true)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/statuses/status-to-unbookmark/unbookmark',
+        expect.objectContaining({ method: 'POST' })
+      )
+    })
+
+    it('returns false on error', async () => {
+      fetchMock.mockResponse('', { status: 500 })
+
+      const res = await undoBookmarkStatus({ statusId: 'status-to-unbookmark' })
+      expect(res).toBe(false)
+    })
+  })
+
+  describe('reactToStatus', () => {
+    it('returns pleroma emoji_reactions on success', async () => {
+      const reactions = [{ name: '🎉', count: 1, me: true }]
+      fetchMock.mockResponse(
+        JSON.stringify({
+          pleroma: { emoji_reactions: reactions }
+        }),
+        { status: 200 }
+      )
+
+      const res = await reactToStatus({
+        statusId: 'status-1',
+        name: '🎉'
+      })
+
+      expect(res).toEqual({ ok: true, reactions })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/pleroma/statuses/status-1/reactions/%F0%9F%8E%89',
+        expect.objectContaining({
+          method: 'PUT'
+        })
+      )
+    })
+
+    it('returns reactions fallback when pleroma field is missing', async () => {
+      const reactions = [{ name: '❤️', count: 2, me: false }]
+      fetchMock.mockResponse(
+        JSON.stringify({
+          reactions
+        }),
+        { status: 200 }
+      )
+
+      const res = await reactToStatus({
+        statusId: 'status-1',
+        name: '❤️'
+      })
+
+      expect(res).toEqual({ ok: true, reactions })
+    })
+
+    it('returns error from 422 with reason', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({
+          error: 'Reaction limit reached',
+          reason: 'cap_exceeded'
+        }),
+        { status: 422 }
+      )
+
+      const res = await reactToStatus({
+        statusId: 'status-1',
+        name: '🎉'
+      })
+
+      expect(res).toEqual({ ok: false, error: 'Reaction limit reached' })
+    })
+
+    it('returns ok: false on generic failure', async () => {
+      fetchMock.mockResponse('', { status: 500 })
+
+      const res = await reactToStatus({
+        statusId: 'status-1',
+        name: '🎉'
+      })
+
+      expect(res).toEqual({ ok: false })
+    })
+  })
+
+  describe('unreactFromStatus', () => {
+    it('removes reaction successfully', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({
+          pleroma: { emoji_reactions: [] }
+        }),
+        { status: 200 }
+      )
+
+      const res = await unreactFromStatus({
+        statusId: 'status-1',
+        name: '🎉'
+      })
+
+      expect(res).toEqual({ ok: true, reactions: [] })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/pleroma/statuses/status-1/reactions/%F0%9F%8E%89',
+        expect.objectContaining({
+          method: 'DELETE'
+        })
+      )
+    })
+
+    it('returns ok: false on failure', async () => {
+      fetchMock.mockResponse('', { status: 404 })
+
+      const res = await unreactFromStatus({
+        statusId: 'status-1',
+        name: '🎉'
+      })
+
+      expect(res).toEqual({ ok: false })
     })
   })
 })
