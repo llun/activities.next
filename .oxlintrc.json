@@ -232,8 +232,7 @@
           "error",
           {
             "allowFiles": [
-              "app/(timeline)/fitness/strava/StravaSettingsForm.tsx",
-              "app/(nosidebar)/oauth/authorize/AuthorizeCard.tsx"
+              "app/(timeline)/fitness/strava/StravaSettingsForm.tsx"
             ]
           }
         ]

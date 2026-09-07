@@ -5,7 +5,11 @@ import { Check, ChevronDown } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { FC, useState } from 'react'
 
-import { switchActor } from '@/lib/client'
+import {
+  type OAuthConsentResponse,
+  submitOAuthConsent,
+  switchActor
+} from '@/lib/client'
 import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
@@ -45,14 +49,9 @@ interface Props {
   navigate?: (url: string) => void
 }
 
-interface ConsentResponse {
-  redirect?: boolean
-  url?: string
-  // Legacy shape from the original custom consent handler.
-  redirect_uri?: string
-}
+export type ConsentResponse = OAuthConsentResponse
 
-export const getConsentRedirectUrl = (data: ConsentResponse) => {
+export const getConsentRedirectUrl = (data: OAuthConsentResponse) => {
   const redirectUrl = data.url ?? data.redirect_uri
   if (!redirectUrl) return undefined
 
@@ -169,23 +168,16 @@ export const AuthorizeCard: FC<Props> = ({
         return
       }
 
-      const response = await fetch('/api/auth/oauth2/consent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          accept: true,
-          scope: selectedScopes.join(' '),
-          oauth_query: getCurrentOAuthQuery(searchParams)
-        })
+      const data = await submitOAuthConsent({
+        accept: true,
+        scope: selectedScopes.join(' '),
+        oauth_query: getCurrentOAuthQuery(searchParams)
       })
 
-      if (response.ok) {
-        const data = (await response.json()) as ConsentResponse
-        const redirectUrl = getConsentRedirectUrl(data)
-        if (redirectUrl) {
-          navigate(redirectUrl)
-          return
-        }
+      const redirectUrl = getConsentRedirectUrl(data)
+      if (redirectUrl) {
+        navigate(redirectUrl)
+        return
       }
 
       redirectWithError('server_error')
@@ -200,27 +192,18 @@ export const AuthorizeCard: FC<Props> = ({
     if (submittingAction || isSwitching) return
     setSubmittingAction('deny')
     try {
-      const response = await fetch('/api/auth/oauth2/consent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          accept: false,
-          oauth_query: getCurrentOAuthQuery(searchParams)
-        })
+      const data = await submitOAuthConsent({
+        accept: false,
+        oauth_query: getCurrentOAuthQuery(searchParams)
       })
-      if (response.ok) {
-        const data = (await response.json()) as ConsentResponse
-        const redirectUrl = getConsentRedirectUrl(data)
-        if (redirectUrl) {
-          navigate(redirectUrl)
-          return
-        }
-        // Denial processed but no redirect — use access_denied
-        redirectWithError('access_denied')
+      const redirectUrl = getConsentRedirectUrl(data)
+      if (redirectUrl) {
+        navigate(redirectUrl)
         return
       }
-      // Server returned non-ok — infrastructure failure
-      redirectWithError('server_error')
+      // Denial processed but no redirect — use access_denied
+      redirectWithError('access_denied')
+      return
     } catch {
       redirectWithError('server_error')
     } finally {
