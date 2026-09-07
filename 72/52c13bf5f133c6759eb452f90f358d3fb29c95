@@ -1,0 +1,22 @@
+.oxlintrc.json
+  h_580a04e334fef4 235
+app/(nosidebar)/oauth/authorize/AuthorizeCard.test.tsx
+  h_580a04e334fef4 7,22-29,95-96,141-145,148-150,152,162,179-181,183-184,186-187,237-238,255-267,278-279,306,315-317,344,448-452,458-463,623-624,627-628,660-661,689-690,745-1015
+app/(nosidebar)/oauth/authorize/AuthorizeCard.tsx
+  h_580a04e334fef4 8-12,52,54,171-174,177-180,195-197,199-201,204-206
+lib/client.test.ts
+  h_580a04e334fef4 49,2271-2379
+lib/client.ts
+  h_580a04e334fef4 5233-5269
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "7252c13bf5f133c6759eb452f90f358d3fb29c95",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
