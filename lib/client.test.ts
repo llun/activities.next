@@ -29,6 +29,7 @@ import {
   deleteAccountMedia,
   deleteActor,
   deleteCollection,
+  deleteFitnessFile,
   deleteFitnessGear,
   deleteFitnessGearComponent,
   deleteFitnessRouteHeatmap,
@@ -51,10 +52,12 @@ import {
   getFitnessGeneralSettings,
   getFitnessImportBatch,
   getFitnessProcessingState,
+  getFitnessRouteData,
   getFitnessRouteHeatmap,
   getFitnessRouteHeatmapRegionNames,
   getFitnessRouteHeatmapTiles,
   getFitnessRouteHeatmaps,
+  getFitnessSummary,
   getFollowStatus,
   getHashtagTimeline,
   getListTimeline,
@@ -73,6 +76,7 @@ import {
   requestPasswordReset,
   resetPassword,
   retireFitnessGearComponent,
+  retryAllFitnessImports,
   retryFitnessImportBatch,
   retryStravaArchiveImport,
   revokeCollectionMembership,
@@ -110,6 +114,7 @@ import * as fitnessGearModule from './client/fitnessGear'
 import * as fitnessGeneralSettingsModule from './client/fitnessGeneralSettings'
 import * as fitnessHeatmapsModule from './client/fitnessHeatmaps'
 import * as fitnessImportsModule from './client/fitnessImports'
+import * as fitnessRoutesModule from './client/fitnessRoutes'
 import * as httpModule from './client/http'
 import * as mediaModule from './client/media'
 import * as statusesModule from './client/statuses'
@@ -208,6 +213,17 @@ describe('client facade fitness general settings re-exports', () => {
     expect(regenerateFitnessMaps).toBe(
       fitnessGeneralSettingsModule.regenerateFitnessMaps
     )
+  })
+})
+
+describe('client facade fitness routes re-exports', () => {
+  it('re-exports extracted fitness route and activity functions', () => {
+    expect(getFitnessRouteData).toBe(fitnessRoutesModule.getFitnessRouteData)
+    expect(retryAllFitnessImports).toBe(
+      fitnessRoutesModule.retryAllFitnessImports
+    )
+    expect(getFitnessSummary).toBe(fitnessRoutesModule.getFitnessSummary)
+    expect(deleteFitnessFile).toBe(fitnessRoutesModule.deleteFitnessFile)
   })
 })
 
