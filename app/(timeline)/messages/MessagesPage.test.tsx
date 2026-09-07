@@ -22,7 +22,7 @@ import {
 import type { DirectConversationView } from '@/lib/client'
 import { createDeferred } from '@/lib/testing/deferred'
 import { ActorProfile } from '@/lib/types/domain/actor'
-import { Status, StatusType } from '@/lib/types/domain/status'
+import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 
 import { MessagesPage } from './MessagesPage'
@@ -77,7 +77,7 @@ const account = (id: string, name: string): MastodonAccount =>
     header_static: ''
   }) as MastodonAccount
 
-const status = (id: string, text: string): Status => ({
+const status = (id: string, text: string): StatusNote => ({
   id,
   actorId: currentActor.id,
   actor: currentActor,
@@ -167,7 +167,7 @@ describe('MessagesPage', () => {
       participantName: 'Ada'
     })
     htmlConversation.lastStatus = {
-      ...htmlConversation.lastStatus,
+      ...(htmlConversation.lastStatus as StatusNote),
       text: '<p>Hello <strong>Ada</strong> &amp; Bea</p><p>See &lt;you&gt;</p>'
     }
 
@@ -1060,7 +1060,7 @@ describe('MessagesPage', () => {
   })
 
   it('surfaces non-visual attachments as a download link instead of an empty bubble', async () => {
-    const fileStatus: Status = {
+    const fileStatus: StatusNote = {
       ...status('file-1', ''),
       attachments: [
         {
@@ -1088,7 +1088,7 @@ describe('MessagesPage', () => {
   })
 
   it('renders a fitness file as a card with its filename and metrics', async () => {
-    const fitnessStatus: Status = {
+    const fitnessStatus: StatusNote = {
       ...status('fit-1', ''),
       fitness: {
         id: 'fitness-1',
@@ -1123,7 +1123,7 @@ describe('MessagesPage', () => {
     // `GET /api/v1/fitness-files/:id` is owner-only — so a recipient's copy of
     // the card must not be an anchor. The card itself stays: name, type and
     // metrics are the message's content.
-    const receivedFitnessStatus: Status = {
+    const receivedFitnessStatus: StatusNote = {
       ...status('fit-2', ''),
       actorId: 'https://example.com/users/ada',
       fitness: {

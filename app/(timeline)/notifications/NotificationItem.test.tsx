@@ -24,12 +24,19 @@ const account: Mastodon.Account = {
   username: 'ride',
   acct: 'ride@llun.social',
   url: 'https://llun.social/@ride',
+  uri: 'https://llun.social/users/ride',
   display_name: 'Ride',
   note: '',
   avatar: '',
   avatar_static: '',
+  avatar_description: '',
   header: '',
   header_static: '',
+  header_description: '',
+  roles: [],
+  indexable: false,
+  hide_collections: false,
+  noindex: false,
   locked: false,
   source: {
     note: '',
@@ -37,6 +44,7 @@ const account: Mastodon.Account = {
     privacy: 'public',
     sensitive: false,
     language: 'en',
+    attribution_domains: [],
     follow_requests_count: 0
   },
   fields: [],
@@ -88,26 +96,41 @@ const status: StatusNote = {
   replies: [],
   actorAnnounceStatusId: null,
   isActorLiked: false,
+  isActorBookmarked: false,
   totalLikes: 0,
   totalShares: 0,
   attachments: [],
   tags: []
 }
 
-const renderNotificationItem = (notification: NotificationItemNotification) => {
+const renderNotificationItem = (
+  notification: Partial<NotificationItemNotification> &
+    Pick<NotificationItemNotification, 'id' | 'type'>
+) => {
   return renderNotificationItemWithOptions(notification)
 }
 
 const renderNotificationItemWithOptions = (
-  notification: NotificationItemNotification,
+  notification: Partial<NotificationItemNotification> &
+    Pick<NotificationItemNotification, 'id' | 'type'>,
   options: {
     isRead?: boolean
     observeElement?: (element: HTMLElement | null) => void
   } = {}
 ) => {
+  const fullNotification: NotificationItemNotification = {
+    actorId: 'https://llun.social/users/llun',
+    sourceActorId: account.id,
+    isRead: true,
+    filtered: false,
+    createdAt: currentTime,
+    updatedAt: currentTime,
+    account,
+    ...notification
+  }
   return render(
     <NotificationItem
-      notification={notification}
+      notification={fullNotification}
       host="llun.social"
       isRead={options.isRead ?? true}
       currentTime={currentTime}
@@ -327,6 +350,7 @@ describe('NotificationItem', () => {
       type: 'follow_request' as const,
       sourceActorId: account.id,
       isRead: true,
+      filtered: false,
       createdAt: currentTime,
       updatedAt: currentTime,
       account
@@ -634,6 +658,7 @@ describe('NotificationItem', () => {
     type: 'added_to_collection',
     sourceActorId: account.id,
     isRead: true,
+    filtered: false,
     createdAt: currentTime,
     updatedAt: currentTime,
     account,
