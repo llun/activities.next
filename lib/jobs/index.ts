@@ -84,43 +84,121 @@ import { updatePollJob } from './updatePollJob'
 export type { JobHandle }
 
 export const JOBS: Record<string, JobHandle> = {
-  [CREATE_NOTE_JOB_NAME]: createNoteJob,
-  [UPDATE_NOTE_JOB_NAME]: updateNoteJob,
-  [CREATE_ANNOUNCE_JOB_NAME]: createAnnounceJob,
-  [RELAY_ANNOUNCE_JOB_NAME]: createRelayAnnounceJob,
-  [CREATE_POLL_JOB_NAME]: createPollJob,
-  [CREATE_POLL_VOTE_JOB_NAME]: createPollVoteJob,
-  [UPDATE_POLL_JOB_NAME]: updatePollJob,
-  [DELETE_OBJECT_JOB_NAME]: deleteObjectJob,
-  [DELETE_ACTOR_JOB_NAME]: deleteActorJob,
-  [SEND_ANNOUNCE_JOB_NAME]: sendAnnounceJob,
-  [SEND_BLOCK_JOB_NAME]: sendBlockJob,
-  [GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME]: generateFitnessRouteHeatmapJob,
-  [GENERATE_FITNESS_HEATMAP_JOB_NAME]: generateFitnessRouteHeatmapJob,
-  [PROCESS_FITNESS_FILE_JOB_NAME]: processFitnessFileJob,
-  [PROCESS_FORWARDED_ACTIVITY_JOB_NAME]: processForwardedActivityJob,
-  [REGENERATE_FITNESS_MAPS_JOB_NAME]: regenerateFitnessMapsJob,
-  [IMPORT_FITNESS_FILES_JOB_NAME]: importFitnessFilesJob,
-  [IMPORT_STRAVA_ACTIVITY_JOB_NAME]: importStravaActivityJob,
-  [IMPORT_STRAVA_ARCHIVE_JOB_NAME]: importStravaArchiveJob,
-  [SEND_NOTE_JOB_NAME]: sendNoteJob,
-  [SEND_QUOTE_REQUEST_JOB_NAME]: sendQuoteRequestJob,
-  [SEND_QUOTE_ACCEPT_JOB_NAME]: sendQuoteAcceptJob,
-  [SEND_QUOTE_REJECT_JOB_NAME]: sendQuoteRejectJob,
-  [SEND_QUOTE_REVOKE_JOB_NAME]: sendQuoteRevokeJob,
-  [HANDLE_QUOTE_REQUEST_JOB_NAME]: handleQuoteRequestJob,
-  [SEND_UPDATE_NOTE_JOB_NAME]: sendUpdateNoteJob,
-  [SEND_DELETE_NOTE_JOB_NAME]: sendDeleteNoteJob,
-  [SEND_UNDO_ANNOUNCE_JOB_NAME]: sendUndoAnnounceJob,
-  [SEND_UNDO_FOLLOW_JOB_NAME]: sendUndoFollowJob,
-  [SEND_UNBLOCK_JOB_NAME]: sendUnblockJob,
-  [SEND_FLAG_JOB_NAME]: sendFlagJob,
-  [FETCH_REMOTE_STATUS_JOB_NAME]: fetchRemoteStatusJob,
-  [FOLLOW_TIMELINE_BACKFILL_JOB_NAME]: followTimelineBackfillJob,
-  [PUBLISH_SCHEDULED_STATUS_JOB_NAME]: publishScheduledStatusJob,
-  [INGEST_COLLECTION_MEMBER_JOB_NAME]: ingestCollectionMemberJob,
-  [EMOJI_REACTION_JOB_NAME]: emojiReactionJob,
-  [FETCH_LINK_PREVIEW_JOB_NAME]: fetchLinkPreviewJob,
-  [FORWARD_ACTIVITY_JOB_NAME]: forwardActivityJob,
-  [DELIVER_ACTIVITY_JOB_NAME]: deliverActivityJob
+  get [CREATE_NOTE_JOB_NAME]() {
+    return createNoteJob
+  },
+  get [UPDATE_NOTE_JOB_NAME]() {
+    return updateNoteJob
+  },
+  get [CREATE_ANNOUNCE_JOB_NAME]() {
+    return createAnnounceJob
+  },
+  get [RELAY_ANNOUNCE_JOB_NAME]() {
+    return createRelayAnnounceJob
+  },
+  get [CREATE_POLL_JOB_NAME]() {
+    return createPollJob
+  },
+  get [CREATE_POLL_VOTE_JOB_NAME]() {
+    return createPollVoteJob
+  },
+  get [UPDATE_POLL_JOB_NAME]() {
+    return updatePollJob
+  },
+  get [DELETE_OBJECT_JOB_NAME]() {
+    return deleteObjectJob
+  },
+  get [DELETE_ACTOR_JOB_NAME]() {
+    return deleteActorJob
+  },
+  get [SEND_ANNOUNCE_JOB_NAME]() {
+    return sendAnnounceJob
+  },
+  get [SEND_BLOCK_JOB_NAME]() {
+    return sendBlockJob
+  },
+  get [GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME]() {
+    return generateFitnessRouteHeatmapJob
+  },
+  get [GENERATE_FITNESS_HEATMAP_JOB_NAME]() {
+    return generateFitnessRouteHeatmapJob
+  },
+  get [PROCESS_FITNESS_FILE_JOB_NAME]() {
+    return processFitnessFileJob
+  },
+  get [PROCESS_FORWARDED_ACTIVITY_JOB_NAME]() {
+    return processForwardedActivityJob
+  },
+  get [REGENERATE_FITNESS_MAPS_JOB_NAME]() {
+    return regenerateFitnessMapsJob
+  },
+  get [IMPORT_FITNESS_FILES_JOB_NAME]() {
+    return importFitnessFilesJob
+  },
+  get [IMPORT_STRAVA_ACTIVITY_JOB_NAME]() {
+    return importStravaActivityJob
+  },
+  get [IMPORT_STRAVA_ARCHIVE_JOB_NAME]() {
+    return importStravaArchiveJob
+  },
+  get [SEND_NOTE_JOB_NAME]() {
+    return sendNoteJob
+  },
+  get [SEND_QUOTE_REQUEST_JOB_NAME]() {
+    return sendQuoteRequestJob
+  },
+  get [SEND_QUOTE_ACCEPT_JOB_NAME]() {
+    return sendQuoteAcceptJob
+  },
+  get [SEND_QUOTE_REJECT_JOB_NAME]() {
+    return sendQuoteRejectJob
+  },
+  get [SEND_QUOTE_REVOKE_JOB_NAME]() {
+    return sendQuoteRevokeJob
+  },
+  get [HANDLE_QUOTE_REQUEST_JOB_NAME]() {
+    return handleQuoteRequestJob
+  },
+  get [SEND_UPDATE_NOTE_JOB_NAME]() {
+    return sendUpdateNoteJob
+  },
+  get [SEND_DELETE_NOTE_JOB_NAME]() {
+    return sendDeleteNoteJob
+  },
+  get [SEND_UNDO_ANNOUNCE_JOB_NAME]() {
+    return sendUndoAnnounceJob
+  },
+  get [SEND_UNDO_FOLLOW_JOB_NAME]() {
+    return sendUndoFollowJob
+  },
+  get [SEND_UNBLOCK_JOB_NAME]() {
+    return sendUnblockJob
+  },
+  get [SEND_FLAG_JOB_NAME]() {
+    return sendFlagJob
+  },
+  get [FETCH_REMOTE_STATUS_JOB_NAME]() {
+    return fetchRemoteStatusJob
+  },
+  get [FOLLOW_TIMELINE_BACKFILL_JOB_NAME]() {
+    return followTimelineBackfillJob
+  },
+  get [PUBLISH_SCHEDULED_STATUS_JOB_NAME]() {
+    return publishScheduledStatusJob
+  },
+  get [INGEST_COLLECTION_MEMBER_JOB_NAME]() {
+    return ingestCollectionMemberJob
+  },
+  get [EMOJI_REACTION_JOB_NAME]() {
+    return emojiReactionJob
+  },
+  get [FETCH_LINK_PREVIEW_JOB_NAME]() {
+    return fetchLinkPreviewJob
+  },
+  get [FORWARD_ACTIVITY_JOB_NAME]() {
+    return forwardActivityJob
+  },
+  get [DELIVER_ACTIVITY_JOB_NAME]() {
+    return deliverActivityJob
+  }
 }
