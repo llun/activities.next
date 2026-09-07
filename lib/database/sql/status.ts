@@ -2,6 +2,7 @@ import { Knex } from 'knex'
 
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { incrementLocalStatusBucket } from '@/lib/database/sql/instanceActivity'
+import { QueueJobSQLDatabaseMixin } from '@/lib/database/sql/queueJob'
 import { coercePollEndAt } from '@/lib/database/sql/utils/coercePollEndAt'
 import {
   CounterKey,
@@ -59,6 +60,7 @@ import {
   CreateTagParams,
   DeleteStatusParams,
   DeleteStatusTagsByTypeParams,
+  DeleteStatusWithQueueJobParams,
   FavouritedByAccount,
   GetActorPollVotesForStatusesParams,
   GetActorPollVotesParams,
@@ -2432,53 +2434,50 @@ export const StatusSQLDatabaseMixin = (
     }
   }
 
-  async function deleteStatus({
+  const refreshAffectedHashtags = async ({
+    collectedHashtags,
+    statusId
+  }: {
+    collectedHashtags: string[]
+    statusId: string
+  }) => {
+    if (collectedHashtags.length === 0) return
+    // Keep hashtag aggregate writes outside the delete transaction. A full
+    // reindexSearchHashtags run can reconcile this if the process exits
+    // after commit and before this best-effort refresh completes.
+    try {
+      await indexHashtagSearchDocuments(database, {
+        hashtags: [...new Set(collectedHashtags)]
+      })
+    } catch (err) {
+      logger.warn(
+        {
+          err,
+          hashtags: [...new Set(collectedHashtags)],
+          statusId
+        },
+        'Failed to refresh hashtag search documents after status deletion'
+      )
+    }
+  }
+
+  const executeStatusDeletion = async ({
     actorId,
     affectedHashtags,
     statusId,
     trx
-  }: DeleteStatusParams & {
+  }: {
+    actorId?: string
     affectedHashtags?: string[]
-    trx?: Knex.Transaction
-  }) {
-    if (!trx) {
-      const collectedHashtags: string[] = []
-      await database.transaction(async (trx) => {
-        await deleteStatus({
-          actorId,
-          affectedHashtags: collectedHashtags,
-          statusId,
-          trx
-        })
-      })
-      if (collectedHashtags.length > 0) {
-        // Keep hashtag aggregate writes outside the delete transaction. A full
-        // reindexSearchHashtags run can reconcile this if the process exits
-        // after commit and before this best-effort refresh completes.
-        try {
-          await indexHashtagSearchDocuments(database, {
-            hashtags: [...new Set(collectedHashtags)]
-          })
-        } catch (err) {
-          logger.warn(
-            {
-              err,
-              hashtags: [...new Set(collectedHashtags)],
-              statusId
-            },
-            'Failed to refresh hashtag search documents after status deletion'
-          )
-        }
-      }
-      return
-    }
-
+    statusId: string
+    trx: Knex.Transaction
+  }): Promise<boolean> => {
     const statusesToDelete = await collectStatusDeletionRows({
       actorId,
       statusId,
       trx
     })
-    if (statusesToDelete.length === 0) return
+    if (statusesToDelete.length === 0) return false
 
     const currentTime = new Date()
     const statusIdsToDelete = statusesToDelete.map((status) => status.id)
@@ -2665,6 +2664,67 @@ export const StatusSQLDatabaseMixin = (
         CounterKey.totalReply(statusId)
       ])
     )
+    return true
+  }
+
+  async function deleteStatus({
+    actorId,
+    affectedHashtags,
+    statusId,
+    trx
+  }: DeleteStatusParams & {
+    affectedHashtags?: string[]
+    trx?: Knex.Transaction
+  }) {
+    if (!trx) {
+      const collectedHashtags: string[] = []
+      await database.transaction(async (trx) => {
+        await executeStatusDeletion({
+          actorId,
+          affectedHashtags: collectedHashtags,
+          statusId,
+          trx
+        })
+      })
+      await refreshAffectedHashtags({ collectedHashtags, statusId })
+      return
+    }
+
+    await executeStatusDeletion({
+      actorId,
+      affectedHashtags,
+      statusId,
+      trx
+    })
+  }
+
+  async function deleteStatusWithQueueJob({
+    actorId,
+    statusId,
+    queueJob
+  }: DeleteStatusWithQueueJobParams): Promise<boolean> {
+    const collectedHashtags: string[] = []
+    const deleted = await database.transaction(async (trx) => {
+      const isDeleted = await executeStatusDeletion({
+        actorId,
+        affectedHashtags: collectedHashtags,
+        statusId,
+        trx
+      })
+      if (!isDeleted) {
+        return false
+      }
+
+      await QueueJobSQLDatabaseMixin(trx).createQueueJob(queueJob)
+      return true
+    })
+
+    if (!deleted) {
+      return false
+    }
+
+    await refreshAffectedHashtags({ collectedHashtags, statusId })
+    return true
   }
 
   async function getFavouritedBy({
@@ -4015,6 +4075,7 @@ export const StatusSQLDatabaseMixin = (
     getPinnedStatusIds,
     getStatusesByIds,
     deleteStatus,
+    deleteStatusWithQueueJob,
     countStatus,
     updatePollChoice,
     addPollVote,

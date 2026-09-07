@@ -663,6 +663,12 @@ export type DeleteStatusParams = BaseStatusParams & {
   actorId?: string
 }
 
+export type DeleteStatusWithQueueJobParams = {
+  actorId: string
+  statusId: string
+  queueJob: CreateQueueJobParams
+}
+
 export type GetStatusFromUrlParams = {
   url: string
   // The signed-in viewer, so the resolved status carries their own like,
@@ -965,6 +971,9 @@ export interface StatusDatabase {
     params: HasActorAnnouncedStatusParams
   ): Promise<Status | null>
   deleteStatus(params: DeleteStatusParams): Promise<void>
+  deleteStatusWithQueueJob(
+    params: DeleteStatusWithQueueJobParams
+  ): Promise<boolean>
   countStatus(params: CountStatusParams): Promise<number>
   updatePollChoice(params: UpdatePollChoiceParams): Promise<void>
   addPollVote(params: AddPollVoteParams): Promise<void>
