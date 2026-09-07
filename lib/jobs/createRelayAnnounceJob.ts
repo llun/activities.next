@@ -8,6 +8,7 @@ import { RELAY_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { JobHandle } from '@/lib/services/queue/type'
 import { Status } from '@/lib/types/domain/status'
+import { isSameActivityPubOrigin } from '@/lib/utils/activitypub'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
@@ -95,6 +96,9 @@ export const createRelayAnnounceJob: JobHandle = createJobHandle(
       if (!signingActor) return
       const note = await getNote({ statusId: objectId, signingActor })
       if (!note) return
+      if (!isHttpUrl(note.id) || !isSameActivityPubOrigin(note.id, objectId)) {
+        return
+      }
       // createNoteJob or createPollJob enforces the author's federation policy and persists
       // the status; called without verifiedSenderActorId so the relay's
       // signature does not have to match the author.

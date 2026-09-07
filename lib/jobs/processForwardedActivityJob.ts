@@ -7,7 +7,10 @@ import { getConfig } from '@/lib/config'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { ENTITY_TYPE_QUESTION, Tombstone } from '@/lib/types/activitypub'
-import { normalizeActorId } from '@/lib/utils/activitypub'
+import {
+  isSameActivityPubOrigin,
+  normalizeActorId
+} from '@/lib/utils/activitypub'
 import { request } from '@/lib/utils/request'
 import { withSpan } from '@/lib/utils/trace'
 
@@ -59,10 +62,18 @@ const sameHost = (first: string, second: string): boolean => {
   }
 }
 
-const isTombstoneBody = async (body: string): Promise<boolean> => {
+const isTombstoneBody = async (
+  body: string,
+  objectId: string
+): Promise<boolean> => {
   try {
     const compacted = await compactActivityPub(JSON.parse(body))
-    return Tombstone.safeParse(compacted).success
+    const parsed = Tombstone.safeParse(compacted)
+    return (
+      parsed.success &&
+      isHttpUrl(parsed.data.id) &&
+      isSameActivityPubOrigin(parsed.data.id, objectId)
+    )
   } catch {
     return false
   }
@@ -133,7 +144,7 @@ export const processForwardedActivityJob = createJobHandle(
         const confirmed =
           statusCode === 404 ||
           statusCode === 410 ||
-          (statusCode === 200 && (await isTombstoneBody(body)))
+          (statusCode === 200 && (await isTombstoneBody(body, objectId)))
         if (!confirmed) {
           span.setAttribute('outcome', 'delete_unconfirmed')
           span.setAttribute('originStatusCode', statusCode)
@@ -166,6 +177,10 @@ export const processForwardedActivityJob = createJobHandle(
       const note = await getNote({ statusId: objectId, signingActor })
       if (!note) {
         span.setAttribute('outcome', 'origin_fetch_failed')
+        return
+      }
+      if (!isHttpUrl(note.id) || !isSameActivityPubOrigin(note.id, objectId)) {
+        span.setAttribute('outcome', 'returned_id_unauthorized')
         return
       }
       // The fetched note must be attributed to the actor the forwarded
