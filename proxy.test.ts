@@ -416,7 +416,15 @@ describe('proxy', () => {
   })
 
   it('rejects non-action POST requests to page routes with 404', async () => {
-    for (const path of ['/', '/settings', '/explore', '/notifications']) {
+    for (const path of [
+      '/',
+      '/settings',
+      '/explore',
+      '/notifications',
+      '/inbox-invalid',
+      '/inbox/invalid',
+      '/users'
+    ]) {
       const request = new NextRequest(`https://llun.social${path}`, {
         method: 'POST'
       })
@@ -456,7 +464,7 @@ describe('proxy', () => {
     expect(actionResponse?.status).toBe(200)
   })
 
-  it('allows POST requests to rewritten inbox routes', async () => {
+  it('allows POST requests to rewritten API routes', async () => {
     for (const path of ['/inbox', '/users/alice/inbox']) {
       const request = new NextRequest(`https://llun.social${path}`, {
         method: 'POST'
