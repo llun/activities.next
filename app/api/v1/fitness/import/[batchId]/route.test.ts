@@ -48,10 +48,11 @@ vi.mock('@/lib/utils/getActorFromSession', () => ({
   })
 }))
 
+const mockPublish = vi.fn()
 vi.mock('@/lib/services/queue', () => ({
-  getQueue: vi.fn().mockReturnValue({
-    publish: vi.fn().mockResolvedValue(undefined)
-  })
+  getQueue: vi.fn(() => ({
+    publish: mockPublish
+  }))
 }))
 
 vi.mock('next/headers', () => ({
@@ -83,6 +84,7 @@ describe('fitness import batch route', () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: 'llun@activities.local' }
     })
+    mockPublish.mockResolvedValue(undefined)
     db.getStravaArchiveImportByBatchId.mockResolvedValue(null)
     mockDatabase = db
   })
@@ -828,7 +830,7 @@ describe('fitness import batch route', () => {
       }
     ])
 
-    getQueue().publish.mockRejectedValueOnce(new Error('queue down'))
+    mockPublish.mockRejectedValueOnce(new Error('queue down'))
 
     const request = {
       headers: new Headers(),
@@ -876,7 +878,7 @@ describe('fitness import batch route', () => {
       }
     ])
 
-    getQueue().publish.mockRejectedValueOnce(new Error('queue down'))
+    mockPublish.mockRejectedValueOnce(new Error('queue down'))
 
     const request = {
       headers: new Headers(),
@@ -930,9 +932,9 @@ describe('fitness import batch route', () => {
     await POST(request1, {
       params: Promise.resolve({ batchId: 'batch-1' })
     })
-    const firstJobId = getQueue().publish.mock.calls[0][0].id
+    const firstJobId = mockPublish.mock.calls[0][0].id
 
-    getQueue().publish.mockClear()
+    mockPublish.mockClear()
     const request2 = {
       headers: new Headers(),
       json: async () => ({ visibility: 'private', generationId: 'test-gen-1' })
@@ -941,7 +943,7 @@ describe('fitness import batch route', () => {
     await POST(request2, {
       params: Promise.resolve({ batchId: 'batch-1' })
     })
-    const secondJobId = getQueue().publish.mock.calls[0][0].id
+    const secondJobId = mockPublish.mock.calls[0][0].id
 
     expect(secondJobId).toBe(firstJobId)
   })
@@ -974,9 +976,9 @@ describe('fitness import batch route', () => {
     await POST(request1, {
       params: Promise.resolve({ batchId: 'batch-1' })
     })
-    const firstJobId = getQueue().publish.mock.calls[0][0].id
+    const firstJobId = mockPublish.mock.calls[0][0].id
 
-    getQueue().publish.mockClear()
+    mockPublish.mockClear()
     const request2 = {
       headers: new Headers(),
       json: async () => ({
@@ -988,7 +990,7 @@ describe('fitness import batch route', () => {
     await POST(request2, {
       params: Promise.resolve({ batchId: 'batch-1' })
     })
-    const secondJobId = getQueue().publish.mock.calls[0][0].id
+    const secondJobId = mockPublish.mock.calls[0][0].id
 
     expect(secondJobId).toBe(firstJobId)
   })
@@ -1018,9 +1020,9 @@ describe('fitness import batch route', () => {
     await POST(request1, {
       params: Promise.resolve({ batchId: 'batch-1' })
     })
-    const firstJobId = getQueue().publish.mock.calls[0][0].id
+    const firstJobId = mockPublish.mock.calls[0][0].id
 
-    getQueue().publish.mockClear()
+    mockPublish.mockClear()
     const request2 = {
       headers: new Headers(),
       json: async () => ({ visibility: 'private' })
@@ -1029,7 +1031,7 @@ describe('fitness import batch route', () => {
     await POST(request2, {
       params: Promise.resolve({ batchId: 'batch-1' })
     })
-    const secondJobId = getQueue().publish.mock.calls[0][0].id
+    const secondJobId = mockPublish.mock.calls[0][0].id
 
     expect(secondJobId).not.toBe(firstJobId)
   })

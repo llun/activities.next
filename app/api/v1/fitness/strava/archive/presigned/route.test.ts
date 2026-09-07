@@ -1,3 +1,5 @@
+import { NextRequest } from 'next/server'
+
 import { getPresignedFitnessFileUrl } from '@/lib/services/fitness-files'
 
 import { POST } from './route'
@@ -52,7 +54,7 @@ describe('Strava archive presigned URL endpoint', () => {
   it('returns 404 when ObjectStorage is not available (LocalFile)', async () => {
     mockGetPresignedFitnessFileUrl.mockResolvedValue(null)
 
-    const req = new Request(
+    const req = new NextRequest(
       'http://localhost/api/v1/fitness/strava/archive/presigned',
       {
         method: 'POST',
@@ -78,7 +80,7 @@ describe('Strava archive presigned URL endpoint', () => {
       fitnessFileId: 'fitness-file-id-1'
     })
 
-    const req = new Request(
+    const req = new NextRequest(
       'http://localhost/api/v1/fitness/strava/archive/presigned',
       {
         method: 'POST',
@@ -105,7 +107,7 @@ describe('Strava archive presigned URL endpoint', () => {
   })
 
   it('returns 422 on invalid input (non-zip file)', async () => {
-    const req = new Request(
+    const req = new NextRequest(
       'http://localhost/api/v1/fitness/strava/archive/presigned',
       {
         method: 'POST',
@@ -130,7 +132,7 @@ describe('Strava archive presigned URL endpoint', () => {
       new QuotaExceededError('Quota exceeded', 1000, 500)
     )
 
-    const req = new Request(
+    const req = new NextRequest(
       'http://localhost/api/v1/fitness/strava/archive/presigned',
       {
         method: 'POST',
@@ -158,7 +160,7 @@ describe('Strava archive presigned URL endpoint', () => {
       status: 'importing'
     })
 
-    const req = new Request(
+    const req = new NextRequest(
       'http://localhost/api/v1/fitness/strava/archive/presigned',
       {
         method: 'POST',
@@ -182,7 +184,7 @@ describe('Strava archive presigned URL endpoint', () => {
   it('returns 401 when not authenticated', async () => {
     mockGetServerSession.mockResolvedValue(null)
 
-    const req = new Request(
+    const req = new NextRequest(
       'http://localhost/api/v1/fitness/strava/archive/presigned',
       {
         method: 'POST',
