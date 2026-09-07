@@ -36,9 +36,84 @@ const withContentSecurityPolicy = (
   return response
 }
 
+const VALID_AUTH_PAGES = new Set([
+  '/auth/signin',
+  '/auth/signup',
+  '/auth/error',
+  '/auth/confirmation',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+  '/auth/select-actor',
+  '/auth/two-factor'
+])
+
 export async function proxy(request: NextRequest) {
-  if (request.method === 'GET') {
-    const pathname = request.nextUrl.pathname
+  const pathname = request.nextUrl.pathname
+
+  // Reject non-existent auth subpaths (e.g. /auth/callback) early with 404
+  // so they do not fall through to the dynamic `/[actor]/[status]` route.
+  if (
+    (pathname === '/auth' || pathname.startsWith('/auth/')) &&
+    !VALID_AUTH_PAGES.has(pathname)
+  ) {
+    return withContentSecurityPolicy(
+      new NextResponse(null, { status: 404 }),
+      request
+    )
+  }
+
+  // Actor routes (/@username, /@username/statusId, etc.) only accept GET and HEAD.
+  // Reject mutating methods with 405 Method Not Allowed rather than letting Next.js
+  // treat POST as an unregistered Server Action (which throws 500).
+  if (pathname.startsWith('/@')) {
+    if (request.method !== 'GET' && request.method !== 'HEAD') {
+      return withContentSecurityPolicy(
+        new NextResponse(null, {
+          status: 405,
+          headers: { Allow: 'GET, HEAD' }
+        }),
+        request
+      )
+    }
+  }
+
+  // Next.js App Router treats ANY POST request to a page route as a Server Action invocation.
+  // If the page does not define Server Actions and no action ID is provided, Next.js throws
+  // "Failed to find Server Action" and produces a 500 error.
+  // In activities.next, POST requests are only valid on API route handlers (/api/*), OAuth
+  // route handlers (/oauth/*), and admin Server Actions (/admin/* or with Next-Action header).
+  // All other page POSTs are rejected cleanly here.
+  if (
+    request.method === 'POST' &&
+    !pathname.startsWith('/api/') &&
+    !pathname.startsWith('/oauth/') &&
+    !pathname.startsWith('/admin') &&
+    !request.headers.has('next-action')
+  ) {
+    return withContentSecurityPolicy(
+      new NextResponse(null, { status: 404 }),
+      request
+    )
+  }
+
+  // Reject mutating methods (PUT, DELETE, PATCH) targeted at non-API routes.
+  if (
+    (request.method === 'PUT' ||
+      request.method === 'DELETE' ||
+      request.method === 'PATCH') &&
+    !pathname.startsWith('/api/') &&
+    !pathname.startsWith('/oauth/')
+  ) {
+    return withContentSecurityPolicy(
+      new NextResponse(null, {
+        status: 405,
+        headers: { Allow: 'GET, HEAD' }
+      }),
+      request
+    )
+  }
+
+  if (request.method === 'GET' || request.method === 'HEAD') {
     const acceptValue = request.headers.get('Accept')
 
     if (

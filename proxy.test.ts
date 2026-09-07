@@ -356,6 +356,121 @@ describe('proxy', () => {
     )
   })
 
+  it('returns 404 for unknown auth routes', async () => {
+    for (const method of ['GET', 'POST']) {
+      const request = new NextRequest('https://llun.social/auth/callback', {
+        method
+      })
+
+      const response = await proxy(request)
+
+      expect(response?.status).toBe(404)
+      expect(response?.headers.get('Content-Security-Policy')).toContain(
+        "default-src 'none'"
+      )
+    }
+
+    const rootAuthRequest = new NextRequest('https://llun.social/auth', {
+      method: 'GET'
+    })
+    const rootAuthResponse = await proxy(rootAuthRequest)
+    expect(rootAuthResponse?.status).toBe(404)
+  })
+
+  it('allows valid auth pages to pass through', async () => {
+    for (const validPage of [
+      '/auth/signin',
+      '/auth/signup',
+      '/auth/error',
+      '/auth/confirmation',
+      '/auth/forgot-password',
+      '/auth/reset-password',
+      '/auth/select-actor',
+      '/auth/two-factor'
+    ]) {
+      const request = new NextRequest(`https://llun.social${validPage}`, {
+        method: 'GET'
+      })
+
+      const response = await proxy(request)
+
+      expect(response?.status).toBe(200)
+      expect(response?.headers.get('x-middleware-rewrite')).toBeNull()
+    }
+  })
+
+  it('rejects mutating methods on actor routes with 405 Method Not Allowed', async () => {
+    for (const method of ['POST', 'PUT', 'DELETE', 'PATCH']) {
+      const request = new NextRequest('https://llun.social/@alice/status-123', {
+        method
+      })
+
+      const response = await proxy(request)
+
+      expect(response?.status).toBe(405)
+      expect(response?.headers.get('allow')).toBe('GET, HEAD')
+      expect(response?.headers.get('Content-Security-Policy')).toContain(
+        "default-src 'none'"
+      )
+    }
+  })
+
+  it('rejects non-action POST requests to page routes with 404', async () => {
+    for (const path of ['/', '/settings', '/explore', '/notifications']) {
+      const request = new NextRequest(`https://llun.social${path}`, {
+        method: 'POST'
+      })
+
+      const response = await proxy(request)
+
+      expect(response?.status).toBe(404)
+    }
+  })
+
+  it('allows POST requests to API routes, OAuth endpoints, admin, and Server Actions', async () => {
+    const apiRequest = new NextRequest('https://llun.social/api/v1/statuses', {
+      method: 'POST'
+    })
+    const apiResponse = await proxy(apiRequest)
+    expect(apiResponse?.status).toBe(200)
+
+    const oauthRequest = new NextRequest('https://llun.social/oauth/token', {
+      method: 'POST'
+    })
+    const oauthResponse = await proxy(oauthRequest)
+    expect(oauthResponse?.status).toBe(200)
+
+    const adminRequest = new NextRequest('https://llun.social/admin/queues', {
+      method: 'POST'
+    })
+    const adminResponse = await proxy(adminRequest)
+    expect(adminResponse?.status).toBe(200)
+
+    const actionRequest = new NextRequest('https://llun.social/custom-action', {
+      method: 'POST',
+      headers: {
+        'next-action': 'action-id-123'
+      }
+    })
+    const actionResponse = await proxy(actionRequest)
+    expect(actionResponse?.status).toBe(200)
+  })
+
+  it('rewrites actor handles on HEAD requests', async () => {
+    const request = new NextRequest('https://internal.example.com/@alice', {
+      method: 'HEAD',
+      headers: {
+        host: 'internal.example.com'
+      }
+    })
+
+    const response = await proxy(request)
+
+    expect(response?.headers.get('x-middleware-rewrite')).toBe(
+      'https://internal.example.com/@alice@public.example.com'
+    )
+  })
+
   // Walk proxy.ts's static import graph, reporting every disallowed specifier
   // reached and the files visited on the way. The visited set is returned so a
   // caller can prove the walk got somewhere: if module resolution ever breaks,
