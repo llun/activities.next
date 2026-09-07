@@ -4,6 +4,7 @@ import { AlertTriangle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
+import { deleteActor } from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
@@ -43,26 +44,19 @@ export function DeleteActorDialog({
     setIsLoading(true)
 
     try {
-      const response = await fetch('/api/v1/actors/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          actorId,
-          delayDays: delayOption === 'delayed' ? 3 : 0
-        })
+      await deleteActor({
+        actorId,
+        delayDays: delayOption === 'delayed' ? 3 : 0
       })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        setError(data.error || 'Failed to delete actor')
-        return
-      }
 
       onOpenChange(false)
       router.refresh()
-    } catch {
-      setError('An error occurred while deleting the actor')
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'An error occurred while deleting the actor'
+      )
     } finally {
       setIsLoading(false)
     }

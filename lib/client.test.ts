@@ -17,6 +17,8 @@ import {
   createDirectMessage,
   createPoll,
   createReport,
+  deleteAccountMedia,
+  deleteActor,
   deleteCollection,
   deleteFitnessRouteHeatmap,
   deleteStatus,
@@ -38,6 +40,7 @@ import {
   removeCollectionAccounts,
   revokeCollectionMembership,
   search,
+  setDefaultActor,
   startStravaArchiveImport,
   switchActor,
   triggerFitnessRouteHeatmap,
@@ -1762,6 +1765,211 @@ describe('client actor management helpers', () => {
 
       await expect(switchActor({ actorId: 'actor-2' })).rejects.toThrow(
         'Network disconnected'
+      )
+    })
+  })
+
+  describe('setDefaultActor', () => {
+    it('sends POST with actorId to set default actor', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          defaultActorId: 'actor-1',
+          id: 'actor-1',
+          username: 'alice',
+          domain: 'activities.local'
+        }),
+        { status: 200 }
+      )
+
+      const result = await setDefaultActor({ actorId: 'actor-1' })
+
+      expect(result).toEqual({
+        defaultActorId: 'actor-1',
+        id: 'actor-1',
+        username: 'alice',
+        domain: 'activities.local'
+      })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/actors/default',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ actorId: 'actor-1' })
+        })
+      )
+    })
+
+    it('decodes API error message on failure', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          error: 'Actor not found or not owned by account'
+        }),
+        { status: 404 }
+      )
+
+      await expect(
+        setDefaultActor({ actorId: 'actor-missing' })
+      ).rejects.toThrow('Actor not found or not owned by account')
+    })
+
+    it('falls back to default error message on failure', async () => {
+      fetchMock.mockResponseOnce('', { status: 500 })
+
+      await expect(setDefaultActor({ actorId: 'actor-1' })).rejects.toThrow(
+        'Failed to update default actor'
+      )
+    })
+
+    it('propagates network failure', async () => {
+      fetchMock.mockRejectOnce(new Error('Network error'))
+
+      await expect(setDefaultActor({ actorId: 'actor-1' })).rejects.toThrow(
+        'Network error'
+      )
+    })
+  })
+
+  describe('deleteActor', () => {
+    it('sends POST with actorId and delayDays', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          actorId: 'actor-1',
+          status: 'scheduled',
+          scheduledAt: '2026-09-10T00:00:00.000Z',
+          immediate: false
+        }),
+        { status: 200 }
+      )
+
+      const result = await deleteActor({ actorId: 'actor-1', delayDays: 3 })
+
+      expect(result).toEqual({
+        actorId: 'actor-1',
+        status: 'scheduled',
+        scheduledAt: '2026-09-10T00:00:00.000Z',
+        immediate: false
+      })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/actors/delete',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ actorId: 'actor-1', delayDays: 3 })
+        })
+      )
+    })
+
+    it('defaults delayDays to 0 when omitted', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          actorId: 'actor-1',
+          status: 'scheduled',
+          scheduledAt: null,
+          immediate: true
+        }),
+        { status: 200 }
+      )
+
+      await deleteActor({ actorId: 'actor-1' })
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/actors/delete',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ actorId: 'actor-1', delayDays: 0 })
+        })
+      )
+    })
+
+    it('decodes API error message on failure', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          error: 'Cannot delete the default actor'
+        }),
+        { status: 400 }
+      )
+
+      await expect(deleteActor({ actorId: 'actor-default' })).rejects.toThrow(
+        'Cannot delete the default actor'
+      )
+    })
+
+    it('falls back to default error message on failure', async () => {
+      fetchMock.mockResponseOnce('', { status: 500 })
+
+      await expect(deleteActor({ actorId: 'actor-1' })).rejects.toThrow(
+        'Failed to delete actor'
+      )
+    })
+
+    it('propagates network failure', async () => {
+      fetchMock.mockRejectOnce(new Error('Network error'))
+
+      await expect(deleteActor({ actorId: 'actor-1' })).rejects.toThrow(
+        'Network error'
+      )
+    })
+  })
+
+  describe('deleteAccountMedia', () => {
+    it('sends DELETE to account media route and returns true', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ success: true }), {
+        status: 200
+      })
+
+      const result = await deleteAccountMedia({ mediaId: 'media-123' })
+
+      expect(result).toBe(true)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/accounts/media/media-123',
+        expect.objectContaining({
+          method: 'DELETE'
+        })
+      )
+    })
+
+    it('encodes mediaId in path', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ success: true }), {
+        status: 200
+      })
+
+      await deleteAccountMedia({ mediaId: 'path/with/slash' })
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/accounts/media/path%2Fwith%2Fslash',
+        expect.objectContaining({
+          method: 'DELETE'
+        })
+      )
+    })
+
+    it('decodes API error message on failure', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          error: 'Media not found or not owned by account'
+        }),
+        { status: 404 }
+      )
+
+      await expect(
+        deleteAccountMedia({ mediaId: 'media-missing' })
+      ).rejects.toThrow('Media not found or not owned by account')
+    })
+
+    it('falls back to default error message on failure', async () => {
+      fetchMock.mockResponseOnce('', { status: 500 })
+
+      await expect(deleteAccountMedia({ mediaId: 'media-1' })).rejects.toThrow(
+        'Failed to delete media'
+      )
+    })
+
+    it('propagates network failure', async () => {
+      fetchMock.mockRejectOnce(new Error('Network error'))
+
+      await expect(deleteAccountMedia({ mediaId: 'media-1' })).rejects.toThrow(
+        'Network error'
       )
     })
   })

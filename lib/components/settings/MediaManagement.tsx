@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
+import { deleteAccountMedia } from '@/lib/client'
 import { PageHeader } from '@/lib/components/page-header'
 import {
   FileListPagination,
@@ -80,20 +81,13 @@ export function MediaManagement({
 
     setDeleting(true)
     try {
-      const response = await fetch(
-        `/api/v1/accounts/media/${mediaToDelete.id}`,
-        {
-          method: 'DELETE'
-        }
-      )
+      await deleteAccountMedia({ mediaId: mediaToDelete.id })
 
-      if (response.ok) {
-        // Update local state
-        setMedias(medias.filter((m) => m.id !== mediaToDelete.id))
-        setCurrentUsed(currentUsed - mediaToDelete.bytes)
-        setDeleteDialogOpen(false)
-        setMediaToDelete(null)
-      }
+      // Update local state
+      setMedias(medias.filter((m) => m.id !== mediaToDelete.id))
+      setCurrentUsed(currentUsed - mediaToDelete.bytes)
+      setDeleteDialogOpen(false)
+      setMediaToDelete(null)
     } catch {
       // Silently fail on network errors or API failures - user will see media is still present
     } finally {
