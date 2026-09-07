@@ -23,7 +23,6 @@ import type { PreviewCard } from '@/lib/types/mastodon/previewCard'
 import type { Status as MastodonStatus } from '@/lib/types/mastodon/status'
 import type { StatusReaction as MastodonStatusReaction } from '@/lib/types/mastodon/statusReaction'
 import type { Tag } from '@/lib/types/mastodon/tag'
-import type { Translation } from '@/lib/types/mastodon/translation'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { getMediaWidthAndHeight } from '@/lib/utils/getMediaWidthAndHeight'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
@@ -41,12 +40,19 @@ import {
   type CreateNoteParams,
   type CreatePollParams,
   type DefaultStatusParams,
+  type TranslateStatusParams,
+  type TranslationCapability,
   type UpdateNoteParams,
   type UpdateNoteResult,
   type UpdateStatusVisibilityParams,
   createNote,
   createPoll,
   deleteStatus,
+  getTranslationCapability,
+  likeStatus,
+  repostStatus,
+  translateStatus,
+  undoRepostStatus,
   updateNote,
   updateStatusVisibility
 } from './client/statuses'
@@ -64,7 +70,14 @@ export {
   type CreatePollParams,
   createPoll,
   type DefaultStatusParams,
-  deleteStatus
+  deleteStatus,
+  repostStatus,
+  undoRepostStatus,
+  type TranslateStatusParams,
+  translateStatus,
+  type TranslationCapability,
+  getTranslationCapability,
+  likeStatus
 }
 
 export type ReportCategory = 'spam' | 'legal' | 'violation' | 'other'
@@ -106,103 +119,6 @@ export const createReport = async ({
   return response.status === 200
 }
 
-/**
- * Reblogs/reposts a status using Mastodon-compatible API
- * @see https://docs.joinmastodon.org/methods/statuses/#boost
- */
-export const repostStatus = async ({ statusId }: DefaultStatusParams) => {
-  const response = await fetch(
-    `/api/v1/statuses/${toIdPathSegment(statusId)}/reblog`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    }
-  )
-  if (response.status !== 200) return null
-  const mastodonStatus = await response.json()
-  return { statusId: mastodonStatus.id }
-}
-
-/**
- * Undoes a reblog/repost using Mastodon-compatible API
- * @see https://docs.joinmastodon.org/methods/statuses/#unreblog
- */
-export const undoRepostStatus = async ({ statusId }: DefaultStatusParams) => {
-  const response = await fetch(
-    `/api/v1/statuses/${toIdPathSegment(statusId)}/unreblog`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    }
-  )
-  if (response.status !== 200) return null
-  const mastodonStatus = await response.json()
-  return { statusId: mastodonStatus.id }
-}
-
-export interface TranslateStatusParams extends DefaultStatusParams {
-  // Target language as an ISO 639-1 code. Omitted lets the server default to
-  // its primary language.
-  language?: string
-}
-
-/**
- * Translates a status using the Mastodon-compatible translate API. Returns the
- * Translation entity, or null when the server cannot translate it (no backend,
- * unsupported language, non-public status, or a backend failure).
- * @see https://docs.joinmastodon.org/methods/statuses/#translate
- */
-export const translateStatus = async ({
-  statusId,
-  language
-}: TranslateStatusParams): Promise<Translation | null> => {
-  const response = await fetch(
-    `/api/v1/statuses/${toIdPathSegment(statusId)}/translate`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(language ? { lang: language } : {})
-    }
-  )
-  if (response.status !== 200) return null
-  return (await response.json()) as Translation
-}
-
-export interface TranslationCapability {
-  // Whether a translation backend is configured on this server.
-  enabled: boolean
-  // The server's primary language (ISO 639-1); the default translation target.
-  defaultLanguage: string | null
-}
-
-let translationCapabilityPromise: Promise<TranslationCapability> | null = null
-
-/**
- * Reads the server's translation capability from `/api/v2/instance`, memoized
- * for the session so every post does not refetch it. Used by the Translate
- * control to avoid showing a dead button when no backend is configured.
- */
-export const getTranslationCapability = (): Promise<TranslationCapability> => {
-  if (!translationCapabilityPromise) {
-    translationCapabilityPromise = fetch('/api/v2/instance')
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data) => ({
-        enabled: Boolean(data?.configuration?.translation?.enabled),
-        defaultLanguage: Array.isArray(data?.languages)
-          ? (data.languages[0] ?? null)
-          : null
-      }))
-      .catch(() => ({ enabled: false, defaultLanguage: null }))
-  }
-  return translationCapabilityPromise
-}
-
 // A map of source language (ISO 639-1) → the target languages the configured
 // backend can translate it into.
 export type TranslationLanguages = Record<string, string[]>
@@ -239,23 +155,6 @@ export const getTranslationLanguages = (): Promise<TranslationLanguages> => {
       })
   }
   return translationLanguagesPromise
-}
-
-/**
- * Favourites/likes a status using Mastodon-compatible API
- * @see https://docs.joinmastodon.org/methods/statuses/#favourite
- */
-export const likeStatus = async ({ statusId }: DefaultStatusParams) => {
-  const response = await fetch(
-    `/api/v1/statuses/${toIdPathSegment(statusId)}/favourite`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    }
-  )
-  return response.status === 200
 }
 
 /**
