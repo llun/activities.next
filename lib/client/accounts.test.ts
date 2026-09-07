@@ -2,13 +2,18 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import {
   acceptFollowRequest,
+  cancelActorDeletion,
   createActor,
   createReport,
+  deleteAccountMedia,
+  deleteActor,
   follow,
   getActorDomains,
   getFollowStatus,
+  getRelationship,
   isFollowing,
   rejectFollowRequest,
+  setDefaultActor,
   switchActor,
   unfollow
 } from './accounts'
@@ -333,6 +338,204 @@ describe('client accounts module', () => {
       await expect(
         createActor({ username: 'alice', domain: 'example.com' })
       ).rejects.toThrow('Failed to create actor')
+    })
+  })
+
+  describe('cancelActorDeletion', () => {
+    it('cancels deletion and returns result on success', async () => {
+      const mockResult = { actorId: 'actor-1', status: 'cancelled' }
+      fetchMock.mockResponse(JSON.stringify(mockResult), { status: 200 })
+
+      const res = await cancelActorDeletion({ actorId: 'actor-1' })
+      expect(res).toEqual(mockResult)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/actors/cancel-deletion',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ actorId: 'actor-1' })
+        })
+      )
+    })
+
+    it('throws error when cancel deletion fails', async () => {
+      fetchMock.mockResponse(JSON.stringify({ error: 'Not scheduled' }), {
+        status: 400
+      })
+
+      await expect(cancelActorDeletion({ actorId: 'actor-1' })).rejects.toThrow(
+        'Not scheduled'
+      )
+
+      fetchMock.mockResponse(JSON.stringify({}), { status: 500 })
+      await expect(cancelActorDeletion({ actorId: 'actor-1' })).rejects.toThrow(
+        'Failed to cancel actor deletion'
+      )
+    })
+  })
+
+  describe('setDefaultActor', () => {
+    it('sets default actor and returns result on success', async () => {
+      const mockResult = {
+        defaultActorId: 'actor-1',
+        id: 'actor-1',
+        username: 'alice',
+        domain: 'example.com'
+      }
+      fetchMock.mockResponse(JSON.stringify(mockResult), { status: 200 })
+
+      const res = await setDefaultActor({ actorId: 'actor-1' })
+      expect(res).toEqual(mockResult)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/actors/default',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ actorId: 'actor-1' })
+        })
+      )
+    })
+
+    it('throws error when updating default actor fails', async () => {
+      fetchMock.mockResponse(JSON.stringify({ error: 'Actor not found' }), {
+        status: 404
+      })
+
+      await expect(setDefaultActor({ actorId: 'actor-1' })).rejects.toThrow(
+        'Actor not found'
+      )
+
+      fetchMock.mockResponse(JSON.stringify({}), { status: 500 })
+      await expect(setDefaultActor({ actorId: 'actor-1' })).rejects.toThrow(
+        'Failed to update default actor'
+      )
+    })
+  })
+
+  describe('deleteActor', () => {
+    it('schedules deletion and returns result on success', async () => {
+      const mockResult = {
+        actorId: 'actor-1',
+        status: 'scheduled',
+        scheduledAt: '2026-09-14T00:00:00Z',
+        immediate: false
+      }
+      fetchMock.mockResponse(JSON.stringify(mockResult), { status: 200 })
+
+      const res = await deleteActor({ actorId: 'actor-1', delayDays: 7 })
+      expect(res).toEqual(mockResult)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/actors/delete',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ actorId: 'actor-1', delayDays: 7 })
+        })
+      )
+    })
+
+    it('defaults delayDays to 0 when omitted', async () => {
+      const mockResult = {
+        actorId: 'actor-1',
+        status: 'deleted',
+        scheduledAt: null,
+        immediate: true
+      }
+      fetchMock.mockResponse(JSON.stringify(mockResult), { status: 200 })
+
+      const res = await deleteActor({ actorId: 'actor-1' })
+      expect(res).toEqual(mockResult)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/actors/delete',
+        expect.objectContaining({
+          body: JSON.stringify({ actorId: 'actor-1', delayDays: 0 })
+        })
+      )
+    })
+
+    it('throws error when deletion fails', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({ error: 'Cannot delete default actor' }),
+        {
+          status: 422
+        }
+      )
+
+      await expect(deleteActor({ actorId: 'actor-1' })).rejects.toThrow(
+        'Cannot delete default actor'
+      )
+
+      fetchMock.mockResponse(JSON.stringify({}), { status: 500 })
+      await expect(deleteActor({ actorId: 'actor-1' })).rejects.toThrow(
+        'Failed to delete actor'
+      )
+    })
+  })
+
+  describe('deleteAccountMedia', () => {
+    it('deletes media and returns true on success', async () => {
+      fetchMock.mockResponse('', { status: 200 })
+
+      const res = await deleteAccountMedia({ mediaId: 'media-123' })
+      expect(res).toBe(true)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/accounts/media/media-123',
+        expect.objectContaining({ method: 'DELETE' })
+      )
+    })
+
+    it('throws error when delete media fails', async () => {
+      fetchMock.mockResponse(JSON.stringify({ error: 'Media not found' }), {
+        status: 404
+      })
+
+      await expect(
+        deleteAccountMedia({ mediaId: 'media-123' })
+      ).rejects.toThrow('Media not found')
+
+      fetchMock.mockResponse(JSON.stringify({}), { status: 500 })
+      await expect(
+        deleteAccountMedia({ mediaId: 'media-123' })
+      ).rejects.toThrow('Failed to delete media')
+    })
+  })
+
+  describe('getRelationship', () => {
+    it('fetches and returns relationship object on 200', async () => {
+      const mockRelationship = {
+        id: 'actor-target',
+        following: true,
+        followedBy: false,
+        blocking: false,
+        muting: false
+      }
+      fetchMock.mockResponse(JSON.stringify([mockRelationship]), {
+        status: 200
+      })
+
+      const res = await getRelationship({ targetActorId: 'actor-target' })
+      expect(res).toEqual(mockRelationship)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/accounts/relationships?id[]=actor-target',
+        expect.objectContaining({
+          method: 'GET',
+          headers: { Accept: 'application/json' }
+        })
+      )
+    })
+
+    it('returns null when response is not 200', async () => {
+      fetchMock.mockResponse('', { status: 500 })
+
+      const res = await getRelationship({ targetActorId: 'actor-target' })
+      expect(res).toBeNull()
+    })
+
+    it('returns null when relationships array is empty', async () => {
+      fetchMock.mockResponse(JSON.stringify([]), { status: 200 })
+
+      const res = await getRelationship({ targetActorId: 'actor-target' })
+      expect(res).toBeNull()
     })
   })
 })
