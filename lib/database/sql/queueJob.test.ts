@@ -291,6 +291,192 @@ describe('QueueJobDatabase', () => {
     expect(secondFail).toBe(false)
   })
 
+  describe('failQueueJobWithDeadLetter', () => {
+    it('verifies claim ownership, marks job failed, and writes dead-letter record', async () => {
+      await database.createQueueJob({
+        id: 'fail-dlq-1',
+        name: 'deliverActivity',
+        payload: samplePayload,
+        attempts: 15
+      })
+
+      const claim = await database.claimQueueJob({ id: 'fail-dlq-1' })
+      expect(claim).not.toBeNull()
+
+      const err = new Error('Terminal upstream rejection')
+      const success = await database.failQueueJobWithDeadLetter({
+        id: 'fail-dlq-1',
+        claimToken: claim!.claimToken,
+        attempts: 16,
+        error: err
+      })
+
+      expect(success).toBe(true)
+
+      // Verify queue_jobs state
+      const queueJob = await database.getQueueJobById('fail-dlq-1')
+      expect(queueJob?.status).toBe('failed')
+      expect(queueJob?.attempts).toBe(16)
+      expect(queueJob?.claimToken).toBeNull()
+      expect(queueJob?.lastErrorMessage).toBe('Terminal upstream rejection')
+      expect(queueJob?.lastErrorStack).toBe(err.stack)
+
+      // Verify dead_letter_jobs state derived from owned row
+      const dlqJob = await database.getDeadLetterJobById('fail-dlq-1')
+      expect(dlqJob).not.toBeNull()
+      expect(dlqJob?.id).toBe('fail-dlq-1')
+      expect(dlqJob?.jobName).toBe('deliverActivity')
+      expect(dlqJob?.payload).toEqual(samplePayload)
+      expect(dlqJob?.errorMessage).toBe('Terminal upstream rejection')
+      expect(dlqJob?.errorStack).toBe(err.stack)
+      expect(dlqJob?.attempts).toBe(16)
+      expect(dlqJob?.status).toBe('failed')
+    })
+
+    it('handles non-Error error cleanly preserving string representation', async () => {
+      await database.createQueueJob({
+        id: 'fail-dlq-str-err',
+        name: 'deliverActivity',
+        payload: samplePayload
+      })
+
+      const claim = await database.claimQueueJob({ id: 'fail-dlq-str-err' })
+      expect(claim).not.toBeNull()
+
+      const success = await database.failQueueJobWithDeadLetter({
+        id: 'fail-dlq-str-err',
+        claimToken: claim!.claimToken,
+        attempts: 5,
+        error: 'raw-string-error'
+      })
+
+      expect(success).toBe(true)
+
+      const queueJob = await database.getQueueJobById('fail-dlq-str-err')
+      expect(queueJob?.lastErrorMessage).toBe('raw-string-error')
+      expect(queueJob?.lastErrorStack).toBeNull()
+
+      const dlqJob = await database.getDeadLetterJobById('fail-dlq-str-err')
+      expect(dlqJob?.errorMessage).toBe('raw-string-error')
+      expect(dlqJob?.errorStack).toBeNull()
+    })
+
+    it('rejects stale claim token and changes neither queue_jobs nor dead_letter_jobs', async () => {
+      await database.createQueueJob({
+        id: 'fail-dlq-stale-1',
+        name: 'deliverActivity',
+        payload: samplePayload
+      })
+
+      const claim = await database.claimQueueJob({ id: 'fail-dlq-stale-1' })
+      expect(claim).not.toBeNull()
+
+      const success = await database.failQueueJobWithDeadLetter({
+        id: 'fail-dlq-stale-1',
+        claimToken: 'stale-claim-token-uuid',
+        attempts: 16,
+        error: new Error('stale failure')
+      })
+
+      expect(success).toBe(false)
+
+      // queue_jobs must be unchanged
+      const queueJob = await database.getQueueJobById('fail-dlq-stale-1')
+      expect(queueJob?.status).toBe('processing')
+      expect(queueJob?.claimToken).toBe(claim?.claimToken)
+
+      // dead_letter_jobs must have no record
+      const dlqJob = await database.getDeadLetterJobById('fail-dlq-stale-1')
+      expect(dlqJob).toBeNull()
+    })
+
+    it('updates existing dead-letter record on duplicate terminal delivery', async () => {
+      // Create initial job and fail it
+      await database.createQueueJob({
+        id: 'fail-dlq-dup-1',
+        name: 'deliverActivity',
+        payload: samplePayload
+      })
+
+      const claim1 = await database.claimQueueJob({ id: 'fail-dlq-dup-1' })
+      expect(claim1).not.toBeNull()
+
+      await database.failQueueJobWithDeadLetter({
+        id: 'fail-dlq-dup-1',
+        claimToken: claim1!.claimToken,
+        attempts: 1,
+        error: new Error('First failure')
+      })
+
+      const initialDlq = await database.getDeadLetterJobById('fail-dlq-dup-1')
+      expect(initialDlq?.errorMessage).toBe('First failure')
+      expect(initialDlq?.attempts).toBe(1)
+
+      // Re-enqueue with the same ID and claim again
+      await database.createQueueJob({
+        id: 'fail-dlq-dup-1',
+        name: 'deliverActivity',
+        payload: samplePayload,
+        status: 'pending'
+      })
+
+      const claim2 = await database.claimQueueJob({ id: 'fail-dlq-dup-1' })
+      expect(claim2).not.toBeNull()
+
+      // Second terminal failure with same ID updates DLQ record
+      const success2 = await database.failQueueJobWithDeadLetter({
+        id: 'fail-dlq-dup-1',
+        claimToken: claim2!.claimToken,
+        attempts: 5,
+        error: new Error('Second updated failure')
+      })
+
+      expect(success2).toBe(true)
+
+      const updatedDlq = await database.getDeadLetterJobById('fail-dlq-dup-1')
+      expect(updatedDlq?.errorMessage).toBe('Second updated failure')
+      expect(updatedDlq?.attempts).toBe(5)
+    })
+
+    it('rolls back queue_jobs update if dead_letter_jobs write fails', async () => {
+      await database.createQueueJob({
+        id: 'fail-dlq-rollback-1',
+        name: 'deliverActivity',
+        payload: samplePayload
+      })
+
+      const claim = await database.claimQueueJob({ id: 'fail-dlq-rollback-1' })
+      expect(claim).not.toBeNull()
+
+      // Temporarily rename dead_letter_jobs table to force dead letter write failure
+      await knexDatabase.schema.renameTable(
+        'dead_letter_jobs',
+        'dead_letter_jobs_bak'
+      )
+
+      try {
+        await expect(
+          database.failQueueJobWithDeadLetter({
+            id: 'fail-dlq-rollback-1',
+            claimToken: claim!.claimToken,
+            attempts: 16,
+            error: new Error('Transaction rollback test error')
+          })
+        ).rejects.toThrow()
+
+        // Transaction must have rolled back: queue_jobs is STILL in 'processing' with original claimToken
+        const queueJob = await database.getQueueJobById('fail-dlq-rollback-1')
+        expect(queueJob?.status).toBe('processing')
+        expect(queueJob?.claimToken).toBe(claim!.claimToken)
+      } finally {
+        await knexDatabase.schema.renameTable(
+          'dead_letter_jobs_bak',
+          'dead_letter_jobs'
+        )
+      }
+    })
+  })
+
   it('reclaims stalled processing job with fresh claimToken and rejects stale worker settlement', async () => {
     const now = Date.now()
 

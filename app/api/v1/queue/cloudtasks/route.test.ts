@@ -591,6 +591,63 @@ describe('POST /api/v1/queue/cloudtasks', () => {
     })
   })
 
+  it('returns 500 when database is unavailable on terminal failure', async () => {
+    mockHandle.mockRejectedValue(new Error('Permanent failure'))
+    vi.mocked(getDatabase).mockReturnValue(null)
+
+    const body = {
+      id: 'msg-terminal-nodb',
+      name: 'terminalJob',
+      data: {}
+    }
+    const request = new NextRequest(
+      'https://activities.local/api/v1/queue/cloudtasks',
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+        headers: {
+          authorization: 'Bearer test-secret',
+          'x-cloudtasks-taskretrycount': '4',
+          'x-cloudtasks-taskexecutioncount': '4'
+        }
+      }
+    )
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+    expect(response.status).toBe(500)
+    const json = await response.json()
+    expect(json).toEqual({ error: 'Database unavailable' })
+  })
+
+  it('returns 500 when dead letter job persistence fails on terminal failure', async () => {
+    mockHandle.mockRejectedValue(new Error('Permanent failure'))
+    mockCreateDeadLetterJob.mockRejectedValue(new Error('DB connection lost'))
+
+    const body = {
+      id: 'msg-terminal-persist-fail',
+      name: 'terminalJob',
+      data: {}
+    }
+    const request = new NextRequest(
+      'https://activities.local/api/v1/queue/cloudtasks',
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+        headers: {
+          authorization: 'Bearer test-secret',
+          'x-cloudtasks-taskretrycount': '4',
+          'x-cloudtasks-taskexecutioncount': '4'
+        }
+      }
+    )
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+    expect(response.status).toBe(500)
+    const json = await response.json()
+    expect(json).toEqual({ error: 'Failed to record dead letter job' })
+    expect(mockCreateDeadLetterJob).toHaveBeenCalled()
+  })
+
   it('returns 401 when authorization header has empty bearer token', async () => {
     const request = new NextRequest(
       'https://activities.local/api/v1/queue/cloudtasks',

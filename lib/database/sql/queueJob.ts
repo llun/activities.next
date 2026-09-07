@@ -8,6 +8,7 @@ import {
   ClaimQueueJobParams,
   ClaimedQueueJob,
   CreateQueueJobParams,
+  FailQueueJobWithDeadLetterParams,
   GetDueQueueJobsParams,
   QueueJob,
   QueueJobDatabase,
@@ -271,6 +272,85 @@ export const QueueJobSQLDatabaseMixin = (database: Knex): QueueJobDatabase => ({
       .update(updateData)
 
     return updatedCount > 0
+  },
+
+  async failQueueJobWithDeadLetter({
+    id,
+    claimToken,
+    attempts,
+    error
+  }: FailQueueJobWithDeadLetterParams): Promise<boolean> {
+    return await database.transaction(async (trx) => {
+      const job = await trx<SQLQueueJob>('queue_jobs')
+        .where({ id, claim_token: claimToken, status: 'processing' })
+        .first()
+
+      if (!job) {
+        return false
+      }
+
+      let lastErrorMessage: string | null = null
+      let lastErrorStack: string | null = null
+
+      if (error) {
+        if (error instanceof Error) {
+          lastErrorMessage = error.message
+          lastErrorStack = error.stack ?? null
+        } else {
+          lastErrorMessage = String(error)
+        }
+      }
+
+      const updatedAt = new Date()
+      const finalAttempts = attempts !== undefined ? attempts : job.attempts
+      const updateData: Record<string, unknown> = {
+        status: 'failed',
+        claim_token: null,
+        last_error_message: lastErrorMessage,
+        last_error_stack: lastErrorStack,
+        updated_at: updatedAt
+      }
+
+      if (attempts !== undefined) {
+        updateData.attempts = attempts
+      }
+
+      const updatedCount = await trx('queue_jobs')
+        .where({ id, claim_token: claimToken, status: 'processing' })
+        .update(updateData)
+
+      if (updatedCount === 0) {
+        return false
+      }
+
+      const payload = JSON.stringify(getCompatibleJSON(job.payload))
+      const errorMessage = lastErrorMessage || 'Job execution failed terminally'
+
+      await trx('dead_letter_jobs')
+        .insert({
+          id: job.id,
+          job_name: job.name,
+          payload,
+          error_message: errorMessage,
+          error_stack: lastErrorStack,
+          attempts: finalAttempts,
+          status: 'failed',
+          created_at: updatedAt,
+          updated_at: updatedAt
+        })
+        .onConflict('id')
+        .merge({
+          job_name: job.name,
+          payload,
+          error_message: errorMessage,
+          error_stack: lastErrorStack,
+          attempts: finalAttempts,
+          status: 'failed',
+          updated_at: updatedAt
+        })
+
+      return true
+    })
   },
 
   async getQueueJobById(id: string) {

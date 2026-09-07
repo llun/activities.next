@@ -151,7 +151,7 @@ export const processDueQueueJobs = async (
               )
             }
           } else {
-            const failed = await database.failQueueJob({
+            const failed = await database.failQueueJobWithDeadLetter({
               id: claimedJob.id,
               claimToken: claimedJob.claimToken,
               attempts: nextAttempts,
@@ -159,16 +159,6 @@ export const processDueQueueJobs = async (
             })
 
             if (failed) {
-              await database.createDeadLetterJob({
-                id: claimedJob.id,
-                jobName: claimedJob.name,
-                payload: claimedJob.payload,
-                errorMessage: err.message,
-                errorStack: err.stack ?? null,
-                attempts: nextAttempts,
-                status: 'failed'
-              })
-
               span.addEvent('job_terminal_failure', {
                 'job.id': claimedJob.id,
                 'job.attempts': nextAttempts,
