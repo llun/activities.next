@@ -536,3 +536,32 @@ export const getActorStatuses = async ({
 
   return (await response.json()) as GetActorStatusesResult
 }
+
+export interface DeleteSessionParams {
+  token: string
+}
+
+export const deleteSession = async ({
+  token
+}: DeleteSessionParams): Promise<boolean> => {
+  const path = `/api/v1/accounts/sessions/${token}`
+  const response = await fetch(path, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  })
+  if (response.status !== 200) return false
+  return true
+}
+
+// Revoke every session for the account except the current device.
+export const revokeOtherSessions = async (): Promise<boolean> => {
+  const response = await fetch('/api/v1/accounts/sessions', {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  })
+  return response.ok
+}

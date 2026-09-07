@@ -8,6 +8,7 @@ import {
   createReport,
   deleteAccountMedia,
   deleteActor,
+  deleteSession,
   follow,
   getActorDomains,
   getActorStatuses,
@@ -17,6 +18,7 @@ import {
   isFollowing,
   mute,
   rejectFollowRequest,
+  revokeOtherSessions,
   setDefaultActor,
   switchActor,
   unblock,
@@ -742,6 +744,52 @@ describe('client accounts module', () => {
       await expect(getActorStatuses({ actorId: 'actor-123' })).rejects.toThrow(
         'Failed to load actor statuses: 500'
       )
+    })
+  })
+
+  describe('deleteSession', () => {
+    it('deletes session and returns true on 200', async () => {
+      fetchMock.mockResponse('', { status: 200 })
+
+      const res = await deleteSession({ token: 'sess-token-123' })
+      expect(res).toBe(true)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/accounts/sessions/sess-token-123',
+        expect.objectContaining({
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' }
+        })
+      )
+    })
+
+    it('returns false when status is not 200', async () => {
+      fetchMock.mockResponse('', { status: 404 })
+
+      const res = await deleteSession({ token: 'invalid' })
+      expect(res).toBe(false)
+    })
+  })
+
+  describe('revokeOtherSessions', () => {
+    it('revokes other sessions and returns true on ok response', async () => {
+      fetchMock.mockResponse('', { status: 200 })
+
+      const res = await revokeOtherSessions()
+      expect(res).toBe(true)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/accounts/sessions',
+        expect.objectContaining({
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' }
+        })
+      )
+    })
+
+    it('returns false on non-ok response', async () => {
+      fetchMock.mockResponse('', { status: 500 })
+
+      const res = await revokeOtherSessions()
+      expect(res).toBe(false)
     })
   })
 })
