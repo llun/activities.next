@@ -71,6 +71,7 @@ const buildAccount = (
   email: seedActor1.email,
   verificationCode,
   emailVerified,
+  twoFactorEnabled: false,
   defaultActorId: ACTOR1_ID,
   createdAt: Date.now(),
   updatedAt: Date.now()

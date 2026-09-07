@@ -52,6 +52,8 @@ const conversation = (id: string) => ({
 })
 
 describe('GET /api/v1/conversations', () => {
+  const routeContext = { params: Promise.resolve({}) }
+
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -63,7 +65,8 @@ describe('GET /api/v1/conversations', () => {
     ])
 
     const response = await GET(
-      new NextRequest('https://llun.test/api/v1/conversations?limit=2')
+      new NextRequest('https://llun.test/api/v1/conversations?limit=2'),
+      routeContext
     )
 
     expect(response.status).toBe(200)
@@ -85,7 +88,8 @@ describe('GET /api/v1/conversations', () => {
     ])
 
     const response = await GET(
-      new NextRequest('https://llun.test/api/v1/conversations?limit=2')
+      new NextRequest('https://llun.test/api/v1/conversations?limit=2'),
+      routeContext
     )
 
     expect(response.status).toBe(200)
@@ -103,7 +107,8 @@ describe('GET /api/v1/conversations', () => {
     const response = await GET(
       new NextRequest(
         'https://llun.test/api/v1/conversations?limit=2&since_id=1'
-      )
+      ),
+      routeContext
     )
 
     expect(response.status).toBe(200)
@@ -124,7 +129,8 @@ describe('GET /api/v1/conversations', () => {
     const response = await GET(
       new NextRequest(
         'https://llun.test/api/v1/conversations?min_id=2&since_id=1'
-      )
+      ),
+      routeContext
     )
 
     expect(response.status).toBe(200)
@@ -141,7 +147,8 @@ describe('GET /api/v1/conversations', () => {
     mockDatabase.getDirectConversations.mockResolvedValueOnce([])
 
     const response = await GET(
-      new NextRequest('https://llun.test/api/v1/conversations?limit=80')
+      new NextRequest('https://llun.test/api/v1/conversations?limit=80'),
+      routeContext
     )
 
     expect(response.status).toBe(200)
