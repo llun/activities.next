@@ -1,6 +1,9 @@
+import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { SEND_DELETE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
+import { DatabaseQueue } from '@/lib/services/queue/database'
+import { CreateQueueJobParams } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -36,6 +39,44 @@ export const deleteStatusFromUserInput = async ({
       return
     }
 
+    const queue = getQueue()
+    const config = getConfig()
+    const isDatabaseQueue =
+      queue instanceof DatabaseQueue || config.queue?.type === 'database'
+
+    const queueJobId = getHashFromString(`${statusId}#delete`)
+
+    if (isDatabaseQueue) {
+      const maxRetries =
+        config.queue?.type === 'database' ? (config.queue.maxRetries ?? 16) : 16
+
+      const queueJob: CreateQueueJobParams = {
+        id: queueJobId,
+        name: SEND_DELETE_NOTE_JOB_NAME,
+        payload: {
+          id: queueJobId,
+          name: SEND_DELETE_NOTE_JOB_NAME,
+          data: {
+            actorId: currentActor.id,
+            statusId,
+            to: originalStatus.to,
+            cc: originalStatus.cc
+          }
+        },
+        attempts: 0,
+        maxRetries,
+        nextRunAt: new Date(),
+        status: 'pending'
+      }
+
+      await database.deleteStatusWithQueueJob({
+        actorId: currentActor.id,
+        statusId,
+        queueJob
+      })
+      return
+    }
+
     // Delete locally first so the status leaves the author's timelines
     // immediately, then federate the Tombstone in the background. Delivery used
     // to run inline ahead of this, so the response waited on every remote inbox
@@ -45,12 +86,12 @@ export const deleteStatusFromUserInput = async ({
     await database.deleteStatus({ statusId, actorId: currentActor.id })
 
     try {
-      await getQueue().publish({
+      await queue.publish({
         // Suffixed because the queue deduplicates on this id across job names
         // and the create/update jobs already publish under the bare status id.
         // Without it, deleting a status posted or edited within the dedup
         // window would be dropped and never federate.
-        id: getHashFromString(`${statusId}#delete`),
+        id: queueJobId,
         name: SEND_DELETE_NOTE_JOB_NAME,
         data: {
           actorId: currentActor.id,

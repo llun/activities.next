@@ -261,6 +261,22 @@ the synchronous backend has no scheduler and **drops** any delayed message. Code
 that wants a delay must therefore check `getQueue().runsInline` and skip the
 delay rather than losing the job (see `syncStatusLinkPreview`).
 
+#### Status Deletion & Transactional Outbox Semantics
+
+Status deletion (`deleteStatusFromUserInput`) adapts its federation queue dispatching to the configured queue backend:
+
+- **Database Queue (`ACTIVITIES_QUEUE_TYPE=database`)**:
+  - Employs the transactional outbox pattern via `deleteStatusWithQueueJob`.
+  - The status deletion (including cascading deletions of replies, tags, likes, and counter updates) and the insertion of `SendDeleteNoteJob` into `queue_jobs` occur atomically in the exact same database transaction.
+  - Recipient addresses (`to` and `cc`), actor ID, and status ID are snapshotted before deleting the status record and embedded into the job payload.
+  - Job configuration matches `DatabaseQueue` defaults (`attempts: 0`, `status: 'pending'`, `maxRetries` from `ACTIVITIES_QUEUE_DATABASE_MAX_RETRIES` or default 16, `nextRunAt` set to immediate).
+  - No secondary publish step is executed after transaction commit.
+  - If the database transaction fails, the entire operation rolls back (the status and dependent rows are preserved, and no queue job is persisted), propagating the transaction failure to the caller.
+- **External & Synchronous Queues (QStash, CloudTasks, inline NoQueue)**:
+  - Preserves a two-phase delete-then-publish workflow: `database.deleteStatus` commits the local deletion first so the status disappears immediately from author and local timelines.
+  - The `SendDeleteNoteJob` is then published to the queue with the pre-deletion recipient snapshot.
+  - If publishing to the external queue fails, the error is logged without masking the committed local deletion, ensuring the user is not falsely told their post remains when it has already been removed.
+
 ### Link Preview Cards
 
 When a status contains a link, `FetchLinkPreviewJob` fetches that page once,
