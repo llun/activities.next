@@ -1,0 +1,24 @@
+lib/activities/getActorCollections.test.ts
+  h_580a04e334fef4 1,4,8-11,66-207
+lib/activities/getActorCollections.ts
+  h_580a04e334fef4 12-14,172-177
+lib/activities/getActorPosts.test.ts
+  h_580a04e334fef4 1429-1730
+lib/activities/getActorPosts.ts
+  h_580a04e334fef4 38,44,132,141-144,148
+lib/activities/inheritActivityPubContext.test.ts
+  h_580a04e334fef4 1-193
+lib/activities/inheritActivityPubContext.ts
+  h_580a04e334fef4 1-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "cfd52e5de4e070c96a659a0d92987caaa87758dc",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
