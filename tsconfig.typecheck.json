@@ -18,17 +18,6 @@
     // this list is empty, delete this file and point `yarn typecheck` at
 
     "lib/components/posts/status-translation.test.tsx",
-    "lib/services/medias/S3StorageFile.test.ts",
-    "lib/services/medias/quota.test.ts",
-    "lib/services/medias/storageBackendSummary.test.ts",
-    "lib/services/medias/thumbnailInput.test.ts",
-    "lib/services/notifications/createConversationMuteSuppression.test.ts",
-    "lib/services/notifications/getMastodonNotification.test.ts",
-    "lib/services/notifications/groupNotifications.test.ts",
-    "lib/services/oauth/userinfo.test.ts",
-    "lib/services/strava/archiveReader.open.test.ts",
-    "lib/services/timelines/getFilteredTimelinePage.test.ts",
-    "lib/services/translation/translateStatus.test.ts",
     "lib/types/domain/status.test.ts",
     "lib/utils/getPersonFromActor.test.ts",
     "lib/utils/mapkit.test.ts",
