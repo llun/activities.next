@@ -70,6 +70,7 @@ import {
   getMutes,
   getPasskeys,
   getPublicHeatmapTiles,
+  getRemoteFollowUrl,
   getStravaSettings,
   getTimeline,
   getTrendingLinks,
@@ -124,6 +125,7 @@ import {
   uploadFitnessFile,
   uploadMedia
 } from './client'
+import * as accountSettingsModule from './client/accountSettings'
 import * as accountsModule from './client/accounts'
 import * as adminAccountsModule from './client/adminAccounts'
 import * as adminReportsModule from './client/adminReports'
@@ -140,6 +142,7 @@ import * as notificationSettingsModule from './client/notificationSettings'
 import * as notificationsModule from './client/notifications'
 import * as passkeysModule from './client/passkeys'
 import * as statusesModule from './client/statuses'
+import * as stravaModule from './client/strava'
 import * as timelinesModule from './client/timelines'
 
 enableFetchMocks()
@@ -308,6 +311,30 @@ describe('client facade admin reports re-exports', () => {
     expect(getAdminReports).toBe(adminReportsModule.getAdminReports)
     expect(getAdminReport).toBe(adminReportsModule.getAdminReport)
     expect(updateAdminReport).toBe(adminReportsModule.updateAdminReport)
+  })
+})
+
+describe('client facade account settings re-exports', () => {
+  it('re-exports extracted account settings functions', () => {
+    expect(getRemoteFollowUrl).toBe(accountSettingsModule.getRemoteFollowUrl)
+    expect(requestEmailChange).toBe(accountSettingsModule.requestEmailChange)
+    expect(updateAccountName).toBe(accountSettingsModule.updateAccountName)
+    expect(changeAccountPassword).toBe(
+      accountSettingsModule.changeAccountPassword
+    )
+    expect(requestPasswordReset).toBe(
+      accountSettingsModule.requestPasswordReset
+    )
+    expect(resetPassword).toBe(accountSettingsModule.resetPassword)
+    expect(submitOAuthConsent).toBe(accountSettingsModule.submitOAuthConsent)
+  })
+})
+
+describe('client facade strava re-exports', () => {
+  it('re-exports extracted strava functions', () => {
+    expect(getStravaSettings).toBe(stravaModule.getStravaSettings)
+    expect(saveStravaSettings).toBe(stravaModule.saveStravaSettings)
+    expect(deleteStravaSettings).toBe(stravaModule.deleteStravaSettings)
   })
 })
 
