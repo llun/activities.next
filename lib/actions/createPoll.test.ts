@@ -8,7 +8,6 @@ import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { Actor } from '@/lib/types/domain/actor'
-import { Status, StatusPoll, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { isPublicId } from '@/lib/utils/publicId'
 
@@ -17,12 +16,6 @@ enableFetchMocks()
 vi.mock('@/lib/services/timelines', () => ({
   addStatusToTimelines: vi.fn().mockResolvedValue(undefined)
 }))
-
-const findPoll = (statuses: Status[], text: string): StatusPoll | undefined =>
-  statuses.find(
-    (s): s is StatusPoll =>
-      s.type === StatusType.enum.Poll && s.text.includes(text)
-  )
 
 describe('Create poll action', () => {
   const database = getTestSQLDatabase()
@@ -67,7 +60,9 @@ describe('Create poll action', () => {
       const statuses = await database.getActorStatuses({
         actorId: actor1.id
       })
-      const poll = findPoll(statuses, 'What is your favorite color?')
+      const poll = statuses.find((s) =>
+        s.text.includes('What is your favorite color?')
+      )
 
       expect(poll).toBeDefined()
       expect(createdPoll?.id).toBe(poll?.id)
@@ -102,10 +97,7 @@ describe('Create poll action', () => {
         endAt: Date.now() + 24 * 60 * 60 * 1000
       })
 
-      if (!createdPoll || createdPoll.type !== StatusType.enum.Poll) {
-        throw new Error('Expected a poll status')
-      }
-      expect(createdPoll.sensitive).toBe(true)
+      expect(createdPoll?.sensitive).toBe(true)
     })
 
     it('stores a content-detected language that overrides a mislabeled declared language', async () => {
@@ -118,11 +110,8 @@ describe('Create poll action', () => {
         language: 'en'
       })
 
-      if (!createdPoll || createdPoll.type !== StatusType.enum.Poll) {
-        throw new Error('Expected a poll status')
-      }
-      expect(createdPoll.language).toBe('en')
-      expect(createdPoll.detectedLanguage).toBe('th')
+      expect(createdPoll?.language).toBe('en')
+      expect(createdPoll?.detectedLanguage).toBe('th')
     })
 
     it('returns null for direct polls without explicit recipients', async () => {
@@ -151,7 +140,7 @@ describe('Create poll action', () => {
       const statuses = await database.getActorStatuses({
         actorId: actor1.id
       })
-      const poll = findPoll(statuses, 'Choose the culprit')
+      const poll = statuses.find((s) => s.text.includes('Choose the culprit'))
 
       expect(poll?.summary).toBe('Mystery spoilers')
     })
@@ -169,7 +158,7 @@ describe('Create poll action', () => {
       const statuses = await database.getActorStatuses({
         actorId: actor1.id
       })
-      const poll = findPoll(statuses, 'What do you think?')
+      const poll = statuses.find((s) => s.text.includes('What do you think?'))
 
       expect(poll).toBeDefined()
       expect(poll?.to).toContain(ACTIVITY_STREAM_PUBLIC)
@@ -193,7 +182,7 @@ describe('Create poll action', () => {
       const statuses = await database.getActorStatuses({
         actorId: actor1.id
       })
-      const poll = findPoll(statuses, 'Poll reply')
+      const poll = statuses.find((s) => s.text.includes('Poll reply'))
 
       expect(poll).toBeDefined()
       expect(poll?.reply).toBe(replyStatusId)
@@ -215,7 +204,7 @@ describe('Create poll action', () => {
       const statuses = await database.getActorStatuses({
         actorId: actor1.id
       })
-      const poll = findPoll(statuses, 'Timed poll')
+      const poll = statuses.find((s) => s.text.includes('Timed poll'))
 
       expect(poll).toBeDefined()
     })
@@ -234,7 +223,9 @@ describe('Create poll action', () => {
         const statuses = await database.getActorStatuses({
           actorId: actor1.id
         })
-        const poll = findPoll(statuses, 'Private poll question')
+        const poll = statuses.find((s) =>
+          s.text.includes('Private poll question')
+        )
 
         expect(poll).toBeDefined()
         expect(poll?.to).toContain(`${actor1.id}/followers`)
@@ -255,7 +246,9 @@ describe('Create poll action', () => {
         const statuses = await database.getActorStatuses({
           actorId: actor1.id
         })
-        const poll = findPoll(statuses, 'Unlisted poll question')
+        const poll = statuses.find((s) =>
+          s.text.includes('Unlisted poll question')
+        )
 
         expect(poll).toBeDefined()
         expect(poll?.to).toContain(`${actor1.id}/followers`)
@@ -285,7 +278,9 @@ describe('Create poll action', () => {
         const statuses = await database.getActorStatuses({
           actorId: actor1.id
         })
-        const poll = findPoll(statuses, 'Poll reply to private')
+        const poll = statuses.find((s) =>
+          s.text.includes('Poll reply to private')
+        )
 
         expect(poll).toBeDefined()
         // Should inherit private visibility - no Public in to or cc
@@ -315,9 +310,10 @@ describe('Create poll action', () => {
         const statuses = await database.getActorStatuses({
           actorId: actor1.id
         })
-        const poll = findPoll(
-          statuses,
-          'Poll reply without manually rementioning everyone'
+        const poll = statuses.find((status) =>
+          status.text.includes(
+            'Poll reply without manually rementioning everyone'
+          )
         )
         const mentionTags = await database.getTags({ statusId: poll?.id || '' })
 

@@ -324,8 +324,7 @@ describe('safeRemoteFetch', () => {
 
   it('only allows loopback addresses for the development localhost exception', async () => {
     const originalNodeEnv = process.env.NODE_ENV
-    const env = process.env as Record<string, string | undefined>
-    env.NODE_ENV = 'development'
+    process.env.NODE_ENV = 'development'
     try {
       const safeRemoteFetch = createSafeRemoteFetch({
         resolveHost: async () => [{ address: '10.0.0.5', family: 4 }],
@@ -337,9 +336,9 @@ describe('safeRemoteFetch', () => {
       ).rejects.toThrow('Unsafe remote address')
     } finally {
       if (typeof originalNodeEnv === 'undefined') {
-        delete env.NODE_ENV
+        delete process.env.NODE_ENV
       } else {
-        env.NODE_ENV = originalNodeEnv
+        process.env.NODE_ENV = originalNodeEnv
       }
     }
   })

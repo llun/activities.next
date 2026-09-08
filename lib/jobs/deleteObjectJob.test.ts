@@ -1,5 +1,4 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
-import type { MockInstance } from 'vitest'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { deleteObjectJob } from '@/lib/jobs/deleteObjectJob'
@@ -8,7 +7,6 @@ import {
   FORWARD_ACTIVITY_JOB_NAME
 } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
-import type { JobMessage, Queue } from '@/lib/services/queue/type'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
@@ -52,7 +50,7 @@ vi.mock('@/lib/utils/trace', async () => {
 
 describe('deleteObjectJob', () => {
   const database = getTestSQLDatabase()
-  let actor1: Actor | null | undefined
+  let actor1: Actor | undefined
 
   beforeAll(async () => {
     await database.migrate()
@@ -531,7 +529,7 @@ describe('deleteObjectJob', () => {
 
   describe('Outbound Inbox Forwarding on Delete', () => {
     const originalEnv = process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING
-    let queueSpy: MockInstance<Queue['publish']>
+    let queueSpy: ReturnType<typeof vi.spyOn>
 
     beforeEach(() => {
       queueSpy = vi.spyOn(getQueue(), 'publish').mockResolvedValue(undefined)
@@ -594,7 +592,7 @@ describe('deleteObjectJob', () => {
       })
 
       const forwardCalls = queueSpy.mock.calls.filter(
-        ([message]: [JobMessage]) => message.name === FORWARD_ACTIVITY_JOB_NAME
+        (call) => call[0]?.name === FORWARD_ACTIVITY_JOB_NAME
       )
       expect(forwardCalls).toHaveLength(1)
       const data = forwardCalls[0][0].data as {

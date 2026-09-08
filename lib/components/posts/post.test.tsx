@@ -114,7 +114,7 @@ const status: StatusNote = {
   tags: []
 }
 
-const boostedStatus: StatusAnnounce & { originalStatus: StatusNote } = {
+const boostedStatus: StatusAnnounce = {
   id: 'https://remote.example/users/booster/statuses/boost-1/activity',
   actorId: 'https://remote.example/users/booster',
   actor: {
@@ -175,7 +175,7 @@ describe('Post', () => {
         currentTime={currentTime}
         status={status}
         collapsible
-        postLineLimit={5}
+        postLineLimit={1}
         onShowAttachment={vi.fn()}
       />
     )

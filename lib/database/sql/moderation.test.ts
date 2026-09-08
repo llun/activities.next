@@ -346,7 +346,6 @@ describe('ModerationDatabase', () => {
         // Materialize the headless federation signing actor (accountId null on
         // the configured host) — it must never appear in the admin listing.
         const signer = await database.getFederationSigningActor()
-        if (!signer) throw new Error('Expected a federation signing actor')
 
         const records = await database.getAdminAccounts({ limit: 100 })
         const ids = records.map((record) => record.actor.id)

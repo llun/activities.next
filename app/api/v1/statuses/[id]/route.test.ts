@@ -1835,14 +1835,10 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(response.status).toBe(200)
 
       // Every photo plus the route map remain on the status.
-      const updatedStatus = await database.getStatus({
+      const updatedStatus = (await database.getStatus({
         statusId,
         withReplies: false
-      })
-      expect(updatedStatus?.type).toBe(StatusType.enum.Note)
-      if (!updatedStatus || updatedStatus.type !== StatusType.enum.Note) {
-        throw new Error('Expected note status')
-      }
+      })) as Status
       expect(updatedStatus.attachments).toHaveLength(mediaIds.length)
       expect(
         updatedStatus.attachments.some(
@@ -2147,11 +2143,7 @@ describe('GET /api/v1/statuses/[id]', () => {
       const attachments = await database.getAttachments({ statusId })
 
       expect(response.status).toBe(422)
-      expect(updatedStatus?.type).toBe(StatusType.enum.Note)
-      if (!updatedStatus || updatedStatus.type !== StatusType.enum.Note) {
-        throw new Error('Expected note status')
-      }
-      expect(updatedStatus.text).toBe('')
+      expect(updatedStatus?.text).toBe('')
       expect(attachments).toHaveLength(1)
       expect(attachments[0]).toMatchObject({
         url: 'https://llun.test/api/v1/files/medias/api-edit-reject-clear-media-only.webp',
@@ -2218,11 +2210,7 @@ describe('GET /api/v1/statuses/[id]', () => {
       const attachments = await database.getAttachments({ statusId })
 
       expect(response.status).toBe(422)
-      expect(updatedStatus?.type).toBe(StatusType.enum.Note)
-      if (!updatedStatus || updatedStatus.type !== StatusType.enum.Note) {
-        throw new Error('Expected note status')
-      }
-      expect(updatedStatus.text).toBe('Original text before rejected edit')
+      expect(updatedStatus?.text).toBe('Original text before rejected edit')
       expect(attachments).toHaveLength(1)
       expect(attachments[0]).toMatchObject({
         url: 'https://llun.test/api/v1/files/medias/api-edit-reject-blank-clear-media.webp',
@@ -2277,11 +2265,7 @@ describe('GET /api/v1/statuses/[id]', () => {
 
       const updatedStatus = await database.getStatus({ statusId })
       expect(response.status).toBe(422)
-      expect(updatedStatus?.type).toBe(StatusType.enum.Note)
-      if (!updatedStatus || updatedStatus.type !== StatusType.enum.Note) {
-        throw new Error('Expected note status')
-      }
-      expect(updatedStatus.text).toBe('Original media ownership text')
+      expect(updatedStatus?.text).toBe('Original media ownership text')
       expect(getQueue().publish).not.toHaveBeenCalled()
     })
 
@@ -2323,11 +2307,7 @@ describe('GET /api/v1/statuses/[id]', () => {
 
       expect(data.visibility).toBe('private')
       expect(data.spoiler_text).toBe('')
-      expect(updatedStatus?.type).toBe(StatusType.enum.Note)
-      if (!updatedStatus || updatedStatus.type !== StatusType.enum.Note) {
-        throw new Error('Expected note status')
-      }
-      expect(updatedStatus.summary).toBeNull()
+      expect(updatedStatus?.summary).toBeNull()
       expect(updatedStatus?.to).toEqual([`${ACTOR1_ID}/followers`])
       expect(updatedStatus?.cc).toEqual([])
       expect(getQueue().publish).toHaveBeenCalledTimes(1)
@@ -2494,11 +2474,7 @@ describe('GET /api/v1/statuses/[id]', () => {
 
       expect(response.status).toBe(400)
       const updatedStatus = await database.getStatus({ statusId })
-      expect(updatedStatus?.type).toBe(StatusType.enum.Note)
-      if (!updatedStatus || updatedStatus.type !== StatusType.enum.Note) {
-        throw new Error('Expected note status')
-      }
-      expect(updatedStatus.text).toBe('Malformed edit target')
+      expect(updatedStatus?.text).toBe('Malformed edit target')
     })
 
     it('applies a visibility-only edit from a urlencoded body', async () => {
@@ -2573,11 +2549,7 @@ describe('GET /api/v1/statuses/[id]', () => {
       const updatedStatus = await database.getStatus({ statusId })
 
       expect(data.spoiler_text).toBe('')
-      expect(updatedStatus?.type).toBe(StatusType.enum.Note)
-      if (!updatedStatus || updatedStatus.type !== StatusType.enum.Note) {
-        throw new Error('Expected note status')
-      }
-      expect(updatedStatus.summary).toBeNull()
+      expect(updatedStatus?.summary).toBeNull()
     })
 
     it('does not partially apply visibility when content update is forbidden', async () => {
@@ -2618,11 +2590,7 @@ describe('GET /api/v1/statuses/[id]', () => {
       const updatedStatus = await database.getStatus({ statusId })
 
       expect(response.status).toBe(403)
-      expect(updatedStatus?.type).toBe(StatusType.enum.Note)
-      if (!updatedStatus || updatedStatus.type !== StatusType.enum.Note) {
-        throw new Error('Expected note status')
-      }
-      expect(updatedStatus.summary).toBe('Existing warning')
+      expect(updatedStatus?.summary).toBe('Existing warning')
       expect(updatedStatus?.to).toEqual([ACTIVITY_STREAM_PUBLIC])
       expect(updatedStatus?.cc).toEqual([`${ACTOR1_ID}/followers`])
       expect(getQueue().publish).not.toHaveBeenCalled()

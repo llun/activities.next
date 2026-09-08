@@ -1,6 +1,5 @@
 import { decode } from 'blurhash'
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
-import type { MockInstance } from 'vitest'
 
 import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
@@ -10,7 +9,6 @@ import {
   FORWARD_ACTIVITY_JOB_NAME
 } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
-import type { JobMessage, Queue } from '@/lib/services/queue/type'
 import {
   buildQuoteAuthorizationObject,
   buildQuoteAuthorizationUri
@@ -22,9 +20,8 @@ import { MockLitepubNote, MockMastodonActivityPubNote } from '@/lib/stub/note'
 import { MockActivityPubPerson } from '@/lib/stub/person'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
-import { Note } from '@/lib/types/activitypub'
 import { Actor } from '@/lib/types/domain/actor'
-import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
+import { Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 enableFetchMocks()
@@ -34,7 +31,7 @@ const FRIEND_ACTOR_ID = 'https://somewhere.test/actors/friend'
 
 describe('createNoteJob', () => {
   const database = getTestSQLDatabase()
-  let actor1: Actor | null | undefined
+  let actor1: Actor | undefined
 
   beforeAll(async () => {
     await database.migrate()
@@ -431,9 +428,7 @@ describe('createNoteJob', () => {
       data: image
     })
 
-    const status = (await database.getStatus({
-      statusId: image.id
-    })) as StatusNote
+    const status = (await database.getStatus({ statusId: image.id })) as Status
     expect(status.attachments).toHaveLength(1)
     expect(status.attachments[0]).toMatchObject({
       url: 'https://pixelfed.social/storage/m/1.jpg'
@@ -460,9 +455,7 @@ describe('createNoteJob', () => {
       data: image
     })
 
-    const status = (await database.getStatus({
-      statusId: image.id
-    })) as StatusNote
+    const status = (await database.getStatus({ statusId: image.id })) as Status
     expect(status.attachments).toHaveLength(1)
     expect(status.attachments[0]).toMatchObject({
       url: 'https://pixelfed.social/p/user/no-media-type.jpg',
@@ -489,9 +482,7 @@ describe('createNoteJob', () => {
       data: page
     })
 
-    const status = (await database.getStatus({
-      statusId: page.id
-    })) as StatusNote
+    const status = (await database.getStatus({ statusId: page.id })) as Status
     expect(status).toBeDefined()
     expect(status.id).toEqual(page.id)
     expect(status.type).toEqual(StatusType.enum.Note)
@@ -519,7 +510,7 @@ describe('createNoteJob', () => {
 
     const status = (await database.getStatus({
       statusId: article.id
-    })) as StatusNote
+    })) as Status
     expect(status).toBeDefined()
     expect(status.id).toEqual(article.id)
     expect(status.type).toEqual(StatusType.enum.Note)
@@ -549,9 +540,7 @@ describe('createNoteJob', () => {
       data: video
     })
 
-    const status = (await database.getStatus({
-      statusId: video.id
-    })) as StatusNote
+    const status = (await database.getStatus({ statusId: video.id })) as Status
     expect(status).toBeDefined()
     expect(status.id).toEqual(video.id)
     expect(status.type).toEqual(StatusType.enum.Note)
@@ -1501,7 +1490,7 @@ describe('createNoteJob', () => {
 
   describe('ActivityPub Outbound Inbox Forwarding', () => {
     const originalEnv = process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING
-    let queueSpy: MockInstance<Queue['publish']>
+    let queueSpy: ReturnType<typeof vi.spyOn>
 
     beforeEach(() => {
       queueSpy = vi.spyOn(getQueue(), 'publish').mockResolvedValue(undefined)
@@ -1557,7 +1546,7 @@ describe('createNoteJob', () => {
       })
 
       const forwardCalls = queueSpy.mock.calls.filter(
-        ([message]: [JobMessage]) => message.name === FORWARD_ACTIVITY_JOB_NAME
+        (call) => call[0]?.name === FORWARD_ACTIVITY_JOB_NAME
       )
       expect(forwardCalls).toHaveLength(1)
       const data = forwardCalls[0][0].data as {
@@ -1599,7 +1588,7 @@ describe('createNoteJob', () => {
       })
 
       const forwardCalls = queueSpy.mock.calls.filter(
-        ([message]: [JobMessage]) => message.name === FORWARD_ACTIVITY_JOB_NAME
+        (call) => call[0]?.name === FORWARD_ACTIVITY_JOB_NAME
       )
       expect(forwardCalls).toHaveLength(0)
     })
@@ -1635,7 +1624,7 @@ describe('createNoteJob', () => {
       })
 
       const forwardCalls = queueSpy.mock.calls.filter(
-        ([message]: [JobMessage]) => message.name === FORWARD_ACTIVITY_JOB_NAME
+        (call) => call[0]?.name === FORWARD_ACTIVITY_JOB_NAME
       )
       expect(forwardCalls).toHaveLength(0)
     })

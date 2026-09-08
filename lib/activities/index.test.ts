@@ -47,7 +47,7 @@ enableFetchMocks()
 
 describe('activities', () => {
   const database = getTestSQLDatabase()
-  let actor1: Actor | null = null
+  let actor1: Actor | undefined
 
   beforeAll(async () => {
     await database.migrate()

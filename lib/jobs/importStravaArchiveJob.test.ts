@@ -231,11 +231,10 @@ describe('importStravaArchiveJob', () => {
           aspect: 1.25
         }
       },
-      description: 'Archive media',
-      blurhash: null
+      description: 'Archive media'
     })
     mockDeleteFitnessFile.mockResolvedValue(true)
-    mockToFitnessPayload.mockResolvedValue({
+    mockToFitnessPayload.mockReturnValue({
       fileType: 'fit',
       fileName: 'activity.fit',
       mimeType: 'application/vnd.ant.fit',

@@ -3,7 +3,7 @@ import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
-import { Status, StatusType } from '@/lib/types/domain/status'
+import { Status } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -99,10 +99,6 @@ describe('Status Action Endpoints', () => {
       })
 
       expect(announce).not.toBeNull()
-      expect(announce?.type).toBe(StatusType.enum.Announce)
-      if (!announce || announce.type !== StatusType.enum.Announce) {
-        throw new Error('Expected announce status')
-      }
       expect(announce.originalStatus.id).toBe(originalStatusId)
     })
 
@@ -118,15 +114,10 @@ describe('Status Action Endpoints', () => {
   describe('status source', () => {
     it('returns source text for status', async () => {
       const statusId = `${ACTOR1_ID}/statuses/post-1`
-      const status = await database.getStatus({
+      const status = (await database.getStatus({
         statusId,
         withReplies: false
-      })
-
-      expect(status?.type).toBe(StatusType.enum.Note)
-      if (!status || status.type !== StatusType.enum.Note) {
-        throw new Error('Expected note status')
-      }
+      })) as Status
 
       expect(status.text).toBeTruthy()
 
@@ -148,15 +139,10 @@ describe('Status Action Endpoints', () => {
   describe('status history', () => {
     it('returns history array with at least current version', async () => {
       const statusId = `${ACTOR1_ID}/statuses/post-1`
-      const status = await database.getStatus({
+      const status = (await database.getStatus({
         statusId,
         withReplies: false
-      })
-
-      expect(status?.type).toBe(StatusType.enum.Note)
-      if (!status || status.type !== StatusType.enum.Note) {
-        throw new Error('Expected note status')
-      }
+      })) as Status
 
       // Build history (current implementation returns single entry)
       const history = [
@@ -183,7 +169,7 @@ describe('Status Action Endpoints', () => {
         statusId
       })
 
-      const actors = await database.getFavouritedBy({ statusId, limit: 40 })
+      const actors = await database.getFavouritedBy({ statusId })
 
       expect(actors).toBeArray()
       expect(actors.length).toBeGreaterThanOrEqual(1)

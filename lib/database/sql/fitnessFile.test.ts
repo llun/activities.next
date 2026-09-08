@@ -5,7 +5,6 @@ import {
 } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
-import { FitnessProcessingStatus } from '@/lib/types/database/fitnessFile'
 
 describe('FitnessFileDatabase', () => {
   const { actors, statuses } = DatabaseSeed
@@ -283,7 +282,7 @@ describe('FitnessFileDatabase', () => {
             })
             await database.updateFitnessFileProcessingStatus(
               file!.id,
-              item.processingStatus as FitnessProcessingStatus
+              item.processingStatus
             )
             await database.updateFitnessFilePrimary(file!.id, item.isPrimary)
           }
@@ -1571,6 +1570,7 @@ describe('FitnessFileDatabase', () => {
           username: 'keyset-scan',
           domain: 'llun.test',
           inboxUrl: `${actorId}/inbox`,
+          outboxUrl: `${actorId}/outbox`,
           followersUrl: `${actorId}/followers`,
           sharedInboxUrl: 'https://llun.test/inbox',
           publicKey: 'public-key-keyset-scan',
@@ -1675,6 +1675,7 @@ describe('FitnessFileDatabase', () => {
           username: 'keyset-collision',
           domain: 'llun.test',
           inboxUrl: `${collisionActorId}/inbox`,
+          outboxUrl: `${collisionActorId}/outbox`,
           followersUrl: `${collisionActorId}/followers`,
           sharedInboxUrl: 'https://llun.test/inbox',
           publicKey: 'public-key-keyset-collision',

@@ -6,7 +6,7 @@ import { CREATE_POLL_JOB_NAME, UPDATE_POLL_JOB_NAME } from '@/lib/jobs/names'
 import { updatePollJob } from '@/lib/jobs/updatePollJob'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
-import { StatusPoll, StatusType } from '@/lib/types/domain/status'
+import { StatusType } from '@/lib/types/domain/status'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 enableFetchMocks()
@@ -76,8 +76,12 @@ const MockActivityPubQuestion = (
     endTime: getISOTimeUTC(endTime),
     inReplyTo: null,
     url: id,
-    ...(includeTag ? { tag: [] } : {}),
     ...pollOptions
+  }
+
+  // Only include tag if requested
+  if (includeTag) {
+    question.tag = []
   }
 
   return question
@@ -190,9 +194,7 @@ describe('updatePollJob', () => {
       data: updatedPoll
     })
 
-    const status = (await database.getStatus({
-      statusId: pollId
-    })) as StatusPoll
+    const status = await database.getStatus({ statusId: pollId })
     expect(status).toBeDefined()
     expect(status?.text).toEqual('<p>Updated question</p>')
   })

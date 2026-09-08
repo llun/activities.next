@@ -16,7 +16,7 @@ import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
-import { Document, Note } from '@/lib/types/activitypub'
+import { Note } from '@/lib/types/activitypub'
 import { NotificationType } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { StatusNote } from '@/lib/types/domain/status'
@@ -746,9 +746,9 @@ How are you?
       const expectedUrls = status.attachments
         .slice(0, MAX_FEDERATION_MEDIA_ATTACHMENTS)
         .map((attachment) => attachment.url)
-      expect(
-        attachments.map((attachment) => (attachment as Document).url)
-      ).toEqual(expectedUrls)
+      expect(attachments.map((attachment) => attachment.url)).toEqual(
+        expectedUrls
+      )
     })
 
     describe('visibility support', () => {

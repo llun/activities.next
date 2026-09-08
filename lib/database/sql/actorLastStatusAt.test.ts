@@ -66,7 +66,7 @@ const createNoteAt = (
 // The serialized `last_status_at` (UTC date string, or null) — the value read
 // back through the same path the directory and Mastodon API expose.
 const lastStatusDate = async (database: Database, actorId: string) => {
-  const account = await database.getMastodonActorFromId({ id: actorId })
+  const account = await database.getMastodonActor(actorId)
   return account?.last_status_at ?? null
 }
 

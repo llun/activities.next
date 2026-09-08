@@ -35,7 +35,7 @@ describe('createNotificationWithPolicy conversation-mute suppression', () => {
 
     const notification = await createNotificationWithPolicy(database, {
       actorId: ACTOR1_ID,
-      type: 'like',
+      type: 'favourite',
       sourceActorId: ACTOR2_ID,
       statusId
     })
@@ -93,7 +93,7 @@ describe('createNotificationWithPolicy conversation-mute suppression', () => {
 
     const notification = await createNotificationWithPolicy(database, {
       actorId: ACTOR1_ID,
-      type: 'like',
+      type: 'favourite',
       sourceActorId: ACTOR2_ID,
       statusId
     })

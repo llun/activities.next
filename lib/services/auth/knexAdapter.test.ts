@@ -1,43 +1,8 @@
-import type { JoinConfig } from 'better-auth/adapters'
 import knex, { Knex } from 'knex'
 
 import { logger } from '@/lib/utils/logger'
 
 import { knexAdapter } from './knexAdapter'
-
-type UserRow = {
-  id: string
-  display_name: string
-  email: string
-}
-
-type SessionDateRow = {
-  createdAt: Date
-  expireAt: Date
-}
-
-type SessionInvalidDateRow = {
-  createdAt: string
-  expireAt: Date
-}
-
-type SessionRow = {
-  id: string
-  user_id: string | null
-  token: string
-}
-
-type UserWithSessions = UserRow & {
-  sessions: SessionRow[]
-}
-
-type SessionWithAccount = SessionRow & {
-  accounts: {
-    id: string
-    user_id: string
-    provider: string
-  } | null
-}
 
 vi.mock('better-auth/adapters', () => {
   // Mirrors the schema better-auth hands the adapter: keyed by model name, with
@@ -592,12 +557,10 @@ describe('knexAdapter', () => {
         expireAt
       })
 
-      const result = await adapter.findOne<SessionDateRow>({
+      const result = await adapter.findOne({
         model: 'sessions',
         where: [{ field: 'id', value: 's1', operator: 'eq' as const }]
       })
-
-      if (!result) throw new Error('Expected a session row')
 
       expect(result.createdAt).toBeInstanceOf(Date)
       expect(result.createdAt.getTime()).toBe(createdAt)
@@ -615,14 +578,12 @@ describe('knexAdapter', () => {
         expireAt
       })
 
-      const result = await adapter.findOne<SessionInvalidDateRow>({
+      const result = await adapter.findOne({
         model: 'sessions',
         where: [
           { field: 'id', value: 's-invalid-date', operator: 'eq' as const }
         ]
       })
-
-      if (!result) throw new Error('Expected a session row')
 
       expect(result.createdAt).toBe('not-a-date')
       expect(result.expireAt).toBeInstanceOf(Date)
@@ -645,7 +606,7 @@ describe('knexAdapter', () => {
     })
 
     it('filters with where clause', async () => {
-      const results = await adapter.findMany<UserRow>({
+      const results = await adapter.findMany({
         model: 'users',
         where: [
           { field: 'display_name', value: 'Bob', operator: 'eq' as const }
@@ -661,7 +622,7 @@ describe('knexAdapter', () => {
     })
 
     it('respects offset', async () => {
-      const results = await adapter.findMany<UserRow>({
+      const results = await adapter.findMany({
         model: 'users',
         limit: 2,
         offset: 1,
@@ -672,7 +633,7 @@ describe('knexAdapter', () => {
     })
 
     it('sorts by field', async () => {
-      const results = await adapter.findMany<UserRow>({
+      const results = await adapter.findMany({
         model: 'users',
         sortBy: { field: 'email', direction: 'desc' }
       })
@@ -701,27 +662,6 @@ describe('knexAdapter', () => {
     const userJoin = {
       users: {
         on: { from: 'user_id', to: 'id' },
-        limit: 1,
-        relation: 'one-to-one' as const
-      }
-    }
-    const sessionsJoin: JoinConfig = {
-      sessions: {
-        on: { from: 'id', to: 'user_id' },
-        limit: 100,
-        relation: 'one-to-many' as const
-      }
-    }
-    const sessionsLimitedJoin: JoinConfig = {
-      sessions: {
-        on: { from: 'id', to: 'user_id' },
-        limit: 1,
-        relation: 'one-to-many' as const
-      }
-    }
-    const accountsJoin: JoinConfig = {
-      accounts: {
-        on: { from: 'accountId', to: 'id' },
         limit: 1,
         relation: 'one-to-one' as const
       }
@@ -843,13 +783,17 @@ describe('knexAdapter', () => {
     })
 
     it('returns an array for a one-to-many join', async () => {
-      const result = await adapter.findOne<UserWithSessions>({
+      const result: any = await adapter.findOne({
         model: 'users',
         where: [{ field: 'id', value: 'u1', operator: 'eq' as const }],
-        join: sessionsJoin
+        join: {
+          sessions: {
+            on: { from: 'id', to: 'user_id' },
+            limit: 100,
+            relation: 'one-to-many' as const
+          }
+        }
       })
-
-      if (!result) throw new Error('Expected a user row')
 
       expect(result.sessions.map((row: any) => row.id).sort()).toEqual([
         's1',
@@ -858,10 +802,16 @@ describe('knexAdapter', () => {
     })
 
     it('bounds a one-to-many join by its per-parent limit', async () => {
-      const results = await adapter.findMany<UserWithSessions>({
+      const results: any[] = await adapter.findMany({
         model: 'users',
         sortBy: { field: 'id', direction: 'asc' as const },
-        join: sessionsLimitedJoin
+        join: {
+          sessions: {
+            on: { from: 'id', to: 'user_id' },
+            limit: 1,
+            relation: 'one-to-many' as const
+          }
+        }
       })
 
       // u1 owns two sessions but the limit applies per parent row, which is why
@@ -872,13 +822,17 @@ describe('knexAdapter', () => {
     it('returns an empty array for a one-to-many join with no related rows', async () => {
       await db('sessions').delete()
 
-      const result = await adapter.findOne<UserWithSessions>({
+      const result: any = await adapter.findOne({
         model: 'users',
         where: [{ field: 'id', value: 'u1', operator: 'eq' as const }],
-        join: sessionsJoin
+        join: {
+          sessions: {
+            on: { from: 'id', to: 'user_id' },
+            limit: 100,
+            relation: 'one-to-many' as const
+          }
+        }
       })
-
-      if (!result) throw new Error('Expected a user row')
 
       expect(result.sessions).toEqual([])
     })
@@ -890,13 +844,17 @@ describe('knexAdapter', () => {
         provider: 'credential'
       })
 
-      const result = await adapter.findOne<SessionWithAccount>({
+      const result: any = await adapter.findOne({
         model: 'sessions',
         where: [{ field: 'id', value: 's1', operator: 'eq' as const }],
-        join: accountsJoin
+        join: {
+          accounts: {
+            on: { from: 'accountId', to: 'id' },
+            limit: 1,
+            relation: 'one-to-one' as const
+          }
+        }
       })
-
-      if (!result) throw new Error('Expected a session row')
 
       expect(result.id).toBe('s1')
       expect(result.accounts).toMatchObject({ id: 'a1', user_id: 'u1' })
@@ -923,13 +881,11 @@ describe('knexAdapter', () => {
     })
 
     it('updates the record and returns updated row', async () => {
-      const result = await adapter.update<UserRow>({
+      const result = await adapter.update({
         model: 'users',
         where: [{ field: 'id', value: 'u1', operator: 'eq' as const }],
         update: { display_name: 'Alice Updated' }
       })
-
-      if (!result) throw new Error('Expected an updated user row')
 
       expect(result.display_name).toBe('Alice Updated')
     })
@@ -1036,11 +992,9 @@ describe('knexAdapter', () => {
     })
   })
 
-  // better-auth 1.7.3 can synthesize guarded fallbacks for these two atomic
-  // primitives, but this adapter keeps native implementations so the database
-  // performs each guarded mutation directly. The fallback is safe only when
-  // deleteMany/updateMany apply the supplied guard atomically and report the
-  // exact affected-row count.
+  // better-auth 1.7 requires the adapter to implement these two atomic
+  // primitives itself — the factory throws rather than synthesising a fallback,
+  // because neither can be made race-safe from separate statements.
   describe('consumeOne', () => {
     beforeEach(async () => {
       await db('users').insert([
@@ -1595,7 +1549,7 @@ describe('knexAdapter', () => {
         email: 'd@test.com'
       })
 
-      const results = await adapter.findMany<UserRow>({
+      const results = await adapter.findMany({
         model: 'users',
         where: [
           {

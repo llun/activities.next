@@ -57,7 +57,6 @@ const replyStatus: StatusNote = {
   replies: [],
   actorAnnounceStatusId: null,
   isActorLiked: false,
-  isActorBookmarked: false,
   totalLikes: 0,
   totalShares: 0,
   attachments: [],

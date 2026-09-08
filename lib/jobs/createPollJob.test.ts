@@ -7,7 +7,7 @@ import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
-import { StatusNote, StatusPoll, StatusType } from '@/lib/types/domain/status'
+import { StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
@@ -100,7 +100,7 @@ const MockActivityPubQuestion = ({
 
 describe('createPollJob', () => {
   const database = getTestSQLDatabase()
-  let actor1: Actor | null | undefined
+  let actor1: Actor | undefined
 
   beforeAll(async () => {
     await database.migrate()
@@ -152,9 +152,7 @@ describe('createPollJob', () => {
       data: question
     })
 
-    const status = (await database.getStatus({
-      statusId: question.id
-    })) as StatusPoll
+    const status = await database.getStatus({ statusId: question.id })
     expect(status?.language).toEqual('th')
   })
 
@@ -175,9 +173,7 @@ describe('createPollJob', () => {
       data: question
     })
 
-    const status = (await database.getStatus({
-      statusId: question.id
-    })) as StatusPoll
+    const status = await database.getStatus({ statusId: question.id })
     expect(status?.language).toEqual('en')
     expect(status?.detectedLanguage).toEqual('th')
   })
@@ -276,9 +272,9 @@ describe('createPollJob', () => {
       data: question
     })
 
-    const status = (await database.getStatus({
+    const status = await database.getStatus({
       statusId: `${actor1?.id}/statuses/post-1`
-    })) as StatusNote
+    })
     // Should not update existing status
     expect(status?.text).not.toEqual('Duplicate poll content')
   })
@@ -356,9 +352,7 @@ describe('createPollJob', () => {
       data: question
     })
 
-    const status = (await database.getStatus({
-      statusId: question.id
-    })) as StatusPoll
+    const status = await database.getStatus({ statusId: question.id })
     expect(status).toBeDefined()
     expect(status?.tags).toContainEqual(
       expect.objectContaining({
@@ -384,9 +378,7 @@ describe('createPollJob', () => {
       data: question
     })
 
-    const status = (await database.getStatus({
-      statusId: question.id
-    })) as StatusPoll
+    const status = await database.getStatus({ statusId: question.id })
     expect(status).toBeDefined()
     expect(status?.tags).toContainEqual(
       expect.objectContaining({

@@ -1,3 +1,7 @@
+import {
+  createLocalAccountIssuer,
+  createOAuthAccountIssuer
+} from '@better-auth/core/db'
 import { Knex } from 'knex'
 
 import { recordWeeklyLoginSafely } from '@/lib/database/sql/instanceActivity'
@@ -61,7 +65,15 @@ import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 import { normalizeUsername } from '@/lib/utils/normalizeUsername'
 import { generatePublicId } from '@/lib/utils/publicId'
 
+// better-auth 1.7 resolves a credential row by `issuer` as well as `providerId`
+// (`signInEmail` -> `createLocalAccountIssuer('credential')`), so every
+// `account_providers` row this module writes directly — bypassing better-auth's
+// own adapter — has to carry the same value or the account cannot sign in.
+// Derived from better-auth's own helper rather than a literal so the two can
+// never drift; `20260821120000_better_auth_17_columns` backfills the rows that
+// predate the column.
 const CREDENTIAL_PROVIDER = 'credential'
+const CREDENTIAL_ISSUER = createLocalAccountIssuer(CREDENTIAL_PROVIDER)
 
 // Emails are normalized (trimmed + lowercased) inside every method that stores
 // or looks up by email so storage and lookup can never disagree on casing. This
@@ -158,6 +170,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         id: `credential_${accountId}`,
         accountId,
         provider: CREDENTIAL_PROVIDER,
+        issuer: CREDENTIAL_ISSUER,
         providerId: accountId,
         password: passwordHash,
         createdAt: currentTime,
@@ -199,15 +212,18 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         id: `credential_${accountId}`,
         accountId,
         provider: CREDENTIAL_PROVIDER,
+        issuer: CREDENTIAL_ISSUER,
         providerId: accountId,
         password: passwordHash,
         createdAt: currentTime,
         updatedAt: currentTime
       })
       .onConflict('id')
-      // Existing credential rows retain their password and any historical
-      // issuer value.
-      .ignore()
+      // The row id encodes that this IS the credential row, so stamping the
+      // issuer is correct by construction and repairs one left NULL by pre-1.7
+      // code. Everything else is still left alone — this must not touch an
+      // existing password.
+      .merge({ issuer: CREDENTIAL_ISSUER })
   },
 
   async getAccountFromId({ id }: GetAccountFromIdParams) {
@@ -262,6 +278,9 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     await database('account_providers').insert({
       id: crypto.randomUUID(),
       provider,
+      // An external identity, so it takes better-auth's OAuth namespace rather
+      // than the local one the credential rows use.
+      issuer: createOAuthAccountIssuer(provider),
       providerId: providerAccountId,
       accountId,
 
@@ -746,13 +765,23 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
           id: `credential_${targetAccountId}`,
           accountId: targetAccountId,
           provider: CREDENTIAL_PROVIDER,
+          issuer: CREDENTIAL_ISSUER,
           providerId: targetAccountId,
           password: newPasswordHash,
           createdAt: now,
           updatedAt: now
         })
         .onConflict('id')
-        .merge({ password: newPasswordHash, updatedAt: now })
+        // `issuer` is merged, not just inserted: a row written by pre-1.7 code
+        // during the rollout window (migration applied, old code still serving)
+        // carries a NULL issuer and cannot sign in, and this is the path a
+        // locked-out account would reach for. Merging only the password would
+        // make password reset a dead end for exactly those rows.
+        .merge({
+          password: newPasswordHash,
+          issuer: CREDENTIAL_ISSUER,
+          updatedAt: now
+        })
 
       await deleteSessionsWithTokenDetach(trx, (query) =>
         query.where('accountId', targetAccountId)
@@ -781,13 +810,19 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
           id: `credential_${accountId}`,
           accountId,
           provider: CREDENTIAL_PROVIDER,
+          issuer: CREDENTIAL_ISSUER,
           providerId: accountId,
           password: newPasswordHash,
           createdAt: currentTime,
           updatedAt: currentTime
         })
         .onConflict('id')
-        .merge({ password: newPasswordHash, updatedAt: currentTime })
+        // Repairs a NULL issuer too — see `resetPasswordWithCode`.
+        .merge({
+          password: newPasswordHash,
+          issuer: CREDENTIAL_ISSUER,
+          updatedAt: currentTime
+        })
       await deleteSessionsWithTokenDetach(trx, (query) =>
         query.where('accountId', accountId)
       )

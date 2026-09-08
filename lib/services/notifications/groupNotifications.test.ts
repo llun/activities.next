@@ -7,9 +7,7 @@ describe('groupNotifications', () => {
     actorId: 'https://example.com/users/user1',
     type: NotificationType.enum.like,
     isRead: false,
-    filtered: false,
-    createdAt: Date.now(),
-    updatedAt: Date.now()
+    createdAt: Date.now()
   }
 
   const createNotification = (

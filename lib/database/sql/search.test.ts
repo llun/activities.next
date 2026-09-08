@@ -776,7 +776,7 @@ describe('SearchDatabase foundation', () => {
       schema: pgSchema,
       raw: pgRaw,
       fn: { now: vi.fn() }
-    } as unknown as Knex)
+    })
     expect(pgRaw).toHaveBeenCalledWith(
       `CREATE INDEX search_documents_document_text_fts ON search_documents USING GIN (to_tsvector('simple', "documentText"))`
     )
@@ -793,7 +793,7 @@ describe('SearchDatabase foundation', () => {
       schema: mysqlSchema,
       raw: mysqlRaw,
       fn: { now: vi.fn() }
-    } as unknown as Knex)
+    })
     expect(mysqlRaw).toHaveBeenCalledWith(
       expect.stringContaining('FULLTEXT INDEX')
     )
@@ -819,7 +819,7 @@ describe('SearchDatabase foundation', () => {
       schema,
       raw,
       fn: { now: vi.fn() }
-    } as unknown as Knex)
+    })
     expect(raw).not.toHaveBeenCalled()
   })
 

@@ -16,7 +16,7 @@ export const getQuotaLimit = (): number => {
 
 export const checkQuotaAvailable = async (
   database: Database,
-  actor: Pick<Actor, 'id'>,
+  actor: Actor,
   requiredBytes: number
 ): Promise<{ available: boolean; used: number; limit: number }> => {
   const limit = getQuotaLimit()

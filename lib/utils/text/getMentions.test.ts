@@ -8,8 +8,8 @@ import { getMentions } from '@/lib/utils/text/getMentions'
 
 describe('getMentions', () => {
   const database = getTestSQLDatabase()
-  let actor1: Actor | null | undefined
-  let actor2: Actor | null | undefined
+  let actor1: Actor | undefined
+  let actor2: Actor | undefined
 
   beforeAll(async () => {
     await database.migrate()

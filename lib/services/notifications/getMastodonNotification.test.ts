@@ -20,21 +20,25 @@ describe('getMastodonNotification', () => {
 
     // Create test actors
     await database.createAccount({
+      id: actor1Id,
       email: 'actor1@example.com',
       username: 'actor1',
       domain: 'example.com',
-      passwordHash: '',
       privateKey: '',
-      publicKey: ''
+      publicKey: '',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     })
 
     await database.createAccount({
+      id: actor2Id,
       email: 'actor2@example.com',
       username: 'actor2',
       domain: 'example.com',
-      passwordHash: '',
       privateKey: '',
-      publicKey: ''
+      publicKey: '',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     })
   })
 

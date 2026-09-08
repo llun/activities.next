@@ -6,7 +6,7 @@ import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
-import { StatusNote, StatusType } from '@/lib/types/domain/status'
+import { StatusType } from '@/lib/types/domain/status'
 
 enableFetchMocks()
 
@@ -75,9 +75,7 @@ describe('fetchRemoteStatusJob', () => {
       data: { statusId: STATUS_ID }
     })
 
-    const status = (await database.getStatus({
-      statusId: STATUS_ID
-    })) as StatusNote
+    const status = await database.getStatus({ statusId: STATUS_ID })
     expect(status).toBeDefined()
     expect(status?.id).toBe(STATUS_ID)
     expect(status?.text).toBe('Hello World')
@@ -148,9 +146,7 @@ describe('fetchRemoteStatusJob', () => {
       data: { statusId: STATUS_ID }
     })
 
-    const child = (await database.getStatus({
-      statusId: STATUS_ID
-    })) as StatusNote
+    const child = await database.getStatus({ statusId: STATUS_ID })
     const parent = await database.getStatus({ statusId: PARENT_ID })
 
     expect(child).toBeDefined()
@@ -209,9 +205,7 @@ describe('fetchRemoteStatusJob', () => {
     })
 
     const main = await database.getStatus({ statusId: STATUS_ID })
-    const reply = (await database.getStatus({
-      statusId: REPLY_ITEM_ID
-    })) as StatusNote
+    const reply = await database.getStatus({ statusId: REPLY_ITEM_ID })
 
     expect(main).toBeDefined()
     expect(reply).toBeDefined()
@@ -287,12 +281,8 @@ describe('fetchRemoteStatusJob', () => {
       data: { statusId: STATUS_ID }
     })
 
-    const child = (await database.getStatus({
-      statusId: CHILD_ID
-    })) as StatusNote
-    const grandchild = (await database.getStatus({
-      statusId: GRANDCHILD_ID
-    })) as StatusNote
+    const child = await database.getStatus({ statusId: CHILD_ID })
+    const grandchild = await database.getStatus({ statusId: GRANDCHILD_ID })
 
     expect(child?.reply).toBe(STATUS_ID)
     expect(grandchild).toBeDefined()
@@ -368,9 +358,7 @@ describe('fetchRemoteStatusJob', () => {
       data: { statusId: STATUS_ID, firstPageOnly: true }
     })
 
-    const child = (await database.getStatus({
-      statusId: CHILD_ID
-    })) as StatusNote
+    const child = await database.getStatus({ statusId: CHILD_ID })
     const grandchild = await database.getStatus({ statusId: GRANDCHILD_ID })
 
     // The direct reply is stored, but its nested thread is not walked.

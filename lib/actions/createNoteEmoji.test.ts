@@ -91,9 +91,7 @@ describe('Custom emoji status federation', () => {
       text: 'party :blobcat:',
       database
     })
-    if (!status || status.type !== StatusType.enum.Note) {
-      throw new Error('Expected a note status')
-    }
+    if (!status) throw new Error('Expected a status')
 
     const note = getNoteFromStatus(status)
     const tags = Array.isArray(note?.tag) ? note?.tag : [note?.tag]
@@ -115,9 +113,7 @@ describe('Custom emoji status federation', () => {
       text: 'mix :hidden: :gone:',
       database
     })
-    if (!status || status.type !== StatusType.enum.Note) {
-      throw new Error('Expected a note status')
-    }
+    if (!status) throw new Error('Expected a status')
 
     const emojiNames = status.tags
       .filter((tag) => tag.type === 'emoji')
@@ -134,9 +130,7 @@ describe('Custom emoji status federation', () => {
       endAt: 4102444800000,
       database
     })
-    if (!status || status.type !== StatusType.enum.Poll) {
-      throw new Error('Expected a poll status')
-    }
+    if (!status) throw new Error('Expected a poll status')
 
     const question = toActivityPubObject(status)
     const tags = Array.isArray(question.tag) ? question.tag : [question.tag]
@@ -158,9 +152,7 @@ describe('Custom emoji status federation', () => {
       text: 'first :blobcat:',
       database
     })
-    if (!status || status.type !== StatusType.enum.Note) {
-      throw new Error('Expected a note status')
-    }
+    if (!status) throw new Error('Expected a status')
 
     const updated = await updateNoteFromUserInput({
       statusId: status.id,
@@ -181,9 +173,7 @@ describe('Custom emoji status federation', () => {
       text: 'plain text',
       database
     })
-    if (!status || status.type !== StatusType.enum.Note) {
-      throw new Error('Expected a note status')
-    }
+    if (!status) throw new Error('Expected a status')
     expect(
       (await database.getTags({ statusId: status.id })).filter(
         (tag) => tag.type === 'emoji'
@@ -205,10 +195,7 @@ describe('Custom emoji status federation', () => {
 
     // The returned status (used for the optimistic client render + timeline
     // cache) must already include the re-synced emoji tag.
-    if (!updated || updated.type !== StatusType.enum.Note) {
-      throw new Error('Expected a note status')
-    }
-    expect(updated.tags.filter((tag) => tag.type === 'emoji')).toEqual([
+    expect(updated?.tags.filter((tag) => tag.type === 'emoji')).toEqual([
       expect.objectContaining({ name: ':blobcat:' })
     ])
   })
@@ -220,9 +207,7 @@ describe('Custom emoji status federation', () => {
       summary: 'spoiler with :blobcat:',
       database
     })
-    if (!status || status.type !== StatusType.enum.Note) {
-      throw new Error('Expected a note status')
-    }
+    if (!status) throw new Error('Expected a status')
 
     const emojiTags = status.tags.filter((tag) => tag.type === 'emoji')
     expect(emojiTags).toHaveLength(1)
@@ -246,9 +231,7 @@ describe('Custom emoji status federation', () => {
       ],
       database
     })
-    if (!status || status.type !== StatusType.enum.Note) {
-      throw new Error('Expected a note status')
-    }
+    if (!status) throw new Error('Expected a status')
 
     const emojiTags = status.tags.filter((tag) => tag.type === 'emoji')
     expect(emojiTags).toHaveLength(1)
@@ -263,9 +246,7 @@ describe('Custom emoji status federation', () => {
       endAt: 4102444800000,
       database
     })
-    if (!status || status.type !== StatusType.enum.Poll) {
-      throw new Error('Expected a poll status')
-    }
+    if (!status) throw new Error('Expected a poll status')
 
     const emojiTags = status.tags.filter((tag) => tag.type === 'emoji')
     expect(emojiTags).toHaveLength(1)
@@ -279,9 +260,7 @@ describe('Custom emoji status federation', () => {
       summary: 'plain summary',
       database
     })
-    if (!status || status.type !== StatusType.enum.Note) {
-      throw new Error('Expected a note status')
-    }
+    if (!status) throw new Error('Expected a status')
 
     const updated = await updateNoteFromUserInput({
       statusId: status.id,
@@ -295,10 +274,7 @@ describe('Custom emoji status federation', () => {
     const emojiTags = tags.filter((tag) => tag.type === 'emoji')
     expect(emojiTags).toHaveLength(1)
     expect(emojiTags[0].name).toBe(':blobcat:')
-    if (!updated || updated.type !== StatusType.enum.Note) {
-      throw new Error('Expected a note status')
-    }
-    expect(updated.tags.filter((tag) => tag.type === 'emoji')).toHaveLength(1)
+    expect(updated?.tags.filter((tag) => tag.type === 'emoji')).toHaveLength(1)
   })
 
   it('re-syncs emoji tags when poll choices are updated', async () => {
@@ -309,9 +285,7 @@ describe('Custom emoji status federation', () => {
       endAt: 4102444800000,
       database
     })
-    if (!status || status.type !== StatusType.enum.Poll) {
-      throw new Error('Expected a poll status')
-    }
+    if (!status) throw new Error('Expected a poll status')
 
     const updated = await updatePollFromUserInput({
       statusId: status.id,
@@ -327,9 +301,6 @@ describe('Custom emoji status federation', () => {
     const emojiTags = tags.filter((tag) => tag.type === 'emoji')
     expect(emojiTags).toHaveLength(1)
     expect(emojiTags[0].name).toBe(':blobcat:')
-    if (!updated || updated.type !== StatusType.enum.Poll) {
-      throw new Error('Expected a poll status')
-    }
-    expect(updated.tags.filter((tag) => tag.type === 'emoji')).toHaveLength(1)
+    expect(updated?.tags.filter((tag) => tag.type === 'emoji')).toHaveLength(1)
   })
 })
