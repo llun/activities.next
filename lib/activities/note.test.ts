@@ -56,9 +56,9 @@ describe('note entity utilities', () => {
     })
 
     it('returns id from object', () => {
-      expect(
-        getReply({ id: 'https://example.com/note/parent', type: 'Note' })
-      ).toEqual('https://example.com/note/parent')
+      expect(getReply({ id: 'https://example.com/note/parent' })).toEqual(
+        'https://example.com/note/parent'
+      )
     })
 
     it('returns undefined for null', () => {
