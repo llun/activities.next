@@ -2,6 +2,21 @@
 
 This guide covers maintenance and administrative scripts available in Activity.next.
 
+## Database Queue Worker
+
+When the database queue runs in a separate process, start the worker with the
+same environment and local database configuration as the application:
+
+```bash
+node scripts/run.cjs scripts/maintenance/runQueueWorker.ts
+```
+
+`SIGINT` and `SIGTERM` share one shutdown operation. The worker stops accepting
+new queue work, waits for the current runner tick to drain, and then closes the
+database within a 30-second deadline. Repeated signals keep waiting for that
+same operation. A failed or expired shutdown exits unsuccessfully; any claim
+left in progress remains eligible for stalled-job recovery.
+
 ## Media Storage Cleanup
 
 The `cleanupMediaStorage.ts` script helps you clean up orphaned media files that are no longer referenced in the database. This is useful for reclaiming storage space after content deletion or database recovery.
