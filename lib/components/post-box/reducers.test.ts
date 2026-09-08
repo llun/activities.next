@@ -129,6 +129,7 @@ describe('post-box reducers', () => {
           size: 2048,
           type: 'application/vnd.ant.fit'
         } as File,
+        uploading: false,
         uploadedId: 'fitness-file-id'
       }
     }
