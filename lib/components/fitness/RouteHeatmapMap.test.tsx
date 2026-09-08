@@ -4,7 +4,10 @@
 import '@testing-library/jest-dom'
 import { render, screen, waitFor } from '@testing-library/react'
 
-import type { FitnessRouteHeatmapData } from '@/lib/client'
+import type {
+  FitnessRouteHeatmapData,
+  FitnessRouteHeatmapTileRequest
+} from '@/lib/client'
 import {
   HEAT_COUNT_SATURATION,
   HEAT_VISIBLE_BASE_OPACITY,
@@ -244,7 +247,7 @@ describe('RouteHeatmapMap tiled rendering', () => {
 
   const tilePayload = encodeTile([{ count: 5, points: [0, 0, 32, 32] }])
   const fetchAll = () =>
-    vi.fn(async ({ tiles }: { tiles: Array<{ x: number; y: number }> }) => ({
+    vi.fn(async ({ tiles }: FitnessRouteHeatmapTileRequest) => ({
       version: 2,
       tiles: Object.fromEntries(
         tiles.map(({ x, y }) => [`${x}:${y}`, tilePayload])
