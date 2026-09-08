@@ -20,6 +20,7 @@ import { getStravaActivityBatchId } from '@/lib/services/strava/activityBatch'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
+import { StatusNote } from '@/lib/types/domain/status'
 
 // Run published jobs (e.g. PROCESS_FITNESS_FILE_JOB) inline against the SAME
 // in-memory test database, so the full import -> process -> map-attachment path
@@ -254,10 +255,10 @@ describe('importStravaActivityJob same-ride merge', () => {
     expect([fileA.isPrimary, fileB.isPrimary].filter(Boolean)).toHaveLength(1)
 
     // The merged post shows a single route map, not one per device.
-    const status = await database.getStatus({
+    const status = (await database.getStatus({
       statusId: fileA.statusId as string,
       withReplies: false
-    })
+    })) as StatusNote
     const mapAttachments = status?.attachments.filter(
       (attachment) => attachment.name === 'Activity route map'
     )

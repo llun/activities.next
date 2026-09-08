@@ -20,8 +20,9 @@ import { MockLitepubNote, MockMastodonActivityPubNote } from '@/lib/stub/note'
 import { MockActivityPubPerson } from '@/lib/stub/person'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { Note } from '@/lib/types/activitypub'
 import { Actor } from '@/lib/types/domain/actor'
-import { Status, StatusType } from '@/lib/types/domain/status'
+import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 enableFetchMocks()
@@ -31,7 +32,7 @@ const FRIEND_ACTOR_ID = 'https://somewhere.test/actors/friend'
 
 describe('createNoteJob', () => {
   const database = getTestSQLDatabase()
-  let actor1: Actor | undefined
+  let actor1: Actor | null | undefined
 
   beforeAll(async () => {
     await database.migrate()
@@ -428,7 +429,9 @@ describe('createNoteJob', () => {
       data: image
     })
 
-    const status = (await database.getStatus({ statusId: image.id })) as Status
+    const status = (await database.getStatus({
+      statusId: image.id
+    })) as StatusNote
     expect(status.attachments).toHaveLength(1)
     expect(status.attachments[0]).toMatchObject({
       url: 'https://pixelfed.social/storage/m/1.jpg'
@@ -455,7 +458,9 @@ describe('createNoteJob', () => {
       data: image
     })
 
-    const status = (await database.getStatus({ statusId: image.id })) as Status
+    const status = (await database.getStatus({
+      statusId: image.id
+    })) as StatusNote
     expect(status.attachments).toHaveLength(1)
     expect(status.attachments[0]).toMatchObject({
       url: 'https://pixelfed.social/p/user/no-media-type.jpg',
@@ -482,7 +487,9 @@ describe('createNoteJob', () => {
       data: page
     })
 
-    const status = (await database.getStatus({ statusId: page.id })) as Status
+    const status = (await database.getStatus({
+      statusId: page.id
+    })) as StatusNote
     expect(status).toBeDefined()
     expect(status.id).toEqual(page.id)
     expect(status.type).toEqual(StatusType.enum.Note)
@@ -510,7 +517,7 @@ describe('createNoteJob', () => {
 
     const status = (await database.getStatus({
       statusId: article.id
-    })) as Status
+    })) as StatusNote
     expect(status).toBeDefined()
     expect(status.id).toEqual(article.id)
     expect(status.type).toEqual(StatusType.enum.Note)
@@ -540,7 +547,9 @@ describe('createNoteJob', () => {
       data: video
     })
 
-    const status = (await database.getStatus({ statusId: video.id })) as Status
+    const status = (await database.getStatus({
+      statusId: video.id
+    })) as StatusNote
     expect(status).toBeDefined()
     expect(status.id).toEqual(video.id)
     expect(status.type).toEqual(StatusType.enum.Note)
@@ -1546,7 +1555,7 @@ describe('createNoteJob', () => {
       })
 
       const forwardCalls = queueSpy.mock.calls.filter(
-        (call) => call[0]?.name === FORWARD_ACTIVITY_JOB_NAME
+        (call: any) => call[0]?.name === FORWARD_ACTIVITY_JOB_NAME
       )
       expect(forwardCalls).toHaveLength(1)
       const data = forwardCalls[0][0].data as {
@@ -1588,7 +1597,7 @@ describe('createNoteJob', () => {
       })
 
       const forwardCalls = queueSpy.mock.calls.filter(
-        (call) => call[0]?.name === FORWARD_ACTIVITY_JOB_NAME
+        (call: any) => call[0]?.name === FORWARD_ACTIVITY_JOB_NAME
       )
       expect(forwardCalls).toHaveLength(0)
     })
@@ -1624,7 +1633,7 @@ describe('createNoteJob', () => {
       })
 
       const forwardCalls = queueSpy.mock.calls.filter(
-        (call) => call[0]?.name === FORWARD_ACTIVITY_JOB_NAME
+        (call: any) => call[0]?.name === FORWARD_ACTIVITY_JOB_NAME
       )
       expect(forwardCalls).toHaveLength(0)
     })

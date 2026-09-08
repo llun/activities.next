@@ -170,7 +170,9 @@ describe('processFitnessFileJob', () => {
     const created = await database.createFitnessSettings({
       actorId: actor.id,
       serviceType: 'general',
-      ...zone
+      privacyHomeLatitude: zone.privacyHomeLatitude ?? undefined,
+      privacyHomeLongitude: zone.privacyHomeLongitude ?? undefined,
+      privacyHideRadiusMeters: zone.privacyHideRadiusMeters ?? undefined
     })
     return created.id
   }
@@ -230,7 +232,8 @@ describe('processFitnessFileJob', () => {
           aspect: 1.3333333333
         }
       },
-      description: 'Route map'
+      description: 'Route map',
+      blurhash: null
     })
 
     mockDeleteMediaFile.mockResolvedValue(true)
@@ -303,8 +306,7 @@ describe('processFitnessFileJob', () => {
 
     const publishCalls = (getQueue().publish as jest.Mock).mock.calls
     const heatmapCalls = publishCalls.filter(
-      ([msg]: [{ name: string }]) =>
-        msg.name === GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME
+      ([msg]: any) => msg.name === GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME
     )
     // Import must not trigger heatmap regeneration — that is decoupled to the
     // explicit generate route so the memory-heavy aggregation never runs on the
@@ -394,7 +396,8 @@ describe('processFitnessFileJob', () => {
             aspect: 1.3333333333
           }
         },
-        description: 'Route map'
+        description: 'Route map',
+        blurhash: null
       }
     }
 
@@ -1175,13 +1178,12 @@ describe('processFitnessFileJob', () => {
 
     const publishCalls = (getQueue().publish as jest.Mock).mock.calls
     const sendNoteCalls = publishCalls.filter(
-      ([msg]: [{ name: string }]) => msg.name === SEND_NOTE_JOB_NAME
+      ([msg]: any) => msg.name === SEND_NOTE_JOB_NAME
     )
     expect(sendNoteCalls).toHaveLength(0)
 
     const heatmapCalls = publishCalls.filter(
-      ([msg]: [{ name: string }]) =>
-        msg.name === GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME
+      ([msg]: any) => msg.name === GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME
     )
     expect(heatmapCalls).toHaveLength(0)
   })
