@@ -1,0 +1,26 @@
+lib/jobs/updateNoteJob.test.ts
+  s_c587d6e0f997cb::t_4b5bae49fe14d1 14,834,911
+  s_c587d6e0f997cb::t_76b995f9ea0046 2
+lib/jobs/createNoteJob.test.ts
+  s_c587d6e0f997cb::t_4b5bae49fe14d1 13,1504,1560,1602,1638
+  s_c587d6e0f997cb::t_4fc599d2cdeb1e 3
+lib/jobs/deleteObjectJob.test.ts
+  s_c587d6e0f997cb::t_4b5bae49fe14d1 11,534,597
+  s_c587d6e0f997cb::t_0be14385aac2f1 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "855c1a8e3b30458f9d7078f73d485b9d835c46b5",
+  "prompts": {},
+  "sessions": {
+    "s_c587d6e0f997cb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a077c9-2bf2-7110-89c4-bfded1f36b16",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
