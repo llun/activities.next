@@ -1,0 +1,22 @@
+lib/client.ts
+  h_580a04e334fef4 8,20,434,436,439
+lib/client/accountPreferences.test.ts
+  h_580a04e334fef4 1-131
+lib/client/accountPreferences.ts
+  h_580a04e334fef4 1-76
+lib/client/fitnessCalendar.test.ts
+  h_580a04e334fef4 1-88
+lib/client/fitnessCalendar.ts
+  h_580a04e334fef4 1-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "14f956d5c138b9c824acdf69984a089417e45dd3",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
