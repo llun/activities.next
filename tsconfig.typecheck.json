@@ -17,16 +17,12 @@
     // type-clean; NEVER add one — a new or edited test file must pass. When
     // this list is empty, delete this file and point `yarn typecheck` at
 
-    "lib/components/posts/status-translation.test.tsx",
     "lib/types/domain/status.test.ts",
     "lib/utils/getPersonFromActor.test.ts",
     "lib/utils/mapkit.test.ts",
     "lib/utils/maplibre.test.ts",
     "lib/utils/safeRemoteFetch.test.ts",
     "lib/utils/text/getMentions.test.ts",
-    "lib/utils/traceApiRoute.test.ts",
-    "next.config.test.ts",
-    "scripts/backup/productionArchive.test.ts",
-    "scripts/fitness/gearImportPlan.test.ts"
+    "lib/utils/traceApiRoute.test.ts"
   ]
 }
