@@ -1,4 +1,5 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
+import type { MockInstance } from 'vitest'
 
 import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
@@ -10,6 +11,7 @@ import {
 } from '@/lib/jobs/names'
 import { updateNoteJob } from '@/lib/jobs/updateNoteJob'
 import { getQueue } from '@/lib/services/queue'
+import type { JobMessage, Queue } from '@/lib/services/queue/type'
 import {
   buildQuoteAuthorizationObject,
   buildQuoteAuthorizationUri
@@ -829,7 +831,7 @@ describe('updateNoteJob', () => {
 
   describe('Outbound Inbox Forwarding on Update', () => {
     const originalEnv = process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING
-    let queueSpy: ReturnType<typeof vi.spyOn>
+    let queueSpy: MockInstance<Queue['publish']>
 
     beforeEach(() => {
       queueSpy = vi.spyOn(getQueue(), 'publish').mockResolvedValue(undefined)
@@ -906,7 +908,7 @@ describe('updateNoteJob', () => {
       })
 
       const forwardCalls = queueSpy.mock.calls.filter(
-        (call: any) => call[0]?.name === FORWARD_ACTIVITY_JOB_NAME
+        ([message]: [JobMessage]) => message.name === FORWARD_ACTIVITY_JOB_NAME
       )
       expect(forwardCalls).toHaveLength(1)
       const data = forwardCalls[0][0].data as {
