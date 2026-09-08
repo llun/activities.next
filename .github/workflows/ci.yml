@@ -52,10 +52,8 @@ jobs:
         run: yarn prettier:check
 
   # `next build` type-checks tsconfig.build.json, which excludes *.test.ts(x).
-  # This job is the gate for those: it runs the same compiler over
-  # tsconfig.typecheck.json, whose exclude list ends in a ratchet of test files
-  # that carried type errors before the gate existed. Remove files from that
-  # list as they are fixed; never add one.
+  # This job runs the same compiler over tsconfig.json (all files including
+  # tests and scripts) via `yarn typecheck`.
   typecheck:
     name: Type Check
     runs-on: ubuntu-latest
