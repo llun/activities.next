@@ -1,0 +1,18 @@
+lib/actions/updateNote.test.ts
+  h_580a04e334fef4 35
+lib/actions/visibility.integration.test.ts
+  h_580a04e334fef4 211-213,233-235,256-258,292-294,347-349
+lib/activities/getActorPosts.test.ts
+  h_580a04e334fef4 229-233,323-327,887-893,1144-1146,1435-1443,1495-1501,1565-1570,1625-1630,1702-1712,1766-1771
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "db8999dd71af565f0cef6c962c7018c6b9ba1bcc",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
