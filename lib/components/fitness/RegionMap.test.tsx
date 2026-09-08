@@ -286,7 +286,9 @@ describe('RegionMap', () => {
 
     unmount()
     map.easeTo.mockClear()
-    success?.({
+    ;(
+      success as ((position: { coords: GeolocationCoordinates }) => void) | null
+    )?.({
       coords: { latitude: 5, longitude: 6 } as GeolocationCoordinates
     })
 
