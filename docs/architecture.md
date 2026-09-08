@@ -1156,6 +1156,8 @@ it; there is no legacy shape left to copy.
   committed deletion as a failed request, which would tell the author their post
   is still present when it is gone. Unboost keeps delete-then-publish and the same isolation for every queue backend.
   A post-commit delete publication failure must not skip the route's media cleanup.
+  Log the failure with its stack. Remote copies can reconcile on their next fetch,
+  which returns 404; this is not a guarantee that every remote copy will fetch again.
   With the default in-process queue, follower-inbox lookup and fan-out happen
   inside `publish`, so those operations can throw after the local unboost commits.
 - Delivery errors never reach that catch: `postActivityToInbox` swallows every
@@ -1692,8 +1694,12 @@ it; there is no legacy shape left to copy.
 - **Local deletion commits before external and synchronous fan-out.** The database
   queue uses `deleteStatusWithQueueJob`, which inserts the delete job and removes
   the status in one transaction; a transaction failure propagates and rolls back.
-  For other queues, flag any change that reintroduces inline fan-out ahead of
-  `database.deleteStatus`: once the local deletion has committed, a publish error
+  `SendDeleteNoteJob` federates the `Delete`/`Tombstone` after commit. For other
+  queues, flag any change that reintroduces inline fan-out ahead of
+  `database.deleteStatus`: it makes the response wait on remote inboxes and lets
+  inbox-resolution errors abandon the local deletion. A failing remote server
+  alone is not that trigger: the sender and `getActorPerson` swallow remote
+  lookup/network failures. Once the local deletion has committed, a publish error
   must be logged without telling the author the post remains.
 - Neither job may load the status it federates: `database.deleteStatus` is a
   cascading hard delete, so the data travels in the payload — `to`/`cc` for the
