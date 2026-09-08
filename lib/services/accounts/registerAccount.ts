@@ -11,6 +11,7 @@ import { logger } from '@/lib/utils/logger'
 import { isEmailAllowed, normalizeEmail } from '@/lib/utils/normalizeEmail'
 import { normalizeUsername } from '@/lib/utils/normalizeUsername'
 import { generateKeyPair } from '@/lib/utils/signature'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 const BCRYPT_ROUND = 10
 
@@ -148,8 +149,11 @@ export const registerAccount = async ({
   if (verificationCode) {
     try {
       await sendConfirmationEmail({ recipient: email, verificationCode })
-    } catch {
-      logger.error({ to: email }, `Fail to send email`)
+    } catch (error) {
+      logger.error(
+        { to: email, err: toLoggableError(error) },
+        'Fail to send email'
+      )
     }
   }
 

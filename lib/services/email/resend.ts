@@ -1,38 +1,38 @@
 import memoize from 'lodash/memoize'
 import { Resend } from 'resend'
-import { z } from 'zod'
 
-import { getConfig } from '@/lib/config'
+import type { Message, ResendConfig } from '@/lib/config/email'
 
-import { getAddressFromEmail } from './smtp'
-import { BaseEmailSettings, Message } from './types'
-
-export const TYPE_RESEND = 'resend'
-
-export const ResendConfig = BaseEmailSettings.extend({
-  type: z.literal(TYPE_RESEND),
-  token: z.string()
-})
-export type ResendConfig = z.infer<typeof ResendConfig>
+import { getAddressFromEmail } from './address'
 
 const getResend = memoize((config: ResendConfig) => {
   return new Resend(config.token)
 })
 
-export async function sendResendMail(message: Message) {
-  const config = getConfig()
-  if (!config.email) return
-  if (config.email.type !== TYPE_RESEND) return
-
-  const resend = getResend(config.email)
-  await resend.emails.send({
+export async function sendResendMail(
+  message: Message,
+  config: ResendConfig
+): Promise<void> {
+  const resend = getResend(config)
+  const result = await resend.emails.send({
     from: getAddressFromEmail(message.from),
     to: message.to.map((email) => getAddressFromEmail(email)),
     subject: message.subject,
     ...(message.replyTo
-      ? { reply_to: getAddressFromEmail(message.replyTo) }
+      ? { replyTo: getAddressFromEmail(message.replyTo) }
       : null),
     html: message.content.html,
     text: message.content.text
   })
+
+  if (result.error) {
+    const details =
+      result.error instanceof Error
+        ? result.error.message
+        : JSON.stringify(result.error)
+
+    throw new Error(`Resend email delivery failed: ${details}`, {
+      cause: result.error
+    })
+  }
 }

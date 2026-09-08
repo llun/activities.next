@@ -178,4 +178,67 @@ describe('Config', () => {
       expect(config.termsOfService).toBeUndefined()
     })
   })
+
+  describe('email provider configuration', () => {
+    const setRequiredEnvironment = () => {
+      process.env.ACTIVITIES_HOST = 'example.com'
+      process.env.ACTIVITIES_SECRET_PHASE = 'env-secret'
+      process.env.ACTIVITIES_ALLOW_EMAILS = '[]'
+      process.env.ACTIVITIES_DATABASE_CLIENT = 'better-sqlite3'
+      process.env.ACTIVITIES_DATABASE_SQLITE_FILENAME = ':memory:'
+    }
+
+    it.each([
+      {
+        description: 'JSON configuration',
+        setup: () => {
+          process.env.ACTIVITIES_EMAIL = JSON.stringify({ type: 'lambda' })
+        }
+      },
+      {
+        description: 'individual variables',
+        setup: () => {
+          process.env.ACTIVITIES_EMAIL_TYPE = 'lambda'
+        }
+      }
+    ])(
+      'rejects Lambda from $description instead of disabling email',
+      async ({ setup }) => {
+        setRequiredEnvironment()
+        setup()
+
+        const { getConfig } = await import('./index')
+
+        expect(() => getConfig()).toThrow(
+          'Unsupported email provider "lambda"; supported providers are smtp, resend, and ses'
+        )
+      }
+    )
+
+    it('does not import transport implementations while loading config', async () => {
+      const modules = [
+        '@/lib/services/email/smtp',
+        '@/lib/services/email/resend',
+        '@/lib/services/email/ses'
+      ]
+      const factories = modules.map(() => vi.fn())
+
+      modules.forEach((moduleName, index) => {
+        vi.doMock(moduleName, () => {
+          factories[index]()
+          return {}
+        })
+      })
+
+      try {
+        vi.resetModules()
+        const imported = await import('./index')
+
+        expect(imported.getConfig).toBeDefined()
+        factories.forEach((factory) => expect(factory).not.toHaveBeenCalled())
+      } finally {
+        modules.forEach((moduleName) => vi.doUnmock(moduleName))
+      }
+    })
+  })
 })

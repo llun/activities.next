@@ -82,22 +82,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/client-lambda@npm:3.1127.0":
-  version: 3.1127.0
-  resolution: "@aws-sdk/client-lambda@npm:3.1127.0"
-  dependencies:
-    "@aws-sdk/core": "npm:^3.977.9"
-    "@aws-sdk/credential-provider-node": "npm:^3.972.82"
-    "@aws-sdk/types": "npm:^3.974.5"
-    "@smithy/core": "npm:^3.33.3"
-    "@smithy/fetch-http-handler": "npm:^5.7.2"
-    "@smithy/node-http-handler": "npm:^4.11.3"
-    "@smithy/types": "npm:^4.17.2"
-    tslib: "npm:^2.6.2"
-  checksum: 10c0/abf56652fea5112cb5bae0b3f4b0fba1f2d951b701d1263ef90cbe5efa0896749f4ada9dabfc63d7a780cd5c87cbf41b6d5c9280fc61501e51b6fb93a3077a39
-  languageName: node
-  linkType: hard
-
 "@aws-sdk/client-s3@npm:3.1127.0":
   version: 3.1127.0
   resolution: "@aws-sdk/client-s3@npm:3.1127.0"
@@ -273,15 +257,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/is-array-buffer@npm:3.201.0":
-  version: 3.201.0
-  resolution: "@aws-sdk/is-array-buffer@npm:3.201.0"
-  dependencies:
-    tslib: "npm:^2.3.1"
-  checksum: 10c0/8ec46099077a886250997678e0397e45533ad9cd2a666f0f9089152b15f37f735c648c3351d8a484bfc3f1cffa5d601830c1a6dffea9a329201d0542c0b1e916
-  languageName: node
-  linkType: hard
-
 "@aws-sdk/middleware-sdk-s3@npm:^3.972.75":
   version: 3.972.75
   resolution: "@aws-sdk/middleware-sdk-s3@npm:3.972.75"
@@ -359,26 +334,6 @@ __metadata:
     "@smithy/types": "npm:^4.17.2"
     tslib: "npm:^2.6.2"
   checksum: 10c0/803aaaa1c0675dcb564803993f3c47d96302fad461af8af80e75afc40c72228ebf669593c18e44ca09fc5acf0d1bd25966261de07844d8f11ad82aa2650252d0
-  languageName: node
-  linkType: hard
-
-"@aws-sdk/util-buffer-from@npm:3.208.0":
-  version: 3.208.0
-  resolution: "@aws-sdk/util-buffer-from@npm:3.208.0"
-  dependencies:
-    "@aws-sdk/is-array-buffer": "npm:3.201.0"
-    tslib: "npm:^2.3.1"
-  checksum: 10c0/926b6ffa8131e285c9b43cd6d38600e1e30b9fbfea1e6c4bb11dd6fc8333db6c310ab83a94df35656975c7504a3d9c38eca9153b84cdfdff3cee8fefdd5dcc85
-  languageName: node
-  linkType: hard
-
-"@aws-sdk/util-utf8-node@npm:^3.259.0":
-  version: 3.259.0
-  resolution: "@aws-sdk/util-utf8-node@npm:3.259.0"
-  dependencies:
-    "@aws-sdk/util-buffer-from": "npm:3.208.0"
-    tslib: "npm:^2.3.1"
-  checksum: 10c0/84b387eb4afd5f29bdcabebd788fdf9d6d87b15c15da34281655f3fa35e72644fe42d6872a7edc5fb732663083fa4e1ace4223d0de3089dd53e1f5d139e2b558
   languageName: node
   linkType: hard
 
@@ -3711,11 +3666,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "activities.next@workspace:."
   dependencies:
-    "@aws-sdk/client-lambda": "npm:3.1127.0"
     "@aws-sdk/client-s3": "npm:3.1127.0"
     "@aws-sdk/client-ses": "npm:3.1127.0"
     "@aws-sdk/s3-request-presigner": "npm:3.1127.0"
-    "@aws-sdk/util-utf8-node": "npm:^3.259.0"
     "@better-auth/core": "npm:1.7.2"
     "@better-auth/oauth-provider": "npm:1.7.2"
     "@better-auth/passkey": "npm:1.7.2"
@@ -7908,7 +7861,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tslib@npm:^2.0.0, tslib@npm:^2.1.0, tslib@npm:^2.3.1, tslib@npm:^2.4.0, tslib@npm:^2.6.2, tslib@npm:^2.8.0, tslib@npm:^2.8.1":
+"tslib@npm:^2.0.0, tslib@npm:^2.1.0, tslib@npm:^2.4.0, tslib@npm:^2.6.2, tslib@npm:^2.8.0, tslib@npm:^2.8.1":
   version: 2.8.1
   resolution: "tslib@npm:2.8.1"
   checksum: 10c0/9c4759110a19c53f992d9aae23aac5ced636e99887b51b9e61def52611732872ff7668757d4e4c61f19691e36f4da981cd9485e869b4a7408d689f6bf1f14e62

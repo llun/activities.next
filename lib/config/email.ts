@@ -1,12 +1,85 @@
-import type { LambdaConfig } from '@/lib/services/email/lambda'
-import type { ResendConfig } from '@/lib/services/email/resend'
-import type { SESConfig } from '@/lib/services/email/ses'
-import type { SMTPConfig } from '@/lib/services/email/smtp'
+import type SMTPTransport from 'nodemailer/lib/smtp-transport'
+import { z } from 'zod'
+
 import { logger } from '@/lib/utils/logger'
 
 import { matcher } from './utils'
 
-type EmailConfig = SMTPConfig | ResendConfig | LambdaConfig | SESConfig
+export const TYPE_SMTP = 'smtp' as const
+export const TYPE_RESEND = 'resend' as const
+export const TYPE_SES = 'ses' as const
+
+const SUPPORTED_EMAIL_TYPES = [TYPE_SMTP, TYPE_RESEND, TYPE_SES] as const
+
+/**
+ * The address and message schemas live with runtime configuration so loading
+ * config never needs to import one of the provider implementations.
+ */
+export const Email = z.union([
+  z.string(),
+  z.object({ name: z.string(), email: z.string() })
+])
+export type Email = z.infer<typeof Email>
+
+export const Message = z.object({
+  from: Email,
+  to: Email.array(),
+  replyTo: Email.optional(),
+  subject: z.string(),
+  content: z.object({
+    text: z.string(),
+    html: z.string()
+  })
+})
+export type Message = z.infer<typeof Message>
+
+export const BaseEmailSettings = z.object({
+  serviceFromAddress: z.string()
+})
+export type BaseEmailSettings = z.infer<typeof BaseEmailSettings>
+
+export const SMTPConfig = z.looseObject({
+  ...BaseEmailSettings.shape,
+  type: z.literal(TYPE_SMTP)
+})
+export type SMTPConfig = z.infer<typeof SMTPConfig> & SMTPTransport.Options
+
+export const ResendConfig = BaseEmailSettings.extend({
+  type: z.literal(TYPE_RESEND),
+  token: z.string()
+})
+export type ResendConfig = z.infer<typeof ResendConfig>
+
+export const SESConfig = BaseEmailSettings.extend({
+  type: z.literal(TYPE_SES),
+  region: z.string().optional()
+})
+export type SESConfig = z.infer<typeof SESConfig>
+
+export const EmailConfig = z.union([SMTPConfig, ResendConfig, SESConfig])
+export type EmailConfig = z.infer<typeof EmailConfig>
+
+/** Raised before Config.parse can turn an explicitly unsupported provider into no email. */
+export class UnsupportedEmailProviderError extends Error {
+  readonly provider: string
+
+  constructor(provider: string) {
+    super(
+      `Unsupported email provider "${provider}"; supported providers are smtp, resend, and ses`
+    )
+    this.name = 'UnsupportedEmailProviderError'
+    this.provider = provider
+  }
+}
+
+const rejectUnsupportedEmailType = (value: unknown): void => {
+  if (
+    typeof value === 'string' &&
+    !(SUPPORTED_EMAIL_TYPES as readonly string[]).includes(value)
+  ) {
+    throw new UnsupportedEmailProviderError(value)
+  }
+}
 
 const getSMTPConfig = () => {
   const portStr = process.env.ACTIVITIES_EMAIL_SMTP_PORT
@@ -42,21 +115,6 @@ const getResendConfig = () => ({
     : {})
 })
 
-const getLambdaConfig = () => ({
-  ...(process.env.ACTIVITIES_EMAIL_LAMBDA_REGION
-    ? { region: process.env.ACTIVITIES_EMAIL_LAMBDA_REGION }
-    : {}),
-  ...(process.env.ACTIVITIES_EMAIL_LAMBDA_FUNCTION_NAME
-    ? { functionName: process.env.ACTIVITIES_EMAIL_LAMBDA_FUNCTION_NAME }
-    : {}),
-  ...(process.env.ACTIVITIES_EMAIL_LAMBDA_FUNCTION_QUALIFIER
-    ? {
-        functionQualifier:
-          process.env.ACTIVITIES_EMAIL_LAMBDA_FUNCTION_QUALIFIER
-      }
-    : {})
-})
-
 const getSESConfig = () => ({
   ...(process.env.ACTIVITIES_EMAIL_SES_REGION
     ? { region: process.env.ACTIVITIES_EMAIL_SES_REGION }
@@ -66,8 +124,14 @@ const getSESConfig = () => ({
 export const getEmailConfig = (): { email: EmailConfig } | null => {
   if (process.env.ACTIVITIES_EMAIL) {
     try {
-      return { email: JSON.parse(process.env.ACTIVITIES_EMAIL) }
-    } catch {
+      const email = JSON.parse(process.env.ACTIVITIES_EMAIL) as {
+        type?: unknown
+      }
+      rejectUnsupportedEmailType(email?.type)
+      return { email: email as EmailConfig }
+    } catch (error) {
+      if (error instanceof UnsupportedEmailProviderError) throw error
+
       logger.warn(
         'ACTIVITIES_EMAIL contains malformed JSON; falling back to individual env vars'
       )
@@ -80,12 +144,15 @@ export const getEmailConfig = (): { email: EmailConfig } | null => {
   const serviceFromAddress = process.env.ACTIVITIES_EMAIL_FROM
 
   if (!type) {
-    logger.warn('ACTIVITIES_EMAIL_TYPE is not set; email will be disabled')
-    return null
+    throw new Error(
+      'ACTIVITIES_EMAIL_TYPE is not set; email configuration is invalid'
+    )
   }
 
+  rejectUnsupportedEmailType(type)
+
   switch (type) {
-    case 'smtp':
+    case TYPE_SMTP:
       return {
         email: {
           type,
@@ -93,7 +160,7 @@ export const getEmailConfig = (): { email: EmailConfig } | null => {
           ...getSMTPConfig()
         } as SMTPConfig
       }
-    case 'resend':
+    case TYPE_RESEND:
       return {
         email: {
           type,
@@ -101,15 +168,7 @@ export const getEmailConfig = (): { email: EmailConfig } | null => {
           ...getResendConfig()
         } as ResendConfig
       }
-    case 'lambda':
-      return {
-        email: {
-          type,
-          ...(serviceFromAddress ? { serviceFromAddress } : {}),
-          ...getLambdaConfig()
-        } as LambdaConfig
-      }
-    case 'ses':
+    case TYPE_SES:
       return {
         email: {
           type,
@@ -117,10 +176,7 @@ export const getEmailConfig = (): { email: EmailConfig } | null => {
           ...getSESConfig()
         } as SESConfig
       }
-    default:
-      logger.warn(
-        `Unknown ACTIVITIES_EMAIL_TYPE value "${type}"; email will be disabled`
-      )
-      return null
   }
+
+  throw new Error(`Unsupported email provider "${type}"`)
 }

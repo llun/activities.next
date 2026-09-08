@@ -5,6 +5,9 @@ describe('getEmailConfig', () => {
 
   beforeEach(() => {
     process.env = { ...originalEnv }
+    for (const key of Object.keys(process.env)) {
+      if (key.startsWith('ACTIVITIES_EMAIL')) delete process.env[key]
+    }
   })
 
   afterAll(() => {
@@ -77,7 +80,7 @@ describe('getEmailConfig', () => {
     expect(config?.email.type).toBe('smtp')
     expect(config?.email.serviceFromAddress).toBe('noreply@example.com')
 
-    const email = config!.email as {
+    const email = config!.email as unknown as {
       host: string
       port: number
       auth: { user: string; pass: string }
@@ -178,45 +181,31 @@ describe('getEmailConfig', () => {
     expect(email.token).toBeUndefined()
   })
 
-  it('builds Lambda config from individual env vars', () => {
-    process.env.ACTIVITIES_EMAIL_TYPE = 'lambda'
-    process.env.ACTIVITIES_EMAIL_FROM = 'noreply@example.com'
-    process.env.ACTIVITIES_EMAIL_LAMBDA_REGION = 'us-east-1'
-    process.env.ACTIVITIES_EMAIL_LAMBDA_FUNCTION_NAME = 'send-email'
-    process.env.ACTIVITIES_EMAIL_LAMBDA_FUNCTION_QUALIFIER = 'LIVE'
+  it.each(['lambda', 'unknown'])(
+    'rejects unsupported provider %s from individual env vars',
+    (type) => {
+      process.env.ACTIVITIES_EMAIL_TYPE = type
+      process.env.ACTIVITIES_EMAIL_FROM = 'noreply@example.com'
 
-    const config = getEmailConfig()
-
-    expect(config).not.toBeNull()
-    expect(config?.email.type).toBe('lambda')
-    expect(config?.email.serviceFromAddress).toBe('noreply@example.com')
-
-    const email = config!.email as {
-      region: string
-      functionName: string
-      functionQualifier: string
+      expect(() => getEmailConfig()).toThrow(
+        `Unsupported email provider "${type}"; supported providers are smtp, resend, and ses`
+      )
     }
-    expect(email.region).toBe('us-east-1')
-    expect(email.functionName).toBe('send-email')
-    expect(email.functionQualifier).toBe('LIVE')
-  })
+  )
 
-  it('omits Lambda fields when env vars are absent', () => {
-    process.env.ACTIVITIES_EMAIL_TYPE = 'lambda'
-    process.env.ACTIVITIES_EMAIL_FROM = 'noreply@example.com'
-    // Lambda-specific env vars intentionally absent
+  it.each(['lambda', 'unknown'])(
+    'rejects unsupported provider %s from JSON configuration',
+    (type) => {
+      process.env.ACTIVITIES_EMAIL = JSON.stringify({
+        type,
+        serviceFromAddress: 'noreply@example.com'
+      })
 
-    const config = getEmailConfig()
-    const email = config!.email as {
-      region?: string
-      functionName?: string
-      functionQualifier?: string
+      expect(() => getEmailConfig()).toThrow(
+        `Unsupported email provider "${type}"; supported providers are smtp, resend, and ses`
+      )
     }
-
-    expect(email.region).toBeUndefined()
-    expect(email.functionName).toBeUndefined()
-    expect(email.functionQualifier).toBeUndefined()
-  })
+  )
 
   it('omits serviceFromAddress when ACTIVITIES_EMAIL_FROM is absent', () => {
     process.env.ACTIVITIES_EMAIL_TYPE = 'resend'
@@ -254,21 +243,12 @@ describe('getEmailConfig', () => {
     expect(email.region).toBeUndefined()
   })
 
-  it('returns null when ACTIVITIES_EMAIL_TYPE is unknown', () => {
-    process.env.ACTIVITIES_EMAIL_TYPE = 'unknown'
-    process.env.ACTIVITIES_EMAIL_FROM = 'noreply@example.com'
-
-    const config = getEmailConfig()
-
-    expect(config).toBeNull()
-  })
-
-  it('returns null when ACTIVITIES_EMAIL_TYPE is not set', () => {
+  it('rejects an individual configuration without a provider type', () => {
     process.env.ACTIVITIES_EMAIL_FROM = 'noreply@example.com'
     // ACTIVITIES_EMAIL_TYPE intentionally absent
 
-    const config = getEmailConfig()
-
-    expect(config).toBeNull()
+    expect(() => getEmailConfig()).toThrow(
+      'ACTIVITIES_EMAIL_TYPE is not set; email configuration is invalid'
+    )
   })
 })

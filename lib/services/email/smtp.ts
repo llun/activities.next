@@ -1,33 +1,20 @@
 import memoize from 'lodash/memoize'
 import nodemailer from 'nodemailer'
-import SMTPTransport from 'nodemailer/lib/smtp-transport'
-import { z } from 'zod'
+import type SMTPTransport from 'nodemailer/lib/smtp-transport'
 
-import { getConfig } from '@/lib/config'
+import type { Message, SMTPConfig } from '@/lib/config/email'
 
-import { BaseEmailSettings, Email, Message } from './types'
+import { getAddressFromEmail } from './address'
 
-export const TYPE_SMTP = 'smtp'
+const getTransporter = memoize((config: SMTPConfig) =>
+  nodemailer.createTransport(config as SMTPTransport.Options)
+)
 
-export const SMTPConfig = z.looseObject({
-  ...BaseEmailSettings.shape,
-  type: z.literal(TYPE_SMTP)
-})
-export type SMTPConfig = z.infer<typeof SMTPConfig> & SMTPTransport.Options
-
-const getTransporter = memoize(() => {
-  const { email } = getConfig()
-  if (!email || email.type !== TYPE_SMTP) return null
-
-  return nodemailer.createTransport(email as SMTPTransport.Options)
-})
-
-export const getAddressFromEmail = (email: Email) =>
-  typeof email === 'string' ? email : `"${email.name}" <${email.email}>`
-
-export async function sendSMTPMail(message: Message) {
-  const transporter = getTransporter()
-  if (!transporter) return
+export async function sendSMTPMail(
+  message: Message,
+  config: SMTPConfig
+): Promise<void> {
+  const transporter = getTransporter(config)
   await transporter.sendMail({
     from: getAddressFromEmail(message.from),
     to: message.to.map((email) => getAddressFromEmail(email)).join(', '),

@@ -11,6 +11,7 @@ import {
   apiErrorResponse,
   apiResponse
 } from '@/lib/utils/response'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const EmailChangeRequest = z.object({
@@ -47,6 +48,18 @@ export const POST = traceApiRoute(
     const { newEmail } = parsed.data
 
     try {
+      const config = getConfig()
+      if (!config.email) {
+        return apiResponse({
+          req,
+          allowedMethods: [],
+          data: {
+            error: 'Email service not configured. Please contact administrator.'
+          },
+          responseStatusCode: 500
+        })
+      }
+
       // Check if email is already in use
       const existingAccount = await database.getAccountFromEmail({
         email: newEmail
@@ -71,48 +84,30 @@ export const POST = traceApiRoute(
       })
 
       // Send verification email
-      const config = getConfig()
-      if (config.email) {
-        try {
-          const email = buildChangeEmail({
-            recipientEmail: newEmail,
-            emailChangeCode
-          })
-          await sendMail({
-            from: config.email.serviceFromAddress,
-            to: [newEmail],
-            subject: email.subject,
-            content: { text: email.text, html: email.html }
-          })
-        } catch (error) {
-          logger.error({
-            message: 'Failed to send email change verification email',
-            accountId: currentActor.account.id,
-            newEmail,
-            error
-          })
-          return apiResponse({
-            req,
-            allowedMethods: [],
-            data: { error: 'Failed to send verification email' },
-            responseStatusCode: 500
-          })
-        }
-      } else {
-        // No email config - in production this is an error
-        if (process.env.NODE_ENV !== 'development') {
-          return apiResponse({
-            req,
-            allowedMethods: [],
-            data: {
-              error:
-                'Email service not configured. Please contact administrator.'
-            },
-            responseStatusCode: 500
-          })
-        }
-        // In development mode, return success but indicate email sending is skipped
-        // Users should check server logs for the verification code
+      try {
+        const email = buildChangeEmail({
+          recipientEmail: newEmail,
+          emailChangeCode
+        })
+        await sendMail({
+          from: config.email.serviceFromAddress,
+          to: [newEmail],
+          subject: email.subject,
+          content: { text: email.text, html: email.html }
+        })
+      } catch (error) {
+        logger.error({
+          message: 'Failed to send email change verification email',
+          accountId: currentActor.account.id,
+          newEmail,
+          err: toLoggableError(error)
+        })
+        return apiResponse({
+          req,
+          allowedMethods: [],
+          data: { error: 'Failed to send verification email' },
+          responseStatusCode: 500
+        })
       }
 
       return apiResponse({
@@ -129,7 +124,7 @@ export const POST = traceApiRoute(
         message: 'Failed to request email change',
         accountId: currentActor.account.id,
         newEmail,
-        error
+        err: toLoggableError(error)
       })
       return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
     }

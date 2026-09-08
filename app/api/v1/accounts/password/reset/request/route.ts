@@ -15,6 +15,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const PasswordResetRequest = z.object({
@@ -116,8 +117,11 @@ export const POST = traceApiRoute(
             subject: message.subject,
             content: { text: message.text, html: message.html }
           })
-        } catch (_error) {
-          logger.error({ email }, 'Failed to send password reset email')
+        } catch (error) {
+          logger.error(
+            { email, err: toLoggableError(error) },
+            'Failed to send password reset email'
+          )
           try {
             const restored = await database.requestPasswordReset({
               email,
@@ -135,7 +139,7 @@ export const POST = traceApiRoute(
             }
           } catch (error) {
             logger.error(
-              { email, error },
+              { email, err: toLoggableError(error) },
               'Failed to restore previous password reset code'
             )
             return internalServerErrorResponse(request)
@@ -146,7 +150,10 @@ export const POST = traceApiRoute(
 
       return passwordResetSuccessResponse(request)
     } catch (error) {
-      logger.error({ error }, 'Failed to request password reset')
+      logger.error(
+        { err: toLoggableError(error) },
+        'Failed to request password reset'
+      )
       return internalServerErrorResponse(request)
     }
   }

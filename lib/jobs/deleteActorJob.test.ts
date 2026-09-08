@@ -95,6 +95,38 @@ describe('deleteActorJob', () => {
     expect(message.content.text).toContain('Your actor was deleted')
   })
 
+  it('completes actor deletion when the email notification fails', async () => {
+    const suffix = Date.now().toString()
+    const username = `delete-job-mail-failure-${suffix}`
+    const actorId = `https://test.social/users/${username}`
+
+    await database.createAccount({
+      email: `${username}@test.social`,
+      username,
+      domain: 'test.social',
+      passwordHash: 'hash',
+      privateKey: `privateKey-${suffix}`,
+      publicKey: `publicKey-${suffix}`
+    })
+    await database.scheduleActorDeletion({ actorId, scheduledAt: null })
+
+    const { sendMail } = await vi.importMock<
+      typeof import('@/lib/services/email')
+    >('@/lib/services/email')
+    sendMail.mockRejectedValueOnce(new Error('SMTP failure'))
+
+    await expect(
+      deleteActorJob(database, {
+        id: `delete-job-mail-failure-${suffix}`,
+        name: DELETE_ACTOR_JOB_NAME,
+        data: { actorId }
+      })
+    ).resolves.toBeUndefined()
+
+    expect(await database.getActorFromId({ id: actorId })).toBeNull()
+    expect(sendMail).toHaveBeenCalledTimes(1)
+  })
+
   it('handles non-existent actor gracefully', async () => {
     const nonExistentActorId = `https://test.social/users/non-existent-${Date.now()}`
 

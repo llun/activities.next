@@ -13,6 +13,14 @@ const DEFAULT_CONFIG = {
   email: null
 }
 
+const mockLoggerError = vi.fn()
+
+vi.mock('@/lib/utils/logger', () => ({
+  logger: {
+    error: (...args: unknown[]) => mockLoggerError(...args)
+  }
+}))
+
 vi.mock('@/lib/config', async () => ({
   getConfig: vi.fn(),
   getBaseURL: vi.fn().mockReturnValue('https://llun.test')
@@ -463,5 +471,13 @@ describe('registerAccount', () => {
     })
 
     expect(result.type).toBe('success')
+    expect(sendMail).toHaveBeenCalledTimes(1)
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'alice@example.com',
+        err: expect.any(Error)
+      }),
+      'Fail to send email'
+    )
   })
 })

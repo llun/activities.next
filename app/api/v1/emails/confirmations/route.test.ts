@@ -31,6 +31,14 @@ vi.mock('@/lib/services/email', () => ({
   sendMail: (...args: unknown[]) => mockSendMail(...args)
 }))
 
+const mockLoggerError = vi.fn()
+vi.mock('@/lib/utils/logger', () => ({
+  logger: {
+    error: (...args: unknown[]) => mockLoggerError(...args),
+    child: vi.fn().mockReturnValue({ debug: vi.fn() })
+  }
+}))
+
 const mockGetConfig = vi.fn()
 vi.mock('@/lib/config', () => ({
   getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
@@ -456,7 +464,8 @@ describe('POST /api/v1/emails/confirmations', () => {
   })
 
   it('returns 500 when sending the confirmation email fails', async () => {
-    mockSendMail.mockRejectedValueOnce(new Error('SMTP failure'))
+    const deliveryError = new Error('SMTP failure')
+    mockSendMail.mockRejectedValueOnce(deliveryError)
 
     const response = await POST(makeRequest(), {
       params: Promise.resolve({})
@@ -464,6 +473,13 @@ describe('POST /api/v1/emails/confirmations', () => {
 
     expect(response.status).toBe(500)
     expect(mockSendMail).toHaveBeenCalledTimes(1)
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: seedActor1.email,
+        err: deliveryError
+      }),
+      'Fail to send email'
+    )
   })
 
   it('returns 200 without sending mail when email is not configured', async () => {

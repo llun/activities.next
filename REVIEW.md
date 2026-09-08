@@ -596,7 +596,7 @@ change doesn't touch.
 
 - Every email is built by a `build<Name>Email(params): RenderedEmail` module in
   `lib/services/email/templates/`. No subject/HTML/text literals at a call site.
-  All eleven templates follow this; there is no legacy shape left to copy.
+  All active templates follow this; there is no legacy shape left to copy.
 - Templates compose blocks from `@/lib/services/email/layout/blocks` and render
   through `renderEmail`; they never write markup. Escaping belongs to the block
   builders, so a template hands in plain strings, and nothing in the layout emits
