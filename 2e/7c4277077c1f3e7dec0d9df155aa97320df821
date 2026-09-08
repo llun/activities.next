@@ -1,0 +1,56 @@
+lib/components/posts/attachments.test.tsx
+  s_c0cfc24e25bc33::t_5184bb6e6f36c5 928-939,941-953,988,1001,1006,1053-1054
+  s_c0cfc24e25bc33::t_848410f29fb0dc 574-575
+  s_c0cfc24e25bc33::t_e17cd5dc1eaa2c 545-546,552-556,561-562,564,566-569,571-573,576-578,581-584,588,590-591,596-598,601,612-613,616,618-619,635,641,643,646,648,658-659,661,668,671-678,681-687
+  s_c0cfc24e25bc33::t_13917806fd4d84 367,382,531
+  s_c0cfc24e25bc33::t_24a5e004b5a603 1307
+  s_c0cfc24e25bc33::t_5cf90af5c64892 1052
+  s_c0cfc24e25bc33::t_a3c246149fa84b 1207,1237,1269,1272-1306
+  s_c0cfc24e25bc33::t_15fea430bd61f0 334-335,547-549,593
+  s_c0cfc24e25bc33::t_dc768d44006bb4 17,25,45
+  s_c0cfc24e25bc33::t_60c3453945c9d7 459,497,500,751
+  s_c0cfc24e25bc33::t_92d772ed0ea021 314,328-330,333,336,343,350-351,353-354,358-359,363-364,385,387-388,399,405,407
+  s_c0cfc24e25bc33::t_5576273f3a7551 5,10,15-16,18-20,22-24,26-32,34-39,43-44,46-48,50-52,57
+  s_c0cfc24e25bc33::t_59c6697c95682f 49
+docs/maintenance.md
+  s_c0cfc24e25bc33::t_2172a9452c1f9e 1057
+docs/mastodon-api-compatibility.md
+  s_c0cfc24e25bc33::t_88d69985720fe5 750-756,765,769-772,785-786,800-802
+  s_c0cfc24e25bc33::t_ff2c76f89a2749 759
+lib/components/posts/attachments.tsx
+  s_c0cfc24e25bc33::t_adbdc172e67a11 300,303,313,316
+  s_c0cfc24e25bc33::t_4a2a9747fe1d85 3-15,65,71-73,77-140,164-167,209,225-230,238,241,247-252,254-260,262-263,271,273,281-293,297,305,309-310,318,322
+  s_c0cfc24e25bc33::t_15c8a8c749ba38 23,74
+  s_c0cfc24e25bc33::t_80ede30513ec69 240,253,261
+lib/components/posts/useMediaStripScroll.ts
+  s_c0cfc24e25bc33::t_2728c878da5fe8 79-82,85-88,133-136
+  s_c0cfc24e25bc33::t_884f89ee6e52ed 89,91-96,100-101,104-117,120-123
+  s_c0cfc24e25bc33::t_ff2c76f89a2749 42-43
+  s_c0cfc24e25bc33::t_e8c30eaf7c3c2b 12-13,83-84,90,97-99,102-103,118-119,124,130-132,137-141,143-144
+  s_c0cfc24e25bc33::t_d02185ef66e56d 125-129
+docs/architecture.md
+  s_c0cfc24e25bc33::t_88d69985720fe5 1647-1652,1661-1662
+lib/components/posts/useMediaStripScroll.test.tsx
+  s_c0cfc24e25bc33::t_558c6b6d09a0e4 288,307
+  s_c0cfc24e25bc33::t_15fea430bd61f0 330-332
+  s_c0cfc24e25bc33::t_2f3fede9b4daf8 224,230,258-284,310-321
+  s_c0cfc24e25bc33::t_cb371c2dacbd5f 235-241,285-287,289-306,308-309,322-329,333-343
+  s_c0cfc24e25bc33::t_354ab26e1e810d 226,232
+  s_c0cfc24e25bc33::t_621530beae6556 344
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "2e7c4277077c1f3e7dec0d9df155aa97320df821",
+  "prompts": {},
+  "sessions": {
+    "s_c0cfc24e25bc33": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0821b-4a05-7162-bd68-17154aacd5c3",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
