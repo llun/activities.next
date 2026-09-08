@@ -886,15 +886,10 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   them is a regression: `flex-none` on each item, without which they shrink to
   fit and nothing ever overflows (the whole feature turns off silently);
   `STRIP_ITEM_MAX_WIDTH` (78%) so the next item always
-  peeks — that peek is what says "this scrolls" on a touch screen;
-  `scroll-snap-type: x proximity`, never `mandatory`, which pulls
-  the peek flush the moment the scroll settles; and the 240px media boxes use
-  160px minimum widths, a 78% maximum, 12px gaps and 16px corners.
-- The paired 44px controls sit below the row and remain focusable with
-  `aria-disabled` at the ends. An arrow click advances exactly one adjacent
-  card, choosing the first boundary in the requested direction when the user
-  is between cards, and clamps at either end. Smooth scrolling is retained
-  unless `prefers-reduced-motion` requests auto scrolling.
+  peeks — that peek is what says "this scrolls" on a touch screen, where the
+  back chevron never appears at all; `scroll-snap-type: x proximity`, never `mandatory`, which pulls the
+  peek flush the moment the scroll settles; and the forward chevron staying
+  visible while the back one appears on hover only.
 - **There is no item cap and no `+N` overlay** — scrolling reaches everything —
   so anything the strip renders unboundedly needs a deferral: images pass
   `loading="lazy"`, videos `preload="none"` (`loading` is image-only) — but only
@@ -903,10 +898,10 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
   and federated video never has a poster. A lone picture or video is
   deliberately eager, being the post's largest element. Re-adding a cap hides
   media the post actually carries.
-- Captions render below each image through the shared caption component, with
-  trimmed descriptions clamped to three lines with independent Show more/Show
-  less controls while preserving emoji, selection, and line breaks. The
-  approved gallery has no edge fades, badges, or alternate-text drawer.
+- The edge fade is a **`mask-image`**, not a background gradient: posts render
+  on four surfaces (`bg-card`, `bg-background`, `bg-muted/30`, unframed) and a
+  fade painted in one token is wrong on the other three and in dark mode
+  everywhere.
 - **Filtering is layout-only.** `isVisualAttachment` picks what gets a picture
   box and `isAudibleAttachment` what becomes an inline player; a `.fit` file or
   PDF is skipped rather than rendering an empty box. But the lightbox is handed

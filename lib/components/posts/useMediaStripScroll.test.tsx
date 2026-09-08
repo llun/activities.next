@@ -218,144 +218,36 @@ describe('useMediaStripScroll', () => {
     expect(screen.getByTestId(testId)).toHaveTextContent(String(expected))
   })
 
-  it('advances exactly one adjacent card in either direction', () => {
-    render(<Probe scrollWidth={1600} clientWidth={500} scrollLeft={600} />)
-    const scroller = screen.getByTestId('scroller')
-    const containerLeft = 100
-    Object.defineProperty(scroller, 'getBoundingClientRect', {
-      configurable: true,
-      value: () => ({ left: containerLeft })
-    })
-    ;[0, 220, 500, 860].forEach((offset) => {
-      const card = document.createElement('span')
-      Object.defineProperty(card, 'getBoundingClientRect', {
-        configurable: true,
-        value: () => ({ left: containerLeft + offset - 600 })
-      })
-      scroller.append(card)
-    })
-    const scrollBy = vi.fn()
-    Object.defineProperty(scroller, 'scrollBy', {
-      configurable: true,
-      value: scrollBy
-    })
-
-    act(() => capturedScrollByPage?.(-1))
-    expect(scrollBy).toHaveBeenCalledWith({ left: -100, behavior: 'smooth' })
-
-    scrollBy.mockClear()
-    Object.defineProperty(scroller, 'scrollLeft', {
-      configurable: true,
-      value: 220
-    })
-    ;[0, 220, 500, 860].forEach((offset, index) => {
-      const card = scroller.children[index]
-      Object.defineProperty(card, 'getBoundingClientRect', {
-        configurable: true,
-        value: () => ({ left: containerLeft + offset - 220 })
-      })
-    })
-    act(() => capturedScrollByPage?.(1))
-    expect(scrollBy).toHaveBeenCalledWith({ left: 280, behavior: 'smooth' })
-  })
-
-  it('uses the nearest directional card boundary relative to the container', () => {
-    render(<Probe scrollWidth={1200} clientWidth={500} scrollLeft={100} />)
-    const scroller = screen.getByTestId('scroller')
-    const cards = [100, 350, 550, 900].map((left) => {
-      const card = document.createElement('span')
-      Object.defineProperty(card, 'getBoundingClientRect', {
-        configurable: true,
-        value: () => ({ left })
-      })
-      scroller.append(card)
-      return card
-    })
-    Object.defineProperty(scroller, 'getBoundingClientRect', {
-      configurable: true,
-      value: () => ({ left: 100 })
-    })
-    const scrollBy = vi.fn()
-    Object.defineProperty(scroller, 'scrollBy', {
-      configurable: true,
-      value: scrollBy
-    })
-
-    act(() => capturedScrollByPage?.(1))
-    expect(scrollBy).toHaveBeenCalledWith({ left: 250, behavior: 'smooth' })
-    expect(cards).toHaveLength(4)
-  })
-
-  it('uses the nearest backward card boundary relative to the container', () => {
-    render(<Probe scrollWidth={1200} clientWidth={500} scrollLeft={600} />)
-    const scroller = screen.getByTestId('scroller')
-    ;[-500, -250, -50, 300].forEach((left) => {
-      const card = document.createElement('span')
-      Object.defineProperty(card, 'getBoundingClientRect', {
-        configurable: true,
-        value: () => ({ left })
-      })
-      scroller.append(card)
-    })
-    Object.defineProperty(scroller, 'getBoundingClientRect', {
-      configurable: true,
-      value: () => ({ left: 100 })
-    })
-    const scrollBy = vi.fn()
-    Object.defineProperty(scroller, 'scrollBy', {
-      configurable: true,
-      value: scrollBy
-    })
-
-    act(() => capturedScrollByPage?.(-1))
-    expect(scrollBy).toHaveBeenCalledWith({ left: -150, behavior: 'smooth' })
-  })
-
-  it('honors reduced motion and clamps to progress at an end', () => {
-    vi.stubGlobal('matchMedia', () => ({ matches: true }))
-    render(<Probe scrollWidth={1200} clientWidth={500} scrollLeft={500} />)
-    const scroller = screen.getByTestId('scroller')
-    const scrollBy = vi.fn()
-    Object.defineProperty(scroller, 'scrollBy', {
-      configurable: true,
-      value: scrollBy
-    })
-
-    const card = document.createElement('span')
-    Object.defineProperty(card, 'getBoundingClientRect', {
-      configurable: true,
-      value: () => ({ left: 500 })
-    })
-    Object.defineProperty(scroller, 'getBoundingClientRect', {
-      configurable: true,
-      value: () => ({ left: 0 })
-    })
-    scroller.append(card)
-
-    act(() => capturedScrollByPage?.(1))
-    expect(scrollBy).toHaveBeenCalledWith({ left: 200, behavior: 'auto' })
-  })
-
   it.each([
-    { scrollLeft: 0, direction: -1 as const },
-    { scrollLeft: 500, direction: 1 as const }
-  ])(
-    'does not request movement beyond the strip at $scrollLeft',
-    ({ scrollLeft, direction }) => {
-      render(
-        <Probe scrollWidth={1000} clientWidth={500} scrollLeft={scrollLeft} />
-      )
-      const scroller = screen.getByTestId('scroller')
-      const scrollBy = vi.fn()
-      Object.defineProperty(scroller, 'scrollBy', {
-        configurable: true,
-        value: scrollBy
-      })
-
-      act(() => capturedScrollByPage?.(direction))
-      expect(scrollBy).not.toHaveBeenCalled()
+    {
+      description:
+        'scrolls right by 0.7 of the visible width on scrollByPage(1)',
+      direction: 1 as const,
+      expectedLeft: 233
+    },
+    {
+      description:
+        'scrolls left by 0.7 of the visible width on scrollByPage(-1)',
+      direction: -1 as const,
+      expectedLeft: -233
     }
-  )
+  ])('$description', ({ direction, expectedLeft }) => {
+    render(<Probe scrollWidth={1000} clientWidth={333} scrollLeft={0} />)
+    const scroller = screen.getByTestId('scroller')
+    const scrollBy = vi.fn()
+    // jsdom has no scrollBy implementation to spy on.
+    Object.defineProperty(scroller, 'scrollBy', {
+      configurable: true,
+      value: scrollBy
+    })
+
+    act(() => capturedScrollByPage?.(direction))
+
+    expect(scrollBy).toHaveBeenCalledWith({
+      left: expectedLeft,
+      behavior: 'smooth'
+    })
+  })
 
   it('re-measures when the content key changes without the container resizing', () => {
     // The observer watches the container, so a strip whose items were swapped
