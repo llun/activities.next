@@ -1,0 +1,24 @@
+lib/types/domain/status.test.ts
+  h_580a04e334fef4 3,11,235-236,448-450
+lib/utils/mapkit.test.ts
+  h_580a04e334fef4 4
+lib/utils/maplibre.test.ts
+  h_580a04e334fef4 4
+lib/utils/safeRemoteFetch.test.ts
+  h_580a04e334fef4 327-328,340,342
+lib/utils/text/getMentions.test.ts
+  h_580a04e334fef4 11-12
+lib/utils/traceApiRoute.ts
+  h_580a04e334fef4 23-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "30d8c16240d760cd7ae837c8baa3aceefeba3842",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
