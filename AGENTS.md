@@ -1826,17 +1826,16 @@ system's `Attachments` component.
     at that level can carry the rule.
   - `STRIP_ITEM_MAX_WIDTH` (78%) means no item can fill the strip, so the next
     one always peeks past the edge. That peek is what says "this scrolls" on a
-    touch screen, where the back chevron never appears at all and the forward
-    one is easy to miss.
+    touch screen. Each media box is 240px tall, at least 160px wide, and has a
+    12px gap and 16px radius.
   - `scroll-snap-type: x proximity`, never `mandatory`: mandatory snapping pulls
     the peeking item flush with the edge as soon as the scroll settles and
     destroys the affordance the 78% cap creates.
-  - The forward chevron is always visible while there is more to the right; the
-    back chevron only appears on hover. Going back is worth chrome only once you
-    have gone forward — and `pointer-events-none` while it is `opacity-0` is
-    part of that, because `opacity-0` alone still hit-tests and `group-hover`
-    never latches on a touch screen, leaving a dead column over the leftmost
-    photo.
+  - The paired 44px Previous/Next controls sit below the row, remain
+    focusable, and expose their boundary state through `aria-disabled`. Each
+    click moves to exactly one adjacent card; a manual position between cards
+    goes to the first card boundary in the requested direction, and the ends
+    clamp. The hook preserves smooth scrolling unless reduced motion is active.
 - **There is no 4-item cap and no `+N` overlay.** Everything attached is in the
   strip, because scrolling reaches it. Re-adding a cap hides media the post
   actually carries. Strip images therefore pass `loading="lazy"` to `Media` —
@@ -1849,18 +1848,12 @@ system's `Attachments` component.
   decode, and the strip hides its controls, so deferring one leaves a bare empty
   box. Federated video always lands there: `thumbnailUrl` is written on the
   local-upload path alone.
-- **The edge fade is a `mask-image`, not a background gradient.** Posts render on
-  four different surfaces — `bg-card` when framed, `bg-background` on the status
-  detail, `bg-muted/30` for an ancestor row, and the page itself when unframed —
-  so a fade painted in any one token is visibly wrong on the other three, and a
-  literal white one is wrong in dark mode everywhere. A mask fades the strip's
-  own pixels and lets whatever is behind show through. It lives in
-  `buildEdgeFadeMask` rather than inline so the string itself is unit-testable:
-  jsdom's CSS parser rejects the two variants carrying `calc()` and stores
-  nothing for them, so a RENDERED node can only be asserted against the
-  left-edge-only form. Known cosmetic cost: the mask also fades the leading edge
-  of a focused item's outline, which is exactly where the browser scrolls a
-  Tab-focused item to.
+- **Captions belong to each item, not an overlay.** A trimmed attachment
+  description renders below its 240px media box through the shared caption
+  renderer, preserving emoji, selection and line breaks; long captions are
+  clamped to three lines with independent Show more/Show less controls. There
+  are no fades, badges, or alternate-text drawer controls layered over the
+  image.
 - **A strip item's focus indicator is an `outline` with a NEGATIVE offset, not
   a ring.** Its border box is exactly the strip's height and `overflow-x-auto`
   forces `overflow-y` to compute to `auto`, so an OUTSET ring's top and bottom
@@ -1874,15 +1867,10 @@ system's `Attachments` component.
   `MessageBubble`'s media cells carry `focus-visible:ring-inset` over the same
   full-bleed image shape, so their indicator is invisible too — a pre-existing
   bug, not a precedent to copy.)
-- **Keeping the chevrons out of the tab order takes BOTH `tabIndex={-1}` and a
-  mousedown guard.** They duplicate no function — every picture is a focusable
-  button and focusing one scrolls it into view — and each is unmounted by the
-  very scroll it performs, so a chevron holding focus drops it to `<body>` on
-  its last press and sends the next Tab back to the top of the page (WCAG
-  2.4.3). `tabindex="-1"` removes an element from the SEQUENTIAL order only; it
-  stays click-focusable, and Chrome and Firefox focus a `<button>` on click, so
-  `preventFocusOnPress` cancels the default on mousedown to close the mouse
-  path. Deleting either half reopens the failure.
+- **The paired media controls stay focusable.** They are mounted below the row,
+  expose their boundary state through `aria-disabled`, stop their click from
+  reaching the post, and leave focus in place when an end is reached. Keep the
+  picture buttons independently keyboard accessible as well.
 - **Every picture button carries an explicit `aria-label`.** `Media` names an
   image from its `alt`, but `attachment.name` is a required string that
   federation writes as `attachment.name || ''`, so an undescribed photo left the
