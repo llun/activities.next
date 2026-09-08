@@ -1644,14 +1644,12 @@ it; there is no legacy shape left to copy.
   this for every surface that renders a post. A lone picture keeps its own
   aspect ratio and hugs the post's left edge, scaled by WIDTH; the branch this
   replaced cropped every portrait photo to a full-width 16:9.
-- Four details of the strip are load-bearing and a "cleanup" that drops any of
-  them is a regression: `flex-none` on each item, without which they shrink to
-  fit and nothing ever overflows (the whole feature turns off silently);
-  `STRIP_ITEM_MAX_WIDTH` (78%) so the next item always
-  peeks — that peek is what says "this scrolls" on a touch screen, where the
-  back chevron never appears at all; `scroll-snap-type: x proximity`, never `mandatory`, which pulls the
-  peek flush the moment the scroll settles; and the forward chevron staying
-  visible while the back one appears on hover only.
+- The gallery uses 240px image boxes, 12px gaps, aspect-ratio-based card widths
+  with a 160px minimum and 78% maximum, and `scroll-snap-type: x proximity`.
+  Captions sit below their images, preserve line breaks and custom emoji, and
+  clamp independently to three lines. Paired circular arrows sit below the
+  captions while overflowing, remain focusable at their boundaries with guarded
+  `aria-disabled` states, and move roughly 90% toward the nearest card boundary.
 - **There is no item cap and no `+N` overlay** — scrolling reaches everything —
   so anything the strip renders unboundedly needs a deferral: images pass
   `loading="lazy"`, videos `preload="none"` (`loading` is image-only) — but only
@@ -1660,10 +1658,8 @@ it; there is no legacy shape left to copy.
   and federated video never has a poster. A lone picture or video is
   deliberately eager, being the post's largest element. Re-adding a cap hides
   media the post actually carries.
-- The edge fade is a **`mask-image`**, not a background gradient: posts render
-  on four surfaces (`bg-card`, `bg-background`, `bg-muted/30`, unframed) and a
-  fade painted in one token is wrong on the other three and in dark mode
-  everywhere.
+- There are no edge fades or overlaid arrows; the arrows sit beneath captions
+  so they do not obscure media or interfere with touch.
 - **Filtering is layout-only.** `isVisualAttachment` picks what gets a picture
   box and `isAudibleAttachment` what becomes an inline player; a `.fit` file or
   PDF is skipped rather than rendering an empty box. But the lightbox is handed
