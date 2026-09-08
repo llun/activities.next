@@ -1,0 +1,36 @@
+lib/client.test.ts
+  h_580a04e334fef4 11,44-48,71,80-81,111-112,128-130,140-141,270-313
+lib/client.ts
+  h_580a04e334fef4 362,364,420,422,445,447,454-455
+lib/client/adminAccounts.test.ts
+  h_580a04e334fef4 1-279
+lib/client/adminAccounts.ts
+  h_580a04e334fef4 1-99
+lib/client/adminReports.test.ts
+  h_580a04e334fef4 1-210
+lib/client/adminReports.ts
+  h_580a04e334fef4 1-73
+lib/client/adminServerSettings.test.ts
+  h_580a04e334fef4 1-82
+lib/client/adminServerSettings.ts
+  h_580a04e334fef4 1-35
+lib/client/notifications.test.ts
+  h_580a04e334fef4 1-39
+lib/client/notifications.ts
+  h_580a04e334fef4 1-21
+lib/client/passkeys.test.ts
+  h_580a04e334fef4 1-50
+lib/client/passkeys.ts
+  h_580a04e334fef4 1-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "45052979ecd9a2fbfdc97aab529c5bd7467f2329",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
