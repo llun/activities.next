@@ -101,6 +101,12 @@ const boostedFavouritedStatus: StatusAnnounce = {
   originalStatus: favouritedStatus
 }
 
+const nestedBoostedFavouritedStatus: StatusAnnounce = {
+  ...boostedFavouritedStatus,
+  id: 'https://activities.local/users/booster/statuses/boost-2',
+  originalStatus: boostedFavouritedStatus
+}
+
 describe('FavoritesTimeline', () => {
   let intersectionObserverCallback:
     ((entries: IntersectionObserverEntry[]) => void) | null = null
@@ -241,6 +247,29 @@ describe('FavoritesTimeline', () => {
         currentActor={actor}
         currentTime={currentTime}
         statuses={[boostedFavouritedStatus]}
+        initialNextMaxFavouriteId={null}
+      />
+    )
+
+    expect(screen.getByText('Favourited post')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Unlike/ }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('Favourited post')).not.toBeInTheDocument()
+    })
+    expect(undoLikeStatus).toHaveBeenCalledWith({
+      statusId: favouritedStatus.id
+    })
+    expect(screen.getByText('No favorites yet')).toBeInTheDocument()
+  })
+
+  it('removes a nested boosted post when unliking its root original', async () => {
+    render(
+      <FavoritesTimeline
+        host="activities.local"
+        currentActor={actor}
+        currentTime={currentTime}
+        statuses={[nestedBoostedFavouritedStatus]}
         initialNextMaxFavouriteId={null}
       />
     )
