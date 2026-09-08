@@ -4,7 +4,7 @@
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
 
-import { SharedHeatmapPage, SharedHeatmapPageProps } from './SharedHeatmapPage'
+import { SharedHeatmapPage } from './SharedHeatmapPage'
 import { SharedHeatmapView } from './sharedHeatmapView'
 
 // The route map mounts a GL map; stub it so the test stays focused on chrome.
@@ -37,13 +37,11 @@ const baseView: SharedHeatmapView = {
   }
 }
 
-const defaultProps: SharedHeatmapPageProps = {
+const defaultProps = {
   view: baseView,
-  mapProvider: { type: 'osm' },
   signupOpen: true,
   signinUrl: '/auth/signin',
-  signupUrl: '/auth/signup',
-  token: 'tok123'
+  signupUrl: '/auth/signup'
 }
 
 describe('SharedHeatmapPage', () => {

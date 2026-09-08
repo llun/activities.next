@@ -2,8 +2,7 @@ import {
   Status,
   StatusNote,
   StatusPoll,
-  StatusType,
-  getOriginalStatus
+  StatusType
 } from '@/lib/types/domain/status'
 
 export type StatusTarget = string | { id: string }
@@ -53,12 +52,13 @@ export const removeOriginalStatus = (
   const targetId = typeof target === 'string' ? target : target.id
   let hasRemoval = false
   const updated = statuses.filter((item) => {
-    const originalStatus = getOriginalStatus(item)
+    if (item.id === targetId) {
+      hasRemoval = true
+      return false
+    }
     if (
-      item.id === targetId ||
-      originalStatus.id === targetId ||
-      (item.type === StatusType.enum.Announce &&
-        item.originalStatus.id === targetId)
+      item.type === StatusType.enum.Announce &&
+      item.originalStatus.id === targetId
     ) {
       hasRemoval = true
       return false

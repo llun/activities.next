@@ -30,7 +30,7 @@ describe('describeMediaStorageBackend', () => {
       description: 'object storage',
       type: MediaStorageType.ObjectStorage
     }
-  ] as const)('names the bucket and region for $description', ({ type }) => {
+  ])('names the bucket and region for $description', ({ type }) => {
     expect(
       describeMediaStorageBackend({
         type,

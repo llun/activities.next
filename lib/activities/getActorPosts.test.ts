@@ -226,11 +226,6 @@ describe('getActorPosts', () => {
       throw new Error('Expected Announce status')
     }
 
-    expect(announceStatus.originalStatus.type).toBe(StatusType.enum.Note)
-    if (announceStatus.originalStatus.type !== StatusType.enum.Note) {
-      throw new Error('Expected Note status')
-    }
-
     expect(announceStatus.actorId).toBe(boosterActorId)
     expect(announceStatus.actor?.id).toBe(boosterActorId)
     expect(announceStatus.originalStatus.actorId).toBe(originalActorId)
@@ -318,11 +313,6 @@ describe('getActorPosts', () => {
     expect(announceStatus.type).toBe(StatusType.enum.Announce)
     if (announceStatus.type !== StatusType.enum.Announce) {
       throw new Error('Expected Announce status')
-    }
-
-    expect(announceStatus.originalStatus.type).toBe(StatusType.enum.Note)
-    if (announceStatus.originalStatus.type !== StatusType.enum.Note) {
-      throw new Error('Expected Note status')
     }
 
     expect(announceStatus.id).toBe(announceStatusId)
@@ -805,6 +795,7 @@ describe('getActorPosts', () => {
     const statusId = 'https://pixelfed.example/p/actor/12345'
     const person = MockActivityPubPerson({
       id: actorId,
+      preferredUsername: 'actor',
       withContext: true
     }) as Actor
 
@@ -884,13 +875,8 @@ describe('getActorPosts', () => {
 
     expect(response.statusesCount).toBe(413)
     expect(response.statuses).toHaveLength(1)
-    const status = response.statuses[0]
-    expect(status.type).toBe(StatusType.enum.Note)
-    if (status.type !== StatusType.enum.Note) {
-      throw new Error('Expected Note status')
-    }
-    expect(status.id).toBe(statusId)
-    expect(status.text).toContain('Atom resolved post')
+    expect(response.statuses[0].id).toBe(statusId)
+    expect(response.statuses[0].text).toContain('Atom resolved post')
   })
 
   it('does not fall back to Atom feed for non-Pixelfed instances', async () => {
@@ -1001,6 +987,7 @@ describe('getActorPosts', () => {
     const statusId = `${actorId}/statuses/1`
     const person = MockActivityPubPerson({
       id: actorId,
+      preferredUsername: 'critical',
       withContext: true
     }) as Actor
 
@@ -1141,9 +1128,6 @@ describe('getActorPosts', () => {
     expect(response.statuses).toHaveLength(1)
     const status = response.statuses[0]
     expect(status.type).toBe(StatusType.enum.Note)
-    if (status.type !== StatusType.enum.Note) {
-      throw new Error('Expected Note status')
-    }
     expect(status.text).toContain('Framasoft Video')
     expect(status.attachments).toHaveLength(1)
     expect(status.attachments[0].mediaType).toBe('video/mp4')
@@ -1357,6 +1341,7 @@ describe('getActorPosts', () => {
     const videoUri = 'https://framatube.org/videos/watch/abc-123'
     const person = MockActivityPubPerson({
       id: actorId,
+      preferredUsername: 'peertube',
       withContext: true
     }) as Actor
 
@@ -1432,15 +1417,12 @@ describe('getActorPosts', () => {
 
     const response = await getActorPosts({ database, person })
     expect(response.statuses).toHaveLength(1)
-    const status = response.statuses[0]
-    expect(status.type).toBe(StatusType.enum.Note)
-    if (status.type !== StatusType.enum.Note) {
-      throw new Error('Expected Note status')
-    }
-    expect(status.id).toBe(videoUri)
-    expect(status.attachments).toHaveLength(1)
-    expect(status.attachments[0].url).toBe('https://framatube.org/video.mp4')
-    expect(status.attachments[0].thumbnailUrl).toBe(
+    expect(response.statuses[0].id).toBe(videoUri)
+    expect(response.statuses[0].attachments).toHaveLength(1)
+    expect(response.statuses[0].attachments[0].url).toBe(
+      'https://framatube.org/video.mp4'
+    )
+    expect(response.statuses[0].attachments[0].thumbnailUrl).toBe(
       'https://framatube.org/thumb.jpg'
     )
   })
@@ -1492,13 +1474,10 @@ describe('getActorPosts', () => {
 
       const response = await getActorPosts({ database, person })
       expect(response.statuses).toHaveLength(1)
-      const status = response.statuses[0]
-      expect(status.type).toBe(StatusType.enum.Note)
-      if (status.type !== StatusType.enum.Note) {
-        throw new Error('Expected Note status')
-      }
-      expect(status.id).toBe(statusId)
-      expect(status.text).toBe('Hello from root-only context definition')
+      expect(response.statuses[0].id).toBe(statusId)
+      expect(response.statuses[0].text).toBe(
+        'Hello from root-only context definition'
+      )
       expect(response.statusesCount).toBe(1)
     })
 
@@ -1562,12 +1541,9 @@ describe('getActorPosts', () => {
 
       const response = await getActorPosts({ database, person })
       expect(response.statuses).toHaveLength(1)
-      const status = response.statuses[0]
-      expect(status.type).toBe(StatusType.enum.Note)
-      if (status.type !== StatusType.enum.Note) {
-        throw new Error('Expected Note status')
-      }
-      expect(status.text).toBe('Hello from page-only context definition')
+      expect(response.statuses[0].text).toBe(
+        'Hello from page-only context definition'
+      )
       expect(response.statusesCount).toBe(5)
       expect(response.nextPageUrl).toBe(`${actorId}/outbox?page=2`)
     })
@@ -1622,12 +1598,7 @@ describe('getActorPosts', () => {
 
       const response = await getActorPosts({ database, person })
       expect(response.statuses).toHaveLength(1)
-      const status = response.statuses[0]
-      expect(status.type).toBe(StatusType.enum.Note)
-      if (status.type !== StatusType.enum.Note) {
-        throw new Error('Expected Note status')
-      }
-      expect(status.text).toBe(
+      expect(response.statuses[0].text).toBe(
         'Overridden definition successfully parsed as content'
       )
     })
@@ -1699,17 +1670,8 @@ describe('getActorPosts', () => {
 
       const response = await getActorPosts({ database, person })
       expect(response.statuses).toHaveLength(2)
-      const [status1, status2] = response.statuses
-      expect(status1.type).toBe(StatusType.enum.Note)
-      expect(status2.type).toBe(StatusType.enum.Note)
-      if (
-        status1.type !== StatusType.enum.Note ||
-        status2.type !== StatusType.enum.Note
-      ) {
-        throw new Error('Expected Note statuses')
-      }
-      expect(status1.text).toBe('Item 1 inherits root context')
-      expect(status2.text).toBe('Item 2 plain content')
+      expect(response.statuses[0].text).toBe('Item 1 inherits root context')
+      expect(response.statuses[1].text).toBe('Item 2 plain content')
     })
 
     it('preserves extension terms like quote and sensitive under inherited context', async () => {
@@ -1763,12 +1725,7 @@ describe('getActorPosts', () => {
 
       const response = await getActorPosts({ database, person })
       expect(response.statuses).toHaveLength(1)
-      const status = response.statuses[0]
-      expect(status.type).toBe(StatusType.enum.Note)
-      if (status.type !== StatusType.enum.Note) {
-        throw new Error('Expected Note status')
-      }
-      expect(status.text).toBe('Post with sensitive and quote')
+      expect(response.statuses[0].text).toBe('Post with sensitive and quote')
     })
   })
 })

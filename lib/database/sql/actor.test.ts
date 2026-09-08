@@ -125,7 +125,7 @@ describe('ActorDatabase', () => {
 
     describe('getActor', () => {
       it('falls back to Person for unknown persisted actor types', () => {
-        const actor = (database as unknown as SQLActorDatabase).getActor(
+        const actor = (database as SQLActorDatabase).getActor(
           {
             id: `https://${TEST_DOMAIN}/users/unknown-type`,
             type: 'UnknownType' as never,
@@ -1637,12 +1637,12 @@ describe('ActorDatabase', () => {
         })
 
         const settings = await database.getActorSettings({ actorId })
-        expect(settings?.notificationAcceptedSenders).toEqual([
+        expect(settings.notificationAcceptedSenders).toEqual([
           'existing-sender',
           'new-sender'
         ])
-        expect(settings?.manuallyApprovesFollowers).toBe(false)
-        expect(settings?.defaultPrivacy).toBe('private')
+        expect(settings.manuallyApprovesFollowers).toBe(false)
+        expect(settings.defaultPrivacy).toBe('private')
       })
 
       it('persists profile appearance settings including explicit false flags', async () => {
@@ -1703,8 +1703,8 @@ describe('ActorDatabase', () => {
         await database.updateActor({ actorId, readingExpandMedia: 'hide_all' })
 
         const settings = await database.getActorSettings({ actorId })
-        expect(settings?.defaultPrivacy).toEqual('unlisted')
-        expect(settings?.readingExpandMedia).toEqual('hide_all')
+        expect(settings.defaultPrivacy).toEqual('unlisted')
+        expect(settings.readingExpandMedia).toEqual('hide_all')
       })
 
       it('persists and returns navigation preferences', async () => {
@@ -1716,8 +1716,8 @@ describe('ActorDatabase', () => {
         })
 
         const settings = await database.getActorSettings({ actorId })
-        expect(settings?.navOrder).toEqual(['settings', 'timeline'])
-        expect(settings?.navHidden).toEqual(['favorites'])
+        expect(settings.navOrder).toEqual(['settings', 'timeline'])
+        expect(settings.navHidden).toEqual(['favorites'])
       })
 
       it('round-trips an empty navigation preference as a reset', async () => {
@@ -1727,8 +1727,8 @@ describe('ActorDatabase', () => {
         await database.updateActor({ actorId, navOrder: [], navHidden: [] })
 
         const settings = await database.getActorSettings({ actorId })
-        expect(settings?.navOrder).toEqual([])
-        expect(settings?.navHidden).toEqual([])
+        expect(settings.navOrder).toEqual([])
+        expect(settings.navHidden).toEqual([])
       })
 
       it('preserves navigation preferences when other settings change', async () => {
@@ -1738,8 +1738,8 @@ describe('ActorDatabase', () => {
         await database.updateActor({ actorId, defaultPrivacy: 'private' })
 
         const settings = await database.getActorSettings({ actorId })
-        expect(settings?.navHidden).toEqual(['bookmarks'])
-        expect(settings?.defaultPrivacy).toEqual('private')
+        expect(settings.navHidden).toEqual(['bookmarks'])
+        expect(settings.defaultPrivacy).toEqual('private')
       })
     })
 

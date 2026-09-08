@@ -68,7 +68,7 @@ vi.mock('@/lib/services/queue', () => ({
 
 describe('sendNoteJob', () => {
   const database = getTestSQLDatabase()
-  let actor1: Actor | null | undefined
+  let actor1: Actor | undefined
 
   beforeAll(async () => {
     hoisted.database = database
@@ -474,7 +474,6 @@ describe('sendNoteJob', () => {
       actorId: 'https://async-target-1.test/actors/user1',
       targetActorId: actor1.id,
       inbox: 'https://async-target-1.test/inbox',
-      sharedInbox: 'https://async-target-1.test/inbox',
       status: FollowStatus.enum.Accepted
     })
 
@@ -482,7 +481,6 @@ describe('sendNoteJob', () => {
       actorId: 'https://async-target-2.test/actors/user2',
       targetActorId: actor1.id,
       inbox: 'https://async-target-2.test/inbox',
-      sharedInbox: 'https://async-target-2.test/inbox',
       status: FollowStatus.enum.Accepted
     })
 
@@ -528,7 +526,6 @@ describe('sendNoteJob', () => {
         actorId: `https://concurrency-${i}.test/actors/user`,
         targetActorId: actor1.id,
         inbox: `https://concurrency-${i}.test/inbox`,
-        sharedInbox: `https://concurrency-${i}.test/inbox`,
         status: FollowStatus.enum.Accepted
       })
     }
@@ -572,7 +569,6 @@ describe('sendNoteJob', () => {
       actorId: 'https://partial-fail-1.test/actors/user1',
       targetActorId: actor1.id,
       inbox: inbox1,
-      sharedInbox: inbox1,
       status: FollowStatus.enum.Accepted
     })
 
@@ -580,7 +576,6 @@ describe('sendNoteJob', () => {
       actorId: 'https://partial-fail-2.test/actors/user2',
       targetActorId: actor1.id,
       inbox: inbox2,
-      sharedInbox: inbox2,
       status: FollowStatus.enum.Accepted
     })
 
@@ -653,7 +648,6 @@ describe('sendNoteJob', () => {
       actorId: 'https://multi-fail-a.test/actors/userA',
       targetActorId: actor1.id,
       inbox: inboxA,
-      sharedInbox: inboxA,
       status: FollowStatus.enum.Accepted
     })
 
@@ -661,7 +655,6 @@ describe('sendNoteJob', () => {
       actorId: 'https://multi-fail-b.test/actors/userB',
       targetActorId: actor1.id,
       inbox: inboxB,
-      sharedInbox: inboxB,
       status: FollowStatus.enum.Accepted
     })
 
@@ -669,7 +662,6 @@ describe('sendNoteJob', () => {
       actorId: 'https://multi-fail-c.test/actors/userC',
       targetActorId: actor1.id,
       inbox: inboxC,
-      sharedInbox: inboxC,
       status: FollowStatus.enum.Accepted
     })
 

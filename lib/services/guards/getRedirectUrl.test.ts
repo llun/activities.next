@@ -4,7 +4,7 @@ import { getConfig } from '@/lib/config'
 
 import { getRedirectUrl } from './getRedirectUrl'
 
-const mockGetConfig = getConfig as unknown as jest.Mock
+const mockGetConfig = getConfig as jest.Mock
 
 describe('getRedirectUrl', () => {
   beforeEach(() => {

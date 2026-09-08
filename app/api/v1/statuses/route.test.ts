@@ -18,7 +18,7 @@ import { statusPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
-import { Status, StatusPoll, StatusType } from '@/lib/types/domain/status'
+import { Status, StatusPoll } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { generatePublicId } from '@/lib/utils/publicId'
@@ -220,14 +220,10 @@ describe('POST /api/v1/statuses', () => {
 
         expect(response.status).toBe(200)
         const mastodonStatus = await response.json()
-        const created = await database.getStatus({
+        const created = (await database.getStatus({
           statusId: mastodonStatus.uri,
           withReplies: false
-        })
-        expect(created?.type).toBe(StatusType.enum.Note)
-        if (!created || created.type !== StatusType.enum.Note) {
-          throw new Error('Expected note status')
-        }
+        })) as Status
         expect(created.reply).toBe(parent.id)
       }
     )

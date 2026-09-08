@@ -73,7 +73,6 @@ export interface PostProps {
   onReply?: (status: Status) => void
   onEdit?: (status: EditableStatus) => void
   onQuote?: (status: Status) => void
-  onShowEdits?: (status: Status) => void
   onPostDeleted?: (status: Status) => void
   onBookmarkChanged?: (
     status: StatusNote | StatusPoll,

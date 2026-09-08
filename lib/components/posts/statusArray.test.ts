@@ -281,50 +281,6 @@ describe('removeOriginalStatus', () => {
     expect(result[0]).toBe(other)
   })
 
-  it('removes a nested Announce status when deleting by root original identity', () => {
-    const original = createNoteStatus('https://example.com/notes/target')
-    const innerBoost = createAnnounceStatus(
-      'https://example.com/boosts/inner',
-      original
-    )
-    const outerBoost = createAnnounceStatus(
-      'https://example.com/boosts/outer',
-      innerBoost
-    )
-    const other = createNoteStatus('https://example.com/notes/other')
-    const statuses: Status[] = [outerBoost, other]
-
-    const result = removeOriginalStatus(
-      statuses,
-      'https://example.com/notes/target'
-    )
-
-    expect(result).toEqual([other])
-    expect(result[0]).toBe(other)
-  })
-
-  it('removes an outer Announce status when deleting by its immediate wrapper identity', () => {
-    const original = createNoteStatus('https://example.com/notes/target')
-    const innerBoost = createAnnounceStatus(
-      'https://example.com/boosts/inner',
-      original
-    )
-    const outerBoost = createAnnounceStatus(
-      'https://example.com/boosts/outer',
-      innerBoost
-    )
-    const other = createNoteStatus('https://example.com/notes/other')
-    const statuses: Status[] = [outerBoost, other]
-
-    const result = removeOriginalStatus(
-      statuses,
-      'https://example.com/boosts/inner'
-    )
-
-    expect(result).toEqual([other])
-    expect(result[0]).toBe(other)
-  })
-
   it('removes repeated representations of one original (direct post and multiple boosts)', () => {
     const original = createNoteStatus('https://example.com/notes/target')
     const boost1 = createAnnounceStatus(

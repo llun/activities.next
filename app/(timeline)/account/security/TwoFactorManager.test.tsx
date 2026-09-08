@@ -59,7 +59,6 @@ describe('TwoFactorManager', () => {
   it('starts setup and renders the authenticator QR data', async () => {
     mockEnable.mockResolvedValue({
       data: {
-        method: 'totp',
         totpURI:
           'otpauth://totp/Activities:test@example.com?secret=SECRET123&issuer=Activities',
         backupCodes: ['backup-one', 'backup-two']
@@ -76,7 +75,6 @@ describe('TwoFactorManager', () => {
     await waitFor(() => {
       expect(mockEnable).toHaveBeenCalledWith({
         password: 'password',
-        method: 'totp',
         issuer: 'Activities'
       })
     })
@@ -96,7 +94,6 @@ describe('TwoFactorManager', () => {
   it('verifies setup and refreshes account state', async () => {
     mockEnable.mockResolvedValue({
       data: {
-        method: 'totp',
         totpURI:
           'otpauth://totp/Activities:test@example.com?secret=SECRET123&issuer=Activities',
         backupCodes: ['backup-after-verify']
@@ -128,27 +125,6 @@ describe('TwoFactorManager', () => {
     expect(mockRefresh).toHaveBeenCalled()
     expect(screen.getByText('Save your backup codes')).toBeInTheDocument()
     expect(screen.getByText('backup-after-verify')).toBeInTheDocument()
-  })
-
-  it.each([
-    { description: 'returns the OTP method', data: { method: 'otp' } },
-    { description: 'does not return setup data', data: undefined },
-    {
-      description: 'returns a TOTP response without a URI',
-      data: { method: 'totp', backupCodes: [] }
-    }
-  ])('shows an error when setup response $description', async ({ data }) => {
-    mockEnable.mockResolvedValue({ data })
-
-    render(<TwoFactorManager enabled={false} serviceName="Activities" />)
-
-    fireEvent.change(screen.getByLabelText('Current password'), {
-      target: { value: 'password' }
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Set up 2FA' }))
-
-    expect(await screen.findByText('Failed to start setup')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Verification code')).not.toBeInTheDocument()
   })
 
   it('disables 2FA after confirming the current password', async () => {

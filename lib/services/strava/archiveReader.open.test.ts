@@ -17,13 +17,9 @@ vi.mock('yauzl', () => ({
   }
 }))
 
-type YauzlOpenFn = (
-  path: string,
-  options: yauzl.Options,
-  callback: (err: Error | null, zipfile: yauzl.ZipFile) => void
-) => void
-
-const mockYauzlOpen = yauzl.open as unknown as jest.MockedFunction<YauzlOpenFn>
+const mockYauzlOpen = yauzl.open as unknown as jest.MockedFunction<
+  typeof yauzl.open
+>
 const gzip = promisify(gzipCallback)
 
 describe('StravaArchiveReader.open', () => {

@@ -55,7 +55,6 @@ const defaultProps = {
   region: worldRegion,
   meta: { activity: 'All activities', period: 'All time' },
   heatmap: null as FitnessRouteHeatmapData | null,
-  mapProvider: { type: 'osm' as const },
   embedOrigin: 'https://llun.test',
   isSharing: false,
   onShare: vi.fn(),

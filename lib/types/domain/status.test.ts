@@ -1,6 +1,5 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
-import { BaseNote } from '@/lib/activities/note'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { MAX_FEDERATION_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { mockRequests } from '@/lib/stub/activities'
@@ -8,7 +7,6 @@ import { seedDatabase } from '@/lib/stub/database'
 import { MockMastodonActivityPubNote } from '@/lib/stub/note'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
-import { Document } from '@/lib/types/activitypub/objects'
 import { Actor } from '@/lib/types/domain/actor'
 import {
   Status,
@@ -232,8 +230,8 @@ describe('Status', () => {
   })
 
   describe('toActivityPubObject', () => {
-    let actor1: Actor | null | undefined
-    let actor2: Actor | null | undefined
+    let actor1: Actor | undefined
+    let actor2: Actor | undefined
 
     beforeAll(async () => {
       actor1 = await database.getActorFromUsername({
@@ -445,9 +443,7 @@ describe('Status', () => {
           ? note.attachment
           : []
         expect(attachments).toHaveLength(MAX_FEDERATION_MEDIA_ATTACHMENTS)
-        expect(
-          attachments.map((attachment) => (attachment as Document).url)
-        ).toEqual(
+        expect(attachments.map((attachment) => attachment.url)).toEqual(
           Array.from(
             { length: MAX_FEDERATION_MEDIA_ATTACHMENTS },
             (_, index) => `https://example.com/files/image-${index}.png`

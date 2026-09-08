@@ -1,13 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
-import { Config } from '@/lib/config'
-import {
-  CloudTasksConfig,
-  DatabaseQueueConfig,
-  QStashConfig,
-  QueueConfig
-} from '@/lib/config/queue'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
 import { SEND_DELETE_NOTE_JOB_NAME } from '@/lib/jobs/names'
@@ -17,15 +10,15 @@ import { DatabaseQueue } from '@/lib/services/queue/database'
 import { NoQueue } from '@/lib/services/queue/noqueue'
 import { QStashQueue } from '@/lib/services/queue/qstash'
 import { Actor } from '@/lib/types/domain/actor'
-import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
+import { Status } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 
-let currentMockConfig: { queue?: QueueConfig } = { queue: undefined }
+let currentMockConfig: { queue?: any } = { queue: undefined }
 
 vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn(() => currentMockConfig as Config)
+  getConfig: vi.fn(() => currentMockConfig)
 }))
 
 vi.mock('@/lib/services/queue', () => ({
@@ -33,33 +26,6 @@ vi.mock('@/lib/services/queue', () => ({
 }))
 
 const CURRENT_ACTOR = { id: 'https://llun.test/users/me' } as Actor
-
-const createMockStatus = (overrides: Partial<StatusNote> = {}): StatusNote => ({
-  id: 'https://llun.test/users/me/statuses/1',
-  url: 'https://llun.test/users/me/statuses/1',
-  actorId: CURRENT_ACTOR.id,
-  actor: null,
-  type: StatusType.enum.Note,
-  text: 'Hello',
-  summary: null,
-  reply: '',
-  replies: [],
-  totalReplies: 0,
-  actorAnnounceStatusId: null,
-  isActorLiked: false,
-  isActorBookmarked: false,
-  totalLikes: 0,
-  totalShares: 0,
-  to: [ACTIVITY_STREAM_PUBLIC],
-  cc: [],
-  edits: [],
-  attachments: [],
-  tags: [],
-  isLocalActor: true,
-  createdAt: Date.now(),
-  updatedAt: Date.now(),
-  ...overrides
-})
 
 const createDatabase = (status: Status | null) =>
   ({
@@ -76,23 +42,21 @@ describe('deleteStatusFromUserInput', () => {
 
   describe('Database queue backend', () => {
     beforeEach(() => {
-      const queueConfig: DatabaseQueueConfig = {
-        type: 'database',
-        maxRetries: 16
+      currentMockConfig = {
+        queue: { type: 'database', maxRetries: 16 }
       }
-      currentMockConfig = { queue: queueConfig }
-      const dbQueue = new DatabaseQueue(queueConfig)
+      const dbQueue = new DatabaseQueue(currentMockConfig.queue)
       vi.spyOn(dbQueue, 'publish')
       vi.mocked(getQueue).mockReturnValue(dbQueue)
     })
 
     it('atomically deletes status and enqueues deletion job via deleteStatusWithQueueJob', async () => {
-      const status = createMockStatus({
+      const status = {
         id: 'https://llun.test/users/me/statuses/db-delete-1',
         actorId: CURRENT_ACTOR.id,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: ['https://llun.test/users/me/followers']
-      })
+      } as Status
       const database = createDatabase(status)
 
       await deleteStatusFromUserInput({
@@ -132,20 +96,18 @@ describe('deleteStatusFromUserInput', () => {
     })
 
     it('respects custom maxRetries from DatabaseQueueConfig', async () => {
-      const queueConfig: DatabaseQueueConfig = {
-        type: 'database',
-        maxRetries: 5
+      currentMockConfig = {
+        queue: { type: 'database', maxRetries: 5 }
       }
-      currentMockConfig = { queue: queueConfig }
-      const dbQueue = new DatabaseQueue(queueConfig)
+      const dbQueue = new DatabaseQueue(currentMockConfig.queue)
       vi.mocked(getQueue).mockReturnValue(dbQueue)
 
-      const status = createMockStatus({
+      const status = {
         id: 'https://llun.test/users/me/statuses/db-custom-retries',
         actorId: CURRENT_ACTOR.id,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
-      })
+      } as Status
       const database = createDatabase(status)
 
       await deleteStatusFromUserInput({
@@ -164,12 +126,12 @@ describe('deleteStatusFromUserInput', () => {
     })
 
     it('snapshots recipient addresses (to, cc) in the job payload', async () => {
-      const status = createMockStatus({
+      const status = {
         id: 'https://llun.test/users/me/statuses/snapshot-test',
         actorId: CURRENT_ACTOR.id,
         to: ['https://remote.example/users/alice', ACTIVITY_STREAM_PUBLIC],
         cc: ['https://remote.example/users/bob']
-      })
+      } as Status
       const database = createDatabase(status)
 
       await deleteStatusFromUserInput({
@@ -193,12 +155,12 @@ describe('deleteStatusFromUserInput', () => {
     })
 
     it('propagates transaction failure when deleteStatusWithQueueJob rejects', async () => {
-      const status = createMockStatus({
+      const status = {
         id: 'https://llun.test/users/me/statuses/db-tx-fail',
         actorId: CURRENT_ACTOR.id,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
-      })
+      } as Status
       const database = createDatabase(status)
       const txError = new Error('Database transaction rolled back')
       vi.mocked(database.deleteStatusWithQueueJob).mockRejectedValueOnce(
@@ -215,12 +177,12 @@ describe('deleteStatusFromUserInput', () => {
     })
 
     it('rejects deletion when status is owned by another actor', async () => {
-      const status = createMockStatus({
+      const status = {
         id: 'https://llun.test/users/other/statuses/unauthorized',
         actorId: 'https://llun.test/users/other',
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
-      })
+      } as Status
       const database = createDatabase(status)
 
       await deleteStatusFromUserInput({
@@ -248,12 +210,12 @@ describe('deleteStatusFromUserInput', () => {
     })
 
     it('handles repeated deletion gracefully when deleteStatusWithQueueJob returns false', async () => {
-      const status = createMockStatus({
+      const status = {
         id: 'https://llun.test/users/me/statuses/race-condition',
         actorId: CURRENT_ACTOR.id,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
-      })
+      } as Status
       const database = createDatabase(status)
       vi.mocked(database.deleteStatusWithQueueJob).mockResolvedValueOnce(false)
 
@@ -271,26 +233,27 @@ describe('deleteStatusFromUserInput', () => {
     let qstashQueue: QStashQueue
 
     beforeEach(() => {
-      const queueConfig: QStashConfig = {
-        type: 'qstash',
-        url: 'https://qstash.example.com',
-        token: 'token',
-        currentSigningKey: 'sig1',
-        nextSigningKey: 'sig2'
+      currentMockConfig = {
+        queue: {
+          type: 'qstash',
+          url: 'https://qstash.example.com',
+          token: 'token',
+          currentSigningKey: 'sig1',
+          nextSigningKey: 'sig2'
+        }
       }
-      currentMockConfig = { queue: queueConfig }
-      qstashQueue = new QStashQueue(queueConfig)
+      qstashQueue = new QStashQueue(currentMockConfig.queue)
       vi.spyOn(qstashQueue, 'publish').mockResolvedValue(undefined)
       vi.mocked(getQueue).mockReturnValue(qstashQueue)
     })
 
     it('deletes locally before publishing to QStash', async () => {
-      const status = createMockStatus({
+      const status = {
         id: 'https://llun.test/users/me/statuses/qstash-delete',
         actorId: CURRENT_ACTOR.id,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: ['https://remote.example/users/bob']
-      })
+      } as Status
       const database = createDatabase(status)
 
       await deleteStatusFromUserInput({
@@ -324,12 +287,12 @@ describe('deleteStatusFromUserInput', () => {
     })
 
     it('swallows and logs QStash enqueue error without failing the deletion', async () => {
-      const status = createMockStatus({
+      const status = {
         id: 'https://llun.test/users/me/statuses/qstash-fail',
         actorId: CURRENT_ACTOR.id,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
-      })
+      } as Status
       const database = createDatabase(status)
       vi.spyOn(qstashQueue, 'publish').mockRejectedValueOnce(
         new Error('QStash network error')
@@ -358,12 +321,12 @@ describe('deleteStatusFromUserInput', () => {
     })
 
     it('rejects deletion when status is owned by another actor', async () => {
-      const status = createMockStatus({
+      const status = {
         id: 'https://llun.test/users/other/statuses/qstash-unauthorized',
         actorId: 'https://llun.test/users/other',
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
-      })
+      } as Status
       const database = createDatabase(status)
 
       await deleteStatusFromUserInput({
@@ -381,24 +344,25 @@ describe('deleteStatusFromUserInput', () => {
     let cloudTasksQueue: CloudTasksQueue
 
     beforeEach(() => {
-      const queueConfig: CloudTasksConfig = {
-        type: 'cloudtasks',
-        location: 'us-central1',
-        project: 'test-project'
+      currentMockConfig = {
+        queue: {
+          type: 'cloudtasks',
+          location: 'us-central1',
+          project: 'test-project'
+        }
       }
-      currentMockConfig = { queue: queueConfig }
-      cloudTasksQueue = new CloudTasksQueue(queueConfig)
+      cloudTasksQueue = new CloudTasksQueue(currentMockConfig.queue)
       vi.spyOn(cloudTasksQueue, 'publish').mockResolvedValue(undefined)
       vi.mocked(getQueue).mockReturnValue(cloudTasksQueue)
     })
 
     it('deletes locally before publishing to CloudTasks', async () => {
-      const status = createMockStatus({
+      const status = {
         id: 'https://llun.test/users/me/statuses/cloudtasks-delete',
         actorId: CURRENT_ACTOR.id,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
-      })
+      } as Status
       const database = createDatabase(status)
 
       await deleteStatusFromUserInput({
@@ -420,12 +384,12 @@ describe('deleteStatusFromUserInput', () => {
     })
 
     it('swallows and logs CloudTasks publish failure', async () => {
-      const status = createMockStatus({
+      const status = {
         id: 'https://llun.test/users/me/statuses/cloudtasks-fail',
         actorId: CURRENT_ACTOR.id,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
-      })
+      } as Status
       const database = createDatabase(status)
       vi.spyOn(cloudTasksQueue, 'publish').mockRejectedValueOnce(
         new Error('CloudTasks quota exceeded')
@@ -458,12 +422,12 @@ describe('deleteStatusFromUserInput', () => {
     })
 
     it('deletes locally before publishing to inline queue', async () => {
-      const status = createMockStatus({
+      const status = {
         id: 'https://llun.test/users/me/statuses/inline-delete',
         actorId: CURRENT_ACTOR.id,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
-      })
+      } as Status
       const database = createDatabase(status)
 
       await deleteStatusFromUserInput({
@@ -485,12 +449,12 @@ describe('deleteStatusFromUserInput', () => {
     })
 
     it('swallows inline publish failure after local deletion committed', async () => {
-      const status = createMockStatus({
+      const status = {
         id: 'https://llun.test/users/me/statuses/inline-fail',
         actorId: CURRENT_ACTOR.id,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
-      })
+      } as Status
       const database = createDatabase(status)
       vi.spyOn(noQueue, 'publish').mockRejectedValueOnce(
         new Error('Inline handler failure')
@@ -508,12 +472,12 @@ describe('deleteStatusFromUserInput', () => {
     })
 
     it('propagates error when local database.deleteStatus fails', async () => {
-      const status = createMockStatus({
+      const status = {
         id: 'https://llun.test/users/me/statuses/local-db-fail',
         actorId: CURRENT_ACTOR.id,
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
-      })
+      } as Status
       const database = createDatabase(status)
       vi.mocked(database.deleteStatus).mockRejectedValueOnce(
         new Error('Disk I/O error')
@@ -538,12 +502,10 @@ describe('deleteStatusFromUserInput', () => {
     beforeEach(async () => {
       database = await getTestSQLDatabase()
       await database.migrate()
-      const queueConfig: DatabaseQueueConfig = {
-        type: 'database',
-        maxRetries: 16
+      currentMockConfig = {
+        queue: { type: 'database', maxRetries: 16 }
       }
-      currentMockConfig = { queue: queueConfig }
-      const dbQueue = new DatabaseQueue(queueConfig, database)
+      const dbQueue = new DatabaseQueue(currentMockConfig.queue, database)
       vi.mocked(getQueue).mockReturnValue(dbQueue)
 
       await database.createAccount({

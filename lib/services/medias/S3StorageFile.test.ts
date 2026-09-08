@@ -30,10 +30,7 @@ import { StreamByteLimitError } from '@/lib/utils/streamLimit'
 
 vi.mock('@aws-sdk/client-s3', () => {
   const makeCommand = (name: string) =>
-    vi.fn().mockImplementation(function command(
-      this: { input?: unknown; name?: string },
-      input: unknown
-    ) {
+    vi.fn().mockImplementation(function command(input) {
       this.input = input
       this.name = name
     })

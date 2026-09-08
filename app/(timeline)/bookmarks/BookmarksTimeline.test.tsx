@@ -101,12 +101,6 @@ const boostedBookmarkedStatus: StatusAnnounce = {
   originalStatus: bookmarkedStatus
 }
 
-const nestedBoostedBookmarkedStatus: StatusAnnounce = {
-  ...boostedBookmarkedStatus,
-  id: 'https://activities.local/users/booster/statuses/boost-2',
-  originalStatus: boostedBookmarkedStatus
-}
-
 describe('BookmarksTimeline', () => {
   let intersectionObserverCallback:
     ((entries: IntersectionObserverEntry[]) => void) | null = null
@@ -247,29 +241,6 @@ describe('BookmarksTimeline', () => {
         currentActor={actor}
         currentTime={currentTime}
         statuses={[boostedBookmarkedStatus]}
-        initialNextMaxBookmarkId={null}
-      />
-    )
-
-    expect(screen.getByText('Bookmarked post')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Remove bookmark' }))
-
-    await waitFor(() => {
-      expect(screen.queryByText('Bookmarked post')).not.toBeInTheDocument()
-    })
-    expect(undoBookmarkStatus).toHaveBeenCalledWith({
-      statusId: bookmarkedStatus.id
-    })
-    expect(screen.getByText('No bookmarks yet')).toBeInTheDocument()
-  })
-
-  it('removes a nested boosted post when unbookmarking its root original', async () => {
-    render(
-      <BookmarksTimeline
-        host="activities.local"
-        currentActor={actor}
-        currentTime={currentTime}
-        statuses={[nestedBoostedBookmarkedStatus]}
         initialNextMaxBookmarkId={null}
       />
     )

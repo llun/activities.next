@@ -9,8 +9,8 @@ import { useCallback, useEffect, useState } from 'react'
  */
 export const SCROLL_EDGE_TOLERANCE = 8
 
-/** How much of the visible strip one arrow press targets. */
-const SCROLL_PAGE_RATIO = 0.9
+/** How much of the visible strip one chevron press travels. */
+const SCROLL_PAGE_RATIO = 0.7
 
 interface MediaStripScroll {
   /**
@@ -39,8 +39,8 @@ interface MediaStripScroll {
  * not merely how many things there are. The observer watches the CONTAINER, and
  * editing a post to swap a panorama for a portrait changes what overflows
  * without changing the container's box, the item count, or `scrollLeft` — so a
- * count would leave a forward arrow pointing at content that no longer exists
- * and an overflow affordance present for no reason.
+ * count would leave a forward chevron pointing at content that no longer exists
+ * and the edge fade dimming a photo for no reason.
  */
 export const useMediaStripScroll = (contentKey: string): MediaStripScroll => {
   const [element, setElement] = useState<HTMLDivElement | null>(null)
@@ -76,72 +76,9 @@ export const useMediaStripScroll = (contentKey: string): MediaStripScroll => {
   const scrollByPage = useCallback(
     (direction: 1 | -1) => {
       if (!element) return
-      const maxScrollLeft = Math.max(
-        0,
-        element.scrollWidth - element.clientWidth
-      )
-      const current = element.scrollLeft
-      const page = element.clientWidth * SCROLL_PAGE_RATIO
-      const rawTarget = Math.max(
-        0,
-        Math.min(maxScrollLeft, current + direction * page)
-      )
-      const containerLeft = element.getBoundingClientRect().left
-      const boundaries = Array.from(element.children)
-        .map(
-          (child) =>
-            (child as HTMLElement).getBoundingClientRect().left -
-            containerLeft +
-            current
-        )
-        .filter((offset) => Number.isFinite(offset))
-      const candidates =
-        direction > 0
-          ? boundaries.filter((offset) => offset > current + 1)
-          : boundaries.filter((offset) => offset < current - 1)
-      const nearestBoundary =
-        direction > 0
-          ? candidates.reduce(
-              (nearest, offset) =>
-                Math.abs(offset - rawTarget) < Math.abs(nearest - rawTarget)
-                  ? offset
-                  : nearest,
-              Number.POSITIVE_INFINITY
-            )
-          : candidates.reduce(
-              (nearest, offset) =>
-                Math.abs(offset - rawTarget) < Math.abs(nearest - rawTarget)
-                  ? offset
-                  : nearest,
-              Number.NEGATIVE_INFINITY
-            )
-      const target = Math.max(
-        0,
-        Math.min(
-          maxScrollLeft,
-          Number.isFinite(nearestBoundary) ? nearestBoundary : rawTarget
-        )
-      )
-      if (
-        (direction < 0 && current <= 0) ||
-        (direction > 0 && current >= maxScrollLeft)
-      )
-        return
-      // A browser can report zero offsets while layout is pending. The page
-      // target still guarantees movement in that case, and the clamp prevents
-      // arrows from requesting a position beyond either edge.
-      const left =
-        target === current
-          ? direction * Math.min(page, maxScrollLeft)
-          : target - current
-      if (!left) return
-      const reducedMotion =
-        typeof window !== 'undefined' &&
-        typeof window.matchMedia === 'function' &&
-        window.matchMedia('(prefers-reduced-motion: reduce)').matches
       element.scrollBy({
-        left,
-        behavior: reducedMotion ? 'auto' : 'smooth'
+        left: direction * Math.round(element.clientWidth * SCROLL_PAGE_RATIO),
+        behavior: 'smooth'
       })
     },
     [element]

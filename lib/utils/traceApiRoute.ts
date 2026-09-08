@@ -20,8 +20,8 @@ export interface TraceApiRouteOptions<P = unknown> {
     req: NextRequest,
     context: { params: Promise<P> }
   ) =>
-    | Promise<Record<string, string | number | boolean | undefined>>
-    | Record<string, string | number | boolean | undefined>
+    | Promise<Record<string, string | number | boolean>>
+    | Record<string, string | number | boolean>
 }
 
 export const parseCloudTraceContext = (

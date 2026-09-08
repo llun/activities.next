@@ -15,12 +15,7 @@ import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { createDeferred } from '@/lib/testing/deferred'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
-import {
-  EditableStatus,
-  Status,
-  StatusNote,
-  StatusType
-} from '@/lib/types/domain/status'
+import { EditableStatus, Status, StatusType } from '@/lib/types/domain/status'
 import { resizeImage } from '@/lib/utils/resizeImage'
 
 import { PostBox, getQuotePrefix, getQuoteUrl } from './post-box'
@@ -116,7 +111,6 @@ const editStatus: EditableStatus = {
   replies: [],
   actorAnnounceStatusId: null,
   isActorLiked: false,
-  isActorBookmarked: false,
   totalLikes: 0,
   totalShares: 0,
   attachments: [existingAttachment],
@@ -128,7 +122,7 @@ describe('PostBox edit media', () => {
     vi.clearAllMocks()
     global.URL.createObjectURL = vi.fn(() => 'blob:new-media')
     global.URL.revokeObjectURL = vi.fn()
-    global.crypto.randomUUID = vi.fn(() => 'temporary-media-id' as never)
+    global.crypto.randomUUID = vi.fn(() => 'temporary-media-id')
     uploadAttachmentMock.mockResolvedValue({
       type: 'upload',
       id: 'uploaded-media',
@@ -948,6 +942,8 @@ describe('PostBox edit media', () => {
             original: {
               width: 1280,
               height: 720,
+              size: '1280x720',
+              aspect: 1.7777777777777777,
               duration: 12,
               frame_rate: '30/1',
               bitrate: 1000000
@@ -1677,7 +1673,7 @@ describe('PostBox edit character limit', () => {
     vi.clearAllMocks()
     global.URL.createObjectURL = vi.fn(() => 'blob:new-media')
     global.URL.revokeObjectURL = vi.fn()
-    global.crypto.randomUUID = vi.fn(() => 'temporary-media-id' as never)
+    global.crypto.randomUUID = vi.fn(() => 'temporary-media-id')
     uploadAttachmentMock.mockResolvedValue({
       type: 'upload',
       id: 'uploaded-media',
@@ -1755,8 +1751,6 @@ describe('PostBox edit character limit', () => {
         screen.getByRole('button', { name: 'Remove media replacement.png' })
       ).toBeInTheDocument()
     )
-    // hasEditPostChanged runs from the attachment call site here — a hardcoded
-    // 500 would wrongly re-enable Post for this 120-character draft.
     expect(screen.getByRole('button', { name: 'Update' })).toBeDisabled()
   })
 })
@@ -1768,7 +1762,7 @@ describe('PostBox poll creation', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    global.crypto.randomUUID = vi.fn(() => 'temporary-media-id' as never)
+    global.crypto.randomUUID = vi.fn(() => 'temporary-media-id')
     createPollMock.mockResolvedValue(undefined)
     global.ResizeObserver = class {
       observe() {}
@@ -1813,7 +1807,7 @@ describe('PostBox new post character limit with attachments', () => {
     vi.clearAllMocks()
     global.URL.createObjectURL = vi.fn(() => 'blob:new-media')
     global.URL.revokeObjectURL = vi.fn()
-    global.crypto.randomUUID = vi.fn(() => 'temporary-media-id' as never)
+    global.crypto.randomUUID = vi.fn(() => 'temporary-media-id')
   })
 
   it('keeps an over-limit new post unsubmittable when media is attached', async () => {
@@ -1863,7 +1857,7 @@ describe('PostBox attachment ref guard', () => {
     global.URL.createObjectURL = vi.fn(() => 'blob:test-media')
     global.URL.revokeObjectURL = vi.fn()
     let counter = 0
-    global.crypto.randomUUID = vi.fn(() => `temp-media-${counter++}` as never)
+    global.crypto.randomUUID = vi.fn(() => `temp-media-${counter++}`)
     uploadAttachmentMock.mockImplementation((file) =>
       Promise.resolve({
         type: 'upload',

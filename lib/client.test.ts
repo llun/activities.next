@@ -8,7 +8,6 @@ import { urlToId } from '@/lib/utils/urlToId'
 import {
   ApiRequestError,
   addCollectionAccounts,
-  adminDeleteAccount,
   approveCollectionMembership,
   bookmarkStatus,
   cancelActorDeletion,
@@ -41,11 +40,6 @@ import {
   getActorDomains,
   getActorMedia,
   getActorStatuses,
-  getAdminAccount,
-  getAdminAccounts,
-  getAdminReport,
-  getAdminReports,
-  getAdminServerSettings,
   getAppleMapsToken,
   getBookmarks,
   getCollectionFeed,
@@ -68,18 +62,13 @@ import {
   getHashtagTimeline,
   getListTimeline,
   getMutes,
-  getPasskeys,
   getPublicHeatmapTiles,
-  getRemoteFollowUrl,
   getStravaSettings,
   getTimeline,
   getTrendingLinks,
   getTrendingStatuses,
   getTrendingTags,
-  getVapidKey,
   likeStatus,
-  markNotificationsRead,
-  performAdminAccountAction,
   refitFitnessGearComponent,
   regenerateFitnessMaps,
   removeCollectionAccounts,
@@ -101,35 +90,25 @@ import {
   startFitnessImport,
   startStravaArchiveImport,
   submitOAuthConsent,
-  subscribePushNotifications,
   switchActor,
   triggerFitnessRouteHeatmap,
   undoBookmarkStatus,
   unfollow,
   unshareFitnessRouteHeatmap,
-  unsubscribePushNotifications,
   updateAccountName,
-  updateAdminReport,
-  updateAdminServerSettings,
   updateCollection,
-  updateEmailNotifications,
   updateFitnessFileGear,
   updateFitnessGear,
   updateFitnessGearComponent,
   updateFitnessGeneralSettings,
   updateNote,
-  updatePushNotifications,
   updateStatusVisibility,
   uploadAttachment,
   uploadFileToPresignedUrl,
   uploadFitnessFile,
   uploadMedia
 } from './client'
-import * as accountSettingsModule from './client/accountSettings'
 import * as accountsModule from './client/accounts'
-import * as adminAccountsModule from './client/adminAccounts'
-import * as adminReportsModule from './client/adminReports'
-import * as adminServerSettingsModule from './client/adminServerSettings'
 import * as fitnessFilesModule from './client/fitnessFiles'
 import * as fitnessGearModule from './client/fitnessGear'
 import * as fitnessGeneralSettingsModule from './client/fitnessGeneralSettings'
@@ -138,11 +117,7 @@ import * as fitnessImportsModule from './client/fitnessImports'
 import * as fitnessRoutesModule from './client/fitnessRoutes'
 import * as httpModule from './client/http'
 import * as mediaModule from './client/media'
-import * as notificationSettingsModule from './client/notificationSettings'
-import * as notificationsModule from './client/notifications'
-import * as passkeysModule from './client/passkeys'
 import * as statusesModule from './client/statuses'
-import * as stravaModule from './client/strava'
 import * as timelinesModule from './client/timelines'
 
 enableFetchMocks()
@@ -249,92 +224,6 @@ describe('client facade fitness routes re-exports', () => {
     )
     expect(getFitnessSummary).toBe(fitnessRoutesModule.getFitnessSummary)
     expect(deleteFitnessFile).toBe(fitnessRoutesModule.deleteFitnessFile)
-  })
-})
-
-describe('client facade notification settings re-exports', () => {
-  it('re-exports extracted notification settings functions', () => {
-    expect(getVapidKey).toBe(notificationSettingsModule.getVapidKey)
-    expect(updateEmailNotifications).toBe(
-      notificationSettingsModule.updateEmailNotifications
-    )
-    expect(subscribePushNotifications).toBe(
-      notificationSettingsModule.subscribePushNotifications
-    )
-    expect(unsubscribePushNotifications).toBe(
-      notificationSettingsModule.unsubscribePushNotifications
-    )
-    expect(updatePushNotifications).toBe(
-      notificationSettingsModule.updatePushNotifications
-    )
-  })
-})
-
-describe('client facade admin server settings re-exports', () => {
-  it('re-exports extracted admin server settings functions', () => {
-    expect(getAdminServerSettings).toBe(
-      adminServerSettingsModule.getAdminServerSettings
-    )
-    expect(updateAdminServerSettings).toBe(
-      adminServerSettingsModule.updateAdminServerSettings
-    )
-  })
-})
-
-describe('client facade passkeys re-exports', () => {
-  it('re-exports extracted passkeys functions', () => {
-    expect(getPasskeys).toBe(passkeysModule.getPasskeys)
-  })
-})
-
-describe('client facade notifications re-exports', () => {
-  it('re-exports extracted notifications functions', () => {
-    expect(markNotificationsRead).toBe(
-      notificationsModule.markNotificationsRead
-    )
-  })
-})
-
-describe('client facade admin accounts re-exports', () => {
-  it('re-exports extracted admin accounts functions', () => {
-    expect(getAdminAccounts).toBe(adminAccountsModule.getAdminAccounts)
-    expect(getAdminAccount).toBe(adminAccountsModule.getAdminAccount)
-    expect(performAdminAccountAction).toBe(
-      adminAccountsModule.performAdminAccountAction
-    )
-    expect(adminDeleteAccount).toBe(adminAccountsModule.adminDeleteAccount)
-  })
-})
-
-describe('client facade admin reports re-exports', () => {
-  it('re-exports extracted admin reports functions', () => {
-    expect(getAdminReports).toBe(adminReportsModule.getAdminReports)
-    expect(getAdminReport).toBe(adminReportsModule.getAdminReport)
-    expect(updateAdminReport).toBe(adminReportsModule.updateAdminReport)
-  })
-})
-
-describe('client facade account settings re-exports', () => {
-  it('re-exports extracted account settings functions', () => {
-    expect(getRemoteFollowUrl).toBe(accountSettingsModule.getRemoteFollowUrl)
-    expect(requestEmailChange).toBe(accountSettingsModule.requestEmailChange)
-    expect(updateAccountName).toBe(accountSettingsModule.updateAccountName)
-    expect(changeAccountPassword).toBe(
-      accountSettingsModule.changeAccountPassword
-    )
-    expect(requestPasswordReset).toBe(
-      accountSettingsModule.requestPasswordReset
-    )
-    expect(resetPassword).toBe(accountSettingsModule.resetPassword)
-    expect(submitOAuthConsent).toBe(accountSettingsModule.submitOAuthConsent)
-  })
-})
-
-describe('client facade strava re-exports', () => {
-  it('re-exports extracted strava functions', () => {
-    expect(getStravaSettings).toBe(stravaModule.getStravaSettings)
-    expect(saveStravaSettings).toBe(stravaModule.saveStravaSettings)
-    expect(deleteStravaSettings).toBe(stravaModule.deleteStravaSettings)
   })
 })
 
@@ -2568,22 +2457,6 @@ describe('client facade exports', () => {
     )
     expect(setFitnessRouteHeatmapRegionName).toBe(
       fitnessHeatmapsModule.setFitnessRouteHeatmapRegionName
-    )
-  })
-
-  it('re-exports all notification settings functions from notificationSettings module', () => {
-    expect(getVapidKey).toBe(notificationSettingsModule.getVapidKey)
-    expect(updateEmailNotifications).toBe(
-      notificationSettingsModule.updateEmailNotifications
-    )
-    expect(subscribePushNotifications).toBe(
-      notificationSettingsModule.subscribePushNotifications
-    )
-    expect(unsubscribePushNotifications).toBe(
-      notificationSettingsModule.unsubscribePushNotifications
-    )
-    expect(updatePushNotifications).toBe(
-      notificationSettingsModule.updatePushNotifications
     )
   })
 })

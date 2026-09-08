@@ -5,9 +5,7 @@ import '@testing-library/jest-dom'
 import { fireEvent, render, screen } from '@testing-library/react'
 import React from 'react'
 
-import { ActorProfile } from '@/lib/types/domain/actor'
 import {
-  Status,
   StatusAnnounce,
   StatusNote,
   StatusType
@@ -17,14 +15,13 @@ import { ReplyPreview } from './reply-preview'
 
 // Mock the processStatusText utility
 vi.mock('@/lib/utils/text/processStatusText', async () => ({
-  processStatusText: vi.fn((_host: string, status: Status) => {
+  processStatusText: vi.fn((host: string, status: StatusNote) => {
     if (status.type === 'Announce') {
-      const original = status.originalStatus
-      return 'text' in original ? original.text : ''
+      return (status as unknown as StatusAnnounce).originalStatus.text
     }
-    return 'text' in status ? status.text : ''
+    return status.text
   }),
-  getActualStatus: vi.fn((status: Status) => status)
+  getActualStatus: vi.fn((status: StatusNote) => status)
 }))
 
 // Mock the cleanClassName utility
@@ -42,25 +39,6 @@ vi.mock('@/lib/components/posts/actor', async () => ({
 describe('ReplyPreview', () => {
   const mockOnClose = vi.fn()
 
-  const createMockActor = (
-    overrides: Partial<ActorProfile> = {}
-  ): ActorProfile => ({
-    id: 'https://example.com/users/testuser',
-    username: 'testuser',
-    domain: 'example.com',
-    name: 'Test User',
-    summary: '',
-    followersUrl: 'https://example.com/users/testuser/followers',
-    inboxUrl: 'https://example.com/users/testuser/inbox',
-    sharedInboxUrl: 'https://example.com/inbox',
-    followingCount: 0,
-    followersCount: 0,
-    statusCount: 0,
-    lastStatusAt: null,
-    createdAt: Date.now(),
-    ...overrides
-  })
-
   const createMockStatus = (
     overrides: Partial<StatusNote> = {}
   ): StatusNote => ({
@@ -72,14 +50,24 @@ describe('ReplyPreview', () => {
     reply: '',
     replies: [],
     actorId: 'https://example.com/users/testuser',
-    actor: createMockActor(),
+    actor: {
+      id: 'https://example.com/users/testuser',
+      name: 'Test User',
+      preferredUsername: 'testuser',
+      url: 'https://example.com/@testuser',
+      icon: null,
+      summary: null,
+      followersCount: 0,
+      followingCount: 0,
+      statusesCount: 0,
+      createdAt: Date.now()
+    },
     to: [],
     cc: [],
     edits: [],
     isLocalActor: false,
     actorAnnounceStatusId: null,
     isActorLiked: false,
-    isActorBookmarked: false,
     totalLikes: 0,
     totalShares: 0,
     attachments: [],
@@ -93,11 +81,18 @@ describe('ReplyPreview', () => {
     id: 'announce-1',
     type: StatusType.enum.Announce,
     actorId: 'https://example.com/users/booster',
-    actor: createMockActor({
+    actor: {
       id: 'https://example.com/users/booster',
-      username: 'booster',
-      name: 'Booster User'
-    }),
+      name: 'Booster User',
+      preferredUsername: 'booster',
+      url: 'https://example.com/@booster',
+      icon: null,
+      summary: null,
+      followersCount: 0,
+      followingCount: 0,
+      statusesCount: 0,
+      createdAt: Date.now()
+    },
     to: [],
     cc: [],
     edits: [],
@@ -268,14 +263,18 @@ describe('ReplyPreview', () => {
   describe('actor display', () => {
     it('displays actor name when actor is present', () => {
       const status = createMockStatus({
-        actor: createMockActor({
+        actor: {
           id: 'https://example.com/users/jane',
           name: 'Jane Doe',
-          username: 'jane',
+          preferredUsername: 'jane',
+          url: 'https://example.com/@jane',
+          icon: null,
+          summary: null,
           followersCount: 100,
           followingCount: 50,
-          statusCount: 25
-        })
+          statusesCount: 25,
+          createdAt: Date.now()
+        }
       })
       render(<ReplyPreview host="example.com" status={status} />)
 

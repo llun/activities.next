@@ -1,10 +1,6 @@
 import { createHash } from 'node:crypto'
 
 import { Database } from '@/lib/database/types'
-import {
-  GetTranslationCacheParams,
-  SaveTranslationCacheParams
-} from '@/lib/types/database/operations'
 import { Status } from '@/lib/types/mastodon/status'
 
 import { translateStatus } from './translateStatus'
@@ -37,7 +33,7 @@ const createFakeDatabase = (seed: Record<string, CacheRow> = {}) => {
       sourceLanguage,
       targetLanguage,
       sourceHash
-    }: GetTranslationCacheParams) {
+    }) {
       return (
         store.get(key(provider, sourceLanguage, targetLanguage, sourceHash)) ??
         null
@@ -50,7 +46,7 @@ const createFakeDatabase = (seed: Record<string, CacheRow> = {}) => {
       sourceHash,
       content,
       detectedSourceLanguage
-    }: SaveTranslationCacheParams) {
+    }) {
       saved.push(content)
       store.set(key(provider, sourceLanguage, targetLanguage, sourceHash), {
         content,

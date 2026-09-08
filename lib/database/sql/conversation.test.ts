@@ -118,7 +118,7 @@ const statusForId = (id: string): Status =>
     reblogsCount: 0,
     liked: false,
     bookmarked: false
-  }) as unknown as Status
+  }) as Status
 
 const conversationIdForRoot = (rootStatusId: string) =>
   createHash('sha256').update(rootStatusId).digest('hex')
@@ -236,16 +236,16 @@ describe('ConversationDatabase', () => {
       expect(actor1Conversation).toBeDefined()
       expect(actor2Conversation).toBeDefined()
       expect(actor3Conversation).toBeDefined()
-      expect(actor1Conversation?.conversationId).toEqual(
-        actor2Conversation?.conversationId
+      expect(actor1Conversation.conversationId).toEqual(
+        actor2Conversation.conversationId
       )
-      expect(actor2Conversation?.conversationId).toEqual(
-        actor3Conversation?.conversationId
+      expect(actor2Conversation.conversationId).toEqual(
+        actor3Conversation.conversationId
       )
-      expect(actor1Conversation?.unread).toBe(true)
-      expect(actor2Conversation?.unread).toBe(false)
-      expect(actor3Conversation?.unread).toBe(true)
-      expect(actor3Conversation?.participantActorIds.sort()).toEqual([
+      expect(actor1Conversation.unread).toBe(true)
+      expect(actor2Conversation.unread).toBe(false)
+      expect(actor3Conversation.unread).toBe(true)
+      expect(actor3Conversation.participantActorIds.sort()).toEqual([
         ACTOR1_ID,
         ACTOR2_ID,
         ACTOR3_ID
@@ -272,8 +272,8 @@ describe('ConversationDatabase', () => {
         actorId: ACTOR1_ID,
         conversationId: conversation.id
       })
-      expect(readConversation?.unread).toBe(false)
-      expect(readConversation?.readAt).not.toBeNull()
+      expect(readConversation.unread).toBe(false)
+      expect(readConversation.readAt).not.toBeNull()
 
       await database.hideDirectConversation({
         actorId: ACTOR1_ID,
@@ -360,7 +360,7 @@ describe('ConversationDatabase', () => {
         to: [],
         cc: [],
         text: 'recipientless direct reply',
-        reply: (parent as StatusNote).url,
+        reply: parent.url,
         createdAt: 6600
       })
 

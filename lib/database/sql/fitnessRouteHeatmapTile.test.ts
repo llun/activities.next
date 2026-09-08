@@ -32,6 +32,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         username,
         domain: 'llun.test',
         inboxUrl: `${actorId}/inbox`,
+        outboxUrl: `${actorId}/outbox`,
         followersUrl: `${actorId}/followers`,
         sharedInboxUrl: 'https://llun.test/inbox',
         publicKey: `public-key-${username}`,
@@ -585,6 +586,9 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
               .where('actorId', actorId)
               .delete()
           }
+          // Hook 'query' (when INSERT is sent) rather than 'query-response'
+          // (when INSERT resolves) so the DELETE is queued to the connection
+          // pool before attempt 1's readPyramidRow SELECT is issued.
           instance.on('query', (query: { sql: string }) => {
             void clearAfterFirstInsert(query)
           })

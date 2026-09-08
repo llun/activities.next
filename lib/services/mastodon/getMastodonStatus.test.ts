@@ -5,7 +5,7 @@ import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { getMentionFromActorID } from '@/lib/types/domain/actor'
-import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
+import { Status, StatusType } from '@/lib/types/domain/status'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
@@ -228,7 +228,7 @@ describe('getMastodonStatus', () => {
 
       const mastodonStatus = await getMastodonStatus(
         database,
-        announceStatus!,
+        announceStatus,
         ACTOR1_ID,
         { pinnedStatusIds: new Set([announceStatusId]) }
       )
@@ -421,8 +421,8 @@ describe('getMastodonStatus', () => {
         ACTOR3_ID
       )
 
-      expect(mastodonStatus?.poll?.votes_count).toEqual(3)
-      expect(mastodonStatus?.poll?.voters_count).toEqual(2)
+      expect(mastodonStatus.poll?.votes_count).toEqual(3)
+      expect(mastodonStatus.poll?.voters_count).toEqual(2)
     })
 
     it('reports voters_count equal to votes_count for a single-choice poll', async () => {
@@ -451,8 +451,8 @@ describe('getMastodonStatus', () => {
         ACTOR3_ID
       )
 
-      expect(mastodonStatus?.poll?.votes_count).toEqual(1)
-      expect(mastodonStatus?.poll?.voters_count).toEqual(1)
+      expect(mastodonStatus.poll?.votes_count).toEqual(1)
+      expect(mastodonStatus.poll?.voters_count).toEqual(1)
     })
 
     it('hides per-option tallies for a running hide_totals poll', async () => {
@@ -1687,7 +1687,7 @@ describe('getMastodonStatus', () => {
       })
 
       const status = (await database.getStatus({
-        statusId: announce!.id,
+        statusId: announce.id,
         currentActorId: ACTOR2_ID
       })) as Status
       const mastodonStatus = await getMastodonStatus(
@@ -1743,7 +1743,7 @@ describe('getMastodonStatus', () => {
       })
 
       const status = (await database.getStatus({
-        statusId: announceStatus!.id
+        statusId: announceStatus.id
       })) as Status
 
       const mastodonStatus = await getMastodonStatus(database, status)
@@ -1774,7 +1774,7 @@ describe('getMastodonStatus', () => {
       })
 
       const status = (await database.getStatus({
-        statusId: announceStatus!.id
+        statusId: announceStatus.id
       })) as Status
 
       const mastodonStatus = await getMastodonStatus(database, status)
@@ -1919,7 +1919,7 @@ describe('getMastodonStatus', () => {
     const makeStatus = async (
       actorId: string,
       { to = [ACTIVITY_STREAM_PUBLIC], cc = [] as string[] } = {}
-    ): Promise<StatusNote> => {
+    ): Promise<Status> => {
       counter += 1
       const id = `${actorId}/statuses/mq-${counter}`
       await database.createNote({
@@ -1930,7 +1930,7 @@ describe('getMastodonStatus', () => {
         to,
         cc
       })
-      return (await database.getStatus({ statusId: id })) as StatusNote
+      return (await database.getStatus({ statusId: id })) as Status
     }
 
     const serializeQuoting = async (

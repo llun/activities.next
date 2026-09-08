@@ -19,7 +19,6 @@ import {
   saveMediaImageRendition
 } from '@/lib/services/medias'
 import { getQueue } from '@/lib/services/queue'
-import type { Queue } from '@/lib/services/queue/type'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
@@ -171,9 +170,7 @@ describe('processFitnessFileJob', () => {
     const created = await database.createFitnessSettings({
       actorId: actor.id,
       serviceType: 'general',
-      privacyHomeLatitude: zone.privacyHomeLatitude ?? undefined,
-      privacyHomeLongitude: zone.privacyHomeLongitude ?? undefined,
-      privacyHideRadiusMeters: zone.privacyHideRadiusMeters ?? undefined
+      ...zone
     })
     return created.id
   }
@@ -233,8 +230,7 @@ describe('processFitnessFileJob', () => {
           aspect: 1.3333333333
         }
       },
-      description: 'Route map',
-      blurhash: null
+      description: 'Route map'
     })
 
     mockDeleteMediaFile.mockResolvedValue(true)
@@ -305,11 +301,10 @@ describe('processFitnessFileJob', () => {
       }
     })
 
-    const publishCalls = (
-      getQueue().publish as jest.MockedFunction<Queue['publish']>
-    ).mock.calls
+    const publishCalls = (getQueue().publish as jest.Mock).mock.calls
     const heatmapCalls = publishCalls.filter(
-      ([msg]) => msg.name === GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME
+      ([msg]: [{ name: string }]) =>
+        msg.name === GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME
     )
     // Import must not trigger heatmap regeneration — that is decoupled to the
     // explicit generate route so the memory-heavy aggregation never runs on the
@@ -399,8 +394,7 @@ describe('processFitnessFileJob', () => {
             aspect: 1.3333333333
           }
         },
-        description: 'Route map',
-        blurhash: null
+        description: 'Route map'
       }
     }
 
@@ -1179,16 +1173,15 @@ describe('processFitnessFileJob', () => {
     })
     expect(updatedFitnessFile?.processingStatus).toBe('completed')
 
-    const publishCalls = (
-      getQueue().publish as jest.MockedFunction<Queue['publish']>
-    ).mock.calls
+    const publishCalls = (getQueue().publish as jest.Mock).mock.calls
     const sendNoteCalls = publishCalls.filter(
-      ([msg]) => msg.name === SEND_NOTE_JOB_NAME
+      ([msg]: [{ name: string }]) => msg.name === SEND_NOTE_JOB_NAME
     )
     expect(sendNoteCalls).toHaveLength(0)
 
     const heatmapCalls = publishCalls.filter(
-      ([msg]) => msg.name === GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME
+      ([msg]: [{ name: string }]) =>
+        msg.name === GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME
     )
     expect(heatmapCalls).toHaveLength(0)
   })

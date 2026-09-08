@@ -12,7 +12,7 @@ enableFetchMocks()
 
 describe('sendAnnounceJob', () => {
   const database = getTestSQLDatabase()
-  let actor1: Actor | null | undefined
+  let actor1: Actor | undefined
 
   beforeAll(async () => {
     await database.migrate()

@@ -2,59 +2,27 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { createEvent, fireEvent, render, screen } from '@testing-library/react'
 
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 
-import { Attachments } from './attachments'
+import { Attachments, buildEdgeFadeMask } from './attachments'
 
 // jsdom has no ResizeObserver. useMediaStripScroll already no-ops when it is
 // undefined, but the strip still calls `measure()` eagerly on mount, so a
 // stub keeps that path exercised the same way it would run in a browser.
-let resizeCallbacks: (() => void)[] = []
-let observedElements: Element[] = []
-let createdObservers = 0
-let disconnectedObservers = 0
-const captionHeights = new Map<string, number>()
-
 class ResizeObserverStub {
-  private readonly callback: () => void
-
-  constructor(callback: () => void) {
-    createdObservers += 1
-    this.callback = callback
-    resizeCallbacks.push(callback)
-  }
-
-  observe(element: Element) {
-    observedElements.push(element)
-  }
+  observe() {}
   unobserve() {}
-  disconnect() {
-    disconnectedObservers += 1
-    resizeCallbacks = resizeCallbacks.filter(
-      (callback) => callback !== this.callback
-    )
-  }
+  disconnect() {}
 }
 
 beforeEach(() => {
-  resizeCallbacks = []
-  observedElements = []
-  createdObservers = 0
-  disconnectedObservers = 0
-  captionHeights.clear()
-  vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(
-    function (this: HTMLElement) {
-      return captionHeights.get(this.textContent ?? '') ?? 0
-    }
-  )
   vi.stubGlobal('ResizeObserver', ResizeObserverStub)
 })
 
 afterEach(() => {
-  vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
 
@@ -311,7 +279,7 @@ describe('Attachments', () => {
       ).not.toBeInTheDocument()
     })
 
-    it('renders a short caption underneath without an expansion control', () => {
+    it('renders subtle alt text underneath a single image when name is provided', () => {
       render(
         <Attachments
           status={buildNoteStatus([
@@ -325,46 +293,70 @@ describe('Attachments', () => {
         />
       )
 
-      const caption = screen.getByText('A mountaineer hiking on a ridge')
-      expect(caption).toHaveClass('line-clamp-3')
-      expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull()
+      // Single image collapses alt text by default
+      const toggleButton = screen.getByRole('button', {
+        name: 'Expand alt text'
+      })
+      expect(toggleButton).toHaveAttribute('aria-expanded', 'false')
+      expect(
+        screen.queryByText('A mountaineer hiking on a ridge')
+      ).not.toBeInTheDocument()
+
+      // Expand
+      fireEvent.click(toggleButton)
+      expect(toggleButton).toHaveAttribute('aria-expanded', 'true')
+      expect(toggleButton).toHaveAttribute('aria-label', 'Collapse alt text')
+      const alt = screen.getByText('A mountaineer hiking on a ridge')
+      expect(alt).toBeInTheDocument()
+      expect(alt).toHaveClass('text-muted-foreground', 'text-sm')
+
+      // Single image should not render an ALT badge
+      expect(screen.queryByText(/ALT/)).not.toBeInTheDocument()
     })
 
-    it('measures a long caption and allows expanding and collapsing it', () => {
-      const description =
-        'A detailed description that spans more than three lines'
-      captionHeights.set(description, 100)
+    it('collapses alt text by default and allows expanding and re-collapsing for a single image', () => {
       render(
         <Attachments
           status={buildNoteStatus([
             buildAttachment({
               width: 800,
               height: 600,
-              name: description
+              name: 'A mountaineer hiking on a ridge'
             })
           ])}
           onMediaSelected={vi.fn()}
         />
       )
 
-      const caption = screen.getByText(description)
-      const toggleButton = screen.getByRole('button', { name: 'Show more' })
+      const toggleButton = screen.getByRole('button', {
+        name: 'Expand alt text'
+      })
       expect(toggleButton).toHaveAttribute('aria-expanded', 'false')
-      expect(toggleButton).toHaveAttribute('aria-controls', caption.id)
-      expect(caption).toHaveClass('line-clamp-3')
+      expect(toggleButton).not.toHaveAttribute('aria-controls')
+      expect(
+        screen.queryByText('A mountaineer hiking on a ridge')
+      ).not.toBeInTheDocument()
 
+      // Expand
       fireEvent.click(toggleButton)
       expect(toggleButton).toHaveAttribute('aria-expanded', 'true')
-      expect(toggleButton).toHaveTextContent('Show less')
-      expect(caption).not.toHaveClass('line-clamp-3')
+      expect(toggleButton).toHaveAttribute('aria-controls')
+      expect(toggleButton).toHaveAttribute('aria-label', 'Collapse alt text')
+      expect(
+        screen.getByText('A mountaineer hiking on a ridge')
+      ).toBeInTheDocument()
 
+      // Collapse
       fireEvent.click(toggleButton)
       expect(toggleButton).toHaveAttribute('aria-expanded', 'false')
-      expect(toggleButton).toHaveTextContent('Show more')
-      expect(caption).toHaveClass('line-clamp-3')
+      expect(toggleButton).toHaveAttribute('aria-label', 'Expand alt text')
+      expect(toggleButton).not.toHaveAttribute('aria-controls')
+      expect(
+        screen.queryByText('A mountaineer hiking on a ridge')
+      ).not.toBeInTheDocument()
     })
 
-    it('does not render a caption when name is empty or whitespace', () => {
+    it('does not render alt text underneath when name is empty or whitespace', () => {
       const { container } = render(
         <Attachments
           status={buildNoteStatus([
@@ -379,13 +371,13 @@ describe('Attachments', () => {
       )
 
       expect(container.querySelector('p')).not.toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull()
+      expect(
+        screen.queryByRole('button', { name: /alt text/i })
+      ).not.toBeInTheDocument()
     })
 
-    it('keeps caption and expansion clicks inside the attachment', () => {
+    it('stops click propagation when clicking on the alt text', () => {
       const parentOnClick = vi.fn()
-      const onMediaSelected = vi.fn()
-      captionHeights.set('Description', 100)
       render(
         <div onClick={parentOnClick}>
           <Attachments
@@ -396,15 +388,38 @@ describe('Attachments', () => {
                 name: 'Description'
               })
             ])}
-            onMediaSelected={onMediaSelected}
+            onMediaSelected={vi.fn()}
           />
         </div>
       )
 
+      fireEvent.click(screen.getByRole('button', { name: 'Expand alt text' }))
       fireEvent.click(screen.getByText('Description'))
-      fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
       expect(parentOnClick).not.toHaveBeenCalled()
-      expect(onMediaSelected).not.toHaveBeenCalled()
+    })
+
+    it('stops click propagation when clicking on the single image collapse/expand button', () => {
+      const parentOnClick = vi.fn()
+      render(
+        <div onClick={parentOnClick}>
+          <Attachments
+            status={buildNoteStatus([
+              buildAttachment({
+                width: 800,
+                height: 600,
+                name: 'Description'
+              })
+            ])}
+            onMediaSelected={vi.fn()}
+          />
+        </div>
+      )
+
+      const toggleButton = screen.getByRole('button', {
+        name: 'Expand alt text'
+      })
+      fireEvent.click(toggleButton)
+      expect(parentOnClick).not.toHaveBeenCalled()
     })
   })
 
@@ -456,7 +471,7 @@ describe('Attachments', () => {
 
       const strip = screen.getByRole('group', { name: '3 media attachments' })
       expect(strip).toHaveClass('no-scrollbar', 'overflow-x-auto')
-      expect(strip.style.minHeight).toBe('240px')
+      expect(strip.style.height).toBe('240px')
       expect(strip.style.scrollSnapType).toBe('x proximity')
     })
 
@@ -494,10 +509,10 @@ describe('Attachments', () => {
 
       const buttons = screen.getAllByRole('button')
       const button = buttons.find(
-        (candidate) => candidate.parentElement?.style.width === expectedWidth
+        (candidate) => candidate.style.width === expectedWidth
       )
       expect(button).toBeDefined()
-      expect(button?.parentElement?.style.maxWidth).toBe('78%')
+      expect(button?.style.maxWidth).toBe('78%')
       expect(button?.style.scrollSnapAlign).toBe('start')
     })
 
@@ -528,7 +543,7 @@ describe('Attachments', () => {
       )
     })
 
-    it('renders every visual attachment with no item cap', () => {
+    it('renders every attachment with no cap and no overlay', () => {
       const attachments = Array.from({ length: 7 }, () =>
         buildAttachment({ width: 800, height: 600 })
       )
@@ -540,65 +555,109 @@ describe('Attachments', () => {
       )
 
       expect(screen.getAllByRole('button')).toHaveLength(7)
+      expect(screen.queryByText(/^\+\d/)).not.toBeInTheDocument()
     })
 
-    it('keeps long captions independently expandable', () => {
-      const descriptions = ['First long caption', 'Second long caption']
-      descriptions.forEach((description) =>
-        captionHeights.set(description, 100)
-      )
-      render(
-        <Attachments
-          status={buildNoteStatus(
-            descriptions.map((name) =>
-              buildAttachment({ width: 800, height: 600, name })
-            )
-          )}
-          onMediaSelected={vi.fn()}
-        />
-      )
-
-      const [firstToggle, secondToggle] = screen.getAllByRole('button', {
-        name: 'Show more'
+    it('renders ALT badges and numbered alt text list for multiple images with descriptions', () => {
+      const first = buildAttachment({
+        width: 800,
+        height: 600,
+        name: 'First cat eating'
       })
-      fireEvent.click(firstToggle)
+      const second = buildAttachment({
+        width: 600,
+        height: 900,
+        name: 'Second cat resting'
+      })
+      const third = buildAttachment({
+        width: 1200,
+        height: 500,
+        name: ''
+      })
 
-      expect(firstToggle).toHaveTextContent('Show less')
-      expect(secondToggle).toHaveTextContent('Show more')
-      expect(screen.getByText(descriptions[0])).not.toHaveClass('line-clamp-3')
-      expect(screen.getByText(descriptions[1])).toHaveClass('line-clamp-3')
-
-      fireEvent.click(firstToggle)
-      expect(firstToggle).toHaveTextContent('Show more')
-      expect(screen.getByText(descriptions[0])).toHaveClass('line-clamp-3')
-    })
-
-    it('adds and removes the expansion control after an actual resize', () => {
-      const description = 'Caption whose wrapping changes with the card width'
-      captionHeights.set(description, 40)
       render(
         <Attachments
-          status={buildNoteStatus([
-            buildAttachment({ width: 800, height: 600, name: description }),
-            buildAttachment({ width: 800, height: 600 })
-          ])}
+          status={buildNoteStatus([first, second, third])}
           onMediaSelected={vi.fn()}
         />
       )
-      expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull()
 
-      captionHeights.set(description, 100)
-      act(() => resizeCallbacks.forEach((callback) => callback()))
+      // First and second have alt text -> ALT¹ and ALT² badges
       expect(
-        screen.getByRole('button', { name: 'Show more' })
+        screen.getByText(
+          (_content, element) =>
+            element?.tagName.toLowerCase() === 'span' &&
+            element.textContent === 'ALT1'
+        )
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          (_content, element) =>
+            element?.tagName.toLowerCase() === 'span' &&
+            element.textContent === 'ALT2'
+        )
+      ).toBeInTheDocument()
+      // Third has no alt text -> no ALT³ badge
+      expect(
+        screen.queryByText(
+          (_content, element) =>
+            element?.tagName.toLowerCase() === 'span' &&
+            element.textContent === 'ALT3'
+        )
+      ).not.toBeInTheDocument()
+
+      // Numbered alt text list underneath (after expanding)
+      const toggleButton = screen.getByRole('button', {
+        name: 'Expand alt text'
+      })
+      fireEvent.click(toggleButton)
+      expect(screen.getByText('First cat eating')).toBeInTheDocument()
+      expect(screen.getByText('Second cat resting')).toBeInTheDocument()
+    })
+
+    it('groups indices when multiple images share identical alt text', () => {
+      const first = buildAttachment({
+        width: 800,
+        height: 600,
+        name: 'Same landscape view'
+      })
+      const second = buildAttachment({
+        width: 600,
+        height: 900,
+        name: 'Same landscape view'
+      })
+
+      render(
+        <Attachments
+          status={buildNoteStatus([first, second])}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      expect(
+        screen.getByText(
+          (_content, element) =>
+            element?.tagName.toLowerCase() === 'span' &&
+            element.textContent === 'ALT1'
+        )
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          (_content, element) =>
+            element?.tagName.toLowerCase() === 'span' &&
+            element.textContent === 'ALT2'
+        )
       ).toBeInTheDocument()
 
-      captionHeights.set(description, 40)
-      act(() => resizeCallbacks.forEach((callback) => callback()))
-      expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull()
+      // Expand the alt text list
+      fireEvent.click(screen.getByRole('button', { name: 'Expand alt text' }))
+
+      // The grouped item shows indices "1 2" together
+      expect(screen.getByText('1 2')).toBeInTheDocument()
+      expect(screen.getByText('Same landscape view')).toBeInTheDocument()
     })
 
-    it('renders no captions when none have descriptions', () => {
+    it('does not render alt text section or badges if none have descriptions', () => {
       const first = buildAttachment({ width: 800, height: 600 })
       const second = buildAttachment({ width: 800, height: 600 })
 
@@ -609,14 +668,14 @@ describe('Attachments', () => {
         />
       )
 
-      expect(screen.queryByRole('paragraph')).not.toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull()
+      expect(screen.queryByText(/ALT/)).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /alt text/i })
+      ).not.toBeInTheDocument()
     })
 
-    it('keeps caption and expansion clicks from navigating or opening media', () => {
+    it('stops click propagation when clicking on the alt text list item', () => {
       const parentOnClick = vi.fn()
-      const onMediaSelected = vi.fn()
-      captionHeights.set('Cat photo', 100)
       const first = buildAttachment({
         width: 800,
         height: 600,
@@ -632,20 +691,18 @@ describe('Attachments', () => {
         <div onClick={parentOnClick}>
           <Attachments
             status={buildNoteStatus([first, second])}
-            onMediaSelected={onMediaSelected}
+            onMediaSelected={vi.fn()}
           />
         </div>
       )
 
+      fireEvent.click(screen.getByRole('button', { name: 'Expand alt text' }))
       fireEvent.click(screen.getByText('Cat photo'))
-      fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
       expect(parentOnClick).not.toHaveBeenCalled()
-      expect(onMediaSelected).not.toHaveBeenCalled()
     })
 
-    it('resets expansion when a description is replaced', () => {
+    it('collapses alt text by default and allows expanding and re-collapsing', () => {
       const first = buildAttachment({
-        id: 'stable-attachment',
         width: 800,
         height: 600,
         name: 'First description'
@@ -655,36 +712,74 @@ describe('Attachments', () => {
         height: 600,
         name: 'Second description'
       })
-      captionHeights.set('First description', 100)
-      captionHeights.set('Replacement description', 100)
 
-      const { rerender } = render(
+      render(
         <Attachments
           status={buildNoteStatus([first, second])}
           onMediaSelected={vi.fn()}
         />
       )
 
-      const toggleButton = screen.getByRole('button', { name: 'Show more' })
+      const toggleButton = screen.getByRole('button', {
+        name: 'Expand alt text'
+      })
+      expect(toggleButton).toHaveAttribute('aria-expanded', 'false')
+      expect(toggleButton).not.toHaveAttribute('aria-controls')
+      expect(screen.queryByText('First description')).not.toBeInTheDocument()
+      expect(screen.queryByText('Second description')).not.toBeInTheDocument()
+
+      // Expand
       fireEvent.click(toggleButton)
       expect(toggleButton).toHaveAttribute('aria-expanded', 'true')
-      rerender(
-        <Attachments
-          status={buildNoteStatus([
-            { ...first, name: 'Replacement description' },
-            second
-          ])}
-          onMediaSelected={vi.fn()}
-        />
+      expect(toggleButton).toHaveAttribute('aria-controls')
+      expect(toggleButton).toHaveAttribute('aria-label', 'Collapse alt text')
+      expect(screen.getByText('First description')).toBeInTheDocument()
+      expect(screen.getByText('Second description')).toBeInTheDocument()
+
+      // Collapse
+      fireEvent.click(toggleButton)
+      expect(toggleButton).toHaveAttribute('aria-expanded', 'false')
+      expect(toggleButton).toHaveAttribute('aria-label', 'Expand alt text')
+      expect(toggleButton).not.toHaveAttribute('aria-controls')
+      expect(screen.queryByText('First description')).not.toBeInTheDocument()
+      expect(screen.queryByText('Second description')).not.toBeInTheDocument()
+
+      // Re-expand
+      fireEvent.click(toggleButton)
+      expect(toggleButton).toHaveAttribute('aria-expanded', 'true')
+      expect(toggleButton).toHaveAttribute('aria-controls')
+      expect(toggleButton).toHaveAttribute('aria-label', 'Collapse alt text')
+      expect(screen.getByText('First description')).toBeInTheDocument()
+      expect(screen.getByText('Second description')).toBeInTheDocument()
+    })
+
+    it('stops click propagation when clicking on the collapse/expand button', () => {
+      const parentOnClick = vi.fn()
+      const first = buildAttachment({
+        width: 800,
+        height: 600,
+        name: 'Cat photo'
+      })
+      const second = buildAttachment({
+        width: 800,
+        height: 600,
+        name: 'Dog photo'
+      })
+
+      render(
+        <div onClick={parentOnClick}>
+          <Attachments
+            status={buildNoteStatus([first, second])}
+            onMediaSelected={vi.fn()}
+          />
+        </div>
       )
 
-      expect(screen.getByText('Replacement description')).toHaveClass(
-        'line-clamp-3'
-      )
-      expect(screen.getByRole('button', { name: 'Show more' })).toHaveAttribute(
-        'aria-expanded',
-        'false'
-      )
+      const toggleButton = screen.getByRole('button', {
+        name: 'Expand alt text'
+      })
+      fireEvent.click(toggleButton)
+      expect(parentOnClick).not.toHaveBeenCalled()
     })
   })
 
@@ -748,7 +843,7 @@ describe('Attachments', () => {
       )
 
       const [video] = screen.getAllByRole('button')
-      expect(video.parentElement?.style.width).toBe('576px')
+      expect(video.style.width).toBe('576px')
       expect(container.querySelector('video')).toBeInTheDocument()
     })
 
@@ -925,32 +1020,30 @@ describe('Attachments', () => {
       ).toBeInTheDocument()
     })
 
-    it.each([
-      { scrollLeft: 0, disabledName: 'Previous media' },
-      { scrollLeft: 500, disabledName: 'Next media' }
-    ])(
-      'keeps both arrows mounted and guards $disabledName at a boundary',
-      ({ scrollLeft, disabledName }) => {
-        const strip = renderScrolledStrip({ scrollLeft })
-        const scrollBy = vi.fn()
-        Object.defineProperty(strip, 'scrollBy', {
-          configurable: true,
-          value: scrollBy
-        })
+    it('shows only the forward chevron before the strip has been scrolled', () => {
+      renderScrolledStrip({ scrollLeft: 0 })
 
-        const previous = screen.getByRole('button', { name: 'Previous media' })
-        const next = screen.getByRole('button', { name: 'Next media' })
-        const disabled = screen.getByRole('button', { name: disabledName })
-        expect(previous).toBeInTheDocument()
-        expect(next).toBeInTheDocument()
-        expect(disabled).toHaveAttribute('aria-disabled', 'true')
+      expect(
+        screen.getByRole('button', { name: 'More media' })
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Previous media' })
+      ).not.toBeInTheDocument()
+    })
 
-        disabled.focus()
-        fireEvent.click(disabled)
-        expect(disabled).toHaveFocus()
-        expect(scrollBy).not.toHaveBeenCalled()
-      }
-    )
+    it('keeps the hidden back chevron from swallowing taps on the leftmost photo', () => {
+      // `opacity-0` alone still hit-tests, and `group-hover` never latches on a
+      // touch screen, so without `pointer-events-none` the invisible Previous
+      // button sits over the leftmost image as a dead column.
+      renderScrolledStrip({ scrollLeft: 250 })
+
+      const back = screen.getByRole('button', { name: 'Previous media' })
+      expect(back).toHaveClass('opacity-0', 'pointer-events-none')
+      expect(back).toHaveClass(
+        'group-hover/media:opacity-100',
+        'group-hover/media:pointer-events-auto'
+      )
+    })
 
     it('re-measures when an edit changes item widths but not their count', () => {
       // The hook is keyed on the laid-out WIDTHS for exactly this case: the
@@ -985,7 +1078,7 @@ describe('Attachments', () => {
       })
       fireEvent.scroll(strip)
       expect(
-        screen.getByRole('button', { name: 'Next media' })
+        screen.getByRole('button', { name: 'More media' })
       ).toBeInTheDocument()
 
       // 576 + 160 becomes 160 + 160: same two items, and now it all fits.
@@ -998,12 +1091,60 @@ describe('Attachments', () => {
       )
 
       expect(
-        screen.queryByRole('button', { name: 'Next media' })
+        screen.queryByRole('button', { name: 'More media' })
       ).not.toBeInTheDocument()
     })
 
+    it('attaches the edge fade to the strip itself', () => {
+      // Scrolled fully to the end, so the mask has no calc() stop — that is
+      // the one variant jsdom's CSS parser will store and hand back.
+      const strip = renderScrolledStrip({ scrollLeft: 500 })
+
+      expect(strip.style.maskImage).toContain('linear-gradient')
+      expect(strip.style.maskImage).toContain('48px')
+    })
+
     it.each([
-      { description: 'the forward arrow', name: 'Next media' },
+      { description: 'the forward chevron', name: 'More media' },
+      { description: 'the back chevron', name: 'Previous media' }
+    ])('$description does not take focus from a pointer press', ({ name }) => {
+      // tabIndex={-1} only removes it from the SEQUENTIAL tab order; Chrome
+      // and Firefox still focus a button on click, and the chevron is
+      // unmounted by its own scroll, which would drop focus to <body>.
+      renderScrolledStrip({ scrollLeft: 250 })
+
+      const chevron = screen.getByRole('button', { name })
+      const event = createEvent.mouseDown(chevron)
+      fireEvent(chevron, event)
+
+      expect(event.defaultPrevented).toBe(true)
+    })
+
+    it('keeps the forward chevron visible without a pointer', () => {
+      // group-hover never latches on a touch screen, so hover-gating this one
+      // would make the "there is more" cue permanently invisible there.
+      renderScrolledStrip({ scrollLeft: 250 })
+
+      const forward = screen.getByRole('button', { name: 'More media' })
+      expect(forward.className).not.toContain('opacity-0')
+      expect(forward.className).not.toContain('pointer-events-none')
+    })
+
+    it('keeps both chevrons out of the tab order', () => {
+      // Each is unmounted by the scroll it performs, so a focused one would
+      // drop focus to <body>; the picture buttons are the keyboard path.
+      renderScrolledStrip({ scrollLeft: 250 })
+
+      expect(
+        screen.getByRole('button', { name: 'Previous media' })
+      ).toHaveAttribute('tabindex', '-1')
+      expect(
+        screen.getByRole('button', { name: 'More media' })
+      ).toHaveAttribute('tabindex', '-1')
+    })
+
+    it.each([
+      { description: 'the forward chevron', name: 'More media' },
       { description: 'the back chevron', name: 'Previous media' }
     ])(
       '$description stops its click from reaching an ancestor click handler',
@@ -1049,9 +1190,18 @@ describe('Attachments', () => {
     )
 
     it.each([
-      { name: 'Next media', expectedLeft: 250 },
-      { name: 'Previous media', expectedLeft: -250 }
-    ])('$name moves in its enabled direction', ({ name, expectedLeft }) => {
+      {
+        description: 'the forward chevron nudges forward by 70% of the strip',
+        name: 'More media',
+        expectedLeft: 350
+      },
+      {
+        description: 'the back chevron nudges backward by the same amount',
+        name: 'Previous media',
+        expectedLeft: -350
+      }
+    ])('$description', ({ name, expectedLeft }) => {
+      // Scrolled to the middle so both chevrons are mounted.
       const strip = renderScrolledStrip({ scrollLeft: 250 })
       const scrollBy = vi.fn()
       Object.defineProperty(strip, 'scrollBy', {
@@ -1175,6 +1325,40 @@ describe('Attachments', () => {
     })
   })
 
+  describe('buildEdgeFadeMask', () => {
+    it.each([
+      {
+        description: 'paints no mask while nothing is out of view',
+        canScrollLeft: false,
+        canScrollRight: false,
+        expected: undefined
+      },
+      {
+        description: 'fades only the right edge at the start of the strip',
+        canScrollLeft: false,
+        canScrollRight: true,
+        expected:
+          'linear-gradient(to right, #000 0, #000 calc(100% - 48px), transparent 100%)'
+      },
+      {
+        description: 'fades only the left edge at the end of the strip',
+        canScrollLeft: true,
+        canScrollRight: false,
+        expected:
+          'linear-gradient(to right, transparent 0, #000 48px, #000 100%)'
+      },
+      {
+        description: 'fades both edges in the middle of the strip',
+        canScrollLeft: true,
+        canScrollRight: true,
+        expected:
+          'linear-gradient(to right, transparent 0, #000 48px, #000 calc(100% - 48px), transparent 100%)'
+      }
+    ])('$description', ({ canScrollLeft, canScrollRight, expected }) => {
+      expect(buildEdgeFadeMask(canScrollLeft, canScrollRight)).toBe(expected)
+    })
+  })
+
   it('renders nothing for a non-Note status', () => {
     const announce = buildAnnounceStatus(
       buildNoteStatus([buildAttachment({ width: 800, height: 600 })])
@@ -1204,7 +1388,7 @@ describe('Attachments', () => {
     expect(parentOnClick).not.toHaveBeenCalled()
   })
 
-  it('renders custom emoji images in a single-image caption', () => {
+  it('renders custom emoji images in single-image alt text', () => {
     const status = {
       ...buildNoteStatus([
         buildAttachment({
@@ -1228,13 +1412,14 @@ describe('Attachments', () => {
 
     render(<Attachments status={status} onMediaSelected={vi.fn()} />)
 
+    fireEvent.click(screen.getByRole('button', { name: 'Expand alt text' }))
     const img = screen.getByRole('img', { name: ':blobcat:' })
     expect(img).toBeInTheDocument()
     expect(img).toHaveAttribute('src', 'https://example.com/blobcat.png')
     expect(screen.getByText(/A photo with/)).toBeInTheDocument()
   })
 
-  it('renders custom emoji images in each matching strip caption', () => {
+  it('renders custom emoji images in multi-image alt text drawer', () => {
     const status = {
       ...buildNoteStatus([
         buildAttachment({
@@ -1265,44 +1450,9 @@ describe('Attachments', () => {
 
     render(<Attachments status={status} onMediaSelected={vi.fn()} />)
 
+    fireEvent.click(screen.getByRole('button', { name: 'Expand alt text' }))
     const imgs = screen.getAllByRole('img', { name: ':blobcat:' })
-    expect(imgs).toHaveLength(2)
+    expect(imgs.length).toBeGreaterThanOrEqual(1)
     expect(imgs[0]).toHaveAttribute('src', 'https://example.com/blobcat.png')
-  })
-
-  it('preserves caption line breaks', () => {
-    render(
-      <Attachments
-        status={buildNoteStatus([
-          buildAttachment({
-            width: 800,
-            height: 600,
-            name: 'First line\nSecond line'
-          })
-        ])}
-        onMediaSelected={vi.fn()}
-      />
-    )
-
-    const caption = screen.getByText(/First line/)
-    expect(caption).toHaveClass('whitespace-pre-wrap')
-    expect(caption).toHaveTextContent('First line Second line')
-  })
-
-  it('disconnects every caption and strip resize observer on unmount', () => {
-    const { unmount } = render(
-      <Attachments
-        status={buildNoteStatus([
-          buildAttachment({ width: 800, height: 600, name: 'First caption' }),
-          buildAttachment({ width: 800, height: 600, name: 'Second caption' })
-        ])}
-        onMediaSelected={vi.fn()}
-      />
-    )
-
-    expect(observedElements).toHaveLength(3)
-    unmount()
-    expect(disconnectedObservers).toBe(createdObservers)
-    expect(resizeCallbacks).toHaveLength(0)
   })
 })

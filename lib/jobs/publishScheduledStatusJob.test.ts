@@ -7,18 +7,13 @@ import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
-import { Status, StatusPoll } from '@/lib/types/domain/status'
+import { StatusPoll } from '@/lib/types/domain/status'
 import { ScheduledStatusParams } from '@/lib/types/mastodon/scheduledStatus'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { generatePublicId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from './names'
-
-const hasText = (status: Status, text: string): boolean =>
-  'text' in status &&
-  typeof status.text === 'string' &&
-  status.text.includes(text)
 
 enableFetchMocks()
 
@@ -92,7 +87,7 @@ describe('publishScheduledStatusJob', () => {
     })
 
     const statuses = await database.getActorStatuses({ actorId: actor1.id })
-    const published = statuses.find((status) => hasText(status, text))
+    const published = statuses.find((status) => status.text.includes(text))
     expect(published).toBeDefined()
     expect(published?.actorId).toBe(actor1.id)
 
@@ -124,7 +119,7 @@ describe('publishScheduledStatusJob', () => {
     })
 
     const statuses = await database.getActorStatuses({ actorId: actor1.id })
-    const published = statuses.find((status) => hasText(status, text))
+    const published = statuses.find((status) => status.text.includes(text))
     expect(published).toBeDefined()
     expect(published?.type).toBe('Poll')
     const choices = (published as { choices: { title: string }[] }).choices
@@ -183,7 +178,7 @@ describe('publishScheduledStatusJob', () => {
         const statuses = await database.getActorStatuses({
           actorId: actor1.id
         })
-        const published = statuses.find((status) => hasText(status, text))
+        const published = statuses.find((status) => status.text.includes(text))
         expect(published).toBeDefined()
         expect((published as { reply: string }).reply).toBe(parent.id)
       }
@@ -214,7 +209,7 @@ describe('publishScheduledStatusJob', () => {
 
     const statuses = await database.getActorStatuses({ actorId: actor1.id })
     const published = statuses.find((status) =>
-      hasText(status, text)
+      status.text.includes(text)
     ) as StatusPoll
     expect(published.hideTotals).toBe(true)
   })
@@ -246,7 +241,7 @@ describe('publishScheduledStatusJob', () => {
     // No duplicate status was created for the deduped scheduled post.
     const after = await database.getActorStatuses({ actorId: actor1.id })
     expect(after).toHaveLength(before.length)
-    expect(after.some((status) => hasText(status, text))).toBe(false)
+    expect(after.some((status) => status.text.includes(text))).toBe(false)
 
     // The scheduled row is cleaned up regardless.
     const row = await database.getScheduledStatusById({ id: scheduled.id })
@@ -279,7 +274,7 @@ describe('publishScheduledStatusJob', () => {
     // The retry did not publish a duplicate, and the row is cleaned up.
     const after = await database.getActorStatuses({ actorId: actor1.id })
     expect(after).toHaveLength(before.length)
-    expect(after.some((status) => hasText(status, text))).toBe(false)
+    expect(after.some((status) => status.text.includes(text))).toBe(false)
     const row = await database.getScheduledStatusById({ id: scheduled.id })
     expect(row).toBeNull()
   })
@@ -304,7 +299,7 @@ describe('publishScheduledStatusJob', () => {
     })
 
     const statuses = await database.getActorStatuses({ actorId: actor1.id })
-    expect(statuses.some((status) => hasText(status, text))).toBe(false)
+    expect(statuses.some((status) => status.text.includes(text))).toBe(false)
     expect(getQueue().publish).not.toHaveBeenCalled()
     // The row is left intact for the current schedule's own job to publish.
     const row = await database.getScheduledStatusById({ id: scheduled.id })
@@ -327,7 +322,7 @@ describe('publishScheduledStatusJob', () => {
     })
 
     const statuses = await database.getActorStatuses({ actorId: actor1.id })
-    expect(statuses.some((status) => hasText(status, text))).toBe(true)
+    expect(statuses.some((status) => status.text.includes(text))).toBe(true)
     const row = await database.getScheduledStatusById({ id: scheduled.id })
     expect(row).toBeNull()
   })
@@ -380,7 +375,7 @@ describe('publishScheduledStatusJob', () => {
 
     // No status was published and the scheduled row still exists.
     const statuses = await database.getActorStatuses({ actorId: actor1.id })
-    expect(statuses.some((status) => hasText(status, text))).toBe(false)
+    expect(statuses.some((status) => status.text.includes(text))).toBe(false)
     const row = await database.getScheduledStatusById({ id: scheduled.id })
     expect(row).not.toBeNull()
   })
@@ -475,7 +470,7 @@ describe('publishScheduledStatusJob', () => {
     })
 
     const statuses = await database.getActorStatuses({ actorId: actor1.id })
-    expect(statuses.some((status) => hasText(status, text))).toBe(false)
+    expect(statuses.some((status) => status.text.includes(text))).toBe(false)
     const row = await database.getScheduledStatusById({ id: scheduled.id })
     expect(row).toBeNull()
   })
@@ -497,7 +492,7 @@ describe('publishScheduledStatusJob', () => {
     })
 
     const statuses = await database.getActorStatuses({ actorId: actor1.id })
-    expect(statuses.some((status) => hasText(status, text))).toBe(false)
+    expect(statuses.some((status) => status.text.includes(text))).toBe(false)
     const row = await database.getScheduledStatusById({ id: scheduled.id })
     expect(row).toBeNull()
   })

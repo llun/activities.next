@@ -1,8 +1,8 @@
 import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 
-// Every test file Vitest runs must also be visible to `yarn typecheck` —
-// inside tsconfig.json's program.
+// Every test file Vitest runs must also be visible to `yarn typecheck` — either
+// inside tsconfig.typecheck.json's program, or explicitly listed in its ratchet.
 //
 // A file can fall out of the program silently. TypeScript resolves a wildcard
 // `include` by preferring one extension per basename, so when `foo.test.ts` and
@@ -44,10 +44,10 @@ describe('test file type coverage', () => {
   })
 
   it('places every test file under a directory the typecheck config reaches', () => {
-    // tsconfig.json's `include` (`**/*.ts`, `**/*.tsx`) only narrows through
-    // `exclude`. A test file outside the repo root — or under one of the base
-    // excludes — would never be type-checked, so assert every one lives at a
-    // normal path.
+    // tsconfig.typecheck.json inherits tsconfig.json's `include`
+    // (`**/*.ts`, `**/*.tsx`) and only narrows it through `exclude`. A test
+    // file outside the repo root — or under one of the base excludes — would
+    // never be type-checked, so assert every one lives at a normal path.
     const unreachable = trackedTestFiles().filter(
       (file) =>
         path.isAbsolute(file) ||

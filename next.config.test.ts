@@ -47,14 +47,6 @@ const withEnv = <T>(
   }
 }
 
-const setNodeEnv = (value?: string) => {
-  if (value === undefined) {
-    delete (process.env as Record<string, string | undefined>).NODE_ENV
-  } else {
-    ;(process.env as Record<string, string | undefined>).NODE_ENV = value
-  }
-}
-
 const getCspDirectiveSources = (directiveName: string) => {
   const csp = getSecurityHeaders().find(
     (header) => header.key === 'Content-Security-Policy'
@@ -84,7 +76,7 @@ describe('next config runtime isolation', () => {
     process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS = 'not-json'
     process.env.ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS = 'not-json'
     process.env.ACTIVITIES_HOST = 'build-host-should-not-be-used.example.com'
-    setNodeEnv('production')
+    process.env.NODE_ENV = 'production'
     fs.writeFileSync(
       path.join(tempDirectory, 'config.json'),
       JSON.stringify({
@@ -1091,7 +1083,7 @@ describe('next config security hardening', () => {
 
   it('uses static HTTPS image patterns in production', () => {
     const originalNodeEnv = process.env.NODE_ENV
-    setNodeEnv('production')
+    process.env.NODE_ENV = 'production'
 
     try {
       expect(getImageRemotePatterns()).toEqual([
@@ -1101,13 +1093,17 @@ describe('next config security hardening', () => {
         }
       ])
     } finally {
-      setNodeEnv(originalNodeEnv)
+      if (originalNodeEnv === undefined) {
+        delete process.env.NODE_ENV
+      } else {
+        process.env.NODE_ENV = originalNodeEnv
+      }
     }
   })
 
   it('allows safe local image hosts in development without app config', () => {
     const originalNodeEnv = process.env.NODE_ENV
-    setNodeEnv('development')
+    process.env.NODE_ENV = 'development'
 
     try {
       expect(getImageRemotePatterns()).toEqual([
@@ -1129,7 +1125,11 @@ describe('next config security hardening', () => {
         }
       ])
     } finally {
-      setNodeEnv(originalNodeEnv)
+      if (originalNodeEnv === undefined) {
+        delete process.env.NODE_ENV
+      } else {
+        process.env.NODE_ENV = originalNodeEnv
+      }
     }
   })
 })

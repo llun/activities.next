@@ -134,7 +134,7 @@ describe('getFederatedStatusDeliveryInboxes', () => {
       privateKey: 'private-key'
     })
     const database = makeDatabase({
-      getActorsFromIds: vi.fn(async ({ ids }: { ids: string[] }) => {
+      getActorsFromIds: vi.fn(async ({ ids }) => {
         return ids
           .map((id) => {
             if (id === remoteActor.id) return remoteActor
@@ -205,7 +205,7 @@ describe('getFederatedStatusDeliveryInboxes', () => {
         endpoints: {
           sharedInbox: `https://${new URL(actorId).host}/inbox`
         }
-      } as never
+      }
     })
 
     await getFederatedStatusDeliveryInboxes({
@@ -243,7 +243,7 @@ describe('getFederatedStatusDeliveryInboxes', () => {
       getStatusesByIds: vi
         .fn()
         .mockResolvedValue([makeStatus({ id: 'quote-1', actorId: quoter.id })]),
-      getActorsFromIds: vi.fn(async ({ ids }: { ids: string[] }) => {
+      getActorsFromIds: vi.fn(async ({ ids }) => {
         const actorMap: Record<string, Actor> = {
           [liker.id]: liker,
           [reblogger.id]: reblogger,
@@ -317,7 +317,7 @@ describe('getExplicitRecipientInboxes', () => {
     const database = makeDatabase({
       getFollowersInbox,
       getAcceptedRelays,
-      getActorsFromIds: vi.fn(async ({ ids }: { ids: string[] }) =>
+      getActorsFromIds: vi.fn(async ({ ids }) =>
         ids
           .map((id) => {
             if (id === remoteActor.id) return remoteActor

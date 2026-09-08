@@ -5,8 +5,6 @@ import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { startDatabaseQueueRunner } from '@/lib/services/queue/databaseRunner'
 
-import { createQueueWorkerShutdown } from './runQueueWorkerLifecycle'
-
 const projectDir = process.cwd()
 loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
 
@@ -29,40 +27,31 @@ async function runQueueWorker() {
     pollIntervalMs
   })
 
-  const shutdownQueueWorker = createQueueWorkerShutdown({
-    runner,
-    database
-  })
-  let shutdownExitPromise: Promise<void> | undefined
-  const shutdown = (signal: string) => {
-    if (shutdownExitPromise) {
-      return shutdownExitPromise
+  let isShuttingDown = false
+  const shutdown = async (signal: string) => {
+    if (isShuttingDown) {
+      console.log(`Received ${signal} again, forcing immediate exit...`)
+      process.exit(1)
     }
-
+    isShuttingDown = true
     console.log(`Received ${signal}. Shutting down queue worker gracefully...`)
 
-    shutdownExitPromise = shutdownQueueWorker()
-      .then((result) => {
-        if (result.succeeded) {
-          console.log('Queue worker drained and database closed successfully.')
-          process.exit(0)
-          return
-        }
+    const forceExitTimer = setTimeout(() => {
+      console.error('Graceful shutdown timed out after 30s. Forcing exit.')
+      process.exit(1)
+    }, 30000)
+    forceExitTimer.unref()
 
-        for (const failure of result.failures) {
-          console.error(
-            `Error while shutting down queue worker (${failure.stage}):`,
-            failure.error
-          )
-        }
-        process.exit(1)
-      })
-      .catch((error) => {
-        console.error('Unexpected queue worker shutdown error:', error)
-        process.exit(1)
-      })
-
-    return shutdownExitPromise
+    try {
+      await runner.stop()
+      console.log('Queue worker drained and stopped successfully.')
+      clearTimeout(forceExitTimer)
+      process.exit(0)
+    } catch (error) {
+      console.error('Error while stopping queue worker:', error)
+      clearTimeout(forceExitTimer)
+      process.exit(1)
+    }
   }
 
   process.on('SIGINT', () => {
