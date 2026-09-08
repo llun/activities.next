@@ -585,7 +585,7 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
               .where('actorId', actorId)
               .delete()
           }
-          instance.on('query-response', (_response, query) => {
+          instance.on('query', (query: { sql: string }) => {
             void clearAfterFirstInsert(query)
           })
 
