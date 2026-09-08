@@ -1,0 +1,20 @@
+.github/workflows/ci.yml
+  h_580a04e334fef4 55-56
+lib/testFileTypeCoverage.test.ts
+  h_580a04e334fef4 4-5,47-50
+package.json
+  h_580a04e334fef4 14
+tsconfig.build.json
+  h_580a04e334fef4 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "97bfa546d23684acac98e1fe29a54da5f3eeefc4",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
