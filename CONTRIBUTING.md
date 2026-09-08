@@ -284,7 +284,9 @@ yarn test --maxWorkers=2 \
   lib/database/sql/fitnessFile.test.ts \
   lib/database/sql/fitnessGear.test.ts \
   lib/database/sql/fitnessGearComponentPeriods.test.ts \
-  lib/database/sql/fitnessRouteHeatmapTile.test.ts
+  lib/database/sql/fitnessRouteHeatmapTile.test.ts \
+  lib/database/sql/queueJob.test.ts \
+  lib/database/sql/statusDeletionQueue.test.ts
 ```
 
 3. When finished, stop the container:
