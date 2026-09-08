@@ -17,9 +17,6 @@
     // type-clean; NEVER add one — a new or edited test file must pass. When
     // this list is empty, delete this file and point `yarn typecheck` at
 
-    "lib/activities/reactionActivity.test.ts",
-    "lib/components/block-action/block-action.test.tsx",
-    "lib/components/fitness/HeatmapShareEmbed.test.tsx",
     "lib/components/fitness/RegionHeatmapDetail.test.tsx",
     "lib/components/fitness/RegionMap.test.tsx",
     "lib/components/fitness/RouteHeatmapMap.test.tsx",
