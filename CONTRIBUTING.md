@@ -429,9 +429,8 @@ activities.next/
 
 - `package.json` — Dependencies, scripts, and workspace configuration
 - `packages/` — Optional dependency workspaces (`@activities/cloudtasks`, `@activities/pg`, `@activities/qstash`)
-- `tsconfig.json` — TypeScript configuration (editors, `yarn tsc`)
+- `tsconfig.json` — TypeScript configuration (editors, `yarn tsc`, and `yarn typecheck`)
 - `tsconfig.build.json` — what `next build` type-checks (excludes tests)
-- `tsconfig.typecheck.json` — what `yarn typecheck` checks (whole project, minus the ratchet)
 - `.oxlintrc.json` + `.oxlintrc.scripts.json` + `lint/agentsRules.mjs` — Oxlint rules
 - `.prettierrc.yml` — Code formatting rules
 - `vitest.config.ts` — Test configuration
