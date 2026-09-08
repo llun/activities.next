@@ -1,0 +1,33 @@
+AGENTS.md
+  s_c587d6e0f997cb::t_b456deb0ba6dd0 14,27,108,110,112,114,116,118,120,122-129,131,133,135-139,141,143,145-151,153,155-167,171,175,179,183,187,191,195,199,203,207,211,215,219,223,227,231,235,239,243,247,251,255,259,263,267,271,275,279,283,287,291,295,299,303,307,311,315
+CONTRIBUTING.md
+  s_c587d6e0f997cb::t_40dd7522c85dba 14-25,661-1180
+REVIEW.md
+  s_c587d6e0f997cb::t_6b86fe9ac061ee 9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,47,49,51,53,55,57,59,61,63,65,67,69,71,73-75
+docs/architecture.md
+  s_c587d6e0f997cb::t_a66a02d82f479e 488-1808
+docs/fitness-file-storage.md
+  s_c587d6e0f997cb::t_2afe0f327771f3 374-1338
+docs/maintenance.md
+  s_c587d6e0f997cb::t_994d424f58dd01 960-1429
+docs/mastodon-api-compatibility.md
+  s_c587d6e0f997cb::t_a239814fac0830 439-1098
+docs/setup.md
+  s_c587d6e0f997cb::t_2e3bf3712f6a5a 259-326
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "1f92cfb1dcf6f14b0b7305df5860dfe69ed982b8",
+  "prompts": {},
+  "sessions": {
+    "s_c587d6e0f997cb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a077c9-2bf2-7110-89c4-bfded1f36b16",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
