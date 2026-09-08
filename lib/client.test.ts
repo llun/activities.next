@@ -68,6 +68,7 @@ import {
   getTrendingLinks,
   getTrendingStatuses,
   getTrendingTags,
+  getVapidKey,
   likeStatus,
   refitFitnessGearComponent,
   regenerateFitnessMaps,
@@ -90,18 +91,22 @@ import {
   startFitnessImport,
   startStravaArchiveImport,
   submitOAuthConsent,
+  subscribePushNotifications,
   switchActor,
   triggerFitnessRouteHeatmap,
   undoBookmarkStatus,
   unfollow,
   unshareFitnessRouteHeatmap,
+  unsubscribePushNotifications,
   updateAccountName,
   updateCollection,
+  updateEmailNotifications,
   updateFitnessFileGear,
   updateFitnessGear,
   updateFitnessGearComponent,
   updateFitnessGeneralSettings,
   updateNote,
+  updatePushNotifications,
   updateStatusVisibility,
   uploadAttachment,
   uploadFileToPresignedUrl,
@@ -117,6 +122,7 @@ import * as fitnessImportsModule from './client/fitnessImports'
 import * as fitnessRoutesModule from './client/fitnessRoutes'
 import * as httpModule from './client/http'
 import * as mediaModule from './client/media'
+import * as notificationSettingsModule from './client/notificationSettings'
 import * as statusesModule from './client/statuses'
 import * as timelinesModule from './client/timelines'
 
@@ -224,6 +230,24 @@ describe('client facade fitness routes re-exports', () => {
     )
     expect(getFitnessSummary).toBe(fitnessRoutesModule.getFitnessSummary)
     expect(deleteFitnessFile).toBe(fitnessRoutesModule.deleteFitnessFile)
+  })
+})
+
+describe('client facade notification settings re-exports', () => {
+  it('re-exports extracted notification settings functions', () => {
+    expect(getVapidKey).toBe(notificationSettingsModule.getVapidKey)
+    expect(updateEmailNotifications).toBe(
+      notificationSettingsModule.updateEmailNotifications
+    )
+    expect(subscribePushNotifications).toBe(
+      notificationSettingsModule.subscribePushNotifications
+    )
+    expect(unsubscribePushNotifications).toBe(
+      notificationSettingsModule.unsubscribePushNotifications
+    )
+    expect(updatePushNotifications).toBe(
+      notificationSettingsModule.updatePushNotifications
+    )
   })
 })
 
@@ -2457,6 +2481,22 @@ describe('client facade exports', () => {
     )
     expect(setFitnessRouteHeatmapRegionName).toBe(
       fitnessHeatmapsModule.setFitnessRouteHeatmapRegionName
+    )
+  })
+
+  it('re-exports all notification settings functions from notificationSettings module', () => {
+    expect(getVapidKey).toBe(notificationSettingsModule.getVapidKey)
+    expect(updateEmailNotifications).toBe(
+      notificationSettingsModule.updateEmailNotifications
+    )
+    expect(subscribePushNotifications).toBe(
+      notificationSettingsModule.subscribePushNotifications
+    )
+    expect(unsubscribePushNotifications).toBe(
+      notificationSettingsModule.unsubscribePushNotifications
+    )
+    expect(updatePushNotifications).toBe(
+      notificationSettingsModule.updatePushNotifications
     )
   })
 })
