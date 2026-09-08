@@ -11,7 +11,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "oxlint && oxlint -c .oxlintrc.scripts.json scripts",
-    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "prettier": "prettier --write app migrations lib lint",
