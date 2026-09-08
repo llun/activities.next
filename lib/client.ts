@@ -3,8 +3,6 @@ import type { AdminAnnouncement } from '@/lib/services/announcements/adminAnnoun
 import type { AdminRule } from '@/lib/services/rules/adminRule'
 import type { AdminCustomEmoji } from '@/lib/types/domain/customEmoji'
 import type { FilterAction, FilterContext } from '@/lib/types/domain/filter'
-import { Status } from '@/lib/types/domain/status'
-import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import type { AdminAccount } from '@/lib/types/mastodon/admin/account'
 import type { AdminReport } from '@/lib/types/mastodon/admin/report'
 import type { Announcement } from '@/lib/types/mastodon/announcement'
@@ -12,10 +10,7 @@ import type { CollectionEntity } from '@/lib/types/mastodon/collection'
 import type { CustomEmoji } from '@/lib/types/mastodon/customEmoji'
 import type { Filter as MastodonFilter } from '@/lib/types/mastodon/filter'
 import type { ListEntity } from '@/lib/types/mastodon/list'
-import type { Tag } from '@/lib/types/mastodon/tag'
-import { normalizeActorId } from '@/lib/utils/activitypub'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
-import { idToUrl } from '@/lib/utils/urlToId'
 
 import {
   type ActorDomainsResult,
@@ -440,193 +435,13 @@ export * from './client/fitnessCalendar'
 
 export * from './client/conversations'
 
-export type SearchType = 'accounts' | 'statuses' | 'hashtags'
+// --- Search ---
 
-export interface SearchResult<TStatus = Status> {
-  accounts: MastodonAccount[]
-  statuses: TStatus[]
-  hashtags: Tag[]
-}
+export * from './client/search'
 
-export interface SearchParams {
-  q: string
-  type?: SearchType
-  limit?: number
-  offset?: number
-  resolve?: boolean
-  signal?: AbortSignal
-}
+// --- Direct messages ---
 
-const emptySearchResult = (): SearchResult => ({
-  accounts: [],
-  statuses: [],
-  hashtags: []
-})
-
-const MAX_SEARCH_ERROR_DETAIL_LENGTH = 200
-
-const truncateSearchErrorDetail = (detail: string) =>
-  detail.length > MAX_SEARCH_ERROR_DETAIL_LENGTH
-    ? `${detail.slice(0, MAX_SEARCH_ERROR_DETAIL_LENGTH)}...`
-    : detail
-
-const getSearchResponseErrorMessage = (response: Response, text: string) => {
-  let detail = text || response.statusText
-
-  try {
-    const data = JSON.parse(text) as Record<string, unknown>
-    detail =
-      typeof data.message === 'string'
-        ? data.message
-        : typeof data.error === 'string'
-          ? data.error
-          : typeof data.status === 'string'
-            ? data.status
-            : detail
-  } catch {
-    // Keep the raw response text for non-JSON failures.
-  }
-
-  detail = truncateSearchErrorDetail(detail)
-  return `Search request failed (${response.status})${detail ? `: ${detail}` : ''}`
-}
-
-export const search = async ({
-  q,
-  type,
-  limit,
-  offset,
-  resolve = true,
-  signal
-}: SearchParams): Promise<SearchResult> => {
-  const params = new URLSearchParams({
-    q,
-    resolve: resolve ? 'true' : 'false',
-    format: 'activities_next'
-  })
-  if (type) params.set('type', type)
-  if (limit !== undefined) params.set('limit', `${limit}`)
-  if (offset !== undefined) params.set('offset', `${offset}`)
-
-  const response = await fetch(`/api/v2/search?${params.toString()}`, {
-    method: 'GET',
-    headers: { Accept: 'application/json' },
-    signal
-  })
-  const text = await response.text()
-  if (!response.ok) {
-    throw new Error(getSearchResponseErrorMessage(response, text))
-  }
-  try {
-    return JSON.parse(text) as SearchResult
-  } catch {
-    return emptySearchResult()
-  }
-}
-
-export const searchAccounts = async ({
-  q,
-  limit = 5,
-  resolve = true,
-  signal
-}: {
-  q: string
-  limit?: number
-  resolve?: boolean
-  signal?: AbortSignal
-}): Promise<MastodonAccount[]> => {
-  const url = new URL(`${window.origin}/api/v1/accounts/search`)
-  url.searchParams.set('q', q)
-  url.searchParams.set('limit', `${limit}`)
-  url.searchParams.set('resolve', resolve ? 'true' : 'false')
-
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: { Accept: 'application/json' },
-    signal
-  })
-  if (!response.ok) return []
-  return (await response.json()) as MastodonAccount[]
-}
-
-const accountMention = (account: MastodonAccount) =>
-  `@${account.acct || account.username}`
-
-const getReplyParticipantIds = (replyStatus: Status) =>
-  new Set(
-    [replyStatus.actorId, ...replyStatus.to, ...replyStatus.cc]
-      .map((id) => normalizeActorId(id))
-      .filter((id): id is string => Boolean(id))
-  )
-
-const isReplyParticipant = (
-  account: MastodonAccount,
-  replyParticipantIds: Set<string>
-) => {
-  // The participant set holds ActivityPub actor URIs, so `uri` is the only
-  // encoding-independent key. `url` is a profile URL (`/@name`) on some
-  // accounts, and `id` is a publicId that cannot be decoded back to a URI at
-  // all, so both stay as fallbacks for entities built before the id flip.
-  for (const candidate of [account.uri, account.url, idToUrl(account.id)]) {
-    if (!candidate) continue
-    const accountActorId = normalizeActorId(candidate)
-    if (accountActorId && replyParticipantIds.has(accountActorId)) return true
-  }
-  return false
-}
-
-export interface CreateDirectMessageResult {
-  uri: string
-  [key: string]: unknown
-}
-
-export const createDirectMessage = async ({
-  message,
-  recipients,
-  replyStatus
-}: {
-  message: string
-  recipients: MastodonAccount[]
-  replyStatus?: Status
-}): Promise<CreateDirectMessageResult> => {
-  const normalizedMessage = message.trim()
-  if (!normalizedMessage) {
-    throw new Error('Message must not be empty')
-  }
-  if (recipients.length === 0 && !replyStatus) {
-    throw new Error('At least one recipient is required')
-  }
-
-  const replyParticipantIds = replyStatus
-    ? getReplyParticipantIds(replyStatus)
-    : null
-  const recipientsToMention = replyParticipantIds
-    ? recipients.filter(
-        (recipient) => !isReplyParticipant(recipient, replyParticipantIds)
-      )
-    : recipients
-  const mentionPrefix = recipientsToMention.map(accountMention).join(' ')
-  const status = [mentionPrefix, normalizedMessage].filter(Boolean).join(' ')
-  const response = await fetch('/api/v1/statuses', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json'
-    },
-    // `replyStatus.id` is the raw AP URI of the status being replied to; POST
-    // /api/v1/statuses resolves `in_reply_to_id` through resolveStatusIdParam,
-    // which passes a raw URI straight through, so send it unencoded.
-    body: JSON.stringify({
-      status,
-      visibility: 'direct',
-      ...(replyStatus ? { in_reply_to_id: replyStatus.id } : {})
-    })
-  })
-  if (!response.ok) {
-    throw new Error('Failed to send message')
-  }
-  return (await response.json()) as CreateDirectMessageResult
-}
+export * from './client/directMessages'
 
 // ============================================================================
 // Custom emoji
