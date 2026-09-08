@@ -29,6 +29,8 @@ const mastodonAccount = (actorId: string): Mastodon.Account => ({
   avatar_static: '',
   header: '',
   header_static: '',
+  avatar_description: '',
+  header_description: '',
   locked: false,
   source: {
     note: '',

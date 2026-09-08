@@ -557,7 +557,7 @@ describe('knexAdapter', () => {
         expireAt
       })
 
-      const result = await adapter.findOne({
+      const result: any = await adapter.findOne({
         model: 'sessions',
         where: [{ field: 'id', value: 's1', operator: 'eq' as const }]
       })
@@ -578,7 +578,7 @@ describe('knexAdapter', () => {
         expireAt
       })
 
-      const result = await adapter.findOne({
+      const result: any = await adapter.findOne({
         model: 'sessions',
         where: [
           { field: 'id', value: 's-invalid-date', operator: 'eq' as const }
@@ -606,7 +606,7 @@ describe('knexAdapter', () => {
     })
 
     it('filters with where clause', async () => {
-      const results = await adapter.findMany({
+      const results: any[] = await adapter.findMany({
         model: 'users',
         where: [
           { field: 'display_name', value: 'Bob', operator: 'eq' as const }
@@ -622,7 +622,7 @@ describe('knexAdapter', () => {
     })
 
     it('respects offset', async () => {
-      const results = await adapter.findMany({
+      const results: any[] = await adapter.findMany({
         model: 'users',
         limit: 2,
         offset: 1,
@@ -633,7 +633,7 @@ describe('knexAdapter', () => {
     })
 
     it('sorts by field', async () => {
-      const results = await adapter.findMany({
+      const results: any[] = await adapter.findMany({
         model: 'users',
         sortBy: { field: 'email', direction: 'desc' }
       })
@@ -792,7 +792,7 @@ describe('knexAdapter', () => {
             limit: 100,
             relation: 'one-to-many' as const
           }
-        }
+        } as any
       })
 
       expect(result.sessions.map((row: any) => row.id).sort()).toEqual([
@@ -811,7 +811,7 @@ describe('knexAdapter', () => {
             limit: 1,
             relation: 'one-to-many' as const
           }
-        }
+        } as any
       })
 
       // u1 owns two sessions but the limit applies per parent row, which is why
@@ -831,7 +831,7 @@ describe('knexAdapter', () => {
             limit: 100,
             relation: 'one-to-many' as const
           }
-        }
+        } as any
       })
 
       expect(result.sessions).toEqual([])
@@ -853,7 +853,7 @@ describe('knexAdapter', () => {
             limit: 1,
             relation: 'one-to-one' as const
           }
-        }
+        } as any
       })
 
       expect(result.id).toBe('s1')
@@ -881,7 +881,7 @@ describe('knexAdapter', () => {
     })
 
     it('updates the record and returns updated row', async () => {
-      const result = await adapter.update({
+      const result: any = await adapter.update({
         model: 'users',
         where: [{ field: 'id', value: 'u1', operator: 'eq' as const }],
         update: { display_name: 'Alice Updated' }
@@ -1549,7 +1549,7 @@ describe('knexAdapter', () => {
         email: 'd@test.com'
       })
 
-      const results = await adapter.findMany({
+      const results: any[] = await adapter.findMany({
         model: 'users',
         where: [
           {
