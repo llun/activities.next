@@ -1,0 +1,125 @@
+lib/services/notifications/sendNotificationAlerts.ts
+  s_bebdc055a433ce::t_551f2f89fd7f16 8,94,120
+lib/services/email/address.ts
+  s_bebdc055a433ce::t_bdc477770fbfa2 1-4
+lib/services/email/resend.ts
+  s_bebdc055a433ce::t_b164582b2414e1 4,6,12-17,22,27-37
+lib/jobs/deleteActorJob.test.ts
+  s_bebdc055a433ce::t_afd254bcf5ef29 98-129
+lib/services/email/ses.test.ts
+  s_bebdc055a433ce::t_20c940ad2842f2 1-4,16-32,40-84,92-102
+  s_bebdc055a433ce::t_304775aa011c41 10
+  s_bebdc055a433ce::t_773901e4c29d68 5-9,11-15
+  s_bebdc055a433ce::t_1f262dbd1ef880 90-91
+  s_bebdc055a433ce::t_7e0ce6e26d08d6 33-39,85-89
+lib/config/email.ts
+  s_bebdc055a433ce::t_a1499530ec5d1a 2-3,8-44,46-66,70-74,76-77,79-82,127-129,131-134,147-149,153,155,163,171
+  s_bebdc055a433ce::t_90a488beeebf84 180-181
+  s_bebdc055a433ce::t_ea30c7a1f3cf4c 45
+  s_bebdc055a433ce::t_81ed96f1c5db89 67-69
+  s_bebdc055a433ce::t_434bc06791efe3 75,78,130,152
+  s_bebdc055a433ce::t_6d6d8aa15cd7b5 1
+lib/config/index.test.ts
+  s_bebdc055a433ce::t_0d5c13ebf981b3 181-211,215-221,223-243
+  s_bebdc055a433ce::t_1f262dbd1ef880 212-214
+  s_bebdc055a433ce::t_7a0769e7258f07 222
+app/api/v1/accounts/email/route.ts
+  s_bebdc055a433ce::t_758e3d5cfa2bf8 14,51-62,87-110,127
+lib/services/email/ses.ts
+  s_bebdc055a433ce::t_9a2adac97dd707 4,6,12-16
+lib/services/email/index.ts
+  s_bebdc055a433ce::t_f7da95d2f023a5 2-3,5,10-28
+lib/config/email.test.ts
+  s_bebdc055a433ce::t_1f262dbd1ef880 191,205
+  s_bebdc055a433ce::t_3a2d93ffb0617f 8-10,184-188,190,192,194-204,206,208,246,250-252
+  s_bebdc055a433ce::t_313ce1b354159e 83
+lib/services/email/smtp.test.ts
+  s_bebdc055a433ce::t_f9749ed2eaa940 1
+  s_bebdc055a433ce::t_1f262dbd1ef880 75-76
+  s_bebdc055a433ce::t_7e0ce6e26d08d6 25-31,70-74
+  s_bebdc055a433ce::t_7d6b975d086ef0 2-24,32-69,77-85
+docs/architecture.md
+  s_bebdc055a433ce::t_78a4c318286db9 31
+REVIEW.md
+  s_bebdc055a433ce::t_3ce90958903df7 599
+lib/services/accounts/registerAccount.ts
+  s_bebdc055a433ce::t_48f9fcc136cc9a 14,152-156
+app/api/v1/accounts/email/route.test.ts
+  s_bebdc055a433ce::t_2ede2a086fcbe6 18-24,217,229,231,240-267
+  s_bebdc055a433ce::t_cf7f92cf22ad98 211-216,218-228,230,232-237
+  s_bebdc055a433ce::t_ef0e841d872a23 105-108,207-210,238-239,268
+  s_bebdc055a433ce::t_69ade3fb3d214c 25,28,87-94
+  s_bebdc055a433ce::t_69d16ccbffe5a2 269
+lib/services/email/index.test.ts
+  s_bebdc055a433ce::t_7e0ce6e26d08d6 64
+  s_bebdc055a433ce::t_313ce1b354159e 66-72
+  s_bebdc055a433ce::t_f9749ed2eaa940 2,29,50-63,65,74,77
+  s_bebdc055a433ce::t_9ce6b9438495ce 3,5,7-11,13-28,30-34,36-37,39-43,45-49,73,75-76,78-81,83
+app/api/v1/accounts/password/reset/request/route.ts
+  s_bebdc055a433ce::t_fb8529dc8a064a 18,120-124,142,153-156
+lib/services/email/resend.test.ts
+  s_bebdc055a433ce::t_458b7149995699 5-12
+  s_bebdc055a433ce::t_f9749ed2eaa940 43-46
+  s_bebdc055a433ce::t_1f262dbd1ef880 79-80
+  s_bebdc055a433ce::t_f1026d3b7977b8 74-77
+  s_bebdc055a433ce::t_2cc595d618bbce 1-4,13-26,34-42,47-70,81-103
+  s_bebdc055a433ce::t_7e0ce6e26d08d6 27-33,71-73,78
+app/api/v1/accounts/password/reset/request/route.test.ts
+  s_bebdc055a433ce::t_a6e0cb2531ae54 115-116,153-156,237
+docs/setup.md
+  s_bebdc055a433ce::t_a3eee153a28980 111-112
+  s_bebdc055a433ce::t_3d90d82fc41234 100-101,104-110
+  s_bebdc055a433ce::t_f9d20cfa584884 102-103
+docs/features.md
+  s_bebdc055a433ce::t_ffca603dbc8ece 108
+lib/config/index.ts
+  s_bebdc055a433ce::t_095f9d34578e65 14-18,61,156-157
+.env.example
+  s_bebdc055a433ce::t_f9d20cfa584884 110
+  s_bebdc055a433ce::t_19f87000d838e3 108-109,111-115,117
+next.config.test.ts
+  s_bebdc055a433ce::t_63581899c29ede 67-68,80-81,120-165
+  s_bebdc055a433ce::t_a1224d31066995 166
+docs/environment-variables.md
+  s_bebdc055a433ce::t_1f262dbd1ef880 212-215
+  s_bebdc055a433ce::t_f9d20cfa584884 199-200,203-206
+  s_bebdc055a433ce::t_ee353d710b2c84 196-198,201-202,207-210,220
+  s_bebdc055a433ce::t_677f70ec453a0f 211
+lib/jobs/deleteActorJob.ts
+  s_bebdc055a433ce::t_5f40d33973c9a5 37,69,123,146,188
+  s_bebdc055a433ce::t_6b3a8326324690 9
+app/api/v1/emails/confirmations/route.ts
+  s_bebdc055a433ce::t_0e1ffc58c5fae3 26,233-237
+app/api/v1/emails/confirmations/route.test.ts
+  s_bebdc055a433ce::t_d48d7b6df0d687 37-38
+  s_bebdc055a433ce::t_780010f25e578d 34-36,39-41,467-468,476-482
+lib/services/accounts/registerAccount.test.ts
+  s_bebdc055a433ce::t_207cf4fdb8d60a 16-23,474-481
+lib/services/notifications/sendNotificationAlerts.test.ts
+  s_bebdc055a433ce::t_4aeb71eb9e4142 10-20,269,271-318
+  s_bebdc055a433ce::t_7e57a9e7954712 270
+  s_bebdc055a433ce::t_a2427a09657c31 319
+AGENTS.md
+  s_bebdc055a433ce::t_c565ee95432d7d 367-368
+lib/services/email/smtp.ts
+  s_bebdc055a433ce::t_3977cebacf7593 5,7,9-11,13-17
+  s_bebdc055a433ce::t_10e897c144a95e 3
+yarn.lock
+  s_bebdc055a433ce::t_60f4ffb464f766 7864
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "2d1853faf5bbfce3223da80d7ac0ebd5488e3ebb",
+  "prompts": {},
+  "sessions": {
+    "s_bebdc055a433ce": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a082c3-2e01-7893-96e5-0ddc23a3ce00",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
