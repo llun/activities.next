@@ -48,7 +48,11 @@ const makeDatabase = () => {
 }
 
 describe('isRetriableFitnessFile', () => {
-  it.each([
+  it.each<{
+    description: string
+    file: Partial<FitnessFile>
+    expected: boolean
+  }>([
     {
       description: 'failed import',
       file: { importStatus: 'failed', processingStatus: 'pending' },

@@ -18,16 +18,6 @@
     // this list is empty, delete this file and point `yarn typecheck` at
 
     "lib/components/posts/status-translation.test.tsx",
-    "lib/services/accounts/profile.test.ts",
-    "lib/services/accounts/relationship.test.ts",
-    "lib/services/auth/knexAdapter.test.ts",
-    "lib/services/federation/statusDelivery.test.ts",
-    "lib/services/fitness-files/S3StorageFile.test.ts",
-    "lib/services/fitness-files/retryImports.test.ts",
-    "lib/services/guards/getRedirectUrl.test.ts",
-    "lib/services/guards/headerHost.test.ts",
-    "lib/services/mastodon/getMastodonConversation.test.ts",
-    "lib/services/mastodon/getMastodonStatus.test.ts",
     "lib/services/medias/S3StorageFile.test.ts",
     "lib/services/medias/quota.test.ts",
     "lib/services/medias/storageBackendSummary.test.ts",
