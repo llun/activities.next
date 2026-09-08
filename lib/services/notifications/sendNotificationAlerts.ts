@@ -5,6 +5,7 @@ import { RenderedEmail } from '@/lib/services/email/types'
 import { NotificationType } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { shouldSendEmailForNotification } from './emailNotificationSettings'
 import { sendPushNotification } from './pushNotification'
@@ -90,7 +91,7 @@ export const sendNotificationAlerts = (
     .catch((error) =>
       logger.error({
         message: 'Failed to send push notification',
-        err: error
+        err: toLoggableError(error)
       })
     )
 
@@ -116,7 +117,7 @@ export const sendNotificationAlerts = (
         .catch((error) =>
           logger.error({
             message: `Failed to send ${event.type} notification email`,
-            err: error
+            err: toLoggableError(error)
           })
         )
     }

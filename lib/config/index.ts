@@ -5,17 +5,17 @@ import { PHASE_PRODUCTION_BUILD } from 'next/dist/shared/lib/constants'
 import path from 'path'
 import { z } from 'zod'
 
-import { LambdaConfig } from '@/lib/services/email/lambda'
-import { ResendConfig } from '@/lib/services/email/resend'
-import { SESConfig } from '@/lib/services/email/ses'
-import { SMTPConfig } from '@/lib/services/email/smtp'
 import { logger } from '@/lib/utils/logger'
 import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 
 import { AltTextConfig, getAltTextConfig } from './altText'
 import { AuthConfig, getAuthConfig } from './auth'
 import { getDatabaseConfig } from './database'
-import { getEmailConfig } from './email'
+import {
+  EmailConfig,
+  UnsupportedEmailProviderError,
+  getEmailConfig
+} from './email'
 import { FitnessStorageConfig, getFitnessStorageConfig } from './fitnessStorage'
 import { getHostConfigFromEnvironment } from './host'
 import { MediaStorageConfig, getMediaStorageConfig } from './mediaStorage'
@@ -58,9 +58,7 @@ const Config = z.object({
   trustProxyIpHeaders: z.boolean().default(false),
   federationMode: FederationMode.default('open'),
   auth: AuthConfig.optional(),
-  email: z
-    .union([SMTPConfig, LambdaConfig, ResendConfig, SESConfig])
-    .optional(),
+  email: EmailConfig.optional(),
   mediaStorage: MediaStorageConfig.optional(),
   fitnessStorage: FitnessStorageConfig.optional(),
   openTelemetry: OpenTelemetryConfig.optional(),
@@ -155,6 +153,8 @@ const getConfigFromEnvironment = () => {
       ...getAltTextConfig()
     })
   } catch (error) {
+    if (error instanceof UnsupportedEmailProviderError) throw error
+
     if (process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD) {
       return null
     }

@@ -15,16 +15,17 @@ vi.mock('@/lib/services/email', () => ({
   sendMail: (...args: unknown[]) => mockSendMail(...args)
 }))
 
+const mockLoggerError = vi.fn()
+vi.mock('@/lib/utils/logger', () => ({
+  logger: {
+    error: (...args: unknown[]) => mockLoggerError(...args)
+  }
+}))
+
+const mockGetConfig = vi.fn()
 vi.mock('@/lib/config', () => ({
   getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
-  getConfig: vi.fn().mockReturnValue({
-    host: 'llun.test',
-    allowEmails: [],
-    allowActorDomains: [],
-    email: {
-      serviceFromAddress: 'noreply@llun.test'
-    }
-  })
+  getConfig: () => mockGetConfig()
 }))
 
 type MockDatabase = Pick<
@@ -83,6 +84,14 @@ describe('POST /api/v1/accounts/email', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetConfig.mockReturnValue({
+      host: 'llun.test',
+      allowEmails: [],
+      allowActorDomains: [],
+      email: {
+        serviceFromAddress: 'noreply@llun.test'
+      }
+    })
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
@@ -91,6 +100,10 @@ describe('POST /api/v1/accounts/email', () => {
     mockDb.getActorsForAccount.mockResolvedValue([actor])
     mockDb.getActorFromId.mockResolvedValue(actor)
     mockDb.requestEmailChange.mockResolvedValue(undefined)
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   it('returns 400 for invalid JSON body', async () => {
@@ -189,6 +202,69 @@ describe('POST /api/v1/accounts/email', () => {
     expect(message.content.text).toContain(
       'https://llun.test/account/verify-email?code='
     )
+  })
+
+  it.each(['development', 'production'])(
+    'returns a configuration error without storing a pending change when email is disabled in %s',
+    async (nodeEnv) => {
+      vi.stubEnv('NODE_ENV', nodeEnv)
+      mockGetConfig.mockReturnValue({
+        host: 'llun.test',
+        allowEmails: [],
+        allowActorDomains: [],
+        email: undefined
+      })
+
+      const request = new NextRequest(
+        'http://llun.test/api/v1/accounts/email',
+        {
+          method: 'POST',
+          body: JSON.stringify({ newEmail: 'new-email@llun.test' }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test'
+          }
+        }
+      )
+
+      const response = await POST(request, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(500)
+      await expect(response.json()).resolves.toEqual({
+        error: 'Email service not configured. Please contact administrator.'
+      })
+      expect(mockDb.requestEmailChange).not.toHaveBeenCalled()
+      expect(mockSendMail).not.toHaveBeenCalled()
+    }
+  )
+
+  it('returns an error and logs the delivery failure after storing a pending change', async () => {
+    const deliveryError = new Error('SMTP failure')
+    mockSendMail.mockRejectedValueOnce(deliveryError)
+
+    const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
+      method: 'POST',
+      body: JSON.stringify({ newEmail: 'new-email@llun.test' }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://llun.test'
+      }
+    })
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Failed to send verification email'
+    })
+    expect(mockDb.requestEmailChange).toHaveBeenCalledTimes(1)
+    expect(mockSendMail).toHaveBeenCalledTimes(1)
+    expect(mockLoggerError).toHaveBeenCalledWith({
+      message: 'Failed to send email change verification email',
+      accountId: account.id,
+      newEmail: 'new-email@llun.test',
+      err: deliveryError
+    })
   })
 
   it('rejects changing to a differently-cased address owned by another account', async () => {

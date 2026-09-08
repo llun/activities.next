@@ -64,6 +64,8 @@ describe('next config runtime isolation', () => {
     ACTIVITIES_ALLOW_MEDIA_DOMAINS: process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS,
     ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS:
       process.env.ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS,
+    ACTIVITIES_EMAIL: process.env.ACTIVITIES_EMAIL,
+    ACTIVITIES_EMAIL_TYPE: process.env.ACTIVITIES_EMAIL_TYPE,
     ACTIVITIES_HOST: process.env.ACTIVITIES_HOST,
     NODE_ENV: process.env.NODE_ENV
   }
@@ -75,6 +77,8 @@ describe('next config runtime isolation', () => {
     process.chdir(tempDirectory)
     process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS = 'not-json'
     process.env.ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS = 'not-json'
+    delete process.env.ACTIVITIES_EMAIL
+    delete process.env.ACTIVITIES_EMAIL_TYPE
     process.env.ACTIVITIES_HOST = 'build-host-should-not-be-used.example.com'
     process.env.NODE_ENV = 'production'
     fs.writeFileSync(
@@ -112,6 +116,53 @@ describe('next config runtime isolation', () => {
       }
     ])
   })
+
+  it.each([
+    {
+      description: 'email variables are absent',
+      email: undefined,
+      type: undefined
+    },
+    {
+      description: 'email JSON is malformed',
+      email: 'not-json',
+      type: undefined
+    },
+    {
+      description: 'the removed Lambda provider is selected through JSON',
+      email: JSON.stringify({ type: 'lambda' }),
+      type: undefined
+    },
+    {
+      description: 'the removed Lambda provider is selected through variables',
+      email: undefined,
+      type: 'lambda'
+    }
+  ])(
+    'does not consume runtime email config when $description',
+    async ({ email, type }) => {
+      if (email === undefined) {
+        delete process.env.ACTIVITIES_EMAIL
+      } else {
+        process.env.ACTIVITIES_EMAIL = email
+      }
+      if (type === undefined) {
+        delete process.env.ACTIVITIES_EMAIL_TYPE
+      } else {
+        process.env.ACTIVITIES_EMAIL_TYPE = type
+      }
+
+      const { default: loadedNextConfig } = await loadNextConfig()
+
+      expect(loadedNextConfig.env).toBeUndefined()
+      expect(loadedNextConfig.images?.remotePatterns).toEqual([
+        {
+          protocol: 'https',
+          hostname: '**'
+        }
+      ])
+    }
+  )
 
   it('includes required standalone packages in outputFileTracingIncludes', async () => {
     const { default: loadedNextConfig } = await loadNextConfig()

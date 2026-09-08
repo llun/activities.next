@@ -23,6 +23,7 @@ import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import { isEmailAllowed } from '@/lib/utils/normalizeEmail'
 import { HTTP_STATUS, apiResponse, defaultOptions } from '@/lib/utils/response'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
@@ -229,8 +230,11 @@ export const POST = traceApiRoute(
           recipient,
           verificationCode
         })
-      } catch {
-        logger.error({ to: recipient }, `Fail to send email`)
+      } catch (error) {
+        logger.error(
+          { to: recipient, err: toLoggableError(error) },
+          'Fail to send email'
+        )
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,

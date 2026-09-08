@@ -6,6 +6,7 @@ import { sendMail } from '@/lib/services/email'
 import { buildActorDeletedEmail } from '@/lib/services/email/templates/actorDeleted'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { logger } from '@/lib/utils/logger'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
 
 import { createJobHandle } from './createJobHandle'
@@ -33,7 +34,7 @@ export const deleteActorJob = createJobHandle(
           message: 'Invalid delete actor job data',
           messageId: message.id,
           data: message.data,
-          err: err instanceof Error ? err : new Error(String(err))
+          err: toLoggableError(err)
         })
         span.setStatus({
           code: SpanStatusCode.ERROR,
@@ -65,7 +66,7 @@ export const deleteActorJob = createJobHandle(
         logger.error({
           message: 'Failed to get actor for deletion',
           actorId,
-          err: err instanceof Error ? err : new Error(String(err))
+          err: toLoggableError(err)
         })
         span.setStatus({
           code: SpanStatusCode.ERROR,
@@ -119,7 +120,7 @@ export const deleteActorJob = createJobHandle(
         logger.error({
           message: 'Failed to mark actor as deleting',
           actorId,
-          err: err instanceof Error ? err : new Error(String(err))
+          err: toLoggableError(err)
         })
         span.setStatus({
           code: SpanStatusCode.ERROR,
@@ -142,7 +143,7 @@ export const deleteActorJob = createJobHandle(
         logger.error({
           message: 'Failed to delete actor data',
           actorId,
-          err: err instanceof Error ? err : new Error(String(err))
+          err: toLoggableError(err)
         })
         span.setStatus({
           code: SpanStatusCode.ERROR,
@@ -184,7 +185,7 @@ export const deleteActorJob = createJobHandle(
               message: 'Failed to send actor deletion email notification',
               actorId,
               email: accountEmail,
-              err: err instanceof Error ? err : new Error(String(err))
+              err: toLoggableError(err)
             })
             // Don't fail the job if email fails
           }

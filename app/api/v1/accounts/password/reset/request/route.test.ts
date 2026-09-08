@@ -112,7 +112,8 @@ describe('POST /api/v1/accounts/password/reset/request', () => {
   })
 
   it('returns uniform success and restores the reset code when email sending fails', async () => {
-    mockSendMail.mockRejectedValue(new Error('mail failed'))
+    const deliveryError = new Error('mail failed')
+    mockSendMail.mockRejectedValue(deliveryError)
     const previousExpiresAt = Date.now() + 60_000
     mockDb.getAccountFromEmail.mockResolvedValue({
       id: 'account-1',
@@ -149,6 +150,10 @@ describe('POST /api/v1/accounts/password/reset/request', () => {
       passwordResetCode: 'existing-reset-code',
       expiresAt: previousExpiresAt
     })
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      { email: 'test@llun.test', err: deliveryError },
+      'Failed to send password reset email'
+    )
   })
 
   it('returns an error when email sending fails and reset code restoration returns false', async () => {
@@ -229,7 +234,7 @@ describe('POST /api/v1/accounts/password/reset/request', () => {
       'https://client.llun.test'
     )
     expect(mockLoggerError).toHaveBeenCalledWith(
-      { error: expect.any(Error) },
+      { err: expect.any(Error) },
       'Failed to request password reset'
     )
     expect(mockDb.requestPasswordReset).not.toHaveBeenCalled()

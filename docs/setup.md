@@ -97,7 +97,19 @@ ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT=1073741824  # 1 GiB in bytes
 
 ### Email Configuration (Optional)
 
-Email is used for account verification and notifications. Supported providers:
+Email is optional. Leave the email variables unset when the instance should not
+send account verification or notification messages. When email is configured,
+notification delivery is best effort: errors are logged, with no durable
+retries or delivery-status tracking.
+
+The supported providers are SMTP, Resend, and AWS SES. If an explicit provider
+value is unknown, including the removed `lambda` value, configuration fails
+instead of silently disabling email. Before upgrading an instance that used
+Lambda, migrate its configuration to one of the retained providers and remove
+the Lambda-specific variables. No replacement provider is selected
+automatically. See the [Environment Variables Guide](environment-variables.md#email)
+for JSON precedence, malformed-JSON fallback behavior, and the requirement that
+individual email variables include `ACTIVITIES_EMAIL_TYPE`.
 
 #### SMTP
 

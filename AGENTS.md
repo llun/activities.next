@@ -364,8 +364,8 @@ section-navigation patterns; pick by section type.
 ## Transactional & Notification Emails
 
 Every email the server sends goes through one shared skeleton, so a design or
-copy change lands in one place instead of eleven. All eleven templates are on
-it; there is no legacy shape left to copy.
+copy change lands in one place. All active templates are on it; there is no
+legacy shape left to copy.
 
 - **One module per email** in `lib/services/email/templates/`, exporting a single
   `build<Name>Email(params): RenderedEmail` (`{ subject, text, html }`). **Never

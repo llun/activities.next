@@ -7,7 +7,17 @@ import { sendPushNotification } from './pushNotification'
 import { shouldSendPushForNotification } from './pushNotificationSettings'
 import { sendNotificationAlerts } from './sendNotificationAlerts'
 
-vi.mock('@/lib/config')
+const mockLoggerError = vi.fn()
+vi.mock('@/lib/utils/logger', () => ({
+  logger: {
+    error: (...args: unknown[]) => mockLoggerError(...args)
+  }
+}))
+
+vi.mock('@/lib/config', () => ({
+  getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
+  getConfig: vi.fn()
+}))
 const { getConfig } = await vi.importMock<{ getConfig: jest.Mock }>(
   '@/lib/config'
 )
@@ -254,6 +264,57 @@ describe('sendNotificationAlerts', () => {
     await flushPromises()
 
     expect(sendMail).not.toHaveBeenCalled()
+  })
+
+  it('logs a normalized email delivery failure without rejecting the caller', async () => {
+    mockShouldSendPush.mockResolvedValueOnce(false)
+    const deliveryError = new Error('SMTP failure')
+    sendMail.mockRejectedValueOnce(deliveryError)
+    const db = makeDb()
+
+    sendNotificationAlerts({
+      database: db,
+      actorId: 'actor1',
+      sourceActorId: 'source1',
+      events: [
+        {
+          type: NotificationType.enum.mention,
+          emailContent: {
+            recipientEmail: 'user@example.com',
+            subject: 'Mentioned',
+            text: 'text',
+            html: '<p>html</p>'
+          }
+        }
+      ]
+    })
+    await flushPromises()
+
+    expect(sendMail).toHaveBeenCalledTimes(1)
+    expect(mockLoggerError).toHaveBeenCalledWith({
+      message: `Failed to send ${NotificationType.enum.mention} notification email`,
+      err: deliveryError
+    })
+  })
+
+  it('logs a normalized push delivery failure without rejecting the caller', async () => {
+    const deliveryError = new Error('push failed')
+    mockSendPush.mockRejectedValueOnce(deliveryError)
+    const db = makeDb()
+
+    sendNotificationAlerts({
+      database: db,
+      actorId: 'actor1',
+      sourceActorId: 'source1',
+      events: [{ type: NotificationType.enum.like }]
+    })
+    await flushPromises()
+
+    expect(mockSendPush).toHaveBeenCalledTimes(1)
+    expect(mockLoggerError).toHaveBeenCalledWith({
+      message: 'Failed to send push notification',
+      err: deliveryError
+    })
   })
 
   it('sends push + email together for a single event', async () => {

@@ -80,9 +80,7 @@ const nextConfig: NextConfig = {
   allowedDevOrigins:
     process.env.NODE_ENV === 'development' ? ['activities.local'] : undefined,
   serverExternalPackages: [
-    '@aws-sdk/client-lambda',
     '@aws-sdk/client-s3',
-    '@aws-sdk/util-utf8-node',
     '@google-cloud/firestore',
     '@google-cloud/tasks',
     '@keyv/redis',

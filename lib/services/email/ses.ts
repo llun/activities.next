@@ -1,30 +1,19 @@
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses'
 import memoize from 'lodash/memoize'
-import { z } from 'zod'
 
-import { getConfig } from '@/lib/config'
+import type { Message, SESConfig } from '@/lib/config/email'
 
-import { getAddressFromEmail } from './smtp'
-import { BaseEmailSettings, Message } from './types'
-
-export const TYPE_SES = 'ses'
-
-export const SESConfig = BaseEmailSettings.extend({
-  type: z.literal(TYPE_SES),
-  region: z.string().optional()
-})
-export type SESConfig = z.infer<typeof SESConfig>
+import { getAddressFromEmail } from './address'
 
 const getSESClient = memoize(
   (region: string | undefined) => new SESClient(region ? { region } : {})
 )
 
-export async function sendSESMail(message: Message) {
-  const config = getConfig()
-  if (!config.email) return
-  if (config.email.type !== TYPE_SES) return
-
-  const client = getSESClient(config.email.region)
+export async function sendSESMail(
+  message: Message,
+  config: SESConfig
+): Promise<void> {
+  const client = getSESClient(config.region)
   const command = new SendEmailCommand({
     Source: getAddressFromEmail(message.from),
     Destination: {

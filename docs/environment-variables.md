@@ -193,12 +193,31 @@ Activity.next supports SQLite and PostgreSQL. The configuration loader also acce
 
 ## Email
 
-Email is used for account verification and notifications.
+Email is optional. Leave `ACTIVITIES_EMAIL` and all individual
+`ACTIVITIES_EMAIL_*` variables unset to disable email intentionally. In that
+mode, account registration keeps the no-email behavior and notification sends
+are skipped. Notification delivery is best effort: errors are logged, with no
+durable retries or delivery-status tracking.
+
+`ACTIVITIES_EMAIL` accepts the full provider configuration as JSON and takes
+precedence when it is syntactically valid. If the JSON is malformed,
+configuration falls back to the individual variables below; a syntactically
+valid value with an unsupported provider or schema is rejected rather than
+falling back. Unknown providers, including the removed `lambda` provider, fail
+configuration instead of silently disabling email. Before upgrading an
+instance that used Lambda, migrate its configuration to SMTP, Resend, or AWS
+SES and remove the Lambda-specific variables. The application does not choose
+a replacement provider automatically.
+
+When configuring email through individual variables rather than JSON,
+`ACTIVITIES_EMAIL_TYPE` is required. A partial configuration without a
+provider type is invalid and fails configuration; leave all email variables
+unset when email should be disabled.
 
 | Variable                | Description                                             |
 | ----------------------- | ------------------------------------------------------- |
 | `ACTIVITIES_EMAIL`      | Full email configuration as a JSON string.              |
-| `ACTIVITIES_EMAIL_TYPE` | Email provider: `smtp`, `resend`, `ses`, or `lambda`.   |
+| `ACTIVITIES_EMAIL_TYPE` | Email provider: `smtp`, `resend`, or `ses`.             |
 | `ACTIVITIES_EMAIL_FROM` | Sender email address (e.g., `noreply@your-domain.tld`). |
 
 ### SMTP
@@ -222,14 +241,6 @@ Email is used for account verification and notifications.
 | Variable                      | Description                             |
 | ----------------------------- | --------------------------------------- |
 | `ACTIVITIES_EMAIL_SES_REGION` | AWS region for SES (e.g., `us-east-1`). |
-
-### AWS Lambda
-
-| Variable                                     | Description                      |
-| -------------------------------------------- | -------------------------------- |
-| `ACTIVITIES_EMAIL_LAMBDA_REGION`             | AWS region for Lambda function.  |
-| `ACTIVITIES_EMAIL_LAMBDA_FUNCTION_NAME`      | Lambda function name.            |
-| `ACTIVITIES_EMAIL_LAMBDA_FUNCTION_QUALIFIER` | Lambda function qualifier/alias. |
 
 ## Translation
 

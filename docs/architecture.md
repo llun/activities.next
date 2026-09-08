@@ -28,7 +28,7 @@ Domain and service boundary: Core library (lib/)
 Infrastructure boundary
   ├─ Database layer: Knex with SQLite/PostgreSQL; MySQL-compatible config paths
   ├─ File storage: local filesystem, S3, or S3-compatible object storage
-  └─ External services: QStash, SMTP/Resend/SES/Lambda, OpenTelemetry
+  └─ External services: QStash, SMTP/Resend/SES, OpenTelemetry
 ```
 
 ## Request Flow

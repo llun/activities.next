@@ -105,7 +105,7 @@ This document tracks the implemented and planned features for Activity.next.
 ### Infrastructure
 
 - ✅ **Background jobs** — Async processing via Upstash QStash or Google Cloud Tasks (with synchronous fallback)
-- ✅ **Email sending** — SMTP, Resend, AWS SES, or AWS Lambda
+- ✅ **Email sending** — SMTP, Resend, or AWS SES (optional; notification delivery is best effort)
 - ✅ **Docker support** — Official minimal container image at `ghcr.io/llun/activities.next` (SQLite default; modular workspaces for PostgreSQL and external queues)
 - ✅ **Vercel deployment** — Deploy as a serverless Next.js application
 - ✅ **Federation controls** — Admin allow/block rules, import for domain blocks, and allowlist mode
