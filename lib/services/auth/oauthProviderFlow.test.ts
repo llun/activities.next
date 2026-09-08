@@ -74,6 +74,8 @@ const hashClientSecret = (secret: string) =>
 
 describe('OAuth provider token grants', () => {
   let database: Knex
+  let accountId: string
+  let actorId: string
   const jar: Record<string, string> = {}
 
   const absorb = (response: Response) => {
@@ -123,7 +125,7 @@ describe('OAuth provider token grants', () => {
     holder.knex = database
     holder.database = getSQLDatabase(database)
 
-    await holder.database.createAccount({
+    accountId = await holder.database.createAccount({
       domain: HOST,
       email: EMAIL,
       username: 'oauthflow',
@@ -131,6 +133,12 @@ describe('OAuth provider token grants', () => {
       publicKey: 'test-public-key',
       privateKey: 'test-private-key'
     })
+    const actor = await database('actors')
+      .where('accountId', accountId)
+      .select<{ id: string }>('id')
+      .first()
+    if (!actor) throw new Error('OAuth flow fixture actor was not created')
+    actorId = actor.id
 
     await database('oauthClient').insert({
       id: crypto.randomUUID(),
@@ -234,6 +242,73 @@ describe('OAuth provider token grants', () => {
 
     const stored = await database('oauthAccessToken').first()
     expect(stored).toBeDefined()
+    expect(stored?.userId).toBe(accountId)
+    expect(stored?.referenceId).toBe(actorId)
+
+    // A new browser session must be able to authorize the same client without
+    // losing the actor reference that was bound to the first consent. With an
+    // existing consent, better-auth redirects straight to the client with a
+    // code; it must not show the consent page again or mint an actor-less token.
+    for (const name of Object.keys(jar)) delete jar[name]
+    const secondSignIn = await call('/sign-in/email', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: EMAIL, password: PASSWORD })
+    })
+    expect(secondSignIn.status).toBe(200)
+
+    const secondCodeVerifier = crypto.randomBytes(32).toString('base64url')
+    const secondCodeChallenge = crypto
+      .createHash('sha256')
+      .update(secondCodeVerifier)
+      .digest('base64url')
+    const secondAuthorize = await call(
+      `/oauth2/authorize?${new URLSearchParams({
+        client_id: CLIENT_ID,
+        redirect_uri: REDIRECT_URI,
+        response_type: 'code',
+        scope: 'read write',
+        state: 'second-state-value',
+        code_challenge: secondCodeChallenge,
+        code_challenge_method: 'S256'
+      })}`,
+      { method: 'GET', redirect: 'manual' }
+    )
+    expect(secondAuthorize.status).toBe(302)
+    expect(secondAuthorize.location).toContain(`${REDIRECT_URI}?`)
+    expect(secondAuthorize.location).not.toContain('/oauth/authorize?')
+
+    const secondCode = secondAuthorize.location
+      ? new URL(secondAuthorize.location).searchParams.get('code')
+      : null
+    expect(secondCode).toBeTruthy()
+
+    const secondToken = await call('/oauth2/token', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        authorization: `Basic ${Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64')}`
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: secondCode as string,
+        redirect_uri: REDIRECT_URI,
+        code_verifier: secondCodeVerifier
+      }).toString()
+    })
+    expect(secondToken.status).toBe(200)
+
+    const tokens = await database('oauthAccessToken')
+      .where('clientId', CLIENT_ID)
+      .select<{ userId: string; referenceId: string }[]>([
+        'userId',
+        'referenceId'
+      ])
+    expect(tokens).toHaveLength(2)
+    expect(tokens).toEqual([
+      { userId: accountId, referenceId: actorId },
+      { userId: accountId, referenceId: actorId }
+    ])
   })
 
   // A Mastodon client asks for an app-level token before any user is involved:
