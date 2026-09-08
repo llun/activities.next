@@ -1,8 +1,6 @@
 import type { ResolvedServerSettings } from '@/lib/config/serverSettings'
 import type { AdminAnnouncement } from '@/lib/services/announcements/adminAnnouncement'
 import type { AdminRule } from '@/lib/services/rules/adminRule'
-import { TimelineFormat } from '@/lib/services/timelines/const'
-import type { DirectConversation } from '@/lib/types/database/operations'
 import type { AdminCustomEmoji } from '@/lib/types/domain/customEmoji'
 import type { FilterAction, FilterContext } from '@/lib/types/domain/filter'
 import { Status } from '@/lib/types/domain/status'
@@ -438,101 +436,9 @@ export * from './client/accountPreferences'
 export * from './client/fitnessHeatmaps'
 export * from './client/fitnessCalendar'
 
-export type DirectConversationView = DirectConversation & {
-  accounts: MastodonAccount[]
-}
+// --- Conversations ---
 
-export interface GetConversationsResult {
-  conversations: DirectConversationView[]
-}
-
-export const getConversations = async ({
-  limit,
-  maxId,
-  minId
-}: {
-  limit?: number
-  maxId?: string
-  minId?: string
-} = {}): Promise<GetConversationsResult> => {
-  const url = new URL(`${window.origin}/api/v1/conversations`)
-  url.searchParams.set('format', TimelineFormat.enum.activities_next)
-  if (limit !== undefined) url.searchParams.set('limit', `${limit}`)
-  if (maxId) url.searchParams.set('max_id', maxId)
-  if (minId) url.searchParams.set('min_id', minId)
-
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: { Accept: 'application/json' }
-  })
-  if (!response.ok) return { conversations: [] }
-
-  const data = (await response.json()) as Partial<GetConversationsResult>
-  return { conversations: data.conversations ?? [] }
-}
-
-export interface GetConversationStatusesResult {
-  statuses: Status[]
-  nextMaxStatusId: string | null
-}
-
-export const getConversationStatuses = async ({
-  conversationId,
-  maxStatusId,
-  minStatusId,
-  limit
-}: {
-  conversationId: string
-  maxStatusId?: string
-  minStatusId?: string
-  limit?: number
-}): Promise<GetConversationStatusesResult> => {
-  const url = new URL(
-    `${window.origin}/api/v1/conversations/${conversationId}/statuses`
-  )
-  url.searchParams.set('format', TimelineFormat.enum.activities_next)
-  if (maxStatusId) url.searchParams.set('max_id', maxStatusId)
-  if (minStatusId) url.searchParams.set('min_id', minStatusId)
-  if (limit) url.searchParams.set('limit', `${limit}`)
-
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: { Accept: 'application/json' }
-  })
-  if (!response.ok) {
-    return { statuses: [], nextMaxStatusId: null }
-  }
-
-  const data = (await response.json()) as Partial<GetConversationStatusesResult>
-  return {
-    statuses: data.statuses ?? [],
-    nextMaxStatusId: data.nextMaxStatusId ?? null
-  }
-}
-
-export const markConversationRead = async ({
-  conversationId
-}: {
-  conversationId: string
-}) => {
-  const response = await fetch(`/api/v1/conversations/${conversationId}/read`, {
-    method: 'POST',
-    headers: { Accept: 'application/json' }
-  })
-  return response.ok
-}
-
-export const hideConversation = async ({
-  conversationId
-}: {
-  conversationId: string
-}) => {
-  const response = await fetch(`/api/v1/conversations/${conversationId}`, {
-    method: 'DELETE',
-    headers: { Accept: 'application/json' }
-  })
-  return response.ok
-}
+export * from './client/conversations'
 
 export type SearchType = 'accounts' | 'statuses' | 'hashtags'
 
