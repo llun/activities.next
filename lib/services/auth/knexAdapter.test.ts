@@ -1036,9 +1036,11 @@ describe('knexAdapter', () => {
     })
   })
 
-  // better-auth 1.7 requires the adapter to implement these two atomic
-  // primitives itself — the factory throws rather than synthesising a fallback,
-  // because neither can be made race-safe from separate statements.
+  // better-auth 1.7.3 can synthesize guarded fallbacks for these two atomic
+  // primitives, but this adapter keeps native implementations so the database
+  // performs each guarded mutation directly. The fallback is safe only when
+  // deleteMany/updateMany apply the supplied guard atomically and report the
+  // exact affected-row count.
   describe('consumeOne', () => {
     beforeEach(async () => {
       await db('users').insert([
