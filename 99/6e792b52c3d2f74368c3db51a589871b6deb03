@@ -1,0 +1,33 @@
+scripts/maintenance/runQueueWorkerLifecycle.ts
+  s_c587d6e0f997cb::t_772a0171653f88 1-2,4-73,88-113
+  s_c587d6e0f997cb::t_bc90d60cac3837 3,74-87
+docs/architecture.md
+  s_c587d6e0f997cb::t_05772fa30a7ef8 243
+scripts/maintenance/runQueueWorker.ts
+  s_c587d6e0f997cb::t_78780fc7ebb120 49
+  s_c587d6e0f997cb::t_d48fbfa5f504d1 37
+  s_c587d6e0f997cb::t_4bb91b04001b08 8-9,32-36,38-39,41,44-48,50,52-65
+scripts/maintenance/runQueueWorkerLifecycle.test.ts
+  s_c587d6e0f997cb::t_33f7f82ed87320 42
+  s_c587d6e0f997cb::t_9d68f08e9d82b7 5-6,168-171,176-177
+  s_c587d6e0f997cb::t_1cd033e0e89582 1-4,7-41,43-107,109-167,172-175,178-194
+  s_c587d6e0f997cb::t_f1d569c0c71c48 108
+docs/maintenance.md
+  s_c587d6e0f997cb::t_23b01eb4960f8e 5-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "996e792b52c3d2f74368c3db51a589871b6deb03",
+  "prompts": {},
+  "sessions": {
+    "s_c587d6e0f997cb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a077c9-2bf2-7110-89c4-bfded1f36b16",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
