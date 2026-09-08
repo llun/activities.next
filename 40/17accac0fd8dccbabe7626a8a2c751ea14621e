@@ -1,0 +1,20 @@
+lib/client.test.ts
+  h_580a04e334fef4 71,94,100,103,109,125,236-253,2486-2501
+lib/client.ts
+  h_580a04e334fef4 436
+lib/client/notificationSettings.test.ts
+  h_580a04e334fef4 1-190
+lib/client/notificationSettings.ts
+  h_580a04e334fef4 1-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "4017accac0fd8dccbabe7626a8a2c751ea14621e",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
