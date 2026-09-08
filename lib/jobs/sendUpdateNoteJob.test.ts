@@ -17,7 +17,7 @@ enableFetchMocks()
 
 describe('Send update note job', () => {
   const database = getTestSQLDatabase()
-  let actor1: Actor | undefined
+  let actor1: Actor | null | undefined
 
   beforeAll(async () => {
     await database.migrate()

@@ -50,7 +50,7 @@ vi.mock('@/lib/utils/trace', async () => {
 
 describe('deleteObjectJob', () => {
   const database = getTestSQLDatabase()
-  let actor1: Actor | undefined
+  let actor1: Actor | null | undefined
 
   beforeAll(async () => {
     await database.migrate()
@@ -592,7 +592,7 @@ describe('deleteObjectJob', () => {
       })
 
       const forwardCalls = queueSpy.mock.calls.filter(
-        (call) => call[0]?.name === FORWARD_ACTIVITY_JOB_NAME
+        (call: any) => call[0]?.name === FORWARD_ACTIVITY_JOB_NAME
       )
       expect(forwardCalls).toHaveLength(1)
       const data = forwardCalls[0][0].data as {
