@@ -8,6 +8,7 @@ import { urlToId } from '@/lib/utils/urlToId'
 import {
   ApiRequestError,
   addCollectionAccounts,
+  adminDeleteAccount,
   approveCollectionMembership,
   bookmarkStatus,
   cancelActorDeletion,
@@ -40,6 +41,11 @@ import {
   getActorDomains,
   getActorMedia,
   getActorStatuses,
+  getAdminAccount,
+  getAdminAccounts,
+  getAdminReport,
+  getAdminReports,
+  getAdminServerSettings,
   getAppleMapsToken,
   getBookmarks,
   getCollectionFeed,
@@ -62,6 +68,7 @@ import {
   getHashtagTimeline,
   getListTimeline,
   getMutes,
+  getPasskeys,
   getPublicHeatmapTiles,
   getStravaSettings,
   getTimeline,
@@ -70,6 +77,8 @@ import {
   getTrendingTags,
   getVapidKey,
   likeStatus,
+  markNotificationsRead,
+  performAdminAccountAction,
   refitFitnessGearComponent,
   regenerateFitnessMaps,
   removeCollectionAccounts,
@@ -99,6 +108,8 @@ import {
   unshareFitnessRouteHeatmap,
   unsubscribePushNotifications,
   updateAccountName,
+  updateAdminReport,
+  updateAdminServerSettings,
   updateCollection,
   updateEmailNotifications,
   updateFitnessFileGear,
@@ -114,6 +125,9 @@ import {
   uploadMedia
 } from './client'
 import * as accountsModule from './client/accounts'
+import * as adminAccountsModule from './client/adminAccounts'
+import * as adminReportsModule from './client/adminReports'
+import * as adminServerSettingsModule from './client/adminServerSettings'
 import * as fitnessFilesModule from './client/fitnessFiles'
 import * as fitnessGearModule from './client/fitnessGear'
 import * as fitnessGeneralSettingsModule from './client/fitnessGeneralSettings'
@@ -123,6 +137,8 @@ import * as fitnessRoutesModule from './client/fitnessRoutes'
 import * as httpModule from './client/http'
 import * as mediaModule from './client/media'
 import * as notificationSettingsModule from './client/notificationSettings'
+import * as notificationsModule from './client/notifications'
+import * as passkeysModule from './client/passkeys'
 import * as statusesModule from './client/statuses'
 import * as timelinesModule from './client/timelines'
 
@@ -248,6 +264,50 @@ describe('client facade notification settings re-exports', () => {
     expect(updatePushNotifications).toBe(
       notificationSettingsModule.updatePushNotifications
     )
+  })
+})
+
+describe('client facade admin server settings re-exports', () => {
+  it('re-exports extracted admin server settings functions', () => {
+    expect(getAdminServerSettings).toBe(
+      adminServerSettingsModule.getAdminServerSettings
+    )
+    expect(updateAdminServerSettings).toBe(
+      adminServerSettingsModule.updateAdminServerSettings
+    )
+  })
+})
+
+describe('client facade passkeys re-exports', () => {
+  it('re-exports extracted passkeys functions', () => {
+    expect(getPasskeys).toBe(passkeysModule.getPasskeys)
+  })
+})
+
+describe('client facade notifications re-exports', () => {
+  it('re-exports extracted notifications functions', () => {
+    expect(markNotificationsRead).toBe(
+      notificationsModule.markNotificationsRead
+    )
+  })
+})
+
+describe('client facade admin accounts re-exports', () => {
+  it('re-exports extracted admin accounts functions', () => {
+    expect(getAdminAccounts).toBe(adminAccountsModule.getAdminAccounts)
+    expect(getAdminAccount).toBe(adminAccountsModule.getAdminAccount)
+    expect(performAdminAccountAction).toBe(
+      adminAccountsModule.performAdminAccountAction
+    )
+    expect(adminDeleteAccount).toBe(adminAccountsModule.adminDeleteAccount)
+  })
+})
+
+describe('client facade admin reports re-exports', () => {
+  it('re-exports extracted admin reports functions', () => {
+    expect(getAdminReports).toBe(adminReportsModule.getAdminReports)
+    expect(getAdminReport).toBe(adminReportsModule.getAdminReport)
+    expect(updateAdminReport).toBe(adminReportsModule.updateAdminReport)
   })
 })
 
