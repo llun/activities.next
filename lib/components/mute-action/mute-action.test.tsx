@@ -42,6 +42,7 @@ const relationship = (
   blocked_by: false,
   muting: false,
   muting_notifications: false,
+  muting_expires_at: null,
   requested: false,
   requested_by: false,
   domain_blocking: false,
@@ -52,8 +53,8 @@ const relationship = (
 })
 
 describe('MuteAction', () => {
-  const muteMock = mute as jest.Mock
-  const unmuteMock = unmute as jest.Mock
+  const muteMock = vi.mocked(mute)
+  const unmuteMock = vi.mocked(unmute)
 
   beforeEach(() => {
     muteMock.mockReset()
