@@ -747,28 +747,29 @@ system's `Attachments` component.
   pixels so a thumbnail is never upscaled — and never by capping the height of
   an `aspect-ratio` box, which leaves the ratio to be re-derived from a clamped
   axis and is resolved inconsistently across browsers.
-- **Two or more pictures are a fixed-height (`STRIP_ROW_HEIGHT`) scrolling row**,
-  each item as wide as its own ratio makes it. Four details are load-bearing
-  and must not be "cleaned up":
+- **Two or more pictures are a horizontally scrolling gallery** with 240px image
+  boxes, 12px gaps, rounded corners, and cards sized from their aspect ratio.
+  Cards have a 160px minimum and a 78% container maximum so neighboring cards
+  peek into view. Captions render below their images, preserve line breaks and
+  custom emoji, clamp to three lines, and expose independent Show more /
+  Show less controls when their measured content exceeds that height. Four
+  details are load-bearing and must not be "cleaned up":
   - `flex-none` on each item is what makes the strip overflow at all. Without it
     the default `flex-shrink` squeezes every item to fit, so
-    `scrollWidth === clientWidth` forever: no chevrons, no fade, no peek, no
+    `scrollWidth === clientWidth` forever: no arrows, no peek, no
     scrolling, and every photo cropped. The whole feature turns off silently,
     which is why a test pins the class — jsdom lays nothing out, so nothing else
     at that level can carry the rule.
   - `STRIP_ITEM_MAX_WIDTH` (78%) means no item can fill the strip, so the next
     one always peeks past the edge. That peek is what says "this scrolls" on a
-    touch screen, where the back chevron never appears at all and the forward
-    one is easy to miss.
+    touch screen.
   - `scroll-snap-type: x proximity`, never `mandatory`: mandatory snapping pulls
     the peeking item flush with the edge as soon as the scroll settles and
     destroys the affordance the 78% cap creates.
-  - The forward chevron is always visible while there is more to the right; the
-    back chevron only appears on hover. Going back is worth chrome only once you
-    have gone forward — and `pointer-events-none` while it is `opacity-0` is
-    part of that, because `opacity-0` alone still hit-tests and `group-hover`
-    never latches on a touch screen, leaving a dead column over the leftmost
-    photo.
+  - Paired circular arrow controls remain mounted while the strip overflows,
+    sit below the captions, and expose guarded `aria-disabled` states at each
+    boundary. Each press targets roughly 90% of the container and then snaps to
+    the nearest card boundary, with reduced motion honored.
 - **There is no 4-item cap and no `+N` overlay.** Everything attached is in the
   strip, because scrolling reaches it. Re-adding a cap hides media the post
   actually carries. Strip images therefore pass `loading="lazy"` to `Media` —
@@ -781,18 +782,8 @@ system's `Attachments` component.
   decode, and the strip hides its controls, so deferring one leaves a bare empty
   box. Federated video always lands there: `thumbnailUrl` is written on the
   local-upload path alone.
-- **The edge fade is a `mask-image`, not a background gradient.** Posts render on
-  four different surfaces — `bg-card` when framed, `bg-background` on the status
-  detail, `bg-muted/30` for an ancestor row, and the page itself when unframed —
-  so a fade painted in any one token is visibly wrong on the other three, and a
-  literal white one is wrong in dark mode everywhere. A mask fades the strip's
-  own pixels and lets whatever is behind show through. It lives in
-  `buildEdgeFadeMask` rather than inline so the string itself is unit-testable:
-  jsdom's CSS parser rejects the two variants carrying `calc()` and stores
-  nothing for them, so a RENDERED node can only be asserted against the
-  left-edge-only form. Known cosmetic cost: the mask also fades the leading edge
-  of a focused item's outline, which is exactly where the browser scrolls a
-  Tab-focused item to.
+- **There are no edge fades or overlaid arrows.** The paired arrows sit below
+  captions so they never obscure a card or interfere with touch.
 - **A strip item's focus indicator is an `outline` with a NEGATIVE offset, not
   a ring.** Its border box is exactly the strip's height and `overflow-x-auto`
   forces `overflow-y` to compute to `auto`, so an OUTSET ring's top and bottom
@@ -806,15 +797,9 @@ system's `Attachments` component.
   `MessageBubble`'s media cells carry `focus-visible:ring-inset` over the same
   full-bleed image shape, so their indicator is invisible too — a pre-existing
   bug, not a precedent to copy.)
-- **Keeping the chevrons out of the tab order takes BOTH `tabIndex={-1}` and a
-  mousedown guard.** They duplicate no function — every picture is a focusable
-  button and focusing one scrolls it into view — and each is unmounted by the
-  very scroll it performs, so a chevron holding focus drops it to `<body>` on
-  its last press and sends the next Tab back to the top of the page (WCAG
-  2.4.3). `tabindex="-1"` removes an element from the SEQUENTIAL order only; it
-  stays click-focusable, and Chrome and Firefox focus a `<button>` on click, so
-  `preventFocusOnPress` cancels the default on mousedown to close the mouse
-  path. Deleting either half reopens the failure.
+- **Arrow controls remain focusable at boundaries.** Their `aria-disabled` state
+  guards activation while preserving focus, which lets keyboard users discover
+  and retain their position at either end.
 - **Every picture button carries an explicit `aria-label`.** `Media` names an
   image from its `alt`, but `attachment.name` is a required string that
   federation writes as `attachment.name || ''`, so an undescribed photo left the
