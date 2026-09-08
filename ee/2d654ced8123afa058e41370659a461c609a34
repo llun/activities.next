@@ -1,0 +1,34 @@
+lib/database/sql/actor.test.ts
+  h_580a04e334fef4 128,1640,1644-1645,1706-1707,1719-1720,1730-1731,1741-1742
+lib/database/sql/actorLastStatusAt.test.ts
+  h_580a04e334fef4 69
+lib/database/sql/conversation.test.ts
+  h_580a04e334fef4 121,239-240,242-243,245-248,275-276,363
+lib/database/sql/fitnessFile.test.ts
+  h_580a04e334fef4 8,286
+lib/database/sql/fitnessRouteHeatmapMigration.test.ts
+  h_580a04e334fef4 212,237
+lib/database/sql/follow.test.ts
+  h_580a04e334fef4 393,457,520,560
+lib/database/sql/moderation.test.ts
+  h_580a04e334fef4 356
+lib/database/sql/publicIdMigration.test.ts
+  h_580a04e334fef4 1
+lib/database/sql/search.test.ts
+  h_580a04e334fef4 779,796,822
+lib/database/sql/status.test.ts
+  h_580a04e334fef4 261,2043,2090,3613,3686,3878,4015,4047,5523
+lib/database/sql/timeline.test.ts
+  h_580a04e334fef4 10,116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "ee2d654ced8123afa058e41370659a461c609a34",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
