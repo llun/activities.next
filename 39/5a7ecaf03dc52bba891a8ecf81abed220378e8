@@ -1,0 +1,42 @@
+lib/jobs/createNoteJob.test.ts
+  h_580a04e334fef4 23,25,35,432-434,461-463,490-492,520,550-552,1558,1600,1636
+lib/jobs/createPollJob.test.ts
+  h_580a04e334fef4 10,103,155-157,178-180,279,281,359-361,387-389
+lib/jobs/createPollVoteJob.test.ts
+  h_580a04e334fef4 20,42,55
+lib/jobs/deleteObjectJob.test.ts
+  h_580a04e334fef4 53,595
+lib/jobs/fetchRemoteStatusJob.test.ts
+  h_580a04e334fef4 9,78-80,151-153,212-214,290-295,371-373
+lib/jobs/importStravaActivityJob.merge.test.ts
+  h_580a04e334fef4 23,258,261
+lib/jobs/importStravaArchiveJob.test.ts
+  h_580a04e334fef4 234-235,238
+lib/jobs/processFitnessFileJob.test.ts
+  h_580a04e334fef4 173-175,235-236,309,399-400,1181,1186
+lib/jobs/publishScheduledStatusJob.test.ts
+  h_580a04e334fef4 10,18-22,95,127,186,217,249,282,307,330,383,478,500
+lib/jobs/regenerateFitnessMapsJob.test.ts
+  h_580a04e334fef4 15,120-121,287,290,426,429,502-505,584,587,626-629,698,701,731-732,750-751,763,766
+lib/jobs/sendAnnounceJob.test.ts
+  h_580a04e334fef4 15
+lib/jobs/sendNoteJob.test.ts
+  h_580a04e334fef4 71,477,485,531,575,583,656,664,672
+lib/jobs/sendUpdateNoteJob.test.ts
+  h_580a04e334fef4 20
+lib/jobs/updateNoteJob.test.ts
+  h_580a04e334fef4 23,61-63,245-247,387,909
+lib/jobs/updatePollJob.test.ts
+  h_580a04e334fef4 9,79,193-195
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "395a7ecaf03dc52bba891a8ecf81abed220378e8",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
