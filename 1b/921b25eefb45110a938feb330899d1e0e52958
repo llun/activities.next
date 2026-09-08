@@ -1,0 +1,22 @@
+lib/client.ts
+  h_580a04e334fef4 438,440,442,444
+lib/client/directMessages.test.ts
+  h_580a04e334fef4 1-187
+lib/client/directMessages.ts
+  h_580a04e334fef4 1-85
+lib/client/search.test.ts
+  h_580a04e334fef4 1-167
+lib/client/search.ts
+  h_580a04e334fef4 1-114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "1b921b25eefb45110a938feb330899d1e0e52958",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
