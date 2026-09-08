@@ -280,7 +280,8 @@ change doesn't touch.
 ## Client components & data flow
 
 - React components never call `fetch()` directly — every client→server call is a
-  named, typed, exported function in `lib/client.ts`, imported from there.
+  named, typed, exported function in `lib/client/<domain>.ts` re-exported from `lib/client.ts`,
+  imported from there.
   (Lint-enforced; the frozen legacy exception list in `.oxlintrc.json` must
   only ever shrink.)
 - Server Components never pass `new Date()` to a Client Component. Pass
