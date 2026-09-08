@@ -5,7 +5,7 @@ import { TimelineFormat } from '@/lib/services/timelines/const'
 import type { DirectConversation } from '@/lib/types/database/operations'
 import type { AdminCustomEmoji } from '@/lib/types/domain/customEmoji'
 import type { FilterAction, FilterContext } from '@/lib/types/domain/filter'
-import { QuoteApprovalPolicy, Status } from '@/lib/types/domain/status'
+import { Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import type { AdminAccount } from '@/lib/types/mastodon/admin/account'
 import type { AdminReport } from '@/lib/types/mastodon/admin/report'
@@ -17,13 +17,7 @@ import type { ListEntity } from '@/lib/types/mastodon/list'
 import type { Tag } from '@/lib/types/mastodon/tag'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
-// `toIdPathSegment` is the ONLY id transformation this module performs, and it
-// only ever fires for a raw AP URI headed into a URL path segment. Every
-// id-accepting route resolves a publicId, a legacy colon/`apurl_` id, or a raw
-// URI, so re-encoding a client id here can only corrupt it — `urlToId` reads a
-// UUIDv7 publicId as a bare host and hands back `<uuid>:`, which nothing can
-// resolve. Ids in query params and JSON bodies go out verbatim.
-import { idToUrl, toIdPathSegment } from '@/lib/utils/urlToId'
+import { idToUrl } from '@/lib/utils/urlToId'
 
 import {
   type ActorDomainsResult,
@@ -437,117 +431,12 @@ export * from './client/notificationSettings'
 
 // --- Preferences ---
 
-export interface PreferencesInput {
-  // Posting defaults — saved through the standard Mastodon credential endpoint.
-  visibility: 'public' | 'unlisted' | 'private' | 'direct'
-  // Default quote-approval policy for new public/unlisted posts (Mastodon 4.5).
-  quotePolicy: QuoteApprovalPolicy
-  sensitive: boolean
-  language: string
-  // Reading preferences — saved through the web-internal endpoint.
-  expandMedia: 'default' | 'show_all' | 'hide_all'
-  expandSpoilers: boolean
-  autoplayGifs: boolean
-}
+export * from './client/accountPreferences'
 
-// Persists posting defaults and reading preferences. Posting defaults go to
-// PATCH /api/v1/accounts/update_credentials (the documented Mastodon write path
-// third-party clients also use); reading preferences go to the web-internal
-// endpoint since GET /api/v1/preferences is read-only by design.
-//
-// The two writes run sequentially and the reading POST is skipped if the
-// posting PATCH fails. This narrows — but does not eliminate — the partial-
-// update window: if the PATCH succeeds and the POST then fails, the posting
-// defaults are already persisted while the reading prefs are not. Both writes
-// are idempotent, so retrying after any failure re-applies the identical
-// payloads and converges to a consistent state.
-export const updatePreferences = async (
-  preferences: PreferencesInput
-): Promise<boolean> => {
-  const postingResponse = await fetch('/api/v1/accounts/update_credentials', {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      source: {
-        privacy: preferences.visibility,
-        quote_policy: preferences.quotePolicy,
-        sensitive: preferences.sensitive,
-        language: preferences.language
-      }
-    })
-  })
-  if (!postingResponse.ok) return false
-
-  const readingResponse = await fetch('/api/v1/accounts/reading-preferences', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      readingExpandMedia: preferences.expandMedia,
-      readingExpandSpoilers: preferences.expandSpoilers,
-      readingAutoplayGifs: preferences.autoplayGifs
-    })
-  })
-  return readingResponse.ok
-}
-
-// --- Navigation customization ---
-
-export interface NavigationPreferencesInput {
-  // The user's sidebar order and the items tucked under "More". Both are full
-  // snapshots: the caller sends the entire list on every save so concurrent
-  // edits resolve to last-write-wins rather than interleaving deltas. Empty
-  // arrays reset to the shipped defaults.
-  navOrder: string[]
-  navHidden: string[]
-}
-
-export const updateNavigationPreferences = async (
-  preferences: NavigationPreferencesInput
-): Promise<boolean> => {
-  const response = await fetch('/api/v1/accounts/navigation-preferences', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(preferences)
-  })
-  return response.ok
-}
+// --- Fitness calendar and heatmaps ---
 
 export * from './client/fitnessHeatmaps'
-
-export interface FitnessCalendarDay {
-  date: string
-  count: number
-  totalDistanceMeters: number
-  totalDurationSeconds: number
-}
-
-export const getFitnessCalendarData = async ({
-  actorId,
-  startDate,
-  endDate,
-  activityType
-}: {
-  actorId: string
-  startDate: number
-  endDate: number
-  activityType?: string
-}): Promise<FitnessCalendarDay[]> => {
-  const encodedId = toIdPathSegment(actorId)
-  const url = new URL(
-    `${window.origin}/api/v1/accounts/${encodedId}/fitness-calendar`
-  )
-  url.searchParams.append('start_date', `${startDate}`)
-  url.searchParams.append('end_date', `${endDate}`)
-  if (activityType) {
-    url.searchParams.append('activity_type', activityType)
-  }
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: { Accept: 'application/json' }
-  })
-  if (!response.ok) return []
-  return response.json()
-}
+export * from './client/fitnessCalendar'
 
 export type DirectConversationView = DirectConversation & {
   accounts: MastodonAccount[]
