@@ -1,0 +1,24 @@
+lib/components/posts/status-translation.test.tsx
+  h_580a04e334fef4 48
+next.config.test.ts
+  h_580a04e334fef4 50-57,87,1094,1104,1110,1132
+scripts/backup/productionArchive.test.ts
+  h_580a04e334fef4 683,758,816,874,1108-1109,1209-1210,1245-1246,1294-1295
+scripts/fitness/gearImportPlan.test.ts
+  h_580a04e334fef4 3,12,585,591
+scripts/fitness/gearImportPlan.ts
+  h_580a04e334fef4 147-152
+tsconfig.typecheck.json
+  h_580a04e334fef4 26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "daadf2b0c229e60380f6fa32de45664f180054c9",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
