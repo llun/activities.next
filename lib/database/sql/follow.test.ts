@@ -390,7 +390,7 @@ describe('FollowDatabase', () => {
 
         const created: Follow[] = []
         vi.useFakeTimers({
-          doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
+          toNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
         })
         try {
           created.push(await createRequestAt(oldest, '2024-03-01T00:00:00Z'))
@@ -454,7 +454,7 @@ describe('FollowDatabase', () => {
         const sharedTime = new Date('2024-04-01T00:00:00Z')
 
         vi.useFakeTimers({
-          doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
+          toNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
         })
         try {
           vi.setSystemTime(sharedTime)
@@ -517,7 +517,7 @@ describe('FollowDatabase', () => {
 
         let cursor: Follow
         vi.useFakeTimers({
-          doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
+          toNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
         })
         try {
           await createRequestAt(a, '2024-05-01T00:00:00Z')
@@ -557,7 +557,7 @@ describe('FollowDatabase', () => {
 
         let boundaryRow: Follow
         vi.useFakeTimers({
-          doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
+          toNotFake: ['nextTick', 'setImmediate', 'queueMicrotask']
         })
         try {
           vi.setSystemTime(new Date('2024-06-01T00:00:00Z'))

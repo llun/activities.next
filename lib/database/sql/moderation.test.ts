@@ -353,7 +353,7 @@ describe('ModerationDatabase', () => {
         expect(ids).toContain(localActorId)
         expect(ids).toContain(suspendedActorId)
         expect(ids).toContain(remoteActorId)
-        expect(ids).not.toContain(signer.id)
+        expect(ids).not.toContain(signer?.id)
       })
     })
 

@@ -36,7 +36,6 @@ describe('FitnessSettings database operations', () => {
         username,
         domain: 'test.example.com',
         inboxUrl: `https://test.example.com/users/${username}/inbox`,
-        outboxUrl: `https://test.example.com/users/${username}/outbox`,
         followersUrl: `https://test.example.com/users/${username}/followers`,
         sharedInboxUrl: `https://test.example.com/shared/inbox`,
         publicKey: `test-public-key-${username}`,
