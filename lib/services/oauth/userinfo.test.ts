@@ -9,16 +9,20 @@ const makeActor = (overrides: Partial<Actor> = {}): Actor => ({
   domain: 'example.com',
   name: 'Test User',
   iconUrl: 'https://example.com/avatar.png',
-  headerImageUrl: null,
+  headerImageUrl: undefined,
   summary: 'A test user',
   followersUrl: 'https://example.com/users/testuser/followers',
   inboxUrl: 'https://example.com/users/testuser/inbox',
   sharedInboxUrl: 'https://example.com/inbox',
+  followingCount: 0,
+  followersCount: 0,
+  statusCount: 0,
+  lastStatusAt: null,
   publicKey: 'public-key',
   privateKey: 'private-key',
   createdAt: Date.now(),
   updatedAt: Date.now(),
-  account: null,
+  account: undefined,
   ...overrides
 })
 
@@ -29,6 +33,7 @@ const makeAccount = (overrides: Partial<Account> = {}): Account => {
     // actor's URL id so the `sub = account.id` assertions are meaningful.
     id: 'lfpCbM75O9OcBmxgq9JI',
     email: 'test@example.com',
+    twoFactorEnabled: false,
     // The claim is built from `emailVerified`; `emailVerifiedAt` is kept on the
     // fixture because other assertions read the account shape, not because it
     // decides this.
@@ -150,7 +155,7 @@ describe('getUserInfo', () => {
 
   it('returns empty-string name and picture when the actor has none', () => {
     const userInfo = getUserInfo({
-      actor: makeActor({ name: null, iconUrl: null }),
+      actor: makeActor({ name: undefined, iconUrl: undefined }),
       account: makeAccount(),
       issuer: ISSUER,
       scopes: ['openid', 'profile']

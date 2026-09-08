@@ -503,8 +503,12 @@ describe('getFilteredTimelinePage', () => {
     const s3 = createStatus('bridge-3')
     // getTimeline returns min_id windows newest-first (DB reverses internally).
     const getTimeline = vi.fn(
-      async ({ minStatusId }: { minStatusId?: string | null }) =>
-        minStatusId === 'floor' ? [s3, s2, s1] : []
+      async ({
+        minStatusId
+      }: {
+        minStatusId?: string | null
+        sinceStatusId?: string | null
+      }) => (minStatusId === 'floor' ? [s3, s2, s1] : [])
     )
     const database = {
       getTimeline,
