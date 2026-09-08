@@ -5481,7 +5481,21 @@ describe('StatusDatabase', () => {
             createdAt: Date.now()
           })
 
-          const statusRows = [
+          type StatusBatchRow = {
+            id: string
+            url: string
+            urlHash: string
+            actorId: string
+            type: StatusType
+            content: string
+            reply: string
+            replyHash: string | null
+            originalStatusId: string | null
+            createdAt: Date
+            updatedAt: Date
+          }
+
+          const statusRows: StatusBatchRow[] = [
             {
               id: rootStatusId,
               url: rootStatusId,
@@ -5520,7 +5534,7 @@ describe('StatusDatabase', () => {
               }
             })
           ]
-          await knexDatabase.batchInsert('statuses', statusRows as any, 80)
+          await knexDatabase.batchInsert('statuses', statusRows, 80)
 
           knexDatabase.on('query', handleQuery)
           await sqlDatabase.deleteStatus({ statusId: rootStatusId, actorId })
