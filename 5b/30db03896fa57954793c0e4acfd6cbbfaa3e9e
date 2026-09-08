@@ -1,0 +1,18 @@
+lib/activities/getFeaturedCollection.test.ts
+  h_580a04e334fef4 12
+lib/activities/index.test.ts
+  h_580a04e334fef4 50
+lib/activities/note.test.ts
+  h_580a04e334fef4 59-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "5b30db03896fa57954793c0e4acfd6cbbfaa3e9e",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
