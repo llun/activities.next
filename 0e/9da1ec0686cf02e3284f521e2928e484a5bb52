@@ -1,0 +1,24 @@
+lib/client.test.ts
+  h_580a04e334fef4 73,128,145,317-340
+lib/client.ts
+  h_580a04e334fef4 1-4,6,8-9,11-13,16,19,21-30,32-36,38-46,48-49
+lib/client/accountSettings.test.ts
+  h_580a04e334fef4 1-488
+lib/client/accountSettings.ts
+  h_580a04e334fef4 1-204
+lib/client/strava.test.ts
+  h_580a04e334fef4 1-298
+lib/client/strava.ts
+  h_580a04e334fef4 1-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "0e9da1ec0686cf02e3284f521e2928e484a5bb52",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
