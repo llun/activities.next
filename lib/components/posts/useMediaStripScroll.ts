@@ -9,9 +9,6 @@ import { useCallback, useEffect, useState } from 'react'
  */
 export const SCROLL_EDGE_TOLERANCE = 8
 
-/** How much of the visible strip one chevron press travels. */
-const SCROLL_PAGE_RATIO = 0.7
-
 interface MediaStripScroll {
   /**
    * Attach to the scroll container. A callback ref rather than a ref object:
@@ -39,8 +36,8 @@ interface MediaStripScroll {
  * not merely how many things there are. The observer watches the CONTAINER, and
  * editing a post to swap a panorama for a portrait changes what overflows
  * without changing the container's box, the item count, or `scrollLeft` — so a
- * count would leave a forward chevron pointing at content that no longer exists
- * and the edge fade dimming a photo for no reason.
+ * count would leave a forward arrow pointing at content that no longer exists
+ * and an overflow affordance present for no reason.
  */
 export const useMediaStripScroll = (contentKey: string): MediaStripScroll => {
   const [element, setElement] = useState<HTMLDivElement | null>(null)
@@ -76,9 +73,48 @@ export const useMediaStripScroll = (contentKey: string): MediaStripScroll => {
   const scrollByPage = useCallback(
     (direction: 1 | -1) => {
       if (!element) return
+      const maxScrollLeft = Math.max(
+        0,
+        element.scrollWidth - element.clientWidth
+      )
+      const current = element.scrollLeft
+      const containerLeft = element.getBoundingClientRect().left
+      const boundaries = Array.from(element.children)
+        .map(
+          (child) =>
+            (child as HTMLElement).getBoundingClientRect().left -
+            containerLeft +
+            current
+        )
+        .filter((offset) => Number.isFinite(offset))
+      const candidates =
+        direction > 0
+          ? boundaries.filter((offset) => offset > current + 1)
+          : boundaries.filter((offset) => offset < current - 1)
+      const boundary =
+        direction > 0 ? candidates[0] : candidates[candidates.length - 1]
+      // A browser can report zero offsets while layout is pending. Use one
+      // visible width as a conservative fallback until card boundaries exist;
+      // once they do, the normal path always advances exactly one card.
+      const fallbackTarget = current + direction * element.clientWidth
+      const target = Math.max(
+        0,
+        Math.min(maxScrollLeft, boundary ?? fallbackTarget)
+      )
+      if (
+        (direction < 0 && current <= 0) ||
+        (direction > 0 && current >= maxScrollLeft)
+      )
+        return
+      const left = target - current
+      if (!left) return
+      const reducedMotion =
+        typeof window !== 'undefined' &&
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches
       element.scrollBy({
-        left: direction * Math.round(element.clientWidth * SCROLL_PAGE_RATIO),
-        behavior: 'smooth'
+        left,
+        behavior: reducedMotion ? 'auto' : 'smooth'
       })
     },
     [element]
