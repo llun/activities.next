@@ -9,7 +9,7 @@ const createPng = async (width = 40, height = 30) =>
     .toBuffer()
 
 const asFile = (bytes: Uint8Array, type = 'image/png', name = 'thumb.png') =>
-  new File([bytes], name, { type })
+  new File([bytes as unknown as BlobPart], name, { type })
 
 describe('readValidThumbnail', () => {
   it('returns the bytes of a real image', async () => {
