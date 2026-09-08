@@ -1,0 +1,18 @@
+app/api/v1/statuses/[id]/favourite/route.test.ts
+  h_580a04e334fef4 6,102-105,121,124-129,151,154-159,186
+app/api/v1/statuses/[id]/route.test.ts
+  h_580a04e334fef4 1838,1841-1845,2150-2154,2221-2225,2280-2284,2326-2330,2497-2501,2576-2580,2621-2625
+app/api/v1/statuses/route.test.ts
+  h_580a04e334fef4 21,223,226-230
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "db0f7e3bd2075f5931bace0544da7a88ae3314e0",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
