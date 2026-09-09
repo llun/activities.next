@@ -974,7 +974,7 @@ each ends with the Definition of Done gate.
 - **Work reaches `main` as a pull request**: commit to the feature branch, push it, and open a PR. Nothing is merged by committing to `main` directly (Definition of Done item 1), and the review loop below has no PR to attach to until this has happened.
 - Commit messages must start with one of these prefixes followed by a short imperative description:
   - `none:` to mark that commit as no-release unless another commit in the range requests a higher bump
-  - `major:` for breaking changes (recorded as breaking; automatic releases cap it at a minor bump)
+  - `major:` for breaking changes (a major release requires a human maintainer to apply the `release:major` label)
   - `minor:` for backwards-compatible new features (minor version bump)
   - `fix:`, `feat:`, `chore:`, `refactor:`, `test:`, `docs:`, etc. for everything else (patch version bump)
 - PRs should include a clear summary, linked issues (if any), test results, and notes for config/migrations.
@@ -990,7 +990,7 @@ The version-bump workflow reads commit prefixes to determine the next semver ver
 | Prefix               | Version bump    | When to use                                                                                                                  |
 | -------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | `none:`              | None            | For internal-only changes that do not require a release (e.g. documentation, CI configuration)                               |
-| `major:`             | Minor (`x.Y.0`) | Records a breaking change. Automated releases are capped at minor; a major release uses the separate maintainer-led process. |
+| `major:`             | Major (`X.0.0`) | Breaking change approved by a human maintainer with the `release:major` label. Without that label, it produces a minor bump. |
 | `minor:`             | Minor (`x.Y.0`) | New backwards-compatible features users can opt into (e.g. new endpoint, new UI page, new optional config)                   |
 | _(any other prefix)_ | Patch (`x.y.Z`) | Bug fixes, refactors, chores, docs, tests — anything that doesn't change the public-facing contract                          |
 
@@ -998,11 +998,11 @@ The version-bump workflow reads commit prefixes to determine the next semver ver
 
 PRs are **squash-merged**, so the **PR title becomes the commit subject** on `main`. The workflow checks the commit subject first, then falls back to scanning the commit body (which contains the individual commit messages).
 
-**To ensure a minor version bump, the PR title MUST start with `minor:`.** A `major:` title records a breaking change but is intentionally capped at a minor bump by automation. For example:
+**To ensure a minor version bump, the PR title MUST start with `minor:`.** A `major:` title produces a major bump only after a human maintainer applies the `release:major` label to the feature PR. Agents must never apply this label. Without it, `major:` produces a minor bump. The generated version-bump PR carries the label forward so the tag workflow can verify the approval. For example:
 
 ```text
 minor: add hashtag timeline support        ← PR title → minor bump
-major: remove legacy v1 API endpoints      ← PR title → minor bump; major release is maintainer-led
+major: remove legacy v1 API endpoints      ← PR title + human `release:major` label → major bump
 feat: fix button alignment                 ← PR title → patch bump (default)
 ```
 
@@ -1018,7 +1018,7 @@ Examples:
 ```text
 none: update internal CI docs without cutting a release
 chore: tweak GitHub Actions cache keys              ← no bump if the commit only changes `.github/`
-major: remove legacy v1 API endpoints      ← automatic minor; major release is maintainer-led
+major: remove legacy v1 API endpoints      ← major only with a human `release:major` label; otherwise minor
 minor: add support for S3 media storage
 fix: correct timestamp parsing in ActivityPub inbox   ← patch
 chore: update dependencies                            ← patch
@@ -1161,9 +1161,10 @@ attachment ref guard` is exactly that: it passed with the bug present until
   `chore:`, `refactor:`, `test:`, `docs:`, `none:`, `minor:`, `major:`).
 - `version` in `package.json` is never edited by hand — CI bumps it from prefixes.
 - For a `minor` bump the **PR title** carries the prefix (PRs squash-merge, so the
-  title is the commit subject). `major:` records a breaking change but automation
-  caps it at minor; a major release is maintainer-led. `.github/`-only changes are
-  no-bump unless explicitly `minor:` or `major:`.
+  title is the commit subject). A `major:` PR becomes a major release only when a
+  human maintainer applies the `release:major` label; agents must never apply it.
+  Without the label, it becomes a minor release. `.github/`-only changes are no-bump
+  unless explicitly `minor:` or `major:`.
 - Pre-commit gate is green in order: `yarn run prettier --write .`, `yarn lint`,
   `yarn typecheck`, `yarn build`, `yarn test`.
 - All required CI status checks pass (`All Tests`, `Lint and Prettier`, `Build`,

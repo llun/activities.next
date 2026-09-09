@@ -113,7 +113,7 @@ Use Node.js 24 and Yarn for all repository commands. The canonical local gate is
 
 For every change, read the [testing rules](CONTRIBUTING.md#agents-testing-guidelines), [commit and PR rules](CONTRIBUTING.md#agents-commit-pull-request-guidelines), [review loop](CONTRIBUTING.md#agents-code-review-loop-sub-agents), and [documentation rules](CONTRIBUTING.md#agents-documentation-maintenance). These apply even when the change does not touch those files.
 
-Open a feature-branch PR after all five local gates pass. Independently review the entire PR, post findings, address them, reply and resolve discussions, and repeat until clean or 20 rounds. Use the documented self-review exception only when sub-agents are unavailable. Never manually change the package version; use a conventional commit subject and PR title. Automated releases are capped at minor; a major release is maintainer-led.
+Open a feature-branch PR after all five local gates pass. Independently review the entire PR, post findings, address them, reply and resolve discussions, and repeat until clean or 20 rounds. Use the documented self-review exception only when sub-agents are unavailable. Never manually change the package version; use a conventional commit subject and PR title. A `major:` release requires a human maintainer to apply the `release:major` label; agents must never apply that label.
 
 ## Required subsystem reading map
 

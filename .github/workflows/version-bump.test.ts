@@ -1,14 +1,63 @@
 import { readFileSync } from 'node:fs'
 
-const WORKFLOW_PATH = '.github/workflows/version-bump.yml'
+import {
+  getCommitBump,
+  isMajorTransition,
+  nextVersion,
+  selectVersionBump
+} from '../scripts/version-bump-policy.mjs'
 
 describe('automatic version-bump policy', () => {
-  const workflow = readFileSync(WORKFLOW_PATH, 'utf8')
+  it('turns an unapproved major marker into a minor release', () => {
+    const result = selectVersionBump([
+      {
+        subject: 'major: remove legacy endpoints',
+        body: '',
+        changedFiles: ['lib/api.ts']
+      }
+    ])
 
-  it('caps major-prefixed commits at a minor release', () => {
-    expect(workflow).toMatch(/\^major:[\s\S]{0,200}COMMIT_BUMP="minor"/)
-    expect(workflow).toMatch(/\^major:[\s\S]{0,200}BODY_BUMP="minor"/)
-    expect(workflow).not.toContain('BUMP="major"')
-    expect(workflow).not.toContain('MAJOR=$((MAJOR + 1))')
+    expect(result).toEqual({ bump: 'minor', commitCount: 1 })
+    expect(nextVersion('v1.161.52', result.bump)).toBe('1.162.0')
+  })
+
+  it('requires approval for major markers in subjects and squash bodies', () => {
+    expect(
+      getCommitBump({
+        subject: 'major: remove legacy endpoints',
+        body: '',
+        changedFiles: ['lib/api.ts'],
+        majorApproved: true
+      })
+    ).toBe('major')
+    expect(
+      getCommitBump({
+        subject: 'feat: use new API',
+        body: '- minor: add a compatible option\n- major: remove the old API',
+        changedFiles: ['lib/api.ts'],
+        majorApproved: true
+      })
+    ).toBe('major')
+    expect(
+      getCommitBump({
+        subject: 'feat: use new API',
+        body: '- major: remove the old API',
+        changedFiles: ['lib/api.ts']
+      })
+    ).toBe('minor')
+  })
+
+  it('recognizes a major version transition for the tag guard', () => {
+    expect(isMajorTransition('v1.161.52', 'v1.162.0')).toBe(false)
+    expect(isMajorTransition('v1.161.52', 'v2.0.0')).toBe(true)
+  })
+
+  it('runs the executable policy and tag approval guards in both workflows', () => {
+    expect(
+      readFileSync('.github/workflows/version-bump.yml', 'utf8')
+    ).toContain('node .github/scripts/determine-version-bump.mjs')
+    expect(readFileSync('.github/workflows/tag-version.yml', 'utf8')).toContain(
+      'node .github/scripts/verify-major-tag-approval.mjs'
+    )
   })
 })
