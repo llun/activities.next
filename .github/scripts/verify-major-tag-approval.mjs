@@ -1,26 +1,14 @@
 import { execFileSync } from 'node:child_process'
 import process from 'node:process'
 
-import {
-  getPullRequestsForCommit,
-  hasHumanMajorApproval
-} from './major-release-approval.mjs'
+import { hasHumanMajorApproval } from './major-release-approval.mjs'
 import { isMajorTransition } from './version-bump-policy.mjs'
 
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8' }).trim()
 const nextTag = process.argv[2]
 const majorMarker = (subject, body) =>
   /^major:/.test(subject) || /(^|\n)\s*[-*]?\s*major:/.test(body)
-const getSourceMainSha = () => {
-  const pullRequest = getPullRequestsForCommit(process.env.GITHUB_SHA).find(
-    (candidate) => candidate.merged_at
-  )
-  const match = pullRequest?.body?.match(/^- Base main SHA: `([0-9a-f]{40})`$/m)
-
-  return match?.[1] ?? process.env.GITHUB_SHA
-}
-
-const sourceMainSha = getSourceMainSha()
+const sourceMainSha = process.env.SOURCE_MAIN_SHA ?? git('rev-parse', 'HEAD^')
 const previousTag = git(
   'tag',
   '--merged',

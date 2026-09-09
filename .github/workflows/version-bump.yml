@@ -154,7 +154,7 @@ jobs:
               exit 0
             fi
 
-            node .github/scripts/verify-major-tag-approval.mjs "v${NEW_VERSION}"
+            SOURCE_MAIN_SHA="$BASE_SHA" node .github/scripts/verify-major-tag-approval.mjs "v${NEW_VERSION}"
             git tag -a "v${NEW_VERSION}" -m "Version ${NEW_VERSION}" "$BASE_SHA"
             git push origin "v${NEW_VERSION}"
             exit 0

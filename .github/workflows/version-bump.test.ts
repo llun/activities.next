@@ -64,7 +64,8 @@ describe('automatic version-bump policy', () => {
         {
           event: 'labeled',
           label: { name: 'release:major' },
-          actor: { type: 'Bot' }
+          actor: { type: 'Bot' },
+          created_at: '2026-09-09T12:00:00Z'
         }
       ])
     ).toBe(false)
@@ -73,10 +74,33 @@ describe('automatic version-bump policy', () => {
         {
           event: 'labeled',
           label: { name: 'release:major' },
-          actor: { type: 'User' }
+          actor: { type: 'User' },
+          created_at: '2026-09-09T12:00:00Z'
         }
       ])
     ).toBe(true)
+    expect(
+      hasHumanMajorLabelEvent(pullRequest, [
+        {
+          event: 'labeled',
+          label: { name: 'release:major' },
+          actor: { type: 'User' },
+          created_at: '2026-09-09T12:00:00Z'
+        },
+        {
+          event: 'unlabeled',
+          label: { name: 'release:major' },
+          actor: { type: 'User' },
+          created_at: '2026-09-09T12:01:00Z'
+        },
+        {
+          event: 'labeled',
+          label: { name: 'release:major' },
+          actor: { type: 'Bot' },
+          created_at: '2026-09-09T12:02:00Z'
+        }
+      ])
+    ).toBe(false)
   })
 
   it('runs the executable policy and tag approval guards in both workflows', () => {
