@@ -152,8 +152,11 @@ jobs:
 
             COMMIT_COUNT=$((COMMIT_COUNT + 1))
 
+            # Automatic releases are capped at a minor bump. A breaking-change
+            # prefix documents the compatibility impact, but a major release
+            # needs the separate maintainer-led release process.
             if echo "$SUBJECT" | grep -qE '^major:'; then
-              COMMIT_BUMP="major"
+              COMMIT_BUMP="minor"
             elif echo "$SUBJECT" | grep -qE '^minor:'; then
               COMMIT_BUMP="minor"
             elif echo "$SUBJECT" | grep -qE '^none:'; then
@@ -167,7 +170,7 @@ jobs:
                   clean_line=$(echo "$line" | sed -E 's/^[[:space:]]*[-*][[:space:]]+//')
 
                   if echo "$clean_line" | grep -qE '^major:'; then
-                    BODY_BUMP="major"
+                    BODY_BUMP="minor"
                     break
                   elif echo "$clean_line" | grep -qE '^minor:'; then
                     BODY_BUMP="minor"
@@ -186,9 +189,6 @@ jobs:
             fi
 
             case "$COMMIT_BUMP" in
-              major)
-                BUMP="major"
-                ;;
               minor)
                 if [ "$BUMP" = "none" ] || [ "$BUMP" = "patch" ]; then
                   BUMP="minor"
@@ -216,11 +216,6 @@ jobs:
           IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
 
           case "$BUMP" in
-            major)
-              MAJOR=$((MAJOR + 1))
-              MINOR=0
-              PATCH=0
-              ;;
             minor)
               MINOR=$((MINOR + 1))
               PATCH=0
