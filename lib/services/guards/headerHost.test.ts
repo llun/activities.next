@@ -4,7 +4,7 @@ import { getConfig } from '@/lib/config'
 
 import { headerHost } from './headerHost'
 
-const mockGetConfig = getConfig as jest.Mock
+const mockGetConfig = getConfig as unknown as jest.Mock
 
 describe('headerHost', () => {
   beforeEach(() => {

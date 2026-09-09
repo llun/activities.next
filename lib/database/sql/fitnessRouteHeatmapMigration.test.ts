@@ -209,7 +209,7 @@ describe('route heatmap migration', () => {
       })
       await migration.up(database)
 
-      await cursorMigration.down(database)
+      await cursorMigration.down()
 
       await expect(
         database.schema.hasColumn('fitness_route_heatmaps', 'cursorOffset')
@@ -234,7 +234,7 @@ describe('route heatmap migration', () => {
       })
       await migration.up(database)
 
-      await partialFlagMigration.down(database)
+      await partialFlagMigration.down()
 
       await expect(
         database.schema.hasColumn('fitness_route_heatmaps', 'isPartial')

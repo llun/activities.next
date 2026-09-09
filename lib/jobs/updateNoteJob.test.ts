@@ -1,4 +1,5 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
+import type { MockInstance } from 'vitest'
 
 import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
@@ -10,6 +11,7 @@ import {
 } from '@/lib/jobs/names'
 import { updateNoteJob } from '@/lib/jobs/updateNoteJob'
 import { getQueue } from '@/lib/services/queue'
+import type { JobMessage, Queue } from '@/lib/services/queue/type'
 import {
   buildQuoteAuthorizationObject,
   buildQuoteAuthorizationUri
@@ -20,7 +22,7 @@ import { MockMastodonActivityPubNote } from '@/lib/stub/note'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import { Actor } from '@/lib/types/domain/actor'
-import { Status, StatusType } from '@/lib/types/domain/status'
+import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 enableFetchMocks()
@@ -58,7 +60,9 @@ describe('updateNoteJob', () => {
       data: updatedNote
     })
 
-    const status = (await database.getStatus({ statusId: note.id })) as Status
+    const status = (await database.getStatus({
+      statusId: note.id
+    })) as StatusNote
     expect(status).toBeDefined()
     expect(status.id).toEqual(note.id)
     expect(status.text).toEqual('<p>Hello Updated</p>')
@@ -240,7 +244,9 @@ describe('updateNoteJob', () => {
       data: updatedImage
     })
 
-    const status = (await database.getStatus({ statusId: image.id })) as Status
+    const status = (await database.getStatus({
+      statusId: image.id
+    })) as StatusNote
     expect(status).toBeDefined()
     expect(status.id).toEqual(image.id)
     expect(status.text).toEqual('<p>Beautiful sunset with filters</p>')
@@ -380,7 +386,7 @@ describe('updateNoteJob', () => {
 
     const status = (await database.getStatus({
       statusId: victimNote.id
-    })) as Status
+    })) as StatusNote
     expect(status.text).toEqual('<p>original</p>')
     expect(status.actorId).toEqual(EXTERNAL_ACTOR1)
   })
@@ -825,7 +831,7 @@ describe('updateNoteJob', () => {
 
   describe('Outbound Inbox Forwarding on Update', () => {
     const originalEnv = process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING
-    let queueSpy: ReturnType<typeof vi.spyOn>
+    let queueSpy: MockInstance<Queue['publish']>
 
     beforeEach(() => {
       queueSpy = vi.spyOn(getQueue(), 'publish').mockResolvedValue(undefined)
@@ -902,7 +908,7 @@ describe('updateNoteJob', () => {
       })
 
       const forwardCalls = queueSpy.mock.calls.filter(
-        (call) => call[0]?.name === FORWARD_ACTIVITY_JOB_NAME
+        ([message]: [JobMessage]) => message.name === FORWARD_ACTIVITY_JOB_NAME
       )
       expect(forwardCalls).toHaveLength(1)
       const data = forwardCalls[0][0].data as {

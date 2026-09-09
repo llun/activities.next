@@ -32,7 +32,7 @@ vi.mock('@/lib/services/guards/OAuthGuard', () => ({
         req: NextRequest,
         context: {
           database: typeof mockDatabase
-          currentActor: typeof mockCurrentActor
+          currentActor: typeof mockCurrentActor | undefined
           params: Promise<{ hashtag: string }>
         }
       ) => Promise<Response> | Response

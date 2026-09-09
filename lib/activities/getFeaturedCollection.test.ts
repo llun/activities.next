@@ -9,6 +9,7 @@ const baseCollection: Collection = {
   topic: 'fediverse',
   language: 'en',
   visibility: 'public',
+  sensitive: false,
   publicFeed: true,
   createdAt: 1700000000000,
   updatedAt: 1700000100000

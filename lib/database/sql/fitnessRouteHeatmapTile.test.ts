@@ -32,7 +32,6 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         username,
         domain: 'llun.test',
         inboxUrl: `${actorId}/inbox`,
-        outboxUrl: `${actorId}/outbox`,
         followersUrl: `${actorId}/followers`,
         sharedInboxUrl: 'https://llun.test/inbox',
         publicKey: `public-key-${username}`,

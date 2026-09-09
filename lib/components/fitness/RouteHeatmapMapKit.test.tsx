@@ -4,7 +4,10 @@
 import '@testing-library/jest-dom'
 import { render, screen, waitFor } from '@testing-library/react'
 
-import type { FitnessRouteHeatmapData } from '@/lib/client'
+import type {
+  FitnessRouteHeatmapData,
+  FitnessRouteHeatmapTileRequest
+} from '@/lib/client'
 import { createMapKitTestDouble } from '@/lib/components/fitness/mapkitTestDouble'
 import { TILE_EXTENT } from '@/lib/services/fitness-files/heatmapTiles/constants'
 import {
@@ -200,7 +203,7 @@ describe('RouteHeatmapMapKit tiled rendering', () => {
   const cool = encodeTile([{ count: 1, points: [8, 8, 40, 40] }])
 
   const fetchWith = (payload: string) =>
-    vi.fn(async ({ tiles }: { tiles: Array<{ x: number; y: number }> }) => ({
+    vi.fn(async ({ tiles }: FitnessRouteHeatmapTileRequest) => ({
       version: 2,
       tiles: Object.fromEntries(tiles.map(({ x, y }) => [`${x}:${y}`, payload]))
     }))

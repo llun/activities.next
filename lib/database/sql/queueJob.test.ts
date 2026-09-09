@@ -512,33 +512,78 @@ describe('QueueJobDatabase', () => {
       expect(dlq?.errorStack).toBeDefined()
     })
 
-    it('safely handles corrupt non-JSON payload in queue_jobs without throwing', async () => {
+    // SQLite's JSON column accepts raw text, while PostgreSQL rejects invalid
+    // JSON before failQueueJobWithDeadLetter can exercise its fallback.
+    it.skipIf(process.env.TEST_DATABASE_TYPE === 'pg')(
+      'safely handles corrupt non-JSON payload in SQLite queue_jobs without throwing',
+      async () => {
+        await database.createQueueJob({
+          id: 'fail-dlq-corrupt-1',
+          name: 'deliverActivity',
+          payload: samplePayload
+        })
+
+        const claim = await database.claimQueueJob({
+          id: 'fail-dlq-corrupt-1'
+        })
+        expect(claim).not.toBeNull()
+
+        // Corrupt the payload directly in the database after claim
+        await knexDatabase('queue_jobs')
+          .where({ id: 'fail-dlq-corrupt-1' })
+          .update({ payload: 'corrupt-non-json-payload{{{' })
+
+        const success = await database.failQueueJobWithDeadLetter({
+          id: 'fail-dlq-corrupt-1',
+          claimToken: claim!.claimToken,
+          attempts: 16,
+          error: new Error('Corrupt job terminal error')
+        })
+
+        expect(success).toBe(true)
+
+        const dlq = await database.getDeadLetterJobById('fail-dlq-corrupt-1')
+        expect(dlq).not.toBeNull()
+        expect(dlq?.payload).toEqual({ raw: 'corrupt-non-json-payload{{{' })
+      }
+    )
+
+    it('preserves a valid but logically malformed JSON payload in the dead-letter record', async () => {
+      const malformedPayload = {
+        malformed: true,
+        raw: 'payload-without-job-fields'
+      }
+
       await database.createQueueJob({
-        id: 'fail-dlq-corrupt-1',
+        id: 'fail-dlq-malformed-json-1',
         name: 'deliverActivity',
         payload: samplePayload
       })
 
-      const claim = await database.claimQueueJob({ id: 'fail-dlq-corrupt-1' })
+      const claim = await database.claimQueueJob({
+        id: 'fail-dlq-malformed-json-1'
+      })
       expect(claim).not.toBeNull()
 
-      // Corrupt the payload directly in the database after claim
+      // JSON columns accept this value on every backend, even though it is not
+      // a complete JobMessage. Dead-lettering must preserve the payload data.
       await knexDatabase('queue_jobs')
-        .where({ id: 'fail-dlq-corrupt-1' })
-        .update({ payload: 'corrupt-non-json-payload{{{' })
+        .where({ id: 'fail-dlq-malformed-json-1' })
+        .update({ payload: JSON.stringify(malformedPayload) })
 
       const success = await database.failQueueJobWithDeadLetter({
-        id: 'fail-dlq-corrupt-1',
+        id: 'fail-dlq-malformed-json-1',
         claimToken: claim!.claimToken,
         attempts: 16,
-        error: new Error('Corrupt job terminal error')
+        error: new Error('Malformed job terminal error')
       })
 
       expect(success).toBe(true)
 
-      const dlq = await database.getDeadLetterJobById('fail-dlq-corrupt-1')
-      expect(dlq).not.toBeNull()
-      expect(dlq?.payload).toEqual({ raw: 'corrupt-non-json-payload{{{' })
+      const dlq = await database.getDeadLetterJobById(
+        'fail-dlq-malformed-json-1'
+      )
+      expect(dlq?.payload).toEqual(malformedPayload)
     })
   })
 

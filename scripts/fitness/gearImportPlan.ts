@@ -144,6 +144,12 @@ export type ImportComponent = ImportGear['components'][number]
 export type ImportWindow = ImportGear['windows'][number]
 export type ImportAssignment = GearImportFile['assignments'][number]
 
+export type GearImportFileInput = z.input<typeof GearImportFileSchema>
+export type ImportGearInput = z.input<typeof ImportGearSchema>
+export type ImportComponentInput = z.input<typeof ImportComponentSchema>
+export type ImportWindowInput = z.input<typeof ImportWindowSchema>
+export type ImportAssignmentInput = z.input<typeof ImportAssignmentSchema>
+
 export type ParseGearImportFileResult =
   { ok: true; file: GearImportFile } | { ok: false; errors: string[] }
 

@@ -7,6 +7,7 @@ import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Timeline } from '@/lib/services/timelines/types'
 import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
 import { FollowStatus } from '@/lib/types/domain/follow'
+import { StatusNote } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { waitFor } from '@/lib/utils/waitFor'
@@ -112,7 +113,7 @@ describe('TimelineDatabase', () => {
             // The home timeline hydrates in one batch keyed on the timeline's
             // own actor, so the viewer's reaction comes back flagged as theirs
             // rather than needing a per-status lookup.
-            expect(reacted?.reactions).toEqual([
+            expect((reacted as StatusNote | undefined)?.reactions).toEqual([
               { name: '🔥', count: 1, me: true, url: null, static_url: null }
             ])
           } finally {

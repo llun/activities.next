@@ -35,6 +35,7 @@ const pollStatus: StatusPoll = {
   replies: [],
   actorAnnounceStatusId: null,
   isActorLiked: false,
+  isActorBookmarked: false,
   totalLikes: 0,
   totalShares: 0,
   attachments: [],

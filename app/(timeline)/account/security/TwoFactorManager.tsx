@@ -102,21 +102,23 @@ export const TwoFactorManager: FC<Props> = ({
     try {
       const result = await authClient.twoFactor.enable({
         password,
+        method: 'totp',
         issuer: serviceName
       })
       if (result.error) {
         setError(getAuthErrorMessage(result.error, 'Failed to start setup'))
         return
       }
-      if (!result.data?.totpURI) {
+      const data = result.data
+      if (!data || data.method !== 'totp' || !data.totpURI) {
         setError('Failed to start setup')
         return
       }
 
       setSetup({
-        totpURI: result.data.totpURI,
-        backupCodes: result.data.backupCodes ?? [],
-        secret: getSecretFromTotpURI(result.data.totpURI)
+        totpURI: data.totpURI,
+        backupCodes: data.backupCodes,
+        secret: getSecretFromTotpURI(data.totpURI)
       })
       setPassword('')
       setSuccess('Scan the code and enter a verification code to finish setup')

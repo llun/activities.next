@@ -258,7 +258,7 @@ describe('StatusDatabase', () => {
           text: 'Reply hash child',
           to: [],
           cc: [],
-          reply: parent.url
+          reply: (parent as StatusNote).url
         })
         await knexDatabase('statuses')
           .where('id', replyStatusId)
@@ -2040,7 +2040,7 @@ describe('StatusDatabase', () => {
           actorId: replyActorId,
           to: [],
           cc: [],
-          reply: parent.url,
+          reply: (parent as StatusNote).url,
           text: 'Recipientless reply to visible actor'
         })
 
@@ -2087,7 +2087,7 @@ describe('StatusDatabase', () => {
           actorId: replyActorId,
           to: [],
           cc: [],
-          reply: root.url,
+          reply: (root as StatusNote).url,
           text: 'Recipientless reply in synced direct conversation'
         })
 
@@ -3610,7 +3610,7 @@ describe('StatusDatabase', () => {
           ]
         })
 
-        expect(updated?.attachments).toEqual(
+        expect((updated as StatusNote | null)?.attachments).toEqual(
           expect.arrayContaining([
             expect.objectContaining({
               id: legacyAttachment.id,
@@ -3683,7 +3683,7 @@ describe('StatusDatabase', () => {
           attachments: []
         })
 
-        expect(updated?.attachments).toEqual(
+        expect((updated as StatusNote | null)?.attachments).toEqual(
           expect.arrayContaining([
             expect.objectContaining({
               id: legacyAttachment.id,
@@ -3875,7 +3875,7 @@ describe('StatusDatabase', () => {
           ]
         })
 
-        expect(updated?.attachments).toEqual([
+        expect((updated as StatusNote | null)?.attachments).toEqual([
           expect.objectContaining({ mediaId: keptMediaId, name: 'new alt' })
         ])
       })
@@ -4012,6 +4012,7 @@ describe('StatusDatabase', () => {
         // so nothing user-visible changes and no edit revision is recorded.
         await database.updatePoll({
           statusId: pollId,
+          text: 'No CW poll',
           summary: '',
           choices: [
             { title: 'Alpha', totalVotes: 0 },
@@ -4043,6 +4044,7 @@ describe('StatusDatabase', () => {
 
         await database.updatePoll({
           statusId: pollId,
+          text: 'Default summary poll',
           summary: '',
           choices: [
             { title: 'Alpha', totalVotes: 0 },
@@ -5479,7 +5481,21 @@ describe('StatusDatabase', () => {
             createdAt: Date.now()
           })
 
-          const statusRows = [
+          type StatusBatchRow = {
+            id: string
+            url: string
+            urlHash: string
+            actorId: string
+            type: StatusType
+            content: string
+            reply: string
+            replyHash: string | null
+            originalStatusId: string | null
+            createdAt: Date
+            updatedAt: Date
+          }
+
+          const statusRows: StatusBatchRow[] = [
             {
               id: rootStatusId,
               url: rootStatusId,

@@ -12,6 +12,7 @@ import { encodeTile } from '@/lib/services/fitness-files/heatmapTiles/tileCodec'
 import { createDeferred } from '@/lib/testing/deferred'
 
 import {
+  type HeatmapTileFetcher,
   MAX_TILES_PER_VIEW,
   TILE_CACHE_MAX_TILES,
   VIEW_SETTLE_MS,
@@ -502,7 +503,7 @@ describe('useHeatmapTiles', () => {
 
   it('leaves the previous view standing when a fetch fails', async () => {
     const fetchTiles = vi
-      .fn(async () => {
+      .fn<HeatmapTileFetcher>(async () => {
         throw new Error('network down')
       })
       .mockImplementationOnce(async ({ tiles }) => batchOf(tiles))
