@@ -557,7 +557,8 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
       it('recreates the build row when a clear removes it mid-claim', async () => {
         // The insert that precedes the claim's read holds no lock on the row it
         // conflicts with, so clearing an actor's heatmaps can delete it in
-        // between. Staged by clearing on the read itself, which is that window.
+        // between. The barrier below stages that interleaving after the insert
+        // has completed and before the claim's first read.
         const {
           database: isolated,
           instance,
@@ -566,31 +567,61 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
         await prepareIsolated()
         await isolated.migrate()
 
+        let originalQuery: typeof instance.client.query | undefined
+        let clearListener: ((query: { sql: string }) => void) | undefined
+
         try {
           const actorId = await createActor(isolated)
-          // Fires once, on the claim's first INSERT — so the row is gone by
-          // the time that attempt reads it back, which is the window the retry
-          // exists for. Clearing any later would stage a different race.
+          // The query event fires before the driver runs the INSERT. Mark that
+          // statement here, then the client-query wrapper below runs the clear
+          // after the INSERT resolves and before the claim's await continues.
+          // Keeping both statements on the same connection makes the intended
+          // interleaving independent of pool scheduling on PostgreSQL.
           let cleared = false
-          const clearAfterFirstInsert = async ({ sql }: { sql: string }) => {
+          let clearPending = false
+          let insertAttempts = 0
+          const clearAfterFirstInsert = ({ sql }: { sql: string }) => {
+            const normalizedSql = sql.trimStart().toLowerCase()
             if (
-              cleared ||
-              !sql.trimStart().toLowerCase().startsWith('insert') ||
-              !sql.includes('fitness_route_heatmap_pyramids')
+              !normalizedSql.startsWith('insert') ||
+              !normalizedSql.includes('fitness_route_heatmap_pyramids')
             ) {
               return
             }
-            cleared = true
-            await instance('fitness_route_heatmap_pyramids')
-              .where('actorId', actorId)
-              .delete()
+            insertAttempts += 1
+            if (cleared || clearPending) return
+            clearPending = true
           }
+
+          const queryMethod = instance.client.query
+          originalQuery = queryMethod
+          const runOriginalQuery = queryMethod.bind(instance.client)
+          instance.client.query = async (
+            connection: Parameters<typeof queryMethod>[0],
+            query: Parameters<typeof queryMethod>[1]
+          ) => {
+            const response = await runOriginalQuery(connection, query)
+
+            if (clearPending && !cleared) {
+              clearPending = false
+              cleared = true
+              await runOriginalQuery(
+                connection,
+                instance('fitness_route_heatmap_pyramids')
+                  .where('actorId', actorId)
+                  .delete()
+                  .toSQL()
+              )
+            }
+
+            return response
+          }
+
           // Hook 'query' (when INSERT is sent) rather than 'query-response'
-          // (when INSERT resolves) so the DELETE is queued to the connection
-          // pool before attempt 1's readPyramidRow SELECT is issued.
-          instance.on('query', (query: { sql: string }) => {
-            void clearAfterFirstInsert(query)
-          })
+          // (when INSERT resolves) so the barrier above can serialize the
+          // DELETE after the INSERT and before attempt 1's readPyramidRow.
+          clearListener = clearAfterFirstInsert
+          instance.on('query', clearAfterFirstInsert)
 
           const claim = await isolated.claimFitnessRouteHeatmapPyramidBuild({
             actorId,
@@ -600,9 +631,13 @@ describe('FitnessRouteHeatmapTileDatabase', () => {
 
           // Answered rather than thrown: the row was cleared, and a claim
           // arriving after a clear should build.
+          expect(cleared).toBe(true)
+          expect(insertAttempts).toBe(2)
           expect(claim.claimed).toBe(true)
           expect(claim.reason).toBe('claimed')
         } finally {
+          if (clearListener) instance.off('query', clearListener)
+          if (originalQuery) instance.client.query = originalQuery
           await isolated.destroy()
         }
       })
