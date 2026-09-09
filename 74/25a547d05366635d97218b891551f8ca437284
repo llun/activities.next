@@ -1,0 +1,341 @@
+next.config.test.ts
+  s_38e035b94b20f6::t_1a5eae2dd6eccb 50-57,91,1145,1155,1161,1183
+lib/jobs/updateNoteJob.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 2,14,25,63-65,247-249,389,834,911
+lib/jobs/importStravaActivityJob.merge.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 23,258,261
+lib/client/notifications.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-21
+app/(timeline)/account/security/TwoFactorManager.tsx
+  s_38e035b94b20f6::t_8e354f8cc9938d 105,112-113,119-121
+lib/jobs/deleteObjectJob.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 2,11,55,534,597
+lib/client/strava.test.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-298
+lib/database/sql/queueJob.test.ts
+  s_38e035b94b20f6::t_64d626d78359ca 515-556,558,563-565,568-569,571-572,575,578,583-586
+app/api/v1/statuses/[id]/favourite/route.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 6,102-105,121,124-129,151,154-159,186
+docs/architecture.md
+  s_38e035b94b20f6::t_265b5cf4325952 706-707,1606,1652-1655
+  s_38e035b94b20f6::t_a115f8b5c48c26 243,488-705,708-1605,1607-1651,1656-1815
+lib/services/medias/storageBackendSummary.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 33
+scripts/maintenance/runQueueWorkerLifecycle.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-113
+lib/client/adminReports.test.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-210
+lib/client/lists.test.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-274
+lib/client/accountPreferences.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-76
+REVIEW.md
+  s_38e035b94b20f6::t_a115f8b5c48c26 9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,47,49,51,53,55,57,59,61,63,65,67,69,71,73-75
+lib/utils/text/getMentions.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 11-12
+lib/services/mastodon/getMastodonStatus.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 8,231,424-425,454-455,1690,1746,1777,1922,1933
+docs/maintenance.md
+  s_38e035b94b20f6::t_a115f8b5c48c26 5-19,960-1429
+lib/components/fitness/RegionHeatmapDetail.test.tsx
+  s_38e035b94b20f6::t_e27000f760f4fb 58
+lib/components/posts/status-translation.test.tsx
+  s_38e035b94b20f6::t_e27000f760f4fb 48
+app/(timeline)/bookmarks/BookmarksTimeline.test.tsx
+  s_38e035b94b20f6::t_64d626d78359ca 104-109,257-272
+  s_38e035b94b20f6::t_f094a65ca63397 273-279
+lib/services/translation/translateStatus.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 4-7,40,53
+lib/jobs/sendUpdateNoteJob.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 20
+lib/utils/safeRemoteFetch.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 327-328,340,342
+lib/client/conversations.test.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-229
+lib/client/serverAnnouncements.test.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-195
+lib/client/filters.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-131
+lib/client/notificationSettings.test.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-190
+lib/jobs/sendNoteJob.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 71,477,485,531,575,583,656,664,672
+lib/client/notifications.test.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-39
+lib/components/fitness/HeatmapShareEmbed.test.tsx
+  s_38e035b94b20f6::t_e27000f760f4fb 8,42
+lib/jobs/publishScheduledStatusJob.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 10,18-22,95,127,186,217,249,282,307,330,383,478,500
+lib/components/posts/poll.test.tsx
+  s_38e035b94b20f6::t_e27000f760f4fb 38
+lib/services/guards/getRedirectUrl.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 7
+lib/activities/getFeaturedCollection.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 12
+lib/client/customEmojis.test.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-320
+lib/jobs/sendAnnounceJob.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 15
+lib/client.test.ts
+  s_38e035b94b20f6::t_64d626d78359ca 11,44-48,71,73,79,81-82,104,110,112-113,115,121,128,130-132,141-143,145,255-340,2573-2588
+docs/fitness-file-storage.md
+  s_38e035b94b20f6::t_a115f8b5c48c26 374-1338
+app/(timeline)/favorites/FavoritesTimeline.test.tsx
+  s_38e035b94b20f6::t_64d626d78359ca 104-109,256-272
+  s_38e035b94b20f6::t_7be3507a20a9bb 273-278
+app/api/v1/timelines/tag/[hashtag]/route.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 35
+lib/services/auth/knexAdapter.test.ts
+  s_38e035b94b20f6::t_8e354f8cc9938d 1,8-41,595,600-601,618,625-626,648,664,675,708-728,846,849,852-853,861,864,875,878,881-882,893,896,899-900,926,932-933,1039-1043,1598
+lib/client/serverRules.test.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-174
+lib/services/auth/oauthProviderFlow.test.ts
+  s_38e035b94b20f6::t_8e354f8cc9938d 77-78,128,136-141,245-311
+lib/components/post-box/reducers.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 132
+lib/client/directMessages.test.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-187
+lib/activities/getActorPosts.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 229-233,323-327,887-893,1144-1146,1435-1443,1495-1501,1565-1570,1625-1630,1702-1712,1766-1771
+lib/jobs/fetchRemoteStatusJob.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 9,78-80,151-153,212-214,290-295,371-373
+lib/jobs/regenerateFitnessMapsJob.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 15,120-121,287,290,426,429,502-505,584,587,626-629,698,701,731-732,750-751,763,766
+lib/database/sql/betterAuth17ColumnsMigration.test.ts
+  s_38e035b94b20f6::t_8e354f8cc9938d 5-8,35,48,51,62
+lib/client/accountPreferences.test.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-131
+lib/client/fitnessCalendar.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-42
+lib/services/federation/statusDelivery.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 137,208,246,320
+lib/components/posts/statusArray.test.ts
+  s_38e035b94b20f6::t_64d626d78359ca 284-327
+lib/database/sql/account.ts
+  s_38e035b94b20f6::t_8e354f8cc9938d 208-210,755,790
+lib/types/domain/status.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 3,11,235-236,448-450
+lib/components/posts/post.tsx
+  s_38e035b94b20f6::t_64d626d78359ca 76
+lib/jobs/importStravaArchiveJob.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 234-235,238
+lib/services/notifications/groupNotifications.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 10-12
+package.json
+  s_38e035b94b20f6::t_180307022d420d 14,31-34,52-53
+lib/components/posts/actions/post-menu.test.tsx
+  s_38e035b94b20f6::t_e27000f760f4fb 117
+lib/client/collections.test.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-352
+lib/database/sql/fitnessFile.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 8,286
+lib/client/customEmojis.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-91
+lib/components/posts/post.test.tsx
+  s_38e035b94b20f6::t_64d626d78359ca 117,178
+lib/services/notifications/getMastodonNotification.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 26,28,35,37
+lib/client/accountSettings.test.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-488
+lib/client/adminReports.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-73
+lib/utils/mapkit.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 4
+lib/services/mastodon/getMastodonConversation.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 32-33
+lib/client/adminServerSettings.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-35
+lib/components/posts/statusArray.ts
+  s_38e035b94b20f6::t_64d626d78359ca 5-6,56,58-61
+lib/activities/index.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 50
+lib/client/fitnessCalendar.test.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-88
+lib/database/sql/timeline.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 10,116
+lib/jobs/updatePollJob.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 9,79,193-195
+lib/services/accounts/profile.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 17,24-25,33,41-44
+lib/client/serverAnnouncements.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-65
+CONTRIBUTING.md
+  s_38e035b94b20f6::t_a115f8b5c48c26 14-25,299-301,446,661-1180
+lib/components/post-box/upload-media-button.test.tsx
+  s_38e035b94b20f6::t_e27000f760f4fb 47-50
+lib/client/announcements.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-81
+lib/client/conversations.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-108
+.github/workflows/ci.yml
+  s_38e035b94b20f6::t_a115f8b5c48c26 55-56,155-156,200-202
+docs/setup.md
+  s_38e035b94b20f6::t_a115f8b5c48c26 271-338
+lib/testFileTypeCoverage.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 4-5,47-50
+lib/components/fitness/RouteHeatmapMapKit.test.tsx
+  s_38e035b94b20f6::t_e27000f760f4fb 7-10,206
+tsconfig.build.json
+  s_38e035b94b20f6::t_a115f8b5c48c26 7
+lib/database/sql/actor.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 128,1640,1644-1645,1706-1707,1719-1720,1730-1731,1741-1742
+lib/database/sql/status.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 261,2043,2090,3613,3686,3878,4015,4047,5484-5498
+lib/client/strava.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-108
+app/api/v1/statuses/[id]/route.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 1838,1841-1845,2150-2154,2221-2225,2280-2284,2326-2330,2497-2501,2576-2580,2621-2625
+lib/components/fitness/useHeatmapTiles.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 15,506
+lib/services/auth/credentialIdentity.test.ts
+  s_38e035b94b20f6::t_8e354f8cc9938d 1-335
+scripts/maintenance/runQueueWorker.ts
+  s_38e035b94b20f6::t_64d626d78359ca 8-9,32-39,41,44-50,52-65
+lib/services/oauth/userinfo.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 12,17-20,25,36,158
+lib/client/passkeys.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-27
+lib/actions/createNoteEmoji.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 94-96,118-120,137-139,161-163,184-186,208-211,223-225,249-251,266-268,282-284,298-301,312-314,330-333
+lib/services/medias/thumbnailInput.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 12
+lib/client/adminAccounts.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-99
+lib/services/timelines/getFilteredTimelinePage.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 506-511
+lib/client/filters.test.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-253
+app/(timeline)/account/security/TwoFactorManager.test.tsx
+  s_38e035b94b20f6::t_8e354f8cc9938d 62,79,99,133-151
+  s_38e035b94b20f6::t_605b9d6f3ccc56 152-153
+lib/database/sql/moderation.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 349
+scripts/fitness/gearImportPlan.ts
+  s_38e035b94b20f6::t_64d626d78359ca 147-152
+lib/components/post-box/post-box.test.tsx
+  s_38e035b94b20f6::t_e27000f760f4fb 18-23,119,131,1680,1758-1759,1771,1816,1866
+lib/components/post-box/reply-preview.test.tsx
+  s_38e035b94b20f6::t_e27000f760f4fb 8,10,20,22-23,25,27,45-63,75,82,96,98-100,271,274,277-278
+lib/database/sql/actorLastStatusAt.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 69
+scripts/fitness/gearImportPlan.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 3,12,585,591
+scripts/maintenance/runQueueWorkerLifecycle.test.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-194
+lib/actions/visibility.integration.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 211-213,233-235,256-258,292-294,347-349
+lib/actions/createPoll.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 11,21-26,70,105-108,121-125,154,172,196,218,237,258,288,318-320
+AGENTS.md
+  s_38e035b94b20f6::t_a115f8b5c48c26 14,27,108,110,112,114,116,118,120,122-129,131,133,135-139,141,143,145-151,153,155-167,171,175,179,183,187,191,195,199,203,207,211,215,219,223,227,231,235,239,243,247,251,255,259,263,267,271,275,279,283,287,291,295,299,303,307,311,315
+lib/client/notificationSettings.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-60
+lib/database/sql/fitnessRouteHeatmapMigration.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 212,237
+lib/client/search.test.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-167
+lib/jobs/createPollJob.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 10,103,155-157,178-180,279,281,359-361,387-389
+lib/services/strava/archiveReader.open.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 20-26
+lib/utils/traceApiRoute.ts
+  s_38e035b94b20f6::t_64d626d78359ca 23-24
+lib/client/passkeys.test.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-50
+app/api/v1/statuses/route.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 21,223,226-230
+scripts/backup/productionArchive.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 683,758,816,874,1108-1109,1209-1210,1245-1246,1294-1295
+lib/services/medias/quota.ts
+  s_38e035b94b20f6::t_64d626d78359ca 19
+lib/client/directMessages.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-85
+lib/client/search.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-114
+lib/database/sql/publicIdMigration.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 1
+lib/services/fitness-files/S3StorageFile.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 20-23
+lib/actions/updateNote.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 35
+lib/actions/createNote.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 19,749-751
+lib/components/posts/status-reply-box.test.tsx
+  s_38e035b94b20f6::t_e27000f760f4fb 60
+lib/database/sql/follow.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 393,457,520,560
+lib/services/notifications/createConversationMuteSuppression.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 38,96
+lib/utils/maplibre.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 4
+lib/actions/deleteStatus.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 4-10,20,25,28,37-63,79-81,83-84,90,95,135-137,139-140,143,148,167,172,196,201,218,223,251,256,274-279,281-282,288,293,327,332,361,366,384-387,389-390,396,401,423,428,461,466,488,493,511,516,541-543,545-546
+lib/client/adminAccounts.test.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-279
+lib/components/posts/actions/bookmark-button.test.tsx
+  s_38e035b94b20f6::t_e27000f760f4fb 10,61-65
+lib/jobs/createNoteJob.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 3,13,25,27,37,434-436,463-465,492-494,522,552-554,1504,1560,1602,1638
+lib/client/accountSettings.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-204
+lib/components/fitness/RegionMap.test.tsx
+  s_38e035b94b20f6::t_e27000f760f4fb 289-291
+lib/client/collections.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-147
+lib/client/adminServerSettings.test.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-82
+lib/client/serverRules.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-59
+lib/services/guards/headerHost.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 7
+lib/client/announcements.test.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-148
+docs/mastodon-api-compatibility.md
+  s_38e035b94b20f6::t_a115f8b5c48c26 439-1083
+lib/client/lists.ts
+  s_38e035b94b20f6::t_64d626d78359ca 1-90
+lib/components/block-action/block-action.test.tsx
+  s_38e035b94b20f6::t_e27000f760f4fb 44
+lib/jobs/createPollVoteJob.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 20,42,55
+lib/services/fitness-files/retryImports.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 51-55
+app/u/heatmaps/[token]/SharedHeatmapPage.test.tsx
+  s_38e035b94b20f6::t_e27000f760f4fb 7,40,42,45-46
+lib/components/fitness/RouteHeatmapMap.test.tsx
+  s_38e035b94b20f6::t_e27000f760f4fb 7-10,250
+lib/database/sql/search.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 779,796,822
+lib/client.ts
+  s_38e035b94b20f6::t_64d626d78359ca 2-3,6-46,48-49
+lib/components/mute-action/mute-action.test.tsx
+  s_38e035b94b20f6::t_e27000f760f4fb 45,56-57
+lib/activities/note.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 59-61
+lib/database/sql/conversation.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 121,239-240,242-243,245-248,275-276,363
+lib/jobs/processFitnessFileJob.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 22,174-176,236-237,308-310,312,402-403,1182-1184,1186,1191
+lib/services/medias/S3StorageFile.test.ts
+  s_38e035b94b20f6::t_e27000f760f4fb 33-36
+lib/services/auth/sessionJoins.test.ts
+  s_38e035b94b20f6::t_8e354f8cc9938d 91-92
+yarn.lock
+  s_38e035b94b20f6::t_b5d6bf2a8c4ccb 463-465,469,484,488-490,492,498,502-504,506,512,516-518,520,522,526-528,530,536,540-542,545,547,550,552,556-558,562,564,567,570,574-576,578,587,591-593,595,598,602,611,620,3672-3675,3715-3716,3925-3927,3929-3935,3945,4005,5375,6143,7322
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "7425a547d05366635d97218b891551f8ca437284",
+  "prompts": {},
+  "sessions": {
+    "s_38e035b94b20f6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a081ac-57c9-75f2-9f13-77ef0756fa54",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
