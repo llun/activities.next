@@ -1,0 +1,28 @@
+.github/workflows/version-bump.yml
+  s_38e035b94b20f6::t_ca2b9725598bd5 155-157,159,173
+CONTRIBUTING.md
+  s_38e035b94b20f6::t_ca2b9725598bd5 977,990-995,1001,1005,1021,1163-1166
+.github/PULL_REQUEST_TEMPLATE.md
+  s_38e035b94b20f6::t_ca2b9725598bd5 2-4
+.github/workflows/version-bump.test.ts
+  s_38e035b94b20f6::t_1b0927e3da3eaf 9-10
+  s_38e035b94b20f6::t_ca2b9725598bd5 1-8,11-14
+AGENTS.md
+  s_38e035b94b20f6::t_ca2b9725598bd5 116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "68c7fc3d48d2f3d50cfd4a47ca30cec1a8da60e4",
+  "prompts": {},
+  "sessions": {
+    "s_38e035b94b20f6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a081ac-57c9-75f2-9f13-77ef0756fa54",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
