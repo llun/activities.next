@@ -1,0 +1,35 @@
+.github/workflows/tag-version.yml
+  s_38e035b94b20f6::t_db65db038a9af0 10
+.github/scripts/verify-major-tag-approval.mjs
+  s_38e035b94b20f6::t_0e480657648783 4-7,12-23,27,35-39,41-48,52
+CONTRIBUTING.md
+  s_38e035b94b20f6::t_23b96982b83f7f 1001
+.github/workflows/version-bump.test.ts
+  s_38e035b94b20f6::t_90c710e6073db5 56-79
+  s_38e035b94b20f6::t_e3f6b1cffd557f 3
+  s_38e035b94b20f6::t_83d48da96cabb9 80-81
+.github/scripts/major-release-approval.mjs
+  s_38e035b94b20f6::t_23b96982b83f7f 23-28
+  s_38e035b94b20f6::t_342330bb7662ed 1-22,29-38
+.github/scripts/determine-version-bump.mjs
+  s_38e035b94b20f6::t_342330bb7662ed 5
+.github/workflows/version-bump.yml
+  s_38e035b94b20f6::t_b79b4878d61799 456,464,472-473,484-485,489,492
+  s_38e035b94b20f6::t_db65db038a9af0 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "efb415f255cd656d5e7e5d1c7eeb7bb2bbf999ec",
+  "prompts": {},
+  "sessions": {
+    "s_38e035b94b20f6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a081ac-57c9-75f2-9f13-77ef0756fa54",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
