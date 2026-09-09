@@ -5,6 +5,7 @@ import '@testing-library/jest-dom'
 import { fireEvent, render, screen } from '@testing-library/react'
 
 import type { FitnessRouteHeatmapData } from '@/lib/client'
+import type { PublicMapProvider } from '@/lib/utils/mapProvider'
 
 import { HeatmapShareEmbed } from './HeatmapShareEmbed'
 
@@ -38,6 +39,7 @@ const defaultProps = {
   regionLabel: undefined as string | undefined,
   isWorld: true,
   heatmap,
+  mapProvider: { type: 'osm' } as PublicMapProvider,
   isSharing: false,
   onShare: vi.fn(),
   onUnshare: vi.fn()

@@ -680,7 +680,7 @@ describe('production archive scripts', () => {
       database.on('query', (query) => {
         statements.push(query.sql)
       })
-      const logSpy = vi.spyOn(console, 'log').mockImplementation()
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
 
       try {
         await database.schema.createTable('events', (table) => {
@@ -755,7 +755,7 @@ describe('production archive scripts', () => {
       database.on('query', (query) => {
         statements.push(query.sql)
       })
-      const logSpy = vi.spyOn(console, 'log').mockImplementation()
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
 
       try {
         await database.schema.createTable('events', (table) => {
@@ -813,7 +813,7 @@ describe('production archive scripts', () => {
       database.on('query', (query) => {
         statements.push(query.sql)
       })
-      const logSpy = vi.spyOn(console, 'log').mockImplementation()
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
 
       try {
         await database.schema.createTable('events', (table) => {
@@ -871,7 +871,7 @@ describe('production archive scripts', () => {
       database.on('query', (query) => {
         statements.push(query.sql)
       })
-      const logSpy = vi.spyOn(console, 'log').mockImplementation()
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
 
       try {
         await database.schema.createTable('events', (table) => {
@@ -1105,8 +1105,8 @@ describe('production archive scripts', () => {
 
           return { Body: Readable.from([Buffer.from('ok')]) }
         }) as typeof S3Client.prototype.send)
-      const logSpy = vi.spyOn(console, 'log').mockImplementation()
-      const errorSpy = vi.spyOn(console, 'error').mockImplementation()
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
       try {
         await fs.mkdir(path.join(tempDir, 'storage', 'media', 'files'), {
@@ -1206,8 +1206,8 @@ describe('production archive scripts', () => {
           .mockImplementation((async () => {
             throw error
           }) as typeof S3Client.prototype.send)
-        const logSpy = vi.spyOn(console, 'log').mockImplementation()
-        const errorSpy = vi.spyOn(console, 'error').mockImplementation()
+        const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
         try {
           const manifest = await archiveStorage(
@@ -1242,8 +1242,8 @@ describe('production archive scripts', () => {
 
     it('keeps the local storage root out of a failed file entry', async () => {
       const missingRoot = path.join(tempDir, 'missing-storage-root')
-      const logSpy = vi.spyOn(console, 'log').mockImplementation()
-      const errorSpy = vi.spyOn(console, 'error').mockImplementation()
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
       try {
         const manifest = await archiveStorage(
@@ -1291,8 +1291,8 @@ describe('production archive scripts', () => {
       global.fetch = vi.fn(
         async () => new Response('nope', { status: 503 })
       ) as typeof fetch
-      const logSpy = vi.spyOn(console, 'log').mockImplementation()
-      const errorSpy = vi.spyOn(console, 'error').mockImplementation()
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
       try {
         const manifest = await archiveStorage(

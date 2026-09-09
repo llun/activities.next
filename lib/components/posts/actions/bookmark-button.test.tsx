@@ -7,7 +7,7 @@ import { FC } from 'react'
 
 import { bookmarkStatus, undoBookmarkStatus } from '@/lib/client'
 import { createDeferred } from '@/lib/testing/deferred'
-import { StatusNote, StatusType } from '@/lib/types/domain/status'
+import { StatusNote, StatusPoll, StatusType } from '@/lib/types/domain/status'
 
 import { BookmarkButton } from './bookmark-button'
 import { useBookmarkState } from './useBookmarkState'
@@ -58,8 +58,11 @@ const status: StatusNote = {
 }
 
 interface HarnessProps {
-  status: StatusNote
-  onBookmarkChanged?: (status: StatusNote, isBookmarked: boolean) => void
+  status: StatusNote | StatusPoll
+  onBookmarkChanged?: (
+    status: StatusNote | StatusPoll,
+    isBookmarked: boolean
+  ) => void
 }
 
 // The action row owns the state and the button only renders it, so the tests

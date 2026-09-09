@@ -44,7 +44,10 @@ describe('UploadMediaButton', () => {
 
     // Mock crypto.randomUUID
     let counter = 0
-    global.crypto.randomUUID = vi.fn(() => `uuid-${counter++}`)
+    global.crypto.randomUUID = vi.fn(
+      () =>
+        `uuid-0000-0000-0000-${counter++}` as `${string}-${string}-${string}-${string}-${string}`
+    )
 
     // Mock URL.createObjectURL
     global.URL.createObjectURL = vi.fn(() => 'blob:test-url')

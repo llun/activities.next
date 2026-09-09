@@ -1,5 +1,6 @@
 import {
   ImportGear,
+  ImportGearInput,
   MatchableFitnessFile,
   applyWindows,
   diffGearComponents,
@@ -8,7 +9,7 @@ import {
   parseGearImportFile
 } from './gearImportPlan'
 
-const gearEntry = (overrides: Partial<ImportGear> = {}) => ({
+const gearEntry = (overrides: Partial<ImportGearInput> = {}) => ({
   name: 'Moots',
   kind: 'bike' as const,
   ...overrides
@@ -581,13 +582,13 @@ describe('findUnattributedActivities', () => {
 })
 
 describe('applyWindows', () => {
-  const gear = (overrides: Partial<ImportGear> = {}) =>
+  const gear = (overrides: Partial<ImportGearInput> = {}) =>
     parseGearImportFile({
       gears: [{ name: 'Moots', kind: 'bike', ...overrides }],
       assignments: []
     })
 
-  const gearsOf = (overrides: Partial<ImportGear> = {}): ImportGear[] => {
+  const gearsOf = (overrides: Partial<ImportGearInput> = {}): ImportGear[] => {
     const result = gear(overrides)
     if (!result.ok) throw new Error(result.errors.join('; '))
     return result.file.gears

@@ -47,6 +47,14 @@ const withEnv = <T>(
   }
 }
 
+const setNodeEnv = (value?: string) => {
+  if (value === undefined) {
+    delete (process.env as Record<string, string | undefined>).NODE_ENV
+  } else {
+    ;(process.env as Record<string, string | undefined>).NODE_ENV = value
+  }
+}
+
 const getCspDirectiveSources = (directiveName: string) => {
   const csp = getSecurityHeaders().find(
     (header) => header.key === 'Content-Security-Policy'
@@ -80,7 +88,7 @@ describe('next config runtime isolation', () => {
     delete process.env.ACTIVITIES_EMAIL
     delete process.env.ACTIVITIES_EMAIL_TYPE
     process.env.ACTIVITIES_HOST = 'build-host-should-not-be-used.example.com'
-    process.env.NODE_ENV = 'production'
+    setNodeEnv('production')
     fs.writeFileSync(
       path.join(tempDirectory, 'config.json'),
       JSON.stringify({
@@ -1134,7 +1142,7 @@ describe('next config security hardening', () => {
 
   it('uses static HTTPS image patterns in production', () => {
     const originalNodeEnv = process.env.NODE_ENV
-    process.env.NODE_ENV = 'production'
+    setNodeEnv('production')
 
     try {
       expect(getImageRemotePatterns()).toEqual([
@@ -1144,17 +1152,13 @@ describe('next config security hardening', () => {
         }
       ])
     } finally {
-      if (originalNodeEnv === undefined) {
-        delete process.env.NODE_ENV
-      } else {
-        process.env.NODE_ENV = originalNodeEnv
-      }
+      setNodeEnv(originalNodeEnv)
     }
   })
 
   it('allows safe local image hosts in development without app config', () => {
     const originalNodeEnv = process.env.NODE_ENV
-    process.env.NODE_ENV = 'development'
+    setNodeEnv('development')
 
     try {
       expect(getImageRemotePatterns()).toEqual([
@@ -1176,11 +1180,7 @@ describe('next config security hardening', () => {
         }
       ])
     } finally {
-      if (originalNodeEnv === undefined) {
-        delete process.env.NODE_ENV
-      } else {
-        process.env.NODE_ENV = originalNodeEnv
-      }
+      setNodeEnv(originalNodeEnv)
     }
   })
 })

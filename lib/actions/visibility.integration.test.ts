@@ -208,7 +208,9 @@ describe('Visibility integration tests', () => {
       const statuses = await database.getActorStatuses({
         actorId: actor1.id
       })
-      const poll = statuses.find((s) => s.text.includes('Public poll'))
+      const poll = statuses.find(
+        (s) => 'text' in s && s.text.includes('Public poll')
+      )
 
       expect(poll).toBeDefined()
       expect(poll?.to).toContain(ACTIVITY_STREAM_PUBLIC)
@@ -228,7 +230,9 @@ describe('Visibility integration tests', () => {
       const statuses = await database.getActorStatuses({
         actorId: actor1.id
       })
-      const poll = statuses.find((s) => s.text.includes('Unlisted poll'))
+      const poll = statuses.find(
+        (s) => 'text' in s && s.text.includes('Unlisted poll')
+      )
 
       expect(poll).toBeDefined()
       expect(poll?.to).toContain(`${actor1.id}/followers`)
@@ -249,7 +253,9 @@ describe('Visibility integration tests', () => {
       const statuses = await database.getActorStatuses({
         actorId: actor1.id
       })
-      const poll = statuses.find((s) => s.text.includes('Private poll'))
+      const poll = statuses.find(
+        (s) => 'text' in s && s.text.includes('Private poll')
+      )
 
       expect(poll).toBeDefined()
       expect(poll?.to).toContain(`${actor1.id}/followers`)
@@ -283,7 +289,9 @@ describe('Visibility integration tests', () => {
       const statuses = await database.getActorStatuses({
         actorId: actor1.id
       })
-      const poll = statuses.find((s) => s.text.includes('Direct poll'))
+      const poll = statuses.find(
+        (s) => 'text' in s && s.text.includes('Direct poll')
+      )
 
       expect(poll).toBeDefined()
       expect(poll?.to).not.toContain(ACTIVITY_STREAM_PUBLIC)
@@ -336,8 +344,9 @@ describe('Visibility integration tests', () => {
       const statuses = await database.getActorStatuses({
         actorId: actor1.id
       })
-      const poll = statuses.find((s) =>
-        s.text.includes('Poll reply without mention prefixes')
+      const poll = statuses.find(
+        (s) =>
+          'text' in s && s.text.includes('Poll reply without mention prefixes')
       )
 
       expect(poll).toBeDefined()

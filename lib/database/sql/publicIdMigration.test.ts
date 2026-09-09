@@ -1,3 +1,4 @@
+// @ts-expect-error better-sqlite3 does not ship type declarations
 import BetterSqlite3 from 'better-sqlite3'
 import knex from 'knex'
 import { mkdtemp, rm } from 'node:fs/promises'

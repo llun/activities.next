@@ -52,10 +52,8 @@ jobs:
         run: yarn prettier:check
 
   # `next build` type-checks tsconfig.build.json, which excludes *.test.ts(x).
-  # This job is the gate for those: it runs the same compiler over
-  # tsconfig.typecheck.json, whose exclude list ends in a ratchet of test files
-  # that carried type errors before the gate existed. Remove files from that
-  # list as they are fixed; never add one.
+  # This job runs the same compiler over tsconfig.json (all files including
+  # tests and scripts) via `yarn typecheck`.
   typecheck:
     name: Type Check
     runs-on: ubuntu-latest
@@ -154,7 +152,8 @@ jobs:
           echo "All test shards succeeded."
 
   # Bounded PostgreSQL integration test job covering database access layers:
-  # media, fitness files, gear, component periods, and heatmap tiles.
+  # media, fitness files, gear, component periods, heatmap tiles, queue jobs,
+  # and status deletion queue transactions.
   # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
   # database connections or overloading disposable service containers.
   test-pg:
@@ -198,7 +197,9 @@ jobs:
             lib/database/sql/fitnessFile.test.ts \
             lib/database/sql/fitnessGear.test.ts \
             lib/database/sql/fitnessGearComponentPeriods.test.ts \
-            lib/database/sql/fitnessRouteHeatmapTile.test.ts
+            lib/database/sql/fitnessRouteHeatmapTile.test.ts \
+            lib/database/sql/queueJob.test.ts \
+            lib/database/sql/statusDeletionQueue.test.ts
         env:
           TEST_DATABASE_TYPE: pg
           TEST_DATABASE_HOST: 127.0.0.1

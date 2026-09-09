@@ -1,18 +1,11 @@
-import {
-  createLocalAccountIssuer,
-  createOAuthAccountIssuer
-} from '@better-auth/core/db'
 import knex from 'knex'
 
 import * as migration from '@/migrations/20260821120000_better_auth_17_columns'
 
-// The migration re-derives better-auth's issuer format by hand rather than
-// importing it, so that it keeps replaying the same way after better-auth is
-// upgraded again or removed. That is the right call for a migration and the
-// wrong thing to leave unpinned: an account whose `issuer` does not match what
-// `signInEmail` looks for is locked out with `INVALID_EMAIL_OR_PASSWORD`. These
-// assert the backfilled values against better-auth's own helpers, so a format
-// change upstream fails here instead of in production.
+// The migration predates Better Auth 1.7.3 removing issuer from its account
+// identity key. Keep these historical values fixed: this test protects the
+// replayed migration, while the credential identity tests cover the current
+// providerId/accountId lookup behaviour.
 describe('better-auth 1.7 columns migration', () => {
   let database: knex.Knex
 
@@ -39,7 +32,7 @@ describe('better-auth 1.7 columns migration', () => {
     await database.destroy()
   })
 
-  it('backfills a credential row with the local issuer better-auth resolves it by', async () => {
+  it('backfills a credential row with its historical local issuer', async () => {
     await database('account_providers').insert({
       id: 'credential_acc-1',
       accountId: 'acc-1',
@@ -52,10 +45,10 @@ describe('better-auth 1.7 columns migration', () => {
     const row = await database('account_providers')
       .where('id', 'credential_acc-1')
       .first()
-    expect(row.issuer).toBe(createLocalAccountIssuer('credential'))
+    expect(row.issuer).toBe('local:credential')
   })
 
-  it('backfills an external provider row with the OAuth issuer namespace', async () => {
+  it('backfills an external provider row with its historical OAuth namespace', async () => {
     await database('account_providers').insert({
       id: 'gh-1',
       accountId: 'acc-2',
@@ -66,7 +59,7 @@ describe('better-auth 1.7 columns migration', () => {
     await migration.up(database)
 
     const row = await database('account_providers').where('id', 'gh-1').first()
-    expect(row.issuer).toBe(createOAuthAccountIssuer('github'))
+    expect(row.issuer).toBe('local:oauth:github')
   })
 
   // The provider name is free text on this table, and better-auth
@@ -85,7 +78,6 @@ describe('better-auth 1.7 columns migration', () => {
     const row = await database('account_providers')
       .where('id', 'weird-1')
       .first()
-    expect(row.issuer).toBe(createOAuthAccountIssuer('my provider/x'))
     expect(row.issuer).toBe('local:oauth:my%20provider%2Fx')
   })
 

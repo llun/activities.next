@@ -12,6 +12,7 @@ import { getQueue } from '@/lib/services/queue'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
+import { StatusNote } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
@@ -116,7 +117,8 @@ describe('regenerateFitnessMapsJob', () => {
           aspect: 1.3333333333
         }
       },
-      description: 'Route map'
+      description: 'Route map',
+      blurhash: null
     })
   })
 
@@ -282,10 +284,10 @@ describe('regenerateFitnessMapsJob', () => {
     expect(refreshedFitnessFile?.mapImageEmailPath).toBeUndefined()
     expect(mockDeleteMediaFile).toHaveBeenCalledWith(database, oldEmailMapPath)
 
-    const refreshedStatus = await database.getStatus({
+    const refreshedStatus = (await database.getStatus({
       statusId,
       withReplies: false
-    })
+    })) as StatusNote
     const mapAttachments = refreshedStatus?.attachments.filter((attachment) => {
       return attachment.name === 'Activity route map'
     })
@@ -421,10 +423,10 @@ describe('regenerateFitnessMapsJob', () => {
     })
     expect(oldMedia).toBeTruthy()
 
-    const refreshedStatus = await database.getStatus({
+    const refreshedStatus = (await database.getStatus({
       statusId,
       withReplies: false
-    })
+    })) as StatusNote
     const mapAttachments = refreshedStatus?.attachments.filter((attachment) => {
       return attachment.name === 'Activity route map'
     })
@@ -497,7 +499,10 @@ describe('regenerateFitnessMapsJob', () => {
     })
     expect(refreshed?.mapError).toBeUndefined()
 
-    const status = await database.getStatus({ statusId, withReplies: false })
+    const status = (await database.getStatus({
+      statusId,
+      withReplies: false
+    })) as StatusNote
     const mapAttachments = status?.attachments.filter(
       (attachment) => attachment.name === 'Activity route map'
     )
@@ -576,10 +581,10 @@ describe('regenerateFitnessMapsJob', () => {
     })
     expect(oldMedia).toBeNull()
 
-    const refreshedStatus = await database.getStatus({
+    const refreshedStatus = (await database.getStatus({
       statusId,
       withReplies: false
-    })
+    })) as StatusNote
     const mapAttachments = refreshedStatus?.attachments.filter(
       (attachment) => attachment.name === 'Activity route map'
     )
@@ -618,7 +623,10 @@ describe('regenerateFitnessMapsJob', () => {
       mapError: 'Failed to remove the route map'
     })
 
-    const status = await database.getStatus({ statusId, withReplies: false })
+    const status = (await database.getStatus({
+      statusId,
+      withReplies: false
+    })) as StatusNote
     expect(
       status?.attachments.filter(
         (attachment) => attachment.name === 'Activity route map'
@@ -687,10 +695,10 @@ describe('regenerateFitnessMapsJob', () => {
     })
     expect(primaryMedia).toBeTruthy()
 
-    const refreshedStatus = await database.getStatus({
+    const refreshedStatus = (await database.getStatus({
       statusId,
       withReplies: false
-    })
+    })) as StatusNote
     const mapAttachments = refreshedStatus?.attachments.filter((attachment) => {
       return attachment.name === 'Activity route map'
     })
@@ -720,7 +728,8 @@ describe('regenerateFitnessMapsJob', () => {
             aspect: 1.3333333333
           }
         },
-        description: 'Route map 1'
+        description: 'Route map 1',
+        blurhash: null
       })
       .mockResolvedValueOnce({
         id: 'new-map-media-id-2',
@@ -738,7 +747,8 @@ describe('regenerateFitnessMapsJob', () => {
             aspect: 1.3333333333
           }
         },
-        description: 'Route map 2'
+        description: 'Route map 2',
+        blurhash: null
       })
 
     await regenerateFitnessMapsJob(database, {
@@ -750,10 +760,10 @@ describe('regenerateFitnessMapsJob', () => {
       }
     })
 
-    const refreshedStatus = await database.getStatus({
+    const refreshedStatus = (await database.getStatus({
       statusId,
       withReplies: false
-    })
+    })) as StatusNote
     const mapAttachments = refreshedStatus?.attachments.filter((attachment) => {
       return attachment.name === 'Activity route map'
     })
