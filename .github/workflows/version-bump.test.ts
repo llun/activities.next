@@ -63,6 +63,7 @@ describe('automatic version-bump policy', () => {
       hasHumanMajorLabelEvent(pullRequest, [
         {
           event: 'labeled',
+          id: 1,
           label: { name: 'release:major' },
           actor: { type: 'Bot' },
           created_at: '2026-09-09T12:00:00Z'
@@ -73,6 +74,7 @@ describe('automatic version-bump policy', () => {
       hasHumanMajorLabelEvent(pullRequest, [
         {
           event: 'labeled',
+          id: 1,
           label: { name: 'release:major' },
           actor: { type: 'User' },
           created_at: '2026-09-09T12:00:00Z'
@@ -83,21 +85,42 @@ describe('automatic version-bump policy', () => {
       hasHumanMajorLabelEvent(pullRequest, [
         {
           event: 'labeled',
+          id: 1,
           label: { name: 'release:major' },
           actor: { type: 'User' },
           created_at: '2026-09-09T12:00:00Z'
         },
         {
           event: 'unlabeled',
+          id: 2,
           label: { name: 'release:major' },
           actor: { type: 'User' },
           created_at: '2026-09-09T12:01:00Z'
         },
         {
           event: 'labeled',
+          id: 3,
           label: { name: 'release:major' },
           actor: { type: 'Bot' },
           created_at: '2026-09-09T12:02:00Z'
+        }
+      ])
+    ).toBe(false)
+    expect(
+      hasHumanMajorLabelEvent(pullRequest, [
+        {
+          event: 'labeled',
+          id: 1,
+          label: { name: 'release:major' },
+          actor: { type: 'User' },
+          created_at: '2026-09-09T12:00:00Z'
+        },
+        {
+          event: 'labeled',
+          id: 2,
+          label: { name: 'release:major' },
+          actor: { type: 'Bot' },
+          created_at: '2026-09-09T12:00:00Z'
         }
       ])
     ).toBe(false)

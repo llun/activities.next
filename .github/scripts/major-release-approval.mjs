@@ -26,7 +26,8 @@ export const hasHumanMajorLabelEvent = (pullRequest, events) => {
     )
     .sort(
       (left, right) =>
-        Date.parse(right.created_at) - Date.parse(left.created_at)
+        Date.parse(right.created_at) - Date.parse(left.created_at) ||
+        Number(right.id) - Number(left.id)
     )[0]
 
   return (
