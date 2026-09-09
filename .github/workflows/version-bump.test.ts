@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 
+import { hasHumanMajorLabelEvent } from '../scripts/major-release-approval.mjs'
 import {
   getCommitBump,
   isMajorTransition,
@@ -50,6 +51,32 @@ describe('automatic version-bump policy', () => {
   it('recognizes a major version transition for the tag guard', () => {
     expect(isMajorTransition('v1.161.52', 'v1.162.0')).toBe(false)
     expect(isMajorTransition('v1.161.52', 'v2.0.0')).toBe(true)
+  })
+
+  it('accepts approval only when a user applied the current major label', () => {
+    const pullRequest = {
+      merged_at: '2026-09-09T12:00:00Z',
+      labels: [{ name: 'release:major' }]
+    }
+
+    expect(
+      hasHumanMajorLabelEvent(pullRequest, [
+        {
+          event: 'labeled',
+          label: { name: 'release:major' },
+          actor: { type: 'Bot' }
+        }
+      ])
+    ).toBe(false)
+    expect(
+      hasHumanMajorLabelEvent(pullRequest, [
+        {
+          event: 'labeled',
+          label: { name: 'release:major' },
+          actor: { type: 'User' }
+        }
+      ])
+    ).toBe(true)
   })
 
   it('runs the executable policy and tag approval guards in both workflows', () => {

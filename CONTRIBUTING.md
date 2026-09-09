@@ -998,7 +998,7 @@ The version-bump workflow reads commit prefixes to determine the next semver ver
 
 PRs are **squash-merged**, so the **PR title becomes the commit subject** on `main`. The workflow checks the commit subject first, then falls back to scanning the commit body (which contains the individual commit messages).
 
-**To ensure a minor version bump, the PR title MUST start with `minor:`.** A `major:` title produces a major bump only after a human maintainer applies the `release:major` label to the feature PR. Agents must never apply this label. Without it, `major:` produces a minor bump. The generated version-bump PR carries the label forward so the tag workflow can verify the approval. For example:
+**To ensure a minor version bump, the PR title MUST start with `minor:`.** A `major:` title produces a major bump only after a human maintainer applies the `release:major` label to the feature PR. Agents must never apply this label. Without it, `major:` produces a minor bump. The tag workflow independently verifies that approval on the source PR. For example:
 
 ```text
 minor: add hashtag timeline support        ← PR title → minor bump

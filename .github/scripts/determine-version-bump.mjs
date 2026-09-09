@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { appendFileSync } from 'node:fs'
 import process from 'node:process'
 
+import { hasHumanMajorApproval } from './major-release-approval.mjs'
 import { nextVersion, selectVersionBump } from './version-bump-policy.mjs'
 
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8' }).trim()
@@ -9,27 +10,6 @@ const output = (name, value) =>
   appendFileSync(process.env.GITHUB_OUTPUT, `${name}=${value}\n`)
 const majorMarker = (subject, body) =>
   /^major:/.test(subject) || /(^|\n)\s*[-*]?\s*major:/.test(body)
-
-const hasHumanMajorApproval = (hash) => {
-  try {
-    const pullRequests = JSON.parse(
-      execFileSync(
-        'gh',
-        ['api', `repos/${process.env.GITHUB_REPOSITORY}/commits/${hash}/pulls`],
-        { encoding: 'utf8' }
-      )
-    )
-    return pullRequests.some(
-      (pullRequest) =>
-        pullRequest.merged_at &&
-        pullRequest.labels.some((label) => label.name === 'release:major')
-    )
-  } catch {
-    // Fail closed: without the maintainer approval record, a major marker is
-    // intentionally treated as a minor release request.
-    return false
-  }
-}
 
 const baseSha = git('rev-parse', 'origin/main')
 output('base_sha', baseSha)

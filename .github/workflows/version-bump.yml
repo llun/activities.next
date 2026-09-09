@@ -8,6 +8,7 @@ on:
 permissions:
   actions: write
   contents: write
+  issues: read
   pull-requests: write
 
 env:
@@ -220,13 +221,6 @@ jobs:
               --base main \
               --head "$VERSION_BUMP_BRANCH")
             echo "Created PR: $PR_URL"
-          fi
-
-          PR_NUMBER=$(gh pr view "$PR_URL" --json number --jq '.number')
-          if [ "$BUMP" = "major" ]; then
-            gh pr edit "$PR_NUMBER" --add-label release:major
-          else
-            gh pr edit "$PR_NUMBER" --remove-label release:major || true
           fi
 
           HEAD_SHA=$(git rev-parse HEAD)
@@ -457,27 +451,9 @@ jobs:
             return 1
           }
 
-          # Hand the PR to GitHub instead of dropping it whenever this run gives
-          # up. Every abandon path used to exit having armed nothing, so the
-          # bump then waited for an entirely new run — which only happens on the
-          # next push to main, i.e. hours on a quiet day. Arming is safe even
-          # for a bump whose version may be stale, because branch protection is
-          # `strict`: an armed PR can merge only while it is both green *and*
-          # up to date with main, and a stale bump goes BEHIND the moment main
-          # moves, staying blocked until the next run force-pushes the
-          # recomputed version onto it.
-          arm_auto_merge() {
-            local pr_url="$1"
-
-            if gh pr merge --auto --squash --delete-branch "$pr_url"; then
-              echo "Armed auto-merge on ${pr_url}; GitHub will merge it once branch protection is satisfied."
-            else
-              echo "::warning::Could not arm auto-merge on ${pr_url}."
-            fi
-          }
-
           CHECKS_ERROR=$(mktemp)
           trap 'rm -f "$CHECKS_ERROR"' EXIT
+          CHECKS_VERIFIED=0
 
           set +e
           BRANCH_PROTECTION_CHECK_NAMES=$(read_branch_protection_required_checks "$CHECKS_ERROR")
@@ -485,18 +461,16 @@ jobs:
           set -e
 
           if [ "$BRANCH_PROTECTION_CHECKS_EXIT" -ne 0 ] || [ -z "$BRANCH_PROTECTION_CHECK_NAMES" ]; then
-            # With no expected set to wait on there is nothing to gate locally.
-            # Enabling auto-merge is still safe: GitHub will not merge the PR
-            # until branch protection is satisfied.
-            echo "::warning::No branch-protection required status checks to wait on; relying on auto-merge to gate the merge."
+            echo "::warning::No branch-protection required status checks to wait on; leaving $PR_URL open."
           else
             echo "Branch-protection required checks: $(join_check_names "$BRANCH_PROTECTION_CHECK_NAMES")."
 
             if ! wait_for_required_checks "$PR_URL" "$HEAD_SHA" "$BRANCH_PROTECTION_CHECK_NAMES"; then
               echo "::warning::Required PR checks did not pass; leaving $PR_URL open."
-              arm_auto_merge "$PR_URL"
               exit 0
             fi
+
+            CHECKS_VERIFIED=1
           fi
 
           git fetch --force origin main
@@ -504,45 +478,16 @@ jobs:
 
           if [ "$LATEST_MAIN_SHA" != "$BASE_SHA" ]; then
             echo "Leaving $PR_URL open: main moved from $BASE_SHA to $LATEST_MAIN_SHA while checks were running."
-            arm_auto_merge "$PR_URL"
             exit 0
           fi
 
-          if gh pr merge --auto --squash --delete-branch "$PR_URL"; then
-            echo "Enabled auto-merge for $PR_URL"
+          if [ "$CHECKS_VERIFIED" -ne 1 ]; then
+            echo "::warning::Required checks were not independently verified; leaving $PR_URL open."
             exit 0
           fi
 
-          # Auto-merge can only be *enabled* while the PR is still blocked, and
-          # by now the required checks have usually all passed, so GitHub
-          # rejects the request with "Pull request is in clean status". Merging
-          # directly is the right answer for that case only — never for an
-          # arbitrary --auto failure. PAT_TOKEN belongs to a repo admin and
-          # `enforce_admins` is false on main, so a blind direct merge here
-          # could push a bump past required checks this gate never verified
-          # (most sharply on the "could not read branch protection" path above,
-          # which does no local gating at all). Re-read the merge state and
-          # merge only what GitHub itself already considers CLEAN.
-          MERGE_STATE=""
-
-          for merge_state_attempt in 1 2 3; do
-            MERGE_STATE=$(gh pr view "$PR_URL" --json mergeStateStatus --jq '.mergeStateStatus' 2>/dev/null || true)
-
-            # UNKNOWN means GitHub has not finished computing mergeability yet,
-            # not that the PR is unmergeable; the read itself kicks that off.
-            if [ -n "$MERGE_STATE" ] && [ "$MERGE_STATE" != "UNKNOWN" ]; then
-              break
-            fi
-
-            if [ "$merge_state_attempt" -lt 3 ]; then
-              sleep 5
-            fi
-          done
-
-          if [ "$MERGE_STATE" = "CLEAN" ]; then
-            echo "Auto-merge was refused and $PR_URL is CLEAN; merging it directly."
-            gh pr merge --squash --delete-branch "$PR_URL"
+          if gh pr merge --squash --delete-branch "$PR_URL"; then
             echo "Merged $PR_URL"
           else
-            echo "::warning::Could not enable auto-merge for $PR_URL and its merge state is ${MERGE_STATE:-unreadable}; leaving it open."
+            echo "::warning::Could not merge $PR_URL after verification; leaving it open."
           fi
