@@ -1,0 +1,30 @@
+lib/components/posts/feedLayout.ts
+  s_10531fef57a43f::t_2c01a4ba8c981a 18-21
+docs/architecture.md
+  s_10531fef57a43f::t_2f01e4722855a3 1663-1665
+  s_10531fef57a43f::t_01ca7465537f7e 1660-1662
+lib/components/posts/posts.test.tsx
+  s_10531fef57a43f::t_2f01e4722855a3 193-195
+app/(timeline)/PublicTopBar.tsx
+  s_10531fef57a43f::t_2f01e4722855a3 22-23
+app/(timeline)/PublicShell.tsx
+  s_10531fef57a43f::t_2f01e4722855a3 15-16,28-31
+app/(timeline)/explore/ExplorePageClient.tsx
+  s_10531fef57a43f::t_3f0cef618c52b7 283-289
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "167dfda1195d6f994d83823541e17c47c002a171",
+  "prompts": {},
+  "sessions": {
+    "s_10531fef57a43f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f73f2ed09ffe3DWHyfuBTWeDTJ",
+        "model": "deepseek-flash"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
