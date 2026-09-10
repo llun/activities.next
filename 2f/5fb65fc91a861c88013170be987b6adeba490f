@@ -1,0 +1,43 @@
+app/(timeline)/[actor]/[status]/page.tsx
+  s_10531fef57a43f::t_34a4803286e027 327-330
+docs/architecture.md
+  s_10531fef57a43f::t_f65407a967fd8f 1643-1663
+  s_10531fef57a43f::t_03ab38bc22290f 1720-1721
+  s_10531fef57a43f::t_3896cc8f6147fd 1669-1671,1677-1680
+app/(timeline)/[actor]/[status]/page.layout.test.tsx
+  s_10531fef57a43f::t_807f28dd2c4b61 232-235
+lib/components/posts/feedLayout.ts
+  s_10531fef57a43f::t_d6376001722e46 2-6,9,11-18,21
+lib/components/posts/attachments.test.tsx
+  s_10531fef57a43f::t_03ab38bc22290f 1124
+docs/mastodon-api-compatibility.md
+  s_10531fef57a43f::t_03ab38bc22290f 797-798
+lib/components/posts/attachments.tsx
+  s_10531fef57a43f::t_03ab38bc22290f 69-70
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_10531fef57a43f::t_8a2cc610e8ca4a 47,1913,1930
+lib/components/posts/feedLayout.test.ts
+  s_10531fef57a43f::t_789bb13d2d4e9e 1,3-4,7,9,11
+app/(timeline)/PublicTopBar.tsx
+  s_10531fef57a43f::t_20ae1f440ffb88 21-24
+app/(timeline)/PublicFooter.tsx
+  s_10531fef57a43f::t_c12679f5381bd6 15-16
+app/(timeline)/PublicShell.tsx
+  s_10531fef57a43f::t_12dd119f634e4c 15-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2f5fb65fc91a861c88013170be987b6adeba490f",
+  "prompts": {},
+  "sessions": {
+    "s_10531fef57a43f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f73f2ed09ffe3DWHyfuBTWeDTJ",
+        "model": "deepseek-flash"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
