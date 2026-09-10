@@ -794,7 +794,8 @@ system's `Attachments` component.
   OUTSET ring's top and bottom bars fall outside the scrollport and are clipped
   away. A lone picture now sits flush with the feed frame's inner edge too —
   below `md` that is the viewport edge, where `main`'s `overflow-x-clip` cuts
-  half the ring — so both shapes share the same inset outline. An INSET ring is
+  the ring's outer edge on the flush side — so both shapes share the same
+  inset outline. An INSET ring is
   worse rather than better: an inset `box-shadow` paints with the element's
   background, underneath its content, and the button's only child is an opaque
   image filling the whole box — so it is occluded on all four sides and there is

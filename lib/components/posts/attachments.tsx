@@ -66,8 +66,8 @@ const MEDIA_BOX_CLASS =
 // One indicator for both shapes. The strip has always needed the inset outline
 // (an outset ring is clipped by its own `overflow-x-auto`); since the media row
 // now reaches the feed frame's inner edges — the viewport edge below `md` — a
-// lone picture sits flush to `main`'s `overflow-x-clip` too, where half the
-// outset ring is cut off. The inset outline is drawn over the opaque image
+// lone picture sits flush to `main`'s `overflow-x-clip` too, whose flush side
+// cuts the outset ring's outer edge. The inset outline is drawn over the opaque image
 // (unlike an inset ring, which paints beneath it) and survives both.
 const MEDIA_FOCUS_CLASS =
   'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring/50'

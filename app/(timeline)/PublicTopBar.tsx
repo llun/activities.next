@@ -18,7 +18,10 @@ export const PublicTopBar = async () => {
   const logoSrc = new URL('/logo-nav.png', getBaseURL()).toString()
   return (
     <header className="sticky top-0 z-30 border-b bg-background/90 backdrop-blur">
-      <div className="mx-auto flex h-16 w-full max-w-[680px] items-center gap-3 px-4">
+      {/* Full width below `md` to stay aligned with PublicShell's content
+          column, which drops the same 680px cap so mobile feeds can reach the
+          screen edges. From `md` up both keep the narrow reading width. */}
+      <div className="mx-auto flex h-16 w-full max-w-[680px] items-center gap-3 px-4 max-md:max-w-none">
         <Logo size="md" src={logoSrc} />
         <div className="ml-auto flex items-center gap-2">
           <Button asChild variant="outline" size="sm">

@@ -12,7 +12,8 @@ interface PublicShellProps {
 /**
  * Public chrome for logged-out visitors on the federated reading surfaces
  * (single status, profiles, hashtags): a slim top bar with sign-in CTAs and a
- * footer in place of the nav sidebar, with a narrow reading column. This used
+ * footer in place of the nav sidebar, with a narrow reading column that drops
+ * its 680px cap below `md` so mobile feeds reach the screen edges. This used
  * to live inline in the `(timeline)` layout, but the logged-out home route
  * renders a full-bleed landing instead, so the chrome moved into the sub-trees
  * that still need it (`[actor]/*`, `tags/*`).

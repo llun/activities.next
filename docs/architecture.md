@@ -1640,39 +1640,44 @@ legacy shape left to copy.
 ### Review: Post media layout
 
 - **Feed framing is breakpoint-scoped and owned by the element that renders the
-  feed's outer frame**, through `MOBILE_FEED_SURFACE_CLASS` /
-  `MOBILE_FEED_SURFACE_SM_P5_CLASS` in
-  `lib/components/posts/feedLayout.ts`. Below `md` that element cancels the page
-  column's `px-4` gutter, spans the screen edge to edge, and drops only its
-  outer border, shadow and corner rounding; the post separators (`divide-y`),
-  the article's `px-4` text inset, and the borders of nested content-warning,
-  quote, link-preview and fitness cards all stay. Apply it to the frame owner —
-  the feed, its loading skeleton, its empty state, and the home composer — and
-  to it alone: `Posts` applies it only when `framed`, embedded feeds keep the
-  parent frame (`framed={false}` renders no frame and no mobile bleed), and a
-  frame inside a `p-4 sm:p-5` container (the fitness status body) uses the
-  `SM_P5` variant so the negative margin tracks that padding. Search's results
-  shell also drops its `overflow-hidden` below `md` (`max-md:overflow-visible`)
-  because the clip existed only for the rounding that is gone there, and
-  `PublicShell` drops its 680px reading-column cap below `md`
-  (`max-md:max-w-none`) so a logged-out feed reaches the true screen edge
-  between 680 and 767px instead of stopping at the column.
+  feed's outer frame**, through `MOBILE_FEED_SURFACE_CLASS` in
+  `lib/components/posts/feedLayout.ts`. Below `md` that element spans the
+  viewport, cancels the enclosing shell's horizontal padding, and drops only
+  its outer border, shadow and corner rounding; the post separators
+  (`divide-y`), the article's `px-4` text inset, and the borders of nested
+  content-warning, quote, link-preview and fitness cards all stay. Apply it to
+  the frame owner — the feed, its loading skeleton, its empty state, and the
+  home composer — and to it alone: `Posts` applies it only when `framed`, and
+  embedded feeds keep the parent frame (`framed={false}` renders no frame and
+  no mobile bleed). The margin is deliberately `calc(50% - 50vw)`, not a fixed
+  `-mx-4`: the shared `/` loading boundary renders under both the signed-in
+  `px-4` column and the raw logged-out landing branch with no padding, so a
+  fixed gutter overflowed the viewport in the second one. `max-md:w-auto` is
+  load-bearing — with `width: 100%` the negative margins only shift a `w-full`
+  frame left instead of widening it. Search's results shell also drops its
+  `overflow-hidden` below `md` (`max-md:overflow-visible`); that removes the
+  clip the (now gone) rounding needed and lets embedded posts' non-portalled
+  overlays escape below `md`. `PublicShell` and its top bar and footer drop
+  their 680px reading-column cap below `md` (`max-md:max-w-none`) so a
+  logged-out feed reaches the true screen edge between 680 and 767px and the
+  chrome stays aligned with the content column.
 - **A visual attachment row spans the owning feed frame's inner edges at every
   breakpoint, including the area beneath the avatar.** `Attachments` pulls the
   row out by `--post-media-bleed-left` / `--post-media-bleed-right`, whose
   defaults (`4.25rem` / `1rem`) describe the 40px avatar, 12px gap and the
   article's 16px inset. Below `md` the owning frame is the screen edge; from
-  `md` up it is the feed card's inner edge (or the parent frame for an embedded
-  feed). A nested frame overrides the variables for its own padding: the
+  `md` up it is the feed card's inner edge, or the parent frame for an embedded
+  feed (the parentless landing feed has no frame there, so the row spans the
+  column). A nested frame overrides the variables for its own padding: the
   content-warning card resets both to `0.75rem` (its `px-3`) so expanded media
   fills the card inside its border rather than escaping it, and Explore raises
   them from `md` to include its `p-2` shell. Captions and the strip pager carry
   their own inset (`px-4` / `pr-4`) so they stay off the edge the row reaches:
   a lone picture's caption is inset from the frame edge, and each strip item's
-  caption is inset within its own card. The media row must not be narrowed to
-  achieve this: a lone picture still sizes naturally at `min(100%, Npx)`, the
-  strip keeps its item widths, gaps, snapping and pager, and no ancestor may
-  clip the row.
+  caption is inset within its own item column. The media row must not be
+  narrowed to achieve this: a lone picture still sizes naturally at
+  `min(100%, Npx)`, the strip keeps its item widths, gaps, snapping and pager,
+  and no ancestor may clip the row.
 - A status's media is **one attachment at its own size, or a horizontally
   scrollable strip — never a grid.** `lib/components/posts/attachments.tsx` owns
   this for every surface that renders a post. A lone picture keeps its own
@@ -1712,8 +1717,8 @@ legacy shape left to copy.
 - **A media button's focus indicator is an `outline` with a NEGATIVE offset,
   never an outset ring.** The strip's own `overflow-x-auto` clips an outset
   ring, and since the media row reaches the frame's inner edges the lone
-  picture sits flush with `main`'s `overflow-x-clip` below `md`, where half the
-  ring is cut off. An inset `box-shadow` does not work either — it paints
+  picture sits flush with `main`'s `overflow-x-clip` below `md`, where the
+  ring's outer edge on the flush side is cut off. An inset `box-shadow` does not work either — it paints
   beneath content and the button's only child is an opaque image. `Attachments`
   uses one spelling for both shapes; it has been got wrong twice and is pinned
   by a test.

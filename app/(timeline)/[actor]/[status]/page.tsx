@@ -324,9 +324,10 @@ const Page: FC<Props> = async ({ params }) => {
             'border-b bg-background max-md:rounded-none',
             // Unlike the conversation card below, this one's children paint,
             // so with the clip gone each corner they reach has to be rounded
-            // here. Logged out there is no `Header` above this — the `sr-only`
-            // heading is out of flow and paints nothing — so it meets the top
-            // corners as well…
+            // here, and reset below `md` where the outer card is square and
+            // full-bleed. Logged out there is no `Header` above this — the
+            // `sr-only` heading is out of flow and paints nothing — so it meets
+            // the top corners as well…
             !currentActorProfile && 'rounded-t-2xl',
             // …and it is the last child unless the logged-out `SignInCallout`
             // follows it, in which case that block takes the bottom corners.

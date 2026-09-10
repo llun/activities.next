@@ -12,7 +12,8 @@ export const PublicFooter: FC = () => {
   // domain, where a root-relative `/logo-nav.png` may be redirected away.
   const logoSrc = new URL('/logo-nav.png', getBaseURL()).toString()
   return (
-    <footer className="mx-auto w-full max-w-[680px] px-4 py-8">
+    // Matches PublicShell/PublicTopBar: full width below `md`, narrow from `md`.
+    <footer className="mx-auto w-full max-w-[680px] px-4 py-8 max-md:max-w-none">
       <div className="rounded-xl border bg-background/70 px-5 py-4">
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
           <div className="flex items-center gap-2 text-muted-foreground">

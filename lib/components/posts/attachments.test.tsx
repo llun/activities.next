@@ -1121,7 +1121,7 @@ describe('Attachments', () => {
       )
 
       // The lone picture can sit flush with the viewport below `md`, where
-      // `main`'s `overflow-x-clip` cuts half an outset ring; the inset outline
+      // `main`'s `overflow-x-clip` cuts the flush side of an outset ring; the outline
       // is painted over the image, so it stays whole.
       const button = screen.getByRole('button')
       expect(button).toHaveClass(

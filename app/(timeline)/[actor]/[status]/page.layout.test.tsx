@@ -229,6 +229,10 @@ describe('Conversation card chrome', () => {
     // carries the corners out over the posts.
     expect(card.firstElementChild).toHaveClass('rounded-t-2xl')
     expect(card.firstElementChild).toHaveClass('overflow-hidden')
+    // Below `md` the outer card is square and full-bleed, so the wrapper must
+    // drop its own rounding or it notches a rounded background into it.
+    expect(card).toHaveClass('max-md:rounded-none')
+    expect(card.firstElementChild).toHaveClass('max-md:rounded-none')
     // The header takes the corners, so the post below it must not — even
     // though it is the topmost *post* and would take them when logged out.
     expect(rowFor('focused')).not.toHaveClass('rounded-t-2xl')
