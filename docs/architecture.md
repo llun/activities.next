@@ -1653,7 +1653,10 @@ legacy shape left to copy.
   frame inside a `p-4 sm:p-5` container (the fitness status body) uses the
   `SM_P5` variant so the negative margin tracks that padding. Search's results
   shell also drops its `overflow-hidden` below `md` (`max-md:overflow-visible`)
-  because the clip existed only for the rounding that is gone there.
+  because the clip existed only for the rounding that is gone there, and
+  `PublicShell` drops its 680px reading-column cap below `md`
+  (`max-md:max-w-none`) so a logged-out feed reaches the true screen edge
+  between 680 and 767px instead of stopping at the column.
 - **A visual attachment row spans the owning feed frame's inner edges at every
   breakpoint, including the area beneath the avatar.** `Attachments` pulls the
   row out by `--post-media-bleed-left` / `--post-media-bleed-right`, whose
@@ -1664,15 +1667,18 @@ legacy shape left to copy.
   content-warning card resets both to `0.75rem` (its `px-3`) so expanded media
   fills the card inside its border rather than escaping it, and Explore raises
   them from `md` to include its `p-2` shell. Captions and the strip pager carry
-  their own inset (`px-4` / `pr-4`) so they stay off the edge the row reaches.
-  The media row must not be narrowed to achieve this: a lone picture still
-  sizes naturally at `min(100%, Npx)`, the strip keeps its item widths, gaps,
-  snapping and pager, and no ancestor may clip the row.
+  their own inset (`px-4` / `pr-4`) so they stay off the edge the row reaches:
+  a lone picture's caption is inset from the frame edge, and each strip item's
+  caption is inset within its own card. The media row must not be narrowed to
+  achieve this: a lone picture still sizes naturally at `min(100%, Npx)`, the
+  strip keeps its item widths, gaps, snapping and pager, and no ancestor may
+  clip the row.
 - A status's media is **one attachment at its own size, or a horizontally
   scrollable strip — never a grid.** `lib/components/posts/attachments.tsx` owns
   this for every surface that renders a post. A lone picture keeps its own
-  aspect ratio and hugs the post's left edge, scaled by WIDTH; the branch this
-  replaced cropped every portrait photo to a full-width 16:9.
+  aspect ratio and reaches the media row's left edge (the frame's inner edge,
+  see above), scaled by WIDTH; the branch this replaced cropped every portrait
+  photo to a full-width 16:9.
 - The gallery uses 240px image boxes, 12px gaps, aspect-ratio-based card widths
   with a 160px minimum and 78% maximum, and `scroll-snap-type: x proximity`.
   Captions sit below their images, preserve line breaks and custom emoji, and

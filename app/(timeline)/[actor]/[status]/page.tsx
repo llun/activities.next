@@ -310,7 +310,7 @@ const Page: FC<Props> = async ({ params }) => {
           // carries two transparent corner notches out over the post. A
           // clipping box is safe on this subtree alone because the header
           // holds no overlays.
-          <div className="overflow-hidden rounded-t-2xl">
+          <div className="overflow-hidden rounded-t-2xl max-md:rounded-none">
             <Header isFitnessDashboard />
           </div>
         ) : (
@@ -321,7 +321,7 @@ const Page: FC<Props> = async ({ params }) => {
 
         <div
           className={cn(
-            'border-b bg-background',
+            'border-b bg-background max-md:rounded-none',
             // Unlike the conversation card below, this one's children paint,
             // so with the clip gone each corner they reach has to be rounded
             // here. Logged out there is no `Header` above this — the `sr-only`
@@ -419,7 +419,7 @@ const Page: FC<Props> = async ({ params }) => {
         //
         // So the header still does not stick, on either call site. Whether it
         // should is a live question, but it is not this change's to answer.
-        <div className="overflow-hidden rounded-t-2xl">
+        <div className="overflow-hidden rounded-t-2xl max-md:rounded-none">
           <Header isFitnessDashboard={false} />
         </div>
       ) : (
@@ -432,7 +432,7 @@ const Page: FC<Props> = async ({ params }) => {
         <div
           key={item.id}
           className={cn(
-            'border-b border-l-4 border-l-primary/20 bg-muted/30',
+            'border-b border-l-4 border-l-primary/20 bg-muted/30 max-md:rounded-none',
             // A logged-out view renders no `Header`, so the first ancestor row
             // is what meets the card's rounded top corners.
             !currentActorProfile && index === 0 && 'rounded-t-2xl'
@@ -450,7 +450,7 @@ const Page: FC<Props> = async ({ params }) => {
 
       <div
         className={cn(
-          'border-b bg-background',
+          'border-b bg-background max-md:rounded-none',
           // …and with neither a `Header` nor an ancestor chain above it, the
           // focused post is the topmost child instead.
           !currentActorProfile && previouses.length === 0 && 'rounded-t-2xl'

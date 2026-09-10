@@ -24,7 +24,11 @@ export const PublicShell: FC<PublicShellProps> = ({ children }) => (
   <div data-shell="public" className="group/shell flex min-h-dvh flex-col">
     <PublicTopBar />
     <main className="flex flex-1 flex-col overflow-x-clip">
-      <div className="mx-auto flex w-full max-w-[680px] flex-1 flex-col px-4 py-6">
+      {/* Below `md` the reading column is dropped: feed regions inside it
+          cancel the `px-4` gutter and must reach the true screen edge, which a
+          680px cap would prevent between 680 and 767px. From `md` up the
+          narrow reading column is unchanged. */}
+      <div className="mx-auto flex w-full max-w-[680px] flex-1 flex-col px-4 py-6 max-md:max-w-none">
         {children}
       </div>
     </main>

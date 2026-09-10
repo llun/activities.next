@@ -740,13 +740,17 @@ scrollable strip — never a grid.** `lib/components/posts/attachments.tsx` owns
 this for every surface that renders a post, and the shapes come from the design
 system's `Attachments` component.
 
-- **A lone picture keeps its own aspect ratio and hugs the post's left edge.**
-  Not `w-full`, not `aspect-video`: the old single branch cropped every portrait
-  photo to 16:9 across the full content width. It is scaled by **width** —
-  `min(100%, round(SINGLE_MAX_HEIGHT * ratio)px)`, capped at the file's own
-  pixels so a thumbnail is never upscaled — and never by capping the height of
-  an `aspect-ratio` box, which leaves the ratio to be re-derived from a clamped
-  axis and is resolved inconsistently across browsers.
+- **A lone picture keeps its own aspect ratio and spans the media row's left
+  edge.** Not `w-full`, not `aspect-video`: the old single branch cropped every
+  portrait photo to 16:9 across the full content width. It is scaled by
+  **width** — `min(100%, round(SINGLE_MAX_HEIGHT * ratio)px)`, capped at the
+  file's own pixels so a thumbnail is never upscaled — and never by capping the
+  height of an `aspect-ratio` box, which leaves the ratio to be re-derived from
+  a clamped axis and is resolved inconsistently across browsers. The media row
+  itself reaches the owning feed frame's inner edges (the screen edge below
+  `md`, the feed card above it; see the frame-bleed contract in
+  `docs/architecture.md` → "Post media layout"), so the picture hugs the row's
+  edge rather than a fixed post inset.
 - **Two or more pictures are a horizontally scrolling gallery** with 240px image
   boxes, 12px gaps, rounded corners, and cards sized from their aspect ratio.
   Cards have a 160px minimum and a 78% container maximum so neighboring cards
@@ -784,16 +788,18 @@ system's `Attachments` component.
   local-upload path alone.
 - **There are no edge fades or overlaid arrows.** The paired arrows sit below
   captions so they never obscure a card or interfere with touch.
-- **A strip item's focus indicator is an `outline` with a NEGATIVE offset, not
-  a ring.** Its border box is exactly the strip's height and `overflow-x-auto`
-  forces `overflow-y` to compute to `auto`, so an OUTSET ring's top and bottom
-  bars fall outside the scrollport and are clipped away. An INSET ring is worse
-  rather than better: an inset `box-shadow` paints with the element's
+- **Every media button's focus indicator is an `outline` with a NEGATIVE
+  offset, not a ring.** For a strip item, its border box is exactly the strip's
+  height and `overflow-x-auto` forces `overflow-y` to compute to `auto`, so an
+  OUTSET ring's top and bottom bars fall outside the scrollport and are clipped
+  away. A lone picture now sits flush with the feed frame's inner edge too —
+  below `md` that is the viewport edge, where `main`'s `overflow-x-clip` cuts
+  half the ring — so both shapes share the same inset outline. An INSET ring is
+  worse rather than better: an inset `box-shadow` paints with the element's
   background, underneath its content, and the button's only child is an opaque
   image filling the whole box — so it is occluded on all four sides and there is
   no indicator at all. An outline with a negative offset is the one form that
-  draws inside the border box AND paints above content. The lone picture is not
-  inside an overflow container and keeps the ordinary outset ring. (Note
+  draws inside the border box AND paints above content. (Note
   `MessageBubble`'s media cells carry `focus-visible:ring-inset` over the same
   full-bleed image shape, so their indicator is invisible too — a pre-existing
   bug, not a precedent to copy.)

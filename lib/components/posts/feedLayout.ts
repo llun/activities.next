@@ -21,7 +21,8 @@ export const MOBILE_FEED_SURFACE_CLASS =
  * {@link MOBILE_FEED_SURFACE_CLASS} for a frame inside a container whose
  * horizontal padding is `p-4` and grows to `p-5` at `sm` — the fitness status
  * detail body. The negative margin tracks the container padding at each step
- * and resets to zero from `md` up.
+ * and resets to zero from `md` up. The frame tokens are `max-md:`-scoped like
+ * the base constant, so desktop keeps the border, rounding and shadow.
  */
 export const MOBILE_FEED_SURFACE_SM_P5_CLASS =
-  '-mx-4 max-md:rounded-none max-md:border-0 sm:-mx-5 md:mx-0'
+  '-mx-4 max-md:w-auto max-md:rounded-none max-md:border-0 max-md:shadow-none sm:-mx-5 md:mx-0'
