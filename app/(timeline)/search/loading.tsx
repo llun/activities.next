@@ -1,6 +1,7 @@
 import { FC } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
+import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 
 export const SearchLoading: FC = () => {
   return (
@@ -27,7 +28,7 @@ export const SearchLoading: FC = () => {
 
       <section
         aria-label="Search results"
-        className="divide-y divide-border/60 overflow-hidden rounded-lg border bg-background/80 shadow-sm"
+        className={`divide-y divide-border/60 overflow-hidden rounded-lg border bg-background/80 shadow-sm max-md:overflow-visible ${MOBILE_FEED_SURFACE_CLASS}`}
       >
         <div className="flex items-start gap-3 p-4">
           <div className="skeleton size-11 shrink-0 rounded-full" />

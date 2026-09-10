@@ -1,11 +1,13 @@
 import { FC } from 'react'
 
+import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
+
 export const StatusLoading: FC = () => {
   return (
     <div
       aria-busy="true"
       aria-label="Loading post"
-      className="mt-4 overflow-hidden rounded-2xl border bg-background/80 shadow-sm"
+      className={`mt-4 overflow-hidden rounded-2xl border bg-background/80 shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
     >
       <div className="flex items-center gap-3 border-b bg-background/90 px-5 py-3">
         <div className="skeleton h-8 w-8 rounded-md" />

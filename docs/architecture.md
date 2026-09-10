@@ -1639,6 +1639,35 @@ legacy shape left to copy.
 
 ### Review: Post media layout
 
+- **Feed framing is breakpoint-scoped and owned by the element that renders the
+  feed's outer frame**, through `MOBILE_FEED_SURFACE_CLASS` /
+  `MOBILE_FEED_SURFACE_SM_P5_CLASS` in
+  `lib/components/posts/feedLayout.ts`. Below `md` that element cancels the page
+  column's `px-4` gutter, spans the screen edge to edge, and drops only its
+  outer border, shadow and corner rounding; the post separators (`divide-y`),
+  the article's `px-4` text inset, and the borders of nested content-warning,
+  quote, link-preview and fitness cards all stay. Apply it to the frame owner —
+  the feed, its loading skeleton, its empty state, and the home composer — and
+  to it alone: `Posts` applies it only when `framed`, embedded feeds keep the
+  parent frame (`framed={false}` renders no frame and no mobile bleed), and a
+  frame inside a `p-4 sm:p-5` container (the fitness status body) uses the
+  `SM_P5` variant so the negative margin tracks that padding. Search's results
+  shell also drops its `overflow-hidden` below `md` (`max-md:overflow-visible`)
+  because the clip existed only for the rounding that is gone there.
+- **A visual attachment row spans the owning feed frame's inner edges at every
+  breakpoint, including the area beneath the avatar.** `Attachments` pulls the
+  row out by `--post-media-bleed-left` / `--post-media-bleed-right`, whose
+  defaults (`4.25rem` / `1rem`) describe the 40px avatar, 12px gap and the
+  article's 16px inset. Below `md` the owning frame is the screen edge; from
+  `md` up it is the feed card's inner edge (or the parent frame for an embedded
+  feed). A nested frame overrides the variables for its own padding: the
+  content-warning card resets both to `0.75rem` (its `px-3`) so expanded media
+  fills the card inside its border rather than escaping it, and Explore raises
+  them from `md` to include its `p-2` shell. Captions and the strip pager carry
+  their own inset (`px-4` / `pr-4`) so they stay off the edge the row reaches.
+  The media row must not be narrowed to achieve this: a lone picture still
+  sizes naturally at `min(100%, Npx)`, the strip keeps its item widths, gaps,
+  snapping and pager, and no ancestor may clip the row.
 - A status's media is **one attachment at its own size, or a horizontally
   scrollable strip — never a grid.** `lib/components/posts/attachments.tsx` owns
   this for every surface that renders a post. A lone picture keeps its own
@@ -1674,11 +1703,14 @@ legacy shape left to copy.
   media-storage paths persist `metaData.width ?? 0` — so every read goes through
   `getMediaGeometry`, which also clamps pathological shapes and falls back to a
   4:3 box so blurhash has something to reserve.
-- **A strip item's focus indicator is an `outline` with a NEGATIVE offset.** An
-  outset ring is clipped by the strip's own `overflow-x-auto`, and an inset ring
-  is invisible — an inset `box-shadow` paints beneath content and the button's
-  only child is an opaque image. This has been got wrong twice; the class string
-  is pinned by a test.
+- **A media button's focus indicator is an `outline` with a NEGATIVE offset,
+  never an outset ring.** The strip's own `overflow-x-auto` clips an outset
+  ring, and since the media row reaches the frame's inner edges the lone
+  picture sits flush with `main`'s `overflow-x-clip` below `md`, where half the
+  ring is cut off. An inset `box-shadow` does not work either — it paints
+  beneath content and the button's only child is an opaque image. `Attachments`
+  uses one spelling for both shapes; it has been got wrong twice and is pinned
+  by a test.
 - `useMediaStripScroll` measures the strip's own container, never a viewport
   breakpoint, through a **callback** ref because the strip is conditional. Its
   `contentKey` must describe item WIDTHS, not their count: the observer watches

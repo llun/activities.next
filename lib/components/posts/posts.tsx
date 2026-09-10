@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 import { getActualStatus } from '@/lib/utils/text/processStatusText'
 
+import { MOBILE_FEED_SURFACE_CLASS } from './feedLayout'
 import { InlineStatusComposer } from './inline-status-composer'
 import { Post } from './post'
 import { useInlineComposer } from './useInlineComposer'
@@ -109,7 +110,11 @@ export const Posts: FC<Props> = ({
           // dark mode. No `overflow-hidden`: posts render non-portaled overlays
           // (edit-history panel, inline error bubbles) that must escape the box.
           'w-full min-w-0 divide-y divide-border',
-          framed && 'rounded-xl border bg-card shadow-sm',
+          framed &&
+            cn(
+              'rounded-xl border bg-card shadow-sm',
+              MOBILE_FEED_SURFACE_CLASS
+            ),
           className
         )}
       >

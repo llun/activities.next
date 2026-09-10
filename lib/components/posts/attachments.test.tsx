@@ -1110,7 +1110,7 @@ describe('Attachments', () => {
       expect(item.className).not.toContain('focus-visible:ring-')
     })
 
-    it('leaves a lone picture the ordinary outset ring', () => {
+    it('gives a lone picture the same inset outline at the frame edge', () => {
       render(
         <Attachments
           status={buildNoteStatus([
@@ -1120,11 +1120,16 @@ describe('Attachments', () => {
         />
       )
 
-      // Not inside an overflow container, so nothing clips it.
-      expect(screen.getByRole('button')).toHaveClass(
-        'focus-visible:ring-2',
-        'focus-visible:ring-ring/50'
+      // The lone picture can sit flush with the viewport below `md`, where
+      // `main`'s `overflow-x-clip` cuts half an outset ring; the inset outline
+      // is painted over the image, so it stays whole.
+      const button = screen.getByRole('button')
+      expect(button).toHaveClass(
+        'focus-visible:outline-2',
+        'focus-visible:-outline-offset-2',
+        'focus-visible:outline-ring/50'
       )
+      expect(button.className).not.toContain('focus-visible:ring-')
     })
   })
 
@@ -1287,6 +1292,78 @@ describe('Attachments', () => {
     const caption = screen.getByText(/First line/)
     expect(caption).toHaveClass('whitespace-pre-wrap')
     expect(caption).toHaveTextContent('First line Second line')
+  })
+
+  // jsdom does not lay out, so these pin the class contract only. The real
+  // frame-edge geometry is browser-verified; see docs/architecture.md
+  // "Post media layout".
+  describe('media bleed contract', () => {
+    const MEDIA_BLEED_LEFT = '-ml-[var(--post-media-bleed-left,4.25rem)]'
+    const MEDIA_BLEED_RIGHT = '-mr-[var(--post-media-bleed-right,1rem)]'
+
+    it('bleeds a lone picture row to the frame edges with an inset caption', () => {
+      render(
+        <Attachments
+          status={buildNoteStatus([
+            buildAttachment({
+              width: 800,
+              height: 600,
+              name: 'Ridge at dawn'
+            })
+          ])}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      const button = screen.getByRole('button', {
+        name: 'Open media: Ridge at dawn'
+      })
+      expect(button.parentElement).toHaveClass(
+        MEDIA_BLEED_LEFT,
+        MEDIA_BLEED_RIGHT
+      )
+      expect(screen.getByText('Ridge at dawn').parentElement).toHaveClass(
+        'px-4'
+      )
+    })
+
+    it('bleeds a picture strip to the frame edges and insets captions and the pager', () => {
+      render(
+        <Attachments
+          status={buildNoteStatus([
+            buildAttachment({ width: 800, height: 600, name: 'First' }),
+            buildAttachment({ width: 800, height: 600, name: 'Second' })
+          ])}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      const strip = screen.getByRole('group')
+      expect(strip.parentElement).toHaveClass(
+        MEDIA_BLEED_LEFT,
+        MEDIA_BLEED_RIGHT
+      )
+      expect(screen.getByText('First').parentElement).toHaveClass('px-4')
+      expect(screen.getByText('Second').parentElement).toHaveClass('px-4')
+
+      Object.defineProperty(strip, 'scrollWidth', {
+        configurable: true,
+        value: 1000
+      })
+      Object.defineProperty(strip, 'clientWidth', {
+        configurable: true,
+        value: 500
+      })
+      Object.defineProperty(strip, 'scrollLeft', {
+        configurable: true,
+        value: 0
+      })
+      fireEvent.scroll(strip)
+
+      expect(
+        screen.getByRole('button', { name: 'Next media' }).parentElement
+      ).toHaveClass('pr-4')
+    })
   })
 
   it('disconnects every caption and strip resize observer on unmount', () => {

@@ -63,10 +63,23 @@ const getMediaGeometry = ({ width, height }: Attachment) => {
 
 const MEDIA_BOX_CLASS =
   'relative block cursor-zoom-in overflow-hidden rounded-2xl border border-border/60 bg-muted/20'
-const SINGLE_FOCUS_CLASS =
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50'
-const STRIP_FOCUS_CLASS =
+// One indicator for both shapes. The strip has always needed the inset outline
+// (an outset ring is clipped by its own `overflow-x-auto`); since the media row
+// now reaches the feed frame's inner edges — the viewport edge below `md` — a
+// lone picture sits flush to `main`'s `overflow-x-clip` too, where half the
+// outset ring is cut off. The inset outline is drawn over the opaque image
+// (unlike an inset ring, which paints beneath it) and survives both.
+const MEDIA_FOCUS_CLASS =
   'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring/50'
+// The visual media row spans the owning feed frame's inner edges, including
+// the area beneath the avatar. The offsets are relative to the row's
+// containing block (the post's text column): 4.25rem is the 40px avatar plus
+// its 12px gap plus the article's 16px inset; 1rem is that inset alone. A
+// nested frame that adds horizontal padding (the content warning card)
+// overrides both variables. Geometry is pinned by browser verification; see
+// docs/architecture.md "Post media layout".
+const MEDIA_BLEED_CLASS =
+  '-ml-[var(--post-media-bleed-left,4.25rem)] -mr-[var(--post-media-bleed-right,1rem)]'
 
 interface CaptionProps {
   identity: string
@@ -108,7 +121,7 @@ const Caption: FC<CaptionProps> = ({ identity, text, tags }) => {
 
   return (
     <div
-      className="mt-2 select-text text-sm leading-relaxed text-muted-foreground"
+      className="mt-2 select-text px-4 text-sm leading-relaxed text-muted-foreground"
       onClick={(event) => event.stopPropagation()}
     >
       <p
@@ -209,12 +222,14 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
     const caption = attachment.name?.trim()
     return (
       <>
-        <div className="mt-3 flex flex-col justify-start">
+        <div
+          className={cn('mt-3 flex flex-col justify-start', MEDIA_BLEED_CLASS)}
+        >
           <button
             type="button"
             onClick={openMedia(0)}
             aria-label={mediaLabel(attachment, 0)}
-            className={cn(MEDIA_BOX_CLASS, SINGLE_FOCUS_CLASS)}
+            className={cn(MEDIA_BOX_CLASS, MEDIA_FOCUS_CLASS)}
             style={{ aspectRatio, width: `min(100%, ${width}px)` }}
           >
             <Media
@@ -244,7 +259,7 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
   return (
     <>
       {items.length ? (
-        <div className="mt-3">
+        <div className={cn('mt-3', MEDIA_BLEED_CLASS)}>
           <div
             ref={strip.ref}
             onScroll={strip.measure}
@@ -267,7 +282,7 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
                     aria-label={mediaLabel(attachment, index)}
                     className={cn(
                       MEDIA_BOX_CLASS,
-                      STRIP_FOCUS_CLASS,
+                      MEDIA_FOCUS_CLASS,
                       'h-[240px] w-full flex-none'
                     )}
                     style={{ scrollSnapAlign: 'start' }}
@@ -290,7 +305,7 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
             })}
           </div>
           {overflowing ? (
-            <div className="mt-3 flex justify-end gap-2">
+            <div className="mt-3 flex justify-end gap-2 pr-4">
               <button
                 type="button"
                 aria-label="Previous media"

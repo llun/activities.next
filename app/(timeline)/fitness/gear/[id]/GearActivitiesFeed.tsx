@@ -6,6 +6,7 @@ import {
   type GearActivityStatusesPage,
   getFitnessGearActivities
 } from '@/lib/client'
+import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 import { Posts } from '@/lib/components/posts/posts'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { Button } from '@/lib/components/ui/button'
@@ -263,9 +264,15 @@ export const GearActivitiesFeed: FC<Props> = ({
       )}
 
       {isLoading ? (
-        <Card className="p-6 text-sm text-muted-foreground">Loading...</Card>
+        <Card
+          className={`p-6 text-sm text-muted-foreground ${MOBILE_FEED_SURFACE_CLASS}`}
+        >
+          Loading...
+        </Card>
       ) : reportsEmptyHistory ? (
-        <Card className="p-6 text-sm text-muted-foreground">
+        <Card
+          className={`p-6 text-sm text-muted-foreground ${MOBILE_FEED_SURFACE_CLASS}`}
+        >
           {emptyMessage}
         </Card>
       ) : (

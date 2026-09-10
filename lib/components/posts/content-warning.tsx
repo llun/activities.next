@@ -30,7 +30,7 @@ export const ContentWarning: FC<Props> = ({
   const contentId = useId()
 
   return (
-    <div className="mt-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2">
+    <div className="mt-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2 [--post-media-bleed-left:0.75rem] [--post-media-bleed-right:0.75rem]">
       <button
         type="button"
         className="flex w-full cursor-pointer items-center justify-between gap-3 text-left"

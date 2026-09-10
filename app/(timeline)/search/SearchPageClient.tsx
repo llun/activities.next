@@ -17,6 +17,7 @@ import type { ReactNode } from 'react'
 import { SearchResult, SearchType, search as searchClient } from '@/lib/client'
 import { CustomEmojiText } from '@/lib/components/actors/ActorDisplayName'
 import { PageHeader } from '@/lib/components/page-header'
+import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 import { Posts } from '@/lib/components/posts/posts'
 import { TrendingNowBlock } from '@/lib/components/trends/trending-now-block'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
@@ -28,6 +29,7 @@ import { ActorProfile } from '@/lib/types/domain/actor'
 import type { Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import type { Tag } from '@/lib/types/mastodon/tag'
+import { cn } from '@/lib/utils'
 import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
 
 type SearchTab = 'all' | SearchType
@@ -548,7 +550,12 @@ export const SearchPageClient = ({
           the empty-search placeholder below. */}
       {!submittedQuery.trim() && <TrendingNowBlock />}
 
-      <section className="overflow-hidden rounded-lg border bg-background/80 shadow-sm">
+      <section
+        className={cn(
+          'overflow-hidden rounded-lg border bg-background/80 shadow-sm max-md:overflow-visible',
+          MOBILE_FEED_SURFACE_CLASS
+        )}
+      >
         {error && !hasVisibleResults ? (
           <div
             className="p-8 text-center text-muted-foreground"

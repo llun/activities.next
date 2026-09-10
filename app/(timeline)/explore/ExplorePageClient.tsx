@@ -10,6 +10,7 @@ import {
   getTrendingTags
 } from '@/lib/client'
 import { PageHeader } from '@/lib/components/page-header'
+import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 import { Posts } from '@/lib/components/posts/posts'
 import { TrendLinkCard } from '@/lib/components/trends/trend-link-card'
 import { TrendTagRow } from '@/lib/components/trends/trend-tag-row'
@@ -20,6 +21,7 @@ import { ActorProfile } from '@/lib/types/domain/actor'
 import type { Status } from '@/lib/types/domain/status'
 import type { PreviewCard } from '@/lib/types/mastodon/previewCard'
 import type { Tag } from '@/lib/types/mastodon/tag'
+import { cn } from '@/lib/utils'
 
 type ExploreTab = 'tags' | 'posts' | 'news'
 
@@ -273,7 +275,14 @@ export const ExplorePageClient = ({
         </TabsList>
       </Tabs>
 
-      <div className="rounded-2xl border bg-card/80 p-2 shadow-sm backdrop-blur">
+      <div
+        className={cn(
+          'rounded-2xl border bg-card/80 p-2 shadow-sm backdrop-blur',
+          'md:[--post-media-bleed-left:4.75rem] md:[--post-media-bleed-right:1.5rem]',
+          tab === 'posts' && MOBILE_FEED_SURFACE_CLASS,
+          tab === 'posts' && 'max-md:p-0'
+        )}
+      >
         {renderBody()}
       </div>
     </div>

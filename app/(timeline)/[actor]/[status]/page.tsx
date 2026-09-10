@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
 import { getRemoteStatus } from '@/lib/activities/getRemoteStatus'
+import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 import { getBaseURL, getConfig } from '@/lib/config'
 import { getPublicMapProvider } from '@/lib/config/mapProvider'
 import { getDatabase } from '@/lib/database'
@@ -296,7 +297,8 @@ const Page: FC<Props> = async ({ params }) => {
           // off, so a failed bookmark stayed unreadable. The picker and the ⋯
           // popover are unaffected either way; both portal to the document
           // body.
-          'rounded-2xl border bg-background/80 shadow-sm'
+          'rounded-2xl border bg-background/80 shadow-sm',
+          MOBILE_FEED_SURFACE_CLASS
         )}
       >
         {currentActorProfile ? (
@@ -357,7 +359,7 @@ const Page: FC<Props> = async ({ params }) => {
           // so it is what meets the bottom corners on the logged-out view.
           <SignInCallout
             registrationOpen={registrationOpen}
-            className="rounded-b-2xl"
+            className="rounded-b-2xl max-md:rounded-none"
           />
         ) : null}
       </div>
@@ -395,7 +397,8 @@ const Page: FC<Props> = async ({ params }) => {
         // the "No replies yet" block, neither of which paints a background —
         // append a background-painting child last and the bottom corners will
         // need the same treatment.
-        'rounded-2xl border bg-background/80 shadow-sm'
+        'rounded-2xl border bg-background/80 shadow-sm',
+        MOBILE_FEED_SURFACE_CLASS
       )}
     >
       {currentActorProfile ? (
