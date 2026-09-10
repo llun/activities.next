@@ -190,8 +190,9 @@ describe('Posts', () => {
         statuses={[pollStatusFixture]}
       />
     )
-    expect(embedded.querySelector('section')).not.toHaveClass('max-md:-mx-4')
-    expect(embedded.querySelector('section')).not.toHaveClass('max-md:w-auto')
+    expect(embedded.querySelector('section')).not.toHaveClass(
+      ...MOBILE_FEED_SURFACE_CLASS.split(' ')
+    )
   })
 
   it('opens the status detail page from the timestamp', async () => {

@@ -280,7 +280,13 @@ export const ExplorePageClient = ({
           'rounded-2xl border bg-card/80 p-2 shadow-sm backdrop-blur',
           'md:[--post-media-bleed-left:4.75rem] md:[--post-media-bleed-right:1.5rem]',
           tab === 'posts' && MOBILE_FEED_SURFACE_CLASS,
-          tab === 'posts' && 'max-md:p-0'
+          tab === 'posts' && 'max-md:p-0',
+          // `backdrop-filter` makes this wrapper the containing block for
+          // `position: fixed` descendants, and the edit-history panel is
+          // `max-md:fixed` so it escapes the feed's clip. Only the posts tab
+          // renders posts, so only it needs the containing block removed below
+          // `md`; from `md` up the panel is absolute again and the blur stays.
+          tab === 'posts' && 'max-md:backdrop-blur-none'
         )}
       >
         {renderBody()}

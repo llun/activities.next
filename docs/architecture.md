@@ -1657,10 +1657,12 @@ legacy shape left to copy.
   frame left instead of widening it. Search's results shell also drops its
   `overflow-hidden` below `md` (`max-md:overflow-visible`); that removes the
   clip the (now gone) rounding needed and lets embedded posts' non-portalled
-  overlays escape below `md`. `PublicShell` and its top bar and footer drop
-  their 680px reading-column cap below `md` (`max-md:max-w-none`) so a
-  logged-out feed reaches the true screen edge between 680 and 767px and the
-  chrome stays aligned with the content column.
+  overlays escape below `md`, and Explore's wrapper drops `backdrop-blur`
+  below `md` (`max-md:backdrop-blur-none`) because `backdrop-filter` makes it
+  the containing block for the `max-md:fixed` edit-history panel. `PublicShell` and its top bar and footer drop
+  their 680px reading-column cap below `md` (`max-md:max-w-none`) so the page's other
+  content and chrome stay aligned with the full-bleed feed below `md` (the
+  frame margin already reaches the viewport edges either way).
 - **A visual attachment row spans the owning feed frame's inner edges at every
   breakpoint, including the area beneath the avatar.** `Attachments` pulls the
   row out by `--post-media-bleed-left` / `--post-media-bleed-right`, whose
