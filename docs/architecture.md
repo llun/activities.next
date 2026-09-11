@@ -1672,17 +1672,18 @@ legacy shape left to copy.
   feed (the parentless landing feed has no frame there, so the row spans the
   column). **The media inside the row aligns with the status content's left
   edge, not the frame edge**: `--post-media-content-inset` (default `1rem`) is
-  the scroller's `padding-left` and `scroll-padding-left`, so the first card
-  rests on that line and every card a reader slides to snaps back onto it,
-  while the full-bleed row still lets cards travel out to the frame edge
-  mid-scroll. The same nesting that owns the bleed owns the content line: the
-  content-warning card resets it to `0.75rem` (its `px-3`), and Explore raises
-  it to `1.5rem` at `md+` for its `p-2` shell. Captions align with their own
-  card — the card already sits on the content line — and only the strip pager
-  keeps an extra inset (`pr-4`) from the frame edge. The media row must not be
-  narrowed to achieve this: a lone picture still sizes naturally at
-  `min(100%, Npx)`, the strip keeps its item widths, gaps, snapping and pager,
-  and no ancestor may clip the row.
+  the strip scroller's `padding-left` and `scroll-padding-left` (and the lone
+  picture row's `padding-left`), so the first card rests on that line and any
+  card that snaps settles onto it — `x proximity` only snaps when the reader
+  stops near one — while the full-bleed row still lets cards travel out to the
+  frame edge mid-scroll. The same nesting that owns the bleed owns the content
+  line: the content-warning card resets it to `0.75rem` (its `px-3`), and
+  Explore raises it to `1.5rem` at `md+` for its `p-2` shell. Captions align
+  with their own card — the card already sits on the content line — and only
+  the strip pager keeps an extra inset (`pr-4`) from the frame edge. The media
+  row must not be narrowed to achieve this: a lone picture still sizes
+  naturally at `min(100%, Npx)`, the strip keeps its item widths, gaps,
+  snapping and pager, and no ancestor may clip the row.
 - A status's media is **one attachment at its own size, or a horizontally
   scrollable strip — never a grid.** `lib/components/posts/attachments.tsx` owns
   this for every surface that renders a post. A lone picture keeps its own

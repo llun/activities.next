@@ -289,6 +289,23 @@ describe('useMediaStripScroll', () => {
     // the second card's boundary minus the snap inset: 236 - 16.
     act(() => capturedScrollByPage?.(1))
     expect(scrollBy).toHaveBeenCalledWith({ left: 220, behavior: 'smooth' })
+
+    // At that snapped position, a backward press returns to the first card's
+    // boundary minus the same inset.
+    scrollBy.mockClear()
+    Object.defineProperty(scroller, 'scrollLeft', {
+      configurable: true,
+      value: 220
+    })
+    ;[16, 236, 516, 876].forEach((offset, index) => {
+      const card = scroller.children[index]
+      Object.defineProperty(card, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({ left: containerLeft + offset - 220 })
+      })
+    })
+    act(() => capturedScrollByPage?.(-1))
+    expect(scrollBy).toHaveBeenCalledWith({ left: -220, behavior: 'smooth' })
   })
 
   it('uses the nearest directional card boundary relative to the container', () => {

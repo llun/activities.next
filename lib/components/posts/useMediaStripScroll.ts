@@ -83,23 +83,29 @@ export const useMediaStripScroll = (contentKey: string): MediaStripScroll => {
       // belongs, so each card's boundary over-scrolls by that inset. Subtract it
       // from the boundary before filtering — otherwise the padded first card
       // reads as a forward boundary at rest and "next" would scroll nowhere.
-      // Subtracting after the filter would reintroduce exactly that. jsdom
-      // returns no computed scroll padding, so tests keep raw boundaries.
+      // Subtracting after the filter would reintroduce exactly that. Component
+      // tests that don't set the inline property see 0 here.
       const parsedScrollPadding = Number.parseFloat(
         getComputedStyle(element).scrollPaddingLeft
       )
       const scrollPadding = Number.isFinite(parsedScrollPadding)
         ? parsedScrollPadding
         : 0
-      const boundaries = Array.from(element.children)
-        .map(
-          (child) =>
-            (child as HTMLElement).getBoundingClientRect().left -
-            containerLeft +
-            current -
-            scrollPadding
-        )
-        .filter((offset) => Number.isFinite(offset))
+      const childRects = Array.from(element.children).map((child) =>
+        (child as HTMLElement).getBoundingClientRect()
+      )
+      // While layout is pending every card measures at the container's own left
+      // edge; treating those as boundaries would turn a backward press into a
+      // one-inset nudge instead of the one-page fallback below. Genuine cards
+      // cannot all sit there at once, so this state means "no boundaries yet".
+      const layoutPending =
+        childRects.length > 0 &&
+        childRects.every((rect) => rect.left === containerLeft)
+      const boundaries = layoutPending
+        ? []
+        : childRects
+            .map((rect) => rect.left - containerLeft + current - scrollPadding)
+            .filter((offset) => Number.isFinite(offset))
       const candidates =
         direction > 0
           ? boundaries.filter((offset) => offset > current + 1)
