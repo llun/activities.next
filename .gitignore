@@ -97,3 +97,6 @@ AGENTS.override.md
 
 # Git worktrees
 .worktrees/
+
+# Local Playwright CLI browser artifacts
+.playwright-cli/
