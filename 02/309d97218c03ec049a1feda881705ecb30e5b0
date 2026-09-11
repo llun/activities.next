@@ -1,0 +1,24 @@
+lib/components/posts/collapsible-content.test.tsx
+  h_580a04e334fef4 96-97
+lib/components/posts/collapsible-content.tsx
+  h_580a04e334fef4 66,69
+lib/components/posts/post.test.tsx
+  h_580a04e334fef4 2393-2414
+lib/components/posts/post.tsx
+  h_580a04e334fef4 440,442,450
+lib/components/posts/posts.test.tsx
+  h_580a04e334fef4 213-223
+lib/components/posts/posts.tsx
+  h_580a04e334fef4 134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "02309d97218c03ec049a1feda881705ecb30e5b0",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
