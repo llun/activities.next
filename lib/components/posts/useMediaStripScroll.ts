@@ -79,12 +79,25 @@ export const useMediaStripScroll = (contentKey: string): MediaStripScroll => {
       )
       const current = element.scrollLeft
       const containerLeft = element.getBoundingClientRect().left
+      // A snapport inset (`scroll-padding-left`) is where a `start`-aligned card
+      // belongs, so each card's boundary over-scrolls by that inset. Subtract it
+      // from the boundary before filtering — otherwise the padded first card
+      // reads as a forward boundary at rest and "next" would scroll nowhere.
+      // Subtracting after the filter would reintroduce exactly that. jsdom
+      // returns no computed scroll padding, so tests keep raw boundaries.
+      const parsedScrollPadding = Number.parseFloat(
+        getComputedStyle(element).scrollPaddingLeft
+      )
+      const scrollPadding = Number.isFinite(parsedScrollPadding)
+        ? parsedScrollPadding
+        : 0
       const boundaries = Array.from(element.children)
         .map(
           (child) =>
             (child as HTMLElement).getBoundingClientRect().left -
             containerLeft +
-            current
+            current -
+            scrollPadding
         )
         .filter((offset) => Number.isFinite(offset))
       const candidates =

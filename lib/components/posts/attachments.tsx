@@ -64,11 +64,12 @@ const getMediaGeometry = ({ width, height }: Attachment) => {
 const MEDIA_BOX_CLASS =
   'relative block cursor-zoom-in overflow-hidden rounded-2xl border border-border/60 bg-muted/20'
 // One indicator for both shapes. The strip has always needed the inset outline
-// (an outset ring is clipped by its own `overflow-x-auto`); since the media row
-// now reaches the feed frame's inner edges — the viewport edge below `md` — a
-// lone picture sits flush to `main`'s `overflow-x-clip` too, whose flush side
-// cuts the outset ring's outer edge. The inset outline is drawn over the opaque image
-// (unlike an inset ring, which paints beneath it) and survives both.
+// (an outset ring is clipped by its own `overflow-x-auto`); the media box can
+// also reach the frame's inner edge — the viewport edge below `md` — where a
+// wide lone picture's right edge and every strip item mid-scroll sit flush to
+// `main`'s `overflow-x-clip`, cutting an outset ring's outer edge. The inset
+// outline is drawn over the opaque image (unlike an inset ring, which paints
+// beneath it) and survives both.
 const MEDIA_FOCUS_CLASS =
   'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring/50'
 // The visual media row spans the owning feed frame's inner edges, including
@@ -80,6 +81,15 @@ const MEDIA_FOCUS_CLASS =
 // docs/architecture.md "Post media layout".
 const MEDIA_BLEED_CLASS =
   '-ml-[var(--post-media-bleed-left,4.25rem)] -mr-[var(--post-media-bleed-right,1rem)]'
+// The media itself lines up with the status content's left edge (the avatar /
+// content inset), not the frame edge: `pl-*` puts the first item on that line
+// at rest and `scroll-pl-*` keeps a snapped item there, while the full-bleed
+// row still lets items slide out to the frame edge mid-scroll. The content
+// line is owned by the same nesting that owns the bleed: the content warning
+// resets it to its `px-3`, and Explore's `p-2` shell raises it at `md+`.
+const MEDIA_ITEM_INSET_CLASS = 'pl-[var(--post-media-content-inset,1rem)]'
+const MEDIA_STRIP_SNAP_INSET_CLASS =
+  'scroll-pl-[var(--post-media-content-inset,1rem)]'
 
 interface CaptionProps {
   identity: string
@@ -121,7 +131,7 @@ const Caption: FC<CaptionProps> = ({ identity, text, tags }) => {
 
   return (
     <div
-      className="mt-2 select-text px-4 text-sm leading-relaxed text-muted-foreground"
+      className="mt-2 select-text text-sm leading-relaxed text-muted-foreground"
       onClick={(event) => event.stopPropagation()}
     >
       <p
@@ -223,7 +233,11 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
     return (
       <>
         <div
-          className={cn('mt-3 flex flex-col justify-start', MEDIA_BLEED_CLASS)}
+          className={cn(
+            'mt-3 flex flex-col justify-start',
+            MEDIA_BLEED_CLASS,
+            MEDIA_ITEM_INSET_CLASS
+          )}
         >
           <button
             type="button"
@@ -265,7 +279,11 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
             onScroll={strip.measure}
             role="group"
             aria-label={`${items.length} media attachments${overflowing ? ', scroll for more' : ''}`}
-            className="no-scrollbar relative flex gap-3 overflow-x-auto"
+            className={cn(
+              'no-scrollbar relative flex gap-3 overflow-x-auto',
+              MEDIA_ITEM_INSET_CLASS,
+              MEDIA_STRIP_SNAP_INSET_CLASS
+            )}
             style={stripStyle}
           >
             {items.map(({ attachment, width }, index) => {

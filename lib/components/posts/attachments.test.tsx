@@ -1297,11 +1297,13 @@ describe('Attachments', () => {
   // jsdom does not lay out, so these pin the class contract only. The real
   // frame-edge geometry is browser-verified; see docs/architecture.md
   // "Post media layout".
-  describe('media bleed contract', () => {
+  describe('media alignment contract', () => {
     const MEDIA_BLEED_LEFT = '-ml-[var(--post-media-bleed-left,4.25rem)]'
     const MEDIA_BLEED_RIGHT = '-mr-[var(--post-media-bleed-right,1rem)]'
+    const MEDIA_ITEM_INSET = 'pl-[var(--post-media-content-inset,1rem)]'
+    const MEDIA_SNAP_INSET = 'scroll-pl-[var(--post-media-content-inset,1rem)]'
 
-    it('bleeds a lone picture row to the frame edges with an inset caption', () => {
+    it('bleeds a lone picture row to the frame edges and aligns it to the content', () => {
       render(
         <Attachments
           status={buildNoteStatus([
@@ -1320,14 +1322,17 @@ describe('Attachments', () => {
       })
       expect(button.parentElement).toHaveClass(
         MEDIA_BLEED_LEFT,
-        MEDIA_BLEED_RIGHT
+        MEDIA_BLEED_RIGHT,
+        MEDIA_ITEM_INSET
       )
-      expect(screen.getByText('Ridge at dawn').parentElement).toHaveClass(
+      // The caption lines up with its picture, not a second inset on top; the
+      // item inset already puts both on the status content's left edge.
+      expect(screen.getByText('Ridge at dawn').parentElement).not.toHaveClass(
         'px-4'
       )
     })
 
-    it('bleeds a picture strip to the frame edges and insets captions and the pager', () => {
+    it('bleeds a picture strip to the frame edges, aligns items to the content, and insets the pager', () => {
       render(
         <Attachments
           status={buildNoteStatus([
@@ -1343,8 +1348,11 @@ describe('Attachments', () => {
         MEDIA_BLEED_LEFT,
         MEDIA_BLEED_RIGHT
       )
-      expect(screen.getByText('First').parentElement).toHaveClass('px-4')
-      expect(screen.getByText('Second').parentElement).toHaveClass('px-4')
+      // `pl` puts the first card on the content line at rest, `scroll-pl` is
+      // the snapport that keeps every focused card there after a slide.
+      expect(strip).toHaveClass(MEDIA_ITEM_INSET, MEDIA_SNAP_INSET)
+      expect(screen.getByText('First').parentElement).not.toHaveClass('px-4')
+      expect(screen.getByText('Second').parentElement).not.toHaveClass('px-4')
 
       Object.defineProperty(strip, 'scrollWidth', {
         configurable: true,

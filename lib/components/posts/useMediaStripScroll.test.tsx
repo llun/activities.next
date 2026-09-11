@@ -259,6 +259,38 @@ describe('useMediaStripScroll', () => {
     expect(scrollBy).toHaveBeenCalledWith({ left: 280, behavior: 'smooth' })
   })
 
+  it('advances to the snapport inset when scroll padding is set', () => {
+    // The media strip keeps `scroll-padding-left` on the status content's
+    // inset, so the next card must land on that line, not at the frame edge.
+    render(<Probe scrollWidth={1600} clientWidth={500} scrollLeft={0} />)
+    const scroller = screen.getByTestId('scroller')
+    scroller.style.scrollPaddingLeft = '16px'
+    const containerLeft = 100
+    Object.defineProperty(scroller, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ left: containerLeft })
+    })
+    // Card boundaries include the 16px content padding: 16, 236, 516, 876.
+    ;[16, 236, 516, 876].forEach((offset) => {
+      const card = document.createElement('span')
+      Object.defineProperty(card, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({ left: containerLeft + offset })
+      })
+      scroller.append(card)
+    })
+    const scrollBy = vi.fn()
+    Object.defineProperty(scroller, 'scrollBy', {
+      configurable: true,
+      value: scrollBy
+    })
+
+    // From rest the padded first card is not a forward boundary; the target is
+    // the second card's boundary minus the snap inset: 236 - 16.
+    act(() => capturedScrollByPage?.(1))
+    expect(scrollBy).toHaveBeenCalledWith({ left: 220, behavior: 'smooth' })
+  })
+
   it('uses the nearest directional card boundary relative to the container', () => {
     render(<Probe scrollWidth={1200} clientWidth={500} scrollLeft={100} />)
     const scroller = screen.getByTestId('scroller')

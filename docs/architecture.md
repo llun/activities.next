@@ -1670,28 +1670,31 @@ legacy shape left to copy.
   article's 16px inset. Below `md` the owning frame is the screen edge; from
   `md` up it is the feed card's inner edge, or the parent frame for an embedded
   feed (the parentless landing feed has no frame there, so the row spans the
-  column). A nested frame overrides the variables for its own padding: the
-  content-warning card resets both to `0.75rem` (its `px-3`) so expanded media
-  fills the card inside its border rather than escaping it, and Explore raises
-  them from `md` to include its `p-2` shell. Captions and the strip pager carry
-  their own inset (`px-4` / `pr-4`) so they stay off the edge the row reaches:
-  a lone picture's caption is inset from the frame edge, and each strip item's
-  caption is inset within its own item column. The media row must not be
+  column). **The media inside the row aligns with the status content's left
+  edge, not the frame edge**: `--post-media-content-inset` (default `1rem`) is
+  the scroller's `padding-left` and `scroll-padding-left`, so the first card
+  rests on that line and every card a reader slides to snaps back onto it,
+  while the full-bleed row still lets cards travel out to the frame edge
+  mid-scroll. The same nesting that owns the bleed owns the content line: the
+  content-warning card resets it to `0.75rem` (its `px-3`), and Explore raises
+  it to `1.5rem` at `md+` for its `p-2` shell. Captions align with their own
+  card — the card already sits on the content line — and only the strip pager
+  keeps an extra inset (`pr-4`) from the frame edge. The media row must not be
   narrowed to achieve this: a lone picture still sizes naturally at
   `min(100%, Npx)`, the strip keeps its item widths, gaps, snapping and pager,
   and no ancestor may clip the row.
 - A status's media is **one attachment at its own size, or a horizontally
   scrollable strip — never a grid.** `lib/components/posts/attachments.tsx` owns
   this for every surface that renders a post. A lone picture keeps its own
-  aspect ratio and reaches the media row's left edge (the frame's inner edge,
-  see above), scaled by WIDTH; the branch this replaced cropped every portrait
-  photo to a full-width 16:9.
+  aspect ratio and starts on the status content's left line, scaled by WIDTH;
+  the branch this replaced cropped every portrait photo to a full-width 16:9.
 - The gallery uses 240px image boxes, 12px gaps, aspect-ratio-based card widths
   with a 160px minimum and 78% maximum, and `scroll-snap-type: x proximity`.
   Captions sit below their images, preserve line breaks and custom emoji, and
   clamp independently to three lines. Paired circular arrows sit below the
   captions while overflowing, remain focusable at their boundaries with guarded
-  `aria-disabled` states. Each click advances exactly one adjacent card, using
+  `aria-disabled` states. Each click advances exactly one adjacent card —
+  landing it on the content line through the `scroll-padding-left` inset — using
   the first boundary in the requested direction when the user is between cards,
   and clamps at either end. Scrolling stays smooth unless reduced motion is
   requested.
@@ -1718,12 +1721,12 @@ legacy shape left to copy.
   4:3 box so blurhash has something to reserve.
 - **A media button's focus indicator is an `outline` with a NEGATIVE offset,
   never an outset ring.** The strip's own `overflow-x-auto` clips an outset
-  ring, and since the media row reaches the frame's inner edges the lone
-  picture sits flush with `main`'s `overflow-x-clip` below `md`, where the
-  ring's outer edge on the flush side is cut off. An inset `box-shadow` does not work either — it paints
-  beneath content and the button's only child is an opaque image. `Attachments`
-  uses one spelling for both shapes; it has been got wrong twice and is pinned
-  by a test.
+  ring, and the media box can still reach the frame's inner edge — a wide lone
+  picture's right edge, and every strip card while it is being dragged — where
+  `main`'s `overflow-x-clip` cuts the ring's outer edge off below `md`. An
+  inset `box-shadow` does not work either — it paints beneath content and the
+  button's only child is an opaque image. `Attachments` uses one spelling for
+  both shapes; it has been got wrong twice and is pinned by a test.
 - `useMediaStripScroll` measures the strip's own container, never a viewport
   breakpoint, through a **callback** ref because the strip is conditional. Its
   `contentKey` must describe item WIDTHS, not their count: the observer watches

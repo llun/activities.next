@@ -740,17 +740,17 @@ scrollable strip — never a grid.** `lib/components/posts/attachments.tsx` owns
 this for every surface that renders a post, and the shapes come from the design
 system's `Attachments` component.
 
-- **A lone picture keeps its own aspect ratio and spans the media row's left
-  edge.** Not `w-full`, not `aspect-video`: the old single branch cropped every
-  portrait photo to 16:9 across the full content width. It is scaled by
-  **width** — `min(100%, round(SINGLE_MAX_HEIGHT * ratio)px)`, capped at the
-  file's own pixels so a thumbnail is never upscaled — and never by capping the
-  height of an `aspect-ratio` box, which leaves the ratio to be re-derived from
-  a clamped axis and is resolved inconsistently across browsers. The media row
-  itself reaches the owning feed frame's inner edges (the screen edge below
-  `md`, the feed card above it; see the frame-bleed contract in
-  `docs/architecture.md` → "Post media layout"), so the picture hugs the row's
-  edge rather than a fixed post inset.
+- **A lone picture keeps its own aspect ratio and starts on the status
+  content's left line.** Not `w-full`, not `aspect-video`: the old single branch
+  cropped every portrait photo to 16:9 across the full content width. It is
+  scaled by **width** — `min(100%, round(SINGLE_MAX_HEIGHT * ratio)px)`, capped
+  at the file's own pixels so a thumbnail is never upscaled — and never by
+  capping the height of an `aspect-ratio` box, which leaves the ratio to be
+  re-derived from a clamped axis and is resolved inconsistently across browsers.
+  The full-bleed media row can still reach the owning feed frame's inner edges
+  while a strip scrolls, but the picture itself is inset to the content line
+  (`--post-media-content-inset`; see the frame-bleed contract in
+  `docs/architecture.md` → "Post media layout"), not flush with the frame.
 - **Two or more pictures are a horizontally scrolling gallery** with 240px image
   boxes, 12px gaps, rounded corners, and cards sized from their aspect ratio.
   Cards have a 160px minimum and a 78% container maximum so neighboring cards
@@ -768,12 +768,17 @@ system's `Attachments` component.
     one always peeks past the edge. That peek is what says "this scrolls" on a
     touch screen.
   - `scroll-snap-type: x proximity`, never `mandatory`: mandatory snapping pulls
-    the peeking item flush with the edge as soon as the scroll settles and
-    destroys the affordance the 78% cap creates.
+    the peeking item onto the settled line as soon as the scroll settles and
+    destroys the affordance the 78% cap creates. The scroller's `padding-left`
+    and `scroll-padding-left` share the content-line inset
+    (`--post-media-content-inset`), so the resting first card and the card a
+    slide settles on both line up with the status content, while the card can
+    still travel out to the frame edge while the reader is dragging.
   - Paired circular arrow controls remain mounted while the strip overflows,
     sit below the captions, and expose guarded `aria-disabled` states at each
-    boundary. Each press targets roughly 90% of the container and then snaps to
-    the nearest card boundary, with reduced motion honored.
+    boundary. Each press advances exactly one adjacent card and lands it on the
+    content line — `useMediaStripScroll` subtracts the scroller's
+    `scroll-padding-left` from the card boundary — with reduced motion honored.
 - **There is no 4-item cap and no `+N` overlay.** Everything attached is in the
   strip, because scrolling reaches it. Re-adding a cap hides media the post
   actually carries. Strip images therefore pass `loading="lazy"` to `Media` —
@@ -792,10 +797,10 @@ system's `Attachments` component.
   offset, not a ring.** For a strip item, its border box is exactly the strip's
   height and `overflow-x-auto` forces `overflow-y` to compute to `auto`, so an
   OUTSET ring's top and bottom bars fall outside the scrollport and are clipped
-  away. A lone picture now sits flush with the feed frame's inner edge too —
-  below `md` that is the viewport edge, where `main`'s `overflow-x-clip` cuts
-  the ring's outer edge on the flush side — so both shapes share the same
-  inset outline. An INSET ring is
+  away. The media box can still reach the feed frame's inner edge — a wide lone
+  picture's right edge, and every strip card while it is dragged — and below
+  `md` that is the viewport edge, where `main`'s `overflow-x-clip` cuts the
+  ring's outer edge, so both shapes share the same inset outline. An INSET ring is
   worse rather than better: an inset `box-shadow` paints with the element's
   background, underneath its content, and the button's only child is an opaque
   image filling the whole box — so it is occluded on all four sides and there is

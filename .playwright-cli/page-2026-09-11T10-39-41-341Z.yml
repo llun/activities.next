@@ -1,0 +1,582 @@
+- generic [active] [ref=e1]:
+    - button "Open Next.js Dev Tools" [ref=e35] [cursor=pointer]:
+        - generic [ref=e38]:
+            - text: Rendering
+            - generic [ref=e39]:
+                - generic [ref=e40]: .
+                - generic [ref=e41]: .
+                - generic [ref=e42]: .
+    - alert [ref=e34]: Timeline
+    - generic [ref=e43]:
+        - complementary [ref=e44]:
+            - link "Activities home" [ref=e46] [cursor=pointer]:
+                - /url: /
+                - generic [ref=e48]: Activities
+            - navigation [ref=e49]:
+                - list [ref=e50]:
+                    - listitem [ref=e51]:
+                        - link "Timeline" [ref=e52] [cursor=pointer]:
+                            - /url: /
+                        - button "Customize Timeline navigation" [ref=e56]
+                    - listitem [ref=e61]:
+                        - link "Search" [ref=e62] [cursor=pointer]:
+                            - /url: /search
+                        - button "Customize Search navigation" [ref=e66]
+                    - listitem [ref=e71]:
+                        - link "Explore" [ref=e72] [cursor=pointer]:
+                            - /url: /explore
+                        - button "Customize Explore navigation" [ref=e76]
+                    - listitem [ref=e81]:
+                        - link "Messages" [ref=e82] [cursor=pointer]:
+                            - /url: /messages
+                        - button "Customize Messages navigation" [ref=e86]
+                    - listitem [ref=e91]:
+                        - link "Favorites" [ref=e92] [cursor=pointer]:
+                            - /url: /favorites
+                        - button "Customize Favorites navigation" [ref=e95]
+                    - listitem [ref=e100]:
+                        - link "Bookmarks" [ref=e101] [cursor=pointer]:
+                            - /url: /bookmarks
+                        - button "Customize Bookmarks navigation" [ref=e104]
+                    - listitem [ref=e109]:
+                        - link "Lists" [ref=e110] [cursor=pointer]:
+                            - /url: /lists
+                        - button "Customize Lists navigation" [ref=e112]
+                    - listitem [ref=e117]:
+                        - link "Fitness" [ref=e118] [cursor=pointer]:
+                            - /url: /fitness
+                        - button "Customize Fitness navigation" [ref=e121]
+                    - listitem [ref=e126]:
+                        - link "Notifications" [ref=e127] [cursor=pointer]:
+                            - /url: /notifications
+                        - button "Customize Notifications navigation" [ref=e131]
+                    - listitem [ref=e136]:
+                        - link "Account" [ref=e137] [cursor=pointer]:
+                            - /url: /account
+                        - button "Customize Account navigation" [ref=e143]
+                    - listitem [ref=e148]:
+                        - link "Settings" [ref=e149] [cursor=pointer]:
+                            - /url: /settings
+                        - button "Customize Settings navigation" [ref=e153]
+            - link "T testuser @testuser@localhost:3000" [ref=e159] [cursor=pointer]:
+                - /url: /@testuser@localhost:3000
+                - generic [ref=e160]: T
+                - generic [ref=e162]:
+                    - paragraph [ref=e163]: testuser
+                    - paragraph [ref=e164]: '@testuser@localhost:3000'
+        - main [ref=e165]:
+            - generic [ref=e167]:
+                - generic [ref=e170]:
+                    - generic [ref=e171]:
+                        - heading "Timeline" [level=1] [ref=e172]
+                        - generic [ref=e173]: Latest posts from your network.
+                    - button "Refresh timeline" [ref=e175] [cursor=pointer]
+                - generic [ref=e178]:
+                    - generic [ref=e179]:
+                        - generic [ref=e180]: T
+                        - textbox "What is on your mind?" [ref=e183]
+                    - generic [ref=e184]:
+                        - generic [ref=e185]:
+                            - button "Add media (0/50)" [ref=e186] [cursor=pointer]
+                            - button "Upload fitness activity file" [ref=e187] [cursor=pointer]
+                            - button "Add emoji or sticker" [ref=e189] [cursor=pointer]
+                            - button "Add poll" [ref=e190] [cursor=pointer]
+                            - button "Add content warning" [ref=e191] [cursor=pointer]
+                            - 'button "Set visibility and who can quote, current: Public, Anyone can quote" [ref=e192] [cursor=pointer]':
+                                - generic [ref=e193]: Public
+                            - button "Toggle preview" [ref=e194] [cursor=pointer]
+                        - generic [ref=e195]:
+                            - generic [ref=e196]: '500'
+                            - button "Post" [disabled]
+                - generic [ref=e198]:
+                    - article [ref=e199]:
+                        - generic [ref=e201]:
+                            - link "T" [ref=e203] [cursor=pointer]:
+                                - /url: /@testuser@localhost:3000
+                            - generic [ref=e206]:
+                                - generic [ref=e207]:
+                                    - generic [ref=e208]:
+                                        - link "testuser" [ref=e209] [cursor=pointer]:
+                                            - /url: /@testuser@localhost:3000
+                                        - generic [ref=e210]: '@testuser@localhost:3000'
+                                    - generic [ref=e211]: ·
+                                    - button "Open status by testuser, posted about 18 hours ago" [ref=e212]: about 18 hours
+                                - paragraph [ref=e216]: A comment on the fitness activity.
+                                - group "Post actions" [ref=e218]:
+                                    - button "Reply to post" [ref=e219] [cursor=pointer]
+                                    - button "Repost" [ref=e222] [cursor=pointer]
+                                    - button "Like" [disabled] [ref=e229]
+                                    - button "Bookmark" [ref=e233] [cursor=pointer]
+                                    - button "Add reaction" [ref=e237] [cursor=pointer]
+                                    - button "More actions" [ref=e242] [cursor=pointer]
+                    - article [ref=e247]:
+                        - generic [ref=e249]:
+                            - link "T" [ref=e251] [cursor=pointer]:
+                                - /url: /@testuser@localhost:3000
+                            - generic [ref=e254]:
+                                - generic [ref=e255]:
+                                    - generic [ref=e256]:
+                                        - link "testuser" [ref=e257] [cursor=pointer]:
+                                            - /url: /@testuser@localhost:3000
+                                        - generic [ref=e258]: '@testuser@localhost:3000'
+                                    - generic [ref=e259]: ·
+                                    - button "Open status by testuser, posted about 18 hours ago" [ref=e260]: about 18 hours
+                                - paragraph [ref=e264]: A reply to the video, with a photo.
+                                - group "Post actions" [ref=e266]:
+                                    - button "Reply to post" [ref=e267] [cursor=pointer]
+                                    - button "Repost" [ref=e270] [cursor=pointer]
+                                    - button "Like" [disabled] [ref=e277]
+                                    - button "Bookmark" [ref=e281] [cursor=pointer]
+                                    - button "Add reaction" [ref=e285] [cursor=pointer]
+                                    - button "More actions" [ref=e290] [cursor=pointer]
+                    - article [ref=e295]:
+                        - generic [ref=e297]:
+                            - link "T" [ref=e299] [cursor=pointer]:
+                                - /url: /@testuser@localhost:3000
+                            - generic [ref=e302]:
+                                - generic [ref=e303]:
+                                    - generic [ref=e304]:
+                                        - link "testuser" [ref=e305] [cursor=pointer]:
+                                            - /url: /@testuser@localhost:3000
+                                        - generic [ref=e306]: '@testuser@localhost:3000'
+                                    - generic [ref=e307]: ·
+                                    - button "Open status by testuser, posted about 18 hours ago" [ref=e308]: about 18 hours
+                                - paragraph [ref=e312]: A photo with a long caption.
+                                - generic [ref=e313]:
+                                    - 'button "Open media: A very long caption that goes on and on and should clamp after three lines when the caption is not expanded, then expand fully when the reader presses Show more. It keeps going so the clamp is definitely reached, with more words after these ones and then some more still." [ref=e314]':
+                                        - img "A very long caption that goes on and on and should clamp after three lines when the caption is not expanded, then expand fully when the reader presses Show more. It keeps going so the clamp is definitely reached, with more words after these ones and then some more still." [ref=e315]
+                                    - paragraph [ref=e317]: A very long caption that goes on and on and should clamp after three lines when the caption is not expanded, then expand fully when the reader presses Show more. It keeps going so the clamp is definitely reached, with more words after these ones and then some more still.
+                                - group "Post actions" [ref=e319]:
+                                    - button "Reply to post" [ref=e320] [cursor=pointer]
+                                    - button "Repost" [ref=e323] [cursor=pointer]
+                                    - button "Like" [disabled] [ref=e330]
+                                    - button "Bookmark" [ref=e334] [cursor=pointer]
+                                    - button "Add reaction" [ref=e338] [cursor=pointer]
+                                    - button "More actions" [ref=e343] [cursor=pointer]
+                    - article [ref=e348]:
+                        - generic [ref=e350]:
+                            - link "T" [ref=e352] [cursor=pointer]:
+                                - /url: /@testuser@localhost:3000
+                            - generic [ref=e355]:
+                                - generic [ref=e356]:
+                                    - generic [ref=e357]:
+                                        - link "testuser" [ref=e358] [cursor=pointer]:
+                                            - /url: /@testuser@localhost:3000
+                                        - generic [ref=e359]: '@testuser@localhost:3000'
+                                    - generic [ref=e360]: ·
+                                    - button "Open status by testuser, posted about 18 hours ago" [ref=e361]: about 18 hours
+                                - paragraph [ref=e365]: Mixed attachment types.
+                                - generic [ref=e366]:
+                                    - group "3 media attachments, scroll for more" [ref=e367]:
+                                        - button "Open media 1" [ref=e369]
+                                        - button "Open media 2" [ref=e371]
+                                        - button "Open media 3" [ref=e373]
+                                    - generic [ref=e375]:
+                                        - button "Previous media" [disabled] [ref=e376]
+                                        - button "Next media" [ref=e379]
+                                - group "Post actions" [ref=e385]:
+                                    - button "Reply to post" [ref=e386] [cursor=pointer]
+                                    - button "Repost" [ref=e389] [cursor=pointer]
+                                    - button "Like" [disabled] [ref=e396]
+                                    - button "Bookmark" [ref=e400] [cursor=pointer]
+                                    - button "Add reaction" [ref=e404] [cursor=pointer]
+                                    - button "More actions" [ref=e409] [cursor=pointer]
+                    - article [ref=e414]:
+                        - generic [ref=e416]:
+                            - link "T" [ref=e418] [cursor=pointer]:
+                                - /url: /@testuser@localhost:3000
+                            - generic [ref=e421]:
+                                - generic [ref=e422]:
+                                    - generic [ref=e423]:
+                                        - link "testuser" [ref=e424] [cursor=pointer]:
+                                            - /url: /@testuser@localhost:3000
+                                        - generic [ref=e425]: '@testuser@localhost:3000'
+                                    - generic [ref=e426]: ·
+                                    - button "Open status by testuser, posted about 18 hours ago" [ref=e427]: about 18 hours
+                                - paragraph [ref=e431]: A single video clip.
+                                - button "Open media 1" [ref=e433]
+                                - group "Post actions" [ref=e436]:
+                                    - button "Reply to post" [ref=e437] [cursor=pointer]
+                                    - button "Repost" [ref=e440] [cursor=pointer]
+                                    - button "Like" [disabled] [ref=e447]
+                                    - button "Bookmark" [ref=e451] [cursor=pointer]
+                                    - button "Add reaction" [ref=e455] [cursor=pointer]
+                                    - button "More actions" [ref=e460] [cursor=pointer]
+                    - article [ref=e465]:
+                        - generic [ref=e467]:
+                            - link "T" [ref=e469] [cursor=pointer]:
+                                - /url: /@testuser@localhost:3000
+                            - generic [ref=e472]:
+                                - generic [ref=e473]:
+                                    - generic [ref=e474]:
+                                        - link "testuser" [ref=e475] [cursor=pointer]:
+                                            - /url: /@testuser@localhost:3000
+                                        - generic [ref=e476]: '@testuser@localhost:3000'
+                                    - generic [ref=e477]: ·
+                                    - button "Open status by testuser, posted about 18 hours ago" [ref=e478]: about 18 hours
+                                - paragraph [ref=e482]: A tiny pixel-art image.
+                                - generic [ref=e483]:
+                                    - 'button "Open media: Tiny" [ref=e484]':
+                                        - img "Tiny" [ref=e485]
+                                    - paragraph [ref=e487]: Tiny
+                                - group "Post actions" [ref=e489]:
+                                    - button "Reply to post" [ref=e490] [cursor=pointer]
+                                    - button "Repost" [ref=e493] [cursor=pointer]
+                                    - button "Like" [disabled] [ref=e500]
+                                    - button "Bookmark" [ref=e504] [cursor=pointer]
+                                    - button "Add reaction" [ref=e508] [cursor=pointer]
+                                    - button "More actions" [ref=e513] [cursor=pointer]
+                    - article [ref=e518]:
+                        - generic [ref=e520]:
+                            - link "T" [ref=e522] [cursor=pointer]:
+                                - /url: /@testuser@localhost:3000
+                            - generic [ref=e525]:
+                                - generic [ref=e526]:
+                                    - generic [ref=e527]:
+                                        - link "testuser" [ref=e528] [cursor=pointer]:
+                                            - /url: /@testuser@localhost:3000
+                                        - generic [ref=e529]: '@testuser@localhost:3000'
+                                    - generic [ref=e530]: ·
+                                    - button "Open status by testuser, posted about 18 hours ago" [ref=e531]: about 18 hours
+                                - button "Show content" [ref=e533] [cursor=pointer]:
+                                    - generic [ref=e534]: 'Sensitive: trail conditions'
+                                    - generic [aria-hidden] [ref=e538]: Show
+                                - group "Post actions" [ref=e540]:
+                                    - button "Reply to post" [ref=e541] [cursor=pointer]
+                                    - button "Repost" [ref=e544] [cursor=pointer]
+                                    - button "Like" [disabled] [ref=e551]
+                                    - button "Bookmark" [ref=e555] [cursor=pointer]
+                                    - button "Add reaction" [ref=e559] [cursor=pointer]
+                                    - button "More actions" [ref=e564] [cursor=pointer]
+                    - article [ref=e569]:
+                        - generic [ref=e571]:
+                            - link "T" [ref=e573] [cursor=pointer]:
+                                - /url: /@testuser@localhost:3000
+                            - generic [ref=e576]:
+                                - generic [ref=e577]:
+                                    - generic [ref=e578]:
+                                        - link "testuser" [ref=e579] [cursor=pointer]:
+                                            - /url: /@testuser@localhost:3000
+                                        - generic [ref=e580]: '@testuser@localhost:3000'
+                                    - generic [ref=e581]: ·
+                                    - button "Open status by testuser, posted about 18 hours ago" [ref=e582]: about 18 hours
+                                - button "Show content" [ref=e584] [cursor=pointer]:
+                                    - generic [ref=e585]: Spoilers for the hike
+                                    - generic [aria-hidden] [ref=e589]: Show
+                                - group "Post actions" [ref=e591]:
+                                    - button "Reply to post" [ref=e592] [cursor=pointer]
+                                    - button "Undo repost" [ref=e595] [cursor=pointer]
+                                    - button "Like" [disabled] [ref=e602]
+                                    - button "Bookmark" [ref=e606] [cursor=pointer]
+                                    - button "Add reaction" [ref=e610] [cursor=pointer]
+                                    - button "More actions" [ref=e615] [cursor=pointer]
+                    - article [ref=e620]:
+                        - generic [ref=e621]:
+                            - generic [ref=e628]:
+                                - text: Boosted by
+                                - link "testuser" [ref=e629] [cursor=pointer]:
+                                    - /url: /@testuser@localhost:3000
+                            - generic [ref=e630]:
+                                - link "T" [ref=e632] [cursor=pointer]:
+                                    - /url: /@testuser@localhost:3000
+                                - generic [ref=e635]:
+                                    - generic [ref=e636]:
+                                        - generic [ref=e637]:
+                                            - link "testuser" [ref=e638] [cursor=pointer]:
+                                                - /url: /@testuser@localhost:3000
+                                            - generic [ref=e639]: '@testuser@localhost:3000'
+                                        - generic [ref=e640]: ·
+                                        - button "Open status by testuser, posted about 18 hours ago" [ref=e641]: about 18 hours
+                                    - button "Show content" [ref=e643] [cursor=pointer]:
+                                        - generic [ref=e644]: Spoilers for the hike
+                                        - generic [aria-hidden] [ref=e648]: Show
+                                    - group "Post actions" [ref=e650]:
+                                        - button "Reply to post" [ref=e651] [cursor=pointer]
+                                        - button "Undo repost" [ref=e654] [cursor=pointer]
+                                        - button "Like" [disabled] [ref=e661]
+                                        - button "Bookmark" [ref=e665] [cursor=pointer]
+                                        - button "Add reaction" [ref=e669] [cursor=pointer]
+                                        - button "More actions" [ref=e674] [cursor=pointer]
+                    - article [ref=e679]:
+                        - generic [ref=e681]:
+                            - link "T" [ref=e683] [cursor=pointer]:
+                                - /url: /@testuser@localhost:3000
+                            - generic [ref=e686]:
+                                - generic [ref=e687]:
+                                    - generic [ref=e688]:
+                                        - link "testuser" [ref=e689] [cursor=pointer]:
+                                            - /url: /@testuser@localhost:3000
+                                        - generic [ref=e690]: '@testuser@localhost:3000'
+                                    - generic [ref=e691]: ·
+                                    - button "Open status by testuser, posted about 18 hours ago" [ref=e692]: about 18 hours
+                                - paragraph [ref=e696]: Photo dump! 7 images. (7 images)
+                                - generic [ref=e697]:
+                                    - group "7 media attachments, scroll for more" [ref=e698]:
+                                        - generic [ref=e699]:
+                                            - 'button "Open media: Image 1 for status" [ref=e700]':
+                                                - img "Image 1 for status" [ref=e701]
+                                            - paragraph [ref=e703]: Image 1 for status
+                                        - generic [ref=e704]:
+                                            - 'button "Open media: Image 2 for status" [ref=e705]':
+                                                - img "Image 2 for status" [ref=e706]
+                                            - paragraph [ref=e708]: Image 2 for status
+                                        - generic [ref=e709]:
+                                            - 'button "Open media: Image 4 for status" [ref=e710]':
+                                                - img "Image 4 for status" [ref=e711]
+                                            - paragraph [ref=e713]: Image 4 for status
+                                        - generic [ref=e714]:
+                                            - 'button "Open media: Image 3 for status" [ref=e715]':
+                                                - img "Image 3 for status" [ref=e716]
+                                            - paragraph [ref=e718]: Image 3 for status
+                                        - generic [ref=e719]:
+                                            - 'button "Open media: Image 5 for status" [ref=e720]':
+                                                - img "Image 5 for status" [ref=e721]
+                                            - paragraph [ref=e723]: Image 5 for status
+                                        - generic [ref=e724]:
+                                            - 'button "Open media: Image 6 for status" [ref=e725]':
+                                                - img "Image 6 for status" [ref=e726]
+                                            - paragraph [ref=e728]: Image 6 for status
+                                        - generic [ref=e729]:
+                                            - 'button "Open media: Image 7 for status" [ref=e730]':
+                                                - img "Image 7 for status" [ref=e731]
+                                            - paragraph [ref=e733]: Image 7 for status
+                                    - generic [ref=e734]:
+                                        - button "Previous media" [disabled] [ref=e735]
+                                        - button "Next media" [ref=e738]
+                                - group "Post actions" [ref=e742]:
+                                    - button "Reply to post" [ref=e743] [cursor=pointer]
+                                    - button "Repost" [ref=e746] [cursor=pointer]
+                                    - button "Like" [disabled] [ref=e753]
+                                    - button "Bookmark" [ref=e757] [cursor=pointer]
+                                    - button "Add reaction" [ref=e761] [cursor=pointer]
+                                    - button "More actions" [ref=e766] [cursor=pointer]
+                    - article [ref=e771]:
+                        - generic [ref=e773]:
+                            - link "T" [ref=e775] [cursor=pointer]:
+                                - /url: /@testuser@localhost:3000
+                            - generic [ref=e778]:
+                                - generic [ref=e779]:
+                                    - generic [ref=e780]:
+                                        - link "testuser" [ref=e781] [cursor=pointer]:
+                                            - /url: /@testuser@localhost:3000
+                                        - generic [ref=e782]: '@testuser@localhost:3000'
+                                    - generic [ref=e783]: ·
+                                    - button "Open status by testuser, posted about 18 hours ago" [ref=e784]: about 18 hours
+                                - paragraph [ref=e788]: A row of 4 images. (4 images)
+                                - generic [ref=e789]:
+                                    - group "4 media attachments, scroll for more" [ref=e790]:
+                                        - generic [ref=e791]:
+                                            - 'button "Open media: Image 2 for status" [ref=e792]':
+                                                - img "Image 2 for status" [ref=e793]
+                                            - paragraph [ref=e795]: Image 2 for status
+                                        - generic [ref=e796]:
+                                            - 'button "Open media: Image 1 for status" [ref=e797]':
+                                                - img "Image 1 for status" [ref=e798]
+                                            - paragraph [ref=e800]: Image 1 for status
+                                        - generic [ref=e801]:
+                                            - 'button "Open media: Image 4 for status" [ref=e802]':
+                                                - img "Image 4 for status" [ref=e803]
+                                            - paragraph [ref=e805]: Image 4 for status
+                                        - generic [ref=e806]:
+                                            - 'button "Open media: Image 3 for status" [ref=e807]':
+                                                - img "Image 3 for status" [ref=e808]
+                                            - paragraph [ref=e810]: Image 3 for status
+                                    - generic [ref=e811]:
+                                        - button "Previous media" [disabled] [ref=e812]
+                                        - button "Next media" [ref=e815]
+                                - group "Post actions" [ref=e819]:
+                                    - button "Reply to post" [ref=e820] [cursor=pointer]
+                                    - button "Repost" [ref=e823] [cursor=pointer]
+                                    - button "Like" [disabled] [ref=e830]
+                                    - button "Bookmark" [ref=e834] [cursor=pointer]
+                                    - button "Add reaction" [ref=e838] [cursor=pointer]
+                                    - button "More actions" [ref=e843] [cursor=pointer]
+                    - article [ref=e848]:
+                        - generic [ref=e850]:
+                            - link "RS" [ref=e852] [cursor=pointer]:
+                                - /url: /@rico@social.example
+                            - generic [ref=e855]:
+                                - generic [ref=e856]:
+                                    - generic [ref=e857]:
+                                        - link "Rico Santos" [ref=e858] [cursor=pointer]:
+                                            - /url: /@rico@social.example
+                                        - generic [ref=e859]: '@rico@social.example'
+                                    - generic [ref=e860]: ·
+                                    - button "Open status by Rico Santos, posted about 18 hours ago" [ref=e861]: about 18 hours
+                                    - link "Open original post" [ref=e862] [cursor=pointer]:
+                                        - /url: https://social.example/users/rico/statuses/2c3d93da-2331-4936-b415-dd85660e503c
+                                - paragraph [ref=e870]: Late-night street reflections.
+                                - generic [ref=e871]:
+                                    - group "4 media attachments, scroll for more" [ref=e872]:
+                                        - generic [ref=e873]:
+                                            - 'button "Open media: External image 3" [ref=e874]':
+                                                - img "External image 3" [ref=e875]
+                                            - paragraph [ref=e877]: External image 3
+                                        - generic [ref=e878]:
+                                            - 'button "Open media: External image 2" [ref=e879]':
+                                                - img "External image 2" [ref=e880]
+                                            - paragraph [ref=e882]: External image 2
+                                        - generic [ref=e883]:
+                                            - 'button "Open media: External image 1" [ref=e884]':
+                                                - img "External image 1" [ref=e885]
+                                            - paragraph [ref=e887]: External image 1
+                                        - generic [ref=e888]:
+                                            - 'button "Open media: External image 4" [ref=e889]':
+                                                - img "External image 4" [ref=e890]
+                                            - paragraph [ref=e892]: External image 4
+                                    - generic [ref=e893]:
+                                        - button "Previous media" [disabled] [ref=e894]
+                                        - button "Next media" [ref=e897]
+                                - group "Post actions" [ref=e901]:
+                                    - button "Reply to post" [ref=e902] [cursor=pointer]
+                                    - button "Repost" [ref=e905] [cursor=pointer]
+                                    - button "Like" [ref=e912] [cursor=pointer]
+                                    - button "Bookmark" [ref=e916] [cursor=pointer]
+                                    - button "Add reaction" [ref=e920] [cursor=pointer]
+                                    - button "More actions" [ref=e925] [cursor=pointer]
+                    - article [ref=e930]:
+                        - generic [ref=e932]:
+                            - link "T" [ref=e934] [cursor=pointer]:
+                                - /url: /@testuser@localhost:3000
+                            - generic [ref=e937]:
+                                - generic [ref=e938]:
+                                    - generic [ref=e939]:
+                                        - link "testuser" [ref=e940] [cursor=pointer]:
+                                            - /url: /@testuser@localhost:3000
+                                        - generic [ref=e941]: '@testuser@localhost:3000'
+                                    - generic [ref=e942]: ·
+                                    - button "Open status by testuser, posted about 18 hours ago" [ref=e943]: about 18 hours
+                                - paragraph [ref=e947]: Here are 3 amazing shots. (3 images)
+                                - generic [ref=e948]:
+                                    - group "3 media attachments, scroll for more" [ref=e949]:
+                                        - generic [ref=e950]:
+                                            - 'button "Open media: Image 1 for status" [ref=e951]':
+                                                - img "Image 1 for status" [ref=e952]
+                                            - paragraph [ref=e954]: Image 1 for status
+                                        - generic [ref=e955]:
+                                            - 'button "Open media: Image 3 for status" [ref=e956]':
+                                                - img "Image 3 for status" [ref=e957]
+                                            - paragraph [ref=e959]: Image 3 for status
+                                        - generic [ref=e960]:
+                                            - 'button "Open media: Image 2 for status" [ref=e961]':
+                                                - img "Image 2 for status" [ref=e962]
+                                            - paragraph [ref=e964]: Image 2 for status
+                                    - generic [ref=e965]:
+                                        - button "Previous media" [disabled] [ref=e966]
+                                        - button "Next media" [ref=e969]
+                                - group "Post actions" [ref=e973]:
+                                    - button "Reply to post" [ref=e974] [cursor=pointer]
+                                    - button "Repost" [ref=e977] [cursor=pointer]
+                                    - button "Like" [disabled] [ref=e984]
+                                    - button "Bookmark" [ref=e988] [cursor=pointer]
+                                    - button "Add reaction" [ref=e992] [cursor=pointer]
+                                    - button "More actions" [ref=e997] [cursor=pointer]
+                    - article [ref=e1002]:
+                        - generic [ref=e1004]:
+                            - link "MP" [ref=e1006] [cursor=pointer]:
+                                - /url: /@mira@photos.example
+                            - generic [ref=e1009]:
+                                - generic [ref=e1010]:
+                                    - generic [ref=e1011]:
+                                        - link "Mira Park" [ref=e1012] [cursor=pointer]:
+                                            - /url: /@mira@photos.example
+                                        - generic [ref=e1013]: '@mira@photos.example'
+                                    - generic [ref=e1014]: ·
+                                    - button "Open status by Mira Park, posted about 18 hours ago" [ref=e1015]: about 18 hours
+                                    - link "Open original post" [ref=e1016] [cursor=pointer]:
+                                        - /url: https://photos.example/users/mira/statuses/a3fcb7cd-434d-4b84-93ff-84d7dc0e7f3c
+                                - paragraph [ref=e1024]: Coastal walk at golden hour.
+                                - group "2 media attachments" [ref=e1026]:
+                                    - generic [ref=e1027]:
+                                        - 'button "Open media: External image 1" [ref=e1028]':
+                                            - img "External image 1" [ref=e1029]
+                                        - paragraph [ref=e1031]: External image 1
+                                    - generic [ref=e1032]:
+                                        - 'button "Open media: External image 2" [ref=e1033]':
+                                            - img "External image 2" [ref=e1034]
+                                        - paragraph [ref=e1036]: External image 2
+                                - group "Post actions" [ref=e1038]:
+                                    - button "Reply to post" [ref=e1039] [cursor=pointer]
+                                    - button "Repost" [ref=e1042] [cursor=pointer]
+                                    - button "Like" [ref=e1049] [cursor=pointer]
+                                    - button "Bookmark" [ref=e1053] [cursor=pointer]
+                                    - button "Add reaction" [ref=e1057] [cursor=pointer]
+                                    - button "More actions" [ref=e1062] [cursor=pointer]
+                    - article [ref=e1067]:
+                        - generic [ref=e1069]:
+                            - link "T" [ref=e1071] [cursor=pointer]:
+                                - /url: /@testuser@localhost:3000
+                            - generic [ref=e1074]:
+                                - generic [ref=e1075]:
+                                    - generic [ref=e1076]:
+                                        - link "testuser" [ref=e1077] [cursor=pointer]:
+                                            - /url: /@testuser@localhost:3000
+                                        - generic [ref=e1078]: '@testuser@localhost:3000'
+                                    - generic [ref=e1079]: ·
+                                    - button "Open status by testuser, posted about 18 hours ago" [ref=e1080]: about 18 hours
+                                - paragraph [ref=e1084]: Checking out 2 cool photos! (2 images)
+                                - group "2 media attachments" [ref=e1086]:
+                                    - generic [ref=e1087]:
+                                        - 'button "Open media: Image 1 for status" [ref=e1088]':
+                                            - img "Image 1 for status" [ref=e1089]
+                                        - paragraph [ref=e1091]: Image 1 for status
+                                    - generic [ref=e1092]:
+                                        - 'button "Open media: Image 2 for status" [ref=e1093]':
+                                            - img "Image 2 for status" [ref=e1094]
+                                        - paragraph [ref=e1096]: Image 2 for status
+                                - group "Post actions" [ref=e1098]:
+                                    - button "Reply to post" [ref=e1099] [cursor=pointer]
+                                    - button "Repost" [ref=e1102] [cursor=pointer]
+                                    - button "Like" [disabled] [ref=e1109]
+                                    - button "Bookmark" [ref=e1113] [cursor=pointer]
+                                    - button "Add reaction" [ref=e1117] [cursor=pointer]
+                                    - button "More actions" [ref=e1122] [cursor=pointer]
+                    - article [ref=e1127]:
+                        - generic [ref=e1129]:
+                            - link "T" [ref=e1131] [cursor=pointer]:
+                                - /url: /@testuser@localhost:3000
+                            - generic [ref=e1134]:
+                                - generic [ref=e1135]:
+                                    - generic [ref=e1136]:
+                                        - link "testuser" [ref=e1137] [cursor=pointer]:
+                                            - /url: /@testuser@localhost:3000
+                                        - generic [ref=e1138]: '@testuser@localhost:3000'
+                                    - generic [ref=e1139]: ·
+                                    - button "Open status by testuser, posted about 18 hours ago" [ref=e1140]: about 18 hours
+                                - paragraph [ref=e1144]: A single portrait photo. (1 image)
+                                - generic [ref=e1145]:
+                                    - 'button "Open media: Image 1 for status" [ref=e1146]':
+                                        - img "Image 1 for status" [ref=e1147]
+                                    - paragraph [ref=e1149]: Image 1 for status
+                                - group "Post actions" [ref=e1151]:
+                                    - button "Reply to post" [ref=e1152] [cursor=pointer]
+                                    - button "Repost" [ref=e1155] [cursor=pointer]
+                                    - button "Like" [disabled] [ref=e1162]
+                                    - button "Bookmark" [ref=e1166] [cursor=pointer]
+                                    - button "Add reaction" [ref=e1170] [cursor=pointer]
+                                    - button "More actions" [ref=e1175] [cursor=pointer]
+                    - article [ref=e1180]:
+                        - generic [ref=e1182]:
+                            - link "T" [ref=e1184] [cursor=pointer]:
+                                - /url: /@testuser@localhost:3000
+                            - generic [ref=e1187]:
+                                - generic [ref=e1188]:
+                                    - generic [ref=e1189]:
+                                        - link "testuser" [ref=e1190] [cursor=pointer]:
+                                            - /url: /@testuser@localhost:3000
+                                        - generic [ref=e1191]: '@testuser@localhost:3000'
+                                    - generic [ref=e1192]: ·
+                                    - button "Open status by testuser, posted about 18 hours ago" [ref=e1193]: about 18 hours
+                                - paragraph [ref=e1197]: A single landscape photo. (1 image)
+                                - generic [ref=e1198]:
+                                    - 'button "Open media: Image 1 for status" [ref=e1199]':
+                                        - img "Image 1 for status" [ref=e1200]
+                                    - paragraph [ref=e1202]: Image 1 for status
+                                - group "Post actions" [ref=e1204]:
+                                    - button "Reply to post" [ref=e1205] [cursor=pointer]
+                                    - button "Repost" [ref=e1208] [cursor=pointer]
+                                    - button "Like" [disabled] [ref=e1215]
+                                    - button "Bookmark" [ref=e1219] [cursor=pointer]
+                                    - button "Add reaction" [ref=e1223] [cursor=pointer]
+                                    - button "More actions" [ref=e1228] [cursor=pointer]
+                - button "Load more" [ref=e1234] [cursor=pointer]
