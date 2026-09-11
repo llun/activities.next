@@ -1,0 +1,31 @@
+lib/components/posts/attachments.tsx
+  s_10531fef57a43f::t_46098284591051 84-91,93
+lib/components/posts/content-warning.tsx
+  s_10531fef57a43f::t_eb3e7a7912d980 33
+app/(timeline)/explore/ExplorePageClient.tsx
+  s_10531fef57a43f::t_eb3e7a7912d980 281
+docs/mastodon-api-compatibility.md
+  s_10531fef57a43f::t_9bfdf6f504c46e 774-777,781
+  s_10531fef57a43f::t_559dadf4c19223 743-744,751-754
+lib/components/posts/attachments.test.tsx
+  s_10531fef57a43f::t_95fb1afa1152fc 1303-1306
+docs/architecture.md
+  s_10531fef57a43f::t_559dadf4c19223 1673-1686,1690
+  s_10531fef57a43f::t_515ad1695567f6 1698
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6ecc55d36f014cf248f1f7d3871e2c57f0b18f24",
+  "prompts": {},
+  "sessions": {
+    "s_10531fef57a43f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f73f2ed09ffe3DWHyfuBTWeDTJ",
+        "model": "deepseek-flash"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
