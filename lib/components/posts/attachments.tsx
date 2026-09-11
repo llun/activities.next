@@ -81,15 +81,16 @@ const MEDIA_FOCUS_CLASS =
 // docs/architecture.md "Post media layout".
 const MEDIA_BLEED_CLASS =
   '-ml-[var(--post-media-bleed-left,4.25rem)] -mr-[var(--post-media-bleed-right,1rem)]'
-// The media itself lines up with the status content's left edge (the avatar /
-// content inset), not the frame edge: `pl-*` puts the first item on that line
-// at rest and `scroll-pl-*` keeps a snapped item there, while the full-bleed
-// row still lets items slide out to the frame edge mid-scroll. The content
-// line is owned by the same nesting that owns the bleed: the content warning
-// resets it to its `px-3`, and Explore's `p-2` shell raises it at `md+`.
-const MEDIA_ITEM_INSET_CLASS = 'pl-[var(--post-media-content-inset,1rem)]'
+// The media itself lines up with the post text's left edge (the text column),
+// not the avatar and not the frame edge: `pl-*` puts the first item on that
+// line at rest and `scroll-pl-*` keeps a snapped item there, while the
+// full-bleed row still lets items slide out to the frame edge mid-scroll. The
+// line is the same distance as the left bleed — the text column sits exactly
+// `--post-media-bleed-left` inside the media row's edge — so the content
+// warning and Explore overrides of that variable move both together.
+const MEDIA_ITEM_INSET_CLASS = 'pl-[var(--post-media-bleed-left,4.25rem)]'
 const MEDIA_STRIP_SNAP_INSET_CLASS =
-  'scroll-pl-[var(--post-media-content-inset,1rem)]'
+  'scroll-pl-[var(--post-media-bleed-left,4.25rem)]'
 
 interface CaptionProps {
   identity: string

@@ -76,10 +76,5 @@ describe('ContentWarning', () => {
       '[--post-media-bleed-left:0.75rem]',
       '[--post-media-bleed-right:0.75rem]'
     )
-    // The item inset follows the same nesting: inside the card the status
-    // content starts at its `px-3`, so the first media card must too.
-    expect(container.firstElementChild).toHaveClass(
-      '[--post-media-content-inset:0.75rem]'
-    )
   })
 })

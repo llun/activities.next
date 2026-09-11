@@ -1670,24 +1670,24 @@ legacy shape left to copy.
   article's 16px inset. Below `md` the owning frame is the screen edge; from
   `md` up it is the feed card's inner edge, or the parent frame for an embedded
   feed (the parentless landing feed has no frame there, so the row spans the
-  column). **The media inside the row aligns with the status content's left
-  edge, not the frame edge**: `--post-media-content-inset` (default `1rem`) is
-  the strip scroller's `padding-left` and `scroll-padding-left` (and the lone
-  picture row's `padding-left`), so the first card rests on that line and any
-  card that snaps settles onto it — `x proximity` only snaps when the reader
-  stops near one — while the full-bleed row still lets cards travel out to the
-  frame edge mid-scroll. The same nesting that owns the bleed owns the content
-  line: the content-warning card resets it to `0.75rem` (its `px-3`), and
-  Explore raises it to `1.5rem` at `md+` for its `p-2` shell. Captions align
-  with their own card — the card already sits on the content line — and only
-  the strip pager keeps an extra inset (`pr-4`) from the frame edge. The media
-  row must not be narrowed to achieve this: a lone picture still sizes
-  naturally at `min(100%, Npx)`, the strip keeps its item widths, gaps,
-  snapping and pager, and no ancestor may clip the row.
+  column). **The media inside the row aligns with the post text's left edge,
+  not the avatar and not the frame edge**: the same `--post-media-bleed-left`
+  that pulls the row out is also the strip scroller's `padding-left` and
+  `scroll-padding-left` (and the lone picture row's `padding-left`), so the
+  first card rests on the text line and any card that snaps settles onto it —
+  `x proximity` only snaps when the reader stops near one — while the
+  full-bleed row still lets cards travel out to the frame edge, beneath the
+  avatar, mid-scroll. A nested frame that overrides the bleed moves the text
+  line with it (the content-warning card's `px-3`, Explore's `p-2` shell at
+  `md+`). Captions align with their own card — the card already sits on the
+  text line — and only the strip pager keeps an extra inset (`pr-4`) from the
+  frame edge. The media row must not be narrowed to achieve this: a lone
+  picture still sizes naturally at `min(100%, Npx)`, the strip keeps its item
+  widths, gaps, snapping and pager, and no ancestor may clip the row.
 - A status's media is **one attachment at its own size, or a horizontally
   scrollable strip — never a grid.** `lib/components/posts/attachments.tsx` owns
   this for every surface that renders a post. A lone picture keeps its own
-  aspect ratio and starts on the status content's left line, scaled by WIDTH;
+  aspect ratio and starts on the post text's left line, scaled by WIDTH;
   the branch this replaced cropped every portrait photo to a full-width 16:9.
 - The gallery uses 240px image boxes, 12px gaps, aspect-ratio-based card widths
   with a 160px minimum and 78% maximum, and `scroll-snap-type: x proximity`.
@@ -1695,7 +1695,7 @@ legacy shape left to copy.
   clamp independently to three lines. Paired circular arrows sit below the
   captions while overflowing, remain focusable at their boundaries with guarded
   `aria-disabled` states. Each click advances exactly one adjacent card —
-  landing it on the content line through the `scroll-padding-left` inset — using
+  landing it on the text line through the `scroll-padding-left` inset — using
   the first boundary in the requested direction when the user is between cards,
   and clamps at either end. Scrolling stays smooth unless reduced motion is
   requested.

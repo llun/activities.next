@@ -278,7 +278,7 @@ export const ExplorePageClient = ({
       <div
         className={cn(
           'rounded-2xl border bg-card/80 p-2 shadow-sm backdrop-blur',
-          'md:[--post-media-bleed-left:4.75rem] md:[--post-media-bleed-right:1.5rem] md:[--post-media-content-inset:1.5rem]',
+          'md:[--post-media-bleed-left:4.75rem] md:[--post-media-bleed-right:1.5rem]',
           tab === 'posts' && MOBILE_FEED_SURFACE_CLASS,
           tab === 'posts' && 'max-md:p-0',
           // `backdrop-filter` makes this wrapper the containing block for

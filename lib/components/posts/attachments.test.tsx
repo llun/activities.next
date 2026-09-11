@@ -1300,8 +1300,10 @@ describe('Attachments', () => {
   describe('media alignment contract', () => {
     const MEDIA_BLEED_LEFT = '-ml-[var(--post-media-bleed-left,4.25rem)]'
     const MEDIA_BLEED_RIGHT = '-mr-[var(--post-media-bleed-right,1rem)]'
-    const MEDIA_ITEM_INSET = 'pl-[var(--post-media-content-inset,1rem)]'
-    const MEDIA_SNAP_INSET = 'scroll-pl-[var(--post-media-content-inset,1rem)]'
+    // Items line up with the post text's left edge; that distance is exactly
+    // the left bleed the row already uses.
+    const MEDIA_ITEM_INSET = 'pl-[var(--post-media-bleed-left,4.25rem)]'
+    const MEDIA_SNAP_INSET = 'scroll-pl-[var(--post-media-bleed-left,4.25rem)]'
 
     it('bleeds a lone picture row to the frame edges and aligns it to the content', () => {
       render(
