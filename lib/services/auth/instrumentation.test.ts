@@ -26,51 +26,49 @@ vi.mock('@/lib/database', () => ({
 
 describe('better-auth instrumentation configuration', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.mocked(getConfig).mockReset()
   })
 
-  it('disables experimental instrumentation by default', () => {
-    vi.mocked(getConfig).mockReturnValue({
+  it.each([
+    {
+      description:
+        'disables experimental instrumentation by default when auth config is omitted',
+      host: 'no-auth.example.com',
+      auth: undefined,
+      expected: false
+    },
+    {
+      description:
+        'disables experimental instrumentation by default when unconfigured',
       host: 'default.example.com',
-      serviceName: 'Activities.next Test',
-      secretPhase: 'test-secret-phrase-that-is-long-enough-1234567890',
-      trustedHosts: [],
-      auth: { enableCredential: true }
-    } as never)
-
-    const auth = getAuth('https://default.example.com')
-    const options = auth.options as BetterAuthOptions
-
-    expect(options.experimental?.instrumentation?.enabled).toBe(false)
-  })
-
-  it('enables experimental instrumentation when configured', () => {
-    vi.mocked(getConfig).mockReturnValue({
+      auth: { enableCredential: true },
+      expected: false
+    },
+    {
+      description: 'enables experimental instrumentation when configured',
       host: 'enabled.example.com',
-      serviceName: 'Activities.next Test',
-      secretPhase: 'test-secret-phrase-that-is-long-enough-1234567890',
-      trustedHosts: [],
-      auth: { enableCredential: true, enableInstrumentation: true }
-    } as never)
-
-    const auth = getAuth('https://enabled.example.com')
-    const options = auth.options as BetterAuthOptions
-
-    expect(options.experimental?.instrumentation?.enabled).toBe(true)
-  })
-
-  it('keeps experimental instrumentation disabled when explicitly set to false', () => {
-    vi.mocked(getConfig).mockReturnValue({
+      auth: { enableCredential: true, enableInstrumentation: true },
+      expected: true
+    },
+    {
+      description:
+        'keeps experimental instrumentation disabled when explicitly set to false',
       host: 'disabled.example.com',
+      auth: { enableCredential: true, enableInstrumentation: false },
+      expected: false
+    }
+  ])('$description', ({ host, auth, expected }) => {
+    vi.mocked(getConfig).mockReturnValue({
+      host,
       serviceName: 'Activities.next Test',
       secretPhase: 'test-secret-phrase-that-is-long-enough-1234567890',
       trustedHosts: [],
-      auth: { enableCredential: true, enableInstrumentation: false }
-    } as never)
+      ...(auth ? { auth } : {})
+    } as unknown as ReturnType<typeof getConfig>)
 
-    const auth = getAuth('https://disabled.example.com')
-    const options = auth.options as BetterAuthOptions
+    const result = getAuth(`https://${host}`)
+    const options = result.options as BetterAuthOptions
 
-    expect(options.experimental?.instrumentation?.enabled).toBe(false)
+    expect(options.experimental?.instrumentation?.enabled).toBe(expected)
   })
 })
