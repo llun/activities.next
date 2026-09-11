@@ -1,0 +1,19 @@
+lib/services/auth/instrumentation.test.ts
+  s_e903a9038105f9::t_1affafa807d9e2 1-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9baebe7f1b34edfaae5098786940bc7c8da74532",
+  "prompts": {},
+  "sessions": {
+    "s_e903a9038105f9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f6f314421ffe7pjWTmL3AwOJRD",
+        "model": "muse-spark-1.3-contributor-free"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
