@@ -1,0 +1,92 @@
+lib/components/posts/useMediaStripScroll.test.tsx
+  s_aebbab22344b13::t_3cd6370a1ff845 312-352
+app/(timeline)/explore/ExplorePageClient.tsx
+  s_10531fef57a43f::t_94b87c347ba597 61-80,201
+docs/architecture.md
+  s_10531fef57a43f::t_6f7288e218011a 1702-1712
+  s_65daba9093864a::t_c9299084b20eae 1726-1728
+  s_65daba9093864a::t_93a8fe3f4ad436 1701
+app/(timeline)/[actor]/[status]/loading.tsx
+  s_10531fef57a43f::t_2d95184b85d2ca 20,35
+lib/components/posts/attachments.test.tsx
+  s_1167a108669ff4::t_dcfdd559e409da 11
+  s_1167a108669ff4::t_b693f9de501225 1582-1590
+  s_1167a108669ff4::t_06c7123faffdae 1405-1450,1452-1471,1473-1482,1484-1506,1646
+  s_1167a108669ff4::t_0e199fdfa2af51 1634-1644
+  s_1167a108669ff4::t_c82eb2f709114d 1645,1647-1752
+  s_aebbab22344b13::t_4c721e74ea28b2 1508
+docs/mastodon-api-compatibility.md
+  s_10531fef57a43f::t_4e42929c12d2ac 756
+  s_65daba9093864a::t_8072db90c762ca 786-788
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_d8d7c93f020f3c::t_6cacd74f3efc79 1913
+app/(timeline)/explore/ExplorePageClient.test.tsx
+  s_a315ef19425474::t_3aee0b011404f1 101-118
+  s_a315ef19425474::t_0ef00d563d398a 258-308
+  s_a315ef19425474::t_b3d4c1899aefb8 14
+app/(timeline)/search/SearchPageClient.test.tsx
+  s_a315ef19425474::t_a6f549314f330d 589-591,649-651
+  s_a315ef19425474::t_0edf5393a00899 22-23
+  s_a315ef19425474::t_327c127a954e29 101-154
+  s_a315ef19425474::t_40dbaade2465cf 857-903
+  s_a315ef19425474::t_cc409b5a81a029 9,11-12
+  s_a315ef19425474::t_405e622c828c0f 201-214
+  s_a315ef19425474::t_d2a630cc862c6c 595
+  s_a315ef19425474::t_b058ae5170fde8 226
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "41f713a1253af1bb2128d57348a60eee730b0b2e",
+  "prompts": {},
+  "sessions": {
+    "s_10531fef57a43f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f73f2ed09ffe3DWHyfuBTWeDTJ",
+        "model": "deepseek-flash"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_1167a108669ff4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f6f27e2f3ffexBLFhN3qQnpYnx",
+        "model": "muse-spark-1.3-contributor-free"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_65daba9093864a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f6f27e2dbffekrHt8Tj5UaR78m",
+        "model": "muse-spark-1.3-contributor-free"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_a315ef19425474": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f6f27e2bdffefdQnLX77DCiY8R",
+        "model": "muse-spark-1.3-contributor-free"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_aebbab22344b13": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f6f27e2e5ffeD7g20e0A5pbK1W",
+        "model": "muse-spark-1.3-contributor-free"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_d8d7c93f020f3c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f6f27e2cdffehRETkS5tc913Mj",
+        "model": "muse-spark-1.3-contributor-free"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
