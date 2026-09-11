@@ -437,9 +437,9 @@ export const Post: FC<PostProps> = (props) => {
   )
 
   return (
-    <div className="flex min-w-0 flex-col gap-1">
+    <div className="flex min-h-0 min-w-0 flex-col gap-1">
       <BoostStatus status={status} />
-      <div className="flex min-w-0 gap-3">
+      <div className="flex min-h-0 min-w-0 gap-3">
         <div className="shrink-0">
           <ActorAvatar
             actor={actualStatus.actor}
@@ -447,7 +447,7 @@ export const Post: FC<PostProps> = (props) => {
             statusUrl={actualStatus.url}
           />
         </div>
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-h-0 min-w-0">
           <div className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5 text-sm">
             <ActorInfo
               actor={actualStatus.actor}

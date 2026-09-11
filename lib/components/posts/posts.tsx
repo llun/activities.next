@@ -131,7 +131,7 @@ export const Posts: FC<Props> = ({
             <article
               key={status.id}
               className={cn(
-                'min-w-0 px-4 py-3',
+                'min-h-0 min-w-0 px-4 py-3',
                 // Match the framed box's corners so any child background can't
                 // bleed past the rounded edges now that overflow-hidden is gone.
                 framed && 'first:rounded-t-xl last:rounded-b-xl'
