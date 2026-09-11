@@ -1399,4 +1399,247 @@ describe('Attachments', () => {
     expect(disconnectedObservers).toBe(createdObservers)
     expect(resizeCallbacks).toHaveLength(0)
   })
+
+  describe('corner treatment & nested elements', () => {
+    describe('a single visual attachment', () => {
+      it('rounds all four corners of the button and nested image with rounded-2xl', () => {
+        const attachment = buildAttachment({ width: 800, height: 600 })
+        const { container } = render(
+          <Attachments
+            status={buildNoteStatus([attachment])}
+            onMediaSelected={vi.fn()}
+          />
+        )
+
+        const button = screen.getByRole('button')
+        expect(button).toHaveClass('rounded-2xl')
+        expect(button).not.toHaveClass('rounded-l-2xl')
+        expect(button).not.toHaveClass('rounded-r-2xl')
+        expect(button).not.toHaveClass('rounded-none')
+
+        const img = container.querySelector('img')
+        expect(img).toBeInTheDocument()
+        expect(img).toHaveClass('rounded-2xl')
+      })
+
+      it('rounds the clipping wrapper with rounded-2xl and applies rounded-[inherit] to blurhash canvas and img', () => {
+        const attachment = buildAttachment({
+          width: 800,
+          height: 600,
+          blurhash: BLURHASH
+        })
+        const { container } = render(
+          <Attachments
+            status={buildNoteStatus([attachment])}
+            onMediaSelected={vi.fn()}
+          />
+        )
+
+        const button = screen.getByRole('button')
+        expect(button).toHaveClass('rounded-2xl')
+
+        const mediaWrapper = button.firstElementChild as HTMLElement
+        expect(mediaWrapper).toHaveClass('rounded-2xl', 'overflow-hidden')
+
+        const canvas = container.querySelector('canvas')
+        expect(canvas).toBeInTheDocument()
+        expect(canvas).toHaveClass('rounded-[inherit]')
+
+        const img = container.querySelector('img')
+        expect(img).toBeInTheDocument()
+        expect(img).toHaveClass('rounded-[inherit]')
+      })
+
+      it('rounds a single video element with rounded-2xl', () => {
+        const attachment = buildAttachment({
+          mediaType: 'video/mp4',
+          width: 800,
+          height: 600
+        })
+        const { container } = render(
+          <Attachments
+            status={buildNoteStatus([attachment])}
+            onMediaSelected={vi.fn()}
+          />
+        )
+
+        const button = screen.getByRole('button')
+        expect(button).toHaveClass('rounded-2xl')
+
+        const video = container.querySelector('video')
+        expect(video).toBeInTheDocument()
+        expect(video).toHaveClass('rounded-2xl')
+      })
+    })
+
+    describe('a two-item media strip', () => {
+      it('rounds only left corners for item 0 and only right corners for item 1', () => {
+        const first = buildAttachment({ width: 800, height: 600 })
+        const second = buildAttachment({ width: 800, height: 600 })
+        const { container } = render(
+          <Attachments
+            status={buildNoteStatus([first, second])}
+            onMediaSelected={vi.fn()}
+          />
+        )
+
+        const buttons = screen.getAllByRole('button')
+        expect(buttons).toHaveLength(2)
+
+        const [button0, button1] = buttons
+        expect(button0).toHaveClass('rounded-l-2xl')
+        expect(button0).not.toHaveClass('rounded-r-2xl')
+        expect(button0).not.toHaveClass('rounded-2xl')
+
+        expect(button1).toHaveClass('rounded-r-2xl')
+        expect(button1).not.toHaveClass('rounded-l-2xl')
+        expect(button1).not.toHaveClass('rounded-2xl')
+
+        const images = Array.from(container.querySelectorAll('img'))
+        expect(images).toHaveLength(2)
+        expect(images[0]).toHaveClass('rounded-l-2xl')
+        expect(images[1]).toHaveClass('rounded-r-2xl')
+      })
+    })
+
+    describe('a three-or-more-item media strip', () => {
+      it('rounds item 0 on left, leaves middle items square, and rounds last item on right', () => {
+        const first = buildAttachment({ width: 800, height: 600 })
+        const middle = buildAttachment({ width: 600, height: 900 })
+        const last = buildAttachment({ width: 1200, height: 500 })
+        const { container } = render(
+          <Attachments
+            status={buildNoteStatus([first, middle, last])}
+            onMediaSelected={vi.fn()}
+          />
+        )
+
+        const buttons = screen.getAllByRole('button')
+        expect(buttons).toHaveLength(3)
+
+        const [button0, button1, button2] = buttons
+        // First item (index 0)
+        expect(button0).toHaveClass('rounded-l-2xl')
+        expect(button0).not.toHaveClass('rounded-r-2xl')
+        expect(button0).not.toHaveClass('rounded-2xl')
+        expect(button0).not.toHaveClass('rounded-none')
+
+        // Middle item (index 1)
+        expect(button1).toHaveClass('rounded-none')
+        expect(button1).not.toHaveClass('rounded-l-2xl')
+        expect(button1).not.toHaveClass('rounded-r-2xl')
+        expect(button1).not.toHaveClass('rounded-2xl')
+
+        // Last item (index 2)
+        expect(button2).toHaveClass('rounded-r-2xl')
+        expect(button2).not.toHaveClass('rounded-l-2xl')
+        expect(button2).not.toHaveClass('rounded-2xl')
+        expect(button2).not.toHaveClass('rounded-none')
+
+        const images = Array.from(container.querySelectorAll('img'))
+        expect(images).toHaveLength(3)
+        expect(images[0]).toHaveClass('rounded-l-2xl')
+        expect(images[1]).toHaveClass('rounded-none')
+        expect(images[2]).toHaveClass('rounded-r-2xl')
+      })
+
+      it('handles four items with all middle items square and preserves natural aspect ratio and width', () => {
+        const items = [
+          buildAttachment({ width: 800, height: 600 }),
+          buildAttachment({ width: 600, height: 900 }),
+          buildAttachment({ width: 600, height: 900 }),
+          buildAttachment({ width: 1200, height: 500 })
+        ]
+        render(
+          <Attachments
+            status={buildNoteStatus(items)}
+            onMediaSelected={vi.fn()}
+          />
+        )
+
+        const buttons = screen.getAllByRole('button')
+        expect(buttons).toHaveLength(4)
+
+        expect(buttons[0]).toHaveClass('rounded-l-2xl')
+        expect(buttons[1]).toHaveClass('rounded-none')
+        expect(buttons[2]).toHaveClass('rounded-none')
+        expect(buttons[3]).toHaveClass('rounded-r-2xl')
+
+        // Preserves natural sizing
+        expect(buttons[0].parentElement?.style.width).toBe('320px')
+        expect(buttons[1].parentElement?.style.width).toBe('160px')
+        expect(buttons[2].parentElement?.style.width).toBe('160px')
+        expect(buttons[3].parentElement?.style.width).toBe('576px')
+      })
+    })
+
+    describe('nested elements and wrappers inherit or follow corner treatment', () => {
+      it('passes corner classes to blurhash wrappers and applies rounded-[inherit] to canvas and img', () => {
+        const items = [
+          buildAttachment({ width: 800, height: 600, blurhash: BLURHASH }),
+          buildAttachment({ width: 600, height: 900, blurhash: BLURHASH }),
+          buildAttachment({ width: 1200, height: 500, blurhash: BLURHASH })
+        ]
+        const { container } = render(
+          <Attachments
+            status={buildNoteStatus(items)}
+            onMediaSelected={vi.fn()}
+          />
+        )
+
+        const buttons = screen.getAllByRole('button')
+        const wrappers = buttons.map(
+          (btn) => btn.firstElementChild as HTMLElement
+        )
+
+        expect(wrappers[0]).toHaveClass('rounded-l-2xl')
+        expect(wrappers[1]).toHaveClass('rounded-none')
+        expect(wrappers[2]).toHaveClass('rounded-r-2xl')
+
+        const canvases = Array.from(container.querySelectorAll('canvas'))
+        expect(canvases).toHaveLength(3)
+        canvases.forEach((canvas) => {
+          expect(canvas).toHaveClass('rounded-[inherit]')
+        })
+
+        const images = Array.from(container.querySelectorAll('img'))
+        expect(images).toHaveLength(3)
+        images.forEach((img) => {
+          expect(img).toHaveClass('rounded-[inherit]')
+        })
+      })
+
+      it('passes corner classes to video elements in a strip', () => {
+        const items = [
+          buildAttachment({
+            mediaType: 'video/mp4',
+            width: 800,
+            height: 600
+          }),
+          buildAttachment({
+            mediaType: 'video/mp4',
+            width: 600,
+            height: 900
+          }),
+          buildAttachment({
+            mediaType: 'video/mp4',
+            width: 1200,
+            height: 500
+          })
+        ]
+        const { container } = render(
+          <Attachments
+            status={buildNoteStatus(items)}
+            onMediaSelected={vi.fn()}
+          />
+        )
+
+        const videos = Array.from(container.querySelectorAll('video'))
+        expect(videos).toHaveLength(3)
+        expect(videos[0]).toHaveClass('rounded-l-2xl')
+        expect(videos[1]).toHaveClass('rounded-none')
+        expect(videos[2]).toHaveClass('rounded-r-2xl')
+      })
+    })
+  })
 })

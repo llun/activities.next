@@ -62,7 +62,14 @@ const getMediaGeometry = ({ width, height }: Attachment) => {
 }
 
 const MEDIA_BOX_CLASS =
-  'relative block cursor-zoom-in overflow-hidden rounded-2xl border border-border/60 bg-muted/20'
+  'relative block cursor-zoom-in overflow-hidden border border-border/60 bg-muted/20'
+
+const getStripItemCornerClass = (index: number, total: number) => {
+  if (total <= 1) return 'rounded-2xl'
+  if (index === 0) return 'rounded-l-2xl'
+  if (index === total - 1) return 'rounded-r-2xl'
+  return 'rounded-none'
+}
 // One indicator for both shapes. The strip has always needed the inset outline
 // (an outset ring is clipped by its own `overflow-x-auto`); the media box can
 // also reach the frame's inner edge — the viewport edge below `md` — where a
@@ -247,11 +254,11 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
             type="button"
             onClick={openMedia(0)}
             aria-label={mediaLabel(attachment, 0)}
-            className={cn(MEDIA_BOX_CLASS, MEDIA_FOCUS_CLASS)}
+            className={cn(MEDIA_BOX_CLASS, MEDIA_FOCUS_CLASS, 'rounded-2xl')}
             style={{ aspectRatio, width: `min(100%, ${width}px)` }}
           >
             <Media
-              className="h-full w-full object-cover"
+              className="h-full w-full object-cover rounded-2xl"
               attachment={attachment}
             />
           </button>
@@ -292,6 +299,7 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
           >
             {items.map(({ attachment, width }, index) => {
               const caption = attachment.name?.trim()
+              const cornerClass = getStripItemCornerClass(index, items.length)
               return (
                 <div
                   key={attachment.id}
@@ -305,12 +313,13 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
                     className={cn(
                       MEDIA_BOX_CLASS,
                       MEDIA_FOCUS_CLASS,
-                      'h-[240px] w-full flex-none'
+                      'h-[240px] w-full flex-none',
+                      cornerClass
                     )}
                     style={{ scrollSnapAlign: 'start' }}
                   >
                     <Media
-                      className="h-full w-full object-cover"
+                      className={cn('h-full w-full object-cover', cornerClass)}
                       attachment={attachment}
                       loading="lazy"
                     />

@@ -753,7 +753,7 @@ system's `Attachments` component.
   `--post-media-bleed-right` double as the item insets; see the frame-bleed
   contract in `docs/architecture.md` → "Post media layout").
 - **Two or more pictures are a horizontally scrolling gallery** with 240px image
-  boxes, 12px gaps, rounded corners, and cards sized from their aspect ratio.
+  boxes, 12px gaps, and cards sized from their aspect ratio. Corner rounding follows attachment order: the first card rounds only its top-left and bottom-left corners (`rounded-l-2xl`), middle cards have square corners (`rounded-none`), and the last card rounds only its top-right and bottom-right corners (`rounded-r-2xl`). A single attachment rounds all four outer corners (`rounded-2xl`). Nested image, video, and blurhash wrappers inherit the same corner treatment via `rounded-[inherit]`.
   Cards have a 160px minimum and a 78% container maximum so neighboring cards
   peek into view. Captions render below their images, preserve line breaks and
   custom emoji, clamp to three lines, and expose independent Show more /

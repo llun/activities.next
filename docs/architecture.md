@@ -1663,8 +1663,8 @@ legacy shape left to copy.
   their 680px reading-column cap below `md` (`max-md:max-w-none`) so the page's other
   content and chrome stay aligned with the full-bleed feed below `md` (the
   frame margin already reaches the viewport edges either way).
-- **A visual attachment row spans the owning feed frame's inner edges at every
-  breakpoint, including the area beneath the avatar.** `Attachments` pulls the
+- **A visual attachment scroller bleeds out to the owning feed frame's inner edges at every
+  breakpoint so cards can scroll beneath the avatar mid-scroll, but at rest and initial scroll position, the media aligns with the post text's left line.** `Attachments` pulls the
   row out by `--post-media-bleed-left` / `--post-media-bleed-right`, whose
   defaults (`4.25rem` / `1rem`) describe the 40px avatar, 12px gap and the
   article's 16px inset. Below `md` the owning frame is the screen edge; from
@@ -1691,6 +1691,15 @@ legacy shape left to copy.
   `min(100%, Npx)` — a wide one spans the message column, a narrow one keeps
   its own width on the left line — the strip keeps its item widths, gaps,
   snapping and pager, and no ancestor may clip the row.
+- **Media corner rounding follows attachment order:** A single attachment rounds
+  all four outer corners (`rounded-2xl`). For a horizontal media strip: the first item
+  rounds only its top-left and bottom-left corners (`rounded-l-2xl`), middle items
+  keep square corners (`rounded-none`), and the last item rounds only its top-right and
+  bottom-right corners (`rounded-r-2xl`). First and last refer to attachment order (index `0`
+  vs index `N-1`), not whichever items happen to be visible during scrolling. Square refers
+  to corners; natural sizing and aspect ratios are preserved without forcing 1:1 crops.
+  Nested image/video elements and clipping wrappers (`rounded-[inherit]`) follow the same
+  corner treatment so media frames never bleed square pixels past rounded parent edges.
 - A status's media is **one attachment at its own size, or a horizontally
   scrollable strip — never a grid.** `lib/components/posts/attachments.tsx` owns
   this for every surface that renders a post. A lone picture keeps its own

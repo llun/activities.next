@@ -7,9 +7,9 @@ export const StatusLoading: FC = () => {
     <div
       aria-busy="true"
       aria-label="Loading post"
-      className={`mt-4 overflow-hidden rounded-2xl border bg-background/80 shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
+      className={`mt-4 overflow-hidden rounded-2xl border bg-background/80 shadow-sm group-data-[shell=public]/shell:mt-0 ${MOBILE_FEED_SURFACE_CLASS}`}
     >
-      <div className="flex items-center gap-3 border-b bg-background/90 px-5 py-3">
+      <div className="flex items-center gap-3 border-b bg-background/90 px-5 py-3 group-data-[shell=public]/shell:hidden">
         <div className="skeleton h-8 w-8 rounded-md" />
         <div className="space-y-1">
           <div className="skeleton h-4 w-16 rounded" />
@@ -19,7 +19,7 @@ export const StatusLoading: FC = () => {
 
       <div className="p-5">
         <div className="flex items-center gap-3">
-          <div className="skeleton size-12 shrink-0 rounded-full" />
+          <div className="skeleton size-10 shrink-0 rounded-full" />
           <div className="space-y-1.5">
             <div className="skeleton h-4 w-36 rounded" />
             <div className="skeleton h-3 w-24 rounded" />

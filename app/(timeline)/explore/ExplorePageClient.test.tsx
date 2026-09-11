@@ -208,4 +208,32 @@ describe('ExplorePageClient', () => {
     ).toBeInTheDocument()
     expect(mockGetTrendingLinks).toHaveBeenCalledWith(20)
   })
+
+  it('applies the mobile feed surface and desktop bleed overrides only when on the posts tab', async () => {
+    mockGetTrendingStatuses.mockResolvedValue([status()])
+    const { container: postsContainer } = renderExplore('posts', Date.now())
+    await screen.findByText('Gravel season is here')
+
+    const postsWrapper = postsContainer.querySelector(
+      'div.md\\:\\[--post-media-bleed-left\\:4\\.75rem\\]'
+    )
+    expect(postsWrapper).toBeInTheDocument()
+    expect(postsWrapper).toHaveClass('max-md:p-0')
+    expect(postsWrapper).toHaveClass('max-md:backdrop-blur-none')
+    expect(postsWrapper).toHaveClass('max-md:mx-[calc(50%_-_50vw)]')
+    expect(postsWrapper).toHaveClass('md:[--post-media-bleed-left:4.75rem]')
+    expect(postsWrapper).toHaveClass('md:[--post-media-bleed-right:1.5rem]')
+
+    mockGetTrendingTags.mockResolvedValue([tag('fediverse')])
+    const { container: defaultContainer } = renderExplore(null, Date.now())
+    await screen.findByText('#fediverse')
+
+    const defaultWrapper = defaultContainer.querySelector(
+      'div.md\\:\\[--post-media-bleed-left\\:4\\.75rem\\]'
+    )
+    expect(defaultWrapper).toBeInTheDocument()
+    expect(defaultWrapper).not.toHaveClass('max-md:p-0')
+    expect(defaultWrapper).not.toHaveClass('max-md:backdrop-blur-none')
+    expect(defaultWrapper).not.toHaveClass('max-md:mx-[calc(50%_-_50vw)]')
+  })
 })

@@ -782,4 +782,14 @@ describe('SearchPageClient', () => {
       expect(screen.queryByText('First Result')).not.toBeInTheDocument()
     })
   })
+
+  it('applies the mobile feed surface and overflow-visible to the results section', () => {
+    const { container } = renderSearchPage()
+    const section = container.querySelector('section')
+    expect(section).toBeInTheDocument()
+    expect(section).toHaveClass('max-md:overflow-visible')
+    expect(section).toHaveClass('max-md:mx-[calc(50%_-_50vw)]')
+    expect(section).toHaveClass('max-md:w-auto')
+    expect(section).toHaveClass('max-md:rounded-none')
+  })
 })
