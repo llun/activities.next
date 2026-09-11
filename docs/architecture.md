@@ -1677,8 +1677,8 @@ legacy shape left to copy.
   the lone picture row's both paddings), so the first card rests on the text's
   left edge, any card that snaps settles onto it — `x proximity` only snaps
   when the reader stops near one — and the scroll can only reach until the last
-  card's right edge meets the text's right edge. A lone picture spans that
-  column. The full-bleed row still lets cards travel out to the frame edge,
+  card's right edge meets the text's right edge. The full-bleed row still lets
+  cards travel out to the frame edge,
   beneath the avatar, mid-scroll. A nested override and the column are two
   sides of the same variables, but they move different edges: the
   content-warning card's `px-3` override carries the cards to its own inset
