@@ -753,7 +753,7 @@ system's `Attachments` component.
   `--post-media-bleed-right` double as the item insets; see the frame-bleed
   contract in `docs/architecture.md` → "Post media layout").
 - **Two or more pictures are a horizontally scrolling gallery** with 240px image
-  boxes, 12px gaps, and cards sized from their aspect ratio. Corner rounding follows attachment order: the first card rounds only its top-left and bottom-left corners (`rounded-l-2xl`), middle cards have square corners (`rounded-none`), and the last card rounds only its top-right and bottom-right corners (`rounded-r-2xl`). A single attachment rounds all four outer corners (`rounded-2xl`). Nested image, video, and blurhash wrappers inherit the same corner treatment via `rounded-[inherit]`.
+  boxes, 12px gaps, and cards sized from their aspect ratio. Corner rounding follows attachment order: the first card rounds only its top-left and bottom-left corners (`rounded-l-2xl`), middle cards have square corners (`rounded-none`), and the last card rounds only its top-right and bottom-right corners (`rounded-r-2xl`). A single attachment rounds all four outer corners (`rounded-2xl`). The media button — the clipping wrapper — carries the explicit per-position corner. Where both `rounded-[inherit]` and an explicit corner reach the same `cn()`, base-vs-base keeps exactly one winner (lone `rounded-2xl`, middle `rounded-none`), while side-specific corners are kept alongside the inherit and then override the inherited corners by normal CSS cascade; nodes with no explicit class (e.g. the blurhash canvas) keep `rounded-[inherit]`, resolving through the wrapper to the button's radius.
   Cards have a 160px minimum and a 78% container maximum so neighboring cards
   peek into view. Captions render below their images, preserve line breaks and
   custom emoji, clamp to three lines, and expose independent Show more /
@@ -783,7 +783,9 @@ system's `Attachments` component.
     text's left line — `useMediaStripScroll` subtracts the scroller's
     `scroll-padding-left` from the card boundary, and the last card clamps to
     the scroll end so its right edge meets the text's right edge — with reduced
-    motion honored.
+    motion honored. While layout is still pending and no card boundary exists
+    yet, a press falls back to one visible width (`clientWidth`) in the
+    requested direction.
 - **There is no 4-item cap and no `+N` overlay.** Everything attached is in the
   strip, because scrolling reaches it. Re-adding a cap hides media the post
   actually carries. Strip images therefore pass `loading="lazy"` to `Media` —

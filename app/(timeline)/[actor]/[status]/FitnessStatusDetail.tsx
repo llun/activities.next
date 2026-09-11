@@ -1910,7 +1910,7 @@ export const FitnessStatusDetail: FC<Props> = ({
 
             {replies.length > 0 ? (
               <div
-                className={`divide-y rounded-xl border bg-card ${MOBILE_FEED_SURFACE_CLASS}`}
+                className={`divide-y rounded-xl border bg-card shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
               >
                 {replies.map((reply) => (
                   <article key={reply.id} className="p-4">

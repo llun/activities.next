@@ -17,7 +17,7 @@ export const StatusLoading: FC = () => {
         </div>
       </div>
 
-      <div className="p-5">
+      <div className="p-4">
         <div className="flex items-center gap-3">
           <div className="skeleton size-10 shrink-0 rounded-full" />
           <div className="space-y-1.5">
@@ -32,7 +32,7 @@ export const StatusLoading: FC = () => {
           <div className="skeleton h-4 w-2/3 rounded" />
         </div>
 
-        <div className="mt-6 flex gap-8 border-t pt-4">
+        <div className="mt-4 flex gap-6 border-t pt-3">
           <div className="skeleton h-5 w-12 rounded" />
           <div className="skeleton h-5 w-12 rounded" />
           <div className="skeleton h-5 w-12 rounded" />

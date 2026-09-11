@@ -309,6 +309,47 @@ describe('useMediaStripScroll', () => {
     expect(scrollBy).toHaveBeenCalledWith({ left: -220, behavior: 'smooth' })
   })
 
+  it.each([
+    { direction: 1 as const, scrollLeft: 200, expectedLeft: 500 },
+    { direction: -1 as const, scrollLeft: 600, expectedLeft: -500 }
+  ])(
+    'falls back to one page when layout is pending at $scrollLeft',
+    ({ direction, scrollLeft, expectedLeft }) => {
+      render(
+        <Probe scrollWidth={1600} clientWidth={500} scrollLeft={scrollLeft} />
+      )
+      const scroller = screen.getByTestId('scroller')
+      // With every card at the container edge the offsets would read as a
+      // single inset nudge backward without the pending-layout collapse, so
+      // the padding pins that branch: only [] reaches the page fallback.
+      scroller.style.scrollPaddingLeft = '16px'
+      const containerLeft = 100
+      Object.defineProperty(scroller, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({ left: containerLeft })
+      })
+      ;[0, 1, 2].forEach(() => {
+        const card = document.createElement('span')
+        Object.defineProperty(card, 'getBoundingClientRect', {
+          configurable: true,
+          value: () => ({ left: containerLeft })
+        })
+        scroller.append(card)
+      })
+      const scrollBy = vi.fn()
+      Object.defineProperty(scroller, 'scrollBy', {
+        configurable: true,
+        value: scrollBy
+      })
+
+      act(() => capturedScrollByPage?.(direction))
+      expect(scrollBy).toHaveBeenCalledWith({
+        left: expectedLeft,
+        behavior: 'smooth'
+      })
+    }
+  )
+
   it('uses the nearest directional card boundary relative to the container', () => {
     render(<Probe scrollWidth={1200} clientWidth={500} scrollLeft={100} />)
     const scroller = screen.getByTestId('scroller')

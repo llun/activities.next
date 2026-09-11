@@ -11,6 +11,7 @@ import {
   getTrendingTags
 } from '@/lib/client'
 import { ActorProfile } from '@/lib/types/domain/actor'
+import type { Attachment } from '@/lib/types/domain/attachment'
 import { type StatusNote, StatusType } from '@/lib/types/domain/status'
 import type { Tag } from '@/lib/types/mastodon/tag'
 
@@ -95,6 +96,24 @@ const status = (overrides: Partial<StatusNote> = {}): StatusNote => ({
   attachments: [],
   tags: [],
   ...overrides
+})
+
+const mediaAttachment = (id: string, name: string): Attachment => ({
+  id: `https://llun.test/media/${id}`,
+  actorId: author.id,
+  statusId: 'https://llun.test/users/alice/statuses/media',
+  type: 'Document',
+  mediaType: 'image/jpeg',
+  url: `https://llun.test/media/${id}.jpg`,
+  width: 800,
+  height: 600,
+  name,
+  mediaId: null,
+  blurhash: null,
+  focus: null,
+  thumbnailUrl: null,
+  createdAt: new Date('2026-06-14T11:55:00.000Z').getTime(),
+  updatedAt: new Date('2026-06-14T11:55:00.000Z').getTime()
 })
 
 const renderExplore = (tabParam: string | null, currentTime: number) => {
@@ -235,5 +254,56 @@ describe('ExplorePageClient', () => {
     expect(defaultWrapper).not.toHaveClass('max-md:p-0')
     expect(defaultWrapper).not.toHaveClass('max-md:backdrop-blur-none')
     expect(defaultWrapper).not.toHaveClass('max-md:mx-[calc(50%_-_50vw)]')
+  })
+
+  it('bleeds a two-item media strip to the frame with per-index corners on the posts tab', async () => {
+    const mediaStatus = status({
+      id: 'https://llun.test/users/alice/statuses/media',
+      url: 'https://llun.test/@alice/media',
+      text: '<p>Trail gallery</p>',
+      attachments: [
+        mediaAttachment('media-1', 'First'),
+        mediaAttachment('media-2', 'Second')
+      ]
+    })
+    mockGetTrendingStatuses.mockResolvedValue([mediaStatus])
+
+    const { container } = renderExplore('posts', Date.now())
+    expect(await screen.findByText('Trail gallery')).toBeInTheDocument()
+
+    const wrapper = container.querySelector(
+      'div.md\\:\\[--post-media-bleed-left\\:4\\.75rem\\]'
+    )
+    expect(wrapper).toBeInTheDocument()
+    expect(wrapper).toHaveClass('md:[--post-media-bleed-left:4.75rem]')
+    expect(wrapper).toHaveClass('md:[--post-media-bleed-right:1.5rem]')
+
+    const feed = wrapper?.querySelector('section')
+    expect(feed).toBeInTheDocument()
+    expect(feed).not.toHaveClass('rounded-xl')
+    expect(feed).not.toHaveClass('bg-card')
+    expect(feed).not.toHaveClass('shadow-sm')
+
+    const first = screen.getByRole('button', { name: 'Open media: First' })
+    const second = screen.getByRole('button', { name: 'Open media: Second' })
+    expect(first).toHaveClass('rounded-l-2xl')
+    expect(first).not.toHaveClass('rounded-r-2xl')
+    expect(first).not.toHaveClass('rounded-2xl')
+    expect(second).toHaveClass('rounded-r-2xl')
+    expect(second).not.toHaveClass('rounded-l-2xl')
+    expect(second).not.toHaveClass('rounded-2xl')
+
+    const strip = screen.getByRole('group', {
+      name: /2 media attachments/
+    })
+    expect(strip.parentElement).toHaveClass(
+      '-ml-[var(--post-media-bleed-left,4.25rem)]',
+      '-mr-[var(--post-media-bleed-right,1rem)]'
+    )
+    expect(strip).toHaveClass(
+      'pl-[var(--post-media-bleed-left,4.25rem)]',
+      'pr-[var(--post-media-bleed-right,1rem)]',
+      'scroll-pl-[var(--post-media-bleed-left,4.25rem)]'
+    )
   })
 })

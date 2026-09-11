@@ -58,6 +58,26 @@ const SkeletonRows = ({ count = 4 }: { count?: number }) => (
   </div>
 )
 
+// Post-shaped rows for the posts tab, mirroring the shared Posts article
+// geometry (px-4 py-3 rows, size-10 avatar, text bars) so the loader matches
+// the loaded feed. The tag-shaped SkeletonRows above stay for the other tabs.
+const PostSkeletonRows = ({ count = 4 }: { count?: number }) => (
+  <div className="divide-y divide-border" aria-hidden="true">
+    {Array.from({ length: count }).map((_, index) => (
+      <div key={index} className="px-4 py-3">
+        <div className="flex gap-3">
+          <div className="size-10 shrink-0 rounded-full bg-muted" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="h-3.5 w-32 rounded bg-muted" />
+            <div className="h-3 w-full rounded bg-muted/60" />
+            <div className="h-3 w-2/3 rounded bg-muted/60" />
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+)
+
 const EmptyNote = ({
   children,
   action
@@ -178,6 +198,7 @@ export const ExplorePageClient = ({
 
   const renderBody = () => {
     if (activeState.status === 'loading' || activeState.status === 'idle') {
+      if (tab === 'posts') return <PostSkeletonRows count={4} />
       return <SkeletonRows count={4} />
     }
     if (activeState.status === 'error') {

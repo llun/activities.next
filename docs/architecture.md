@@ -1698,8 +1698,18 @@ legacy shape left to copy.
   bottom-right corners (`rounded-r-2xl`). First and last refer to attachment order (index `0`
   vs index `N-1`), not whichever items happen to be visible during scrolling. Square refers
   to corners; natural sizing and aspect ratios are preserved without forcing 1:1 crops.
-  Nested image/video elements and clipping wrappers (`rounded-[inherit]`) follow the same
-  corner treatment so media frames never bleed square pixels past rounded parent edges.
+  The media button — the clipping wrapper — carries the explicit per-position
+  corner. Where both `rounded-[inherit]` and an explicit corner class reach the
+  same `cn()`, what survives depends on the tailwind-merge radius groups:
+  base-vs-base keeps exactly one winner (lone `rounded-2xl`, middle
+  `rounded-none`), while side-specific corners (`rounded-l-2xl`,
+  `rounded-r-2xl`) are kept alongside the inherit — and then the side longhands
+  override the inherited corners by normal CSS cascade, so the nested `img` /
+  `video` still rounds exactly its two outer corners. Nodes that receive no
+  explicit class (e.g. the blurhash canvas) keep `rounded-[inherit]`, which
+  resolves through the wrapper's own explicit corner, transitively equal to the
+  button's radius — so media frames never bleed square pixels past rounded
+  parent edges.
 - A status's media is **one attachment at its own size, or a horizontally
   scrollable strip — never a grid.** `lib/components/posts/attachments.tsx` owns
   this for every surface that renders a post. A lone picture keeps its own
@@ -1713,7 +1723,9 @@ legacy shape left to copy.
   `aria-disabled` states. Each click advances exactly one adjacent card —
   landing it on the text line through the `scroll-padding-left` inset — using
   the first boundary in the requested direction when the user is between cards,
-  and clamps at either end. Scrolling stays smooth unless reduced motion is
+  and clamps at either end. While layout is still pending and no card boundary
+  exists yet, a press falls back to one visible width (`clientWidth`) in the
+  requested direction. Scrolling stays smooth unless reduced motion is
   requested.
 - **There is no item cap and no `+N` overlay** — scrolling reaches everything —
   so anything the strip renders unboundedly needs a deferral: images pass
