@@ -49,6 +49,15 @@ const buildAuth = (baseURL: string) => {
         joins: true
       }
     },
+    // Better-auth 1.7.4 added experimental OpenTelemetry instrumentation for
+    // endpoints, hooks, and database operations, enabled by default. Disable it
+    // by default to avoid unexpected tracing spans and overhead unless explicitly
+    // enabled via auth configuration.
+    experimental: {
+      instrumentation: {
+        enabled: config.auth?.enableInstrumentation ?? false
+      }
+    },
     secret: config.secretPhase,
     baseURL,
     // Trust the configured host plus any ACTIVITIES_TRUSTED_HOSTS so a Mastodon
