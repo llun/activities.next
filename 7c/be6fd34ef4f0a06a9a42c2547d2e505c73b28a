@@ -1,0 +1,23 @@
+lib/components/posts/useMediaStripScroll.test.tsx
+  s_10531fef57a43f::t_dd63040f3191c9 292-308
+lib/components/posts/useMediaStripScroll.ts
+  s_10531fef57a43f::t_26d0259c13f6e7 86-87,94-108
+docs/architecture.md
+  s_10531fef57a43f::t_d68f29325225bf 1675-1686
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7cbe6fd34ef4f0a06a9a42c2547d2e505c73b28a",
+  "prompts": {},
+  "sessions": {
+    "s_10531fef57a43f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f73f2ed09ffe3DWHyfuBTWeDTJ",
+        "model": "deepseek-flash"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
