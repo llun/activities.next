@@ -751,7 +751,7 @@ system's `Attachments` component.
   while a strip scrolls, but the picture itself is inset to the post text's
   line (`--post-media-bleed-left` doubles as the item inset; see the frame-bleed
   contract in `docs/architecture.md` → "Post media layout"), not flush with the
-  frame.
+  frame's left edge — a wide picture still reaches the frame's right edge.
 - **Two or more pictures are a horizontally scrolling gallery** with 240px image
   boxes, 12px gaps, rounded corners, and cards sized from their aspect ratio.
   Cards have a 160px minimum and a 78% container maximum so neighboring cards

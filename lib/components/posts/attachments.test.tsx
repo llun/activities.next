@@ -1305,7 +1305,7 @@ describe('Attachments', () => {
     const MEDIA_ITEM_INSET = 'pl-[var(--post-media-bleed-left,4.25rem)]'
     const MEDIA_SNAP_INSET = 'scroll-pl-[var(--post-media-bleed-left,4.25rem)]'
 
-    it('bleeds a lone picture row to the frame edges and aligns it to the content', () => {
+    it('bleeds a lone picture row to the frame edges and aligns it to the post text line', () => {
       render(
         <Attachments
           status={buildNoteStatus([
@@ -1328,13 +1328,13 @@ describe('Attachments', () => {
         MEDIA_ITEM_INSET
       )
       // The caption lines up with its picture, not a second inset on top; the
-      // item inset already puts both on the status content's left edge.
+      // item inset already puts both on the post text's left line.
       expect(screen.getByText('Ridge at dawn').parentElement).not.toHaveClass(
         'px-4'
       )
     })
 
-    it('bleeds a picture strip to the frame edges, aligns items to the content, and insets the pager', () => {
+    it('bleeds a picture strip to the frame edges, aligns items to the post text line, and insets the pager', () => {
       render(
         <Attachments
           status={buildNoteStatus([
@@ -1350,8 +1350,8 @@ describe('Attachments', () => {
         MEDIA_BLEED_LEFT,
         MEDIA_BLEED_RIGHT
       )
-      // `pl` puts the first card on the content line at rest, `scroll-pl` is
-      // the snapport that keeps every focused card there after a slide.
+      // `pl` puts the first card on the post text line at rest, `scroll-pl`
+      // is the snapport that keeps every focused card there after a slide.
       expect(strip).toHaveClass(MEDIA_ITEM_INSET, MEDIA_SNAP_INSET)
       expect(screen.getByText('First').parentElement).not.toHaveClass('px-4')
       expect(screen.getByText('Second').parentElement).not.toHaveClass('px-4')

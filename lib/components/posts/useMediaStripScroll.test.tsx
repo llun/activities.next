@@ -260,8 +260,8 @@ describe('useMediaStripScroll', () => {
   })
 
   it('advances to the snapport inset when scroll padding is set', () => {
-    // The media strip keeps `scroll-padding-left` on the status content's
-    // inset, so the next card must land on that line, not at the frame edge.
+    // The media strip keeps `scroll-padding-left` on the post text's line, so
+    // the next card must land on that line, not at the frame edge.
     render(<Probe scrollWidth={1600} clientWidth={500} scrollLeft={0} />)
     const scroller = screen.getByTestId('scroller')
     scroller.style.scrollPaddingLeft = '16px'
@@ -270,7 +270,8 @@ describe('useMediaStripScroll', () => {
       configurable: true,
       value: () => ({ left: containerLeft })
     })
-    // Card boundaries include the 16px content padding: 16, 236, 516, 876.
+    // The scroller's snapport inset (an arbitrary 16px in this unit test) is
+    // part of the card boundaries: 16, 236, 516, 876.
     ;[16, 236, 516, 876].forEach((offset) => {
       const card = document.createElement('span')
       Object.defineProperty(card, 'getBoundingClientRect', {

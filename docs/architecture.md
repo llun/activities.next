@@ -1677,13 +1677,16 @@ legacy shape left to copy.
   first card rests on the text line and any card that snaps settles onto it —
   `x proximity` only snaps when the reader stops near one — while the
   full-bleed row still lets cards travel out to the frame edge, beneath the
-  avatar, mid-scroll. A nested frame that overrides the bleed moves the text
-  line with it (the content-warning card's `px-3`, Explore's `p-2` shell at
-  `md+`). Captions align with their own card — the card already sits on the
-  text line — and only the strip pager keeps an extra inset (`pr-4`) from the
-  frame edge. The media row must not be narrowed to achieve this: a lone
-  picture still sizes naturally at `min(100%, Npx)`, the strip keeps its item
-  widths, gaps, snapping and pager, and no ancestor may clip the row.
+  avatar, mid-scroll. A nested override and the line are two sides of the same
+  variable, but they move different edges: the content-warning card's `px-3`
+  override carries the cards to its own inset text line, while Explore's `p-2`
+  shell override pushes the frame edge outward and carries the cards back to
+  the unchanged article text line across that wider frame. Captions align with
+  their own card — the card already sits on the text line — and only the strip
+  pager keeps an extra inset (`pr-4`) from the frame edge. The media row must
+  not be narrowed to achieve this: a lone picture still sizes naturally at
+  `min(100%, Npx)`, the strip keeps its item widths, gaps, snapping and pager,
+  and no ancestor may clip the row.
 - A status's media is **one attachment at its own size, or a horizontally
   scrollable strip — never a grid.** `lib/components/posts/attachments.tsx` owns
   this for every surface that renders a post. A lone picture keeps its own
