@@ -1379,7 +1379,7 @@ describe('Attachments', () => {
 
       expect(
         screen.getByRole('button', { name: 'Next media' }).parentElement
-      ).toHaveClass('pr-4')
+      ).toHaveClass('pr-[var(--post-media-bleed-right,1rem)]')
     })
   })
 

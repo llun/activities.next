@@ -1685,11 +1685,12 @@ legacy shape left to copy.
   text column, while Explore's `p-2` shell override pushes the frame edge
   outward and carries the cards back to the unchanged article text column
   across that wider frame. Captions align with their own card — the card
-  already sits on the text line — and only the strip pager keeps an extra
-  inset (`pr-4`) from the frame edge. The media row must not be narrowed to
-  achieve this: a lone picture still sizes naturally at `min(100%, Npx)`, the
-  strip keeps its item widths, gaps, snapping and pager, and no ancestor may
-  clip the row.
+  already sits on the text line — and the strip pager's `pr` is the same right
+  bleed, so the controls end on the message's right line too. The media row
+  must not be narrowed to achieve this: a lone picture still sizes naturally at
+  `min(100%, Npx)` — a wide one spans the message column, a narrow one keeps
+  its own width on the left line — the strip keeps its item widths, gaps,
+  snapping and pager, and no ancestor may clip the row.
 - A status's media is **one attachment at its own size, or a horizontally
   scrollable strip — never a grid.** `lib/components/posts/attachments.tsx` owns
   this for every surface that renders a post. A lone picture keeps its own

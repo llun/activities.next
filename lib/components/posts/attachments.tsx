@@ -84,7 +84,8 @@ const MEDIA_BLEED_CLASS =
 // The media column is the status message's column: the first card rests on the
 // text's left edge and the scroll can only reach until the last card's right
 // edge meets the text's right edge, while the full-bleed row still lets cards
-// slide out to the frame edge mid-scroll. A lone picture spans that column.
+// slide out to the frame edge mid-scroll. A wide lone picture spans that
+// column; a narrow one keeps its own width on the left line.
 // `pl`/`pr` set those two lines at rest and at the scroll end, and `scroll-pl`
 // keeps a start-aligned card on the left line. Both distances are the left and
 // right bleeds — the text column sits exactly that far inside the media row —
@@ -326,7 +327,7 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
             })}
           </div>
           {overflowing ? (
-            <div className="mt-3 flex justify-end gap-2 pr-4">
+            <div className="mt-3 flex justify-end gap-2 pr-[var(--post-media-bleed-right,1rem)]">
               <button
                 type="button"
                 aria-label="Previous media"

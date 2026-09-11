@@ -741,7 +741,7 @@ this for every surface that renders a post, and the shapes come from the design
 system's `Attachments` component.
 
 - **A lone picture keeps its own aspect ratio and spans the post text's
-  column.** Not `w-full`, not `aspect-video`: the old single branch
+  column when it is wide** (a narrow one keeps its own width on the left line). Not `w-full`, not `aspect-video`: the old single branch
   cropped every portrait photo to 16:9 across the full content width. It is
   scaled by **width** — `min(100%, round(SINGLE_MAX_HEIGHT * ratio)px)`, capped
   at the file's own pixels so a thumbnail is never upscaled — and never by
