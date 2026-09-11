@@ -1658,7 +1658,8 @@ legacy shape left to copy.
   `overflow-hidden` below `md` (`max-md:overflow-visible`); that removes the
   clip the (now gone) rounding needed and lets embedded posts' non-portalled
   overlays escape below `md`, and Explore's wrapper drops `backdrop-blur`
-  below `md` (`max-md:backdrop-blur-none`) because `backdrop-filter` makes it
+  below `md` on the posts tab (`max-md:backdrop-blur-none`, the only tab that
+  renders `Posts`) because `backdrop-filter` makes it
   the containing block for the `max-md:fixed` edit-history panel. `PublicShell` and its top bar and footer drop
   their 680px reading-column cap below `md` (`max-md:max-w-none`) so the page's other
   content and chrome stay aligned with the full-bleed feed below `md` (the
