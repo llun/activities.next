@@ -3,7 +3,8 @@ import { z } from 'zod'
 import { logger } from '@/lib/utils/logger'
 
 export const AuthConfig = z.object({
-  enableCredential: z.boolean().optional()
+  enableCredential: z.boolean().optional(),
+  enableInstrumentation: z.boolean().optional()
 })
 export type AuthConfig = z.infer<typeof AuthConfig>
 

@@ -46,6 +46,14 @@ describe('Auth config', () => {
 
       expect(config.enableCredential).toBe(false)
     })
+
+    it('parses instrumentation auth settings', () => {
+      const config = AuthConfig.parse({
+        enableInstrumentation: true
+      })
+
+      expect(config.enableInstrumentation).toBe(true)
+    })
   })
 
   describe('getAuthConfig', () => {
@@ -57,6 +65,7 @@ describe('Auth config', () => {
     it('parses ACTIVITIES_AUTH json env var without legacy github config', () => {
       process.env.ACTIVITIES_AUTH = JSON.stringify({
         enableCredential: false,
+        enableInstrumentation: true,
         github: { id: 'test-id', secret: 'test-secret' }
       })
 
@@ -64,6 +73,7 @@ describe('Auth config', () => {
 
       expect(config).not.toBeNull()
       expect(config?.auth.enableCredential).toBe(false)
+      expect(config?.auth.enableInstrumentation).toBe(true)
       expect(config?.auth).not.toHaveProperty('github')
     })
 
