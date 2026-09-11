@@ -1,0 +1,30 @@
+app/(timeline)/[actor]/[status]/loading.tsx
+  h_580a04e334fef4 10,12,22
+app/(timeline)/[actor]/loading.tsx
+  h_580a04e334fef4 47,50
+app/(timeline)/explore/ExplorePageClient.test.tsx
+  h_580a04e334fef4 211-238
+app/(timeline)/search/SearchPageClient.test.tsx
+  h_580a04e334fef4 785-794
+docs/architecture.md
+  h_580a04e334fef4 1666-1667,1694-1702
+docs/mastodon-api-compatibility.md
+  h_580a04e334fef4 756
+lib/components/posts/attachments.test.tsx
+  h_580a04e334fef4 1402-1644
+lib/components/posts/attachments.tsx
+  h_580a04e334fef4 65-72,257,261,302,316-317,322
+lib/components/posts/media.tsx
+  h_580a04e334fef4 89-92,99,114,136,150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ad0ac684bacebc9129d4dc492b69781dba156949",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
