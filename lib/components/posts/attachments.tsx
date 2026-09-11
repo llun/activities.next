@@ -81,14 +81,16 @@ const MEDIA_FOCUS_CLASS =
 // docs/architecture.md "Post media layout".
 const MEDIA_BLEED_CLASS =
   '-ml-[var(--post-media-bleed-left,4.25rem)] -mr-[var(--post-media-bleed-right,1rem)]'
-// The media itself lines up with the post text's left edge (the text column),
-// not the avatar and not the frame edge: `pl-*` puts the first item on that
-// line at rest and `scroll-pl-*` keeps a snapped item there, while the
-// full-bleed row still lets items slide out to the frame edge mid-scroll. The
-// line is the same distance as the left bleed — the text column sits exactly
-// `--post-media-bleed-left` inside the media row's edge — so the content
-// warning and Explore overrides of that variable move both together.
-const MEDIA_ITEM_INSET_CLASS = 'pl-[var(--post-media-bleed-left,4.25rem)]'
+// The media column is the status message's column: the first card rests on the
+// text's left edge and the scroll can only reach until the last card's right
+// edge meets the text's right edge, while the full-bleed row still lets cards
+// slide out to the frame edge mid-scroll. A lone picture spans that column.
+// `pl`/`pr` set those two lines at rest and at the scroll end, and `scroll-pl`
+// keeps a start-aligned card on the left line. Both distances are the left and
+// right bleeds — the text column sits exactly that far inside the media row —
+// so the content-warning and Explore overrides move them together.
+const MEDIA_ITEM_INSET_CLASS =
+  'pl-[var(--post-media-bleed-left,4.25rem)] pr-[var(--post-media-bleed-right,1rem)]'
 const MEDIA_STRIP_SNAP_INSET_CLASS =
   'scroll-pl-[var(--post-media-bleed-left,4.25rem)]'
 

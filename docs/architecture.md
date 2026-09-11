@@ -1670,23 +1670,26 @@ legacy shape left to copy.
   article's 16px inset. Below `md` the owning frame is the screen edge; from
   `md` up it is the feed card's inner edge, or the parent frame for an embedded
   feed (the parentless landing feed has no frame there, so the row spans the
-  column). **The media inside the row aligns with the post text's left edge,
-  not the avatar and not the frame edge**: the same `--post-media-bleed-left`
-  that pulls the row out is also the strip scroller's `padding-left` and
-  `scroll-padding-left` (and the lone picture row's `padding-left`), so the
-  first card rests on the text line and any card that snaps settles onto it —
-  `x proximity` only snaps when the reader stops near one — while the
-  full-bleed row still lets cards travel out to the frame edge, beneath the
-  avatar, mid-scroll. A nested override and the line are two sides of the same
-  variable, but they move different edges: the content-warning card's `px-3`
-  override carries the cards to its own inset text line, while Explore's `p-2`
-  shell override pushes the frame edge outward and carries the cards back to
-  the unchanged article text line across that wider frame. Captions align with
-  their own card — the card already sits on the text line — and only the strip
-  pager keeps an extra inset (`pr-4`) from the frame edge. The media row must
-  not be narrowed to achieve this: a lone picture still sizes naturally at
-  `min(100%, Npx)`, the strip keeps its item widths, gaps, snapping and pager,
-  and no ancestor may clip the row.
+  column). **The media column tracks the message column, not the avatar and not
+  the frame edge**: the same `--post-media-bleed-left` and
+  `--post-media-bleed-right` that pull the row out are also the strip
+  scroller's `padding-left` / `scroll-padding-left` and `padding-right` (and
+  the lone picture row's both paddings), so the first card rests on the text's
+  left edge, any card that snaps settles onto it — `x proximity` only snaps
+  when the reader stops near one — and the scroll can only reach until the last
+  card's right edge meets the text's right edge. A lone picture spans that
+  column. The full-bleed row still lets cards travel out to the frame edge,
+  beneath the avatar, mid-scroll. A nested override and the column are two
+  sides of the same variables, but they move different edges: the
+  content-warning card's `px-3` override carries the cards to its own inset
+  text column, while Explore's `p-2` shell override pushes the frame edge
+  outward and carries the cards back to the unchanged article text column
+  across that wider frame. Captions align with their own card — the card
+  already sits on the text line — and only the strip pager keeps an extra
+  inset (`pr-4`) from the frame edge. The media row must not be narrowed to
+  achieve this: a lone picture still sizes naturally at `min(100%, Npx)`, the
+  strip keeps its item widths, gaps, snapping and pager, and no ancestor may
+  clip the row.
 - A status's media is **one attachment at its own size, or a horizontally
   scrollable strip — never a grid.** `lib/components/posts/attachments.tsx` owns
   this for every surface that renders a post. A lone picture keeps its own

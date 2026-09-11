@@ -740,18 +740,18 @@ scrollable strip — never a grid.** `lib/components/posts/attachments.tsx` owns
 this for every surface that renders a post, and the shapes come from the design
 system's `Attachments` component.
 
-- **A lone picture keeps its own aspect ratio and starts on the post text's
-  left line.** Not `w-full`, not `aspect-video`: the old single branch
+- **A lone picture keeps its own aspect ratio and spans the post text's
+  column.** Not `w-full`, not `aspect-video`: the old single branch
   cropped every portrait photo to 16:9 across the full content width. It is
   scaled by **width** — `min(100%, round(SINGLE_MAX_HEIGHT * ratio)px)`, capped
   at the file's own pixels so a thumbnail is never upscaled — and never by
   capping the height of an `aspect-ratio` box, which leaves the ratio to be
   re-derived from a clamped axis and is resolved inconsistently across browsers.
   The full-bleed media row can still reach the owning feed frame's inner edges
-  while a strip scrolls, but the picture itself is inset to the post text's
-  line (`--post-media-bleed-left` doubles as the item inset; see the frame-bleed
-  contract in `docs/architecture.md` → "Post media layout"), not flush with the
-  frame's left edge — a wide picture still reaches the frame's right edge.
+  while a strip scrolls, but the picture itself starts on the text's left line
+  and a wide one ends on its right line (`--post-media-bleed-left` /
+  `--post-media-bleed-right` double as the item insets; see the frame-bleed
+  contract in `docs/architecture.md` → "Post media layout").
 - **Two or more pictures are a horizontally scrolling gallery** with 240px image
   boxes, 12px gaps, rounded corners, and cards sized from their aspect ratio.
   Cards have a 160px minimum and a 78% container maximum so neighboring cards
@@ -773,13 +773,17 @@ system's `Attachments` component.
     destroys the affordance the 78% cap creates. The scroller's `padding-left`
     and `scroll-padding-left` share the left bleed's line
     (`--post-media-bleed-left`), so the resting first card and the card a slide
-    settles on both line up with the post text, while the card can still travel
+    settles on both line up with the post text's left edge, while
+    `padding-right` shares the right bleed so the scroll end brings the last
+    card's right edge onto the post text's right edge. Cards can still travel
     out to the frame edge while the reader is dragging.
   - Paired circular arrow controls remain mounted while the strip overflows,
     sit below the captions, and expose guarded `aria-disabled` states at each
     boundary. Each press advances exactly one adjacent card and lands it on the
-    text line — `useMediaStripScroll` subtracts the scroller's
-    `scroll-padding-left` from the card boundary — with reduced motion honored.
+    text's left line — `useMediaStripScroll` subtracts the scroller's
+    `scroll-padding-left` from the card boundary, and the last card clamps to
+    the scroll end so its right edge meets the text's right edge — with reduced
+    motion honored.
 - **There is no 4-item cap and no `+N` overlay.** Everything attached is in the
   strip, because scrolling reaches it. Re-adding a cap hides media the post
   actually carries. Strip images therefore pass `loading="lazy"` to `Media` —

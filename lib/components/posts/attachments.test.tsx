@@ -1300,9 +1300,10 @@ describe('Attachments', () => {
   describe('media alignment contract', () => {
     const MEDIA_BLEED_LEFT = '-ml-[var(--post-media-bleed-left,4.25rem)]'
     const MEDIA_BLEED_RIGHT = '-mr-[var(--post-media-bleed-right,1rem)]'
-    // Items line up with the post text's left edge; that distance is exactly
-    // the left bleed the row already uses.
+    // The media column is the visible message column: these distances are
+    // exactly the left and right bleeds the row already uses.
     const MEDIA_ITEM_INSET = 'pl-[var(--post-media-bleed-left,4.25rem)]'
+    const MEDIA_ITEM_RIGHT_INSET = 'pr-[var(--post-media-bleed-right,1rem)]'
     const MEDIA_SNAP_INSET = 'scroll-pl-[var(--post-media-bleed-left,4.25rem)]'
 
     it('bleeds a lone picture row to the frame edges and aligns it to the post text line', () => {
@@ -1325,7 +1326,8 @@ describe('Attachments', () => {
       expect(button.parentElement).toHaveClass(
         MEDIA_BLEED_LEFT,
         MEDIA_BLEED_RIGHT,
-        MEDIA_ITEM_INSET
+        MEDIA_ITEM_INSET,
+        MEDIA_ITEM_RIGHT_INSET
       )
       // The caption lines up with its picture, not a second inset on top; the
       // item inset already puts both on the post text's left line.
@@ -1350,9 +1352,14 @@ describe('Attachments', () => {
         MEDIA_BLEED_LEFT,
         MEDIA_BLEED_RIGHT
       )
-      // `pl` puts the first card on the post text line at rest, `scroll-pl`
-      // is the snapport that keeps every focused card there after a slide.
-      expect(strip).toHaveClass(MEDIA_ITEM_INSET, MEDIA_SNAP_INSET)
+      // `pl` puts the first card on the post text line at rest, `pr` stops the
+      // scroll end with the last card on the message's right edge, and
+      // `scroll-pl` is the snapport that keeps every focused card on the left.
+      expect(strip).toHaveClass(
+        MEDIA_ITEM_INSET,
+        MEDIA_ITEM_RIGHT_INSET,
+        MEDIA_SNAP_INSET
+      )
       expect(screen.getByText('First').parentElement).not.toHaveClass('px-4')
       expect(screen.getByText('Second').parentElement).not.toHaveClass('px-4')
 
