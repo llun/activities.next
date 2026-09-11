@@ -1640,19 +1640,94 @@ legacy shape left to copy.
 
 ### Review: Post media layout
 
+- **Feed framing is breakpoint-scoped and owned by the element that renders the
+  feed's outer frame**, through `MOBILE_FEED_SURFACE_CLASS` in
+  `lib/components/posts/feedLayout.ts`. Below `md` that element spans the
+  viewport, cancels the enclosing shell's horizontal padding, and drops only
+  its outer border, shadow and corner rounding; the post separators
+  (`divide-y`), the article's `px-4` text inset, and the borders of nested
+  content-warning, quote, link-preview and fitness cards all stay. Apply it to
+  the frame owner — the feed, its loading skeleton, its empty state, and the
+  home composer — and to it alone: `Posts` applies it only when `framed`, and
+  embedded feeds keep the parent frame (`framed={false}` renders no frame and
+  no mobile bleed). The margin is deliberately `calc(50% - 50vw)`, not a fixed
+  `-mx-4`: the shared `/` loading boundary renders under both the signed-in
+  `px-4` column and the raw logged-out landing branch with no padding, so a
+  fixed gutter overflowed the viewport in the second one. `max-md:w-auto` is
+  load-bearing — with `width: 100%` the negative margins only shift a `w-full`
+  frame left instead of widening it. Search's results shell also drops its
+  `overflow-hidden` below `md` (`max-md:overflow-visible`); that removes the
+  clip the (now gone) rounding needed and lets embedded posts' non-portalled
+  overlays escape below `md`, and Explore's wrapper drops `backdrop-blur`
+  below `md` on the posts tab (`max-md:backdrop-blur-none`, the only tab that
+  renders `Posts`) because `backdrop-filter` makes it
+  the containing block for the `max-md:fixed` edit-history panel. `PublicShell` and its top bar and footer drop
+  their 680px reading-column cap below `md` (`max-md:max-w-none`) so the page's other
+  content and chrome stay aligned with the full-bleed feed below `md` (the
+  frame margin already reaches the viewport edges either way).
+- **A visual attachment scroller bleeds out to the owning feed frame's inner edges at every
+  breakpoint so cards can scroll beneath the avatar mid-scroll, but at rest and initial scroll position, the media aligns with the post text's left line.** `Attachments` pulls the
+  row out by `--post-media-bleed-left` / `--post-media-bleed-right`, whose
+  defaults (`4.25rem` / `1rem`) describe the 40px avatar, 12px gap and the
+  article's 16px inset. Below `md` the owning frame is the screen edge; from
+  `md` up it is the feed card's inner edge, or the parent frame for an embedded
+  feed (the parentless landing feed has no frame there, so the row spans the
+  column). **The media column tracks the message column, not the avatar and not
+  the frame edge**: the same `--post-media-bleed-left` and
+  `--post-media-bleed-right` that pull the row out are also the strip
+  scroller's `padding-left` / `scroll-padding-left` and `padding-right` (and
+  the lone picture row's both paddings), so the first card rests on the text's
+  left edge, any card that snaps settles onto it — `x proximity` only snaps
+  when the reader stops near one — and the scroll can only reach until the last
+  card's right edge meets the text's right edge. The full-bleed row still lets
+  cards travel out to the frame edge,
+  beneath the avatar, mid-scroll. A nested override and the column are two
+  sides of the same variables, but they move different edges: the
+  content-warning card's `px-3` override carries the cards to its own inset
+  text column, while Explore's `p-2` shell override pushes the frame edge
+  outward and carries the cards back to the unchanged article text column
+  across that wider frame. Captions align with their own card — the card
+  already sits on the text line — and the strip pager's `pr` is the same right
+  bleed, so the controls end on the message's right line too. The media row
+  must not be narrowed to achieve this: a lone picture still sizes naturally at
+  `min(100%, Npx)` — a wide one spans the message column, a narrow one keeps
+  its own width on the left line — the strip keeps its item widths, gaps,
+  snapping and pager, and no ancestor may clip the row.
+- **Media corner rounding follows attachment order:** A single attachment rounds
+  all four outer corners (`rounded-2xl`). For a horizontal media strip: the first item
+  rounds only its top-left and bottom-left corners (`rounded-l-2xl`), middle items
+  keep square corners (`rounded-none`), and the last item rounds only its top-right and
+  bottom-right corners (`rounded-r-2xl`). First and last refer to attachment order (index `0`
+  vs index `N-1`), not whichever items happen to be visible during scrolling. Square refers
+  to corners; natural sizing and aspect ratios are preserved without forcing 1:1 crops.
+  The media button — the clipping wrapper — carries the explicit per-position
+  corner. Where both `rounded-[inherit]` and an explicit corner class reach the
+  same `cn()`, what survives depends on the tailwind-merge radius groups:
+  base-vs-base keeps exactly one winner (lone `rounded-2xl`, middle
+  `rounded-none`), while side-specific corners (`rounded-l-2xl`,
+  `rounded-r-2xl`) are kept alongside the inherit — and then the side longhands
+  override the inherited corners by normal CSS cascade, so the nested `img` /
+  `video` still rounds exactly its two outer corners. Nodes that receive no
+  explicit class (e.g. the blurhash canvas) keep `rounded-[inherit]`, which
+  resolves through the wrapper's own explicit corner, transitively equal to the
+  button's radius — so media frames never bleed square pixels past rounded
+  parent edges.
 - A status's media is **one attachment at its own size, or a horizontally
   scrollable strip — never a grid.** `lib/components/posts/attachments.tsx` owns
   this for every surface that renders a post. A lone picture keeps its own
-  aspect ratio and hugs the post's left edge, scaled by WIDTH; the branch this
-  replaced cropped every portrait photo to a full-width 16:9.
+  aspect ratio and starts on the post text's left line, scaled by WIDTH;
+  the branch this replaced cropped every portrait photo to a full-width 16:9.
 - The gallery uses 240px image boxes, 12px gaps, aspect-ratio-based card widths
   with a 160px minimum and 78% maximum, and `scroll-snap-type: x proximity`.
   Captions sit below their images, preserve line breaks and custom emoji, and
   clamp independently to three lines. Paired circular arrows sit below the
   captions while overflowing, remain focusable at their boundaries with guarded
-  `aria-disabled` states. Each click advances exactly one adjacent card, using
+  `aria-disabled` states. Each click advances exactly one adjacent card —
+  landing it on the text line through the `scroll-padding-left` inset — using
   the first boundary in the requested direction when the user is between cards,
-  and clamps at either end. Scrolling stays smooth unless reduced motion is
+  and clamps at either end. While layout is still pending and no card boundary
+  exists yet, a press falls back to one visible width (`clientWidth`) in the
+  requested direction. Scrolling stays smooth unless reduced motion is
   requested.
 - **There is no item cap and no `+N` overlay** — scrolling reaches everything —
   so anything the strip renders unboundedly needs a deferral: images pass
@@ -1675,11 +1750,14 @@ legacy shape left to copy.
   media-storage paths persist `metaData.width ?? 0` — so every read goes through
   `getMediaGeometry`, which also clamps pathological shapes and falls back to a
   4:3 box so blurhash has something to reserve.
-- **A strip item's focus indicator is an `outline` with a NEGATIVE offset.** An
-  outset ring is clipped by the strip's own `overflow-x-auto`, and an inset ring
-  is invisible — an inset `box-shadow` paints beneath content and the button's
-  only child is an opaque image. This has been got wrong twice; the class string
-  is pinned by a test.
+- **A media button's focus indicator is an `outline` with a NEGATIVE offset,
+  never an outset ring.** The strip's own `overflow-x-auto` clips an outset
+  ring, and the media box can still reach the frame's inner edge — a wide lone
+  picture's right edge, and every strip card while it is being dragged — where
+  `main`'s `overflow-x-clip` cuts the ring's outer edge off below `md`. An
+  inset `box-shadow` does not work either — it paints beneath content and the
+  button's only child is an opaque image. `Attachments` uses one spelling for
+  both shapes; it has been got wrong twice and is pinned by a test.
 - `useMediaStripScroll` measures the strip's own container, never a viewport
   breakpoint, through a **callback** ref because the strip is conditional. Its
   `contentKey` must describe item WIDTHS, not their count: the observer watches

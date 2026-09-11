@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 
 import { PageHeader } from '@/lib/components/page-header'
+import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -63,7 +64,9 @@ const Page = async ({ params, searchParams }: Props) => {
       </div>
 
       {statuses.length === 0 ? (
-        <div className="rounded-xl border border-dashed p-6 text-center text-muted-foreground">
+        <div
+          className={`rounded-xl border border-dashed p-6 text-center text-muted-foreground ${MOBILE_FEED_SURFACE_CLASS}`}
+        >
           No public posts with #{tag.replace(/^#+/, '')}
         </div>
       ) : (

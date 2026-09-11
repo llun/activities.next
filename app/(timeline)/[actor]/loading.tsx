@@ -1,5 +1,7 @@
 import { FC } from 'react'
 
+import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
+
 export const ProfileLoading: FC = () => {
   return (
     <div
@@ -41,9 +43,11 @@ export const ProfileLoading: FC = () => {
           <div className="skeleton h-9 w-20 rounded-lg" />
         </div>
 
-        <div className="divide-y overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
+        <div
+          className={`divide-y overflow-hidden rounded-xl border bg-card shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
+        >
           {[0, 1, 2].map((index) => (
-            <div key={index} className="flex gap-3 p-4">
+            <div key={index} className="flex gap-3 px-4 py-3">
               <div className="skeleton size-10 shrink-0 rounded-full" />
               <div className="min-w-0 flex-1 space-y-2">
                 <div className="flex items-center gap-2">

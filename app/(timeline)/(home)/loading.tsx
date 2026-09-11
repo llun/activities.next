@@ -1,6 +1,7 @@
 import { FC } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
+import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 
 export const TimelineLoading: FC = () => {
   return (
@@ -13,7 +14,7 @@ export const TimelineLoading: FC = () => {
 
       <section
         aria-label="Post composer"
-        className="rounded-xl border bg-card p-4 shadow-sm"
+        className={`rounded-xl border bg-card p-4 shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
       >
         <div className="flex items-start gap-3">
           <div className="skeleton size-12 shrink-0 rounded-full" />
@@ -39,7 +40,7 @@ export const TimelineLoading: FC = () => {
 
       <section
         aria-label="Timeline posts"
-        className="divide-y overflow-hidden rounded-xl border bg-card shadow-sm"
+        className={`divide-y overflow-hidden rounded-xl border bg-card shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
       >
         {[0, 1, 2].map((index) => (
           <div key={index} className="flex gap-3 px-4 py-3">

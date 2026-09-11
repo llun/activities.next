@@ -62,11 +62,45 @@ const getMediaGeometry = ({ width, height }: Attachment) => {
 }
 
 const MEDIA_BOX_CLASS =
-  'relative block cursor-zoom-in overflow-hidden rounded-2xl border border-border/60 bg-muted/20'
-const SINGLE_FOCUS_CLASS =
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50'
-const STRIP_FOCUS_CLASS =
+  'relative block cursor-zoom-in overflow-hidden border border-border/60 bg-muted/20'
+
+const getStripItemCornerClass = (index: number, total: number) => {
+  if (total <= 1) return 'rounded-2xl'
+  if (index === 0) return 'rounded-l-2xl'
+  if (index === total - 1) return 'rounded-r-2xl'
+  return 'rounded-none'
+}
+// One indicator for both shapes. The strip has always needed the inset outline
+// (an outset ring is clipped by its own `overflow-x-auto`); the media box can
+// also reach the frame's inner edge — the viewport edge below `md` — where a
+// wide lone picture's right edge and every strip item mid-scroll sit flush to
+// `main`'s `overflow-x-clip`, cutting an outset ring's outer edge. The inset
+// outline is drawn over the opaque image (unlike an inset ring, which paints
+// beneath it) and survives both.
+const MEDIA_FOCUS_CLASS =
   'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring/50'
+// The visual media row spans the owning feed frame's inner edges, including
+// the area beneath the avatar. The offsets are relative to the row's
+// containing block (the post's text column): 4.25rem is the 40px avatar plus
+// its 12px gap plus the article's 16px inset; 1rem is that inset alone. A
+// nested frame that adds horizontal padding (the content warning card)
+// overrides both variables. Geometry is pinned by browser verification; see
+// docs/architecture.md "Post media layout".
+const MEDIA_BLEED_CLASS =
+  '-ml-[var(--post-media-bleed-left,4.25rem)] -mr-[var(--post-media-bleed-right,1rem)]'
+// The media column is the status message's column: the first card rests on the
+// text's left edge and the scroll can only reach until the last card's right
+// edge meets the text's right edge, while the full-bleed row still lets cards
+// slide out to the frame edge mid-scroll. A wide lone picture spans that
+// column; a narrow one keeps its own width on the left line.
+// `pl`/`pr` set those two lines at rest and at the scroll end, and `scroll-pl`
+// keeps a start-aligned card on the left line. Both distances are the left and
+// right bleeds — the text column sits exactly that far inside the media row —
+// so the content-warning and Explore overrides move them together.
+const MEDIA_ITEM_INSET_CLASS =
+  'pl-[var(--post-media-bleed-left,4.25rem)] pr-[var(--post-media-bleed-right,1rem)]'
+const MEDIA_STRIP_SNAP_INSET_CLASS =
+  'scroll-pl-[var(--post-media-bleed-left,4.25rem)]'
 
 interface CaptionProps {
   identity: string
@@ -209,16 +243,22 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
     const caption = attachment.name?.trim()
     return (
       <>
-        <div className="mt-3 flex flex-col justify-start">
+        <div
+          className={cn(
+            'mt-3 flex flex-col justify-start',
+            MEDIA_BLEED_CLASS,
+            MEDIA_ITEM_INSET_CLASS
+          )}
+        >
           <button
             type="button"
             onClick={openMedia(0)}
             aria-label={mediaLabel(attachment, 0)}
-            className={cn(MEDIA_BOX_CLASS, SINGLE_FOCUS_CLASS)}
+            className={cn(MEDIA_BOX_CLASS, MEDIA_FOCUS_CLASS, 'rounded-2xl')}
             style={{ aspectRatio, width: `min(100%, ${width}px)` }}
           >
             <Media
-              className="h-full w-full object-cover"
+              className="h-full w-full object-cover rounded-2xl"
               attachment={attachment}
             />
           </button>
@@ -244,17 +284,22 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
   return (
     <>
       {items.length ? (
-        <div className="mt-3">
+        <div className={cn('mt-3', MEDIA_BLEED_CLASS)}>
           <div
             ref={strip.ref}
             onScroll={strip.measure}
             role="group"
             aria-label={`${items.length} media attachments${overflowing ? ', scroll for more' : ''}`}
-            className="no-scrollbar relative flex gap-3 overflow-x-auto"
+            className={cn(
+              'no-scrollbar relative flex gap-3 overflow-x-auto',
+              MEDIA_ITEM_INSET_CLASS,
+              MEDIA_STRIP_SNAP_INSET_CLASS
+            )}
             style={stripStyle}
           >
             {items.map(({ attachment, width }, index) => {
               const caption = attachment.name?.trim()
+              const cornerClass = getStripItemCornerClass(index, items.length)
               return (
                 <div
                   key={attachment.id}
@@ -267,13 +312,14 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
                     aria-label={mediaLabel(attachment, index)}
                     className={cn(
                       MEDIA_BOX_CLASS,
-                      STRIP_FOCUS_CLASS,
-                      'h-[240px] w-full flex-none'
+                      MEDIA_FOCUS_CLASS,
+                      'h-[240px] w-full flex-none',
+                      cornerClass
                     )}
                     style={{ scrollSnapAlign: 'start' }}
                   >
                     <Media
-                      className="h-full w-full object-cover"
+                      className={cn('h-full w-full object-cover', cornerClass)}
                       attachment={attachment}
                       loading="lazy"
                     />
@@ -290,7 +336,7 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
             })}
           </div>
           {overflowing ? (
-            <div className="mt-3 flex justify-end gap-2">
+            <div className="mt-3 flex justify-end gap-2 pr-[var(--post-media-bleed-right,1rem)]">
               <button
                 type="button"
                 aria-label="Previous media"

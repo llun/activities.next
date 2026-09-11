@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
 import { getRemoteStatus } from '@/lib/activities/getRemoteStatus'
+import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 import { getBaseURL, getConfig } from '@/lib/config'
 import { getPublicMapProvider } from '@/lib/config/mapProvider'
 import { getDatabase } from '@/lib/database'
@@ -296,7 +297,8 @@ const Page: FC<Props> = async ({ params }) => {
           // off, so a failed bookmark stayed unreadable. The picker and the ⋯
           // popover are unaffected either way; both portal to the document
           // body.
-          'rounded-2xl border bg-background/80 shadow-sm'
+          'rounded-2xl border bg-background/80 shadow-sm',
+          MOBILE_FEED_SURFACE_CLASS
         )}
       >
         {currentActorProfile ? (
@@ -308,7 +310,7 @@ const Page: FC<Props> = async ({ params }) => {
           // carries two transparent corner notches out over the post. A
           // clipping box is safe on this subtree alone because the header
           // holds no overlays.
-          <div className="overflow-hidden rounded-t-2xl">
+          <div className="overflow-hidden rounded-t-2xl max-md:rounded-none">
             <Header isFitnessDashboard />
           </div>
         ) : (
@@ -319,12 +321,13 @@ const Page: FC<Props> = async ({ params }) => {
 
         <div
           className={cn(
-            'border-b bg-background',
+            'border-b bg-background max-md:rounded-none',
             // Unlike the conversation card below, this one's children paint,
             // so with the clip gone each corner they reach has to be rounded
-            // here. Logged out there is no `Header` above this — the `sr-only`
-            // heading is out of flow and paints nothing — so it meets the top
-            // corners as well…
+            // here, and reset below `md` where the outer card is square and
+            // full-bleed. Logged out there is no `Header` above this — the
+            // `sr-only` heading is out of flow and paints nothing — so it meets
+            // the top corners as well…
             !currentActorProfile && 'rounded-t-2xl',
             // …and it is the last child unless the logged-out `SignInCallout`
             // follows it, in which case that block takes the bottom corners.
@@ -357,7 +360,7 @@ const Page: FC<Props> = async ({ params }) => {
           // so it is what meets the bottom corners on the logged-out view.
           <SignInCallout
             registrationOpen={registrationOpen}
-            className="rounded-b-2xl"
+            className="rounded-b-2xl max-md:rounded-none"
           />
         ) : null}
       </div>
@@ -395,7 +398,8 @@ const Page: FC<Props> = async ({ params }) => {
         // the "No replies yet" block, neither of which paints a background —
         // append a background-painting child last and the bottom corners will
         // need the same treatment.
-        'rounded-2xl border bg-background/80 shadow-sm'
+        'rounded-2xl border bg-background/80 shadow-sm',
+        MOBILE_FEED_SURFACE_CLASS
       )}
     >
       {currentActorProfile ? (
@@ -416,7 +420,7 @@ const Page: FC<Props> = async ({ params }) => {
         //
         // So the header still does not stick, on either call site. Whether it
         // should is a live question, but it is not this change's to answer.
-        <div className="overflow-hidden rounded-t-2xl">
+        <div className="overflow-hidden rounded-t-2xl max-md:rounded-none">
           <Header isFitnessDashboard={false} />
         </div>
       ) : (
@@ -429,7 +433,7 @@ const Page: FC<Props> = async ({ params }) => {
         <div
           key={item.id}
           className={cn(
-            'border-b border-l-4 border-l-primary/20 bg-muted/30',
+            'border-b border-l-4 border-l-primary/20 bg-muted/30 max-md:rounded-none',
             // A logged-out view renders no `Header`, so the first ancestor row
             // is what meets the card's rounded top corners.
             !currentActorProfile && index === 0 && 'rounded-t-2xl'
@@ -447,7 +451,7 @@ const Page: FC<Props> = async ({ params }) => {
 
       <div
         className={cn(
-          'border-b bg-background',
+          'border-b bg-background max-md:rounded-none',
           // …and with neither a `Header` nor an ancestor chain above it, the
           // focused post is the topmost child instead.
           !currentActorProfile && previouses.length === 0 && 'rounded-t-2xl'

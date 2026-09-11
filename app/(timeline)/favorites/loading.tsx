@@ -1,6 +1,7 @@
 import { FC } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
+import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 
 export const FavoritesLoading: FC = () => {
   return (
@@ -12,7 +13,7 @@ export const FavoritesLoading: FC = () => {
 
       <section
         aria-label="Favorite posts"
-        className="divide-y overflow-hidden rounded-xl border bg-card shadow-sm"
+        className={`divide-y overflow-hidden rounded-xl border bg-card shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
       >
         {[0, 1, 2].map((index) => (
           <div key={index} className="flex gap-3 px-4 py-3">

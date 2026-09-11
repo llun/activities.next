@@ -4,6 +4,7 @@ import { Hash } from 'lucide-react'
 import { FC, useCallback, useRef, useState } from 'react'
 
 import { getHashtagTimeline } from '@/lib/client'
+import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 import { Posts } from '@/lib/components/posts/posts'
 import {
   removeOriginalStatus,
@@ -173,7 +174,9 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
           onReactionsChanged={onReactionsChanged}
         />
       ) : (
-        <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm">
+        <div
+          className={`rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
+        >
           <h2 className="text-xl font-semibold mb-2">No posts with #{tag}</h2>
           <p>Be the first to post with this hashtag.</p>
         </div>

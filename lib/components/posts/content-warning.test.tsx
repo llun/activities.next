@@ -62,4 +62,19 @@ describe('ContentWarning', () => {
     expect(screen.getByText(/CW/)).toBeInTheDocument()
     expect(screen.getByText(/beware/)).toBeInTheDocument()
   })
+
+  it('resets the media bleed to its own padding inside the warning card', () => {
+    // jsdom does not lay out; this pins the variable contract. The media row
+    // must fill the card's inside edges, not escape its border.
+    const { container } = render(
+      <ContentWarning summary="Spoilers">
+        <p>Hidden details</p>
+      </ContentWarning>
+    )
+
+    expect(container.firstElementChild).toHaveClass(
+      '[--post-media-bleed-left:0.75rem]',
+      '[--post-media-bleed-right:0.75rem]'
+    )
+  })
 })

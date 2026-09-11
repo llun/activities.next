@@ -86,14 +86,17 @@ export const Media: FC<Props> = ({
     if (blurhash) {
       return (
         <div
-          className={cn('relative overflow-hidden', className)}
+          className={cn(
+            'relative overflow-hidden rounded-[inherit]',
+            className
+          )}
           style={{ aspectRatio }}
         >
           <BlurhashCanvas
             blurhash={blurhash}
             style={style}
             className={cn(
-              'absolute inset-0 h-full w-full object-cover transition-opacity duration-300 pointer-events-none',
+              'absolute inset-0 h-full w-full object-cover transition-opacity duration-300 pointer-events-none rounded-[inherit]',
               isLoaded ? 'opacity-0' : 'opacity-100'
             )}
           />
@@ -108,7 +111,7 @@ export const Media: FC<Props> = ({
             key={id}
             loading={loading}
             className={cn(
-              'h-full w-full transition-opacity duration-300',
+              'h-full w-full transition-opacity duration-300 rounded-[inherit]',
               className?.includes('object-contain')
                 ? 'object-contain'
                 : 'object-cover',
@@ -130,7 +133,7 @@ export const Media: FC<Props> = ({
         onClick={onClick}
         key={id}
         loading={loading}
-        className={className}
+        className={cn('rounded-[inherit]', className)}
         style={style}
         alt={caption ?? name ?? url}
         src={url}
@@ -144,7 +147,7 @@ export const Media: FC<Props> = ({
     const poster = thumbnailUrl ?? undefined
     return (
       <video
-        className={className}
+        className={cn('rounded-[inherit]', className)}
         style={style}
         width={width}
         height={height}

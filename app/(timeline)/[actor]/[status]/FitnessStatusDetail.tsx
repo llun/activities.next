@@ -44,6 +44,7 @@ import { BrandedDeviceLink } from '@/lib/components/posts/BrandedDeviceLink'
 import { Actions } from '@/lib/components/posts/actions/actions'
 import type { PostMenuExtraItem } from '@/lib/components/posts/actions/post-menu'
 import { ActorAvatar } from '@/lib/components/posts/actor'
+import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 import { InlineStatusComposer } from '@/lib/components/posts/inline-status-composer'
 import { Media } from '@/lib/components/posts/media'
 import { Post } from '@/lib/components/posts/post'
@@ -1908,7 +1909,9 @@ export const FitnessStatusDetail: FC<Props> = ({
             ) : null}
 
             {replies.length > 0 ? (
-              <div className="divide-y rounded-xl border bg-card">
+              <div
+                className={`divide-y rounded-xl border bg-card shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
+              >
                 {replies.map((reply) => (
                   <article key={reply.id} className="p-4">
                     <Post
@@ -1923,7 +1926,9 @@ export const FitnessStatusDetail: FC<Props> = ({
                 ))}
               </div>
             ) : (
-              <p className="rounded-xl border border-dashed bg-background p-6 text-center text-sm text-muted-foreground">
+              <p
+                className={`rounded-xl border border-dashed bg-background p-6 text-center text-sm text-muted-foreground ${MOBILE_FEED_SURFACE_CLASS}`}
+              >
                 No comments yet.
               </p>
             )}

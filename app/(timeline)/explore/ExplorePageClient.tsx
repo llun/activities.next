@@ -10,6 +10,7 @@ import {
   getTrendingTags
 } from '@/lib/client'
 import { PageHeader } from '@/lib/components/page-header'
+import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 import { Posts } from '@/lib/components/posts/posts'
 import { TrendLinkCard } from '@/lib/components/trends/trend-link-card'
 import { TrendTagRow } from '@/lib/components/trends/trend-tag-row'
@@ -20,6 +21,7 @@ import { ActorProfile } from '@/lib/types/domain/actor'
 import type { Status } from '@/lib/types/domain/status'
 import type { PreviewCard } from '@/lib/types/mastodon/previewCard'
 import type { Tag } from '@/lib/types/mastodon/tag'
+import { cn } from '@/lib/utils'
 
 type ExploreTab = 'tags' | 'posts' | 'news'
 
@@ -51,6 +53,26 @@ const SkeletonRows = ({ count = 4 }: { count?: number }) => (
           <div className="h-3 w-48 rounded bg-muted/60" />
         </div>
         <div className="h-6 w-14 rounded bg-muted/60" />
+      </div>
+    ))}
+  </div>
+)
+
+// Post-shaped rows for the posts tab, mirroring the shared Posts article
+// geometry (px-4 py-3 rows, size-10 avatar, text bars) so the loader matches
+// the loaded feed. The tag-shaped SkeletonRows above stay for the other tabs.
+const PostSkeletonRows = ({ count = 4 }: { count?: number }) => (
+  <div className="divide-y divide-border" aria-hidden="true">
+    {Array.from({ length: count }).map((_, index) => (
+      <div key={index} className="px-4 py-3">
+        <div className="flex gap-3">
+          <div className="size-10 shrink-0 rounded-full bg-muted" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="h-3.5 w-32 rounded bg-muted" />
+            <div className="h-3 w-full rounded bg-muted/60" />
+            <div className="h-3 w-2/3 rounded bg-muted/60" />
+          </div>
+        </div>
       </div>
     ))}
   </div>
@@ -176,6 +198,7 @@ export const ExplorePageClient = ({
 
   const renderBody = () => {
     if (activeState.status === 'loading' || activeState.status === 'idle') {
+      if (tab === 'posts') return <PostSkeletonRows count={4} />
       return <SkeletonRows count={4} />
     }
     if (activeState.status === 'error') {
@@ -273,7 +296,20 @@ export const ExplorePageClient = ({
         </TabsList>
       </Tabs>
 
-      <div className="rounded-2xl border bg-card/80 p-2 shadow-sm backdrop-blur">
+      <div
+        className={cn(
+          'rounded-2xl border bg-card/80 p-2 shadow-sm backdrop-blur',
+          'md:[--post-media-bleed-left:4.75rem] md:[--post-media-bleed-right:1.5rem]',
+          tab === 'posts' && MOBILE_FEED_SURFACE_CLASS,
+          tab === 'posts' && 'max-md:p-0',
+          // `backdrop-filter` makes this wrapper the containing block for
+          // `position: fixed` descendants, and the edit-history panel is
+          // `max-md:fixed` so it escapes the feed's clip. Only the posts tab
+          // renders posts, so only it needs the containing block removed below
+          // `md`; from `md` up the panel is absolute again and the blur stays.
+          tab === 'posts' && 'max-md:backdrop-blur-none'
+        )}
+      >
         {renderBody()}
       </div>
     </div>

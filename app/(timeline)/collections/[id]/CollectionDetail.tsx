@@ -18,6 +18,7 @@ import { FC, useCallback, useRef, useState } from 'react'
 import { CollectionMember } from '@/app/(timeline)/collections/CollectionEditor'
 import { getCollectionFeed, getCollectionTimeline } from '@/lib/client'
 import { PageHeader } from '@/lib/components/page-header'
+import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 import { Posts } from '@/lib/components/posts/posts'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
@@ -351,7 +352,9 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
           onPostUpdated={updateStatus}
         />
       ) : (
-        <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm">
+        <div
+          className={`rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
+        >
           <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <Layers className="h-6 w-6" />
           </span>

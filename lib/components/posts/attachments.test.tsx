@@ -8,6 +8,7 @@ import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 
 import { Attachments } from './attachments'
+import { ContentWarning } from './content-warning'
 
 // jsdom has no ResizeObserver. useMediaStripScroll already no-ops when it is
 // undefined, but the strip still calls `measure()` eagerly on mount, so a
@@ -1110,7 +1111,7 @@ describe('Attachments', () => {
       expect(item.className).not.toContain('focus-visible:ring-')
     })
 
-    it('leaves a lone picture the ordinary outset ring', () => {
+    it('gives a lone picture the same inset outline at the frame edge', () => {
       render(
         <Attachments
           status={buildNoteStatus([
@@ -1120,11 +1121,16 @@ describe('Attachments', () => {
         />
       )
 
-      // Not inside an overflow container, so nothing clips it.
-      expect(screen.getByRole('button')).toHaveClass(
-        'focus-visible:ring-2',
-        'focus-visible:ring-ring/50'
+      // The lone picture can sit flush with the viewport below `md`, where
+      // `main`'s `overflow-x-clip` cuts the flush side of an outset ring; the outline
+      // is painted over the image, so it stays whole.
+      const button = screen.getByRole('button')
+      expect(button).toHaveClass(
+        'focus-visible:outline-2',
+        'focus-visible:-outline-offset-2',
+        'focus-visible:outline-ring/50'
       )
+      expect(button.className).not.toContain('focus-visible:ring-')
     })
   })
 
@@ -1289,6 +1295,95 @@ describe('Attachments', () => {
     expect(caption).toHaveTextContent('First line Second line')
   })
 
+  // jsdom does not lay out, so these pin the class contract only. The real
+  // frame-edge geometry is browser-verified; see docs/architecture.md
+  // "Post media layout".
+  describe('media alignment contract', () => {
+    const MEDIA_BLEED_LEFT = '-ml-[var(--post-media-bleed-left,4.25rem)]'
+    const MEDIA_BLEED_RIGHT = '-mr-[var(--post-media-bleed-right,1rem)]'
+    // The media column is the visible message column: these distances are
+    // exactly the left and right bleeds the row already uses.
+    const MEDIA_ITEM_INSET = 'pl-[var(--post-media-bleed-left,4.25rem)]'
+    const MEDIA_ITEM_RIGHT_INSET = 'pr-[var(--post-media-bleed-right,1rem)]'
+    const MEDIA_SNAP_INSET = 'scroll-pl-[var(--post-media-bleed-left,4.25rem)]'
+
+    it('bleeds a lone picture row to the frame edges and aligns it to the post text line', () => {
+      render(
+        <Attachments
+          status={buildNoteStatus([
+            buildAttachment({
+              width: 800,
+              height: 600,
+              name: 'Ridge at dawn'
+            })
+          ])}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      const button = screen.getByRole('button', {
+        name: 'Open media: Ridge at dawn'
+      })
+      expect(button.parentElement).toHaveClass(
+        MEDIA_BLEED_LEFT,
+        MEDIA_BLEED_RIGHT,
+        MEDIA_ITEM_INSET,
+        MEDIA_ITEM_RIGHT_INSET
+      )
+      // The caption lines up with its picture, not a second inset on top; the
+      // item inset already puts both on the post text's left line.
+      expect(screen.getByText('Ridge at dawn').parentElement).not.toHaveClass(
+        'px-4'
+      )
+    })
+
+    it('bleeds a picture strip to the frame edges, aligns items to the post text line, and insets the pager', () => {
+      render(
+        <Attachments
+          status={buildNoteStatus([
+            buildAttachment({ width: 800, height: 600, name: 'First' }),
+            buildAttachment({ width: 800, height: 600, name: 'Second' })
+          ])}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      const strip = screen.getByRole('group')
+      expect(strip.parentElement).toHaveClass(
+        MEDIA_BLEED_LEFT,
+        MEDIA_BLEED_RIGHT
+      )
+      // `pl` puts the first card on the post text line at rest, `pr` stops the
+      // scroll end with the last card on the message's right edge, and
+      // `scroll-pl` is the snapport that keeps every focused card on the left.
+      expect(strip).toHaveClass(
+        MEDIA_ITEM_INSET,
+        MEDIA_ITEM_RIGHT_INSET,
+        MEDIA_SNAP_INSET
+      )
+      expect(screen.getByText('First').parentElement).not.toHaveClass('px-4')
+      expect(screen.getByText('Second').parentElement).not.toHaveClass('px-4')
+
+      Object.defineProperty(strip, 'scrollWidth', {
+        configurable: true,
+        value: 1000
+      })
+      Object.defineProperty(strip, 'clientWidth', {
+        configurable: true,
+        value: 500
+      })
+      Object.defineProperty(strip, 'scrollLeft', {
+        configurable: true,
+        value: 0
+      })
+      fireEvent.scroll(strip)
+
+      expect(
+        screen.getByRole('button', { name: 'Next media' }).parentElement
+      ).toHaveClass('pr-[var(--post-media-bleed-right,1rem)]')
+    })
+  })
+
   it('disconnects every caption and strip resize observer on unmount', () => {
     const { unmount } = render(
       <Attachments
@@ -1304,5 +1399,358 @@ describe('Attachments', () => {
     unmount()
     expect(disconnectedObservers).toBe(createdObservers)
     expect(resizeCallbacks).toHaveLength(0)
+  })
+
+  describe('corner treatment & nested elements', () => {
+    it.each([
+      {
+        description: 'rounds a lone picture on all four corners',
+        sizes: [{ width: 800, height: 600 }],
+        expectedCorners: ['rounded-2xl']
+      },
+      {
+        description: 'rounds only the outer edges of a two-item strip',
+        sizes: [
+          { width: 800, height: 600 },
+          { width: 800, height: 600 }
+        ],
+        expectedCorners: ['rounded-l-2xl', 'rounded-r-2xl']
+      },
+      {
+        description: 'leaves the middle of a three-item strip square',
+        sizes: [
+          { width: 800, height: 600 },
+          { width: 600, height: 900 },
+          { width: 1200, height: 500 }
+        ],
+        expectedCorners: ['rounded-l-2xl', 'rounded-none', 'rounded-r-2xl']
+      },
+      {
+        description: 'leaves both middles of a four-item strip square',
+        sizes: [
+          { width: 800, height: 600 },
+          { width: 600, height: 900 },
+          { width: 600, height: 900 },
+          { width: 1200, height: 500 }
+        ],
+        expectedCorners: [
+          'rounded-l-2xl',
+          'rounded-none',
+          'rounded-none',
+          'rounded-r-2xl'
+        ]
+      }
+    ])('$description', ({ sizes, expectedCorners }) => {
+      const items = sizes.map((size) => buildAttachment(size))
+      const { container } = render(
+        <Attachments
+          status={buildNoteStatus(items)}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      const buttons = screen.getAllByRole('button')
+      expect(buttons).toHaveLength(expectedCorners.length)
+      const allCorners = [
+        'rounded-2xl',
+        'rounded-l-2xl',
+        'rounded-r-2xl',
+        'rounded-none'
+      ]
+      buttons.forEach((button, index) => {
+        expect(button).toHaveClass(expectedCorners[index])
+        allCorners
+          .filter((corner) => corner !== expectedCorners[index])
+          .forEach((other) => expect(button).not.toHaveClass(other))
+        expect(button).toHaveClass(
+          'focus-visible:outline-2',
+          'focus-visible:-outline-offset-2',
+          'focus-visible:outline-ring/50'
+        )
+        expect(button.className).not.toContain('focus-visible:ring-')
+      })
+
+      const images = Array.from(container.querySelectorAll('img'))
+      expect(images).toHaveLength(expectedCorners.length)
+      images.forEach((image, index) => {
+        expect(image).toHaveClass(expectedCorners[index])
+        if (
+          expectedCorners[index] === 'rounded-2xl' ||
+          expectedCorners[index] === 'rounded-none'
+        ) {
+          expect(image.className).not.toContain('rounded-[inherit]')
+        }
+      })
+    })
+
+    it('keeps natural widths across a four-item strip', () => {
+      const items = [
+        buildAttachment({ width: 800, height: 600 }),
+        buildAttachment({ width: 600, height: 900 }),
+        buildAttachment({ width: 600, height: 900 }),
+        buildAttachment({ width: 1200, height: 500 })
+      ]
+      render(
+        <Attachments
+          status={buildNoteStatus(items)}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      const buttons = screen.getAllByRole('button')
+      expect(buttons).toHaveLength(4)
+      expect(buttons[0].parentElement?.style.width).toBe('320px')
+      expect(buttons[1].parentElement?.style.width).toBe('160px')
+      expect(buttons[2].parentElement?.style.width).toBe('160px')
+      expect(buttons[3].parentElement?.style.width).toBe('576px')
+    })
+
+    describe('a single visual attachment', () => {
+      it('rounds the clipping wrapper with rounded-2xl and applies rounded-[inherit] to blurhash canvas and img', () => {
+        const attachment = buildAttachment({
+          width: 800,
+          height: 600,
+          blurhash: BLURHASH
+        })
+        const { container } = render(
+          <Attachments
+            status={buildNoteStatus([attachment])}
+            onMediaSelected={vi.fn()}
+          />
+        )
+
+        const button = screen.getByRole('button')
+        expect(button).toHaveClass('rounded-2xl')
+
+        const mediaWrapper = button.firstElementChild as HTMLElement
+        expect(mediaWrapper).toHaveClass('rounded-2xl', 'overflow-hidden')
+
+        const canvas = container.querySelector('canvas')
+        expect(canvas).toBeInTheDocument()
+        expect(canvas).toHaveClass('rounded-[inherit]')
+
+        const img = container.querySelector('img')
+        expect(img).toBeInTheDocument()
+        expect(img).toHaveClass('rounded-[inherit]')
+      })
+
+      it('rounds a single video element with rounded-2xl', () => {
+        const attachment = buildAttachment({
+          mediaType: 'video/mp4',
+          width: 800,
+          height: 600
+        })
+        const { container } = render(
+          <Attachments
+            status={buildNoteStatus([attachment])}
+            onMediaSelected={vi.fn()}
+          />
+        )
+
+        const button = screen.getByRole('button')
+        expect(button).toHaveClass('rounded-2xl')
+
+        const video = container.querySelector('video')
+        expect(video).toBeInTheDocument()
+        expect(video).toHaveClass('rounded-2xl')
+      })
+    })
+
+    describe('nested elements and wrappers inherit or follow corner treatment', () => {
+      it('passes corner classes to blurhash wrappers and applies rounded-[inherit] to canvas and img', () => {
+        const items = [
+          buildAttachment({ width: 800, height: 600, blurhash: BLURHASH }),
+          buildAttachment({ width: 600, height: 900, blurhash: BLURHASH }),
+          buildAttachment({ width: 1200, height: 500, blurhash: BLURHASH })
+        ]
+        const { container } = render(
+          <Attachments
+            status={buildNoteStatus(items)}
+            onMediaSelected={vi.fn()}
+          />
+        )
+
+        const buttons = screen.getAllByRole('button')
+        const wrappers = buttons.map(
+          (btn) => btn.firstElementChild as HTMLElement
+        )
+
+        expect(wrappers[0]).toHaveClass('rounded-l-2xl')
+        expect(wrappers[1]).toHaveClass('rounded-none')
+        expect(wrappers[2]).toHaveClass('rounded-r-2xl')
+
+        buttons.forEach((button) => {
+          expect(button).toHaveClass(
+            'focus-visible:outline-2',
+            'focus-visible:-outline-offset-2',
+            'focus-visible:outline-ring/50'
+          )
+          expect(button.className).not.toContain('focus-visible:ring-')
+        })
+
+        const canvases = Array.from(container.querySelectorAll('canvas'))
+        expect(canvases).toHaveLength(3)
+        canvases.forEach((canvas) => {
+          expect(canvas).toHaveClass('rounded-[inherit]')
+        })
+
+        const images = Array.from(container.querySelectorAll('img'))
+        expect(images).toHaveLength(3)
+        images.forEach((img) => {
+          expect(img).toHaveClass('rounded-[inherit]')
+        })
+      })
+
+      it('passes corner classes to video elements in a strip', () => {
+        const items = [
+          buildAttachment({
+            mediaType: 'video/mp4',
+            width: 800,
+            height: 600
+          }),
+          buildAttachment({
+            mediaType: 'video/mp4',
+            width: 600,
+            height: 900
+          }),
+          buildAttachment({
+            mediaType: 'video/mp4',
+            width: 1200,
+            height: 500
+          })
+        ]
+        const { container } = render(
+          <Attachments
+            status={buildNoteStatus(items)}
+            onMediaSelected={vi.fn()}
+          />
+        )
+
+        const videos = Array.from(container.querySelectorAll('video'))
+        expect(videos).toHaveLength(3)
+        expect(videos[0]).toHaveClass('rounded-l-2xl')
+        expect(videos[1]).toHaveClass('rounded-none')
+        expect(videos[2]).toHaveClass('rounded-r-2xl')
+
+        const buttons = screen.getAllByRole('button')
+        expect(buttons).toHaveLength(3)
+        buttons.forEach((button) => {
+          expect(button).toHaveClass(
+            'focus-visible:outline-2',
+            'focus-visible:-outline-offset-2',
+            'focus-visible:outline-ring/50'
+          )
+          expect(button.className).not.toContain('focus-visible:ring-')
+        })
+      })
+    })
+
+    describe('inside a content warning', () => {
+      it('keeps a lone picture rounded and on the card bleed line when expanded', () => {
+        const { container } = render(
+          <ContentWarning summary="Sensitive media" defaultOpen>
+            <Attachments
+              status={buildNoteStatus([
+                buildAttachment({ width: 800, height: 600 })
+              ])}
+              onMediaSelected={vi.fn()}
+            />
+          </ContentWarning>
+        )
+
+        const card = container.firstElementChild as HTMLElement
+        expect(card).toHaveClass('[--post-media-bleed-left:0.75rem]')
+        expect(card).toHaveClass('[--post-media-bleed-right:0.75rem]')
+
+        const button = screen.getByRole('button', { name: /Open media/ })
+        expect(button).toHaveClass('rounded-2xl')
+        expect(button).toHaveClass(
+          'focus-visible:outline-2',
+          'focus-visible:-outline-offset-2',
+          'focus-visible:outline-ring/50'
+        )
+        expect(button.className).not.toContain('focus-visible:ring-')
+        expect(button.parentElement).toHaveClass(
+          '-ml-[var(--post-media-bleed-left,4.25rem)]',
+          '-mr-[var(--post-media-bleed-right,1rem)]'
+        )
+
+        const img = container.querySelector('img')
+        expect(img).toBeInTheDocument()
+        expect(img).toHaveClass('rounded-2xl')
+        expect(img?.className).not.toContain('rounded-[inherit]')
+      })
+
+      it('keeps first, middle and last corners on the card bleed line when expanded', () => {
+        const { container } = render(
+          <ContentWarning summary="Sensitive media" defaultOpen>
+            <Attachments
+              status={buildNoteStatus([
+                buildAttachment({ width: 800, height: 600 }),
+                buildAttachment({ width: 600, height: 900 }),
+                buildAttachment({ width: 1200, height: 500 })
+              ])}
+              onMediaSelected={vi.fn()}
+            />
+          </ContentWarning>
+        )
+
+        const card = container.firstElementChild as HTMLElement
+        expect(card).toHaveClass('[--post-media-bleed-left:0.75rem]')
+        expect(card).toHaveClass('[--post-media-bleed-right:0.75rem]')
+
+        const strip = screen.getByRole('group')
+        expect(strip.parentElement).toHaveClass(
+          '-ml-[var(--post-media-bleed-left,4.25rem)]',
+          '-mr-[var(--post-media-bleed-right,1rem)]'
+        )
+
+        const buttons = screen.getAllByRole('button', { name: /Open media/ })
+        expect(buttons).toHaveLength(3)
+        expect(buttons[0]).toHaveClass('rounded-l-2xl')
+        expect(buttons[1]).toHaveClass('rounded-none')
+        expect(buttons[2]).toHaveClass('rounded-r-2xl')
+        buttons.forEach((button) => {
+          expect(button).toHaveClass(
+            'focus-visible:outline-2',
+            'focus-visible:-outline-offset-2',
+            'focus-visible:outline-ring/50'
+          )
+          expect(button.className).not.toContain('focus-visible:ring-')
+        })
+
+        const images = Array.from(container.querySelectorAll('img'))
+        expect(images).toHaveLength(3)
+        expect(images[0]).toHaveClass('rounded-l-2xl')
+        expect(images[1]).toHaveClass('rounded-none')
+        expect(images[1].className).not.toContain('rounded-[inherit]')
+        expect(images[2]).toHaveClass('rounded-r-2xl')
+      })
+
+      it('renders no media buttons while collapsed', () => {
+        render(
+          <ContentWarning summary="Sensitive media">
+            <Attachments
+              status={buildNoteStatus([
+                buildAttachment({ width: 800, height: 600 }),
+                buildAttachment({ width: 600, height: 900 }),
+                buildAttachment({ width: 1200, height: 500 })
+              ])}
+              onMediaSelected={vi.fn()}
+            />
+          </ContentWarning>
+        )
+
+        expect(
+          screen.getByRole('button', { name: 'Show content' })
+        ).toBeInTheDocument()
+        expect(
+          screen.queryByRole('button', { name: /Open media/ })
+        ).not.toBeInTheDocument()
+        expect(
+          screen.queryAllByRole('button', { name: /Open media/ })
+        ).toHaveLength(0)
+      })
+    })
   })
 })

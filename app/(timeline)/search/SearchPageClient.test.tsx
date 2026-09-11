@@ -6,7 +6,10 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 import { type SearchResult, search } from '@/lib/client'
+import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 import { createDeferred } from '@/lib/testing/deferred'
+import type { Attachment } from '@/lib/types/domain/attachment'
+import { type StatusNote, StatusType } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 
 import { SearchPageClient } from './SearchPageClient'
@@ -16,19 +19,10 @@ vi.mock('next/navigation', () => ({
   useSearchParams: vi.fn()
 }))
 
-vi.mock('@/lib/client', () => ({
+vi.mock('@/lib/client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/client')>()),
   search: vi.fn(),
   getTrendingTags: vi.fn().mockResolvedValue([])
-}))
-
-vi.mock('@/lib/components/posts/posts', () => ({
-  Posts: ({ statuses }: { statuses: { id: string }[] }) => (
-    <div data-testid="search-posts">
-      {statuses.map((status) => (
-        <div key={status.id}>{status.id}</div>
-      ))}
-    </div>
-  )
 }))
 
 const mockSearch = search as jest.Mock
@@ -104,6 +98,60 @@ const emptySearchResult = (): SearchResult => ({
   hashtags: []
 })
 
+const statusActor = {
+  ...currentActor,
+  name: 'Trail Author'
+}
+
+const searchAttachment = (id: string, name: string): Attachment => ({
+  id: `https://local.example/media/${id}`,
+  actorId: 'https://local.example/users/trail',
+  statusId: 'https://local.example/users/trail/statuses/gallery',
+  type: 'Document',
+  mediaType: 'image/jpeg',
+  url: `https://local.example/media/${id}.jpg`,
+  width: 800,
+  height: 600,
+  name,
+  mediaId: null,
+  blurhash: null,
+  focus: null,
+  thumbnailUrl: null,
+  createdAt: 1_779_664_800_000,
+  updatedAt: 1_779_664_800_000
+})
+
+const searchStatus = (id: string, text = id): StatusNote => ({
+  id: `https://local.example/users/trail/statuses/${id}`,
+  actorId: 'https://local.example/users/trail',
+  actor: {
+    ...statusActor,
+    id: 'https://local.example/users/trail',
+    username: 'trail',
+    followersUrl: 'https://local.example/users/trail/followers',
+    inboxUrl: 'https://local.example/users/trail/inbox'
+  },
+  to: [],
+  cc: [],
+  edits: [],
+  isLocalActor: true,
+  createdAt: 1_779_664_800_000,
+  updatedAt: 1_779_664_800_000,
+  type: StatusType.enum.Note,
+  url: `https://local.example/@trail/${id}`,
+  text: `<p>${text}</p>`,
+  summary: null,
+  reply: '',
+  replies: [],
+  actorAnnounceStatusId: null,
+  isActorLiked: false,
+  isActorBookmarked: false,
+  totalLikes: 0,
+  totalShares: 0,
+  attachments: [],
+  tags: []
+})
+
 const renderSearchPage = (params = '') => {
   ;(useRouter as jest.Mock).mockReturnValue({ replace, push })
   ;(useSearchParams as jest.Mock).mockReturnValue(new URLSearchParams(params))
@@ -150,6 +198,20 @@ describe('SearchPageClient', () => {
     mockSearch.mockReset()
     replace.mockReset()
     push.mockReset()
+    Object.defineProperty(globalThis, 'ResizeObserver', {
+      configurable: true,
+      value: vi.fn().mockImplementation(function () {
+        return {
+          disconnect: vi.fn(),
+          observe: vi.fn(),
+          unobserve: vi.fn()
+        }
+      })
+    })
+  })
+
+  afterEach(() => {
+    Reflect.deleteProperty(globalThis, 'ResizeObserver')
   })
 
   it('initializes from the URL query and renders grouped all results', async () => {
@@ -161,7 +223,7 @@ describe('SearchPageClient', () => {
           'alice@remote.example'
         )
       ],
-      statuses: [{ id: 'status-1' }],
+      statuses: [searchStatus('status-1')],
       hashtags: [
         {
           name: 'trailrunning',
@@ -524,13 +586,13 @@ describe('SearchPageClient', () => {
       appendedText: 'status-20',
       initialResults: {
         ...emptySearchResult(),
-        statuses: Array.from({ length: 20 }, (_, index) => ({
-          id: `status-${index}`
-        }))
+        statuses: Array.from({ length: 20 }, (_, index) =>
+          searchStatus(`status-${index}`)
+        )
       },
       nextResults: {
         ...emptySearchResult(),
-        statuses: [{ id: 'status-19' }, { id: 'status-20' }]
+        statuses: [searchStatus('status-19'), searchStatus('status-20')]
       }
     },
     {
@@ -584,9 +646,9 @@ describe('SearchPageClient', () => {
       .mockReturnValueOnce(loadMoreSearch.promise)
       .mockResolvedValueOnce({
         ...emptySearchResult(),
-        statuses: Array.from({ length: 20 }, (_, index) => ({
-          id: `status-${index}`
-        }))
+        statuses: Array.from({ length: 20 }, (_, index) =>
+          searchStatus(`status-${index}`)
+        )
       })
 
     renderSearchPage('q=runner&type=accounts')
@@ -781,5 +843,62 @@ describe('SearchPageClient', () => {
     await waitFor(() => {
       expect(screen.queryByText('First Result')).not.toBeInTheDocument()
     })
+  })
+
+  it('applies the mobile feed surface and overflow-visible to the results section', () => {
+    const { container } = renderSearchPage()
+    const section = container.querySelector('section')
+    expect(section).toBeInTheDocument()
+    expect(section).toHaveClass('max-md:overflow-visible')
+    expect(section).toHaveClass('max-md:mx-[calc(50%_-_50vw)]')
+    expect(section).toHaveClass('max-md:w-auto')
+    expect(section).toHaveClass('max-md:rounded-none')
+  })
+
+  it('embeds frameless posts with a bleeding two-item media strip', async () => {
+    const gallery = searchStatus('gallery', 'Trail gallery')
+    gallery.attachments = [
+      searchAttachment('gallery-1', 'First'),
+      searchAttachment('gallery-2', 'Second')
+    ]
+    mockSearch.mockResolvedValueOnce({
+      ...emptySearchResult(),
+      statuses: [gallery]
+    })
+
+    const { container } = renderSearchPage('q=trail&type=statuses')
+
+    expect(await screen.findByText('Trail gallery')).toBeInTheDocument()
+
+    const sections = container.querySelectorAll('section')
+    expect(sections.length).toBeGreaterThan(1)
+    const feed = sections[sections.length - 1]
+    expect(feed).not.toHaveClass('rounded-xl')
+    expect(feed).not.toHaveClass('border')
+    expect(feed).not.toHaveClass('bg-card')
+    expect(feed).not.toHaveClass('shadow-sm')
+    expect(feed).not.toHaveClass(...MOBILE_FEED_SURFACE_CLASS.split(' '))
+
+    const first = screen.getByRole('button', { name: 'Open media: First' })
+    const second = screen.getByRole('button', { name: 'Open media: Second' })
+    expect(first).toHaveClass('rounded-l-2xl')
+    expect(first).not.toHaveClass('rounded-r-2xl')
+    expect(first).not.toHaveClass('rounded-2xl')
+    expect(second).toHaveClass('rounded-r-2xl')
+    expect(second).not.toHaveClass('rounded-l-2xl')
+    expect(second).not.toHaveClass('rounded-2xl')
+
+    const strip = screen.getByRole('group', {
+      name: /2 media attachments/
+    })
+    expect(strip.parentElement).toHaveClass(
+      '-ml-[var(--post-media-bleed-left,4.25rem)]',
+      '-mr-[var(--post-media-bleed-right,1rem)]'
+    )
+    expect(strip).toHaveClass(
+      'pl-[var(--post-media-bleed-left,4.25rem)]',
+      'pr-[var(--post-media-bleed-right,1rem)]',
+      'scroll-pl-[var(--post-media-bleed-left,4.25rem)]'
+    )
   })
 })

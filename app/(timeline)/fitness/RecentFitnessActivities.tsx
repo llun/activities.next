@@ -2,6 +2,7 @@ import { X } from 'lucide-react'
 import Link from 'next/link'
 import { FC } from 'react'
 
+import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 import { Posts } from '@/lib/components/posts/posts'
 import { formatActivityTypeLabel } from '@/lib/services/fitness-files/activityPresentation'
 import { ActorProfile } from '@/lib/types/domain/actor'
@@ -87,7 +88,9 @@ export const RecentFitnessActivities: FC<Props> = ({
             )}
           </div>
           {statuses.length === 0 ? (
-            <p className="rounded-lg border border-dashed p-6 text-center text-sm break-words text-muted-foreground">
+            <p
+              className={`rounded-lg border border-dashed p-6 text-center text-sm break-words text-muted-foreground ${MOBILE_FEED_SURFACE_CLASS}`}
+            >
               No recent {label} activities have been posted.
             </p>
           ) : (

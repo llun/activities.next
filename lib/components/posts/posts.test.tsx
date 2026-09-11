@@ -13,6 +13,7 @@ import {
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 
+import { MOBILE_FEED_SURFACE_CLASS } from './feedLayout'
 import { Posts } from './posts'
 
 // A boost (Announce) row wrapping the shared poll fixture as its original, with
@@ -164,6 +165,34 @@ describe('Posts', () => {
     fireEvent.click(screen.getAllByRole('button', { name: /Reply to post/ })[0])
 
     expect(screen.getAllByTestId('inline-composer')).toHaveLength(1)
+  })
+
+  it('applies the mobile feed surface to a framed feed only', () => {
+    // The embedded surfaces (Search, Explore, landing) own their parent frame
+    // and must not get the negative gutter bleed; only `framed` feeds do. jsdom
+    // does not lay the geometry out — the frame edges are browser-verified.
+    const { container } = render(
+      <Posts
+        host="activities.local"
+        currentTime={pollStatusCurrentTime}
+        statuses={[pollStatusFixture]}
+      />
+    )
+    expect(container.querySelector('section')).toHaveClass(
+      ...MOBILE_FEED_SURFACE_CLASS.split(' ')
+    )
+
+    const { container: embedded } = render(
+      <Posts
+        host="activities.local"
+        framed={false}
+        currentTime={pollStatusCurrentTime}
+        statuses={[pollStatusFixture]}
+      />
+    )
+    expect(embedded.querySelector('section')).not.toHaveClass(
+      ...MOBILE_FEED_SURFACE_CLASS.split(' ')
+    )
   })
 
   it('opens the status detail page from the timestamp', async () => {

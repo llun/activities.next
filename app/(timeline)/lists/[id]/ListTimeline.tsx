@@ -6,6 +6,7 @@ import { FC, useCallback, useRef, useState } from 'react'
 
 import { getListTimeline } from '@/lib/client'
 import { PageHeader } from '@/lib/components/page-header'
+import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 import { Posts } from '@/lib/components/posts/posts'
 import {
   removeOriginalStatus,
@@ -191,7 +192,9 @@ export const ListTimeline: FC<ListTimelineProps> = ({
           onReactionsChanged={onReactionsChanged}
         />
       ) : (
-        <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm">
+        <div
+          className={`rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
+        >
           <h2 className="mb-2 text-xl font-semibold">No posts yet</h2>
           <p>
             Posts from this list&rsquo;s members will appear here. Add accounts

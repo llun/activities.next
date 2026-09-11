@@ -7,6 +7,7 @@ import { getTimeline } from '@/lib/client'
 import { AnnouncementBanner } from '@/lib/components/announcements/AnnouncementBanner'
 import { PageHeader } from '@/lib/components/page-header'
 import { PostBox } from '@/lib/components/post-box/post-box'
+import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 import { Posts } from '@/lib/components/posts/posts'
 import {
   removeOriginalStatus,
@@ -206,7 +207,9 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         }
       />
 
-      <section className="rounded-xl border bg-card p-4 shadow-sm">
+      <section
+        className={`rounded-xl border bg-card p-4 shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
+      >
         {/* The home timeline keeps a top composer for brand-new posts. Reply,
             quote, and edit happen inline in the feed via the shared composer,
             like every other surface. */}
@@ -240,11 +243,15 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
             onReactionsChanged={onReactionsChanged}
           />
         ) : isLoadingMoreStatuses || isRefreshing ? (
-          <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm">
+          <div
+            className={`rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
+          >
             <p className="text-sm font-medium">Loading timeline...</p>
           </div>
         ) : (
-          <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm">
+          <div
+            className={`rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
+          >
             <h2 className="mb-2 text-xl font-semibold">
               Your timeline is empty
             </h2>
