@@ -1,0 +1,25 @@
+lib/components/posts/attachments.tsx
+  s_10531fef57a43f::t_af49643b78ce2a 87-88,330
+docs/mastodon-api-compatibility.md
+  s_10531fef57a43f::t_af49643b78ce2a 744
+docs/architecture.md
+  s_10531fef57a43f::t_2bbf88afa48348 1688-1693
+lib/components/posts/attachments.test.tsx
+  s_10531fef57a43f::t_af49643b78ce2a 1382
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b56f6b379bbd235a29a7de4e26b7143916fb2d5d",
+  "prompts": {},
+  "sessions": {
+    "s_10531fef57a43f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f73f2ed09ffe3DWHyfuBTWeDTJ",
+        "model": "deepseek-flash"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
