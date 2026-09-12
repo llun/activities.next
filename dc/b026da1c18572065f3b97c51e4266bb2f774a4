@@ -1,0 +1,16 @@
+lib/components/posts/collapsible-content.test.tsx
+  h_580a04e334fef4 220-246
+lib/components/posts/collapsible-content.tsx
+  h_580a04e334fef4 71,94,109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "dcb026da1c18572065f3b97c51e4266bb2f774a4",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
