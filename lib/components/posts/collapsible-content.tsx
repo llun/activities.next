@@ -68,12 +68,7 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
   const shouldClamp = needsCollapse || (!hasCheckedOverflow && !isExpanded)
 
   return (
-    <div
-      className={cn(
-        'relative min-h-0',
-        (needsCollapse || shouldClamp) && 'overflow-hidden'
-      )}
-    >
+    <div className={cn('relative min-h-0', shouldClamp && 'overflow-hidden')}>
       <div
         id={contentId}
         className={cn(className, shouldClamp && 'overflow-hidden min-h-0')}
@@ -96,7 +91,7 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
               type="button"
               aria-controls={contentId}
               aria-label="Read full post"
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors bg-background/80 backdrop-blur-sm px-2.5 py-0.5 rounded-full border border-border/60 cursor-pointer shadow-xs"
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors bg-background/80 backdrop-blur-sm px-2.5 py-0.5 rounded-full border border-border/60 cursor-pointer shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               onClick={(e) => {
                 e.stopPropagation()
                 onReadMore()
@@ -111,7 +106,7 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
               aria-expanded={isExpanded}
               aria-controls={contentId}
               aria-label="Show more content"
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors bg-background/80 backdrop-blur-sm px-2 py-0.5 rounded-full border border-border/60 cursor-pointer shadow-xs"
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors bg-background/80 backdrop-blur-sm px-2 py-0.5 rounded-full border border-border/60 cursor-pointer shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               onClick={(e) => {
                 e.stopPropagation()
                 setIsExpanded(true)

@@ -217,4 +217,31 @@ describe('CollapsibleContent', () => {
     expect(content).not.toHaveClass('overflow-hidden')
     expect(content?.style.height).toBe('')
   })
+
+  it('does not collapse or show a button for content that fits within the line limit', async () => {
+    Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
+      configurable: true,
+      get: () => 50
+    })
+
+    render(
+      <CollapsibleContent maxLines={5} onReadMore={vi.fn()}>
+        Short status content.
+      </CollapsibleContent>
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('button', { name: 'Read full post' })
+      ).not.toBeInTheDocument()
+    })
+    expect(
+      screen.queryByRole('button', { name: 'Show more content' })
+    ).not.toBeInTheDocument()
+
+    const content = screen.getByText('Short status content.').parentElement
+    expect(content).not.toHaveClass('overflow-hidden')
+    expect(content?.style.height).toBe('')
+    expect(content?.style.maxHeight).toBe('')
+  })
 })
