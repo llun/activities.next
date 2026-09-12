@@ -182,6 +182,9 @@ describe('CollapsibleContent', () => {
     })
 
     const button = screen.getByRole('button', { name: 'Read full post' })
+    expect(button).toHaveAttribute('data-slot', 'button')
+    expect(button).toHaveAttribute('data-variant', 'outline')
+    expect(button).toHaveAttribute('data-size', 'default')
     fireEvent.click(button)
 
     expect(handleReadMore).toHaveBeenCalledTimes(1)
@@ -201,6 +204,9 @@ describe('CollapsibleContent', () => {
     })
 
     const button = screen.getByRole('button', { name: 'Show more content' })
+    expect(button).toHaveAttribute('data-slot', 'button')
+    expect(button).toHaveAttribute('data-variant', 'outline')
+    expect(button).toHaveAttribute('data-size', 'default')
     const content = document.getElementById(
       button.getAttribute('aria-controls')!
     )

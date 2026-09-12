@@ -11,6 +11,7 @@ import {
   useState
 } from 'react'
 
+import { Button } from '@/lib/components/ui/button'
 import { cn } from '@/lib/utils'
 
 interface CollapsibleContentProps {
@@ -87,34 +88,36 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
       {needsCollapse && (
         <div className="absolute bottom-0 left-0 right-0 flex items-end justify-center bg-gradient-to-t from-background to-transparent pt-8 pb-0">
           {onReadMore ? (
-            <button
+            <Button
               type="button"
+              variant="outline"
               aria-controls={contentId}
               aria-label="Read full post"
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors bg-background/80 backdrop-blur-sm px-2.5 py-0.5 rounded-full border border-border/60 cursor-pointer shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              className="bg-background/80 backdrop-blur-sm"
               onClick={(e) => {
                 e.stopPropagation()
                 onReadMore()
               }}
             >
               <span>Read full post</span>
-              <ChevronRight className="size-3" />
-            </button>
+              <ChevronRight className="size-4" />
+            </Button>
           ) : (
-            <button
+            <Button
               type="button"
+              variant="outline"
               aria-expanded={isExpanded}
               aria-controls={contentId}
               aria-label="Show more content"
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors bg-background/80 backdrop-blur-sm px-2 py-0.5 rounded-full border border-border/60 cursor-pointer shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              className="bg-background/80 backdrop-blur-sm"
               onClick={(e) => {
                 e.stopPropagation()
                 setIsExpanded(true)
               }}
             >
               <span>Show more</span>
-              <ChevronDown className="size-3" />
-            </button>
+              <ChevronDown className="size-4" />
+            </Button>
           )}
         </div>
       )}
