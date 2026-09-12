@@ -134,7 +134,14 @@ export const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
 }
 
 export const Post: FC<PostProps> = (props) => {
-  const { host, status, onShowAttachment, collapsible, postLineLimit } = props
+  const {
+    host,
+    status,
+    onShowAttachment,
+    collapsible,
+    postLineLimit,
+    onOpenStatus
+  } = props
   const actualStatus = getActualStatus(status)
   // Held here because the chips and the action-row trigger are two halves of
   // one control. An Announce wrapper carries no reactions of its own — they
@@ -280,6 +287,7 @@ export const Post: FC<PostProps> = (props) => {
             className="mt-1 text-sm leading-relaxed break-words"
             contentClassName="markdown-content"
             maxLines={postLineLimit}
+            onReadMore={onOpenStatus ? () => onOpenStatus(status) : undefined}
           >
             {processedAndCleanedText}
           </CollapsibleContent>

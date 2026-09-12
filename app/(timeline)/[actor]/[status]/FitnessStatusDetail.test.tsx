@@ -46,8 +46,17 @@ vi.mock('@/lib/utils/maplibre', () => ({
   OPENFREEMAP_HEATMAP_STYLE_URL: 'https://tiles.openfreemap.org/styles/positron'
 }))
 
+const mockPush = vi.fn()
+const mockRefresh = vi.fn()
+
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ refresh: vi.fn(), push: vi.fn() })
+  useRouter: () => ({ refresh: mockRefresh, push: mockPush })
+}))
+
+vi.mock('@/lib/utils/getStatusDetailPathClient', () => ({
+  getStatusDetailPathClient: vi.fn(
+    async (status: { id: string }) => `/@actor/${status.id}`
+  )
 }))
 
 vi.mock('@/lib/components/posts/actor', () => ({
@@ -79,8 +88,25 @@ vi.mock('@/lib/components/fitness/ActivityRouteMapKit', () => ({
 }))
 
 vi.mock('@/lib/components/posts/post', () => ({
-  Post: ({ status }: { status: { id: string } }) => (
-    <div data-testid="reply-post">{status.id}</div>
+  Post: ({
+    status,
+    onOpenStatus
+  }: {
+    status: { id: string }
+    onOpenStatus?: (status: { id: string }) => void
+  }) => (
+    <div data-testid="reply-post">
+      {status.id}
+      {onOpenStatus && (
+        <button
+          type="button"
+          data-testid={`open-reply-${status.id}`}
+          onClick={() => onOpenStatus(status)}
+        >
+          Open
+        </button>
+      )}
+    </div>
   )
 }))
 
@@ -440,6 +466,8 @@ const expectNoGearOnMetaLine = () =>
 
 describe('FitnessStatusDetail', () => {
   beforeEach(() => {
+    mockPush.mockReset()
+    mockRefresh.mockReset()
     mockGetFitnessFilesByStatus.mockReset()
     mockGetFitnessRouteData.mockReset()
     mockGetFitnessGearList.mockReset()
@@ -679,6 +707,28 @@ describe('FitnessStatusDetail', () => {
     )
     // No composer for logged-out viewers.
     expect(screen.queryByTestId('comment-composer')).not.toBeInTheDocument()
+  })
+
+  it('navigates to reply status detail when reply openStatus is triggered', async () => {
+    const reply = {
+      id: 'reply-1',
+      type: 'Note',
+      actorId: actor.id,
+      actor
+    } as unknown as Status
+
+    renderDetail({ replies: [reply] })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reply' }))
+
+    expect(screen.getByTestId('reply-post')).toHaveTextContent('reply-1')
+    expect(screen.getByTestId('open-reply-reply-1')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('open-reply-reply-1'))
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/@actor/reply-1')
+    })
   })
 
   it('renders the 25 W power distribution section', async () => {
