@@ -30,8 +30,25 @@ import {
 import { Post } from './post'
 
 vi.mock('./collapsible-content', () => ({
-  CollapsibleContent: ({ children }: { children: ReactNode }) => (
-    <div data-testid="collapsible-content">{children}</div>
+  CollapsibleContent: ({
+    children,
+    onReadMore
+  }: {
+    children: ReactNode
+    onReadMore?: () => void
+  }) => (
+    <div data-testid="collapsible-content">
+      {children}
+      {onReadMore && (
+        <button
+          type="button"
+          data-testid="read-more-button"
+          onClick={onReadMore}
+        >
+          Read full post
+        </button>
+      )}
+    </div>
   )
 }))
 
@@ -183,6 +200,44 @@ describe('Post', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show content' }))
 
     expect(screen.queryByTestId('collapsible-content')).not.toBeInTheDocument()
+  })
+
+  it('wires onReadMore to onOpenStatus when collapsible and postLineLimit are enabled', () => {
+    const handleOpenStatus = vi.fn()
+    render(
+      <Post
+        host="activities.local"
+        currentTime={currentTime}
+        status={{ ...status, summary: null }}
+        collapsible
+        postLineLimit={5}
+        onOpenStatus={handleOpenStatus}
+        onShowAttachment={vi.fn()}
+      />
+    )
+
+    const readMoreBtn = screen.getByTestId('read-more-button')
+    expect(readMoreBtn).toBeInTheDocument()
+    fireEvent.click(readMoreBtn)
+    expect(handleOpenStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ id: status.id })
+    )
+  })
+
+  it('omits onReadMore when onOpenStatus is not provided', () => {
+    render(
+      <Post
+        host="activities.local"
+        currentTime={currentTime}
+        status={{ ...status, summary: null }}
+        collapsible
+        postLineLimit={5}
+        onShowAttachment={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('collapsible-content')).toBeInTheDocument()
+    expect(screen.queryByTestId('read-more-button')).not.toBeInTheDocument()
   })
 
   describe('quote-inline RE: fallback', () => {

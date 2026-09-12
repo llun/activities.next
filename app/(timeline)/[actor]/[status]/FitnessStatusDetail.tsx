@@ -70,6 +70,7 @@ import {
   normalizeFitnessSourceUrl
 } from '@/lib/utils/fitness'
 import { getDeviceDisplayLabel } from '@/lib/utils/fitnessDeviceBrands'
+import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 import {
   type MastodonVisibility,
   getVisibility
@@ -424,6 +425,12 @@ export const FitnessStatusDetail: FC<Props> = ({
   onShowAttachment
 }) => {
   const router = useRouter()
+  const openStatus = (statusToOpen: Status) => {
+    void (async () => {
+      const detailPath = await getStatusDetailPathClient(statusToOpen)
+      if (detailPath) router.push(detailPath)
+    })()
+  }
   const [activeSection, setActiveSection] = useState<SectionKey>('overview')
   // `separate` (the default) stacks each selected graph into its own row; the new
   // `combined` option overlays them in one chart.
@@ -1920,6 +1927,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                       currentTime={currentTime}
                       status={reply}
                       collapsible
+                      onOpenStatus={openStatus}
                       onShowAttachment={onShowAttachment}
                     />
                   </article>

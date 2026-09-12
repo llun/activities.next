@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { CollapsibleContent } from './collapsible-content'
 
@@ -165,5 +165,83 @@ describe('CollapsibleContent', () => {
     ).toHaveTextContent(
       'Long status content that exceeds the timeline line limit.'
     )
+  })
+
+  it('renders a Read full post button when onReadMore is provided and invokes it on click', async () => {
+    const handleReadMore = vi.fn()
+    render(
+      <CollapsibleContent maxLines={5} onReadMore={handleReadMore}>
+        Long status content that exceeds the timeline line limit.
+      </CollapsibleContent>
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Read full post' })
+      ).toBeInTheDocument()
+    })
+
+    const button = screen.getByRole('button', { name: 'Read full post' })
+    fireEvent.click(button)
+
+    expect(handleReadMore).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders a Show more button when onReadMore is omitted and expands content on click', async () => {
+    render(
+      <CollapsibleContent maxLines={5}>
+        Long status content that exceeds the timeline line limit.
+      </CollapsibleContent>
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Show more content' })
+      ).toBeInTheDocument()
+    })
+
+    const button = screen.getByRole('button', { name: 'Show more content' })
+    const content = document.getElementById(
+      button.getAttribute('aria-controls')!
+    )
+    expect(content).toHaveClass('overflow-hidden')
+    expect(content?.style.height).toBe(COLLAPSED_HEIGHT_REM)
+
+    fireEvent.click(button)
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('button', { name: 'Show more content' })
+      ).not.toBeInTheDocument()
+    })
+    expect(content).not.toHaveClass('overflow-hidden')
+    expect(content?.style.height).toBe('')
+  })
+
+  it('does not collapse or show a button for content that fits within the line limit', async () => {
+    Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
+      configurable: true,
+      get: () => 50
+    })
+
+    render(
+      <CollapsibleContent maxLines={5} onReadMore={vi.fn()}>
+        Short status content.
+      </CollapsibleContent>
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('button', { name: 'Read full post' })
+      ).not.toBeInTheDocument()
+    })
+    expect(
+      screen.queryByRole('button', { name: 'Show more content' })
+    ).not.toBeInTheDocument()
+
+    const content = screen.getByText('Short status content.').parentElement
+    expect(content).not.toHaveClass('overflow-hidden')
+    expect(content?.style.height).toBe('')
+    expect(content?.style.maxHeight).toBe('')
   })
 })
