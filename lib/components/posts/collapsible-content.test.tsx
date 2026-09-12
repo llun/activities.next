@@ -93,6 +93,8 @@ describe('CollapsibleContent', () => {
     )
 
     expect(content).toHaveClass('overflow-hidden')
+    expect(content).toHaveClass('min-h-0')
+    expect(content?.parentElement).toHaveClass('min-h-0')
     expect(content?.style.height).toBe(COLLAPSED_HEIGHT_REM)
     expect(content?.style.maxHeight).toBe('')
   })

@@ -63,10 +63,10 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
   const needsCollapse = isOverflowing && !isExpanded
 
   return (
-    <div className="relative">
+    <div className="relative min-h-0">
       <div
         id={contentId}
-        className={cn(className, needsCollapse && 'overflow-hidden')}
+        className={cn(className, needsCollapse && 'overflow-hidden min-h-0')}
         style={needsCollapse ? { height: `${maxHeightRem}rem` } : undefined}
       >
         <div ref={measuredContentRef} className={contentClassName}>

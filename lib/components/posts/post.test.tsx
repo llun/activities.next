@@ -2390,4 +2390,26 @@ describe('Post', () => {
       expect(screen.getByText('A linked article')).toBeInTheDocument()
     })
   })
+
+  describe('layout constraints', () => {
+    it('applies min-h-0 and min-w-0 to outer flex containers and content column to avoid WebKit height inflation', () => {
+      const { container } = render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={status}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      const outerCol = container.querySelector('.flex.flex-col')
+      expect(outerCol).toHaveClass('min-h-0', 'min-w-0')
+
+      const innerRow = container.querySelector('.flex.gap-3')
+      expect(innerRow).toHaveClass('min-h-0', 'min-w-0')
+
+      const contentCol = container.querySelector('.flex-1')
+      expect(contentCol).toHaveClass('min-h-0', 'min-w-0')
+    })
+  })
 })

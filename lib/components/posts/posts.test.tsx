@@ -210,4 +210,15 @@ describe('Posts', () => {
       expect(mockPush).toHaveBeenCalledWith('/@llun/poll-1')
     })
   })
+
+  it('renders article elements with min-h-0 to avoid WebKit flex sizing retention', () => {
+    const { container } = render(
+      <Posts
+        host="activities.local"
+        currentTime={pollStatusCurrentTime}
+        statuses={[pollStatusFixture]}
+      />
+    )
+    expect(container.querySelector('article')).toHaveClass('min-h-0', 'min-w-0')
+  })
 })
