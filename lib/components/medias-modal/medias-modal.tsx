@@ -297,6 +297,7 @@ export const MediasModal: FC<Props> = ({
                     className="flex max-h-[80vh] max-w-full flex-col items-center justify-center cursor-default"
                   >
                     <Media
+                      allowAutoplay={panelIndex === 1}
                       showVideoControl
                       className={cn(
                         'max-w-full object-contain',
@@ -346,6 +347,7 @@ export const MediasModal: FC<Props> = ({
               )}
             >
               <Media
+                allowAutoplay={false}
                 className="h-full w-full object-cover"
                 attachment={media}
                 showVideoControl={false} // Thumbnails shouldn't control video

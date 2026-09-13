@@ -57,6 +57,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Media upload** — Upload images and video to local filesystem, S3, or S3-compatible object storage
 - ✅ **Blurhash & smart focal points** — Automatic server-side blurhash placeholder generation and saliency-based smart focal point detection on uploaded images and video preview frames, with client-overridable focal points, inbound ActivityPub focal point/blurhash parsing, and timeline blurhash placeholder canvas rendering. Every path that attaches media carries them — composing, editing a posted status (including a focal point moved from a Mastodon client), route map images, and Strava photo and archive imports — and both image and video attachments serialise `meta.focus`
 - ✅ **Media management** — Browse, view, and delete uploaded media from the settings page with storage usage display
+- ✅ **Animated GIF and GIFV playback** — Detect and play animated GIFs and GIFV attachments in timeline statuses and media lightbox according to the reader's saved GIF autoplay preference, with accessible manual playback controls, reduced motion support, and Mastodon API parity (`type: "gifv"`)
 - ✅ **Profile media gallery** — Browse a user's public media posts from profile tabs
 - ✅ **Fitness file storage** — Upload .fit, .gpx, and .tcx activity files
 - ✅ **Fitness activity processing** — Parse GPS tracks and metrics from uploaded .fit, .gpx, and .tcx files
@@ -119,7 +120,6 @@ This document tracks the implemented and planned features for Activity.next.
 
 - [ ] Streaming API for real-time updates
 - [ ] Bookmark collections
-- [ ] Animated-GIF `gifv` detection (Mastodon `MediaAttachment` parity — currently GIFs are served as `type: "image"`)
 
 ## Feature Requests
 

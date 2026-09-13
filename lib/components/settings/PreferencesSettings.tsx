@@ -4,6 +4,7 @@ import { FC, useMemo, useState } from 'react'
 
 import { PreferencesInput, updatePreferences } from '@/lib/client'
 import { PageHeader } from '@/lib/components/page-header'
+import { usePlaybackPreferences } from '@/lib/components/preferences/PlaybackPreferencesContext'
 import { Button } from '@/lib/components/ui/button'
 import { Label } from '@/lib/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/lib/components/ui/radio-group'
@@ -92,6 +93,7 @@ interface Props {
 }
 
 export const PreferencesSettings: FC<Props> = ({ initialPreferences }) => {
+  const { setAutoplayGifs } = usePlaybackPreferences()
   // The baseline the form diffs against. Tracked in state (seeded from the
   // server prop) so a successful save can reset it — otherwise the form would
   // stay "dirty" against the immutable prop and keep Save enabled.
@@ -146,6 +148,7 @@ export const PreferencesSettings: FC<Props> = ({ initialPreferences }) => {
       if (ok) {
         setSaved(true)
         setSavedPreferences(preferences)
+        setAutoplayGifs(preferences.autoplayGifs)
       } else {
         setError('Failed to save preferences. Please try again.')
       }
@@ -308,7 +311,7 @@ export const PreferencesSettings: FC<Props> = ({ initialPreferences }) => {
 
         <ControlRow
           label="Autoplay animated GIFs"
-          description="Off plays them only on hover or tap."
+          description="Off keeps GIFs paused until you choose to play them."
           htmlFor="reading-gifs"
         >
           <Switch

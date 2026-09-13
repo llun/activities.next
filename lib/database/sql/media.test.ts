@@ -2096,6 +2096,57 @@ describe('MediaDatabase', () => {
         expect(found?.focus).toEqual({ x: -0.5, y: 0.75 })
         expect(found?.thumbnailUrl).toBe('https://example.com/thumbnail.jpg')
       })
+
+      it('persists, queries, and updates playbackType for animation attachments', async () => {
+        const statuses = await database.getActorStatuses({
+          actorId: actors.primary.id
+        })
+        expect(statuses.length).toBeGreaterThan(0)
+
+        const attachment = await database.createAttachment({
+          actorId: actors.primary.id,
+          statusId: statuses[0].id,
+          mediaType: 'video/mp4',
+          url: 'https://example.com/animation.mp4',
+          width: 480,
+          height: 480,
+          name: 'An animation',
+          playbackType: 'gifv',
+          thumbnailUrl: 'https://example.com/preview.png'
+        })
+
+        expect(attachment.playbackType).toBe('gifv')
+
+        const list = await database.getAttachments({ statusId: statuses[0].id })
+        const found = list.find((a) => a.id === attachment.id)
+        expect(found).toBeDefined()
+        expect(found?.playbackType).toBe('gifv')
+        expect(found?.thumbnailUrl).toBe('https://example.com/preview.png')
+
+        const listWithMedia = await database.getAttachmentsWithMedia({
+          statusId: statuses[0].id
+        })
+        const foundWithMedia = listWithMedia.find((a) => a.id === attachment.id)
+        expect(foundWithMedia?.playbackType).toBe('gifv')
+
+        const updated = await database.updateAttachmentPlayback({
+          id: attachment.id,
+          playbackType: 'video',
+          thumbnailUrl: 'https://example.com/new-preview.png'
+        })
+        expect(updated).toBe(true)
+
+        const listAfterUpdate = await database.getAttachments({
+          statusId: statuses[0].id
+        })
+        const foundAfterUpdate = listAfterUpdate.find(
+          (a) => a.id === attachment.id
+        )
+        expect(foundAfterUpdate?.playbackType).toBe('video')
+        expect(foundAfterUpdate?.thumbnailUrl).toBe(
+          'https://example.com/new-preview.png'
+        )
+      })
     })
   })
 })

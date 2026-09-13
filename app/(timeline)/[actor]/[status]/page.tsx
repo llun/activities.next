@@ -10,6 +10,7 @@ import { getDatabase } from '@/lib/database'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
+import { enrichStatusAttachments } from '@/lib/services/medias/animationMetadata'
 import { getQueue } from '@/lib/services/queue'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import {
@@ -167,6 +168,11 @@ const Page: FC<Props> = async ({ params }) => {
 
   if (!status) {
     return notFound()
+  }
+
+  const actualStatus = getOriginalStatus(status)
+  if (actualStatus && actualStatus.type === StatusType.enum.Note) {
+    await enrichStatusAttachments(actualStatus, database)
   }
 
   // Focused-status visibility gate — the single source of truth shared with the

@@ -2,8 +2,9 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 
+import { PlaybackPreferencesProvider } from '@/lib/components/preferences/PlaybackPreferencesContext'
 import { Attachment } from '@/lib/types/domain/attachment'
 
 import { MediasModal } from './medias-modal'
@@ -149,5 +150,40 @@ describe('MediasModal', () => {
     const imgs = screen.getAllByRole('img', { name: ':blobcat:' })
     expect(imgs.length).toBeGreaterThanOrEqual(1)
     expect(imgs[0]).toHaveAttribute('src', 'https://example.com/blobcat.png')
+  })
+
+  it('allows autoplay for active slide but disables autoplay for inactive slides and thumbnails', async () => {
+    const playSpy = vi
+      .spyOn(HTMLMediaElement.prototype, 'play')
+      .mockImplementation(async () => {})
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
+
+    const first = buildAttachment({
+      id: 'attachment-1',
+      mediaType: 'video/mp4',
+      playbackType: 'gifv',
+      url: 'https://activities.local/media/1.mp4'
+    })
+    const second = buildAttachment({
+      id: 'attachment-2',
+      mediaType: 'video/mp4',
+      playbackType: 'gifv',
+      url: 'https://activities.local/media/2.mp4'
+    })
+
+    await act(async () => {
+      render(
+        <PlaybackPreferencesProvider initialAutoplayGifs={true}>
+          <MediasModal
+            medias={[first, second]}
+            initialSelection={0}
+            onClosed={vi.fn()}
+          />
+        </PlaybackPreferencesProvider>
+      )
+    })
+
+    // Only the active slide (panelIndex === 1) should have triggered play()
+    expect(playSpy).toHaveBeenCalledTimes(1)
   })
 })
