@@ -3327,6 +3327,12 @@ export type CreateAttachmentParams = {
   blurhash?: string | null
   focus?: { x: number; y: number } | null
   thumbnailUrl?: string | null
+  playbackType?: 'gifv' | 'video' | 'unknown' | null
+}
+export type UpdateAttachmentPlaybackParams = {
+  id: string
+  playbackType: 'gifv' | 'video' | 'unknown'
+  thumbnailUrl?: string | null
 }
 export type GetAttachmentsParams = {
   statusId: string
@@ -3419,6 +3425,9 @@ export interface MediaDatabase {
   ): Promise<Media | null>
 
   createAttachment(params: CreateAttachmentParams): Promise<Attachment>
+  updateAttachmentPlayback(
+    params: UpdateAttachmentPlaybackParams
+  ): Promise<boolean>
   getAttachments(params: GetAttachmentsParams): Promise<Attachment[]>
   getAttachmentsWithMedia(
     params: GetAttachmentsWithMediaParams

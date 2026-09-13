@@ -9,6 +9,7 @@ import {
   CREATE_NOTE_JOB_NAME,
   FORWARD_ACTIVITY_JOB_NAME
 } from '@/lib/jobs/names'
+import * as animationMetadataService from '@/lib/services/medias/animationMetadata'
 import { getQueue } from '@/lib/services/queue'
 import type { JobMessage, Queue } from '@/lib/services/queue/type'
 import {
@@ -1496,6 +1497,81 @@ describe('createNoteJob', () => {
       const stored = attachments[0].blurhash
       expect(stored).toBe(hash)
       expect(() => decode(stored as string, 32, 32)).not.toThrow()
+    })
+
+    it('persists playbackType and previewUrl for resolved animated GIFV attachments', async () => {
+      const spy = vi
+        .spyOn(animationMetadataService, 'resolveAnimationMetadata')
+        .mockResolvedValueOnce({
+          'https://files.mastodon.social/video.mp4': {
+            playbackType: 'gifv',
+            previewUrl: 'https://files.mastodon.social/preview.jpg'
+          }
+        })
+
+      try {
+        const noteId = `https://${actor1!.domain}/notes/attachment-gifv-test-${Date.now()}`
+        const note = MockMastodonActivityPubNote({
+          id: noteId,
+          from: actor1!.id,
+          content: '<p>GIFV post</p>',
+          documents: [
+            {
+              type: 'Document',
+              mediaType: 'video/mp4',
+              url: 'https://files.mastodon.social/video.mp4',
+              name: 'GIF animation'
+            }
+          ]
+        })
+
+        await createNoteJob(database, {
+          id: 'id-attachment-gifv',
+          name: CREATE_NOTE_JOB_NAME,
+          data: note,
+          verifiedSenderActorId: actor1!.id
+        })
+
+        const attachments = await database.getAttachments({ statusId: noteId })
+        expect(attachments).toHaveLength(1)
+        expect(attachments[0].playbackType).toBe('gifv')
+        expect(attachments[0].thumbnailUrl).toBe(
+          'https://files.mastodon.social/preview.jpg'
+        )
+      } finally {
+        spy.mockRestore()
+      }
+    })
+
+    it('preserves existing thumbnailUrl for image attachments when animation metadata is absent', async () => {
+      const noteId = `https://${actor1!.domain}/notes/attachment-img-test-${Date.now()}`
+      const note = MockMastodonActivityPubNote({
+        id: noteId,
+        from: actor1!.id,
+        content: '<p>Image post</p>',
+        documents: [
+          {
+            type: 'Document',
+            mediaType: 'image/jpeg',
+            url: 'https://files.mastodon.social/image.jpg',
+            name: 'Photo',
+            thumbnailUrl: 'https://files.mastodon.social/thumb.jpg'
+          }
+        ]
+      })
+
+      await createNoteJob(database, {
+        id: 'id-attachment-image',
+        name: CREATE_NOTE_JOB_NAME,
+        data: note,
+        verifiedSenderActorId: actor1!.id
+      })
+
+      const attachments = await database.getAttachments({ statusId: noteId })
+      expect(attachments).toHaveLength(1)
+      expect(attachments[0].thumbnailUrl).toBe(
+        'https://files.mastodon.social/thumb.jpg'
+      )
     })
   })
 

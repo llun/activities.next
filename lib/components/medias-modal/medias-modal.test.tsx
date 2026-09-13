@@ -2,8 +2,9 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 
+import { PlaybackPreferencesProvider } from '@/lib/components/preferences/PlaybackPreferencesContext'
 import { Attachment } from '@/lib/types/domain/attachment'
 
 import { MediasModal } from './medias-modal'
@@ -24,6 +25,10 @@ const buildAttachment = (overrides: Partial<Attachment> = {}): Attachment => ({
 })
 
 describe('MediasModal', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('renders alt text underneath image when description exists', () => {
     const attachment = buildAttachment({
       name: 'A mountaineer walking along a ridge'
@@ -149,5 +154,164 @@ describe('MediasModal', () => {
     const imgs = screen.getAllByRole('img', { name: ':blobcat:' })
     expect(imgs.length).toBeGreaterThanOrEqual(1)
     expect(imgs[0]).toHaveAttribute('src', 'https://example.com/blobcat.png')
+  })
+
+  it('allows autoplay for active slide but disables autoplay for inactive slides and thumbnails', async () => {
+    const playSpy = vi
+      .spyOn(HTMLMediaElement.prototype, 'play')
+      .mockImplementation(async () => {})
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
+
+    const first = buildAttachment({
+      id: 'attachment-1',
+      mediaType: 'video/mp4',
+      playbackType: 'gifv',
+      url: 'https://activities.local/media/1.mp4'
+    })
+    const second = buildAttachment({
+      id: 'attachment-2',
+      mediaType: 'video/mp4',
+      playbackType: 'gifv',
+      url: 'https://activities.local/media/2.mp4'
+    })
+
+    await act(async () => {
+      render(
+        <PlaybackPreferencesProvider initialAutoplayGifs={true}>
+          <MediasModal
+            medias={[first, second]}
+            initialSelection={0}
+            onClosed={vi.fn()}
+          />
+        </PlaybackPreferencesProvider>
+      )
+    })
+
+    // Only the active slide (panelIndex === 1) should have triggered play()
+    expect(playSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('has dialog accessibility attributes and labelled navigation buttons', () => {
+    const attachment = buildAttachment({ name: 'Pic 1' })
+    const second = buildAttachment({ id: 'attachment-2', name: 'Pic 2' })
+
+    render(
+      <MediasModal
+        medias={[attachment, second]}
+        initialSelection={0}
+        onClosed={vi.fn()}
+      />
+    )
+
+    const dialog = screen.getByRole('dialog', { name: 'Media viewer' })
+    expect(dialog).toBeInTheDocument()
+    expect(dialog).toHaveAttribute('aria-modal', 'true')
+
+    expect(
+      screen.getByRole('button', { name: 'Close media dialog' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Previous media' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Next media' })
+    ).toBeInTheDocument()
+  })
+
+  it('closes when Escape key is pressed', () => {
+    const onClosed = vi.fn()
+    const attachment = buildAttachment()
+
+    render(
+      <MediasModal
+        medias={[attachment]}
+        initialSelection={0}
+        onClosed={onClosed}
+      />
+    )
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClosed).toHaveBeenCalledTimes(1)
+  })
+
+  it('supports manual playback toggle for animated GIFs in the lightbox', async () => {
+    const gif = buildAttachment({
+      id: 'attachment-gif',
+      mediaType: 'image/gif',
+      url: 'https://activities.local/media/animation.gif',
+      thumbnailUrl: 'https://activities.local/media/preview.jpg'
+    })
+
+    await act(async () => {
+      render(
+        <PlaybackPreferencesProvider initialAutoplayGifs={false}>
+          <MediasModal medias={[gif]} initialSelection={0} onClosed={vi.fn()} />
+        </PlaybackPreferencesProvider>
+      )
+    })
+
+    // With autoplay disabled, a play button overlay is present
+    const playButton = screen.getByRole('button', { name: 'Play animation' })
+    expect(playButton).toBeInTheDocument()
+
+    // Clicking it toggles to pause button
+    await act(async () => {
+      fireEvent.click(playButton)
+    })
+
+    expect(
+      screen.getByRole('button', { name: 'Pause animation' })
+    ).toBeInTheDocument()
+  })
+
+  it('respects prefers-reduced-motion in the lightbox even if autoplay is enabled', async () => {
+    const originalMatchMedia = window.matchMedia
+    try {
+      window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+        matches: query.includes('prefers-reduced-motion'),
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn()
+      }))
+
+      const gif = buildAttachment({
+        id: 'attachment-gif-reduced',
+        mediaType: 'image/gif',
+        url: 'https://activities.local/media/animation.gif',
+        thumbnailUrl: 'https://activities.local/media/preview.jpg'
+      })
+
+      await act(async () => {
+        render(
+          <PlaybackPreferencesProvider initialAutoplayGifs={true}>
+            <MediasModal
+              medias={[gif]}
+              initialSelection={0}
+              onClosed={vi.fn()}
+            />
+          </PlaybackPreferencesProvider>
+        )
+      })
+
+      // Even with autoplayGifs=true, prefers-reduced-motion prevents autoplay,
+      // so button should show 'Play animation'
+      const playButton = screen.getByRole('button', { name: 'Play animation' })
+      expect(playButton).toBeInTheDocument()
+
+      // Clicking it manually starts playback
+      await act(async () => {
+        fireEvent.click(playButton)
+      })
+
+      expect(
+        screen.getByRole('button', { name: 'Pause animation' })
+      ).toBeInTheDocument()
+    } finally {
+      window.matchMedia = originalMatchMedia
+    }
   })
 })

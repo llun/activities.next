@@ -18,6 +18,8 @@ export const Gifv = BaseMediaAttachment.extend({
       height: z.number(),
       aspect: z.number().describe('Aspect ratio of the video (width/height)'),
 
+      focus: z.object({ x: z.number(), y: z.number() }).optional(),
+
       original: z.object({
         width: z.number(),
         height: z.number(),

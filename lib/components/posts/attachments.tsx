@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react'
 import {
   CSSProperties,
   FC,
@@ -173,6 +173,71 @@ const Caption: FC<CaptionProps> = ({ identity, text, tags }) => {
   )
 }
 
+const isAnimationAttachment = (attachment: Attachment) =>
+  attachment.playbackType === 'gifv' || attachment.mediaType === 'image/gif'
+
+interface AnimationCardProps {
+  attachment: Attachment
+  onOpen: (event: MouseEvent) => void
+  label: string
+  className?: string
+  style?: CSSProperties
+  mediaClassName?: string
+  loading?: 'lazy' | 'eager'
+}
+
+const AnimationCard: FC<AnimationCardProps> = ({
+  attachment,
+  onOpen,
+  label,
+  className,
+  style,
+  mediaClassName,
+  loading
+}) => {
+  const [manuallyPaused, setManuallyPaused] = useState<boolean | null>(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+
+  const togglePlay = (event: MouseEvent) => {
+    event.stopPropagation()
+    setManuallyPaused(isPlaying)
+  }
+
+  return (
+    <div className={cn(MEDIA_BOX_CLASS, className)} style={style}>
+      <Media
+        className={mediaClassName}
+        attachment={attachment}
+        loading={loading}
+        allowAutoplay={true}
+        manuallyPaused={manuallyPaused}
+        onPlayStateChange={setIsPlaying}
+      />
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={label}
+        className={cn(
+          'absolute inset-0 h-full w-full cursor-zoom-in rounded-[inherit]',
+          MEDIA_FOCUS_CLASS
+        )}
+      />
+      <button
+        type="button"
+        onClick={togglePlay}
+        aria-label={isPlaying ? 'Pause animation' : 'Play animation'}
+        className="absolute bottom-2 left-2 z-10 flex size-8 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 backdrop-blur-xs"
+      >
+        {isPlaying ? (
+          <Pause className="size-4 fill-current" aria-hidden="true" />
+        ) : (
+          <Play className="size-4 fill-current ml-0.5" aria-hidden="true" />
+        )}
+      </button>
+    </div>
+  )
+}
+
 interface Props {
   status: Status
   onMediaSelected: OnMediaSelectedHandle
@@ -241,6 +306,7 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
       )
     )
     const caption = attachment.name?.trim()
+    const isAnimation = isAnimationAttachment(attachment)
     return (
       <>
         <div
@@ -250,18 +316,29 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
             MEDIA_ITEM_INSET_CLASS
           )}
         >
-          <button
-            type="button"
-            onClick={openMedia(0)}
-            aria-label={mediaLabel(attachment, 0)}
-            className={cn(MEDIA_BOX_CLASS, MEDIA_FOCUS_CLASS, 'rounded-2xl')}
-            style={{ aspectRatio, width: `min(100%, ${width}px)` }}
-          >
-            <Media
-              className="h-full w-full object-cover rounded-2xl"
+          {isAnimation ? (
+            <AnimationCard
               attachment={attachment}
+              onOpen={openMedia(0)}
+              label={mediaLabel(attachment, 0)}
+              className="rounded-2xl"
+              style={{ aspectRatio, width: `min(100%, ${width}px)` }}
+              mediaClassName="h-full w-full object-cover rounded-2xl"
             />
-          </button>
+          ) : (
+            <button
+              type="button"
+              onClick={openMedia(0)}
+              aria-label={mediaLabel(attachment, 0)}
+              className={cn(MEDIA_BOX_CLASS, MEDIA_FOCUS_CLASS, 'rounded-2xl')}
+              style={{ aspectRatio, width: `min(100%, ${width}px)` }}
+            >
+              <Media
+                className="h-full w-full object-cover rounded-2xl"
+                attachment={attachment}
+              />
+            </button>
+          )}
           {caption ? (
             <Caption
               identity={attachment.id}
@@ -300,30 +377,49 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
             {items.map(({ attachment, width }, index) => {
               const caption = attachment.name?.trim()
               const cornerClass = getStripItemCornerClass(index, items.length)
+              const isAnimation = isAnimationAttachment(attachment)
               return (
                 <div
                   key={attachment.id}
                   className="flex flex-none flex-col"
                   style={{ width, maxWidth: STRIP_ITEM_MAX_WIDTH }}
                 >
-                  <button
-                    type="button"
-                    onClick={openMedia(index)}
-                    aria-label={mediaLabel(attachment, index)}
-                    className={cn(
-                      MEDIA_BOX_CLASS,
-                      MEDIA_FOCUS_CLASS,
-                      'h-[240px] w-full flex-none',
-                      cornerClass
-                    )}
-                    style={{ scrollSnapAlign: 'start' }}
-                  >
-                    <Media
-                      className={cn('h-full w-full object-cover', cornerClass)}
+                  {isAnimation ? (
+                    <AnimationCard
                       attachment={attachment}
+                      onOpen={openMedia(index)}
+                      label={mediaLabel(attachment, index)}
+                      className={cn('h-[240px] w-full flex-none', cornerClass)}
+                      style={{ scrollSnapAlign: 'start' }}
+                      mediaClassName={cn(
+                        'h-full w-full object-cover',
+                        cornerClass
+                      )}
                       loading="lazy"
                     />
-                  </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={openMedia(index)}
+                      aria-label={mediaLabel(attachment, index)}
+                      className={cn(
+                        MEDIA_BOX_CLASS,
+                        MEDIA_FOCUS_CLASS,
+                        'h-[240px] w-full flex-none',
+                        cornerClass
+                      )}
+                      style={{ scrollSnapAlign: 'start' }}
+                    >
+                      <Media
+                        className={cn(
+                          'h-full w-full object-cover',
+                          cornerClass
+                        )}
+                        attachment={attachment}
+                        loading="lazy"
+                      />
+                    </button>
+                  )}
                   {caption ? (
                     <Caption
                       identity={attachment.id}

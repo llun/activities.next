@@ -23,6 +23,10 @@ import {
 } from '@/lib/services/federation/forwardingDelivery'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLinkPreview'
+import {
+  AnimationMetadataItem,
+  resolveAnimationMetadata
+} from '@/lib/services/medias/animationMetadata'
 import { normalizeBlurhash } from '@/lib/services/medias/imageAnalysis'
 import { getQueue } from '@/lib/services/queue'
 import {
@@ -48,6 +52,7 @@ import {
 import { isValidFocalPoint } from '@/lib/utils/focalPoint'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { createJobHandle } from './createJobHandle'
 import { createPollJob } from './createPollJob'
@@ -264,6 +269,30 @@ export const createNoteJob = createJobHandle(
       })
     }
 
+    let animationMetadata: Record<string, AnimationMetadataItem> = {}
+    if (
+      attachments.some(
+        (att) => att.type === 'Document' && att.mediaType.startsWith('video')
+      )
+    ) {
+      try {
+        animationMetadata = await resolveAnimationMetadata({
+          statusUrl: getUrl(note.url) || note.id,
+          statusId: note.id,
+          authorId: actorId,
+          attachments: attachments
+            .filter((att) => att.type === 'Document')
+            .map((att) => ({ url: att.url, mediaType: att.mediaType }))
+        })
+      } catch (error) {
+        logger.warn({
+          message: 'Failed to resolve animation metadata in createNoteJob',
+          statusId: note.id,
+          err: toLoggableError(error)
+        })
+      }
+    }
+
     await Promise.all([
       addStatusToTimelines(database, status),
       ...attachments.map(async (attachment, index) => {
@@ -278,6 +307,13 @@ export const createNoteJob = createJobHandle(
             ? { x: attachment.focalPoint[0], y: attachment.focalPoint[1] }
             : null
 
+        const meta = animationMetadata[attachment.url]
+        const playbackType =
+          meta && meta.playbackType !== 'unknown'
+            ? meta.playbackType
+            : undefined
+        const thumbnailUrl = meta?.previewUrl ?? attachment.thumbnailUrl ?? null
+
         return database.createAttachment({
           actorId,
           statusId: note.id,
@@ -288,6 +324,8 @@ export const createNoteJob = createJobHandle(
           url: attachment.url,
           blurhash,
           focus,
+          playbackType,
+          thumbnailUrl,
           createdAt: publishedAt + index
         })
       })

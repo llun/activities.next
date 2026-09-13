@@ -371,7 +371,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     createdAt,
     blurhash,
     focus,
-    thumbnailUrl
+    thumbnailUrl,
+    playbackType
   }: CreateAttachmentParams): Promise<Attachment> {
     const currentTime =
       typeof createdAt === 'number' ? new Date(createdAt) : new Date()
@@ -388,6 +389,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       blurhash: blurhash ?? undefined,
       focus: focus ?? undefined,
       thumbnailUrl: thumbnailUrl ?? undefined,
+      playbackType: playbackType ?? undefined,
       createdAt: currentTime.getTime(),
       updatedAt: currentTime.getTime()
     })
@@ -406,10 +408,33 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       focusX: focus?.x ?? null,
       focusY: focus?.y ?? null,
       thumbnailUrl: thumbnailUrl ?? null,
+      playbackType: playbackType ?? null,
       createdAt: currentTime,
       updatedAt: currentTime
     })
     return data
+  },
+
+  async updateAttachmentPlayback({
+    id,
+    playbackType,
+    thumbnailUrl
+  }: {
+    id: string
+    playbackType: 'gifv' | 'video' | 'unknown'
+    thumbnailUrl?: string | null
+  }): Promise<boolean> {
+    const updates: Record<string, unknown> = {
+      playbackType,
+      updatedAt: new Date()
+    }
+    if (thumbnailUrl !== undefined) {
+      updates.thumbnailUrl = thumbnailUrl
+    }
+    const updated = await database('attachments')
+      .where('id', id)
+      .update(updates)
+    return updated > 0
   },
 
   async getAttachments({ statusId }: GetAttachmentsParams) {
@@ -437,6 +462,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
               ? { x: Number(item.focusX), y: Number(item.focusY) }
               : undefined,
           thumbnailUrl: item.thumbnailUrl ?? undefined,
+          playbackType: item.playbackType ?? undefined,
           createdAt: getCompatibleTime(item.createdAt),
           updatedAt: getCompatibleTime(item.updatedAt)
         })
@@ -467,7 +493,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         'blurhash',
         'focusX',
         'focusY',
-        'thumbnailUrl'
+        'thumbnailUrl',
+        'playbackType'
       )
 
     return data
@@ -491,6 +518,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
               ? { x: Number(item.focusX), y: Number(item.focusY) }
               : undefined,
           thumbnailUrl: item.thumbnailUrl ?? undefined,
+          playbackType: item.playbackType ?? undefined,
           createdAt: getCompatibleTime(item.createdAt),
           updatedAt: getCompatibleTime(item.updatedAt)
         })
@@ -563,6 +591,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
               ? { x: Number(item.focusX), y: Number(item.focusY) }
               : undefined,
           thumbnailUrl: item.thumbnailUrl ?? undefined,
+          playbackType: item.playbackType ?? undefined,
           createdAt: getCompatibleTime(item.createdAt),
           updatedAt: getCompatibleTime(item.updatedAt)
         })

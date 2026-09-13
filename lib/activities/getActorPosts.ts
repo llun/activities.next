@@ -6,6 +6,7 @@ import { BaseNote, BaseNoteSchema } from '@/lib/activities/note'
 import { Database } from '@/lib/database/types'
 import { isPixelfedActor } from '@/lib/services/federation/serverSoftware'
 import { detectLanguageFromHtml } from '@/lib/services/language-detection'
+import { enrichStatusAttachments } from '@/lib/services/medias/animationMetadata'
 import { Actor } from '@/lib/types/activitypub'
 import {
   Announce,
@@ -301,6 +302,16 @@ export const getActorPosts: GetActorPostsFunction = async ({
             })
           }
         }
+      }
+
+      if (validStatuses.length > 0) {
+        await Promise.all(
+          validStatuses.map((s) => {
+            if (s.type === StatusType.enum.Note) {
+              return enrichStatusAttachments(s)
+            }
+          })
+        )
       }
 
       return {

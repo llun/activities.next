@@ -134,7 +134,8 @@ CREATE TABLE public.attachments (
     blurhash character varying(255),
     "focusX" double precision,
     "focusY" double precision,
-    "thumbnailUrl" character varying(255)
+    "thumbnailUrl" character varying(255),
+    "playbackType" character varying(32)
 );
 
 CREATE TABLE public.auth_codes (

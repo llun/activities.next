@@ -5,6 +5,10 @@ import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import type { PreferencesInput } from '@/lib/client'
+import {
+  PlaybackPreferencesProvider,
+  usePlaybackPreferences
+} from '@/lib/components/preferences/PlaybackPreferencesContext'
 
 import { PreferencesSettings } from './PreferencesSettings'
 
@@ -112,5 +116,33 @@ describe('PreferencesSettings', () => {
     expect(
       await screen.findByText(/Failed to save preferences/i)
     ).toBeInTheDocument()
+  })
+
+  it('updates PlaybackPreferencesContext when autoplayGifs is saved', async () => {
+    const Consumer = () => {
+      const { autoplayGifs } = usePlaybackPreferences()
+      return <div data-testid="context-val">{String(autoplayGifs)}</div>
+    }
+
+    render(
+      <PlaybackPreferencesProvider actorId="act-1" initialAutoplayGifs={false}>
+        <Consumer />
+        <PreferencesSettings initialPreferences={initialPreferences} />
+      </PlaybackPreferencesProvider>
+    )
+
+    expect(screen.getByTestId('context-val').textContent).toBe('false')
+
+    fireEvent.click(screen.getByLabelText('Autoplay animated GIFs'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() =>
+      expect(mockUpdatePreferences).toHaveBeenCalledWith(
+        expect.objectContaining({ autoplayGifs: true })
+      )
+    )
+
+    expect(await screen.findByText('Saved')).toBeInTheDocument()
+    expect(screen.getByTestId('context-val').textContent).toBe('true')
   })
 })

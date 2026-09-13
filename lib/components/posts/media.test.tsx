@@ -2,9 +2,10 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { PlaybackPreferencesProvider } from '@/lib/components/preferences/PlaybackPreferencesContext'
 import { Attachment } from '@/lib/types/domain/attachment'
 
 import { Media } from './media'
@@ -34,6 +35,10 @@ describe('Media', () => {
   // installs the spies: a failing assertion would skip it, leaving
   // `HTMLImageElement.prototype.complete` mocked true for every later test
   // and turning one failure into a cascade that masks it.
+  beforeEach(() => {
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
+  })
+
   afterEach(() => {
     vi.restoreAllMocks()
   })
@@ -264,5 +269,290 @@ describe('Media', () => {
     // shows controls, and the lone-video branch — omits it and keeps the
     // element's own `metadata` default.
     expect(video).not.toHaveAttribute('preload')
+  })
+
+  describe('animation playback (GIFV and GIF)', () => {
+    beforeEach(() => {
+      vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
+    })
+
+    const gifvAttachment: Attachment = {
+      ...baseAttachment,
+      mediaType: 'video/mp4',
+      playbackType: 'gifv',
+      url: 'https://example.com/animation.mp4',
+      thumbnailUrl: 'https://example.com/animation-poster.jpg'
+    }
+
+    const gifAttachment: Attachment = {
+      ...baseAttachment,
+      mediaType: 'image/gif',
+      url: 'https://example.com/animated.gif',
+      thumbnailUrl: 'https://example.com/static-thumb.png'
+    }
+
+    it('renders GIFV with loop, muted, playsInline, poster and no controls in timeline', () => {
+      const { container } = render(
+        <PlaybackPreferencesProvider initialAutoplayGifs={false}>
+          <Media attachment={gifvAttachment} />
+        </PlaybackPreferencesProvider>
+      )
+
+      const video = container.querySelector('video')
+      expect(video).toBeInTheDocument()
+      expect(video).toHaveAttribute(
+        'poster',
+        'https://example.com/animation-poster.jpg'
+      )
+      expect(video).toHaveAttribute('loop')
+      expect(video?.muted).toBe(true)
+      expect(video).toHaveAttribute('playsinline')
+      expect(video).not.toHaveAttribute('controls')
+    })
+
+    it('autoplays GIFV when autoplayGifs preference is enabled', async () => {
+      const playSpy = vi
+        .spyOn(HTMLMediaElement.prototype, 'play')
+        .mockImplementation(async () => {})
+      const onPlayStateChange = vi.fn()
+
+      await act(async () => {
+        render(
+          <PlaybackPreferencesProvider initialAutoplayGifs={true}>
+            <Media
+              attachment={gifvAttachment}
+              onPlayStateChange={onPlayStateChange}
+            />
+          </PlaybackPreferencesProvider>
+        )
+      })
+
+      expect(playSpy).toHaveBeenCalled()
+      await vi.waitFor(() => {
+        expect(onPlayStateChange).toHaveBeenCalledWith(true)
+      })
+    })
+
+    it('remains paused when autoplayGifs preference is disabled', () => {
+      const playSpy = vi
+        .spyOn(HTMLMediaElement.prototype, 'play')
+        .mockImplementation(async () => {})
+
+      render(
+        <PlaybackPreferencesProvider initialAutoplayGifs={false}>
+          <Media attachment={gifvAttachment} />
+        </PlaybackPreferencesProvider>
+      )
+
+      expect(playSpy).not.toHaveBeenCalled()
+    })
+
+    it('respects allowAutoplay=false even when autoplay preference is enabled', () => {
+      const playSpy = vi
+        .spyOn(HTMLMediaElement.prototype, 'play')
+        .mockImplementation(async () => {})
+
+      render(
+        <PlaybackPreferencesProvider initialAutoplayGifs={true}>
+          <Media attachment={gifvAttachment} allowAutoplay={false} />
+        </PlaybackPreferencesProvider>
+      )
+
+      expect(playSpy).not.toHaveBeenCalled()
+    })
+
+    it('plays on manual override even when autoplay preference is disabled', async () => {
+      const playSpy = vi
+        .spyOn(HTMLMediaElement.prototype, 'play')
+        .mockImplementation(async () => {})
+      const onPlayStateChange = vi.fn()
+
+      await act(async () => {
+        render(
+          <PlaybackPreferencesProvider initialAutoplayGifs={false}>
+            <Media
+              attachment={gifvAttachment}
+              manuallyPaused={false}
+              onPlayStateChange={onPlayStateChange}
+            />
+          </PlaybackPreferencesProvider>
+        )
+      })
+
+      expect(playSpy).toHaveBeenCalled()
+      await vi.waitFor(() => {
+        expect(onPlayStateChange).toHaveBeenCalledWith(true)
+      })
+    })
+
+    it('pauses on manual override even when autoplay preference is enabled', () => {
+      const playSpy = vi
+        .spyOn(HTMLMediaElement.prototype, 'play')
+        .mockImplementation(async () => {})
+      const pauseSpy = vi
+        .spyOn(HTMLMediaElement.prototype, 'pause')
+        .mockImplementation(() => {})
+
+      render(
+        <PlaybackPreferencesProvider initialAutoplayGifs={true}>
+          <Media attachment={gifvAttachment} manuallyPaused={true} />
+        </PlaybackPreferencesProvider>
+      )
+
+      expect(playSpy).not.toHaveBeenCalled()
+      expect(pauseSpy).toHaveBeenCalled()
+    })
+
+    it('handles video.play() rejection gracefully without throwing', async () => {
+      vi.spyOn(HTMLMediaElement.prototype, 'play').mockRejectedValue(
+        new Error('Autoplay blocked')
+      )
+      const onPlayStateChange = vi.fn()
+
+      await act(async () => {
+        render(
+          <PlaybackPreferencesProvider initialAutoplayGifs={true}>
+            <Media
+              attachment={gifvAttachment}
+              onPlayStateChange={onPlayStateChange}
+            />
+          </PlaybackPreferencesProvider>
+        )
+      })
+
+      await vi.waitFor(() => {
+        expect(onPlayStateChange).toHaveBeenCalledWith(false)
+      })
+    })
+
+    it('renders static preview for paused image/gif when autoplay is disabled', () => {
+      render(
+        <PlaybackPreferencesProvider initialAutoplayGifs={false}>
+          <Media attachment={gifAttachment} />
+        </PlaybackPreferencesProvider>
+      )
+
+      const img = screen.getByRole('img')
+      expect(img).toHaveAttribute('src', 'https://example.com/static-thumb.png')
+    })
+
+    it('renders animated image/gif when autoplay is enabled', () => {
+      render(
+        <PlaybackPreferencesProvider initialAutoplayGifs={true}>
+          <Media attachment={gifAttachment} />
+        </PlaybackPreferencesProvider>
+      )
+
+      const img = screen.getByRole('img')
+      expect(img).toHaveAttribute('src', 'https://example.com/animated.gif')
+    })
+
+    it('does not autoplay when prefers-reduced-motion is reduce', () => {
+      const originalMatchMedia = window.matchMedia
+      try {
+        window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+          matches: query.includes('prefers-reduced-motion'),
+          media: query,
+          onchange: null,
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          dispatchEvent: vi.fn()
+        }))
+        const playSpy = vi
+          .spyOn(HTMLMediaElement.prototype, 'play')
+          .mockImplementation(async () => {})
+
+        render(
+          <PlaybackPreferencesProvider initialAutoplayGifs={true}>
+            <Media attachment={gifvAttachment} />
+          </PlaybackPreferencesProvider>
+        )
+
+        expect(playSpy).not.toHaveBeenCalled()
+      } finally {
+        window.matchMedia = originalMatchMedia
+      }
+    })
+
+    it('renders accessible container with role=img and aria-label for paused GIF with only blurhash', () => {
+      const gifWithoutThumbnail: Attachment = {
+        ...baseAttachment,
+        mediaType: 'image/gif',
+        url: 'https://example.com/animation.gif',
+        blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4',
+        name: 'Cool animation'
+      }
+
+      render(
+        <PlaybackPreferencesProvider initialAutoplayGifs={false}>
+          <Media attachment={gifWithoutThumbnail} />
+        </PlaybackPreferencesProvider>
+      )
+
+      const placeholder = screen.getByRole('img', { name: 'Cool animation' })
+      expect(placeholder).toBeInTheDocument()
+      expect(screen.getByTestId('blurhash-canvas')).toBeInTheDocument()
+    })
+
+    it('pauses playback when element is not intersecting the viewport', async () => {
+      let observerCallback: (
+        entries: IntersectionObserverEntry[]
+      ) => void = () => {}
+      const observeFn = vi.fn()
+      const disconnectFn = vi.fn()
+
+      class MockIntersectionObserver {
+        constructor(callback: (entries: IntersectionObserverEntry[]) => void) {
+          observerCallback = callback
+        }
+        observe = observeFn
+        disconnect = disconnectFn
+        unobserve = vi.fn()
+        takeRecords = vi.fn()
+        root = null
+        rootMargin = ''
+        thresholds = [0]
+      }
+
+      const originalIntersectionObserver = window.IntersectionObserver
+      window.IntersectionObserver =
+        MockIntersectionObserver as unknown as typeof IntersectionObserver
+
+      try {
+        const playSpy = vi
+          .spyOn(HTMLMediaElement.prototype, 'play')
+          .mockImplementation(async () => {})
+        const pauseSpy = vi
+          .spyOn(HTMLMediaElement.prototype, 'pause')
+          .mockImplementation(() => {})
+
+        await act(async () => {
+          render(
+            <PlaybackPreferencesProvider initialAutoplayGifs={true}>
+              <Media attachment={gifvAttachment} />
+            </PlaybackPreferencesProvider>
+          )
+        })
+
+        expect(observeFn).toHaveBeenCalled()
+        expect(playSpy).toHaveBeenCalled()
+
+        // Simulate scrolling out of viewport
+        await act(async () => {
+          observerCallback([
+            {
+              isIntersecting: false,
+              target: document.createElement('div')
+            } as unknown as IntersectionObserverEntry
+          ])
+        })
+
+        expect(pauseSpy).toHaveBeenCalled()
+      } finally {
+        window.IntersectionObserver = originalIntersectionObserver
+      }
+    })
   })
 })

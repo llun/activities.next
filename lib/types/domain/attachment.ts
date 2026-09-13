@@ -34,6 +34,9 @@ export const PostBoxAttachment = UploadedAttachment.extend({
 
 export type PostBoxAttachment = z.infer<typeof PostBoxAttachment>
 
+export const PlaybackType = z.enum(['gifv', 'video', 'unknown'])
+export type PlaybackType = z.infer<typeof PlaybackType>
+
 export const Attachment = z.object({
   id: z.string(),
   actorId: z.string(),
@@ -48,6 +51,7 @@ export const Attachment = z.object({
   blurhash: z.string().nullish(),
   focus: z.object({ x: z.number(), y: z.number() }).nullish(),
   thumbnailUrl: z.string().nullish(),
+  playbackType: PlaybackType.nullish(),
 
   createdAt: z.number(),
   updatedAt: z.number()
@@ -178,8 +182,42 @@ export const getMastodonAttachment = (attachment: Attachment) => {
           width: attachment.width ?? 0,
           height: attachment.height ?? 0,
           size: `${attachment.width}x${attachment.height}`,
-          aspect: (attachment.width ?? 0) / (attachment.height ?? 1)
+          aspect: (attachment.width ?? 0) / (attachment.height || 1)
         },
+        ...(attachment.focus ? { focus: attachment.focus } : {})
+      },
+      blurhash: attachment.blurhash ?? null
+    })
+  }
+  if (attachment.playbackType === 'gifv') {
+    return Mastodon.MediaTypes.Gifv.parse({
+      id: attachment.id,
+      url: attachment.url,
+      preview_url: attachment.thumbnailUrl ?? null,
+      remote_url: null,
+      description: attachment.name,
+      type: 'gifv',
+      meta: {
+        size: `${attachment.width ?? 0}x${attachment.height ?? 0}`,
+        width: attachment.width ?? 0,
+        height: attachment.height ?? 0,
+        aspect: (attachment.width ?? 0) / (attachment.height || 1),
+        original: {
+          width: attachment.width ?? 0,
+          height: attachment.height ?? 0,
+          size: `${attachment.width ?? 0}x${attachment.height ?? 0}`,
+          aspect: (attachment.width ?? 0) / (attachment.height || 1)
+        },
+        ...(attachment.thumbnailUrl
+          ? {
+              small: {
+                width: attachment.width ?? 0,
+                height: attachment.height ?? 0,
+                size: `${attachment.width ?? 0}x${attachment.height ?? 0}`,
+                aspect: (attachment.width ?? 0) / (attachment.height || 1)
+              }
+            }
+          : {}),
         ...(attachment.focus ? { focus: attachment.focus } : {})
       },
       blurhash: attachment.blurhash ?? null
@@ -197,14 +235,14 @@ export const getMastodonAttachment = (attachment: Attachment) => {
         size: `${attachment.width}x${attachment.height}`,
         width: attachment.width ?? 0,
         height: attachment.height ?? 0,
-        aspect: (attachment.width ?? 0) / (attachment.height ?? 1),
+        aspect: (attachment.width ?? 0) / (attachment.height || 1),
         ...(attachment.focus ? { focus: attachment.focus } : {}),
 
         original: {
           width: attachment.width ?? 0,
           height: attachment.height ?? 0,
           size: `${attachment.width}x${attachment.height}`,
-          aspect: (attachment.width ?? 0) / (attachment.height ?? 1)
+          aspect: (attachment.width ?? 0) / (attachment.height || 1)
         }
       },
       blurhash: attachment.blurhash ?? null

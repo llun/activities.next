@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 
+import { PlaybackPreferencesProvider } from '@/lib/components/preferences/PlaybackPreferencesContext'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 
@@ -817,6 +818,160 @@ describe('Attachments', () => {
       )
 
       expect(container.querySelector('video')).not.toHaveAttribute('preload')
+    })
+  })
+
+  describe('animation attachments (GIFV and GIF)', () => {
+    beforeEach(() => {
+      vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
+    })
+
+    it('renders a lone GIFV with sibling zoom and play/pause buttons', () => {
+      const gifv = buildAttachment({
+        mediaType: 'video/mp4',
+        playbackType: 'gifv',
+        width: 600,
+        height: 400
+      })
+      const onMediaSelected = vi.fn()
+
+      render(
+        <PlaybackPreferencesProvider initialAutoplayGifs={false}>
+          <Attachments
+            status={buildNoteStatus([gifv])}
+            onMediaSelected={onMediaSelected}
+          />
+        </PlaybackPreferencesProvider>
+      )
+
+      const zoomButton = screen.getByRole('button', { name: 'Open media 1' })
+      const playButton = screen.getByRole('button', { name: 'Play animation' })
+
+      expect(zoomButton).toBeInTheDocument()
+      expect(playButton).toBeInTheDocument()
+      expect(zoomButton.contains(playButton)).toBe(false)
+      expect(playButton.contains(zoomButton)).toBe(false)
+    })
+
+    it('opens lightbox when zoom button is clicked', () => {
+      const gifv = buildAttachment({
+        mediaType: 'video/mp4',
+        playbackType: 'gifv',
+        width: 600,
+        height: 400
+      })
+      const onMediaSelected = vi.fn()
+
+      render(
+        <PlaybackPreferencesProvider initialAutoplayGifs={false}>
+          <Attachments
+            status={buildNoteStatus([gifv])}
+            onMediaSelected={onMediaSelected}
+          />
+        </PlaybackPreferencesProvider>
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Open media 1' }))
+      expect(onMediaSelected).toHaveBeenCalledWith([gifv], 0)
+    })
+
+    it('toggles playback and does not open lightbox when play/pause button is clicked', async () => {
+      vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(
+        async () => {}
+      )
+      const gifv = buildAttachment({
+        mediaType: 'video/mp4',
+        playbackType: 'gifv',
+        width: 600,
+        height: 400
+      })
+      const onMediaSelected = vi.fn()
+
+      render(
+        <PlaybackPreferencesProvider initialAutoplayGifs={false}>
+          <Attachments
+            status={buildNoteStatus([gifv])}
+            onMediaSelected={onMediaSelected}
+          />
+        </PlaybackPreferencesProvider>
+      )
+
+      const playButton = screen.getByRole('button', { name: 'Play animation' })
+      await act(async () => {
+        fireEvent.click(playButton)
+      })
+
+      expect(onMediaSelected).not.toHaveBeenCalled()
+      expect(
+        screen.getByRole('button', { name: 'Pause animation' })
+      ).toBeInTheDocument()
+
+      const pauseButton = screen.getByRole('button', {
+        name: 'Pause animation'
+      })
+      await act(async () => {
+        fireEvent.click(pauseButton)
+      })
+
+      expect(onMediaSelected).not.toHaveBeenCalled()
+      expect(
+        screen.getByRole('button', { name: 'Play animation' })
+      ).toBeInTheDocument()
+    })
+
+    it('renders animated image/gif with sibling controls', () => {
+      const gif = buildAttachment({
+        mediaType: 'image/gif',
+        url: 'https://activities.local/media/cat.gif',
+        thumbnailUrl: 'https://activities.local/media/cat-preview.jpg',
+        width: 400,
+        height: 300
+      })
+
+      render(
+        <PlaybackPreferencesProvider initialAutoplayGifs={false}>
+          <Attachments
+            status={buildNoteStatus([gif])}
+            onMediaSelected={vi.fn()}
+          />
+        </PlaybackPreferencesProvider>
+      )
+
+      expect(
+        screen.getByRole('button', { name: 'Open media 1' })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Play animation' })
+      ).toBeInTheDocument()
+    })
+
+    it('renders GIFV in a multi-item strip with sibling controls', () => {
+      const gifv = buildAttachment({
+        mediaType: 'video/mp4',
+        playbackType: 'gifv',
+        width: 600,
+        height: 400
+      })
+      const regularImage = buildAttachment({ width: 800, height: 600 })
+
+      render(
+        <PlaybackPreferencesProvider initialAutoplayGifs={false}>
+          <Attachments
+            status={buildNoteStatus([gifv, regularImage])}
+            onMediaSelected={vi.fn()}
+          />
+        </PlaybackPreferencesProvider>
+      )
+
+      expect(
+        screen.getByRole('button', { name: 'Open media 1' })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Play animation' })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Open media 2' })
+      ).toBeInTheDocument()
     })
   })
 

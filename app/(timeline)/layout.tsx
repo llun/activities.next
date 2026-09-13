@@ -6,6 +6,7 @@ import { MobileNav } from '@/lib/components/layout/mobile-nav'
 import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
 import { NavPreferencesProvider } from '@/lib/components/layout/nav-preferences-context'
 import { Sidebar } from '@/lib/components/layout/sidebar'
+import { PlaybackPreferencesProvider } from '@/lib/components/preferences/PlaybackPreferencesContext'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
@@ -54,7 +55,9 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
   if (!actor) {
     return (
       <InstanceLimitsProvider {...instanceLimits}>
-        {children}
+        <PlaybackPreferencesProvider actorId={null} initialAutoplayGifs={false}>
+          {children}
+        </PlaybackPreferencesProvider>
       </InstanceLimitsProvider>
     )
   }
@@ -122,46 +125,51 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
       {/* Wraps the children too: on wide screens the Settings → Navigation
           manager edits the very sidebar rendered beside it, and a soft
           navigation never re-runs this layout to re-seed them separately. */}
-      <NavPreferencesProvider
-        initialOrder={actorSettings?.navOrder}
-        initialHidden={actorSettings?.navHidden}
+      <PlaybackPreferencesProvider
+        actorId={actor.id}
+        initialAutoplayGifs={actorSettings?.readingAutoplayGifs ?? false}
       >
-        <MobileNavigationProvider unreadCount={unreadCount}>
-          <div className="min-h-dvh">
-            <Sidebar
-              user={user}
-              currentActor={currentActor}
-              actors={formattedActors}
-              unreadCount={unreadCount}
-              fitnessUrl={fitnessUrl}
-              isAdmin={isAdmin}
-              lists={formattedLists}
-              features={features}
-            />
-            <MobileNav
-              user={user}
-              currentActor={currentActor}
-              actors={formattedActors}
-              unreadCount={unreadCount}
-              fitnessUrl={fitnessUrl}
-              isAdmin={isAdmin}
-              lists={formattedLists}
-              features={features}
-            />
-            <main
-              className={cn(
-                'flex min-h-dvh flex-col overflow-x-clip pb-6',
-                'md:pl-[72px] md:[--sidebar-w:72px] xl:pl-[280px] xl:[--sidebar-w:280px]'
-              )}
-            >
-              <div className="mx-auto flex w-full max-w-content flex-1 flex-col px-4 pb-6">
-                {children}
-              </div>
-            </main>
-            <Modal />
-          </div>
-        </MobileNavigationProvider>
-      </NavPreferencesProvider>
+        <NavPreferencesProvider
+          initialOrder={actorSettings?.navOrder}
+          initialHidden={actorSettings?.navHidden}
+        >
+          <MobileNavigationProvider unreadCount={unreadCount}>
+            <div className="min-h-dvh">
+              <Sidebar
+                user={user}
+                currentActor={currentActor}
+                actors={formattedActors}
+                unreadCount={unreadCount}
+                fitnessUrl={fitnessUrl}
+                isAdmin={isAdmin}
+                lists={formattedLists}
+                features={features}
+              />
+              <MobileNav
+                user={user}
+                currentActor={currentActor}
+                actors={formattedActors}
+                unreadCount={unreadCount}
+                fitnessUrl={fitnessUrl}
+                isAdmin={isAdmin}
+                lists={formattedLists}
+                features={features}
+              />
+              <main
+                className={cn(
+                  'flex min-h-dvh flex-col overflow-x-clip pb-6',
+                  'md:pl-[72px] md:[--sidebar-w:72px] xl:pl-[280px] xl:[--sidebar-w:280px]'
+                )}
+              >
+                <div className="mx-auto flex w-full max-w-content flex-1 flex-col px-4 pb-6">
+                  {children}
+                </div>
+              </main>
+              <Modal />
+            </div>
+          </MobileNavigationProvider>
+        </NavPreferencesProvider>
+      </PlaybackPreferencesProvider>
     </InstanceLimitsProvider>
   )
 }
