@@ -1,0 +1,52 @@
+app/(timeline)/[actor]/[status]/Header.test.tsx
+  h_580a04e334fef4 1-62
+app/(timeline)/[actor]/[status]/loading.tsx
+  h_580a04e334fef4 13
+app/(timeline)/[actor]/loading.tsx
+  h_580a04e334fef4 11,13
+app/(timeline)/[actor]/page.test.tsx
+  h_580a04e334fef4 7,34-35,385-419
+app/(timeline)/[actor]/page.tsx
+  h_580a04e334fef4 252-253
+app/(timeline)/tags/[tag]/HashtagTimeline.test.tsx
+  h_580a04e334fef4 7,354-368
+app/(timeline)/tags/[tag]/HashtagTimeline.tsx
+  h_580a04e334fef4 147-148
+app/globals.css
+  h_580a04e334fef4 249-252,257-260
+docs/architecture.md
+  h_580a04e334fef4 576
+lib/components/actor-switcher/ActorSwitcher.test.tsx
+  h_580a04e334fef4 480-509
+lib/components/actor-switcher/ActorSwitcher.tsx
+  h_580a04e334fef4 147-148,167,169
+lib/components/layout/logo.tsx
+  h_580a04e334fef4 31
+lib/components/layout/mobile-nav.test.tsx
+  h_580a04e334fef4 25,80,82-84,128-135
+lib/components/layout/mobile-nav.tsx
+  h_580a04e334fef4 5,41,48,50,58,60,64-65,78-83,93,99,108
+lib/components/layout/mobile-navigation-context.test.tsx
+  h_580a04e334fef4 116-149
+lib/components/layout/mobile-navigation-context.tsx
+  h_580a04e334fef4 53-57,59-63
+lib/components/layout/mobile-navigation-header.tsx
+  h_580a04e334fef4 21
+lib/components/layout/mobile-navigation-trigger.test.tsx
+  h_580a04e334fef4 34
+lib/components/layout/sidebar.test.tsx
+  h_580a04e334fef4 33,456,460-467
+lib/components/layout/sidebar.tsx
+  h_580a04e334fef4 318,370,395,409-424,469,489-491,519
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1887831fe46a7db2d6c724195628569a9a9da68b",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
