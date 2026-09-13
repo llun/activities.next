@@ -30,7 +30,8 @@ export const LoadMoreButton: FC<LoadMoreButtonProps> = ({
     <Button
       type={type}
       variant={variant}
-      disabled={disabled ?? isLoading}
+      disabled={disabled || isLoading}
+      aria-busy={isLoading || undefined}
       {...props}
     >
       {isLoading ? loadingText : children}

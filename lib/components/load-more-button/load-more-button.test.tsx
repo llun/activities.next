@@ -12,14 +12,23 @@ describe('LoadMoreButton', () => {
   it('renders default button with "Load more" text and pill variant', () => {
     render(<LoadMoreButton onClick={() => {}} />)
     const button = screen.getByRole('button', { name: 'Load more' })
+    expect(button).toHaveAttribute('type', 'button')
     expect(button).toHaveAttribute('data-slot', 'button')
     expect(button).toHaveAttribute('data-variant', 'pill')
     expect(button).toHaveClass('rounded-full')
+    expect(button).not.toHaveAttribute('aria-busy')
     expect(button).toBeEnabled()
   })
 
-  it('renders disabled button with loading text when isLoading is true', () => {
+  it('renders disabled button with loading text and aria-busy when isLoading is true', () => {
     render(<LoadMoreButton isLoading onClick={() => {}} />)
+    const button = screen.getByRole('button', { name: 'Loading...' })
+    expect(button).toBeDisabled()
+    expect(button).toHaveAttribute('aria-busy', 'true')
+  })
+
+  it('remains disabled even if disabled={false} is explicitly passed when isLoading is true', () => {
+    render(<LoadMoreButton isLoading disabled={false} onClick={() => {}} />)
     const button = screen.getByRole('button', { name: 'Loading...' })
     expect(button).toBeDisabled()
   })
@@ -92,5 +101,35 @@ describe('LoadMoreButton', () => {
     )
     expect(container.firstElementChild?.tagName).toBe('DIV')
     expect(container.firstElementChild).toHaveClass('flex justify-center my-4')
+  })
+
+  it('attaches containerRef and applies containerClassName when both are passed', () => {
+    const containerRef = createRef<HTMLDivElement>()
+    const { container } = render(
+      <LoadMoreButton
+        containerRef={containerRef}
+        containerClassName="mt-6 text-center"
+        onClick={() => {}}
+      />
+    )
+    expect(container.firstElementChild?.tagName).toBe('DIV')
+    expect(container.firstElementChild).toHaveClass('mt-6 text-center')
+    expect(containerRef.current).toBe(container.firstElementChild)
+  })
+
+  it('forwards button props such as size, className, and aria attributes to the button', () => {
+    render(
+      <LoadMoreButton
+        size="sm"
+        className="extra-button-class"
+        aria-label="Load more feed statuses"
+        onClick={() => {}}
+      />
+    )
+    const button = screen.getByRole('button', {
+      name: 'Load more feed statuses'
+    })
+    expect(button).toHaveAttribute('data-size', 'sm')
+    expect(button).toHaveClass('extra-button-class')
   })
 })
