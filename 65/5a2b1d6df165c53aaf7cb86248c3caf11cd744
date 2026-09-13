@@ -1,0 +1,28 @@
+lib/components/medias-modal/medias-modal.test.tsx
+  h_580a04e334fef4 28-31,266-316
+lib/components/medias-modal/medias-modal.tsx
+  h_580a04e334fef4 37,62-66,328-330,343,346,352
+lib/services/medias/animationMetadata.test.ts
+  h_580a04e334fef4 312,352,378,397-417,509-584
+lib/services/medias/animationMetadata.ts
+  h_580a04e334fef4 52-57,67,80-81,94-95,222,236-239,241,246,263,274,310,318,357,362,368-372,386-387,396-401
+lib/types/domain/attachment.test.ts
+  h_580a04e334fef4 151-168
+lib/types/mastodon/mediaAttachment/gifv.ts
+  h_580a04e334fef4 21-22
+scripts/maintenance/backfillGifvMetadata.test.ts
+  h_580a04e334fef4 171-220
+scripts/maintenance/backfillGifvMetadata.ts
+  h_580a04e334fef4 104-112,114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "655a2b1d6df165c53aaf7cb86248c3caf11cd744",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
