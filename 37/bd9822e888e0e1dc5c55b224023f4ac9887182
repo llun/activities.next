@@ -1,0 +1,40 @@
+app/(timeline)/(home)/homePageEnrichment.test.tsx
+  h_580a04e334fef4 1-165
+app/(timeline)/MainPageTimeline.test.tsx
+  h_580a04e334fef4 11,115-117,1030-1308
+app/(timeline)/MainPageTimeline.tsx
+  h_580a04e334fef4 4,14,59-70
+app/api/v1/timelines/[timeline]/gifTimelineEnrichment.test.ts
+  h_580a04e334fef4 1-167
+docs/mastodon-api-compatibility.md
+  h_580a04e334fef4 71-74
+lib/components/posts/statusArray.test.ts
+  h_580a04e334fef4 3,12-16,403-558
+lib/components/posts/statusArray.ts
+  h_580a04e334fef4 1,71-210
+lib/database/sql/media.test.ts
+  h_580a04e334fef4 2139-2146,2157-2185
+lib/database/sql/media.ts
+  h_580a04e334fef4 421-422,427,436-440
+lib/services/medias/animationMetadata.test.ts
+  h_580a04e334fef4 6-11,17,489-490,589-590,772-1103,1105-1161
+lib/services/medias/animationMetadata.ts
+  h_580a04e334fef4 4-10,13,483-484,499-657
+lib/services/timelines/getFilteredTimelinePage.test.ts
+  h_580a04e334fef4 2-3,9-16,23-30,561-1007
+lib/services/timelines/getFilteredTimelinePage.ts
+  h_580a04e334fef4 8,152,191-192
+lib/types/database/operations.ts
+  h_580a04e334fef4 3336
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "37bd9822e888e0e1dc5c55b224023f4ac9887182",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
