@@ -1,0 +1,16 @@
+lib/components/post-box/post-box.test.tsx
+  h_580a04e334fef4 2082,2098-2100,2103,2120-2122
+lib/hooks/useAutoResizeTextarea.test.ts
+  h_580a04e334fef4 194-339
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fbc966f277d372816135fb6b13c66bcbd4bd2afd",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
