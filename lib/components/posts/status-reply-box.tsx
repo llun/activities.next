@@ -26,6 +26,7 @@ import {
 import { UploadMediaButton } from '@/lib/components/post-box/upload-media-button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
+import { useAutoResizeTextarea } from '@/lib/hooks/useAutoResizeTextarea'
 import {
   ActorProfile,
   getMention,
@@ -59,6 +60,7 @@ export const StatusReplyBox: FC<Props> = ({
   const [text, setText] = useState<string>('')
   const [warningMsg, setWarningMsg] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  useAutoResizeTextarea(textareaRef, text)
   const formRef = useRef<HTMLFormElement>(null)
 
   const [postExtension, dispatch] = useReducer(
@@ -310,7 +312,7 @@ export const StatusReplyBox: FC<Props> = ({
           <div className="flex-1 min-w-0">
             <textarea
               ref={textareaRef}
-              className="flex min-h-[60px] w-full bg-transparent text-base placeholder:text-muted-foreground focus-visible:outline-none resize-none md:text-sm"
+              className="flex min-h-[60px] max-h-[min(320px,40dvh)] w-full resize-none bg-transparent text-base placeholder:text-muted-foreground focus-visible:outline-none field-sizing-content overflow-y-auto md:text-sm"
               rows={2}
               onKeyDown={onQuickPost}
               onChange={(e) => onTextChange(e.target.value)}

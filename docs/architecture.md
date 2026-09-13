@@ -1313,6 +1313,25 @@ legacy shape left to copy.
     choices, it renders after any items a compact row displaced into the menu,
     and there is deliberately no prop for removing or replacing one of the
     menu's own items — flag any attempt to add one.
+- **Composer vertical sizing & auto-growth.** Both the main composer (`PostBox`,
+  used standalone on timelines and for quotes/edits) and the reply composer
+  (`StatusReplyBox`, used for inline replies and fitness activity comments)
+  automatically grow vertically with typing, wrapped lines, newlines, and pasted
+  text while preserving caret positioning, focus, and existing controls:
+  - Sizing classes on the message textareas: `field-sizing-content min-h-[72px]`
+    (or `min-h-[60px]` for replies) `max-h-[min(320px,40dvh)] overflow-y-auto`.
+  - Browsers supporting CSS `field-sizing: content` (Chrome 123+) size the
+    textareas natively without JavaScript intervention.
+  - For browsers lacking native `field-sizing: content` support (such as Safari and
+    Firefox), the shared `useAutoResizeTextarea` hook
+    (`@/lib/hooks/useAutoResizeTextarea`) provides a measured-height fallback that
+    updates `element.style.height` based on `scrollHeight` on mount, input, value
+    changes, and container width changes, while preserving `scrollTop` so internal
+    scrolling does not jump.
+  - Height is capped at `min(320px, 40dvh)`. On extremely short viewports, CSS
+    `min-height` takes precedence over `max-height`. Textareas scroll internally
+    after reaching the cap and shrink smoothly back to the minimum height when text
+    is deleted or draft-reset clears the content.
 - The reaction chips and the action row are both full-bleed (`-ml-13`), and the
   action row packs every action into one `gap-1` cluster at the post's left edge
   with only the `⋯` menu pushed right by an `ml-auto` on its wrapper. That auto
