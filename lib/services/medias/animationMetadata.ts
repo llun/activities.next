@@ -633,8 +633,8 @@ export const enrichStatusesAttachments = async (
     )
   }
 
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
   try {
-    let timeoutId: ReturnType<typeof setTimeout> | undefined
     const timeoutPromise = new Promise<void>((resolve) => {
       timeoutId = setTimeout(() => {
         logger.warn({
@@ -645,12 +645,13 @@ export const enrichStatusesAttachments = async (
     })
 
     await Promise.race([runBatch(), timeoutPromise])
-    if (timeoutId) clearTimeout(timeoutId)
   } catch (error) {
     logger.warn({
       message: 'Unexpected error during batch animation metadata enrichment',
       err: toLoggableError(error)
     })
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId)
   }
 
   return statuses
