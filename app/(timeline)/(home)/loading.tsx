@@ -14,7 +14,7 @@ export const TimelineLoading: FC = () => {
 
       <section
         aria-label="Post composer"
-        className={`rounded-xl border bg-card p-4 shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
+        className={`rounded-xl border bg-card p-4 shadow-sm max-md:-mt-6 ${MOBILE_FEED_SURFACE_CLASS}`}
       >
         <div className="flex items-start gap-3">
           <div className="skeleton size-12 shrink-0 rounded-full" />
@@ -38,9 +38,14 @@ export const TimelineLoading: FC = () => {
         </div>
       </section>
 
+      <div
+        aria-hidden="true"
+        className="max-md:-mt-6 max-md:ml-[calc(50%_-_50vw)] max-md:h-px max-md:w-screen max-md:bg-border md:hidden"
+      />
+
       <section
         aria-label="Timeline posts"
-        className={`divide-y overflow-hidden rounded-xl border bg-card shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
+        className={`divide-y overflow-hidden rounded-xl border bg-card shadow-sm max-md:-mt-6 ${MOBILE_FEED_SURFACE_CLASS}`}
       >
         {[0, 1, 2].map((index) => (
           <div key={index} className="flex gap-3 px-4 py-3">
