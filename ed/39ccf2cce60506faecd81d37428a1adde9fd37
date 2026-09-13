@@ -1,0 +1,39 @@
+app/(timeline)/[actor]/[status]/Header.tsx
+  s_f075e31aa3a214::t_c8f75fb93f6c1c 7,19
+app/(timeline)/[actor]/[status]/loading.tsx
+  s_f075e31aa3a214::t_9dbfc2b75db4e0 13
+app/(timeline)/layout.tsx
+  s_f075e31aa3a214::t_941640fc61299b 6,105-119,129-163
+app/(timeline)/lists/ListEditor.tsx
+  s_f075e31aa3a214::t_29fd8997e8bf53 233
+lib/components/layout/mobile-nav.tsx
+  s_f075e31aa3a214::t_e771f2b75694d4 3-5,7-9,11-16,20-28,32,37-39,43,46-47,49-50,52-56,58,60-62,66-84,86-110
+lib/components/layout/mobile-navigation-trigger.tsx
+  s_f075e31aa3a214::t_f105e6c43c6433 1-52
+lib/components/layout/sidebar.tsx
+  s_f075e31aa3a214::t_e0760e22c49a2d 51,56-60,65,93,103-104,120-127,173-174,184,271,282-291,318,333,349-353,370,374,395,399-400,412-419,440,465,469-470,484-485,503-507,514,516-519,540-544,546-592,594-595,600-612,614-650,652-657,660-671,673-695
+lib/components/notification-badge/NotificationBadge.tsx
+  s_f075e31aa3a214::t_7f12b92e08189f 1,5,10-14,28
+lib/components/page-header.tsx
+  s_f075e31aa3a214::t_746242baf93594 5,134-143
+lib/components/posts/actions/edit-history-button.tsx
+  s_f075e31aa3a214::t_b5f3b91776666d 77
+lib/components/scroll-to-top-button/scroll-to-top-button.tsx
+  s_f075e31aa3a214::t_305991ec1fc5d1 65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ed39ccf2cce60506faecd81d37428a1adde9fd37",
+  "prompts": {},
+  "sessions": {
+    "s_f075e31aa3a214": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09a80-bb07-7863-a9f8-81e7ca411756",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
