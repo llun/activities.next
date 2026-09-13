@@ -24,14 +24,15 @@ describe('timeline loading', () => {
   })
 
   it('renders every placeholder with the shimmer skeleton utility', () => {
-    // jsdom paints no CSS so classes are the observable; every leaf <div>/<span> in
-    // this skeleton is a placeholder (containers always hold further elements),
-    // and a bare `length > 0` missed both a partial strip and a future
-    // unstyled row; the `.skeleton` definition itself is guarded by
-    // app/globals.skeleton.test.ts.
+    // jsdom paints no CSS so classes are the observable; every visible leaf
+    // <div>/<span> in this skeleton is a placeholder (containers always hold
+    // further elements). The aria-hidden divider is decorative layout chrome,
+    // not a loading placeholder. A bare `length > 0` missed both a partial
+    // strip and a future unstyled row; the `.skeleton` definition itself is
+    // guarded by app/globals.skeleton.test.ts.
     const { container } = render(<Loading />)
     const leaves = Array.from(container.querySelectorAll('div, span')).filter(
-      (el) => el.children.length === 0
+      (el) => el.children.length === 0 && el.ariaHidden !== 'true'
     )
     expect(leaves.length).toBeGreaterThan(0)
     leaves.forEach((el) => expect(el).toHaveClass('skeleton'))

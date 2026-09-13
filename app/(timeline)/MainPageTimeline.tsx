@@ -208,7 +208,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       />
 
       <section
-        className={`rounded-xl border bg-card p-4 shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
+        className={`rounded-xl border bg-card p-4 shadow-sm max-md:-mt-6 ${MOBILE_FEED_SURFACE_CLASS}`}
       >
         {/* The home timeline keeps a top composer for brand-new posts. Reply,
             quote, and edit happen inline in the feed via the shared composer,
@@ -225,7 +225,12 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         />
       </section>
 
-      <section>
+      <div
+        aria-hidden="true"
+        className="max-md:-mt-6 max-md:ml-[calc(50%_-_50vw)] max-md:h-px max-md:w-screen max-md:bg-border md:hidden"
+      />
+
+      <section className="max-md:-mt-6">
         {currentStatuses.length > 0 ? (
           <Posts
             host={host}
