@@ -1,0 +1,25 @@
+app/(timeline)/(home)/loading.test.tsx
+  s_7a2609f8f0bdf3::t_fed1a7f647ce3e 27-32,35
+app/(timeline)/MainPageTimeline.tsx
+  s_7a2609f8f0bdf3::t_8b76d679daac03 211,228-233
+app/(timeline)/(home)/loading.tsx
+  s_7a2609f8f0bdf3::t_8b76d679daac03 17,41-45,48
+docs/architecture.md
+  s_7a2609f8f0bdf3::t_de44984c9556eb 603
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7662c5476d72ad6b859200cb30cc8dd32382d2fc",
+  "prompts": {},
+  "sessions": {
+    "s_7a2609f8f0bdf3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a099d2-b8c9-7360-9d9a-a6e7bcf0f526",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
