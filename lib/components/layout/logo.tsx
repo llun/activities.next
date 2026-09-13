@@ -28,7 +28,7 @@ export function Logo({
   return (
     <Link
       href="/"
-      onNavigate={onNavigate}
+      onClick={onNavigate}
       aria-label="Activities home"
       className={`inline-flex items-center gap-2 font-semibold tracking-tight ${sizes[size]} ${className}`}
     >

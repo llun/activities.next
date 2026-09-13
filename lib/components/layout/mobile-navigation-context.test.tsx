@@ -113,4 +113,38 @@ describe('MobileNavigationContext', () => {
 
     expect(screen.getByTestId('is-open')).toHaveTextContent('false')
   })
+
+  it('falls back to addListener / removeListener when addEventListener is missing', () => {
+    let changeHandler: ((e: { matches: boolean }) => void) | null = null
+    const removeListenerMock = vi.fn()
+
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn((handler: (e: { matches: boolean }) => void) => {
+        changeHandler = handler
+      }),
+      removeListener: removeListenerMock,
+      dispatchEvent: vi.fn()
+    }))
+
+    const { unmount } = render(
+      <MobileNavigationProvider>
+        <TestConsumer />
+      </MobileNavigationProvider>
+    )
+
+    fireEvent.click(screen.getByTestId('open-btn'))
+    expect(screen.getByTestId('is-open')).toHaveTextContent('true')
+
+    act(() => {
+      changeHandler?.({ matches: true })
+    })
+
+    expect(screen.getByTestId('is-open')).toHaveTextContent('false')
+
+    unmount()
+    expect(removeListenerMock).toHaveBeenCalled()
+  })
 })

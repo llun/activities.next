@@ -249,8 +249,8 @@ const Page: FC<Props> = async ({ params }) => {
     : null
 
   return (
-    <div className={cn('space-y-6', isLoggedIn && 'pt-6 sm:pt-8')}>
-      <MobileNavigationHeader />
+    <div className={cn('flex flex-col gap-6', isLoggedIn && 'pt-6 sm:pt-8')}>
+      <MobileNavigationHeader className="-mt-6" />
       <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
         <ProfileHeaderImage
           actorId={person.id}

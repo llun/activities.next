@@ -18,7 +18,7 @@ export function MobileNavigationHeader({
   return (
     <div
       className={cn(
-        'sticky top-0 z-30 -mx-4 -mt-6 mb-4 flex items-center gap-3 border-b bg-background/90 px-4 py-2 backdrop-blur md:hidden',
+        'sticky top-0 z-30 -mx-4 mb-4 flex items-center gap-3 border-b bg-background/90 px-4 py-2 backdrop-blur md:hidden',
         className
       )}
     >

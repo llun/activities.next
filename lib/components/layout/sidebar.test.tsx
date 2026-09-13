@@ -23,24 +23,14 @@ vi.mock('next/link', () => ({
     children,
     href,
     prefetch,
-    onNavigate,
     onClick,
     ...rest
   }: AnchorHTMLAttributes<HTMLAnchorElement> & {
     href: string
     prefetch?: boolean | 'auto' | null
     children: ReactNode
-    onNavigate?: (e: { preventDefault: () => void }) => void
   }) => (
-    <a
-      href={href}
-      data-prefetch={String(prefetch)}
-      onClick={(e) => {
-        onNavigate?.({ preventDefault: () => e.preventDefault() })
-        onClick?.(e)
-      }}
-      {...rest}
-    >
+    <a href={href} data-prefetch={String(prefetch)} onClick={onClick} {...rest}>
       {children}
     </a>
   )
@@ -463,10 +453,18 @@ describe('Sidebar', () => {
       expect(onNavigate).toHaveBeenCalledTimes(1)
     })
 
-    it('retains the unread notification badge on the Notifications item', () => {
+    it('retains the unread notification badge on the Notifications item with accessible text', () => {
       renderSidebar(<Sidebar variant="drawer" lists={[]} unreadCount={7} />)
 
       expect(screen.getByText('7')).toBeInTheDocument()
+      expect(screen.getByText('(7 unread)')).toBeInTheDocument()
+    })
+
+    it('enforces >= 44px minimum touch targets on drawer navigation links', () => {
+      renderSidebar(<Sidebar variant="drawer" lists={[]} />)
+
+      const timelineLink = screen.getByRole('link', { name: 'Timeline' })
+      expect(timelineLink).toHaveClass('min-h-[44px]')
     })
   })
 })

@@ -31,6 +31,7 @@ describe('MobileNavigationTrigger', () => {
     const button = screen.getByRole('button', { name: 'Open navigation' })
     expect(button).toBeInTheDocument()
     expect(button).toHaveClass('md:hidden')
+    expect(button).toHaveClass('h-11', 'w-11')
     expect(screen.queryByText(/^[0-9]+$/)).not.toBeInTheDocument()
   })
 

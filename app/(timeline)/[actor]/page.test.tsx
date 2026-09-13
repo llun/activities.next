@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
 
+import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { isLocalFederationDomain } from '@/lib/services/federation/domainPolicy'
 import { Actor } from '@/lib/types/activitypub'
@@ -30,7 +31,8 @@ vi.mock('@/lib/database', () => ({
 }))
 
 vi.mock('next/navigation', () => ({
-  notFound: vi.fn()
+  notFound: vi.fn(),
+  usePathname: () => '/@bob@mastodon.social'
 }))
 
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -379,5 +381,40 @@ describe('[actor] page header handle link', () => {
     render(element)
 
     expect(screen.queryByText(/mastodon/i)).not.toBeInTheDocument()
+  })
+
+  it('renders mobile navigation header when wrapped in MobileNavigationProvider', async () => {
+    mockGetProfileData.mockResolvedValue({
+      person: {
+        id: 'https://mastodon.social/users/bob',
+        type: 'Person',
+        preferredUsername: 'bob',
+        name: 'Bob',
+        summary: '',
+        url: 'https://mastodon.social/@bob'
+      } as unknown as Actor,
+      statuses: [],
+      statusesCount: 10,
+      statusPagination: { nextPageUrl: null, prevPageUrl: null },
+      attachments: [],
+      followingCount: 5,
+      followersCount: 15,
+      isInternalAccount: false,
+      hasFitnessData: false,
+      isPixelfed: false,
+      serverSoftware: null
+    })
+
+    const element = await Page({
+      params: Promise.resolve({ actor: '@bob@mastodon.social' })
+    })
+    render(<MobileNavigationProvider>{element}</MobileNavigationProvider>)
+
+    expect(
+      screen.getByRole('button', { name: 'Open navigation' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Activities home' })
+    ).toBeInTheDocument()
   })
 })

@@ -144,8 +144,8 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
   })
 
   return (
-    <div className="space-y-6">
-      <MobileNavigationHeader className="mt-0" />
+    <div className="flex flex-col gap-6">
+      <MobileNavigationHeader />
       <ScrollToTopButton
         isLoadMoreVisible={hasMoreStatuses && isLoadMoreVisible}
       />

@@ -2,6 +2,7 @@
 
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
+import { usePathname } from 'next/navigation'
 import { useEffect, useRef } from 'react'
 
 import { ActorInfo } from '@/lib/components/actor-switcher/ActorSwitcher'
@@ -37,14 +38,16 @@ export function MobileNav({
   user,
   currentActor,
   actors,
-  unreadCount = 0,
+  unreadCount,
   fitnessUrl,
   isAdmin = false,
   lists,
   features
 }: MobileNavProps) {
   const nav = useMobileNavigation()
+  const pathname = usePathname()
   const navigatedRef = useRef(false)
+  const initialPathnameRef = useRef(pathname)
 
   const isOpen = nav?.isOpen ?? false
   const setOpen = nav?.setOpen
@@ -52,10 +55,13 @@ export function MobileNav({
   useEffect(() => {
     if (isOpen) {
       navigatedRef.current = false
+      initialPathnameRef.current = pathname
     }
-  }, [isOpen])
+  }, [isOpen, pathname])
 
   if (!nav) return null
+
+  const effectiveUnreadCount = unreadCount ?? nav.unreadCount ?? 0
 
   const handleNavigate = () => {
     navigatedRef.current = true
@@ -66,15 +72,15 @@ export function MobileNav({
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Content
-        aria-label="Navigation drawer"
         onCloseAutoFocus={(event) => {
           // If viewport was resized to tablet/desktop (>= 768px) or a navigation occurred,
           // prevent restoring focus to the mobile hamburger trigger (which is hidden/unmounted).
-          if (
-            (typeof window !== 'undefined' &&
-              window.matchMedia?.('(min-width: 768px)').matches) ||
-            navigatedRef.current
-          ) {
+          const isDesktop =
+            typeof window !== 'undefined' &&
+            window.matchMedia?.('(min-width: 768px)').matches
+          const hasNavigated =
+            navigatedRef.current || pathname !== initialPathnameRef.current
+          if (isDesktop || hasNavigated) {
             event.preventDefault()
           }
         }}
@@ -84,13 +90,13 @@ export function MobileNav({
           'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left'
         )}
       >
-        <DialogTitle className="sr-only">Navigation</DialogTitle>
+        <DialogTitle className="sr-only">Navigation drawer</DialogTitle>
         <DialogDescription className="sr-only">
           Main site navigation
         </DialogDescription>
         <DialogClose
           aria-label="Close navigation"
-          className="absolute top-4 right-4 z-50 flex h-11 w-11 items-center justify-center rounded-lg text-foreground hover:bg-muted focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+          className="absolute top-[calc(env(safe-area-inset-top,0px)+1rem)] right-4 z-50 flex h-11 w-11 items-center justify-center rounded-lg text-foreground hover:bg-muted focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
         >
           <X className="h-5 w-5" />
         </DialogClose>
@@ -99,7 +105,7 @@ export function MobileNav({
           user={user}
           currentActor={currentActor}
           actors={actors}
-          unreadCount={unreadCount}
+          unreadCount={effectiveUnreadCount}
           fitnessUrl={fitnessUrl}
           isAdmin={isAdmin}
           lists={lists}

@@ -15,24 +15,14 @@ vi.mock('next/link', () => ({
     children,
     href,
     prefetch,
-    onNavigate,
     onClick,
     ...rest
   }: AnchorHTMLAttributes<HTMLAnchorElement> & {
     href: string
     prefetch?: boolean | 'auto' | null
     children: ReactNode
-    onNavigate?: (e: { preventDefault: () => void }) => void
   }) => (
-    <a
-      href={href}
-      data-prefetch={String(prefetch)}
-      onClick={(e) => {
-        onNavigate?.({ preventDefault: () => e.preventDefault() })
-        onClick?.(e)
-      }}
-      {...rest}
-    >
+    <a href={href} data-prefetch={String(prefetch)} onClick={onClick} {...rest}>
       {children}
     </a>
   )
@@ -87,11 +77,11 @@ describe('MobileNav', () => {
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(
-      screen.getByRole('heading', { name: 'Navigation' })
+      screen.getByRole('heading', { name: 'Navigation drawer' })
     ).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'Close navigation' })
-    ).toBeInTheDocument()
+    const closeButton = screen.getByRole('button', { name: 'Close navigation' })
+    expect(closeButton).toBeInTheDocument()
+    expect(closeButton).toHaveClass('h-11', 'w-11')
   })
 
   it('renders full navigation items inside the drawer', () => {
@@ -133,6 +123,14 @@ describe('MobileNav', () => {
 
     fireEvent.click(screen.getByRole('link', { name: 'Timeline' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('falls back to context unreadCount when unreadCount prop is omitted', () => {
+    renderMobileNav(<MobileNav />, { unreadCount: 3 })
+
+    fireEvent.click(screen.getByTestId('mobile-trigger'))
+
+    expect(screen.getAllByText('3')).toHaveLength(2)
   })
 
   it('renders unread count on both trigger and drawer Notifications item', () => {

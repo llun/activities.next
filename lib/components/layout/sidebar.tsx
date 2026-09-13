@@ -315,7 +315,7 @@ export function Sidebar({
                     >
                       <Link
                         href={item.href}
-                        onNavigate={onNavigate}
+                        onClick={onNavigate}
                         // Exactly one link in a navigation may claim the current
                         // page: inside one of the lists below, that link is the
                         // claimant; anywhere else in the section — the index,
@@ -367,7 +367,7 @@ export function Sidebar({
                             <li key={list.id}>
                               <Link
                                 href={`/lists/${list.id}`}
-                                onNavigate={onNavigate}
+                                onClick={onNavigate}
                                 aria-current={isListActive ? 'page' : undefined}
                                 className={cn(
                                   'block truncate rounded-lg px-3 py-2 text-sm font-medium transition-colors',
@@ -392,7 +392,7 @@ export function Sidebar({
                 <li key={item.id} className="group relative">
                   <Link
                     href={item.href}
-                    onNavigate={onNavigate}
+                    onClick={onNavigate}
                     ref={registerRow(`nav:${item.id}`)}
                     aria-current={isActive ? 'page' : undefined}
                     className={cn(
@@ -406,18 +406,22 @@ export function Sidebar({
                     <item.icon className="h-5 w-5" />
                     {item.label}
                     {isNotifications && unreadCount > 0 && (
-                      <NotificationBadge
-                        count={unreadCount}
-                        // The badge and the ⋯ share the right edge, so it
-                        // steps aside while the row is hovered on desktop;
-                        // in drawer mode it stays visible.
-                        className={cn(
-                          'static ml-1',
-                          isDrawer
-                            ? ''
-                            : 'transition-opacity group-hover:opacity-0'
-                        )}
-                      />
+                      <>
+                        <NotificationBadge
+                          count={unreadCount}
+                          aria-hidden="true"
+                          // The badge and the ⋯ share the right edge, so it
+                          // steps aside while the row is hovered on desktop;
+                          // in drawer mode it stays visible.
+                          className={cn(
+                            'static ml-1',
+                            isDrawer
+                              ? ''
+                              : 'transition-opacity group-hover:opacity-0'
+                          )}
+                        />
+                        <span className="sr-only"> ({unreadCount} unread)</span>
+                      </>
                     )}
                   </Link>
                   {renderRowMenu(item, index)}
@@ -462,7 +466,7 @@ export function Sidebar({
                         <li key={item.id} className="group relative">
                           <Link
                             href={item.href}
-                            onNavigate={onNavigate}
+                            onClick={onNavigate}
                             ref={registerRow(`more:${item.id}`)}
                             aria-current={isActive ? 'page' : undefined}
                             className={cn(
@@ -482,8 +486,9 @@ export function Sidebar({
                             onClick={() => restoreRow(item.id)}
                             className={cn(
                               'absolute right-1.5 top-1/2 grid -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground',
-                              isDrawer ? 'h-11 w-11' : 'h-7 w-7',
-                              hoverControlClassName
+                              isDrawer
+                                ? 'h-11 w-11 opacity-100'
+                                : cn('h-7 w-7', hoverControlClassName)
                             )}
                           >
                             <Eye className="h-4 w-4" />
@@ -511,7 +516,7 @@ export function Sidebar({
             <div className="border-t p-4">
               <Link
                 href={`/${user.handle}`}
-                onNavigate={onNavigate}
+                onClick={onNavigate}
                 prefetch={false}
                 className={cn(
                   'flex items-center gap-3 rounded-lg p-2 cursor-pointer hover:bg-muted transition-colors',

@@ -144,8 +144,8 @@ export function ActorSwitcher({
       <Link
         href={profileHref}
         prefetch={false}
-        onNavigate={onNavigate}
-        className="flex items-center gap-3 rounded-lg p-2 cursor-pointer hover:bg-muted transition-colors w-full overflow-hidden"
+        onClick={onNavigate}
+        className="flex min-h-[44px] items-center gap-3 rounded-lg p-2 cursor-pointer hover:bg-muted transition-colors w-full overflow-hidden"
       >
         {avatar}
         {identity}
@@ -164,9 +164,9 @@ export function ActorSwitcher({
           <Link
             href={profileHref}
             prefetch={false}
-            onNavigate={onNavigate}
+            onClick={onNavigate}
             aria-label={`View ${displayName}'s profile`}
-            className="shrink-0 rounded-full cursor-pointer"
+            className="shrink-0 rounded-full cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center -m-0.5"
           >
             {avatar}
           </Link>

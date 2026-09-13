@@ -50,9 +50,17 @@ export function MobileNavigationProvider({
         setOpen(false)
       }
     }
-    mql.addEventListener?.('change', onChange)
+    if (mql.addEventListener) {
+      mql.addEventListener('change', onChange)
+    } else if (mql.addListener) {
+      mql.addListener(onChange)
+    }
     return () => {
-      mql.removeEventListener?.('change', onChange)
+      if (mql.removeEventListener) {
+        mql.removeEventListener('change', onChange)
+      } else if (mql.removeListener) {
+        mql.removeListener(onChange)
+      }
     }
   }, [])
 
