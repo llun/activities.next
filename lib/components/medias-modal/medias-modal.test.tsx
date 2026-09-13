@@ -25,6 +25,10 @@ const buildAttachment = (overrides: Partial<Attachment> = {}): Attachment => ({
 })
 
 describe('MediasModal', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('renders alt text underneath image when description exists', () => {
     const attachment = buildAttachment({
       name: 'A mountaineer walking along a ridge'
@@ -258,5 +262,56 @@ describe('MediasModal', () => {
     expect(
       screen.getByRole('button', { name: 'Pause animation' })
     ).toBeInTheDocument()
+  })
+
+  it('respects prefers-reduced-motion in the lightbox even if autoplay is enabled', async () => {
+    const originalMatchMedia = window.matchMedia
+    try {
+      window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+        matches: query.includes('prefers-reduced-motion'),
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn()
+      }))
+
+      const gif = buildAttachment({
+        id: 'attachment-gif-reduced',
+        mediaType: 'image/gif',
+        url: 'https://activities.local/media/animation.gif',
+        thumbnailUrl: 'https://activities.local/media/preview.jpg'
+      })
+
+      await act(async () => {
+        render(
+          <PlaybackPreferencesProvider initialAutoplayGifs={true}>
+            <MediasModal
+              medias={[gif]}
+              initialSelection={0}
+              onClosed={vi.fn()}
+            />
+          </PlaybackPreferencesProvider>
+        )
+      })
+
+      // Even with autoplayGifs=true, prefers-reduced-motion prevents autoplay,
+      // so button should show 'Play animation'
+      const playButton = screen.getByRole('button', { name: 'Play animation' })
+      expect(playButton).toBeInTheDocument()
+
+      // Clicking it manually starts playback
+      await act(async () => {
+        fireEvent.click(playButton)
+      })
+
+      expect(
+        screen.getByRole('button', { name: 'Pause animation' })
+      ).toBeInTheDocument()
+    } finally {
+      window.matchMedia = originalMatchMedia
+    }
   })
 })

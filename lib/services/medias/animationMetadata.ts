@@ -49,6 +49,12 @@ interface MastodonStatusResponse {
 type CacheEntry = {
   data: Record<string, AnimationMetadataItem> | null
   expiresAt: number
+  definitive: boolean
+}
+
+interface StatusFetchResult {
+  data: Record<string, AnimationMetadataItem> | null
+  definitive: boolean
 }
 
 export const SUCCESS_TTL_MS = 24 * 60 * 60 * 1000
@@ -58,10 +64,7 @@ const REMOTE_STATUS_TIMEOUT_MS = 5000
 const MAX_RESPONSE_BYTES = 256 * 1024
 
 const statusMetadataCache = new Map<string, CacheEntry>()
-const inFlightRequests = new Map<
-  string,
-  Promise<Record<string, AnimationMetadataItem> | null>
->()
+const inFlightRequests = new Map<string, Promise<StatusFetchResult>>()
 
 export const clearAnimationMetadataCacheForTests = () => {
   statusMetadataCache.clear()
@@ -74,7 +77,8 @@ export const getAnimationMetadataCacheSizeForTests = () =>
 const setBoundedCache = (
   key: string,
   data: Record<string, AnimationMetadataItem> | null,
-  ttlMs: number
+  ttlMs: number,
+  definitive: boolean
 ) => {
   if (statusMetadataCache.has(key)) {
     statusMetadataCache.delete(key)
@@ -87,7 +91,8 @@ const setBoundedCache = (
 
   statusMetadataCache.set(key, {
     data,
-    expiresAt: Date.now() + ttlMs
+    expiresAt: Date.now() + ttlMs,
+    definitive
   })
 }
 
@@ -214,7 +219,7 @@ const fetchMastodonStatusMetadata = async (
   statusUrl?: string | null,
   statusId?: string | null,
   authorId?: string | null
-): Promise<Record<string, AnimationMetadataItem> | null> => {
+): Promise<StatusFetchResult> => {
   const requestUrl = `https://${domain}/api/v1/statuses/${mastodonStatusId}`
 
   try {
@@ -228,13 +233,17 @@ const fetchMastodonStatusMetadata = async (
       }
     })
 
+    if (result.statusCode === 404 || result.statusCode === 410) {
+      return { data: null, definitive: true }
+    }
+
     if (result.statusCode !== 200 || !result.body) {
-      return null
+      return { data: null, definitive: false }
     }
 
     const payload = JSON.parse(result.body) as MastodonStatusResponse
     if (!payload || typeof payload !== 'object') {
-      return null
+      return { data: null, definitive: true }
     }
 
     // 1. Status identity check: verify that the returned status matches what was requested
@@ -251,7 +260,7 @@ const fetchMastodonStatusMetadata = async (
         returnedId: payload.id,
         returnedUri: payload.uri
       })
-      return null
+      return { data: null, definitive: true }
     }
 
     // 2. Author check: verify attribution
@@ -262,7 +271,7 @@ const fetchMastodonStatusMetadata = async (
         expectedAuthorId: authorId,
         returnedAccountUrl: payload.account?.url ?? null
       })
-      return null
+      return { data: null, definitive: true }
     }
 
     const mediaList = Array.isArray(payload.media_attachments)
@@ -298,7 +307,7 @@ const fetchMastodonStatusMetadata = async (
       }
     }
 
-    return map
+    return { data: map, definitive: true }
   } catch (error) {
     logger.warn({
       message: 'Failed to fetch Mastodon status animation metadata',
@@ -306,7 +315,7 @@ const fetchMastodonStatusMetadata = async (
       statusId: mastodonStatusId,
       err: toLoggableError(error)
     })
-    return null
+    return { data: null, definitive: false }
   }
 }
 
@@ -345,18 +354,22 @@ export const resolveAnimationMetadata = async ({
 
       const cached = statusMetadataCache.get(cacheKey)
       if (cached && cached.expiresAt > Date.now()) {
-        return mapAttachments(videoAttachments, cached.data, true)
+        return mapAttachments(videoAttachments, cached.data, cached.definitive)
       }
 
       const isSupported = await isMastodonCompatibleSoftware(domain)
       if (!isSupported) {
-        setBoundedCache(cacheKey, null, FAILURE_TTL_MS)
+        setBoundedCache(cacheKey, null, FAILURE_TTL_MS, true)
         return mapAttachments(videoAttachments, null, true)
       }
 
       const cachedAfterCheck = statusMetadataCache.get(cacheKey)
       if (cachedAfterCheck && cachedAfterCheck.expiresAt > Date.now()) {
-        return mapAttachments(videoAttachments, cachedAfterCheck.data, true)
+        return mapAttachments(
+          videoAttachments,
+          cachedAfterCheck.data,
+          cachedAfterCheck.definitive
+        )
       }
 
       let promise = inFlightRequests.get(cacheKey)
@@ -370,8 +383,8 @@ export const resolveAnimationMetadata = async ({
               statusId,
               authorId
             )
-            const ttl = result ? SUCCESS_TTL_MS : FAILURE_TTL_MS
-            setBoundedCache(cacheKey, result, ttl)
+            const ttl = result.data ? SUCCESS_TTL_MS : FAILURE_TTL_MS
+            setBoundedCache(cacheKey, result.data, ttl, result.definitive)
             return result
           } finally {
             inFlightRequests.delete(cacheKey)
@@ -380,8 +393,12 @@ export const resolveAnimationMetadata = async ({
         inFlightRequests.set(cacheKey, promise)
       }
 
-      const metadataMap = await promise
-      return mapAttachments(videoAttachments, metadataMap, metadataMap !== null)
+      const fetchResult = await promise
+      return mapAttachments(
+        videoAttachments,
+        fetchResult.data,
+        fetchResult.definitive
+      )
     }
   )
 

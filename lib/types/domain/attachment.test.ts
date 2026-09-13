@@ -148,6 +148,24 @@ describe('attachment', () => {
       expect(metaOf(result)).not.toHaveProperty('focus')
     })
 
+    it('returns gifv type for video attachment with playbackType gifv and preserves focus', () => {
+      const gifvAttachment: Attachment = {
+        ...baseAttachment,
+        mediaType: 'video/mp4',
+        playbackType: 'gifv',
+        url: 'https://example.com/media/animation.mp4',
+        focus: { x: 0.1, y: -0.3 }
+      }
+
+      const result = getMastodonAttachment(gifvAttachment)
+
+      expect(result?.type).toEqual('gifv')
+      expect(result?.url).toEqual('https://example.com/media/animation.mp4')
+      expect(metaOf(result)).toMatchObject({
+        focus: { x: 0.1, y: -0.3 }
+      })
+    })
+
     it('returns video type for webm', () => {
       const webmAttachment: Attachment = {
         ...baseAttachment,

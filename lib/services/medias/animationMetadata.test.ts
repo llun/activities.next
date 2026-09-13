@@ -309,7 +309,7 @@ describe('resolveAnimationMetadata', () => {
     expect(result['https://files.mastodon.social/media/video.mp4']).toEqual({
       playbackType: 'unknown',
       previewUrl: null,
-      definitive: false
+      definitive: true
     })
   })
 
@@ -349,7 +349,7 @@ describe('resolveAnimationMetadata', () => {
     expect(result['https://files.mastodon.social/media/video.mp4']).toEqual({
       playbackType: 'unknown',
       previewUrl: null,
-      definitive: false
+      definitive: true
     })
   })
 
@@ -375,7 +375,7 @@ describe('resolveAnimationMetadata', () => {
     })
   })
 
-  it('handles remote fetch errors gracefully', async () => {
+  it('handles remote fetch errors gracefully and preserves non-definitive state on cache hit', async () => {
     vi.mocked(safeRemoteFetch).mockRejectedValue(new Error('Network timeout'))
 
     const result = await resolveAnimationMetadata({
@@ -390,6 +390,27 @@ describe('resolveAnimationMetadata', () => {
     })
 
     expect(result['https://files.mastodon.social/media/video.mp4']).toEqual({
+      playbackType: 'unknown',
+      previewUrl: null,
+      definitive: false
+    })
+
+    // Second call hitting failure cache must still preserve definitive: false
+    const cachedResult = await resolveAnimationMetadata({
+      statusUrl: 'https://mastodon.social/@cheeaun/111000',
+      statusId: '111000',
+      authorId: 'https://mastodon.social/users/cheeaun',
+      attachments: [
+        {
+          url: 'https://files.mastodon.social/media/video.mp4',
+          mediaType: 'video/mp4'
+        }
+      ]
+    })
+
+    expect(
+      cachedResult['https://files.mastodon.social/media/video.mp4']
+    ).toEqual({
       playbackType: 'unknown',
       previewUrl: null,
       definitive: false
@@ -484,6 +505,82 @@ describe('enrichStatusAttachments', () => {
 
     await enrichStatusAttachments(status)
     expect(safeRemoteFetch).not.toHaveBeenCalled()
+  })
+
+  it('does not write playbackType: unknown to database on transient fetch failure even across multiple calls', async () => {
+    vi.mocked(safeRemoteFetch).mockRejectedValue(new Error('Network error'))
+
+    const mockDb = {
+      updateAttachmentPlayback: vi.fn()
+    } as unknown as MediaDatabase
+
+    const attachment: Attachment = {
+      id: 'att-transient',
+      actorId: 'act-1',
+      statusId: 'https://mastodon.social/users/cheeaun/statuses/111000',
+      mediaType: 'video/mp4',
+      type: 'Document',
+      url: 'https://files.mastodon.social/media/video.mp4',
+      name: 'Animation',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    }
+
+    const status = {
+      id: 'https://mastodon.social/users/cheeaun/statuses/111000',
+      url: 'https://mastodon.social/@cheeaun/111000',
+      actorId: 'https://mastodon.social/users/cheeaun',
+      attachments: [attachment]
+    }
+
+    await enrichStatusAttachments(status, mockDb)
+    // Second call hitting cache
+    await enrichStatusAttachments(status, mockDb)
+
+    expect(mockDb.updateAttachmentPlayback).not.toHaveBeenCalled()
+    expect(attachment.playbackType).toBeUndefined()
+  })
+
+  it('writes playbackType: unknown to database on definitive 404', async () => {
+    vi.mocked(safeRemoteFetch).mockResolvedValue({
+      statusCode: 404,
+      body: 'Not Found',
+      bodyTruncated: false,
+      headers: {},
+      url: 'https://mastodon.social/api/v1/statuses/111000'
+    })
+
+    const mockDb = {
+      updateAttachmentPlayback: vi.fn().mockResolvedValue(true)
+    } as unknown as MediaDatabase
+
+    const attachment: Attachment = {
+      id: 'att-404',
+      actorId: 'act-1',
+      statusId: 'https://mastodon.social/users/cheeaun/statuses/111000',
+      mediaType: 'video/mp4',
+      type: 'Document',
+      url: 'https://files.mastodon.social/media/video.mp4',
+      name: 'Animation',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    }
+
+    const status = {
+      id: 'https://mastodon.social/users/cheeaun/statuses/111000',
+      url: 'https://mastodon.social/@cheeaun/111000',
+      actorId: 'https://mastodon.social/users/cheeaun',
+      attachments: [attachment]
+    }
+
+    await enrichStatusAttachments(status, mockDb)
+
+    expect(mockDb.updateAttachmentPlayback).toHaveBeenCalledWith({
+      id: 'att-404',
+      playbackType: 'unknown',
+      thumbnailUrl: null
+    })
+    expect(attachment.playbackType).toBe('unknown')
   })
 })
 

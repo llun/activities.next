@@ -101,12 +101,17 @@ export const runBackfill = async (options: CliOptions) => {
         })
 
         const item = resolved[attachment.url]
-        const playbackType =
-          item && item.playbackType !== 'unknown'
-            ? item.playbackType
-            : 'unknown'
+        if (!item || (item.playbackType === 'unknown' && !item.definitive)) {
+          console.warn(
+            `[${attachment.id}] URL: ${attachment.url} -> transient failure or non-definitive lookup, leaving null for retry`
+          )
+          failed++
+          continue
+        }
+
+        const playbackType = item.playbackType
         const thumbnailUrl =
-          !attachment.thumbnailUrl && item?.previewUrl
+          !attachment.thumbnailUrl && item.previewUrl
             ? item.previewUrl
             : undefined
 

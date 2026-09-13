@@ -4,7 +4,6 @@ import { createPortal } from 'react-dom'
 
 import { CustomEmojiText } from '@/lib/components/actors/ActorDisplayName'
 import { Media } from '@/lib/components/posts/media'
-import { usePlaybackPreferences } from '@/lib/components/preferences/PlaybackPreferencesContext'
 import { Button } from '@/lib/components/ui/button'
 import { ActorEmojiTag } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
@@ -34,8 +33,8 @@ export const MediasModal: FC<Props> = ({
   initialSelection,
   onClosed
 }) => {
-  const { autoplayGifs } = usePlaybackPreferences()
   const [modalGifPlaying, setModalGifPlaying] = useState<boolean | null>(null)
+  const [activeGifPlaying, setActiveGifPlaying] = useState(false)
   const [currentIndex, setCurrentIndex] = useState(initialSelection)
   const [dragOffsetX, setDragOffsetX] = useState(0)
   const [isSwipeAnimating, setIsSwipeAnimating] = useState(false)
@@ -59,6 +58,11 @@ export const MediasModal: FC<Props> = ({
     setIsSwipeAnimating(false)
     setPendingSwipeDirection(0)
   }, [initialSelection])
+
+  useEffect(() => {
+    setModalGifPlaying(null)
+    setActiveGifPlaying(false)
+  }, [currentIndex, medias])
 
   const handleClose = useCallback(() => {
     setCurrentIndex(0)
@@ -297,8 +301,6 @@ export const MediasModal: FC<Props> = ({
             >
               {visibleIndices.map((index, panelIndex) => {
                 const isGif = medias[index].mediaType === 'image/gif'
-                const isGifPlaying =
-                  panelIndex === 1 ? (modalGifPlaying ?? autoplayGifs) : false
 
                 return (
                   <div
@@ -323,6 +325,9 @@ export const MediasModal: FC<Props> = ({
                               ? !modalGifPlaying
                               : null
                           }
+                          onPlayStateChange={
+                            panelIndex === 1 ? setActiveGifPlaying : undefined
+                          }
                           className={cn(
                             'max-w-full object-contain',
                             medias[index].name?.trim()
@@ -335,18 +340,16 @@ export const MediasModal: FC<Props> = ({
                           <button
                             type="button"
                             onClick={() =>
-                              setModalGifPlaying((prev) =>
-                                prev === null ? !autoplayGifs : !prev
-                              )
+                              setModalGifPlaying(!activeGifPlaying)
                             }
                             aria-label={
-                              isGifPlaying
+                              activeGifPlaying
                                 ? 'Pause animation'
                                 : 'Play animation'
                             }
                             className="absolute bottom-2 left-2 z-10 flex size-9 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 backdrop-blur-xs"
                           >
-                            {isGifPlaying ? (
+                            {activeGifPlaying ? (
                               <Pause
                                 className="size-5 fill-current"
                                 aria-hidden="true"

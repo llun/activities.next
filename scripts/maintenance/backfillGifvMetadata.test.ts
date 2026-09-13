@@ -168,4 +168,54 @@ describe('runBackfill', () => {
     const okRow = await testDb('attachments').where('id', 'att-ok').first()
     expect(okRow.playbackType).toBe('video')
   })
+
+  it('leaves playbackType null for transient non-definitive failures so they can be retried', async () => {
+    await testDb('attachments').insert({
+      id: 'att-transient',
+      statusId: 'stat-transient',
+      actorId: 'act-1',
+      mediaType: 'video/mp4',
+      url: 'https://files.mastodon.social/transient.mp4',
+      playbackType: null
+    })
+
+    vi.mocked(resolveAnimationMetadata).mockResolvedValueOnce({
+      'https://files.mastodon.social/transient.mp4': {
+        playbackType: 'unknown',
+        previewUrl: null,
+        definitive: false
+      }
+    })
+
+    await runBackfill({ dryRun: false, batchSize: 10 })
+
+    const row = await testDb('attachments').where('id', 'att-transient').first()
+    expect(row.playbackType).toBeNull()
+  })
+
+  it('updates playbackType to unknown when failure is definitive', async () => {
+    await testDb('attachments').insert({
+      id: 'att-definitive',
+      statusId: 'stat-definitive',
+      actorId: 'act-1',
+      mediaType: 'video/mp4',
+      url: 'https://files.mastodon.social/definitive.mp4',
+      playbackType: null
+    })
+
+    vi.mocked(resolveAnimationMetadata).mockResolvedValueOnce({
+      'https://files.mastodon.social/definitive.mp4': {
+        playbackType: 'unknown',
+        previewUrl: null,
+        definitive: true
+      }
+    })
+
+    await runBackfill({ dryRun: false, batchSize: 10 })
+
+    const row = await testDb('attachments')
+      .where('id', 'att-definitive')
+      .first()
+    expect(row.playbackType).toBe('unknown')
+  })
 })
