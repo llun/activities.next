@@ -31,6 +31,7 @@ import { useInstanceLimits } from '@/lib/components/instance-limits'
 import { ContentWarning } from '@/lib/components/posts/content-warning'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
+import { useAutoResizeTextarea } from '@/lib/hooks/useAutoResizeTextarea'
 import { Duration } from '@/lib/services/statuses/pollDurations'
 import {
   ActorProfile,
@@ -136,6 +137,7 @@ export const PostBox: FC<Props> = ({
   const [text, setText] = useState<string>('')
   const [warningMsg, setWarningMsg] = useState<string | null>(null)
   const postBoxRef = useRef<HTMLTextAreaElement>(null)
+  useAutoResizeTextarea(postBoxRef, text)
   const formRef = useRef<HTMLFormElement>(null)
   const textRef = useRef(text)
   const submitInFlightRef = useRef(false)
@@ -864,7 +866,7 @@ export const PostBox: FC<Props> = ({
 
             <textarea
               ref={postBoxRef}
-              className="flex min-h-[72px] w-full resize-none bg-transparent text-base leading-relaxed placeholder:text-muted-foreground focus-visible:outline-none md:text-sm"
+              className="flex min-h-[72px] max-h-[min(320px,40dvh)] w-full resize-none bg-transparent text-base leading-relaxed placeholder:text-muted-foreground focus-visible:outline-none field-sizing-content overflow-y-auto md:text-sm"
               rows={2}
               onKeyDown={onQuickPost}
               onChange={(e) => onTextChange(e.target.value)}

@@ -2075,3 +2075,74 @@ describe('getQuoteUrl', () => {
     )
   })
 })
+
+describe('PostBox automatic vertical growth', () => {
+  const host = 'activities.local'
+
+  it('configures native sizing classes on the message textarea', () => {
+    render(
+      <PostBox
+        host={host}
+        profile={profile}
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
+      />
+    )
+    const textarea = screen.getByPlaceholderText('What is on your mind?')
+    expect(textarea).toHaveClass('field-sizing-content')
+    expect(textarea).toHaveClass('min-h-[72px]')
+    expect(textarea).toHaveClass('max-h-[min(320px,40dvh)]')
+    expect(textarea).toHaveClass('overflow-y-auto')
+  })
+
+  it('updates measured height on content change when native field-sizing is not supported', () => {
+    const originalCSS = globalThis.CSS
+    globalThis.CSS = {
+      supports: vi.fn(() => false)
+    } as unknown as typeof CSS
+
+    try {
+      render(
+        <PostBox
+          host={host}
+          profile={profile}
+          onDiscardReply={vi.fn()}
+          onPostCreated={vi.fn()}
+          onPostUpdated={vi.fn()}
+          onDiscardEdit={vi.fn()}
+        />
+      )
+      const textarea = screen.getByPlaceholderText(
+        'What is on your mind?'
+      ) as HTMLTextAreaElement
+
+      Object.defineProperty(textarea, 'scrollHeight', {
+        configurable: true,
+        value: 160
+      })
+
+      act(() => {
+        fireEvent.change(textarea, {
+          target: { value: 'Line 1\nLine 2\nLine 3' }
+        })
+      })
+
+      expect(textarea.style.height).toBe('160px')
+
+      Object.defineProperty(textarea, 'scrollHeight', {
+        configurable: true,
+        value: 72
+      })
+
+      act(() => {
+        fireEvent.change(textarea, { target: { value: '' } })
+      })
+
+      expect(textarea.style.height).toBe('72px')
+    } finally {
+      globalThis.CSS = originalCSS
+    }
+  })
+})
