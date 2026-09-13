@@ -1,7 +1,7 @@
 'use client'
 
 import { RefreshCw } from 'lucide-react'
-import { FC, useCallback, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useRef, useState } from 'react'
 
 import { getTimeline } from '@/lib/client'
 import { AnnouncementBanner } from '@/lib/components/announcements/AnnouncementBanner'
@@ -11,6 +11,7 @@ import { PostBox } from '@/lib/components/post-box/post-box'
 import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 import { Posts } from '@/lib/components/posts/posts'
 import {
+  reconcileStatusesMetadata,
   removeOriginalStatus,
   updateMatchingStatus
 } from '@/lib/components/posts/statusArray'
@@ -54,6 +55,18 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     initialNextMaxStatusId ||
       (statuses.length > 0 ? statuses[statuses.length - 1].id : null)
   )
+
+  // Gently reconcile attachment metadata if the statuses prop delivers
+  // updated classifications (e.g. after navigating back from detail view,
+  // revalidation, or prop update), preserving loaded pages, order, scroll,
+  // user interactions, and local state.
+  useEffect(() => {
+    if (!statuses || statuses.length === 0) return
+
+    setCurrentStatuses((previousStatuses) =>
+      reconcileStatusesMetadata(previousStatuses, statuses)
+    )
+  }, [statuses])
 
   // A new post composed in the top box, or a reply/quote created inline from a
   // feed row, is prepended so it appears immediately.

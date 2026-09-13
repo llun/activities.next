@@ -8,6 +8,7 @@ import { ReactNode } from 'react'
 import { getTimeline } from '@/lib/client'
 import { Timeline } from '@/lib/services/timelines/types'
 import { ActorProfile } from '@/lib/types/domain/actor'
+import { Attachment } from '@/lib/types/domain/attachment'
 import {
   Status,
   StatusAnnounce,
@@ -110,6 +111,9 @@ vi.mock('@/lib/components/posts/posts', () => ({
             </span>
             <span data-testid={`post-reactions-${status.id}`}>
               {target.reactions?.length ?? 0}
+            </span>
+            <span data-testid={`post-playback-${status.id}`}>
+              {target.attachments?.[0]?.playbackType ?? 'none'}
             </span>
             <button
               type="button"
@@ -1021,6 +1025,285 @@ describe('MainPageTimeline', () => {
           'post-reactions-https://activities.local/users/llun/s/1'
         )
       ).toHaveTextContent('1')
+    })
+  })
+
+  describe('metadata reconciliation from updated statuses prop', () => {
+    const createAttachment = (
+      id: string,
+      overrides: Partial<Attachment> = {}
+    ): Attachment => ({
+      id,
+      actorId: profile.id,
+      statusId: 'https://activities.local/users/llun/s/1',
+      type: 'Document',
+      mediaType: 'video/mp4',
+      url: `https://activities.local/media/${id}.mp4`,
+      name: 'Test media',
+      createdAt: FIXED_CURRENT_TIME,
+      updatedAt: FIXED_CURRENT_TIME,
+      ...overrides
+    })
+
+    it('reconciles playbackType: gifv when statuses prop updates after navigation', () => {
+      const att = createAttachment('att-1', { playbackType: undefined })
+      const post1 = createStatus('https://activities.local/users/llun/s/1', {
+        attachments: [att]
+      })
+
+      const { rerender } = render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post1]}
+        />
+      )
+
+      expect(
+        screen.getByTestId(
+          'post-playback-https://activities.local/users/llun/s/1'
+        )
+      ).toHaveTextContent('none')
+
+      // Simulate prop update (e.g. from page navigation back with enriched classifications)
+      const enrichedAtt = createAttachment('att-1', {
+        playbackType: 'gifv',
+        thumbnailUrl: 'https://activities.local/media/att-1-thumb.jpg'
+      })
+      const enrichedPost1 = createStatus(
+        'https://activities.local/users/llun/s/1',
+        {
+          attachments: [enrichedAtt]
+        }
+      )
+
+      rerender(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[enrichedPost1]}
+        />
+      )
+
+      expect(
+        screen.getByTestId(
+          'post-playback-https://activities.local/users/llun/s/1'
+        )
+      ).toHaveTextContent('gifv')
+    })
+
+    it('preserves appended pages when statuses prop updates', async () => {
+      const att = createAttachment('att-1', { playbackType: undefined })
+      const post1 = createStatus('https://activities.local/users/llun/s/1', {
+        attachments: [att]
+      })
+      const post2 = createStatus('https://activities.local/users/llun/s/2')
+
+      vi.mocked(getTimeline).mockResolvedValueOnce({
+        statuses: [post2],
+        nextMaxStatusId: null,
+        prevMinStatusId: null
+      })
+
+      const { rerender } = render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post1]}
+          initialNextMaxStatusId="cursor-page-1"
+        />
+      )
+
+      // Load page 2
+      fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+      await waitFor(() => {
+        expect(
+          screen.getByTestId('post-https://activities.local/users/llun/s/2')
+        ).toBeInTheDocument()
+      })
+
+      // Simulate prop update for page 1 statuses
+      const enrichedAtt = createAttachment('att-1', { playbackType: 'gifv' })
+      const enrichedPost1 = createStatus(
+        'https://activities.local/users/llun/s/1',
+        {
+          attachments: [enrichedAtt]
+        }
+      )
+
+      rerender(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[enrichedPost1]}
+          initialNextMaxStatusId="cursor-page-1"
+        />
+      )
+
+      // Both post1 (with gifv) and post2 (appended page) must remain present
+      expect(
+        screen.getByTestId(
+          'post-playback-https://activities.local/users/llun/s/1'
+        )
+      ).toHaveTextContent('gifv')
+      expect(
+        screen.getByTestId('post-https://activities.local/users/llun/s/2')
+      ).toBeInTheDocument()
+    })
+
+    it('preserves user interaction state when statuses prop updates', () => {
+      const att = createAttachment('att-1', { playbackType: undefined })
+      const post1 = createStatus('https://activities.local/users/llun/s/1', {
+        attachments: [att]
+      })
+
+      const { rerender } = render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post1]}
+        />
+      )
+
+      // User interacts with post1: like, bookmark, react
+      fireEvent.click(
+        screen.getByTestId(
+          'trigger-like-https://activities.local/users/llun/s/1'
+        )
+      )
+      fireEvent.click(
+        screen.getByTestId(
+          'trigger-bookmark-https://activities.local/users/llun/s/1'
+        )
+      )
+      fireEvent.click(
+        screen.getByTestId(
+          'trigger-react-https://activities.local/users/llun/s/1'
+        )
+      )
+
+      expect(
+        screen.getByTestId('post-liked-https://activities.local/users/llun/s/1')
+      ).toHaveTextContent('true')
+      expect(
+        screen.getByTestId(
+          'post-bookmarked-https://activities.local/users/llun/s/1'
+        )
+      ).toHaveTextContent('true')
+      expect(
+        screen.getByTestId(
+          'post-reactions-https://activities.local/users/llun/s/1'
+        )
+      ).toHaveTextContent('1')
+
+      // Server prop updates with clean un-liked status, but with enriched playbackType
+      const enrichedAtt = createAttachment('att-1', { playbackType: 'gifv' })
+      const serverPost1 = createStatus(
+        'https://activities.local/users/llun/s/1',
+        {
+          attachments: [enrichedAtt],
+          isActorLiked: false,
+          isActorBookmarked: false,
+          reactions: []
+        }
+      )
+
+      rerender(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[serverPost1]}
+        />
+      )
+
+      // Local interaction state is preserved; playbackType is updated
+      expect(
+        screen.getByTestId('post-liked-https://activities.local/users/llun/s/1')
+      ).toHaveTextContent('true')
+      expect(
+        screen.getByTestId(
+          'post-bookmarked-https://activities.local/users/llun/s/1'
+        )
+      ).toHaveTextContent('true')
+      expect(
+        screen.getByTestId(
+          'post-reactions-https://activities.local/users/llun/s/1'
+        )
+      ).toHaveTextContent('1')
+      expect(
+        screen.getByTestId(
+          'post-playback-https://activities.local/users/llun/s/1'
+        )
+      ).toHaveTextContent('gifv')
+    })
+
+    it('reconciles playbackType inside an Announce wrapper when original is enriched in props', () => {
+      const att = createAttachment('att-orig', { playbackType: undefined })
+      const orig = createStatus('https://activities.local/users/other/s/1', {
+        attachments: [att]
+      })
+      const announce = createAnnounceStatus(
+        'https://activities.local/users/llun/s/ann-1',
+        orig
+      )
+
+      const { rerender } = render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[announce]}
+        />
+      )
+
+      expect(
+        screen.getByTestId(
+          'post-playback-https://activities.local/users/llun/s/ann-1'
+        )
+      ).toHaveTextContent('none')
+
+      const enrichedAtt = createAttachment('att-orig', {
+        playbackType: 'gifv'
+      })
+      const enrichedOrig = createStatus(
+        'https://activities.local/users/other/s/1',
+        {
+          attachments: [enrichedAtt]
+        }
+      )
+      const enrichedAnnounce = createAnnounceStatus(
+        'https://activities.local/users/llun/s/ann-1',
+        enrichedOrig
+      )
+
+      rerender(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[enrichedAnnounce]}
+        />
+      )
+
+      expect(
+        screen.getByTestId(
+          'post-playback-https://activities.local/users/llun/s/ann-1'
+        )
+      ).toHaveTextContent('gifv')
     })
   })
 })

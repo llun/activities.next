@@ -418,11 +418,13 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
   async updateAttachmentPlayback({
     id,
     playbackType,
-    thumbnailUrl
+    thumbnailUrl,
+    onlyIfUnset
   }: {
     id: string
     playbackType: 'gifv' | 'video' | 'unknown'
     thumbnailUrl?: string | null
+    onlyIfUnset?: boolean
   }): Promise<boolean> {
     const updates: Record<string, unknown> = {
       playbackType,
@@ -431,9 +433,11 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     if (thumbnailUrl !== undefined) {
       updates.thumbnailUrl = thumbnailUrl
     }
-    const updated = await database('attachments')
-      .where('id', id)
-      .update(updates)
+    const query = database('attachments').where('id', id)
+    if (onlyIfUnset) {
+      query.whereNull('playbackType')
+    }
+    const updated = await query.update(updates)
     return updated > 0
   },
 

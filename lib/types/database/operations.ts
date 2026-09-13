@@ -3333,6 +3333,7 @@ export type UpdateAttachmentPlaybackParams = {
   id: string
   playbackType: 'gifv' | 'video' | 'unknown'
   thumbnailUrl?: string | null
+  onlyIfUnset?: boolean
 }
 export type GetAttachmentsParams = {
   statusId: string
