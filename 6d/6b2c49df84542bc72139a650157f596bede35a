@@ -1,0 +1,19 @@
+lib/components/posts/media.tsx
+  s_3c2857f311e402::t_d2b94c78ebb47d 12,19,26-29,38-42,44,46-58,60-65,75-187,201-202,204,212-340,345,390-392,406,411,429
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6d6b2c49df84542bc72139a650157f596bede35a",
+  "prompts": {},
+  "sessions": {
+    "s_3c2857f311e402": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09aaa-ca02-7090-8c14-842cc77a800d",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
