@@ -1,0 +1,16 @@
+lib/components/load-more-button/load-more-button.test.tsx
+  h_580a04e334fef4 15,19,23,27-33,105-134
+lib/components/load-more-button/load-more-button.tsx
+  h_580a04e334fef4 33-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a3e7c5e5a4a276d85014763c0aecfc69bf1b3596",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
