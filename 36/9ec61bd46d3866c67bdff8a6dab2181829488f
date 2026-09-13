@@ -1,0 +1,26 @@
+docs/architecture.md
+  h_580a04e334fef4 1316-1334
+lib/components/post-box/post-box.test.tsx
+  h_580a04e334fef4 2078-2148
+lib/components/post-box/post-box.tsx
+  h_580a04e334fef4 34,140,869
+lib/components/posts/status-reply-box.test.tsx
+  h_580a04e334fef4 5,235-301
+lib/components/posts/status-reply-box.tsx
+  h_580a04e334fef4 29,63,315
+lib/hooks/useAutoResizeTextarea.test.ts
+  h_580a04e334fef4 1-194
+lib/hooks/useAutoResizeTextarea.ts
+  h_580a04e334fef4 1-109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "369ec61bd46d3866c67bdff8a6dab2181829488f",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
