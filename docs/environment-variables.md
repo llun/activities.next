@@ -46,7 +46,7 @@ The `features.*` settings (`features.fitness`, `features.explore`,
 `features.messages`) are edited on **Admin → Instance** under **Optional
 features** and have no environment variable, so they are never locked. Turning
 one off removes that section from every account's navigation — sidebar, rail
-and mobile bar. Settings → Navigation still lists it, greyed out and marked
+and mobile drawer. Settings → Navigation still lists it, greyed out and marked
 "off for this server", because that page is where someone goes to find out
 where a nav item went. It does **not** disable the
 section: its pages and API keep working, so an existing link or bookmark still

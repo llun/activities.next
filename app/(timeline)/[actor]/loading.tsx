@@ -1,5 +1,6 @@
 import { FC } from 'react'
 
+import { MobileNavigationHeader } from '@/lib/components/layout/mobile-navigation-header'
 import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 
 export const ProfileLoading: FC = () => {
@@ -9,6 +10,7 @@ export const ProfileLoading: FC = () => {
       aria-label="Loading profile"
       className="space-y-6 pt-6 sm:pt-8 group-data-[shell=public]/shell:pt-0"
     >
+      <MobileNavigationHeader />
       <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
         <div className="skeleton h-36 md:h-52" />
 

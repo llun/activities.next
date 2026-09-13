@@ -32,9 +32,14 @@ export interface ActorInfo {
 interface ActorSwitcherProps {
   currentActor: ActorInfo
   actors: ActorInfo[]
+  onNavigate?: () => void
 }
 
-export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
+export function ActorSwitcher({
+  currentActor,
+  actors,
+  onNavigate
+}: ActorSwitcherProps) {
   const router = useRouter()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isSwitching, setIsSwitching] = useState(false)
@@ -139,6 +144,7 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
       <Link
         href={profileHref}
         prefetch={false}
+        onNavigate={onNavigate}
         className="flex items-center gap-3 rounded-lg p-2 cursor-pointer hover:bg-muted transition-colors w-full overflow-hidden"
       >
         {avatar}
@@ -158,6 +164,7 @@ export function ActorSwitcher({ currentActor, actors }: ActorSwitcherProps) {
           <Link
             href={profileHref}
             prefetch={false}
+            onNavigate={onNavigate}
             aria-label={`View ${displayName}'s profile`}
             className="shrink-0 rounded-full cursor-pointer"
           >

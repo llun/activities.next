@@ -2,6 +2,7 @@
 
 import { CSSProperties, ReactNode, createContext, useContext } from 'react'
 
+import { MobileNavigationTrigger } from '@/lib/components/layout/mobile-navigation-trigger'
 import { cn } from '@/lib/utils'
 
 interface PageHeaderProps {
@@ -130,13 +131,16 @@ export const PageHeader = ({
               : 'items-start justify-between'
           )}
         >
-          <div className="min-w-0">
-            <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
-            {description && (
-              <div className="mt-0.5 text-xs text-muted-foreground">
-                {description}
-              </div>
-            )}
+          <div className="flex min-w-0 items-center gap-3">
+            <MobileNavigationTrigger className="-ml-2 shrink-0" />
+            <div className="min-w-0">
+              <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+              {description && (
+                <div className="mt-0.5 text-xs text-muted-foreground">
+                  {description}
+                </div>
+              )}
+            </div>
           </div>
           {actions && (
             <div

@@ -1,13 +1,17 @@
-import { FC } from 'react'
+import { ComponentProps, FC } from 'react'
 
 import { cn } from '@/lib/utils'
 
-interface Props {
+interface Props extends ComponentProps<'span'> {
   count: number
   className?: string
 }
 
-export const NotificationBadge: FC<Props> = ({ count, className }) => {
+export const NotificationBadge: FC<Props> = ({
+  count,
+  className,
+  ...props
+}) => {
   if (count <= 0) return null
 
   const displayCount = count > 99 ? '99+' : count.toString()
@@ -21,6 +25,7 @@ export const NotificationBadge: FC<Props> = ({ count, className }) => {
         'text-xs font-medium',
         className
       )}
+      {...props}
     >
       {displayCount}
     </span>

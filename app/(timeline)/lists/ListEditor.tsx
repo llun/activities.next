@@ -230,7 +230,7 @@ export const ListEditor: FC<ListEditorProps> = ({
   const cancelHref = mode === 'edit' && list ? `/lists/${list.id}` : '/lists'
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6">
       <PageHeader
         title={mode === 'create' ? 'New list' : 'Edit list'}
         description={

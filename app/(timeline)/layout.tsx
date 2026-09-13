@@ -3,6 +3,7 @@ import { FC, ReactNode } from 'react'
 import { Modal } from '@/app/Modal'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { MobileNav } from '@/lib/components/layout/mobile-nav'
+import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
 import { NavPreferencesProvider } from '@/lib/components/layout/nav-preferences-context'
 import { Sidebar } from '@/lib/components/layout/sidebar'
 import { getDatabase } from '@/lib/database'
@@ -101,6 +102,21 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
   // that edits them — starts from the same state.
   const actorSettings = await database.getActorSettings({ actorId: actor.id })
 
+  const formattedActors = actors.map((a) => ({
+    id: a.id,
+    username: a.username,
+    domain: a.domain,
+    name: a.name,
+    iconUrl: isRealAvatar(a.iconUrl) ? a.iconUrl : null,
+    deletionStatus: a.deletionStatus ?? null,
+    deletionScheduledAt: a.deletionScheduledAt ?? null
+  }))
+
+  const formattedLists = lists.map((list) => ({
+    id: list.id,
+    title: list.title
+  }))
+
   return (
     <InstanceLimitsProvider {...instanceLimits}>
       {/* Wraps the children too: on wide screens the Settings → Navigation
@@ -110,44 +126,41 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
         initialOrder={actorSettings?.navOrder}
         initialHidden={actorSettings?.navHidden}
       >
-        <div className="min-h-dvh">
-          <Sidebar
-            user={user}
-            currentActor={currentActor}
-            actors={actors.map((a) => ({
-              id: a.id,
-              username: a.username,
-              domain: a.domain,
-              name: a.name,
-              iconUrl: isRealAvatar(a.iconUrl) ? a.iconUrl : null,
-              deletionStatus: a.deletionStatus ?? null,
-              deletionScheduledAt: a.deletionScheduledAt ?? null
-            }))}
-            unreadCount={unreadCount}
-            fitnessUrl={fitnessUrl}
-            isAdmin={isAdmin}
-            lists={lists.map((list) => ({ id: list.id, title: list.title }))}
-            features={features}
-          />
-          <MobileNav
-            unreadCount={unreadCount}
-            fitnessUrl={fitnessUrl}
-            profileUrl={`/${user.handle}`}
-            isAdmin={isAdmin}
-            features={features}
-          />
-          <main
-            className={cn(
-              'flex min-h-dvh flex-col overflow-x-clip pb-6',
-              'pb-20 md:pl-[72px] md:pb-0 md:[--sidebar-w:72px] xl:pl-[280px] xl:[--sidebar-w:280px]'
-            )}
-          >
-            <div className="mx-auto flex w-full max-w-content flex-1 flex-col px-4 pb-6">
-              {children}
-            </div>
-          </main>
-          <Modal />
-        </div>
+        <MobileNavigationProvider unreadCount={unreadCount}>
+          <div className="min-h-dvh">
+            <Sidebar
+              user={user}
+              currentActor={currentActor}
+              actors={formattedActors}
+              unreadCount={unreadCount}
+              fitnessUrl={fitnessUrl}
+              isAdmin={isAdmin}
+              lists={formattedLists}
+              features={features}
+            />
+            <MobileNav
+              user={user}
+              currentActor={currentActor}
+              actors={formattedActors}
+              unreadCount={unreadCount}
+              fitnessUrl={fitnessUrl}
+              isAdmin={isAdmin}
+              lists={formattedLists}
+              features={features}
+            />
+            <main
+              className={cn(
+                'flex min-h-dvh flex-col overflow-x-clip pb-6',
+                'md:pl-[72px] md:[--sidebar-w:72px] xl:pl-[280px] xl:[--sidebar-w:280px]'
+              )}
+            >
+              <div className="mx-auto flex w-full max-w-content flex-1 flex-col px-4 pb-6">
+                {children}
+              </div>
+            </main>
+            <Modal />
+          </div>
+        </MobileNavigationProvider>
       </NavPreferencesProvider>
     </InstanceLimitsProvider>
   )

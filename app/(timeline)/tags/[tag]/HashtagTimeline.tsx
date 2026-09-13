@@ -4,6 +4,7 @@ import { Hash } from 'lucide-react'
 import { FC, useCallback, useRef, useState } from 'react'
 
 import { getHashtagTimeline } from '@/lib/client'
+import { MobileNavigationHeader } from '@/lib/components/layout/mobile-navigation-header'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 import { Posts } from '@/lib/components/posts/posts'
@@ -144,6 +145,7 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
 
   return (
     <div className="space-y-6">
+      <MobileNavigationHeader className="mt-0" />
       <ScrollToTopButton
         isLoadMoreVisible={hasMoreStatuses && isLoadMoreVisible}
       />

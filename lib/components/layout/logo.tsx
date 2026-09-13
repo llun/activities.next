@@ -9,6 +9,7 @@ interface LogoProps {
   // the logo resolves against the canonical origin behind a CDN alias. Client
   // callers omit it and use the root-relative default.
   src?: string
+  onNavigate?: () => void
 }
 
 const sizes = {
@@ -21,11 +22,13 @@ export function Logo({
   showText = true,
   size = 'md',
   className = '',
-  src = '/logo-nav.png'
+  src = '/logo-nav.png',
+  onNavigate
 }: LogoProps) {
   return (
     <Link
       href="/"
+      onNavigate={onNavigate}
       aria-label="Activities home"
       className={`inline-flex items-center gap-2 font-semibold tracking-tight ${sizes[size]} ${className}`}
     >

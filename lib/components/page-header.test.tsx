@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
 
+import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
 import {
   PageHeader,
   PageHeaderSectionProvider
@@ -100,5 +101,31 @@ describe('PageHeader', () => {
     }).parentElement
     expect(actionWrapper).toHaveClass('self-center')
     expect(actionWrapper).not.toHaveClass('self-start')
+  })
+
+  it('renders mobile navigation trigger in sticky mode when inside MobileNavigationProvider', () => {
+    render(
+      <MobileNavigationProvider>
+        <PageHeader title="Timeline" />
+      </MobileNavigationProvider>
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Open navigation' })
+    ).toBeInTheDocument()
+  })
+
+  it('does not render mobile navigation trigger in section mode even inside MobileNavigationProvider', () => {
+    render(
+      <MobileNavigationProvider>
+        <PageHeaderSectionProvider>
+          <PageHeader title="Section settings" />
+        </PageHeaderSectionProvider>
+      </MobileNavigationProvider>
+    )
+
+    expect(
+      screen.queryByRole('button', { name: 'Open navigation' })
+    ).not.toBeInTheDocument()
   })
 })

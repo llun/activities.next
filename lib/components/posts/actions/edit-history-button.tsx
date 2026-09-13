@@ -74,7 +74,7 @@ export const EditHistoryButton: FC<Props> = ({
           // the horizontal fit here cannot lean on the ancestor either. Below
           // `md` the panel is viewport-fixed instead, so the post's own width
           // stops mattering.
-          className="absolute bottom-full right-0 z-20 mb-2 w-[25rem] rounded-lg border bg-background shadow-lg max-md:fixed max-md:inset-x-4 max-md:bottom-20 max-md:max-h-[calc(100vh-7rem)] max-md:w-auto"
+          className="absolute bottom-full right-0 z-20 mb-2 w-[25rem] rounded-lg border bg-background shadow-lg max-md:fixed max-md:inset-x-4 max-md:bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] max-md:max-h-[calc(100dvh-5rem)] max-md:w-auto"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between border-b px-3 py-2">

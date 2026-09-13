@@ -23,13 +23,24 @@ vi.mock('next/link', () => ({
     children,
     href,
     prefetch,
+    onNavigate,
+    onClick,
     ...rest
   }: AnchorHTMLAttributes<HTMLAnchorElement> & {
     href: string
     prefetch?: boolean | 'auto' | null
     children: ReactNode
+    onNavigate?: (e: { preventDefault: () => void }) => void
   }) => (
-    <a href={href} data-prefetch={String(prefetch)} {...rest}>
+    <a
+      href={href}
+      data-prefetch={String(prefetch)}
+      onClick={(e) => {
+        onNavigate?.({ preventDefault: () => e.preventDefault() })
+        onClick?.(e)
+      }}
+      {...rest}
+    >
       {children}
     </a>
   )
@@ -430,6 +441,32 @@ describe('Sidebar', () => {
         'aria-disabled',
         'true'
       )
+    })
+  })
+
+  describe('drawer variant', () => {
+    it('omits the tablet rail when variant is drawer', () => {
+      renderSidebar(<Sidebar variant="drawer" lists={[]} />)
+
+      // Responsive mode renders 2 navigation landmarks (desktop + tablet rail),
+      // while drawer mode renders only 1.
+      expect(screen.getAllByRole('navigation')).toHaveLength(1)
+    })
+
+    it('fires onNavigate when clicking navigation links', () => {
+      const onNavigate = vi.fn()
+      renderSidebar(
+        <Sidebar variant="drawer" lists={[]} onNavigate={onNavigate} />
+      )
+
+      fireEvent.click(screen.getByRole('link', { name: 'Timeline' }))
+      expect(onNavigate).toHaveBeenCalledTimes(1)
+    })
+
+    it('retains the unread notification badge on the Notifications item', () => {
+      renderSidebar(<Sidebar variant="drawer" lists={[]} unreadCount={7} />)
+
+      expect(screen.getByText('7')).toBeInTheDocument()
     })
   })
 })

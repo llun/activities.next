@@ -8,6 +8,7 @@ import { getActorEmojiTags } from '@/lib/actions/utils'
 import { getUrl } from '@/lib/activities/note'
 import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
 import { Bio } from '@/lib/components/bio/Bio'
+import { MobileNavigationHeader } from '@/lib/components/layout/mobile-navigation-header'
 import { FeaturedTagsBlock } from '@/lib/components/profile/FeaturedTagsBlock'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
@@ -249,6 +250,7 @@ const Page: FC<Props> = async ({ params }) => {
 
   return (
     <div className={cn('space-y-6', isLoggedIn && 'pt-6 sm:pt-8')}>
+      <MobileNavigationHeader />
       <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
         <ProfileHeaderImage
           actorId={person.id}

@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { FC } from 'react'
 
+import { MobileNavigationTrigger } from '@/lib/components/layout/mobile-navigation-trigger'
 import { Button } from '@/lib/components/ui/button'
 
 interface Props {
@@ -15,6 +16,7 @@ export const Header: FC<Props> = ({ isFitnessDashboard = false }) => {
 
   return (
     <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-background/90 px-5 py-3 backdrop-blur">
+      <MobileNavigationTrigger className="-ml-2 shrink-0" />
       <Button
         variant="ghost"
         size="icon"
