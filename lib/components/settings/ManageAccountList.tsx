@@ -4,6 +4,7 @@ import { Loader2, LucideIcon } from 'lucide-react'
 import Link from 'next/link'
 import { FC, useState } from 'react'
 
+import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -189,17 +190,17 @@ export const ManageAccountList: FC<ManageAccountListProps> = ({
       )}
 
       {nextCursor ? (
-        <div className="flex justify-center">
-          <Button
-            type="button"
-            variant="pill"
-            onClick={onLoadMore}
-            disabled={isLoadingMore}
-          >
-            {isLoadingMore ? <Loader2 className="animate-spin" /> : null}
-            Load more
-          </Button>
-        </div>
+        <LoadMoreButton
+          containerClassName="flex justify-center"
+          onClick={onLoadMore}
+          isLoading={isLoadingMore}
+          loadingText={
+            <>
+              <Loader2 className="animate-spin" />
+              Load more
+            </>
+          }
+        />
       ) : null}
 
       <Dialog

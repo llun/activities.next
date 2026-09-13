@@ -5,6 +5,7 @@ import { FC, useCallback, useRef, useState } from 'react'
 
 import { getTimeline } from '@/lib/client'
 import { AnnouncementBanner } from '@/lib/components/announcements/AnnouncementBanner'
+import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { PageHeader } from '@/lib/components/page-header'
 import { PostBox } from '@/lib/components/post-box/post-box'
 import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
@@ -266,15 +267,11 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       </section>
 
       {hasMoreStatuses && (
-        <div ref={loadMoreRef} className="text-center">
-          <Button
-            variant="pill"
-            disabled={isLoadingMoreStatuses}
-            onClick={loadMoreStatuses}
-          >
-            {isLoadingMoreStatuses ? 'Loading...' : 'Load more'}
-          </Button>
-        </div>
+        <LoadMoreButton
+          containerRef={loadMoreRef}
+          isLoading={isLoadingMoreStatuses}
+          onClick={loadMoreStatuses}
+        />
       )}
     </div>
   )

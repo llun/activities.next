@@ -17,6 +17,7 @@ import { FC, useCallback, useRef, useState } from 'react'
 
 import { CollectionMember } from '@/app/(timeline)/collections/CollectionEditor'
 import { getCollectionFeed, getCollectionTimeline } from '@/lib/client'
+import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { PageHeader } from '@/lib/components/page-header'
 import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 import { Posts } from '@/lib/components/posts/posts'
@@ -378,15 +379,11 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
       )}
 
       {hasMoreStatuses && lastStatusIdRef.current && (
-        <div ref={loadMoreRef} className="text-center">
-          <Button
-            variant="pill"
-            disabled={isLoadingMoreStatuses}
-            onClick={loadMoreStatuses}
-          >
-            {isLoadingMoreStatuses ? 'Loading...' : 'Load more'}
-          </Button>
-        </div>
+        <LoadMoreButton
+          containerRef={loadMoreRef}
+          isLoading={isLoadingMoreStatuses}
+          onClick={loadMoreStatuses}
+        />
       )}
 
       {/* Roster — highlighted accounts. */}

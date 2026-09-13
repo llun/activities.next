@@ -3,6 +3,7 @@
 import { FC, useCallback, useRef, useState } from 'react'
 
 import { getBookmarks } from '@/lib/client'
+import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { PageHeader } from '@/lib/components/page-header'
 import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 import { Posts } from '@/lib/components/posts/posts'
@@ -12,7 +13,6 @@ import {
 } from '@/lib/components/posts/statusArray'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
-import { Button } from '@/lib/components/ui/button'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
@@ -195,15 +195,11 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
       )}
 
       {hasMoreStatuses && lastBookmarkIdRef.current && (
-        <div ref={loadMoreRef} className="text-center">
-          <Button
-            variant="pill"
-            disabled={isLoadingMoreStatuses}
-            onClick={loadMoreStatuses}
-          >
-            {isLoadingMoreStatuses ? 'Loading...' : 'Load more'}
-          </Button>
-        </div>
+        <LoadMoreButton
+          containerRef={loadMoreRef}
+          isLoading={isLoadingMoreStatuses}
+          onClick={loadMoreStatuses}
+        />
       )}
     </div>
   )

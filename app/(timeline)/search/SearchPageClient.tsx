@@ -16,6 +16,7 @@ import type { ReactNode } from 'react'
 
 import { SearchResult, SearchType, search as searchClient } from '@/lib/client'
 import { CustomEmojiText } from '@/lib/components/actors/ActorDisplayName'
+import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { PageHeader } from '@/lib/components/page-header'
 import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 import { Posts } from '@/lib/components/posts/posts'
@@ -592,9 +593,7 @@ export const SearchPageClient = ({
                 Failed to load more results. Please try again.
               </p>
             )}
-            <Button variant="pill" disabled={isLoadingMore} onClick={loadMore}>
-              {isLoadingMore ? 'Loading...' : 'Load more'}
-            </Button>
+            <LoadMoreButton isLoading={isLoadingMore} onClick={loadMore} />
           </div>
         )}
       </section>
