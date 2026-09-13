@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen } from '@testing-library/react'
 
+import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusAnnounce, StatusType } from '@/lib/types/domain/status'
 
@@ -349,6 +350,21 @@ describe('HashtagTimeline', () => {
       expect(
         screen.getByTestId('post-reactions-https://activities.local/s/1')
       ).toHaveTextContent('1')
+    })
+
+    it('renders mobile navigation header when wrapped in MobileNavigationProvider', () => {
+      render(
+        <MobileNavigationProvider>
+          <HashtagTimeline {...baseProps} />
+        </MobileNavigationProvider>
+      )
+
+      expect(
+        screen.getByRole('button', { name: 'Open navigation' })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('link', { name: 'Activities home' })
+      ).toBeInTheDocument()
     })
   })
 })

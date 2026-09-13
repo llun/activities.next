@@ -477,5 +477,35 @@ describe('ActorSwitcher', () => {
         })
       )
     })
+
+    it('invokes onNavigate when clicking avatar profile link with multiple actors', () => {
+      const onNavigate = vi.fn()
+      render(
+        <ActorSwitcher
+          currentActor={alice}
+          actors={[alice, bob]}
+          onNavigate={onNavigate}
+        />
+      )
+
+      fireEvent.click(
+        screen.getByRole('link', { name: "View Alice's profile" })
+      )
+      expect(onNavigate).toHaveBeenCalledTimes(1)
+    })
+
+    it('invokes onNavigate when clicking profile link with single actor', () => {
+      const onNavigate = vi.fn()
+      render(
+        <ActorSwitcher
+          currentActor={alice}
+          actors={[alice]}
+          onNavigate={onNavigate}
+        />
+      )
+
+      fireEvent.click(screen.getByRole('link', { name: /Alice/ }))
+      expect(onNavigate).toHaveBeenCalledTimes(1)
+    })
   })
 })

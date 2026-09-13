@@ -246,8 +246,16 @@
 }
 
 @layer utilities {
+  .safe-area-pt {
+    padding-top: env(safe-area-inset-top, 0);
+  }
+
   .safe-area-pb {
     padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .safe-area-pl {
+    padding-left: env(safe-area-inset-left, 0);
   }
 
   /* Hides the scrollbar on a strip that carries its OWN affordances — today

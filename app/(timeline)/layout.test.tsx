@@ -92,6 +92,19 @@ vi.mock('@/lib/components/layout/sidebar', () => ({
 vi.mock('@/lib/components/layout/mobile-nav', () => ({
   MobileNav: () => <div data-testid="mobile-nav" />
 }))
+vi.mock('@/lib/components/layout/mobile-navigation-context', () => ({
+  MobileNavigationProvider: ({
+    children,
+    unreadCount
+  }: {
+    children: ReactNode
+    unreadCount?: number
+  }) => (
+    <div data-testid="mobile-nav-provider" data-unread={unreadCount}>
+      {children}
+    </div>
+  )
+}))
 
 const mockGetServerAuthSession = vi.mocked(getServerAuthSession)
 const mockGetActorFromSession = vi.mocked(getActorFromSession)
@@ -202,5 +215,16 @@ describe('(timeline) Layout', () => {
       'data-max-media-attachments',
       '7'
     )
+  })
+
+  it('wraps signed-in content in MobileNavigationProvider with unread count', async () => {
+    mockGetActorFromSession.mockResolvedValue(signedInActor as never)
+    mockGetNotificationsCount.mockResolvedValue(5)
+
+    await renderLayout()
+
+    const provider = screen.getByTestId('mobile-nav-provider')
+    expect(provider).toBeInTheDocument()
+    expect(provider).toHaveAttribute('data-unread', '5')
   })
 })

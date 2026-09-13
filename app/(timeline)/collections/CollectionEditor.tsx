@@ -269,7 +269,7 @@ export const CollectionEditor: FC<CollectionEditorProps> = ({
     mode === 'edit' && collection ? `/collections/${collection.id}` : '/lists'
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6">
       <PageHeader
         title={mode === 'create' ? 'New collection' : 'Edit collection'}
         description={
