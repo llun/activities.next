@@ -192,7 +192,7 @@ export const ManageAccountList: FC<ManageAccountListProps> = ({
         <div className="flex justify-center">
           <Button
             type="button"
-            variant="outline"
+            variant="pill"
             onClick={onLoadMore}
             disabled={isLoadingMore}
           >

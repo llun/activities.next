@@ -292,7 +292,7 @@ export const GearActivitiesFeed: FC<Props> = ({
       {hasMore && !isLoading && (
         <div ref={loadMoreRef} className="text-center">
           <Button
-            variant="outline"
+            variant="pill"
             size="sm"
             onClick={loadMore}
             disabled={isLoadingMore}

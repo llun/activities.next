@@ -445,7 +445,7 @@ export const ActorTimelines: FC<Props> = ({
               </p>
             )}
             <Button
-              variant="outline"
+              variant="pill"
               disabled={isLoadingMoreStatuses}
               onClick={handleManualLoadMore}
             >
@@ -470,7 +470,7 @@ export const ActorTimelines: FC<Props> = ({
               </p>
             )}
             <Button
-              variant="outline"
+              variant="pill"
               disabled={isLoadingMoreStatuses}
               onClick={handleManualLoadMore}
             >
@@ -556,7 +556,7 @@ export const ActorTimelines: FC<Props> = ({
             </p>
           )}
           <Button
-            variant="outline"
+            variant="pill"
             disabled={isLoadingMoreStatuses}
             onClick={handleManualLoadMore}
           >

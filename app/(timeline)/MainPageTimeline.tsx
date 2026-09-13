@@ -268,7 +268,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       {hasMoreStatuses && (
         <div ref={loadMoreRef} className="text-center">
           <Button
-            variant="outline"
+            variant="pill"
             disabled={isLoadingMoreStatuses}
             onClick={loadMoreStatuses}
           >

@@ -592,11 +592,7 @@ export const SearchPageClient = ({
                 Failed to load more results. Please try again.
               </p>
             )}
-            <Button
-              variant="outline"
-              disabled={isLoadingMore}
-              onClick={loadMore}
-            >
+            <Button variant="pill" disabled={isLoadingMore} onClick={loadMore}>
               {isLoadingMore ? 'Loading...' : 'Load more'}
             </Button>
           </div>

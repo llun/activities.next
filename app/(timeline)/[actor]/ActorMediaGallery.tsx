@@ -219,7 +219,7 @@ export const ActorMediaGallery: FC<Props> = ({
       {!isMediaGrid && hasMore && (
         <div className="mt-4 text-center">
           <Button
-            variant="outline"
+            variant="pill"
             disabled={isLoadingMore}
             onClick={handleLoadMore}
           >

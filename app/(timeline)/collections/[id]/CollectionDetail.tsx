@@ -380,7 +380,7 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
       {hasMoreStatuses && lastStatusIdRef.current && (
         <div ref={loadMoreRef} className="text-center">
           <Button
-            variant="outline"
+            variant="pill"
             disabled={isLoadingMoreStatuses}
             onClick={loadMoreStatuses}
           >

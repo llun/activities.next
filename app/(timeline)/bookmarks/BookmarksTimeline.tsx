@@ -197,7 +197,7 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
       {hasMoreStatuses && lastBookmarkIdRef.current && (
         <div ref={loadMoreRef} className="text-center">
           <Button
-            variant="outline"
+            variant="pill"
             disabled={isLoadingMoreStatuses}
             onClick={loadMoreStatuses}
           >

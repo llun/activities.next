@@ -197,7 +197,7 @@ export const FavoritesTimeline: FC<FavoritesTimelineProps> = ({
       {hasMoreStatuses && (
         <div ref={loadMoreRef} className="text-center">
           <Button
-            variant="outline"
+            variant="pill"
             disabled={isLoadingMoreStatuses}
             onClick={loadMoreStatuses}
           >
