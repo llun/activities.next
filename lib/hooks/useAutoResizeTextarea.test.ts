@@ -191,4 +191,150 @@ describe('useAutoResizeTextarea', () => {
     )
     expect(windowRemoveSpy).toHaveBeenCalledWith('resize', expect.any(Function))
   })
+
+  it('observes width changes via ResizeObserver and adjusts height', () => {
+    let resizeCallback: (
+      entries: Array<{ contentRect: { width: number } }>
+    ) => void = () => {}
+    const disconnectSpy = vi.fn()
+    const observeSpy = vi.fn()
+
+    class MockResizeObserver {
+      constructor(cb: any) {
+        resizeCallback = cb
+      }
+      observe = observeSpy
+      unobserve = vi.fn()
+      disconnect = disconnectSpy
+    }
+
+    const originalResizeObserver = globalThis.ResizeObserver
+    globalThis.ResizeObserver =
+      MockResizeObserver as unknown as typeof ResizeObserver
+
+    try {
+      vi.spyOn(textarea, 'getBoundingClientRect').mockReturnValue({
+        width: 300,
+        height: 72,
+        top: 0,
+        left: 0,
+        bottom: 72,
+        right: 300,
+        x: 0,
+        y: 0,
+        toJSON: () => {}
+      })
+
+      Object.defineProperty(textarea, 'scrollHeight', {
+        configurable: true,
+        value: 100
+      })
+
+      const ref = createRef<HTMLTextAreaElement>()
+      ref.current = textarea
+
+      const { unmount } = renderHook(() => useAutoResizeTextarea(ref, 'text'))
+
+      expect(observeSpy).toHaveBeenCalledWith(textarea)
+      expect(textarea.style.height).toBe('100px')
+
+      // Width changed significantly (e.g. 300 -> 200 causing more line wrapping)
+      Object.defineProperty(textarea, 'scrollHeight', {
+        configurable: true,
+        value: 150
+      })
+
+      act(() => {
+        resizeCallback([{ contentRect: { width: 200 } }])
+      })
+
+      expect(textarea.style.height).toBe('150px')
+
+      // Height changed but width difference < 0.5 (e.g. 200 -> 200.2)
+      Object.defineProperty(textarea, 'scrollHeight', {
+        configurable: true,
+        value: 200
+      })
+
+      act(() => {
+        resizeCallback([{ contentRect: { width: 200.2 } }])
+      })
+
+      // Should not have updated height because width didn't change >= 0.5
+      expect(textarea.style.height).toBe('150px')
+
+      unmount()
+      expect(disconnectSpy).toHaveBeenCalled()
+    } finally {
+      globalThis.ResizeObserver = originalResizeObserver
+    }
+  })
+
+  it('adjusts height on window and visualViewport resize and cleans up listeners', () => {
+    const viewportAddSpy = vi.fn()
+    const viewportRemoveSpy = vi.fn()
+    const mockViewport = {
+      addEventListener: viewportAddSpy,
+      removeEventListener: viewportRemoveSpy
+    }
+
+    const originalVisualViewport = window.visualViewport
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true,
+      value: mockViewport
+    })
+
+    try {
+      Object.defineProperty(textarea, 'scrollHeight', {
+        configurable: true,
+        value: 100
+      })
+
+      const ref = createRef<HTMLTextAreaElement>()
+      ref.current = textarea
+
+      const { unmount } = renderHook(() => useAutoResizeTextarea(ref, 'text'))
+
+      expect(viewportAddSpy).toHaveBeenCalledWith(
+        'resize',
+        expect.any(Function)
+      )
+
+      // Trigger window resize
+      Object.defineProperty(textarea, 'scrollHeight', {
+        configurable: true,
+        value: 130
+      })
+
+      act(() => {
+        window.dispatchEvent(new Event('resize'))
+      })
+
+      expect(textarea.style.height).toBe('130px')
+
+      // Trigger visualViewport resize callback
+      const viewportResizeHandler = viewportAddSpy.mock.calls[0][1]
+      Object.defineProperty(textarea, 'scrollHeight', {
+        configurable: true,
+        value: 160
+      })
+
+      act(() => {
+        viewportResizeHandler()
+      })
+
+      expect(textarea.style.height).toBe('160px')
+
+      unmount()
+      expect(viewportRemoveSpy).toHaveBeenCalledWith(
+        'resize',
+        expect.any(Function)
+      )
+    } finally {
+      Object.defineProperty(window, 'visualViewport', {
+        configurable: true,
+        value: originalVisualViewport
+      })
+    }
+  })
 })
