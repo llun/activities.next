@@ -1,10 +1,7 @@
 import { getServerSoftware } from '@/lib/services/federation/serverSoftware'
 import { MediaDatabase } from '@/lib/types/database/operations'
 import { Attachment, PlaybackType } from '@/lib/types/domain/attachment'
-import {
-  isSameActivityPubOrigin,
-  normalizeActorId
-} from '@/lib/utils/activitypub'
+import { normalizeActorId } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
 import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
@@ -13,6 +10,7 @@ import { withSpan } from '@/lib/utils/trace'
 export interface AnimationMetadataItem {
   playbackType: PlaybackType
   previewUrl: string | null
+  definitive?: boolean
 }
 
 export interface ResolveAnimationMetadataParams {
@@ -137,7 +135,8 @@ export const extractMastodonStatusInfo = (
 
 export const isSameAuthor = (
   account: MastodonAccount | null | undefined,
-  authorId: string
+  authorId: string,
+  serverDomain?: string
 ): boolean => {
   if (!account) return false
   const accountUrl = account.url || ''
@@ -168,6 +167,14 @@ export const isSameAuthor = (
       if (accountUrlUsername === authorUsername) {
         return true
       }
+    }
+
+    const acctHost = account.acct?.includes('@')
+      ? account.acct.split('@')[1]?.toLowerCase()
+      : serverDomain?.toLowerCase()
+
+    if (acctHost && acctHost !== authorHost) {
+      return false
     }
 
     const rawUsername = (account.username || account.acct?.split('@')[0] || '')
@@ -234,10 +241,7 @@ const fetchMastodonStatusMetadata = async (
     const requestedIdMatches =
       payload.id === mastodonStatusId ||
       (typeof payload.uri === 'string' && payload.uri === statusId) ||
-      (typeof payload.url === 'string' && payload.url === statusUrl) ||
-      (typeof payload.uri === 'string' &&
-        typeof statusId === 'string' &&
-        isSameActivityPubOrigin(payload.uri, statusId))
+      (typeof payload.url === 'string' && payload.url === statusUrl)
 
     if (!requestedIdMatches) {
       logger.warn({
@@ -251,7 +255,7 @@ const fetchMastodonStatusMetadata = async (
     }
 
     // 2. Author check: verify attribution
-    if (authorId && !isSameAuthor(payload.account, authorId)) {
+    if (authorId && !isSameAuthor(payload.account, authorId, domain)) {
       logger.warn({
         message: 'Author mismatch in Mastodon animation metadata lookup',
         domain,
@@ -265,36 +269,39 @@ const fetchMastodonStatusMetadata = async (
       ? payload.media_attachments
       : []
 
-    const metadataMap: Record<string, AnimationMetadataItem> = {}
+    const map: Record<string, AnimationMetadataItem> = {}
+    for (const item of mediaList) {
+      if (!item || typeof item !== 'object') continue
+      const isGifv = item.type === 'gifv'
+      const isVideo = item.type === 'video'
+      if (!isGifv && !isVideo) continue
 
-    for (const media of mediaList) {
-      if (!media || typeof media !== 'object') continue
+      const itemPlaybackType: PlaybackType = isGifv ? 'gifv' : 'video'
+      const previewUrl =
+        typeof item.preview_url === 'string' && item.preview_url.length > 0
+          ? item.preview_url
+          : null
 
-      const itemType = media.type
-      const playbackType: PlaybackType =
-        itemType === 'gifv'
-          ? 'gifv'
-          : itemType === 'video'
-            ? 'video'
-            : 'unknown'
-      const previewUrl = media.preview_url ?? null
-
-      const targets = [media.url, media.remote_url, media.preview_url].filter(
+      const candidates = [item.url, item.remote_url].filter(
         (u): u is string => typeof u === 'string' && u.length > 0
       )
 
-      for (const target of targets) {
-        const normalized = normalizeUrlForMatch(target)
+      for (const cand of candidates) {
+        const normalized = normalizeUrlForMatch(cand)
         if (normalized) {
-          metadataMap[normalized] = { playbackType, previewUrl }
+          map[normalized] = {
+            playbackType: itemPlaybackType,
+            previewUrl,
+            definitive: true
+          }
         }
       }
     }
 
-    return metadataMap
+    return map
   } catch (error) {
     logger.warn({
-      message: 'Failed to fetch Mastodon animation metadata',
+      message: 'Failed to fetch Mastodon status animation metadata',
       domain,
       statusId: mastodonStatusId,
       err: toLoggableError(error)
@@ -315,12 +322,14 @@ export const resolveAnimationMetadata = async ({
     'media',
     'resolveAnimationMetadata',
     {
+      statusUrl: statusUrl ?? undefined,
       statusId: statusId ?? undefined,
-      statusUrl: statusUrl ?? undefined
+      authorId: authorId ?? undefined,
+      attachmentCount: attachments.length
     },
     async () => {
-      const videoAttachments = attachments.filter(
-        (att) => att.mediaType && att.mediaType.startsWith('video')
+      const videoAttachments = attachments.filter((att) =>
+        att.mediaType?.startsWith('video')
       )
       if (videoAttachments.length === 0) {
         return {}
@@ -328,7 +337,7 @@ export const resolveAnimationMetadata = async ({
 
       const info = extractMastodonStatusInfo(statusUrl, statusId)
       if (!info) {
-        return mapAttachments(videoAttachments, null)
+        return mapAttachments(videoAttachments, null, true)
       }
 
       const { domain, statusId: mastodonStatusId } = info
@@ -336,13 +345,18 @@ export const resolveAnimationMetadata = async ({
 
       const cached = statusMetadataCache.get(cacheKey)
       if (cached && cached.expiresAt > Date.now()) {
-        return mapAttachments(videoAttachments, cached.data)
+        return mapAttachments(videoAttachments, cached.data, true)
       }
 
       const isSupported = await isMastodonCompatibleSoftware(domain)
       if (!isSupported) {
         setBoundedCache(cacheKey, null, FAILURE_TTL_MS)
-        return mapAttachments(videoAttachments, null)
+        return mapAttachments(videoAttachments, null, true)
+      }
+
+      const cachedAfterCheck = statusMetadataCache.get(cacheKey)
+      if (cachedAfterCheck && cachedAfterCheck.expiresAt > Date.now()) {
+        return mapAttachments(videoAttachments, cachedAfterCheck.data, true)
       }
 
       let promise = inFlightRequests.get(cacheKey)
@@ -367,13 +381,14 @@ export const resolveAnimationMetadata = async ({
       }
 
       const metadataMap = await promise
-      return mapAttachments(videoAttachments, metadataMap)
+      return mapAttachments(videoAttachments, metadataMap, metadataMap !== null)
     }
   )
 
 const mapAttachments = (
   attachments: Array<{ url: string; mediaType?: string | null }>,
-  metadataMap: Record<string, AnimationMetadataItem> | null
+  metadataMap: Record<string, AnimationMetadataItem> | null,
+  definitive: boolean = false
 ): Record<string, AnimationMetadataItem> => {
   const result: Record<string, AnimationMetadataItem> = {}
 
@@ -382,11 +397,15 @@ const mapAttachments = (
     const match = metadataMap ? metadataMap[normalized] : undefined
 
     if (match) {
-      result[attachment.url] = match
+      result[attachment.url] = {
+        ...match,
+        definitive: true
+      }
     } else {
       result[attachment.url] = {
         playbackType: 'unknown',
-        previewUrl: null
+        previewUrl: null,
+        definitive
       }
     }
   }
@@ -426,7 +445,7 @@ export const enrichStatusAttachments = async <
 
     for (const attachment of needsResolution) {
       const match = resolved[attachment.url]
-      if (match && match.playbackType !== 'unknown') {
+      if (match && (match.playbackType !== 'unknown' || match.definitive)) {
         attachment.playbackType = match.playbackType
         if (!attachment.thumbnailUrl && match.previewUrl) {
           attachment.thumbnailUrl = match.previewUrl

@@ -58,21 +58,26 @@ export const runBackfill = async (options: CliOptions) => {
   let processed = 0
   let updated = 0
   let failed = 0
-  let offset = 0
+  let lastId: string | null = null
 
   while (true) {
-    const attachments = await knex('attachments')
+    let query = knex('attachments')
       .where('mediaType', 'like', 'video%')
       .whereNull('playbackType')
-      .orderBy('createdAt', 'asc')
-      .offset(offset)
+      .orderBy('id', 'asc')
       .limit(batchSize)
 
+    if (lastId) {
+      query = query.where('id', '>', lastId)
+    }
+
+    const attachments = await query
     if (attachments.length === 0) {
       break
     }
 
     for (const attachment of attachments) {
+      lastId = attachment.id
       processed++
       try {
         const status = await knex('statuses')
@@ -122,10 +127,6 @@ export const runBackfill = async (options: CliOptions) => {
         failed++
         console.error(`Error processing attachment ${attachment.id}:`, err)
       }
-    }
-
-    if (dryRun) {
-      offset += attachments.length
     }
   }
 

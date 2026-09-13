@@ -229,9 +229,9 @@ const AnimationCard: FC<AnimationCardProps> = ({
         className="absolute bottom-2 left-2 z-10 flex size-8 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 backdrop-blur-xs"
       >
         {isPlaying ? (
-          <Pause className="size-4 fill-current" />
+          <Pause className="size-4 fill-current" aria-hidden="true" />
         ) : (
-          <Play className="size-4 fill-current ml-0.5" />
+          <Play className="size-4 fill-current ml-0.5" aria-hidden="true" />
         )}
       </button>
     </div>

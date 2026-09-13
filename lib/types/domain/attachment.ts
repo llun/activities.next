@@ -182,7 +182,7 @@ export const getMastodonAttachment = (attachment: Attachment) => {
           width: attachment.width ?? 0,
           height: attachment.height ?? 0,
           size: `${attachment.width}x${attachment.height}`,
-          aspect: (attachment.width ?? 0) / (attachment.height ?? 1)
+          aspect: (attachment.width ?? 0) / (attachment.height || 1)
         },
         ...(attachment.focus ? { focus: attachment.focus } : {})
       },
@@ -201,12 +201,12 @@ export const getMastodonAttachment = (attachment: Attachment) => {
         size: `${attachment.width ?? 0}x${attachment.height ?? 0}`,
         width: attachment.width ?? 0,
         height: attachment.height ?? 0,
-        aspect: (attachment.width ?? 0) / (attachment.height ?? 1),
+        aspect: (attachment.width ?? 0) / (attachment.height || 1),
         original: {
           width: attachment.width ?? 0,
           height: attachment.height ?? 0,
           size: `${attachment.width ?? 0}x${attachment.height ?? 0}`,
-          aspect: (attachment.width ?? 0) / (attachment.height ?? 1)
+          aspect: (attachment.width ?? 0) / (attachment.height || 1)
         },
         ...(attachment.thumbnailUrl
           ? {
@@ -214,7 +214,7 @@ export const getMastodonAttachment = (attachment: Attachment) => {
                 width: attachment.width ?? 0,
                 height: attachment.height ?? 0,
                 size: `${attachment.width ?? 0}x${attachment.height ?? 0}`,
-                aspect: (attachment.width ?? 0) / (attachment.height ?? 1)
+                aspect: (attachment.width ?? 0) / (attachment.height || 1)
               }
             }
           : {}),
@@ -235,14 +235,14 @@ export const getMastodonAttachment = (attachment: Attachment) => {
         size: `${attachment.width}x${attachment.height}`,
         width: attachment.width ?? 0,
         height: attachment.height ?? 0,
-        aspect: (attachment.width ?? 0) / (attachment.height ?? 1),
+        aspect: (attachment.width ?? 0) / (attachment.height || 1),
         ...(attachment.focus ? { focus: attachment.focus } : {}),
 
         original: {
           width: attachment.width ?? 0,
           height: attachment.height ?? 0,
           size: `${attachment.width}x${attachment.height}`,
-          aspect: (attachment.width ?? 0) / (attachment.height ?? 1)
+          aspect: (attachment.width ?? 0) / (attachment.height || 1)
         }
       },
       blurhash: attachment.blurhash ?? null

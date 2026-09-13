@@ -10,6 +10,7 @@ import {
   enrichStatusAttachments,
   extractMastodonStatusInfo,
   getAnimationMetadataCacheSizeForTests,
+  isSameAuthor,
   resolveAnimationMetadata
 } from './animationMetadata'
 
@@ -108,7 +109,8 @@ describe('resolveAnimationMetadata', () => {
 
     expect(result['https://files.mastodon.social/media/video.mp4']).toEqual({
       playbackType: 'gifv',
-      previewUrl: 'https://files.mastodon.social/media/preview.jpg'
+      previewUrl: 'https://files.mastodon.social/media/preview.jpg',
+      definitive: true
     })
 
     expect(safeRemoteFetch).toHaveBeenCalledWith(
@@ -156,7 +158,8 @@ describe('resolveAnimationMetadata', () => {
 
     expect(result['https://files.mastodon.social/media/movie.mp4']).toEqual({
       playbackType: 'video',
-      previewUrl: 'https://files.mastodon.social/media/thumb.jpg'
+      previewUrl: 'https://files.mastodon.social/media/thumb.jpg',
+      definitive: true
     })
   })
 
@@ -305,7 +308,8 @@ describe('resolveAnimationMetadata', () => {
 
     expect(result['https://files.mastodon.social/media/video.mp4']).toEqual({
       playbackType: 'unknown',
-      previewUrl: null
+      previewUrl: null,
+      definitive: false
     })
   })
 
@@ -344,7 +348,8 @@ describe('resolveAnimationMetadata', () => {
 
     expect(result['https://files.mastodon.social/media/video.mp4']).toEqual({
       playbackType: 'unknown',
-      previewUrl: null
+      previewUrl: null,
+      definitive: false
     })
   })
 
@@ -365,7 +370,8 @@ describe('resolveAnimationMetadata', () => {
     expect(safeRemoteFetch).not.toHaveBeenCalled()
     expect(result['https://pixelfed.social/video.mp4']).toEqual({
       playbackType: 'unknown',
-      previewUrl: null
+      previewUrl: null,
+      definitive: true
     })
   })
 
@@ -385,7 +391,8 @@ describe('resolveAnimationMetadata', () => {
 
     expect(result['https://files.mastodon.social/media/video.mp4']).toEqual({
       playbackType: 'unknown',
-      previewUrl: null
+      previewUrl: null,
+      definitive: false
     })
   })
 })
@@ -551,5 +558,112 @@ describe('caching and bounds', () => {
     }
 
     expect(getAnimationMetadataCacheSizeForTests()).toBe(512)
+  })
+})
+
+describe('isSameAuthor', () => {
+  it('matches author when account URL matches authorId', () => {
+    expect(
+      isSameAuthor(
+        { url: 'https://mastodon.social/@cheeaun' },
+        'https://mastodon.social/users/cheeaun'
+      )
+    ).toBe(true)
+  })
+
+  it('verifies host when account url is omitted and acct contains remote host', () => {
+    expect(
+      isSameAuthor(
+        { username: 'cheeaun', acct: 'cheeaun@mastodon.social' },
+        'https://mastodon.social/users/cheeaun',
+        'mastodon.social'
+      )
+    ).toBe(true)
+
+    // Rejects if acct domain does not match author host
+    expect(
+      isSameAuthor(
+        { username: 'cheeaun', acct: 'cheeaun@evil.com' },
+        'https://mastodon.social/users/cheeaun',
+        'evil.com'
+      )
+    ).toBe(false)
+  })
+
+  it('verifies host when account url is omitted and user is local to server', () => {
+    expect(
+      isSameAuthor(
+        { username: 'cheeaun', acct: 'cheeaun' },
+        'https://mastodon.social/users/cheeaun',
+        'mastodon.social'
+      )
+    ).toBe(true)
+
+    expect(
+      isSameAuthor(
+        { username: 'cheeaun', acct: 'cheeaun' },
+        'https://mastodon.social/users/cheeaun',
+        'other-instance.example'
+      )
+    ).toBe(false)
+  })
+})
+
+describe('definitive negative resolution persistence', () => {
+  beforeEach(() => {
+    clearAnimationMetadataCacheForTests()
+    vi.clearAllMocks()
+  })
+
+  it('persists playbackType: unknown for definitive non-animation attachments to prevent re-probing', async () => {
+    vi.mocked(getServerSoftware).mockResolvedValue('mastodon')
+    vi.mocked(safeRemoteFetch).mockResolvedValue({
+      statusCode: 200,
+      body: JSON.stringify({
+        id: '111000',
+        account: { url: 'https://mastodon.social/@cheeaun' },
+        media_attachments: [
+          {
+            id: 'med-1',
+            type: 'video', // Standard video, not a gifv
+            url: 'https://files.mastodon.social/media/video.mp4'
+          }
+        ]
+      }),
+      bodyTruncated: false,
+      headers: {},
+      url: 'https://mastodon.social/api/v1/statuses/111000'
+    })
+
+    const mockDb = {
+      updateAttachmentPlayback: vi.fn().mockResolvedValue(true)
+    } as unknown as MediaDatabase
+
+    const attachment: Attachment = {
+      id: 'att-1',
+      actorId: 'act-1',
+      statusId: 'https://mastodon.social/users/cheeaun/statuses/111000',
+      mediaType: 'video/mp4',
+      type: 'Document',
+      url: 'https://files.mastodon.social/media/video.mp4',
+      name: 'Video',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    }
+
+    const status = {
+      id: 'https://mastodon.social/users/cheeaun/statuses/111000',
+      url: 'https://mastodon.social/@cheeaun/111000',
+      actorId: 'https://mastodon.social/users/cheeaun',
+      attachments: [attachment]
+    }
+
+    const enriched = await enrichStatusAttachments(status, mockDb)
+    expect(enriched.attachments[0].playbackType).toBe('video')
+    expect(mockDb.updateAttachmentPlayback).toHaveBeenCalledWith({
+      id: 'att-1',
+      playbackType: 'video',
+      thumbnailUrl: null
+    })
   })
 })

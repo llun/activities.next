@@ -43,18 +43,10 @@ export const Media: FC<Props> = ({
 }) => {
   const { autoplayGifs } = usePlaybackPreferences()
   const [isLoaded, setIsLoaded] = useState(false)
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(() => {
-    if (
-      typeof window === 'undefined' ||
-      typeof window.matchMedia !== 'function'
-    ) {
-      return false
-    }
-    return window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  })
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
   const [isIntersecting, setIsIntersecting] = useState(true)
   const [isDocumentVisible, setIsDocumentVisible] = useState(true)
-  const [, setInternalPlaying] = useState(false)
 
   const imgRef = useRef<HTMLImageElement | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -72,8 +64,9 @@ export const Media: FC<Props> = ({
     }
   }, [attachment?.url])
 
-  // Motion preference listener
+  // Motion preference listener and mount detection
   useEffect(() => {
+    setIsMounted(true)
     if (
       typeof window === 'undefined' ||
       typeof window.matchMedia !== 'function'
@@ -119,7 +112,7 @@ export const Media: FC<Props> = ({
 
     observer.observe(target)
     return () => observer.disconnect()
-  }, [isAnimation])
+  }, [isAnimation, attachment?.id])
 
   // Compute whether this animation should currently play
   const shouldAutoplay = allowAutoplay && autoplayGifs && !prefersReducedMotion
@@ -132,6 +125,7 @@ export const Media: FC<Props> = ({
 
   const effectiveShouldPlay =
     isAnimation &&
+    isMounted &&
     (isPlayingProp !== undefined
       ? isPlayingProp
       : eligibleToPlay && isIntersecting && isDocumentVisible)
@@ -151,15 +145,12 @@ export const Media: FC<Props> = ({
         ) {
           playPromise
             .then(() => {
-              setInternalPlaying(true)
               onPlayStateChange?.(true)
             })
             .catch(() => {
-              setInternalPlaying(false)
               onPlayStateChange?.(false)
             })
         } else {
-          setInternalPlaying(true)
           onPlayStateChange?.(true)
         }
       }
@@ -167,7 +158,6 @@ export const Media: FC<Props> = ({
       if (typeof video.pause === 'function') {
         video.pause()
       }
-      setInternalPlaying(false)
       onPlayStateChange?.(false)
     }
 
@@ -176,12 +166,17 @@ export const Media: FC<Props> = ({
         video.pause()
       }
     }
-  }, [effectiveShouldPlay, isGifv, onPlayStateChange])
+  }, [
+    effectiveShouldPlay,
+    isGifv,
+    attachment?.id,
+    attachment?.url,
+    onPlayStateChange
+  ])
 
   // Manage GIF play state change notifications
   useEffect(() => {
     if (!isGif) return
-    setInternalPlaying(effectiveShouldPlay)
     onPlayStateChange?.(effectiveShouldPlay)
   }, [effectiveShouldPlay, isGif, onPlayStateChange])
 
@@ -214,6 +209,7 @@ export const Media: FC<Props> = ({
     const poster = thumbnailUrl ?? undefined
     return (
       <video
+        key={id}
         ref={(node) => {
           videoRef.current = node
           if (node) {
@@ -289,6 +285,8 @@ export const Media: FC<Props> = ({
       return (
         <div
           ref={containerRef}
+          role="img"
+          aria-label={caption ?? name ?? 'Animated GIF'}
           className={cn(
             'relative overflow-hidden rounded-[inherit]',
             className

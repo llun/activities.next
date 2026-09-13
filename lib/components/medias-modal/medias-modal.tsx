@@ -1,9 +1,10 @@
-import { ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Pause, Play, X } from 'lucide-react'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import { CustomEmojiText } from '@/lib/components/actors/ActorDisplayName'
 import { Media } from '@/lib/components/posts/media'
+import { usePlaybackPreferences } from '@/lib/components/preferences/PlaybackPreferencesContext'
 import { Button } from '@/lib/components/ui/button'
 import { ActorEmojiTag } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
@@ -33,7 +34,9 @@ export const MediasModal: FC<Props> = ({
   initialSelection,
   onClosed
 }) => {
-  const [currentIndex, setCurrentIndex] = useState<number>(0)
+  const { autoplayGifs } = usePlaybackPreferences()
+  const [modalGifPlaying, setModalGifPlaying] = useState<boolean | null>(null)
+  const [currentIndex, setCurrentIndex] = useState(initialSelection)
   const [dragOffsetX, setDragOffsetX] = useState(0)
   const [isSwipeAnimating, setIsSwipeAnimating] = useState(false)
   const [pendingSwipeDirection, setPendingSwipeDirection] = useState<
@@ -202,6 +205,10 @@ export const MediasModal: FC<Props> = ({
     setIsSwipeAnimating(false)
   }, [getWrappedIndex, isSwipeAnimating, pendingSwipeDirection])
 
+  useEffect(() => {
+    setModalGifPlaying(null)
+  }, [currentIndex])
+
   if (!mounted || !medias) return null
 
   const previousIndex = getWrappedIndex(currentIndex - 1)
@@ -213,6 +220,9 @@ export const MediasModal: FC<Props> = ({
 
   return createPortal(
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Media viewer"
       className="fixed inset-0 z-50 flex flex-col bg-black/90"
       onClick={handleClose}
     >
@@ -228,9 +238,10 @@ export const MediasModal: FC<Props> = ({
           variant="ghost"
           size="icon"
           onClick={handleClose}
+          aria-label="Close media dialog"
           className="text-white hover:bg-white/20"
         >
-          <X className="h-6 w-6" />
+          <X className="h-6 w-6" aria-hidden="true" />
         </Button>
       </div>
 
@@ -245,9 +256,10 @@ export const MediasModal: FC<Props> = ({
                 e.stopPropagation()
                 handlePrevious()
               }}
+              aria-label="Previous media"
               className="absolute left-2 z-10 h-12 w-12 text-white hover:bg-white/20 md:left-4"
             >
-              <ChevronLeft className="h-8 w-8" />
+              <ChevronLeft className="h-8 w-8" aria-hidden="true" />
             </Button>
             <Button
               variant="ghost"
@@ -256,9 +268,10 @@ export const MediasModal: FC<Props> = ({
                 e.stopPropagation()
                 handleNext()
               }}
+              aria-label="Next media"
               className="absolute right-2 z-10 h-12 w-12 text-white hover:bg-white/20 md:right-4"
             >
-              <ChevronRight className="h-8 w-8" />
+              <ChevronRight className="h-8 w-8" aria-hidden="true" />
             </Button>
           </>
         )}
@@ -282,45 +295,86 @@ export const MediasModal: FC<Props> = ({
               }}
               onTransitionEnd={handleTrackTransitionEnd}
             >
-              {visibleIndices.map((index, panelIndex) => (
-                <div
-                  key={
-                    hasDuplicateVisibleIndices
-                      ? `${medias[index].id}-${panelIndex}`
-                      : medias[index].id
-                  }
-                  aria-hidden={panelIndex !== 1}
-                  className="flex h-full w-full shrink-0 items-center justify-center"
-                >
+              {visibleIndices.map((index, panelIndex) => {
+                const isGif = medias[index].mediaType === 'image/gif'
+                const isGifPlaying =
+                  panelIndex === 1 ? (modalGifPlaying ?? autoplayGifs) : false
+
+                return (
                   <div
-                    onClick={(e) => e.stopPropagation()}
-                    className="flex max-h-[80vh] max-w-full flex-col items-center justify-center cursor-default"
+                    key={
+                      hasDuplicateVisibleIndices
+                        ? `${medias[index].id}-${panelIndex}`
+                        : medias[index].id
+                    }
+                    aria-hidden={panelIndex !== 1}
+                    className="flex h-full w-full shrink-0 items-center justify-center"
                   >
-                    <Media
-                      allowAutoplay={panelIndex === 1}
-                      showVideoControl
-                      className={cn(
-                        'max-w-full object-contain',
-                        medias[index].name?.trim()
-                          ? 'max-h-[72vh]'
-                          : 'max-h-[80vh]'
-                      )}
-                      attachment={medias[index]}
-                    />
-                    {medias[index].name?.trim() ? (
-                      <p
-                        onTouchStart={(e) => e.stopPropagation()}
-                        className="mt-2 max-h-24 max-w-2xl overflow-y-auto px-4 text-center text-sm leading-relaxed text-white/85 select-text"
-                      >
-                        <CustomEmojiText
-                          text={medias[index].name.trim()}
-                          tags={tags}
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className="relative flex max-h-[80vh] max-w-full flex-col items-center justify-center cursor-default"
+                    >
+                      <div className="relative flex items-center justify-center">
+                        <Media
+                          allowAutoplay={panelIndex === 1}
+                          showVideoControl={panelIndex === 1}
+                          manuallyPaused={
+                            panelIndex === 1 && modalGifPlaying !== null
+                              ? !modalGifPlaying
+                              : null
+                          }
+                          className={cn(
+                            'max-w-full object-contain',
+                            medias[index].name?.trim()
+                              ? 'max-h-[72vh]'
+                              : 'max-h-[80vh]'
+                          )}
+                          attachment={medias[index]}
                         />
-                      </p>
-                    ) : null}
+                        {panelIndex === 1 && isGif && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setModalGifPlaying((prev) =>
+                                prev === null ? !autoplayGifs : !prev
+                              )
+                            }
+                            aria-label={
+                              isGifPlaying
+                                ? 'Pause animation'
+                                : 'Play animation'
+                            }
+                            className="absolute bottom-2 left-2 z-10 flex size-9 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 backdrop-blur-xs"
+                          >
+                            {isGifPlaying ? (
+                              <Pause
+                                className="size-5 fill-current"
+                                aria-hidden="true"
+                              />
+                            ) : (
+                              <Play
+                                className="size-5 fill-current ml-0.5"
+                                aria-hidden="true"
+                              />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                      {medias[index].name?.trim() ? (
+                        <p
+                          onTouchStart={(e) => e.stopPropagation()}
+                          className="mt-2 max-h-24 max-w-2xl overflow-y-auto px-4 text-center text-sm leading-relaxed text-white/85 select-text"
+                        >
+                          <CustomEmojiText
+                            text={medias[index].name.trim()}
+                            tags={tags}
+                          />
+                        </p>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         </div>
@@ -339,6 +393,12 @@ export const MediasModal: FC<Props> = ({
                 e.stopPropagation()
                 setCurrentIndex(index)
               }}
+              aria-current={index === currentIndex ? 'true' : undefined}
+              aria-label={
+                media.name?.trim()
+                  ? `Thumbnail: ${media.name.trim()}`
+                  : `Thumbnail ${index + 1}`
+              }
               className={cn(
                 'relative h-16 w-16 shrink-0 cursor-pointer overflow-hidden rounded border-2 transition-colors md:h-20 md:w-20',
                 index === currentIndex

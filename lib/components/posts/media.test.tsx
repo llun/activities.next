@@ -448,27 +448,111 @@ describe('Media', () => {
     })
 
     it('does not autoplay when prefers-reduced-motion is reduce', () => {
-      window.matchMedia = vi.fn().mockImplementation((query: string) => ({
-        matches: query.includes('prefers-reduced-motion'),
-        media: query,
-        onchange: null,
-        addListener: vi.fn(),
-        removeListener: vi.fn(),
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-        dispatchEvent: vi.fn()
-      }))
-      const playSpy = vi
-        .spyOn(HTMLMediaElement.prototype, 'play')
-        .mockImplementation(async () => {})
+      const originalMatchMedia = window.matchMedia
+      try {
+        window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+          matches: query.includes('prefers-reduced-motion'),
+          media: query,
+          onchange: null,
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          dispatchEvent: vi.fn()
+        }))
+        const playSpy = vi
+          .spyOn(HTMLMediaElement.prototype, 'play')
+          .mockImplementation(async () => {})
+
+        render(
+          <PlaybackPreferencesProvider initialAutoplayGifs={true}>
+            <Media attachment={gifvAttachment} />
+          </PlaybackPreferencesProvider>
+        )
+
+        expect(playSpy).not.toHaveBeenCalled()
+      } finally {
+        window.matchMedia = originalMatchMedia
+      }
+    })
+
+    it('renders accessible container with role=img and aria-label for paused GIF with only blurhash', () => {
+      const gifWithoutThumbnail: Attachment = {
+        ...baseAttachment,
+        mediaType: 'image/gif',
+        url: 'https://example.com/animation.gif',
+        blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4',
+        name: 'Cool animation'
+      }
 
       render(
-        <PlaybackPreferencesProvider initialAutoplayGifs={true}>
-          <Media attachment={gifvAttachment} />
+        <PlaybackPreferencesProvider initialAutoplayGifs={false}>
+          <Media attachment={gifWithoutThumbnail} />
         </PlaybackPreferencesProvider>
       )
 
-      expect(playSpy).not.toHaveBeenCalled()
+      const placeholder = screen.getByRole('img', { name: 'Cool animation' })
+      expect(placeholder).toBeInTheDocument()
+      expect(screen.getByTestId('blurhash-canvas')).toBeInTheDocument()
+    })
+
+    it('pauses playback when element is not intersecting the viewport', async () => {
+      let observerCallback: (
+        entries: IntersectionObserverEntry[]
+      ) => void = () => {}
+      const observeFn = vi.fn()
+      const disconnectFn = vi.fn()
+
+      class MockIntersectionObserver {
+        constructor(callback: (entries: IntersectionObserverEntry[]) => void) {
+          observerCallback = callback
+        }
+        observe = observeFn
+        disconnect = disconnectFn
+        unobserve = vi.fn()
+        takeRecords = vi.fn()
+        root = null
+        rootMargin = ''
+        thresholds = [0]
+      }
+
+      const originalIntersectionObserver = window.IntersectionObserver
+      window.IntersectionObserver =
+        MockIntersectionObserver as unknown as typeof IntersectionObserver
+
+      try {
+        const playSpy = vi
+          .spyOn(HTMLMediaElement.prototype, 'play')
+          .mockImplementation(async () => {})
+        const pauseSpy = vi
+          .spyOn(HTMLMediaElement.prototype, 'pause')
+          .mockImplementation(() => {})
+
+        await act(async () => {
+          render(
+            <PlaybackPreferencesProvider initialAutoplayGifs={true}>
+              <Media attachment={gifvAttachment} />
+            </PlaybackPreferencesProvider>
+          )
+        })
+
+        expect(observeFn).toHaveBeenCalled()
+        expect(playSpy).toHaveBeenCalled()
+
+        // Simulate scrolling out of viewport
+        await act(async () => {
+          observerCallback([
+            {
+              isIntersecting: false,
+              target: document.createElement('div')
+            } as unknown as IntersectionObserverEntry
+          ])
+        })
+
+        expect(pauseSpy).toHaveBeenCalled()
+      } finally {
+        window.IntersectionObserver = originalIntersectionObserver
+      }
     })
   })
 })

@@ -312,7 +312,7 @@ export const createNoteJob = createJobHandle(
           meta && meta.playbackType !== 'unknown'
             ? meta.playbackType
             : undefined
-        const thumbnailUrl = meta?.previewUrl ?? null
+        const thumbnailUrl = meta?.previewUrl ?? attachment.thumbnailUrl ?? null
 
         return database.createAttachment({
           actorId,

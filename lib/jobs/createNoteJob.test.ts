@@ -1509,23 +1509,59 @@ describe('createNoteJob', () => {
           }
         })
 
-      const noteId = `https://${actor1!.domain}/notes/attachment-gifv-test-${Date.now()}`
+      try {
+        const noteId = `https://${actor1!.domain}/notes/attachment-gifv-test-${Date.now()}`
+        const note = MockMastodonActivityPubNote({
+          id: noteId,
+          from: actor1!.id,
+          content: '<p>GIFV post</p>',
+          documents: [
+            {
+              type: 'Document',
+              mediaType: 'video/mp4',
+              url: 'https://files.mastodon.social/video.mp4',
+              name: 'GIF animation'
+            }
+          ]
+        })
+
+        await createNoteJob(database, {
+          id: 'id-attachment-gifv',
+          name: CREATE_NOTE_JOB_NAME,
+          data: note,
+          verifiedSenderActorId: actor1!.id
+        })
+
+        const attachments = await database.getAttachments({ statusId: noteId })
+        expect(attachments).toHaveLength(1)
+        expect(attachments[0].playbackType).toBe('gifv')
+        expect(attachments[0].thumbnailUrl).toBe(
+          'https://files.mastodon.social/preview.jpg'
+        )
+      } finally {
+        spy.mockRestore()
+      }
+    })
+
+    it('preserves existing thumbnailUrl for image attachments when animation metadata is absent', async () => {
+      const noteId = `https://${actor1!.domain}/notes/attachment-img-test-${Date.now()}`
       const note = MockMastodonActivityPubNote({
         id: noteId,
         from: actor1!.id,
-        content: '<p>GIFV post</p>',
+        content: '<p>Image post</p>',
         documents: [
           {
             type: 'Document',
-            mediaType: 'video/mp4',
-            url: 'https://files.mastodon.social/video.mp4',
-            name: 'GIF animation'
+            mediaType: 'image/jpeg',
+            url: 'https://files.mastodon.social/image.jpg',
+            name: 'Photo',
+            thumbnailUrl: 'https://files.mastodon.social/thumb.jpg'
           }
         ]
       })
 
       await createNoteJob(database, {
-        id: 'id-attachment-gifv',
+        id: 'id-attachment-image',
         name: CREATE_NOTE_JOB_NAME,
         data: note,
         verifiedSenderActorId: actor1!.id
@@ -1533,12 +1569,9 @@ describe('createNoteJob', () => {
 
       const attachments = await database.getAttachments({ statusId: noteId })
       expect(attachments).toHaveLength(1)
-      expect(attachments[0].playbackType).toBe('gifv')
       expect(attachments[0].thumbnailUrl).toBe(
-        'https://files.mastodon.social/preview.jpg'
+        'https://files.mastodon.social/thumb.jpg'
       )
-
-      spy.mockRestore()
     })
   })
 

@@ -170,11 +170,6 @@ const Page: FC<Props> = async ({ params }) => {
     return notFound()
   }
 
-  const actualStatus = getOriginalStatus(status)
-  if (actualStatus && actualStatus.type === StatusType.enum.Note) {
-    await enrichStatusAttachments(actualStatus, database)
-  }
-
   // Focused-status visibility gate — the single source of truth shared with the
   // ancestor chain below. `canActorReadStatus` collapses to the public/unlisted
   // check for logged-out visitors and, for an Announce, recurses into the
@@ -186,6 +181,11 @@ const Page: FC<Props> = async ({ params }) => {
   // unreadable statuses for every viewer up front.
   if (!(await canActorReadStatus({ database, status, currentActor }))) {
     return notFound()
+  }
+
+  const actualStatus = getOriginalStatus(status)
+  if (actualStatus && actualStatus.type === StatusType.enum.Note) {
+    await enrichStatusAttachments(actualStatus, database)
   }
 
   const statusUrl =
