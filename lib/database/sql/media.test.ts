@@ -2136,6 +2136,14 @@ describe('MediaDatabase', () => {
         })
         expect(updated).toBe(true)
 
+        // onlyIfUnset prevents overwriting when playbackType is already set
+        const staleUpdate = await database.updateAttachmentPlayback({
+          id: attachment.id,
+          playbackType: 'gifv',
+          onlyIfUnset: true
+        })
+        expect(staleUpdate).toBe(false)
+
         const listAfterUpdate = await database.getAttachments({
           statusId: statuses[0].id
         })
@@ -2145,6 +2153,35 @@ describe('MediaDatabase', () => {
         expect(foundAfterUpdate?.playbackType).toBe('video')
         expect(foundAfterUpdate?.thumbnailUrl).toBe(
           'https://example.com/new-preview.png'
+        )
+
+        // Create an unclassified attachment and update it with onlyIfUnset: true
+        const unsetAttachment = await database.createAttachment({
+          actorId: actors.primary.id,
+          statusId: statuses[0].id,
+          mediaType: 'video/mp4',
+          url: 'https://example.com/unset.mp4',
+          name: 'Unset animation'
+        })
+        expect(unsetAttachment.playbackType).toBeUndefined()
+
+        const freshUpdate = await database.updateAttachmentPlayback({
+          id: unsetAttachment.id,
+          playbackType: 'gifv',
+          thumbnailUrl: 'https://example.com/unset-thumb.png',
+          onlyIfUnset: true
+        })
+        expect(freshUpdate).toBe(true)
+
+        const listAfterFreshUpdate = await database.getAttachments({
+          statusId: statuses[0].id
+        })
+        const foundFresh = listAfterFreshUpdate.find(
+          (a) => a.id === unsetAttachment.id
+        )
+        expect(foundFresh?.playbackType).toBe('gifv')
+        expect(foundFresh?.thumbnailUrl).toBe(
+          'https://example.com/unset-thumb.png'
         )
       })
     })

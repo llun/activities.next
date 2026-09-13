@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { Attachment } from '@/lib/types/domain/attachment'
 import {
   Status,
   StatusAnnounce,
@@ -8,7 +9,11 @@ import {
   StatusType
 } from '@/lib/types/domain/status'
 
-import { removeOriginalStatus, updateMatchingStatus } from './statusArray'
+import {
+  reconcileStatusesMetadata,
+  removeOriginalStatus,
+  updateMatchingStatus
+} from './statusArray'
 
 const now = new Date('2026-04-30T10:00:00.000Z').getTime()
 
@@ -393,5 +398,161 @@ describe('removeOriginalStatus', () => {
       )
       expect(result).toEqual([note2])
     }).not.toThrow()
+  })
+})
+
+describe('reconcileStatusesMetadata', () => {
+  const createAttachment = (
+    id: string,
+    overrides: Partial<Attachment> = {}
+  ): Attachment => ({
+    id,
+    actorId: 'https://remote.example/users/actor',
+    statusId: 'https://remote.example/statuses/1',
+    type: 'Document',
+    mediaType: 'video/mp4',
+    url: `https://remote.example/media/${id}.mp4`,
+    name: 'Test media',
+    createdAt: now,
+    updatedAt: now,
+    ...overrides
+  })
+
+  it('updates unclassified video attachments on direct Note statuses', () => {
+    const att1 = createAttachment('att-1', { playbackType: undefined })
+    const note1 = createNoteStatus('https://example.com/notes/1', {
+      attachments: [att1]
+    })
+    const note2 = createNoteStatus('https://example.com/notes/2')
+    const current = [note1, note2]
+
+    const incomingAtt1 = createAttachment('att-1', {
+      playbackType: 'gifv',
+      thumbnailUrl: 'https://remote.example/media/att-1-thumb.jpg'
+    })
+    const incomingNote1 = createNoteStatus('https://example.com/notes/1', {
+      attachments: [incomingAtt1]
+    })
+
+    const reconciled = reconcileStatusesMetadata(current, [incomingNote1])
+
+    expect(reconciled).toHaveLength(2)
+    expect(reconciled[1]).toBe(note2)
+    expect(reconciled[0]).not.toBe(note1)
+
+    const updatedNote = reconciled[0] as StatusNote
+    expect(updatedNote.attachments[0].playbackType).toBe('gifv')
+    expect(updatedNote.attachments[0].thumbnailUrl).toBe(
+      'https://remote.example/media/att-1-thumb.jpg'
+    )
+  })
+
+  it('updates unclassified video attachments inside Announce wrappers', () => {
+    const att = createAttachment('att-boost', { playbackType: undefined })
+    const original = createNoteStatus('https://example.com/notes/orig', {
+      attachments: [att]
+    })
+    const boost = createAnnounceStatus('https://example.com/boosts/1', original)
+    const current = [boost]
+
+    const incomingAtt = createAttachment('att-boost', {
+      playbackType: 'gifv',
+      thumbnailUrl: 'https://remote.example/media/boost-thumb.jpg'
+    })
+    const incomingOriginal = createNoteStatus(
+      'https://example.com/notes/orig',
+      {
+        attachments: [incomingAtt]
+      }
+    )
+    const incomingBoost = createAnnounceStatus(
+      'https://example.com/boosts/incoming',
+      incomingOriginal
+    )
+
+    const reconciled = reconcileStatusesMetadata(current, [incomingBoost])
+
+    expect(reconciled).toHaveLength(1)
+    const updatedBoost = reconciled[0] as StatusAnnounce
+    const updatedOriginal = updatedBoost.originalStatus as StatusNote
+    expect(updatedOriginal.attachments[0].playbackType).toBe('gifv')
+    expect(updatedOriginal.attachments[0].thumbnailUrl).toBe(
+      'https://remote.example/media/boost-thumb.jpg'
+    )
+  })
+
+  it('preserves appended pages and user interaction states', () => {
+    const att1 = createAttachment('att-1')
+    const note1 = createNoteStatus('https://example.com/notes/1', {
+      attachments: [att1],
+      isActorLiked: true,
+      totalLikes: 42,
+      isActorBookmarked: true,
+      reactions: [
+        { name: '❤️', count: 5, me: true, url: null, static_url: null }
+      ]
+    })
+    const appendedNote2 = createNoteStatus('https://example.com/notes/page2')
+    const appendedNote3 = createNoteStatus('https://example.com/notes/page3')
+    const current = [note1, appendedNote2, appendedNote3]
+
+    const incomingAtt1 = createAttachment('att-1', {
+      playbackType: 'gifv'
+    })
+    const incomingNote1 = createNoteStatus('https://example.com/notes/1', {
+      attachments: [incomingAtt1]
+    })
+
+    const reconciled = reconcileStatusesMetadata(current, [incomingNote1])
+
+    expect(reconciled).toHaveLength(3)
+    expect(reconciled[1]).toBe(appendedNote2)
+    expect(reconciled[2]).toBe(appendedNote3)
+
+    const updatedNote1 = reconciled[0] as StatusNote
+    expect(updatedNote1.isActorLiked).toBe(true)
+    expect(updatedNote1.totalLikes).toBe(42)
+    expect(updatedNote1.isActorBookmarked).toBe(true)
+    expect(updatedNote1.reactions).toEqual([
+      { name: '❤️', count: 5, me: true, url: null, static_url: null }
+    ])
+    expect(updatedNote1.attachments[0].playbackType).toBe('gifv')
+  })
+
+  it('returns untouched array reference when incoming statuses have no new metadata', () => {
+    const att1 = createAttachment('att-1', { playbackType: 'gifv' })
+    const note1 = createNoteStatus('https://example.com/notes/1', {
+      attachments: [att1]
+    })
+    const current = [note1]
+
+    const incomingAtt1 = createAttachment('att-1', { playbackType: 'gifv' })
+    const incomingNote1 = createNoteStatus('https://example.com/notes/1', {
+      attachments: [incomingAtt1]
+    })
+
+    const reconciled = reconcileStatusesMetadata(current, [incomingNote1])
+
+    expect(reconciled).toBe(current)
+  })
+
+  it('does not overwrite already classified gifv with unknown', () => {
+    const att1 = createAttachment('att-1', { playbackType: 'gifv' })
+    const note1 = createNoteStatus('https://example.com/notes/1', {
+      attachments: [att1]
+    })
+    const current = [note1]
+
+    const incomingAtt1 = createAttachment('att-1', { playbackType: 'unknown' })
+    const incomingNote1 = createNoteStatus('https://example.com/notes/1', {
+      attachments: [incomingAtt1]
+    })
+
+    const reconciled = reconcileStatusesMetadata(current, [incomingNote1])
+
+    expect(reconciled).toBe(current)
+    expect((reconciled[0] as StatusNote).attachments[0].playbackType).toBe(
+      'gifv'
+    )
   })
 })

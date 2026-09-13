@@ -5,6 +5,7 @@ import {
   getActiveFilters
 } from '@/lib/services/filters/applyFilters'
 import { FilterRecordWithStatusPublicIds } from '@/lib/services/mastodon/getMastodonFilter'
+import { enrichStatusesAttachments } from '@/lib/services/medias/animationMetadata'
 import { Timeline } from '@/lib/services/timelines/types'
 import { FilterContext } from '@/lib/types/domain/filter'
 import { Status } from '@/lib/types/domain/status'
@@ -148,6 +149,7 @@ export const getFilteredStatusPage = async ({
     // `pageLimit` visible statuses, returned newest-first. rel=prev (newer)
     // continues above the newest returned; rel=next (older) below the oldest.
     visibleStatuses.reverse()
+    await enrichStatusesAttachments(visibleStatuses, database)
     const hasVisible = visibleStatuses.length > 0
     return {
       statuses: visibleStatuses,
@@ -185,6 +187,8 @@ export const getFilteredStatusPage = async ({
   } else if (!exhausted) {
     nextMaxStatusId = lastScannedStatusId
   }
+
+  await enrichStatusesAttachments(visibleStatuses, database)
 
   return {
     statuses: visibleStatuses,

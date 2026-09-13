@@ -1,15 +1,32 @@
 import { Database } from '@/lib/database/types'
+import { getServerSoftware } from '@/lib/services/federation/serverSoftware'
+import { clearAnimationMetadataCacheForTests } from '@/lib/services/medias/animationMetadata'
 import { Timeline } from '@/lib/services/timelines/types'
 import {
   GetBlockRelationsParams,
   GetMuteRelationsParams
 } from '@/lib/types/database/operations'
-import { Status, StatusType } from '@/lib/types/domain/status'
+import { Attachment } from '@/lib/types/domain/attachment'
+import {
+  Status,
+  StatusAnnounce,
+  StatusNote,
+  StatusType
+} from '@/lib/types/domain/status'
+import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 
 import {
   getFilteredStatusPage,
   getFilteredTimelinePage
 } from './getFilteredTimelinePage'
+
+vi.mock('@/lib/services/federation/serverSoftware', () => ({
+  getServerSoftware: vi.fn()
+}))
+
+vi.mock('@/lib/utils/safeRemoteFetch', () => ({
+  safeRemoteFetch: vi.fn()
+}))
 
 const readerActorId = 'https://llun.test/users/reader'
 const blockedActorId = 'https://blocked.test/users/blocked'
@@ -540,5 +557,452 @@ describe('getFilteredTimelinePage', () => {
       expect.objectContaining({ minStatusId: 'floor', maxStatusId: null })
     )
     expect(getTimeline.mock.calls[0][0].sinceStatusId).toBeUndefined()
+  })
+
+  describe('animation metadata enrichment in timeline pages', () => {
+    beforeEach(() => {
+      clearAnimationMetadataCacheForTests()
+      vi.mocked(getServerSoftware).mockReset()
+      vi.mocked(safeRemoteFetch).mockReset()
+      vi.mocked(getServerSoftware).mockResolvedValue('mastodon')
+    })
+
+    afterEach(() => {
+      clearAnimationMetadataCacheForTests()
+    })
+
+    it('enriches unclassified video attachment in descending timeline page', async () => {
+      const att: Attachment = {
+        id: 'att-1',
+        actorId: 'https://mastodon.social/users/cheeaun',
+        statusId: 'https://mastodon.social/users/cheeaun/statuses/111',
+        type: 'Document',
+        mediaType: 'video/mp4',
+        url: 'https://files.mastodon.social/media/video-111.mp4',
+        name: 'video-111',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      }
+      const note: StatusNote = {
+        id: 'https://mastodon.social/users/cheeaun/statuses/111',
+        url: 'https://mastodon.social/@cheeaun/111',
+        actorId: 'https://mastodon.social/users/cheeaun',
+        actor: null,
+        type: StatusType.enum.Note,
+        text: 'Hello gif',
+        summary: null,
+        reply: '',
+        replies: [],
+        totalReplies: 0,
+        actorAnnounceStatusId: null,
+        isActorLiked: false,
+        isActorBookmarked: false,
+        totalLikes: 0,
+        totalShares: 0,
+        to: [],
+        cc: [],
+        edits: [],
+        attachments: [att],
+        tags: [],
+        isLocalActor: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      }
+
+      const updateAttachmentPlayback = vi.fn().mockResolvedValue(true)
+      const database = {
+        getTimeline: vi.fn(async () => [note]),
+        getBlockRelations: vi.fn(async () => []),
+        getMuteRelations: vi.fn(async () => []),
+        getActorDomainBlocks: vi.fn(async () => []),
+        getModerationStatesForActors: vi.fn(async () => new Map()),
+        updateAttachmentPlayback
+      } as unknown as Database
+
+      vi.mocked(safeRemoteFetch).mockResolvedValue({
+        statusCode: 200,
+        body: JSON.stringify({
+          id: '111',
+          uri: note.id,
+          url: note.url,
+          account: { url: 'https://mastodon.social/@cheeaun' },
+          media_attachments: [
+            {
+              id: 'm111',
+              type: 'gifv',
+              url: att.url,
+              preview_url: 'https://files.mastodon.social/media/preview-111.png'
+            }
+          ]
+        }),
+        bodyTruncated: false,
+        headers: {},
+        url: 'https://mastodon.social/api/v1/statuses/111'
+      })
+
+      const page = await getFilteredTimelinePage({
+        database,
+        timeline: Timeline.MAIN,
+        actorId: readerActorId,
+        limit: 10
+      })
+
+      expect(page.statuses).toHaveLength(1)
+      const firstStatus = page.statuses[0] as StatusNote
+      expect(firstStatus.attachments[0].playbackType).toBe('gifv')
+      expect(firstStatus.attachments[0].thumbnailUrl).toBe(
+        'https://files.mastodon.social/media/preview-111.png'
+      )
+      expect(updateAttachmentPlayback).toHaveBeenCalledWith({
+        id: 'att-1',
+        playbackType: 'gifv',
+        thumbnailUrl: 'https://files.mastodon.social/media/preview-111.png',
+        onlyIfUnset: true
+      })
+    })
+
+    it('enriches unclassified video attachment in ascending timeline page (minStatusId)', async () => {
+      const att: Attachment = {
+        id: 'att-asc-1',
+        actorId: 'https://mastodon.social/users/cheeaun',
+        statusId: 'https://mastodon.social/users/cheeaun/statuses/222',
+        type: 'Document',
+        mediaType: 'video/mp4',
+        url: 'https://files.mastodon.social/media/video-222.mp4',
+        name: 'video-222',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      }
+      const note: StatusNote = {
+        id: 'https://mastodon.social/users/cheeaun/statuses/222',
+        url: 'https://mastodon.social/@cheeaun/222',
+        actorId: 'https://mastodon.social/users/cheeaun',
+        actor: null,
+        type: StatusType.enum.Note,
+        text: 'Ascending gif note',
+        summary: null,
+        reply: '',
+        replies: [],
+        totalReplies: 0,
+        actorAnnounceStatusId: null,
+        isActorLiked: false,
+        isActorBookmarked: false,
+        totalLikes: 0,
+        totalShares: 0,
+        to: [],
+        cc: [],
+        edits: [],
+        attachments: [att],
+        tags: [],
+        isLocalActor: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      }
+
+      const updateAttachmentPlayback = vi.fn().mockResolvedValue(true)
+      const database = {
+        getTimeline: vi.fn(async () => [note]),
+        getBlockRelations: vi.fn(async () => []),
+        getMuteRelations: vi.fn(async () => []),
+        getActorDomainBlocks: vi.fn(async () => []),
+        getModerationStatesForActors: vi.fn(async () => new Map()),
+        updateAttachmentPlayback
+      } as unknown as Database
+
+      vi.mocked(safeRemoteFetch).mockResolvedValue({
+        statusCode: 200,
+        body: JSON.stringify({
+          id: '222',
+          uri: note.id,
+          url: note.url,
+          account: { url: 'https://mastodon.social/@cheeaun' },
+          media_attachments: [
+            {
+              id: 'm222',
+              type: 'gifv',
+              url: att.url,
+              preview_url: 'https://files.mastodon.social/media/preview-222.png'
+            }
+          ]
+        }),
+        bodyTruncated: false,
+        headers: {},
+        url: 'https://mastodon.social/api/v1/statuses/222'
+      })
+
+      const page = await getFilteredTimelinePage({
+        database,
+        timeline: Timeline.MAIN,
+        actorId: readerActorId,
+        minStatusId: 'cursor-lower',
+        limit: 10
+      })
+
+      expect(page.statuses).toHaveLength(1)
+      const firstStatus = page.statuses[0] as StatusNote
+      expect(firstStatus.attachments[0].playbackType).toBe('gifv')
+      expect(firstStatus.attachments[0].thumbnailUrl).toBe(
+        'https://files.mastodon.social/media/preview-222.png'
+      )
+    })
+
+    it('deduplicates repeated Announce originals across timeline rows and calls lookup once', async () => {
+      const originalAtt: Attachment = {
+        id: 'orig-att-1',
+        actorId: 'https://mastodon.social/users/cheeaun',
+        statusId: 'https://mastodon.social/users/cheeaun/statuses/333',
+        type: 'Document',
+        mediaType: 'video/mp4',
+        url: 'https://files.mastodon.social/media/video-333.mp4',
+        name: 'video-333',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      }
+      const originalNote: StatusNote = {
+        id: 'https://mastodon.social/users/cheeaun/statuses/333',
+        url: 'https://mastodon.social/@cheeaun/333',
+        actorId: 'https://mastodon.social/users/cheeaun',
+        actor: null,
+        type: StatusType.enum.Note,
+        text: 'Original boosted note',
+        summary: null,
+        reply: '',
+        replies: [],
+        totalReplies: 0,
+        actorAnnounceStatusId: null,
+        isActorLiked: false,
+        isActorBookmarked: false,
+        totalLikes: 0,
+        totalShares: 0,
+        to: [],
+        cc: [],
+        edits: [],
+        attachments: [originalAtt],
+        tags: [],
+        isLocalActor: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      }
+
+      const boost1: StatusAnnounce = {
+        id: 'https://llun.test/users/b1/statuses/boost-1',
+        actorId: 'https://llun.test/users/b1',
+        actor: null,
+        type: StatusType.enum.Announce,
+        to: [],
+        cc: [],
+        edits: [],
+        isLocalActor: true,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        originalStatus: originalNote
+      }
+      const boost2: StatusAnnounce = {
+        id: 'https://llun.test/users/b2/statuses/boost-2',
+        actorId: 'https://llun.test/users/b2',
+        actor: null,
+        type: StatusType.enum.Announce,
+        to: [],
+        cc: [],
+        edits: [],
+        isLocalActor: true,
+        createdAt: Date.now() + 1,
+        updatedAt: Date.now() + 1,
+        originalStatus: { ...originalNote, attachments: [{ ...originalAtt }] }
+      }
+
+      const database = {
+        getTimeline: vi.fn(async () => [boost2, boost1]),
+        getBlockRelations: vi.fn(async () => []),
+        getMuteRelations: vi.fn(async () => []),
+        getActorDomainBlocks: vi.fn(async () => []),
+        getModerationStatesForActors: vi.fn(async () => new Map()),
+        updateAttachmentPlayback: vi.fn().mockResolvedValue(true)
+      } as unknown as Database
+
+      vi.mocked(safeRemoteFetch).mockResolvedValue({
+        statusCode: 200,
+        body: JSON.stringify({
+          id: '333',
+          uri: originalNote.id,
+          url: originalNote.url,
+          account: { url: 'https://mastodon.social/@cheeaun' },
+          media_attachments: [
+            {
+              id: 'm333',
+              type: 'gifv',
+              url: originalAtt.url,
+              preview_url: 'https://files.mastodon.social/media/preview-333.png'
+            }
+          ]
+        }),
+        bodyTruncated: false,
+        headers: {},
+        url: 'https://mastodon.social/api/v1/statuses/333'
+      })
+
+      const page = await getFilteredTimelinePage({
+        database,
+        timeline: Timeline.MAIN,
+        actorId: readerActorId,
+        limit: 10
+      })
+
+      expect(page.statuses).toHaveLength(2)
+      // Only 1 remote fetch call made
+      expect(safeRemoteFetch).toHaveBeenCalledTimes(1)
+
+      const b2 = page.statuses[0] as StatusAnnounce
+      const b1 = page.statuses[1] as StatusAnnounce
+      expect(
+        (b2.originalStatus as StatusNote).attachments[0].playbackType
+      ).toBe('gifv')
+      expect(
+        (b1.originalStatus as StatusNote).attachments[0].playbackType
+      ).toBe('gifv')
+    })
+
+    it('does not lookup metadata for posts filtered out by blocks or mutes', async () => {
+      const att: Attachment = {
+        id: 'att-filtered',
+        actorId: blockedActorId,
+        statusId: 'https://blocked.test/users/blocked/statuses/blocked-1',
+        type: 'Document',
+        mediaType: 'video/mp4',
+        url: 'https://blocked.test/media/video.mp4',
+        name: 'blocked video',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      }
+      const blockedNote: StatusNote = {
+        id: 'https://blocked.test/users/blocked/statuses/blocked-1',
+        url: 'https://blocked.test/@blocked/blocked-1',
+        actorId: blockedActorId,
+        actor: null,
+        type: StatusType.enum.Note,
+        text: 'Blocked note',
+        summary: null,
+        reply: '',
+        replies: [],
+        totalReplies: 0,
+        actorAnnounceStatusId: null,
+        isActorLiked: false,
+        isActorBookmarked: false,
+        totalLikes: 0,
+        totalShares: 0,
+        to: [],
+        cc: [],
+        edits: [],
+        attachments: [att],
+        tags: [],
+        isLocalActor: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      }
+
+      const database = {
+        getTimeline: vi.fn(async () => [blockedNote]),
+        getBlockRelations: vi.fn(async () => [
+          {
+            actorId: readerActorId,
+            targetActorId: blockedActorId,
+            createdAt: Date.now()
+          }
+        ]),
+        getMuteRelations: vi.fn(async () => []),
+        getActorDomainBlocks: vi.fn(async () => []),
+        getModerationStatesForActors: vi.fn(async () => new Map()),
+        updateAttachmentPlayback: vi.fn().mockResolvedValue(true)
+      } as unknown as Database
+
+      const page = await getFilteredTimelinePage({
+        database,
+        timeline: Timeline.MAIN,
+        actorId: readerActorId,
+        limit: 10
+      })
+
+      expect(page.statuses).toHaveLength(0)
+      expect(safeRemoteFetch).not.toHaveBeenCalled()
+    })
+
+    it('leaves ordinary video attachments manual when remote source reports video', async () => {
+      const att: Attachment = {
+        id: 'att-video-only',
+        actorId: 'https://mastodon.social/users/cheeaun',
+        statusId: 'https://mastodon.social/users/cheeaun/statuses/444',
+        type: 'Document',
+        mediaType: 'video/mp4',
+        url: 'https://files.mastodon.social/media/real-video.mp4',
+        name: 'Real video',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      }
+      const note: StatusNote = {
+        id: 'https://mastodon.social/users/cheeaun/statuses/444',
+        url: 'https://mastodon.social/@cheeaun/444',
+        actorId: 'https://mastodon.social/users/cheeaun',
+        actor: null,
+        type: StatusType.enum.Note,
+        text: 'Real video note',
+        summary: null,
+        reply: '',
+        replies: [],
+        totalReplies: 0,
+        actorAnnounceStatusId: null,
+        isActorLiked: false,
+        isActorBookmarked: false,
+        totalLikes: 0,
+        totalShares: 0,
+        to: [],
+        cc: [],
+        edits: [],
+        attachments: [att],
+        tags: [],
+        isLocalActor: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      }
+
+      const database = {
+        getTimeline: vi.fn(async () => [note]),
+        getBlockRelations: vi.fn(async () => []),
+        getMuteRelations: vi.fn(async () => []),
+        getActorDomainBlocks: vi.fn(async () => []),
+        getModerationStatesForActors: vi.fn(async () => new Map()),
+        updateAttachmentPlayback: vi.fn().mockResolvedValue(true)
+      } as unknown as Database
+
+      vi.mocked(safeRemoteFetch).mockResolvedValue({
+        statusCode: 200,
+        body: JSON.stringify({
+          id: '444',
+          uri: note.id,
+          url: note.url,
+          account: { url: 'https://mastodon.social/@cheeaun' },
+          media_attachments: [
+            {
+              id: 'm444',
+              type: 'video',
+              url: att.url
+            }
+          ]
+        }),
+        bodyTruncated: false,
+        headers: {},
+        url: 'https://mastodon.social/api/v1/statuses/444'
+      })
+
+      const page = await getFilteredTimelinePage({
+        database,
+        timeline: Timeline.MAIN,
+        actorId: readerActorId,
+        limit: 10
+      })
+
+      expect(page.statuses).toHaveLength(1)
+      const firstStatus = page.statuses[0] as StatusNote
+      expect(firstStatus.attachments[0].playbackType).toBe('video')
+    })
   })
 })

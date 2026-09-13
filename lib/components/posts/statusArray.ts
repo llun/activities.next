@@ -1,3 +1,4 @@
+import { Attachment, PlaybackType } from '@/lib/types/domain/attachment'
 import {
   Status,
   StatusNote,
@@ -66,4 +67,144 @@ export const removeOriginalStatus = (
     return true
   })
   return hasRemoval ? updated : statuses
+}
+
+/**
+ * Non-destructively reconcile attachment metadata (such as resolved playbackType
+ * and thumbnailUrl) from incoming statuses into current feed statuses.
+ *
+ * Preserves:
+ * - Appended pages and feed length
+ * - Feed order and status identity
+ * - Interactive state (likes, bookmarks, reactions)
+ * - Object references for untouched statuses and arrays
+ */
+export const reconcileStatusesMetadata = (
+  currentStatuses: Status[],
+  incomingStatuses: Status[]
+): Status[] => {
+  if (
+    !incomingStatuses ||
+    incomingStatuses.length === 0 ||
+    !currentStatuses ||
+    currentStatuses.length === 0
+  ) {
+    return currentStatuses
+  }
+
+  const byId = new Map<
+    string,
+    { playbackType?: PlaybackType | null; thumbnailUrl?: string | null }
+  >()
+  const byUrl = new Map<
+    string,
+    { playbackType?: PlaybackType | null; thumbnailUrl?: string | null }
+  >()
+
+  for (const status of incomingStatuses) {
+    const original = getOriginalStatus(status)
+    if (!('attachments' in original) || !Array.isArray(original.attachments)) {
+      continue
+    }
+    for (const att of original.attachments) {
+      if (att.playbackType || att.thumbnailUrl) {
+        const patch = {
+          playbackType: att.playbackType,
+          thumbnailUrl: att.thumbnailUrl
+        }
+        if (att.id) byId.set(att.id, patch)
+        if (att.url) byUrl.set(att.url, patch)
+      }
+    }
+  }
+
+  if (byId.size === 0 && byUrl.size === 0) {
+    return currentStatuses
+  }
+
+  const reconcileAttachmentList = (attachments: Attachment[]) => {
+    let hasAttChanges = false
+    const reconciledAtts = attachments.map((att) => {
+      const patch =
+        (att.id ? byId.get(att.id) : undefined) ||
+        (att.url ? byUrl.get(att.url) : undefined)
+
+      if (!patch) return att
+
+      let needsPlayback = false
+      if (patch.playbackType) {
+        if (!att.playbackType) {
+          needsPlayback = true
+        } else if (
+          att.playbackType === 'unknown' &&
+          patch.playbackType !== 'unknown'
+        ) {
+          needsPlayback = true
+        }
+      }
+
+      let needsThumb = false
+      if (patch.thumbnailUrl && !att.thumbnailUrl) {
+        needsThumb = true
+      }
+
+      if (!needsPlayback && !needsThumb) {
+        return att
+      }
+
+      hasAttChanges = true
+      return {
+        ...att,
+        ...(needsPlayback ? { playbackType: patch.playbackType } : {}),
+        ...(needsThumb ? { thumbnailUrl: patch.thumbnailUrl } : {})
+      }
+    })
+
+    return hasAttChanges ? reconciledAtts : attachments
+  }
+
+  let hasChanges = false
+  const updated = currentStatuses.map((item) => {
+    if (item.type === StatusType.enum.Announce) {
+      const original = item.originalStatus
+      if (
+        original.type !== StatusType.enum.Announce &&
+        'attachments' in original &&
+        Array.isArray(original.attachments) &&
+        original.attachments.length > 0
+      ) {
+        const nextAttachments = reconcileAttachmentList(original.attachments)
+        if (nextAttachments !== original.attachments) {
+          hasChanges = true
+          return {
+            ...item,
+            originalStatus: {
+              ...original,
+              attachments: nextAttachments
+            }
+          }
+        }
+      }
+      return item
+    }
+
+    if (
+      'attachments' in item &&
+      Array.isArray(item.attachments) &&
+      item.attachments.length > 0
+    ) {
+      const nextAttachments = reconcileAttachmentList(item.attachments)
+      if (nextAttachments !== item.attachments) {
+        hasChanges = true
+        return {
+          ...item,
+          attachments: nextAttachments
+        }
+      }
+    }
+
+    return item
+  })
+
+  return hasChanges ? updated : currentStatuses
 }

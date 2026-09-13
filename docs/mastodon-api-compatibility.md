@@ -68,6 +68,10 @@ product or security decision, not a gap to be closed.
   `null` entry.** Animated clips with resolved `playbackType: "gifv"` are served
   as `type: "gifv"`; unresolvable media or an `audio/mp4` upload without stored
   duration falls back to `unknown`, carrying the id, url, description and blurhash.
+  Timelines batch-enrich unclassified video attachments on read (with bounded
+  concurrency, per-page limits, and a deadline guard) and persist resolved
+  classifications, so timeline feeds and status detail pages both serve `type: "gifv"`
+  consistently on first read.
   This is not cosmetic: `media_attachments` is an array of MediaAttachment, so a `null`
   entry failed the entity's own validation and took the entire status off the
   API — dropped from timelines as un-hydratable, an error on a single-status

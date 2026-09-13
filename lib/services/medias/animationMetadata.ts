@@ -1,8 +1,16 @@
 import { getServerSoftware } from '@/lib/services/federation/serverSoftware'
 import { MediaDatabase } from '@/lib/types/database/operations'
 import { Attachment, PlaybackType } from '@/lib/types/domain/attachment'
+import {
+  Status,
+  StatusNote,
+  StatusPoll,
+  StatusType,
+  getOriginalStatus
+} from '@/lib/types/domain/status'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
+import { mapWithConcurrency } from '@/lib/utils/mapWithConcurrency'
 import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
@@ -472,7 +480,8 @@ export const enrichStatusAttachments = async <
           await database.updateAttachmentPlayback({
             id: attachment.id,
             playbackType: match.playbackType,
-            thumbnailUrl: attachment.thumbnailUrl ?? null
+            thumbnailUrl: attachment.thumbnailUrl ?? null,
+            onlyIfUnset: true
           })
         }
       }
@@ -486,4 +495,163 @@ export const enrichStatusAttachments = async <
   }
 
   return status
+}
+
+export const BATCH_ANIMATION_METADATA_CONCURRENCY = 4
+export const MAX_BATCH_ANIMATION_METADATA_LOOKUPS = 20
+export const BATCH_ANIMATION_METADATA_TIMEOUT_MS = 6000
+
+export const enrichStatusesAttachments = async (
+  statuses: Status[],
+  database?: MediaDatabase
+): Promise<Status[]> => {
+  if (!statuses || statuses.length === 0) {
+    return statuses
+  }
+
+  // 1. Collect unique Note/Poll targets from displayed statuses and Announce originals
+  const targetMap = new Map<
+    string,
+    {
+      primary: StatusNote | StatusPoll
+      all: Array<StatusNote | StatusPoll>
+    }
+  >()
+
+  for (const status of statuses) {
+    const original = getOriginalStatus(status)
+    if (
+      (original.type === StatusType.enum.Note ||
+        original.type === StatusType.enum.Poll) &&
+      original.attachments &&
+      original.attachments.length > 0
+    ) {
+      const existing = targetMap.get(original.id)
+      if (existing) {
+        existing.all.push(original)
+      } else {
+        targetMap.set(original.id, { primary: original, all: [original] })
+      }
+    }
+  }
+
+  // 2. Filter candidates that have video attachments needing resolution
+  const candidates: Array<{
+    primary: StatusNote | StatusPoll
+    all: Array<StatusNote | StatusPoll>
+    needsResolution: Attachment[]
+  }> = []
+
+  for (const entry of targetMap.values()) {
+    const needsResolution = entry.primary.attachments.filter(
+      (att) => att.mediaType.startsWith('video') && !att.playbackType
+    )
+    if (needsResolution.length > 0) {
+      candidates.push({ ...entry, needsResolution })
+    }
+  }
+
+  if (candidates.length === 0) {
+    return statuses
+  }
+
+  // 3. Bound total lookup work
+  const boundedCandidates = candidates.slice(
+    0,
+    MAX_BATCH_ANIMATION_METADATA_LOOKUPS
+  )
+
+  // 4. Enrich each candidate with in-memory stale guards and optimistic DB updates
+  const enrichCandidate = async (candidate: (typeof boundedCandidates)[0]) => {
+    try {
+      const { primary, all, needsResolution } = candidate
+      const resolved = await resolveAnimationMetadata({
+        statusUrl: primary.url,
+        statusId: primary.id,
+        authorId: primary.actorId,
+        attachments: needsResolution.map((att) => ({
+          url: att.url,
+          mediaType: att.mediaType
+        }))
+      })
+
+      for (const attachment of needsResolution) {
+        // In-memory guard: skip if already classified by another concurrent task
+        if (attachment.playbackType) continue
+
+        const match = resolved[attachment.url]
+        if (match && (match.playbackType !== 'unknown' || match.definitive)) {
+          const resolvedPlayback = match.playbackType
+          const previewUrl = match.previewUrl
+
+          // Update primary attachment
+          attachment.playbackType = resolvedPlayback
+          if (!attachment.thumbnailUrl && previewUrl) {
+            attachment.thumbnailUrl = previewUrl
+          }
+
+          // Propagate to any duplicate references/instances of the original Note/Poll
+          for (const duplicate of all) {
+            if (duplicate === primary) continue
+            const dupAtt = duplicate.attachments.find(
+              (a) => a.id === attachment.id
+            )
+            if (dupAtt && !dupAtt.playbackType) {
+              dupAtt.playbackType = resolvedPlayback
+              if (!dupAtt.thumbnailUrl && previewUrl) {
+                dupAtt.thumbnailUrl = previewUrl
+              }
+            }
+          }
+
+          // Persist to database with stale-write guard (onlyIfUnset: true)
+          if (database) {
+            await database.updateAttachmentPlayback({
+              id: attachment.id,
+              playbackType: resolvedPlayback,
+              thumbnailUrl: attachment.thumbnailUrl ?? null,
+              onlyIfUnset: true
+            })
+          }
+        }
+      }
+    } catch (error) {
+      logger.warn({
+        message: 'Failed to enrich status attachments in batch',
+        statusId: candidate.primary.id,
+        err: toLoggableError(error)
+      })
+    }
+  }
+
+  // 5. Execute with concurrency bound, wrapped in a batch timeout
+  const runBatch = async () => {
+    await mapWithConcurrency(
+      boundedCandidates,
+      BATCH_ANIMATION_METADATA_CONCURRENCY,
+      enrichCandidate
+    )
+  }
+
+  try {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    const timeoutPromise = new Promise<void>((resolve) => {
+      timeoutId = setTimeout(() => {
+        logger.warn({
+          message: 'Batch animation metadata enrichment timed out'
+        })
+        resolve()
+      }, BATCH_ANIMATION_METADATA_TIMEOUT_MS)
+    })
+
+    await Promise.race([runBatch(), timeoutPromise])
+    if (timeoutId) clearTimeout(timeoutId)
+  } catch (error) {
+    logger.warn({
+      message: 'Unexpected error during batch animation metadata enrichment',
+      err: toLoggableError(error)
+    })
+  }
+
+  return statuses
 }
