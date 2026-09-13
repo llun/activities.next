@@ -4,9 +4,9 @@ import { Copy, Heart, MessageCircle, Repeat2, Video } from 'lucide-react'
 import { FC, useEffect, useMemo, useState } from 'react'
 
 import { getActorMedia } from '@/lib/client'
+import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
 import { Media } from '@/lib/components/posts/media'
-import { Button } from '@/lib/components/ui/button'
 import { Attachment, isVisualAttachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
@@ -217,15 +217,11 @@ export const ActorMediaGallery: FC<Props> = ({
       )}
 
       {!isMediaGrid && hasMore && (
-        <div className="mt-4 text-center">
-          <Button
-            variant="outline"
-            disabled={isLoadingMore}
-            onClick={handleLoadMore}
-          >
-            {isLoadingMore ? 'Loading...' : 'Load more'}
-          </Button>
-        </div>
+        <LoadMoreButton
+          containerClassName="mt-4 text-center"
+          isLoading={isLoadingMore}
+          onClick={handleLoadMore}
+        />
       )}
 
       <MediasModal

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { getActorStatuses } from '@/lib/client'
+import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { Posts } from '@/lib/components/posts/posts'
 import {
   removeOriginalStatus,
@@ -444,13 +445,10 @@ export const ActorTimelines: FC<Props> = ({
                 {loadMoreError}
               </p>
             )}
-            <Button
-              variant="outline"
-              disabled={isLoadingMoreStatuses}
+            <LoadMoreButton
+              isLoading={isLoadingMoreStatuses}
               onClick={handleManualLoadMore}
-            >
-              {isLoadingMoreStatuses ? 'Loading...' : 'Load more'}
-            </Button>
+            />
           </div>
         )}
       </div>
@@ -469,13 +467,10 @@ export const ActorTimelines: FC<Props> = ({
                 {loadMoreError}
               </p>
             )}
-            <Button
-              variant="outline"
-              disabled={isLoadingMoreStatuses}
+            <LoadMoreButton
+              isLoading={isLoadingMoreStatuses}
               onClick={handleManualLoadMore}
-            >
-              {isLoadingMoreStatuses ? 'Loading...' : 'Load more'}
-            </Button>
+            />
           </div>
         )}
       </div>
@@ -555,13 +550,10 @@ export const ActorTimelines: FC<Props> = ({
               {loadMoreError}
             </p>
           )}
-          <Button
-            variant="outline"
-            disabled={isLoadingMoreStatuses}
+          <LoadMoreButton
+            isLoading={isLoadingMoreStatuses}
             onClick={handleManualLoadMore}
-          >
-            {isLoadingMoreStatuses ? 'Loading...' : 'Load more'}
-          </Button>
+          />
         </div>
       )}
     </div>

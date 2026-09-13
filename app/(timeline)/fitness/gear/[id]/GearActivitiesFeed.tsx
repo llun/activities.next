@@ -6,6 +6,7 @@ import {
   type GearActivityStatusesPage,
   getFitnessGearActivities
 } from '@/lib/client'
+import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 import { Posts } from '@/lib/components/posts/posts'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
@@ -290,16 +291,12 @@ export const GearActivitiesFeed: FC<Props> = ({
       )}
 
       {hasMore && !isLoading && (
-        <div ref={loadMoreRef} className="text-center">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={loadMore}
-            disabled={isLoadingMore}
-          >
-            {isLoadingMore ? 'Loading...' : 'Load more'}
-          </Button>
-        </div>
+        <LoadMoreButton
+          containerRef={loadMoreRef}
+          size="sm"
+          isLoading={isLoadingMore}
+          onClick={loadMore}
+        />
       )}
 
       {/* A first load that failed left nothing to page from: `hasMore` is

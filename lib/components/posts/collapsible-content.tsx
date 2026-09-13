@@ -90,7 +90,7 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
           {onReadMore ? (
             <Button
               type="button"
-              variant="outline"
+              variant="pill"
               aria-controls={contentId}
               aria-label="Read full post"
               className="bg-background/80 backdrop-blur-sm"
@@ -105,7 +105,7 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
           ) : (
             <Button
               type="button"
-              variant="outline"
+              variant="pill"
               aria-expanded={isExpanded}
               aria-controls={contentId}
               aria-label="Show more content"
