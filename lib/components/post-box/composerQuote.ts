@@ -101,7 +101,7 @@ export const getQuotePrefixRegex = (
   const urls = [quoteUrl, original.url, original.id, original.publicId].filter(
     Boolean
   ) as string[]
-  return new RegExp(`^(?:RE: )?(${urls.map(escapeRegExp).join('|')})\\s*`)
+  return new RegExp(`^(${urls.map(escapeRegExp).join('|')})\\s*`)
 }
 
 /**

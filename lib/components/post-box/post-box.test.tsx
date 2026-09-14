@@ -445,52 +445,6 @@ describe('PostBox edit media', () => {
     expect(textbox).toHaveValue('my commentary')
   })
 
-  it('strips the RE: quote prefix and preserves commentary when quote preview is dismissed', async () => {
-    const onDiscardQuote = vi.fn()
-    const quotedStatus = {
-      id: 'https://activities.local/users/bob/statuses/1',
-      url: 'https://activities.local/@bob/1',
-      actorId: 'https://activities.local/users/bob',
-      actor: {
-        id: 'https://activities.local/users/bob',
-        username: 'bob',
-        domain: 'activities.local',
-        name: 'Bob'
-      },
-      type: StatusType.enum.Note,
-      text: 'quote me please',
-      tags: [],
-      to: [],
-      cc: []
-    } as unknown as Status
-
-    render(
-      <PostBox
-        host="activities.local"
-        profile={profile}
-        quotedStatus={quotedStatus}
-        onDiscardReply={vi.fn()}
-        onDiscardQuote={onDiscardQuote}
-        onPostCreated={vi.fn()}
-        onPostUpdated={vi.fn()}
-        onDiscardEdit={vi.fn()}
-      />
-    )
-
-    const textbox = screen.getByPlaceholderText('What is on your mind?')
-    fireEvent.change(textbox, {
-      target: {
-        value: 'RE: https://activities.local/@bob/1\n\nmy commentary'
-      }
-    })
-
-    const dismissButton = screen.getByRole('button', { name: 'Dismiss quote' })
-    fireEvent.click(dismissButton)
-
-    expect(onDiscardQuote).toHaveBeenCalled()
-    expect(textbox).toHaveValue('my commentary')
-  })
-
   it('clears text and disables post button when quote preview is dismissed without commentary', async () => {
     const onDiscardQuote = vi.fn()
     const quotedStatus = {

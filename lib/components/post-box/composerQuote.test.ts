@@ -165,7 +165,7 @@ describe('composerQuote', () => {
       expect(getQuotePrefix(undefined, host)).toBe('')
     })
 
-    it('formats quote prefix with trailing double newline without RE: prefix', () => {
+    it('formats quote prefix with trailing double newline', () => {
       const status = {
         id: 'https://activities.local/users/bob/statuses/1',
         url: 'https://activities.local/@bob/1',
@@ -179,7 +179,7 @@ describe('composerQuote', () => {
   })
 
   describe('getQuotePrefixRegex & stripQuotePrefix', () => {
-    it('creates regex matching quote url and original URLs with or without RE: prefix', () => {
+    it('creates regex matching quote url and original URLs', () => {
       const status = {
         id: 'https://activities.local/users/bob/statuses/1',
         url: 'https://activities.local/@bob/1',
@@ -188,10 +188,9 @@ describe('composerQuote', () => {
       } as unknown as Status
       const regex = getQuotePrefixRegex(status, host)
       expect(regex.test('https://activities.local/@bob/1\n\n')).toBe(true)
-      expect(regex.test('RE: https://activities.local/@bob/1\n\n')).toBe(true)
     })
 
-    it('strips matching quote prefix without RE: and trailing whitespace', () => {
+    it('strips matching quote prefix and trailing whitespace', () => {
       const status = {
         id: 'https://activities.local/users/bob/statuses/1',
         url: 'https://activities.local/@bob/1',
@@ -199,17 +198,6 @@ describe('composerQuote', () => {
         type: StatusType.enum.Note
       } as unknown as Status
       const text = 'https://activities.local/@bob/1\n\nMy reply comment'
-      expect(stripQuotePrefix(text, status, host)).toBe('My reply comment')
-    })
-
-    it('strips legacy RE: quote prefix and trailing whitespace', () => {
-      const status = {
-        id: 'https://activities.local/users/bob/statuses/1',
-        url: 'https://activities.local/@bob/1',
-        actor,
-        type: StatusType.enum.Note
-      } as unknown as Status
-      const text = 'RE: https://activities.local/@bob/1\n\nMy reply comment'
       expect(stripQuotePrefix(text, status, host)).toBe('My reply comment')
     })
 
