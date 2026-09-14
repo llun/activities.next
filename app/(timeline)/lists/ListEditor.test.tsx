@@ -112,7 +112,7 @@ describe('ListEditor', () => {
     expect(screen.queryByText('Members')).not.toBeInTheDocument()
   })
 
-  it('adds a suggested account to the list right away', async () => {
+  it('adds a suggested account to the list via search dropdown', async () => {
     render(
       <ListEditor
         mode="edit"
@@ -122,6 +122,9 @@ describe('ListEditor', () => {
       />
     )
 
+    const searchInput = screen.getByLabelText('Search accounts you follow')
+    fireEvent.change(searchInput, { target: { value: 'Ben' } })
+
     fireEvent.click(screen.getByRole('button', { name: 'Add' }))
 
     await waitFor(() =>
@@ -130,10 +133,14 @@ describe('ListEditor', () => {
         accountIds: [suggestion.id]
       })
     )
-    // The added account moves from Suggestions into the member list.
+    // The added account moves into the member list, search is cleared, and dropdown is closed.
     await waitFor(() =>
       expect(screen.getByText('In this list · 1')).toBeInTheDocument()
     )
+    expect(searchInput).toHaveValue('')
+    expect(
+      screen.queryByRole('button', { name: 'Add' })
+    ).not.toBeInTheDocument()
   })
 
   it('re-enables the Add button and shows an error when the request rejects', async () => {
@@ -147,6 +154,9 @@ describe('ListEditor', () => {
       />
     )
 
+    fireEvent.change(screen.getByLabelText('Search accounts you follow'), {
+      target: { value: 'Ben' }
+    })
     const addButton = screen.getByRole('button', { name: 'Add' })
     fireEvent.click(addButton)
 
@@ -158,6 +168,69 @@ describe('ListEditor', () => {
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Add' })).not.toBeDisabled()
     )
+  })
+
+  it('limits suggestions in dropdown to 5 accounts', () => {
+    const manySuggestions: ListMember[] = Array.from({ length: 8 }, (_, i) => ({
+      id: `https://activities.local/users/user${i}`,
+      name: `User ${i}`,
+      handle: `user${i}@llun.social`
+    }))
+
+    render(
+      <ListEditor
+        mode="edit"
+        list={list}
+        initialMembers={[]}
+        followingSuggestions={manySuggestions}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('Search accounts you follow'), {
+      target: { value: 'User' }
+    })
+
+    const addButtons = screen.getAllByRole('button', { name: 'Add' })
+    expect(addButtons).toHaveLength(5)
+  })
+
+  it('shows no accounts match message when query has no matches', () => {
+    render(
+      <ListEditor
+        mode="edit"
+        list={list}
+        initialMembers={[]}
+        followingSuggestions={[suggestion]}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('Search accounts you follow'), {
+      target: { value: 'NonExistent' }
+    })
+
+    expect(
+      screen.getByText('No accounts match your search.')
+    ).toBeInTheDocument()
+  })
+
+  it('closes dropdown when pressing Escape', () => {
+    render(
+      <ListEditor
+        mode="edit"
+        list={list}
+        initialMembers={[]}
+        followingSuggestions={[suggestion]}
+      />
+    )
+
+    const searchInput = screen.getByLabelText('Search accounts you follow')
+    fireEvent.change(searchInput, { target: { value: 'Ben' } })
+    expect(screen.getByRole('button', { name: 'Add' })).toBeInTheDocument()
+
+    fireEvent.keyDown(searchInput, { key: 'Escape' })
+    expect(
+      screen.queryByRole('button', { name: 'Add' })
+    ).not.toBeInTheDocument()
   })
 
   it('removes a member from the list right away', async () => {
