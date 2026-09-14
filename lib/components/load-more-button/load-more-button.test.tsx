@@ -87,7 +87,24 @@ describe('LoadMoreButton', () => {
     )
     expect(container.firstElementChild?.tagName).toBe('DIV')
     expect(container.firstElementChild).toHaveClass('text-center')
+    expect(container.firstElementChild).toHaveClass('py-4')
+    expect(container.firstElementChild).toHaveClass('max-md:pt-6')
+    expect(container.firstElementChild).toHaveClass(
+      'max-md:pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)]'
+    )
     expect(containerRef.current).toBe(container.firstElementChild)
+  })
+
+  it('renders error message in container when error prop is passed', () => {
+    render(
+      <LoadMoreButton error="Failed to load more posts" onClick={() => {}} />
+    )
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent('Failed to load more posts')
+    expect(alert).toHaveClass('text-destructive')
+    expect(
+      screen.getByRole('button', { name: 'Load more' })
+    ).toBeInTheDocument()
   })
 
   it('wraps in div with custom containerClassName when passed', () => {

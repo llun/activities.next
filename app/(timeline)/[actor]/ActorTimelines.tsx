@@ -439,17 +439,12 @@ export const ActorTimelines: FC<Props> = ({
         )}
 
         {canLoadMore && (
-          <div ref={loadMoreRef} className="text-center">
-            {loadMoreError && (
-              <p className="mb-3 text-sm text-destructive" role="alert">
-                {loadMoreError}
-              </p>
-            )}
-            <LoadMoreButton
-              isLoading={isLoadingMoreStatuses}
-              onClick={handleManualLoadMore}
-            />
-          </div>
+          <LoadMoreButton
+            containerRef={loadMoreRef}
+            error={loadMoreError}
+            isLoading={isLoadingMoreStatuses}
+            onClick={handleManualLoadMore}
+          />
         )}
       </div>
     )
@@ -461,17 +456,12 @@ export const ActorTimelines: FC<Props> = ({
         {renderFeed(postStatuses, 'No posts yet')}
 
         {canLoadMore && (
-          <div ref={loadMoreRef} className="text-center">
-            {loadMoreError && (
-              <p className="mb-3 text-sm text-destructive" role="alert">
-                {loadMoreError}
-              </p>
-            )}
-            <LoadMoreButton
-              isLoading={isLoadingMoreStatuses}
-              onClick={handleManualLoadMore}
-            />
-          </div>
+          <LoadMoreButton
+            containerRef={loadMoreRef}
+            error={loadMoreError}
+            isLoading={isLoadingMoreStatuses}
+            onClick={handleManualLoadMore}
+          />
         )}
       </div>
     )
@@ -544,17 +534,12 @@ export const ActorTimelines: FC<Props> = ({
       </Tabs>
 
       {canLoadMore && (
-        <div ref={loadMoreRef} className="text-center">
-          {loadMoreError && (
-            <p className="mb-3 text-sm text-destructive" role="alert">
-              {loadMoreError}
-            </p>
-          )}
-          <LoadMoreButton
-            isLoading={isLoadingMoreStatuses}
-            onClick={handleManualLoadMore}
-          />
-        </div>
+        <LoadMoreButton
+          containerRef={loadMoreRef}
+          error={loadMoreError}
+          isLoading={isLoadingMoreStatuses}
+          onClick={handleManualLoadMore}
+        />
       )}
     </div>
   )
