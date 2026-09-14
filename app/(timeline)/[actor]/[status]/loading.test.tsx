@@ -42,5 +42,6 @@ describe('[status] loading', () => {
 
     expect(card).toHaveClass('md:mt-4')
     expect(card).not.toHaveClass('mt-4')
+    expect(card).toHaveClass('group-data-[shell=public]/shell:max-md:-mt-6')
   })
 })

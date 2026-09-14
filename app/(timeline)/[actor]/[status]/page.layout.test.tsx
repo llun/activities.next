@@ -245,11 +245,13 @@ describe('Conversation card chrome', () => {
 
     expect(card).toHaveClass('md:mt-4')
     expect(card).not.toHaveClass('mt-4')
+    expect(card).not.toHaveClass('max-md:-mt-6')
   })
 
-  it('omits top margin when logged out', async () => {
+  it('pulls flush under PublicTopBar with max-md:-mt-6 on mobile when logged out', async () => {
     const card = await renderPage()
 
+    expect(card).toHaveClass('max-md:-mt-6')
     expect(card).not.toHaveClass('md:mt-4')
     expect(card).not.toHaveClass('mt-4')
   })
@@ -393,11 +395,13 @@ describe('Fitness activity card chrome', () => {
 
     expect(card).toHaveClass('md:mt-4')
     expect(card).not.toHaveClass('mt-4')
+    expect(card).not.toHaveClass('max-md:-mt-6')
   })
 
-  it('omits top margin when logged out', async () => {
+  it('pulls flush under PublicTopBar with max-md:-mt-6 on mobile when logged out', async () => {
     const card = await renderPage()
 
+    expect(card).toHaveClass('max-md:-mt-6')
     expect(card).not.toHaveClass('md:mt-4')
     expect(card).not.toHaveClass('mt-4')
   })
