@@ -2,7 +2,7 @@
 
 import { Search, Trash2, UserMinus, UserPlus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { FC, useMemo, useState } from 'react'
+import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   addListAccounts,
@@ -70,12 +70,24 @@ export const ListEditor: FC<ListEditorProps> = ({
 
   const [members, setMembers] = useState<ListMember[]>(initialMembers)
   const [search, setSearch] = useState('')
+  const [isDropdownOpen, setDropdownOpen] = useState(false)
   const [isSaving, setSaving] = useState(false)
   const [isDeleting, setDeleting] = useState(false)
   const [pendingMemberIds, setPendingMemberIds] = useState<Set<string>>(
     new Set()
   )
   const [error, setError] = useState<string | null>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const onDocumentMouseDown = (event: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDocumentMouseDown)
+    return () => document.removeEventListener('mousedown', onDocumentMouseDown)
+  }, [])
 
   const memberIds = useMemo(
     () => new Set(members.map((member) => member.id)),
@@ -84,14 +96,15 @@ export const ListEditor: FC<ListEditorProps> = ({
 
   const suggestions = useMemo(() => {
     const query = search.trim().toLowerCase()
+    if (query.length === 0) return []
     return followingSuggestions
       .filter((account) => !memberIds.has(account.id))
       .filter(
         (account) =>
-          query.length === 0 ||
           account.name.toLowerCase().includes(query) ||
           account.handle.toLowerCase().includes(query)
       )
+      .slice(0, 5)
   }, [followingSuggestions, memberIds, search])
 
   const setMemberPending = (id: string, pending: boolean) =>
@@ -102,8 +115,8 @@ export const ListEditor: FC<ListEditorProps> = ({
       return next
     })
 
-  const addMember = async (account: ListMember) => {
-    if (!list) return
+  const addMember = async (account: ListMember): Promise<boolean> => {
+    if (!list) return false
     setError(null)
     setMemberPending(account.id, true)
     try {
@@ -113,11 +126,13 @@ export const ListEditor: FC<ListEditorProps> = ({
       })
       if (!ok) {
         setError('Could not add that account. Please try again.')
-        return
+        return false
       }
       setMembers((previous) => [...previous, account])
+      return true
     } catch {
       setError('Could not add that account. Please try again.')
+      return false
     } finally {
       // Always clear pending, even when the request throws, so the row's
       // Add/Remove control never stays permanently disabled.
@@ -299,15 +314,72 @@ export const ListEditor: FC<ListEditorProps> = ({
             </p>
           </div>
 
-          <div className="relative">
+          <div ref={wrapRef} className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               className="pl-9"
               value={search}
               aria-label="Search accounts you follow"
               placeholder="Search accounts you follow"
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => {
+                setSearch(event.target.value)
+                setDropdownOpen(true)
+              }}
+              onFocus={() => setDropdownOpen(true)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') setDropdownOpen(false)
+              }}
             />
+
+            {isDropdownOpen && search.trim().length > 0 && (
+              <div className="absolute left-0 right-0 top-full z-40 mt-1.5 rounded-xl border bg-popover p-1 shadow-lg">
+                {suggestions.length > 0 ? (
+                  <ul className="divide-y divide-border/50">
+                    {suggestions.map((account) => (
+                      <li
+                        key={account.id}
+                        className="flex items-center gap-3 rounded-lg p-2 hover:bg-accent/50"
+                      >
+                        <Avatar className="h-8 w-8">
+                          {account.avatar && (
+                            <AvatarImage src={account.avatar} />
+                          )}
+                          <AvatarFallback>
+                            {getInitials(account.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">
+                            {account.name}
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            @{account.handle}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          disabled={pendingMemberIds.has(account.id)}
+                          onClick={async () => {
+                            const added = await addMember(account)
+                            if (added) {
+                              setSearch('')
+                              setDropdownOpen(false)
+                            }
+                          }}
+                        >
+                          <UserPlus className="h-4 w-4" />
+                          Add
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="p-3 text-center text-sm text-muted-foreground">
+                    No accounts match your search.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {members.length > 0 && (
@@ -345,45 +417,11 @@ export const ListEditor: FC<ListEditorProps> = ({
             </div>
           )}
 
-          {suggestions.length > 0 && (
-            <div className="space-y-1">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Suggestions
-              </p>
-              <ul className="divide-y">
-                {suggestions.map((account) => (
-                  <li key={account.id} className="flex items-center gap-3 py-3">
-                    <Avatar className="h-10 w-10">
-                      {account.avatar && <AvatarImage src={account.avatar} />}
-                      <AvatarFallback>
-                        {getInitials(account.name)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">{account.name}</p>
-                      <p className="truncate text-sm text-muted-foreground">
-                        @{account.handle}
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      disabled={pendingMemberIds.has(account.id)}
-                      onClick={() => addMember(account)}
-                    >
-                      <UserPlus className="h-4 w-4" />
-                      Add
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {members.length === 0 && suggestions.length === 0 && (
+          {members.length === 0 && (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              {search.trim().length > 0
-                ? 'No accounts match your search.'
-                : 'Follow some accounts to add them to this list.'}
+              {followingSuggestions.length === 0
+                ? 'Follow some accounts to add them to this list.'
+                : 'This list has no members yet. Use the search above to add accounts you follow.'}
             </p>
           )}
         </section>

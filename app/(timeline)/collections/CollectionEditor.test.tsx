@@ -120,7 +120,7 @@ describe('CollectionEditor', () => {
     expect(screen.queryByText('People')).not.toBeInTheDocument()
   })
 
-  it('adds a suggested account right away', async () => {
+  it('adds a suggested account via search dropdown', async () => {
     render(
       <CollectionEditor
         mode="edit"
@@ -129,6 +129,9 @@ describe('CollectionEditor', () => {
         followingSuggestions={[suggestion]}
       />
     )
+
+    const searchInput = screen.getByLabelText('Search accounts you follow')
+    fireEvent.change(searchInput, { target: { value: 'Ben' } })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add' }))
 
@@ -141,6 +144,10 @@ describe('CollectionEditor', () => {
     await waitFor(() =>
       expect(screen.getByText('In this collection · 1')).toBeInTheDocument()
     )
+    expect(searchInput).toHaveValue('')
+    expect(
+      screen.queryByRole('button', { name: 'Add' })
+    ).not.toBeInTheDocument()
   })
 
   it('shows an inline error and does not add the member when the add fails', async () => {
@@ -154,12 +161,82 @@ describe('CollectionEditor', () => {
       />
     )
 
+    fireEvent.change(screen.getByLabelText('Search accounts you follow'), {
+      target: { value: 'Ben' }
+    })
+
     fireEvent.click(screen.getByRole('button', { name: 'Add' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Could not add that account. Please try again.'
     )
     expect(screen.queryByText('In this collection · 1')).not.toBeInTheDocument()
+  })
+
+  it('limits suggestions in dropdown to 5 accounts', () => {
+    const manySuggestions: CollectionMember[] = Array.from(
+      { length: 8 },
+      (_, i) => ({
+        id: `https://activities.local/users/user${i}`,
+        name: `User ${i}`,
+        handle: `user${i}@llun.social`
+      })
+    )
+
+    render(
+      <CollectionEditor
+        mode="edit"
+        collection={collection}
+        initialMembers={[]}
+        followingSuggestions={manySuggestions}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('Search accounts you follow'), {
+      target: { value: 'User' }
+    })
+
+    const addButtons = screen.getAllByRole('button', { name: 'Add' })
+    expect(addButtons).toHaveLength(5)
+  })
+
+  it('shows no accounts match message when query has no matches', () => {
+    render(
+      <CollectionEditor
+        mode="edit"
+        collection={collection}
+        initialMembers={[]}
+        followingSuggestions={[suggestion]}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('Search accounts you follow'), {
+      target: { value: 'NonExistent' }
+    })
+
+    expect(
+      screen.getByText('No accounts match your search.')
+    ).toBeInTheDocument()
+  })
+
+  it('closes dropdown when pressing Escape', () => {
+    render(
+      <CollectionEditor
+        mode="edit"
+        collection={collection}
+        initialMembers={[]}
+        followingSuggestions={[suggestion]}
+      />
+    )
+
+    const searchInput = screen.getByLabelText('Search accounts you follow')
+    fireEvent.change(searchInput, { target: { value: 'Ben' } })
+    expect(screen.getByRole('button', { name: 'Add' })).toBeInTheDocument()
+
+    fireEvent.keyDown(searchInput, { key: 'Escape' })
+    expect(
+      screen.queryByRole('button', { name: 'Add' })
+    ).not.toBeInTheDocument()
   })
 
   it('removes a member right away', async () => {
