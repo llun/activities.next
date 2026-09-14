@@ -287,11 +287,12 @@ const Page: FC<Props> = async ({ params }) => {
       <div
         className={cn(
           // Signed-in viewers render inside the `(timeline)` layout, whose
-          // content wrapper has no top padding, so the card would otherwise sit
-          // flush against the top. Logged-out viewers go through `PublicShell`,
-          // which already supplies its own top padding, so only the signed-in
-          // surface needs this gap.
-          currentActorProfile && 'mt-4',
+          // content wrapper has no top padding, so the card sits with a top
+          // margin on desktop. On mobile, the header hosts the navigation
+          // trigger and sits flush at the top of the viewport. Logged-out
+          // viewers go through `PublicShell`, which already supplies its own
+          // top padding, so only the signed-in desktop surface needs this gap.
+          currentActorProfile && 'md:mt-4',
           // No `overflow-hidden`: this card wraps a post, and a post's
           // non-portalled overlays have to escape it. They all hang off the
           // action row inside `FitnessStatusDetail`'s own card — the
@@ -376,10 +377,12 @@ const Page: FC<Props> = async ({ params }) => {
   return (
     <div
       className={cn(
-        // Only the signed-in `(timeline)` surface lacks top padding; the
-        // logged-out `PublicShell` already provides its own, so scope the gap
-        // to the signed-in card to keep the spacing consistent across both.
-        currentActorProfile && 'mt-4',
+        // Only the signed-in `(timeline)` surface lacks top padding on
+        // desktop; on mobile the header hosts the navigation trigger and sits
+        // flush at the top of the viewport. The logged-out `PublicShell`
+        // already provides its own top padding, so scope the gap to the
+        // signed-in desktop card.
+        currentActorProfile && 'md:mt-4',
         // No `overflow-hidden`: this card contains posts, and a post's
         // non-portalled overlays would be clipped by it — the same reason
         // `Posts` dropped it. The one that reaches this card's edge is the

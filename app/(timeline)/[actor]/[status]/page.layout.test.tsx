@@ -238,6 +238,22 @@ describe('Conversation card chrome', () => {
     expect(rowFor('focused')).not.toHaveClass('rounded-t-2xl')
   })
 
+  it('applies top margin only from md up when signed in, sitting flush on mobile', async () => {
+    mockGetActorFromSession.mockResolvedValue(buildViewer())
+
+    const card = await renderPage()
+
+    expect(card).toHaveClass('md:mt-4')
+    expect(card).not.toHaveClass('mt-4')
+  })
+
+  it('omits top margin when logged out', async () => {
+    const card = await renderPage()
+
+    expect(card).not.toHaveClass('md:mt-4')
+    expect(card).not.toHaveClass('mt-4')
+  })
+
   it('rounds the focused post instead when logged out, which has no header', async () => {
     const card = await renderPage()
 
@@ -368,6 +384,22 @@ describe('Fitness activity card chrome', () => {
     // painted block after it and `rounded-b-2xl` notches a rounded row into
     // the middle of the card while the new block meets square corners.
     expect(card.lastElementChild).toBe(rowFor('ride-1'))
+  })
+
+  it('applies top margin only from md up when signed in, sitting flush on mobile', async () => {
+    mockGetActorFromSession.mockResolvedValue(buildViewer())
+
+    const card = await renderPage()
+
+    expect(card).toHaveClass('md:mt-4')
+    expect(card).not.toHaveClass('mt-4')
+  })
+
+  it('omits top margin when logged out', async () => {
+    const card = await renderPage()
+
+    expect(card).not.toHaveClass('md:mt-4')
+    expect(card).not.toHaveClass('mt-4')
   })
 
   it('gives the post block the top corners when logged out, which has no header', async () => {
