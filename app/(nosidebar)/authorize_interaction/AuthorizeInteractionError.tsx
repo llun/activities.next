@@ -1,12 +1,9 @@
-import Link from 'next/link'
 import { FC } from 'react'
 
-import { Button } from '@/lib/components/ui/button'
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle
 } from '@/lib/components/ui/card'
@@ -36,10 +33,5 @@ export const AuthorizeInteractionError: FC<AuthorizeInteractionErrorProps> = ({
         </code>
       </CardContent>
     ) : null}
-    <CardFooter className="flex justify-center">
-      <Button variant="outline" asChild>
-        <Link href="/">Back to home</Link>
-      </Button>
-    </CardFooter>
   </Card>
 )

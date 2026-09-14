@@ -1,5 +1,7 @@
+import { ArrowLeft } from 'lucide-react'
 import { Metadata } from 'next'
 import { headers } from 'next/headers'
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
@@ -29,6 +31,19 @@ interface Props {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
+const BackToTimelineLink = () => (
+  <div className="mb-4">
+    <Link
+      href="/"
+      prefetch={false}
+      className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+    >
+      <ArrowLeft className="h-4 w-4" />
+      <span>Back to timeline</span>
+    </Link>
+  </div>
+)
+
 /**
  * Mastodon-compatible remote-follow landing page. Other servers send a visitor
  * here (via the `http://ostatus.org/schema/1.0/subscribe` WebFinger template,
@@ -43,10 +58,13 @@ const Page: FC<Props> = async ({ searchParams }) => {
 
   if (!uri || uri.length > ACCOUNT_TARGET_MAX_LENGTH) {
     return (
-      <AuthorizeInteractionError
-        title="Nothing to follow"
-        description="This link is missing the account to follow. Open it again from the other server, or search for the account here."
-      />
+      <div>
+        <BackToTimelineLink />
+        <AuthorizeInteractionError
+          title="Nothing to follow"
+          description="This link is missing the account to follow. Open it again from the other server, or search for the account here."
+        />
+      </div>
     )
   }
 
@@ -74,39 +92,48 @@ const Page: FC<Props> = async ({ searchParams }) => {
 
   const result = await resolveAccountTarget({ database, input: uri })
 
-  switch (result.type) {
-    case 'resolved':
-      return (
-        <AuthorizeInteractionCard
-          actor={result.actor}
-          isSelf={result.actor.id === currentActor.id}
-        />
-      )
-    case 'forbidden':
-      return (
-        <AuthorizeInteractionError
-          title="Can't reach that server"
-          description="This server does not federate with the server that account is on."
-          uri={uri}
-        />
-      )
-    case 'not-found':
-      return (
-        <AuthorizeInteractionError
-          title="Account not found"
-          description="We couldn't find that account. Only accounts can be opened from this page — a link to a single post won't work."
-          uri={uri}
-        />
-      )
-    default:
-      return (
-        <AuthorizeInteractionError
-          title="That doesn't look like an account"
-          description="Expected an address like username@example.com or a link to a profile."
-          uri={uri}
-        />
-      )
+  const renderContent = () => {
+    switch (result.type) {
+      case 'resolved':
+        return (
+          <AuthorizeInteractionCard
+            actor={result.actor}
+            isSelf={result.actor.id === currentActor.id}
+          />
+        )
+      case 'forbidden':
+        return (
+          <AuthorizeInteractionError
+            title="Can't reach that server"
+            description="This server does not federate with the server that account is on."
+            uri={uri}
+          />
+        )
+      case 'not-found':
+        return (
+          <AuthorizeInteractionError
+            title="Account not found"
+            description="We couldn't find that account. Only accounts can be opened from this page — a link to a single post won't work."
+            uri={uri}
+          />
+        )
+      default:
+        return (
+          <AuthorizeInteractionError
+            title="That doesn't look like an account"
+            description="Expected an address like username@example.com or a link to a profile."
+            uri={uri}
+          />
+        )
+    }
   }
+
+  return (
+    <div>
+      <BackToTimelineLink />
+      {renderContent()}
+    </div>
+  )
 }
 
 export default Page

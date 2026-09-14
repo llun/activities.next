@@ -42,13 +42,37 @@ describe('AuthorizeInteractionCard', () => {
     )
   })
 
-  it('links to the profile page', () => {
+  it('links to the profile page from avatar, name, handle, and view profile button', () => {
     render(<AuthorizeInteractionCard actor={actor} isSelf={false} />)
+
+    expect(
+      screen.getByRole('link', { name: 'View profile for Someone Remote' })
+    ).toHaveAttribute('href', '/@someone@remote.test')
+    expect(
+      screen.getByRole('link', { name: 'Someone Remote' })
+    ).toHaveAttribute('href', '/@someone@remote.test')
+    expect(
+      screen.getByRole('link', { name: '@someone@remote.test' })
+    ).toHaveAttribute('href', '/@someone@remote.test')
+    expect(screen.getByRole('link', { name: 'View profile' })).toHaveAttribute(
+      'href',
+      '/@someone@remote.test'
+    )
+  })
+
+  it('allows profile links for remote Service accounts', () => {
+    render(
+      <AuthorizeInteractionCard
+        actor={{ ...actor, type: 'Service' }}
+        isSelf={false}
+      />
+    )
 
     expect(screen.getByRole('link', { name: 'View profile' })).toHaveAttribute(
       'href',
       '/@someone@remote.test'
     )
+    expect(screen.getByTestId('follow-action')).toBeInTheDocument()
   })
 
   it('hides the follow action for the viewer own account', () => {
@@ -61,12 +85,13 @@ describe('AuthorizeInteractionCard', () => {
   it('omits the profile link for the headless instance actor', () => {
     render(
       <AuthorizeInteractionCard
-        actor={{ ...actor, type: 'Service' }}
+        actor={{ ...actor, username: '__instance__', type: 'Service' }}
         isSelf={false}
       />
     )
 
     expect(screen.queryByRole('link', { name: 'View profile' })).toBeNull()
+    expect(screen.queryByRole('link')).toBeNull()
     expect(screen.getByTestId('follow-action')).toBeInTheDocument()
   })
 
