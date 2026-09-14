@@ -23,7 +23,7 @@ import {
 } from '@/lib/types/domain/status'
 import { resizeImage } from '@/lib/utils/resizeImage'
 
-import { PostBox, getQuotePrefix, getQuoteUrl } from './post-box'
+import { PostBox } from './post-box'
 
 vi.mock('@/lib/client', () => ({
   createNote: vi.fn(),
@@ -264,147 +264,32 @@ describe('PostBox edit media', () => {
     expect(screen.getByText('Quoting')).toBeInTheDocument()
 
     const textbox = screen.getByPlaceholderText('What is on your mind?')
-    expect(textbox).toHaveValue(
-      'RE: https://activities.local/users/bob/statuses/1\n\n'
-    )
+    expect(textbox).toHaveValue('')
     const postButton = screen.getByRole('button', { name: 'Post' })
-    await waitFor(() => expect(postButton).toBeEnabled())
+    expect(postButton).toBeDisabled()
 
     fireEvent.change(textbox, {
       target: {
-        value:
-          'RE: https://activities.local/users/bob/statuses/1\n\nmy commentary'
+        value: 'my commentary'
       }
     })
+    await waitFor(() => expect(postButton).toBeEnabled())
     fireEvent.click(postButton)
 
     await waitFor(() => {
       expect(createNoteMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          message:
-            'RE: https://activities.local/users/bob/statuses/1\n\nmy commentary',
+          message: 'my commentary',
           quotedStatus
         })
       )
     })
   })
 
-  it('prefers quotedStatus.url over quotedStatus.id when initializing quote prefix', async () => {
+  it('preserves commentary when quote preview is dismissed', async () => {
+    const onDiscardQuote = vi.fn()
     const quotedStatus = {
       id: 'https://activities.local/users/bob/statuses/1',
-      url: 'https://activities.local/@bob/1',
-      actorId: 'https://activities.local/users/bob',
-      actor: {
-        id: 'https://activities.local/users/bob',
-        username: 'bob',
-        domain: 'activities.local',
-        name: 'Bob'
-      },
-      type: StatusType.enum.Note,
-      text: 'quote me please',
-      tags: [],
-      to: [],
-      cc: []
-    } as unknown as Status
-
-    render(
-      <PostBox
-        host="activities.local"
-        profile={profile}
-        quotedStatus={quotedStatus}
-        onDiscardReply={vi.fn()}
-        onDiscardQuote={vi.fn()}
-        onPostCreated={vi.fn()}
-        onPostUpdated={vi.fn()}
-        onDiscardEdit={vi.fn()}
-      />
-    )
-
-    const textbox = screen.getByPlaceholderText('What is on your mind?')
-    expect(textbox).toHaveValue('RE: https://activities.local/@bob/1\n\n')
-  })
-
-  it('constructs full status URL using publicId when url is not set', async () => {
-    const publicId = '01956621-4506-76f6-8653-d4233375fe51'
-    const quotedStatus = {
-      id: publicId,
-      publicId,
-      actorId: 'https://activities.local/users/bob',
-      actor: {
-        id: 'https://activities.local/users/bob',
-        username: 'bob',
-        domain: 'activities.local',
-        name: 'Bob'
-      },
-      type: StatusType.enum.Note,
-      text: 'quote me please',
-      tags: [],
-      to: [],
-      cc: []
-    } as unknown as Status
-
-    render(
-      <PostBox
-        host="activities.local"
-        profile={profile}
-        quotedStatus={quotedStatus}
-        onDiscardReply={vi.fn()}
-        onDiscardQuote={vi.fn()}
-        onPostCreated={vi.fn()}
-        onPostUpdated={vi.fn()}
-        onDiscardEdit={vi.fn()}
-      />
-    )
-
-    const textbox = screen.getByPlaceholderText('What is on your mind?')
-    expect(textbox).toHaveValue(
-      `RE: https://activities.local/@bob@activities.local/${publicId}\n\n`
-    )
-  })
-
-  it('constructs full status URL when status id is a bare UUIDv7 without url', async () => {
-    const publicId = '01956621-4506-76f6-8653-d4233375fe51'
-    const quotedStatus = {
-      id: publicId,
-      actorId: 'https://activities.local/users/bob',
-      actor: {
-        id: 'https://activities.local/users/bob',
-        username: 'bob',
-        domain: 'activities.local',
-        name: 'Bob'
-      },
-      type: StatusType.enum.Note,
-      text: 'quote me please',
-      tags: [],
-      to: [],
-      cc: []
-    } as unknown as Status
-
-    render(
-      <PostBox
-        host="activities.local"
-        profile={profile}
-        quotedStatus={quotedStatus}
-        onDiscardReply={vi.fn()}
-        onDiscardQuote={vi.fn()}
-        onPostCreated={vi.fn()}
-        onPostUpdated={vi.fn()}
-        onDiscardEdit={vi.fn()}
-      />
-    )
-
-    const textbox = screen.getByPlaceholderText('What is on your mind?')
-    expect(textbox).toHaveValue(
-      `RE: https://activities.local/@bob@activities.local/${publicId}\n\n`
-    )
-  })
-
-  it('strips the RE: quote prefix and preserves commentary when quote with publicId URL is dismissed', async () => {
-    const onDiscardQuote = vi.fn()
-    const publicId = '01956621-4506-76f6-8653-d4233375fe51'
-    const quotedStatus = {
-      id: publicId,
-      publicId,
       actorId: 'https://activities.local/users/bob',
       actor: {
         id: 'https://activities.local/users/bob',
@@ -435,7 +320,7 @@ describe('PostBox edit media', () => {
     const textbox = screen.getByPlaceholderText('What is on your mind?')
     fireEvent.change(textbox, {
       target: {
-        value: `RE: https://activities.local/@bob@activities.local/${publicId}\n\nmy commentary`
+        value: 'my commentary'
       }
     })
 
@@ -446,7 +331,7 @@ describe('PostBox edit media', () => {
     expect(textbox).toHaveValue('my commentary')
   })
 
-  it('strips the RE: quote prefix and preserves commentary when quote preview is dismissed', async () => {
+  it('keeps post button disabled when quote preview is dismissed without commentary', async () => {
     const onDiscardQuote = vi.fn()
     const quotedStatus = {
       id: 'https://activities.local/users/bob/statuses/1',
@@ -479,53 +364,7 @@ describe('PostBox edit media', () => {
     )
 
     const textbox = screen.getByPlaceholderText('What is on your mind?')
-    fireEvent.change(textbox, {
-      target: {
-        value: 'RE: https://activities.local/@bob/1\n\nmy commentary'
-      }
-    })
-
-    const dismissButton = screen.getByRole('button', { name: 'Dismiss quote' })
-    fireEvent.click(dismissButton)
-
-    expect(onDiscardQuote).toHaveBeenCalled()
-    expect(textbox).toHaveValue('my commentary')
-  })
-
-  it('clears text and disables post button when quote preview is dismissed without commentary', async () => {
-    const onDiscardQuote = vi.fn()
-    const quotedStatus = {
-      id: 'https://activities.local/users/bob/statuses/1',
-      url: 'https://activities.local/@bob/1',
-      actorId: 'https://activities.local/users/bob',
-      actor: {
-        id: 'https://activities.local/users/bob',
-        username: 'bob',
-        domain: 'activities.local',
-        name: 'Bob'
-      },
-      type: StatusType.enum.Note,
-      text: 'quote me please',
-      tags: [],
-      to: [],
-      cc: []
-    } as unknown as Status
-
-    render(
-      <PostBox
-        host="activities.local"
-        profile={profile}
-        quotedStatus={quotedStatus}
-        onDiscardReply={vi.fn()}
-        onDiscardQuote={onDiscardQuote}
-        onPostCreated={vi.fn()}
-        onPostUpdated={vi.fn()}
-        onDiscardEdit={vi.fn()}
-      />
-    )
-
-    const textbox = screen.getByPlaceholderText('What is on your mind?')
-    expect(textbox).toHaveValue('RE: https://activities.local/@bob/1\n\n')
+    expect(textbox).toHaveValue('')
 
     const dismissButton = screen.getByRole('button', { name: 'Dismiss quote' })
     fireEvent.click(dismissButton)
@@ -536,7 +375,7 @@ describe('PostBox edit media', () => {
     expect(postButton).toBeDisabled()
   })
 
-  it('combines RE: prefix and reply mentions when both quoting and replying', async () => {
+  it('combines quote preview and reply mentions when both quoting and replying', async () => {
     const quotedStatus = {
       id: 'https://activities.local/users/bob/statuses/1',
       url: 'https://activities.local/@bob/1',
@@ -585,10 +424,9 @@ describe('PostBox edit media', () => {
       />
     )
 
+    expect(screen.getByText('Quoting')).toBeInTheDocument()
     const textbox = screen.getByPlaceholderText('What is on your mind?')
-    expect(textbox).toHaveValue(
-      'RE: https://activities.local/@bob/1\n\n@alice@activities.local '
-    )
+    expect(textbox).toHaveValue('@alice@activities.local ')
   })
 
   it('keeps post button disabled when replying to own status with empty content', async () => {
@@ -663,54 +501,10 @@ describe('PostBox edit media', () => {
       />
     )
 
+    expect(screen.getByText('Quoting')).toBeInTheDocument()
+    expect(screen.getByText('quote me please')).toBeInTheDocument()
     const textbox = screen.getByPlaceholderText('What is on your mind?')
-    expect(textbox).toHaveValue('RE: https://activities.local/@bob/1\n\n')
-  })
-
-  it('strips the RE: quote prefix and preserves commentary even when separated by a single newline', async () => {
-    const onDiscardQuote = vi.fn()
-    const quotedStatus = {
-      id: 'https://activities.local/users/bob/statuses/1',
-      url: 'https://activities.local/@bob/1',
-      actorId: 'https://activities.local/users/bob',
-      actor: {
-        id: 'https://activities.local/users/bob',
-        username: 'bob',
-        domain: 'activities.local',
-        name: 'Bob'
-      },
-      type: StatusType.enum.Note,
-      text: 'quote me please',
-      tags: [],
-      to: [],
-      cc: []
-    } as unknown as Status
-
-    render(
-      <PostBox
-        host="activities.local"
-        profile={profile}
-        quotedStatus={quotedStatus}
-        onDiscardReply={vi.fn()}
-        onDiscardQuote={onDiscardQuote}
-        onPostCreated={vi.fn()}
-        onPostUpdated={vi.fn()}
-        onDiscardEdit={vi.fn()}
-      />
-    )
-
-    const textbox = screen.getByPlaceholderText('What is on your mind?')
-    fireEvent.change(textbox, {
-      target: {
-        value: 'RE: https://activities.local/@bob/1\nmy commentary'
-      }
-    })
-
-    const dismissButton = screen.getByRole('button', { name: 'Dismiss quote' })
-    fireEvent.click(dismissButton)
-
-    expect(onDiscardQuote).toHaveBeenCalled()
-    expect(textbox).toHaveValue('my commentary')
+    expect(textbox).toHaveValue('')
   })
 
   it('disables the poll toggle while composing a quote (mutually exclusive)', async () => {
@@ -1961,117 +1755,6 @@ describe('PostBox attachment ref guard', () => {
       expect.objectContaining({
         attachments: [expect.objectContaining({ name: 'a.png' })]
       })
-    )
-  })
-})
-
-describe('getQuoteUrl', () => {
-  const host = 'activities.local'
-  const actor: ActorProfile = {
-    ...profile,
-    username: 'bob',
-    domain: 'activities.local',
-    name: 'Bob'
-  }
-
-  it('prefers original.url when it is already a full absolute web URL', () => {
-    const status = {
-      id: 'https://activities.local/users/bob/statuses/1',
-      url: 'https://activities.local/@bob/1',
-      actor,
-      type: StatusType.enum.Note
-    } as unknown as Status
-    expect(getQuoteUrl(status, host)).toBe('https://activities.local/@bob/1')
-  })
-
-  it('constructs canonical URL with publicId when original.publicId is present', () => {
-    const publicId = '01956621-4506-76f6-8653-d4233375fe51'
-    const status = {
-      id: 'https://activities.local/users/bob/statuses/internal-id',
-      publicId,
-      actor,
-      type: StatusType.enum.Note
-    } as unknown as Status
-    expect(getQuoteUrl(status, host)).toBe(
-      `https://activities.local/@bob@activities.local/${publicId}`
-    )
-  })
-
-  it('constructs canonical URL when status id is a bare UUIDv7 publicId', () => {
-    const publicId = '01956621-4506-76f6-8653-d4233375fe51'
-    const status = {
-      id: publicId,
-      actor,
-      type: StatusType.enum.Note
-    } as unknown as Status
-    expect(getQuoteUrl(status, host)).toBe(
-      `https://activities.local/@bob@activities.local/${publicId}`
-    )
-  })
-
-  it('constructs canonical URL when status id ends with a UUIDv7 publicId', () => {
-    const publicId = '01956621-4506-76f6-8653-d4233375fe51'
-    const status = {
-      id: `https://activities.local/users/bob/statuses/${publicId}`,
-      actor,
-      type: StatusType.enum.Note
-    } as unknown as Status
-    expect(getQuoteUrl(status, host)).toBe(
-      `https://activities.local/@bob@activities.local/${publicId}`
-    )
-  })
-
-  it('resolves relative path in url against host', () => {
-    const status = {
-      id: 'https://activities.local/users/bob/statuses/1',
-      url: '/@bob/1',
-      actor,
-      type: StatusType.enum.Note
-    } as unknown as Status
-    expect(getQuoteUrl(status, host)).toBe('https://activities.local/@bob/1')
-  })
-
-  it('encodes remote actor status id when isLocalActor is false', () => {
-    const remoteActor: ActorProfile = {
-      ...profile,
-      username: 'charlie',
-      domain: 'remote.social',
-      name: 'Charlie'
-    }
-    const status = {
-      id: 'https://remote.social/statuses/999',
-      actor: remoteActor,
-      isLocalActor: false,
-      type: StatusType.enum.Note
-    } as unknown as Status
-    expect(getQuoteUrl(status, host)).toBe(
-      `https://activities.local/@charlie@remote.social/${encodeURIComponent('https://remote.social/statuses/999')}`
-    )
-  })
-
-  it('falls back to /statuses/:id when actor is missing', () => {
-    const status = {
-      id: '01956621-4506-76f6-8653-d4233375fe51',
-      type: StatusType.enum.Note
-    } as unknown as Status
-    expect(getQuoteUrl(status, host)).toBe(
-      'https://activities.local/statuses/01956621-4506-76f6-8653-d4233375fe51'
-    )
-  })
-
-  it('returns empty string from getQuotePrefix when quotedStatus is undefined', () => {
-    expect(getQuotePrefix(undefined, host)).toBe('')
-  })
-
-  it('formats quote prefix with RE: and trailing double newline', () => {
-    const status = {
-      id: 'https://activities.local/users/bob/statuses/1',
-      url: 'https://activities.local/@bob/1',
-      actor,
-      type: StatusType.enum.Note
-    } as unknown as Status
-    expect(getQuotePrefix(status, host)).toBe(
-      'RE: https://activities.local/@bob/1\n\n'
     )
   })
 })
