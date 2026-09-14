@@ -265,15 +265,14 @@ describe('PostBox edit media', () => {
 
     const textbox = screen.getByPlaceholderText('What is on your mind?')
     expect(textbox).toHaveValue(
-      'RE: https://activities.local/users/bob/statuses/1\n\n'
+      'https://activities.local/users/bob/statuses/1\n\n'
     )
     const postButton = screen.getByRole('button', { name: 'Post' })
     await waitFor(() => expect(postButton).toBeEnabled())
 
     fireEvent.change(textbox, {
       target: {
-        value:
-          'RE: https://activities.local/users/bob/statuses/1\n\nmy commentary'
+        value: 'https://activities.local/users/bob/statuses/1\n\nmy commentary'
       }
     })
     fireEvent.click(postButton)
@@ -282,7 +281,7 @@ describe('PostBox edit media', () => {
       expect(createNoteMock).toHaveBeenCalledWith(
         expect.objectContaining({
           message:
-            'RE: https://activities.local/users/bob/statuses/1\n\nmy commentary',
+            'https://activities.local/users/bob/statuses/1\n\nmy commentary',
           quotedStatus
         })
       )
@@ -321,7 +320,7 @@ describe('PostBox edit media', () => {
     )
 
     const textbox = screen.getByPlaceholderText('What is on your mind?')
-    expect(textbox).toHaveValue('RE: https://activities.local/@bob/1\n\n')
+    expect(textbox).toHaveValue('https://activities.local/@bob/1\n\n')
   })
 
   it('constructs full status URL using publicId when url is not set', async () => {
@@ -358,7 +357,7 @@ describe('PostBox edit media', () => {
 
     const textbox = screen.getByPlaceholderText('What is on your mind?')
     expect(textbox).toHaveValue(
-      `RE: https://activities.local/@bob@activities.local/${publicId}\n\n`
+      `https://activities.local/@bob@activities.local/${publicId}\n\n`
     )
   })
 
@@ -395,11 +394,11 @@ describe('PostBox edit media', () => {
 
     const textbox = screen.getByPlaceholderText('What is on your mind?')
     expect(textbox).toHaveValue(
-      `RE: https://activities.local/@bob@activities.local/${publicId}\n\n`
+      `https://activities.local/@bob@activities.local/${publicId}\n\n`
     )
   })
 
-  it('strips the RE: quote prefix and preserves commentary when quote with publicId URL is dismissed', async () => {
+  it('strips the quote prefix and preserves commentary when quote with publicId URL is dismissed', async () => {
     const onDiscardQuote = vi.fn()
     const publicId = '01956621-4506-76f6-8653-d4233375fe51'
     const quotedStatus = {
@@ -435,7 +434,7 @@ describe('PostBox edit media', () => {
     const textbox = screen.getByPlaceholderText('What is on your mind?')
     fireEvent.change(textbox, {
       target: {
-        value: `RE: https://activities.local/@bob@activities.local/${publicId}\n\nmy commentary`
+        value: `https://activities.local/@bob@activities.local/${publicId}\n\nmy commentary`
       }
     })
 
@@ -525,7 +524,7 @@ describe('PostBox edit media', () => {
     )
 
     const textbox = screen.getByPlaceholderText('What is on your mind?')
-    expect(textbox).toHaveValue('RE: https://activities.local/@bob/1\n\n')
+    expect(textbox).toHaveValue('https://activities.local/@bob/1\n\n')
 
     const dismissButton = screen.getByRole('button', { name: 'Dismiss quote' })
     fireEvent.click(dismissButton)
@@ -536,7 +535,7 @@ describe('PostBox edit media', () => {
     expect(postButton).toBeDisabled()
   })
 
-  it('combines RE: prefix and reply mentions when both quoting and replying', async () => {
+  it('combines quote prefix and reply mentions when both quoting and replying', async () => {
     const quotedStatus = {
       id: 'https://activities.local/users/bob/statuses/1',
       url: 'https://activities.local/@bob/1',
@@ -587,7 +586,7 @@ describe('PostBox edit media', () => {
 
     const textbox = screen.getByPlaceholderText('What is on your mind?')
     expect(textbox).toHaveValue(
-      'RE: https://activities.local/@bob/1\n\n@alice@activities.local '
+      'https://activities.local/@bob/1\n\n@alice@activities.local '
     )
   })
 
@@ -664,10 +663,10 @@ describe('PostBox edit media', () => {
     )
 
     const textbox = screen.getByPlaceholderText('What is on your mind?')
-    expect(textbox).toHaveValue('RE: https://activities.local/@bob/1\n\n')
+    expect(textbox).toHaveValue('https://activities.local/@bob/1\n\n')
   })
 
-  it('strips the RE: quote prefix and preserves commentary even when separated by a single newline', async () => {
+  it('strips the quote prefix and preserves commentary even when separated by a single newline', async () => {
     const onDiscardQuote = vi.fn()
     const quotedStatus = {
       id: 'https://activities.local/users/bob/statuses/1',
@@ -702,7 +701,7 @@ describe('PostBox edit media', () => {
     const textbox = screen.getByPlaceholderText('What is on your mind?')
     fireEvent.change(textbox, {
       target: {
-        value: 'RE: https://activities.local/@bob/1\nmy commentary'
+        value: 'https://activities.local/@bob/1\nmy commentary'
       }
     })
 
@@ -2063,7 +2062,7 @@ describe('getQuoteUrl', () => {
     expect(getQuotePrefix(undefined, host)).toBe('')
   })
 
-  it('formats quote prefix with RE: and trailing double newline', () => {
+  it('formats quote prefix with trailing double newline', () => {
     const status = {
       id: 'https://activities.local/users/bob/statuses/1',
       url: 'https://activities.local/@bob/1',
@@ -2071,7 +2070,7 @@ describe('getQuoteUrl', () => {
       type: StatusType.enum.Note
     } as unknown as Status
     expect(getQuotePrefix(status, host)).toBe(
-      'RE: https://activities.local/@bob/1\n\n'
+      'https://activities.local/@bob/1\n\n'
     )
   })
 })

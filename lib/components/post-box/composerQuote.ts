@@ -79,14 +79,14 @@ export const getQuoteUrl = (quotedStatus: Status, host: string): string => {
 }
 
 /**
- * Builds the text prefix (e.g. `RE: https://.../statuses/...\\n\\n`) when quoting a status.
+ * Builds the text prefix (e.g. `https://.../statuses/...\n\n`) when quoting a status.
  */
 export const getQuotePrefix = (
   quotedStatus?: Status,
   host: string = ''
 ): string => {
   if (!quotedStatus) return ''
-  return `RE: ${getQuoteUrl(quotedStatus, host)}\n\n`
+  return `${getQuoteUrl(quotedStatus, host)}\n\n`
 }
 
 /**
@@ -101,7 +101,7 @@ export const getQuotePrefixRegex = (
   const urls = [quoteUrl, original.url, original.id, original.publicId].filter(
     Boolean
   ) as string[]
-  return new RegExp(`^RE: (${urls.map(escapeRegExp).join('|')})\\s*`)
+  return new RegExp(`^(?:RE: )?(${urls.map(escapeRegExp).join('|')})\\s*`)
 }
 
 /**
