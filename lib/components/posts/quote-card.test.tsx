@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { AnchorHTMLAttributes, ReactNode } from 'react'
 
 import { StatusQuote } from '@/lib/types/domain/status'
@@ -15,13 +15,22 @@ vi.mock('next/link', () => ({
     children,
     href,
     prefetch,
+    onClick,
     ...rest
   }: AnchorHTMLAttributes<HTMLAnchorElement> & {
     href: string
     prefetch?: boolean | 'auto' | null
     children: ReactNode
   }) => (
-    <a href={href} data-prefetch={String(prefetch)} {...rest}>
+    <a
+      href={href}
+      data-prefetch={String(prefetch)}
+      onClick={(e) => {
+        e.preventDefault()
+        onClick?.(e)
+      }}
+      {...rest}
+    >
       {children}
     </a>
   )
@@ -128,4 +137,20 @@ describe('QuoteCard', () => {
       await waitFor(() => expect(mockGetStatusById).not.toHaveBeenCalled())
     }
   )
+
+  it('stops click event propagation so parent handlers are not triggered', async () => {
+    mockGetStatusById.mockResolvedValue(mastodonStatus())
+    const parentClick = vi.fn()
+
+    render(
+      <div onClick={parentClick}>
+        <QuoteCard quote={quote()} currentTime={CURRENT_TIME} />
+      </div>
+    )
+
+    const link = await screen.findByRole('link')
+    fireEvent.click(link)
+
+    expect(parentClick).not.toHaveBeenCalled()
+  })
 })

@@ -94,20 +94,111 @@ describe('getMastodonStatusDetailPath', () => {
     )
   })
 
-  it('falls back to bare acct when domain cannot be derived from url or uri', () => {
+  it('extracts domain from status uri when account has no valid url or uri', () => {
     const publicId = generatePublicId()
     const status = createMockMastodonStatus({
       id: publicId,
+      uri: 'https://activities.local/users/alice/statuses/1',
       account: {
         acct: 'alice',
         username: 'alice',
         display_name: 'Alice',
         avatar: '',
-        url: 'invalid-url',
+        url: '',
         uri: ''
       } as MastodonStatus['account']
     })
 
-    expect(getMastodonStatusDetailPath(status)).toBe(`/@alice/${publicId}`)
+    expect(getMastodonStatusDetailPath(status)).toBe(
+      `/@alice@activities.local/${publicId}`
+    )
+  })
+
+  it('extracts domain from fallbackUri when status uri and account urls are missing', () => {
+    const publicId = generatePublicId()
+    const status = createMockMastodonStatus({
+      id: publicId,
+      uri: '',
+      account: {
+        acct: 'alice',
+        username: 'alice',
+        display_name: 'Alice',
+        avatar: '',
+        url: '',
+        uri: ''
+      } as MastodonStatus['account']
+    })
+
+    expect(
+      getMastodonStatusDetailPath(
+        status,
+        'https://activities.local/users/alice/statuses/1'
+      )
+    ).toBe(`/@alice@activities.local/${publicId}`)
+  })
+
+  it('falls back to external status url when no domain can be derived', () => {
+    const publicId = generatePublicId()
+    const status = createMockMastodonStatus({
+      id: publicId,
+      url: 'https://remote.example/@alice/1',
+      uri: '',
+      account: {
+        acct: 'alice',
+        username: 'alice',
+        display_name: 'Alice',
+        avatar: '',
+        url: '',
+        uri: ''
+      } as MastodonStatus['account']
+    })
+
+    expect(getMastodonStatusDetailPath(status)).toBe(
+      'https://remote.example/@alice/1'
+    )
+  })
+
+  it('cleans multiple leading @ characters from acct', () => {
+    const publicId = generatePublicId()
+    const status = createMockMastodonStatus({
+      id: publicId,
+      account: {
+        acct: '@@bob@remote.example',
+        username: 'bob',
+        display_name: 'Bob',
+        avatar: '',
+        url: '',
+        uri: ''
+      } as MastodonStatus['account']
+    })
+
+    expect(getMastodonStatusDetailPath(status)).toBe(
+      `/@bob@remote.example/${publicId}`
+    )
+  })
+
+  it('falls back to external url when account or acct is empty', () => {
+    const status = createMockMastodonStatus({
+      id: 'legacy-id',
+      url: 'https://remote.example/@bob/1',
+      uri: '',
+      account: null as unknown as MastodonStatus['account']
+    })
+
+    expect(getMastodonStatusDetailPath(status)).toBe(
+      'https://remote.example/@bob/1'
+    )
+  })
+
+  it('falls back to external url when status id and uri are empty', () => {
+    const status = createMockMastodonStatus({
+      id: '',
+      url: 'https://remote.example/@bob/1',
+      uri: ''
+    })
+
+    expect(getMastodonStatusDetailPath(status)).toBe(
+      'https://remote.example/@bob/1'
+    )
   })
 })
