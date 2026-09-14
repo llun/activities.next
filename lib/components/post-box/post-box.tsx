@@ -61,7 +61,6 @@ import {
   getStatusAttachmentsFromUpdateResponse,
   getTimestamp
 } from './composerAttachments'
-import { getQuotePrefix, stripQuotePrefix } from './composerQuote'
 import {
   isEditSubmittable as checkIsEditSubmittable,
   getEditableStatusText,
@@ -96,8 +95,6 @@ import { ReplyPreview } from './reply-preview'
 import { UploadFitnessFileButton } from './upload-fitness-file-button'
 import { UploadMediaButton } from './upload-media-button'
 import { VisibilitySelector } from './visibility-selector'
-
-export { getQuotePrefix, getQuoteUrl } from './composerQuote'
 
 interface Props {
   host: string
@@ -554,20 +551,6 @@ export const PostBox: FC<Props> = ({
   }
 
   const onCloseQuote = () => {
-    if (quotedStatus) {
-      const nextText = stripQuotePrefix(text, quotedStatus, host)
-      if (nextText !== text) {
-        setText(nextText)
-        textRef.current = nextText
-        setAllowPost(
-          hasNewPostContent(
-            nextText,
-            postExtensionRef.current,
-            maxStatusCharacters
-          )
-        )
-      }
-    }
     onDiscardQuote?.()
   }
 
@@ -790,27 +773,18 @@ export const PostBox: FC<Props> = ({
       dispatch(setVisibility(replyVisibility))
     }
 
-    const quotePrefix = getQuotePrefix(quotedStatus, host)
-
     const defaultReplyMessage =
       replyStatus && replyStatus.type === StatusType.enum.Note
         ? getDefaultMessage(profile, replyStatus)
         : null
 
-    if (defaultReplyMessage || quotePrefix) {
-      const [replyText, replyStart, replyEnd] = defaultReplyMessage ?? [
-        '',
-        0,
-        0
-      ]
-      const initialText = `${quotePrefix}${replyText}`
-      const start = quotePrefix.length + replyStart
-      const end = quotePrefix.length + replyEnd
-      setText(initialText)
-      textRef.current = initialText
+    if (defaultReplyMessage) {
+      const [replyText, replyStart, replyEnd] = defaultReplyMessage
+      setText(replyText)
+      textRef.current = replyText
       setAllowPost(
         hasNewPostContent(
-          initialText,
+          replyText,
           postExtensionRef.current,
           maxStatusCharacters
         )
@@ -818,14 +792,22 @@ export const PostBox: FC<Props> = ({
 
       setTimeout(() => {
         if (postBoxRef.current) {
-          postBoxRef.current.selectionStart = start
-          postBoxRef.current.selectionEnd = end
+          postBoxRef.current.selectionStart = replyStart
+          postBoxRef.current.selectionEnd = replyEnd
           postBoxRef.current.focus()
         }
       }, 0)
       return
     }
-  }, [profile, replyStatus, editStatus, quotedStatus, host])
+
+    if (quotedStatus) {
+      setTimeout(() => {
+        if (postBoxRef.current) {
+          postBoxRef.current.focus()
+        }
+      }, 0)
+    }
+  }, [profile, replyStatus, editStatus, quotedStatus])
 
   return (
     <div>
