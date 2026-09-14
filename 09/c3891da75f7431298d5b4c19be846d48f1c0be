@@ -1,0 +1,16 @@
+app/(nosidebar)/authorize_interaction/AuthorizeInteractionCard.test.tsx
+  h_580a04e334fef4 48-60
+app/(nosidebar)/authorize_interaction/AuthorizeInteractionCard.tsx
+  h_580a04e334fef4 48-50,79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "09c3891da75f7431298d5b4c19be846d48f1c0be",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
