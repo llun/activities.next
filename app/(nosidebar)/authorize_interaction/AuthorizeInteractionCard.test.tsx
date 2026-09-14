@@ -45,13 +45,19 @@ describe('AuthorizeInteractionCard', () => {
   it('links to the profile page from avatar, name, handle, and view profile button', () => {
     render(<AuthorizeInteractionCard actor={actor} isSelf={false} />)
 
-    const profileLinks = screen.getAllByRole('link', {
-      name: /Someone Remote|@someone@remote\.test|View profile/
-    })
-    expect(profileLinks.length).toBeGreaterThanOrEqual(2)
-    profileLinks.forEach((link) => {
-      expect(link).toHaveAttribute('href', '/@someone@remote.test')
-    })
+    expect(
+      screen.getByRole('link', { name: 'View profile for Someone Remote' })
+    ).toHaveAttribute('href', '/@someone@remote.test')
+    expect(
+      screen.getByRole('link', { name: 'Someone Remote' })
+    ).toHaveAttribute('href', '/@someone@remote.test')
+    expect(
+      screen.getByRole('link', { name: '@someone@remote.test' })
+    ).toHaveAttribute('href', '/@someone@remote.test')
+    expect(screen.getByRole('link', { name: 'View profile' })).toHaveAttribute(
+      'href',
+      '/@someone@remote.test'
+    )
   })
 
   it('allows profile links for remote Service accounts', () => {

@@ -45,7 +45,9 @@ export const AuthorizeInteractionCard: FC<AuthorizeInteractionCardProps> = ({
   // WebFinger profile-page link for the same reason), so do not offer a link
   // that only ever 404s. Remote Service actors (e.g. bots or feeds) do have
   // profile pages in the service.
-  const isInstanceActor = isFederationSigningActorUsername(actor.username)
+  const isInstanceActor =
+    actor.type === 'Service' &&
+    Boolean(actor.username && isFederationSigningActorUsername(actor.username))
   const profileUrl = isInstanceActor ? null : `/${handle}`
 
   const avatar = (
@@ -74,6 +76,7 @@ export const AuthorizeInteractionCard: FC<AuthorizeInteractionCardProps> = ({
           <Link
             href={profileUrl}
             prefetch={false}
+            aria-label={`View profile for ${actor.name || handle}`}
             className="transition-opacity hover:opacity-80"
           >
             {avatar}
