@@ -35,4 +35,13 @@ describe('[status] loading', () => {
     leaves.forEach((el) => expect(el).toHaveClass('skeleton'))
     expect(container.querySelector('.animate-pulse')).toBeNull()
   })
+
+  it('applies top margin only from md up, sitting flush on mobile', () => {
+    const { container } = render(<Loading />)
+    const card = container.firstElementChild as HTMLElement
+
+    expect(card).toHaveClass('md:mt-4')
+    expect(card).not.toHaveClass('mt-4')
+    expect(card).toHaveClass('group-data-[shell=public]/shell:max-md:-mt-6')
+  })
 })
