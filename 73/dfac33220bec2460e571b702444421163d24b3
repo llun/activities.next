@@ -1,0 +1,18 @@
+lib/components/posts/quote-card.test.tsx
+  h_580a04e334fef4 5,18,25-33,140-155
+lib/utils/getMastodonStatusDetailPath.test.ts
+  h_580a04e334fef4 97,101,107-151,156-202
+lib/utils/getMastodonStatusDetailPath.ts
+  h_580a04e334fef4 4-22,27-33,36,39-42,48,55-62,64-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "73dfac33220bec2460e571b702444421163d24b3",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
