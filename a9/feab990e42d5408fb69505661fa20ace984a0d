@@ -1,0 +1,22 @@
+docs/architecture.md
+  h_580a04e334fef4 575
+lib/components/posts/quote-card.test.tsx
+  h_580a04e334fef4 6,13-29,65,79-83,87-99
+lib/components/posts/quote-card.tsx
+  h_580a04e334fef4 5,13,110-114,116-119,150
+lib/utils/getMastodonStatusDetailPath.test.ts
+  h_580a04e334fef4 1-113
+lib/utils/getMastodonStatusDetailPath.ts
+  h_580a04e334fef4 1-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a9feab990e42d5408fb69505661fa20ace984a0d",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
