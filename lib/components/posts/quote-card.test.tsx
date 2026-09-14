@@ -2,12 +2,39 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { AnchorHTMLAttributes, ReactNode } from 'react'
 
 import { StatusQuote } from '@/lib/types/domain/status'
 import type { Status as MastodonStatus } from '@/lib/types/mastodon/status'
 
 import { QuoteCard } from './quote-card'
+
+vi.mock('next/link', () => ({
+  default: ({
+    children,
+    href,
+    prefetch,
+    onClick,
+    ...rest
+  }: AnchorHTMLAttributes<HTMLAnchorElement> & {
+    href: string
+    prefetch?: boolean | 'auto' | null
+    children: ReactNode
+  }) => (
+    <a
+      href={href}
+      data-prefetch={String(prefetch)}
+      onClick={(e) => {
+        e.preventDefault()
+        onClick?.(e)
+      }}
+      {...rest}
+    >
+      {children}
+    </a>
+  )
+}))
 
 const { mockGetStatusById } = vi.hoisted(() => ({
   mockGetStatusById: vi.fn()
@@ -44,7 +71,7 @@ const mastodonStatus = (): MastodonStatus =>
 describe('QuoteCard', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('renders the quoted post preview for an accepted quote', async () => {
+  it('renders the quoted post preview for an accepted quote linking to service url', async () => {
     mockGetStatusById.mockResolvedValue(mastodonStatus())
     render(<QuoteCard quote={quote()} currentTime={CURRENT_TIME} />)
 
@@ -58,8 +85,25 @@ describe('QuoteCard', () => {
     expect(handle).toHaveClass('min-w-0', 'flex-1', 'truncate')
 
     const link = screen.getByRole('link')
-    expect(link).toHaveAttribute('href', 'https://remote.example/@bob/1')
+    expect(link).toHaveAttribute(
+      'href',
+      `/@bob@remote.example/${encodeURIComponent('https://remote.example/users/bob/statuses/1')}`
+    )
+    expect(link).toHaveAttribute('data-prefetch', 'false')
     expect(link).toHaveClass('overflow-hidden')
+  })
+
+  it('links to service url with publicId when status id is a publicId', async () => {
+    const publicId = '0195655a-4632-72dc-bb1e-a4b59367ca22'
+    mockGetStatusById.mockResolvedValue({
+      ...mastodonStatus(),
+      id: publicId
+    })
+    render(<QuoteCard quote={quote()} currentTime={CURRENT_TIME} />)
+
+    const link = await screen.findByRole('link')
+    expect(link).toHaveAttribute('href', `/@bob@remote.example/${publicId}`)
+    expect(link).toHaveAttribute('data-prefetch', 'false')
   })
 
   it('shows an unavailable tombstone when the quoted post is not readable', async () => {
@@ -93,4 +137,20 @@ describe('QuoteCard', () => {
       await waitFor(() => expect(mockGetStatusById).not.toHaveBeenCalled())
     }
   )
+
+  it('stops click event propagation so parent handlers are not triggered', async () => {
+    mockGetStatusById.mockResolvedValue(mastodonStatus())
+    const parentClick = vi.fn()
+
+    render(
+      <div onClick={parentClick}>
+        <QuoteCard quote={quote()} currentTime={CURRENT_TIME} />
+      </div>
+    )
+
+    const link = await screen.findByRole('link')
+    fireEvent.click(link)
+
+    expect(parentClick).not.toHaveBeenCalled()
+  })
 })

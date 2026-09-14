@@ -2,6 +2,7 @@
 
 import { formatDistance } from 'date-fns'
 import { Quote } from 'lucide-react'
+import Link from 'next/link'
 import { FC, useEffect, useState } from 'react'
 
 import { getStatusById } from '@/lib/client'
@@ -9,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { QuoteState, StatusQuote } from '@/lib/types/domain/status'
 import type { Status as MastodonStatus } from '@/lib/types/mastodon/status'
 import { cn } from '@/lib/utils'
+import { getMastodonStatusDetailPath } from '@/lib/utils/getMastodonStatusDetailPath'
 import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
 
 interface Props {
@@ -105,9 +107,16 @@ export const QuoteCard: FC<Props> = ({ quote, currentTime, className }) => {
     currentTime
   )
 
+  const serviceUrl = getMastodonStatusDetailPath(
+    quotedStatus,
+    quote.quotedStatusId
+  )
+
   return (
-    <a
-      href={quotedStatus.url || quote.quotedStatusId}
+    <Link
+      href={serviceUrl}
+      prefetch={false}
+      onClick={(e) => e.stopPropagation()}
       className={cn(
         'mt-2 block overflow-hidden rounded-xl border border-border/60 border-l-4 border-l-primary/40 bg-muted/20 px-3 py-2 transition-colors hover:bg-muted/40',
         className
@@ -138,6 +147,6 @@ export const QuoteCard: FC<Props> = ({ quote, currentTime, className }) => {
           </span>
         )}
       </div>
-    </a>
+    </Link>
   )
 }
