@@ -93,6 +93,9 @@ describe('authorize_interaction page', () => {
   it('renders the confirmation card for a resolved account', async () => {
     await renderPage({ uri: 'someone@remote.test' })
 
+    expect(
+      screen.getByRole('link', { name: 'Back to timeline' })
+    ).toHaveAttribute('href', '/')
     expect(screen.getByTestId('card')).toHaveTextContent(
       'https://remote.test/users/someone'
     )
@@ -163,6 +166,9 @@ describe('authorize_interaction page', () => {
     await renderPage({ uri: 'whatever' })
 
     expect(screen.getByText(text)).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Back to timeline' })
+    ).toHaveAttribute('href', '/')
     // The value came from a remote server, so it is shown as inert text.
     expect(screen.queryByRole('link', { name: 'whatever' })).toBeNull()
   })
@@ -171,6 +177,9 @@ describe('authorize_interaction page', () => {
     await renderPage({})
 
     expect(screen.getByText('Nothing to follow')).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Back to timeline' })
+    ).toHaveAttribute('href', '/')
     expect(resolveAccountTarget).not.toHaveBeenCalled()
     expect(redirect).not.toHaveBeenCalled()
   })
