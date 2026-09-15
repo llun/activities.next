@@ -165,6 +165,24 @@ describe('useStatusTranslation', () => {
     expect(result.current.target).toBeNull()
   })
 
+  it('does not offer defaultLanguage when source is unknown and defaultLanguage is not in supported targets', async () => {
+    ;(getTranslationCapability as jest.Mock).mockResolvedValue({
+      enabled: true,
+      defaultLanguage: 'ja'
+    })
+    ;(getTranslationLanguages as jest.Mock).mockResolvedValue({
+      fr: ['es', 'de']
+    })
+    const { result } = renderHook(() =>
+      useStatusTranslation('id-unknown', null)
+    )
+    await waitFor(() => expect(result.current.canTranslate).toBe(true))
+
+    expect(result.current.options).toEqual(['es', 'de'])
+    expect(result.current.target).toBe('es')
+    expect(result.current.options).not.toContain('ja')
+  })
+
   it('does not fetch capability or languages when enabled is false', async () => {
     const { result } = renderHook(() =>
       useStatusTranslation('id-disabled', 'nl', false)

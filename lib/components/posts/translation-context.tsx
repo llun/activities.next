@@ -90,12 +90,14 @@ export const useStatusTranslation = (
       .then(([capability, languagePairs]) => {
         if (!active) return
         setBackendEnabled(capability.enabled)
-        setDefaultLanguage(
-          capability.defaultLanguage
-            ? normalizeLanguage(capability.defaultLanguage)
-            : null
-        )
-        setPairs(languagePairs)
+        if (capability.enabled) {
+          setDefaultLanguage(
+            capability.defaultLanguage
+              ? normalizeLanguage(capability.defaultLanguage)
+              : null
+          )
+          setPairs(languagePairs)
+        }
       })
       .catch(() => {
         if (active) setBackendEnabled(false)
@@ -146,9 +148,6 @@ export const useStatusTranslation = (
           defaultLanguage,
           ...allTargets.filter((code) => code !== defaultLanguage)
         ]
-      }
-      if (defaultLanguage && allTargets.length > 0) {
-        return [defaultLanguage, ...allTargets]
       }
       if (allTargets.length > 0) {
         return allTargets

@@ -2,6 +2,7 @@ import { logger } from '@/lib/utils/logger'
 
 import {
   cleanTextForDetection,
+  decodeNumericEntities,
   detectLanguage,
   detectLanguageFromHtml,
   normalizeTextForDetection,
@@ -90,6 +91,30 @@ const toHtmlEntities = (str: string) =>
       return cp > 127 ? `&#x${cp.toString(16)};` : c
     })
     .join('')
+
+describe('decodeNumericEntities', () => {
+  it('decodes decimal numeric entities', () => {
+    expect(decodeNumericEntities('&#65;&#66;&#67;')).toBe('ABC')
+  })
+
+  it('decodes lowercase hex entities', () => {
+    expect(decodeNumericEntities('&#x41;&#x42;&#x43;')).toBe('ABC')
+  })
+
+  it('decodes uppercase hex entities', () => {
+    expect(decodeNumericEntities('&#X41;&#X42;&#X43;')).toBe('ABC')
+  })
+
+  it('decodes astral plane mathematical alphanumeric entities', () => {
+    expect(decodeNumericEntities('&#x1d400;&#X1D401;')).toBe('𝐀𝐁')
+  })
+
+  it('preserves invalid or out-of-range entities intact', () => {
+    expect(decodeNumericEntities('&#x999999999; &#XGG;')).toBe(
+      '&#x999999999; &#XGG;'
+    )
+  })
+})
 
 describe('normalizeTextForDetection', () => {
   it('normalizes mathematical bold characters to ASCII', () => {
@@ -418,7 +443,7 @@ describe('persistDetectedLanguage', () => {
     ).resolves.toBeUndefined()
 
     expect(logger.error).toHaveBeenCalledWith(
-      { error: expect.any(Error), statusId: 'status-1' },
+      { err: expect.any(Error), statusId: 'status-1' },
       'Failed to persist detected language'
     )
   })

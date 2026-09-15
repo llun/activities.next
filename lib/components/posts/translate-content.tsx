@@ -48,7 +48,7 @@ const TargetPicker: FC<TargetPickerProps> = ({ target, options, onPick }) => (
     <DropdownMenuTrigger asChild>
       <button
         type="button"
-        className="inline-flex min-h-8 -my-1 items-center gap-0.5 rounded-sm py-1 font-medium text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="inline-flex min-h-8 -my-1 items-center gap-0.5 rounded-sm py-1 font-medium text-foreground transition-colors hover:text-primary-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
       >
         {displayLanguageName(target)}
         <ChevronDown className="size-3 shrink-0" />
@@ -94,7 +94,7 @@ export const TranslateControl: FC<{ translation: StatusTranslation }> = ({
           <button
             type="button"
             onClick={() => request()}
-            className="inline-flex min-h-8 -my-1 items-center gap-1.5 py-1 font-medium text-muted-foreground transition-colors hover:text-primary"
+            className="inline-flex min-h-8 -my-1 items-center gap-1.5 py-1 font-medium text-muted-foreground transition-colors hover:text-primary-text"
           >
             <Languages className="size-3.5" />
             {detectedSource
@@ -157,7 +157,7 @@ export const TranslateControl: FC<{ translation: StatusTranslation }> = ({
           <button
             type="button"
             onClick={showOriginal}
-            className="min-h-8 -my-1 py-1 font-medium text-primary transition-colors hover:underline"
+            className="min-h-8 -my-1 py-1 font-medium text-primary-text transition-colors hover:underline"
           >
             Show original
           </button>
@@ -176,7 +176,7 @@ export const TranslateControl: FC<{ translation: StatusTranslation }> = ({
           <button
             type="button"
             onClick={() => request()}
-            className="min-h-8 -my-1 py-1 font-medium text-primary transition-colors hover:underline"
+            className="min-h-8 -my-1 py-1 font-medium text-primary-text transition-colors hover:underline"
           >
             Try again
           </button>
