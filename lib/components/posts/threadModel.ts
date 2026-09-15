@@ -80,6 +80,7 @@ export function buildThreadTree({
   const focusedUrl = getStatusUrl(focusedStatus)
   const focusedIds = new Set<string>([focusedStatus.id])
   if (focusedUrl) focusedIds.add(focusedUrl)
+  if (focusedStatus.publicId) focusedIds.add(focusedStatus.publicId)
 
   const totalDescendants = descendants.length
   const shouldCollapseBranches = totalDescendants >= THREAD_COLLAPSE_THRESHOLD
@@ -90,6 +91,7 @@ export function buildThreadTree({
     descendantMap.set(item.id, item)
     const itemUrl = getStatusUrl(item)
     if (itemUrl) descendantMap.set(itemUrl, item)
+    if (item.publicId) descendantMap.set(item.publicId, item)
   }
 
   // Build adjacency list of parentId -> children Status[]
@@ -142,7 +144,10 @@ export function buildThreadTree({
     visitedIds: Set<string>,
     parentUnavailable?: boolean
   ): ThreadNode => {
-    if (visitedIds.has(status.id)) {
+    if (
+      visitedIds.has(status.id) ||
+      (Boolean(status.publicId) && visitedIds.has(status.publicId!))
+    ) {
       return {
         status,
         depth,
@@ -155,11 +160,15 @@ export function buildThreadTree({
     const nextVisited = new Set(visitedIds).add(status.id)
     const statusUrl = getStatusUrl(status)
     if (statusUrl) nextVisited.add(statusUrl)
+    if (status.publicId) nextVisited.add(status.publicId)
 
     const rawChildren: Status[] = [
       ...(childrenByParent.get(status.id) ?? []),
       ...(statusUrl && statusUrl !== status.id
         ? (childrenByParent.get(statusUrl) ?? [])
+        : []),
+      ...(status.publicId && status.publicId !== status.id
+        ? (childrenByParent.get(status.publicId) ?? [])
         : [])
     ]
 

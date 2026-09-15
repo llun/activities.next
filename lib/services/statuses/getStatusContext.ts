@@ -5,6 +5,8 @@ import {
   filterReadableStatuses,
   getReadableStatus
 } from '@/lib/services/statusRouteAccess'
+import { filterBlockedStatuses } from '@/lib/services/timelines/blockFilter'
+import { filterMutedStatuses } from '@/lib/services/timelines/muteFilter'
 import { Actor } from '@/lib/types/domain/actor'
 import {
   Status,
@@ -32,6 +34,12 @@ export interface StatusContextResult {
   descendants: Status[]
   hasMoreAncestors: boolean
   hasMoreDescendants: boolean
+}
+
+const toTimestampMs = (value: unknown): number => {
+  if (value === null || value === undefined) return 0
+  const time = new Date(value as string | number | Date).getTime()
+  return Number.isNaN(time) ? 0 : time
 }
 
 const getReplyTarget = (status: Status): string =>
@@ -161,11 +169,23 @@ export async function getStatusContext({
     hasMoreAncestors = true
   }
 
-  const readableAncestors = await filterReadableStatuses({
+  let readableAncestors = await filterReadableStatuses({
     database,
     statuses: chain,
     currentActor: currentActor ?? null
   })
+  if (currentActor) {
+    readableAncestors = await filterBlockedStatuses(
+      database,
+      currentActor.id,
+      readableAncestors
+    )
+    readableAncestors = await filterMutedStatuses(
+      database,
+      currentActor.id,
+      readableAncestors
+    )
+  }
   const ancestors = readableAncestors.reverse()
 
   const defaultDescendantsLimit = currentActor
@@ -197,14 +217,26 @@ export async function getStatusContext({
       order: 'asc'
     })
 
-    const readableReplies = await filterReadableStatuses({
+    let readableReplies = await filterReadableStatuses({
       database,
       statuses: replies,
       currentActor: currentActor ?? null
     })
+    if (currentActor) {
+      readableReplies = await filterBlockedStatuses(
+        database,
+        currentActor.id,
+        readableReplies
+      )
+      readableReplies = await filterMutedStatuses(
+        database,
+        currentActor.id,
+        readableReplies
+      )
+    }
 
     readableReplies.sort((a, b) => {
-      const timeDiff = (a.createdAt ?? 0) - (b.createdAt ?? 0)
+      const timeDiff = toTimestampMs(a.createdAt) - toTimestampMs(b.createdAt)
       if (timeDiff !== 0) return timeDiff
       return a.id.localeCompare(b.id)
     })

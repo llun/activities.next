@@ -230,4 +230,73 @@ describe('threadModel', () => {
       })
     ).not.toThrow()
   })
+
+  it('nests replies targeting parent publicId cleanly beneath parent without parentUnavailable', () => {
+    const a1 = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/a1',
+      actor: mockAlice,
+      actorId: mockAlice.id,
+      createdAt: BASE_TIME
+    })
+
+    const b1 = createMockNote({
+      id: 'https://activities.local/users/bob/statuses/b1',
+      actor: mockBob,
+      actorId: mockBob.id,
+      reply: a1.id,
+      publicId: 'bob-status-pub-1',
+      createdAt: BASE_TIME + 1000
+    })
+
+    const c1 = createMockNote({
+      id: 'https://activities.local/users/carol/statuses/c1',
+      actor: mockCarol,
+      actorId: mockCarol.id,
+      reply: 'bob-status-pub-1',
+      createdAt: BASE_TIME + 2000
+    })
+
+    const tree = buildThreadTree({
+      focusedStatus: a1,
+      descendants: [c1, b1]
+    })
+
+    expect(tree.totalDescendants).toBe(2)
+    expect(tree.descendants).toHaveLength(1)
+    const b1Node = tree.descendants[0]
+    expect(b1Node.status.id).toBe(b1.id)
+    expect(b1Node.parentUnavailable).toBeUndefined()
+    expect(b1Node.replies).toHaveLength(1)
+    const c1Node = b1Node.replies[0]
+    expect(c1Node.status.id).toBe(c1.id)
+    expect(c1Node.parentUnavailable).toBeUndefined()
+  })
+
+  it('nests direct replies targeting focusedStatus publicId without parentUnavailable', () => {
+    const a1 = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/a1',
+      actor: mockAlice,
+      actorId: mockAlice.id,
+      publicId: 'alice-status-pub-1',
+      createdAt: BASE_TIME
+    })
+
+    const b1 = createMockNote({
+      id: 'https://activities.local/users/bob/statuses/b1',
+      actor: mockBob,
+      actorId: mockBob.id,
+      reply: 'alice-status-pub-1',
+      createdAt: BASE_TIME + 1000
+    })
+
+    const tree = buildThreadTree({
+      focusedStatus: a1,
+      descendants: [b1]
+    })
+
+    expect(tree.totalDescendants).toBe(1)
+    expect(tree.descendants).toHaveLength(1)
+    expect(tree.descendants[0].status.id).toBe(b1.id)
+    expect(tree.descendants[0].parentUnavailable).toBeUndefined()
+  })
 })

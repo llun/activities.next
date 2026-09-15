@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { filterReadableStatuses } from '@/lib/services/statusRouteAccess'
-import { Database, Status } from '@/lib/types/database'
+import { Actor, Database, Status } from '@/lib/types/database'
 import { StatusType } from '@/lib/types/domain/status'
 
 import { getTimelineContext } from './getTimelineContext'
@@ -276,5 +276,96 @@ describe('getTimelineContext', () => {
     expect(
       result.ancestorsById['https://remote.test/posts/parent-url-1'].text
     ).toBe('Parent fetched via URL')
+  })
+
+  it('strictly excludes blocked or muted parent statuses when currentActor is present', async () => {
+    const parentBlocked = createMockStatus({
+      id: 'parent-blocked',
+      actorId: 'https://example.com/users/blocked-user'
+    })
+    const parentMuted = createMockStatus({
+      id: 'parent-muted',
+      actorId: 'https://example.com/users/muted-user'
+    })
+    const parentAllowed = createMockStatus({
+      id: 'parent-allowed',
+      actorId: 'https://example.com/users/allowed-user'
+    })
+
+    const child1 = createMockStatus({ id: 'child-1', reply: 'parent-blocked' })
+    const child2 = createMockStatus({ id: 'child-2', reply: 'parent-muted' })
+    const child3 = createMockStatus({ id: 'child-3', reply: 'parent-allowed' })
+
+    const database = {
+      getStatusesByIds: vi.fn(
+        async ({ statusIds }: { statusIds: string[] }) => {
+          return [parentBlocked, parentMuted, parentAllowed].filter((s) =>
+            statusIds.includes(s.id)
+          )
+        }
+      ),
+      getBlockRelations: vi.fn(async () => [
+        {
+          actorId: 'https://example.com/users/viewer',
+          targetActorId: 'https://example.com/users/blocked-user'
+        }
+      ]),
+      getMuteRelations: vi.fn(async () => [
+        {
+          actorId: 'https://example.com/users/viewer',
+          targetActorId: 'https://example.com/users/muted-user'
+        }
+      ])
+    } as unknown as Database
+
+    const currentActor = {
+      id: 'https://example.com/users/viewer'
+    } as Actor
+
+    const result = await getTimelineContext({
+      database,
+      currentActor,
+      statuses: [child1, child2, child3]
+    })
+
+    expect(result.ancestorsById['parent-blocked']).toBeUndefined()
+    expect(result.ancestorsById['parent-muted']).toBeUndefined()
+    expect(result.ancestorsById['parent-allowed']).toBeDefined()
+  })
+
+  it('indexes ancestorsById under id, url, uri, and publicId aliases', async () => {
+    const parentWithAliases = createMockStatus({
+      id: 'status-parent-id',
+      url: 'https://example.com/parent-url',
+      uri: 'https://example.com/parent-uri',
+      publicId: 'parent-pub-id',
+      text: 'Parent with aliases'
+    } as unknown as Partial<Status> & { id: string })
+
+    const child = createMockStatus({
+      id: 'child-1',
+      reply: 'status-parent-id'
+    })
+
+    const database = {
+      getStatusesByIds: vi.fn(async () => [parentWithAliases])
+    } as unknown as Database
+
+    const result = await getTimelineContext({
+      database,
+      statuses: [child]
+    })
+
+    expect(result.ancestorsById['status-parent-id']).toBeDefined()
+    expect(result.ancestorsById['https://example.com/parent-url']).toBeDefined()
+    expect(result.ancestorsById['https://example.com/parent-uri']).toBeDefined()
+    expect(result.ancestorsById['parent-pub-id']).toBeDefined()
+
+    expect(result.ancestorsById['https://example.com/parent-url']).toBe(
+      result.ancestorsById['status-parent-id']
+    )
+    expect(result.ancestorsById['parent-pub-id']).toBe(
+      result.ancestorsById['status-parent-id']
+    )
   })
 })
