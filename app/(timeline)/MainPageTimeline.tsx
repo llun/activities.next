@@ -1,6 +1,7 @@
 'use client'
 
 import { RefreshCw } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 
 import { getTimeline } from '@/lib/client'
@@ -9,21 +10,30 @@ import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-butt
 import { PageHeader } from '@/lib/components/page-header'
 import { PostBox } from '@/lib/components/post-box/post-box'
 import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
-import { Posts } from '@/lib/components/posts/posts'
+import { ReplyToast } from '@/lib/components/posts/reply-toast'
 import {
   reconcileStatusesMetadata,
   removeOriginalStatus,
   updateMatchingStatus
 } from '@/lib/components/posts/statusArray'
+import { TimelineFeed } from '@/lib/components/posts/timeline-feed'
+import { getStatusReplyTargetId } from '@/lib/components/posts/timelineModel'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
 import { Button } from '@/lib/components/ui/button'
 import { Timeline } from '@/lib/services/timelines/types'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
-import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusNote,
+  StatusPoll,
+  getOriginalStatus
+} from '@/lib/types/domain/status'
+import { TimelineContext } from '@/lib/types/domain/timeline'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import { cn } from '@/lib/utils'
+import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 
 interface MainPageTimelineProps {
   host: string
@@ -31,8 +41,10 @@ interface MainPageTimelineProps {
   currentTime: number
   isMediaUploadEnabled: boolean
   statuses: Status[]
+  timelineContext?: TimelineContext
   initialNextMaxStatusId?: string | null
   postLineLimit?: PostLineLimit
+  readingGroupBoosts?: boolean
 }
 
 export const MainPageTimeline: FC<MainPageTimelineProps> = ({
@@ -41,20 +53,38 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   currentTime,
   isMediaUploadEnabled,
   statuses,
+  timelineContext,
   initialNextMaxStatusId = null,
-  postLineLimit
+  postLineLimit,
+  readingGroupBoosts
 }) => {
+  const router = useRouter()
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
+  const [currentTimelineContext, setCurrentTimelineContext] = useState<
+    TimelineContext | undefined
+  >(timelineContext)
+  const [replyToastStatus, setReplyToastStatus] = useState<Status | null>(null)
+  const [_nextMaxStatusId, setNextMaxStatusId] = useState<string | null>(
+    initialNextMaxStatusId
+  )
   const [hasMoreStatuses, setHasMoreStatuses] = useState<boolean>(
     statuses.length > 0 || Boolean(initialNextMaxStatusId)
   )
   const [isLoadingMoreStatuses, setLoadingMoreStatuses] =
     useState<boolean>(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [newerPostsCount, setNewerPostsCount] = useState<number>(0)
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false)
+
   const isLoadingRef = useRef<boolean>(false)
+  const isPollingRef = useRef<boolean>(false)
+  const lastFailedFetchRef = useRef<(() => Promise<void>) | null>(null)
   const lastStatusIdRef = useRef<string | null>(
     initialNextMaxStatusId ||
       (statuses.length > 0 ? statuses[statuses.length - 1].id : null)
   )
+  const currentStatusesRef = useRef<Status[]>(currentStatuses)
+  currentStatusesRef.current = currentStatuses
 
   // Gently reconcile attachment metadata if the statuses prop delivers
   // updated classifications (e.g. after navigating back from detail view,
@@ -68,11 +98,42 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     )
   }, [statuses])
 
-  // A new post composed in the top box, or a reply/quote created inline from a
+  useEffect(() => {
+    if (timelineContext) {
+      setCurrentTimelineContext(timelineContext)
+    }
+  }, [timelineContext])
+
+  // A new post composed in the top box, or a quote created inline from a
   // feed row, is prepended so it appears immediately.
   const onStatusCreated = (status: Status) => {
     setCurrentStatuses((previousValue) => [status, ...previousValue])
   }
+
+  // When a reply is created inline from a feed row, update the parent status's
+  // reply count/replies in-place rather than prepending the reply as a top-level
+  // row, preserving the Home timeline's reading order.
+  const onReplyCreated = useCallback((reply: Status) => {
+    const originalReply = getOriginalStatus(reply)
+    const parentId =
+      ('reply' in originalReply &&
+      typeof originalReply.reply === 'string' &&
+      originalReply.reply.trim()
+        ? originalReply.reply.trim()
+        : null) || getStatusReplyTargetId(originalReply)
+
+    if (parentId) {
+      setCurrentStatuses((previousStatuses) =>
+        updateMatchingStatus(previousStatuses, parentId, (target) => ({
+          ...target,
+          totalReplies: (target.totalReplies ?? 0) + 1,
+          replies: target.replies ? [...target.replies, reply] : [reply]
+        }))
+      )
+    }
+
+    setReplyToastStatus(reply)
+  }, [])
 
   const onPostUpdated = useCallback((status: Status) => {
     // Announce-aware (like onPostDeleted): also refreshes a boost row whose
@@ -137,24 +198,41 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
 
     isLoadingRef.current = true
     setLoadingMoreStatuses(true)
+    setFetchError(null)
     try {
       const result = await getTimeline({
         timeline: Timeline.MAIN,
         maxStatusId: lastStatusId
       })
-      if (result.statuses.length === 0) {
-        if (result.nextMaxStatusId) {
-          lastStatusIdRef.current = result.nextMaxStatusId
-          return
-        }
-        setHasMoreStatuses(false)
-        return
+      const nextCursor = result.nextMaxStatusId ?? null
+      setNextMaxStatusId(nextCursor)
+      lastStatusIdRef.current = nextCursor
+      setHasMoreStatuses(Boolean(result.nextMaxStatusId))
+
+      if (result.statuses.length > 0) {
+        setCurrentStatuses((prev) => {
+          const existingIds = new Set(prev.map((s) => s.id))
+          const newStatuses = result.statuses.filter(
+            (s) => !existingIds.has(s.id)
+          )
+          if (newStatuses.length === 0) {
+            return prev
+          }
+          return [...prev, ...newStatuses]
+        })
       }
-      lastStatusIdRef.current =
-        result.nextMaxStatusId || result.statuses[result.statuses.length - 1].id
-      setCurrentStatuses((prev) => [...prev, ...result.statuses])
+      if (result.context) {
+        setCurrentTimelineContext((prev) => ({
+          ancestorsById: {
+            ...(prev?.ancestorsById ?? {}),
+            ...result.context?.ancestorsById
+          }
+        }))
+      }
+      lastFailedFetchRef.current = null
     } catch (_error) {
-      // Error loading more - user can retry by clicking the button
+      setFetchError('Failed to load posts')
+      lastFailedFetchRef.current = loadMoreStatuses
     } finally {
       isLoadingRef.current = false
       setLoadingMoreStatuses(false)
@@ -166,8 +244,6 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     onLoadMore: loadMoreStatuses
   })
 
-  const [isRefreshing, setIsRefreshing] = useState<boolean>(false)
-
   const refreshTimeline = useCallback(async () => {
     // isLoadingRef serializes refreshes, so only one runs at a time and there
     // is no concurrent request to guard against.
@@ -176,10 +252,15 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     isLoadingRef.current = true
     setIsRefreshing(true)
     setLoadingMoreStatuses(true)
+    setFetchError(null)
 
     try {
       const result = await getTimeline({ timeline: Timeline.MAIN })
       setCurrentStatuses(result.statuses)
+      if (result.context) {
+        setCurrentTimelineContext(result.context)
+      }
+      setNextMaxStatusId(result.nextMaxStatusId ?? null)
       setHasMoreStatuses(
         result.statuses.length > 0 || Boolean(result.nextMaxStatusId)
       )
@@ -188,12 +269,94 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         (result.statuses.length > 0
           ? result.statuses[result.statuses.length - 1].id
           : null)
+      setNewerPostsCount(0)
+      lastFailedFetchRef.current = null
     } catch (_error) {
-      // Error refreshing - existing posts remain visible, user can retry
+      setFetchError('Failed to load posts')
+      lastFailedFetchRef.current = refreshTimeline
     } finally {
       setLoadingMoreStatuses(false)
       isLoadingRef.current = false
       setIsRefreshing(false)
+    }
+  }, [])
+
+  const handleRetry = useCallback(() => {
+    setFetchError(null)
+    if (lastFailedFetchRef.current) {
+      void lastFailedFetchRef.current()
+    }
+  }, [])
+
+  const handleCleanTopSnapshot = useCallback(async () => {
+    setNewerPostsCount(0)
+    if (
+      typeof window !== 'undefined' &&
+      typeof window.scrollTo === 'function'
+    ) {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+    await refreshTimeline()
+  }, [refreshTimeline])
+
+  useEffect(() => {
+    const pollNewerPosts = async () => {
+      if (
+        typeof document !== 'undefined' &&
+        document.visibilityState !== 'visible'
+      ) {
+        return
+      }
+      if (isLoadingRef.current || isPollingRef.current) return
+
+      const topStatus = currentStatusesRef.current[0]
+      if (!topStatus) return
+
+      isPollingRef.current = true
+      try {
+        const result = await getTimeline({
+          timeline: Timeline.MAIN,
+          minStatusId: topStatus.id,
+          prevMinStatusId: topStatus.id,
+          limit: 5
+        })
+        if (result.statuses && result.statuses.length > 0) {
+          const currentIds = new Set(
+            currentStatusesRef.current.map((s) => s.id)
+          )
+          const freshNewCount = result.statuses.filter(
+            (s) => !currentIds.has(s.id)
+          ).length
+          if (freshNewCount > 0) {
+            setNewerPostsCount(freshNewCount)
+          }
+        }
+      } catch (_error) {
+        // Foreground polling failure is silent
+      } finally {
+        isPollingRef.current = false
+      }
+    }
+
+    const interval = setInterval(() => {
+      void pollNewerPosts()
+    }, 15000)
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void pollNewerPosts()
+      }
+    }
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange)
+    }
+
+    return () => {
+      clearInterval(interval)
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange)
+      }
     }
   }, [])
 
@@ -221,6 +384,18 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         }
       />
 
+      {newerPostsCount > 0 && (
+        <div className="sticky top-14 z-20 flex justify-center py-2">
+          <button
+            type="button"
+            onClick={handleCleanTopSnapshot}
+            className="rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-md hover:bg-primary/90 flex items-center gap-1.5"
+          >
+            {newerPostsCount} new {newerPostsCount === 1 ? 'post' : 'posts'} ↑
+          </button>
+        </div>
+      )}
+
       <section
         className={`rounded-xl border bg-card p-4 shadow-sm max-md:-mt-6 ${MOBILE_FEED_SURFACE_CLASS}`}
       >
@@ -246,15 +421,18 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
 
       <section className="max-md:-mt-6">
         {currentStatuses.length > 0 ? (
-          <Posts
+          <TimelineFeed
             host={host}
             currentTime={currentTime}
             statuses={currentStatuses}
+            timelineContext={currentTimelineContext}
             currentActor={profile}
             showActions
+            readingGroupBoosts={readingGroupBoosts}
             isMediaUploadEnabled={isMediaUploadEnabled}
             postLineLimit={postLineLimit}
             onStatusCreated={onStatusCreated}
+            onReplyCreated={onReplyCreated}
             onPostUpdated={onPostUpdated}
             onPostDeleted={onPostDeleted}
             onLikeChanged={onLikeChanged}
@@ -267,7 +445,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           >
             <p className="text-sm font-medium">Loading timeline...</p>
           </div>
-        ) : (
+        ) : fetchError ? null : (
           <div
             className={`rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
           >
@@ -279,6 +457,19 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         )}
       </section>
 
+      {fetchError && (
+        <div className="p-4 text-center text-sm text-destructive" role="alert">
+          <p>{fetchError}</p>
+          <button
+            type="button"
+            onClick={handleRetry}
+            className="mt-2 rounded-md border border-destructive px-3 py-1 text-xs font-semibold hover:bg-destructive/10"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {hasMoreStatuses && (
         <LoadMoreButton
           containerRef={loadMoreRef}
@@ -286,6 +477,19 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           onClick={loadMoreStatuses}
         />
       )}
+
+      {replyToastStatus ? (
+        <ReplyToast
+          status={replyToastStatus}
+          onDismiss={() => setReplyToastStatus(null)}
+          onViewReply={(statusToView) => {
+            void (async () => {
+              const detailPath = await getStatusDetailPathClient(statusToView)
+              if (detailPath) router.push(detailPath)
+            })()
+          }}
+        />
+      ) : null}
     </div>
   )
 }

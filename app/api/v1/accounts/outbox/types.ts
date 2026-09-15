@@ -15,6 +15,7 @@ export const CreateNoteRequest = z.object({
   message: z.string(),
   contentWarning: z.string().optional(),
   replyStatus: Status.optional(),
+  inReplyToId: z.string().optional(),
   attachments: PostBoxAttachment.array().optional(),
   fitnessFileId: z.string().optional(),
   // The canonical URL id of the status this note quotes (FEP-044f), if any.
@@ -23,7 +24,8 @@ export const CreateNoteRequest = z.object({
   quoteApprovalPolicy: QuoteApprovalPolicy.optional(),
   visibility: z
     .enum(['public', 'unlisted', 'private', 'direct'])
-    .optional() as z.ZodOptional<z.ZodType<MastodonVisibility>>
+    .optional() as z.ZodOptional<z.ZodType<MastodonVisibility>>,
+  language: z.string().trim().min(1).nullable().optional()
 })
 export type CreateNoteRequest = z.infer<typeof CreateNoteRequest>
 
@@ -53,9 +55,11 @@ export const CreatePollRequest = z.object({
     `Supported duration are ${Object.keys(SecondsToDurationText).join(',')}`
   ),
   replyStatus: Status.optional(),
+  inReplyToId: z.string().optional(),
   visibility: z
     .enum(['public', 'unlisted', 'private', 'direct'])
-    .optional() as z.ZodOptional<z.ZodType<MastodonVisibility>>
+    .optional() as z.ZodOptional<z.ZodType<MastodonVisibility>>,
+  language: z.string().trim().min(1).nullable().optional()
 })
 export type CreatePollRequest = z.infer<typeof CreatePollRequest>
 

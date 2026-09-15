@@ -8,6 +8,7 @@ import { FC } from 'react'
 
 import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
 import { FitnessStatGrid } from '@/lib/components/fitness/FitnessStatGrid'
+import type { Actor } from '@/lib/types/database'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { isRenderableAttachment } from '@/lib/types/domain/attachment'
@@ -18,6 +19,7 @@ import {
   StatusPoll,
   StatusType
 } from '@/lib/types/domain/status'
+import { TimelineParentPreview } from '@/lib/types/domain/timeline'
 import type { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import {
   formatFitnessDistance,
@@ -53,14 +55,15 @@ import { QuoteCard } from './quote-card'
 import { ReactionRow } from './reaction-row'
 import { ReadOnlyStats } from './read-only-stats'
 import { RetryFitnessButton } from './retry-fitness-button'
+import { StatusConnectorRail, StatusContextIndicator } from './status-context'
 import { TranslateContent } from './translate-content'
 import { TranslationProvider } from './translation-context'
 import { useReactionState } from './useReactionState'
 
 export interface PostProps {
-  host: string
-  currentActor?: ActorProfile
-  currentTime: number
+  host?: string
+  currentActor?: ActorProfile | Actor
+  currentTime?: number
   status: Status
   editable?: boolean
   showActions?: boolean
@@ -71,6 +74,10 @@ export interface PostProps {
    */
   showReadOnlyStats?: boolean
   onReply?: (status: Status) => void
+  onBoost?: (status: Status) => void
+  onLike?: (status: Status) => void
+  onBookmark?: (status: Status) => void
+  onDelete?: (status: Status) => void
   onEdit?: (status: EditableStatus) => void
   onQuote?: (status: Status) => void
   onShowEdits?: (status: Status) => void
@@ -85,9 +92,12 @@ export interface PostProps {
     reactions: StatusReaction[]
   ) => void
   onOpenStatus?: (status: Status) => void
-  onShowAttachment: OnMediaSelectedHandle
+  onShowAttachment?: OnMediaSelectedHandle
   collapsible?: boolean
   postLineLimit?: PostLineLimit
+  parentPreview?: TimelineParentPreview | null
+  showReplyContext?: boolean
+  connectorPosition?: 'first' | 'middle' | 'last' | 'single'
 }
 
 interface BoostStatusProps {
@@ -135,9 +145,10 @@ export const BoostStatus: FC<BoostStatusProps> = ({ status }) => {
 
 export const Post: FC<PostProps> = (props) => {
   const {
-    host,
+    host = '',
+    currentTime = Date.now(),
     status,
-    onShowAttachment,
+    onShowAttachment = () => {},
     collapsible,
     postLineLimit,
     onOpenStatus
@@ -147,7 +158,9 @@ export const Post: FC<PostProps> = (props) => {
   // one control. An Announce wrapper carries no reactions of its own — they
   // live on the boosted status, which is what `getActualStatus` resolves to.
   const reactionState = useReactionState({
-    currentActor: props.showActions ? props.currentActor : undefined,
+    currentActor: props.showActions
+      ? (props.currentActor as ActorProfile)
+      : undefined,
     status: actualStatus,
     onReactionsChanged: props.onReactionsChanged
   })
@@ -157,10 +170,7 @@ export const Post: FC<PostProps> = (props) => {
   const externalStatusUrl = actualStatus.url || actualStatus.id
   const showExternalLink =
     !actualStatus.isLocalActor && Boolean(externalStatusUrl)
-  const relativeCreatedAt = formatDistance(
-    actualStatus.createdAt,
-    props.currentTime
-  )
+  const relativeCreatedAt = formatDistance(actualStatus.createdAt, currentTime)
   const actorName = actualStatus.actor
     ? actualStatus.actor.name || actualStatus.actor.username
     : null
@@ -416,7 +426,7 @@ export const Post: FC<PostProps> = (props) => {
 
       <Poll
         status={actualStatus}
-        currentTime={props.currentTime}
+        currentTime={currentTime}
         currentActorId={props.currentActor?.id}
       />
       <Attachments status={actualStatus} onMediaSelected={onShowAttachment} />
@@ -439,7 +449,7 @@ export const Post: FC<PostProps> = (props) => {
         <LinkPreviewCard linkPreview={actualStatus.linkPreview} />
       ) : null}
       {actualStatus.quote ? (
-        <QuoteCard quote={actualStatus.quote} currentTime={props.currentTime} />
+        <QuoteCard quote={actualStatus.quote} currentTime={currentTime} />
       ) : null}
     </TranslationProvider>
   )
@@ -447,13 +457,24 @@ export const Post: FC<PostProps> = (props) => {
   return (
     <div className="flex min-h-0 min-w-0 flex-col gap-1">
       <BoostStatus status={status} />
+      {props.showReplyContext && (
+        <StatusContextIndicator
+          parentPreview={props.parentPreview}
+          isReply={Boolean(actualStatus.reply)}
+        />
+      )}
       <div className="flex min-h-0 min-w-0 gap-3">
-        <div className="shrink-0">
-          <ActorAvatar
-            actor={actualStatus.actor}
-            actorId={actualStatus.actorId}
-            statusUrl={actualStatus.url}
-          />
+        <div className="relative shrink-0 flex flex-col items-center">
+          {props.connectorPosition && props.connectorPosition !== 'single' && (
+            <StatusConnectorRail position={props.connectorPosition} />
+          )}
+          <div className="relative z-10 bg-card rounded-full">
+            <ActorAvatar
+              actor={actualStatus.actor}
+              actorId={actualStatus.actorId}
+              statusUrl={actualStatus.url}
+            />
+          </div>
         </div>
         <div className="flex-1 min-h-0 min-w-0">
           <div className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5 text-sm">

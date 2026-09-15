@@ -13,7 +13,7 @@ export const filterBlockedStatuses = async (
   actorId: string | undefined,
   statuses: Status[]
 ) => {
-  if (!actorId) return statuses
+  if (!actorId || !database.getBlockRelations) return statuses
 
   const statusActorIdsByStatus = new Map(
     statuses.map((status) => [

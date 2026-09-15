@@ -4,9 +4,12 @@ import { UTCDate } from '@date-fns/utc'
 import { format } from 'date-fns'
 import {
   Activity,
+  AlertCircle,
   BarChart3,
   Bike,
   Calendar,
+  ChevronDown,
+  ChevronUp,
   Clock,
   ExternalLink,
   Flame,
@@ -51,6 +54,7 @@ import { Post } from '@/lib/components/posts/post'
 import { ReactionRow } from '@/lib/components/posts/reaction-row'
 import { RetryFitnessButton } from '@/lib/components/posts/retry-fitness-button'
 import { StatusReplyBox } from '@/lib/components/posts/status-reply-box'
+import { ThreadNode, buildThreadTree } from '@/lib/components/posts/threadModel'
 import { useInlineComposer } from '@/lib/components/posts/useInlineComposer'
 import { useReactionState } from '@/lib/components/posts/useReactionState'
 import {
@@ -62,7 +66,12 @@ import type { GearEntity } from '@/lib/services/fitness-gears/gearEntities'
 import type { FitnessGearKind } from '@/lib/types/database/fitnessGear'
 import { ActorProfile, getMention } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
-import { Status, StatusNote } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusNote,
+  StatusType,
+  getOriginalStatus
+} from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 import {
   getFitnessPaceOrSpeed,
@@ -457,6 +466,153 @@ export const FitnessStatusDetail: FC<Props> = ({
   // timeline. Reply is not routed through it here: this page has an always-on
   // composer in its Comments section, which the reply action jumps to instead.
   const composer = useInlineComposer()
+
+  const threadTree = useMemo(
+    () => buildThreadTree({ focusedStatus: status, descendants: replies }),
+    [status, replies]
+  )
+  const [expandedCommentOverrides, setExpandedCommentOverrides] = useState<
+    Record<string, boolean>
+  >({})
+
+  const isCommentExpanded = (node: ThreadNode): boolean => {
+    const override = expandedCommentOverrides[node.status.id]
+    if (override !== undefined) return override
+    return !node.initiallyCollapsed
+  }
+
+  const toggleCommentBranch = (nodeId: string) => {
+    setExpandedCommentOverrides((prev) => {
+      const current = prev[nodeId]
+      if (current !== undefined) return { ...prev, [nodeId]: !current }
+      const findNode = (nodes: ThreadNode[]): ThreadNode | null => {
+        for (const n of nodes) {
+          if (n.status.id === nodeId) return n
+          const inChild = findNode(n.replies)
+          if (inChild) return inChild
+        }
+        return null
+      }
+      const targetNode = findNode(threadTree.descendants)
+      const initialState = targetNode ? !targetNode.initiallyCollapsed : true
+      return { ...prev, [nodeId]: !initialState }
+    })
+  }
+
+  const renderCommentNode = (node: ThreadNode): ReactNode => {
+    const isExpanded = isCommentExpanded(node)
+    const hasReplies = node.replies.length > 0
+    const actualReply =
+      node.status.type === StatusType.enum.Announce
+        ? getOriginalStatus(node.status)
+        : node.status
+    const canCompose = Boolean(currentActor)
+    const boundedDepth = Math.min(node.depth, 4)
+
+    return (
+      <div
+        key={node.status.id}
+        data-testid="thread-node"
+        data-node-id={node.status.id}
+        className={cn(
+          'transition-colors',
+          boundedDepth > 0 &&
+            'ml-3 sm:ml-5 pl-3 sm:pl-4 border-l-2 border-border/60'
+        )}
+      >
+        {node.parentUnavailable ? (
+          <div className="my-1.5 inline-flex items-center gap-1.5 rounded-md border border-dashed border-border/80 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
+            <AlertCircle className="size-3.5" />
+            <span>Prior reply is unavailable</span>
+          </div>
+        ) : null}
+
+        <article className="p-4">
+          <Post
+            host={host}
+            currentActor={currentActor ?? undefined}
+            currentTime={currentTime}
+            status={node.status}
+            showActions={canCompose}
+            showReadOnlyStats={!canCompose}
+            editable={canCompose && currentActor?.id === actualReply.actorId}
+            collapsible
+            onReply={
+              canCompose
+                ? (target) => composer.openReply(target, node.status.id)
+                : undefined
+            }
+            onEdit={
+              canCompose
+                ? (target) => composer.openEdit(target, node.status.id)
+                : undefined
+            }
+            onQuote={
+              canCompose
+                ? (target) => composer.openQuote(target, node.status.id)
+                : undefined
+            }
+            onOpenStatus={openStatus}
+            onShowAttachment={onShowAttachment}
+          />
+
+          {composer.active?.anchorId === node.status.id && currentActor ? (
+            <div className="mt-3">
+              <InlineStatusComposer
+                key={`${composer.active.mode}-${composer.active.anchorId}`}
+                host={host}
+                profile={currentActor}
+                mode={composer.active.mode}
+                status={composer.active.status}
+                isMediaUploadEnabled={isMediaUploadEnabled}
+                onCancel={composer.close}
+                onCreated={() => {
+                  composer.close()
+                  router.refresh()
+                }}
+                onUpdated={() => {
+                  composer.close()
+                  router.refresh()
+                }}
+              />
+            </div>
+          ) : null}
+
+          {hasReplies ? (
+            <div className="mt-1">
+              <button
+                type="button"
+                onClick={() => toggleCommentBranch(node.status.id)}
+                aria-expanded={isExpanded}
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline focus:outline-none"
+              >
+                {isExpanded ? (
+                  <>
+                    <ChevronUp className="size-3.5" />
+                    <span>Hide replies</span>
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="size-3.5" />
+                    <span>
+                      Show {node.totalDescendantCount} more{' '}
+                      {node.totalDescendantCount === 1 ? 'reply' : 'replies'}
+                    </span>
+                  </>
+                )}
+              </button>
+            </div>
+          ) : null}
+        </article>
+
+        {hasReplies && isExpanded ? (
+          <div className="space-y-1">
+            {node.replies.map((reply) => renderCommentNode(reply))}
+          </div>
+        ) : null}
+      </div>
+    )
+  }
   // This page lays out its own card, so it holds the reaction rollups the way
   // `Post` does — the chip row in the card body and the picker trigger in the
   // shared `Actions` row below both read this one state.
@@ -1915,23 +2071,11 @@ export const FitnessStatusDetail: FC<Props> = ({
               />
             ) : null}
 
-            {replies.length > 0 ? (
+            {threadTree.totalDescendants > 0 ? (
               <div
                 className={`divide-y rounded-xl border bg-card shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
               >
-                {replies.map((reply) => (
-                  <article key={reply.id} className="p-4">
-                    <Post
-                      host={host}
-                      currentActor={currentActor ?? undefined}
-                      currentTime={currentTime}
-                      status={reply}
-                      collapsible
-                      onOpenStatus={openStatus}
-                      onShowAttachment={onShowAttachment}
-                    />
-                  </article>
-                ))}
+                {threadTree.descendants.map((node) => renderCommentNode(node))}
               </div>
             ) : (
               <p

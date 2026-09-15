@@ -56,7 +56,7 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
 
   useEffect(() => {
     const el = measuredContentRef.current
-    if (!el) return
+    if (!el || typeof ResizeObserver === 'undefined') return
 
     const observer = new ResizeObserver(() => {
       checkOverflow()

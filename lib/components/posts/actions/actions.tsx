@@ -48,9 +48,9 @@ interface Props extends PostProps {
 }
 
 export const Actions: FC<Props> = ({
-  host,
+  host = '',
   currentActor,
-  currentTime,
+  currentTime = Date.now(),
   status,
   editable = false,
   showActions = false,

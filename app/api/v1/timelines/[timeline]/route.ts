@@ -11,6 +11,7 @@ import { getClientStatusCursors } from '@/lib/services/mastodon/clientCursor'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
 import { TimelineFormat } from '@/lib/services/timelines/const'
 import { getFilteredTimelinePage } from '@/lib/services/timelines/getFilteredTimelinePage'
+import { getTimelineContext } from '@/lib/services/timelines/getTimelineContext'
 import {
   parseTimelineQuery,
   resolveTimelineCursors,
@@ -117,11 +118,17 @@ export const GET = traceApiRoute(
             timeline === Timeline.FEDERATED_PUBLIC ? 'public' : 'following'
         })
       if (format === TimelineFormat.enum.activities_next) {
+        const context = await getTimelineContext({
+          database,
+          currentActor,
+          statuses
+        })
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
           data: {
             statuses: statuses.map((item) => cleanJson(item)),
+            context: cleanJson(context),
             nextMaxStatusId,
             prevMinStatusId
           }
