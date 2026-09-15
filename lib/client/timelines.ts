@@ -1,16 +1,20 @@
 import { TimelineFormat } from '@/lib/services/timelines/const'
 import { Timeline } from '@/lib/services/timelines/types'
 import type { Status } from '@/lib/types/domain/status'
+import type { TimelineContext } from '@/lib/types/domain/timeline'
 
 export interface GetTimelineParams {
   timeline: Timeline
   minStatusId?: string
+  prevMinStatusId?: string
   maxStatusId?: string
   limit?: number
+  includeContext?: boolean
 }
 
 export interface GetTimelineResult {
   statuses: Status[]
+  context?: TimelineContext
   nextMaxStatusId: string | null
   prevMinStatusId: string | null
 }
@@ -20,13 +24,16 @@ const MAX_EMPTY_TIMELINE_CONTINUATIONS = 2
 const getTimelinePage = async ({
   timeline,
   minStatusId,
+  prevMinStatusId,
   maxStatusId,
-  limit
+  limit,
+  includeContext
 }: GetTimelineParams): Promise<GetTimelineResult> => {
   const path = `/api/v1/timelines/${timeline}?format=${TimelineFormat.enum.activities_next}`
   const url = new URL(`${window.origin}${path}`)
-  if (minStatusId) {
-    url.searchParams.append('min_id', minStatusId)
+  const resolvedMinId = minStatusId || prevMinStatusId
+  if (resolvedMinId) {
+    url.searchParams.append('min_id', resolvedMinId)
   }
   if (maxStatusId) {
     url.searchParams.append('max_id', maxStatusId)
@@ -41,11 +48,21 @@ const getTimelinePage = async ({
     }
   })
   if (response.status !== 200) {
-    return { statuses: [], nextMaxStatusId: null, prevMinStatusId: null }
+    return {
+      statuses: [],
+      ...(includeContext ? { context: { ancestorsById: {} } } : {}),
+      nextMaxStatusId: null,
+      prevMinStatusId: null
+    }
   }
   const data = await response.json()
   return {
     statuses: data.statuses as Status[],
+    ...(data.context !== undefined
+      ? { context: data.context as TimelineContext }
+      : includeContext
+        ? { context: { ancestorsById: {} } }
+        : {}),
     nextMaxStatusId: data.nextMaxStatusId ?? null,
     prevMinStatusId: data.prevMinStatusId ?? null
   }
@@ -54,14 +71,18 @@ const getTimelinePage = async ({
 export const getTimeline = async ({
   timeline,
   minStatusId,
+  prevMinStatusId,
   maxStatusId,
-  limit
+  limit,
+  includeContext
 }: GetTimelineParams): Promise<GetTimelineResult> => {
   let result = await getTimelinePage({
     timeline,
     minStatusId,
+    prevMinStatusId,
     maxStatusId,
-    limit
+    limit,
+    includeContext
   })
   let currentMaxStatusId = result.nextMaxStatusId
   let continuations = 0
@@ -75,8 +96,10 @@ export const getTimeline = async ({
     result = await getTimelinePage({
       timeline,
       minStatusId,
+      prevMinStatusId,
       maxStatusId: currentMaxStatusId,
-      limit
+      limit,
+      includeContext
     })
     currentMaxStatusId = result.nextMaxStatusId
   }

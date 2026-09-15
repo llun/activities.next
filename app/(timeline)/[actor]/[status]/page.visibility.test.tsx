@@ -20,7 +20,14 @@ import { resolveStatusFromPath } from './resolveStatusFromPath'
 vi.mock('next/navigation', async () => ({
   notFound: vi.fn(() => {
     throw new Error('NEXT_NOT_FOUND')
-  })
+  }),
+  useRouter: vi.fn(() => ({
+    back: vi.fn(),
+    push: vi.fn(),
+    replace: vi.fn(),
+    refresh: vi.fn(),
+    prefetch: vi.fn()
+  }))
 }))
 
 vi.mock('@/lib/config', async () => ({
@@ -75,6 +82,10 @@ vi.mock('./StatusBox', async () => ({
   StatusBox: ({ status }: { status: { id: string } }) => (
     <div data-testid={`status-${status.id}`} />
   )
+}))
+
+vi.mock('./StatusLikes', async () => ({
+  StatusLikes: () => null
 }))
 
 const mockResolveStatusFromPath = vi.mocked(resolveStatusFromPath)
@@ -410,10 +421,10 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
     expect(screen.queryByTestId(`status-${parentId}`)).not.toBeInTheDocument()
   })
 
-  it('stops climbing the ancestor chain at the first unreadable parent', async () => {
+  it('excludes unreadable ancestors without breaking the chain to readable ancestors', async () => {
     // public reply -> followers-only parent (unreadable) -> public grandparent.
-    // The loop must break at the private parent, so neither it nor the readable
-    // grandparent beyond it is rendered.
+    // The unreadable parent is excluded from the chain, but the readable
+    // grandparent is kept (the chain is not cut short).
     const focused = buildNote({ id: 'public-reply', reply: 'private-parent' })
     const privateParent = buildNote({
       id: 'private-parent',
@@ -446,9 +457,7 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
     expect(
       screen.queryByTestId('status-private-parent')
     ).not.toBeInTheDocument()
-    expect(
-      screen.queryByTestId('status-public-grandparent')
-    ).not.toBeInTheDocument()
+    expect(screen.getByTestId('status-public-grandparent')).toBeInTheDocument()
   })
 
   it('renders a followers-only ancestor when the viewer follows the author', async () => {

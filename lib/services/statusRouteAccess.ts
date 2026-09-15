@@ -1,5 +1,6 @@
 import type { Database } from '@/lib/database/types'
 import type { Actor } from '@/lib/types/domain/actor'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { type Status, StatusType } from '@/lib/types/domain/status'
 
 import { canActorReadStatus, isStatusPubliclyReadable } from './statusAccess'
@@ -58,10 +59,24 @@ const getFollowerStateByActorId = async ({
 
   const targetActorIds = [...actorIds]
   const acceptedTargetActorIds = new Set(
-    await database.getAcceptedFollowTargetActorIds({
-      actorId: currentActor.id,
-      targetActorIds
-    })
+    database.getAcceptedFollowTargetActorIds
+      ? await database.getAcceptedFollowTargetActorIds({
+          actorId: currentActor.id,
+          targetActorIds
+        })
+      : (
+          await Promise.all(
+            targetActorIds.map(async (targetActorId) => {
+              const follow = await database.getAcceptedOrRequestedFollow({
+                actorId: currentActor.id,
+                targetActorId
+              })
+              return follow?.status === FollowStatus.enum.Accepted
+                ? targetActorId
+                : null
+            })
+          )
+        ).filter((id): id is string => id !== null)
   )
 
   return new Map(

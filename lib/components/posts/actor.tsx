@@ -36,8 +36,8 @@ const getInitials = (value: string) => {
     .slice(0, 2)
 }
 
-const getDisplayUsername = (username: string) =>
-  username.replace(/^@+/, '').split('@')[0]
+const getDisplayUsername = (username?: string) =>
+  username ? username.replace(/^@+/, '').split('@')[0] : ''
 
 const getActorMention = (actor: ActorProfile) =>
   `@${getDisplayUsername(actor.username)}@${actor.domain}`

@@ -75,6 +75,10 @@ vi.mock('./StatusBox', async () => ({
   )
 }))
 
+vi.mock('./StatusLikes', async () => ({
+  StatusLikes: () => null
+}))
+
 const mockResolveStatusFromPath = vi.mocked(resolveStatusFromPath)
 const mockGetServerAuthSession = vi.mocked(getServerAuthSession)
 const mockGetActorFromSession = vi.mocked(getActorFromSession)
