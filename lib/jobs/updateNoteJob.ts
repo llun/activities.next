@@ -171,7 +171,8 @@ export const updateNoteJob = createJobHandle(
       database,
       statusId: note.id,
       text,
-      html: true
+      html: true,
+      declaredLanguage: language
     })
 
     // Re-run the preview card only for a real content edit, for the same reason

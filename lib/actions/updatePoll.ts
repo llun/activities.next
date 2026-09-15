@@ -110,7 +110,12 @@ export const updatePollFromUserInput = async ({
         text: [pollText, pollSummary, ...pollChoices.map((c) => c.title)]
       })
       if (text !== undefined) {
-        await persistDetectedLanguage({ database, statusId, text })
+        await persistDetectedLanguage({
+          database,
+          statusId,
+          text,
+          declaredLanguage: status.language
+        })
       }
       updatedStatus = (await database.getStatus({ statusId })) ?? updatedStatus
     }

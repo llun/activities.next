@@ -4,7 +4,8 @@
 /node_modules
 /.pnp
 .pnp.js
-.yarn
+.yarn/*
+!.yarn/patches
 package-lock.json
 
 # testing

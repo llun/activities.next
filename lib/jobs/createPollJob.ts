@@ -120,7 +120,8 @@ export const createPollJob = createJobHandle(
       database,
       statusId: status.id,
       text,
-      html: true
+      html: true,
+      declaredLanguage: language
     })
 
     const tags = getTags(question)

@@ -37,7 +37,8 @@ vi.mock('next/navigation', () => ({
   })
 }))
 
-vi.mock('@/lib/client', () => ({
+vi.mock('@/lib/client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/client')>()),
   votePoll: vi.fn()
 }))
 

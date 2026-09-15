@@ -1,0 +1,32 @@
+diff --git a/package.json b/package.json
+index a6655dac90eafeb3220d93272cb11c117bd17500..a02e0a9eb769b35b5ef1ab01d0e599c27c30be07 100644
+--- a/package.json
++++ b/package.json
+@@ -18,22 +18,27 @@
+   "exports": {
+     ".": {
+       "import": "./src/entries/dynamic.js",
++      "default": "./src/entries/dynamic.js",
+       "types": "./index.d.ts"
+     },
+     "./large": {
+       "import": "./src/entries/static.large.js",
++      "default": "./src/entries/static.large.js",
+       "types": "./index.d.ts"
+     },
+     "./medium": {
+       "import": "./src/entries/static.medium.js",
++      "default": "./src/entries/static.medium.js",
+       "types": "./index.d.ts"
+     },
+     "./small": {
+       "import": "./src/entries/static.small.js",
++      "default": "./src/entries/static.small.js",
+       "types": "./index.d.ts"
+     },
+     "./extrasmall": {
+       "import": "./src/entries/static.extrasmall.js",
++      "default": "./src/entries/static.extrasmall.js",
+       "types": "./index.d.ts"
+     }
+   },

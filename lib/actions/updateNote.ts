@@ -113,7 +113,12 @@ export const updateNoteFromUserInput = async ({
         // Re-detect the content language alongside the edit; the previous
         // detection (if any) is stale once the text changes — persistDetectedLanguage
         // clears the old row when the new text no longer detects confidently.
-        await persistDetectedLanguage({ database, statusId, text })
+        await persistDetectedLanguage({
+          database,
+          statusId,
+          text,
+          declaredLanguage: status.language
+        })
       }
 
       updatedStatus = (await database.getStatus({ statusId })) ?? updatedStatus
