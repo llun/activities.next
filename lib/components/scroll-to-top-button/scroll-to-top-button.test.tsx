@@ -224,4 +224,16 @@ describe('ScrollToTopButton', () => {
       screen.queryByRole('button', { name: 'Scroll to top' })
     ).not.toBeInTheDocument()
   })
+
+  it('renders with fixed positioning and safe-area bottom offset', () => {
+    Object.defineProperty(window, 'scrollY', { value: 500 })
+    render(<ScrollToTopButton />)
+
+    const button = screen.getByRole('button', { name: 'Scroll to top' })
+    expect(button).toHaveClass(
+      'fixed',
+      'bottom-[calc(env(safe-area-inset-bottom,0px)+0.75rem)]',
+      'z-30'
+    )
+  })
 })
