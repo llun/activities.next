@@ -60,13 +60,20 @@ describe('TranslateContent', () => {
     mockLanguages({})
   })
 
-  it('does not offer translation when the status has no language', async () => {
-    mockCapability(true)
+  it('offers generic Translate when the status has no declared or detected language', async () => {
+    mockCapability(true, 'fr')
+    ;(translateStatus as jest.Mock).mockResolvedValue(translation)
     renderContent(null)
-    await Promise.resolve()
-    expect(
-      screen.queryByRole('button', { name: /Translate from/ })
-    ).not.toBeInTheDocument()
+
+    const button = await screen.findByRole('button', { name: 'Translate' })
+    expect(button).toBeInTheDocument()
+
+    fireEvent.click(button)
+    expect(await screen.findByText('Bonjour le monde')).toBeInTheDocument()
+    expect(translateStatus).toHaveBeenCalledWith({
+      statusId: 'https://activities.local/users/llun/statuses/1',
+      language: 'fr'
+    })
   })
 
   it('does not offer translation when no backend is configured', async () => {
@@ -149,5 +156,21 @@ describe('TranslateContent', () => {
       await screen.findByText(/Couldn't translate this post/)
     ).toBeInTheDocument()
     expect(screen.getByText('Hello world')).toBeInTheDocument()
+  })
+
+  it('renders "Translated to <Target>" when source is unknown and backend detects no source', async () => {
+    mockCapability(true, 'fr')
+    ;(translateStatus as jest.Mock).mockResolvedValue({
+      ...translation,
+      detected_source_language: null
+    })
+    renderContent(null)
+
+    const button = await screen.findByRole('button', { name: 'Translate' })
+    fireEvent.click(button)
+
+    expect(await screen.findByText('Bonjour le monde')).toBeInTheDocument()
+    expect(screen.getByText('Translated to')).toBeInTheDocument()
+    expect(screen.getByText('French')).toBeInTheDocument()
   })
 })

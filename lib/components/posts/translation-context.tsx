@@ -33,8 +33,10 @@ export const normalizeLanguage = (code: string) =>
 type TranslateState = 'idle' | 'loading' | 'translated' | 'error'
 
 export interface StatusTranslation {
-  // Whether the Translate control should be offered for this status.
+  // Whether the Translate control should be offered for this status in idle state.
   canTranslate: boolean
+  // Whether manual translation from post menu is available (e.g. for same-language post).
+  canManualTranslate: boolean
   state: TranslateState
   // The currently selected target language (ISO 639-1).
   target: string | null
@@ -68,9 +70,10 @@ const TranslationContext = createContext<StatusTranslation | null>(null)
  */
 export const useStatusTranslation = (
   statusId: string,
-  language?: string | null
+  language?: string | null,
+  enabled = true
 ): StatusTranslation => {
-  const [enabled, setEnabled] = useState(false)
+  const [backendEnabled, setBackendEnabled] = useState(false)
   const [defaultLanguage, setDefaultLanguage] = useState<string | null>(null)
   const [pairs, setPairs] = useState<Record<string, string[]>>({})
   const [state, setState] = useState<TranslateState>('idle')
@@ -81,26 +84,28 @@ export const useStatusTranslation = (
   const source = language ? normalizeLanguage(language) : null
 
   useEffect(() => {
-    if (!source) return
+    if (!enabled) return
     let active = true
     Promise.all([getTranslationCapability(), getTranslationLanguages()])
       .then(([capability, languagePairs]) => {
         if (!active) return
-        setEnabled(capability.enabled)
-        setDefaultLanguage(
-          capability.defaultLanguage
-            ? normalizeLanguage(capability.defaultLanguage)
-            : null
-        )
-        setPairs(languagePairs)
+        setBackendEnabled(capability.enabled)
+        if (capability.enabled) {
+          setDefaultLanguage(
+            capability.defaultLanguage
+              ? normalizeLanguage(capability.defaultLanguage)
+              : null
+          )
+          setPairs(languagePairs)
+        }
       })
       .catch(() => {
-        if (active) setEnabled(false)
+        if (active) setBackendEnabled(false)
       })
     return () => {
       active = false
     }
-  }, [source])
+  }, [enabled])
 
   // Whether the backend reported concrete source→target pairs. When it did, we
   // only offer directions it actually supports; otherwise we fall back to a
@@ -108,31 +113,51 @@ export const useStatusTranslation = (
   const hasPairs = Object.keys(pairs).length > 0
 
   const options = useMemo(() => {
-    if (!source) return []
+    if (!enabled || !backendEnabled) return []
+    if (source) {
+      if (hasPairs) {
+        const supported = (pairs[source] || [])
+          .map(normalizeLanguage)
+          .filter((code) => code !== source)
+          .filter((code, index, all) => all.indexOf(code) === index)
+        // Lead with the viewer's default language when the backend supports
+        // translating into it — but never offer an unsupported direction.
+        if (defaultLanguage && supported.includes(defaultLanguage)) {
+          return [
+            defaultLanguage,
+            ...supported.filter((code) => code !== defaultLanguage)
+          ]
+        }
+        return supported
+      }
+      // No pairs data (the backend couldn't report them) — best-effort to the
+      // server's default language and let the server validate it.
+      return defaultLanguage && defaultLanguage !== source
+        ? [defaultLanguage]
+        : []
+    }
+
+    // Source is unknown: offer all unique targets across all pairs (default language first)
     if (hasPairs) {
-      const supported = (pairs[source] || [])
+      const allTargets = Object.values(pairs)
+        .flat()
         .map(normalizeLanguage)
-        .filter((code) => code !== source)
         .filter((code, index, all) => all.indexOf(code) === index)
-      // Lead with the viewer's default language when the backend supports
-      // translating into it — but never offer an unsupported direction.
-      if (defaultLanguage && supported.includes(defaultLanguage)) {
+      if (defaultLanguage && allTargets.includes(defaultLanguage)) {
         return [
           defaultLanguage,
-          ...supported.filter((code) => code !== defaultLanguage)
+          ...allTargets.filter((code) => code !== defaultLanguage)
         ]
       }
-      return supported
+      if (allTargets.length > 0) {
+        return allTargets
+      }
     }
-    // No pairs data (the backend couldn't report them) — best-effort to the
-    // server's default language and let the server validate it.
-    return defaultLanguage && defaultLanguage !== source
-      ? [defaultLanguage]
-      : []
-  }, [pairs, hasPairs, source, defaultLanguage])
+    return defaultLanguage ? [defaultLanguage] : []
+  }, [enabled, backendEnabled, pairs, hasPairs, source, defaultLanguage])
 
-  // The control is hidden when the status is already in the server's primary
-  // language — translating it would be an en→en no-op that burns backend quota.
+  // The inline control is hidden when the status is already in the server's primary
+  // language — translating it inline would be an en→en no-op that burns backend quota.
   const isDefaultTarget = Boolean(
     defaultLanguage && source && source === defaultLanguage
   )
@@ -142,7 +167,13 @@ export const useStatusTranslation = (
   // Require a resolvable target too: with a backend enabled but no advertised
   // target for this source, the control would otherwise be a dead button.
   const canTranslate = Boolean(
-    enabled && source && !isDefaultTarget && effectiveTarget !== null
+    enabled && backendEnabled && !isDefaultTarget && effectiveTarget !== null
+  )
+
+  // Same-language posts can still be manually translated via the post menu when
+  // alternate target languages are available.
+  const canManualTranslate = Boolean(
+    enabled && backendEnabled && isDefaultTarget && effectiveTarget !== null
   )
 
   // Tracks the latest state for `pickTarget` without recreating the callback
@@ -199,6 +230,10 @@ export const useStatusTranslation = (
       ? (cache[effectiveTarget] ?? null)
       : null
 
+  const detectedSource = activeTranslation?.detected_source_language
+    ? normalizeLanguage(activeTranslation.detected_source_language)
+    : source
+
   // Memoize the returned value so the context reference is stable across
   // unrelated re-renders — otherwise every provider render would re-render all
   // consumers (the poll and the body) even when nothing translation-related
@@ -206,10 +241,11 @@ export const useStatusTranslation = (
   return useMemo(
     () => ({
       canTranslate,
+      canManualTranslate,
       state,
       target: effectiveTarget,
       options,
-      detectedSource: activeTranslation?.detected_source_language ?? source,
+      detectedSource,
       provider: activeTranslation?.provider ?? null,
       translation: activeTranslation,
       showingTranslation,
@@ -219,11 +255,12 @@ export const useStatusTranslation = (
     }),
     [
       canTranslate,
+      canManualTranslate,
       state,
       effectiveTarget,
       options,
+      detectedSource,
       activeTranslation,
-      source,
       showingTranslation,
       request,
       pickTarget,
@@ -235,6 +272,7 @@ export const useStatusTranslation = (
 interface ProviderProps {
   statusId: string
   language?: string | null
+  enabled?: boolean
   children: ReactNode
 }
 
@@ -246,9 +284,10 @@ interface ProviderProps {
 export const TranslationProvider: FC<ProviderProps> = ({
   statusId,
   language,
+  enabled = true,
   children
 }) => {
-  const value = useStatusTranslation(statusId, language)
+  const value = useStatusTranslation(statusId, language, enabled)
   return (
     <TranslationContext.Provider value={value}>
       {children}

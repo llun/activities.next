@@ -1,70 +1,242 @@
+import { eld } from 'eld/medium'
 import { detectAll } from 'tinyld'
 
 import { normalizeLanguageCode } from '@/lib/services/translation/types'
 import { logger } from '@/lib/utils/logger'
 import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 export interface DetectedLanguage {
   // ISO 639-1 two-letter code, normalized the same way as the declared
   // status `language` field.
   language: string
-  // tinyld's `accuracy` for the top match, 0..1.
+  // Confidence score for the top match, 0..1.
   confidence: number
 }
 
-// Below this many characters of cleaned text, tinyld's guess is unreliable
+// Below this many characters of cleaned text, detection guesses are unreliable
 // (short chatbot-style messages, a single emoji caption, etc.) so detection is
 // skipped entirely rather than risk a wrong source language.
+// Note: Length is evaluated AFTER NFKC normalization and token cleanup.
 export const MIN_DETECTION_TEXT_LENGTH = 20
 
 // Below this accuracy, tinyld itself isn't confident in the top match (mixed
 // content, transliterated text, ...); treat it the same as "no detection".
 export const MIN_DETECTION_CONFIDENCE = 0.5
 
+// Minimum score separation between the top score and runner-up score in ELD
+// to treat the detection as decisive rather than ambiguous.
+export const ELD_MIN_SCORE_MARGIN = 0.05
+
+// Score threshold ratio relative to language's average benchmark score.
+export const ELD_THRESHOLD_RATIO = 0.7
+
+// Average benchmark score for each language supported by ELD in a correct detection.
+export const ELD_AVG_SCORES: Readonly<Record<string, number>> = {
+  am: 0.832,
+  ar: 0.845,
+  az: 0.804,
+  be: 0.841,
+  bg: 0.838,
+  bn: 0.876,
+  ca: 0.762,
+  cs: 0.759,
+  da: 0.77,
+  de: 0.777,
+  el: 0.801,
+  en: 0.777,
+  es: 0.771,
+  et: 0.779,
+  eu: 0.746,
+  fa: 0.831,
+  fi: 0.784,
+  fr: 0.783,
+  gu: 0.872,
+  he: 0.803,
+  hi: 0.883,
+  hr: 0.77,
+  hu: 0.752,
+  hy: 0.802,
+  is: 0.788,
+  it: 0.784,
+  ja: 0.796,
+  ka: 0.893,
+  kn: 0.875,
+  ko: 0.764,
+  ku: 0.853,
+  lo: 0.873,
+  lt: 0.777,
+  lv: 0.789,
+  ml: 0.874,
+  mr: 0.884,
+  ms: 0.774,
+  nl: 0.77,
+  no: 0.75,
+  or: 0.872,
+  pa: 0.873,
+  pl: 0.768,
+  pt: 0.78,
+  ro: 0.771,
+  ru: 0.833,
+  sk: 0.763,
+  sl: 0.771,
+  sq: 0.789,
+  sr: 0.838,
+  sv: 0.767,
+  ta: 0.882,
+  te: 0.878,
+  th: 0.864,
+  tl: 0.777,
+  tr: 0.783,
+  uk: 0.836,
+  ur: 0.827,
+  vi: 0.848,
+  yo: 0.752,
+  zh: 0.752
+}
+
+export const ELD_SUPPORTED_LANGUAGES = new Set(Object.keys(ELD_AVG_SCORES))
+
 const URL_PATTERN = /https?:\/\/\S+|\bwww\.\S+/gi
 const MENTION_PATTERN = /@[a-z0-9_]+(@[a-z0-9.-]+)?/gi
 const HASHTAG_PATTERN = /#\S+/g
 
-// Strips tokens that are language-neutral but skew detection toward Latin
-// script (links, @mentions, #hashtags), leaving only the prose tinyld should
-// actually classify.
+/**
+ * Decodes numeric (decimal and hex) HTML entities into Unicode code points,
+ * handling Astral plane characters (e.g. mathematical styled alphanumeric
+ * symbols 0x1D400-0x1D7FF) safely via String.fromCodePoint.
+ */
+export const decodeNumericEntities = (text: string): string =>
+  text
+    .replace(/&#[xX]([0-9a-fA-F]+);/g, (match, hex) => {
+      try {
+        const codePoint = parseInt(hex, 16)
+        if (codePoint >= 0 && codePoint <= 0x10ffff) {
+          return String.fromCodePoint(codePoint)
+        }
+        return match
+      } catch {
+        return match
+      }
+    })
+    .replace(/&#([0-9]+);/g, (match, dec) => {
+      try {
+        const codePoint = parseInt(dec, 10)
+        if (codePoint >= 0 && codePoint <= 0x10ffff) {
+          return String.fromCodePoint(codePoint)
+        }
+        return match
+      } catch {
+        return match
+      }
+    })
+
+export const normalizeTextForDetection = (text: string): string =>
+  text.normalize('NFKC')
+
 export const cleanTextForDetection = (plainText: string): string =>
-  plainText
+  decodeNumericEntities(plainText)
+    .normalize('NFKC')
     .replace(URL_PATTERN, ' ')
     .replace(MENTION_PATTERN, ' ')
     .replace(HASHTAG_PATTERN, ' ')
     .replace(/\s+/g, ' ')
     .trim()
 
-// Detects the language of plain text content. Returns null when the text is
-// too short or the top match isn't confident enough to trust over (or in
-// place of) a status' declared language.
+export interface DetectLanguageOptions {
+  declaredLanguage?: string | null
+}
+
 export const detectLanguage = (
-  plainText: string | null | undefined
+  plainText: string | null | undefined,
+  options: DetectLanguageOptions = {}
 ): DetectedLanguage | null => {
   if (!plainText) return null
   const cleaned = cleanTextForDetection(plainText)
   if (cleaned.length < MIN_DETECTION_TEXT_LENGTH) return null
 
-  const [top] = detectAll(cleaned)
-  if (!top) return null
+  const declared = options.declaredLanguage
+    ? normalizeLanguageCode(options.declaredLanguage)
+    : null
 
-  const language = normalizeLanguageCode(top.lang)
-  if (!/^[a-z]{2}$/.test(language)) return null
-  if (top.accuracy < MIN_DETECTION_CONFIDENCE) return null
+  // If the status has declared metadata for a language outside ELD's 60-language
+  // coverage (e.g. 'id', 'km', 'my', 'af', 'eo'), check whether tinyld confirms it,
+  // and ensure ELD's confident prediction (e.g. 'ms' for Indonesian) does not
+  // silently override the valid metadata.
+  if (declared && !ELD_SUPPORTED_LANGUAGES.has(declared)) {
+    const [tinyTop] = detectAll(cleaned)
+    if (tinyTop) {
+      const tinyLang = normalizeLanguageCode(tinyTop.lang)
+      if (
+        tinyLang === declared &&
+        tinyTop.accuracy >= MIN_DETECTION_CONFIDENCE
+      ) {
+        return { language: declared, confidence: tinyTop.accuracy }
+      }
+    }
+    // Treat as unknown so declared metadata is preserved as fallback
+    return null
+  }
 
-  return { language, confidence: top.accuracy }
+  // Primary detector: ELD medium
+  const eldResult = eld.detect(cleaned)
+  const scores = eldResult.getScores()
+  const entries = Object.entries(scores)
+
+  if (entries.length > 0) {
+    const [topLang, topScore] = entries[0]
+    const runnerUpScore = entries.length > 1 ? entries[1][1] : 0
+    const margin = topScore - runnerUpScore
+
+    const avg = ELD_AVG_SCORES[topLang] ?? 0.75
+    // Calibrated acceptance: ELD 2.1.0's LanguageResult.isReliable evaluates
+    // results[1][0] (language index integer) instead of results[1][1] (score float).
+    // We calibrate acceptance directly on actual score separation and threshold ratio.
+    const isReliable =
+      topScore >= 0.25 &&
+      topScore >= avg * ELD_THRESHOLD_RATIO &&
+      margin >= ELD_MIN_SCORE_MARGIN
+
+    if (isReliable) {
+      if (topLang === 'ms') {
+        // Disambiguate Indonesian (supported by tinyld, absent from ELD) vs Malay
+        const [tinyTop] = detectAll(cleaned)
+        if (
+          tinyTop &&
+          normalizeLanguageCode(tinyTop.lang) === 'id' &&
+          tinyTop.accuracy >= MIN_DETECTION_CONFIDENCE
+        ) {
+          if (declared === 'ms') {
+            return { language: 'ms', confidence: topScore }
+          }
+          return { language: 'id', confidence: tinyTop.accuracy }
+        }
+      }
+
+      const language = normalizeLanguageCode(topLang)
+      if (/^[a-z]{2}$/.test(language)) {
+        return { language, confidence: topScore }
+      }
+    }
+  }
+
+  // Fallback to tinyld for scripts/languages outside ELD (e.g. Khmer, Burmese)
+  const [tinyTop] = detectAll(cleaned)
+  if (tinyTop && tinyTop.accuracy >= MIN_DETECTION_CONFIDENCE) {
+    const language = normalizeLanguageCode(tinyTop.lang)
+    if (/^[a-z]{2}$/.test(language)) {
+      return { language, confidence: tinyTop.accuracy }
+    }
+  }
+
+  return null
 }
 
-// Convenience wrapper for the common case: status bodies are stored/exchanged
-// as HTML, but tinyld needs plain text.
 export const detectLanguageFromHtml = (
-  html: string | null | undefined
-): DetectedLanguage | null => detectLanguage(htmlToPlainText(html))
+  html: string | null | undefined,
+  options: DetectLanguageOptions = {}
+): DetectedLanguage | null => detectLanguage(htmlToPlainText(html), options)
 
-// Minimal slice of StatusDetectedLanguageDatabase this module needs — kept
-// inline (rather than importing the Database type) so this module has no
-// dependency on the database layer.
 interface DetectedLanguageStore {
   setDetectedLanguage(params: {
     statusId: string
@@ -74,29 +246,23 @@ interface DetectedLanguageStore {
   clearDetectedLanguage(params: { statusId: string }): Promise<void>
 }
 
-// Detects and persists a status' content language in one call, used by every
-// write path (local create/edit, federated inbound create/update). Clears any
-// previously stored detection when the new content no longer yields a
-// confident result, so an edit that shortens a post (or replaces it with a
-// link) doesn't leave a stale language behind for the Translate gate to keep
-// using.
-//
-// This is a best-effort enhancement, not part of the post's actual content,
-// so a failure here (e.g. a transient DB error) is logged and swallowed
-// rather than allowed to fail the surrounding create/update.
 export const persistDetectedLanguage = async ({
   database,
   statusId,
   text,
-  html = false
+  html = false,
+  declaredLanguage
 }: {
   database: DetectedLanguageStore
   statusId: string
   text: string | null | undefined
   html?: boolean
+  declaredLanguage?: string | null
 }): Promise<void> => {
   try {
-    const detected = html ? detectLanguageFromHtml(text) : detectLanguage(text)
+    const detected = html
+      ? detectLanguageFromHtml(text, { declaredLanguage })
+      : detectLanguage(text, { declaredLanguage })
     if (detected) {
       await database.setDetectedLanguage({
         statusId,
@@ -107,6 +273,9 @@ export const persistDetectedLanguage = async ({
     }
     await database.clearDetectedLanguage({ statusId })
   } catch (error) {
-    logger.error({ error, statusId }, 'Failed to persist detected language')
+    logger.error(
+      { err: toLoggableError(error), statusId },
+      'Failed to persist detected language'
+    )
   }
 }

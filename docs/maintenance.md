@@ -445,6 +445,45 @@ NODE_ENV=production ./scripts/maintenance/fixAttachmentUrls.ts \
 - `--correct-host <host>` — The replacement host (defaults to `ACTIVITIES_HOST` read from configuration).
 - `--dry-run` — Print rows that would be modified without updating the database.
 
+## Status Language Re-detection
+
+The `redetectStatusLanguages.ts` script scans posts (Notes and Polls) and re-evaluates language detection using the updated detector engine (ELD + tinyld with NFKC normalization). When the re-detection yields a result that differs from the stored `status_detected_languages` record, the script updates or clears the record.
+
+### When to Use
+
+- After upgrading Activities.next to the ELD-backed detection engine with NFKC normalization, to update existing posts (e.g. Dutch posts with Unicode mathematical/styled characters, or Indonesian posts that previously lacked accurate detection).
+- Periodically or after bulk imports to ensure `status_detected_languages` stays consistent with current detector heuristics.
+
+### Usage
+
+```bash
+# Preview changes without modifying the database (recommended first step)
+NODE_ENV=production ./scripts/maintenance/redetectStatusLanguages.ts --dry-run
+
+# Run re-detection with default batch size (200)
+NODE_ENV=production ./scripts/maintenance/redetectStatusLanguages.ts
+
+# Run with custom batch size and limit
+NODE_ENV=production ./scripts/maintenance/redetectStatusLanguages.ts --batch-size 100 --limit 500
+
+# Resume from a specific status ID
+NODE_ENV=production ./scripts/maintenance/redetectStatusLanguages.ts --resume-from <statusId>
+```
+
+### Options
+
+- `--dry-run` — Audit differences and display planned changes without modifying `status_detected_languages`.
+- `--batch-size <n>` — Number of statuses to fetch and process per batch (default: `200`).
+- `--resume-from <statusId>` — Status ID to resume after; processes statuses with `id > <statusId>` in ascending order.
+- `--limit <n>` — Maximum total statuses to process across all batches.
+
+### Safety & Concurrency
+
+- **Deterministic keyset pagination**: Paginates by `statuses.id ASC` using `--resume-from`, preventing skips or duplicate evaluations during iteration.
+- **Concurrent edit protection**: Before updating `status_detected_languages`, checks that `statuses.updatedAt` matches the timestamp read during the batch select. If a status was modified concurrently, the update is safely skipped.
+- **Bounded memory**: Loads only `batchSize` rows at a time.
+- **Idempotent**: Re-running the script against a converged database performs no updates and reports all records as unchanged.
+
 ## Other Scripts
 
 ### Create Mock User

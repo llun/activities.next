@@ -164,7 +164,8 @@ export const createNoteJob = createJobHandle(
       database,
       statusId: status.id,
       text,
-      html: true
+      html: true,
+      declaredLanguage: language
     })
 
     // Record the quote edge (FEP-044f) if this note quotes another status. The
