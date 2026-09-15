@@ -152,7 +152,9 @@ export const StatusThread: FC<StatusThreadProps> = ({
       const el = document.querySelector(
         `[data-node-id="${newReply.id}"], [data-testid="status-${newReply.id}"]`
       )
-      el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      if (typeof el?.scrollIntoView === 'function') {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      }
     }, 100)
 
     onReplyCreated?.(newReply)
