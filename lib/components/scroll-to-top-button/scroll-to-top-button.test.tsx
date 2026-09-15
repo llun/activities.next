@@ -53,7 +53,7 @@ describe('ScrollToTopButton', () => {
     render(<ScrollToTopButton isLoadMoreVisible={false} />)
 
     const button = screen.getByRole('button', { name: 'Scroll to top' })
-    expect(button).toHaveClass('bg-white')
+    expect(button).toBeInTheDocument()
     expect(button).toHaveClass('animate-in')
     expect(button).toHaveTextContent('Scroll to top')
     expect(button).not.toBeDisabled()
@@ -108,18 +108,18 @@ describe('ScrollToTopButton', () => {
       vi.advanceTimersByTime(100)
     })
 
-    expect(screen.getByRole('button', { name: 'Scroll to top' })).toHaveClass(
-      'bg-white'
-    )
+    const button = screen.getByRole('button', { name: 'Scroll to top' })
+    expect(button).toBeInTheDocument()
+    expect(button).not.toBeDisabled()
   })
 
   it('should hide button after scrolling back above threshold', async () => {
     Object.defineProperty(window, 'scrollY', { value: 400 })
     render(<ScrollToTopButton />)
 
-    expect(screen.getByRole('button', { name: 'Scroll to top' })).toHaveClass(
-      'bg-white'
-    )
+    expect(
+      screen.getByRole('button', { name: 'Scroll to top' })
+    ).toBeInTheDocument()
 
     // Simulate scrolling back to top
     Object.defineProperty(window, 'scrollY', { value: 100 })
@@ -164,14 +164,15 @@ describe('ScrollToTopButton', () => {
     })
 
     const button = screen.getByRole('button', { name: 'Scroll to top' })
-    expect(button).toHaveClass('bg-white')
+    expect(button).toBeInTheDocument()
+    expect(button).not.toBeDisabled()
 
     // Subsequent scrolls should be throttled
     Object.defineProperty(window, 'scrollY', { value: 200 })
     fireEvent.scroll(window)
 
     // No immediate change (throttled)
-    expect(button).toHaveClass('bg-white')
+    expect(button).toBeInTheDocument()
 
     // After throttle timeout, should update
     await act(async () => {
@@ -211,7 +212,7 @@ describe('ScrollToTopButton', () => {
     const { unmount } = render(<ScrollToTopButton />)
 
     const button = screen.getByRole('button', { name: 'Scroll to top' })
-    expect(button).toHaveClass('bg-white')
+    expect(button).toBeInTheDocument()
     expect(button).not.toBeDisabled()
 
     unmount()
@@ -233,7 +234,11 @@ describe('ScrollToTopButton', () => {
     expect(button).toHaveClass(
       'fixed',
       'bottom-[calc(env(safe-area-inset-bottom,0px)+0.75rem)]',
-      'z-30'
+      'z-30',
+      'bg-popover',
+      'text-popover-foreground',
+      'dark:bg-popover'
     )
+    expect(button).toHaveAttribute('data-variant', 'pill')
   })
 })
