@@ -26,6 +26,7 @@ import { getQueue } from '@/lib/services/queue'
 import { canQuoteStatus } from '@/lib/services/quotes/canQuoteStatus'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
+import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { validateStatusContentLimits } from '@/lib/services/statuses/contentLimits'
 import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
 import { parseStatusRequestBody } from '@/lib/services/statuses/parseStatusRequestBody'
@@ -350,13 +351,29 @@ export const POST = traceApiRoute(
           : undefined
 
         // Resolve in_reply_to_id (raw URI, publicId, or legacy colon/apurl_
-        // form) to the parent status's stored URI before it reaches the exact
-        // `where('id', …)` lookup inside createNoteFromUserInput /
-        // createPollFromUserInput — those do no decoding of their own, so an
-        // unresolved colon-form id would silently create a non-reply.
-        const replyStatusId = note.in_reply_to_id
-          ? await resolveStatusIdParam(database, note.in_reply_to_id)
-          : undefined
+        // form) to the parent status's stored URI and authorize readability
+        // before proceeding. Return 404 when target is not found or not readable.
+        let replyStatusId: string | undefined
+        if (note.in_reply_to_id) {
+          const resolvedReplyId = await resolveStatusIdParam(
+            database,
+            note.in_reply_to_id
+          )
+          const targetStatus = await getReadableStatus({
+            database,
+            statusId: resolvedReplyId,
+            currentActor
+          })
+          if (!targetStatus) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: { error: 'Record not found' },
+              responseStatusCode: 404
+            })
+          }
+          replyStatusId = targetStatus.id
+        }
 
         let status
         if (note.poll) {

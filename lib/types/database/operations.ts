@@ -643,6 +643,7 @@ export type GetStatusRepliesParams = BaseStatusParams & {
   visibleToActorId?: string | null
   // Hydration-only viewer; see GetActorStatusesParams.
   currentActorId?: string
+  order?: 'asc' | 'desc'
 }
 export type GetStatusEditHistoryParams = BaseStatusParams
 // A single superseded revision of a status (a row in `status_history`). `text`

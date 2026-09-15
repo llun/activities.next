@@ -136,6 +136,22 @@ product or security decision, not a gap to be closed.
   The first-party UI uses `/api/v1/conversations` for threaded direct messages;
   the `direct` timeline is served by the shared `timelines/[timeline]` handler.
 
+- **Timeline context and `format=activities_next`.** Standard Mastodon requests
+  to `GET /api/v1/timelines/:timeline` receive a flat JSON array of Mastodon Status
+  entities with pagination Link headers. When requested with query parameter
+  `format=activities_next`, the endpoint returns a JSON payload
+  `{ statuses, context, nextMaxStatusId, prevMinStatusId }`. `context` provides
+  safe, viewer-scoped reply parent previews, conversation groupings, and thread
+  indicators used by the first-party web UI to render grouped timelines while
+  leaving standard Mastodon client responses completely unmodified.
+
+- **Status thread context and traversal boundaries.**
+  `GET /api/v1/statuses/:id/context` returns `{ ancestors, descendants }` using the
+  standard Mastodon response schema and `thread` filter context annotations. The
+  underlying `getStatusContext` service is shared with native server components,
+  resolves both database UUIDs and URL aliases, enforces viewer visibility/block
+  predicates, and bounds iterative ancestor and descendant traversal.
+
 - **Admin account ids are the actor id space, not numeric snowflakes.**
   `Admin::Account.id` (and the `account`/`target_account`/`assigned_account`/
   `action_taken_by_account` ids embedded in `Admin::Report`) is exactly the id

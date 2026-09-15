@@ -27,14 +27,18 @@ import { UploadMediaButton } from '@/lib/components/post-box/upload-media-button
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import { useAutoResizeTextarea } from '@/lib/hooks/useAutoResizeTextarea'
-import {
-  ActorProfile,
-  getMention,
-  getMentionFromActorID
-} from '@/lib/types/domain/actor'
+import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
-import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
+import { Status } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
+import { MastodonVisibility } from '@/lib/utils/getVisibility'
+
+import {
+  PreparedReplyDraft,
+  ReplyMentionMode,
+  ReplyTargetPreview,
+  prepareReplyDraft
+} from './replyDraft'
 
 interface Props {
   profile: ActorProfile
@@ -55,13 +59,32 @@ export const StatusReplyBox: FC<Props> = ({
   // The reply endpoint enforces it too, so without this the reply box would let
   // a draft grow past the limit and only fail on submit.
   const { maxStatusCharacters, maxMediaAttachments } = useInstanceLimits()
-  const [allowPost, setAllowPost] = useState<boolean>(false)
   const [isPosting, setIsPosting] = useState<boolean>(false)
   const [text, setText] = useState<string>('')
   const [warningMsg, setWarningMsg] = useState<string | null>(null)
+  const [mentionMode, setMentionMode] = useState<ReplyMentionMode>('all')
+  const [targetPreview, setTargetPreview] = useState<ReplyTargetPreview | null>(
+    null
+  )
+  const [inheritedVisibility, setInheritedVisibility] =
+    useState<MastodonVisibility>('public')
+  const [inheritedLanguage, setInheritedLanguage] = useState<
+    string | undefined
+  >(undefined)
+  const [mentionsSummary, setMentionsSummary] = useState<
+    PreparedReplyDraft['mentions']
+  >({
+    author: null,
+    others: [],
+    all: []
+  })
+
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   useAutoResizeTextarea(textareaRef, text)
   const formRef = useRef<HTMLFormElement>(null)
+  const isSubmittingRef = useRef<boolean>(false)
+  const initializedStatusIdRef = useRef<string | null>(null)
+  const userHasEditedTextRef = useRef<boolean>(false)
 
   const [postExtension, dispatch] = useReducer(
     statusExtensionReducer,
@@ -75,14 +98,11 @@ export const StatusReplyBox: FC<Props> = ({
     postExtensionRef.current = postExtension
   }, [postExtension])
 
-  // Single source of truth for the submit button, so a limit that changes under
-  // an open draft (the layout re-renders on router.refresh()) cannot leave a
-  // stale enabled/disabled button. Skipped while a submit is in flight so it
-  // never re-enables the button mid-post.
-  useEffect(() => {
-    if (isPosting) return
-    setAllowPost(text.trim().length > 0 && text.length <= maxStatusCharacters)
-  }, [text, maxStatusCharacters, isPosting])
+  // Allow posting if text has content OR if there are media attachments
+  // (permitting valid attachment-only replies per repository guidelines).
+  const hasContent =
+    text.trim().length > 0 || postExtension.attachments.length > 0
+  const allowPost = hasContent && text.length <= maxStatusCharacters
 
   useEffect(() => {
     return () => {
@@ -94,72 +114,76 @@ export const StatusReplyBox: FC<Props> = ({
     }
   }, [])
 
-  const getDefaultMessage = (
-    profile: ActorProfile,
-    replyStatus?: StatusNote
-  ): [string, number, number] | null => {
-    if (!replyStatus) return null
-    if (replyStatus.actorId === profile.id) return null
-
-    const message = replyStatus.actor
-      ? `${getMention(replyStatus.actor, true)} `
-      : `${getMentionFromActorID(replyStatus.actorId, true)} `
-    const others = replyStatus.tags
-      .filter((item) => item.type === 'mention')
-      .filter((item) => item.name !== getMention(profile, true))
-      .map((item) => {
-        if (item.name.slice(1).includes('@')) return item.name
-        try {
-          const url = new URL(item.value)
-          return `${item.name}@${url.host}`
-        } catch {
-          return item.name
-        }
-      })
-      .join(' ')
-
-    if (others.length > 0) {
-      return [
-        `${message} ${others} `,
-        message.length + 1,
-        message.length + others.length + 1
-      ]
-    }
-
-    return [message, message.length, message.length]
-  }
-
+  // Initialize draft helper: compute mentions, CW, visibility, declared language,
+  // and target preview. Do NOT overwrite an edited draft when unrelated status props refresh.
   useEffect(() => {
-    if (replyStatus.type !== StatusType.enum.Note) {
+    if (initializedStatusIdRef.current === replyStatus.id) {
       return
     }
 
-    const defaultMessage = getDefaultMessage(profile, replyStatus)
-    if (defaultMessage) {
-      const [value, start, end] = defaultMessage
-      setText(value)
+    initializedStatusIdRef.current = replyStatus.id
+    userHasEditedTextRef.current = false
 
+    const draft = prepareReplyDraft({
+      targetStatus: replyStatus,
+      currentViewer: profile,
+      mentionMode
+    })
+
+    setTargetPreview(draft.targetPreview)
+    setInheritedVisibility(draft.visibility)
+    setInheritedLanguage(draft.language)
+    setMentionsSummary(draft.mentions)
+
+    setText(draft.initialText)
+    if (draft.isSpoilerVisible) {
+      dispatch(setContentWarningVisibility(true))
+      dispatch(setContentWarning(draft.spoilerText))
+    } else {
+      dispatch(setContentWarningVisibility(false))
+      dispatch(setContentWarning(''))
+    }
+
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.selectionStart = draft.cursorPosition
+        textareaRef.current.selectionEnd = draft.cursorPosition
+        textareaRef.current.focus()
+      }
+    }, 0)
+  }, [profile, replyStatus, mentionMode])
+
+  const handleMentionModeChange = (mode: ReplyMentionMode) => {
+    setMentionMode(mode)
+    if (!userHasEditedTextRef.current) {
+      const draft = prepareReplyDraft({
+        targetStatus: replyStatus,
+        currentViewer: profile,
+        mentionMode: mode
+      })
+      setText(draft.initialText)
       setTimeout(() => {
         if (textareaRef.current) {
-          textareaRef.current.selectionStart = start
-          textareaRef.current.selectionEnd = end
+          textareaRef.current.selectionStart = draft.cursorPosition
+          textareaRef.current.selectionEnd = draft.cursorPosition
           textareaRef.current.focus()
         }
       }, 0)
-    } else {
-      setTimeout(() => {
-        textareaRef.current?.focus()
-      }, 0)
     }
-  }, [profile, replyStatus])
+  }
 
   const onPost = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault()
 
-    setAllowPost(false)
+    // Double-submit prevention: synchronously reject if already submitting
+    if (isSubmittingRef.current || isPosting) {
+      return
+    }
+    isSubmittingRef.current = true
     setIsPosting(true)
     setWarningMsg(null)
     removedAttachmentIdsRef.current.clear()
+
     const message = text
     const contentWarning = postExtension.contentWarningVisible
       ? postExtension.contentWarning
@@ -232,6 +256,9 @@ export const StatusReplyBox: FC<Props> = ({
         message,
         contentWarning,
         replyStatus,
+        inReplyToId: replyStatus.id,
+        visibility: inheritedVisibility,
+        language: inheritedLanguage,
         attachments
       })
 
@@ -240,11 +267,12 @@ export const StatusReplyBox: FC<Props> = ({
       dispatch(resetExtension())
       removedAttachmentIdsRef.current.clear()
       setText('')
+      isSubmittingRef.current = false
       setIsPosting(false)
     } catch (error) {
+      isSubmittingRef.current = false
       setIsPosting(false)
-      // Surface the server's message (e.g. an admin-configured length limit)
-      // rather than a generic failure.
+      // Surface the server's message without wiping user draft, CW, or attachments.
       setWarningMsg(
         error instanceof Error && error.message
           ? error.message
@@ -279,24 +307,96 @@ export const StatusReplyBox: FC<Props> = ({
   const onQuickPost = async (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (!(event.metaKey || event.ctrlKey)) return
     if (event.code !== 'Enter') return
-    if (!allowPost) return
+    if (!allowPost || isSubmittingRef.current || isPosting) return
     if (!formRef.current) return
     await onPost()
   }
 
   const onTextChange = (value: string) => {
+    userHasEditedTextRef.current = true
     setText(value)
   }
 
   const getPlaceholder = () => {
-    if (replyStatus.actor) {
-      return `Reply to ${replyStatus.actor.name || replyStatus.actor.username}...`
+    if (targetPreview) {
+      return `Reply to ${targetPreview.authorName}...`
     }
     return 'Reply...'
   }
 
   return (
     <div className="mt-4 pt-4 border-t border-border/40">
+      {targetPreview ? (
+        <div
+          data-testid="reply-target-preview"
+          className="mb-3 rounded-lg border border-border/60 bg-muted/30 p-2.5 text-xs"
+        >
+          <div className="flex items-center gap-2 font-medium text-foreground">
+            <span>Replying to {targetPreview.authorName}</span>
+            <span className="text-muted-foreground">
+              {targetPreview.authorHandle}
+            </span>
+            {targetPreview.isPoll ? (
+              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary font-semibold">
+                Poll
+              </span>
+            ) : null}
+          </div>
+          {targetPreview.spoilerText ? (
+            <div className="mt-1 font-medium text-amber-600 dark:text-amber-400">
+              CW: {targetPreview.spoilerText}
+            </div>
+          ) : null}
+          {targetPreview.textSnippet ? (
+            <div className="mt-1 line-clamp-2 text-muted-foreground">
+              {targetPreview.textSnippet}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {mentionsSummary.others.length > 0 ? (
+        <div className="flex items-center gap-1.5 mb-2.5 text-xs text-muted-foreground">
+          <span className="text-[11px] font-medium mr-1">Mentions:</span>
+          <button
+            type="button"
+            onClick={() => handleMentionModeChange('all')}
+            className={cn(
+              'rounded-full px-2.5 py-0.5 text-xs transition-colors',
+              mentionMode === 'all'
+                ? 'bg-primary text-primary-foreground font-medium'
+                : 'bg-muted hover:bg-muted/80 text-foreground'
+            )}
+          >
+            All ({mentionsSummary.all.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => handleMentionModeChange('author-first')}
+            className={cn(
+              'rounded-full px-2.5 py-0.5 text-xs transition-colors',
+              mentionMode === 'author-first'
+                ? 'bg-primary text-primary-foreground font-medium'
+                : 'bg-muted hover:bg-muted/80 text-foreground'
+            )}
+          >
+            Author first
+          </button>
+          <button
+            type="button"
+            onClick={() => handleMentionModeChange('author-only')}
+            className={cn(
+              'rounded-full px-2.5 py-0.5 text-xs transition-colors',
+              mentionMode === 'author-only'
+                ? 'bg-primary text-primary-foreground font-medium'
+                : 'bg-muted hover:bg-muted/80 text-foreground'
+            )}
+          >
+            Author only
+          </button>
+        </div>
+      ) : null}
+
       <form ref={formRef} onSubmit={onPost}>
         <div className="flex items-start gap-3">
           <Avatar className="size-8 shrink-0">

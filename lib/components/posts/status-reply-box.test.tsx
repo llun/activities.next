@@ -4,7 +4,7 @@
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
-import { createNote } from '@/lib/client'
+import { createNote, uploadAttachment } from '@/lib/client'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
@@ -64,12 +64,28 @@ const replyStatus: StatusNote = {
   tags: []
 }
 
+const uploadAttachmentMock = uploadAttachment as jest.MockedFunction<
+  typeof uploadAttachment
+>
+
 describe('StatusReplyBox', () => {
   beforeEach(() => {
     createNoteMock.mockResolvedValue({
       status: replyStatus,
       attachments: []
     })
+    uploadAttachmentMock.mockResolvedValue({
+      id: 'att-1',
+      type: 'upload',
+      mediaType: 'image/png',
+      url: 'https://activities.local/media/1.png',
+      width: 100,
+      height: 100
+    })
+    let counter = 0
+    global.crypto.randomUUID = vi.fn(() => `uuid-${counter++}` as never)
+    global.URL.createObjectURL = vi.fn(() => 'blob:test-url')
+    global.URL.revokeObjectURL = vi.fn()
   })
 
   afterEach(() => {
@@ -105,6 +121,169 @@ describe('StatusReplyBox', () => {
         })
       )
     })
+  })
+
+  it('toggles mention modes between all, author-first, and author-only', async () => {
+    const multiMentionStatus: StatusNote = {
+      ...replyStatus,
+      id: 'https://activities.local/users/alice/statuses/post-multi',
+      actorId: 'https://activities.local/users/alice',
+      actor: {
+        id: 'https://activities.local/users/alice',
+        username: 'alice',
+        domain: 'activities.local',
+        name: 'Alice',
+        followersUrl: 'https://activities.local/users/alice/followers',
+        inboxUrl: 'https://activities.local/users/alice/inbox',
+        sharedInboxUrl: 'https://activities.local/inbox',
+        followingCount: 0,
+        followersCount: 0,
+        statusCount: 0,
+        lastStatusAt: null,
+        createdAt: currentTime
+      },
+      tags: [
+        {
+          id: 'tag-1',
+          statusId: 'status-multi',
+          type: 'mention',
+          name: '@bob',
+          value: 'https://activities.local/users/bob',
+          createdAt: currentTime,
+          updatedAt: currentTime
+        }
+      ]
+    }
+
+    render(
+      <StatusReplyBox
+        profile={profile}
+        replyStatus={multiMentionStatus}
+        onCancel={vi.fn()}
+        onPostCreated={vi.fn()}
+      />
+    )
+
+    const textarea = screen.getByPlaceholderText('Reply to Alice...')
+    // By default mode is 'all'
+    expect(textarea).toHaveValue(
+      '@alice@activities.local @bob@activities.local '
+    )
+
+    // Switch to author-first
+    fireEvent.click(screen.getByRole('button', { name: 'Author first' }))
+    expect(textarea).toHaveValue(
+      '@alice@activities.local \n\n@bob@activities.local'
+    )
+
+    // Switch to author-only
+    fireEvent.click(screen.getByRole('button', { name: 'Author only' }))
+    expect(textarea).toHaveValue('@alice@activities.local ')
+
+    // Switch back to all
+    fireEvent.click(screen.getByRole('button', { name: 'All (2)' }))
+    expect(textarea).toHaveValue(
+      '@alice@activities.local @bob@activities.local '
+    )
+  })
+
+  it('inherits content warning and visibility from the target status', async () => {
+    const parentStatusWithCwAndVisibility: StatusNote = {
+      ...replyStatus,
+      id: 'https://activities.local/users/alice/statuses/post-cw',
+      actorId: 'https://activities.local/users/alice',
+      actor: {
+        id: 'https://activities.local/users/alice',
+        username: 'alice',
+        domain: 'activities.local',
+        name: 'Alice',
+        followersUrl: 'https://activities.local/users/alice/followers',
+        inboxUrl: 'https://activities.local/users/alice/inbox',
+        sharedInboxUrl: 'https://activities.local/inbox',
+        followingCount: 0,
+        followersCount: 0,
+        statusCount: 0,
+        lastStatusAt: null,
+        createdAt: currentTime
+      },
+      summary: 'Spoiler Alert: Season Finale',
+      to: ['https://activities.local/users/alice/followers'],
+      cc: []
+    }
+
+    render(
+      <StatusReplyBox
+        profile={profile}
+        replyStatus={parentStatusWithCwAndVisibility}
+        onCancel={vi.fn()}
+        onPostCreated={vi.fn()}
+      />
+    )
+
+    // Check CW input is visible and populated
+    const cwInput = screen.getByRole('textbox', { name: 'Content warning' })
+    expect(cwInput).toHaveValue('Spoiler Alert: Season Finale')
+
+    fireEvent.change(screen.getByPlaceholderText('Reply to Alice...'), {
+      target: { value: 'My reaction to the finale' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+
+    await waitFor(() => {
+      expect(createNoteMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contentWarning: 'Spoiler Alert: Season Finale',
+          visibility: 'private',
+          inReplyToId: parentStatusWithCwAndVisibility.id
+        })
+      )
+    })
+  })
+
+  it('preserves draft text and attachments on submit failure', async () => {
+    resizeImageMock.mockImplementation((file) => Promise.resolve(file))
+    createNoteMock.mockRejectedValueOnce(new Error('Network request failed'))
+
+    render(
+      <StatusReplyBox
+        profile={profile}
+        replyStatus={replyStatus}
+        isMediaUploadEnabled={true}
+        onCancel={vi.fn()}
+        onPostCreated={vi.fn()}
+      />
+    )
+
+    const textarea = screen.getByPlaceholderText('Reply to Llun...')
+    fireEvent.change(textarea, {
+      target: { value: 'Important reply that must not be lost' }
+    })
+
+    const input =
+      document.querySelector<HTMLInputElement>('input[type="file"]')!
+    const file = new File(['image-bytes'], 'test.png', { type: 'image/png' })
+    fireEvent.change(input, { target: { files: [file] } })
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: /Add media \(1\// })
+      ).toBeInTheDocument()
+    })
+
+    const postButton = screen.getByRole('button', { name: 'Post' })
+    fireEvent.click(postButton)
+
+    await waitFor(() => {
+      expect(screen.getByText('Network request failed')).toBeInTheDocument()
+      expect(postButton).toBeEnabled()
+    })
+
+    // Textarea still has the text
+    expect(textarea).toHaveValue('Important reply that must not be lost')
+    // Attachment still present
+    expect(
+      screen.getByRole('button', { name: /Add media \(1\// })
+    ).toBeInTheDocument()
   })
 })
 

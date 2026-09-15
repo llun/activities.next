@@ -57,6 +57,43 @@ describe('client timelines module', () => {
       )
     })
 
+    it('fetches timeline with includeContext returning context payload', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          statuses: [{ id: 'status-1' }],
+          context: {
+            ancestorsById: {
+              'parent-1': {
+                id: 'parent-1',
+                actor: {
+                  id: 'actor-1',
+                  username: 'alice',
+                  domain: 'example.com'
+                },
+                contentHtml: '<p>Parent</p>',
+                createdAt: '2026-09-15T10:00:00.000Z',
+                visibility: 'public'
+              }
+            }
+          },
+          nextMaxStatusId: 'next-1',
+          prevMinStatusId: 'prev-1'
+        }),
+        { status: 200 }
+      )
+
+      const res = await getTimeline({
+        timeline: Timeline.HOME,
+        includeContext: true
+      })
+
+      expect(res.statuses).toEqual([{ id: 'status-1' }])
+      expect(res.context?.ancestorsById['parent-1']).toBeDefined()
+      expect(res.context?.ancestorsById['parent-1'].contentHtml).toBe(
+        '<p>Parent</p>'
+      )
+    })
+
     it('continues fetching when statuses array is empty and nextMaxStatusId exists', async () => {
       fetchMock
         .mockResponseOnce(

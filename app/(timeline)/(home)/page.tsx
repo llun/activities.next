@@ -10,6 +10,7 @@ import {
   getFilteredStatusPage,
   getFilteredTimelinePage
 } from '@/lib/services/timelines/getFilteredTimelinePage'
+import { getTimelineContext } from '@/lib/services/timelines/getTimelineContext'
 import { getCachedLocalPublicStatusesCount } from '@/lib/services/timelines/localPublicCount'
 import { Timeline } from '@/lib/services/timelines/types'
 import { getActorProfile } from '@/lib/types/domain/actor'
@@ -98,11 +99,17 @@ const Page = async () => {
     timeline: Timeline.MAIN,
     actorId: actor.id
   })
+  const timelineContext = await getTimelineContext({
+    database,
+    currentActor: actor,
+    statuses
+  })
   return (
     <MainPageTimeline
       host={host}
       currentTime={Date.now()}
       statuses={statuses.map((item) => cleanJson(item))}
+      timelineContext={cleanJson(timelineContext)}
       initialNextMaxStatusId={nextMaxStatusId}
       profile={getActorProfile(actor)}
       isMediaUploadEnabled={Boolean(mediaStorage)}

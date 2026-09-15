@@ -10,11 +10,13 @@ interface Props {
 }
 
 export const ReplyButton: FC<Props> = ({ status, onReply }) => {
+  const replyCount =
+    typeof status.totalReplies === 'number'
+      ? status.totalReplies
+      : status.replies.length
   const replyLabel =
-    status.replies.length > 0
-      ? `Reply to post, ${status.replies.length} ${
-          status.replies.length === 1 ? 'reply' : 'replies'
-        }`
+    replyCount > 0
+      ? `Reply to post, ${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}`
       : 'Reply to post'
 
   return (
@@ -25,7 +27,7 @@ export const ReplyButton: FC<Props> = ({ status, onReply }) => {
       onClick={() => onReply?.(status)}
     >
       <MessageCircle className="h-4 w-4" />
-      {status.replies.length > 0 && <span>{status.replies.length}</span>}
+      {replyCount > 0 && <span>{replyCount}</span>}
     </button>
   )
 }
