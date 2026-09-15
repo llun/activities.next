@@ -1,4 +1,6 @@
 import { filterReadableStatuses } from '@/lib/services/statusRouteAccess'
+import { filterBlockedStatuses } from '@/lib/services/timelines/blockFilter'
+import { filterMutedStatuses } from '@/lib/services/timelines/muteFilter'
 import { Actor, Database, Status } from '@/lib/types/database'
 import { StatusType } from '@/lib/types/domain/status'
 import {
@@ -65,6 +67,8 @@ export async function getTimelineContext({
     const s = status as Record<string, unknown>
     if (typeof s.url === 'string' && s.url) resolvedKeys.add(s.url)
     if (typeof s.uri === 'string' && s.uri) resolvedKeys.add(s.uri)
+    if (typeof s.publicId === 'string' && s.publicId)
+      resolvedKeys.add(s.publicId)
   }
 
   const initialStatusIds = new Set<string>()
@@ -165,11 +169,24 @@ export async function getTimelineContext({
       break
     }
 
-    const readableStatuses = await filterReadableStatuses({
+    let readableStatuses = await filterReadableStatuses({
       database,
       currentActor: currentActor ?? null,
       statuses: newFoundStatuses
     })
+
+    if (currentActor) {
+      readableStatuses = await filterBlockedStatuses(
+        database,
+        currentActor.id,
+        readableStatuses
+      )
+      readableStatuses = await filterMutedStatuses(
+        database,
+        currentActor.id,
+        readableStatuses
+      )
+    }
 
     if (readableStatuses.length === 0) {
       break
@@ -261,7 +278,7 @@ export async function getTimelineContext({
         (status.cc as string[]) ?? []
       )
 
-    ancestorsById[id] = {
+    const preview: TimelineParentPreview = {
       id: status.id,
       url: typeof s.url === 'string' ? s.url : undefined,
       actor,
@@ -274,6 +291,12 @@ export async function getTimelineContext({
       inReplyToUrl: parentRef?.parentUrl,
       visibility
     }
+
+    ancestorsById[status.id] = preview
+    if (typeof s.url === 'string' && s.url) ancestorsById[s.url] = preview
+    if (typeof s.uri === 'string' && s.uri) ancestorsById[s.uri] = preview
+    if (typeof s.publicId === 'string' && s.publicId)
+      ancestorsById[s.publicId] = preview
   }
 
   return { ancestorsById }

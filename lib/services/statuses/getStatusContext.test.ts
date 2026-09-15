@@ -1,6 +1,7 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { Database } from '@/lib/database/types'
 import { getStatusContext } from '@/lib/services/statuses/getStatusContext'
 import { seedDatabase } from '@/lib/stub/database'
 import { statusPublicId } from '@/lib/stub/publicIds'
@@ -8,6 +9,7 @@ import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { Actor } from '@/lib/types/domain/actor'
+import { Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 describe('getStatusContext', () => {
@@ -275,5 +277,179 @@ describe('getStatusContext', () => {
     const ancestorIds = result.ancestors.map((s) => s.id)
     expect(ancestorIds).toContain(publicRootId)
     expect(ancestorIds).not.toContain(privateMidId)
+  })
+
+  it('strictly excludes blocked and muted ancestors and descendant replies', async () => {
+    // ACTOR1_ID blocks ACTOR2_ID and mutes ACTOR3_ID
+    await database.createBlock({
+      actorId: ACTOR1_ID,
+      targetActorId: ACTOR2_ID,
+      uri: `${ACTOR1_ID}#blocks/status-context-test`
+    })
+    await database.createMute({
+      actorId: ACTOR1_ID,
+      targetActorId: ACTOR3_ID,
+      notifications: false,
+      endsAt: null
+    })
+
+    const modRootId = `${ACTOR1_ID}/statuses/ctx-mod-root`
+    const blockedParentId = `${ACTOR2_ID}/statuses/ctx-mod-blocked-parent`
+    const mutedParentId = `${ACTOR3_ID}/statuses/ctx-mod-muted-parent`
+    const modLeafId = `${ACTOR1_ID}/statuses/ctx-mod-leaf`
+
+    await database.createNote({
+      id: modRootId,
+      url: modRootId,
+      actorId: ACTOR1_ID,
+      text: 'Moderation Root',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+
+    await database.createNote({
+      id: blockedParentId,
+      url: blockedParentId,
+      actorId: ACTOR2_ID,
+      text: 'Blocked Parent',
+      reply: modRootId,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+
+    await database.createNote({
+      id: mutedParentId,
+      url: mutedParentId,
+      actorId: ACTOR3_ID,
+      text: 'Muted Parent',
+      reply: blockedParentId,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+
+    await database.createNote({
+      id: modLeafId,
+      url: modLeafId,
+      actorId: ACTOR1_ID,
+      text: 'Leaf Note',
+      reply: mutedParentId,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+
+    // Descendants on modRootId
+    const blockedReplyId = `${ACTOR2_ID}/statuses/ctx-mod-blocked-reply`
+    const mutedReplyId = `${ACTOR3_ID}/statuses/ctx-mod-muted-reply`
+    const allowedReplyId = `${ACTOR1_ID}/statuses/ctx-mod-allowed-reply`
+
+    await database.createNote({
+      id: blockedReplyId,
+      url: blockedReplyId,
+      actorId: ACTOR2_ID,
+      text: 'Blocked Reply',
+      reply: modRootId,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+
+    await database.createNote({
+      id: mutedReplyId,
+      url: mutedReplyId,
+      actorId: ACTOR3_ID,
+      text: 'Muted Reply',
+      reply: modRootId,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+
+    await database.createNote({
+      id: allowedReplyId,
+      url: allowedReplyId,
+      actorId: ACTOR1_ID,
+      text: 'Allowed Reply',
+      reply: modRootId,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+
+    // When viewed by actor1:
+    // Ancestors of modLeafId should exclude blockedParentId and mutedParentId, but include modRootId
+    const leafContext = await getStatusContext({
+      database,
+      statusId: modLeafId,
+      currentActor: actor1
+    })
+    const ancestorIds = leafContext.ancestors.map((s) => s.id)
+    expect(ancestorIds).toContain(modRootId)
+    expect(ancestorIds).not.toContain(blockedParentId)
+    expect(ancestorIds).not.toContain(mutedParentId)
+
+    // Descendants of modRootId should exclude blockedReplyId and mutedReplyId, but include allowedReplyId
+    const rootContext = await getStatusContext({
+      database,
+      statusId: modRootId,
+      currentActor: actor1
+    })
+    const descendantIds = rootContext.descendants.map((s) => s.id)
+    expect(descendantIds).toContain(allowedReplyId)
+    expect(descendantIds).not.toContain(blockedReplyId)
+    expect(descendantIds).not.toContain(mutedReplyId)
+  })
+
+  it('normalizes timestamp sorting and handles invalid dates gracefully', async () => {
+    const sortRootId = `${ACTOR1_ID}/statuses/ctx-sort-root`
+    await database.createNote({
+      id: sortRootId,
+      url: sortRootId,
+      actorId: ACTOR1_ID,
+      text: 'Sort Root',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+
+    const replyInvalidDateId = `${ACTOR1_ID}/statuses/ctx-sort-invalid-date`
+    const replyValidDateId = `${ACTOR1_ID}/statuses/ctx-sort-valid-date`
+
+    const wrappedDb = {
+      ...database,
+      getStatusReplies: vi.fn(async ({ statusId }: { statusId: string }) => {
+        if (statusId === sortRootId) {
+          return [
+            {
+              id: replyValidDateId,
+              actorId: ACTOR1_ID,
+              type: StatusType.enum.Note,
+              to: [ACTIVITY_STREAM_PUBLIC],
+              cc: [],
+              reply: sortRootId,
+              createdAt: 50000,
+              text: 'Valid date reply'
+            } as unknown as Status,
+            {
+              id: replyInvalidDateId,
+              actorId: ACTOR1_ID,
+              type: StatusType.enum.Note,
+              to: [ACTIVITY_STREAM_PUBLIC],
+              cc: [],
+              reply: sortRootId,
+              createdAt: 'invalid-date' as unknown as number,
+              text: 'Invalid date reply'
+            } as unknown as Status
+          ]
+        }
+        return []
+      })
+    } as unknown as Database
+
+    const result = await getStatusContext({
+      database: wrappedDb,
+      statusId: sortRootId,
+      currentActor: actor1
+    })
+
+    expect(result.descendants.map((s) => s.id)).toEqual([
+      replyInvalidDateId,
+      replyValidDateId
+    ])
   })
 })
