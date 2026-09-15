@@ -114,7 +114,7 @@ export const updatePollFromUserInput = async ({
           database,
           statusId,
           text,
-          declaredLanguage: status.language
+          declaredLanguage: language !== undefined ? language : status.language
         })
       }
       updatedStatus = (await database.getStatus({ statusId })) ?? updatedStatus

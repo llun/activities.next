@@ -120,8 +120,7 @@ describe('redetectStatusLanguages execution', () => {
     await db.schema.createTable('statuses', (table) => {
       table.string('id').primary()
       table.string('type')
-      table.text('text')
-      table.string('language')
+      table.text('content')
       table.timestamp('createdAt').defaultTo(db.fn.now())
       table.timestamp('updatedAt').defaultTo(db.fn.now())
     })
@@ -150,8 +149,7 @@ describe('redetectStatusLanguages execution', () => {
     await db('statuses').insert({
       id: 'status-1',
       type: 'Note',
-      text: styledDutch,
-      language: 'en',
+      content: JSON.stringify({ text: styledDutch, language: 'en' }),
       createdAt: now,
       updatedAt: now
     })
@@ -179,8 +177,7 @@ describe('redetectStatusLanguages execution', () => {
     await db('statuses').insert({
       id: 'status-2',
       type: 'Note',
-      text: styledDutch,
-      language: 'en',
+      content: JSON.stringify({ text: styledDutch, language: 'en' }),
       createdAt: now,
       updatedAt: now
     })
@@ -213,8 +210,7 @@ describe('redetectStatusLanguages execution', () => {
     await db('statuses').insert({
       id: 'status-3',
       type: 'Note',
-      text: dutch,
-      language: 'nl',
+      content: JSON.stringify({ text: dutch, language: 'nl' }),
       createdAt: now,
       updatedAt: now
     })
@@ -242,8 +238,7 @@ describe('redetectStatusLanguages execution', () => {
     await db('statuses').insert({
       id: 'status-4',
       type: 'Note',
-      text: 'hi', // too short (< 20 chars)
-      language: 'en',
+      content: JSON.stringify({ text: 'hi', language: 'en' }), // too short (< 20 chars)
       createdAt: now,
       updatedAt: now
     })
@@ -275,8 +270,7 @@ describe('redetectStatusLanguages execution', () => {
     await db('statuses').insert({
       id: 'status-dry',
       type: 'Note',
-      text: styledDutch,
-      language: 'en',
+      content: JSON.stringify({ text: styledDutch, language: 'en' }),
       createdAt: now,
       updatedAt: now
     })
@@ -302,8 +296,7 @@ describe('redetectStatusLanguages execution', () => {
     await db('statuses').insert({
       id: 'status-concurrent',
       type: 'Note',
-      text: styledDutch,
-      language: 'en',
+      content: JSON.stringify({ text: styledDutch, language: 'en' }),
       createdAt: now,
       updatedAt: now
     })
@@ -365,21 +358,21 @@ describe('redetectStatusLanguages execution', () => {
       {
         id: 'status-01',
         type: 'Note',
-        text: dutch1,
+        content: JSON.stringify({ text: dutch1 }),
         createdAt: now,
         updatedAt: now
       },
       {
         id: 'status-02',
         type: 'Note',
-        text: dutch2,
+        content: JSON.stringify({ text: dutch2 }),
         createdAt: now,
         updatedAt: now
       },
       {
         id: 'status-03',
         type: 'Note',
-        text: dutch3,
+        content: JSON.stringify({ text: dutch3 }),
         createdAt: now,
         updatedAt: now
       }
@@ -412,7 +405,7 @@ describe('redetectStatusLanguages execution', () => {
     await db('statuses').insert({
       id: 'status-idem',
       type: 'Note',
-      text: dutch,
+      content: JSON.stringify({ text: dutch }),
       createdAt: now,
       updatedAt: now
     })
@@ -437,7 +430,9 @@ describe('redetectStatusLanguages execution', () => {
     await db('statuses').insert({
       id: 'status-boost',
       type: 'Announce',
-      text: 'Dit is een boost van een status die niet direct gedetecteerd moet worden.',
+      content: JSON.stringify({
+        text: 'Dit is een boost van een status die niet direct gedetecteerd moet worden.'
+      }),
       createdAt: now,
       updatedAt: now
     })

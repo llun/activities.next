@@ -4,6 +4,7 @@ import { detectAll } from 'tinyld'
 import { normalizeLanguageCode } from '@/lib/services/translation/types'
 import { logger } from '@/lib/utils/logger'
 import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 export interface DetectedLanguage {
   // ISO 639-1 two-letter code, normalized the same way as the declared
@@ -107,7 +108,7 @@ const HASHTAG_PATTERN = /#\S+/g
  */
 export const decodeNumericEntities = (text: string): string =>
   text
-    .replace(/&#x([0-9a-fA-F]+);/g, (match, hex) => {
+    .replace(/&#[xX]([0-9a-fA-F]+);/g, (match, hex) => {
       try {
         const codePoint = parseInt(hex, 16)
         if (codePoint >= 0 && codePoint <= 0x10ffff) {
@@ -272,6 +273,9 @@ export const persistDetectedLanguage = async ({
     }
     await database.clearDetectedLanguage({ statusId })
   } catch (error) {
-    logger.error({ error, statusId }, 'Failed to persist detected language')
+    logger.error(
+      { err: toLoggableError(error), statusId },
+      'Failed to persist detected language'
+    )
   }
 }

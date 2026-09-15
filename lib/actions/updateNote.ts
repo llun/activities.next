@@ -117,7 +117,7 @@ export const updateNoteFromUserInput = async ({
           database,
           statusId,
           text,
-          declaredLanguage: status.language
+          declaredLanguage: language !== undefined ? language : status.language
         })
       }
 

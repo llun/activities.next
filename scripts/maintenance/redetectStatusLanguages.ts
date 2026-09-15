@@ -27,6 +27,7 @@ import { loadEnvConfig } from '@next/env'
 import { Knex } from 'knex'
 
 import { getDatabase, getKnex } from '@/lib/database'
+import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { Database } from '@/lib/database/types'
 import { detectLanguageFromHtml } from '@/lib/services/language-detection'
 
@@ -185,8 +186,7 @@ export async function redetectStatusLanguages({
       .whereIn('statuses.type', ['Note', 'Poll'])
       .select(
         'statuses.id',
-        'statuses.text',
-        'statuses.language as declaredLanguage',
+        'statuses.content',
         'statuses.updatedAt',
         'status_detected_languages.language as currentDetectedLanguage'
       )
@@ -206,8 +206,24 @@ export async function redetectStatusLanguages({
       scanned += 1
 
       try {
-        const detected = detectLanguageFromHtml(row.text, {
-          declaredLanguage: row.declaredLanguage
+        let text = ''
+        let declaredLanguage: string | null = null
+        if (row.content) {
+          try {
+            const parsed = getCompatibleJSON<{
+              text?: string
+              language?: string | null
+            }>(row.content)
+            if (typeof parsed?.text === 'string') text = parsed.text
+            if (typeof parsed?.language === 'string')
+              declaredLanguage = parsed.language
+          } catch {
+            // Unparseable JSON content, leave empty text
+          }
+        }
+
+        const detected = detectLanguageFromHtml(text, {
+          declaredLanguage
         })
         const nextLang = detected?.language ?? null
         const currentLang = row.currentDetectedLanguage ?? null
@@ -220,7 +236,7 @@ export async function redetectStatusLanguages({
         if (dryRun) {
           if (!currentLang && nextLang) {
             console.log(
-              `  [DRY-RUN] ${row.id}: newly detected '${nextLang}' (declared: '${row.declaredLanguage ?? 'none'}')`
+              `  [DRY-RUN] ${row.id}: newly detected '${nextLang}' (declared: '${declaredLanguage ?? 'none'}')`
             )
             newlyDetected += 1
           } else if (currentLang && nextLang) {

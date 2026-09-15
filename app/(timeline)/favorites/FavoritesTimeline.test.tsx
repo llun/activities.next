@@ -21,7 +21,12 @@ vi.mock('@/lib/client', async (importOriginal) => ({
   repostStatus: vi.fn(),
   undoBookmarkStatus: vi.fn(),
   undoLikeStatus: vi.fn(),
-  undoRepostStatus: vi.fn()
+  undoRepostStatus: vi.fn(),
+  getTranslationCapability: vi.fn().mockResolvedValue({
+    enabled: false,
+    defaultLanguage: null
+  }),
+  getTranslationLanguages: vi.fn().mockResolvedValue({})
 }))
 
 vi.mock('next/navigation', () => ({
