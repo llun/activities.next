@@ -225,28 +225,15 @@ describe('ScrollToTopButton', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('renders with fixed positioning and bottom-3 offset', () => {
+  it('renders with fixed positioning and safe-area bottom offset', () => {
     Object.defineProperty(window, 'scrollY', { value: 500 })
     render(<ScrollToTopButton />)
 
     const button = screen.getByRole('button', { name: 'Scroll to top' })
-    expect(button).toHaveClass('fixed', 'bottom-3', 'z-30')
-
-    // Simulate rendered geometry by configuring getBoundingClientRect
-    vi.spyOn(button, 'getBoundingClientRect').mockReturnValue({
-      top: 600,
-      bottom: 638,
-      left: 140,
-      right: 253,
-      width: 113,
-      height: 38,
-      x: 140,
-      y: 600,
-      toJSON: () => {}
-    })
-
-    const rect = button.getBoundingClientRect()
-    expect(rect.height).toBe(38)
-    expect(rect.bottom).toBe(638)
+    expect(button).toHaveClass(
+      'fixed',
+      'bottom-[calc(env(safe-area-inset-bottom,0px)+0.75rem)]',
+      'z-30'
+    )
   })
 })
