@@ -16,6 +16,8 @@ import {
   likeStatus,
   reactToStatus,
   repostStatus,
+  resetTranslationCapabilityForTesting,
+  resetTranslationLanguagesForTesting,
   retryFitnessProcessing,
   revokeStatusQuote,
   translateStatus,
@@ -34,6 +36,8 @@ enableFetchMocks()
 describe('client statuses module', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
+    resetTranslationCapabilityForTesting()
+    resetTranslationLanguagesForTesting()
   })
 
   describe('updateNote', () => {
@@ -344,6 +348,61 @@ describe('client statuses module', () => {
       })
       expect(fetchMock).toHaveBeenCalledWith('/api/v2/instance')
     })
+
+    it('memoizes successful capability fetch across repeated calls', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({
+          configuration: { translation: { enabled: true } },
+          languages: ['nl', 'en']
+        }),
+        { status: 200 }
+      )
+
+      const first = await getTranslationCapability()
+      const second = await getTranslationCapability()
+
+      expect(first).toEqual({ enabled: true, defaultLanguage: 'nl' })
+      expect(second).toEqual({ enabled: true, defaultLanguage: 'nl' })
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('allows retrying after a failed response instead of pinning failure', async () => {
+      fetchMock.mockResponseOnce('Server Error', { status: 500 })
+
+      const failure = await getTranslationCapability()
+      expect(failure).toEqual({ enabled: false, defaultLanguage: null })
+
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          configuration: { translation: { enabled: true } },
+          languages: ['en']
+        }),
+        { status: 200 }
+      )
+
+      const retry = await getTranslationCapability()
+      expect(retry).toEqual({ enabled: true, defaultLanguage: 'en' })
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
+
+    it('allows retrying after a network rejection', async () => {
+      fetchMock.mockRejectOnce(new Error('Network offline'))
+
+      const failure = await getTranslationCapability()
+      expect(failure).toEqual({ enabled: false, defaultLanguage: null })
+
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          configuration: { translation: { enabled: true } },
+          languages: ['en']
+        }),
+        { status: 200 }
+      )
+
+      const retry = await getTranslationCapability()
+      expect(retry).toEqual({ enabled: true, defaultLanguage: 'en' })
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
   })
 
   describe('likeStatus', () => {
@@ -542,6 +601,34 @@ describe('client statuses module', () => {
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/v1/instance/translation_languages'
       )
+    })
+
+    it('memoizes successful translation languages across repeated calls', async () => {
+      fetchMock.mockResponse(JSON.stringify({ en: ['es', 'fr'] }), {
+        status: 200
+      })
+
+      const first = await getTranslationLanguages()
+      const second = await getTranslationLanguages()
+
+      expect(first).toEqual({ en: ['es', 'fr'] })
+      expect(second).toEqual({ en: ['es', 'fr'] })
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('allows retrying after a failed response instead of pinning failure', async () => {
+      fetchMock.mockResponseOnce('Server Error', { status: 500 })
+
+      const failure = await getTranslationLanguages()
+      expect(failure).toEqual({})
+
+      fetchMock.mockResponseOnce(JSON.stringify({ en: ['es'] }), {
+        status: 200
+      })
+
+      const retry = await getTranslationLanguages()
+      expect(retry).toEqual({ en: ['es'] })
+      expect(fetchMock).toHaveBeenCalledTimes(2)
     })
   })
 

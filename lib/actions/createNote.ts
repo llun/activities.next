@@ -522,7 +522,12 @@ export const createNoteFromUserInput = async ({
     // Content-detected language, stored separately from the declared `language`
     // above so the Translate gate can fall back to it when the author's
     // declared/default language doesn't match what they actually wrote.
-    await persistDetectedLanguage({ database, statusId, text })
+    await persistDetectedLanguage({
+      database,
+      statusId,
+      text,
+      declaredLanguage: language
+    })
 
     // Tags must be persisted before timeline rules run so that
     // notifyRemoteReplyAndMention can verify mentions via tags rather than text

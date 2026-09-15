@@ -6,6 +6,7 @@ import {
   Check,
   ExternalLink,
   Globe,
+  Languages,
   Link as LinkIcon,
   Lock,
   Mail,
@@ -29,6 +30,7 @@ import {
   updateStatusVisibility
 } from '@/lib/client'
 import { getActorIdMention } from '@/lib/components/posts/actor'
+import { useTranslationContext } from '@/lib/components/posts/translation-context'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -195,6 +197,7 @@ export const PostMenu: FC<Props> = ({
   onPostDeleted
 }) => {
   const router = useRouter()
+  const translation = useTranslationContext()
   const [menuOpen, setMenuOpen] = useState(false)
   const deferredSelectRef = useRef<(() => void) | null>(null)
   const [dialog, setDialog] = useState<ActiveDialog>(null)
@@ -566,6 +569,16 @@ export const PostMenu: FC<Props> = ({
           )}
 
           <DropdownMenuSeparator />
+          {translation?.canManualTranslate && translation.state === 'idle' ? (
+            <DropdownMenuItem
+              onSelect={() => {
+                translation.request()
+              }}
+            >
+              <Languages className="size-4" />
+              Translate…
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem
             onSelect={(e) => {
               e.preventDefault()

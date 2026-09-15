@@ -13,7 +13,8 @@ import {
 
 import { FavoritesTimeline } from './FavoritesTimeline'
 
-vi.mock('@/lib/client', () => ({
+vi.mock('@/lib/client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/client')>()),
   bookmarkStatus: vi.fn(),
   getFavourites: vi.fn(),
   likeStatus: vi.fn(),

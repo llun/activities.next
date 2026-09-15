@@ -266,17 +266,12 @@ export const Post: FC<PostProps> = (props) => {
   // would otherwise never offer the control, and a post mislabeled the other
   // way would show a dead en→en-equivalent button. See
   // lib/services/language-detection.
-  const translationLanguage = props.currentActor
+  const isTranslatable = Boolean(props.currentActor)
+  const translationLanguage = isTranslatable
     ? (actualStatus.detectedLanguage ?? actualStatus.language)
     : null
   const statusBody = (
-    <TranslationProvider
-      // Reset translation state cleanly if a mounted Post is reused for a
-      // different status (e.g. in a virtualized feed).
-      key={actualStatus.id}
-      statusId={actualStatus.id}
-      language={translationLanguage}
-    >
+    <>
       <TranslateContent
         statusId={actualStatus.id}
         language={translationLanguage}
@@ -441,80 +436,89 @@ export const Post: FC<PostProps> = (props) => {
       {actualStatus.quote ? (
         <QuoteCard quote={actualStatus.quote} currentTime={props.currentTime} />
       ) : null}
-    </TranslationProvider>
+    </>
   )
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-col gap-1">
-      <BoostStatus status={status} />
-      <div className="flex min-h-0 min-w-0 gap-3">
-        <div className="shrink-0">
-          <ActorAvatar
-            actor={actualStatus.actor}
-            actorId={actualStatus.actorId}
-            statusUrl={actualStatus.url}
-          />
-        </div>
-        <div className="flex-1 min-h-0 min-w-0">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5 text-sm">
-            <ActorInfo
+    <TranslationProvider
+      // Reset translation state cleanly if a mounted Post is reused for a
+      // different status (e.g. in a virtualized feed).
+      key={actualStatus.id}
+      statusId={actualStatus.id}
+      language={translationLanguage}
+      enabled={isTranslatable}
+    >
+      <div className="flex min-h-0 min-w-0 flex-col gap-1">
+        <BoostStatus status={status} />
+        <div className="flex min-h-0 min-w-0 gap-3">
+          <div className="shrink-0">
+            <ActorAvatar
               actor={actualStatus.actor}
               actorId={actualStatus.actorId}
               statusUrl={actualStatus.url}
             />
-            <span className="text-muted-foreground">·</span>
-            {props.onOpenStatus ? (
-              <button
-                type="button"
-                className={`${timestampClassName} -mx-1 inline-flex min-h-8 items-center rounded-sm px-1 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50`}
-                aria-label={openStatusLabel}
-                onClick={() => {
-                  props.onOpenStatus?.(status)
-                }}
-              >
-                {relativeCreatedAt}
-              </button>
-            ) : (
-              <span className={timestampClassName}>{relativeCreatedAt}</span>
-            )}
-            {showExternalLink && (
-              <a
-                href={externalStatusUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ml-1 inline-flex items-center text-muted-foreground hover:text-foreground"
-                aria-label="Open original post"
-                title="Open original post"
-              >
-                <ExternalLink className="size-3.5" />
-              </a>
-            )}
           </div>
+          <div className="flex-1 min-h-0 min-w-0">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5 text-sm">
+              <ActorInfo
+                actor={actualStatus.actor}
+                actorId={actualStatus.actorId}
+                statusUrl={actualStatus.url}
+              />
+              <span className="text-muted-foreground">·</span>
+              {props.onOpenStatus ? (
+                <button
+                  type="button"
+                  className={`${timestampClassName} -mx-1 inline-flex min-h-8 items-center rounded-sm px-1 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50`}
+                  aria-label={openStatusLabel}
+                  onClick={() => {
+                    props.onOpenStatus?.(status)
+                  }}
+                >
+                  {relativeCreatedAt}
+                </button>
+              ) : (
+                <span className={timestampClassName}>{relativeCreatedAt}</span>
+              )}
+              {showExternalLink && (
+                <a
+                  href={externalStatusUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-1 inline-flex items-center text-muted-foreground hover:text-foreground"
+                  aria-label="Open original post"
+                  title="Open original post"
+                >
+                  <ExternalLink className="size-3.5" />
+                </a>
+              )}
+            </div>
 
-          {summary ? (
-            <ContentWarning summary={summary} tags={actualStatus.tags}>
-              {statusBody}
-            </ContentWarning>
-          ) : (
-            statusBody
-          )}
+            {summary ? (
+              <ContentWarning summary={summary} tags={actualStatus.tags}>
+                {statusBody}
+              </ContentWarning>
+            ) : (
+              statusBody
+            )}
 
-          <div>
-            {/* Chips sit between the content and the action row: they belong to
+            <div>
+              {/* Chips sit between the content and the action row: they belong to
                 the post, not to the actions, and a logged-out reader still sees
                 them (read-only) while the action row is hidden. They go
                 full-bleed only when that row is there to align with — on a
                 read-only surface the row beneath them is `ReadOnlyStats`, which
                 starts at the text, and chips hanging 52px further left would
                 line up with nothing. */}
-            <ReactionRow state={reactionState} fullBleed={showsActionRow} />
-            <Actions {...props} reactionState={reactionState} />
-            {props.showReadOnlyStats && !props.showActions && (
-              <ReadOnlyStats status={status} />
-            )}
+              <ReactionRow state={reactionState} fullBleed={showsActionRow} />
+              <Actions {...props} reactionState={reactionState} />
+              {props.showReadOnlyStats && !props.showActions && (
+                <ReadOnlyStats status={status} />
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </TranslationProvider>
   )
 }

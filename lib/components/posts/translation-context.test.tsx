@@ -120,4 +120,58 @@ describe('useStatusTranslation', () => {
     await waitFor(() => expect(result.current.state).toBe('translated'))
     expect(translateStatus).toHaveBeenCalledTimes(1)
   })
+
+  it('supports unknown source language and gathers targets across all pairs', async () => {
+    ;(getTranslationLanguages as jest.Mock).mockResolvedValue({
+      nl: ['en', 'fr'],
+      es: ['en', 'de']
+    })
+    const { result } = renderHook(() =>
+      useStatusTranslation('id-unknown', null)
+    )
+    await waitFor(() => expect(result.current.canTranslate).toBe(true))
+
+    expect(result.current.canTranslate).toBe(true)
+    expect(result.current.canManualTranslate).toBe(false)
+    // All unique targets across pairs, with default language ('en') first
+    expect(result.current.options).toEqual(['en', 'fr', 'de'])
+    expect(result.current.target).toBe('en')
+    expect(result.current.detectedSource).toBeNull()
+  })
+
+  it('suppresses inline translate but offers manual translate for same-language posts', async () => {
+    ;(getTranslationLanguages as jest.Mock).mockResolvedValue({
+      en: ['es', 'de', 'fr']
+    })
+    const { result } = renderHook(() => useStatusTranslation('id-same', 'en'))
+    await waitFor(() => expect(result.current.canManualTranslate).toBe(true))
+
+    expect(result.current.canTranslate).toBe(false)
+    expect(result.current.canManualTranslate).toBe(true)
+    expect(result.current.options).toEqual(['es', 'de', 'fr'])
+    expect(result.current.target).toBe('es')
+  })
+
+  it('suppresses both inline and manual translate for same-language post when no alternate targets exist', async () => {
+    ;(getTranslationLanguages as jest.Mock).mockResolvedValue({})
+    const { result } = renderHook(() =>
+      useStatusTranslation('id-same-no-alt', 'en')
+    )
+    await waitFor(() => expect(getTranslationCapability).toHaveBeenCalled())
+
+    expect(result.current.canTranslate).toBe(false)
+    expect(result.current.canManualTranslate).toBe(false)
+    expect(result.current.options).toEqual([])
+    expect(result.current.target).toBeNull()
+  })
+
+  it('does not fetch capability or languages when enabled is false', async () => {
+    const { result } = renderHook(() =>
+      useStatusTranslation('id-disabled', 'nl', false)
+    )
+    expect(result.current.canTranslate).toBe(false)
+    expect(result.current.canManualTranslate).toBe(false)
+    expect(getTranslationCapability).not.toHaveBeenCalled()
+    expect(getTranslationLanguages).not.toHaveBeenCalled()
+  })
 })
