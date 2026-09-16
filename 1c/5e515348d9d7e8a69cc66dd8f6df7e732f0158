@@ -1,0 +1,36 @@
+app/(timeline)/[actor]/[status]/StatusBox.test.tsx
+  h_580a04e334fef4 42-47
+app/(timeline)/bookmarks/BookmarksTimeline.test.tsx
+  h_580a04e334fef4 24-29
+app/(timeline)/favorites/FavoritesTimeline.test.tsx
+  h_580a04e334fef4 24-29
+lib/actions/updateNote.ts
+  h_580a04e334fef4 120
+lib/actions/updatePoll.ts
+  h_580a04e334fef4 117
+lib/components/posts/translate-content.tsx
+  h_580a04e334fef4 51,97,160,179
+lib/components/posts/translation-context.test.tsx
+  h_580a04e334fef4 168-185
+lib/components/posts/translation-context.tsx
+  h_580a04e334fef4 93-100
+lib/services/language-detection/index.test.ts
+  h_580a04e334fef4 5,95-118,446
+lib/services/language-detection/index.ts
+  h_580a04e334fef4 7,111,276-279
+scripts/maintenance/redetectStatusLanguages.test.ts
+  h_580a04e334fef4 123,152,180,213,241,273,299,361,368,375,408,433-435
+scripts/maintenance/redetectStatusLanguages.ts
+  h_580a04e334fef4 30,189,209-226,239
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1c5e515348d9d7e8a69cc66dd8f6df7e732f0158",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

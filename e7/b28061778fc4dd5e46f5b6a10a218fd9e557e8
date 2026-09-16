@@ -1,0 +1,70 @@
+.gitignore
+  h_580a04e334fef4 7-8
+.yarn/patches/eld-npm-2.1.0-c73135848f.patch
+  h_580a04e334fef4 1-32
+app/(timeline)/[actor]/[status]/StatusBox.test.tsx
+  h_580a04e334fef4 40-41
+app/(timeline)/bookmarks/BookmarksTimeline.test.tsx
+  h_580a04e334fef4 16-17
+app/(timeline)/favorites/FavoritesTimeline.test.tsx
+  h_580a04e334fef4 16-17
+docs/maintenance.md
+  h_580a04e334fef4 448-486
+lib/actions/createNote.ts
+  h_580a04e334fef4 525-530
+lib/actions/createPoll.ts
+  h_580a04e334fef4 139-144
+lib/actions/updateNote.ts
+  h_580a04e334fef4 116-121
+lib/actions/updatePoll.ts
+  h_580a04e334fef4 113-118
+lib/client/statuses.test.ts
+  h_580a04e334fef4 19-20,39-40,351-405,605-632
+lib/client/statuses.ts
+  h_580a04e334fef4 335-342,351-356,363-368
+lib/components/posts/actions/post-menu.test.tsx
+  h_580a04e334fef4 17,19,22,44-52,545-605
+lib/components/posts/actions/post-menu.tsx
+  h_580a04e334fef4 9,33,200,572-581
+lib/components/posts/post.tsx
+  h_580a04e334fef4 269-270,274,439,443-455,461-495,497-503,505-506,513-518,522
+lib/components/posts/posts.test.tsx
+  h_580a04e334fef4 51-56
+lib/components/posts/translate-content.test.tsx
+  h_580a04e334fef4 63-65,67-76,160-175
+lib/components/posts/translate-content.tsx
+  h_580a04e334fef4 78,100-102,135-137,196
+lib/components/posts/translation-context.test.tsx
+  h_580a04e334fef4 123-176
+lib/components/posts/translation-context.tsx
+  h_580a04e334fef4 36,38-39,73-74,76,87,92,101,106,114-138,140-141,144,147,150-155,157-158,160-161,171-177,234-237,245,249,259,263,276,288,291
+lib/jobs/createNoteJob.ts
+  h_580a04e334fef4 167-168
+lib/jobs/createPollJob.ts
+  h_580a04e334fef4 123-124
+lib/jobs/updateNoteJob.ts
+  h_580a04e334fef4 174-175
+lib/services/language-detection/index.test.ts
+  h_580a04e334fef4 7,22-113,140-144,152-164,167-379,384-387,431,436,461,467-483
+lib/services/language-detection/index.ts
+  h_580a04e334fef4 1,12,16,19,26-98,103-135,137-138,145-148,150-151,157-159,161-229,231,235-237,252-253,259,262-264
+package.json
+  h_580a04e334fef4 60
+scripts/maintenance/redetectStatusLanguages.test.ts
+  h_580a04e334fef4 1-451
+scripts/maintenance/redetectStatusLanguages.ts
+  h_580a04e334fef4 1-333
+yarn.lock
+  h_580a04e334fef4 3910,4773-4786
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e7b28061778fc4dd5e46f5b6a10a218fd9e557e8",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
