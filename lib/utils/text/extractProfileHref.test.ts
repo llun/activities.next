@@ -127,6 +127,14 @@ describe('extractProfileHref', () => {
     ).toBe('/@alice')
   })
 
+  it('does not match when both host and domain have different explicit ports', () => {
+    expect(
+      extractProfileHref('https://activities.local:4000/@alice', {
+        host: 'activities.local:3000'
+      })
+    ).toBe('/@alice@activities.local:4000')
+  })
+
   it('matches mention tag even if href or tag value has trailing slashes', () => {
     const tags: Tag[] = [
       {

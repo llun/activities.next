@@ -50,13 +50,14 @@ const isHostMatch = (
   domainA: string | undefined,
   domainB: string | undefined
 ): boolean => {
-  if (!domainA || !domainB) return false
-  const a = domainA.trim().toLowerCase()
-  const b = domainB.trim().toLowerCase()
+  const a = domainA?.trim().toLowerCase()
+  const b = domainB?.trim().toLowerCase()
+  if (!a || !b) return false
   if (a === b) return true
-  const aWithoutPort = a.replace(/:[0-9]+$/, '')
-  const bWithoutPort = b.replace(/:[0-9]+$/, '')
-  return aWithoutPort === bWithoutPort
+  const aHasPort = /:[0-9]+$/.test(a)
+  const bHasPort = /:[0-9]+$/.test(b)
+  if (aHasPort && bHasPort) return false
+  return a.replace(/:[0-9]+$/, '') === b.replace(/:[0-9]+$/, '')
 }
 
 const normalizeUrlForMatch = (urlStr: string): string => {
@@ -112,27 +113,27 @@ export const extractProfileHref = (
     if (matchingTag) {
       const cleanName = matchingTag.name.replace(/^@+/, '')
       const parts = cleanName.split('@')
-      if (parts.length <= 2) {
-        let username: string
+      if (parts.length === 1 && parts[0]) {
+        const username = parts[0]
         let domain: string
-        if (parts.length === 2) {
-          username = parts[0]
-          domain = parts[1].toLowerCase()
-        } else {
-          username = parts[0]
-          try {
-            domain = new URL(matchingTag.value).host.toLowerCase()
-          } catch {
-            domain = ''
-          }
+        try {
+          domain = new URL(matchingTag.value).host.toLowerCase()
+        } catch {
+          domain = ''
         }
+        if (isHostMatch(domain, options?.host)) {
+          return `/@${username}`
+        }
+        return domain ? `/@${username}@${domain}` : `/@${username}`
+      }
 
-        if (username) {
-          if (isHostMatch(domain, options?.host)) {
-            return `/@${username}`
-          }
-          return domain ? `/@${username}@${domain}` : `/@${username}`
+      if (parts.length === 2 && parts[0] && parts[1]) {
+        const username = parts[0]
+        const domain = parts[1].toLowerCase()
+        if (isHostMatch(domain, options?.host)) {
+          return `/@${username}`
         }
+        return `/@${username}@${domain}`
       }
     }
   }
