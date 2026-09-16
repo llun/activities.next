@@ -178,7 +178,9 @@ export const Post: FC<PostProps> = (props) => {
         // the in-content "RE: <link>" fallback is redundant and is hidden.
         // With no edge the fallback is the reader's only clue and stays
         // visible.
-        hideQuoteInline: Boolean(actualStatus.quote)
+        hideQuoteInline: Boolean(actualStatus.quote),
+        host,
+        tags: actualStatus.tags
       })
     )
     .value()

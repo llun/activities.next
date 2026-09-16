@@ -32,7 +32,10 @@ export const ActivityImportNotification: FC<Props> = ({
         <Activity className="size-[18px]" />
       </span>
       <div className="min-w-0 flex-1 line-clamp-2 text-[13px] leading-snug text-foreground [&_br]:hidden [&_p]:inline">
-        {cleanClassName(processStatusText(host, status))}
+        {cleanClassName(processStatusText(host, status), {
+          host,
+          tags: 'tags' in status ? status.tags : undefined
+        })}
       </div>
       <Link
         href={statusUrl}
