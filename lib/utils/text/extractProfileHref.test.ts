@@ -37,9 +37,9 @@ describe('extractProfileHref', () => {
   })
 
   it('rewrites remote Mastodon-style profile URL to local profile route', () => {
-    expect(
-      extractProfileHref('https://mastodon.social/@alice', { host })
-    ).toBe('/@alice@mastodon.social')
+    expect(extractProfileHref('https://mastodon.social/@alice', { host })).toBe(
+      '/@alice@mastodon.social'
+    )
   })
 
   it('rewrites remote actor URL (/users/...) to local profile route', () => {

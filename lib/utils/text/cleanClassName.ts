@@ -52,11 +52,7 @@ export const cleanClassName = (
   // surface with no card leaves the fallback visible as the reader's only
   // clue. The marker rides on a `p` (Mastodon 4.5), a `span` (the older
   // appended convention), or — rarely — the anchor itself.
-  {
-    hideQuoteInline = false,
-    host,
-    tags
-  }: CleanClassNameOptions = {}
+  { hideQuoteInline = false, host, tags }: CleanClassNameOptions = {}
 ) => {
   const options: HTMLReactParserOptions = {
     replace: (node: DOMNode) => {

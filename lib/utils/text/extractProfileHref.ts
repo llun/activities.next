@@ -83,11 +83,7 @@ export const extractProfileHref = (
       }
 
       if (username) {
-        if (
-          options.host &&
-          domain &&
-          domain === options.host.toLowerCase()
-        ) {
+        if (options.host && domain && domain === options.host.toLowerCase()) {
           return `/@${username}`
         }
         return domain ? `/@${username}@${domain}` : `/@${username}`
