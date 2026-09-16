@@ -9,7 +9,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@activities/cloudtasks@workspace:packages/cloudtasks"
   dependencies:
-    "@google-cloud/tasks": "npm:^7.0.0"
+    "@google-cloud/tasks": "npm:^7.1.0"
   languageName: unknown
   linkType: soft
 
@@ -1149,12 +1149,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@google-cloud/tasks@npm:^7.0.0":
-  version: 7.0.0
-  resolution: "@google-cloud/tasks@npm:7.0.0"
+"@google-cloud/tasks@npm:^7.1.0":
+  version: 7.1.0
+  resolution: "@google-cloud/tasks@npm:7.1.0"
   dependencies:
     google-gax: "npm:^6.0.0"
-  checksum: 10c0/127def4689c752aa35241feb884b0bb03ea9e73cf284b36ae9abef9f44c50d5e156ba60036bfa2f8fa4af7a8988914b387b3f0aef394994cd4270e0205a13d9f
+  checksum: 10c0/c09fe205a350473b9274bc61edf76363305212c2369d376bb03b0a7e4aca27387a7ee29f70fd65139ee338f1ed5f87a89a26dd0fb1da88afbf2eae028bfa8238
   languageName: node
   linkType: hard
 
