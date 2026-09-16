@@ -18,6 +18,16 @@ updates:
           - '@better-auth/*'
           - '@better-fetch/fetch'
           - 'better-call'
+      # React 19+ requires react and react-dom to have the exact same version,
+      # and type packages should match the runtime versions. Group them so
+      # dependabot bumps react, react-dom, and their types together in one PR.
+      # See PR #2066 (broke tests due to react 19.2.8 vs react-dom 19.3.0 mismatch).
+      react:
+        patterns:
+          - 'react'
+          - 'react-dom'
+          - '@types/react'
+          - '@types/react-dom'
   - package-ecosystem: 'github-actions'
     directory: '/'
     schedule:
