@@ -117,22 +117,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/core@npm:^3.977.9":
-  version: 3.977.9
-  resolution: "@aws-sdk/core@npm:3.977.9"
-  dependencies:
-    "@aws-sdk/types": "npm:^3.974.5"
-    "@aws-sdk/xml-builder": "npm:^3.972.40"
-    "@aws/lambda-invoke-store": "npm:^0.3.0"
-    "@smithy/core": "npm:^3.33.3"
-    "@smithy/signature-v4": "npm:^5.6.12"
-    "@smithy/types": "npm:^4.17.2"
-    bowser: "npm:^2.11.0"
-    tslib: "npm:^2.6.2"
-  checksum: 10c0/9118a8d05b7c27fe55fb5e793840193d1b311b6c0c2958e591bcada391a71783536ed9c8f4913cc9c4b7258dba650d625ed782669a12875348544c33f35aa8d6
-  languageName: node
-  linkType: hard
-
 "@aws-sdk/core@npm:^3.978.0":
   version: 3.978.0
   resolution: "@aws-sdk/core@npm:3.978.0"
@@ -303,17 +287,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/s3-request-presigner@npm:3.1127.0":
-  version: 3.1127.0
-  resolution: "@aws-sdk/s3-request-presigner@npm:3.1127.0"
+"@aws-sdk/s3-request-presigner@npm:3.1131.0":
+  version: 3.1131.0
+  resolution: "@aws-sdk/s3-request-presigner@npm:3.1131.0"
   dependencies:
-    "@aws-sdk/core": "npm:^3.977.9"
+    "@aws-sdk/core": "npm:^3.978.0"
     "@aws-sdk/signature-v4-multi-region": "npm:^3.996.46"
     "@aws-sdk/types": "npm:^3.974.5"
     "@smithy/core": "npm:^3.33.3"
     "@smithy/types": "npm:^4.17.2"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/4e4f01fb366644a6837610ca2a346adbbc4ec727ee2b0167d2fd7167b2c86fe0fd69bb1017c00c2d1124dfab63c170014f53d5fadb6e93568730cf428f346e8a
+  checksum: 10c0/c50d06a3c437c8c818ea3a11330b1d9bdce6394be122f6023b9e772d8cf7ec2521ff84868d5a2db298c7836b323802269cce0fe8408f34fabf9cf16fe891d35a
   languageName: node
   linkType: hard
 
@@ -3699,7 +3683,7 @@ __metadata:
   dependencies:
     "@aws-sdk/client-s3": "npm:3.1131.0"
     "@aws-sdk/client-ses": "npm:3.1131.0"
-    "@aws-sdk/s3-request-presigner": "npm:3.1127.0"
+    "@aws-sdk/s3-request-presigner": "npm:3.1131.0"
     "@better-auth/core": "npm:1.7.5"
     "@better-auth/oauth-provider": "npm:1.7.5"
     "@better-auth/passkey": "npm:1.7.5"
