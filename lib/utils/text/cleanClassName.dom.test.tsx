@@ -107,6 +107,24 @@ describe('cleanClassName', () => {
       // Verify no React warning about invalid DOM property 'class'
       expect(link).toHaveAttribute('href', 'https://test.local/page')
     })
+
+    it('renders profile link with stopPropagation on click', () => {
+      const html =
+        '<a href="https://mastodon.social/@alice" class="mention">@alice</a>'
+      const result = cleanClassName(html)
+
+      const parentClickHandler = vi.fn()
+      const { container } = render(
+        <div onClick={parentClickHandler}>{result}</div>
+      )
+
+      const link = container.querySelector('a')
+      expect(link).toHaveAttribute('href', '/@alice@mastodon.social')
+      expect(link).not.toHaveAttribute('target')
+
+      fireEvent.click(link!)
+      expect(parentClickHandler).not.toHaveBeenCalled()
+    })
   })
 
   describe('span class handling', () => {

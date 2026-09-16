@@ -55,7 +55,7 @@ describe('extractTagFromHref', () => {
 describe('cleanClassName', () => {
   const renderToHtml = (
     input: string,
-    options?: { hideQuoteInline?: boolean }
+    options?: Parameters<typeof cleanClassName>[1]
   ) => {
     const result = cleanClassName(input, options)
     if (typeof result === 'string') return result
@@ -147,11 +147,43 @@ describe('cleanClassName', () => {
       expect(relTokens.filter((t) => t === 'noopener')).toHaveLength(1)
     })
 
-    it('adds target="_blank" to mention links without hashtag class', () => {
+    it('rewrites profile mention links to local profile path without target="_blank"', () => {
       const html =
         '<a href="https://example.com/@user" class="u-url mention">@user</a>'
       const output = renderToHtml(html)
-      expect(output).toContain('target="_blank"')
+      expect(output).toContain('href="/@user@example.com"')
+      expect(output).not.toContain('target="_blank"')
+      expect(output).not.toContain('noopener')
+      expect(output).not.toContain('noreferrer')
+    })
+
+    it('rewrites actor URL mention to local profile path without target="_blank"', () => {
+      const html =
+        '<a href="https://remote.social/users/bob" class="u-url mention">@bob</a>'
+      const output = renderToHtml(html)
+      expect(output).toContain('href="/@bob@remote.social"')
+      expect(output).not.toContain('target="_blank"')
+    })
+
+    it('uses status tags and host options to resolve local user profile', () => {
+      const html =
+        '<a href="https://special.site/actors/dan" class="u-url mention">@dan</a>'
+      const output = renderToHtml(html, {
+        host: 'my.host',
+        tags: [
+          {
+            id: '1',
+            statusId: 's1',
+            type: 'mention',
+            name: '@dan@special.site',
+            value: 'https://special.site/actors/dan',
+            createdAt: 0,
+            updatedAt: 0
+          }
+        ]
+      })
+      expect(output).toContain('href="/@dan@special.site"')
+      expect(output).not.toContain('target="_blank"')
     })
   })
 

@@ -4,7 +4,12 @@ import parse, {
   HTMLReactParserOptions,
   domToReact
 } from 'html-react-parser'
+import Link from 'next/link'
 import React from 'react'
+
+import { Tag } from '@/lib/types/domain/tag'
+
+import { extractProfileHref } from './extractProfileHref'
 
 interface replacingNode {
   name: string
@@ -33,6 +38,12 @@ export const extractTagFromHref = (
 const hasToken = (value: string | undefined, token: string): boolean =>
   value?.split(/\s+/).includes(token) ?? false
 
+export interface CleanClassNameOptions {
+  hideQuoteInline?: boolean
+  host?: string
+  tags?: Tag[]
+}
+
 export const cleanClassName = (
   text: string,
   // Mastodon's legacy quote fallback ("RE: <link>") is redundant exactly when
@@ -41,7 +52,11 @@ export const cleanClassName = (
   // surface with no card leaves the fallback visible as the reader's only
   // clue. The marker rides on a `p` (Mastodon 4.5), a `span` (the older
   // appended convention), or — rarely — the anchor itself.
-  { hideQuoteInline = false }: { hideQuoteInline?: boolean } = {}
+  {
+    hideQuoteInline = false,
+    host,
+    tags
+  }: CleanClassNameOptions = {}
 ) => {
   const options: HTMLReactParserOptions = {
     replace: (node: DOMNode) => {
@@ -71,8 +86,18 @@ export const cleanClassName = (
           ? extractTagFromHref(replacingNode.attribs.href)
           : undefined
 
+        const profileHref = !tagName
+          ? extractProfileHref(replacingNode.attribs.href, { host, tags })
+          : undefined
+
         if (tagName) {
           replacingNode.attribs.href = `/tags/${tagName}`
+          delete replacingNode.attribs.target
+          delete replacingNode.attribs.rel
+        } else if (profileHref) {
+          replacingNode.attribs.href = profileHref
+          delete replacingNode.attribs.target
+          delete replacingNode.attribs.rel
         } else {
           replacingNode.attribs.target = '_blank'
           const relTokens = new Set(
@@ -86,6 +111,24 @@ export const cleanClassName = (
         // Return a React element with onClick handler to stop propagation
         // Pass options to domToReact to preserve child transformations
         const { class: className, ...restAttribs } = replacingNode.attribs
+
+        if (profileHref) {
+          return React.createElement(
+            Link,
+            {
+              ...restAttribs,
+              href: profileHref,
+              prefetch: false,
+              className:
+                hideQuoteInline && hasToken(className, 'quote-inline')
+                  ? 'hidden'
+                  : className,
+              onClick: (e: React.MouseEvent) => e.stopPropagation()
+            },
+            domToReact(anchorElement.children as DOMNode[], options)
+          )
+        }
+
         return React.createElement(
           'a',
           {
