@@ -147,4 +147,59 @@ describe('extractProfileHref', () => {
       })
     ).toBe('/@slash_user@remote.social')
   })
+
+  it('rejects root-relative status permalinks and subpaths', () => {
+    expect(
+      extractProfileHref('/@alice/112345678901234567', { host })
+    ).toBeUndefined()
+    expect(extractProfileHref('/@alice/statuses/123', { host })).toBeUndefined()
+    expect(extractProfileHref('/@alice/followers', { host })).toBeUndefined()
+  })
+
+  it('rejects malformed root-relative paths and open-redirect vectors', () => {
+    expect(extractProfileHref('/@//evil.com', { host })).toBeUndefined()
+    expect(extractProfileHref('//@evil.com', { host })).toBeUndefined()
+    expect(extractProfileHref('/@', { host })).toBeUndefined()
+  })
+
+  it('rejects Bluesky post, feed, and list permalinks', () => {
+    expect(
+      extractProfileHref(
+        'https://bsky.app/profile/alice.bsky.social/post/3kqj3fl2yfk2a'
+      )
+    ).toBeUndefined()
+    expect(
+      extractProfileHref(
+        'https://bsky.app/profile/alice.bsky.social/feed/custom-feed'
+      )
+    ).toBeUndefined()
+    expect(
+      extractProfileHref(
+        'https://bsky.app/profile/alice.bsky.social/lists/3k12345'
+      )
+    ).toBeUndefined()
+    expect(
+      extractProfileHref(
+        'https://bsky.brid.gy/r/https://bsky.app/profile/alice.bsky.social/post/3kqj3fl2yfk2a'
+      )
+    ).toBeUndefined()
+  })
+
+  it('ignores mention tags with malformed names containing multiple @ characters', () => {
+    const tags: Tag[] = [
+      {
+        id: 'tag-4',
+        statusId: 'status-1',
+        type: 'mention',
+        name: '@alice@bad@domain',
+        value: 'https://bad.domain/custom/alice',
+        createdAt: 0,
+        updatedAt: 0
+      }
+    ]
+
+    expect(
+      extractProfileHref('https://bad.domain/custom/alice', { host, tags })
+    ).toBeUndefined()
+  })
 })

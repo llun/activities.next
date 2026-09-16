@@ -94,7 +94,10 @@ export const MessageBubble: FC<MessageBubbleProps> = ({
   const fitnessFile = actualStatus.fitness
   const hasText = htmlToPlainText(actualStatus.text ?? '').trim().length > 0
   const processedText = hasText
-    ? cleanClassName(processStatusText(host, status))
+    ? cleanClassName(processStatusText(host, status), {
+        host,
+        tags: actualStatus.tags
+      })
     : null
   const time = timeFormatter.format(new Date(actualStatus.createdAt))
 

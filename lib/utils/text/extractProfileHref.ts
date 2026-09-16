@@ -16,14 +16,11 @@ const getDecodedPathParts = (pathname: string) => {
 }
 
 const getProfileHandleFromParts = (parts: string[]) => {
-  const profileIndex = parts.indexOf('profile')
-  const profileHandle = parts[profileIndex + 1]
-  if (
-    profileIndex >= 0 &&
-    profileHandle &&
-    !isOpaqueActorUsernameValue(profileHandle)
-  ) {
-    return profileHandle.replace(/^@+/, '').split('@')[0]
+  if (parts.length === 2 && parts[0] === 'profile') {
+    const profileHandle = parts[1]
+    if (profileHandle && !isOpaqueActorUsernameValue(profileHandle)) {
+      return profileHandle.replace(/^@+/, '').split('@')[0]
+    }
   }
   return null
 }
@@ -82,8 +79,14 @@ export const extractProfileHref = (
   if (!href) return undefined
 
   // 1. Root-relative handle paths are already local profile destinations.
-  if (href.startsWith('/@')) {
-    return href
+  if (href.startsWith('/')) {
+    const localMatch = /^\/@([a-zA-Z0-9_.-]+)(?:@([a-zA-Z0-9_.:-]+))?\/?$/.exec(
+      href
+    )
+    if (localMatch) {
+      return href.endsWith('/') && href.length > 2 ? href.slice(0, -1) : href
+    }
+    return undefined
   }
 
   // Guard against non-HTTP(S) schemes (e.g. javascript:, data:) and invalid URLs
@@ -108,26 +111,28 @@ export const extractProfileHref = (
     )
     if (matchingTag) {
       const cleanName = matchingTag.name.replace(/^@+/, '')
-      const atIndex = cleanName.indexOf('@')
-      let username: string
-      let domain: string
-      if (atIndex > 0) {
-        username = cleanName.slice(0, atIndex)
-        domain = cleanName.slice(atIndex + 1).toLowerCase()
-      } else {
-        username = cleanName
-        try {
-          domain = new URL(matchingTag.value).host.toLowerCase()
-        } catch {
-          domain = ''
+      const parts = cleanName.split('@')
+      if (parts.length <= 2) {
+        let username: string
+        let domain: string
+        if (parts.length === 2) {
+          username = parts[0]
+          domain = parts[1].toLowerCase()
+        } else {
+          username = parts[0]
+          try {
+            domain = new URL(matchingTag.value).host.toLowerCase()
+          } catch {
+            domain = ''
+          }
         }
-      }
 
-      if (username) {
-        if (isHostMatch(domain, options?.host)) {
-          return `/@${username}`
+        if (username) {
+          if (isHostMatch(domain, options?.host)) {
+            return `/@${username}`
+          }
+          return domain ? `/@${username}@${domain}` : `/@${username}`
         }
-        return domain ? `/@${username}@${domain}` : `/@${username}`
       }
     }
   }

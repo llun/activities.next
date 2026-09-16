@@ -832,7 +832,11 @@ export const FitnessStatusDetail: FC<Props> = ({
   // timeline. Memoized because this re-parses HTML and the component re-renders
   // frequently (e.g. on chart hover).
   const caption = useMemo(
-    () => cleanClassName(processStatusText(host, status)),
+    () =>
+      cleanClassName(processStatusText(host, status), {
+        host,
+        tags: status.tags
+      }),
     [host, status]
   )
   const activityDate = formatUtcDate(

@@ -7,8 +7,45 @@ import React from 'react'
 
 import { cleanClassName } from './cleanClassName'
 
+vi.mock('next/link', () => ({
+  default: ({
+    children,
+    href,
+    prefetch,
+    ...rest
+  }: {
+    children: React.ReactNode
+    href: string
+    prefetch?: boolean
+    [key: string]: unknown
+  }) => (
+    <a href={href} data-prefetch={String(prefetch)} {...rest}>
+      {children}
+    </a>
+  )
+}))
+
 describe('cleanClassName', () => {
   describe('link handling', () => {
+    it('rewrites profile links to local route without target="_blank" and with prefetch=false', () => {
+      const html =
+        '<a href="https://mastodon.social/@remoteuser" class="mention">@remoteuser</a>'
+      const result = cleanClassName(html, { host: 'activities.local' })
+      const parentClickHandler = vi.fn()
+      const { container } = render(
+        <div onClick={parentClickHandler}>{result}</div>
+      )
+
+      const link = container.querySelector('a')
+      expect(link).toHaveAttribute('href', '/@remoteuser@mastodon.social')
+      expect(link).not.toHaveAttribute('target')
+      expect(link).not.toHaveAttribute('rel')
+      expect(link).toHaveAttribute('data-prefetch', 'false')
+
+      fireEvent.click(link!)
+      expect(parentClickHandler).not.toHaveBeenCalled()
+    })
+
     it('adds target="_blank" to links', () => {
       const html = '<a href="https://test.local/page">Link</a>'
       const result = cleanClassName(html)

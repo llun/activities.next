@@ -121,7 +121,8 @@ export const EditHistoryButton: FC<Props> = ({
                         edit.text,
                         status.tags,
                         status.isLocalActor
-                      )
+                      ),
+                      { host, tags: status.tags }
                     )}
                   </div>
                 </li>
