@@ -98,11 +98,11 @@ export const getPixelfedAccountId = async (
   }
 }
 
-export const fromPixelfedStatus = (
+export const fromPixelfedStatus = async (
   item: PixelfedStatus,
   person: Actor,
   actorProfile: ActorProfile | null
-): Status => {
+): Promise<Status> => {
   const domain = new URL(person.id).host
   const statusId =
     item.uri ||
@@ -153,7 +153,7 @@ export const fromPixelfedStatus = (
     summary: item.spoiler_text || null,
     sensitive: Boolean(item.sensitive),
     language: item.language || null,
-    detectedLanguage: detectLanguageFromHtml(content)?.language ?? null,
+    detectedLanguage: (await detectLanguageFromHtml(content))?.language ?? null,
     to: ['https://www.w3.org/ns/activitystreams#Public'],
     cc: [person.followers || `${person.id}/followers`],
     edits: [],
@@ -213,8 +213,8 @@ export const getPixelfedPosts = async ({
         ? (ActorProfile.safeParse(actor).data ?? null)
         : null
 
-      const statuses: Status[] = items.map((item) =>
-        fromPixelfedStatus(item, person, actorProfile)
+      const statuses: Status[] = await Promise.all(
+        items.map((item) => fromPixelfedStatus(item, person, actorProfile))
       )
 
       let nextPageUrl: string | null = null

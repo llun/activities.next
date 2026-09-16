@@ -48,7 +48,7 @@ const TargetPicker: FC<TargetPickerProps> = ({ target, options, onPick }) => (
     <DropdownMenuTrigger asChild>
       <button
         type="button"
-        className="inline-flex min-h-8 -my-1 items-center gap-0.5 rounded-sm py-1 font-medium text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="inline-flex min-h-8 -my-1 items-center gap-0.5 rounded-sm py-1 font-medium text-foreground transition-colors hover:text-primary-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
       >
         {displayLanguageName(target)}
         <ChevronDown className="size-3 shrink-0" />
@@ -75,7 +75,7 @@ const TargetPicker: FC<TargetPickerProps> = ({ target, options, onPick }) => (
 export const TranslateControl: FC<{ translation: StatusTranslation }> = ({
   translation: t
 }) => {
-  if (!t.canTranslate) return null
+  if (!t.canTranslate && t.state === 'idle') return null
   const {
     state,
     target,
@@ -94,10 +94,12 @@ export const TranslateControl: FC<{ translation: StatusTranslation }> = ({
           <button
             type="button"
             onClick={() => request()}
-            className="inline-flex min-h-8 -my-1 items-center gap-1.5 py-1 font-medium text-muted-foreground transition-colors hover:text-primary"
+            className="inline-flex min-h-8 -my-1 items-center gap-1.5 py-1 font-medium text-muted-foreground transition-colors hover:text-primary-text"
           >
             <Languages className="size-3.5" />
-            Translate from {displayLanguageName(detectedSource ?? '')}
+            {detectedSource
+              ? `Translate from ${displayLanguageName(detectedSource)}`
+              : 'Translate'}
           </button>
           {options.length > 1 && target && (
             <span className="inline-flex items-center gap-1.5 text-muted-foreground">
@@ -130,7 +132,9 @@ export const TranslateControl: FC<{ translation: StatusTranslation }> = ({
           <span className="inline-flex flex-wrap items-center gap-x-1 gap-y-1 text-muted-foreground">
             <Languages className="size-3.5 shrink-0" />
             <span>
-              Translated from {displayLanguageName(detectedSource ?? '')} to
+              {detectedSource
+                ? `Translated from ${displayLanguageName(detectedSource)} to`
+                : 'Translated to'}
             </span>
             {options.length > 1 && target ? (
               <TargetPicker
@@ -153,7 +157,7 @@ export const TranslateControl: FC<{ translation: StatusTranslation }> = ({
           <button
             type="button"
             onClick={showOriginal}
-            className="min-h-8 -my-1 py-1 font-medium text-primary transition-colors hover:underline"
+            className="min-h-8 -my-1 py-1 font-medium text-primary-text transition-colors hover:underline"
           >
             Show original
           </button>
@@ -172,7 +176,7 @@ export const TranslateControl: FC<{ translation: StatusTranslation }> = ({
           <button
             type="button"
             onClick={() => request()}
-            className="min-h-8 -my-1 py-1 font-medium text-primary transition-colors hover:underline"
+            className="min-h-8 -my-1 py-1 font-medium text-primary-text transition-colors hover:underline"
           >
             Try again
           </button>
@@ -189,7 +193,7 @@ export const TranslateControl: FC<{ translation: StatusTranslation }> = ({
 const TranslateContentView: FC<
   Pick<Props, 'children' | 'contentClassName'> & { t: StatusTranslation }
 > = ({ t, children, contentClassName }) => {
-  if (!t.canTranslate) return <>{children}</>
+  if (!t.canTranslate && t.state === 'idle') return <>{children}</>
 
   return (
     <>

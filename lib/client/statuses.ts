@@ -332,6 +332,14 @@ export interface TranslationCapability {
 
 let translationCapabilityPromise: Promise<TranslationCapability> | null = null
 
+export const resetTranslationCapabilityForTesting = () => {
+  translationCapabilityPromise = null
+}
+
+export const resetTranslationLanguagesForTesting = () => {
+  translationLanguagesPromise = null
+}
+
 /**
  * Reads the server's translation capability from `/api/v2/instance`, memoized
  * for the session so every post does not refetch it. Used by the Translate
@@ -340,14 +348,24 @@ let translationCapabilityPromise: Promise<TranslationCapability> | null = null
 export const getTranslationCapability = (): Promise<TranslationCapability> => {
   if (!translationCapabilityPromise) {
     translationCapabilityPromise = fetch('/api/v2/instance')
-      .then((response) => (response.ok ? response.json() : null))
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error('Failed to fetch instance capability')
+        }
+        return response.json()
+      })
       .then((data) => ({
         enabled: Boolean(data?.configuration?.translation?.enabled),
         defaultLanguage: Array.isArray(data?.languages)
           ? (data.languages[0] ?? null)
           : null
       }))
-      .catch(() => ({ enabled: false, defaultLanguage: null }))
+      .catch(() => {
+        // Don't pin a transient failure for the whole session — clear the memo
+        // so a later call can retry once the network/backend recovers.
+        translationCapabilityPromise = null
+        return { enabled: false, defaultLanguage: null }
+      })
   }
   return translationCapabilityPromise
 }

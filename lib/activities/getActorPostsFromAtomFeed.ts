@@ -41,11 +41,11 @@ interface AtomFeedRoot {
   }
 }
 
-const getStatusFromNote = (note: Note): Status | null => {
+const getStatusFromNote = async (note: Note): Promise<Status | null> => {
   try {
     const status = fromNote(note)
     status.detectedLanguage =
-      detectLanguageFromHtml(status.text)?.language ?? null
+      (await detectLanguageFromHtml(status.text))?.language ?? null
     return status
   } catch (error) {
     logger.error({
@@ -174,7 +174,7 @@ export const getActorPostsFromAtomFeed = async ({
                 )
                 if (!noteResult.success) return null
 
-                const status = getStatusFromNote(noteResult.data)
+                const status = await getStatusFromNote(noteResult.data)
                 if (!status) return null
 
                 if (actor) status.actor = actor

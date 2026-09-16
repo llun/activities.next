@@ -14,9 +14,12 @@ import {
   createReport,
   deleteStatus,
   getRelationship,
+  getTranslationLanguages,
   mute,
+  translateStatus,
   unmute
 } from '@/lib/client'
+import { TranslationProvider } from '@/lib/components/posts/translation-context'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
@@ -38,7 +41,15 @@ vi.mock('@/lib/client', () => ({
   createReport: vi.fn(),
   deleteStatus: vi.fn(),
   updateStatusVisibility: vi.fn(),
-  updateStatusInteractionPolicy: vi.fn()
+  updateStatusInteractionPolicy: vi.fn(),
+  getTranslationCapability: vi.fn().mockResolvedValue({
+    enabled: true,
+    defaultLanguage: 'en'
+  }),
+  getTranslationLanguages: vi.fn().mockResolvedValue({
+    en: ['de', 'es']
+  }),
+  translateStatus: vi.fn()
 }))
 
 const currentTime = new Date('2026-04-26T10:00:00.000Z').getTime()
@@ -529,6 +540,67 @@ describe('PostMenu', () => {
       expect(labels).toContain('Edit post')
       expect(labels).toContain('Change visibility')
       expect(labels).toContain('Delete post')
+    })
+  })
+
+  describe('manual translation', () => {
+    it('shows "Translate…" in the menu for same-language posts when alternate targets exist', async () => {
+      render(
+        <TranslationProvider statusId={ownStatus.id} language="en">
+          <PostMenu status={ownStatus} isOwner={false} canEdit={false} />
+        </TranslationProvider>
+      )
+
+      const menu = await openMenu()
+      expect(
+        await within(menu).findByRole('menuitem', { name: /Translate…/ })
+      ).toBeInTheDocument()
+    })
+
+    it('invokes translation request when "Translate…" is clicked', async () => {
+      const mockTranslate = vi.fn().mockResolvedValue({
+        content: '<p>Translated</p>',
+        spoiler_text: '',
+        language: 'de',
+        media_attachments: [],
+        poll: null,
+        detected_source_language: 'en',
+        provider: 'DeepL.com'
+      })
+      ;(translateStatus as jest.Mock).mockImplementation(mockTranslate)
+
+      render(
+        <TranslationProvider statusId={ownStatus.id} language="en">
+          <PostMenu status={ownStatus} isOwner={false} canEdit={false} />
+        </TranslationProvider>
+      )
+
+      const menu = await openMenu()
+      const translateItem = await within(menu).findByRole('menuitem', {
+        name: /Translate…/
+      })
+      fireEvent.click(translateItem)
+
+      await waitFor(() => {
+        expect(mockTranslate).toHaveBeenCalledWith({
+          statusId: ownStatus.id,
+          language: 'de'
+        })
+      })
+    })
+
+    it('does not show "Translate…" when there are no alternate targets', async () => {
+      ;(getTranslationLanguages as jest.Mock).mockResolvedValueOnce({})
+      render(
+        <TranslationProvider statusId={ownStatus.id} language="en">
+          <PostMenu status={ownStatus} isOwner={false} canEdit={false} />
+        </TranslationProvider>
+      )
+
+      const menu = await openMenu()
+      expect(
+        within(menu).queryByRole('menuitem', { name: /Translate…/ })
+      ).not.toBeInTheDocument()
     })
   })
 })

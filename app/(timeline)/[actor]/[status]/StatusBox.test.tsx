@@ -37,8 +37,14 @@ vi.mock('next/navigation', () => ({
   })
 }))
 
-vi.mock('@/lib/client', () => ({
-  votePoll: vi.fn()
+vi.mock('@/lib/client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/client')>()),
+  votePoll: vi.fn(),
+  getTranslationCapability: vi.fn().mockResolvedValue({
+    enabled: false,
+    defaultLanguage: null
+  }),
+  getTranslationLanguages: vi.fn().mockResolvedValue({})
 }))
 
 vi.mock('@/lib/utils/getStatusDetailPathClient', () => ({

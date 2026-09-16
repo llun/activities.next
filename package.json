@@ -57,6 +57,7 @@
     "clsx": "^2.1.1",
     "csv-parse": "^7.0.2",
     "date-fns": "^4.4.0",
+    "eld": "^2.1.0",
     "fast-xml-parser": "^5.11.1",
     "fit-file-parser": "^5.0.2",
     "got": "^16.0.0",
