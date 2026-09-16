@@ -61,7 +61,10 @@ export const StatusNotification: FC<Props> = ({
           emphasizePreview ? 'text-foreground' : 'text-muted-foreground'
         )}
       >
-        {cleanClassName(processStatusText(host, status))}
+        {cleanClassName(processStatusText(host, status), {
+          host,
+          tags: 'tags' in status ? status.tags : undefined
+        })}
       </div>
     </>
   )

@@ -2467,4 +2467,44 @@ describe('Post', () => {
       expect(contentCol).toHaveClass('min-h-0', 'min-w-0')
     })
   })
+
+  describe('user profile links in status text', () => {
+    it('renders mention links in status text with local profile href', () => {
+      const statusWithMention: StatusNote = {
+        ...status,
+        id: 'https://activities.local/users/llun/statuses/mention-status-1',
+        summary: '',
+        text: '<p>Hello <a href="https://mastodon.social/@remoteuser" class="u-url mention">@remoteuser</a></p>',
+        isLocalActor: false,
+        tags: [
+          {
+            id: 'tag-mention-1',
+            statusId:
+              'https://activities.local/users/llun/statuses/mention-status-1',
+            type: 'mention',
+            name: '@remoteuser@mastodon.social',
+            value: 'https://mastodon.social/@remoteuser',
+            createdAt: 0,
+            updatedAt: 0
+          }
+        ]
+      }
+
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={statusWithMention}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      const mentionLink = screen.getByRole('link', { name: '@remoteuser' })
+      expect(mentionLink).toHaveAttribute(
+        'href',
+        '/@remoteuser@mastodon.social'
+      )
+      expect(mentionLink).not.toHaveAttribute('target')
+    })
+  })
 })
