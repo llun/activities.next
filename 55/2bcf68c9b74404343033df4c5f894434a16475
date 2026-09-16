@@ -1,0 +1,39 @@
+lib/components/posts/actions/actions.tsx
+  s_3c023a0b5a7f86::t_554300749bc450 51,53
+lib/components/posts/boost-carousel.test.tsx
+  s_3c023a0b5a7f86::t_88642c4aa8d97c 1-59
+lib/components/posts/boost-carousel.tsx
+  s_3c023a0b5a7f86::t_df129f2afed75f 1-88
+lib/components/posts/post.tsx
+  s_3c023a0b5a7f86::t_af71cc04232724 11,22,58,64-66,77-80,95,98-100,148-149,151,161-163,173,426,449
+lib/components/posts/replyDraft.test.ts
+  s_3c023a0b5a7f86::t_1a248a5caea542 1-445
+lib/types/database/index.ts
+  s_6630a42cac20b3::t_c6776024001a36 2-6,9-14
+lib/types/domain/timeline.ts
+  s_6630a42cac20b3::t_d420746d4417ab 1-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "552bcf68c9b74404343033df4c5f894434a16475",
+  "prompts": {},
+  "sessions": {
+    "s_3c023a0b5a7f86": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0a62a-78cc-78f1-901a-969cf4f8dcd1",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_6630a42cac20b3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0a49e-5714-7731-9eb9-ee7d258a140f",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

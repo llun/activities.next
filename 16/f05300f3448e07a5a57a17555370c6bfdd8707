@@ -1,0 +1,20 @@
+lib/components/posts/timeline-feed.test.tsx
+  h_580a04e334fef4 12,407-512
+lib/components/posts/timeline-feed.tsx
+  h_580a04e334fef4 67-70,98,133
+lib/components/posts/timelineModel.test.ts
+  h_580a04e334fef4 527-644
+lib/components/posts/timelineModel.ts
+  h_580a04e334fef4 16-19,339-340,345
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "16f05300f3448e07a5a57a17555370c6bfdd8707",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
