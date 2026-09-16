@@ -1,0 +1,18 @@
+lib/components/posts/post.test.tsx
+  h_580a04e334fef4 2493,2495-2502,2511-2513
+lib/utils/text/extractProfileHref.test.ts
+  h_580a04e334fef4 110-149
+lib/utils/text/extractProfileHref.ts
+  h_580a04e334fef4 52-77,89-99,102,104-107,127,139,146-148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e491be291ef6723febfd22767d6346987ebe5d70",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
