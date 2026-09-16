@@ -1,0 +1,18 @@
+lib/utils/text/cleanClassName.ts
+  h_580a04e334fef4 55
+lib/utils/text/extractProfileHref.test.ts
+  h_580a04e334fef4 40-42
+lib/utils/text/extractProfileHref.ts
+  h_580a04e334fef4 86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e28f296634da2ec40a0a81ff0c6ce9dfe7479621",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
