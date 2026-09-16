@@ -916,4 +916,25 @@ describe('GET /api/v1/timelines/[timeline]', () => {
       ])
     })
   })
+
+  describe('format=activities_next context', () => {
+    test('returns statuses and context with ancestorsById when format=activities_next', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+
+      const response = await GET(
+        new NextRequest(
+          'https://llun.test/api/v1/timelines/main?format=activities_next'
+        ),
+        { params: Promise.resolve({ timeline: 'main' }) }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(Array.isArray(data.statuses)).toBe(true)
+      expect(data.context).toBeDefined()
+      expect(typeof data.context.ancestorsById).toBe('object')
+    })
+  })
 })

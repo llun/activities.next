@@ -20,7 +20,14 @@ import { resolveStatusFromPath } from './resolveStatusFromPath'
 vi.mock('next/navigation', async () => ({
   notFound: vi.fn(() => {
     throw new Error('NEXT_NOT_FOUND')
-  })
+  }),
+  useRouter: vi.fn(() => ({
+    back: vi.fn(),
+    push: vi.fn(),
+    replace: vi.fn(),
+    refresh: vi.fn(),
+    prefetch: vi.fn()
+  }))
 }))
 
 vi.mock('@/lib/config', async () => ({
@@ -87,6 +94,7 @@ vi.mock('./RemoteStatusLoading', async () => ({
 vi.mock('./SignInCallout', async () => ({ SignInCallout: () => null }))
 vi.mock('./StatusStatStrip', async () => ({ StatusStatStrip: () => null }))
 vi.mock('./StatusBox', async () => ({ StatusBox: () => null }))
+vi.mock('./StatusLikes', async () => ({ StatusLikes: () => null }))
 
 const mockResolveStatusFromPath = vi.mocked(resolveStatusFromPath)
 const mockGetRemoteStatus = vi.mocked(getRemoteStatus)

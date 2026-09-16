@@ -18,6 +18,13 @@ import {
 
 import { MainPageTimeline } from './MainPageTimeline'
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    refresh: vi.fn()
+  })
+}))
+
 vi.mock('@/lib/client', () => ({
   getTimeline: vi.fn()
 }))
@@ -38,23 +45,25 @@ vi.mock('@/lib/components/scroll-to-top-button', () => ({
   ScrollToTopButton: () => null
 }))
 
-vi.mock('@/lib/components/posts/posts', () => ({
-  Posts: ({
+const { MockFeed } = vi.hoisted(() => {
+  const MockFeed = ({
     statuses,
     currentTime,
     onPostDeleted,
     onPostUpdated,
     onLikeChanged,
     onBookmarkChanged,
-    onReactionsChanged
+    onReactionsChanged,
+    onReplyCreated
   }: {
-    statuses: Status[]
+    statuses: any[]
     currentTime: number
-    onPostDeleted?: (status: Status) => void
-    onPostUpdated?: (status: Status) => void
-    onLikeChanged?: (status: StatusNote, isLiked: boolean) => void
-    onBookmarkChanged?: (status: StatusNote, isBookmarked: boolean) => void
-    onReactionsChanged?: (status: StatusNote, reactions: any[]) => void
+    onPostDeleted?: (status: any) => void
+    onPostUpdated?: (status: any) => void
+    onLikeChanged?: (status: any, isLiked: boolean) => void
+    onBookmarkChanged?: (status: any, isBookmarked: boolean) => void
+    onReactionsChanged?: (status: any, reactions: any[]) => void
+    onReplyCreated?: (status: any) => void
   }) => (
     <div>
       <div data-testid="posts-current-time">{currentTime}</div>
@@ -72,7 +81,7 @@ vi.mock('@/lib/components/posts/posts', () => ({
             isLocalActor: true,
             createdAt: 0,
             updatedAt: 0,
-            type: StatusType.enum.Note,
+            type: 'note',
             url: 'https://activities.local/users/llun/s/unknown',
             text: 'unknown',
             summary: null,
@@ -90,12 +99,34 @@ vi.mock('@/lib/components/posts/posts', () => ({
       >
         delete unknown
       </button>
+      <button
+        type="button"
+        data-testid="trigger-reply-created"
+        onClick={() => {
+          if (statuses.length > 0) {
+            const first = statuses[0]
+            const target =
+              first.type === 'Announce' ? first.originalStatus : first
+            onReplyCreated?.({
+              id: 'https://activities.local/users/other/statuses/new-reply-1',
+              actorId: 'https://activities.local/users/other',
+              type: 'note',
+              reply: target.id,
+              text: 'A brand new reply',
+              createdAt: 1000,
+              totalReplies: 0,
+              totalLikes: 0,
+              totalShares: 0
+            })
+          }
+        }}
+      >
+        reply created
+      </button>
       {statuses.map((status) => {
         const target = (
-          status.type === StatusType.enum.Announce
-            ? status.originalStatus
-            : status
-        ) as StatusNote
+          status.type === 'Announce' ? status.originalStatus : status
+        ) as any
         return (
           <div key={status.id} data-testid={`post-${status.id}`}>
             <span data-testid={`post-id-${status.id}`}>{status.id}</span>
@@ -115,6 +146,28 @@ vi.mock('@/lib/components/posts/posts', () => ({
             <span data-testid={`post-playback-${status.id}`}>
               {target.attachments?.[0]?.playbackType ?? 'none'}
             </span>
+            <span data-testid={`post-replies-${status.id}`}>
+              {target.totalReplies ?? 0}
+            </span>
+            <button
+              type="button"
+              data-testid={`trigger-reply-${status.id}`}
+              onClick={() =>
+                onReplyCreated?.({
+                  id: `https://activities.local/users/other/statuses/reply-to-${status.id}`,
+                  actorId: 'https://activities.local/users/other',
+                  type: 'note',
+                  reply: target.id,
+                  text: 'reply text',
+                  createdAt: 1000,
+                  totalReplies: 0,
+                  totalLikes: 0,
+                  totalShares: 0
+                })
+              }
+            >
+              reply status
+            </button>
             <button
               type="button"
               data-testid={`trigger-delete-${status.id}`}
@@ -189,6 +242,15 @@ vi.mock('@/lib/components/posts/posts', () => ({
       })}
     </div>
   )
+  return { MockFeed }
+})
+
+vi.mock('@/lib/components/posts/posts', () => ({
+  Posts: MockFeed
+}))
+
+vi.mock('@/lib/components/posts/timeline-feed', () => ({
+  TimelineFeed: MockFeed
 }))
 
 vi.mock('@/lib/components/ui/button', () => ({
@@ -1026,6 +1088,53 @@ describe('MainPageTimeline', () => {
         )
       ).toHaveTextContent('1')
     })
+
+    it('increments target status totalReplies, inserts reply directly next to target status in feed, and displays ReplyToast', () => {
+      const targetStatus = createStatus(
+        'https://activities.local/users/llun/s/1'
+      )
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          profile={profile}
+          currentTime={1000}
+          isMediaUploadEnabled={false}
+          statuses={[targetStatus]}
+        />
+      )
+
+      expect(
+        screen.getByTestId(
+          'post-replies-https://activities.local/users/llun/s/1'
+        )
+      ).toHaveTextContent('0')
+
+      // Trigger reply creation
+      fireEvent.click(
+        screen.getByTestId(
+          'trigger-reply-https://activities.local/users/llun/s/1'
+        )
+      )
+
+      expect(
+        screen.getByTestId(
+          'post-replies-https://activities.local/users/llun/s/1'
+        )
+      ).toHaveTextContent('1')
+
+      // Reply is inserted directly next to target status in feed
+      expect(
+        screen.getByTestId(
+          'post-https://activities.local/users/other/statuses/reply-to-https://activities.local/users/llun/s/1'
+        )
+      ).toBeInTheDocument()
+
+      // ReplyToast is displayed
+      expect(screen.getByText('Reply posted')).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'View reply' })
+      ).toBeInTheDocument()
+    })
   })
 
   describe('metadata reconciliation from updated statuses prop', () => {
@@ -1304,6 +1413,257 @@ describe('MainPageTimeline', () => {
           'post-playback-https://activities.local/users/llun/s/ann-1'
         )
       ).toHaveTextContent('gifv')
+    })
+
+    it('increments target status totalReplies, places reply directly next to replied status in feed, and renders ReplyToast when onReplyCreated triggers', () => {
+      const post1 = createStatus('https://activities.local/users/llun/s/1', {
+        totalReplies: 2
+      })
+      const post2 = createStatus('https://activities.local/users/llun/s/2', {
+        totalReplies: 0
+      })
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          profile={profile}
+          currentTime={1000}
+          isMediaUploadEnabled={false}
+          statuses={[post1, post2]}
+        />
+      )
+
+      expect(
+        screen.getByTestId('post-https://activities.local/users/llun/s/1')
+      ).toBeInTheDocument()
+      expect(
+        screen.getByTestId('post-https://activities.local/users/llun/s/2')
+      ).toBeInTheDocument()
+      expect(
+        screen.getByTestId(
+          'post-replies-https://activities.local/users/llun/s/1'
+        )
+      ).toHaveTextContent('2')
+
+      // Trigger onReplyCreated via trigger-reply-created
+      fireEvent.click(screen.getByTestId('trigger-reply-created'))
+
+      // 1. Target status's totalReplies increments
+      expect(
+        screen.getByTestId(
+          'post-replies-https://activities.local/users/llun/s/1'
+        )
+      ).toHaveTextContent('3')
+
+      // 2. The reply is inserted immediately following post1 in currentStatuses
+      expect(
+        screen.getByTestId(
+          'post-https://activities.local/users/other/statuses/new-reply-1'
+        )
+      ).toBeInTheDocument()
+
+      const renderedPostIds = screen
+        .getAllByTestId(/^post-id-/)
+        .map((el) => el.textContent)
+      expect(renderedPostIds).toEqual([
+        post1.id,
+        'https://activities.local/users/other/statuses/new-reply-1',
+        post2.id
+      ])
+
+      // 3. ReplyToast renders with the reply status
+      expect(screen.getByRole('status')).toBeInTheDocument()
+      expect(screen.getByText('Reply posted')).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'View reply' })
+      ).toBeInTheDocument()
+    })
+
+    it('shows retry button when fetch fails and re-triggers fetch on click', async () => {
+      const post1 = createStatus('https://activities.local/users/llun/s/1')
+      const post2 = createStatus('https://activities.local/users/llun/s/2')
+
+      vi.mocked(getTimeline).mockRejectedValueOnce(new Error('Network error'))
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post1]}
+          initialNextMaxStatusId="cursor-page-1"
+        />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+      await waitFor(() => {
+        expect(screen.getByRole('alert')).toBeInTheDocument()
+      })
+      expect(screen.getByText('Failed to load posts')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+
+      vi.mocked(getTimeline).mockResolvedValueOnce({
+        statuses: [post2],
+        nextMaxStatusId: null,
+        prevMinStatusId: null
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId('post-https://activities.local/users/llun/s/2')
+        ).toBeInTheDocument()
+      })
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('preserves server cursor when received page contains duplicate items', async () => {
+      const post1 = createStatus('https://activities.local/users/llun/s/1')
+      const post2 = createStatus('https://activities.local/users/llun/s/2')
+      const post3 = createStatus('https://activities.local/users/llun/s/3')
+
+      // First fetch-more returns duplicate items with updated server cursor
+      vi.mocked(getTimeline).mockResolvedValueOnce({
+        statuses: [post1, post2],
+        nextMaxStatusId: 'cursor-page-2',
+        prevMinStatusId: null
+      })
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post1, post2]}
+          initialNextMaxStatusId="cursor-page-1"
+        />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+      await waitFor(() => {
+        expect(getTimeline).toHaveBeenCalledWith({
+          timeline: Timeline.MAIN,
+          maxStatusId: 'cursor-page-1'
+        })
+      })
+
+      // No duplicate rows added
+      const renderedPostIds = screen
+        .getAllByTestId(/^post-id-/)
+        .map((el) => el.textContent)
+      expect(renderedPostIds).toEqual([post1.id, post2.id])
+
+      // hasMore is preserved because nextMaxStatusId is valid
+      expect(
+        screen.getByRole('button', { name: 'Load more' })
+      ).toBeInTheDocument()
+
+      // Subsequent fetch-more advances past the duplicate page using updated cursor
+      vi.mocked(getTimeline).mockResolvedValueOnce({
+        statuses: [post3],
+        nextMaxStatusId: null,
+        prevMinStatusId: null
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+      await waitFor(() => {
+        expect(getTimeline).toHaveBeenCalledWith({
+          timeline: Timeline.MAIN,
+          maxStatusId: 'cursor-page-2'
+        })
+      })
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId('post-https://activities.local/users/llun/s/3')
+        ).toBeInTheDocument()
+      })
+    })
+
+    it('displays polling banner when newer posts are detected, and clicking refreshes top snapshot', async () => {
+      vi.useFakeTimers()
+      const originalScrollTo = window.scrollTo
+      const scrollToMock = vi.fn()
+      window.scrollTo = scrollToMock
+
+      try {
+        const post1 = createStatus('https://activities.local/users/llun/s/1')
+        const newPostA = createStatus(
+          'https://activities.local/users/llun/s/new-a'
+        )
+        const newPostB = createStatus(
+          'https://activities.local/users/llun/s/new-b'
+        )
+
+        render(
+          <MainPageTimeline
+            host="activities.local"
+            currentTime={FIXED_CURRENT_TIME}
+            profile={profile}
+            isMediaUploadEnabled={false}
+            statuses={[post1]}
+          />
+        )
+
+        // Mock background poll detecting 2 new posts
+        vi.mocked(getTimeline).mockResolvedValueOnce({
+          statuses: [newPostA, newPostB],
+          nextMaxStatusId: null,
+          prevMinStatusId: 'https://activities.local/users/llun/s/new-a'
+        })
+
+        await act(async () => {
+          vi.advanceTimersByTime(15000)
+          await Promise.resolve()
+          await Promise.resolve()
+        })
+
+        expect(getTimeline).toHaveBeenCalledWith(
+          expect.objectContaining({
+            timeline: Timeline.MAIN,
+            limit: 5
+          })
+        )
+
+        const banner = screen.getByRole('button', { name: '2 new posts ↑' })
+        expect(banner).toBeInTheDocument()
+
+        // Mock clean top snapshot fetch
+        vi.mocked(getTimeline).mockResolvedValueOnce({
+          statuses: [newPostA, newPostB, post1],
+          nextMaxStatusId: 'cursor-after-top',
+          prevMinStatusId: null
+        })
+
+        await act(async () => {
+          fireEvent.click(banner)
+          await Promise.resolve()
+          await Promise.resolve()
+        })
+
+        expect(scrollToMock).toHaveBeenCalledWith({
+          top: 0,
+          behavior: 'smooth'
+        })
+        expect(getTimeline).toHaveBeenCalledWith({
+          timeline: Timeline.MAIN
+        })
+        expect(
+          screen.queryByRole('button', { name: /new post/ })
+        ).not.toBeInTheDocument()
+        expect(
+          screen.getByTestId('post-https://activities.local/users/llun/s/new-a')
+        ).toBeInTheDocument()
+      } finally {
+        window.scrollTo = originalScrollTo
+        vi.useRealTimers()
+      }
     })
   })
 })

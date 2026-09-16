@@ -9,8 +9,10 @@ import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
 import { toMediaRowId } from '@/lib/database/sql/media'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
+import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { resolveQuoteForCreate } from '@/lib/services/quotes/resolveQuoteForCreate'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
+import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { validateStatusContentLimits } from '@/lib/services/statuses/contentLimits'
 import { toActivityPubObject } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -84,11 +86,13 @@ export const POST = traceApiRoute(
             message,
             contentWarning,
             replyStatus,
+            inReplyToId,
             attachments,
             fitnessFileId,
             quotedStatusId: quotedStatusIdInput,
             quoteApprovalPolicy: requestedQuotePolicy,
-            visibility
+            visibility,
+            language
           } = request
           // Bound how many attachments one status may store, the same way
           // POST /api/v1/statuses and PUT /api/v1/statuses/:id do: every entry
@@ -161,16 +165,43 @@ export const POST = traceApiRoute(
                 quoteResolution.reason === 'not_found' ? 404 : 422
             })
           }
+
+          // Re-resolve and authorize reply target on the server before posting.
+          // Do not trust client-supplied Status body for access or audience.
+          const rawReplyTargetId = inReplyToId ?? replyStatus?.id
+          let replyNoteId: string | undefined
+          if (rawReplyTargetId) {
+            const resolvedReplyId = await resolveStatusIdParam(
+              database,
+              rawReplyTargetId
+            )
+            const targetStatus = await getReadableStatus({
+              database,
+              statusId: resolvedReplyId,
+              currentActor
+            })
+            if (!targetStatus) {
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: ERROR_404,
+                responseStatusCode: 404
+              })
+            }
+            replyNoteId = targetStatus.id
+          }
+
           const status = await createNoteFromUserInput({
             currentActor,
             text: message,
             summary: contentWarning,
-            replyNoteId: replyStatus?.id,
+            replyNoteId,
             attachments,
             fitnessFileId,
             quotedStatusId: quoteResolution.quotedStatusId,
             quoteApprovalPolicy: quoteResolution.quoteApprovalPolicy,
             visibility,
+            language,
             database
           })
           if (!status)
@@ -195,21 +226,49 @@ export const POST = traceApiRoute(
             message,
             contentWarning,
             replyStatus,
+            inReplyToId,
             choices,
             durationInSeconds,
             pollType,
-            visibility
+            visibility,
+            language
           } = request
+
+          // Re-resolve and authorize reply target on the server before posting.
+          const rawReplyTargetId = inReplyToId ?? replyStatus?.id
+          let replyStatusId: string | undefined
+          if (rawReplyTargetId) {
+            const resolvedReplyId = await resolveStatusIdParam(
+              database,
+              rawReplyTargetId
+            )
+            const targetStatus = await getReadableStatus({
+              database,
+              statusId: resolvedReplyId,
+              currentActor
+            })
+            if (!targetStatus) {
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: ERROR_404,
+                responseStatusCode: 404
+              })
+            }
+            replyStatusId = targetStatus.id
+          }
+
           const endAt = Date.now() + durationInSeconds * 1000
           const status = await createPollFromUserInput({
             currentActor,
             text: message,
             summary: contentWarning,
-            replyStatusId: replyStatus?.id,
+            replyStatusId,
             choices,
             endAt,
             pollType,
             visibility,
+            language,
             database
           })
           if (!status) {

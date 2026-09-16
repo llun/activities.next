@@ -16,22 +16,26 @@ export interface CreateNoteParams {
   message: string
   contentWarning?: string
   replyStatus?: Status
+  inReplyToId?: string
   quotedStatus?: Status
   quoteApprovalPolicy?: QuoteApprovalPolicy
   attachments?: PostBoxAttachment[]
   fitnessFileId?: string
   visibility?: MastodonVisibility
+  language?: string | null
 }
 
 export const createNote = async ({
   message,
   contentWarning,
   replyStatus,
+  inReplyToId,
   quotedStatus,
   quoteApprovalPolicy,
   attachments = [],
   fitnessFileId,
-  visibility
+  visibility,
+  language
 }: CreateNoteParams) => {
   if (
     message.trim().length === 0 &&
@@ -49,13 +53,15 @@ export const createNote = async ({
     body: JSON.stringify({
       type: 'note',
       replyStatus,
+      inReplyToId: inReplyToId ?? replyStatus?.id,
       message,
       contentWarning,
       attachments,
       fitnessFileId,
       quotedStatusId: quotedStatus?.id,
       quoteApprovalPolicy,
-      visibility
+      visibility,
+      language
     })
   })
   if (response.status !== 200) {
@@ -187,7 +193,9 @@ export interface CreatePollParams {
   durationInSeconds: Duration
   pollType?: 'oneOf' | 'anyOf'
   replyStatus?: Status
+  inReplyToId?: string
   visibility?: MastodonVisibility
+  language?: string | null
 }
 
 export const createPoll = async ({
@@ -197,7 +205,9 @@ export const createPoll = async ({
   durationInSeconds,
   pollType,
   replyStatus,
-  visibility
+  inReplyToId,
+  visibility,
+  language
 }: CreatePollParams) => {
   if (message.trim().length === 0 && choices.length === 0) {
     throw new Error('Message or choices must not be empty')
@@ -217,12 +227,14 @@ export const createPoll = async ({
     body: JSON.stringify({
       type: 'poll',
       replyStatus,
+      inReplyToId: inReplyToId ?? replyStatus?.id,
       message,
       contentWarning,
       durationInSeconds,
       pollType,
       choices,
-      visibility
+      visibility,
+      language
     })
   })
   if (response.status !== 200) {

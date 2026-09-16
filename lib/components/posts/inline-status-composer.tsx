@@ -17,6 +17,8 @@ interface Props {
   status: StatusNote | StatusPoll
   isMediaUploadEnabled?: boolean
   onCancel: () => void
+  /** A reply specifically was created (distinct from quote/root create). */
+  onReplyCreated?: (status: Status) => void
   /** A reply or quote produced a new status. */
   onCreated?: (status: Status) => void
   /** An edit updated the target status in place. */
@@ -42,6 +44,7 @@ export const InlineStatusComposer: FC<Props> = ({
   isMediaUploadEnabled,
   onCancel,
   onCreated,
+  onReplyCreated,
   onUpdated
 }) => {
   if (mode === 'reply') {
@@ -52,7 +55,11 @@ export const InlineStatusComposer: FC<Props> = ({
         isMediaUploadEnabled={isMediaUploadEnabled}
         onCancel={onCancel}
         onPostCreated={(created) => {
-          onCreated?.(created)
+          if (onReplyCreated) {
+            onReplyCreated(created)
+          } else {
+            onCreated?.(created)
+          }
           onCancel()
         }}
       />

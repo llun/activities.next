@@ -4,6 +4,7 @@ import { FC } from 'react'
 
 import { getRemoteStatus } from '@/lib/activities/getRemoteStatus'
 import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
+import { StatusThread } from '@/lib/components/posts/status-thread'
 import { getBaseURL, getConfig } from '@/lib/config'
 import { getPublicMapProvider } from '@/lib/config/mapProvider'
 import { getDatabase } from '@/lib/database'
@@ -17,6 +18,7 @@ import {
   canActorReadStatus,
   isStatusPubliclyReadable
 } from '@/lib/services/statusAccess'
+import { getStatusContext } from '@/lib/services/statuses/getStatusContext'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import {
   Status,
@@ -32,6 +34,7 @@ import { Header } from './Header'
 import { RemoteStatusLoading } from './RemoteStatusLoading'
 import { SignInCallout } from './SignInCallout'
 import { StatusBox } from './StatusBox'
+import { StatusLikes } from './StatusLikes'
 import { StatusStatStrip } from './StatusStatStrip'
 import { decodePathParam, resolveStatusFromPath } from './resolveStatusFromPath'
 
@@ -188,12 +191,10 @@ const Page: FC<Props> = async ({ params }) => {
     await enrichStatusAttachments(actualStatus, database)
   }
 
-  const statusUrl =
-    status.type === StatusType.enum.Announce
-      ? getOriginalStatus(status).url
-      : status.url
-
-  let replies: Status[]
+  let ancestors: Status[] = []
+  let replies: Status[] = []
+  let hasMoreAncestors = false
+  let hasMoreDescendants = false
 
   if (
     status.type === StatusType.enum.Note &&
@@ -202,76 +203,22 @@ const Page: FC<Props> = async ({ params }) => {
   ) {
     // If replies are embedded (e.g. temporary status), use them
     replies = status.replies as Status[]
-  } else {
-    // Otherwise fetch from database. The query filters to statuses the current
-    // viewer may read: logged-out visitors only ever see public/unlisted
-    // replies, while logged-in viewers get replies scoped to their own
-    // visibility (own posts, direct messages addressed to them, and
-    // followers-only posts from authors they have an accepted follow with).
-    replies = await database.getStatusReplies({
-      statusId,
-      url: statusUrl,
-      // Separate from the visibility filter below: this is the viewer whose
-      // like, bookmark and reaction state each reply is hydrated with.
-      currentActorId: currentActor?.id,
-      ...(currentActor
-        ? { visibleToActorId: currentActor.id }
-        : { publicOnly: true })
-    })
-  }
-
-  // Object-level visibility backstop for logged-out visitors. Covers the
-  // embedded-replies path above (which never hits the query filter) and any
-  // stale/malformed recipient rows the query might miss, so a private reply to
-  // a public status never reaches an anonymous viewer (and isn't counted in the
-  // reply heading). Logged-in viewers rely on the query's `visibleToActorId`
-  // filter instead: it is the authoritative visibility check (it also matches
-  // recipientless replies to the viewer's own posts), so re-filtering with the
-  // simpler `isStatusPubliclyReadable` here would wrongly hide replies they may
-  // read.
-  if (!currentActor) {
-    replies = replies.filter(isStatusPubliclyReadable)
-  }
-
-  const previouses = []
-  if (status.type !== StatusType.enum.Announce && status.reply) {
-    let replyStatus = await database.getStatus({
-      statusId: status.reply,
-      withReplies: false,
-      // Ancestors render the same interactive chips as the focused status, so
-      // they need the same viewer — otherwise one post shows its reaction
-      // highlighted on the timeline and unhighlighted as a thread ancestor.
-      currentActorId: currentActor?.id
-    })
-    while (previouses.length < 3 && replyStatus) {
-      // `getStatus` does no visibility filtering, so without this guard a public
-      // reply to a followers-only (or direct) parent would leak that private
-      // ancestor to a viewer who cannot read it. Stop the chain at the first
-      // ancestor the viewer may not read. `canActorReadStatus` collapses to the
-      // public/unlisted check when `currentActor` is null, covering both
-      // logged-out and logged-in viewers.
-      const canReadAncestor = await canActorReadStatus({
-        database,
-        status: replyStatus,
-        currentActor
-      })
-      if (!canReadAncestor) {
-        break
-      }
-      previouses.push(replyStatus)
-      // This should be impossible
-      if (replyStatus.type === StatusType.enum.Announce) {
-        break
-      }
-      if (!replyStatus.reply) {
-        break
-      }
-      replyStatus = await database.getStatus({
-        statusId: replyStatus.reply,
-        withReplies: false,
-        currentActorId: currentActor?.id
-      })
+    if (!currentActor) {
+      replies = replies.filter(isStatusPubliclyReadable)
     }
+  } else if (statusId) {
+    const threadContext = await getStatusContext({
+      database,
+      statusId,
+      status,
+      currentActor,
+      ancestorsLimit: 40,
+      descendantsLimit: 60
+    })
+    ancestors = threadContext.ancestors
+    replies = threadContext.descendants
+    hasMoreAncestors = threadContext.hasMoreAncestors
+    hasMoreDescendants = threadContext.hasMoreDescendants
   }
 
   const statusForLayout =
@@ -440,82 +387,37 @@ const Page: FC<Props> = async ({ params }) => {
         <h1 className="sr-only">Post</h1>
       )}
 
-      {previouses.reverse().map((item, index) => (
-        <div
-          key={item.id}
-          className={cn(
-            'border-b border-l-4 border-l-primary/20 bg-muted/30 max-md:rounded-none',
-            // A logged-out view renders no `Header`, so the first ancestor row
-            // is what meets the card's rounded top corners.
-            !currentActorProfile && index === 0 && 'rounded-t-2xl'
-          )}
-        >
-          <StatusBox
-            host={host}
-            mapProvider={mapProvider}
-            currentTime={currentTime}
-            currentActor={currentActorProfile}
-            status={cleanJson(item)}
-          />
-        </div>
-      ))}
-
-      <div
-        className={cn(
-          'border-b bg-background max-md:rounded-none',
-          // …and with neither a `Header` nor an ancestor chain above it, the
-          // focused post is the topmost child instead.
-          !currentActorProfile && previouses.length === 0 && 'rounded-t-2xl'
-        )}
-      >
-        <StatusBox
-          host={host}
-          mapProvider={mapProvider}
-          currentTime={currentTime}
-          currentActor={currentActorProfile}
-          status={cleanJson(status)}
-          variant="detail"
-          isMediaUploadEnabled={Boolean(mediaStorage)}
-        />
-        {!currentActorProfile ? (
-          <div className="px-4 pb-4">
-            <StatusStatStrip
-              boosts={statusForLayout.totalShares}
-              likes={statusForLayout.totalLikes}
-              replies={replies.length}
+      <StatusThread
+        host={host}
+        status={cleanJson(status)}
+        ancestors={ancestors.map((item) => cleanJson(item))}
+        descendants={replies.map((reply) => cleanJson(reply))}
+        currentActor={currentActorProfile}
+        currentTime={currentTime}
+        isMediaUploadEnabled={Boolean(mediaStorage)}
+        hasMoreAncestors={hasMoreAncestors}
+        hasMoreDescendants={hasMoreDescendants}
+        focusedFooter={
+          !currentActorProfile ? (
+            <div className="mt-3 border-t pt-3">
+              <StatusStatStrip
+                boosts={statusForLayout.totalShares}
+                likes={statusForLayout.totalLikes}
+                replies={replies.length}
+              />
+            </div>
+          ) : (
+            <StatusLikes
+              statusId={actualStatus.id}
+              totalLikes={actualStatus.totalLikes}
             />
-          </div>
-        ) : null}
-      </div>
+          )
+        }
+      />
 
       {!currentActorProfile ? (
         <SignInCallout registrationOpen={registrationOpen} />
       ) : null}
-
-      {replies.length > 0 ? (
-        <div>
-          <div className="border-b px-5 py-3">
-            <h2 className="font-semibold">Replies ({replies.length})</h2>
-          </div>
-
-          <div className="divide-y">
-            {replies.map((reply) => (
-              <StatusBox
-                key={reply.id}
-                host={host}
-                mapProvider={mapProvider}
-                currentTime={currentTime}
-                currentActor={currentActorProfile}
-                status={cleanJson(reply)}
-              />
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="p-8 text-center text-muted-foreground">
-          No replies yet
-        </div>
-      )}
     </div>
   )
 }

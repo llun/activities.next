@@ -8,7 +8,7 @@ export const filterMutedStatuses = async (
   actorId: string | undefined,
   statuses: Status[]
 ) => {
-  if (!actorId) return statuses
+  if (!actorId || !database.getMuteRelations) return statuses
 
   const targetActorIds = [
     ...new Set(statuses.flatMap(getRelevantStatusActorIds))

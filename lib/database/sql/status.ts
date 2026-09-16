@@ -1489,7 +1489,8 @@ export const StatusSQLDatabaseMixin = (
     limit,
     publicOnly = false,
     visibleToActorId,
-    currentActorId
+    currentActorId,
+    order = 'desc'
   }: GetStatusRepliesParams) {
     let query = database('statuses')
       .where((builder) => {
@@ -1498,7 +1499,10 @@ export const StatusSQLDatabaseMixin = (
           builder.orWhere('reply', url)
         }
       })
-      .orderBy('createdAt', 'desc')
+      .orderBy([
+        { column: 'createdAt', order },
+        { column: 'id', order }
+      ])
 
     if (publicOnly) {
       query = query.modify(wherePubliclyReadableStatus, database)
