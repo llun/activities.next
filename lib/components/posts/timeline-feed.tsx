@@ -273,7 +273,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
                 key={row.key}
                 aria-label="Thread"
                 className={cn(
-                  'min-h-0 min-w-0 divide-y divide-border/40',
+                  'min-h-0 min-w-0 bg-muted/30 dark:bg-muted/15',
                   framed && 'first:rounded-t-xl last:rounded-b-xl'
                 )}
               >
@@ -355,7 +355,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
                 key={row.key}
                 aria-label="Conversation"
                 className={cn(
-                  'min-h-0 min-w-0 divide-y divide-border/40',
+                  'min-h-0 min-w-0 bg-muted/30 dark:bg-muted/15',
                   framed && 'first:rounded-t-xl last:rounded-b-xl'
                 )}
               >

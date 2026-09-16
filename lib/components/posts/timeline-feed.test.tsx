@@ -181,6 +181,9 @@ describe('TimelineFeed', () => {
 
     const threadContainer = screen.getByLabelText('Thread')
     expect(threadContainer).toBeInTheDocument()
+    expect(threadContainer).toHaveClass('bg-muted/30')
+    expect(threadContainer).toHaveClass('dark:bg-muted/15')
+    expect(threadContainer).not.toHaveClass('divide-y')
 
     // Chronological order: thread part 1 -> thread part 2 -> thread part 3
     const text1 = screen.getByText('Thread part 1: The introduction')
@@ -295,6 +298,9 @@ describe('TimelineFeed', () => {
 
     const convContainer = screen.getByLabelText('Conversation')
     expect(convContainer).toBeInTheDocument()
+    expect(convContainer).toHaveClass('bg-muted/30')
+    expect(convContainer).toHaveClass('dark:bg-muted/15')
+    expect(convContainer).not.toHaveClass('divide-y')
 
     expect(
       screen.getByText(/Alice: What does everyone think of Phanpy/)
