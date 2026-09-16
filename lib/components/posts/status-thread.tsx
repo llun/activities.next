@@ -85,8 +85,13 @@ export const StatusThread: FC<StatusThreadProps> = ({
     const propIds = new Set(descendants.map((d) => d.id))
     const additions = locallyCreatedReplies.filter((d) => !propIds.has(d.id))
     if (additions.length === 0) return descendants
-    return [...descendants, ...additions]
+    return [...additions, ...descendants]
   }, [descendants, locallyCreatedReplies])
+
+  const priorityStatusIds = useMemo(
+    () => new Set(locallyCreatedReplies.map((r) => r.id)),
+    [locallyCreatedReplies]
+  )
 
   const tree = useMemo(
     () =>
@@ -95,9 +100,17 @@ export const StatusThread: FC<StatusThreadProps> = ({
         ancestors,
         descendants: allDescendants,
         hasMoreAncestors,
-        hasMoreDescendants
+        hasMoreDescendants,
+        priorityStatusIds
       }),
-    [status, ancestors, allDescendants, hasMoreAncestors, hasMoreDescendants]
+    [
+      status,
+      ancestors,
+      allDescendants,
+      hasMoreAncestors,
+      hasMoreDescendants,
+      priorityStatusIds
+    ]
   )
 
   const openStatus = (statusToOpen: Status) => {
@@ -122,7 +135,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
       ) {
         return prev
       }
-      return [...prev, newReply]
+      return [newReply, ...prev]
     })
 
     const actualReply = getOriginalStatus(newReply)
@@ -222,7 +235,6 @@ export const StatusThread: FC<StatusThreadProps> = ({
         ? getOriginalStatus(node.status)
         : node.status
     const canCompose = Boolean(currentActor)
-    const boundedDepth = Math.min(node.depth, 4)
 
     return (
       <div
@@ -230,11 +242,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
         data-testid="thread-node"
         data-node-id={node.status.id}
         data-depth={node.depth}
-        className={cn(
-          'transition-colors',
-          boundedDepth > 0 &&
-            'ml-3 sm:ml-5 pl-3 sm:pl-4 border-l-2 border-border/60'
-        )}
+        className="transition-colors"
       >
         {node.parentUnavailable ? (
           <div
@@ -335,7 +343,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
         </article>
 
         {hasReplies && isExpanded ? (
-          <div className="space-y-1">
+          <div className="divide-y divide-border/40 border-t border-border/40">
             {node.replies.map((reply) => renderThreadNode(reply))}
           </div>
         ) : null}
@@ -377,7 +385,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
                 key={ancestor.id}
                 data-testid="ancestor-status"
                 className={cn(
-                  'border-b border-l-4 border-l-primary/30 bg-muted/30 p-4 last:border-b-0 max-md:rounded-none',
+                  'border-b bg-background p-4 last:border-b-0 max-md:rounded-none',
                   !currentActor && index === 0 && 'rounded-t-2xl'
                 )}
               >
@@ -444,7 +452,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
                 ) : null}
 
                 {tree.ancestorReplies?.[ancestor.id]?.length ? (
-                  <div className="mt-3 space-y-2">
+                  <div className="mt-3 divide-y divide-border/40 border-t border-border/40">
                     {tree.ancestorReplies[ancestor.id].map((replyNode) =>
                       renderThreadNode(replyNode)
                     )}

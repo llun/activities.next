@@ -111,8 +111,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   }
 
   // When a reply is created inline from a feed row, update the parent status's
-  // reply count/replies in-place rather than prepending the reply as a top-level
-  // row, preserving the Home timeline's reading order.
+  // reply count and insert the reply directly next to the replied message in the feed.
   const onReplyCreated = useCallback((reply: Status) => {
     const originalReply = getOriginalStatus(reply)
     const parentId =
@@ -123,13 +122,43 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         : null) || getStatusReplyTargetId(originalReply)
 
     if (parentId) {
-      setCurrentStatuses((previousStatuses) =>
-        updateMatchingStatus(previousStatuses, parentId, (target) => ({
-          ...target,
-          totalReplies: (target.totalReplies ?? 0) + 1,
-          replies: target.replies ? [...target.replies, reply] : [reply]
-        }))
-      )
+      setCurrentStatuses((previousStatuses) => {
+        const withUpdatedCount = updateMatchingStatus(
+          previousStatuses,
+          parentId,
+          (target) => ({
+            ...target,
+            totalReplies: (target.totalReplies ?? 0) + 1,
+            replies: target.replies ? [...target.replies, reply] : [reply]
+          })
+        )
+
+        const parentIndex = withUpdatedCount.findIndex((s) => {
+          if (s.id === parentId || s.publicId === parentId) return true
+          const orig = getOriginalStatus(s)
+          return (
+            orig.id === parentId ||
+            orig.url === parentId ||
+            orig.publicId === parentId
+          )
+        })
+
+        if (parentIndex !== -1) {
+          if (withUpdatedCount.some((s) => s.id === reply.id)) {
+            return withUpdatedCount
+          }
+          const next = [...withUpdatedCount]
+          next.splice(parentIndex + 1, 0, reply)
+          return next
+        }
+
+        if (withUpdatedCount.some((s) => s.id === reply.id)) {
+          return withUpdatedCount
+        }
+        return [reply, ...withUpdatedCount]
+      })
+    } else {
+      setCurrentStatuses((previousStatuses) => [reply, ...previousStatuses])
     }
 
     setReplyToastStatus(reply)

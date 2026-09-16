@@ -342,4 +342,42 @@ describe('threadModel', () => {
     // It is not dumped into tree.descendants
     expect(tree.descendants).toHaveLength(0)
   })
+
+  it('places priority status replies at the top next to replied message even if newer', () => {
+    const root = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/root',
+      actor: mockAlice,
+      actorId: mockAlice.id,
+      createdAt: BASE_TIME
+    })
+
+    const olderReply = createMockNote({
+      id: 'https://activities.local/users/bob/statuses/older',
+      actor: mockBob,
+      actorId: mockBob.id,
+      reply: root.id,
+      createdAt: BASE_TIME + 1000,
+      text: 'Older reply'
+    })
+
+    const newerPriorityReply = createMockNote({
+      id: 'https://activities.local/users/carol/statuses/priority-reply',
+      actor: mockCarol,
+      actorId: mockCarol.id,
+      reply: root.id,
+      createdAt: BASE_TIME + 50000,
+      text: 'Just created reply'
+    })
+
+    const tree = buildThreadTree({
+      focusedStatus: root,
+      descendants: [olderReply, newerPriorityReply],
+      priorityStatusIds: new Set([newerPriorityReply.id])
+    })
+
+    expect(tree.descendants.map((d) => d.status.id)).toEqual([
+      newerPriorityReply.id,
+      olderReply.id
+    ])
+  })
 })

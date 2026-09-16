@@ -1089,17 +1089,17 @@ describe('MainPageTimeline', () => {
       ).toHaveTextContent('1')
     })
 
-    it('increments target status totalReplies without prepending reply to top-level feed, and displays ReplyToast', () => {
-      const post1 = createStatus('https://activities.local/users/llun/s/1', {
-        totalReplies: 0
-      })
+    it('increments target status totalReplies, inserts reply directly next to target status in feed, and displays ReplyToast', () => {
+      const targetStatus = createStatus(
+        'https://activities.local/users/llun/s/1'
+      )
       render(
         <MainPageTimeline
           host="activities.local"
-          currentTime={FIXED_CURRENT_TIME}
           profile={profile}
+          currentTime={1000}
           isMediaUploadEnabled={false}
-          statuses={[post1]}
+          statuses={[targetStatus]}
         />
       )
 
@@ -1109,14 +1109,6 @@ describe('MainPageTimeline', () => {
         )
       ).toHaveTextContent('0')
 
-      // Reply is not in the feed initially
-      expect(
-        screen.queryByTestId(
-          'post-https://activities.local/users/other/statuses/reply-to-https://activities.local/users/llun/s/1'
-        )
-      ).not.toBeInTheDocument()
-      expect(screen.queryByText('Reply posted')).not.toBeInTheDocument()
-
       // Trigger reply creation
       fireEvent.click(
         screen.getByTestId(
@@ -1124,19 +1116,18 @@ describe('MainPageTimeline', () => {
         )
       )
 
-      // totalReplies is incremented on the target status
       expect(
         screen.getByTestId(
           'post-replies-https://activities.local/users/llun/s/1'
         )
       ).toHaveTextContent('1')
 
-      // Reply is NOT prepended to top-level feed
+      // Reply is inserted directly next to target status in feed
       expect(
-        screen.queryByTestId(
+        screen.getByTestId(
           'post-https://activities.local/users/other/statuses/reply-to-https://activities.local/users/llun/s/1'
         )
-      ).not.toBeInTheDocument()
+      ).toBeInTheDocument()
 
       // ReplyToast is displayed
       expect(screen.getByText('Reply posted')).toBeInTheDocument()
@@ -1424,21 +1415,19 @@ describe('MainPageTimeline', () => {
       ).toHaveTextContent('gifv')
     })
 
-    it('increments target status totalReplies, retains reading order without prepending reply, and renders ReplyToast when onReplyCreated triggers', () => {
+    it('increments target status totalReplies, places reply directly next to replied status in feed, and renders ReplyToast when onReplyCreated triggers', () => {
       const post1 = createStatus('https://activities.local/users/llun/s/1', {
-        totalReplies: 2,
-        replies: []
+        totalReplies: 2
       })
       const post2 = createStatus('https://activities.local/users/llun/s/2', {
-        totalReplies: 0,
-        replies: []
+        totalReplies: 0
       })
 
       render(
         <MainPageTimeline
           host="activities.local"
-          currentTime={FIXED_CURRENT_TIME}
           profile={profile}
+          currentTime={1000}
           isMediaUploadEnabled={false}
           statuses={[post1, post2]}
         />
@@ -1466,17 +1455,21 @@ describe('MainPageTimeline', () => {
         )
       ).toHaveTextContent('3')
 
-      // 2. The reply is NOT prepended as a top-level row to currentStatuses (reading order preserved)
+      // 2. The reply is inserted immediately following post1 in currentStatuses
       expect(
-        screen.queryByTestId(
+        screen.getByTestId(
           'post-https://activities.local/users/other/statuses/new-reply-1'
         )
-      ).not.toBeInTheDocument()
+      ).toBeInTheDocument()
 
       const renderedPostIds = screen
         .getAllByTestId(/^post-id-/)
         .map((el) => el.textContent)
-      expect(renderedPostIds).toEqual([post1.id, post2.id])
+      expect(renderedPostIds).toEqual([
+        post1.id,
+        'https://activities.local/users/other/statuses/new-reply-1',
+        post2.id
+      ])
 
       // 3. ReplyToast renders with the reply status
       expect(screen.getByRole('status')).toBeInTheDocument()

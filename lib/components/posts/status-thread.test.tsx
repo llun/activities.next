@@ -481,4 +481,131 @@ describe('StatusThread', () => {
     // router.refresh was not called
     expect(mockRefresh).not.toHaveBeenCalled()
   })
+
+  it('renders replies flat without indentation or left borders', () => {
+    const root = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/root',
+      actor: mockAlice,
+      actorId: mockAlice.id,
+      text: 'Ancestor Root Post',
+      createdAt: BASE_TIME
+    })
+
+    const focused = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/focused',
+      actor: mockAlice,
+      actorId: mockAlice.id,
+      reply: root.id,
+      text: 'Focused Status',
+      createdAt: BASE_TIME + 60000
+    })
+
+    const reply1 = createMockNote({
+      id: 'https://activities.local/users/bob/statuses/r1',
+      actor: mockBob,
+      actorId: mockBob.id,
+      reply: focused.id,
+      text: 'Direct reply 1',
+      createdAt: BASE_TIME + 120000
+    })
+
+    const subReply = createMockNote({
+      id: 'https://activities.local/users/carol/statuses/sub1',
+      actor: mockCarol,
+      actorId: mockCarol.id,
+      reply: reply1.id,
+      text: 'Sub reply to r1',
+      createdAt: BASE_TIME + 180000
+    })
+
+    render(
+      <StatusThread
+        host={host}
+        status={focused}
+        ancestors={[root]}
+        descendants={[reply1, subReply]}
+        currentTime={BASE_TIME + 300000}
+      />
+    )
+
+    // Ancestor status should not have border-l-4 or left border
+    const ancestor = screen.getByTestId('ancestor-status')
+    expect(ancestor.className).not.toContain('border-l-4')
+
+    // Thread nodes should not have ml- or pl- indentation or border-l-2
+    const threadNodes = screen.getAllByTestId('thread-node')
+    for (const node of threadNodes) {
+      expect(node.className).not.toContain('ml-')
+      expect(node.className).not.toContain('pl-')
+      expect(node.className).not.toContain('border-l-2')
+    }
+  })
+
+  it('places newly created reply directly next to focused status at top of replies', async () => {
+    const focused = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/focused',
+      actor: mockAlice,
+      actorId: mockAlice.id,
+      text: 'Focused Status',
+      createdAt: BASE_TIME
+    })
+
+    const existingOlderReply = createMockNote({
+      id: 'https://activities.local/users/bob/statuses/existing-old',
+      actor: mockBob,
+      actorId: mockBob.id,
+      reply: focused.id,
+      text: 'Existing Older Reply',
+      createdAt: BASE_TIME + 1000
+    })
+
+    const newReply = createMockNote({
+      id: 'https://activities.local/users/carol/statuses/brand-new',
+      actor: mockCarol,
+      actorId: mockCarol.id,
+      reply: focused.id,
+      text: 'Brand New Reply',
+      createdAt: BASE_TIME + 50000
+    })
+
+    mockCreateNote.mockResolvedValueOnce({
+      status: newReply,
+      attachments: []
+    })
+
+    render(
+      <StatusThread
+        host={host}
+        status={focused}
+        ancestors={[]}
+        descendants={[existingOlderReply]}
+        currentActor={mockCarol}
+        currentTime={BASE_TIME + 60000}
+      />
+    )
+
+    // Reply to focused post
+    const replyButtons = screen.getAllByLabelText(/Reply/i)
+    fireEvent.click(replyButtons[0])
+
+    const textarea = screen.getByPlaceholderText(/Reply to Alice/i)
+    fireEvent.change(textarea, { target: { value: 'Brand New Reply' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+
+    await waitFor(() => {
+      expect(mockCreateNote).toHaveBeenCalled()
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Brand New Reply')).toBeInTheDocument()
+    })
+
+    // Verify ordering: Brand New Reply appears before Existing Older Reply
+    const newReplyEl = screen.getByText('Brand New Reply')
+    const oldReplyEl = screen.getByText('Existing Older Reply')
+    expect(
+      newReplyEl.compareDocumentPosition(oldReplyEl) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
 })

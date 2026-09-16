@@ -29,6 +29,7 @@ export interface BuildThreadTreeParams {
   descendants?: Status[]
   hasMoreAncestors?: boolean
   hasMoreDescendants?: boolean
+  priorityStatusIds?: Set<string>
 }
 
 export const THREAD_COLLAPSE_THRESHOLD = 10
@@ -75,7 +76,8 @@ export function buildThreadTree({
   ancestors = [],
   descendants = [],
   hasMoreAncestors = false,
-  hasMoreDescendants = false
+  hasMoreDescendants = false,
+  priorityStatusIds
 }: BuildThreadTreeParams): ThreadTree {
   const focusedAuthorId = getStatusAuthorId(focusedStatus)
   const focusedUrl = getStatusUrl(focusedStatus)
@@ -206,22 +208,32 @@ export function buildThreadTree({
     }
     const uniqueChildren = [...uniqueChildrenMap.values()]
 
-    // Sort children: author-priority tier first, then others, sorted chronologically
+    // Sort children: priority replies first, then author-priority tier, then others, sorted chronologically
+    const priorityChildren: Status[] = []
     const authorChildren: Status[] = []
     const otherChildren: Status[] = []
 
     for (const child of uniqueChildren) {
-      if (getStatusAuthorId(child) === focusedAuthorId) {
+      if (priorityStatusIds?.has(child.id)) {
+        priorityChildren.push(child)
+      } else if (getStatusAuthorId(child) === focusedAuthorId) {
         authorChildren.push(child)
       } else {
         otherChildren.push(child)
       }
     }
 
+    priorityChildren.sort(
+      (a, b) => getStatusCreatedAtMs(b) - getStatusCreatedAtMs(a)
+    )
     authorChildren.sort(compareStatusesChronologically)
     otherChildren.sort(compareStatusesChronologically)
 
-    const sortedChildren = [...authorChildren, ...otherChildren]
+    const sortedChildren = [
+      ...priorityChildren,
+      ...authorChildren,
+      ...otherChildren
+    ]
 
     const childNodes = sortedChildren.map((child) =>
       buildNode(child, depth + 1, nextVisited)
@@ -243,20 +255,29 @@ export function buildThreadTree({
     }
   }
 
-  // Sort top-level statuses: focused-author first, then others, sorted chronologically
+  // Sort top-level statuses: priority replies first, then focused-author, then others, sorted chronologically
+  const priorityTopLevel: Array<{
+    status: Status
+    parentUnavailable?: boolean
+  }> = []
   const authorTopLevel: Array<{ status: Status; parentUnavailable?: boolean }> =
     []
   const otherTopLevel: Array<{ status: Status; parentUnavailable?: boolean }> =
     []
 
   for (const item of topLevelStatuses) {
-    if (getStatusAuthorId(item.status) === focusedAuthorId) {
+    if (priorityStatusIds?.has(item.status.id)) {
+      priorityTopLevel.push(item)
+    } else if (getStatusAuthorId(item.status) === focusedAuthorId) {
       authorTopLevel.push(item)
     } else {
       otherTopLevel.push(item)
     }
   }
 
+  priorityTopLevel.sort(
+    (a, b) => getStatusCreatedAtMs(b.status) - getStatusCreatedAtMs(a.status)
+  )
   authorTopLevel.sort((a, b) =>
     compareStatusesChronologically(a.status, b.status)
   )
@@ -264,7 +285,11 @@ export function buildThreadTree({
     compareStatusesChronologically(a.status, b.status)
   )
 
-  const sortedTopLevel = [...authorTopLevel, ...otherTopLevel]
+  const sortedTopLevel = [
+    ...priorityTopLevel,
+    ...authorTopLevel,
+    ...otherTopLevel
+  ]
 
   const descendantNodes = sortedTopLevel.map((item) =>
     buildNode(item.status, 0, new Set(), item.parentUnavailable)
@@ -288,9 +313,26 @@ export function buildThreadTree({
         uniqueChildrenMap.set(child.id, child)
       }
       const uniqueChildren = [...uniqueChildrenMap.values()]
-      uniqueChildren.sort(compareStatusesChronologically)
 
-      ancestorReplies[ancestor.id] = uniqueChildren.map((child) =>
+      const priorityAncestorReplies: Status[] = []
+      const regularAncestorReplies: Status[] = []
+      for (const child of uniqueChildren) {
+        if (priorityStatusIds?.has(child.id)) {
+          priorityAncestorReplies.push(child)
+        } else {
+          regularAncestorReplies.push(child)
+        }
+      }
+      priorityAncestorReplies.sort(
+        (a, b) => getStatusCreatedAtMs(b) - getStatusCreatedAtMs(a)
+      )
+      regularAncestorReplies.sort(compareStatusesChronologically)
+      const sortedAncestorReplies = [
+        ...priorityAncestorReplies,
+        ...regularAncestorReplies
+      ]
+
+      ancestorReplies[ancestor.id] = sortedAncestorReplies.map((child) =>
         buildNode(child, 1, new Set([ancestor.id]))
       )
     }
