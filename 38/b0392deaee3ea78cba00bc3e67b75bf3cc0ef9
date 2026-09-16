@@ -1,0 +1,24 @@
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  h_580a04e334fef4 835-839
+app/(timeline)/messages/MessageBubble.tsx
+  h_580a04e334fef4 97-100
+lib/components/posts/actions/edit-history-button.tsx
+  h_580a04e334fef4 124-125
+lib/utils/text/cleanClassName.dom.test.tsx
+  h_580a04e334fef4 10-27,30-48
+lib/utils/text/extractProfileHref.test.ts
+  h_580a04e334fef4 150-204
+lib/utils/text/extractProfileHref.ts
+  h_580a04e334fef4 19-23,82-89,114-127,130-134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "38b0392deaee3ea78cba00bc3e67b75bf3cc0ef9",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
