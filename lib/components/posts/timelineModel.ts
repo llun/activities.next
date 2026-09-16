@@ -13,6 +13,10 @@ export interface TimelineGroupingOptions {
   seenWrapperIds?: Iterable<string>
   seenBoostTargetIds?: Iterable<string>
   maxSeenBoostTargets?: number
+  /**
+   * Whether to group eligible consecutive boosts into a carousel row.
+   * Defaults to false (boosts stay as individual timeline rows).
+   */
   groupBoosts?: boolean
 }
 
@@ -332,11 +336,13 @@ export const groupTimelinePageWithTracking = (
   const { filtered, seenWrapperIds, seenBoostTargetIds } =
     deduplicateAndSuppress(statuses, options)
 
+  const groupBoosts = options?.groupBoosts ?? false
+
   // Step 2: Intermediate list with optional boost carousel grouping (Stage 7)
   const intermediateList: (
     | { kind: 'status'; item: TimelineInputStatus }
     | { kind: 'boosts'; items: TimelineInputStatus[] }
-  )[] = options?.groupBoosts
+  )[] = groupBoosts
     ? groupBoostEntries(filtered).items.map((entry) => {
         if (entry.kind === 'boosts') {
           return { kind: 'boosts', items: entry.items }

@@ -64,6 +64,10 @@ export interface TimelineFeedProps {
   onLike?: (status: Status) => void
   onBookmark?: (status: Status) => void
   onDelete?: (status: Status) => void
+  /**
+   * When true, eligible consecutive boosts are grouped into a carousel.
+   * Defaults to false (boosts stay as individual timeline rows).
+   */
   readingGroupBoosts?: boolean
 }
 
@@ -91,7 +95,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
   onLike,
   onBookmark,
   onDelete,
-  readingGroupBoosts
+  readingGroupBoosts = false
 }) => {
   const router = useRouter()
   const [modalMedias, setModalMedias] = useState<{
@@ -126,7 +130,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
 
   const rows = useMemo(() => {
     return groupTimelinePage(statuses, {
-      groupBoosts: readingGroupBoosts !== false
+      groupBoosts: readingGroupBoosts
     })
   }, [statuses, readingGroupBoosts])
 

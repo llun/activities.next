@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { likeStatus } from '@/lib/client'
 import {
   BASE_TIME,
+  createMockAnnounce,
   createMockNote,
   mockAlice,
   mockBob,
@@ -402,5 +403,111 @@ describe('TimelineFeed', () => {
         text: 'reply created'
       })
     )
+  })
+
+  it('renders boosts as individual timeline post rows by default in sequence', () => {
+    const post1 = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/p1',
+      actor: mockAlice,
+      createdAt: BASE_TIME,
+      text: 'First post by Alice'
+    })
+    const target2 = createMockNote({
+      id: 'https://activities.local/users/bob/statuses/p2',
+      actor: mockBob,
+      createdAt: BASE_TIME + 500,
+      text: 'Original post by Bob'
+    })
+    const boost1 = createMockAnnounce({
+      id: 'https://activities.local/users/alice/statuses/b1',
+      actor: mockAlice,
+      createdAt: BASE_TIME + 1000,
+      originalStatus: target2
+    })
+    const post3 = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/p3',
+      actor: mockAlice,
+      createdAt: BASE_TIME + 2000,
+      text: 'Third post by Alice'
+    })
+
+    const statuses = [post3, boost1, post1]
+
+    render(
+      <TimelineFeed
+        host="activities.local"
+        currentTime={BASE_TIME + 5000}
+        statuses={statuses}
+      />
+    )
+
+    expect(screen.queryByLabelText('Thread')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Conversation')).not.toBeInTheDocument()
+
+    expect(screen.getByText('First post by Alice')).toBeInTheDocument()
+    expect(screen.getByText('Original post by Bob')).toBeInTheDocument()
+    expect(screen.getByText('Third post by Alice')).toBeInTheDocument()
+
+    expect(screen.getByText(/Boosted by/i)).toBeInTheDocument()
+
+    const t3 = screen.getByText('Third post by Alice')
+    const tb = screen.getByText('Original post by Bob')
+    const t1 = screen.getByText('First post by Alice')
+
+    expect(
+      t3.compareDocumentPosition(tb) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      tb.compareDocumentPosition(t1) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
+  it('renders consecutive boosts as individual timeline rows even when count >= 3', () => {
+    const target1 = createMockNote({
+      id: 'https://activities.local/users/bob/statuses/b-target-1',
+      actor: mockBob,
+      text: 'Boosted note 1'
+    })
+    const target2 = createMockNote({
+      id: 'https://activities.local/users/bob/statuses/b-target-2',
+      actor: mockBob,
+      text: 'Boosted note 2'
+    })
+    const target3 = createMockNote({
+      id: 'https://activities.local/users/bob/statuses/b-target-3',
+      actor: mockBob,
+      text: 'Boosted note 3'
+    })
+
+    const boost1 = createMockAnnounce({
+      id: 'https://activities.local/users/alice/statuses/announce-1',
+      actor: mockAlice,
+      originalStatus: target1
+    })
+    const boost2 = createMockAnnounce({
+      id: 'https://activities.local/users/alice/statuses/announce-2',
+      actor: mockAlice,
+      originalStatus: target2
+    })
+    const boost3 = createMockAnnounce({
+      id: 'https://activities.local/users/alice/statuses/announce-3',
+      actor: mockAlice,
+      originalStatus: target3
+    })
+
+    render(
+      <TimelineFeed
+        host="activities.local"
+        currentTime={BASE_TIME + 10000}
+        statuses={[boost1, boost2, boost3]}
+      />
+    )
+
+    expect(screen.getByText('Boosted note 1')).toBeInTheDocument()
+    expect(screen.getByText('Boosted note 2')).toBeInTheDocument()
+    expect(screen.getByText('Boosted note 3')).toBeInTheDocument()
+
+    const allBoostIndicators = screen.getAllByText(/Boosted by/i)
+    expect(allBoostIndicators).toHaveLength(3)
   })
 })

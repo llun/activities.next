@@ -524,6 +524,124 @@ describe('timelineModel', () => {
     })
   })
 
+  describe('Individual Boosts Timeline Rows (groupBoosts: false or omitted by default)', () => {
+    const makeOrdinaryPost = (id: string) =>
+      createMockNote({ id: `https://activities.local/statuses/ord-${id}` })
+
+    const makeBoostPost = (id: string) =>
+      createMockAnnounce({
+        id: `https://activities.local/statuses/b-${id}`,
+        originalStatus: createMockNote({
+          id: `https://activities.local/statuses/target-${id}`
+        })
+      })
+
+    it('emits boosts as individual status rows by default when groupBoosts is omitted', () => {
+      // 20 entries with 6 boosts which would otherwise group when groupBoosts is true
+      const boosts = Array.from({ length: 6 }, (_, i) => makeBoostPost(`b${i}`))
+      const ordinary = Array.from({ length: 14 }, (_, i) =>
+        makeOrdinaryPost(`o${i}`)
+      )
+      const statuses = [
+        boosts[0],
+        ordinary[0],
+        boosts[1],
+        ordinary[1],
+        boosts[2],
+        ordinary[2],
+        boosts[3],
+        ordinary[3],
+        boosts[4],
+        ordinary[4],
+        boosts[5],
+        ...ordinary.slice(5)
+      ]
+
+      const rows = groupTimelinePage(statuses)
+      expect(rows.some((r) => r.kind === 'boosts')).toBe(false)
+      expect(rows).toHaveLength(20)
+      for (const row of rows) {
+        expect(row.kind).toBe('status')
+      }
+      expect(rows[0]).toEqual({
+        kind: 'status',
+        key: `status:${boosts[0].id}`,
+        entryId: boosts[0].id
+      })
+      expect(rows[2]).toEqual({
+        kind: 'status',
+        key: `status:${boosts[1].id}`,
+        entryId: boosts[1].id
+      })
+    })
+
+    it('emits consecutive boosts as individual status rows in sequence when groupBoosts: false', () => {
+      const statuses = [
+        makeOrdinaryPost('1'),
+        makeBoostPost('1'),
+        makeBoostPost('2'),
+        makeBoostPost('3'),
+        ...Array.from({ length: 16 }, (_, i) => makeOrdinaryPost(`rest${i}`))
+      ]
+
+      const rows = groupTimelinePage(statuses, { groupBoosts: false })
+      expect(rows.some((r) => r.kind === 'boosts')).toBe(false)
+      expect(rows[1]).toEqual({
+        kind: 'status',
+        key: `status:${statuses[1].id}`,
+        entryId: statuses[1].id
+      })
+      expect(rows[2]).toEqual({
+        kind: 'status',
+        key: `status:${statuses[2].id}`,
+        entryId: statuses[2].id
+      })
+      expect(rows[3]).toEqual({
+        kind: 'status',
+        key: `status:${statuses[3].id}`,
+        entryId: statuses[3].id
+      })
+    })
+
+    it('maintains deduplicateAndSuppress suppression while keeping remaining boosts as individual status rows', () => {
+      const targetA = makeOrdinaryPost('target-a')
+      const boostA1 = createMockAnnounce({
+        id: 'https://activities.local/statuses/boost-a1',
+        originalStatus: targetA
+      })
+      const boostA2 = createMockAnnounce({
+        id: 'https://activities.local/statuses/boost-a2',
+        originalStatus: targetA
+      })
+      const ordinary = makeOrdinaryPost('ord-1')
+      const targetB = makeOrdinaryPost('target-b')
+      const boostB1 = createMockAnnounce({
+        id: 'https://activities.local/statuses/boost-b1',
+        originalStatus: targetB
+      })
+
+      // boostA2 is duplicate of targetA and should be suppressed; boostA1 and boostB1 should be individual status rows
+      const rows = groupTimelinePage([boostA1, ordinary, boostA2, boostB1])
+      expect(rows).toHaveLength(3)
+      expect(rows.map((r) => r.kind)).toEqual(['status', 'status', 'status'])
+      expect(rows[0]).toEqual({
+        kind: 'status',
+        key: `status:${boostA1.id}`,
+        entryId: boostA1.id
+      })
+      expect(rows[1]).toEqual({
+        kind: 'status',
+        key: `status:${ordinary.id}`,
+        entryId: ordinary.id
+      })
+      expect(rows[2]).toEqual({
+        kind: 'status',
+        key: `status:${boostB1.id}`,
+        entryId: boostB1.id
+      })
+    })
+  })
+
   describe('Boost Carousel Grouping (Stage 7 threshold compliance)', () => {
     const makeOrdinaryPost = (id: string) =>
       createMockNote({ id: `https://activities.local/statuses/ord-${id}` })
