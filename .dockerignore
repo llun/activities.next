@@ -1,6 +1,5 @@
 node_modules
 .yarn/*
-!.yarn/patches
 .next
 backups
 data

@@ -222,7 +222,7 @@ export async function redetectStatusLanguages({
           }
         }
 
-        const detected = detectLanguageFromHtml(text, {
+        const detected = await detectLanguageFromHtml(text, {
           declaredLanguage
         })
         const nextLang = detected?.language ?? null

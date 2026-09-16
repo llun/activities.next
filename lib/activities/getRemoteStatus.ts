@@ -78,7 +78,7 @@ export const getRemoteStatus = async ({
   // Ephemeral status (not persisted), so content-detected language is
   // computed here rather than read from status_detected_languages.
   status.detectedLanguage =
-    detectLanguageFromHtml(status.text)?.language ?? null
+    (await detectLanguageFromHtml(status.text))?.language ?? null
 
   const actorPerson = await getActorPerson({
     actorId: status.actorId,

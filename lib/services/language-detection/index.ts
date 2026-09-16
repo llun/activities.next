@@ -1,4 +1,3 @@
-import { eld } from 'eld/medium'
 import { detectAll } from 'tinyld'
 
 import { normalizeLanguageCode } from '@/lib/services/translation/types'
@@ -97,6 +96,25 @@ export const ELD_AVG_SCORES: Readonly<Record<string, number>> = {
 
 export const ELD_SUPPORTED_LANGUAGES = new Set(Object.keys(ELD_AVG_SCORES))
 
+type EldDetector = {
+  detect: (text: string) => {
+    getScores: () => Record<string, number>
+    language: string
+    isReliable: (ratio?: number) => boolean
+  }
+}
+
+let eldPromise: Promise<EldDetector> | null = null
+
+// Lazy-loads ELD dynamically so that Node's ESM loader resolves 'eld/medium'
+// without requiring package.json patches in CommonJS runtimes (e.g. tsx/cjs).
+export const getEld = async (): Promise<EldDetector> => {
+  if (!eldPromise) {
+    eldPromise = import('eld/medium').then((m) => m.eld as EldDetector)
+  }
+  return eldPromise
+}
+
 const URL_PATTERN = /https?:\/\/\S+|\bwww\.\S+/gi
 const MENTION_PATTERN = /@[a-z0-9_]+(@[a-z0-9.-]+)?/gi
 const HASHTAG_PATTERN = /#\S+/g
@@ -147,10 +165,10 @@ export interface DetectLanguageOptions {
   declaredLanguage?: string | null
 }
 
-export const detectLanguage = (
+export const detectLanguage = async (
   plainText: string | null | undefined,
   options: DetectLanguageOptions = {}
-): DetectedLanguage | null => {
+): Promise<DetectedLanguage | null> => {
   if (!plainText) return null
   const cleaned = cleanTextForDetection(plainText)
   if (cleaned.length < MIN_DETECTION_TEXT_LENGTH) return null
@@ -179,6 +197,7 @@ export const detectLanguage = (
   }
 
   // Primary detector: ELD medium
+  const eld = await getEld()
   const eldResult = eld.detect(cleaned)
   const scores = eldResult.getScores()
   const entries = Object.entries(scores)
@@ -232,10 +251,11 @@ export const detectLanguage = (
   return null
 }
 
-export const detectLanguageFromHtml = (
+export const detectLanguageFromHtml = async (
   html: string | null | undefined,
   options: DetectLanguageOptions = {}
-): DetectedLanguage | null => detectLanguage(htmlToPlainText(html), options)
+): Promise<DetectedLanguage | null> =>
+  detectLanguage(htmlToPlainText(html), options)
 
 interface DetectedLanguageStore {
   setDetectedLanguage(params: {
@@ -261,8 +281,8 @@ export const persistDetectedLanguage = async ({
 }): Promise<void> => {
   try {
     const detected = html
-      ? detectLanguageFromHtml(text, { declaredLanguage })
-      : detectLanguage(text, { declaredLanguage })
+      ? await detectLanguageFromHtml(text, { declaredLanguage })
+      : await detectLanguage(text, { declaredLanguage })
     if (detected) {
       await database.setDetectedLanguage({
         statusId,

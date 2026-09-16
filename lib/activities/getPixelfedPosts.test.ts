@@ -38,7 +38,7 @@ describe('getPixelfedPosts', () => {
   })
 
   describe('fromPixelfedStatus', () => {
-    it('correctly maps Pixelfed status fields to StatusNote', () => {
+    it('correctly maps Pixelfed status fields to StatusNote', async () => {
       const pixelfedStatus = {
         id: '1001',
         uri: 'https://pixelfed.example/p/dansup/1001',
@@ -64,7 +64,7 @@ describe('getPixelfedPosts', () => {
         tags: [{ name: 'nature', url: 'https://pixelfed.example/tags/nature' }]
       }
 
-      const status = fromPixelfedStatus(pixelfedStatus, person, null)
+      const status = await fromPixelfedStatus(pixelfedStatus, person, null)
       expect(status.type).toBe(StatusType.enum.Note)
       if (status.type === StatusType.enum.Note) {
         expect(status.id).toBe('https://pixelfed.example/p/dansup/1001')

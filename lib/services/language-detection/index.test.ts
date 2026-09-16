@@ -182,8 +182,8 @@ describe('detectLanguage', () => {
       { description: 'headline 4', input: DUTCH_HEADLINE_4 },
       { description: 'headline 5', input: DUTCH_HEADLINE_5 },
       { description: 'headline 6', input: DUTCH_HEADLINE_6 }
-    ])('detects Dutch in $description', ({ input }) => {
-      const result = detectLanguage(input)
+    ])('detects Dutch in $description', async ({ input }) => {
+      const result = await detectLanguage(input)
       expect(result?.language).toBe('nl')
       expect(result?.confidence).toBeGreaterThan(0.5)
     })
@@ -215,31 +215,31 @@ describe('detectLanguage', () => {
         description: 'mixed styled and plain text',
         input: `🚨 ${toMathSansBold('Breaking:')} Kabinet presenteert ${toMathItalic('nieuwe plannen')} voor de woningmarkt`
       }
-    ])('detects Dutch in $description', ({ input }) => {
-      const result = detectLanguage(input)
+    ])('detects Dutch in $description', async ({ input }) => {
+      const result = await detectLanguage(input)
       expect(result?.language).toBe('nl')
       expect(result?.confidence).toBeGreaterThan(0.5)
     })
   })
 
   describe('Dutch with social tokens, accents, and combining marks', () => {
-    it('detects Dutch when URLs, mentions, and hashtags are present', () => {
+    it('detects Dutch when URLs, mentions, and hashtags are present', async () => {
       const input = `${DUTCH_HEADLINE_1} @ministerie @nos #woningmarkt #nieuws https://rijksoverheid.nl/nieuws`
-      const result = detectLanguage(input)
+      const result = await detectLanguage(input)
       expect(result?.language).toBe('nl')
     })
 
-    it('detects Dutch with accented characters', () => {
+    it('detects Dutch with accented characters', async () => {
       const input =
         'In België organiseert het café een reünie voor de bevolking van de gemeente'
-      const result = detectLanguage(input)
+      const result = await detectLanguage(input)
       expect(result?.language).toBe('nl')
     })
 
-    it('detects Dutch with decomposed combining marks', () => {
+    it('detects Dutch with decomposed combining marks', async () => {
       const input =
         'In Belgie\u0308 organiseert het cafe\u0301 een reu\u0308nie voor de bevolking van de gemeente'
-      const result = detectLanguage(input)
+      const result = await detectLanguage(input)
       expect(result?.language).toBe('nl')
     })
   })
@@ -266,8 +266,8 @@ describe('detectLanguage', () => {
         description: 'polite refusal',
         input: 'Nee bedankt, ik hoef er echt niets van te weten.'
       }
-    ])('detects Dutch in $description', ({ input }) => {
-      const result = detectLanguage(input)
+    ])('detects Dutch in $description', async ({ input }) => {
+      const result = await detectLanguage(input)
       expect(result?.language).toBe('nl')
       expect(result?.confidence).toBeGreaterThan(0.5)
     })
@@ -314,71 +314,71 @@ describe('detectLanguage', () => {
           'Il governo presenta nuovi piani per il mercato immobiliare oggi',
         expected: 'it'
       }
-    ])('detects $expected for $description', ({ input, expected }) => {
-      const result = detectLanguage(input)
+    ])('detects $expected for $description', async ({ input, expected }) => {
+      const result = await detectLanguage(input)
       expect(result?.language).toBe(expected)
       expect(result?.confidence).toBeGreaterThan(0.5)
     })
   })
 
   describe('languages supported by tinyld but absent from ELD', () => {
-    it('detects Khmer via fallback', () => {
+    it('detects Khmer via fallback', async () => {
       const input =
         'រដ្ឋាភិបាលបានប្រកាសផែនការថ្មីដើម្បីដោះស្រាយបញ្ហាផ្ទះសម្បែងនៅក្នុងរាជធានីភ្នំពេញ'
-      const result = detectLanguage(input)
+      const result = await detectLanguage(input)
       expect(result?.language).toBe('km')
     })
 
-    it('detects Burmese via fallback', () => {
+    it('detects Burmese via fallback', async () => {
       const input =
         'အစိုးရသည် အိမ်ရာအကျပ်အတည်းကို ဖြေရှင်းရန် စီမံကိန်းအသစ်တစ်ခုကို ကြေညာခဲ့သည်'
-      const result = detectLanguage(input)
+      const result = await detectLanguage(input)
       expect(result?.language).toBe('my')
     })
 
-    it('detects Indonesian without declared metadata via tinyld disambiguation', () => {
+    it('detects Indonesian without declared metadata via tinyld disambiguation', async () => {
       const input =
         'Pemerintah mengumumkan rencana baru untuk mengatasi krisis perumahan di kota-kota besar seluruh Indonesia'
-      const result = detectLanguage(input)
+      const result = await detectLanguage(input)
       expect(result?.language).toBe('id')
     })
 
-    it('does not allow ELD prediction to override declared Indonesian metadata', () => {
+    it('does not allow ELD prediction to override declared Indonesian metadata', async () => {
       const input =
         'Pemerintah Indonesia membangun ibukota nusantara baru di pulau Kalimantan'
-      const result = detectLanguage(input, { declaredLanguage: 'id' })
+      const result = await detectLanguage(input, { declaredLanguage: 'id' })
       expect(result?.language).toBe('id')
     })
 
-    it('preserves Malay when explicitly declared', () => {
+    it('preserves Malay when explicitly declared', async () => {
       const input =
         'Kerajaan membentangkan pelan baharu untuk menangani krisis perumahan di bandar-bandar utama seluruh negara'
-      const result = detectLanguage(input, { declaredLanguage: 'ms' })
+      const result = await detectLanguage(input, { declaredLanguage: 'ms' })
       expect(result?.language).toBe('ms')
     })
 
-    it('does not allow ELD to override declared metadata for an unsupported language when tinyld does not confirm it', () => {
+    it('does not allow ELD to override declared metadata for an unsupported language when tinyld does not confirm it', async () => {
       // Text declared as Esperanto ('eo' - absent in ELD), where ELD might guess another language
       const input =
         'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor'
-      const result = detectLanguage(input, { declaredLanguage: 'eo' })
+      const result = await detectLanguage(input, { declaredLanguage: 'eo' })
       // Returns null rather than a wrong accepted guess from ELD
       expect(result).toBeNull()
     })
   })
 
   describe('length boundaries and normalization', () => {
-    it('evaluates length after normalization (rejecting short styled text)', () => {
+    it('evaluates length after normalization (rejecting short styled text)', async () => {
       // 10 styled letters: 20 code units before normalization, but only 10 chars after NFKC
       const shortStyled = toMathBold('Kort bericht')
       expect(shortStyled.length).toBeGreaterThanOrEqual(20)
-      expect(detectLanguage(shortStyled)).toBeNull()
+      expect(await detectLanguage(shortStyled)).toBeNull()
     })
 
-    it('accepts text that meets minimum length after normalization', () => {
+    it('accepts text that meets minimum length after normalization', async () => {
       // 20+ chars after normalization
       const longStyled = toMathBold(DUTCH_HEADLINE_1)
-      expect(detectLanguage(longStyled)?.language).toBe('nl')
+      expect((await detectLanguage(longStyled))?.language).toBe('nl')
     })
 
     it.each([
@@ -399,24 +399,24 @@ describe('detectLanguage', () => {
         description: 'emoji only',
         input: '😀😃😄😁😆😅😂🤣🥲☺️😊😇🙂🙃😉😌'
       }
-    ])('returns null for $description', ({ input }) => {
-      expect(detectLanguage(input)).toBeNull()
+    ])('returns null for $description', async ({ input }) => {
+      expect(await detectLanguage(input)).toBeNull()
     })
   })
 })
 
 describe('detectLanguageFromHtml', () => {
-  it('strips HTML and decodes HTML entities before detecting', () => {
+  it('strips HTML and decodes HTML entities before detecting', async () => {
     const html = `<p>${toHtmlEntities(toMathBold(DUTCH_HEADLINE_1))}</p>`
-    const result = detectLanguageFromHtml(html)
+    const result = await detectLanguageFromHtml(html)
     expect(result?.language).toBe('nl')
   })
 
   it.each([
     { description: 'null input', input: null },
     { description: 'undefined input', input: undefined }
-  ])('returns null for $description', ({ input }) => {
-    expect(detectLanguageFromHtml(input)).toBeNull()
+  ])('returns null for $description', async ({ input }) => {
+    expect(await detectLanguageFromHtml(input)).toBeNull()
   })
 })
 

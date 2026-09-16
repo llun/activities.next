@@ -56,13 +56,13 @@ type GetActorPostsFunction = (params: {
   prevPageUrl: string | null
 }>
 
-const getStatusFromNote = (note: BaseNote, span?: Span) => {
+const getStatusFromNote = async (note: BaseNote, span?: Span) => {
   try {
     const status = fromNote(note)
     // Ephemeral status (not persisted), so content-detected language is
     // computed here rather than read from status_detected_languages.
     status.detectedLanguage =
-      detectLanguageFromHtml(status.text)?.language ?? null
+      (await detectLanguageFromHtml(status.text))?.language ?? null
     return status
   } catch (error) {
     span?.recordException(toLoggableError(error))
@@ -190,7 +190,7 @@ export const getActorPosts: GetActorPostsFunction = async ({
                 )
                 if (!noteResult.success) return null
 
-                originalStatus = getStatusFromNote(noteResult.data, span)
+                originalStatus = await getStatusFromNote(noteResult.data, span)
                 if (!originalStatus) return null
               }
 
@@ -249,7 +249,7 @@ export const getActorPosts: GetActorPostsFunction = async ({
             )
             if (!noteResult.success) return null
 
-            const status = getStatusFromNote(noteResult.data, span)
+            const status = await getStatusFromNote(noteResult.data, span)
             if (!status) return null
 
             if (
