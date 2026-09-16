@@ -1543,13 +1543,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@next/env@npm:16.3.4":
-  version: 16.3.4
-  resolution: "@next/env@npm:16.3.4"
-  checksum: 10c0/6a9adf69b7aaa1d13e255aa158ee7accce81c6c23dfc2c786b3fc6f0f4c5354b3c67e7d60be5521d322d2164ba86fc01b9dc2f3f18282f6162760de99e19fd13
-  languageName: node
-  linkType: hard
-
 "@next/env@npm:16.3.5":
   version: 16.3.5
   resolution: "@next/env@npm:16.3.5"
@@ -3870,7 +3863,7 @@ __metadata:
     "@better-auth/utils": "npm:0.4.2"
     "@better-fetch/fetch": "npm:1.3.1"
     "@date-fns/utc": "npm:^2.1.1"
-    "@next/env": "npm:16.3.4"
+    "@next/env": "npm:16.3.5"
     "@opentelemetry/api": "npm:^1.9.1"
     "@radix-ui/react-avatar": "npm:^1.2.6"
     "@radix-ui/react-dialog": "npm:^1.1.23"
