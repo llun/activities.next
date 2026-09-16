@@ -5,33 +5,6 @@ import { FC } from 'react'
 import { TimelineParentPreview } from '@/lib/types/domain/timeline'
 import { cn } from '@/lib/utils'
 
-export interface StatusConnectorRailProps {
-  position?: 'first' | 'middle' | 'last' | 'single'
-  className?: string
-}
-
-export const StatusConnectorRail: FC<StatusConnectorRailProps> = ({
-  position = 'middle',
-  className
-}) => {
-  if (position === 'single') return null
-
-  return (
-    <div
-      aria-hidden="true"
-      data-testid="connector-rail"
-      data-position={position}
-      className={cn(
-        'pointer-events-none absolute left-1/2 -translate-x-1/2 w-0.5 bg-border',
-        position === 'first' && 'top-10 -bottom-3',
-        position === 'middle' && '-top-3 -bottom-3',
-        position === 'last' && '-top-3 h-3',
-        className
-      )}
-    />
-  )
-}
-
 const stripHtml = (html: string): string =>
   html
     .replace(/<[^>]*>/g, ' ')

@@ -299,4 +299,47 @@ describe('threadModel', () => {
     expect(tree.descendants[0].status.id).toBe(b1.id)
     expect(tree.descendants[0].parentUnavailable).toBeUndefined()
   })
+
+  it('associates replies targeting ancestors into ancestorReplies without parentUnavailable', () => {
+    const root = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/root',
+      actor: mockAlice,
+      actorId: mockAlice.id,
+      createdAt: BASE_TIME,
+      text: 'Ancestor Root'
+    })
+
+    const focused = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/focused',
+      actor: mockAlice,
+      actorId: mockAlice.id,
+      reply: root.id,
+      createdAt: BASE_TIME + 60000,
+      text: 'Focused Status'
+    })
+
+    const replyToAncestor = createMockNote({
+      id: 'https://activities.local/users/bob/statuses/reply-to-root',
+      actor: mockBob,
+      actorId: mockBob.id,
+      reply: root.id,
+      createdAt: BASE_TIME + 70000,
+      text: 'Bob reply to root ancestor'
+    })
+
+    const tree = buildThreadTree({
+      focusedStatus: focused,
+      ancestors: [root],
+      descendants: [replyToAncestor]
+    })
+
+    expect(tree.ancestorReplies?.[root.id]).toBeDefined()
+    expect(tree.ancestorReplies?.[root.id]).toHaveLength(1)
+    expect(tree.ancestorReplies?.[root.id][0].status.id).toBe(
+      replyToAncestor.id
+    )
+    expect(tree.ancestorReplies?.[root.id][0].parentUnavailable).toBeUndefined()
+    // It is not dumped into tree.descendants
+    expect(tree.descendants).toHaveLength(0)
+  })
 })

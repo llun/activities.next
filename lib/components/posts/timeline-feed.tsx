@@ -22,7 +22,6 @@ import { BoostCarousel } from './boost-carousel'
 import { MOBILE_FEED_SURFACE_CLASS } from './feedLayout'
 import { InlineStatusComposer } from './inline-status-composer'
 import { Post } from './post'
-import { StatusConnectorRail } from './status-context'
 import { getStatusReplyTargetId, groupTimelinePage } from './timelineModel'
 import { useInlineComposer } from './useInlineComposer'
 
@@ -148,7 +147,6 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
   const renderPostItem = (
     status: Status,
     options?: {
-      connectorPosition?: 'first' | 'middle' | 'last' | 'single'
       showReplyContext?: boolean
       parentPreview?: TimelineParentPreview | null
     }
@@ -171,7 +169,6 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
           editable={currentActor?.id === actualStatus.actorId}
           collapsible
           postLineLimit={postLineLimit}
-          connectorPosition={options?.connectorPosition}
           showReplyContext={options?.showReplyContext}
           parentPreview={options?.parentPreview}
           onReply={
@@ -254,7 +251,6 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
                 )}
               >
                 {renderPostItem(status, {
-                  connectorPosition: 'single',
                   showReplyContext: isReply,
                   parentPreview
                 })}
@@ -285,7 +281,6 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
                   <>
                     {/* First post */}
                     {renderPostItem(threadStatuses[0], {
-                      connectorPosition: 'first',
                       showReplyContext: (() => {
                         const replyTarget = getStatusReplyTargetId(
                           getActualStatus(threadStatuses[0])
@@ -307,9 +302,8 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
 
                     {/* Expander button */}
                     <div className="relative flex items-center gap-3 px-4 py-2">
-                      <div className="relative flex shrink-0 flex-col items-center w-10">
-                        <StatusConnectorRail position="middle" />
-                        <div className="relative z-10 size-2.5 rounded-full bg-muted-foreground/40" />
+                      <div className="flex shrink-0 items-center justify-center w-10">
+                        <div className="size-2.5 rounded-full bg-muted-foreground/40" />
                       </div>
                       <button
                         type="button"
@@ -323,22 +317,11 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
 
                     {/* Last post */}
                     {renderPostItem(threadStatuses[threadStatuses.length - 1], {
-                      connectorPosition: 'last',
                       showReplyContext: false
                     })}
                   </>
                 ) : (
                   threadStatuses.map((status, index) => {
-                    const total = threadStatuses.length
-                    const connectorPosition =
-                      total === 1
-                        ? 'single'
-                        : index === 0
-                          ? 'first'
-                          : index === total - 1
-                            ? 'last'
-                            : 'middle'
-
                     const isFirst = index === 0
                     const replyTarget = isFirst
                       ? getStatusReplyTargetId(getActualStatus(status))
@@ -351,7 +334,6 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
                       : undefined
 
                     return renderPostItem(status, {
-                      connectorPosition,
                       showReplyContext,
                       parentPreview
                     })
@@ -378,16 +360,6 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
                 )}
               >
                 {convStatuses.map((status, index) => {
-                  const total = convStatuses.length
-                  const connectorPosition =
-                    total === 1
-                      ? 'single'
-                      : index === 0
-                        ? 'first'
-                        : index === total - 1
-                          ? 'last'
-                          : 'middle'
-
                   const isFirst = index === 0
                   const replyTarget = isFirst
                     ? getStatusReplyTargetId(getActualStatus(status))
@@ -399,7 +371,6 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
                     : undefined
 
                   return renderPostItem(status, {
-                    connectorPosition,
                     showReplyContext,
                     parentPreview
                   })

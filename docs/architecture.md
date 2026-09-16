@@ -1315,7 +1315,7 @@ legacy shape left to copy.
     and there is deliberately no prop for removing or replacing one of the
     menu's own items — flag any attempt to add one.
 - **Timeline grouping and nested status threads.**
-  - `TimelineFeed` (`lib/components/posts/timeline-feed.tsx`) renders grouped home timelines, connecting related posts into visual threads and multi-author conversations with connector rails, accessible badges, compact collapsed middle runs for long chains, and an optional boost carousel (`BoostCarousel`).
+  - `TimelineFeed` (`lib/components/posts/timeline-feed.tsx`) renders grouped home timelines, connecting related posts into visual threads and multi-author conversations with accessible badges, compact collapsed middle runs for long chains, and an optional boost carousel (`BoostCarousel`).
   - `StatusThread` (`lib/components/posts/status-thread.tsx`) renders post detail conversation trees, structuring ancestors root-to-parent and nesting descendants by direct reply edges with author-continuation promotion and branch collapse controls.
   - Replying from any feed row or nested thread status targets the selected post's ID, preserving mentions and recipient audience without flattening threads or redirecting replies to the root.
 - **Composer vertical sizing & auto-growth.** Both the main composer (`PostBox`,

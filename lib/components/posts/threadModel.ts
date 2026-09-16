@@ -16,6 +16,7 @@ export interface ThreadNode {
 export interface ThreadTree {
   focusedStatus: Status
   ancestors: Status[]
+  ancestorReplies?: Record<string, ThreadNode[]>
   descendants: ThreadNode[]
   totalDescendants: number
   hasMoreAncestors: boolean
@@ -94,6 +95,23 @@ export function buildThreadTree({
     if (item.publicId) descendantMap.set(item.publicId, item)
   }
 
+  // Index ancestors by all known IDs/URLs
+  const ancestorMap = new Map<string, Status>()
+  const ancestorIds = new Set<string>()
+  for (const item of ancestors) {
+    ancestorMap.set(item.id, item)
+    ancestorIds.add(item.id)
+    const itemUrl = getStatusUrl(item)
+    if (itemUrl) {
+      ancestorMap.set(itemUrl, item)
+      ancestorIds.add(itemUrl)
+    }
+    if (item.publicId) {
+      ancestorMap.set(item.publicId, item)
+      ancestorIds.add(item.publicId)
+    }
+  }
+
   // Build adjacency list of parentId -> children Status[]
   const childrenByParent = new Map<string, Status[]>()
   const topLevelStatuses: Array<{
@@ -121,14 +139,23 @@ export function buildThreadTree({
     if (!replyTarget || focusedIds.has(replyTarget)) {
       // Direct reply to the focused post
       topLevelStatuses.push({ status: item })
+    } else if (ancestorIds.has(replyTarget)) {
+      // Direct reply to an ancestor post
+      const parent = ancestorMap.get(replyTarget)
+      const parentId = parent ? parent.id : replyTarget
+      const existing = childrenByParent.get(parentId) ?? []
+      existing.push(item)
+      childrenByParent.set(parentId, existing)
     } else if (descendantMap.has(replyTarget)) {
       if (findCycle(item.id)) {
         // Cycle detected: emit as top-level with parentUnavailable flag to prevent infinite loops
         topLevelStatuses.push({ status: item, parentUnavailable: true })
       } else {
-        const existing = childrenByParent.get(replyTarget) ?? []
+        const parent = descendantMap.get(replyTarget)
+        const parentId = parent ? parent.id : replyTarget
+        const existing = childrenByParent.get(parentId) ?? []
         existing.push(item)
-        childrenByParent.set(replyTarget, existing)
+        childrenByParent.set(parentId, existing)
       }
     } else {
       // Reply target is not in the focused post or loaded descendants:
@@ -243,9 +270,36 @@ export function buildThreadTree({
     buildNode(item.status, 0, new Set(), item.parentUnavailable)
   )
 
+  const ancestorReplies: Record<string, ThreadNode[]> = {}
+  for (const ancestor of ancestors) {
+    const rawChildren: Status[] = [
+      ...(childrenByParent.get(ancestor.id) ?? []),
+      ...(getStatusUrl(ancestor) && getStatusUrl(ancestor) !== ancestor.id
+        ? (childrenByParent.get(getStatusUrl(ancestor)) ?? [])
+        : []),
+      ...(ancestor.publicId && ancestor.publicId !== ancestor.id
+        ? (childrenByParent.get(ancestor.publicId) ?? [])
+        : [])
+    ]
+
+    if (rawChildren.length > 0) {
+      const uniqueChildrenMap = new Map<string, Status>()
+      for (const child of rawChildren) {
+        uniqueChildrenMap.set(child.id, child)
+      }
+      const uniqueChildren = [...uniqueChildrenMap.values()]
+      uniqueChildren.sort(compareStatusesChronologically)
+
+      ancestorReplies[ancestor.id] = uniqueChildren.map((child) =>
+        buildNode(child, 1, new Set([ancestor.id]))
+      )
+    }
+  }
+
   return {
     focusedStatus,
     ancestors,
+    ancestorReplies,
     descendants: descendantNodes,
     totalDescendants,
     hasMoreAncestors,

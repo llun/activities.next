@@ -309,6 +309,7 @@ export const StatusReplyBox: FC<Props> = ({
     if (event.code !== 'Enter') return
     if (!allowPost || isSubmittingRef.current || isPosting) return
     if (!formRef.current) return
+    event.preventDefault()
     await onPost()
   }
 

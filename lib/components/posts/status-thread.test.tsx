@@ -360,5 +360,125 @@ describe('StatusThread', () => {
 
     // onReplyCreated callback was called with newReply
     expect(onReplyCreated).toHaveBeenCalledWith(newReply)
+
+    // router.refresh is NOT called on reply creation to prevent page scroll resetting to top
+    expect(mockRefresh).not.toHaveBeenCalled()
+  })
+
+  it('renders avatar icons without vertical connector rails in thread', () => {
+    const root = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/root',
+      actor: mockAlice,
+      actorId: mockAlice.id,
+      text: 'Ancestor Root',
+      createdAt: BASE_TIME
+    })
+
+    const focused = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/focused',
+      actor: mockAlice,
+      actorId: mockAlice.id,
+      reply: root.id,
+      text: 'Focused Status',
+      createdAt: BASE_TIME + 60000
+    })
+
+    const descendant = createMockNote({
+      id: 'https://activities.local/users/bob/statuses/reply1',
+      actor: mockBob,
+      actorId: mockBob.id,
+      reply: focused.id,
+      text: 'Direct Reply from Bob',
+      createdAt: BASE_TIME + 120000
+    })
+
+    render(
+      <StatusThread
+        host={host}
+        status={focused}
+        ancestors={[root]}
+        descendants={[descendant]}
+        currentTime={BASE_TIME + 200000}
+      />
+    )
+
+    // No connector-rail elements rendered
+    expect(screen.queryByTestId('connector-rail')).not.toBeInTheDocument()
+  })
+
+  it('nests reply directly beneath ancestor when replying to an ancestor', async () => {
+    const root = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/root',
+      actor: mockAlice,
+      actorId: mockAlice.id,
+      text: 'Ancestor Root Post',
+      createdAt: BASE_TIME
+    })
+
+    const focused = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/focused',
+      actor: mockAlice,
+      actorId: mockAlice.id,
+      reply: root.id,
+      text: 'Focused Status',
+      createdAt: BASE_TIME + 60000
+    })
+
+    const replyToAncestor = createMockNote({
+      id: 'https://activities.local/users/bob/statuses/reply-to-root',
+      actor: mockBob,
+      actorId: mockBob.id,
+      reply: root.id,
+      text: 'Direct reply beneath Ancestor Root',
+      createdAt: BASE_TIME + 70000
+    })
+
+    mockCreateNote.mockResolvedValueOnce({
+      status: replyToAncestor,
+      attachments: []
+    })
+
+    render(
+      <StatusThread
+        host={host}
+        status={focused}
+        ancestors={[root]}
+        descendants={[]}
+        currentActor={mockBob}
+        currentTime={BASE_TIME + 100000}
+      />
+    )
+
+    // Click reply on the ancestor post (first reply button)
+    const replyButtons = screen.getAllByLabelText(/Reply/i)
+    fireEvent.click(replyButtons[0])
+
+    // Reply box appears for Alice
+    const textarea = screen.getByPlaceholderText(/Reply to Alice/i)
+    fireEvent.change(textarea, {
+      target: { value: 'Direct reply beneath Ancestor Root' }
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+
+    await waitFor(() => {
+      expect(mockCreateNote).toHaveBeenCalled()
+    })
+
+    // The reply appears directly within ancestor-status
+    await waitFor(() => {
+      const ancestorContainer = screen.getByTestId('ancestor-status')
+      expect(ancestorContainer).toHaveTextContent(
+        'Direct reply beneath Ancestor Root'
+      )
+    })
+
+    // No orphan or parent unavailable boundary
+    expect(
+      screen.queryByTestId('parent-unavailable-boundary')
+    ).not.toBeInTheDocument()
+
+    // router.refresh was not called
+    expect(mockRefresh).not.toHaveBeenCalled()
   })
 })

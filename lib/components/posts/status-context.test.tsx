@@ -7,36 +7,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { TimelineParentPreview } from '@/lib/types/domain/timeline'
 
-import { StatusConnectorRail, StatusContextIndicator } from './status-context'
-
-describe('StatusConnectorRail', () => {
-  it('renders connector rail with position first', () => {
-    render(<StatusConnectorRail position="first" />)
-    const rail = screen.getByTestId('connector-rail')
-    expect(rail).toBeInTheDocument()
-    expect(rail).toHaveAttribute('data-position', 'first')
-    expect(rail).toHaveAttribute('aria-hidden', 'true')
-  })
-
-  it('renders connector rail with position middle', () => {
-    render(<StatusConnectorRail position="middle" />)
-    const rail = screen.getByTestId('connector-rail')
-    expect(rail).toBeInTheDocument()
-    expect(rail).toHaveAttribute('data-position', 'middle')
-  })
-
-  it('renders connector rail with position last', () => {
-    render(<StatusConnectorRail position="last" />)
-    const rail = screen.getByTestId('connector-rail')
-    expect(rail).toBeInTheDocument()
-    expect(rail).toHaveAttribute('data-position', 'last')
-  })
-
-  it('returns null for position single', () => {
-    const { container } = render(<StatusConnectorRail position="single" />)
-    expect(container).toBeEmptyDOMElement()
-  })
-})
+import { StatusContextIndicator } from './status-context'
 
 describe('StatusContextIndicator', () => {
   const mockParentPreview: TimelineParentPreview = {

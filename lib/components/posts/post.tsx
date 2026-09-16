@@ -55,7 +55,7 @@ import { QuoteCard } from './quote-card'
 import { ReactionRow } from './reaction-row'
 import { ReadOnlyStats } from './read-only-stats'
 import { RetryFitnessButton } from './retry-fitness-button'
-import { StatusConnectorRail, StatusContextIndicator } from './status-context'
+import { StatusContextIndicator } from './status-context'
 import { TranslateContent } from './translate-content'
 import { TranslationProvider } from './translation-context'
 import { useReactionState } from './useReactionState'
@@ -97,7 +97,6 @@ export interface PostProps {
   postLineLimit?: PostLineLimit
   parentPreview?: TimelineParentPreview | null
   showReplyContext?: boolean
-  connectorPosition?: 'first' | 'middle' | 'last' | 'single'
 }
 
 interface BoostStatusProps {
@@ -469,17 +468,12 @@ export const Post: FC<PostProps> = (props) => {
           />
         )}
         <div className="flex min-h-0 min-w-0 gap-3">
-          <div className="relative shrink-0 flex flex-col items-center">
-            {props.connectorPosition && props.connectorPosition !== 'single' && (
-              <StatusConnectorRail position={props.connectorPosition} />
-            )}
-            <div className="relative z-10 bg-card rounded-full">
-              <ActorAvatar
-                actor={actualStatus.actor}
-                actorId={actualStatus.actorId}
-                statusUrl={actualStatus.url}
-              />
-            </div>
+          <div className="shrink-0">
+            <ActorAvatar
+              actor={actualStatus.actor}
+              actorId={actualStatus.actorId}
+              statusUrl={actualStatus.url}
+            />
           </div>
           <div className="flex-1 min-h-0 min-w-0">
             <div className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5 text-sm">

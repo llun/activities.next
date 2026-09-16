@@ -199,12 +199,8 @@ describe('TimelineFeed', () => {
       text2.compareDocumentPosition(text3) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
 
-    // Verify connector rails
-    const rails = screen.getAllByTestId('connector-rail')
-    expect(rails.length).toBe(3)
-    expect(rails[0]).toHaveAttribute('data-position', 'first')
-    expect(rails[1]).toHaveAttribute('data-position', 'middle')
-    expect(rails[2]).toHaveAttribute('data-position', 'last')
+    // Verify no connector rails are rendered between avatars
+    expect(screen.queryByTestId('connector-rail')).not.toBeInTheDocument()
   })
 
   it('collapses middle posts in thread > 3 posts and expands on button click', () => {
@@ -310,11 +306,8 @@ describe('TimelineFeed', () => {
       screen.getByText(/Agreed, the nested replies make reading easier/)
     ).toBeInTheDocument()
 
-    const rails = screen.getAllByTestId('connector-rail')
-    expect(rails.length).toBe(3)
-    expect(rails[0]).toHaveAttribute('data-position', 'first')
-    expect(rails[1]).toHaveAttribute('data-position', 'middle')
-    expect(rails[2]).toHaveAttribute('data-position', 'last')
+    // Verify no connector rails are rendered between avatars
+    expect(screen.queryByTestId('connector-rail')).not.toBeInTheDocument()
   })
 
   it('targets the correct status when replying from a thread post', () => {

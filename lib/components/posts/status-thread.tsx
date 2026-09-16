@@ -108,6 +108,13 @@ export const StatusThread: FC<StatusThreadProps> = ({
   }
 
   const handleReplyCreated = (newReply: Status) => {
+    if (
+      typeof document !== 'undefined' &&
+      document.activeElement instanceof HTMLElement
+    ) {
+      document.activeElement.blur()
+    }
+
     setLocallyCreatedReplies((prev) => {
       if (
         prev.some((item) => item.id === newReply.id) ||
@@ -131,7 +138,13 @@ export const StatusThread: FC<StatusThreadProps> = ({
         const next = { ...prev, [parentId]: true }
         let curId: string | null = parentId
         const seen = new Set<string>()
-        const allKnown = [...descendants, ...locallyCreatedReplies, newReply]
+        const allKnown = [
+          ...ancestors,
+          status,
+          ...descendants,
+          ...locallyCreatedReplies,
+          newReply
+        ]
         while (curId && !seen.has(curId)) {
           seen.add(curId)
           next[curId] = true
@@ -157,10 +170,10 @@ export const StatusThread: FC<StatusThreadProps> = ({
       if (typeof el?.scrollIntoView === 'function') {
         el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
       }
-    }, 100)
+    }, 50)
 
     onReplyCreated?.(newReply)
-    router.refresh()
+    // Note: router.refresh() is omitted to avoid Next.js App Router resetting scroll to top.
   }
 
   const isBranchExpanded = (node: ThreadNode): boolean => {
@@ -191,7 +204,11 @@ export const StatusThread: FC<StatusThreadProps> = ({
         }
         return null
       }
-      const targetNode = findNode(tree.descendants)
+      const allTreeNodes = [
+        ...tree.descendants,
+        ...Object.values(tree.ancestorReplies ?? {}).flat()
+      ]
+      const targetNode = findNode(allTreeNodes)
       const initialState = targetNode ? !targetNode.initiallyCollapsed : true
       return { ...prev, [nodeId]: !initialState }
     })
@@ -372,13 +389,6 @@ export const StatusThread: FC<StatusThreadProps> = ({
                     status={ancestor}
                     showActions={canComposeFocused}
                     showReadOnlyStats={!canComposeFocused}
-                    connectorPosition={
-                      index === 0
-                        ? tree.ancestors.length > 1
-                          ? 'first'
-                          : 'middle'
-                        : 'middle'
-                    }
                     editable={
                       canComposeFocused &&
                       currentActor?.id === actualAncestor.actorId
@@ -432,6 +442,14 @@ export const StatusThread: FC<StatusThreadProps> = ({
                     />
                   </div>
                 ) : null}
+
+                {tree.ancestorReplies?.[ancestor.id]?.length ? (
+                  <div className="mt-3 space-y-2">
+                    {tree.ancestorReplies[ancestor.id].map((replyNode) =>
+                      renderThreadNode(replyNode)
+                    )}
+                  </div>
+                ) : null}
               </div>
             )
           })}
@@ -458,7 +476,6 @@ export const StatusThread: FC<StatusThreadProps> = ({
               canComposeFocused &&
               currentActor?.id === actualFocusedStatus.actorId
             }
-            connectorPosition={tree.ancestors.length > 0 ? 'last' : 'single'}
             onReply={
               canComposeFocused
                 ? (target) => composer.openReply(target, status.id)
