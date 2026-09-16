@@ -1,0 +1,16 @@
+lib/components/posts/timeline-feed.test.tsx
+  h_580a04e334fef4 184-186,301-303
+lib/components/posts/timeline-feed.tsx
+  h_580a04e334fef4 276,358
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "45111f134f7ec6d64743b846ca86dbb060d1e662",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
