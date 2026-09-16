@@ -115,6 +115,30 @@ describe('StatusThread', () => {
     expect(screen.getByText('No replies yet')).toBeInTheDocument()
   })
 
+  it('renders focusedFooter when provided', () => {
+    const focused = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/focused',
+      actor: mockAlice,
+      actorId: mockAlice.id,
+      text: 'Focused Status',
+      createdAt: BASE_TIME
+    })
+
+    render(
+      <StatusThread
+        host={host}
+        status={focused}
+        currentTime={BASE_TIME}
+        focusedFooter={
+          <div data-testid="custom-focused-footer">Footer Content</div>
+        }
+      />
+    )
+
+    expect(screen.getByTestId('custom-focused-footer')).toBeInTheDocument()
+    expect(screen.getByText('Footer Content')).toBeInTheDocument()
+  })
+
   it('opens inline composer targeting the specific reply when clicking reply', () => {
     const focused = createMockNote({
       id: 'https://activities.local/users/alice/statuses/focused',

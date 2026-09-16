@@ -37,6 +37,7 @@ export interface StatusThreadProps {
   hasMoreDescendants?: boolean
   onLoadMoreAncestors?: () => void
   onLoadMoreDescendants?: () => void
+  focusedFooter?: ReactNode
   renderFocusedFooter?: (status: Status) => ReactNode
   className?: string
   onReplyCreated?: (status: Status) => void
@@ -56,6 +57,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
   hasMoreDescendants = false,
   onLoadMoreAncestors,
   onLoadMoreDescendants,
+  focusedFooter,
   renderFocusedFooter,
   className,
   onReplyCreated
@@ -482,7 +484,8 @@ export const StatusThread: FC<StatusThreadProps> = ({
           />
         </div>
 
-        {renderFocusedFooter ? renderFocusedFooter(status) : null}
+        {focusedFooter ??
+          (renderFocusedFooter ? renderFocusedFooter(status) : null)}
 
         {composer.active?.anchorId === status.id && currentActor ? (
           <div className="mt-3">

@@ -397,7 +397,7 @@ const Page: FC<Props> = async ({ params }) => {
         isMediaUploadEnabled={Boolean(mediaStorage)}
         hasMoreAncestors={hasMoreAncestors}
         hasMoreDescendants={hasMoreDescendants}
-        renderFocusedFooter={() =>
+        focusedFooter={
           !currentActorProfile ? (
             <div className="mt-3 border-t pt-3">
               <StatusStatStrip
