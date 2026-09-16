@@ -49,6 +49,32 @@ const getBlueskyHandle = (url: URL): string | null => {
   }
 }
 
+const isHostMatch = (
+  domainA: string | undefined,
+  domainB: string | undefined
+): boolean => {
+  if (!domainA || !domainB) return false
+  const a = domainA.trim().toLowerCase()
+  const b = domainB.trim().toLowerCase()
+  if (a === b) return true
+  const aWithoutPort = a.replace(/:[0-9]+$/, '')
+  const bWithoutPort = b.replace(/:[0-9]+$/, '')
+  return aWithoutPort === bWithoutPort
+}
+
+const normalizeUrlForMatch = (urlStr: string): string => {
+  try {
+    const u = new URL(urlStr)
+    const pathname =
+      u.pathname.length > 1 && u.pathname.endsWith('/')
+        ? u.pathname.slice(0, -1)
+        : u.pathname
+    return `${u.protocol}//${u.host.toLowerCase()}${pathname}`
+  } catch {
+    return urlStr
+  }
+}
+
 export const extractProfileHref = (
   href: string | undefined,
   options?: ExtractProfileHrefOptions
@@ -60,10 +86,25 @@ export const extractProfileHref = (
     return href
   }
 
+  // Guard against non-HTTP(S) schemes (e.g. javascript:, data:) and invalid URLs
+  let parsedUrl: URL
+  try {
+    parsedUrl = new URL(href)
+    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+      return undefined
+    }
+  } catch {
+    return undefined
+  }
+
   // 2. Resolve via status mention tags when available (covers non-standard fediverse profile URLs).
   if (options?.tags && options.tags.length > 0) {
+    const normalizedTarget = normalizeUrlForMatch(href)
     const matchingTag = options.tags.find(
-      (tag) => tag.type === 'mention' && tag.value === href
+      (tag) =>
+        tag.type === 'mention' &&
+        (tag.value === href ||
+          normalizeUrlForMatch(tag.value) === normalizedTarget)
     )
     if (matchingTag) {
       const cleanName = matchingTag.name.replace(/^@+/, '')
@@ -83,7 +124,7 @@ export const extractProfileHref = (
       }
 
       if (username) {
-        if (options.host && domain && domain === options.host.toLowerCase()) {
+        if (isHostMatch(domain, options?.host)) {
           return `/@${username}`
         }
         return domain ? `/@${username}@${domain}` : `/@${username}`
@@ -95,21 +136,16 @@ export const extractProfileHref = (
   const account = parseAccountUrlHandle(href)
   if (account) {
     const { username, domain } = account
-    if (options?.host && domain.toLowerCase() === options.host.toLowerCase()) {
+    if (isHostMatch(domain, options?.host)) {
       return `/@${username}`
     }
     return `/@${username}@${domain}`
   }
 
   // 4. Resolve Bluesky bridge profile URLs.
-  try {
-    const parsedUrl = new URL(href)
-    const bskyUser = getBlueskyHandle(parsedUrl)
-    if (bskyUser) {
-      return `/@${bskyUser}@bsky.brid.gy`
-    }
-  } catch {
-    return undefined
+  const bskyUser = getBlueskyHandle(parsedUrl)
+  if (bskyUser) {
+    return `/@${bskyUser}@bsky.brid.gy`
   }
 
   return undefined

@@ -107,4 +107,44 @@ describe('extractProfileHref', () => {
       extractProfileHref('https://bsky.app/profile/alice.bsky.social')
     ).toBe('/@alice.bsky.social@bsky.brid.gy')
   })
+
+  it('rejects non-HTTP(S) schemes such as javascript: and data:', () => {
+    expect(extractProfileHref('javascript:alert(1)')).toBeUndefined()
+    expect(extractProfileHref('data:text/html,<b>hi</b>')).toBeUndefined()
+    expect(extractProfileHref('file:///etc/passwd')).toBeUndefined()
+  })
+
+  it('handles host matching when either host or domain has a port', () => {
+    expect(
+      extractProfileHref('https://activities.local:3000/@alice', {
+        host: 'activities.local'
+      })
+    ).toBe('/@alice')
+    expect(
+      extractProfileHref('https://activities.local/@alice', {
+        host: 'activities.local:3000'
+      })
+    ).toBe('/@alice')
+  })
+
+  it('matches mention tag even if href or tag value has trailing slashes', () => {
+    const tags: Tag[] = [
+      {
+        id: 'tag-3',
+        statusId: 'status-1',
+        type: 'mention',
+        name: '@slash_user@remote.social',
+        value: 'https://remote.social/users/slash_user',
+        createdAt: 0,
+        updatedAt: 0
+      }
+    ]
+
+    expect(
+      extractProfileHref('https://remote.social/users/slash_user/', {
+        host,
+        tags
+      })
+    ).toBe('/@slash_user@remote.social')
+  })
 })

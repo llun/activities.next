@@ -2490,13 +2490,16 @@ describe('Post', () => {
         ]
       }
 
+      const onParentClick = vi.fn()
       render(
-        <Post
-          host="activities.local"
-          currentTime={currentTime}
-          status={statusWithMention}
-          onShowAttachment={vi.fn()}
-        />
+        <div onClick={onParentClick}>
+          <Post
+            host="activities.local"
+            currentTime={currentTime}
+            status={statusWithMention}
+            onShowAttachment={vi.fn()}
+          />
+        </div>
       )
 
       const mentionLink = screen.getByRole('link', { name: '@remoteuser' })
@@ -2505,6 +2508,9 @@ describe('Post', () => {
         '/@remoteuser@mastodon.social'
       )
       expect(mentionLink).not.toHaveAttribute('target')
+
+      fireEvent.click(mentionLink)
+      expect(onParentClick).not.toHaveBeenCalled()
     })
   })
 })
