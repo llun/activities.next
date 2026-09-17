@@ -1,0 +1,26 @@
+app/(timeline)/MainPageTimeline.test.tsx
+  h_580a04e334fef4 37-48,272-275,281-283,290-292,1656-1657,1690-1746
+app/(timeline)/MainPageTimeline.tsx
+  h_580a04e334fef4 414-425,487-493,511-512
+docs/architecture.md
+  h_580a04e334fef4 604,1447
+lib/components/load-more-button/load-more-button.test.tsx
+  h_580a04e334fef4 152-190
+lib/components/load-more-button/load-more-button.tsx
+  h_580a04e334fef4 11-15,26-27,40-42,45-47,54-58,66,71-76,80
+lib/components/page-header.test.tsx
+  h_580a04e334fef4 131-159
+lib/components/page-header.tsx
+  h_580a04e334fef4 14,76-77,115,163-169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "06185512842656d71ab5d1fa4d7559f4b94c261a",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
