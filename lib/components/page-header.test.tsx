@@ -128,4 +128,33 @@ describe('PageHeader', () => {
       screen.queryByRole('button', { name: 'Open navigation' })
     ).not.toBeInTheDocument()
   })
+
+  it('renders bottomSlot in sticky mode within an absolute overlay container below the header', () => {
+    const { container } = render(
+      <PageHeader
+        title="Timeline"
+        bottomSlot={<button type="button">1 new post ↑</button>}
+      />
+    )
+
+    const button = screen.getByRole('button', { name: '1 new post ↑' })
+    expect(button).toBeInTheDocument()
+
+    const overlay = container.querySelector('.top-full')
+    expect(overlay).toBeInTheDocument()
+    expect(overlay).toHaveClass('pointer-events-none')
+    expect(overlay).toHaveClass('absolute')
+    expect(overlay).toHaveClass('pt-2')
+    expect(overlay).toContainElement(button)
+  })
+
+  it('renders bottomSlot in section mode beneath subnav', () => {
+    render(
+      <PageHeaderSectionProvider>
+        <PageHeader title="Settings" bottomSlot={<div>Section notice</div>} />
+      </PageHeaderSectionProvider>
+    )
+
+    expect(screen.getByText('Section notice')).toBeInTheDocument()
+  })
 })

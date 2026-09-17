@@ -34,7 +34,18 @@ vi.mock('@/lib/components/announcements/AnnouncementBanner', () => ({
 }))
 
 vi.mock('@/lib/components/page-header', () => ({
-  PageHeader: ({ actions }: { actions?: ReactNode }) => <div>{actions}</div>
+  PageHeader: ({
+    actions,
+    bottomSlot
+  }: {
+    actions?: ReactNode
+    bottomSlot?: ReactNode
+  }) => (
+    <div>
+      {actions}
+      {bottomSlot}
+    </div>
+  )
 }))
 
 vi.mock('@/lib/components/post-box/post-box', () => ({
@@ -258,18 +269,27 @@ vi.mock('@/lib/components/ui/button', () => ({
     children,
     onClick,
     disabled,
-    'aria-label': ariaLabel
+    'aria-label': ariaLabel,
+    variant,
+    className,
+    ...props
   }: {
     children: ReactNode
     onClick?: () => void
     disabled?: boolean
     'aria-label'?: string
+    variant?: string
+    className?: string
+    [key: string]: unknown
   }) => (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
       aria-label={ariaLabel}
+      data-variant={variant}
+      className={className}
+      {...props}
     >
       {children}
     </button>
@@ -1633,6 +1653,8 @@ describe('MainPageTimeline', () => {
 
         const banner = screen.getByRole('button', { name: '2 new posts ↑' })
         expect(banner).toBeInTheDocument()
+        expect(banner).toHaveAttribute('data-variant', 'pill')
+        expect(banner).toHaveClass('pointer-events-auto')
 
         // Mock clean top snapshot fetch
         vi.mocked(getTimeline).mockResolvedValueOnce({
@@ -1664,6 +1686,63 @@ describe('MainPageTimeline', () => {
         window.scrollTo = originalScrollTo
         vi.useRealTimers()
       }
+    })
+
+    it('renders singular "1 new post ↑" when polling detects a single new post', async () => {
+      vi.useFakeTimers()
+      try {
+        const post1 = createStatus('https://activities.local/users/llun/s/1')
+        const newPostA = createStatus(
+          'https://activities.local/users/llun/s/new-a'
+        )
+
+        render(
+          <MainPageTimeline
+            host="activities.local"
+            currentTime={FIXED_CURRENT_TIME}
+            profile={profile}
+            isMediaUploadEnabled={false}
+            statuses={[post1]}
+          />
+        )
+
+        vi.mocked(getTimeline).mockResolvedValueOnce({
+          statuses: [newPostA],
+          nextMaxStatusId: null,
+          prevMinStatusId: 'https://activities.local/users/llun/s/new-a'
+        })
+
+        await act(async () => {
+          vi.advanceTimersByTime(15000)
+          await Promise.resolve()
+          await Promise.resolve()
+        })
+
+        const banner = screen.getByRole('button', { name: '1 new post ↑' })
+        expect(banner).toBeInTheDocument()
+        expect(banner).toHaveAttribute('data-variant', 'pill')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('renders load more in compact in-flow mode when visible feed is initially empty but cursor exists', () => {
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[]}
+          initialNextMaxStatusId="cursor-initial"
+        />
+      )
+
+      const loadMoreBtn = screen.getByRole('button', { name: 'Load more' })
+      expect(loadMoreBtn).toBeInTheDocument()
+      expect(loadMoreBtn.closest('div')).toHaveClass('py-4')
+      expect(loadMoreBtn.closest('div')).toHaveClass('text-center')
+      expect(loadMoreBtn.closest('div')).not.toHaveClass('max-md:h-0')
     })
   })
 })

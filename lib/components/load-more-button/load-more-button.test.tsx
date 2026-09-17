@@ -149,4 +149,43 @@ describe('LoadMoreButton', () => {
     expect(button).toHaveAttribute('data-size', 'sm')
     expect(button).toHaveClass('extra-button-class')
   })
+
+  it('renders overlay container and mobile translate when presentation is overlay', () => {
+    const { container } = render(
+      <LoadMoreButton presentation="overlay" onClick={() => {}} />
+    )
+
+    const wrapper = container.firstElementChild
+    expect(wrapper?.tagName).toBe('DIV')
+    expect(wrapper).toHaveClass('max-md:relative')
+    expect(wrapper).toHaveClass('max-md:z-10')
+    expect(wrapper).toHaveClass('max-md:-mt-6')
+    expect(wrapper).toHaveClass('max-md:h-0')
+    expect(wrapper).toHaveClass('max-md:pointer-events-none')
+    expect(wrapper).toHaveClass('md:py-4')
+    expect(wrapper).toHaveClass('md:text-center')
+
+    const button = screen.getByRole('button', { name: 'Load more' })
+    expect(button).toHaveClass('max-md:pointer-events-auto')
+    expect(button).toHaveClass('max-md:-translate-y-12')
+  })
+
+  it('renders compact in-flow container when presentation is overlay but hasItems is false', () => {
+    const { container } = render(
+      <LoadMoreButton
+        presentation="overlay"
+        hasItems={false}
+        onClick={() => {}}
+      />
+    )
+
+    const wrapper = container.firstElementChild
+    expect(wrapper?.tagName).toBe('DIV')
+    expect(wrapper).toHaveClass('py-4')
+    expect(wrapper).toHaveClass('text-center')
+    expect(wrapper).not.toHaveClass('max-md:h-0')
+
+    const button = screen.getByRole('button', { name: 'Load more' })
+    expect(button).not.toHaveClass('max-md:-translate-y-12')
+  })
 })
