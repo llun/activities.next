@@ -11,6 +11,7 @@ interface PageHeaderProps {
   actions?: ReactNode
   className?: string
   stackActionsOnMobile?: boolean
+  bottomSlot?: ReactNode
 }
 
 // Break out of the content column (`max-w-content`) so the chrome spans the
@@ -72,7 +73,8 @@ export const PageHeader = ({
   description,
   actions,
   className,
-  stackActionsOnMobile
+  stackActionsOnMobile,
+  bottomSlot
 }: PageHeaderProps) => {
   const subnav = useContext(PageSubnavContext)
   const isSection = useContext(PageHeaderSectionContext)
@@ -110,6 +112,7 @@ export const PageHeader = ({
           )}
         </div>
         {subnav && <div className="mt-4">{subnav}</div>}
+        {bottomSlot && <div className="mt-4">{bottomSlot}</div>}
       </div>
     )
   }
@@ -157,6 +160,13 @@ export const PageHeader = ({
         </div>
         {subnav && <div className="mt-3">{subnav}</div>}
       </div>
+      {bottomSlot && (
+        <div className="pointer-events-none absolute left-0 right-0 top-full pt-2">
+          <div className="mx-auto flex max-w-content justify-center px-4">
+            {bottomSlot}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

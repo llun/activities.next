@@ -411,19 +411,19 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
             />
           </Button>
         }
+        bottomSlot={
+          newerPostsCount > 0 ? (
+            <Button
+              type="button"
+              variant="pill"
+              onClick={handleCleanTopSnapshot}
+              className="pointer-events-auto shadow-xs"
+            >
+              {newerPostsCount} new {newerPostsCount === 1 ? 'post' : 'posts'} ↑
+            </Button>
+          ) : undefined
+        }
       />
-
-      {newerPostsCount > 0 && (
-        <div className="sticky top-14 z-20 flex justify-center py-2">
-          <button
-            type="button"
-            onClick={handleCleanTopSnapshot}
-            className="rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-md hover:bg-primary/90 flex items-center gap-1.5"
-          >
-            {newerPostsCount} new {newerPostsCount === 1 ? 'post' : 'posts'} ↑
-          </button>
-        </div>
-      )}
 
       <section
         className={`rounded-xl border bg-card p-4 shadow-sm max-md:-mt-6 ${MOBILE_FEED_SURFACE_CLASS}`}
@@ -484,6 +484,13 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
             <p>Follow some people to see their posts here.</p>
           </div>
         )}
+        {hasMoreStatuses && (
+          <div
+            ref={loadMoreRef}
+            aria-hidden="true"
+            className="h-px w-full pointer-events-none"
+          />
+        )}
       </section>
 
       {fetchError && (
@@ -501,7 +508,8 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
 
       {hasMoreStatuses && (
         <LoadMoreButton
-          containerRef={loadMoreRef}
+          presentation="overlay"
+          hasItems={currentStatuses.length > 0}
           isLoading={isLoadingMoreStatuses}
           onClick={loadMoreStatuses}
         />
