@@ -27,8 +27,11 @@ export const extractVideoImage = async (filePath: string): Promise<Buffer> => {
         'thumbnail',
         '-frames:v',
         '1',
-        // A single-frame image2 output has no sequence pattern in its name, so
-        // ffmpeg needs this to overwrite the one file rather than refuse it.
+        // A single-frame image2 output has no sequence pattern in its name and
+        // would otherwise emit an image2 warning. It still writes the file, and
+        // `-loglevel error` hides the warning anyway, so this is kept to make the
+        // single-overwritten-file intent explicit rather than as a hard
+        // requirement.
         '-update',
         '1',
         '-y',
