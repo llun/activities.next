@@ -1,0 +1,14 @@
+lib/services/medias/constants.ts
+  h_580a04e334fef4 9-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bac6d07b3423506e87f1e1d05d794ef6f9641077",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
