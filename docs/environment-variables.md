@@ -256,7 +256,7 @@ Optional. Enables `POST /api/v1/statuses/:id/translate` and the Translate contro
 
 ## Alt Text Generation
 
-Optional. Automatically generates accessibility descriptions (alt text) for uploaded images when no description is provided by the client, using an OpenAI-compatible vision chat-completions API. If any required variable is missing, alt text generation is disabled.
+Optional. Automatically generates accessibility descriptions (alt text) for uploaded images and videos when no description is provided by the client, using an OpenAI-compatible vision chat-completions API. For a video, the representative preview frame is extracted and sent as the image input; if that extraction fails, the upload still succeeds without a generated description. If any required variable is missing, alt text generation is disabled.
 
 | Variable                       | Description                                                                                                    |
 | ------------------------------ | -------------------------------------------------------------------------------------------------------------- |

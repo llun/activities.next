@@ -19,7 +19,17 @@ export const extractVideoImage = async (filePath: string): Promise<Buffer> => {
         'error',
         '-i',
         path.resolve(filePath),
+        // `thumbnail` analyses batches of candidate frames and emits the most
+        // representative one. Without it ffmpeg takes the first decodable frame,
+        // which for a clip that opens on black or a blank frame is what gets
+        // stored as the poster and fed to the alt-text model.
+        '-vf',
+        'thumbnail',
         '-frames:v',
+        '1',
+        // A single-frame image2 output has no sequence pattern in its name, so
+        // ffmpeg needs this to overwrite the one file rather than refuse it.
+        '-update',
         '1',
         '-y',
         fileName

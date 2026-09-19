@@ -45,6 +45,12 @@ vi.mock('@/lib/services/altText/openai', () => ({
   generateAltText: (...args: unknown[]) => mockGenerateAltText(...args)
 }))
 
+const mockExtractVideoPreviewFrame = vi.fn()
+vi.mock('@/lib/services/medias/videoPreview', () => ({
+  extractVideoPreviewFrame: (...args: unknown[]) =>
+    mockExtractVideoPreviewFrame(...args)
+}))
+
 const mockSaveMedia = vi.fn()
 vi.mock('@/lib/services/medias', () => ({
   saveMedia: (...args: unknown[]) => mockSaveMedia(...args)
@@ -112,6 +118,7 @@ describe('POST /api/v2/media', () => {
       secretPhase: 'test-secret'
     })
     mockGenerateAltText.mockResolvedValue(null)
+    mockExtractVideoPreviewFrame.mockReset()
     await database.deleteServerSetting({ key: 'media.maxFileSize' })
     invalidateServerSettingsCache(database)
   })
@@ -469,7 +476,7 @@ describe('POST /api/v2/media', () => {
       expect(data.description).toBeNull()
     })
 
-    it('does not generate alt text when uploaded media is a video', async () => {
+    it('generates video alt text from the extracted preview frame', async () => {
       mockStoredToken.mockResolvedValue({
         expiresAt: new Date(Date.now() + 60_000),
         referenceId: ACTOR1_ID,
@@ -491,6 +498,67 @@ describe('POST /api/v2/media', () => {
         mime_type: 'video/mp4',
         description: null
       })
+      const previewFrame = Buffer.from('preview-frame')
+      mockExtractVideoPreviewFrame.mockResolvedValue(previewFrame)
+      mockGenerateAltText.mockResolvedValue('A cyclist riding through a park.')
+
+      const form = new FormData()
+      form.set(
+        'file',
+        new File([new Uint8Array([1, 2, 3])], 'video.mp4', {
+          type: 'video/mp4'
+        })
+      )
+
+      const response = await POST(postRequest('write-media-token', form), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.description).toBe('A cyclist riding through a park.')
+      expect(mockExtractVideoPreviewFrame).toHaveBeenCalledWith(
+        expect.any(Buffer),
+        '.mp4'
+      )
+      expect(mockGenerateAltText).toHaveBeenCalledWith(
+        {
+          endpoint: 'https://api.openai.com/v1/chat/completions',
+          apiKey: 'sk-test',
+          model: 'gpt-4o-mini'
+        },
+        previewFrame,
+        'image/jpeg'
+      )
+    })
+
+    // Frame extraction is best-effort: a clip ffmpeg cannot decode must still
+    // complete the upload, just without a generated description.
+    it('leaves description null and still succeeds when video frame extraction fails', async () => {
+      mockStoredToken.mockResolvedValue({
+        expiresAt: new Date(Date.now() + 60_000),
+        referenceId: ACTOR1_ID,
+        scopes: 'write:media'
+      })
+      mockGetConfig.mockReturnValue({
+        allowEmails: [],
+        host: 'llun.test',
+        secretPhase: 'test-secret',
+        altText: {
+          endpoint: 'https://api.openai.com/v1/chat/completions',
+          apiKey: 'sk-test',
+          model: 'gpt-4o-mini'
+        }
+      })
+      mockSaveMedia.mockResolvedValue({
+        ...sampleAttachment,
+        type: 'video',
+        mime_type: 'video/mp4',
+        description: null
+      })
+      mockExtractVideoPreviewFrame.mockRejectedValue(
+        new Error('ffmpeg found no frame')
+      )
 
       const form = new FormData()
       form.set(

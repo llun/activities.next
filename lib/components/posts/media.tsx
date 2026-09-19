@@ -411,6 +411,7 @@ export const Media: FC<Props> = ({
         poster={poster}
         preload={loading === 'lazy' && poster ? 'none' : undefined}
         controls={showVideoControl}
+        aria-label={caption ?? name ?? undefined}
         onClick={(event) => {
           event.preventDefault()
           onClick?.(event)

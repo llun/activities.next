@@ -24,6 +24,7 @@ import {
 import { MediaValidationError } from '@/lib/services/medias/errors'
 import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
 import {
+  FALLBACK_STORED_FILE_NAME,
   getStoredMediaExtension,
   sanitizeStoredFileName
 } from '@/lib/services/medias/fileName'
@@ -398,7 +399,8 @@ export class S3FileStorage implements MediaStorage {
         return null
       }
 
-      if (media.original.mimeType.startsWith('image')) {
+      const isVideo = media.original.mimeType.startsWith('video')
+      if (media.original.mimeType.startsWith('image') || isVideo) {
         const expectedSize = upload.size ?? media.original.bytes
         if (expectedSize <= PRESIGNED_ANALYSIS_MAX_BYTES) {
           try {
@@ -412,7 +414,19 @@ export class S3FileStorage implements MediaStorage {
                 response.Body as IncomingMessage,
                 PRESIGNED_ANALYSIS_MAX_BYTES
               )
-              const analysis = await analyzeImageBuffer(buffer, {
+              // A video is analysed and described from its representative
+              // preview frame; the stored video itself is not an image sharp
+              // or the vision model can read.
+              const previewBuffer = isVideo
+                ? await extractVideoPreviewFrame(
+                    buffer,
+                    getStoredMediaExtension(
+                      media.original.mimeType,
+                      media.original.fileName ?? FALLBACK_STORED_FILE_NAME
+                    )
+                  )
+                : buffer
+              const analysis = await analyzeImageBuffer(previewBuffer, {
                 manualFocus: media.focus
               })
               let generatedDescription: string | null = null
@@ -425,8 +439,8 @@ export class S3FileStorage implements MediaStorage {
                   // be dead code that only double-logs the same failure.
                   generatedDescription = await generateAltText(
                     altText,
-                    buffer,
-                    media.original.mimeType
+                    previewBuffer,
+                    isVideo ? 'image/jpeg' : media.original.mimeType
                   )
                 }
               }
@@ -445,7 +459,7 @@ export class S3FileStorage implements MediaStorage {
             }
           } catch (error) {
             logger.warn({
-              message: 'Failed to analyze presigned image upload',
+              message: 'Failed to analyze presigned media upload',
               err: toLoggableError(error)
             })
           }

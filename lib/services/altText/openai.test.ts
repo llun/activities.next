@@ -65,6 +65,26 @@ describe('generateAltText', () => {
     ])
   })
 
+  it('instructs the model to describe images and video frames without meta-preambles', async () => {
+    vi.mocked(safeRemoteFetch).mockResolvedValue({
+      statusCode: 200,
+      body: chatResponse('A cyclist on a road bike.'),
+      bodyTruncated: false,
+      headers: {},
+      url: config.endpoint
+    })
+
+    await generateAltText(config, sampleImageBuffer, mimeType)
+
+    const callArgs = vi.mocked(safeRemoteFetch).mock.calls[0]?.[0]
+    const body = JSON.parse(callArgs?.body ?? '{}')
+    const systemPrompt = body.messages[0].content as string
+    expect(systemPrompt).toContain('video preview frames')
+    expect(systemPrompt).toContain('This video shows')
+    expect(systemPrompt).toContain('This image depicts')
+    expect(systemPrompt).toContain('Screenshot of')
+  })
+
   it('trims whitespace from generated alt text', async () => {
     vi.mocked(safeRemoteFetch).mockResolvedValue({
       statusCode: 200,
