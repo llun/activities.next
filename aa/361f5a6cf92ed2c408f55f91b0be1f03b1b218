@@ -1,0 +1,21 @@
+lib/services/medias/getMediaAttachment.test.ts
+  s_c278f619192219::t_7eb04c67ee1a16 59,68-88
+lib/services/medias/getMediaAttachment.ts
+  s_c278f619192219::t_4b150ff01b0fda 41-43,46-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "aa361f5a6cf92ed2c408f55f91b0be1f03b1b218",
+  "prompts": {},
+  "sessions": {
+    "s_c278f619192219": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f44fe6f01ffexACYZNtEzSLQNE",
+        "model": "deepseek-v4.1-flash"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
