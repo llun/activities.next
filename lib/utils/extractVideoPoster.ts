@@ -20,6 +20,7 @@ export const extractVideoPoster = async (
       isDone = true
       clearTimeout(timer)
       video.onloadedmetadata = null
+      video.onloadeddata = null
       video.onseeked = null
       video.onerror = null
       URL.revokeObjectURL(videoUrl)
@@ -39,7 +40,13 @@ export const extractVideoPoster = async (
             ? Math.min(seekTimeSeconds, Math.max(0, video.duration / 2))
             : seekTimeSeconds
         if (video.currentTime === targetTime) {
-          video.onseeked?.(new Event('seeked'))
+          if (video.readyState >= 2) {
+            video.onseeked?.(new Event('seeked'))
+          } else {
+            video.onloadeddata = () => {
+              video.onseeked?.(new Event('seeked'))
+            }
+          }
         } else {
           video.currentTime = targetTime
         }

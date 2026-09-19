@@ -326,7 +326,8 @@ export const PostBox: FC<Props> = ({
             ...attachment,
             ...uploaded,
             isLoading: false,
-            file: undefined
+            file: undefined,
+            posterFile: undefined
           }
           postExtensionRef.current = {
             ...postExtensionRef.current,

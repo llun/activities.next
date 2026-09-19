@@ -225,7 +225,8 @@ export const StatusReplyBox: FC<Props> = ({
               ...attachment,
               ...uploaded,
               isLoading: false,
-              file: undefined
+              file: undefined,
+              posterFile: undefined
             }
             dispatch(updateAttachment(attachment.id, newAttachment))
             return {
@@ -499,6 +500,25 @@ export const StatusReplyBox: FC<Props> = ({
                 isMediaUploadEnabled={isMediaUploadEnabled}
                 attachments={postExtension.attachments}
                 onAddAttachment={(attachment) => {
+                  if (
+                    postExtensionRef.current.attachments.length >=
+                    maxMediaAttachments
+                  ) {
+                    if (attachment.url.startsWith('blob:')) {
+                      URL.revokeObjectURL(attachment.url)
+                    }
+                    if (attachment.posterUrl?.startsWith('blob:')) {
+                      URL.revokeObjectURL(attachment.posterUrl)
+                    }
+                    return
+                  }
+                  postExtensionRef.current = {
+                    ...postExtensionRef.current,
+                    attachments: [
+                      ...postExtensionRef.current.attachments,
+                      attachment
+                    ]
+                  }
                   dispatch(addAttachment(attachment, maxMediaAttachments))
                 }}
                 onDuplicateError={() =>
