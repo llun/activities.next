@@ -1,0 +1,18 @@
+lib/services/medias/S3StorageFile.test.ts
+  h_580a04e334fef4 962,971-1055,1061,1071,1083,1097-1121,1125,1132-1243,1260
+lib/services/medias/S3StorageFile.ts
+  h_580a04e334fef4 27,402-405,419-432,445-446,465
+lib/services/medias/extractVideoImage.test.ts
+  h_580a04e334fef4 32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "202349d11b14a49ccd05c83fa73f6dc2035477e3",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
