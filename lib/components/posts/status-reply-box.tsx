@@ -110,6 +110,9 @@ export const StatusReplyBox: FC<Props> = ({
         if (attachment.url.startsWith('blob:')) {
           URL.revokeObjectURL(attachment.url)
         }
+        if (attachment.posterUrl?.startsWith('blob:')) {
+          URL.revokeObjectURL(attachment.posterUrl)
+        }
       })
     }
   }, [])
@@ -206,11 +209,16 @@ export const StatusReplyBox: FC<Props> = ({
           )
 
           try {
-            const uploaded = await uploadAttachment(attachment.file)
+            const uploaded = attachment.posterFile
+              ? await uploadAttachment(attachment.file, attachment.posterFile)
+              : await uploadAttachment(attachment.file)
             if (!uploaded) throw new Error()
 
             if (attachment.url.startsWith('blob:')) {
               URL.revokeObjectURL(attachment.url)
+            }
+            if (attachment.posterUrl?.startsWith('blob:')) {
+              URL.revokeObjectURL(attachment.posterUrl)
             }
 
             const newAttachment = {
@@ -289,6 +297,9 @@ export const StatusReplyBox: FC<Props> = ({
 
     if (attachment.url.startsWith('blob:')) {
       URL.revokeObjectURL(attachment.url)
+    }
+    if (attachment.posterUrl?.startsWith('blob:')) {
+      URL.revokeObjectURL(attachment.posterUrl)
     }
 
     const nextAttachments = [

@@ -201,19 +201,41 @@ const cleanupPendingUploadMedia = async (mediaId: string) => {
   }).catch(() => undefined)
 }
 
+export interface UploadMediaThumbnailParams {
+  mediaId: string
+  thumbnail: File
+}
+
+export const uploadMediaThumbnail = async ({
+  mediaId,
+  thumbnail
+}: UploadMediaThumbnailParams): Promise<
+  PresignedUrlOutput['saveFileOutput'] | null
+> => {
+  const form = new FormData()
+  form.append('thumbnail', thumbnail)
+  const response = await fetch(`/api/v1/media/${mediaId}`, {
+    method: 'PUT',
+    body: form
+  })
+  if (!response.ok) return null
+  return response.json()
+}
+
 export const uploadAttachment = async (
-  file: File
+  file: File,
+  posterFile?: File
 ): Promise<UploadedAttachment | null> => {
   const result = await createUploadPresignedUrl({ media: file })
   if (!result) {
-    const media = await uploadMedia({ media: file })
+    const media = await uploadMedia({ media: file, thumbnail: posterFile })
     if (!media) return null
     return {
       type: 'upload',
       id: media.id,
       mediaType: media.mime_type,
       url: media.url,
-      posterUrl: media.preview_url,
+      posterUrl: media.preview_url ?? undefined,
       width: media.meta.original.width,
       height: media.meta.original.height,
       name: media.description ?? undefined
@@ -232,7 +254,21 @@ export const uploadAttachment = async (
     return null
   }
 
-  return completion.completed
+  let finalAttachment = completion.completed
+  if (posterFile && !finalAttachment.posterUrl) {
+    const updated = await uploadMediaThumbnail({
+      mediaId: saveFileOutput.id,
+      thumbnail: posterFile
+    })
+    if (updated?.preview_url) {
+      finalAttachment = {
+        ...finalAttachment,
+        posterUrl: updated.preview_url
+      }
+    }
+  }
+
+  return finalAttachment
 }
 
 export interface GetActorMediaParams {

@@ -56,7 +56,7 @@ describe('getMediaAttachment', () => {
     })
   })
 
-  it('classifies video mime types', () => {
+  it('classifies video mime types and emits null preview_url without thumbnail', () => {
     const attachment = getMediaAttachment(
       {
         ...baseMedia,
@@ -65,6 +65,27 @@ describe('getMediaAttachment', () => {
       'llun.test'
     )
     expect(attachment.type).toBe('video')
+    expect(attachment.preview_url).toBeNull()
+  })
+
+  it('uses thumbnail path for video preview_url when thumbnail is present', () => {
+    const attachment = getMediaAttachment(
+      {
+        ...baseMedia,
+        original: { ...baseMedia.original, mimeType: 'video/mp4' },
+        thumbnail: {
+          path: 'medias/2026-01-01/video-poster.webp',
+          bytes: 4000,
+          mimeType: 'image/webp',
+          metaData: { width: 1280, height: 720 }
+        }
+      },
+      'llun.test'
+    )
+    expect(attachment.type).toBe('video')
+    expect(attachment.preview_url).toBe(
+      'https://llun.test/api/v1/files/medias/2026-01-01/video-poster.webp'
+    )
   })
 
   it('serves over http for localhost hosts', () => {

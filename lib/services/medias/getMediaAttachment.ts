@@ -38,9 +38,14 @@ export const getMediaAttachment = (
   host: string
 ): MediaStorageSaveFileOutput => {
   const url = getMediaFileUrl(host, media.original.path)
+  const isVisualPreviewSupported =
+    !media.original.mimeType.startsWith('video') &&
+    !media.original.mimeType.startsWith('audio')
   const previewUrl = media.thumbnail
     ? getMediaFileUrl(host, media.thumbnail.path)
-    : url
+    : isVisualPreviewSupported
+      ? url
+      : null
 
   return MediaStorageSaveFileOutput.parse({
     id: `${media.id}`,

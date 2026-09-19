@@ -29,7 +29,8 @@ export type UploadedAttachment = z.infer<typeof UploadedAttachment>
 
 export const PostBoxAttachment = UploadedAttachment.extend({
   isLoading: z.boolean().optional(),
-  file: z.custom<File>().optional()
+  file: z.custom<File>().optional(),
+  posterFile: z.custom<File>().optional()
 })
 
 export type PostBoxAttachment = z.infer<typeof PostBoxAttachment>

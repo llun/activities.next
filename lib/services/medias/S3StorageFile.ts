@@ -444,16 +444,67 @@ export class S3FileStorage implements MediaStorage {
                   )
                 }
               }
-              if (analysis.blurhash || analysis.focus || generatedDescription) {
-                const updated = await this._database.updateMedia({
-                  mediaId,
-                  accountId,
-                  blurhash: analysis.blurhash,
-                  focus: analysis.focus ?? undefined,
-                  description: generatedDescription ?? undefined
-                })
-                if (updated?.media) {
-                  return this._getSaveFileOutput(updated.media)
+              let storedThumbnail: {
+                path: string
+                outputInfo: { size: number; width?: number; height?: number }
+                contentType: string
+              } | null = null
+
+              if (isVideo && previewBuffer) {
+                const uploaded = await this._uploadImageBufferToS3(
+                  Date.now(),
+                  previewBuffer,
+                  { isThumbnail: true }
+                )
+                storedThumbnail = {
+                  path: uploaded.path,
+                  outputInfo: uploaded.outputInfo,
+                  contentType: uploaded.contentType
+                }
+              }
+
+              if (
+                analysis.blurhash ||
+                analysis.focus ||
+                generatedDescription ||
+                storedThumbnail
+              ) {
+                try {
+                  const updated = await this._database.updateMedia({
+                    mediaId,
+                    accountId,
+                    blurhash: analysis.blurhash,
+                    focus: analysis.focus ?? undefined,
+                    description: generatedDescription ?? undefined,
+                    ...(storedThumbnail
+                      ? {
+                          thumbnail: {
+                            path: storedThumbnail.path,
+                            bytes: storedThumbnail.outputInfo.size,
+                            mimeType: storedThumbnail.contentType,
+                            metaData: {
+                              width: storedThumbnail.outputInfo.width ?? 0,
+                              height: storedThumbnail.outputInfo.height ?? 0
+                            }
+                          }
+                        }
+                      : {})
+                  })
+                  if (updated?.media) {
+                    return this._getSaveFileOutput(updated.media)
+                  }
+                  if (storedThumbnail) {
+                    await this.deleteFile(storedThumbnail.path).catch(
+                      () => false
+                    )
+                  }
+                } catch (updateError) {
+                  if (storedThumbnail) {
+                    await this.deleteFile(storedThumbnail.path).catch(
+                      () => false
+                    )
+                  }
+                  throw updateError
                 }
               }
             }

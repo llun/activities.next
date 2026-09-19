@@ -10,11 +10,13 @@ import {
   InstanceLimitsProvider
 } from '@/lib/components/instance-limits'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
+import { extractVideoPoster } from '@/lib/utils/extractVideoPoster'
 import { logger } from '@/lib/utils/logger'
 import { resizeImage } from '@/lib/utils/resizeImage'
 
 import { UploadMediaButton } from './upload-media-button'
 
+vi.mock('@/lib/utils/extractVideoPoster')
 vi.mock('@/lib/utils/resizeImage')
 vi.mock('@/lib/utils/logger', () => ({
   logger: {
@@ -25,6 +27,9 @@ vi.mock('@/lib/utils/logger', () => ({
   }
 }))
 
+const mockExtractVideoPoster = extractVideoPoster as jest.MockedFunction<
+  typeof extractVideoPoster
+>
 const mockResizeImage = resizeImage as jest.MockedFunction<typeof resizeImage>
 const mockLogger = logger as jest.Mocked<typeof logger>
 
@@ -41,6 +46,7 @@ describe('UploadMediaButton', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     mockResizeImage.mockImplementation((file) => Promise.resolve(file))
+    mockExtractVideoPoster.mockResolvedValue(null)
 
     // Mock crypto.randomUUID
     let counter = 0
@@ -403,6 +409,73 @@ describe('UploadMediaButton', () => {
           file: expect.any(File)
         })
       })
+    })
+
+    it('creates video attachment with extracted posterFile and posterUrl', async () => {
+      const poster = createMockFile('poster.jpg', 'image/jpeg')
+      mockExtractVideoPoster.mockResolvedValueOnce(poster)
+
+      render(
+        <UploadMediaButton
+          isMediaUploadEnabled={true}
+          attachments={[]}
+          onAddAttachment={mockOnAddAttachment}
+          onDuplicateError={mockOnDuplicateError}
+          onUploadStart={mockOnUploadStart}
+        />
+      )
+
+      const input =
+        document.querySelector<HTMLInputElement>('input[type="file"]')!
+      const file = createMockFile('test.mp4', 'video/mp4')
+
+      fireEvent.change(input, { target: { files: [file] } })
+
+      await waitFor(() => {
+        expect(mockExtractVideoPoster).toHaveBeenCalledWith(file)
+        expect(mockOnAddAttachment).toHaveBeenCalledWith({
+          type: 'upload',
+          id: expect.any(String),
+          mediaType: 'video/mp4',
+          url: 'blob:test-url',
+          posterUrl: 'blob:test-url',
+          posterFile: poster,
+          width: 0,
+          height: 0,
+          name: '',
+          file: expect.any(File)
+        })
+      })
+    })
+
+    it('revokes posterUrl when onBeforeAddAttachments returns false', async () => {
+      const poster = createMockFile('poster.jpg', 'image/jpeg')
+      mockExtractVideoPoster.mockResolvedValueOnce(poster)
+      mockOnBeforeAddAttachments.mockResolvedValue(false)
+
+      render(
+        <UploadMediaButton
+          isMediaUploadEnabled={true}
+          attachments={[]}
+          onAddAttachment={mockOnAddAttachment}
+          onDuplicateError={mockOnDuplicateError}
+          onUploadStart={mockOnUploadStart}
+          onBeforeAddAttachments={mockOnBeforeAddAttachments}
+        />
+      )
+
+      const input =
+        document.querySelector<HTMLInputElement>('input[type="file"]')!
+      const file = createMockFile('test.mp4', 'video/mp4')
+
+      fireEvent.change(input, { target: { files: [file] } })
+
+      await waitFor(() => {
+        expect(mockOnBeforeAddAttachments).toHaveBeenCalledTimes(1)
+      })
+
+      expect(mockOnAddAttachment).not.toHaveBeenCalled()
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:test-url')
     })
   })
 

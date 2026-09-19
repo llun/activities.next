@@ -1152,6 +1152,9 @@ describe('S3FileStorage presigned upload completion', () => {
           }
         }
       }
+      if (command instanceof PutObjectCommand) {
+        return {}
+      }
       throw new Error('Unexpected command')
     })
 
@@ -1174,6 +1177,16 @@ describe('S3FileStorage presigned upload completion', () => {
       videoFrame,
       'image/jpeg'
     )
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          Key: expect.stringMatching(
+            /^medias\/\d{4}-\d{2}-\d{2}\/[a-f0-9]+-thumbnail\.webp$/
+          ),
+          ContentType: 'image/webp'
+        })
+      })
+    )
     expect(database.updateMedia).toHaveBeenCalledWith(
       expect.objectContaining({
         mediaId: 'media-video-1',
@@ -1182,7 +1195,18 @@ describe('S3FileStorage presigned upload completion', () => {
           x: expect.any(Number),
           y: expect.any(Number)
         }),
-        description: 'A generated video description'
+        description: 'A generated video description',
+        thumbnail: expect.objectContaining({
+          path: expect.stringMatching(
+            /^medias\/\d{4}-\d{2}-\d{2}\/[a-f0-9]+-thumbnail\.webp$/
+          ),
+          bytes: expect.any(Number),
+          mimeType: 'image/webp',
+          metaData: expect.objectContaining({
+            width: expect.any(Number),
+            height: expect.any(Number)
+          })
+        })
       })
     )
     expect(result?.description).toBe('A generated video description')
