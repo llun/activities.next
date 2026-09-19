@@ -1,0 +1,19 @@
+docs/maintenance.md
+  s_8da3869dc33d74::t_02a7b59d6e4a4f 1041
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e4974f67db905eff0258ed09162ef05de547f3f4",
+  "prompts": {},
+  "sessions": {
+    "s_8da3869dc33d74": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f45f8ed3affempZHBhbUzhu9zT",
+        "model": "deepseek-v4.1-flash"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
