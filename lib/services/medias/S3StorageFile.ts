@@ -491,6 +491,11 @@ export class S3FileStorage implements MediaStorage {
                       : {})
                   })
                   if (updated?.media) {
+                    if (updated.replacedThumbnailPath) {
+                      await this.deleteFile(
+                        updated.replacedThumbnailPath
+                      ).catch(() => false)
+                    }
                     return this._getSaveFileOutput(updated.media)
                   }
                   if (storedThumbnail) {

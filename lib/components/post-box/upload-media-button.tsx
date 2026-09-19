@@ -11,7 +11,6 @@ import {
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { extractVideoPoster } from '@/lib/utils/extractVideoPoster'
 import { formatFileSize } from '@/lib/utils/formatFileSize'
-import { logger } from '@/lib/utils/logger'
 import { resizeImage } from '@/lib/utils/resizeImage'
 
 const MEDIA_TYPE = 'upload'
@@ -112,15 +111,7 @@ export const UploadMediaButton: FC<Props> = ({
               name: '',
               file
             }
-          } catch (error) {
-            logger.error(
-              {
-                error,
-                fileName: targetFile.name,
-                fileType: targetFile.type
-              },
-              'Failed to process file'
-            )
+          } catch {
             // Revoke the blob URL if processing fails
             if (posterUrl?.startsWith('blob:')) {
               URL.revokeObjectURL(posterUrl)

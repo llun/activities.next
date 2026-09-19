@@ -104,4 +104,92 @@ describe('extractVideoPoster', () => {
     expect(result).toBeNull()
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:test-video')
   })
+
+  it('returns null when video has zero dimensions', async () => {
+    const file = new File(['audio-in-mp4'], 'audio.mp4', {
+      type: 'video/mp4'
+    })
+
+    const createElement = document.createElement.bind(document)
+    vi.spyOn(document, 'createElement').mockImplementation(
+      (tagName: string) => {
+        if (tagName === 'video') {
+          const video = createElement('video') as HTMLVideoElement
+          Object.defineProperty(video, 'videoWidth', { value: 0 })
+          Object.defineProperty(video, 'videoHeight', { value: 0 })
+          Object.defineProperty(video, 'duration', { value: 10 })
+
+          let currentTimeVal = 0
+          Object.defineProperty(video, 'currentTime', {
+            get: () => currentTimeVal,
+            set: (val: number) => {
+              currentTimeVal = val
+              setTimeout(() => {
+                video.onseeked?.(new Event('seeked'))
+              }, 0)
+            }
+          })
+
+          setTimeout(() => {
+            video.onloadedmetadata?.(new Event('loadedmetadata'))
+          }, 0)
+
+          return video
+        }
+        return createElement(tagName)
+      }
+    )
+
+    const result = await extractVideoPoster(file)
+    expect(result).toBeNull()
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:test-video')
+  })
+
+  it('triggers seeked directly when currentTime already equals targetTime', async () => {
+    const file = new File(['video'], 'clip.mp4', { type: 'video/mp4' })
+
+    const mockDrawImage = vi.fn()
+    const mockToBlob = vi.fn((callback: (blob: Blob | null) => void) => {
+      callback(new Blob(['fake-image-bytes'], { type: 'image/jpeg' }))
+    })
+
+    const createElement = document.createElement.bind(document)
+    vi.spyOn(document, 'createElement').mockImplementation(
+      (tagName: string) => {
+        if (tagName === 'video') {
+          const video = createElement('video') as HTMLVideoElement
+          Object.defineProperty(video, 'videoWidth', { value: 640 })
+          Object.defineProperty(video, 'videoHeight', { value: 360 })
+          Object.defineProperty(video, 'duration', { value: 10 })
+
+          // currentTime is already 0.1 (targetTime)
+          Object.defineProperty(video, 'currentTime', {
+            get: () => 0.1,
+            set: () => {
+              throw new Error('Should not set currentTime if already equal')
+            }
+          })
+
+          setTimeout(() => {
+            video.onloadedmetadata?.(new Event('loadedmetadata'))
+          }, 0)
+
+          return video
+        }
+        if (tagName === 'canvas') {
+          const canvas = createElement('canvas') as HTMLCanvasElement
+          vi.spyOn(canvas, 'getContext').mockReturnValue({
+            drawImage: mockDrawImage
+          } as unknown as CanvasRenderingContext2D)
+          canvas.toBlob = mockToBlob
+          return canvas
+        }
+        return createElement(tagName)
+      }
+    )
+
+    const result = await extractVideoPoster(file, 0.1)
+    expect(result).toBeInstanceOf(File)
+    expect(mockDrawImage).toHaveBeenCalledTimes(1)
+  })
 })

@@ -33,17 +33,30 @@ export const extractVideoPoster = async (
     }, 5000)
 
     video.onloadedmetadata = () => {
-      const targetTime =
-        video.duration && !Number.isNaN(video.duration) && video.duration > 0
-          ? Math.min(seekTimeSeconds, Math.max(0, video.duration / 2))
-          : seekTimeSeconds
-      video.currentTime = targetTime
+      try {
+        const targetTime =
+          video.duration && !Number.isNaN(video.duration) && video.duration > 0
+            ? Math.min(seekTimeSeconds, Math.max(0, video.duration / 2))
+            : seekTimeSeconds
+        if (video.currentTime === targetTime) {
+          video.onseeked?.(new Event('seeked'))
+        } else {
+          video.currentTime = targetTime
+        }
+      } catch {
+        cleanup()
+        resolve(null)
+      }
     }
 
     video.onseeked = () => {
       try {
-        const width = video.videoWidth || 640
-        const height = video.videoHeight || 360
+        const width = video.videoWidth
+        const height = video.videoHeight
+        if (!width || !height) {
+          cleanup()
+          return resolve(null)
+        }
         const canvas = document.createElement('canvas')
         canvas.width = width
         canvas.height = height

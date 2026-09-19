@@ -11,27 +11,17 @@ import {
 } from '@/lib/components/instance-limits'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { extractVideoPoster } from '@/lib/utils/extractVideoPoster'
-import { logger } from '@/lib/utils/logger'
 import { resizeImage } from '@/lib/utils/resizeImage'
 
 import { UploadMediaButton } from './upload-media-button'
 
 vi.mock('@/lib/utils/extractVideoPoster')
 vi.mock('@/lib/utils/resizeImage')
-vi.mock('@/lib/utils/logger', () => ({
-  logger: {
-    error: vi.fn(),
-    warn: vi.fn(),
-    info: vi.fn(),
-    debug: vi.fn()
-  }
-}))
 
 const mockExtractVideoPoster = extractVideoPoster as jest.MockedFunction<
   typeof extractVideoPoster
 >
 const mockResizeImage = resizeImage as jest.MockedFunction<typeof resizeImage>
-const mockLogger = logger as jest.Mocked<typeof logger>
 
 describe('UploadMediaButton', () => {
   const mockOnAddAttachment = vi.fn()
@@ -365,16 +355,6 @@ describe('UploadMediaButton', () => {
         expect.objectContaining({
           name: ''
         })
-      )
-
-      // Error should be logged with logger.error
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: expect.any(Error),
-          fileName: 'file1.jpg',
-          fileType: 'image/jpeg'
-        }),
-        'Failed to process file'
       )
     })
   })

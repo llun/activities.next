@@ -212,14 +212,18 @@ export const uploadMediaThumbnail = async ({
 }: UploadMediaThumbnailParams): Promise<
   PresignedUrlOutput['saveFileOutput'] | null
 > => {
-  const form = new FormData()
-  form.append('thumbnail', thumbnail)
-  const response = await fetch(`/api/v1/media/${mediaId}`, {
-    method: 'PUT',
-    body: form
-  })
-  if (!response.ok) return null
-  return response.json()
+  try {
+    const form = new FormData()
+    form.append('thumbnail', thumbnail)
+    const response = await fetch(`/api/v1/media/${mediaId}`, {
+      method: 'PUT',
+      body: form
+    })
+    if (!response.ok) return null
+    return await response.json()
+  } catch {
+    return null
+  }
 }
 
 export const uploadAttachment = async (

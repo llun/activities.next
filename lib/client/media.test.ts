@@ -1,5 +1,7 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { getMediaWidthAndHeight } from '@/lib/utils/getMediaWidthAndHeight'
+
 import {
   completeUploadPresignedUrl,
   createUploadPresignedUrl,
@@ -13,11 +15,11 @@ import {
 enableFetchMocks()
 
 vi.mock('@/lib/utils/getMediaWidthAndHeight', () => ({
-  getMediaWidthAndHeight: vi.fn().mockResolvedValue({ width: 10, height: 20 })
+  getMediaWidthAndHeight: vi.fn()
 }))
 
 describe('client media module', () => {
-  let setTimeoutSpy: jest.SpyInstance
+  let setTimeoutSpy: ReturnType<typeof vi.spyOn>
 
   const presignedResponse = {
     presigned: {
@@ -48,6 +50,11 @@ describe('client media module', () => {
 
   beforeEach(() => {
     fetchMock.resetMocks()
+    vi.mocked(getMediaWidthAndHeight).mockReset()
+    vi.mocked(getMediaWidthAndHeight).mockResolvedValue({
+      width: 10,
+      height: 20
+    })
     setTimeoutSpy = vi
       .spyOn(globalThis, 'setTimeout')
       .mockImplementation((handler: Parameters<typeof setTimeout>[0]) => {
@@ -375,6 +382,8 @@ describe('client media module', () => {
           body: expect.any(FormData)
         })
       )
+      const thumbnailForm = fetchMock.mock.calls[3][1]?.body as FormData
+      expect(thumbnailForm.get('thumbnail')).toBe(posterFile)
     })
 
     it('does not call uploadMediaThumbnail when presigned upload already includes preview_url', async () => {
@@ -443,6 +452,8 @@ describe('client media module', () => {
           body: expect.any(FormData)
         })
       )
+      const directForm = fetchMock.mock.calls[1][1]?.body as FormData
+      expect(directForm.get('thumbnail')).toBe(posterFile)
     })
   })
 
@@ -468,10 +479,24 @@ describe('client media module', () => {
           body: expect.any(FormData)
         })
       )
+      const form = fetchMock.mock.calls[0][1]?.body as FormData
+      expect(form.get('thumbnail')).toBe(file)
     })
 
     it('returns null on failure', async () => {
       fetchMock.mockResponseOnce('', { status: 500 })
+
+      const file = new File(['thumb'], 'thumb.jpg', { type: 'image/jpeg' })
+      const res = await uploadMediaThumbnail({
+        mediaId: 'media-1',
+        thumbnail: file
+      })
+
+      expect(res).toBeNull()
+    })
+
+    it('returns null when fetch rejects', async () => {
+      fetchMock.mockRejectOnce(new Error('Network error'))
 
       const file = new File(['thumb'], 'thumb.jpg', { type: 'image/jpeg' })
       const res = await uploadMediaThumbnail({

@@ -1152,7 +1152,10 @@ describe('S3FileStorage presigned upload completion', () => {
           }
         }
       }
-      if (command instanceof PutObjectCommand) {
+      if (
+        command instanceof PutObjectCommand ||
+        command instanceof DeleteObjectCommand
+      ) {
         return {}
       }
       throw new Error('Unexpected command')
@@ -1163,7 +1166,7 @@ describe('S3FileStorage presigned upload completion', () => {
         type: MediaStorageType.ObjectStorage,
         bucket: 'bucket',
         region: 'us-east-1',
-        endpoint: 'https://s3.example.com'
+        hostname: 'storage.llun.dev'
       },
       'llun.test',
       database
@@ -1210,6 +1213,233 @@ describe('S3FileStorage presigned upload completion', () => {
       })
     )
     expect(result?.description).toBe('A generated video description')
+  })
+
+  it('cleans up uploaded thumbnail when database updateMedia fails', async () => {
+    const videoBuffer = Buffer.from('video-bytes')
+    const videoFrame = ONE_PIXEL_PNG
+    mockGetConfig.mockReturnValue({
+      altText: {
+        endpoint: 'https://api.openai.com/v1/chat/completions',
+        apiKey: 'test-key',
+        model: 'gpt-4o-mini'
+      }
+    })
+    mockGenerateAltText.mockResolvedValue('A generated video description')
+    vi.mocked(extractVideoImage).mockResolvedValue(videoFrame)
+
+    database.getMediaByIdForAccount.mockResolvedValue({
+      id: 'media-video-1',
+      actorId: 'actor-1',
+      original: {
+        path: 'medias/2026-01-01/video.mp4',
+        bytes: videoBuffer.length,
+        mimeType: 'video/mp4',
+        metaData: {
+          width: 1920,
+          height: 1080,
+          upload: {
+            state: 'pending',
+            checksumSha1: checksumHex,
+            checksumSha1Base64: checksumBase64,
+            contentType: 'video/mp4',
+            size: videoBuffer.length
+          }
+        },
+        fileName: 'video.mp4'
+      }
+    } as never)
+
+    database.markMediaUploadVerified.mockResolvedValue({
+      id: 'media-video-1',
+      actorId: 'actor-1',
+      original: {
+        path: 'medias/2026-01-01/video.mp4',
+        bytes: videoBuffer.length,
+        mimeType: 'video/mp4',
+        metaData: {
+          width: 1920,
+          height: 1080,
+          upload: { state: 'completed' }
+        },
+        fileName: 'video.mp4'
+      }
+    } as never)
+
+    database.updateMedia.mockRejectedValue(new Error('db update failed'))
+
+    send.mockImplementation(async (command) => {
+      if (command instanceof HeadObjectCommand) {
+        return {
+          ContentLength: videoBuffer.length,
+          ContentType: 'video/mp4',
+          ChecksumSHA1: checksumBase64,
+          Metadata: {
+            checksumsha1: checksumHex
+          }
+        }
+      }
+      if (command instanceof GetObjectCommand) {
+        return {
+          Body: {
+            transformToByteArray: async () => new Uint8Array(videoBuffer)
+          }
+        }
+      }
+      if (
+        command instanceof PutObjectCommand ||
+        command instanceof DeleteObjectCommand
+      ) {
+        return {}
+      }
+      throw new Error('Unexpected command')
+    })
+
+    const storage = new S3FileStorage(
+      {
+        type: MediaStorageType.ObjectStorage,
+        bucket: 'bucket',
+        region: 'us-east-1',
+        hostname: 'storage.llun.dev'
+      },
+      'llun.test',
+      database
+    )
+
+    const result = await storage.completePresignedUpload(actor, 'media-video-1')
+    expect(result?.id).toBe('media-video-1')
+
+    const deleteCall = send.mock.calls.find(
+      ([cmd]) => cmd instanceof DeleteObjectCommand
+    )
+    expect(deleteCall).toBeDefined()
+    expect(deleteCall?.[0].input.Key).toMatch(
+      /^medias\/\d{4}-\d{2}-\d{2}\/[a-f0-9]+-thumbnail\.webp$/
+    )
+  })
+
+  it('cleans up replacedThumbnailPath when updateMedia returns one', async () => {
+    const videoBuffer = Buffer.from('video-bytes')
+    const videoFrame = ONE_PIXEL_PNG
+    mockGetConfig.mockReturnValue({
+      altText: {
+        endpoint: 'https://api.openai.com/v1/chat/completions',
+        apiKey: 'test-key',
+        model: 'gpt-4o-mini'
+      }
+    })
+    mockGenerateAltText.mockResolvedValue('A generated video description')
+    vi.mocked(extractVideoImage).mockResolvedValue(videoFrame)
+
+    database.getMediaByIdForAccount.mockResolvedValue({
+      id: 'media-video-1',
+      actorId: 'actor-1',
+      original: {
+        path: 'medias/2026-01-01/video.mp4',
+        bytes: videoBuffer.length,
+        mimeType: 'video/mp4',
+        metaData: {
+          width: 1920,
+          height: 1080,
+          upload: {
+            state: 'pending',
+            checksumSha1: checksumHex,
+            checksumSha1Base64: checksumBase64,
+            contentType: 'video/mp4',
+            size: videoBuffer.length
+          }
+        },
+        fileName: 'video.mp4'
+      }
+    } as never)
+
+    database.markMediaUploadVerified.mockResolvedValue({
+      id: 'media-video-1',
+      actorId: 'actor-1',
+      original: {
+        path: 'medias/2026-01-01/video.mp4',
+        bytes: videoBuffer.length,
+        mimeType: 'video/mp4',
+        metaData: {
+          width: 1920,
+          height: 1080,
+          upload: { state: 'completed' }
+        },
+        fileName: 'video.mp4'
+      }
+    } as never)
+
+    database.updateMedia.mockResolvedValue({
+      media: {
+        id: 'media-video-1',
+        actorId: 'actor-1',
+        original: {
+          path: 'medias/2026-01-01/video.mp4',
+          bytes: videoBuffer.length,
+          mimeType: 'video/mp4',
+          metaData: {
+            width: 1920,
+            height: 1080,
+            upload: { state: 'completed' }
+          },
+          fileName: 'video.mp4'
+        },
+        thumbnail: {
+          path: 'medias/2026-01-01/new-thumbnail.webp',
+          bytes: 100,
+          mimeType: 'image/webp',
+          metaData: { width: 10, height: 10 }
+        }
+      },
+      replacedThumbnailPath: 'medias/2026-01-01/old-thumbnail.webp'
+    } as never)
+
+    send.mockImplementation(async (command) => {
+      if (command instanceof HeadObjectCommand) {
+        return {
+          ContentLength: videoBuffer.length,
+          ContentType: 'video/mp4',
+          ChecksumSHA1: checksumBase64,
+          Metadata: {
+            checksumsha1: checksumHex
+          }
+        }
+      }
+      if (command instanceof GetObjectCommand) {
+        return {
+          Body: {
+            transformToByteArray: async () => new Uint8Array(videoBuffer)
+          }
+        }
+      }
+      if (
+        command instanceof PutObjectCommand ||
+        command instanceof DeleteObjectCommand
+      ) {
+        return {}
+      }
+      throw new Error('Unexpected command')
+    })
+
+    const storage = new S3FileStorage(
+      {
+        type: MediaStorageType.ObjectStorage,
+        bucket: 'bucket',
+        region: 'us-east-1',
+        hostname: 'storage.llun.dev'
+      },
+      'llun.test',
+      database
+    )
+
+    await storage.completePresignedUpload(actor, 'media-video-1')
+
+    const deleteCall = send.mock.calls.find(
+      ([cmd]) =>
+        cmd instanceof DeleteObjectCommand &&
+        cmd.input.Key === 'medias/2026-01-01/old-thumbnail.webp'
+    )
+    expect(deleteCall).toBeDefined()
   })
 
   // Frame extraction is best-effort: the upload is already verified, so a clip

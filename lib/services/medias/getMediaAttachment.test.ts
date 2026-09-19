@@ -88,6 +88,30 @@ describe('getMediaAttachment', () => {
     )
   })
 
+  it('emits null preview_url for audio without thumbnail', () => {
+    const attachment = getMediaAttachment(
+      {
+        ...baseMedia,
+        original: { ...baseMedia.original, mimeType: 'audio/mp4' }
+      },
+      'llun.test'
+    )
+    expect(attachment.type).toBe('audio')
+    expect(attachment.preview_url).toBeNull()
+  })
+
+  it('emits null preview_url for non-image files without thumbnail', () => {
+    const attachment = getMediaAttachment(
+      {
+        ...baseMedia,
+        original: { ...baseMedia.original, mimeType: 'application/pdf' }
+      },
+      'llun.test'
+    )
+    expect(attachment.type).toBe('unknown')
+    expect(attachment.preview_url).toBeNull()
+  })
+
   it('serves over http for localhost hosts', () => {
     const attachment = getMediaAttachment(baseMedia, 'localhost:3000')
     expect(attachment.url).toBe(
