@@ -759,8 +759,6 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   because it looks right. Read a partial mock — the
   `{ ...(await importOriginal()), fn: vi.fn() }` shape — through a plain static
   import, which does resolve to the mock.
-  `scripts/maintenance/backfillMediaBlurhash.test.ts` has one of each: a sync
-  factory read with `vi.importMock`, and four awaiting ones read statically.
 - **`vi.restoreAllMocks()` does not reset a `vi.fn()` a `vi.mock` factory
   created.** It only iterates the spies `vi.spyOn` registered, so a module
   mocked as `vi.mock('@/path', () => ({ fn: vi.fn() }))` carries whatever the
@@ -771,8 +769,7 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   written against the mock's DEFAULT behaviour silently inherits a neighbour's
   `mockResolvedValue`, and the tests that did notice carry a lone
   `vi.mocked(fn).mockReset()` at the top as a local work-around instead of
-  fixing the hook. `scripts/maintenance/backfillMediaBlurhash.test.ts` is the
-  worked example, and pins the reset with a guard test placed last in the block
+  fixing the hook, and pin the reset with a guard test placed last in the block
   so it runs after the tests that dirty the mocks.
 - **`toHaveBeenCalledWith` asks whether a call ever happened, never whether it
   was the only one.** A once-per-run summary asserted that way is equally

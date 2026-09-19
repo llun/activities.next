@@ -796,107 +796,6 @@ For local archive or one-off activity imports, see the `--help` output from:
 ./scripts/fitness/runImportStravaActivity.ts --help
 ```
 
-## Blurhash & Smart Focus Backfill
-
-The `backfillMediaBlurhash.ts` script scans existing `medias` and `attachments` records that lack a `blurhash` or focal point coordinates, computes them from stored files / URLs, and updates the database. It also fills in a missing `attachments.thumbnailUrl` from the linked `medias` row.
-
-It has a second, separate mode: `--revalidate` re-checks the blurhashes **already** stored on `attachments` and repairs or clears the ones no client can decode, reading no image bytes at all. See [Repairing blurhashes already stored](#repairing-blurhashes-already-stored).
-
-### Usage
-
-```bash
-# Preview what would be updated without writing to the database
-NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --dry-run
-
-# Run backfill on missing rows in batches of 50
-NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --batch-size 50
-
-# Recompute the blurhash even on rows that already have one
-NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --force
-
-# Never fetch a remote attachment URL — only read files this instance stores
-NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --local-only
-
-# Repair blurhashes already stored, without reading a single image byte
-NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --revalidate
-```
-
-### Repairing thumbnail URLs written by earlier versions
-
-Earlier versions of this script wrote `attachments.thumbnailUrl` as a host-relative path (`/api/v1/files/…`). That value is served to clients verbatim as Mastodon's `preview_url` and as a `<video>` poster, so it is unusable to any client not talking to this origin. A normal run now selects and repairs those rows as well as rows missing a blurhash — no flag needed — and rewrites them to the absolute URL the live upload path produces, on the owning actor's domain. An already-absolute value is left alone.
-
-### Attachments whose `mediaId` resolves to nothing
-
-Deleting a media file from **Settings → Media Storage** removes the `medias` row and its stored bytes, but leaves `attachments.mediaId` on any post that used it pointing at the row that is gone. That is intended — a `NULL` `mediaId` is how a federated attachment is stored, so clearing it would make the attachment un-removable by editing the post.
-
-Such a row cannot be repaired from its media: the BlurHash, focal point and `thumbnailUrl` all come from the linked `medias` row, and `thumbnailUrl` has no other source. Because a host-relative `thumbnailUrl` keeps matching the selection predicate, the row is re-read on every run. The script warns for each one and reports two separate counts:
-
-```text
-[attachments 0f3c…] media 412 no longer exists; cannot restore blurhash, focus or thumbnailUrl from it
-[attachments 91ab…] mediaId "wat" is not a media row id; cannot restore blurhash, focus or thumbnailUrl from it
-Attachments complete: processed 1204, updated 6, 37 whose media row is gone, 2 with an invalid mediaId
-```
-
-The two are never summed, because they mean different things:
-
-- **`whose media row is gone`** — a real row id whose `medias` row was deleted. Not an error to act on; it is the residue of owners deleting their own media. The author can drop the leftover attachment by editing the post.
-- **`with an invalid mediaId`** — a value that was never a row id at all. Nothing was deleted here, so this is a bad **write** and is worth investigating: `createAttachment` does not validate `mediaId` (deliberately, so a bad id surfaces instead of being silently dropped) and `POST /api/v1/accounts/outbox` reaches it with an unvalidated attachment id. This is not SQLite-only. SQLite's `varchar` column accepts any string, but `-5` and `0` are valid `integer` values PostgreSQL stores happily and the id guard still refuses, so a non-zero count is possible on either backend.
-
-Neither count partitions `processed`. A warned row can still appear in `updated`: the script falls back to analysing the image behind the attachment's own `url`. That is the norm for an invalid `mediaId`, because nothing was deleted, but it happens for a gone media row too — the delete route removes the stored bytes best-effort and drops the row regardless, so the file can outlive the row that named it. Only `thumbnailUrl` is unrecoverable either way.
-
-These two are not the three that [`--revalidate` reports](#repairing-blurhashes-already-stored) further down. That is a different pass answering a different question, and its `repaired`/`cleared`/`untouched` **do** add up to the rows it scanned.
-
-### What `--force` does, and does not, recompute
-
-`--force` recomputes the **blurhash**, and re-derives `thumbnailUrl` from the linked `medias` row even when the stored value is already absolute. It does **not** recompute a **focal point** that is already stored: `PUT /api/v1/media/:id` lets an owner set one by hand, and no column records whether a stored point was set that way or detected automatically, so recomputing would silently discard the owner's choice. A missing focal point is still filled in, with or without the flag.
-
-### Repairing blurhashes already stored
-
-A blurhash is the one piece of media metadata a remote actor hands us directly: it rides on a federated note's attachment and is persisted as given. Before the write path was fixed, the validator tested `hash.trim()` while the caller stored the untrimmed original, so a whitespace-padded hash was approved and written in a form `decode` throws on (`blurhash length mismatch: length is 29 but it should be 28`). A structurally invalid one got through too — right alphabet, right length, but not the length the size flag in its own first character demands, `aaaaaa` being the canonical example — because the check never ran the blurhash package's `isBlurhashValid`.
-
-That fix covers new writes only. Rows written before it keep their broken value, nothing re-validates on read, and the stored string is re-served verbatim to third-party clients as Mastodon's `blurhash` and as an ActivityPub `Document`'s `blurhash`. `--revalidate` is the repair pass for those rows:
-
-```bash
-# See what would change
-NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --revalidate --dry-run
-
-# Apply it, keeping a record of what was rewritten or cleared
-NODE_ENV=production ./scripts/maintenance/backfillMediaBlurhash.ts --revalidate 2>&1 | tee blurhash-revalidate.log
-```
-
-Run `--dry-run` first, and capture the output of the run that applies. The
-per-row line is the **only** record of a value this pass clears: nothing else in
-the deployment retains it, and a cleared hash is recoverable only by a later
-ordinary run recomputing it from the image — which needs the attachment's URL to
-still be reachable, and for an old federated post it often is not.
-
-```text
-[attachments 4f1c…] blurhash "  L6PZfSi_.AyE_3t7t7R**0o#DgR4\n" is stored padded; rewriting it as "L6PZfSi_.AyE_3t7t7R**0o#DgR4"
-[attachments 91ab…] blurhash "aaaaaa" is not one `decode` can read; clearing it
-Blurhash revalidation complete: scanned 1204, repaired 2, cleared 37, left 1165 untouched
-```
-
-Three counts, reported separately:
-
-- **`repaired`** — the stored hash was padded around an otherwise good value and has been rewritten to the trimmed form. Nothing else is lost; this is a complete fix.
-- **`cleared`** — the hash could not be salvaged, so the column is now `NULL`. That attachment has no placeholder until something computes one from the image itself.
-- **`untouched`** — already the canonical form. Left byte-for-byte alone.
-
-**Clearing is deliberate, and is better than leaving the value.** `lib/components/posts/media.tsx` holds the `<img>` at `opacity-0` behind a blurhash canvas until the image loads, but only when the attachment has a truthy `blurhash`; a failed `decode` leaves that canvas empty, so an undecodable hash renders an empty box, while a `NULL` one falls through to a plain `<img>`. It does not weaken the placeholder promise described under [Attachments whose `mediaId` resolves to nothing](#attachments-whose-mediaid-resolves-to-nothing) — that promise rests on the attachment carrying a hash a client can actually paint, and a value `decode` refuses never painted one.
-
-Notes on how this mode differs from the rest of the script:
-
-- **It is not `--force`, and the two refuse to run together.** `--force` recomputes a blurhash from the image and costs a download per attachment; this reads no bytes, so it needs neither the storage backend nor the network and stays usable on an instance whose storage is unreachable. Passing both is an error rather than a silent precedence.
-- **It replaces the backfill passes for that run**, rather than running alongside them. The two compose across runs in one direction: `--revalidate` clears what it cannot fix, and those rows then match the normal run's `blurhash IS NULL` selection, so a later ordinary run is what recomputes them from the image where the bytes are still available.
-- **It selects on `blurhash IS NOT NULL` and ignores `mediaType`.** A video attachment carries the blurhash of its poster frame, and the ordinary sweep only ever analyses `image/*`, so this is the only pass that reaches one.
-- **`medias.blurhash` is out of scope.** Every value in that column is produced locally by `computeBlurhash`, so it is canonical by construction; no path stores a peer-supplied hash there.
-
-### Remote attachment URLs
-
-An attachment federated to this instance carries a URL its remote author chose, so the script treats it as untrusted input reached from inside the deployment. Before any such URL is fetched it must be HTTPS, carry no credentials, and resolve to a public address — a URL naming the local network is skipped. **Every redirect hop is re-checked the same way**, because a public host answering `302` with a private `Location` would otherwise send the request somewhere the first check never saw; a chain longer than three hops is abandoned. The response must declare an `image/` content type, and the body is capped at 10 MB. Pass `--local-only` to skip these downloads entirely and backfill only from files this instance stores.
-
-A URL is treated as local storage only when its host is this instance's own — `ACTIVITIES_HOST` or one of `ACTIVITIES_TRUSTED_HOSTS`, wildcard entries such as `*.example.com` included, matched the same way a request's `Host` header is. Every other activities.next instance serves attachments under the same `/api/v1/files/` path, so the host is what tells the two apart. A path that walks upwards once decoded is refused rather than handed to storage.
-
 ## Import Remote Status
 
 The `importRemoteStatus.ts` script fetches an arbitrary remote post (by its web URL or ActivityPub URI) and processes it through `createNoteJob`. This persists the status, populates tags and mentions, resolves author profiles, links reply threads, and fans out the post to timelines for local followers and recipients.
@@ -1000,21 +899,6 @@ Read the applicable rules and review checks below before changing this subsystem
 preserving legacy and fitness attachments` pins the surviving-null behaviour.
   Deleting the attachment row instead removes the promised placeholder and
   silently rewrites a published status whose federated copies keep it.
-- **The cost is a maintenance sweep that cannot report the gap.**
-  `scripts/maintenance/backfillMediaBlurhash.ts` rebuilds an attachment's
-  BlurHash, focal point and `thumbnailUrl` from the linked `medias` row, and
-  `thumbnailUrl` has no other source — so such a row is selected, counted in
-  `processed`, and re-selected forever. It warns per row and reports **two
-  counts, never summed**: a gone media row is nothing to act on, while a
-  `mediaId` `toMediaRowId` refuses was never a row id, so nothing was deleted and
-  it is a bad WRITE from the unvalidated `createAttachment` path that **Database
-  Compatibility Guidelines** documents. Not SQLite-only — `-5` and `0` are valid
-  `integer`s PostgreSQL stores and `toMediaRowId` still refuses. **Neither count
-  partitions `processed`**: a warned row can still be repaired from its own image
-  bytes. Any future repair path over `attachments` owes the same signal. Do not
-  confuse these two with the THREE the same script's `--revalidate` mode reports
-  (repaired/cleared/untouched), which do partition their own scan — different
-  pass, different question, and the shapes are deliberately unalike.
 
 <a id="agents-security-configuration-tips"></a>
 
@@ -1043,12 +927,9 @@ preserving legacy and fitness attachments` pins the surviving-null behaviour.
 - **Both upload paths call it, and the object-storage presigned path only within its byte cap.** The synchronous handler (`lib/services/medias/handleSyncMediaUpload.ts`) extracts the frame from the uploaded buffer before calling the model, and the presigned handler (`lib/services/medias/S3StorageFile.ts`'s `completePresignedUpload`) does the same after downloading the stored object, bounded by `PRESIGNED_ANALYSIS_MAX_BYTES`. Presigned verification (`markMediaUploadVerified`) has already committed by then, so an extraction or vision failure is logged and the upload still completes. The prompt instructs the model to describe the scene directly, without meta-preambles such as "This video shows" or "Screenshot of".
 - Covered by `lib/services/medias/extractVideoImage.test.ts`, `lib/services/medias/videoPreview.test.ts`, `lib/services/altText/openai.test.ts`, `app/api/v2/media/route.test.ts` and `lib/services/medias/S3StorageFile.test.ts`.
 
-#### A federated blurhash is untrusted input, and the residue is repaired by a mode of its own
+#### A federated blurhash is untrusted input
 
 - **A blurhash is the one media field a remote actor supplies directly, and `normalizeBlurhash` (`lib/services/medias/imageAnalysis.ts`) is what decides its stored form.** It returns the string to persist or null, never a boolean, because the check normalises before deciding: the predicate it replaced compared `hash.trim()` while `createNoteJob` stored the untrimmed original, so a whitespace-padded hash on a federated note was approved on the trimmed copy and written in a form `decode` throws on (`length is 29 but it should be 28`). Both halves of the check are load-bearing and neither subsumes the other — `BLURHASH_REGEX` covers the base83 alphabet, which `isBlurhashValid` never looks at, and `isBlurhashValid` covers the structure the regex cannot see, that the length must be `4 + 2 * componentX * componentY` for the size flag in the value's own first character, which is why `'aaaaaa'` is well-formed base83 of a legal length and still throws. `createNoteJob` is the only path that stores a peer-supplied hash; every other writer, `medias.blurhash` included, gets one from `computeBlurhash`, i.e. from `encode`, so it is canonical by construction.
-- **Fixing a write path does not repair the rows it already wrote, and here nothing re-validates on read** — `lib/types/domain/attachment.ts` re-serves the stored string verbatim to third-party clients as Mastodon's `blurhash` and as a `Document`'s `blurhash`, so a bad value keeps leaving the instance. `scripts/maintenance/backfillMediaBlurhash.ts --revalidate` is the repair, and it is a mode rather than a widening of the default selection for a measurable reason: the default sweep selects `blurhash IS NULL OR thumbnailUrl LIKE '/api/v1/files/%'` and a bad federated hash matches neither branch, while `--force` reaches it only by re-downloading and recomputing **every** attachment in the instance. The repair needs no bytes at all — a padded hash is trimmed, an unsalvageable one cleared — so the mode runs before the storage and host checks and stays usable on an instance whose storage is unreachable, and passing `--force` beside it is an error rather than a silent precedence.
-- **It reports three counts — repaired, cleared, untouched — and unlike the two in `backfillAttachments` these DO partition the scan.** They are still not summed, because they call for different responses: a repair is complete, an untouched row was never broken, and a cleared one has lost its placeholder until an ordinary run recomputes it from the image. That is the one direction the two modes compose in: `--revalidate` clears what it cannot fix, and those rows then match the default run's `blurhash IS NULL` selection. Selection is `blurhash IS NOT NULL` with **no `mediaType` filter** — a video attachment carries its poster frame's hash, and the default sweep's analysis step only ever reads `image/*`, so this is the only pass that reaches one.
-- **Clearing is safe and is strictly better than leaving the value.** `lib/components/posts/media.tsx` gates the `<img>` at `opacity-0` until `onLoad` behind a canvas ONLY when `blurhash` is truthy, and `BlurhashCanvas` swallows a failed `decode` into an empty canvas — so an undecodable hash is an empty box, where a NULL one falls through to a bare `<img>`. It does not weaken the placeholder promise in **Deleting Media a Post Uses**: that promise rests on the attachment carrying a hash a client can PAINT, and a value `decode` refuses never painted one.
 
 #### A stored media URL is only ours if the host says so
 
@@ -1073,7 +954,7 @@ preserving legacy and fitness attachments` pins the surviving-null behaviour.
 - **A refusal from `safeImageFetch` has three causes, the warning must not name only one, and that wording is a SECURITY property rather than operator ergonomics.** It answers `null` for an unsafe URL, for a redirect with no usable `Location`, and for exhausting `MAX_SAFE_IMAGE_REDIRECTS` — so naming only "unsafe address" sends an operator whose CDN merely chains four redirects hunting a DNS problem that does not exist. The deeper reason to keep one string for all three: `getSafeImageDownloadUrl` resolves through `lookup(...).catch(() => [])`, so a hostname that does not exist and one that resolves to a private address produce the SAME refusal. Splitting the message per cause would hand the account owner — who chose the URL — an oracle for internal DNS, telling them which names exist inside the network. Do not "improve" it into distinct messages.
 - **The SPACE half of the residual is still open: the time half is now bounded across the export, the bytes are not.** `readResponseArrayBufferWithLimit` buffers, and `Buffer.concat` briefly holds both copies, so one attachment peaks near twice the resolved cap — up to ~2 GiB where an admin has raised `media.maxFileSize` to `MAX_CONFIGURABLE_FILE_SIZE` — while nothing bounds the total written into `os.tmpdir()` across an actor's whole history. `--remote-fetch-budget` bounds it only incidentally, by ending the phase that writes. The fix is the same shape as the time budget and degrades the same non-destructive way — decline to START a download once a byte budget is spent, never abandon one — and it is unbuilt, not rejected. Still strictly better than the unbounded read this replaced.
 - **The archived file's extension comes from the attacker's URL and is unrelated to its bytes.** There is deliberately no content-type check (an archived attachment may be video or audio), so `extname` on the URL path is all there is. `path.extname` reads the basename, so it can never contain a separator and cannot traverse — proved against percent-encoded slashes, backslashes and `%00` — and the bytes are inert inside a tarball. It matters only if an operator ever serves an extracted archive over HTTP, which is the same shape as the `text/html`-from-`extname` bug the local media driver had.
-- **The refusal tests run the REAL guard, not a mock.** Mocking `safeImageFetch` itself — as `backfillMediaBlurhash.test.ts` does — proves only the wiring, and a revert to a plain `fetch` would still pass. What makes the real guard usable in a test is that `vitest.setup.ts` mocks `node:dns/promises` to resolve every hostname to the public `93.184.216.34`, so the hostname-based happy-path tests still reach the mocked network. Note the refusal rows themselves never reach DNS: IP literals take the `isIP` branch, `localhost` is caught by the hostname-name check before the lookup, and a `http://` URL is refused on protocol before the hostname is parsed.
+- **The refusal tests run the REAL guard, not a mock.** Mocking `safeImageFetch` itself proves only the wiring, and a revert to a plain `fetch` would still pass. What makes the real guard usable in a test is that `vitest.setup.ts` mocks `node:dns/promises` to resolve every hostname to the public `93.184.216.34`, so the hostname-based happy-path tests still reach the mocked network. Note the refusal rows themselves never reach DNS: IP literals take the `isIP` branch, `localhost` is caught by the hostname-name check before the lookup, and a `http://` URL is refused on protocol before the hostname is parsed.
 
 #### A stored path is confined to the storage root
 
@@ -1417,20 +1298,3 @@ preserving legacy and fitness attachments` pins the surviving-null behaviour.
   must be `4 + 2 * componentX * componentY` for the size flag in the value's own
   first character, which is why `'aaaaaa'` is legal base83 of a legal length and
   still throws.
-- **Fixing a write path does not repair the rows it already wrote.** Ask, for
-  any validation added to an inbound field, what happens to the values already
-  stored — here nothing re-validates on read and
-  `lib/types/domain/attachment.ts` re-serves the stored string verbatim, so a
-  bad value keeps leaving the instance. The repair is
-  `scripts/maintenance/backfillMediaBlurhash.ts --revalidate`, a MODE rather
-  than a widening of the default selection: a bad federated hash matches neither
-  branch of that sweep's `blurhash IS NULL OR thumbnailUrl LIKE …` predicate,
-  and `--force` reaches it only by re-downloading every attachment in the
-  instance. It reads no image bytes, refuses to run beside `--force`, and
-  reports repaired/cleared/untouched separately — those three DO partition its
-  scan, unlike `backfillAttachments`' two counts. Clearing an undecodable hash
-  is deliberate: `lib/components/posts/media.tsx` gates the `<img>` behind the
-  blurhash canvas only when `blurhash` is truthy, so a NULL falls through to a
-  bare `<img>` while an undecodable value paints an empty box. It does not
-  weaken the deleted-media placeholder promise, which rests on a hash a client
-  can actually paint.
