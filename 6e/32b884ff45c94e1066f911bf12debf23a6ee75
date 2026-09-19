@@ -1,0 +1,14 @@
+lib/services/medias/extractVideoImage.test.ts
+  h_580a04e334fef4 1,64-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6e32b884ff45c94e1066f911bf12debf23a6ee75",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
