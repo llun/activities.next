@@ -517,10 +517,12 @@ describe('POST /api/v2/media', () => {
       expect(response.status).toBe(200)
       const data = await response.json()
       expect(data.description).toBe('A cyclist riding through a park.')
+      expect(mockExtractVideoPreviewFrame).toHaveBeenCalledTimes(1)
       expect(mockExtractVideoPreviewFrame).toHaveBeenCalledWith(
-        expect.any(Buffer),
+        Buffer.from([1, 2, 3]),
         '.mp4'
       )
+      expect(mockGenerateAltText).toHaveBeenCalledTimes(1)
       expect(mockGenerateAltText).toHaveBeenCalledWith(
         {
           endpoint: 'https://api.openai.com/v1/chat/completions',
@@ -532,9 +534,12 @@ describe('POST /api/v2/media', () => {
       )
     })
 
-    // Frame extraction is best-effort: a clip ffmpeg cannot decode must still
-    // complete the upload, just without a generated description.
-    it('leaves description null and still succeeds when video frame extraction fails', async () => {
+    // Frame extraction for alt text is best-effort: a preview frame the model
+    // cannot get must still complete the upload, just without a generated
+    // description. `saveMedia` is mocked here, so this covers the alt-text
+    // extraction specifically — the poster extraction `saveMedia` performs is
+    // independently fatal for an undecodable clip.
+    it('leaves description null when preview-frame extraction for alt text fails', async () => {
       mockStoredToken.mockResolvedValue({
         expiresAt: new Date(Date.now() + 60_000),
         referenceId: ACTOR1_ID,
@@ -575,6 +580,7 @@ describe('POST /api/v2/media', () => {
       expect(response.status).toBe(200)
       const data = await response.json()
       expect(data.description).toBeNull()
+      expect(mockExtractVideoPreviewFrame).toHaveBeenCalledTimes(1)
       expect(mockGenerateAltText).not.toHaveBeenCalled()
     })
   })

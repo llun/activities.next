@@ -41,7 +41,7 @@ const mockFfmpeg = (run: (outputPath: string) => Promise<void> | void) => {
   }) as unknown as typeof execFile)
 }
 
-const lastOutputPath = () => {
+const onlyOutputPath = () => {
   const call = vi.mocked(execFile).mock.calls[0]
   const outputPath = call?.[1]?.at(-1)
   if (typeof outputPath !== 'string') {
@@ -99,7 +99,7 @@ describe('extractVideoImage', () => {
 
     await extractVideoImage('/tmp/clip.mp4')
 
-    const outputPath = lastOutputPath()
+    const outputPath = onlyOutputPath()
     expect(path.dirname(outputPath)).toBe(tmpdir())
     expect(path.basename(outputPath)).toMatch(/^[0-9a-f]{16}\.jpg$/)
   })
@@ -111,7 +111,7 @@ describe('extractVideoImage', () => {
 
     await extractVideoImage('/tmp/clip.mp4')
 
-    await expect(fs.access(lastOutputPath())).rejects.toThrow()
+    await expect(fs.access(onlyOutputPath())).rejects.toThrow()
   })
 
   // A clip ffmpeg cannot decode rejects, and the temp path it may already have
@@ -127,6 +127,6 @@ describe('extractVideoImage', () => {
       'ffmpeg failed'
     )
 
-    await expect(fs.access(lastOutputPath())).rejects.toThrow()
+    await expect(fs.access(onlyOutputPath())).rejects.toThrow()
   })
 })

@@ -78,10 +78,16 @@ describe('generateAltText', () => {
 
     const callArgs = vi.mocked(safeRemoteFetch).mock.calls[0]?.[0]
     const body = JSON.parse(callArgs?.body ?? '{}')
+    expect(body.messages[0].role).toBe('system')
     const systemPrompt = body.messages[0].content as string
     expect(systemPrompt).toContain('video preview frames')
-    expect(systemPrompt).toContain('This video shows')
+    // The instruction has to be the NEGATION. Asserting the forbidden strings
+    // merely appear would also pass a prompt that required them.
+    expect(systemPrompt).toMatch(
+      /Never start with phrases such as "This video shows"/
+    )
     expect(systemPrompt).toContain('This image depicts')
+    expect(systemPrompt).toContain('A photo of')
     expect(systemPrompt).toContain('Screenshot of')
   })
 

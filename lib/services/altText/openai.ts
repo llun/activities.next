@@ -13,16 +13,16 @@ const MAX_RESPONSE_BYTES = 1 * 1024 * 1024
 const MAX_VISION_IMAGE_DIMENSION = 1536
 
 const SYSTEM_PROMPT =
-  'You generate concise and accurate alt text descriptions for images and video preview frames for visually impaired users. Provide a clear 1-2 sentence description of the key visual elements and scene. Describe what is shown directly, without conversational filler or meta-preambles. Never start with phrases such as "This video shows", "This image depicts" or "Screenshot of".'
+  'You generate concise and accurate alt text descriptions for images and video preview frames for visually impaired users. Provide a clear 1-2 sentence description of the key visual elements and scene. Describe what is shown directly, without conversational filler or meta-preambles. Never start with phrases such as "This video shows", "This image depicts", "A photo of" or "Screenshot of".'
 
 interface OpenAIChatResponse {
   choices?: { message?: { content?: string } }[]
 }
 
 /**
- * Generates an alt text description for an image using an OpenAI-compatible
- * vision chat-completions endpoint. Returns null if generation fails or is empty,
- * ensuring the media upload flow is not blocked.
+ * Generates an alt text description for an image or a video preview frame
+ * using an OpenAI-compatible vision chat-completions endpoint. Returns null if
+ * generation fails or is empty, ensuring the media upload flow is not blocked.
  */
 export const generateAltText = async (
   config: AltTextConfig,

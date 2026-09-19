@@ -516,6 +516,8 @@ describe('S3FileStorage presigned upload completion', () => {
         })
       })
     )
+    // An image is analysed directly; the video preview-frame path must not run.
+    expect(extractVideoImage).not.toHaveBeenCalled()
   })
 
   it('rejects uploads when no S3 checksum or checksum metadata is available', async () => {
