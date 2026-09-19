@@ -1,0 +1,33 @@
+app/api/v2/media/route.test.ts
+  s_65e24d7bf03653::t_2b12c4eb3eba85 48-53,373-431,537,559
+lib/components/posts/media.test.tsx
+  s_65e24d7bf03653::t_bf6306131e1569 266
+lib/services/medias/extractVideoImage.ts
+  s_65e24d7bf03653::t_2a5a68a6876626 22-23,26-27
+lib/services/medias/handleSyncMediaUpload.ts
+  s_349fb6e873ad8f::t_f97a7c84a24e90 8,11,85,95-109,113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "caa3482110e24604a78362b6009df148d8050f61",
+  "prompts": {},
+  "sessions": {
+    "s_349fb6e873ad8f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0b9a9-57ff-7620-9593-6a03c379276c",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_65e24d7bf03653": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0b9a7-18a8-7bb2-807d-59525320949e",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
