@@ -1,0 +1,31 @@
+lib/client/media.ts
+  s_a72f3fd482467b::t_c22c6dc7baf77a 215-226
+lib/components/post-box/upload-media-button.tsx
+  s_c278f619192219::t_9c9d1ca83d2a4c 114
+lib/services/medias/S3StorageFile.test.ts
+  s_c278f619192219::t_0a06055face9a2 1155-1158,1169,1218-1444
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2ac4a1a652d186c3d05f42facd6e7021b704b13b",
+  "prompts": {},
+  "sessions": {
+    "s_a72f3fd482467b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f44db2650ffeqTnVogjIDPtkq4",
+        "model": "deepseek-v4.1-flash"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_c278f619192219": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f44fe6f01ffexACYZNtEzSLQNE",
+        "model": "deepseek-v4.1-flash"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
