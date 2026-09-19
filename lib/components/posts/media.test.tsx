@@ -263,12 +263,36 @@ describe('Media', () => {
     const video = container.querySelector('video')
     expect(video).toBeInTheDocument()
     expect(video).toHaveAttribute('poster', 'https://example.com/thumb.jpg')
+    expect(video).toHaveAttribute('aria-label', 'An image')
     expect(video).toHaveStyle({ objectPosition: '75% 75%' })
     // A poster alone must not defer the fetch. Only a strip item asks for that,
     // by passing `loading="lazy"`; every other caller — the lightbox, which
     // shows controls, and the lone-video branch — omits it and keeps the
     // element's own `metadata` default.
     expect(video).not.toHaveAttribute('preload')
+  })
+
+  it('labels a video with the caption first, then the attachment name', () => {
+    const videoAttachment: Attachment = {
+      ...baseAttachment,
+      mediaType: 'video/mp4',
+      url: 'https://example.com/video.mp4'
+    }
+
+    const { container, rerender } = render(
+      <Media attachment={videoAttachment} caption="A cat playing piano" />
+    )
+    expect(container.querySelector('video')).toHaveAttribute(
+      'aria-label',
+      'A cat playing piano'
+    )
+
+    // No caption: the attachment's own name is the alt text.
+    rerender(<Media attachment={videoAttachment} />)
+    expect(container.querySelector('video')).toHaveAttribute(
+      'aria-label',
+      'An image'
+    )
   })
 
   describe('animation playback (GIFV and GIF)', () => {

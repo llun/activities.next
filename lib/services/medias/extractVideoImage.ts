@@ -19,7 +19,20 @@ export const extractVideoImage = async (filePath: string): Promise<Buffer> => {
         'error',
         '-i',
         path.resolve(filePath),
+        // `thumbnail` analyses batches of candidate frames and emits the most
+        // representative one. Without it ffmpeg takes the first decodable frame,
+        // which for a clip that opens on black or a blank frame is what gets
+        // stored as the poster and fed to the alt-text model.
+        '-vf',
+        'thumbnail',
         '-frames:v',
+        '1',
+        // A single-frame image2 output has no sequence pattern in its name and
+        // would otherwise emit an image2 warning. It still writes the file, and
+        // `-loglevel error` hides the warning anyway, so this is kept to make the
+        // single-overwritten-file intent explicit rather than as a hard
+        // requirement.
+        '-update',
         '1',
         '-y',
         fileName

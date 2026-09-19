@@ -5,8 +5,10 @@ import { Database } from '@/lib/database/types'
 import { generateAltText } from '@/lib/services/altText/openai'
 import { saveMedia } from '@/lib/services/medias'
 import { MediaValidationError } from '@/lib/services/medias/errors'
+import { getStoredMediaExtension } from '@/lib/services/medias/fileName'
 import { MediaSchema } from '@/lib/services/medias/types'
 import { exceedsMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
+import { extractVideoPreviewFrame } from '@/lib/services/medias/videoPreview'
 import { Actor } from '@/lib/types/domain/actor'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -80,21 +82,32 @@ export const handleSyncMediaUpload = async (
 
     if (
       response.description === null &&
-      response.type === 'image' &&
+      (response.type === 'image' || response.type === 'video') &&
       currentActor.account?.id
     ) {
       const { altText } = getConfig()
       if (altText) {
         // generateAltText itself never throws, but this try/catch also
-        // guards the buffer read above and the database.updateMedia() write
-        // below, both of which can — so it stays, unlike the equivalent
-        // dead catch removed from S3StorageFile.ts's presigned path.
+        // guards the buffer read, the frame extraction and the
+        // database.updateMedia() write below, all of which can — so it
+        // stays, unlike the equivalent dead catch removed from
+        // S3StorageFile.ts's presigned path.
         try {
           const buffer = Buffer.from(await media.data.file.arrayBuffer())
+          const isVideo = response.type === 'video'
+          const previewBuffer = isVideo
+            ? await extractVideoPreviewFrame(
+                buffer,
+                getStoredMediaExtension(
+                  media.data.file.type,
+                  media.data.file.name
+                )
+              )
+            : buffer
           const generatedDescription = await generateAltText(
             altText,
-            buffer,
-            media.data.file.type
+            previewBuffer,
+            isVideo ? 'image/jpeg' : media.data.file.type
           )
           if (generatedDescription) {
             await database.updateMedia({

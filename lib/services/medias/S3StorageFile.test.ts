@@ -119,6 +119,11 @@ describe('S3FileStorage presigned upload completion', () => {
     vi.clearAllMocks()
     mockGetConfig.mockReturnValue({})
     mockGenerateAltText.mockReset()
+    // The presigned video path extracts through the real
+    // `extractVideoPreviewFrame`, which writes a temp copy and delegates to
+    // `extractVideoImage`; the default keeps an unconfigured call from
+    // resolving `undefined` into sharp.
+    vi.mocked(extractVideoImage).mockResolvedValue(ONE_PIXEL_PNG)
     ;(S3Client as jest.MockedClass<typeof S3Client>).mockImplementation(
       function () {
         return { send } as unknown as S3Client
@@ -511,6 +516,8 @@ describe('S3FileStorage presigned upload completion', () => {
         })
       })
     )
+    // An image is analysed directly; the video preview-frame path must not run.
+    expect(extractVideoImage).not.toHaveBeenCalled()
   })
 
   it('rejects uploads when no S3 checksum or checksum metadata is available', async () => {
@@ -959,7 +966,7 @@ describe('S3FileStorage presigned upload completion', () => {
     expect(result).toMatchObject({ id: 'media-1' })
   })
 
-  it('does not generate alt text for non-image uploads', async () => {
+  it('does not analyze or generate alt text for non-image, non-video uploads', async () => {
     mockGetConfig.mockReturnValue({
       altText: {
         endpoint: 'https://api.openai.com/v1/chat/completions',
@@ -969,43 +976,43 @@ describe('S3FileStorage presigned upload completion', () => {
     })
 
     database.getMediaByIdForAccount.mockResolvedValue({
-      id: 'media-video-1',
+      id: 'media-audio-1',
       actorId: 'actor-1',
       original: {
-        path: 'medias/2026-01-01/video.mp4',
+        path: 'medias/2026-01-01/voice.m4a',
         bytes: 2048,
-        mimeType: 'video/mp4',
+        mimeType: 'audio/mp4',
         metaData: {
-          width: 1920,
-          height: 1080,
+          width: 0,
+          height: 0,
           upload: {
             state: 'pending',
             checksumSha1: checksumHex,
             checksumSha1Base64: checksumBase64,
-            contentType: 'video/mp4',
+            contentType: 'audio/mp4',
             size: 2048
           }
         },
-        fileName: 'video.mp4'
+        fileName: 'voice.m4a'
       }
     } as never)
 
     database.markMediaUploadVerified.mockResolvedValue({
-      id: 'media-video-1',
+      id: 'media-audio-1',
       actorId: 'actor-1',
       original: {
-        path: 'medias/2026-01-01/video.mp4',
+        path: 'medias/2026-01-01/voice.m4a',
         bytes: 2048,
-        mimeType: 'video/mp4',
+        mimeType: 'audio/mp4',
         metaData: {
-          width: 1920,
-          height: 1080,
+          width: 0,
+          height: 0,
           upload: {
             state: 'verified',
             verifiedAt: Date.now()
           }
         },
-        fileName: 'video.mp4'
+        fileName: 'voice.m4a'
       }
     } as never)
 
@@ -1013,7 +1020,7 @@ describe('S3FileStorage presigned upload completion', () => {
       if (command instanceof HeadObjectCommand) {
         return {
           ContentLength: 2048,
-          ContentType: 'video/mp4',
+          ContentType: 'audio/mp4',
           Metadata: {
             checksumsha1: checksumHex
           }
@@ -1033,8 +1040,242 @@ describe('S3FileStorage presigned upload completion', () => {
       database
     )
 
+    const result = await storage.completePresignedUpload(actor, 'media-audio-1')
+
+    expect(extractVideoImage).not.toHaveBeenCalled()
+    expect(mockGenerateAltText).not.toHaveBeenCalled()
+    expect(database.updateMedia).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ id: 'media-audio-1', type: 'audio' })
+  })
+
+  it('analyzes a video preview frame and generates alt text on completePresignedUpload', async () => {
+    const videoBuffer = Buffer.from('video-bytes')
+    const videoFrame = await sharp({
+      create: {
+        width: 100,
+        height: 100,
+        channels: 4,
+        background: { r: 0, g: 128, b: 255, alpha: 1 }
+      }
+    })
+      .png()
+      .toBuffer()
+    const altTextConfig = {
+      endpoint: 'https://api.openai.com/v1/chat/completions',
+      apiKey: 'test-key',
+      model: 'gpt-4o-mini'
+    }
+    mockGetConfig.mockReturnValue({ altText: altTextConfig })
+    mockGenerateAltText.mockResolvedValue('A generated video description')
+    vi.mocked(extractVideoImage).mockResolvedValue(videoFrame)
+
+    database.getMediaByIdForAccount.mockResolvedValue({
+      id: 'media-video-1',
+      actorId: 'actor-1',
+      original: {
+        path: 'medias/2026-01-01/video.mp4',
+        bytes: videoBuffer.length,
+        mimeType: 'video/mp4',
+        metaData: {
+          width: 1920,
+          height: 1080,
+          upload: {
+            state: 'pending',
+            checksumSha1: checksumHex,
+            checksumSha1Base64: checksumBase64,
+            contentType: 'video/mp4',
+            size: videoBuffer.length
+          }
+        },
+        fileName: 'video.mp4'
+      }
+    } as never)
+
+    database.markMediaUploadVerified.mockResolvedValue({
+      id: 'media-video-1',
+      actorId: 'actor-1',
+      original: {
+        path: 'medias/2026-01-01/video.mp4',
+        bytes: videoBuffer.length,
+        mimeType: 'video/mp4',
+        metaData: {
+          width: 1920,
+          height: 1080,
+          upload: {
+            state: 'verified',
+            verifiedAt: Date.now()
+          }
+        },
+        fileName: 'video.mp4'
+      }
+    } as never)
+
+    database.updateMedia.mockResolvedValue({
+      media: {
+        id: 'media-video-1',
+        actorId: 'actor-1',
+        description: 'A generated video description',
+        original: {
+          path: 'medias/2026-01-01/video.mp4',
+          bytes: videoBuffer.length,
+          mimeType: 'video/mp4',
+          metaData: {
+            width: 1920,
+            height: 1080,
+            upload: {
+              state: 'verified',
+              verifiedAt: Date.now()
+            }
+          },
+          fileName: 'video.mp4'
+        },
+        blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+        focusX: 0,
+        focusY: 0
+      }
+    } as never)
+
+    send.mockImplementation(async (command) => {
+      if (command instanceof HeadObjectCommand) {
+        return {
+          ContentLength: videoBuffer.length,
+          ContentType: 'video/mp4',
+          Metadata: {
+            checksumsha1: checksumHex
+          }
+        }
+      }
+      if (command instanceof GetObjectCommand) {
+        return {
+          Body: {
+            transformToByteArray: async () => new Uint8Array(videoBuffer)
+          }
+        }
+      }
+      throw new Error('Unexpected command')
+    })
+
+    const storage = new S3FileStorage(
+      {
+        type: MediaStorageType.ObjectStorage,
+        bucket: 'bucket',
+        region: 'us-east-1',
+        endpoint: 'https://s3.example.com'
+      },
+      'llun.test',
+      database
+    )
+
     const result = await storage.completePresignedUpload(actor, 'media-video-1')
 
+    expect(extractVideoImage).toHaveBeenCalledTimes(1)
+    expect(mockGenerateAltText).toHaveBeenCalledWith(
+      altTextConfig,
+      videoFrame,
+      'image/jpeg'
+    )
+    expect(database.updateMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mediaId: 'media-video-1',
+        blurhash: expect.any(String),
+        focus: expect.objectContaining({
+          x: expect.any(Number),
+          y: expect.any(Number)
+        }),
+        description: 'A generated video description'
+      })
+    )
+    expect(result?.description).toBe('A generated video description')
+  })
+
+  // Frame extraction is best-effort: the upload is already verified, so a clip
+  // ffmpeg cannot decode must not turn a completed presigned upload into an error.
+  it('completes presigned upload when the video preview frame cannot be extracted', async () => {
+    const videoBuffer = Buffer.from('video-bytes')
+    mockGetConfig.mockReturnValue({
+      altText: {
+        endpoint: 'https://api.openai.com/v1/chat/completions',
+        apiKey: 'test-key',
+        model: 'gpt-4o-mini'
+      }
+    })
+    vi.mocked(extractVideoImage).mockRejectedValue(new Error('ffmpeg failed'))
+
+    database.getMediaByIdForAccount.mockResolvedValue({
+      id: 'media-video-1',
+      actorId: 'actor-1',
+      original: {
+        path: 'medias/2026-01-01/video.mp4',
+        bytes: videoBuffer.length,
+        mimeType: 'video/mp4',
+        metaData: {
+          width: 1920,
+          height: 1080,
+          upload: {
+            state: 'pending',
+            checksumSha1: checksumHex,
+            checksumSha1Base64: checksumBase64,
+            contentType: 'video/mp4',
+            size: videoBuffer.length
+          }
+        },
+        fileName: 'video.mp4'
+      }
+    } as never)
+
+    database.markMediaUploadVerified.mockResolvedValue({
+      id: 'media-video-1',
+      actorId: 'actor-1',
+      original: {
+        path: 'medias/2026-01-01/video.mp4',
+        bytes: videoBuffer.length,
+        mimeType: 'video/mp4',
+        metaData: {
+          width: 1920,
+          height: 1080,
+          upload: {
+            state: 'verified',
+            verifiedAt: Date.now()
+          }
+        },
+        fileName: 'video.mp4'
+      }
+    } as never)
+
+    send.mockImplementation(async (command) => {
+      if (command instanceof HeadObjectCommand) {
+        return {
+          ContentLength: videoBuffer.length,
+          ContentType: 'video/mp4',
+          Metadata: {
+            checksumsha1: checksumHex
+          }
+        }
+      }
+      if (command instanceof GetObjectCommand) {
+        return {
+          Body: {
+            transformToByteArray: async () => new Uint8Array(videoBuffer)
+          }
+        }
+      }
+      throw new Error('Unexpected command')
+    })
+
+    const storage = new S3FileStorage(
+      {
+        type: MediaStorageType.ObjectStorage,
+        bucket: 'bucket',
+        region: 'us-east-1',
+        endpoint: 'https://s3.example.com'
+      },
+      'llun.test',
+      database
+    )
+
+    const result = await storage.completePresignedUpload(actor, 'media-video-1')
+
+    expect(extractVideoImage).toHaveBeenCalledTimes(1)
     expect(mockGenerateAltText).not.toHaveBeenCalled()
     expect(database.updateMedia).not.toHaveBeenCalled()
     expect(result).toMatchObject({ id: 'media-video-1', type: 'video' })
