@@ -1,0 +1,36 @@
+docs/maintenance.md
+  s_8da3869dc33d74::t_b8f3056d4cac75 1032
+lib/services/medias/S3StorageFile.test.ts
+  s_8da3869dc33d74::t_efdb5d52c70d38 519-520
+lib/services/altText/openai.test.ts
+  s_8da3869dc33d74::t_363dccd9bc16e2 81,84-88,90
+app/api/v2/media/route.test.ts
+  s_8da3869dc33d74::t_8c804fd82d6c41 583
+  s_8da3869dc33d74::t_36fccbf7bedea9 520,522,525,537-542
+lib/services/medias/extractVideoImage.test.ts
+  s_8da3869dc33d74::t_330d069f296518 44
+  s_8da3869dc33d74::t_3c831d6116ed80 102,114,130
+docs/environment-variables.md
+  s_8da3869dc33d74::t_b53618b472d31e 259
+docs/features.md
+  s_8da3869dc33d74::t_1e519a92598bb7 59
+lib/services/altText/openai.ts
+  s_8da3869dc33d74::t_ecfe8ee56b38dc 16
+  s_8da3869dc33d74::t_def227294c5eb9 23-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "59ff763417c99906594da051a7ed324a55e16939",
+  "prompts": {},
+  "sessions": {
+    "s_8da3869dc33d74": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f45f8ed3affempZHBhbUzhu9zT",
+        "model": "deepseek-v4.1-flash"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
