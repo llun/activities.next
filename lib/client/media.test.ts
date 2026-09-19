@@ -1,22 +1,25 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { getMediaWidthAndHeight } from '@/lib/utils/getMediaWidthAndHeight'
+
 import {
   completeUploadPresignedUrl,
   createUploadPresignedUrl,
   getActorMedia,
   uploadAttachment,
   uploadFileToPresignedUrl,
-  uploadMedia
+  uploadMedia,
+  uploadMediaThumbnail
 } from './media'
 
 enableFetchMocks()
 
 vi.mock('@/lib/utils/getMediaWidthAndHeight', () => ({
-  getMediaWidthAndHeight: vi.fn().mockResolvedValue({ width: 10, height: 20 })
+  getMediaWidthAndHeight: vi.fn()
 }))
 
 describe('client media module', () => {
-  let setTimeoutSpy: jest.SpyInstance
+  let setTimeoutSpy: ReturnType<typeof vi.spyOn>
 
   const presignedResponse = {
     presigned: {
@@ -47,6 +50,11 @@ describe('client media module', () => {
 
   beforeEach(() => {
     fetchMock.resetMocks()
+    vi.mocked(getMediaWidthAndHeight).mockReset()
+    vi.mocked(getMediaWidthAndHeight).mockResolvedValue({
+      width: 10,
+      height: 20
+    })
     setTimeoutSpy = vi
       .spyOn(globalThis, 'setTimeout')
       .mockImplementation((handler: Parameters<typeof setTimeout>[0]) => {
@@ -330,6 +338,173 @@ describe('client media module', () => {
         id: 'media-123',
         name: 'AI alt description'
       })
+    })
+
+    it('uploads posterFile via uploadMediaThumbnail when presigned upload completion lacks posterUrl', async () => {
+      fetchMock
+        .mockResponseOnce(JSON.stringify(presignedResponse), { status: 200 })
+        .mockResponseOnce('', { status: 200 })
+        .mockResponseOnce(
+          JSON.stringify({
+            media: {
+              ...presignedResponse.presigned.saveFileOutput,
+              preview_url: null
+            }
+          }),
+          { status: 200 }
+        )
+        .mockResponseOnce(
+          JSON.stringify({
+            ...presignedResponse.presigned.saveFileOutput,
+            preview_url: 'https://llun.test/api/v1/files/poster.jpg'
+          }),
+          { status: 200 }
+        )
+
+      const videoFile = new File(['video-bytes'], 'video.mp4', {
+        type: 'video/mp4'
+      })
+      const posterFile = new File(['poster-bytes'], 'poster.jpg', {
+        type: 'image/jpeg'
+      })
+
+      const result = await uploadAttachment(videoFile, posterFile)
+
+      expect(result).toMatchObject({
+        id: 'media-1',
+        posterUrl: 'https://llun.test/api/v1/files/poster.jpg'
+      })
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        4,
+        '/api/v1/media/media-1',
+        expect.objectContaining({
+          method: 'PUT',
+          body: expect.any(FormData)
+        })
+      )
+      const thumbnailForm = fetchMock.mock.calls[3][1]?.body as FormData
+      expect(thumbnailForm.get('thumbnail')).toBe(posterFile)
+    })
+
+    it('does not call uploadMediaThumbnail when presigned upload already includes preview_url', async () => {
+      fetchMock
+        .mockResponseOnce(JSON.stringify(presignedResponse), { status: 200 })
+        .mockResponseOnce('', { status: 200 })
+        .mockResponseOnce(
+          JSON.stringify({
+            media: {
+              ...presignedResponse.presigned.saveFileOutput,
+              preview_url: 'https://llun.test/api/v1/files/server-preview.webp'
+            }
+          }),
+          { status: 200 }
+        )
+
+      const videoFile = new File(['video-bytes'], 'video.mp4', {
+        type: 'video/mp4'
+      })
+      const posterFile = new File(['poster-bytes'], 'poster.jpg', {
+        type: 'image/jpeg'
+      })
+
+      const result = await uploadAttachment(videoFile, posterFile)
+
+      expect(result).toMatchObject({
+        id: 'media-1',
+        posterUrl: 'https://llun.test/api/v1/files/server-preview.webp'
+      })
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+    })
+
+    it('passes posterFile as thumbnail to uploadMedia on direct upload', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify(null), { status: 404 })
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          id: 'media-direct-1',
+          type: 'video',
+          mime_type: 'video/mp4',
+          url: 'https://llun.test/files/video.mp4',
+          preview_url: 'https://llun.test/files/poster.jpg',
+          meta: { original: { width: 1280, height: 720 } },
+          description: ''
+        }),
+        { status: 200 }
+      )
+
+      const videoFile = new File(['video-bytes'], 'video.mp4', {
+        type: 'video/mp4'
+      })
+      const posterFile = new File(['poster-bytes'], 'poster.jpg', {
+        type: 'image/jpeg'
+      })
+
+      const result = await uploadAttachment(videoFile, posterFile)
+
+      expect(result).toMatchObject({
+        id: 'media-direct-1',
+        posterUrl: 'https://llun.test/files/poster.jpg'
+      })
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        2,
+        '/api/v2/media',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.any(FormData)
+        })
+      )
+      const directForm = fetchMock.mock.calls[1][1]?.body as FormData
+      expect(directForm.get('thumbnail')).toBe(posterFile)
+    })
+  })
+
+  describe('uploadMediaThumbnail', () => {
+    it('uploads thumbnail via PUT and returns updated payload on 200', async () => {
+      const mockResult = {
+        id: 'media-1',
+        preview_url: 'https://llun.test/files/thumb.jpg'
+      }
+      fetchMock.mockResponseOnce(JSON.stringify(mockResult), { status: 200 })
+
+      const file = new File(['thumb'], 'thumb.jpg', { type: 'image/jpeg' })
+      const res = await uploadMediaThumbnail({
+        mediaId: 'media-1',
+        thumbnail: file
+      })
+
+      expect(res).toEqual(mockResult)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/media/media-1',
+        expect.objectContaining({
+          method: 'PUT',
+          body: expect.any(FormData)
+        })
+      )
+      const form = fetchMock.mock.calls[0][1]?.body as FormData
+      expect(form.get('thumbnail')).toBe(file)
+    })
+
+    it('returns null on failure', async () => {
+      fetchMock.mockResponseOnce('', { status: 500 })
+
+      const file = new File(['thumb'], 'thumb.jpg', { type: 'image/jpeg' })
+      const res = await uploadMediaThumbnail({
+        mediaId: 'media-1',
+        thumbnail: file
+      })
+
+      expect(res).toBeNull()
+    })
+
+    it('returns null when fetch rejects', async () => {
+      fetchMock.mockRejectOnce(new Error('Network error'))
+
+      const file = new File(['thumb'], 'thumb.jpg', { type: 'image/jpeg' })
+      const res = await uploadMediaThumbnail({
+        mediaId: 'media-1',
+        thumbnail: file
+      })
+
+      expect(res).toBeNull()
     })
   })
 

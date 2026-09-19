@@ -278,6 +278,9 @@ export const PostBox: FC<Props> = ({
         if (attachment.url.startsWith('blob:')) {
           URL.revokeObjectURL(attachment.url)
         }
+        if (attachment.posterUrl?.startsWith('blob:')) {
+          URL.revokeObjectURL(attachment.posterUrl)
+        }
       })
     }
   }, [])
@@ -306,19 +309,25 @@ export const PostBox: FC<Props> = ({
         dispatch(updateAttachment(attachment.id, loadingAttachment))
 
         try {
-          const uploaded = await uploadAttachment(attachment.file)
+          const uploaded = attachment.posterFile
+            ? await uploadAttachment(attachment.file, attachment.posterFile)
+            : await uploadAttachment(attachment.file)
           if (!uploaded) throw new Error()
 
           // Revoke the blob URL after successful upload
           if (attachment.url.startsWith('blob:')) {
             URL.revokeObjectURL(attachment.url)
           }
+          if (attachment.posterUrl?.startsWith('blob:')) {
+            URL.revokeObjectURL(attachment.posterUrl)
+          }
 
           const newAttachment = {
             ...attachment,
             ...uploaded,
             isLoading: false,
-            file: undefined
+            file: undefined,
+            posterFile: undefined
           }
           postExtensionRef.current = {
             ...postExtensionRef.current,
@@ -558,6 +567,9 @@ export const PostBox: FC<Props> = ({
     const attachment = postExtension.attachments[attachmentIndex]
     if (attachment.url.startsWith('blob:')) {
       URL.revokeObjectURL(attachment.url)
+    }
+    if (attachment.posterUrl?.startsWith('blob:')) {
+      URL.revokeObjectURL(attachment.posterUrl)
     }
     const nextAttachments = [
       ...postExtension.attachments.slice(0, attachmentIndex),
@@ -939,6 +951,12 @@ export const PostBox: FC<Props> = ({
                   postExtensionRef.current.attachments.length >=
                   maxMediaAttachments
                 ) {
+                  if (attachment.url.startsWith('blob:')) {
+                    URL.revokeObjectURL(attachment.url)
+                  }
+                  if (attachment.posterUrl?.startsWith('blob:')) {
+                    URL.revokeObjectURL(attachment.posterUrl)
+                  }
                   return
                 }
                 const nextExtension = {
@@ -983,6 +1001,9 @@ export const PostBox: FC<Props> = ({
                   postExtensionRef.current.attachments.forEach((attachment) => {
                     if (attachment.url.startsWith('blob:')) {
                       URL.revokeObjectURL(attachment.url)
+                    }
+                    if (attachment.posterUrl?.startsWith('blob:')) {
+                      URL.revokeObjectURL(attachment.posterUrl)
                     }
                   })
                   dispatch(setAttachments([]))

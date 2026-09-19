@@ -9,8 +9,8 @@ import {
   MAX_WIDTH
 } from '@/lib/services/medias/constants'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
+import { extractVideoPoster } from '@/lib/utils/extractVideoPoster'
 import { formatFileSize } from '@/lib/utils/formatFileSize'
-import { logger } from '@/lib/utils/logger'
 import { resizeImage } from '@/lib/utils/resizeImage'
 
 const MEDIA_TYPE = 'upload'
@@ -73,7 +73,17 @@ export const UploadMediaButton: FC<Props> = ({
       await Promise.all(
         files.map(async (targetFile): Promise<PostBoxAttachment | null> => {
           const previewUrl = URL.createObjectURL(targetFile)
+          let posterUrl: string | undefined
+          let posterFile: File | undefined
           try {
+            if (targetFile.type.startsWith('video')) {
+              const extracted = await extractVideoPoster(targetFile)
+              if (extracted) {
+                posterFile = extracted
+                posterUrl = URL.createObjectURL(extracted)
+              }
+            }
+
             const tempId = crypto.randomUUID()
             const file = await resizeImage(targetFile, MAX_WIDTH, MAX_HEIGHT)
             // The upload endpoint enforces the instance's resolved
@@ -83,6 +93,9 @@ export const UploadMediaButton: FC<Props> = ({
             // below, so a multi-select does not overwrite its own message.
             if (file.size > maxMediaFileSize) {
               oversizeFileNames.push(targetFile.name)
+              if (posterUrl?.startsWith('blob:')) {
+                URL.revokeObjectURL(posterUrl)
+              }
               URL.revokeObjectURL(previewUrl)
               return null
             }
@@ -91,21 +104,18 @@ export const UploadMediaButton: FC<Props> = ({
               id: tempId,
               mediaType: targetFile.type,
               url: previewUrl,
+              posterUrl,
+              posterFile,
               width: 0,
               height: 0,
               name: '',
               file
             }
-          } catch (error) {
-            logger.error(
-              {
-                error,
-                fileName: targetFile.name,
-                fileType: targetFile.type
-              },
-              'Failed to process file'
-            )
+          } catch {
             // Revoke the blob URL if processing fails
+            if (posterUrl?.startsWith('blob:')) {
+              URL.revokeObjectURL(posterUrl)
+            }
             URL.revokeObjectURL(previewUrl)
             return null
           }
@@ -128,6 +138,9 @@ export const UploadMediaButton: FC<Props> = ({
       processedAttachments.forEach((attachment) => {
         if (attachment.url.startsWith('blob:')) {
           URL.revokeObjectURL(attachment.url)
+        }
+        if (attachment.posterUrl?.startsWith('blob:')) {
+          URL.revokeObjectURL(attachment.posterUrl)
         }
       })
       return

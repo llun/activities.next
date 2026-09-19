@@ -40,7 +40,9 @@ export const getMediaAttachment = (
   const url = getMediaFileUrl(host, media.original.path)
   const previewUrl = media.thumbnail
     ? getMediaFileUrl(host, media.thumbnail.path)
-    : url
+    : media.original.mimeType.startsWith('image')
+      ? url
+      : null
 
   return MediaStorageSaveFileOutput.parse({
     id: `${media.id}`,

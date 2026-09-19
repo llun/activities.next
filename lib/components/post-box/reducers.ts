@@ -212,6 +212,9 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
         if (attachment.url.startsWith('blob:')) {
           URL.revokeObjectURL(attachment.url)
         }
+        if (attachment.posterUrl?.startsWith('blob:')) {
+          URL.revokeObjectURL(attachment.posterUrl)
+        }
       })
       // Reset everything including visibility to default state after posting.
       // A fresh state, so the next poll starts from empty choice objects.
@@ -235,6 +238,9 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
         state.attachments.forEach((attachment) => {
           if (attachment.url.startsWith('blob:')) {
             URL.revokeObjectURL(attachment.url)
+          }
+          if (attachment.posterUrl?.startsWith('blob:')) {
+            URL.revokeObjectURL(attachment.posterUrl)
           }
         })
       }
@@ -341,6 +347,9 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
       const attachment = state.attachments[index]
       if (attachment.url.startsWith('blob:')) {
         URL.revokeObjectURL(attachment.url)
+      }
+      if (attachment.posterUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(attachment.posterUrl)
       }
       return {
         ...state,

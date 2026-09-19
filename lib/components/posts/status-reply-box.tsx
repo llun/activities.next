@@ -110,6 +110,9 @@ export const StatusReplyBox: FC<Props> = ({
         if (attachment.url.startsWith('blob:')) {
           URL.revokeObjectURL(attachment.url)
         }
+        if (attachment.posterUrl?.startsWith('blob:')) {
+          URL.revokeObjectURL(attachment.posterUrl)
+        }
       })
     }
   }, [])
@@ -206,18 +209,24 @@ export const StatusReplyBox: FC<Props> = ({
           )
 
           try {
-            const uploaded = await uploadAttachment(attachment.file)
+            const uploaded = attachment.posterFile
+              ? await uploadAttachment(attachment.file, attachment.posterFile)
+              : await uploadAttachment(attachment.file)
             if (!uploaded) throw new Error()
 
             if (attachment.url.startsWith('blob:')) {
               URL.revokeObjectURL(attachment.url)
+            }
+            if (attachment.posterUrl?.startsWith('blob:')) {
+              URL.revokeObjectURL(attachment.posterUrl)
             }
 
             const newAttachment = {
               ...attachment,
               ...uploaded,
               isLoading: false,
-              file: undefined
+              file: undefined,
+              posterFile: undefined
             }
             dispatch(updateAttachment(attachment.id, newAttachment))
             return {
@@ -289,6 +298,9 @@ export const StatusReplyBox: FC<Props> = ({
 
     if (attachment.url.startsWith('blob:')) {
       URL.revokeObjectURL(attachment.url)
+    }
+    if (attachment.posterUrl?.startsWith('blob:')) {
+      URL.revokeObjectURL(attachment.posterUrl)
     }
 
     const nextAttachments = [
@@ -488,6 +500,25 @@ export const StatusReplyBox: FC<Props> = ({
                 isMediaUploadEnabled={isMediaUploadEnabled}
                 attachments={postExtension.attachments}
                 onAddAttachment={(attachment) => {
+                  if (
+                    postExtensionRef.current.attachments.length >=
+                    maxMediaAttachments
+                  ) {
+                    if (attachment.url.startsWith('blob:')) {
+                      URL.revokeObjectURL(attachment.url)
+                    }
+                    if (attachment.posterUrl?.startsWith('blob:')) {
+                      URL.revokeObjectURL(attachment.posterUrl)
+                    }
+                    return
+                  }
+                  postExtensionRef.current = {
+                    ...postExtensionRef.current,
+                    attachments: [
+                      ...postExtensionRef.current.attachments,
+                      attachment
+                    ]
+                  }
                   dispatch(addAttachment(attachment, maxMediaAttachments))
                 }}
                 onDuplicateError={() =>
