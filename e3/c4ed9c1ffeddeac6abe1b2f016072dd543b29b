@@ -1,0 +1,65 @@
+lib/services/medias/extractVideoImage.ts
+  s_8da3869dc33d74::t_a0c0b93ab335d9 22-27,30-32
+  s_3419c4913e29ec::t_fb45e3a5709444 33
+lib/services/altText/openai.ts
+  s_8da3869dc33d74::t_248da3569fcff9 16
+  s_8da3869dc33d74::t_8b3a52ad5fed9e 96
+docs/features.md
+  s_8da3869dc33d74::t_abc1a5638ab607 59
+lib/components/posts/media.test.tsx
+  s_8da3869dc33d74::t_ea10482272068f 266
+  s_8da3869dc33d74::t_7ccfad00b44d01 275
+  s_8da3869dc33d74::t_a34e510768036a 276-297
+lib/services/altText/openai.test.ts
+  s_8da3869dc33d74::t_4ce608cd0125ad 68-87
+lib/services/medias/S3StorageFile.ts
+  s_8da3869dc33d74::t_e22c799a1e9f63 462
+  s_8da3869dc33d74::t_6c65ba0f240ed7 27
+  s_8da3869dc33d74::t_50de916fa43145 402-403,417-429,442-443
+lib/services/medias/handleSyncMediaUpload.ts
+  s_8da3869dc33d74::t_1ff001bebb982a 85,91-94,97-106,109-110
+  s_8da3869dc33d74::t_83c66377e24a45 8,11
+docs/environment-variables.md
+  s_8da3869dc33d74::t_e209fcbd2b7e14 259
+docs/maintenance.md
+  s_8da3869dc33d74::t_f4f59a8ffe0cda 1039-1045
+lib/services/medias/extractVideoImage.test.ts
+  s_8da3869dc33d74::t_a51985e0cd0b24 1-43,52-132
+  s_8da3869dc33d74::t_52c979301f7e07 44-45,51
+  s_8da3869dc33d74::t_010400bf63d71e 46-50
+app/api/v2/media/route.test.ts
+  s_8da3869dc33d74::t_3cc181d3cbb096 479-537,559-561
+  s_8da3869dc33d74::t_6b056f289790e5 48-53
+  s_8da3869dc33d74::t_7c8bd49786c109 121
+lib/components/posts/media.tsx
+  s_8da3869dc33d74::t_ed0bbcb976ae00 414
+.env.example
+  s_8da3869dc33d74::t_8235c440e9ba4f 289-290
+lib/services/medias/S3StorageFile.test.ts
+  s_8da3869dc33d74::t_2eedaccea5f849 122-126
+  s_8da3869dc33d74::t_ac7c3534a855ea 967,976-1069,1075,1085,1097,1111-1135,1139-1246,1253-1259,1276
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e3c4ed9c1ffeddeac6abe1b2f016072dd543b29b",
+  "prompts": {},
+  "sessions": {
+    "s_3419c4913e29ec": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f45fa85a9ffeDcCY0aLS3RSc9q",
+        "model": "deepseek-v4.1-flash"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_8da3869dc33d74": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f45f8ed3affempZHBhbUzhu9zT",
+        "model": "deepseek-v4.1-flash"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
