@@ -30,6 +30,7 @@ export const ReadOnlyStats: FC<ReadOnlyStatsProps> = ({ status }) => {
   return (
     <div
       className="mt-3 flex items-center gap-6 text-xs text-muted-foreground"
+      role="group"
       aria-label="Engagement"
     >
       <span className="inline-flex items-center gap-1.5" title="Replies">

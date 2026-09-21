@@ -398,20 +398,12 @@ const Page: FC<Props> = async ({ params }) => {
         hasMoreAncestors={hasMoreAncestors}
         hasMoreDescendants={hasMoreDescendants}
         focusedFooter={
-          !currentActorProfile ? (
-            <div className="mt-3 border-t pt-3">
-              <StatusStatStrip
-                boosts={statusForLayout.totalShares}
-                likes={statusForLayout.totalLikes}
-                replies={replies.length}
-              />
-            </div>
-          ) : (
+          currentActorProfile ? (
             <StatusLikes
               statusId={actualStatus.id}
               totalLikes={actualStatus.totalLikes}
             />
-          )
+          ) : null
         }
       />
 

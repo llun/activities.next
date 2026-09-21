@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { Actor } from '@/lib/types/domain/actor'
@@ -333,6 +333,32 @@ describe('Page visibility for logged-out visitors', () => {
     })
 
     await expect(renderPage()).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+
+  it('renders a single engagement row for a logged-out visitor on a public status', async () => {
+    const focused = buildNote({
+      id: 'focused',
+      totalShares: 2,
+      totalLikes: 5
+    })
+
+    mockResolveStatusFromPath.mockResolvedValue({
+      status: focused,
+      statusId: 'focused',
+      fullStatusId: focused.url,
+      isStatusHash: true
+    })
+    mockGetStatusReplies.mockResolvedValue([])
+
+    await renderPage()
+
+    const focusedContainer = screen.getByTestId('focused-status')
+    const engagementRows = within(focusedContainer).getAllByRole('group', {
+      name: 'Engagement'
+    })
+    expect(engagementRows).toHaveLength(1)
+    expect(within(engagementRows[0]).getByText('2')).toBeInTheDocument()
+    expect(within(engagementRows[0]).getByText('5')).toBeInTheDocument()
   })
 
   it('renders the logged-out fitness dashboard with an sr-only heading and stat strip', async () => {
