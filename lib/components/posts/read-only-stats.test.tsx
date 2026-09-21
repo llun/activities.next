@@ -21,6 +21,7 @@ describe('ReadOnlyStats', () => {
     expect(
       screen.getByRole('group', { name: 'Engagement' })
     ).toBeInTheDocument()
+    expect(screen.getByText('Replies')).toBeInTheDocument()
     expect(screen.getByText('4')).toBeInTheDocument()
     expect(screen.getByText('12')).toBeInTheDocument()
   })
