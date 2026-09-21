@@ -15,9 +15,12 @@ const baseNote = {
 } as unknown as Status
 
 describe('ReadOnlyStats', () => {
-  it('renders boost and like totals', () => {
+  it('renders boost and like totals in an engagement group', () => {
     render(<ReadOnlyStats status={baseNote} />)
 
+    expect(
+      screen.getByRole('group', { name: 'Engagement' })
+    ).toBeInTheDocument()
     expect(screen.getByText('4')).toBeInTheDocument()
     expect(screen.getByText('12')).toBeInTheDocument()
   })

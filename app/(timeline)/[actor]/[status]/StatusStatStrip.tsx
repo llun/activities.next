@@ -14,7 +14,7 @@ interface Stat {
   noun: string
 }
 
-// Read-only engagement summary shown on the focused status for logged-out
+// Read-only engagement summary shown on the fitness dashboard for logged-out
 // visitors, who don't get the interactive action row. Mirrors the timeline
 // status component's icon row (reply / boost / like) from the web-public
 // design — same order and icon style as `ReadOnlyStats`, but it carries the
