@@ -100,7 +100,7 @@
     "@types/jsonld": "^1.5.15",
     "@types/lodash": "^4.17.25",
     "@types/mime-types": "^3.0.1",
-    "@types/node": "^26.5.1",
+    "@types/node": "^26.6.2",
     "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.23.1",
     "@types/qrcode": "^1.5.6",
