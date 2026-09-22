@@ -1,0 +1,20 @@
+docs/architecture.md
+  h_580a04e334fef4 1491-1496
+lib/components/admin-rules/RulesPanel.tsx
+  h_580a04e334fef4 429
+lib/components/fitness/HeatmapRegionPicker.tsx
+  h_580a04e334fef4 501
+lib/components/post-box/poll-choices.tsx
+  h_580a04e334fef4 127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1f6eb5c50ef1082e200a108511ad711e8b58a061",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
