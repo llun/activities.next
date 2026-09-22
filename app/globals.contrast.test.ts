@@ -186,6 +186,11 @@ describe('destructive-text contrast (WCAG 2.1 AA SC 1.4.3)', () => {
   // dark surfaces (--popover, --card) and was unreadable.
   // --destructive-text in dark mode is tuned to hsl(0 91% 71%) (#F87171) to
   // clear 4.5:1 on every dark surface.
+  it('defines --destructive-text in both light and dark themes', () => {
+    expect(themes.light['--destructive-text']).toBeDefined()
+    expect(themes.dark['--destructive-text']).toBeDefined()
+  })
+
   it.each(surfaceTokens)(
     'dark --destructive-text on %s meets 4.5:1',
     (surface) => {
@@ -207,5 +212,16 @@ describe('destructive-text contrast (WCAG 2.1 AA SC 1.4.3)', () => {
     expect(hue).toBe(0)
     expect(saturation).toBeGreaterThanOrEqual(0.8)
     expect(lightness).toBeGreaterThanOrEqual(0.65)
+    expect(lightness).toBeLessThanOrEqual(0.8)
+  })
+
+  it('preserves dark --destructive fill contrast for white text (>= 9:1)', () => {
+    const bg = rgbOf(themes.dark, '--destructive')
+    const fg = rgbOf(themes.dark, '--destructive-foreground')
+    const ratio = contrastRatio(fg, bg)
+    expect(
+      ratio,
+      `dark destructive fill ${JSON.stringify(bg)} with foreground ${JSON.stringify(fg)} = ${ratio.toFixed(3)}:1`
+    ).toBeGreaterThanOrEqual(9.0)
   })
 })

@@ -523,7 +523,7 @@ export const CollectionEditor: FC<CollectionEditorProps> = ({
         {mode === 'edit' && collection ? (
           <Button
             variant="outline"
-            className="text-destructive-text"
+            className="border-destructive/40 text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
             disabled={isDeleting || isSaving}
             onClick={handleDelete}
           >
