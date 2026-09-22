@@ -426,7 +426,7 @@ export const RulesPanel: FC = () => {
                       aria-label={`Delete rule ${index + 1}`}
                       disabled={busy || editing}
                       onClick={() => handleDelete(rule)}
-                      className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-50"
+                      className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive-text disabled:pointer-events-none disabled:opacity-50"
                     >
                       <Trash2 className="size-4" />
                     </button>

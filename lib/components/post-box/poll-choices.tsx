@@ -124,7 +124,7 @@ export const PollChoices: FC<Props> = ({
               size="icon-sm"
               disabled={choices.length <= MIN_CHOICES}
               aria-label={`Remove choice ${index + 1}`}
-              className="text-muted-foreground hover:text-destructive"
+              className="text-muted-foreground hover:text-destructive-text"
               onClick={() => onRemoveChoice(index)}
             >
               <X className="size-4" />
