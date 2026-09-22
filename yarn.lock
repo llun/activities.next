@@ -101,9 +101,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/client-ses@npm:3.1131.0":
-  version: 3.1131.0
-  resolution: "@aws-sdk/client-ses@npm:3.1131.0"
+"@aws-sdk/client-ses@npm:3.1136.0":
+  version: 3.1136.0
+  resolution: "@aws-sdk/client-ses@npm:3.1136.0"
   dependencies:
     "@aws-sdk/core": "npm:^3.978.0"
     "@aws-sdk/credential-provider-node": "npm:^3.972.83"
@@ -113,7 +113,7 @@ __metadata:
     "@smithy/node-http-handler": "npm:^4.11.3"
     "@smithy/types": "npm:^4.17.2"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/fe1871206dd52a4fc4a9dd9191a5bba0755590c9c99b828acae1d4023ec74d659a1526f68716840201cbaf3417c5aebf4b90c1ee3cf1ed7d97c92fe42ea03588
+  checksum: 10c0/2338c05e03f8042316a366d2043ac75c16ccd310777fbc7fe40bc09d2bdb4b70e8575c45c194f75038bfc444e7df83770ce929567ecb77262868da0232952713
   languageName: node
   linkType: hard
 
@@ -3682,7 +3682,7 @@ __metadata:
   resolution: "activities.next@workspace:."
   dependencies:
     "@aws-sdk/client-s3": "npm:3.1131.0"
-    "@aws-sdk/client-ses": "npm:3.1131.0"
+    "@aws-sdk/client-ses": "npm:3.1136.0"
     "@aws-sdk/s3-request-presigner": "npm:3.1136.0"
     "@better-auth/core": "npm:1.7.5"
     "@better-auth/oauth-provider": "npm:1.7.5"
