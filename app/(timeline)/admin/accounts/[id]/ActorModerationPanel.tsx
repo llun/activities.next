@@ -23,7 +23,7 @@ interface Props {
 }
 
 const Badge = ({ label }: { label: string }) => (
-  <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+  <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive-text">
     {label}
   </span>
 )
@@ -45,7 +45,7 @@ const ActionButton = ({
     disabled={disabled}
     className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 ${
       destructive
-        ? 'border-destructive/40 text-destructive hover:bg-destructive/10'
+        ? 'border-destructive/40 text-destructive-text hover:bg-destructive/10'
         : 'hover:bg-muted'
     }`}
   >

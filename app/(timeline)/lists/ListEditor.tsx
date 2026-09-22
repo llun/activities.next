@@ -409,7 +409,7 @@ export const ListEditor: FC<ListEditorProps> = ({
                       disabled={pendingMemberIds.has(member.id)}
                       onClick={() => removeMember(member)}
                     >
-                      <UserMinus className="h-4 w-4 text-destructive" />
+                      <UserMinus className="h-4 w-4 text-destructive-text" />
                     </Button>
                   </li>
                 ))}
@@ -428,7 +428,7 @@ export const ListEditor: FC<ListEditorProps> = ({
       )}
 
       {error && (
-        <p className="text-sm text-destructive" role="alert">
+        <p className="text-sm text-destructive-text" role="alert">
           {error}
         </p>
       )}
@@ -437,7 +437,7 @@ export const ListEditor: FC<ListEditorProps> = ({
         {mode === 'edit' && list ? (
           <Button
             variant="outline"
-            className="text-destructive"
+            className="text-destructive-text"
             disabled={isDeleting || isSaving}
             onClick={handleDelete}
           >

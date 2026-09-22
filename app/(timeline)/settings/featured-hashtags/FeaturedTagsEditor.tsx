@@ -144,7 +144,7 @@ const TagRow: FC<TagRowProps> = ({ tag, onRemove, busy }) => (
       aria-label={`Remove #${tag.name}`}
       onClick={() => onRemove(tag)}
       disabled={busy}
-      className="shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+      className="shrink-0 border-destructive/40 text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
     >
       <X className="size-[15px]" />
     </Button>

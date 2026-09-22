@@ -29,6 +29,7 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-text: var(--destructive-text);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -95,6 +96,16 @@
   --accent-foreground: hsl(0 0% 9%);
   --destructive: hsl(0 84.2% 60.2%);
   --destructive-foreground: hsl(0 0% 100%);
+  /* Destructive text and link color, as distinct from --destructive for fills
+     and accents — matching the --primary vs --primary-text pattern. In light
+     mode this is hsl(0 84.2% 60.2%) (#EF4444). In dark mode, --destructive is
+     hsl(0 62.8% 30.6%) (#7F1D1D) to maintain white-on-destructive contrast (9:1)
+     for button fills and badges, but fails WCAG AA on dark surfaces (only ~1.8:1
+     on card/popover). Dark --destructive-text is lightened to hsl(0 91% 71%)
+     (#F87171, Tailwind red-400) to clear 4.5:1 on every dark surface (6.44:1 on
+     popover/card #171717, 7.3:1 on background #0A0A0A). Exposed as the
+     `text-destructive-text` utility. */
+  --destructive-text: hsl(0 84.2% 60.2%);
   --border: hsl(0 0% 89.8%);
   --input: hsl(0 0% 89.8%);
   --ring: hsl(24 95% 46%);
@@ -169,6 +180,10 @@
   --accent-foreground: hsl(0 0% 98%);
   --destructive: hsl(0 62.8% 30.6%);
   --destructive-foreground: hsl(0 0% 98%);
+  /* Lightened to red-400 (#F87171) so destructive text and link labels clear
+     WCAG 2.1 AA (4.5:1) on dark surfaces: 6.44:1 on card/popover (#171717) and
+     7.3:1 on dark background (#0A0A0A). Fills (bg-destructive) keep #7F1D1D. */
+  --destructive-text: hsl(0 91% 71%);
   --border: hsl(0 0% 18%);
   --input: hsl(0 0% 24%);
   --ring: hsl(24 95% 46%);
@@ -246,6 +261,13 @@
 }
 
 @layer utilities {
+  /* Destructive text and icons resolve to --destructive-text (#F87171 in dark mode,
+     clearing WCAG AA >= 4.5:1), while fills and backgrounds keep --destructive
+     (#7F1D1D in dark mode, preserving white-on-destructive contrast). */
+  .text-destructive {
+    color: var(--destructive-text);
+  }
+
   .safe-area-pt {
     padding-top: env(safe-area-inset-top, 0);
   }

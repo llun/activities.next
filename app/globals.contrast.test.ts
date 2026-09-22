@@ -179,3 +179,33 @@ describe('primary-text contrast (WCAG 2.1 AA SC 1.4.3)', () => {
     }
   )
 })
+
+describe('destructive-text contrast (WCAG 2.1 AA SC 1.4.3)', () => {
+  // Destructive text and links in dark mode previously used the dark --destructive
+  // swatch hsl(0 62.8% 30.6%) (#7F1D1D), which had only ~1.8:1 contrast on
+  // dark surfaces (--popover, --card) and was unreadable.
+  // --destructive-text in dark mode is tuned to hsl(0 91% 71%) (#F87171) to
+  // clear 4.5:1 on every dark surface.
+  it.each(surfaceTokens)(
+    'dark --destructive-text on %s meets 4.5:1',
+    (surface) => {
+      const tokens = themes.dark
+      const fg = rgbOf(tokens, '--destructive-text')
+      const bg = rgbOf(tokens, surface)
+      const ratio = contrastRatio(fg, bg)
+      expect(
+        ratio,
+        `dark destructive-text ${JSON.stringify(fg)} on ${surface} ${JSON.stringify(bg)} = ${ratio.toFixed(3)}:1`
+      ).toBeGreaterThanOrEqual(AA_NORMAL)
+    }
+  )
+
+  it('keeps dark destructive-text recognisably red', () => {
+    const [hue, saturation, lightness] = parseHsl(
+      themes.dark['--destructive-text']
+    )
+    expect(hue).toBe(0)
+    expect(saturation).toBeGreaterThanOrEqual(0.8)
+    expect(lightness).toBeGreaterThanOrEqual(0.65)
+  })
+})

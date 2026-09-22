@@ -89,7 +89,7 @@ export function DeleteActorDialog({
 
         <div className="space-y-4 py-4">
           <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4">
-            <p className="text-sm font-medium text-destructive">
+            <p className="text-sm font-medium text-destructive-text">
               Warning: All data will be permanently deleted
             </p>
             <ul className="mt-2 list-inside list-disc text-sm text-muted-foreground">
