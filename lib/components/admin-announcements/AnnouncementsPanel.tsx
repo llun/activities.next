@@ -380,7 +380,7 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
                       aria-label={`Delete announcement ${announcement.text}`}
                       onClick={() => handleDelete(announcement)}
                       disabled={busyId !== null || saving}
-                      className="border-destructive/40 text-destructive hover:bg-destructive/10 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors disabled:pointer-events-none disabled:opacity-50"
+                      className="border-destructive/40 text-destructive-text hover:bg-destructive/10 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors disabled:pointer-events-none disabled:opacity-50"
                     >
                       <Trash2 className="size-4" />
                     </button>

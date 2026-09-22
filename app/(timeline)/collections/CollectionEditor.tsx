@@ -495,7 +495,7 @@ export const CollectionEditor: FC<CollectionEditorProps> = ({
                       disabled={pendingMemberIds.has(member.id)}
                       onClick={() => removeMember(member)}
                     >
-                      <UserMinus className="h-4 w-4 text-destructive" />
+                      <UserMinus className="h-4 w-4 text-destructive-text" />
                     </Button>
                   </li>
                 ))}
@@ -514,7 +514,7 @@ export const CollectionEditor: FC<CollectionEditorProps> = ({
       )}
 
       {error && (
-        <p className="text-sm text-destructive" role="alert">
+        <p className="text-sm text-destructive-text" role="alert">
           {error}
         </p>
       )}
@@ -523,7 +523,7 @@ export const CollectionEditor: FC<CollectionEditorProps> = ({
         {mode === 'edit' && collection ? (
           <Button
             variant="outline"
-            className="text-destructive"
+            className="border-destructive/40 text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
             disabled={isDeleting || isSaving}
             onClick={handleDelete}
           >

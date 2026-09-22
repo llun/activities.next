@@ -1487,6 +1487,18 @@ legacy shape left to copy.
   buttons and any orange text node — icons keep `text-primary`. Move stale
   `text-primary` text over when you touch it; `app/globals.contrast.test.ts`
   guards the tokens.
+- Destructive **text** and link labels in dark mode use `text-destructive-text`
+  (or `text-destructive`, which maps to it in `@layer utilities`; note that
+  variant modifiers such as `hover:text-destructive-text` and
+  `focus:text-destructive-text` must use the `-text` suffix explicitly, as
+  Tailwind v4 variant compilation targets theme tokens), not raw dark
+  `--destructive`. Dark `--destructive` is `hsl(0 62.8% 30.6%)` (#7F1D1D) to
+  preserve 9:1 white-on-destructive contrast for button and badge backgrounds
+  (`bg-destructive`), but only reaches ~1.8:1 on dark surfaces. `--destructive-text`
+  is lightened to `hsl(0 91% 71%)` (#F87171, Tailwind `red-400`) in dark mode
+  to meet WCAG 2.1 AA (4.5:1) on every dark surface (6.44:1 on card/popover,
+  7.3:1 on background). Fills and button backgrounds keep `bg-destructive`.
+  `app/globals.contrast.test.ts` guards the token.
 - When pairing a visible count with `sr-only` text, put only the noun (e.g.
   "boosts") in the `sr-only` span, not the number — the visible digit is already
   announced, so including it double-reads (see `posts/read-only-stats.tsx`).

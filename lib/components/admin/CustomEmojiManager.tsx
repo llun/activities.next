@@ -274,7 +274,7 @@ export const CustomEmojiManager: FC<Props> = ({ initialEmojis }) => {
                     variant="outline"
                     size="sm"
                     aria-label={`Delete :${emoji.shortcode}:`}
-                    className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    className="border-destructive/40 text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
                     onClick={() => onDelete(emoji)}
                   >
                     <Trash2 className="size-4" />
