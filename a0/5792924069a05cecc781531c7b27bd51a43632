@@ -1,0 +1,63 @@
+app/api/v1/fitness/wahoo/route.test.ts
+  s_26827f229a298c::t_08c22e8a51e95c 190-212
+  s_26827f229a298c::t_d609f93c235561 168-189
+app/(timeline)/fitness/wahoo/WahooSettingsForm.test.tsx
+  s_26827f229a298c::t_53053e6dcbbeb2 41,107-123
+  s_26827f229a298c::t_7691e90b46b2f9 124
+lib/database/sql/fitnessSettings.ts
+  s_26827f229a298c::t_e2bc1b394c7763 2,4,140-143
+migrations/schema.sql
+  s_26827f229a298c::t_0c1b97a74d3053 1923
+app/api/v1/fitness/wahoo/history/route.ts
+  s_26827f229a298c::t_e2bc1b394c7763 63-79
+app/api/v1/settings/fitness/wahoo/callback/route.test.ts
+  s_26827f229a298c::t_479bfbcab3a8c7 1-20,22-62,69-84
+  s_26827f229a298c::t_e126a2936d664b 21,63-68
+docs/architecture.md
+  s_26827f229a298c::t_b71a0da4b713c3 234
+lib/database/sql/wahooFitnessSettings.test.ts
+  s_26827f229a298c::t_a0b5a22d2d75c8 289-290
+  s_26827f229a298c::t_9cd696a5bcb99c 303-307
+  s_26827f229a298c::t_7195d640122bef 237,268-275,277,283-288,291-302,308-313,315,317-326,328-332
+  s_26827f229a298c::t_c6124c91aaa41b 2,4,57-62,236,238-267,276,278-282,314,316,327
+app/api/v1/fitness/wahoo/history/route.test.ts
+  s_26827f229a298c::t_6f8ef3ffbfad7c 318-399
+app/api/v1/settings/fitness/wahoo/callback/route.ts
+  s_26827f229a298c::t_77968ce0c3f6b0 4,102-119
+lib/jobs/processFitnessFileJob.ts
+  s_26827f229a298c::t_01ded84c454111 13,310-357
+  s_26827f229a298c::t_acb53a491709a3 39
+  s_26827f229a298c::t_2d79b3d2169aed 969-975
+  s_26827f229a298c::t_37decf6c9eb0f0 358,868-876,967-968,976-1034
+migrations/20260923113030_add_wahoo_imports.js
+  s_26827f229a298c::t_9cd696a5bcb99c 106
+  s_26827f229a298c::t_060b669635c656 17-27
+app/api/v1/fitness/wahoo/route.ts
+  s_26827f229a298c::t_77968ce0c3f6b0 4,109-142
+lib/jobs/processFitnessFileJob.test.ts
+  s_26827f229a298c::t_e86ec3b80581a1 1214-1269,1271-1285,1295,1307-1308,1349-1350
+  s_26827f229a298c::t_a0f4a9fe9bde08 1706-1707,1714
+  s_26827f229a298c::t_2e02d711237c22 1270,1286-1294,1296-1306,1309-1348
+docs/fitness-file-storage.md
+  s_26827f229a298c::t_6398fb08c91a47 13
+migrations/schema.sqlite.sql
+  s_26827f229a298c::t_d29df05787921e 292-297
+app/(timeline)/fitness/wahoo/WahooSettingsForm.tsx
+  s_26827f229a298c::t_012b72b4a661a5 32-38,92-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a05792924069a05cecc781531c7b27bd51a43632",
+  "prompts": {},
+  "sessions": {
+    "s_26827f229a298c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cdf6-146f-7563-bf7a-88a976f59083",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
