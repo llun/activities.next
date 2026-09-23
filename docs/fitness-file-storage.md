@@ -19,6 +19,8 @@ Save settings, then select **Connect Wahoo** to authorize. The Wahoo user ID is 
 
 Downloaded FIT files pass the same parser, storage, overlap merge, privacy, map, gear, and post pipeline as direct uploads. Wahoo and Strava import under one actor-level lock, so recordings of the same activity can share one post. If a Wahoo FIT recording has a route or a richer format than the existing primary file, it becomes the primary data source; a newer revision of the same Wahoo workout replaces its earlier primary file. A repeated provider event does not create another post or completion notification, and importing an updated source file keeps existing post text and visibility. Historical imports do not send completion emails or federation Create messages. Disconnecting Wahoo cancels its active history import and erases the stored Wahoo credentials; local files, posts, and workout identity tombstones remain. Wahoo-side deauthorization actions configured in its developer portal are not invoked by this local disconnect.
 
+If processing a promoted Wahoo file must be retried, its prior generated route map stays attached until the replacement is stored or the current privacy settings require its removal. Cancelling a history import remains terminal for that run even if an in-flight page fetch finishes afterward; retry starts it explicitly.
+
 ## Configuration
 
 Fitness storage is configured in `lib/config/fitnessStorage.ts`.

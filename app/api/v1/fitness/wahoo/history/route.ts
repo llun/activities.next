@@ -28,13 +28,23 @@ const getSummary = async (database: Database, actorId: string) => {
   if (!history) return null
   const counts = await database.countWahooHistoryItems(history.id)
   let status = history.status
+  let lastError = history.lastError
   if (
     history.scanComplete &&
     counts.pending === 0 &&
     (status === 'running' || status === 'pending')
   ) {
     status = counts.failed > 0 ? 'failed' : 'completed'
-    await database.updateWahooHistoryImport(history.id, { status })
+    const changed = await database.updateWahooHistoryImport(
+      history.id,
+      { status },
+      ['pending', 'running']
+    )
+    if (!changed) {
+      const current = await database.getWahooHistoryImport(history.id)
+      status = current?.status ?? history.status
+      lastError = current?.lastError
+    }
   }
   return {
     id: history.id,
@@ -44,7 +54,7 @@ const getSummary = async (database: Database, actorId: string) => {
     total: counts.total,
     completed: counts.completed,
     failed: counts.failed,
-    lastError: history.lastError
+    lastError
   }
 }
 
@@ -86,6 +96,17 @@ export const POST = traceApiRoute(
         database,
         `wahoo-history-start:${currentActor.id}`,
         async () => {
+          const liveSettings = await database.getFitnessSettings({
+            actorId: currentActor.id,
+            serviceType: 'wahoo'
+          })
+          if (
+            !liveSettings?.accessToken ||
+            liveSettings.id !== settings.id ||
+            liveSettings.providerUserId !== settings.providerUserId
+          ) {
+            return null
+          }
           const existing = await database.getLatestWahooHistoryImport(
             currentActor.id
           )
@@ -95,7 +116,7 @@ export const POST = traceApiRoute(
           }
           const history = await database.createWahooHistoryImport({
             actorId: currentActor.id,
-            providerUserId: settings.providerUserId!,
+            providerUserId: liveSettings.providerUserId!,
             ...parsed.data
           })
           try {
@@ -113,7 +134,7 @@ export const POST = traceApiRoute(
           }
           return history
         },
-        { failOnTimeout: true }
+        { failOnTimeout: true, ttlMs: 5 * 60 * 1000 }
       )
       if (!result) return apiErrorResponse(409)
       return apiResponse({ req, allowedMethods: [], data: { success: true } })
@@ -126,11 +147,29 @@ export const POST = traceApiRoute(
 export const DELETE = traceApiRoute(
   'cancelWahooHistory',
   AuthenticatedGuard(async (req, { currentActor, database }) => {
-    const history = await database.getLatestWahooHistoryImport(currentActor.id)
-    if (history && ['pending', 'running', 'failed'].includes(history.status)) {
-      await database.updateWahooHistoryImport(history.id, {
-        status: 'cancelled'
-      })
+    try {
+      await withImportLock(
+        database,
+        `wahoo-history-start:${currentActor.id}`,
+        async () => {
+          const history = await database.getLatestWahooHistoryImport(
+            currentActor.id
+          )
+          if (
+            history &&
+            ['pending', 'running', 'failed'].includes(history.status)
+          ) {
+            await database.updateWahooHistoryImport(
+              history.id,
+              { status: 'cancelled' },
+              ['pending', 'running', 'failed']
+            )
+          }
+        },
+        { failOnTimeout: true, ttlMs: 5 * 60 * 1000 }
+      )
+    } catch {
+      return apiErrorResponse(503)
     }
     return apiResponse({ req, allowedMethods: [], data: { success: true } })
   })
@@ -158,18 +197,33 @@ export const PATCH = traceApiRoute(
         database,
         `wahoo-history-start:${currentActor.id}`,
         async () => {
-          const latest = await database.getWahooHistoryImport(history.id)
-          if (!latest || !['failed', 'cancelled'].includes(latest.status)) {
+          const latest = await database.getLatestWahooHistoryImport(
+            currentActor.id
+          )
+          const liveSettings = await database.getFitnessSettings({
+            actorId: currentActor.id,
+            serviceType: 'wahoo'
+          })
+          if (
+            !latest ||
+            latest.id !== history.id ||
+            !['failed', 'cancelled'].includes(latest.status) ||
+            !liveSettings?.accessToken ||
+            liveSettings.id !== settings.id ||
+            liveSettings.providerUserId !== latest.providerUserId
+          ) {
             throw new Error('Wahoo history is already running')
           }
           const retryItems = await database.getWahooImportsByHistory(
             history.id,
             ['failed', 'unsupported', 'pending']
           )
-          await database.updateWahooHistoryImport(history.id, {
-            status: 'running',
-            lastError: null
-          })
+          const resumed = await database.updateWahooHistoryImport(
+            history.id,
+            { status: 'running', lastError: null },
+            ['failed', 'cancelled']
+          )
+          if (!resumed) throw new Error('Wahoo history changed during retry')
           try {
             for (const item of retryItems) {
               if (item.status !== 'pending') {
@@ -181,7 +235,7 @@ export const PATCH = traceApiRoute(
                 data: { importId: item.id, notifyOnComplete: false }
               })
             }
-            if (!history.scanComplete) {
+            if (!latest.scanComplete) {
               await getQueue().publish({
                 id: crypto.randomUUID(),
                 name: IMPORT_WAHOO_HISTORY_JOB_NAME,
@@ -196,7 +250,7 @@ export const PATCH = traceApiRoute(
             throw error
           }
         },
-        { failOnTimeout: true }
+        { failOnTimeout: true, ttlMs: 5 * 60 * 1000 }
       )
     } catch {
       return apiErrorResponse(503)

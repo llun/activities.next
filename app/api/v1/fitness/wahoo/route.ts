@@ -154,11 +154,18 @@ export const DELETE = traceApiRoute(
         database,
         `fitness-import:${currentActor.id}`,
         async () => {
-          await database.cancelWahooHistoryImportsByActor(currentActor.id)
-          await database.deleteFitnessSettings({
-            actorId: currentActor.id,
-            serviceType: 'wahoo'
-          })
+          await withImportLock(
+            database,
+            `wahoo-history-start:${currentActor.id}`,
+            async () => {
+              await database.cancelWahooHistoryImportsByActor(currentActor.id)
+              await database.deleteFitnessSettings({
+                actorId: currentActor.id,
+                serviceType: 'wahoo'
+              })
+            },
+            { failOnTimeout: true, ttlMs: 5 * 60 * 1000 }
+          )
         },
         { failOnTimeout: true, ttlMs: 5 * 60 * 1000 }
       )

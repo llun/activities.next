@@ -92,4 +92,48 @@ describe('WahooHistorySection', () => {
     ).toBeInTheDocument()
     expect(await screen.findByText('running')).toBeInTheDocument()
   })
+
+  it.each([
+    {
+      status: 'failed' as const,
+      connected: false,
+      automaticImportAvailable: true,
+      buttonName: 'Retry failed workouts'
+    },
+    {
+      status: 'cancelled' as const,
+      connected: true,
+      automaticImportAvailable: false,
+      buttonName: 'Resume history import'
+    }
+  ])(
+    'disables retry actions when the connection or queue is unavailable ($status)',
+    async ({ status, connected, automaticImportAvailable, buttonName }) => {
+      vi.mocked(client.getWahooHistory).mockResolvedValue({
+        import: {
+          id: 'history-1',
+          status,
+          fromDate: '2026-09-01',
+          toDate: '2026-09-10',
+          total: 5,
+          completed: 2,
+          failed: 1
+        }
+      })
+
+      render(
+        <WahooHistorySection
+          connected={connected}
+          automaticImportAvailable={automaticImportAvailable}
+        />
+      )
+
+      const retryButton = await screen.findByRole('button', {
+        name: buttonName
+      })
+      expect(retryButton).toBeDisabled()
+      fireEvent.click(retryButton)
+      expect(client.retryWahooHistory).not.toHaveBeenCalled()
+    }
+  )
 })

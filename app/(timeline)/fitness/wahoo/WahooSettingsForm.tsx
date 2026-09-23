@@ -319,7 +319,7 @@ export const WahooSettingsForm = () => {
         )}
         {settings?.lastError && (
           <p role="alert" className="text-sm text-destructive">
-            Last import error: {settings.lastError}
+            Wahoo error: {settings.lastError}
           </p>
         )}
         {error && (

@@ -113,6 +113,7 @@ describe('importFitnessFilesJob', () => {
       publishSendNote?: boolean
       preferRicherPrimary?: boolean
       replacePrimaryFileId?: string
+      preserveExistingMapOnRetry?: boolean
     } = {}
   ) => {
     mockParseFitnessFile.mockResolvedValueOnce(routedActivity)
@@ -215,6 +216,7 @@ describe('importFitnessFilesJob', () => {
       'medias/2026-07-26/old-route-map.jpg'
     )
     const updated = await database.getFitnessFile({ id: file!.id })
+    expect(updated?.mapImagePath).toBeUndefined()
     expect(updated?.mapImageEmailPath).toBeUndefined()
   })
 
@@ -1006,6 +1008,72 @@ describe('importFitnessFilesJob', () => {
       })
     )
     expect(getQueue().publish).toHaveBeenCalledTimes(1)
+  })
+
+  it('preserves the promoted generated map when retrying after a process job publish failure', async () => {
+    const earlier = await createFitnessFile(
+      'fit',
+      'fitness/wahoo-map-retry-earlier.fit',
+      'batch-wahoo-map-retry'
+    )
+    const promoted = await createFitnessFile(
+      'fit',
+      'fitness/wahoo-map-retry-promoted.fit',
+      'batch-wahoo-map-retry'
+    )
+    await importWithActivity(earlier!.id, 'wahoo-map-retry-initial')
+    const existing = await database.getFitnessFile({ id: earlier!.id })
+    await database.updateFitnessFileActivityData(earlier!.id, {
+      hasMapData: true,
+      mapImagePath: 'medias/2026-07-26/wahoo-map-retry.webp',
+      mapImageEmailPath: 'medias/2026-07-26/wahoo-map-retry.jpg'
+    })
+
+    const publishMock = getQueue().publish as jest.Mock
+    publishMock.mockClear()
+    publishMock.mockRejectedValueOnce(new Error('process queue unavailable'))
+
+    await importWithActivity(promoted!.id, 'wahoo-map-retry-promote', {
+      overlapFitnessFileIds: [earlier!.id],
+      replacePrimaryFileId: earlier!.id
+    })
+
+    const afterFailedPublish = await database.getFitnessFile({
+      id: promoted!.id
+    })
+    expect(afterFailedPublish?.statusId).toBe(existing?.statusId)
+    expect(afterFailedPublish?.isPrimary).toBe(true)
+    expect(afterFailedPublish?.mapImagePath).toBe(
+      'medias/2026-07-26/wahoo-map-retry.webp'
+    )
+    expect(afterFailedPublish?.mapImageEmailPath).toBe(
+      'medias/2026-07-26/wahoo-map-retry.jpg'
+    )
+
+    publishMock.mockResolvedValue(undefined)
+    const groups = await importWithActivity(
+      promoted!.id,
+      'wahoo-map-retry-again',
+      { preserveExistingMapOnRetry: true }
+    )
+
+    const afterRetry = await database.getFitnessFile({ id: promoted!.id })
+    expect(afterRetry?.mapImagePath).toBe(
+      'medias/2026-07-26/wahoo-map-retry.webp'
+    )
+    expect(afterRetry?.mapImageEmailPath).toBe(
+      'medias/2026-07-26/wahoo-map-retry.jpg'
+    )
+    expect(groups[0]?.processJob).toEqual(
+      expect.objectContaining({
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: expect.objectContaining({
+          fitnessFileId: promoted!.id,
+          statusId: existing?.statusId
+        })
+      })
+    )
+    expect(publishMock).toHaveBeenCalledTimes(2)
   })
 
   it('picks the longest outdoor file as primary when multiple outdoor cycling files are merged', async () => {

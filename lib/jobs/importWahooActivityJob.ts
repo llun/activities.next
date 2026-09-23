@@ -234,6 +234,7 @@ const processImport = async (
               publishSendNote: notifyOnComplete && !latest.statusId,
               postAtImportTime: notifyOnComplete && !latest.statusId,
               preferRicherPrimary: true,
+              preserveExistingMapOnRetry: true,
               replacePrimaryFileId:
                 latest.fitnessFileId !== fitnessFileId
                   ? latest.fitnessFileId

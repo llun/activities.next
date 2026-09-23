@@ -7,9 +7,10 @@ import {
   IMPORT_WAHOO_HISTORY_JOB_NAME
 } from '@/lib/jobs/names'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import { createDeferred } from '@/lib/testing/deferred'
 import { FitnessSettings } from '@/lib/types/database/fitnessSettings'
 
-import { DELETE, PATCH, POST } from './route'
+import { DELETE, GET, PATCH, POST } from './route'
 
 const mockGetServerSession = vi.fn()
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -192,9 +193,11 @@ describe('Wahoo history API', () => {
     const response = await DELETE(request, { params: Promise.resolve({}) })
 
     expect(response.status).toBe(200)
-    expect(mockDb.updateWahooHistoryImport).toHaveBeenCalledWith('history-1', {
-      status: 'cancelled'
-    })
+    expect(mockDb.updateWahooHistoryImport).toHaveBeenCalledWith(
+      'history-1',
+      { status: 'cancelled' },
+      ['pending', 'running', 'failed']
+    )
   })
 
   it('requeues unsupported FIT imports and resumes an unfinished history scan', async () => {
@@ -224,10 +227,11 @@ describe('Wahoo history API', () => {
       'unsupported',
       'pending'
     ])
-    expect(mockDb.updateWahooHistoryImport).toHaveBeenCalledWith('history-1', {
-      status: 'running',
-      lastError: null
-    })
+    expect(mockDb.updateWahooHistoryImport).toHaveBeenCalledWith(
+      'history-1',
+      { status: 'running', lastError: null },
+      ['failed', 'cancelled']
+    )
     expect(mockDb.markWahooImportPending).toHaveBeenCalledWith(
       'unsupported-import'
     )
@@ -277,6 +281,151 @@ describe('Wahoo history API', () => {
 
     expect(response.status).toBe(409)
     expect(mockDb.getWahooImportsByHistory).not.toHaveBeenCalled()
+    expect(mockQueue.publish).not.toHaveBeenCalled()
+  })
+
+  it('returns the cancelled state when cancellation wins the terminal summary CAS', async () => {
+    mockDb.getLatestWahooHistoryImport.mockResolvedValue(
+      history({ scanComplete: true, status: 'running' })
+    )
+    mockDb.countWahooHistoryItems.mockResolvedValue({
+      total: 1,
+      completed: 0,
+      failed: 0,
+      pending: 0
+    })
+    mockDb.updateWahooHistoryImport.mockResolvedValue(false)
+    mockDb.getWahooHistoryImport.mockResolvedValue(
+      history({ scanComplete: true, status: 'cancelled' })
+    )
+
+    const response = await GET(
+      new NextRequest('https://test.llun.dev/api/v1/fitness/wahoo/history'),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      import: { id: 'history-1', status: 'cancelled' }
+    })
+    expect(mockDb.updateWahooHistoryImport).toHaveBeenCalledWith(
+      'history-1',
+      { status: 'completed' },
+      ['pending', 'running']
+    )
+  })
+
+  it('serializes cancellation after a history retry so running cannot overwrite cancelled', async () => {
+    let latest = history({ status: 'failed' })
+    mockDb.getLatestWahooHistoryImport.mockImplementation(async () => latest)
+    mockDb.getWahooHistoryImport.mockImplementation(async () => latest)
+
+    const itemsReady = createDeferred<void>()
+    const retryItems = createDeferred<WahooImport[]>()
+    mockDb.getWahooImportsByHistory.mockImplementation(() => {
+      itemsReady.resolve()
+      return retryItems.promise
+    })
+
+    let lockHeld = false
+    let lockCount = 0
+    const contention = createDeferred<void>()
+    mockDb.acquireImportLock.mockImplementation(async () => {
+      if (lockHeld) {
+        contention.resolve()
+        return null
+      }
+      lockHeld = true
+      return { token: `history-lock-${++lockCount}` }
+    })
+    mockDb.releaseImportLock.mockImplementation(async () => {
+      lockHeld = false
+      return true
+    })
+    mockDb.updateWahooHistoryImport.mockImplementation(
+      async (_id, values, expectedStatuses) => {
+        if (expectedStatuses && !expectedStatuses.includes(latest.status)) {
+          return false
+        }
+        latest = {
+          ...latest,
+          ...values,
+          lastError: values.lastError ?? undefined
+        }
+        return true
+      }
+    )
+
+    const retryPromise = PATCH(
+      new NextRequest('https://test.llun.dev/api/v1/fitness/wahoo/history', {
+        method: 'PATCH',
+        headers: { Origin: 'https://test.llun.dev' }
+      }),
+      { params: Promise.resolve({}) }
+    )
+    await itemsReady.promise
+
+    const cancelPromise = DELETE(
+      new NextRequest('https://test.llun.dev/api/v1/fitness/wahoo/history', {
+        method: 'DELETE',
+        headers: { Origin: 'https://test.llun.dev' }
+      }),
+      { params: Promise.resolve({}) }
+    )
+    await contention.promise
+    retryItems.resolve([importRecord({ status: 'pending' })])
+
+    const [retryResponse, cancelResponse] = await Promise.all([
+      retryPromise,
+      cancelPromise
+    ])
+
+    expect(retryResponse.status).toBe(200)
+    expect(cancelResponse.status).toBe(200)
+    expect(latest.status).toBe('cancelled')
+    expect(mockDb.updateWahooHistoryImport).toHaveBeenNthCalledWith(
+      1,
+      'history-1',
+      { status: 'running', lastError: null },
+      ['failed', 'cancelled']
+    )
+    expect(mockDb.updateWahooHistoryImport).toHaveBeenNthCalledWith(
+      2,
+      'history-1',
+      { status: 'cancelled' },
+      ['pending', 'running', 'failed']
+    )
+    expect(mockDb.acquireImportLock).toHaveBeenCalledWith(
+      expect.objectContaining({ lockKey: `wahoo-history-start:${ACTOR1_ID}` })
+    )
+  })
+
+  it('does not queue a retry when disconnect removes credentials before the locked recheck', async () => {
+    mockDb.getLatestWahooHistoryImport.mockResolvedValue(
+      history({ status: 'cancelled' })
+    )
+    mockDb.getFitnessSettings
+      .mockResolvedValueOnce({
+        id: 'settings-1',
+        actorId: ACTOR1_ID,
+        serviceType: 'wahoo',
+        accessToken: 'access-token',
+        providerUserId: 'wahoo-user-1',
+        createdAt: 1,
+        updatedAt: 1
+      })
+      .mockResolvedValueOnce(null)
+
+    const response = await PATCH(
+      new NextRequest('https://test.llun.dev/api/v1/fitness/wahoo/history', {
+        method: 'PATCH',
+        headers: { Origin: 'https://test.llun.dev' }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(503)
+    expect(mockDb.updateWahooHistoryImport).not.toHaveBeenCalled()
     expect(mockQueue.publish).not.toHaveBeenCalled()
   })
 })

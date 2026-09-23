@@ -90,4 +90,17 @@ describe('WahooSettingsForm', () => {
     expect(times[0]).not.toBeEmptyDOMElement()
     expect(times[1]).not.toBeEmptyDOMElement()
   })
+
+  it('labels provider connection failures as Wahoo errors', async () => {
+    vi.mocked(client.getWahooSettings).mockResolvedValue({
+      ...settings,
+      lastError: 'OAuth authorization was denied'
+    })
+
+    render(<WahooSettingsForm />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Wahoo error: OAuth authorization was denied'
+    )
+  })
 })

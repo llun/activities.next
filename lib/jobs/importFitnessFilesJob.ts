@@ -91,6 +91,9 @@ const JobData = z.object({
   preferRicherPrimary: z.boolean().optional().default(false),
   // A provider may replace its own earlier revision without changing the post.
   replacePrimaryFileId: z.string().optional(),
+  // A retry of a primary provider file must keep the generated-map pointer
+  // until the processing job can replace or remove the previous attachment.
+  preserveExistingMapOnRetry: z.boolean().optional().default(false),
   // Revisions must not create a replacement post if the owner deleted the
   // original while an import was in flight.
   expectedExistingStatusId: z.string().optional()
@@ -322,6 +325,7 @@ export const importFitnessFiles = async (
     postAtImportTime,
     preferRicherPrimary,
     replacePrimaryFileId,
+    preserveExistingMapOnRetry,
     expectedExistingStatusId
   } = JobData.parse(data)
 
@@ -425,14 +429,21 @@ export const importFitnessFiles = async (
         buffer
       })
 
-      // Same reason as processFitnessFileJob: the reset below de-references
-      // any copy stored for an earlier import of this row, and a file that
-      // ends up non-primary never reaches processFitnessFileJob to rewrite it.
-      await deleteEmailMapImage({
-        database,
-        fitnessFileId: fitnessFile.id,
-        mapImageEmailPath: fitnessFile.mapImageEmailPath
-      })
+      const keepPreviousMap =
+        preserveExistingMapOnRetry &&
+        fitnessFile.isPrimary &&
+        Boolean(fitnessFile.statusId) &&
+        Boolean(fitnessFile.mapImagePath || fitnessFile.mapImageEmailPath)
+      if (!keepPreviousMap) {
+        // A non-primary target will not reach the processing job, so it must
+        // release any email-map copy when reparsed. The opt-in primary retry
+        // leaves both pointers intact for processFitnessFileJob to replace.
+        await deleteEmailMapImage({
+          database,
+          fitnessFileId: fitnessFile.id,
+          mapImageEmailPath: fitnessFile.mapImageEmailPath
+        })
+      }
 
       await database.updateFitnessFileActivityData(fitnessFile.id, {
         totalDistanceMeters: activityData.totalDistanceMeters,
@@ -441,9 +452,13 @@ export const importFitnessFiles = async (
         elevationGainMeters: activityData.elevationGainMeters,
         activityType: activityData.activityType,
         activityStartTime: activityData.startTime ?? null,
-        hasMapData: false,
-        mapImagePath: null,
-        mapImageEmailPath: null,
+        ...(keepPreviousMap
+          ? {}
+          : {
+              hasMapData: false,
+              mapImagePath: null,
+              mapImageEmailPath: null
+            }),
         // The map is being redone from scratch, so a reason recorded for the
         // previous one is stale. Left behind it would keep the status looking
         // retriable forever — including on a file that ends up non-primary

@@ -238,7 +238,7 @@ export const WahooHistorySection = ({
               <Button
                 type="button"
                 variant="outline"
-                disabled={isActing}
+                disabled={isActing || !connected || !automaticImportAvailable}
                 onClick={() =>
                   void runAction(
                     retryWahooHistory,
