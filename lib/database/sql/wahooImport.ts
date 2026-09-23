@@ -16,6 +16,7 @@ export interface WahooImport {
   statusId?: string
   historyImportId?: string
   status: WahooImportStatus
+  hadStatus?: boolean
   attempts: number
   lastError?: string
 }
@@ -100,8 +101,9 @@ export interface WahooImportDatabase {
         | 'failed'
         | 'status'
       >
-    > & { lastError?: string | null }
-  ): Promise<void>
+    > & { lastError?: string | null },
+    expectedStatuses?: WahooHistoryStatus[]
+  ): Promise<boolean>
   countWahooHistoryItems(id: string): Promise<{
     total: number
     completed: number
@@ -116,6 +118,7 @@ type SQLWahooImport = Omit<WahooImport, 'summaryUpdatedAt'> & {
 
 const toImport = (row: SQLWahooImport): WahooImport => ({
   ...row,
+  hadStatus: Boolean(row.hadStatus),
   summaryId: row.summaryId || undefined,
   summaryUpdatedAt: row.summaryUpdatedAt
     ? getCompatibleTime(row.summaryUpdatedAt)
@@ -156,6 +159,7 @@ export const WahooImportSQLDatabaseMixin = (
         summaryUpdatedAt: summaryUpdatedAt ? new Date(summaryUpdatedAt) : null,
         historyImportId,
         status: 'pending',
+        hadStatus: false,
         attempts: 0,
         createdAt: new Date(),
         updatedAt: new Date()
@@ -201,6 +205,7 @@ export const WahooImportSQLDatabaseMixin = (
       .where({ id })
       .update({
         ...definedValues,
+        ...(values.statusId ? { hadStatus: true } : {}),
         ...(values.summaryUpdatedAt !== undefined
           ? { summaryUpdatedAt: new Date(values.summaryUpdatedAt) }
           : {}),
@@ -279,13 +284,17 @@ export const WahooImportSQLDatabaseMixin = (
     return row
   },
 
-  async updateWahooHistoryImport(id, values) {
+  async updateWahooHistoryImport(id, values, expectedStatuses) {
     const definedValues = Object.fromEntries(
       Object.entries(values).filter(([, value]) => value !== undefined)
     )
-    await database('wahoo_history_imports')
-      .where({ id })
-      .update({ ...definedValues, updatedAt: new Date() })
+    let query = database('wahoo_history_imports').where({ id })
+    if (expectedStatuses) query = query.whereIn('status', expectedStatuses)
+    const changed = await query.update({
+      ...definedValues,
+      updatedAt: new Date()
+    })
+    return changed > 0
   },
 
   async countWahooHistoryItems(id) {

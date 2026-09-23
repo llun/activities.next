@@ -31,6 +31,7 @@ type MockDatabase = Pick<
   | 'getWahooHistoryImport'
   | 'getFitnessSettings'
   | 'upsertWahooImport'
+  | 'updateWahooImport'
   | 'countWahooHistoryItems'
   | 'updateWahooHistoryImport'
   | 'acquireImportLock'
@@ -43,6 +44,7 @@ describe('importWahooHistoryJob', () => {
     getWahooHistoryImport: vi.fn(),
     getFitnessSettings: vi.fn(),
     upsertWahooImport: vi.fn(),
+    updateWahooImport: vi.fn(),
     countWahooHistoryItems: vi.fn(),
     updateWahooHistoryImport: vi.fn(),
     acquireImportLock: vi.fn(),
@@ -95,7 +97,7 @@ describe('importWahooHistoryJob', () => {
       failed: 0,
       pending: 1
     })
-    database.updateWahooHistoryImport.mockResolvedValue(undefined)
+    database.updateWahooHistoryImport.mockResolvedValue(true)
     database.acquireImportLock.mockResolvedValue({ token: 'lock-token' })
     database.releaseImportLock.mockResolvedValue(true)
     mockGetWahooWorkoutsPage.mockResolvedValue({
@@ -131,10 +133,14 @@ describe('importWahooHistoryJob', () => {
       })
     ).rejects.toThrow('Wahoo connection is unavailable for history import')
 
-    expect(database.updateWahooHistoryImport).toHaveBeenCalledWith(historyId, {
-      status: 'failed',
-      lastError: 'Wahoo history scan failed. Retry to continue.'
-    })
+    expect(database.updateWahooHistoryImport).toHaveBeenCalledWith(
+      historyId,
+      {
+        status: 'failed',
+        lastError: 'Wahoo history scan failed. Retry to continue.'
+      },
+      ['pending', 'running']
+    )
     expect(mockGetWahooWorkoutsPage).not.toHaveBeenCalled()
   })
 
@@ -151,6 +157,57 @@ describe('importWahooHistoryJob', () => {
 
     expect(mockGetWahooWorkoutsPage).not.toHaveBeenCalled()
     expect(database.upsertWahooImport).not.toHaveBeenCalled()
+  })
+
+  it('keeps cancellation when it happens while a page is being fetched', async () => {
+    database.getWahooHistoryImport
+      .mockResolvedValueOnce(history())
+      .mockResolvedValue(history({ status: 'cancelled' }))
+    database.updateWahooHistoryImport.mockResolvedValue(false)
+    mockGetWahooWorkoutsPage.mockResolvedValue({
+      workouts: [],
+      total: 0,
+      page: 1,
+      per_page: 50
+    } as never)
+
+    await importWahooHistoryJob(database as unknown as Database, {
+      id: 'cancel-during-fetch-job',
+      name: IMPORT_WAHOO_HISTORY_JOB_NAME,
+      data: { historyId }
+    })
+
+    expect(database.updateWahooHistoryImport).toHaveBeenCalledWith(
+      historyId,
+      expect.objectContaining({ status: 'running' }),
+      ['pending', 'running']
+    )
+    expect(queue.publish).not.toHaveBeenCalled()
+  })
+
+  it('does not replace cancellation with failure when a page fetch rejects', async () => {
+    database.getWahooHistoryImport.mockResolvedValueOnce(history())
+    mockGetWahooWorkoutsPage.mockImplementationOnce(async () => {
+      database.getWahooHistoryImport.mockResolvedValue(
+        history({ status: 'cancelled' })
+      )
+      throw new Error('fetch failed after cancellation')
+    })
+    database.updateWahooHistoryImport.mockResolvedValue(false)
+
+    await expect(
+      importWahooHistoryJob(database as unknown as Database, {
+        id: 'cancelled-fetch-failure-job',
+        name: IMPORT_WAHOO_HISTORY_JOB_NAME,
+        data: { historyId }
+      })
+    ).rejects.toThrow('fetch failed after cancellation')
+
+    expect(database.updateWahooHistoryImport).toHaveBeenCalledWith(
+      historyId,
+      expect.objectContaining({ status: 'failed' }),
+      ['pending', 'running']
+    )
   })
 
   it('queues a discovered workout and the next history page', async () => {
@@ -176,18 +233,62 @@ describe('importWahooHistoryJob', () => {
         }
       })
     )
-    expect(database.updateWahooHistoryImport).toHaveBeenCalledWith(historyId, {
-      nextPage: 2,
-      total: 1,
-      scanComplete: false,
-      status: 'running',
-      lastError: null
-    })
+    expect(database.updateWahooHistoryImport).toHaveBeenCalledWith(
+      historyId,
+      {
+        nextPage: 2,
+        total: 1,
+        scanComplete: false,
+        status: 'running',
+        lastError: null
+      },
+      ['pending', 'running']
+    )
     expect(queue.publish).toHaveBeenCalledWith(
       expect.objectContaining({
         name: IMPORT_WAHOO_HISTORY_JOB_NAME,
         data: { historyId }
       })
     )
+  })
+
+  it('does not revive a deleted import when history finds a newer summary revision', async () => {
+    database.upsertWahooImport.mockResolvedValue({
+      id: '33333333-3333-4333-8333-333333333333',
+      actorId: 'actor-1',
+      providerUserId: 'wahoo-user-1',
+      workoutId: 'workout-1',
+      status: 'completed',
+      hadStatus: true,
+      summaryId: 'summary-1',
+      summaryUpdatedAt: Date.parse('2026-09-10T10:00:00.000Z'),
+      attempts: 1
+    })
+    mockGetWahooWorkoutsPage.mockResolvedValue({
+      workouts: [
+        {
+          id: 'workout-1',
+          starts: '2026-09-10T10:00:00.000Z',
+          workout_summary: {
+            id: 'summary-1',
+            updated_at: '2026-09-20T12:30:00.000Z'
+          }
+        }
+      ],
+      total: 1,
+      page: 1,
+      per_page: 50
+    } as never)
+
+    await importWahooHistoryJob(database as unknown as Database, {
+      id: 'history-after-delete-job',
+      name: IMPORT_WAHOO_HISTORY_JOB_NAME,
+      data: { historyId }
+    })
+
+    expect(queue.publish).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: IMPORT_WAHOO_ACTIVITY_JOB_NAME })
+    )
+    expect(database.updateWahooImport).not.toHaveBeenCalled()
   })
 })

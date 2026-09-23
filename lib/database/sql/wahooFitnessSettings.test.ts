@@ -147,4 +147,84 @@ describe('Wahoo fitness settings database operations', () => {
       workoutId: 'retained-workout'
     })
   })
+
+  it('does not restore credentials when updating a disconnected settings row', async () => {
+    const settings = await database.createFitnessSettings({
+      actorId: disconnectActorId,
+      serviceType: 'wahoo',
+      clientId: 'wahoo-client-id',
+      clientSecret: 'wahoo-client-secret',
+      webhookToken: 'disconnect-webhook-token',
+      accessToken: 'wahoo-access-token',
+      refreshToken: 'wahoo-refresh-token'
+    })
+    await database.deleteFitnessSettings({
+      actorId: disconnectActorId,
+      serviceType: 'wahoo'
+    })
+
+    await expect(
+      database.updateFitnessSettings({
+        id: settings.id,
+        clientId: 'stale-client-id',
+        clientSecret: 'stale-client-secret',
+        webhookToken: 'stale-webhook-token',
+        accessToken: 'stale-access-token',
+        refreshToken: 'stale-refresh-token'
+      })
+    ).resolves.toBeNull()
+
+    const raw = await instance('fitness_settings')
+      .where({ id: settings.id })
+      .first()
+    expect(raw).toMatchObject({
+      deletedAt: expect.any(Number),
+      clientId: null,
+      clientSecret: null,
+      wahooWebhookToken: null,
+      accessToken: null,
+      refreshToken: null
+    })
+  })
+
+  it('rejects token refresh writes after the client credentials change', async () => {
+    const settings = await database.createFitnessSettings({
+      actorId: disconnectActorId,
+      serviceType: 'wahoo',
+      clientId: 'original-client-id',
+      clientSecret: 'original-client-secret',
+      accessToken: 'original-access-token',
+      refreshToken: 'original-refresh-token'
+    })
+
+    const updatedCredentials = await database.updateFitnessSettings({
+      id: settings.id,
+      clientId: 'new-client-id',
+      clientSecret: 'new-client-secret'
+    })
+    expect(updatedCredentials?.credentialVersion).toBe(
+      (settings.credentialVersion ?? 0) + 1
+    )
+
+    await expect(
+      database.updateFitnessSettings({
+        id: settings.id,
+        expectedCredentialVersion: settings.credentialVersion,
+        accessToken: 'stale-access-token',
+        refreshToken: 'stale-refresh-token'
+      })
+    ).resolves.toBeNull()
+
+    await expect(
+      database.getFitnessSettings({
+        actorId: disconnectActorId,
+        serviceType: 'wahoo'
+      })
+    ).resolves.toMatchObject({
+      clientId: 'new-client-id',
+      clientSecret: 'new-client-secret',
+      accessToken: 'original-access-token',
+      refreshToken: 'original-refresh-token'
+    })
+  })
 })

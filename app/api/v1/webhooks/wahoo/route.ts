@@ -119,12 +119,12 @@ export const POST = traceApiRoute('wahooWebhook', async (req) => {
       summaryUpdatedAt
     })
     acceptedImportId = record.id
+    if (record.hadStatus && !record.statusId) {
+      return apiResponse({ req, allowedMethods: [], data: { success: true } })
+    }
     if (record.status === 'completed') {
       // A completed record is a tombstone too: local deletion must never be
       // undone by a delayed or duplicate Wahoo webhook.
-      if (!record.statusId) {
-        return apiResponse({ req, allowedMethods: [], data: { success: true } })
-      }
       const isNewer =
         record.summaryId !== summaryId ||
         (summaryUpdatedAt !== undefined &&

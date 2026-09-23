@@ -209,6 +209,61 @@ describe('importWahooActivityJob', () => {
     expect(database.updateWahooImport).not.toHaveBeenCalled()
   })
 
+  it('reprocesses a timestamped summary when the stored summary timestamp is missing', async () => {
+    database.getWahooImport.mockResolvedValue(
+      record({
+        status: 'completed',
+        hadStatus: true,
+        statusId: 'existing-status',
+        summaryId: 'summary-1'
+      }) as never
+    )
+
+    await importWahooActivityJob(database as unknown as Database, {
+      id: 'timestamped-summary-job',
+      name: IMPORT_WAHOO_ACTIVITY_JOB_NAME,
+      data: { importId, notifyOnComplete: false }
+    })
+
+    expect(mockSaveFitnessFile).toHaveBeenCalledOnce()
+    expect(mockImportFitnessFiles).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({
+        expectedExistingStatusId: 'existing-status'
+      }),
+      { deferProcessJobPublishes: true }
+    )
+    expect(database.updateWahooImport).toHaveBeenCalledWith(
+      importId,
+      expect.objectContaining({
+        summaryId: 'summary-1',
+        summaryUpdatedAt: Date.parse('2026-09-20T12:30:00.000Z')
+      })
+    )
+  })
+
+  it('keeps a deleted completed workout as a tombstone after a newer revision', async () => {
+    database.getWahooImport.mockResolvedValue(
+      record({
+        status: 'completed',
+        hadStatus: true,
+        summaryId: 'summary-1',
+        summaryUpdatedAt: Date.parse('2026-09-20T12:00:00.000Z')
+      }) as never
+    )
+
+    await importWahooActivityJob(database as unknown as Database, {
+      id: 'deleted-workout-revision-job',
+      name: IMPORT_WAHOO_ACTIVITY_JOB_NAME,
+      data: { importId, notifyOnComplete: false }
+    })
+
+    expect(mockGetWahooWorkout).not.toHaveBeenCalled()
+    expect(mockSaveFitnessFile).not.toHaveBeenCalled()
+    expect(mockImportFitnessFiles).not.toHaveBeenCalled()
+    expect(database.updateWahooImport).not.toHaveBeenCalled()
+  })
+
   it('passes an existing Strava activity as overlap context when Wahoo arrives second', async () => {
     await importWahooActivityJob(database as unknown as Database, {
       id: 'job-overlap',

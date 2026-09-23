@@ -36,6 +36,7 @@ export interface CreateFitnessSettingsParams {
 
 export interface UpdateFitnessSettingsParams {
   id: string
+  expectedCredentialVersion?: number
   clientId?: string | null
   clientSecret?: string | null
   webhookToken?: string | null
@@ -177,6 +178,7 @@ const toFitnessSettings = (row: SQLFitnessSettings): FitnessSettings => ({
     ? getCompatibleTime(row.lastImportAt)
     : undefined,
   connectionError: row.connectionError || undefined,
+  credentialVersion: Number(row.credentialVersion ?? 0),
   createdAt: getCompatibleTime(row.createdAt),
   updatedAt: getCompatibleTime(row.updatedAt),
   deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined
@@ -238,6 +240,7 @@ export const FitnessSettingsSQLDatabaseMixin = (
       providerUserId,
       providerEnvironment,
       grantedScopes,
+      credentialVersion: 0,
       accessToken: accessToken ? encrypt(accessToken) : null,
       refreshToken: refreshToken ? encrypt(refreshToken) : null,
       tokenExpiresAt: tokenExpiresAt ? new Date(tokenExpiresAt) : null,
@@ -266,6 +269,7 @@ export const FitnessSettingsSQLDatabaseMixin = (
       providerUserId,
       providerEnvironment,
       grantedScopes,
+      credentialVersion: 0,
       accessToken,
       refreshToken,
       tokenExpiresAt,
@@ -283,6 +287,7 @@ export const FitnessSettingsSQLDatabaseMixin = (
 
   async updateFitnessSettings({
     id,
+    expectedCredentialVersion,
     clientId,
     clientSecret,
     webhookToken,
@@ -317,6 +322,7 @@ export const FitnessSettingsSQLDatabaseMixin = (
     if (webhookToken !== undefined) {
       const existing = await database('fitness_settings')
         .where({ id })
+        .whereNull('deletedAt')
         .first<SQLFitnessSettings>()
       if (existing?.serviceType === 'wahoo') {
         updateData.wahooWebhookToken = webhookToken
@@ -367,7 +373,24 @@ export const FitnessSettingsSQLDatabaseMixin = (
     if (privacyHideRadiusMeters !== undefined)
       updateData.privacyHideRadiusMeters = privacyHideRadiusMeters
 
-    await database('fitness_settings').where({ id }).update(updateData)
+    const credentialEdit = clientId !== undefined || clientSecret !== undefined
+
+    let updateQuery = database('fitness_settings')
+      .where({ id })
+      .whereNull('deletedAt')
+    if (expectedCredentialVersion !== undefined) {
+      updateQuery = updateQuery.where(
+        'credentialVersion',
+        expectedCredentialVersion
+      )
+    }
+    const updated = await updateQuery.update({
+      ...updateData,
+      ...(credentialEdit
+        ? { credentialVersion: database.raw('?? + 1', ['credentialVersion']) }
+        : {})
+    })
+    if (updated !== 1) return null
 
     const row = await database('fitness_settings')
       .where({ id })

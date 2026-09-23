@@ -57,6 +57,7 @@ const importPage = async (database: Database, historyId: string) => {
         : undefined,
       historyImportId: history.id
     })
+    if (record.hadStatus && !record.statusId) continue
     if (record.status === 'completed') {
       // A deleted local post remains a tombstone. A live post can accept a
       // newer FIT revision without producing a second post or notification.
@@ -86,14 +87,21 @@ const importPage = async (database: Database, historyId: string) => {
     reachedOlder ||
     page.workouts.length === 0 ||
     history.nextPage * page.per_page >= page.total
-  await database.updateWahooHistoryImport(historyId, {
-    nextPage: history.nextPage + 1,
-    total: counts.total,
-    scanComplete,
-    status: 'running',
-    lastError: null
-  })
+  const advanced = await database.updateWahooHistoryImport(
+    historyId,
+    {
+      nextPage: history.nextPage + 1,
+      total: counts.total,
+      scanComplete,
+      status: 'running',
+      lastError: null
+    },
+    ['pending', 'running']
+  )
+  if (!advanced) return
   if (!scanComplete) {
+    const current = await database.getWahooHistoryImport(historyId)
+    if (current?.status === 'cancelled') return
     await getQueue().publish({
       id: crypto.randomUUID(),
       name: IMPORT_WAHOO_HISTORY_JOB_NAME,
@@ -115,6 +123,8 @@ export const importWahooHistoryJob = createJobHandle(
       )
     } catch (error) {
       if (error instanceof WahooRateLimitError) {
+        const current = await database.getWahooHistoryImport(historyId)
+        if (current?.status === 'cancelled') return
         await getQueue().publish({
           id: crypto.randomUUID(),
           name: IMPORT_WAHOO_HISTORY_JOB_NAME,
@@ -123,10 +133,14 @@ export const importWahooHistoryJob = createJobHandle(
         })
         return
       }
-      await database.updateWahooHistoryImport(historyId, {
-        status: 'failed',
-        lastError: 'Wahoo history scan failed. Retry to continue.'
-      })
+      await database.updateWahooHistoryImport(
+        historyId,
+        {
+          status: 'failed',
+          lastError: 'Wahoo history scan failed. Retry to continue.'
+        },
+        ['pending', 'running']
+      )
       logger.error({
         message: 'Wahoo history import failed',
         historyId,

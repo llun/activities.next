@@ -48,34 +48,44 @@ export const GET = traceApiRoute(
     })
     if (!consumed) return redirectToSettings('expired_state')
 
+    const active = await database.getFitnessSettings({
+      actorId: currentActor.id,
+      serviceType: 'wahoo'
+    })
+    if (
+      !active ||
+      active.id !== settings.id ||
+      active.clientId !== settings.clientId ||
+      active.clientSecret !== settings.clientSecret
+    ) {
+      return redirectToSettings('credentials_changed')
+    }
+
     try {
       const token = await exchangeWahooCode({
         code,
         redirectUri: getWahooCallbackUrl(),
-        clientId: settings.clientId,
-        clientSecret: settings.clientSecret
+        clientId: active.clientId!,
+        clientSecret: active.clientSecret!
       })
       const tokenExpiresAt = Date.now() + token.expires_in * 1000
       const user = await getWahooUser(database, {
-        ...settings,
+        ...active,
         accessToken: token.access_token,
         refreshToken: token.refresh_token,
         tokenExpiresAt
       })
       const providerUserId = String(user.id)
-      const existingBinding = settings.webhookToken
+      const existingBinding = active.webhookToken
         ? await database.getWahooSettingsByWebhookToken(
-            settings.webhookToken,
+            active.webhookToken,
             providerUserId
           )
         : null
-      if (existingBinding && existingBinding.id !== settings.id) {
+      if (existingBinding && existingBinding.id !== active.id) {
         return redirectToSettings('wahoo_account_already_connected')
       }
-      if (
-        settings.providerUserId &&
-        settings.providerUserId !== providerUserId
-      ) {
+      if (active.providerUserId && active.providerUserId !== providerUserId) {
         return redirectToSettings('different_wahoo_account')
       }
 
@@ -88,8 +98,9 @@ export const GET = traceApiRoute(
         return redirectToSettings('missing_scope')
       }
 
-      await database.updateFitnessSettings({
-        id: settings.id,
+      const stored = await database.updateFitnessSettings({
+        id: active.id,
+        expectedCredentialVersion: active.credentialVersion ?? 0,
         accessToken: token.access_token,
         refreshToken: token.refresh_token,
         tokenExpiresAt,
@@ -97,6 +108,7 @@ export const GET = traceApiRoute(
         grantedScopes: scopes,
         connectionError: null
       })
+      if (!stored) return redirectToSettings('credentials_changed')
       return redirectToSettings()
     } catch (error) {
       logger.error({

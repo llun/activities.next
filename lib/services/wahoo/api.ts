@@ -160,14 +160,16 @@ export const requestWahoo = async (
       }
 
       const token = await refreshWahooToken(latest)
-      await database.updateFitnessSettings({
+      const stored = await database.updateFitnessSettings({
         id: latest.id,
+        expectedCredentialVersion: latest.credentialVersion ?? 0,
         accessToken: token.access_token,
         refreshToken: token.refresh_token,
         tokenExpiresAt: Date.now() + token.expires_in * 1000,
         grantedScopes: token.scope ?? latest.grantedScopes ?? null,
         connectionError: null
       })
+      if (!stored) throw new Error('Wahoo connection changed during refresh')
       return requestWithToken(token.access_token, path)
     },
     { failOnTimeout: true, ttlMs: 60_000 }

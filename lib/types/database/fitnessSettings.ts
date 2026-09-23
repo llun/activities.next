@@ -26,6 +26,7 @@ export interface SQLFitnessSettings {
   lastWebhookAt?: number | Date | null
   lastImportAt?: number | Date | null
   connectionError?: string | null
+  credentialVersion: number
 
   // OAuth tokens (encrypted)
   accessToken?: string | null
@@ -67,6 +68,7 @@ export interface FitnessSettings {
   lastWebhookAt?: number
   lastImportAt?: number
   connectionError?: string
+  credentialVersion?: number
 
   accessToken?: string // Decrypted
   refreshToken?: string // Decrypted

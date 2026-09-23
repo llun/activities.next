@@ -69,5 +69,25 @@ describe('WahooSettingsForm', () => {
         defaultVisibility: 'private'
       })
     )
+    expect(screen.getByText('No webhook received yet')).toBeInTheDocument()
+    expect(screen.getByText('No successful import yet')).toBeInTheDocument()
+  })
+
+  it('shows the last webhook and successful import times', async () => {
+    vi.mocked(client.getWahooSettings).mockResolvedValue({
+      ...settings,
+      lastWebhookAt: '2026-09-22T14:30:00.000Z',
+      lastImportAt: '2026-09-22T14:32:00.000Z'
+    })
+
+    render(<WahooSettingsForm />)
+
+    await screen.findByText(/Last successful import:/)
+    const times = document.querySelectorAll('time')
+    expect(times).toHaveLength(2)
+    expect(times[0]).toHaveAttribute('dateTime', '2026-09-22T14:30:00.000Z')
+    expect(times[1]).toHaveAttribute('dateTime', '2026-09-22T14:32:00.000Z')
+    expect(times[0]).not.toBeEmptyDOMElement()
+    expect(times[1]).not.toBeEmptyDOMElement()
   })
 })

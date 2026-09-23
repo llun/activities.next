@@ -12,6 +12,7 @@ export const up = async function (knex) {
     table.timestamp('lastWebhookAt', { useTz: true })
     table.timestamp('lastImportAt', { useTz: true })
     table.text('connectionError')
+    table.integer('credentialVersion').notNullable().defaultTo(0)
   })
   await knex.schema.alterTable('fitness_settings', function (table) {
     table.index('wahooWebhookTokenHash', 'fitness_settings_wahoo_token_idx')
@@ -41,6 +42,7 @@ export const up = async function (knex) {
       .onDelete('SET NULL')
     table.string('historyImportId')
     table.string('status').notNullable().defaultTo('pending')
+    table.boolean('hadStatus').notNullable().defaultTo(false)
     table.integer('attempts').notNullable().defaultTo(0)
     table.text('lastError')
     table
@@ -103,5 +105,6 @@ export const down = async function (knex) {
     table.dropColumn('lastWebhookAt')
     table.dropColumn('lastImportAt')
     table.dropColumn('connectionError')
+    table.dropColumn('credentialVersion')
   })
 }

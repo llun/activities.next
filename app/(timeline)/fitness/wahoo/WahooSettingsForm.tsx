@@ -29,6 +29,20 @@ import { WahooHistorySection } from './WahooHistorySection'
 const fallbackError = (error: unknown, fallback: string) =>
   error instanceof Error && error.message ? error.message : fallback
 
+const formatConnectionTimestamp = (value?: string) => {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+
+  return {
+    dateTime: date.toISOString(),
+    label: new Intl.DateTimeFormat(undefined, {
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    }).format(date)
+  }
+}
+
 export const WahooSettingsForm = () => {
   const [settings, setSettings] = useState<WahooSettingsResponse | null>(null)
   const [clientId, setClientId] = useState('')
@@ -127,6 +141,8 @@ export const WahooSettingsForm = () => {
   const callbackUrl =
     settings?.callbackUrl || '/api/v1/settings/fitness/wahoo/callback'
   const webhookUrl = settings?.webhookUrl || '/api/v1/webhooks/wahoo/'
+  const lastWebhookAt = formatConnectionTimestamp(settings?.lastWebhookAt)
+  const lastImportAt = formatConnectionTimestamp(settings?.lastImportAt)
 
   return (
     <div className="space-y-8">
@@ -272,6 +288,35 @@ export const WahooSettingsForm = () => {
             Application saved. Connect to authorize your Wahoo account.
           </p>
         ) : null}
+        {settings && (
+          <div className="space-y-2 rounded-md border p-4 text-sm">
+            <h3 className="font-medium">Connection activity</h3>
+            <p>
+              Last webhook:{' '}
+              {lastWebhookAt ? (
+                <time dateTime={lastWebhookAt.dateTime}>
+                  {lastWebhookAt.label}
+                </time>
+              ) : (
+                <span className="text-muted-foreground">
+                  No webhook received yet
+                </span>
+              )}
+            </p>
+            <p>
+              Last successful import:{' '}
+              {lastImportAt ? (
+                <time dateTime={lastImportAt.dateTime}>
+                  {lastImportAt.label}
+                </time>
+              ) : (
+                <span className="text-muted-foreground">
+                  No successful import yet
+                </span>
+              )}
+            </p>
+          </div>
+        )}
         {settings?.lastError && (
           <p role="alert" className="text-sm text-destructive">
             Last import error: {settings.lastError}

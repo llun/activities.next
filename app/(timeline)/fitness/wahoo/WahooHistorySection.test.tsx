@@ -52,4 +52,44 @@ describe('WahooHistorySection', () => {
     )
     expect(client.startWahooHistory).not.toHaveBeenCalled()
   })
+
+  it('lets the owner resume a cancelled history import', async () => {
+    vi.mocked(client.getWahooHistory)
+      .mockResolvedValueOnce({
+        import: {
+          id: 'history-1',
+          status: 'cancelled',
+          fromDate: '2026-09-01',
+          toDate: '2026-09-10',
+          total: 5,
+          completed: 2,
+          failed: 0
+        }
+      })
+      .mockResolvedValueOnce({
+        import: {
+          id: 'history-1',
+          status: 'running',
+          fromDate: '2026-09-01',
+          toDate: '2026-09-10',
+          total: 5,
+          completed: 2,
+          failed: 0
+        }
+      })
+    vi.mocked(client.retryWahooHistory).mockResolvedValue()
+
+    render(<WahooHistorySection connected automaticImportAvailable />)
+
+    const resumeButton = await screen.findByRole('button', {
+      name: 'Resume history import'
+    })
+    fireEvent.click(resumeButton)
+
+    await waitFor(() => expect(client.retryWahooHistory).toHaveBeenCalled())
+    expect(
+      await screen.findByText('History import resumed.')
+    ).toBeInTheDocument()
+    expect(await screen.findByText('running')).toBeInTheDocument()
+  })
 })

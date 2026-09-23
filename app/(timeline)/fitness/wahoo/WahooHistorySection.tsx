@@ -233,16 +233,24 @@ export const WahooHistorySection = ({
                 Cancel import
               </Button>
             )}
-            {currentImport.status === 'failed' && (
+            {(currentImport.status === 'failed' ||
+              currentImport.status === 'cancelled') && (
               <Button
                 type="button"
                 variant="outline"
                 disabled={isActing}
                 onClick={() =>
-                  void runAction(retryWahooHistory, 'Retry started.')
+                  void runAction(
+                    retryWahooHistory,
+                    currentImport.status === 'cancelled'
+                      ? 'History import resumed.'
+                      : 'Retry started.'
+                  )
                 }
               >
-                Retry failed workouts
+                {currentImport.status === 'cancelled'
+                  ? 'Resume history import'
+                  : 'Retry failed workouts'}
               </Button>
             )}
           </div>

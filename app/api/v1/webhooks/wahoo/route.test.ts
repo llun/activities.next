@@ -108,7 +108,11 @@ describe('Wahoo webhook', () => {
   it('does not queue a completed import when a duplicate webhook arrives', async () => {
     mockDb.upsertWahooImport.mockResolvedValue({
       id: 'completed-import',
-      status: 'completed'
+      status: 'completed',
+      hadStatus: true,
+      statusId: 'status-1',
+      summaryId: '99',
+      summaryUpdatedAt: Date.parse('2026-09-20T12:30:00.000Z')
     })
 
     const response = await POST(webhook(), { params: Promise.resolve({}) })

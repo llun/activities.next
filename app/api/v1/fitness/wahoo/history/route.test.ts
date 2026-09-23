@@ -153,7 +153,7 @@ describe('Wahoo history API', () => {
       failed: 0,
       pending: 1
     })
-    mockDb.updateWahooHistoryImport.mockResolvedValue(undefined)
+    mockDb.updateWahooHistoryImport.mockResolvedValue(true)
     mockDb.createWahooHistoryImport.mockResolvedValue(
       history({ status: 'pending' })
     )

@@ -935,6 +935,30 @@ describe('importFitnessFilesJob', () => {
     const existing = await database.getFitnessFile({
       id: earlierWahooFile!.id
     })
+    const gear = await database.createFitnessGear({
+      actorId: actor.id,
+      kind: 'bike',
+      name: 'Wahoo revision bike'
+    })
+    await database.setFitnessFileGear({
+      actorId: actor.id,
+      fitnessFileId: earlierWahooFile!.id,
+      gearId: gear.id
+    })
+    await database.updateFitnessFileActivityData(earlierWahooFile!.id, {
+      hasMapData: true,
+      mapImagePath: 'medias/2026-07-26/wahoo-old-route-map.webp',
+      mapImageEmailPath: 'medias/2026-07-26/wahoo-old-route-map.jpg'
+    })
+    await database.createAttachment({
+      actorId: actor.id,
+      statusId: existing!.statusId!,
+      mediaType: 'image/jpeg',
+      url: 'https://example.com/user-attachment.jpg',
+      width: 320,
+      height: 240,
+      name: 'user-attachment.jpg'
+    })
     ;(getQueue().publish as jest.Mock).mockClear()
 
     const groups = await importWithActivity(
@@ -954,7 +978,24 @@ describe('importFitnessFilesJob', () => {
     const latest = await database.getFitnessFile({ id: latestWahooFile!.id })
     expect(latest?.statusId).toBe(existing?.statusId)
     expect(latest?.isPrimary).toBe(true)
+    expect(latest?.gearId).toBe(gear.id)
+    expect(latest?.hasMapData).toBe(true)
+    expect(latest?.mapImagePath).toBe(
+      'medias/2026-07-26/wahoo-old-route-map.webp'
+    )
+    expect(latest?.mapImageEmailPath).toBe(
+      'medias/2026-07-26/wahoo-old-route-map.jpg'
+    )
     expect(earlier?.isPrimary).toBe(false)
+    expect(earlier?.mapImagePath).toBeUndefined()
+    expect(earlier?.mapImageEmailPath).toBeUndefined()
+    await expect(
+      database.getAttachments({ statusId: existing!.statusId! })
+    ).resolves.toMatchObject([
+      expect.objectContaining({
+        url: 'https://example.com/user-attachment.jpg'
+      })
+    ])
     expect(groups[0]?.statusCreated).toBe(false)
     expect(groups[0]?.primaryFitnessFileId).toBe(latestWahooFile!.id)
     expect(groups[0]?.processJob?.data).toEqual(

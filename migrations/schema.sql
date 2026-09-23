@@ -594,7 +594,8 @@ CREATE TABLE public.fitness_settings (
     "wahooWebhookTokenHash" character varying(255),
     "lastWebhookAt" timestamp with time zone,
     "lastImportAt" timestamp with time zone,
-    "connectionError" text
+    "connectionError" text,
+    "credentialVersion" integer DEFAULT 0 NOT NULL
 );
 
 CREATE TABLE public.followed_tags (
@@ -1344,6 +1345,7 @@ CREATE TABLE public.wahoo_imports (
     "statusId" character varying(255),
     "historyImportId" character varying(255),
     status character varying(255) DEFAULT 'pending'::character varying NOT NULL,
+    "hadStatus" boolean DEFAULT false NOT NULL,
     attempts integer DEFAULT 0 NOT NULL,
     "lastError" text,
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,

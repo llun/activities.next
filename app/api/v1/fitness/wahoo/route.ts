@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
+import { withImportLock } from '@/lib/services/fitness-files/importLock'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { getQueue } from '@/lib/services/queue'
 import { Visibility } from '@/lib/types/mastodon/visibility'
@@ -10,7 +11,12 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 const SettingsSchema = z.object({
   clientId: z.string().trim().min(1).max(255).optional(),
   clientSecret: z.string().trim().max(2048).optional(),
-  webhookToken: z.string().trim().max(255).optional(),
+  webhookToken: z
+    .string()
+    .trim()
+    .max(255)
+    .refine((value) => value.length === 0 || value.length >= 8)
+    .optional(),
   environment: z.enum(['sandbox', 'production']).optional(),
   defaultVisibility: Visibility.optional()
 })
@@ -114,7 +120,9 @@ export const POST = traceApiRoute(
               refreshToken: null,
               tokenExpiresAt: null,
               providerUserId: null,
-              grantedScopes: null
+              grantedScopes: null,
+              oauthState: null,
+              oauthStateExpiry: null
             }
           : {})
       })
@@ -141,11 +149,22 @@ export const POST = traceApiRoute(
 export const DELETE = traceApiRoute(
   'deleteWahooSettings',
   AuthenticatedGuard(async (req, { currentActor, database }) => {
-    await database.cancelWahooHistoryImportsByActor(currentActor.id)
-    await database.deleteFitnessSettings({
-      actorId: currentActor.id,
-      serviceType: 'wahoo'
-    })
+    try {
+      await withImportLock(
+        database,
+        `fitness-import:${currentActor.id}`,
+        async () => {
+          await database.cancelWahooHistoryImportsByActor(currentActor.id)
+          await database.deleteFitnessSettings({
+            actorId: currentActor.id,
+            serviceType: 'wahoo'
+          })
+        },
+        { failOnTimeout: true, ttlMs: 5 * 60 * 1000 }
+      )
+    } catch {
+      return apiErrorResponse(503)
+    }
     return apiResponse({ req, allowedMethods: [], data: { success: true } })
   })
 )

@@ -16,6 +16,7 @@ const settings = (
   serviceType: 'wahoo',
   clientId: 'client-id',
   clientSecret: 'client-secret',
+  credentialVersion: 0,
   accessToken: 'old-access-token',
   refreshToken: 'old-refresh-token',
   tokenExpiresAt: 0,
@@ -107,5 +108,35 @@ describe('requestWahoo', () => {
     )
     expect(mockSafeRemoteFetch).not.toHaveBeenCalled()
     expect(mockDb.updateFitnessSettings).not.toHaveBeenCalled()
+  })
+
+  it('rejects a refreshed token when the connection changed before it was stored', async () => {
+    const mockDb = {
+      acquireImportLock: vi.fn().mockResolvedValue({ token: 'lock-token' }),
+      releaseImportLock: vi.fn().mockResolvedValue(undefined),
+      getFitnessSettings: vi.fn().mockResolvedValue(settings()),
+      updateFitnessSettings: vi.fn().mockResolvedValue(null)
+    } as unknown as Database
+    mockSafeRemoteFetch.mockResolvedValueOnce({
+      statusCode: 200,
+      body: JSON.stringify({
+        access_token: 'rotated-access-token',
+        refresh_token: 'rotated-refresh-token',
+        expires_in: 3600,
+        scope: 'user_read workouts_read offline_data'
+      })
+    })
+
+    await expect(requestWahoo(mockDb, settings(), '/v1/user')).rejects.toThrow(
+      'Wahoo connection changed during refresh'
+    )
+
+    expect(mockDb.updateFitnessSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'wahoo-settings-1',
+        expectedCredentialVersion: 0
+      })
+    )
+    expect(mockSafeRemoteFetch).toHaveBeenCalledOnce()
   })
 })

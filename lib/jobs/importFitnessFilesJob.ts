@@ -90,7 +90,10 @@ const JobData = z.object({
   // new file includes a route or a richer recording format.
   preferRicherPrimary: z.boolean().optional().default(false),
   // A provider may replace its own earlier revision without changing the post.
-  replacePrimaryFileId: z.string().optional()
+  replacePrimaryFileId: z.string().optional(),
+  // Revisions must not create a replacement post if the owner deleted the
+  // original while an import was in flight.
+  expectedExistingStatusId: z.string().optional()
 })
 
 const ACTOR_NOT_FOUND_IMPORT_ERROR = 'Actor not found for fitness import'
@@ -318,7 +321,8 @@ export const importFitnessFiles = async (
     publishSendNote,
     postAtImportTime,
     preferRicherPrimary,
-    replacePrimaryFileId
+    replacePrimaryFileId,
+    expectedExistingStatusId
   } = JobData.parse(data)
 
   const importedGroups: ImportedFitnessGroup[] = []
@@ -529,6 +533,13 @@ export const importFitnessFiles = async (
           })
         : null
 
+      if (
+        expectedExistingStatusId &&
+        existingStatus?.id !== expectedExistingStatusId
+      ) {
+        throw new Error('Previously imported fitness status was deleted')
+      }
+
       const existingPrimaryFileId =
         existingStatus &&
         orderedGroup.find(
@@ -563,6 +574,34 @@ export const importFitnessFiles = async (
         existingPrimaryFileId && !promoteTarget
           ? existingPrimaryFileId
           : primaryTargetFile.fitnessFile.id
+
+      if (promoteTarget && existingPrimaryFile) {
+        const previous = existingPrimaryFile.fitnessFile
+        const next = primaryTargetFile.fitnessFile
+        if (previous.gearId && !next.gearId) {
+          await database.assignFitnessFileGearIfUnset({
+            fitnessFileId: next.id,
+            actorId,
+            gearId: previous.gearId
+          })
+        }
+        if (previous.mapImagePath || previous.mapImageEmailPath) {
+          // The processing job replaces only the map pointed to by the file it
+          // receives. Move the generated-map pointer to the promoted file so
+          // a failed render preserves the old map and a successful render
+          // removes it. Other status attachments are never touched.
+          await database.updateFitnessFileActivityData(next.id, {
+            hasMapData: previous.hasMapData ?? false,
+            mapImagePath: previous.mapImagePath ?? null,
+            mapImageEmailPath: previous.mapImageEmailPath ?? null
+          })
+          await database.updateFitnessFileActivityData(previous.id, {
+            hasMapData: false,
+            mapImagePath: null,
+            mapImageEmailPath: null
+          })
+        }
+      }
 
       await database.assignFitnessFilesToImportedStatus({
         fitnessFileIds: targetFitnessFileIds,

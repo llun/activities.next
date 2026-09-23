@@ -164,13 +164,53 @@ describe('Wahoo import database operations', () => {
     await instance('fitness_files').where({ id: file!.id }).delete()
     expect(await database.getWahooImport(imported.id)).toMatchObject({
       fitnessFileId: undefined,
-      statusId
+      statusId,
+      hadStatus: true
     })
 
     await database.deleteStatus({ actorId, statusId })
     expect(await database.getWahooImport(imported.id)).toMatchObject({
       fitnessFileId: undefined,
-      statusId: undefined
+      statusId: undefined,
+      hadStatus: true
+    })
+  })
+
+  it('records deletion for an import linked to a status only through its file', async () => {
+    const statusId = `${actorId}/statuses/wahoo-tombstone-race`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      text: 'Wahoo import race'
+    })
+    const file = await database.createFitnessFile({
+      actorId,
+      statusId,
+      path: 'fitness/wahoo-tombstone-race.fit',
+      fileName: 'wahoo-tombstone-race.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 512
+    })
+    const imported = await database.upsertWahooImport({
+      actorId,
+      providerUserId,
+      workoutId: 'tombstone-race-workout'
+    })
+    await database.updateWahooImport(imported.id, {
+      fitnessFileId: file!.id
+    })
+
+    await database.deleteStatus({ actorId, statusId })
+
+    expect(await database.getWahooImport(imported.id)).toMatchObject({
+      fitnessFileId: file!.id,
+      statusId: undefined,
+      status: 'completed',
+      hadStatus: true
     })
   })
 })

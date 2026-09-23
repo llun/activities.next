@@ -90,7 +90,7 @@ const processImport = async (
     throw new Error('Wahoo connection or actor is unavailable')
   }
 
-  if (record.status === 'completed' && !record.statusId) return
+  if (record.hadStatus && !record.statusId) return
   const workout = await getWahooWorkout(database, settings, record.workoutId)
   const summary = workout.workout_summary?.file?.url
     ? workout.workout_summary
@@ -101,8 +101,8 @@ const processImport = async (
     record.status === 'completed' &&
     record.summaryId === summaryId &&
     (!summaryUpdatedAt ||
-      !record.summaryUpdatedAt ||
-      summaryUpdatedAt <= record.summaryUpdatedAt)
+      (record.summaryUpdatedAt !== undefined &&
+        summaryUpdatedAt <= record.summaryUpdatedAt))
   ) {
     return
   }
@@ -125,7 +125,7 @@ const processImport = async (
     `wahoo-import:${record.id}`,
     async () => {
       const latest = await database.getWahooImport(record.id)
-      if (!latest || (latest.status === 'completed' && !latest.statusId)) return
+      if (!latest || (latest.hadStatus && !latest.statusId)) return
       if (!ignoreHistoryCancellation && latest.historyImportId) {
         const history = await database.getWahooHistoryImport(
           latest.historyImportId
@@ -136,8 +136,8 @@ const processImport = async (
         latest.status === 'completed' &&
         latest.summaryId === summaryId &&
         (!summaryUpdatedAt ||
-          !latest.summaryUpdatedAt ||
-          summaryUpdatedAt <= latest.summaryUpdatedAt)
+          (latest.summaryUpdatedAt !== undefined &&
+            summaryUpdatedAt <= latest.summaryUpdatedAt))
       )
         return
 
@@ -193,6 +193,17 @@ const processImport = async (
         database,
         `fitness-import:${record.actorId}`,
         async () => {
+          const liveSettings = await database.getFitnessSettings({
+            actorId: record.actorId,
+            serviceType: 'wahoo'
+          })
+          if (
+            !liveSettings?.accessToken ||
+            liveSettings.id !== settings.id ||
+            liveSettings.providerUserId !== record.providerUserId
+          ) {
+            throw new Error('Wahoo connection was removed during import')
+          }
           const dateWindow = Math.max(duration * 1000 * 2, 60 * 60 * 1000)
           const candidates = await database.getFitnessFilesByActor({
             actorId: record.actorId,
@@ -226,7 +237,10 @@ const processImport = async (
               replacePrimaryFileId:
                 latest.fitnessFileId !== fitnessFileId
                   ? latest.fitnessFileId
-                  : undefined
+                  : undefined,
+              expectedExistingStatusId: latest.hadStatus
+                ? latest.statusId
+                : undefined
             },
             { deferProcessJobPublishes: true }
           )
