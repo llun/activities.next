@@ -125,6 +125,12 @@ describe('next config runtime isolation', () => {
     ])
   })
 
+  it('lets proxy handle trailing slashes per route', async () => {
+    const { default: loadedNextConfig } = await loadNextConfig()
+
+    expect(loadedNextConfig.skipTrailingSlashRedirect).toBe(true)
+  })
+
   it.each([
     {
       description: 'email variables are absent',
@@ -260,6 +266,20 @@ describe('next config nodeinfo rewrites', () => {
     expect(nodeInfoIndex).toBeGreaterThanOrEqual(0)
     expect(catchAllIndex).toBeGreaterThanOrEqual(0)
     expect(nodeInfoIndex).toBeLessThan(catchAllIndex)
+  })
+})
+
+describe('next config trailing slash redirects', () => {
+  it('removes one trailing slash before filesystem routing except the Wahoo callback', async () => {
+    const redirects = await nextConfig.redirects?.()
+
+    expect(redirects).toEqual([
+      {
+        source: '/:path((?!api/v1/webhooks/wahoo/$).*)/',
+        destination: '/:path',
+        permanent: true
+      }
+    ])
   })
 })
 

@@ -8,6 +8,19 @@ Users can upload `.fit`, `.gpx`, and `.tcx` activity files. Fitness files use th
 
 After a file is attached to a status, the background processor parses activity data, stores metrics on the `fitness_files` row, generates a route map when GPS data is available, and queues route heatmap cache jobs.
 
+### Wahoo cloud imports
+
+Wahoo is an independent fitness connection alongside Strava. In **Fitness → Wahoo**, enter the alphanumeric client ID, confidential client secret, webhook token, application environment, and default post visibility from a Wahoo developer application. The client secret and webhook token are encrypted at rest and are never returned to the browser; webhook lookup uses a secret-keyed digest rather than a reusable plaintext hash. Leaving a saved secret field blank preserves it. The application must request `user_read`, `workouts_read`, and `offline_data`; `power_zones_read` can remain enabled but is not needed for workout import. Use these exact registered URLs for the deployed host:
+
+- OAuth redirect: `https://<host>/api/v1/settings/fitness/wahoo/callback`
+- Webhook: `https://<host>/api/v1/webhooks/wahoo/`
+
+Save settings, then select **Connect Wahoo** to authorize. The Wahoo user ID is checked against every webhook, along with the supplied webhook token. Automatic imports and date-range history imports require a durable queue (`database`, QStash, or Cloud Tasks); the inline `NoQueue` backend cannot safely acknowledge or retry webhook work. The database queue also requires its worker process. A webhook returns HTTP 200 only after its import has been stored and queued. The settings page shows recent failures and supports per-workout retry; history import supports progress, cancellation, and retry. Workouts whose summaries have no FIT file remain visible as unsupported and can be retried when Wahoo supplies one.
+
+Downloaded FIT files pass the same parser, storage, overlap merge, privacy, map, gear, and post pipeline as direct uploads. Wahoo and Strava import under one actor-level lock, so recordings of the same activity can share one post. If a Wahoo FIT recording has a route or a richer format than the existing primary file, it becomes the primary data source; a newer revision of the same Wahoo workout replaces its earlier primary file. A repeated provider event does not create another post or completion notification, and importing an updated source file keeps existing post text and visibility. Historical imports do not send completion emails or federation Create messages. Disconnecting Wahoo cancels its active history import and erases the stored Wahoo credentials; local files, posts, and workout identity tombstones remain. Wahoo-side deauthorization actions configured in its developer portal are not invoked by this local disconnect.
+
+If processing a promoted Wahoo file must be retried, its prior generated route map stays attached until the replacement is stored or the current privacy settings require its removal. Cancelling a history import remains terminal for that run even if an in-flight page fetch finishes afterward; retry starts it explicitly.
+
 ## Configuration
 
 Fitness storage is configured in `lib/config/fitnessStorage.ts`.

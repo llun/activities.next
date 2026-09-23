@@ -17,6 +17,7 @@ export interface WithImportLockOptions {
   ttlMs?: number
   maxWaitMs?: number
   pollIntervalMs?: number
+  failOnTimeout?: boolean
 }
 
 const delay = (ms: number) =>
@@ -49,6 +50,9 @@ export const withImportLock = async <T>(
   }
 
   if (!lock) {
+    if (options.failOnTimeout) {
+      throw new Error(`Timed out acquiring import lock: ${lockKey}`)
+    }
     logger.warn({
       message: 'Proceeding without import lock after wait timeout',
       lockKey,

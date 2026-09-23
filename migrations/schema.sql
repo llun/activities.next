@@ -586,7 +586,16 @@ CREATE TABLE public.fitness_settings (
     "privacyHomeLongitude" double precision,
     "privacyHideRadiusMeters" integer,
     "privacyLocations" jsonb DEFAULT '[]'::jsonb NOT NULL,
-    "defaultVisibility" character varying(255)
+    "defaultVisibility" character varying(255),
+    "providerUserId" character varying(255),
+    "providerEnvironment" character varying(255),
+    "grantedScopes" character varying(255),
+    "wahooWebhookToken" text,
+    "wahooWebhookTokenHash" character varying(255),
+    "lastWebhookAt" timestamp with time zone,
+    "lastImportAt" timestamp with time zone,
+    "connectionError" text,
+    "credentialVersion" integer DEFAULT 0 NOT NULL
 );
 
 CREATE TABLE public.followed_tags (
@@ -1308,6 +1317,41 @@ CREATE TABLE public.verification (
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
+CREATE TABLE public.wahoo_history_imports (
+    id character varying(255) NOT NULL,
+    "actorId" character varying(255) NOT NULL,
+    "providerUserId" character varying(255) NOT NULL,
+    "fromDate" date NOT NULL,
+    "toDate" date NOT NULL,
+    "nextPage" integer DEFAULT 1 NOT NULL,
+    "scanComplete" boolean DEFAULT false NOT NULL,
+    total integer DEFAULT 0 NOT NULL,
+    completed integer DEFAULT 0 NOT NULL,
+    failed integer DEFAULT 0 NOT NULL,
+    status character varying(255) DEFAULT 'pending'::character varying NOT NULL,
+    "lastError" text,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE public.wahoo_imports (
+    id character varying(255) NOT NULL,
+    "actorId" character varying(255) NOT NULL,
+    "providerUserId" character varying(255) NOT NULL,
+    "workoutId" character varying(255) NOT NULL,
+    "summaryId" character varying(255),
+    "summaryUpdatedAt" timestamp with time zone,
+    "fitnessFileId" character varying(255),
+    "statusId" character varying(255),
+    "historyImportId" character varying(255),
+    status character varying(255) DEFAULT 'pending'::character varying NOT NULL,
+    "hadStatus" boolean DEFAULT false NOT NULL,
+    attempts integer DEFAULT 0 NOT NULL,
+    "lastError" text,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
 ALTER TABLE ONLY public.bookmarks ALTER COLUMN id SET DEFAULT nextval('public.bookmarks_id_seq'::regclass);
 
 ALTER TABLE ONLY public.collection_members ALTER COLUMN seq SET DEFAULT nextval('public.collection_members_seq_seq'::regclass);
@@ -1753,6 +1797,15 @@ ALTER TABLE ONLY public."twoFactor"
 ALTER TABLE ONLY public.verification
     ADD CONSTRAINT verification_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.wahoo_history_imports
+    ADD CONSTRAINT wahoo_history_imports_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.wahoo_imports
+    ADD CONSTRAINT wahoo_imports_actorid_provideruserid_workoutid_unique UNIQUE ("actorId", "providerUserId", "workoutId");
+
+ALTER TABLE ONLY public.wahoo_imports
+    ADD CONSTRAINT wahoo_imports_pkey PRIMARY KEY (id);
+
 CREATE INDEX "account_providers_accountId_provider_providerId_idx" ON public.account_providers USING btree ("accountId", provider, "providerId");
 
 CREATE INDEX "accountsIndex" ON public.accounts USING btree (email, "createdAt", "updatedAt");
@@ -1866,6 +1919,8 @@ CREATE INDEX fitness_route_heatmaps_actorid_status_index ON public.fitness_route
 CREATE INDEX fitness_settings_idx ON public.fitness_settings USING btree ("actorId", "serviceType", "deletedAt");
 
 CREATE UNIQUE INDEX fitness_settings_unique_active ON public.fitness_settings USING btree ("actorId", "serviceType") WHERE ("deletedAt" IS NULL);
+
+CREATE UNIQUE INDEX fitness_settings_wahoo_active_binding_uidx ON public.fitness_settings USING btree ("wahooWebhookTokenHash", "providerUserId") WHERE ((("serviceType")::text = 'wahoo'::text) AND ("deletedAt" IS NULL) AND ("wahooWebhookTokenHash" IS NOT NULL) AND ("providerUserId" IS NOT NULL));
 
 CREATE INDEX fitness_settings_webhook_token_idx ON public.fitness_settings USING btree ("webhookToken");
 
@@ -2025,6 +2080,12 @@ CREATE INDEX "verificationCodeIndex" ON public.accounts USING btree ("verificati
 
 CREATE INDEX verification_identifier_index ON public.verification USING btree (identifier);
 
+CREATE INDEX wahoo_history_actor_status_idx ON public.wahoo_history_imports USING btree ("actorId", status);
+
+CREATE INDEX wahoo_imports_actor_status_idx ON public.wahoo_imports USING btree ("actorId", status);
+
+CREATE INDEX wahoo_imports_history_idx ON public.wahoo_imports USING btree ("historyImportId");
+
 ALTER TABLE ONLY public.actors
     ADD CONSTRAINT actors_accountid_foreign FOREIGN KEY ("accountId") REFERENCES public.accounts(id);
 
@@ -2114,4 +2175,16 @@ ALTER TABLE ONLY public.status_pins
 
 ALTER TABLE ONLY public."twoFactor"
     ADD CONSTRAINT twofactor_userid_foreign FOREIGN KEY ("userId") REFERENCES public.accounts(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY public.wahoo_history_imports
+    ADD CONSTRAINT wahoo_history_imports_actorid_foreign FOREIGN KEY ("actorId") REFERENCES public.actors(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY public.wahoo_imports
+    ADD CONSTRAINT wahoo_imports_actorid_foreign FOREIGN KEY ("actorId") REFERENCES public.actors(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY public.wahoo_imports
+    ADD CONSTRAINT wahoo_imports_fitnessfileid_foreign FOREIGN KEY ("fitnessFileId") REFERENCES public.fitness_files(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY public.wahoo_imports
+    ADD CONSTRAINT wahoo_imports_statusid_foreign FOREIGN KEY ("statusId") REFERENCES public.statuses(id) ON DELETE SET NULL;
 

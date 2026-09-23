@@ -333,6 +333,36 @@ describe('importStravaActivityJob', () => {
     )
   })
 
+  it('passes an existing Wahoo activity as overlap context when Strava arrives second', async () => {
+    database.getFitnessFilesByActor.mockResolvedValue([
+      {
+        id: 'wahoo-file',
+        actorId: 'actor-1',
+        statusId: 'wahoo-status',
+        activityStartTime: Date.parse('2026-01-01T00:10:00.000Z'),
+        totalDurationSeconds: 1_200
+      }
+    ] as never)
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-wahoo-overlap',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '123'
+      }
+    })
+
+    expect(mockImportFitnessFiles).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({
+        fitnessFileIds: ['new-file'],
+        overlapFitnessFileIds: ['wahoo-file']
+      }),
+      { deferProcessJobPublishes: true }
+    )
+  })
+
   it('serializes the import critical section behind a per-actor lock', async () => {
     await importStravaActivityJob(database as unknown as Database, {
       id: 'job-lock',
@@ -344,7 +374,7 @@ describe('importStravaActivityJob', () => {
     })
 
     expect(database.acquireImportLock).toHaveBeenCalledWith(
-      expect.objectContaining({ lockKey: 'strava-import:actor-1' })
+      expect.objectContaining({ lockKey: 'fitness-import:actor-1' })
     )
     expect(database.releaseImportLock).toHaveBeenCalledWith(
       expect.objectContaining({ token: 'lock-token' })

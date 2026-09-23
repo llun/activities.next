@@ -2646,6 +2646,26 @@ export const StatusSQLDatabaseMixin = (
       statusIdsToDelete,
       getWhereInBatchSize(trx)
     )) {
+      // A Wahoo import can be between attaching its file and persisting its
+      // provider statusId. Record the deletion in the same transaction as the
+      // status removal, using either link, so a delayed revision cannot
+      // recreate a post the owner explicitly deleted.
+      const wahooTombstone = {
+        hadStatus: true,
+        statusId: null,
+        status: 'completed',
+        lastError: null,
+        updatedAt: currentTime
+      }
+      await trx('wahoo_imports')
+        .whereIn('statusId', statusIdChunk)
+        .update(wahooTombstone)
+      await trx('wahoo_imports')
+        .whereIn(
+          'fitnessFileId',
+          trx('fitness_files').select('id').whereIn('statusId', statusIdChunk)
+        )
+        .update(wahooTombstone)
       await trx('fitness_files')
         .whereIn('statusId', statusIdChunk)
         .update({ statusId: null })

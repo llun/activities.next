@@ -54,6 +54,7 @@ import { SuggestionSQLDatabaseMixin } from '@/lib/database/sql/suggestion'
 import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
 import { TranslationCacheSQLDatabaseMixin } from '@/lib/database/sql/translationCache'
 import { TrendsSQLDatabaseMixin } from '@/lib/database/sql/trends'
+import { WahooImportSQLDatabaseMixin } from '@/lib/database/sql/wahooImport'
 import { Database } from '@/lib/database/types'
 
 export const getSQLDatabase = (database: Knex): Database => {
@@ -108,6 +109,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   const searchDatabase = SearchSQLDatabaseMixin(database)
   const stravaArchiveImportDatabase =
     StravaArchiveImportSQLDatabaseMixin(database)
+  const wahooImportDatabase = WahooImportSQLDatabaseMixin(database)
   const suggestionDatabase = SuggestionSQLDatabaseMixin(database)
   const trendsDatabase = TrendsSQLDatabaseMixin(database)
   const statusDatabase = StatusSQLDatabaseMixin(
@@ -202,6 +204,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...oauthDatabase,
     ...searchDatabase,
     ...stravaArchiveImportDatabase,
+    ...wahooImportDatabase,
     ...suggestionDatabase,
     ...trendsDatabase,
     ...statusDatabase,

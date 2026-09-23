@@ -231,6 +231,10 @@ Long-running operations (sending activities to remote servers, processing file u
 - **Google Cloud Tasks** — Managed HTTP-based task queue with OIDC verification and dead-letter queue support
 - **Synchronous** — Jobs execute inline (default, suitable for small instances and local development)
 
+Wahoo cloud synchronization requires an asynchronous durable backend. The authenticated settings API is `/api/v1/fitness/wahoo`; the OAuth routes are `/api/v1/settings/fitness/wahoo/authorize` and `/api/v1/settings/fitness/wahoo/callback`. Wahoo posts workout-summary events to the exact trailing-slash URL `/api/v1/webhooks/wahoo/`. `next.config.ts` skips the framework's automatic trailing-slash redirect and restores the ordinary slash-removal redirects through explicit rules, except for this exact webhook path, so its POST reaches the handler without a redirect. The handler binds the configured token to the authorized Wahoo user; an active Wahoo user and webhook-token pair can bind to only one local connection. It records an idempotent `wahoo_imports` row before dispatching `ImportWahooActivityJob`. Date-range backfill uses `/api/v1/fitness/wahoo/history` and `ImportWahooHistoryJob`; failed individual workouts are listed and retried through `/api/v1/fitness/wahoo/imports`. The history and workout rows remain durable across queue retries, and the shared `fitness-import:<actorId>` lock coordinates Wahoo with Strava post creation and primary-file map processing. History polling, cancellation, and retry share the `wahoo-history-start:<actorId>` lock so a poll cannot finalize a scan between retrying failed items.
+
+Wahoo OAuth callback and token-refresh writes are fenced by the saved credential revision. Changing application credentials invalidates outstanding authorization state, and disconnect clears credentials; an in-flight callback or refresh cannot restore tokens after either change.
+
 External queue clients (`@upstash/qstash` and `@google-cloud/tasks`) and the PostgreSQL driver (`pg`) are isolated into dedicated Yarn workspaces under `packages/` (`@activities/qstash`, `@activities/cloudtasks`, `@activities/pg`). They are loaded on demand dynamically (via `dynamicImport` with type stubs for queue clients, or Knex dynamic driver loading for PostgreSQL), preventing optional SDKs from being unconditionally bundled into the minimal standalone application.
 
 #### Queues & Dead Letter Queue (DLQ) Management
@@ -447,6 +451,7 @@ until the affected attachments are deleted.
 
 Other tables: sessions, notifications, medias, fitness_files,
               fitness_settings, strava_archive_imports,
+              wahoo_imports, wahoo_history_imports,
               fitness_route_heatmaps, fitness_route_heatmap_region_names,
               fitness_route_heatmap_pyramids, fitness_route_heatmap_tiles,
               fitness_file_routes, fitness_import_locks,
@@ -560,9 +565,10 @@ Read the applicable rules and review checks below before changing this subsystem
 
 ### Outbound Server-Side HTTP Requests
 
-- **All server-side outbound HTTP requests MUST go through `safeRemoteFetch` (`@/lib/utils/safeRemoteFetch`).**
+- **Server-side outbound JSON and text HTTP requests MUST go through `safeRemoteFetch` (`@/lib/utils/safeRemoteFetch`).** Binary downloads use the guarded helper below.
 - Never call raw `fetch()` directly in server-side services or utilities.
 - `safeRemoteFetch` is backed by `got` and applies standard SSRF protection (requiring HTTPS, blocking private IP ranges such as loopback and RFC 1918 subnets), streaming response-size limits, timeout bounds, DNS pinning, and redirect handling.
+- Binary FIT and image downloads use `safeImageFetch` with `readResponseArrayBufferWithLimit` because the text response of `safeRemoteFetch` would corrupt those bytes. The binary helper checks each redirect and destination address; callers apply an overall timeout and byte cap and do not forward provider bearer tokens to file hosts.
 - External cloud integrations (e.g. translation providers like DeepL, OpenAI, or Gemini, and alt-text vision generation) must target public HTTPS endpoints. Internal or self-hosted HTTP services running on private IP addresses are not supported.
 
 <a id="agents-link-prefetching-in-feeds"></a>

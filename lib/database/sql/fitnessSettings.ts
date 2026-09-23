@@ -1,5 +1,7 @@
 import { Knex } from 'knex'
+import { createHmac } from 'node:crypto'
 
+import { getConfig } from '@/lib/config'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { sanitizePrivacyLocationSettings } from '@/lib/services/fitness-files/privacy'
@@ -18,6 +20,9 @@ export interface CreateFitnessSettingsParams {
   clientId?: string
   clientSecret?: string
   webhookToken?: string
+  providerUserId?: string
+  providerEnvironment?: 'sandbox' | 'production'
+  grantedScopes?: string
   accessToken?: string
   refreshToken?: string
   tokenExpiresAt?: number
@@ -32,9 +37,16 @@ export interface CreateFitnessSettingsParams {
 
 export interface UpdateFitnessSettingsParams {
   id: string
+  expectedCredentialVersion?: number
   clientId?: string | null
   clientSecret?: string | null
   webhookToken?: string | null
+  providerUserId?: string | null
+  providerEnvironment?: 'sandbox' | 'production' | null
+  grantedScopes?: string | null
+  lastWebhookAt?: number | null
+  lastImportAt?: number | null
+  connectionError?: string | null
   accessToken?: string | null
   refreshToken?: string | null
   tokenExpiresAt?: number | null
@@ -75,6 +87,15 @@ export interface FitnessSettingsDatabase {
   getFitnessSettingsByWebhookToken: (
     params: GetFitnessSettingsByWebhookTokenParams
   ) => Promise<FitnessSettings | null>
+  getWahooSettingsByWebhookToken: (
+    token: string,
+    providerUserId: string
+  ) => Promise<FitnessSettings | null>
+  consumeFitnessOauthState: (params: {
+    id: string
+    state: string
+    now: number
+  }) => Promise<boolean>
   deleteFitnessSettings: (params: DeleteFitnessSettingsParams) => Promise<void>
 }
 
@@ -115,6 +136,58 @@ export const parseStoredPrivacyLocations = (
   return sanitizePrivacyLocationSettings(parsedValue)
 }
 
+const hashWebhookToken = (token: string) =>
+  createHmac('sha256', getConfig().secretPhase)
+    .update('wahoo-webhook-token-v1:')
+    .update(token)
+    .digest('hex')
+
+const toFitnessSettings = (row: SQLFitnessSettings): FitnessSettings => ({
+  id: row.id,
+  actorId: row.actorId,
+  serviceType: row.serviceType,
+  clientId: row.clientId || undefined,
+  clientSecret: row.clientSecret ? decrypt(row.clientSecret) : undefined,
+  webhookToken:
+    row.serviceType === 'wahoo'
+      ? row.wahooWebhookToken
+        ? decrypt(row.wahooWebhookToken)
+        : undefined
+      : row.webhookToken || undefined,
+  accessToken: row.accessToken ? decrypt(row.accessToken) : undefined,
+  refreshToken: row.refreshToken ? decrypt(row.refreshToken) : undefined,
+  tokenExpiresAt: row.tokenExpiresAt
+    ? getCompatibleTime(row.tokenExpiresAt)
+    : undefined,
+  oauthState: row.oauthState || undefined,
+  oauthStateExpiry: row.oauthStateExpiry
+    ? getCompatibleTime(row.oauthStateExpiry)
+    : undefined,
+  defaultVisibility: row.defaultVisibility || undefined,
+  privacyLocations: parseStoredPrivacyLocations(row.privacyLocations, {
+    actorId: row.actorId,
+    serviceType: row.serviceType
+  }),
+  privacyHomeLatitude: row.privacyHomeLatitude ?? undefined,
+  privacyHomeLongitude: row.privacyHomeLongitude ?? undefined,
+  privacyHideRadiusMeters: row.privacyHideRadiusMeters ?? undefined,
+  providerUserId: row.providerUserId || undefined,
+  providerEnvironment:
+    row.providerEnvironment === 'production' ? 'production' : 'sandbox',
+  grantedScopes: row.grantedScopes || undefined,
+  lastWebhookAt: row.lastWebhookAt
+    ? getCompatibleTime(row.lastWebhookAt)
+    : undefined,
+  lastImportAt: row.lastImportAt
+    ? getCompatibleTime(row.lastImportAt)
+    : undefined,
+  connectionError: row.connectionError || undefined,
+  credentialVersion: Number(row.credentialVersion ?? 0),
+  createdAt: getCompatibleTime(row.createdAt),
+  updatedAt: getCompatibleTime(row.updatedAt),
+  deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined
+})
+
 export const FitnessSettingsSQLDatabaseMixin = (
   database: Knex
 ): FitnessSettingsDatabase => ({
@@ -124,6 +197,9 @@ export const FitnessSettingsSQLDatabaseMixin = (
     clientId,
     clientSecret,
     webhookToken,
+    providerUserId,
+    providerEnvironment,
+    grantedScopes,
     accessToken,
     refreshToken,
     tokenExpiresAt,
@@ -158,7 +234,17 @@ export const FitnessSettingsSQLDatabaseMixin = (
       serviceType,
       clientId,
       clientSecret: clientSecret ? encrypt(clientSecret) : null,
-      webhookToken,
+      webhookToken: serviceType === 'wahoo' ? null : webhookToken,
+      wahooWebhookToken:
+        serviceType === 'wahoo' && webhookToken ? encrypt(webhookToken) : null,
+      wahooWebhookTokenHash:
+        serviceType === 'wahoo' && webhookToken
+          ? hashWebhookToken(webhookToken)
+          : null,
+      providerUserId,
+      providerEnvironment,
+      grantedScopes,
+      credentialVersion: 0,
       accessToken: accessToken ? encrypt(accessToken) : null,
       refreshToken: refreshToken ? encrypt(refreshToken) : null,
       tokenExpiresAt: tokenExpiresAt ? new Date(tokenExpiresAt) : null,
@@ -184,6 +270,10 @@ export const FitnessSettingsSQLDatabaseMixin = (
       clientId,
       clientSecret,
       webhookToken,
+      providerUserId,
+      providerEnvironment,
+      grantedScopes,
+      credentialVersion: 0,
       accessToken,
       refreshToken,
       tokenExpiresAt,
@@ -201,9 +291,16 @@ export const FitnessSettingsSQLDatabaseMixin = (
 
   async updateFitnessSettings({
     id,
+    expectedCredentialVersion,
     clientId,
     clientSecret,
     webhookToken,
+    providerUserId,
+    providerEnvironment,
+    grantedScopes,
+    lastWebhookAt,
+    lastImportAt,
+    connectionError,
     accessToken,
     refreshToken,
     tokenExpiresAt,
@@ -226,8 +323,32 @@ export const FitnessSettingsSQLDatabaseMixin = (
     if (clientId !== undefined) updateData.clientId = clientId || null
     if (clientSecret !== undefined)
       updateData.clientSecret = clientSecret ? encrypt(clientSecret) : null
-    if (webhookToken !== undefined)
-      updateData.webhookToken = webhookToken || null
+    if (webhookToken !== undefined) {
+      const existing = await database('fitness_settings')
+        .where({ id })
+        .whereNull('deletedAt')
+        .first<SQLFitnessSettings>()
+      if (existing?.serviceType === 'wahoo') {
+        updateData.wahooWebhookToken = webhookToken
+          ? encrypt(webhookToken)
+          : null
+        updateData.wahooWebhookTokenHash = webhookToken
+          ? hashWebhookToken(webhookToken)
+          : null
+      } else {
+        updateData.webhookToken = webhookToken || null
+      }
+    }
+    if (providerUserId !== undefined) updateData.providerUserId = providerUserId
+    if (providerEnvironment !== undefined)
+      updateData.providerEnvironment = providerEnvironment
+    if (grantedScopes !== undefined) updateData.grantedScopes = grantedScopes
+    if (lastWebhookAt !== undefined)
+      updateData.lastWebhookAt = lastWebhookAt ? new Date(lastWebhookAt) : null
+    if (lastImportAt !== undefined)
+      updateData.lastImportAt = lastImportAt ? new Date(lastImportAt) : null
+    if (connectionError !== undefined)
+      updateData.connectionError = connectionError
     if (accessToken !== undefined)
       updateData.accessToken = accessToken ? encrypt(accessToken) : null
     if (refreshToken !== undefined)
@@ -256,7 +377,24 @@ export const FitnessSettingsSQLDatabaseMixin = (
     if (privacyHideRadiusMeters !== undefined)
       updateData.privacyHideRadiusMeters = privacyHideRadiusMeters
 
-    await database('fitness_settings').where({ id }).update(updateData)
+    const credentialEdit = clientId !== undefined || clientSecret !== undefined
+
+    let updateQuery = database('fitness_settings')
+      .where({ id })
+      .whereNull('deletedAt')
+    if (expectedCredentialVersion !== undefined) {
+      updateQuery = updateQuery.where(
+        'credentialVersion',
+        expectedCredentialVersion
+      )
+    }
+    const updated = await updateQuery.update({
+      ...updateData,
+      ...(credentialEdit
+        ? { credentialVersion: database.raw('?? + 1', ['credentialVersion']) }
+        : {})
+    })
+    if (updated !== 1) return null
 
     const row = await database('fitness_settings')
       .where({ id })
@@ -265,34 +403,7 @@ export const FitnessSettingsSQLDatabaseMixin = (
 
     if (!row) return null
 
-    return {
-      id: row.id,
-      actorId: row.actorId,
-      serviceType: row.serviceType,
-      clientId: row.clientId || undefined,
-      clientSecret: row.clientSecret ? decrypt(row.clientSecret) : undefined,
-      webhookToken: row.webhookToken || undefined,
-      accessToken: row.accessToken ? decrypt(row.accessToken) : undefined,
-      refreshToken: row.refreshToken ? decrypt(row.refreshToken) : undefined,
-      tokenExpiresAt: row.tokenExpiresAt
-        ? getCompatibleTime(row.tokenExpiresAt)
-        : undefined,
-      oauthState: row.oauthState || undefined,
-      oauthStateExpiry: row.oauthStateExpiry
-        ? getCompatibleTime(row.oauthStateExpiry)
-        : undefined,
-      defaultVisibility: row.defaultVisibility || undefined,
-      privacyLocations: parseStoredPrivacyLocations(row.privacyLocations, {
-        actorId: row.actorId,
-        serviceType: row.serviceType
-      }),
-      privacyHomeLatitude: row.privacyHomeLatitude ?? undefined,
-      privacyHomeLongitude: row.privacyHomeLongitude ?? undefined,
-      privacyHideRadiusMeters: row.privacyHideRadiusMeters ?? undefined,
-      createdAt: getCompatibleTime(row.createdAt),
-      updatedAt: getCompatibleTime(row.updatedAt),
-      deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined
-    }
+    return toFitnessSettings(row)
   },
 
   async getFitnessSettings({
@@ -306,34 +417,7 @@ export const FitnessSettingsSQLDatabaseMixin = (
 
     if (!row) return null
 
-    return {
-      id: row.id,
-      actorId: row.actorId,
-      serviceType: row.serviceType,
-      clientId: row.clientId || undefined,
-      clientSecret: row.clientSecret ? decrypt(row.clientSecret) : undefined,
-      webhookToken: row.webhookToken || undefined,
-      accessToken: row.accessToken ? decrypt(row.accessToken) : undefined,
-      refreshToken: row.refreshToken ? decrypt(row.refreshToken) : undefined,
-      tokenExpiresAt: row.tokenExpiresAt
-        ? getCompatibleTime(row.tokenExpiresAt)
-        : undefined,
-      oauthState: row.oauthState || undefined,
-      oauthStateExpiry: row.oauthStateExpiry
-        ? getCompatibleTime(row.oauthStateExpiry)
-        : undefined,
-      defaultVisibility: row.defaultVisibility || undefined,
-      privacyLocations: parseStoredPrivacyLocations(row.privacyLocations, {
-        actorId: row.actorId,
-        serviceType: row.serviceType
-      }),
-      privacyHomeLatitude: row.privacyHomeLatitude ?? undefined,
-      privacyHomeLongitude: row.privacyHomeLongitude ?? undefined,
-      privacyHideRadiusMeters: row.privacyHideRadiusMeters ?? undefined,
-      createdAt: getCompatibleTime(row.createdAt),
-      updatedAt: getCompatibleTime(row.updatedAt),
-      deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined
-    }
+    return toFitnessSettings(row)
   },
 
   async getFitnessSettingsByWebhookToken({
@@ -347,34 +431,36 @@ export const FitnessSettingsSQLDatabaseMixin = (
 
     if (!row) return null
 
-    return {
-      id: row.id,
-      actorId: row.actorId,
-      serviceType: row.serviceType,
-      clientId: row.clientId || undefined,
-      clientSecret: row.clientSecret ? decrypt(row.clientSecret) : undefined,
-      webhookToken: row.webhookToken || undefined,
-      accessToken: row.accessToken ? decrypt(row.accessToken) : undefined,
-      refreshToken: row.refreshToken ? decrypt(row.refreshToken) : undefined,
-      tokenExpiresAt: row.tokenExpiresAt
-        ? getCompatibleTime(row.tokenExpiresAt)
-        : undefined,
-      oauthState: row.oauthState || undefined,
-      oauthStateExpiry: row.oauthStateExpiry
-        ? getCompatibleTime(row.oauthStateExpiry)
-        : undefined,
-      defaultVisibility: row.defaultVisibility || undefined,
-      privacyLocations: parseStoredPrivacyLocations(row.privacyLocations, {
-        actorId: row.actorId,
-        serviceType: row.serviceType
-      }),
-      privacyHomeLatitude: row.privacyHomeLatitude ?? undefined,
-      privacyHomeLongitude: row.privacyHomeLongitude ?? undefined,
-      privacyHideRadiusMeters: row.privacyHideRadiusMeters ?? undefined,
-      createdAt: getCompatibleTime(row.createdAt),
-      updatedAt: getCompatibleTime(row.updatedAt),
-      deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined
-    }
+    return toFitnessSettings(row)
+  },
+
+  async getWahooSettingsByWebhookToken(
+    token,
+    providerUserId
+  ): Promise<FitnessSettings | null> {
+    const rows = await database('fitness_settings')
+      .where({
+        serviceType: 'wahoo',
+        wahooWebhookTokenHash: hashWebhookToken(token),
+        providerUserId
+      })
+      .whereNull('deletedAt')
+      .limit(2)
+      .select<SQLFitnessSettings[]>()
+    return rows.length === 1 ? toFitnessSettings(rows[0]) : null
+  },
+
+  async consumeFitnessOauthState({ id, state, now }) {
+    const updated = await database('fitness_settings')
+      .where({ id, oauthState: state })
+      .where('oauthStateExpiry', '>', new Date(now))
+      .whereNull('deletedAt')
+      .update({
+        oauthState: null,
+        oauthStateExpiry: null,
+        updatedAt: new Date(now)
+      })
+    return updated === 1
   },
 
   async deleteFitnessSettings({
@@ -383,6 +469,24 @@ export const FitnessSettingsSQLDatabaseMixin = (
   }: DeleteFitnessSettingsParams): Promise<void> {
     await database('fitness_settings')
       .where({ actorId, serviceType })
-      .update({ deletedAt: new Date() })
+      .update({
+        deletedAt: new Date(),
+        ...(serviceType === 'wahoo'
+          ? {
+              clientId: null,
+              clientSecret: null,
+              webhookToken: null,
+              wahooWebhookToken: null,
+              wahooWebhookTokenHash: null,
+              accessToken: null,
+              refreshToken: null,
+              tokenExpiresAt: null,
+              oauthState: null,
+              oauthStateExpiry: null,
+              providerUserId: null,
+              grantedScopes: null
+            }
+          : {})
+      })
   }
 })

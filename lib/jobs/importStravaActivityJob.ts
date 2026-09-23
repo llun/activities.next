@@ -681,7 +681,7 @@ export const importStravaActivityJob = createJobHandle(
       // single post.
       const importedGroups = await withImportLock(
         database,
-        `strava-import:${actorId}`,
+        `fitness-import:${actorId}`,
         async () => {
           const actorFitnessFiles = await database.getFitnessFilesByActor({
             actorId,
@@ -722,7 +722,8 @@ export const importStravaActivityJob = createJobHandle(
             // Create describing the finished post in both queue modes.
             { deferProcessJobPublishes: true }
           )
-        }
+        },
+        { failOnTimeout: true, ttlMs: 5 * 60 * 1000 }
       )
 
       deferredProcessJobs = importedGroups

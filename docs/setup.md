@@ -143,6 +143,8 @@ ACTIVITIES_EMAIL_SES_REGION=us-east-1
 
 Background jobs (sending ActivityPub activities, processing uploads) use a queue. Without a queue configured, jobs run synchronously.
 
+Wahoo webhook synchronization and date-range history import require a durable queue (`database`, QStash, or Cloud Tasks). The default synchronous mode cannot acknowledge a webhook before its FIT download and activity processing finish, or schedule delayed retries, so the Wahoo settings page disables automatic/history import in that mode. With `ACTIVITIES_QUEUE_TYPE=database`, run the database queue worker described in [maintenance.md](./maintenance.md#database-queue-worker) if the application process does not run the queue runner.
+
 > **Note:** Client libraries for queue providers (`@upstash/qstash` and `@google-cloud/tasks`) are optional dependencies packaged as Yarn workspaces (`@activities/qstash` and `@activities/cloudtasks`). They are dynamically imported when the respective queue is enabled.
 
 #### Upstash QStash

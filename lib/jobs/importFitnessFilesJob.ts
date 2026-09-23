@@ -85,7 +85,18 @@ const JobData = z.object({
   // Set by the ORIGINATING publisher for the same reason as the two flags
   // above, and defaults to false so a new caller keeps the historical
   // behaviour until it opts in.
-  postAtImportTime: z.boolean().optional().default(false)
+  postAtImportTime: z.boolean().optional().default(false),
+  // Provider imports may upgrade an existing activity's data source when the
+  // new file includes a route or a richer recording format.
+  preferRicherPrimary: z.boolean().optional().default(false),
+  // A provider may replace its own earlier revision without changing the post.
+  replacePrimaryFileId: z.string().optional(),
+  // A retry of a primary provider file must keep the generated-map pointer
+  // until the processing job can replace or remove the previous attachment.
+  preserveExistingMapOnRetry: z.boolean().optional().default(false),
+  // Revisions must not create a replacement post if the owner deleted the
+  // original while an import was in flight.
+  expectedExistingStatusId: z.string().optional()
 })
 
 const ACTOR_NOT_FOUND_IMPORT_ERROR = 'Actor not found for fitness import'
@@ -146,6 +157,11 @@ const selectPrimaryTargetFile = (
 
   return sorted[0]
 }
+
+const primaryQuality = (item: ParsedImportFile) =>
+  Number(Boolean(item.hasCoordinates)) * 4 +
+  Number(item.fitnessFile.fileType === 'fit') * 2 +
+  Number(item.totalDurationSeconds > 0)
 
 const buildParsedFileFromStoredActivity = ({
   fitnessFile,
@@ -306,7 +322,11 @@ export const importFitnessFiles = async (
     visibility,
     notifyOnComplete,
     publishSendNote,
-    postAtImportTime
+    postAtImportTime,
+    preferRicherPrimary,
+    replacePrimaryFileId,
+    preserveExistingMapOnRetry,
+    expectedExistingStatusId
   } = JobData.parse(data)
 
   const importedGroups: ImportedFitnessGroup[] = []
@@ -409,14 +429,21 @@ export const importFitnessFiles = async (
         buffer
       })
 
-      // Same reason as processFitnessFileJob: the reset below de-references
-      // any copy stored for an earlier import of this row, and a file that
-      // ends up non-primary never reaches processFitnessFileJob to rewrite it.
-      await deleteEmailMapImage({
-        database,
-        fitnessFileId: fitnessFile.id,
-        mapImageEmailPath: fitnessFile.mapImageEmailPath
-      })
+      const keepPreviousMap =
+        preserveExistingMapOnRetry &&
+        fitnessFile.isPrimary &&
+        Boolean(fitnessFile.statusId) &&
+        Boolean(fitnessFile.mapImagePath || fitnessFile.mapImageEmailPath)
+      if (!keepPreviousMap) {
+        // A non-primary target will not reach the processing job, so it must
+        // release any email-map copy when reparsed. The opt-in primary retry
+        // leaves both pointers intact for processFitnessFileJob to replace.
+        await deleteEmailMapImage({
+          database,
+          fitnessFileId: fitnessFile.id,
+          mapImageEmailPath: fitnessFile.mapImageEmailPath
+        })
+      }
 
       await database.updateFitnessFileActivityData(fitnessFile.id, {
         totalDistanceMeters: activityData.totalDistanceMeters,
@@ -425,9 +452,13 @@ export const importFitnessFiles = async (
         elevationGainMeters: activityData.elevationGainMeters,
         activityType: activityData.activityType,
         activityStartTime: activityData.startTime ?? null,
-        hasMapData: false,
-        mapImagePath: null,
-        mapImageEmailPath: null,
+        ...(keepPreviousMap
+          ? {}
+          : {
+              hasMapData: false,
+              mapImagePath: null,
+              mapImageEmailPath: null
+            }),
         // The map is being redone from scratch, so a reason recorded for the
         // previous one is stale. Left behind it would keep the status looking
         // retriable forever — including on a file that ends up non-primary
@@ -517,6 +548,13 @@ export const importFitnessFiles = async (
           })
         : null
 
+      if (
+        expectedExistingStatusId &&
+        existingStatus?.id !== expectedExistingStatusId
+      ) {
+        throw new Error('Previously imported fitness status was deleted')
+      }
+
       const existingPrimaryFileId =
         existingStatus &&
         orderedGroup.find(
@@ -524,6 +562,16 @@ export const importFitnessFiles = async (
             item.fitnessFile.statusId === existingStatus.id &&
             item.fitnessFile.isPrimary
         )?.fitnessFile.id
+
+      const existingPrimaryFile = orderedGroup.find(
+        (item) => item.fitnessFile.id === existingPrimaryFileId
+      )
+      const promoteTarget =
+        existingPrimaryFile &&
+        (existingPrimaryFileId === replacePrimaryFileId ||
+          (preferRicherPrimary &&
+            primaryQuality(primaryTargetFile) >
+              primaryQuality(existingPrimaryFile)))
 
       const status =
         existingStatus ??
@@ -538,13 +586,47 @@ export const importFitnessFiles = async (
       }
 
       const primaryFitnessFileId =
-        existingPrimaryFileId ?? primaryTargetFile.fitnessFile.id
+        existingPrimaryFileId && !promoteTarget
+          ? existingPrimaryFileId
+          : primaryTargetFile.fitnessFile.id
+
+      if (promoteTarget && existingPrimaryFile) {
+        const previous = existingPrimaryFile.fitnessFile
+        const next = primaryTargetFile.fitnessFile
+        if (previous.gearId && !next.gearId) {
+          await database.assignFitnessFileGearIfUnset({
+            fitnessFileId: next.id,
+            actorId,
+            gearId: previous.gearId
+          })
+        }
+        if (previous.mapImagePath || previous.mapImageEmailPath) {
+          // The processing job replaces only the map pointed to by the file it
+          // receives. Move the generated-map pointer to the promoted file so
+          // a failed render preserves the old map and a successful render
+          // removes it. Other status attachments are never touched.
+          await database.updateFitnessFileActivityData(next.id, {
+            hasMapData: previous.hasMapData ?? false,
+            mapImagePath: previous.mapImagePath ?? null,
+            mapImageEmailPath: previous.mapImageEmailPath ?? null
+          })
+          await database.updateFitnessFileActivityData(previous.id, {
+            hasMapData: false,
+            mapImagePath: null,
+            mapImageEmailPath: null
+          })
+        }
+      }
 
       await database.assignFitnessFilesToImportedStatus({
         fitnessFileIds: targetFitnessFileIds,
         primaryFitnessFileId,
         statusId: status.id
       })
+
+      if (promoteTarget && existingPrimaryFileId) {
+        await database.updateFitnessFilePrimary(existingPrimaryFileId, false)
+      }
 
       const processJob = targetFitnessFileIds.includes(primaryFitnessFileId)
         ? {

@@ -10,6 +10,7 @@ import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
 import { writeFitnessFileRoute } from '@/lib/services/fitness-files/fileRouteCache'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
 import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
+import { withImportLock } from '@/lib/services/fitness-files/importLock'
 import {
   ROUTE_MAP_ATTACHMENT_NAME,
   findRouteMapAttachments,
@@ -35,6 +36,7 @@ import { createNotificationWithPolicy } from '@/lib/services/notifications/creat
 import { shouldSendEmailForNotification } from '@/lib/services/notifications/emailNotificationSettings'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
+import type { JobHandle } from '@/lib/services/queue/type'
 import { Actor } from '@/lib/types/domain/actor'
 import { EditableStatus, StatusType } from '@/lib/types/domain/status'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
@@ -305,7 +307,55 @@ const notifyActivityImported = async ({
   }
 }
 
-export const processFitnessFileJob = createJobHandle(
+const finishFirstImport = async ({
+  database,
+  actorId,
+  statusId,
+  fitnessFileId,
+  mapImageUrl,
+  notifyOnComplete,
+  publishSendNote
+}: {
+  database: Database
+  actorId: string
+  statusId: string
+  fitnessFileId: string
+  mapImageUrl?: string
+  notifyOnComplete: boolean
+  publishSendNote: boolean
+}) => {
+  if (notifyOnComplete) {
+    await notifyActivityImported({
+      database,
+      actorId,
+      statusId,
+      fitnessFileId,
+      mapImageUrl
+    })
+  }
+
+  // A queue failure must not demote an already processed activity. The job id
+  // is stable across a stale-primary redirect and a normal first import.
+  if (publishSendNote) {
+    try {
+      await getQueue().publish({
+        id: getHashFromString(`${statusId}:send-note`),
+        name: SEND_NOTE_JOB_NAME,
+        data: { actorId, statusId }
+      })
+    } catch (error) {
+      logger.error({
+        message: 'Failed to queue the Create for a processed fitness file',
+        actorId,
+        statusId,
+        fitnessFileId,
+        err: toLoggableError(error)
+      })
+    }
+  }
+}
+
+const processFitnessFileJobUnlocked = createJobHandle(
   PROCESS_FITNESS_FILE_JOB_NAME,
   async (database, message) => {
     const {
@@ -808,16 +858,6 @@ export const processFitnessFileJob = createJobHandle(
       // fitness UI with a retry affordance. A map-only failure is not such a
       // case: the activity arrived, so it notifies as usual, and the email
       // simply carries no map image (`mapImageUrl` stays undefined).
-      if (notifyOnComplete) {
-        await notifyActivityImported({
-          database,
-          actorId,
-          statusId,
-          fitnessFileId,
-          mapImageUrl
-        })
-      }
-
       // Contained like notifyActivityImported above, and for a sharper reason:
       // the activity is fully processed and already persisted as `completed` by
       // this point, so letting a federation failure reach the outer catch would
@@ -825,26 +865,15 @@ export const processFitnessFileJob = createJobHandle(
       // dashboard, the stat grid, the overview and every rollup because the
       // Create could not be queued. Under NoQueue this publish runs sendNoteJob
       // inline, so it covers delivery errors too.
-      if (publishSendNote) {
-        try {
-          await getQueue().publish({
-            id: getHashFromString(`${statusId}:send-note`),
-            name: SEND_NOTE_JOB_NAME,
-            data: {
-              actorId,
-              statusId
-            }
-          })
-        } catch (error) {
-          logger.error({
-            message: 'Failed to queue the Create for a processed fitness file',
-            actorId,
-            statusId,
-            fitnessFileId,
-            err: toLoggableError(error)
-          })
-        }
-      }
+      await finishFirstImport({
+        database,
+        actorId,
+        statusId,
+        fitnessFileId,
+        mapImageUrl,
+        notifyOnComplete,
+        publishSendNote
+      })
 
       // A replaced map is deliberately NOT federated from here. Whether the
       // status was ever federated is not knowable in this job — the file
@@ -935,3 +964,71 @@ export const processFitnessFileJob = createJobHandle(
     }
   }
 )
+
+export const processFitnessFileJob: JobHandle = async (database, message) => {
+  const {
+    actorId,
+    statusId,
+    fitnessFileId,
+    publishSendNote,
+    notifyOnComplete
+  } = JobData.parse(message.data)
+
+  const run = async () => {
+    const queuedFile = await database.getFitnessFile({ id: fitnessFileId })
+    if (
+      queuedFile?.actorId === actorId &&
+      queuedFile.statusId === statusId &&
+      !queuedFile.isPrimary
+    ) {
+      const primary = (await database.getFitnessFilesByStatus({ statusId }))
+        .filter((file) => file.actorId === actorId)
+        .find((file) => file.isPrimary)
+      if (!primary) {
+        throw new Error('No current primary fitness file for queued import')
+      }
+
+      // The old source remains a valid recording, but its queued processing
+      // no longer owns the status map. Complete its row without changing maps.
+      await database.updateFitnessFileProcessingStatus(
+        queuedFile.id,
+        'completed'
+      )
+      if (primary.processingStatus === 'completed') {
+        const map = (
+          await findRouteMapAttachments({
+            database,
+            statusId,
+            mapImagePath: primary.mapImagePath
+          })
+        )[0]
+        await finishFirstImport({
+          database,
+          actorId,
+          statusId,
+          fitnessFileId: primary.id,
+          mapImageUrl: map?.url,
+          notifyOnComplete,
+          publishSendNote
+        })
+        return
+      }
+      return processFitnessFileJobUnlocked(database, {
+        ...message,
+        data: { ...JobData.parse(message.data), fitnessFileId: primary.id }
+      })
+    }
+
+    return processFitnessFileJobUnlocked(database, message)
+  }
+
+  // Durable workers may deliver an older primary's queued job after a
+  // Wahoo promotion. Share the same actor lock as the importer so primary
+  // selection and route-map replacement cannot cross each other. NoQueue
+  // invokes the handler synchronously inside some import callers' lock.
+  if (getQueue().runsInline) return run()
+  await withImportLock(database, `fitness-import:${actorId}`, run, {
+    failOnTimeout: true,
+    ttlMs: 5 * 60 * 1000
+  })
+}
