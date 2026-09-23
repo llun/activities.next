@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { getConfig } from '@/lib/config'
+import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import {
   WAHOO_OAUTH_SCOPES,
@@ -98,16 +99,24 @@ export const GET = traceApiRoute(
         return redirectToSettings('missing_scope')
       }
 
-      const stored = await database.updateFitnessSettings({
-        id: active.id,
-        expectedCredentialVersion: active.credentialVersion ?? 0,
-        accessToken: token.access_token,
-        refreshToken: token.refresh_token,
-        tokenExpiresAt,
-        providerUserId,
-        grantedScopes: scopes,
-        connectionError: null
-      })
+      let stored
+      try {
+        stored = await database.updateFitnessSettings({
+          id: active.id,
+          expectedCredentialVersion: active.credentialVersion ?? 0,
+          accessToken: token.access_token,
+          refreshToken: token.refresh_token,
+          tokenExpiresAt,
+          providerUserId,
+          grantedScopes: scopes,
+          connectionError: null
+        })
+      } catch (error) {
+        if (isUniqueConstraintError(error)) {
+          return redirectToSettings('wahoo_account_already_connected')
+        }
+        throw error
+      }
       if (!stored) return redirectToSettings('credentials_changed')
       return redirectToSettings()
     } catch (error) {

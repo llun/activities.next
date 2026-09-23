@@ -1920,7 +1920,7 @@ CREATE INDEX fitness_settings_idx ON public.fitness_settings USING btree ("actor
 
 CREATE UNIQUE INDEX fitness_settings_unique_active ON public.fitness_settings USING btree ("actorId", "serviceType") WHERE ("deletedAt" IS NULL);
 
-CREATE INDEX fitness_settings_wahoo_token_idx ON public.fitness_settings USING btree ("wahooWebhookTokenHash");
+CREATE UNIQUE INDEX fitness_settings_wahoo_active_binding_uidx ON public.fitness_settings USING btree ("wahooWebhookTokenHash", "providerUserId") WHERE ((("serviceType")::text = 'wahoo'::text) AND ("deletedAt" IS NULL) AND ("wahooWebhookTokenHash" IS NOT NULL) AND ("providerUserId" IS NOT NULL));
 
 CREATE INDEX fitness_settings_webhook_token_idx ON public.fitness_settings USING btree ("webhookToken");
 

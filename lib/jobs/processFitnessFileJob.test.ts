@@ -1211,6 +1211,143 @@ describe('processFitnessFileJob', () => {
         trackPoints: visibleRouteCoordinates
       })
 
+    it('redirects stale primary jobs and suppresses duplicate silent processing', async () => {
+      const { statusId, fitnessFileId: oldPrimaryId } =
+        await createStatusWithFitnessFile({ text: 'Morning run' })
+      const newPrimary = await database.createFitnessFile({
+        actorId: actor.id,
+        statusId,
+        path: 'fitness/wahoo-promoted-primary.fit',
+        fileName: 'wahoo-promoted-primary.fit',
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 4_096
+      })
+      expect(newPrimary).toBeDefined()
+      await database.assignFitnessFilesToImportedStatus({
+        fitnessFileIds: [oldPrimaryId, newPrimary!.id],
+        primaryFitnessFileId: newPrimary!.id,
+        statusId
+      })
+      arrangeRouteWithMap()
+
+      // The old primary's job was already queued with these first-import
+      // effects when the Wahoo FIT revision promoted itself. Run it alongside
+      // the silent job enqueued for the new primary to cover a delivery race.
+      await Promise.all([
+        processFitnessFileJob(database, {
+          id: 'job-stale-old-primary',
+          name: PROCESS_FITNESS_FILE_JOB_NAME,
+          data: {
+            actorId: actor.id,
+            statusId,
+            fitnessFileId: oldPrimaryId,
+            publishSendNote: true,
+            notifyOnComplete: true
+          }
+        }),
+        processFitnessFileJob(database, {
+          id: 'job-silent-new-primary',
+          name: PROCESS_FITNESS_FILE_JOB_NAME,
+          data: {
+            actorId: actor.id,
+            statusId,
+            fitnessFileId: newPrimary!.id,
+            publishSendNote: false,
+            notifyOnComplete: false
+          }
+        })
+      ])
+
+      const currentPrimary = await database.getFitnessFile({
+        id: newPrimary!.id
+      })
+      expect(currentPrimary).toMatchObject({
+        isPrimary: true,
+        processingStatus: 'completed',
+        hasMapData: true
+      })
+      expect(mockGenerateMapImage).toHaveBeenCalled()
+      expect(mockSendNotificationAlerts).toHaveBeenCalledTimes(1)
+      const status = await database.getStatus({ statusId, withReplies: false })
+      if (status?.type !== StatusType.enum.Note) {
+        fail('Expected a note status')
+      }
+      expect(
+        status.attachments.filter(
+          (attachment) => attachment.name === ROUTE_MAP_ATTACHMENT_NAME
+        )
+      ).toHaveLength(1)
+      const sendNoteCalls = (
+        getQueue().publish as jest.MockedFunction<Queue['publish']>
+      ).mock.calls.filter(([message]) => message.name === SEND_NOTE_JOB_NAME)
+      expect(sendNoteCalls).toHaveLength(1)
+      expect(sendNoteCalls[0]?.[0].data).toEqual({
+        actorId: actor.id,
+        statusId
+      })
+    })
+
+    it('delivers initial side effects from a stale job when the new primary already completed', async () => {
+      const { statusId, fitnessFileId: oldPrimaryId } =
+        await createStatusWithFitnessFile({ text: 'Morning run' })
+      const newPrimary = await database.createFitnessFile({
+        actorId: actor.id,
+        statusId,
+        path: 'fitness/wahoo-already-processed-primary.fit',
+        fileName: 'wahoo-already-processed-primary.fit',
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 4_096
+      })
+      expect(newPrimary).toBeDefined()
+      await database.assignFitnessFilesToImportedStatus({
+        fitnessFileIds: [oldPrimaryId, newPrimary!.id],
+        primaryFitnessFileId: newPrimary!.id,
+        statusId
+      })
+      arrangeRouteWithMap()
+
+      await processFitnessFileJob(database, {
+        id: 'job-new-primary-completes-first',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          statusId,
+          fitnessFileId: newPrimary!.id,
+          publishSendNote: false,
+          notifyOnComplete: false
+        }
+      })
+      await processFitnessFileJob(database, {
+        id: 'job-stale-primary-delivers-first-side-effects',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          statusId,
+          fitnessFileId: oldPrimaryId,
+          publishSendNote: true,
+          notifyOnComplete: true
+        }
+      })
+
+      expect(mockGenerateMapImage).toHaveBeenCalledTimes(1)
+      expect(mockSendNotificationAlerts).toHaveBeenCalledTimes(1)
+      const status = await database.getStatus({ statusId, withReplies: false })
+      if (status?.type !== StatusType.enum.Note) {
+        fail('Expected a note status')
+      }
+      expect(
+        status.attachments.filter(
+          (attachment) => attachment.name === ROUTE_MAP_ATTACHMENT_NAME
+        )
+      ).toHaveLength(1)
+      const sendNoteCalls = (
+        getQueue().publish as jest.MockedFunction<Queue['publish']>
+      ).mock.calls.filter(([message]) => message.name === SEND_NOTE_JOB_NAME)
+      expect(sendNoteCalls).toHaveLength(1)
+    })
+
     it('tells the actor when a first import completes', async () => {
       const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
         text: 'Morning run'
@@ -1566,14 +1703,15 @@ describe('processFitnessFileJob', () => {
         text: 'Morning run'
       })
 
-      // Let the job's early read through and fail only the post-completion one.
+      // Let the wrapper and core file reads through, then fail only the
+      // post-completion read used for gear reminders.
       const realGetFitnessFile = database.getFitnessFile.bind(database)
       let calls = 0
       const spy = vi
         .spyOn(database, 'getFitnessFile')
         .mockImplementation(async (params) => {
           calls += 1
-          if (calls > 1) throw new Error('connection reset')
+          if (calls > 2) throw new Error('connection reset')
           return realGetFitnessFile(params)
         })
 

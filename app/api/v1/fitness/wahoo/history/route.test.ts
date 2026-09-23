@@ -315,6 +315,88 @@ describe('Wahoo history API', () => {
     )
   })
 
+  it('serializes a history summary read behind an in-progress retry', async () => {
+    let latest = history({ status: 'failed', scanComplete: true })
+    mockDb.getLatestWahooHistoryImport.mockImplementation(async () => latest)
+    mockDb.getWahooHistoryImport.mockImplementation(async () => latest)
+    mockDb.countWahooHistoryItems.mockResolvedValue({
+      total: 1,
+      completed: 0,
+      failed: 0,
+      pending: 1
+    })
+
+    const itemsReady = createDeferred<void>()
+    const retryItems = createDeferred<WahooImport[]>()
+    mockDb.getWahooImportsByHistory.mockImplementation(() => {
+      itemsReady.resolve()
+      return retryItems.promise
+    })
+
+    let lockHeld = false
+    let lockCount = 0
+    const getWaitingForLock = createDeferred<void>()
+    const lockReleased = createDeferred<void>()
+    mockDb.acquireImportLock.mockImplementation(async () => {
+      if (lockHeld) {
+        getWaitingForLock.resolve()
+        await lockReleased.promise
+      }
+      lockHeld = true
+      return { token: `history-lock-${++lockCount}` }
+    })
+    mockDb.releaseImportLock.mockImplementation(async () => {
+      lockHeld = false
+      lockReleased.resolve()
+      return true
+    })
+    mockDb.updateWahooHistoryImport.mockImplementation(
+      async (_id, values, expectedStatuses) => {
+        if (expectedStatuses && !expectedStatuses.includes(latest.status)) {
+          return false
+        }
+        latest = {
+          ...latest,
+          ...values,
+          lastError: values.lastError ?? undefined
+        }
+        return true
+      }
+    )
+
+    const retryPromise = PATCH(
+      new NextRequest('https://test.llun.dev/api/v1/fitness/wahoo/history', {
+        method: 'PATCH',
+        headers: { Origin: 'https://test.llun.dev' }
+      }),
+      { params: Promise.resolve({}) }
+    )
+    await itemsReady.promise
+
+    const summaryPromise = GET(
+      new NextRequest('https://test.llun.dev/api/v1/fitness/wahoo/history'),
+      { params: Promise.resolve({}) }
+    )
+    await getWaitingForLock.promise
+    retryItems.resolve([importRecord({ status: 'pending' })])
+
+    const [retryResponse, summaryResponse] = await Promise.all([
+      retryPromise,
+      summaryPromise
+    ])
+    expect(retryResponse.status).toBe(200)
+    expect(summaryResponse.status).toBe(200)
+    await expect(summaryResponse.json()).resolves.toMatchObject({
+      import: { id: 'history-1', status: 'running', completed: 0, failed: 0 }
+    })
+    expect(mockDb.updateWahooHistoryImport).toHaveBeenCalledTimes(1)
+    expect(mockDb.updateWahooHistoryImport).toHaveBeenCalledWith(
+      'history-1',
+      { status: 'running', lastError: null },
+      ['failed', 'cancelled']
+    )
+  })
+
   it('serializes cancellation after a history retry so running cannot overwrite cancelled', async () => {
     let latest = history({ status: 'failed' })
     mockDb.getLatestWahooHistoryImport.mockImplementation(async () => latest)

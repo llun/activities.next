@@ -289,7 +289,12 @@ CREATE TABLE `queue_jobs` (`id` varchar(255), `name` varchar(255) not null, `pay
 CREATE INDEX `queue_jobs_status_next_run_at_idx` on `queue_jobs` (`status`, `next_run_at`);
 CREATE INDEX `queue_jobs_name_idx` on `queue_jobs` (`name`);
 CREATE INDEX `queue_jobs_created_at_idx` on `queue_jobs` (`created_at`);
-CREATE INDEX `fitness_settings_wahoo_token_idx` on `fitness_settings` (`wahooWebhookTokenHash`);
+CREATE UNIQUE INDEX fitness_settings_wahoo_active_binding_uidx
+      ON fitness_settings ("wahooWebhookTokenHash", "providerUserId")
+      WHERE "serviceType" = 'wahoo'
+        AND "deletedAt" IS NULL
+        AND "wahooWebhookTokenHash" IS NOT NULL
+        AND "providerUserId" IS NOT NULL;
 CREATE TABLE `wahoo_imports` (`id` varchar(255), `actorId` varchar(255) not null, `providerUserId` varchar(255) not null, `workoutId` varchar(255) not null, `summaryId` varchar(255), `summaryUpdatedAt` datetime, `fitnessFileId` varchar(255), `statusId` varchar(255), `historyImportId` varchar(255), `status` varchar(255) not null default 'pending', `hadStatus` boolean not null default '0', `attempts` integer not null default '0', `lastError` text, `createdAt` datetime not null default CURRENT_TIMESTAMP, `updatedAt` datetime not null default CURRENT_TIMESTAMP, foreign key(`actorId`) references `actors`(`id`) on delete CASCADE, foreign key(`fitnessFileId`) references `fitness_files`(`id`) on delete SET NULL, foreign key(`statusId`) references `statuses`(`id`) on delete SET NULL, primary key (`id`));
 CREATE UNIQUE INDEX `wahoo_imports_actorid_provideruserid_workoutid_unique` on `wahoo_imports` (`actorId`, `providerUserId`, `workoutId`);
 CREATE INDEX `wahoo_imports_actor_status_idx` on `wahoo_imports` (`actorId`, `status`);

@@ -38,6 +38,7 @@ const settings: client.WahooSettingsResponse = {
 describe('WahooSettingsForm', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    window.history.replaceState({}, '', '/fitness/wahoo')
     vi.mocked(client.getWahooSettings).mockResolvedValue(settings)
     vi.mocked(client.saveWahooSettings).mockResolvedValue({ success: true })
   })
@@ -102,5 +103,23 @@ describe('WahooSettingsForm', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Wahoo error: OAuth authorization was denied'
     )
+  })
+
+  it.each([
+    [
+      'wahoo_account_already_connected',
+      'This Wahoo account and webhook token are already connected to another profile.'
+    ],
+    [
+      'credentials_changed',
+      'Wahoo settings changed during authorization. Please connect again.'
+    ]
+  ])('explains the %s callback error', async (code, message) => {
+    window.history.replaceState({}, '', `/fitness/wahoo?error=${code}`)
+
+    render(<WahooSettingsForm />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(message)
+    expect(window.location.search).toBe('')
   })
 })

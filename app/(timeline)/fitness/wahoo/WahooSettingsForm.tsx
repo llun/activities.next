@@ -29,6 +29,13 @@ import { WahooHistorySection } from './WahooHistorySection'
 const fallbackError = (error: unknown, fallback: string) =>
   error instanceof Error && error.message ? error.message : fallback
 
+const callbackErrorMessages: Record<string, string> = {
+  wahoo_account_already_connected:
+    'This Wahoo account and webhook token are already connected to another profile.',
+  credentials_changed:
+    'Wahoo settings changed during authorization. Please connect again.'
+}
+
 const formatConnectionTimestamp = (value?: string) => {
   if (!value) return null
   const date = new Date(value)
@@ -82,7 +89,10 @@ export const WahooSettingsForm = () => {
       setMessage('Connected to Wahoo.')
       window.history.replaceState({}, '', window.location.pathname)
     } else if (params.has('error')) {
-      setError('Wahoo authorization failed. Please try connecting again.')
+      setError(
+        callbackErrorMessages[params.get('error') ?? ''] ??
+          'Wahoo authorization failed. Please try connecting again.'
+      )
       window.history.replaceState({}, '', window.location.pathname)
     }
 

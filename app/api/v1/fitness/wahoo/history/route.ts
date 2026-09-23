@@ -60,13 +60,23 @@ const getSummary = async (database: Database, actorId: string) => {
 
 export const GET = traceApiRoute(
   'getWahooHistory',
-  AuthenticatedGuard(async (req, { currentActor, database }) =>
-    apiResponse({
-      req,
-      allowedMethods: [],
-      data: { import: await getSummary(database, currentActor.id) }
-    })
-  )
+  AuthenticatedGuard(async (req, { currentActor, database }) => {
+    try {
+      const summary = await withImportLock(
+        database,
+        `wahoo-history-start:${currentActor.id}`,
+        () => getSummary(database, currentActor.id),
+        { failOnTimeout: true, ttlMs: 5 * 60 * 1000 }
+      )
+      return apiResponse({
+        req,
+        allowedMethods: [],
+        data: { import: summary }
+      })
+    } catch {
+      return apiErrorResponse(503)
+    }
+  })
 )
 
 export const POST = traceApiRoute(

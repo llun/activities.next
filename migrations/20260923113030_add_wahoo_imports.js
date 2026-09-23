@@ -14,9 +14,17 @@ export const up = async function (knex) {
     table.text('connectionError')
     table.integer('credentialVersion').notNullable().defaultTo(0)
   })
-  await knex.schema.alterTable('fitness_settings', function (table) {
-    table.index('wahooWebhookTokenHash', 'fitness_settings_wahoo_token_idx')
-  })
+  // A provider can use one active webhook binding at a time. Both SQLite and
+  // PostgreSQL support partial indexes, so this constraint closes the race
+  // between requests that otherwise pass an application-level lookup.
+  await knex.raw(
+    `CREATE UNIQUE INDEX fitness_settings_wahoo_active_binding_uidx
+      ON fitness_settings ("wahooWebhookTokenHash", "providerUserId")
+      WHERE "serviceType" = 'wahoo'
+        AND "deletedAt" IS NULL
+        AND "wahooWebhookTokenHash" IS NOT NULL
+        AND "providerUserId" IS NOT NULL`
+  )
 
   await knex.schema.createTable('wahoo_imports', function (table) {
     table.string('id').primary()
@@ -95,8 +103,8 @@ export const up = async function (knex) {
 export const down = async function (knex) {
   await knex.schema.dropTable('wahoo_history_imports')
   await knex.schema.dropTable('wahoo_imports')
+  await knex.raw('DROP INDEX fitness_settings_wahoo_active_binding_uidx')
   await knex.schema.alterTable('fitness_settings', function (table) {
-    table.dropIndex('wahooWebhookTokenHash', 'fitness_settings_wahoo_token_idx')
     table.dropColumn('providerUserId')
     table.dropColumn('providerEnvironment')
     table.dropColumn('grantedScopes')

@@ -1,6 +1,7 @@
 import { Knex } from 'knex'
-import { createHash } from 'node:crypto'
+import { createHmac } from 'node:crypto'
 
+import { getConfig } from '@/lib/config'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { sanitizePrivacyLocationSettings } from '@/lib/services/fitness-files/privacy'
@@ -136,7 +137,10 @@ export const parseStoredPrivacyLocations = (
 }
 
 const hashWebhookToken = (token: string) =>
-  createHash('sha256').update(token).digest('hex')
+  createHmac('sha256', getConfig().secretPhase)
+    .update('wahoo-webhook-token-v1:')
+    .update(token)
+    .digest('hex')
 
 const toFitnessSettings = (row: SQLFitnessSettings): FitnessSettings => ({
   id: row.id,

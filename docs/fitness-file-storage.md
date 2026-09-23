@@ -10,7 +10,7 @@ After a file is attached to a status, the background processor parses activity d
 
 ### Wahoo cloud imports
 
-Wahoo is an independent fitness connection alongside Strava. In **Fitness → Wahoo**, enter the alphanumeric client ID, confidential client secret, webhook token, application environment, and default post visibility from a Wahoo developer application. The client secret and webhook token are encrypted at rest and are never returned to the browser. Leaving a saved secret field blank preserves it. The application must request `user_read`, `workouts_read`, and `offline_data`; `power_zones_read` can remain enabled but is not needed for workout import. Use these exact registered URLs for the deployed host:
+Wahoo is an independent fitness connection alongside Strava. In **Fitness → Wahoo**, enter the alphanumeric client ID, confidential client secret, webhook token, application environment, and default post visibility from a Wahoo developer application. The client secret and webhook token are encrypted at rest and are never returned to the browser; webhook lookup uses a secret-keyed digest rather than a reusable plaintext hash. Leaving a saved secret field blank preserves it. The application must request `user_read`, `workouts_read`, and `offline_data`; `power_zones_read` can remain enabled but is not needed for workout import. Use these exact registered URLs for the deployed host:
 
 - OAuth redirect: `https://<host>/api/v1/settings/fitness/wahoo/callback`
 - Webhook: `https://<host>/api/v1/webhooks/wahoo/`

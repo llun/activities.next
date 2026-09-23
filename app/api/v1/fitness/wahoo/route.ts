@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
+import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import { withImportLock } from '@/lib/services/fitness-files/importLock'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { getQueue } from '@/lib/services/queue'
@@ -105,27 +106,40 @@ export const POST = traceApiRoute(
       const credentialsChanged =
         (clientId !== undefined && clientId !== existing.clientId) ||
         (Boolean(clientSecret) && clientSecret !== existing.clientSecret)
-      await database.updateFitnessSettings({
-        id: existing.id,
-        clientId: nextClientId,
-        ...(clientSecret ? { clientSecret } : {}),
-        ...(webhookToken ? { webhookToken } : {}),
-        providerEnvironment:
-          environment ?? existing.providerEnvironment ?? 'sandbox',
-        defaultVisibility:
-          defaultVisibility ?? existing.defaultVisibility ?? 'private',
-        ...(credentialsChanged
-          ? {
-              accessToken: null,
-              refreshToken: null,
-              tokenExpiresAt: null,
-              providerUserId: null,
-              grantedScopes: null,
-              oauthState: null,
-              oauthStateExpiry: null
-            }
-          : {})
-      })
+      try {
+        const updated = await database.updateFitnessSettings({
+          id: existing.id,
+          clientId: nextClientId,
+          ...(clientSecret ? { clientSecret } : {}),
+          ...(webhookToken ? { webhookToken } : {}),
+          providerEnvironment:
+            environment ?? existing.providerEnvironment ?? 'sandbox',
+          defaultVisibility:
+            defaultVisibility ?? existing.defaultVisibility ?? 'private',
+          ...(credentialsChanged
+            ? {
+                accessToken: null,
+                refreshToken: null,
+                tokenExpiresAt: null,
+                providerUserId: null,
+                grantedScopes: null,
+                oauthState: null,
+                oauthStateExpiry: null
+              }
+            : {})
+        })
+        if (!updated) return apiErrorResponse(409)
+      } catch (error) {
+        if (!isUniqueConstraintError(error)) throw error
+        return apiResponse({
+          req,
+          allowedMethods: [],
+          data: {
+            error: 'This Wahoo account and webhook token are already connected'
+          },
+          responseStatusCode: 409
+        })
+      }
     } else {
       await database.createFitnessSettings({
         actorId: currentActor.id,

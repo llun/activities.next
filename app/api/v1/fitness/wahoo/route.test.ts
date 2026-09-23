@@ -165,4 +165,49 @@ describe('Wahoo Settings API', () => {
       expect.objectContaining({ webhookToken: '12345678' })
     )
   })
+
+  it('returns conflict when the saved settings row was deleted before update', async () => {
+    mockDb.updateFitnessSettings.mockResolvedValueOnce(null)
+    const request = new NextRequest(
+      'https://test.llun.dev/api/v1/fitness/wahoo',
+      {
+        method: 'POST',
+        headers: { Origin: 'https://test.llun.dev' },
+        body: JSON.stringify({ clientId: 'updated-client-id' })
+      }
+    )
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(409)
+    expect(mockDb.updateFitnessSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'wahoo-settings-1',
+        clientId: 'updated-client-id'
+      })
+    )
+  })
+
+  it('returns a readable conflict when the webhook binding is already in use', async () => {
+    mockDb.updateFitnessSettings.mockRejectedValueOnce(
+      Object.assign(new Error('UNIQUE constraint failed'), {
+        code: 'SQLITE_CONSTRAINT_UNIQUE'
+      })
+    )
+    const request = new NextRequest(
+      'https://test.llun.dev/api/v1/fitness/wahoo',
+      {
+        method: 'POST',
+        headers: { Origin: 'https://test.llun.dev' },
+        body: JSON.stringify({ webhookToken: 'another-token' })
+      }
+    )
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      error: 'This Wahoo account and webhook token are already connected'
+    })
+  })
 })
