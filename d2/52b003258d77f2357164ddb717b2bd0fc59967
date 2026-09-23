@@ -1,0 +1,47 @@
+lib/jobs/importFitnessFilesJob.test.ts
+  s_26827f229a298c::t_dfcaef6bcde439 116,219,1013-1076
+  s_26827f229a298c::t_808944d8cb298e 1077-1078
+app/api/v1/fitness/wahoo/history/route.ts
+  s_26827f229a298c::t_897cd5517c4a48 137,169,253
+  s_26827f229a298c::t_47775b07be8cb2 158-161
+  s_26827f229a298c::t_b1fcc2298f8545 31,38-47,57,99-109,119,150-157,162-168,170-172,200-214,221-226,238
+app/(timeline)/fitness/wahoo/WahooHistorySection.test.tsx
+  s_26827f229a298c::t_a6db51f62cddf1 95-138
+app/api/v1/fitness/wahoo/route.ts
+  s_26827f229a298c::t_897cd5517c4a48 167
+  s_26827f229a298c::t_4e1f658fdaff39 157-166,168
+app/api/v1/fitness/wahoo/history/route.test.ts
+  s_26827f229a298c::t_69fcdff349fa4a 427
+  s_26827f229a298c::t_69c90c3973c8d9 13,196-200,230-234,286-332,334-349,355-426,428,430
+  s_26827f229a298c::t_608ba2bf0c4092 333,350-354
+  s_26827f229a298c::t_a46c28f71aa8b6 10
+  s_26827f229a298c::t_9012392678a2e9 429
+app/(timeline)/fitness/wahoo/WahooSettingsForm.test.tsx
+  s_26827f229a298c::t_a6db51f62cddf1 93-105
+lib/jobs/importFitnessFilesJob.ts
+  s_26827f229a298c::t_4056ff4fbbb48c 94-96,328,432-446,455-461
+app/(timeline)/fitness/wahoo/WahooHistorySection.tsx
+  s_26827f229a298c::t_dbbcf19bbf6f3d 241
+app/(timeline)/fitness/wahoo/WahooSettingsForm.tsx
+  s_26827f229a298c::t_a6db51f62cddf1 322
+lib/jobs/importWahooActivityJob.ts
+  s_26827f229a298c::t_4056ff4fbbb48c 237
+docs/fitness-file-storage.md
+  s_26827f229a298c::t_999573ae8feaa6 22-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d252b003258d77f2357164ddb717b2bd0fc59967",
+  "prompts": {},
+  "sessions": {
+    "s_26827f229a298c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cdf6-146f-7563-bf7a-88a976f59083",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
