@@ -3484,6 +3484,46 @@ describe('StatusDatabase', () => {
         })
       })
 
+      it('hydrates change summaries and the time each version was superseded', async () => {
+        const statusId = `${emptyActorId}/statuses/update-note-edit-summary`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: ''
+        })
+
+        await database.updateNote({
+          statusId,
+          text: 'Ride summary',
+          summary: null
+        })
+        await database.createAttachment({
+          actorId: emptyActorId,
+          statusId,
+          mediaType: 'image/jpeg',
+          url: 'https://example.com/ride-map.jpg',
+          width: 320,
+          height: 240,
+          name: 'Ride route map',
+          mediaId: '9100'
+        })
+
+        const fetched = (await database.getStatus({
+          statusId
+        })) as StatusNote
+
+        expect(fetched.edits).toHaveLength(1)
+        expect(fetched.edits[0]).toMatchObject({
+          text: '',
+          changes: ['text-added', 'images-added'],
+          changeDetailsUnavailable: false,
+          editedAt: fetched.updatedAt
+        })
+      })
+
       it('replaces note media attachments without changing note text', async () => {
         const statusId = `${emptyActorId}/statuses/update-note-media`
         const oldMediaId = '9101'
@@ -3821,7 +3861,14 @@ describe('StatusDatabase', () => {
         expect(revisions[0]).toMatchObject({
           text: 'Snapshot original',
           sensitive: true,
-          pollOptions: null
+          pollOptions: null,
+          available: {
+            text: true,
+            summary: true,
+            sensitive: true,
+            attachments: true,
+            pollOptions: true
+          }
         })
         expect(revisions[0].attachments).toHaveLength(1)
         expect(revisions[0].attachments?.[0]).toMatchObject({

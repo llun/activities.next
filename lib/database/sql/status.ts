@@ -41,6 +41,7 @@ import {
   applyPotentiallyReadableStatusFilter as applyPotentiallyReadableStatusVisibilityFilter
 } from '@/lib/database/sql/utils/statusVisibility'
 import { isFitnessProcessingStuck } from '@/lib/services/fitness-files/processingState'
+import { getStatusEditTransitions } from '@/lib/services/statuses/statusEditChanges'
 import { SQLFitnessFile } from '@/lib/types/database/fitnessFile'
 import { ActorDatabase } from '@/lib/types/database/operations'
 import { BookmarkDatabase } from '@/lib/types/database/operations'
@@ -1375,30 +1376,49 @@ export const StatusSQLDatabaseMixin = (
     statusId
   }: GetStatusEditHistoryParams): Promise<StatusEditRevision[]> {
     // Each row holds the content of a prior version; `updatedAt` is when that
-    // version was superseded. Ordered oldest-first (insertion order) so the
-    // serializer can reconstruct the revision timeline.
+    // version was superseded. Order by the recorded transition time and then
+    // row id so equal timestamps still produce a stable revision timeline.
     const rows = await database('status_history')
       .where('statusId', statusId)
       .orderBy('updatedAt', 'asc')
       .orderBy('id', 'asc')
     return rows.map((row) => {
       const content = getCompatibleJSON(row.data)
-      // Rows written before per-revision snapshots only carry text/summary;
-      // the extended fields parse to null so readers can fall back to the
-      // status's current values.
+      const hasField = (field: string) =>
+        content != null && Object.prototype.hasOwnProperty.call(content, field)
+      // Rows written before per-revision snapshots only carry text/summary.
+      // Keep availability separate from nullable values: explicit `null` is a
+      // known empty value for summary or poll options, while a missing key is
+      // unknown and must not be reported as a change or no change.
       const attachments = Attachment.array().safeParse(content?.attachments)
       const pollOptions = Array.isArray(content?.pollOptions)
         ? content.pollOptions.filter(
             (option: unknown): option is string => typeof option === 'string'
           )
         : null
+      const pollOptionsAvailable =
+        content?.pollOptions === null ||
+        (Array.isArray(content?.pollOptions) &&
+          content.pollOptions.every(
+            (option: unknown) => typeof option === 'string'
+          ))
       return {
-        text: content?.text ?? '',
-        summary: content?.summary ?? null,
+        text: typeof content?.text === 'string' ? content.text : '',
+        summary: typeof content?.summary === 'string' ? content.summary : null,
         sensitive:
           typeof content?.sensitive === 'boolean' ? content.sensitive : null,
         attachments: attachments.success ? attachments.data : null,
         pollOptions,
+        createdAt: getCompatibleTime(row.createdAt),
+        available: {
+          text: typeof content?.text === 'string',
+          summary:
+            hasField('summary') &&
+            (content.summary === null || typeof content.summary === 'string'),
+          sensitive: typeof content?.sensitive === 'boolean',
+          attachments: attachments.success,
+          pollOptions: pollOptionsAvailable
+        },
         supersededAt: getCompatibleTime(row.updatedAt)
       }
     })
@@ -3300,6 +3320,7 @@ export const StatusSQLDatabaseMixin = (
       isActorBookmarkedStatusResult,
       actorAnnounceStatusId,
       edits,
+      currentPollChoices,
       fitnessFile,
       detectedLanguage,
       quoteEdge,
@@ -3342,7 +3363,10 @@ export const StatusSQLDatabaseMixin = (
               actorId: currentActorId
             })
         : null,
-      database('status_history').where('statusId', data.id),
+      getStatusEditHistory({ statusId: data.id }),
+      data.type === StatusType.enum.Poll
+        ? getPollChoices(data.id)
+        : Promise.resolve([]),
       // A status can carry several fitness files (e.g. the same ride merged
       // from two devices). Surface the primary one — matching
       // getFitnessFileByStatus — instead of an arbitrary `.first()`.
@@ -3450,6 +3474,27 @@ export const StatusSQLDatabaseMixin = (
     )
 
     const content = getCompatibleJSON(data.content)
+    const editTransitions = getStatusEditTransitions(
+      edits,
+      {
+        text: content.text,
+        summary: content.summary ?? null,
+        sensitive: content.sensitive ?? false,
+        attachments: orderedAttachments,
+        pollOptions:
+          data.type === StatusType.enum.Poll
+            ? currentPollChoices.map((choice) => choice.title)
+            : null,
+        available: {
+          text: true,
+          summary: true,
+          sensitive: true,
+          attachments: true,
+          pollOptions: true
+        }
+      },
+      data.type === StatusType.enum.Poll
+    )
     const base = {
       id: data.id,
       publicId: data.publicId ?? null,
@@ -3561,18 +3606,16 @@ export const StatusSQLDatabaseMixin = (
       createdAt: getCompatibleTime(data.createdAt),
       updatedAt: getCompatibleTime(data.updatedAt),
 
-      edits: edits.map((item) => {
-        const content = getCompatibleJSON(item.data)
-        return {
-          text: content.text,
-          summary: content.summary ?? null,
-          createdAt: getCompatibleTime(item.createdAt)
-        }
-      })
+      edits: edits.map((item, index) => ({
+        text: item.text,
+        textAvailable: item.available.text,
+        summary: item.summary,
+        createdAt: item.createdAt,
+        ...editTransitions[index]
+      }))
     }
     if (data.type === StatusType.enum.Poll) {
-      const [pollChoices, votersCount, voted, ownVotes] = await Promise.all([
-        getPollChoices(data.id),
+      const [votersCount, voted, ownVotes] = await Promise.all([
         getPollVotersCount(data.id),
         currentActorId
           ? hasActorVoted({ statusId: data.id, actorId: currentActorId })
@@ -3583,7 +3626,7 @@ export const StatusSQLDatabaseMixin = (
       ])
       return StatusPoll.parse({
         ...base,
-        choices: pollChoices,
+        choices: currentPollChoices,
         // Coerce to a finite timestamp; guards legacy/corrupt rows where endAt
         // may be missing or a non-numeric value (see coercePollEndAt). Falls
         // back to the status creation time (stable across reads) rather than

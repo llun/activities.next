@@ -111,6 +111,15 @@ describe('getMastodonStatusEdits', () => {
       updatedAt: new Date()
     })
 
+    const revisions = await database.getStatusEditHistory({ statusId })
+    expect(revisions[0].available).toEqual({
+      text: true,
+      summary: true,
+      sensitive: false,
+      attachments: false,
+      pollOptions: false
+    })
+
     const status = (await database.getStatus({ statusId })) as StatusNote
     const edits = await getMastodonStatusEdits(database, status)
 
@@ -124,4 +133,42 @@ describe('getMastodonStatusEdits', () => {
     })
     expect(edits[0].media_attachments).toEqual(edits[1].media_attachments)
   })
+
+  it.each([
+    ['missing text', { summary: null }],
+    ['non-string text', { text: 42, summary: null }]
+  ])(
+    'marks a legacy revision with %s as unavailable in the hydrated domain status',
+    async (description, snapshot) => {
+      const statusId = `${ACTOR1_ID}/statuses/edits-unavailable-text-${description.replaceAll(
+        ' ',
+        '-'
+      )}`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Current version'
+      })
+      await knexInstance('status_history').insert({
+        statusId,
+        data: JSON.stringify(snapshot),
+        createdAt: new Date(Date.now() - 60_000),
+        updatedAt: new Date(Date.now() - 60_000)
+      })
+
+      const revisions = await database.getStatusEditHistory({ statusId })
+      expect(revisions[0]).toMatchObject({
+        text: '',
+        available: { text: false }
+      })
+
+      const status = (await database.getStatus({ statusId })) as StatusNote
+      expect(status.edits).toContainEqual(
+        expect.objectContaining({ text: '', textAvailable: false })
+      )
+    }
+  )
 })

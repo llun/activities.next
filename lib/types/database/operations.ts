@@ -651,6 +651,9 @@ export type GetStatusEditHistoryParams = BaseStatusParams
 // was replaced by the next version, which is the creation time of that next
 // version.
 export type StatusEditRevision = {
+  // The row's creation timestamp has historically been the status creation
+  // time; `supersededAt` is the transition timestamp recorded by `updatedAt`.
+  createdAt: number
   text: string
   summary: string | null
   // Per-revision snapshots. Null on rows written before snapshotting existed;
@@ -658,6 +661,15 @@ export type StatusEditRevision = {
   sensitive: boolean | null
   attachments: Attachment[] | null
   pollOptions: string[] | null
+  // Distinguishes an explicitly empty value from a legacy or malformed row
+  // that did not snapshot that field.
+  available: {
+    text: boolean
+    summary: boolean
+    sensitive: boolean
+    attachments: boolean
+    pollOptions: boolean
+  }
   supersededAt: number
 }
 export type DeleteStatusParams = BaseStatusParams & {

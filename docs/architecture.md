@@ -1308,6 +1308,12 @@ legacy shape left to copy.
   data-sync callbacks (`onStatusCreated`/`onPostUpdated`/`onPostDeleted`/
   `onLikeChanged`/`onBookmarkChanged`/`onReactionsChanged`) and
   `isMediaUploadEnabled`. See **Status Posts & Actions** in `AGENTS.md`.
+  The edit-history panel lists prior revisions newest-first and labels each
+  transition to the following version, including text, image or attachment,
+  content-warning, sensitivity and poll-option changes. Its relative time is
+  the transition time. Blank prior text is shown as **No text in this version**;
+  missing or malformed prior text is shown as **Previous text is unavailable**.
+  Incomplete legacy snapshots are called out as unavailable rather than guessed.
   - Two **detail** surfaces are the standing exception, and they are not feeds:
     `StatusBox` and `FitnessStatusDetail` each render a single post and drive the
     shared `useInlineComposer`/`InlineStatusComposer` themselves, so they do pass

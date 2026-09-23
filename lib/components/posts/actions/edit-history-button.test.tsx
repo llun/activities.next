@@ -77,6 +77,100 @@ describe('EditHistoryButton', () => {
     expect(screen.getByText('the previous text')).toBeInTheDocument()
   })
 
+  it.each(['', ' \n\t'])(
+    'explains an empty previous revision while showing its changes',
+    (text) => {
+      openHistory(
+        status({
+          edits: [
+            {
+              text,
+              summary: null,
+              createdAt: currentTime - 86_400_000,
+              editedAt: currentTime - 3_600_000,
+              changes: ['text-added', 'images-added'],
+              changeDetailsUnavailable: false
+            }
+          ]
+        })
+      )
+
+      expect(screen.getByText('Text added')).toBeInTheDocument()
+      expect(screen.getByText('Images added')).toBeInTheDocument()
+      expect(screen.getByText('No text in this version')).toBeInTheDocument()
+      expect(screen.getByText('about 1 hour')).toBeInTheDocument()
+      expect(screen.queryByText('1 day')).not.toBeInTheDocument()
+    }
+  )
+
+  it('shows the unavailable fallback when no change can be established', () => {
+    openHistory(
+      status({
+        edits: [
+          {
+            text: '',
+            summary: null,
+            createdAt: currentTime - 60_000,
+            editedAt: currentTime - 60_000,
+            changes: [],
+            changeDetailsUnavailable: true
+          }
+        ]
+      })
+    )
+
+    expect(screen.getByText('Status updated')).toBeInTheDocument()
+    expect(
+      screen.getByText('Change details are unavailable')
+    ).toBeInTheDocument()
+  })
+
+  it('distinguishes unavailable historical text from a blank revision', () => {
+    openHistory(
+      status({
+        edits: [
+          {
+            text: '',
+            textAvailable: false,
+            summary: null,
+            createdAt: currentTime - 60_000,
+            editedAt: currentTime - 60_000,
+            changes: ['images-added'],
+            changeDetailsUnavailable: true
+          }
+        ]
+      })
+    )
+
+    expect(screen.getByText('Images added')).toBeInTheDocument()
+    expect(screen.getByText('Previous text is unavailable')).toBeInTheDocument()
+    expect(
+      screen.queryByText('No text in this version')
+    ).not.toBeInTheDocument()
+  })
+
+  it('keeps known change labels when other snapshot details are missing', () => {
+    openHistory(
+      status({
+        edits: [
+          {
+            text: '',
+            summary: null,
+            createdAt: currentTime - 60_000,
+            editedAt: currentTime - 60_000,
+            changes: ['text-added'],
+            changeDetailsUnavailable: true
+          }
+        ]
+      })
+    )
+
+    expect(screen.getByText('Text added')).toBeInTheDocument()
+    expect(
+      screen.getByText('Some change details are unavailable')
+    ).toBeInTheDocument()
+  })
+
   // A revision is the status TEXT as it was, and for a remote status that is
   // raw HTML from the origin server — `status_history.data` snapshots
   // `status.text`, which is stored unsanitized and only cleaned at render.
