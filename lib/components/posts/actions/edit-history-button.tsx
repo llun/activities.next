@@ -2,9 +2,29 @@ import { formatDistance } from 'date-fns'
 import { History, X } from 'lucide-react'
 import { FC, useId, useRef, useState } from 'react'
 
-import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusEditChange,
+  StatusNote,
+  StatusPoll
+} from '@/lib/types/domain/status'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import { processStatusTextContent } from '@/lib/utils/text/processStatusText'
+
+const changeLabels: Record<StatusEditChange, string> = {
+  'text-added': 'Text added',
+  'text-updated': 'Text updated',
+  'text-removed': 'Text removed',
+  'images-added': 'Images added',
+  'images-updated': 'Images updated',
+  'images-removed': 'Images removed',
+  'attachments-added': 'Attachments added',
+  'attachments-updated': 'Attachments updated',
+  'attachments-removed': 'Attachments removed',
+  'content-warning-changed': 'Content warning changed',
+  'sensitive-setting-changed': 'Sensitive content setting changed',
+  'poll-options-changed': 'Poll options changed'
+}
 
 interface Props {
   host: string
@@ -101,7 +121,38 @@ export const EditHistoryButton: FC<Props> = ({
                   className="flex flex-col items-start p-3"
                 >
                   <div className="self-end bg-primary text-primary-foreground px-3 py-1 rounded-full text-xs">
-                    {formatDistance(edit.createdAt, currentTime)}
+                    {formatDistance(
+                      edit.editedAt ?? edit.createdAt,
+                      currentTime
+                    )}
+                  </div>
+                  <div
+                    className="mr-auto mt-2 flex flex-wrap items-center gap-1.5"
+                    aria-label="Changes in this update"
+                  >
+                    {edit.changes?.length ? (
+                      edit.changes.map((change) => (
+                        <span
+                          key={change}
+                          className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground"
+                        >
+                          {changeLabels[change]}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">
+                        Status updated
+                      </span>
+                    )}
+                    {edit.changeDetailsUnavailable && edit.changes?.length ? (
+                      <span className="text-xs text-muted-foreground">
+                        Some change details are unavailable
+                      </span>
+                    ) : !edit.changes?.length ? (
+                      <span className="text-xs text-muted-foreground">
+                        Change details are unavailable
+                      </span>
+                    ) : null}
                   </div>
                   <div className="mr-auto text-left mt-2 whitespace-normal overflow-auto max-h-40">
                     {/* The SAME pipeline the post body uses, not a local
@@ -115,14 +166,20 @@ export const EditHistoryButton: FC<Props> = ({
                         `onerror` and neutralises a `javascript:` href by
                         itself, but it renders `<script>` and `<iframe>`
                         quite happily. */}
-                    {cleanClassName(
-                      processStatusTextContent(
-                        host,
-                        edit.text,
-                        status.tags,
-                        status.isLocalActor
-                      ),
-                      { host, tags: status.tags }
+                    {edit.text.trim().length === 0 ? (
+                      <span className="italic text-muted-foreground">
+                        No text in this version
+                      </span>
+                    ) : (
+                      cleanClassName(
+                        processStatusTextContent(
+                          host,
+                          edit.text,
+                          status.tags,
+                          status.isLocalActor
+                        ),
+                        { host, tags: status.tags }
+                      )
                     )}
                   </div>
                 </li>

@@ -111,6 +111,15 @@ describe('getMastodonStatusEdits', () => {
       updatedAt: new Date()
     })
 
+    const revisions = await database.getStatusEditHistory({ statusId })
+    expect(revisions[0].available).toEqual({
+      text: true,
+      summary: true,
+      sensitive: false,
+      attachments: false,
+      pollOptions: false
+    })
+
     const status = (await database.getStatus({ statusId })) as StatusNote
     const edits = await getMastodonStatusEdits(database, status)
 

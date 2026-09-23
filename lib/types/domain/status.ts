@@ -90,10 +90,31 @@ export const StatusFitnessFile = z.object({
 })
 export type StatusFitnessFile = z.infer<typeof StatusFitnessFile>
 
+export const StatusEditChange = z.enum([
+  'text-added',
+  'text-updated',
+  'text-removed',
+  'images-added',
+  'images-updated',
+  'images-removed',
+  'attachments-added',
+  'attachments-updated',
+  'attachments-removed',
+  'content-warning-changed',
+  'sensitive-setting-changed',
+  'poll-options-changed'
+])
+export type StatusEditChange = z.infer<typeof StatusEditChange>
+
 export const Edited = z.object({
   text: z.string(),
   summary: z.string().nullable().optional(),
-  createdAt: z.number()
+  createdAt: z.number(),
+  // `editedAt` is the time this revision was superseded, so it dates the
+  // transition described by `changes` rather than the revision's creation.
+  editedAt: z.number().optional(),
+  changes: StatusEditChange.array().optional(),
+  changeDetailsUnavailable: z.boolean().optional()
 })
 
 export type Edited = z.infer<typeof Edited>
