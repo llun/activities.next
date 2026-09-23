@@ -3608,6 +3608,7 @@ export const StatusSQLDatabaseMixin = (
 
       edits: edits.map((item, index) => ({
         text: item.text,
+        textAvailable: item.available.text,
         summary: item.summary,
         createdAt: item.createdAt,
         ...editTransitions[index]

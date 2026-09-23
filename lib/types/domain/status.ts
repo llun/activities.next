@@ -108,6 +108,10 @@ export type StatusEditChange = z.infer<typeof StatusEditChange>
 
 export const Edited = z.object({
   text: z.string(),
+  // Historical snapshots normalize missing or malformed text to an empty
+  // string. Keep its availability so the UI can distinguish unknown text
+  // from an intentionally blank revision.
+  textAvailable: z.boolean().optional(),
   summary: z.string().nullable().optional(),
   createdAt: z.number(),
   // `editedAt` is the time this revision was superseded, so it dates the

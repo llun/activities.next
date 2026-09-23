@@ -1312,8 +1312,8 @@ legacy shape left to copy.
   transition to the following version, including text, image or attachment,
   content-warning, sensitivity and poll-option changes. Its relative time is
   the transition time. Blank prior text is shown as **No text in this version**;
-  incomplete legacy snapshots are called out as unavailable rather than
-  guessed.
+  missing or malformed prior text is shown as **Previous text is unavailable**.
+  Incomplete legacy snapshots are called out as unavailable rather than guessed.
   - Two **detail** surfaces are the standing exception, and they are not feeds:
     `StatusBox` and `FitnessStatusDetail` each render a single post and drive the
     shared `useInlineComposer`/`InlineStatusComposer` themselves, so they do pass

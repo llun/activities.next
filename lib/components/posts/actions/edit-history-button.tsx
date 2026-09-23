@@ -166,7 +166,11 @@ export const EditHistoryButton: FC<Props> = ({
                         `onerror` and neutralises a `javascript:` href by
                         itself, but it renders `<script>` and `<iframe>`
                         quite happily. */}
-                    {edit.text.trim().length === 0 ? (
+                    {edit.textAvailable === false ? (
+                      <span className="italic text-muted-foreground">
+                        Previous text is unavailable
+                      </span>
+                    ) : edit.text.trim().length === 0 ? (
                       <span className="italic text-muted-foreground">
                         No text in this version
                       </span>

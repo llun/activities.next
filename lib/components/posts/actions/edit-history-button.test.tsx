@@ -125,6 +125,30 @@ describe('EditHistoryButton', () => {
     ).toBeInTheDocument()
   })
 
+  it('distinguishes unavailable historical text from a blank revision', () => {
+    openHistory(
+      status({
+        edits: [
+          {
+            text: '',
+            textAvailable: false,
+            summary: null,
+            createdAt: currentTime - 60_000,
+            editedAt: currentTime - 60_000,
+            changes: ['images-added'],
+            changeDetailsUnavailable: true
+          }
+        ]
+      })
+    )
+
+    expect(screen.getByText('Images added')).toBeInTheDocument()
+    expect(screen.getByText('Previous text is unavailable')).toBeInTheDocument()
+    expect(
+      screen.queryByText('No text in this version')
+    ).not.toBeInTheDocument()
+  })
+
   it('keeps known change labels when other snapshot details are missing', () => {
     openHistory(
       status({
