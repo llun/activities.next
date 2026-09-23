@@ -1,0 +1,52 @@
+lib/services/mastodon/getMastodonStatusEdits.test.ts
+  s_a57e5bd464be04::t_d311fef92a3422 114-122
+lib/services/statuses/statusEditChanges.ts
+  s_a57e5bd464be04::t_2dc7c2d07cbbbd 2,7,44,185-186
+  s_a57e5bd464be04::t_96a0d019fa9e67 47-63,148-172
+  s_a57e5bd464be04::t_d3a5517dfeef13 178-183
+  s_a57e5bd464be04::t_3cd307a0847f28 1,3-6,8-43,45-46,64-147,173-177,184,187-200
+lib/services/statuses/statusEditChanges.test.ts
+  s_a57e5bd464be04::t_993b275d151535 236-246
+  s_a57e5bd464be04::t_0fb1b3278d4ee9 1,3-73,78-143,163-180,182-183,185-235,247-276
+  s_a57e5bd464be04::t_44c444d4cf8b57 144-162
+  s_a57e5bd464be04::t_2dc7c2d07cbbbd 2,74-77
+  s_a57e5bd464be04::t_e75a8e08c75dd8 181,184
+lib/database/sql/status.ts
+  s_a57e5bd464be04::t_8d71303b82baba 3323
+  s_a57e5bd464be04::t_df527533a4b556 44,3366-3369
+  s_a57e5bd464be04::t_4156a9063011c6 1379-1380,1387,1389-1392,1399-1404,1412-1421
+  s_a57e5bd464be04::t_b975230b78ef62 3477-3497
+  s_a57e5bd464be04::t_07e11011944619 3609-3614,3617,3628
+  s_a57e5bd464be04::t_1c4c7f2c543c1b 1388,1406
+  s_a57e5bd464be04::t_2dc7c2d07cbbbd 1407
+lib/components/posts/actions/edit-history-button.tsx
+  s_a57e5bd464be04::t_1c3c13cdaeb150 5-10,14-28,128-155,169-182
+  s_a57e5bd464be04::t_2dc7c2d07cbbbd 124-127
+lib/types/domain/status.ts
+  s_a57e5bd464be04::t_2657f2ab906213 93-108,112-117
+lib/database/sql/status.test.ts
+  s_a57e5bd464be04::t_d9b503b589bb13 3487-3526,3864-3871
+lib/components/posts/actions/edit-history-button.test.tsx
+  s_a57e5bd464be04::t_2dc7c2d07cbbbd 123-125
+  s_a57e5bd464be04::t_cfcf997d4e3f89 80-122,126-149
+lib/types/database/operations.ts
+  s_a57e5bd464be04::t_055f14e0e2bb01 654-656,664-672
+docs/architecture.md
+  s_a57e5bd464be04::t_6f2327e7317aba 1311-1316
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5e456a529bd20bd931683d23837bb57e8abf89c1",
+  "prompts": {},
+  "sessions": {
+    "s_a57e5bd464be04": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cfc4-e85b-7622-91f3-d4b0dbcebfd7",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
