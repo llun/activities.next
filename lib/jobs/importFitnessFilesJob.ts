@@ -85,7 +85,12 @@ const JobData = z.object({
   // Set by the ORIGINATING publisher for the same reason as the two flags
   // above, and defaults to false so a new caller keeps the historical
   // behaviour until it opts in.
-  postAtImportTime: z.boolean().optional().default(false)
+  postAtImportTime: z.boolean().optional().default(false),
+  // Provider imports may upgrade an existing activity's data source when the
+  // new file includes a route or a richer recording format.
+  preferRicherPrimary: z.boolean().optional().default(false),
+  // A provider may replace its own earlier revision without changing the post.
+  replacePrimaryFileId: z.string().optional()
 })
 
 const ACTOR_NOT_FOUND_IMPORT_ERROR = 'Actor not found for fitness import'
@@ -146,6 +151,11 @@ const selectPrimaryTargetFile = (
 
   return sorted[0]
 }
+
+const primaryQuality = (item: ParsedImportFile) =>
+  Number(Boolean(item.hasCoordinates)) * 4 +
+  Number(item.fitnessFile.fileType === 'fit') * 2 +
+  Number(item.totalDurationSeconds > 0)
 
 const buildParsedFileFromStoredActivity = ({
   fitnessFile,
@@ -306,7 +316,9 @@ export const importFitnessFiles = async (
     visibility,
     notifyOnComplete,
     publishSendNote,
-    postAtImportTime
+    postAtImportTime,
+    preferRicherPrimary,
+    replacePrimaryFileId
   } = JobData.parse(data)
 
   const importedGroups: ImportedFitnessGroup[] = []
@@ -525,6 +537,16 @@ export const importFitnessFiles = async (
             item.fitnessFile.isPrimary
         )?.fitnessFile.id
 
+      const existingPrimaryFile = orderedGroup.find(
+        (item) => item.fitnessFile.id === existingPrimaryFileId
+      )
+      const promoteTarget =
+        existingPrimaryFile &&
+        (existingPrimaryFileId === replacePrimaryFileId ||
+          (preferRicherPrimary &&
+            primaryQuality(primaryTargetFile) >
+              primaryQuality(existingPrimaryFile)))
+
       const status =
         existingStatus ??
         (await createLocalOnlyFitnessStatus({
@@ -538,13 +560,19 @@ export const importFitnessFiles = async (
       }
 
       const primaryFitnessFileId =
-        existingPrimaryFileId ?? primaryTargetFile.fitnessFile.id
+        existingPrimaryFileId && !promoteTarget
+          ? existingPrimaryFileId
+          : primaryTargetFile.fitnessFile.id
 
       await database.assignFitnessFilesToImportedStatus({
         fitnessFileIds: targetFitnessFileIds,
         primaryFitnessFileId,
         statusId: status.id
       })
+
+      if (promoteTarget && existingPrimaryFileId) {
+        await database.updateFitnessFilePrimary(existingPrimaryFileId, false)
+      }
 
       const processJob = targetFitnessFileIds.includes(primaryFitnessFileId)
         ? {

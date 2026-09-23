@@ -22,6 +22,7 @@ const tabs: SectionNavTab[] = [
   { name: 'Files', url: '/fitness/files', icon: Files },
   { name: 'Privacy', url: '/fitness/privacy', icon: Lock },
   { name: 'Strava', url: '/fitness/strava', icon: Globe },
+  { name: 'Wahoo', url: '/fitness/wahoo', icon: Globe },
   { name: 'Gear', url: '/fitness/gear', icon: Wrench }
 ]
 

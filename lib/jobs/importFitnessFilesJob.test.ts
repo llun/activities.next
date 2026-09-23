@@ -77,6 +77,54 @@ describe('importFitnessFilesJob', () => {
     mockDeleteMediaFile.mockResolvedValue(true)
   })
 
+  const createFitnessFile = (
+    fileType: 'fit' | 'tcx',
+    path: string,
+    importBatchId: string
+  ) =>
+    database.createFitnessFile({
+      actorId: actor.id,
+      path,
+      fileName: path.split('/').pop()!,
+      fileType,
+      mimeType:
+        fileType === 'fit' ? 'application/vnd.ant.fit' : 'application/tcx+xml',
+      bytes: 1_024,
+      importBatchId
+    })
+
+  const routedActivity: FitnessActivityData = {
+    coordinates: [
+      { lat: 13.7563, lng: 100.5018 },
+      { lat: 13.76, lng: 100.505 }
+    ],
+    trackPoints: [],
+    totalDistanceMeters: 18_000,
+    totalDurationSeconds: 3_000,
+    startTime: new Date('2026-02-01T08:00:00.000Z')
+  }
+
+  const importWithActivity = async (
+    fileId: string,
+    batchId: string,
+    options: {
+      overlapFitnessFileIds?: string[]
+      notifyOnComplete?: boolean
+      publishSendNote?: boolean
+      preferRicherPrimary?: boolean
+      replacePrimaryFileId?: string
+    } = {}
+  ) => {
+    mockParseFitnessFile.mockResolvedValueOnce(routedActivity)
+    return importFitnessFiles(database, {
+      actorId: actor.id,
+      batchId,
+      fitnessFileIds: [fileId],
+      visibility: 'public',
+      ...options
+    })
+  }
+
   it('records a reason when status creation rejects with a non-Error', async () => {
     const file = await database.createFitnessFile({
       actorId: actor.id,
@@ -795,6 +843,128 @@ describe('importFitnessFilesJob', () => {
         data: expect.objectContaining({ fitnessFileId: outdoorFile!.id })
       })
     )
+  })
+
+  it('opts in to promoting a richer Wahoo FIT file while preserving the existing status', async () => {
+    const tcxFile = await createFitnessFile(
+      'tcx',
+      'fitness/wahoo-upgrade-tcx.tcx',
+      'batch-wahoo-upgrade'
+    )
+    const wahooFile = await createFitnessFile(
+      'fit',
+      'fitness/wahoo-upgrade-fit.fit',
+      'batch-wahoo-upgrade'
+    )
+    await importWithActivity(tcxFile!.id, 'wahoo-upgrade-initial')
+    const existing = await database.getFitnessFile({ id: tcxFile!.id })
+    ;(getQueue().publish as jest.Mock).mockClear()
+
+    const groups = await importWithActivity(
+      wahooFile!.id,
+      'wahoo-upgrade-second-device',
+      {
+        overlapFitnessFileIds: [tcxFile!.id],
+        notifyOnComplete: true,
+        publishSendNote: true,
+        preferRicherPrimary: true
+      }
+    )
+
+    const upgradedTcx = await database.getFitnessFile({ id: tcxFile!.id })
+    const upgradedWahoo = await database.getFitnessFile({ id: wahooFile!.id })
+    expect(upgradedWahoo?.statusId).toBe(existing?.statusId)
+    expect(upgradedWahoo?.isPrimary).toBe(true)
+    expect(upgradedTcx?.isPrimary).toBe(false)
+    expect(groups).toHaveLength(1)
+    expect(groups[0]?.statusCreated).toBe(false)
+    expect(groups[0]?.primaryFitnessFileId).toBe(wahooFile!.id)
+    expect(groups[0]?.processJob?.data).toEqual(
+      expect.objectContaining({
+        fitnessFileId: wahooFile!.id,
+        publishSendNote: false,
+        notifyOnComplete: false
+      })
+    )
+    expect(getQueue().publish).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the existing TCX primary when richer-primary preference is absent', async () => {
+    const tcxFile = await createFitnessFile(
+      'tcx',
+      'fitness/wahoo-no-upgrade-tcx.tcx',
+      'batch-wahoo-no-upgrade'
+    )
+    const wahooFile = await createFitnessFile(
+      'fit',
+      'fitness/wahoo-no-upgrade-fit.fit',
+      'batch-wahoo-no-upgrade'
+    )
+    await importWithActivity(tcxFile!.id, 'wahoo-no-upgrade-initial')
+    const existing = await database.getFitnessFile({ id: tcxFile!.id })
+    ;(getQueue().publish as jest.Mock).mockClear()
+
+    const groups = await importWithActivity(
+      wahooFile!.id,
+      'wahoo-no-upgrade-second-device',
+      { overlapFitnessFileIds: [tcxFile!.id] }
+    )
+
+    const keptTcx = await database.getFitnessFile({ id: tcxFile!.id })
+    const keptWahoo = await database.getFitnessFile({ id: wahooFile!.id })
+    expect(keptWahoo?.statusId).toBe(existing?.statusId)
+    expect(keptTcx?.isPrimary).toBe(true)
+    expect(keptWahoo?.isPrimary).toBe(false)
+    expect(groups[0]?.primaryFitnessFileId).toBe(tcxFile!.id)
+    expect(groups[0]?.processJob).toBeNull()
+    expect(getQueue().publish).not.toHaveBeenCalled()
+  })
+
+  it('replaces an earlier Wahoo revision in the same status when requested', async () => {
+    const earlierWahooFile = await createFitnessFile(
+      'fit',
+      'fitness/wahoo-revision-earlier.fit',
+      'batch-wahoo-revision'
+    )
+    const latestWahooFile = await createFitnessFile(
+      'fit',
+      'fitness/wahoo-revision-latest.fit',
+      'batch-wahoo-revision'
+    )
+    await importWithActivity(earlierWahooFile!.id, 'wahoo-revision-initial')
+    const existing = await database.getFitnessFile({
+      id: earlierWahooFile!.id
+    })
+    ;(getQueue().publish as jest.Mock).mockClear()
+
+    const groups = await importWithActivity(
+      latestWahooFile!.id,
+      'wahoo-revision-update',
+      {
+        overlapFitnessFileIds: [earlierWahooFile!.id],
+        notifyOnComplete: true,
+        publishSendNote: true,
+        replacePrimaryFileId: earlierWahooFile!.id
+      }
+    )
+
+    const earlier = await database.getFitnessFile({
+      id: earlierWahooFile!.id
+    })
+    const latest = await database.getFitnessFile({ id: latestWahooFile!.id })
+    expect(latest?.statusId).toBe(existing?.statusId)
+    expect(latest?.isPrimary).toBe(true)
+    expect(earlier?.isPrimary).toBe(false)
+    expect(groups[0]?.statusCreated).toBe(false)
+    expect(groups[0]?.primaryFitnessFileId).toBe(latestWahooFile!.id)
+    expect(groups[0]?.processJob?.data).toEqual(
+      expect.objectContaining({
+        fitnessFileId: latestWahooFile!.id,
+        publishSendNote: false,
+        notifyOnComplete: false
+      })
+    )
+    expect(getQueue().publish).toHaveBeenCalledTimes(1)
   })
 
   it('picks the longest outdoor file as primary when multiple outdoor cycling files are merged', async () => {

@@ -183,13 +183,28 @@ describe('proxy', () => {
     ])
   })
 
+  it('preserves the registered trailing slash on Wahoo webhook POSTs', async () => {
+    const request = new NextRequest(
+      'https://public.example.com/api/v1/webhooks/wahoo/',
+      { method: 'POST' }
+    )
+
+    const response = await proxy(request)
+
+    expect(response?.status).toBe(200)
+    expect(response?.headers.get('location')).toBeNull()
+  })
+
   it('matches static asset paths with path segment boundaries', () => {
     const matcher = new RegExp(`^${proxyConfig.matcher[0]}$`)
 
     for (const pathname of [
       '/activities/_next',
       '/activities/_next/',
-      '/activities/_next/static/chunk.js'
+      '/activities/_next/static/chunk.js',
+      '/_next/static/chunk.js',
+      '/_next/image/',
+      '/favicon.ico'
     ]) {
       expect(matcher.test(pathname)).toBe(false)
     }

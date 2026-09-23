@@ -18,6 +18,14 @@ export interface SQLFitnessSettings {
 
   // Webhook
   webhookToken?: string | null
+  wahooWebhookToken?: string | null
+  wahooWebhookTokenHash?: string | null
+  providerUserId?: string | null
+  providerEnvironment?: string | null
+  grantedScopes?: string | null
+  lastWebhookAt?: number | Date | null
+  lastImportAt?: number | Date | null
+  connectionError?: string | null
 
   // OAuth tokens (encrypted)
   accessToken?: string | null
@@ -53,6 +61,12 @@ export interface FitnessSettings {
   clientSecret?: string // Decrypted
 
   webhookToken?: string
+  providerUserId?: string
+  providerEnvironment?: 'sandbox' | 'production'
+  grantedScopes?: string
+  lastWebhookAt?: number
+  lastImportAt?: number
+  connectionError?: string
 
   accessToken?: string // Decrypted
   refreshToken?: string // Decrypted

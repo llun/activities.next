@@ -28,6 +28,7 @@ describe('Fitness Layout', () => {
     ['/fitness/files', 'Files'],
     ['/fitness/privacy', 'Privacy'],
     ['/fitness/strava', 'Strava'],
+    ['/fitness/wahoo', 'Wahoo'],
     ['/fitness/gear', 'Gear'],
     ['/fitness/files/abc123', 'Files'],
     ['/fitness/gear/abc123', 'Gear']
@@ -74,6 +75,7 @@ describe('Fitness Layout', () => {
       'Files',
       'Privacy',
       'Strava',
+      'Wahoo',
       'Gear'
     ]) {
       expect(

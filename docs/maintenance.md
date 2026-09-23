@@ -530,7 +530,9 @@ NODE_ENV=production ./scripts/maintenance/manageAdminRole.ts add admin@example.c
 NODE_ENV=production ./scripts/maintenance/manageAdminRole.ts remove admin@example.com
 ```
 
-### Fitness and Strava Maintenance
+### Fitness, Strava, and Wahoo Maintenance
+
+Wahoo stores each external workout identity and import outcome in `wahoo_imports`; history scans and their progress live in `wahoo_history_imports`. Owners can retry failed or FIT-less workouts individually from **Fitness → Wahoo**, or retry an interrupted date-range scan there. The page shows the last webhook and successful import times. The registered webhook URL ends in `/api/v1/webhooks/wahoo/` and requires the Wahoo application's `offline_data` scope and webhook token. Check the queue worker and Admin → Queues for terminal job failures if an import remains pending; do not delete the provider identity row to force a retry, because a completed row also prevents a deleted local post from being recreated by a delayed webhook. Disconnecting cancels active history work and preserves local activities.
 
 Useful scripts for interrupted imports, route heatmap rebuilds, and Strava maintenance:
 

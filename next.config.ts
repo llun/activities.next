@@ -7,6 +7,9 @@ import { getStaticSecurityHeaders } from '@/lib/utils/http-headers/static'
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Handle slash removal through redirects() below so the exact Wahoo webhook
+  // URL can keep its trailing slash, including requests Next routes internally.
+  skipTrailingSlashRedirect: true,
   output: process.env.BUILD_STANDALONE ? 'standalone' : undefined,
   typescript: {
     // The `tsc` CLI checks every file its config includes, so the build reads a
@@ -172,6 +175,18 @@ const nextConfig: NextConfig = {
       {
         source: '/oauth/userinfo',
         destination: '/api/oauth/userinfo'
+      }
+    ]
+  },
+  async redirects() {
+    return [
+      {
+        // Match one trailing slash on every non-root path except the exact
+        // registered Wahoo callback. Config redirects run before filesystem
+        // routing, which includes Next's internal static asset routes.
+        source: '/:path((?!api/v1/webhooks/wahoo/$).*)/',
+        destination: '/:path',
+        permanent: true
       }
     ]
   }

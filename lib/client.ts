@@ -44,6 +44,7 @@ export * from './client/fitnessHeatmaps'
 export * from './client/fitnessImports'
 export * from './client/fitnessRoutes'
 export * from './client/strava'
+export * from './client/wahoo'
 
 // --- HTTP & Base Utilities ---
 export * from './client/http'
