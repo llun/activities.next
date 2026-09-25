@@ -1,0 +1,21 @@
+app/(timeline)/fitness/gear/[id]/GearComponentsCard.test.tsx
+  s_725909a67e1914::t_af467915aaf3af 776-779
+lib/components/ui/input.test.tsx
+  s_725909a67e1914::t_e9b3fa48ad5981 1-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a9883e297516692cf789b315fec299fb7fbb87c0",
+  "prompts": {},
+  "sessions": {
+    "s_725909a67e1914": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d554-1283-7a03-aa63-f06a555f70ba",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
