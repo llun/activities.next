@@ -1,0 +1,74 @@
+migrations/schema.sqlite.sql
+  s_d14ca01079411b::t_8de07d02be45fa 43
+lib/client/fitnessGeneralSettings.ts
+  s_05598cebdd5503::t_7e392bde77971d 12,21-25,68,70,76
+lib/database/sql/fitnessSettings.ts
+  s_05598cebdd5503::t_450bb465165817 36,61,176,215-216,264,292,319-320,386-387
+docs/fitness-file-storage.md
+  s_05598cebdd5503::t_e8c43fd8afc200 330
+  s_05598cebdd5503::t_79c09c057b43c5 43-44
+lib/database/sql/fitnessSettings.test.ts
+  s_725909a67e1914::t_cae439bd024075 75-78,763-832
+app/(timeline)/fitness/privacy/page.tsx
+  s_05598cebdd5503::t_1ffcb29800eb6e 35
+app/api/v1/fitness/general/route.test.ts
+  s_05598cebdd5503::t_93810ddeeaa1ea 130,148,174,269-441
+app/api/v1/fitness/general/route.ts
+  s_d14ca01079411b::t_3fb8f8c79f7369 16,44-49,53-54,66-67,73,80-86,97-103,118,128,147-148,152,157,162-170,183-186,190-192,194-204,207-221,223-229,234,293-305,310,313-315,318-321,335
+docs/features.md
+  s_05598cebdd5503::t_da429ceaad4384 59
+docs/maintenance.md
+  s_05598cebdd5503::t_9db0f2b663fbd6 928
+lib/client/fitnessGeneralSettings.test.ts
+  s_05598cebdd5503::t_4a40e3ec178529 37-49,95-117
+lib/components/settings/FitnessPrivacyLocationSettings.test.tsx
+  s_05598cebdd5503::t_d530628730d733 594-786,872-874
+lib/components/settings/FitnessPrivacyLocationSettings.tsx
+  s_05598cebdd5503::t_27c7ced9713f70 23,346-356,467,729-731,747-749,862-894,925-937,939-993,995,997,999-1015,1019-1045,1047-1056,1058-1072,1074-1082,1084-1111,1113-1135,1138-1143,1145,1147-1204,1206-1211
+lib/jobs/processFitnessFileJob.test.ts
+  s_05598cebdd5503::t_f6d09c1c942e9f 156-159,182-183,2244-2302,2319,2327-2329,2331-2332,2355-2359,2361,2363-2380,2383-2388,2390
+lib/jobs/processFitnessFileJob.ts
+  s_05598cebdd5503::t_108bed3dea590b 663-672
+lib/jobs/regenerateFitnessMapsJob.test.ts
+  s_05598cebdd5503::t_1279a6d1eb8d85 798-815,817-874,888,896-898,900-901,922-924,926,928-945,948-953,955
+lib/jobs/regenerateFitnessMapsJob.ts
+  s_05598cebdd5503::t_ff1430b4d0dd71 218-227
+lib/types/database/fitnessSettings.ts
+  s_05598cebdd5503::t_a732f9291fb2be 49-51,91-93
+migrations/20260925120000_add_fitness_settings_route_description.js
+  s_05598cebdd5503::t_e236a052f05415 1-19
+migrations/schema.sql
+  s_05598cebdd5503::t_bbc04918a21437 598-599
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ff35bd545eff3354ba6ed8b43ae692c2a62031f3",
+  "prompts": {},
+  "sessions": {
+    "s_05598cebdd5503": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d555-002c-7842-b513-99555c30c534",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_725909a67e1914": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d554-1283-7a03-aa63-f06a555f70ba",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_d14ca01079411b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d9d7-0e58-7040-8a9b-de72e5e8e886",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
