@@ -33,6 +33,7 @@ export interface CreateFitnessSettingsParams {
   privacyHomeLatitude?: number
   privacyHomeLongitude?: number
   privacyHideRadiusMeters?: number
+  generateRouteDescription?: boolean
 }
 
 export interface UpdateFitnessSettingsParams {
@@ -57,6 +58,7 @@ export interface UpdateFitnessSettingsParams {
   privacyHomeLatitude?: number | null
   privacyHomeLongitude?: number | null
   privacyHideRadiusMeters?: number | null
+  generateRouteDescription?: boolean | null
 }
 
 export interface GetFitnessSettingsParams {
@@ -171,6 +173,7 @@ const toFitnessSettings = (row: SQLFitnessSettings): FitnessSettings => ({
   privacyHomeLatitude: row.privacyHomeLatitude ?? undefined,
   privacyHomeLongitude: row.privacyHomeLongitude ?? undefined,
   privacyHideRadiusMeters: row.privacyHideRadiusMeters ?? undefined,
+  generateRouteDescription: Boolean(row.generateRouteDescription),
   providerUserId: row.providerUserId || undefined,
   providerEnvironment:
     row.providerEnvironment === 'production' ? 'production' : 'sandbox',
@@ -209,7 +212,8 @@ export const FitnessSettingsSQLDatabaseMixin = (
     privacyLocations,
     privacyHomeLatitude,
     privacyHomeLongitude,
-    privacyHideRadiusMeters
+    privacyHideRadiusMeters,
+    generateRouteDescription
   }: CreateFitnessSettingsParams): Promise<FitnessSettings> {
     const existing = await database('fitness_settings')
       .where({ actorId, serviceType })
@@ -257,6 +261,7 @@ export const FitnessSettingsSQLDatabaseMixin = (
       privacyHomeLatitude,
       privacyHomeLongitude,
       privacyHideRadiusMeters,
+      generateRouteDescription: generateRouteDescription ?? false,
       createdAt: currentTime,
       updatedAt: currentTime
     }
@@ -284,6 +289,7 @@ export const FitnessSettingsSQLDatabaseMixin = (
       privacyHomeLatitude,
       privacyHomeLongitude,
       privacyHideRadiusMeters,
+      generateRouteDescription: generateRouteDescription ?? false,
       createdAt: getCompatibleTime(currentTime),
       updatedAt: getCompatibleTime(currentTime)
     }
@@ -310,7 +316,8 @@ export const FitnessSettingsSQLDatabaseMixin = (
     privacyLocations,
     privacyHomeLatitude,
     privacyHomeLongitude,
-    privacyHideRadiusMeters
+    privacyHideRadiusMeters,
+    generateRouteDescription
   }: UpdateFitnessSettingsParams): Promise<FitnessSettings | null> {
     const updateData: Partial<SQLFitnessSettings> = {
       updatedAt: new Date()
@@ -376,6 +383,8 @@ export const FitnessSettingsSQLDatabaseMixin = (
       updateData.privacyHomeLongitude = privacyHomeLongitude
     if (privacyHideRadiusMeters !== undefined)
       updateData.privacyHideRadiusMeters = privacyHideRadiusMeters
+    if (generateRouteDescription !== undefined)
+      updateData.generateRouteDescription = generateRouteDescription ?? false
 
     const credentialEdit = clientId !== undefined || clientSecret !== undefined
 

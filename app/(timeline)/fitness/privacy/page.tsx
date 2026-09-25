@@ -32,7 +32,7 @@ const Page = async () => {
     <div className="space-y-6">
       <PageHeader
         title="Privacy"
-        description="Manage hidden locations for imported fitness routes."
+        description="Manage hidden locations and route map settings for imported fitness routes."
       />
       <FitnessPrivacyLocationSettings mapProvider={mapProvider} />
     </div>

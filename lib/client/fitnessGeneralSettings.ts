@@ -9,12 +9,18 @@ export interface FitnessGeneralSettingsResponse {
   privacyHomeLatitude?: number | null
   privacyHomeLongitude?: number | null
   privacyHideRadiusMeters?: number
+  generateRouteDescription?: boolean
 }
 
 export interface FitnessPrivacyLocationInput {
   latitude: number
   longitude: number
   hideRadiusMeters: number
+}
+
+export interface UpdateFitnessGeneralSettingsInput {
+  privacyLocations?: FitnessPrivacyLocationInput[]
+  generateRouteDescription?: boolean
 }
 
 export interface RegenerateFitnessMapsResponse {
@@ -59,16 +65,15 @@ export const getFitnessGeneralSettings =
   }
 
 export const updateFitnessGeneralSettings = async (
-  privacyLocations: FitnessPrivacyLocationInput[]
+  input: FitnessPrivacyLocationInput[] | UpdateFitnessGeneralSettingsInput
 ): Promise<{ ok: boolean; data: FitnessGeneralSettingsResponse }> => {
+  const body = Array.isArray(input) ? { privacyLocations: input } : input
   const response = await fetch('/api/v1/fitness/general', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      privacyLocations
-    })
+    body: JSON.stringify(body)
   })
 
   const data = (await response.json()) as FitnessGeneralSettingsResponse

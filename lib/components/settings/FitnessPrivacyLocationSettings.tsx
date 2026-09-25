@@ -20,6 +20,7 @@ import {
 } from '@/lib/components/ui/card'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
+import { Switch } from '@/lib/components/ui/switch'
 import {
   FITNESS_PRIVACY_RADIUS_OPTIONS,
   FitnessPrivacyRadiusMeters,
@@ -342,6 +343,17 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
   const [message, setMessage] = useState<string | null>(null)
   const [mapLoadError, setMapLoadError] = useState<string | null>(null)
 
+  const [generateRouteDescription, setGenerateRouteDescription] =
+    useState(false)
+  const [isSavingRouteDescription, setIsSavingRouteDescription] =
+    useState(false)
+  const [routeDescriptionMessage, setRouteDescriptionMessage] = useState<
+    string | null
+  >(null)
+  const [routeDescriptionError, setRouteDescriptionError] = useState<
+    string | null
+  >(null)
+
   // Keyed on the descriptor's fields (not its object identity) so an inline prop
   // literal doesn't recreate the map on every parent render. Apple renders
   // through MapKit JS, not a GL engine, so it has no GL provider descriptor.
@@ -452,6 +464,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
         setDraftRadiusMeters(
           sanitizeDraftRadius(firstLocation?.hideRadiusMeters)
         )
+        setGenerateRouteDescription(Boolean(data.generateRouteDescription))
         hasLoadedSettingsRef.current = true
         setHasLoadedSettings(true)
       } catch {
@@ -713,7 +726,9 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
     try {
       setIsSaving(true)
 
-      const { ok, data } = await updateFitnessGeneralSettings(locations)
+      const { ok, data } = await updateFitnessGeneralSettings({
+        privacyLocations: locations
+      })
 
       if (!ok) {
         setError(
@@ -729,6 +744,9 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
       setLatitudeInput(formatCoordinate(firstLocation?.latitude ?? null))
       setLongitudeInput(formatCoordinate(firstLocation?.longitude ?? null))
       setDraftRadiusMeters(sanitizeDraftRadius(firstLocation?.hideRadiusMeters))
+      if (data.generateRouteDescription !== undefined) {
+        setGenerateRouteDescription(Boolean(data.generateRouteDescription))
+      }
       return true
     } catch {
       setError('Failed to save fitness privacy location settings')
@@ -841,6 +859,39 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
   // and is told to "save settings to apply" against a disabled Save button.
   const isEditingDisabled = isLoading || !hasLoadedSettings || isSaving
 
+  const handleToggleRouteDescription = async (checked: boolean) => {
+    setRouteDescriptionError(null)
+    setRouteDescriptionMessage(null)
+    setGenerateRouteDescription(checked)
+    setIsSavingRouteDescription(true)
+
+    try {
+      const { ok, data } = await updateFitnessGeneralSettings({
+        generateRouteDescription: checked
+      })
+
+      if (!ok) {
+        setGenerateRouteDescription(!checked)
+        setRouteDescriptionError(
+          data?.error || 'Failed to update route description setting.'
+        )
+        return
+      }
+
+      setGenerateRouteDescription(Boolean(data.generateRouteDescription))
+      setRouteDescriptionMessage(
+        checked
+          ? 'AI route description enabled for new and regenerated maps.'
+          : 'AI route description disabled.'
+      )
+    } catch {
+      setGenerateRouteDescription(!checked)
+      setRouteDescriptionError('Failed to update route description setting.')
+    } finally {
+      setIsSavingRouteDescription(false)
+    }
+  }
+
   const handleRegenerateOldStatusMaps = async () => {
     setError(null)
     setMessage(null)
@@ -871,248 +922,292 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Privacy Location</CardTitle>
-        <CardDescription>
-          Trim the start and finish of your routes around your saved privacy
-          locations, on your activity maps and generated route images. Route
-          heatmaps are not trimmed: hiding the ends there would leave a gap that
-          points at the location just as clearly.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Every provider renders an interactive picker; the manual latitude /
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Privacy Location</CardTitle>
+          <CardDescription>
+            Trim the start and finish of your routes around your saved privacy
+            locations, on your activity maps and generated route images. Route
+            heatmaps are not trimmed: hiding the ends there would leave a gap
+            that points at the location just as clearly.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Every provider renders an interactive picker; the manual latitude /
             longitude fields below stay as the fallback when it fails to load. */}
-        <div className="space-y-2">
-          <Label>Location Marker</Label>
-          <div className="relative h-64 overflow-hidden rounded-md border">
-            {glProvider ? (
-              <div ref={mapContainerRef} className="h-full w-full" />
-            ) : (
-              <PrivacyZoneMapKit
-                marker={
-                  markerCoordinates
-                    ? {
-                        latitude: markerCoordinates[1],
-                        longitude: markerCoordinates[0]
-                      }
-                    : null
-                }
-                zones={privacyLocations}
-                onPick={({ latitude, longitude }) => {
-                  setLatitudeInput(latitude.toFixed(6))
-                  setLongitudeInput(longitude.toFixed(6))
-                  setError(null)
-                  setMessage(null)
-                }}
-                onReady={() => setIsMapReady(true)}
-                onUnavailable={() =>
-                  setMapLoadError(
-                    'Map picker unavailable. Use manual coordinates below.'
-                  )
-                }
-              />
-            )}
-            {mapLoadError ? (
-              <div className="absolute inset-0 flex items-center justify-center bg-background/95 px-4 text-sm text-muted-foreground">
-                {mapLoadError}
-              </div>
-            ) : null}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Click the map to set coordinates for a location you want to add.
-          </p>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="privacyHomeLatitude">Latitude</Label>
-            <Input
-              id="privacyHomeLatitude"
-              type="text"
-              inputMode="decimal"
-              placeholder="e.g. 37.774900"
-              value={latitudeInput}
-              onChange={(event) => setLatitudeInput(event.target.value)}
-              onBlur={() => {
-                if (!isHydratingSettingsRef.current) {
-                  flyToMarker()
-                }
-              }}
-              disabled={isEditingDisabled}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="privacyHomeLongitude">Longitude</Label>
-            <Input
-              id="privacyHomeLongitude"
-              type="text"
-              inputMode="decimal"
-              placeholder="e.g. -122.419400"
-              value={longitudeInput}
-              onChange={(event) => setLongitudeInput(event.target.value)}
-              onBlur={() => {
-                if (!isHydratingSettingsRef.current) {
-                  flyToMarker()
-                }
-              }}
-              disabled={isEditingDisabled}
-            />
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="privacyHideRadiusMeters">Hide Radius</Label>
-          <div className="relative">
-            <select
-              id="privacyHideRadiusMeters"
-              value={String(draftRadiusMeters)}
-              onChange={(event) => {
-                setDraftRadiusMeters(
-                  sanitizeDraftRadius(Number(event.target.value))
-                )
-              }}
-              disabled={isEditingDisabled}
-              className="flex h-10 w-full appearance-none rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {NON_ZERO_RADIUS_OPTIONS.map((radius) => (
-                <option key={radius} value={radius}>
-                  {formatRadiusLabel(radius)}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          </div>
-          <p className="text-xs text-muted-foreground">
-            When a route starts or finishes here, that end is hidden from other
-            viewers until it leaves the area and has covered this distance. The
-            middle of a route is never cut, so a route that later passes back
-            through the area stays visible.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            onClick={handleUseCurrentLocation}
-            disabled={
-              isEditingDisabled ||
-              isRegeneratingMaps ||
-              isLocatingCurrentPosition
-            }
-          >
-            {isLocatingCurrentPosition ? 'Locating...' : 'Use current location'}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleAddLocation}
-            disabled={
-              isEditingDisabled ||
-              isRegeneratingMaps ||
-              isLocatingCurrentPosition
-            }
-          >
-            Add location to list
-          </Button>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Saved Privacy Locations</Label>
-          {privacyLocations.length > 0 ? (
-            <div className="space-y-2">
-              {privacyLocations.map((location, index) => (
-                <div
-                  key={`${location.latitude}-${location.longitude}-${location.hideRadiusMeters}-${index}`}
-                  className="flex items-center justify-between rounded-md border px-3 py-2"
-                >
-                  <div className="pr-3">
-                    <p className="text-sm font-medium">
-                      {location.latitude.toFixed(6)},{' '}
-                      {location.longitude.toFixed(6)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Hide radius:{' '}
-                      {formatRadiusLabel(location.hideRadiusMeters)}
-                    </p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleRemoveLocation(index)}
-                    disabled={isEditingDisabled || isRegeneratingMaps}
-                  >
-                    Remove
-                  </Button>
+            <Label>Location Marker</Label>
+            <div className="relative h-64 overflow-hidden rounded-md border">
+              {glProvider ? (
+                <div ref={mapContainerRef} className="h-full w-full" />
+              ) : (
+                <PrivacyZoneMapKit
+                  marker={
+                    markerCoordinates
+                      ? {
+                          latitude: markerCoordinates[1],
+                          longitude: markerCoordinates[0]
+                        }
+                      : null
+                  }
+                  zones={privacyLocations}
+                  onPick={({ latitude, longitude }) => {
+                    setLatitudeInput(latitude.toFixed(6))
+                    setLongitudeInput(longitude.toFixed(6))
+                    setError(null)
+                    setMessage(null)
+                  }}
+                  onReady={() => setIsMapReady(true)}
+                  onUnavailable={() =>
+                    setMapLoadError(
+                      'Map picker unavailable. Use manual coordinates below.'
+                    )
+                  }
+                />
+              )}
+              {mapLoadError ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-background/95 px-4 text-sm text-muted-foreground">
+                  {mapLoadError}
                 </div>
-              ))}
+              ) : null}
             </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              No privacy locations added yet.
+            <p className="text-xs text-muted-foreground">
+              Click the map to set coordinates for a location you want to add.
             </p>
-          )}
-        </div>
+          </div>
 
-        {!isLoading && !hasLoadedSettings ? (
-          // Derived from the condition, not stored in `error`, which every
-          // action handler clears — the guard below must never be left
-          // unexplained.
-          <p className="text-sm text-destructive">
-            Failed to load your saved privacy locations. Editing and saving are
-            disabled so the locations you already have are not overwritten.
-          </p>
-        ) : null}
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        {message ? <p className="text-sm text-green-600">{message}</p> : null}
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="privacyHomeLatitude">Latitude</Label>
+              <Input
+                id="privacyHomeLatitude"
+                type="text"
+                inputMode="decimal"
+                placeholder="e.g. 37.774900"
+                value={latitudeInput}
+                onChange={(event) => setLatitudeInput(event.target.value)}
+                onBlur={() => {
+                  if (!isHydratingSettingsRef.current) {
+                    flyToMarker()
+                  }
+                }}
+                disabled={isEditingDisabled}
+              />
+            </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Button
-            onClick={handleSave}
-            disabled={
-              isEditingDisabled ||
-              isRegeneratingMaps ||
-              isLocatingCurrentPosition
-            }
-          >
-            {isSaving ? 'Saving...' : 'Save privacy locations'}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleClear}
-            disabled={
-              isEditingDisabled ||
-              isRegeneratingMaps ||
-              isLocatingCurrentPosition
-            }
-          >
-            Clear all
-          </Button>
-          {!isLoading && !hasLoadedSettings ? (
+            <div className="space-y-2">
+              <Label htmlFor="privacyHomeLongitude">Longitude</Label>
+              <Input
+                id="privacyHomeLongitude"
+                type="text"
+                inputMode="decimal"
+                placeholder="e.g. -122.419400"
+                value={longitudeInput}
+                onChange={(event) => setLongitudeInput(event.target.value)}
+                onBlur={() => {
+                  if (!isHydratingSettingsRef.current) {
+                    flyToMarker()
+                  }
+                }}
+                disabled={isEditingDisabled}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="privacyHideRadiusMeters">Hide Radius</Label>
+            <div className="relative">
+              <select
+                id="privacyHideRadiusMeters"
+                value={String(draftRadiusMeters)}
+                onChange={(event) => {
+                  setDraftRadiusMeters(
+                    sanitizeDraftRadius(Number(event.target.value))
+                  )
+                }}
+                disabled={isEditingDisabled}
+                className="flex h-10 w-full appearance-none rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {NON_ZERO_RADIUS_OPTIONS.map((radius) => (
+                  <option key={radius} value={radius}>
+                    {formatRadiusLabel(radius)}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              When a route starts or finishes here, that end is hidden from
+              other viewers until it leaves the area and has covered this
+              distance. The middle of a route is never cut, so a route that
+              later passes back through the area stays visible.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
-              onClick={() => setSettingsReloadToken((token) => token + 1)}
+              onClick={handleUseCurrentLocation}
+              disabled={
+                isEditingDisabled ||
+                isRegeneratingMaps ||
+                isLocatingCurrentPosition
+              }
             >
-              Retry loading
+              {isLocatingCurrentPosition
+                ? 'Locating...'
+                : 'Use current location'}
             </Button>
+            <Button
+              variant="outline"
+              onClick={handleAddLocation}
+              disabled={
+                isEditingDisabled ||
+                isRegeneratingMaps ||
+                isLocatingCurrentPosition
+              }
+            >
+              Add location to list
+            </Button>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Saved Privacy Locations</Label>
+            {privacyLocations.length > 0 ? (
+              <div className="space-y-2">
+                {privacyLocations.map((location, index) => (
+                  <div
+                    key={`${location.latitude}-${location.longitude}-${location.hideRadiusMeters}-${index}`}
+                    className="flex items-center justify-between rounded-md border px-3 py-2"
+                  >
+                    <div className="pr-3">
+                      <p className="text-sm font-medium">
+                        {location.latitude.toFixed(6)},{' '}
+                        {location.longitude.toFixed(6)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Hide radius:{' '}
+                        {formatRadiusLabel(location.hideRadiusMeters)}
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRemoveLocation(index)}
+                      disabled={isEditingDisabled || isRegeneratingMaps}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No privacy locations added yet.
+              </p>
+            )}
+          </div>
+
+          {!isLoading && !hasLoadedSettings ? (
+            // Derived from the condition, not stored in `error`, which every
+            // action handler clears — the guard below must never be left
+            // unexplained.
+            <p className="text-sm text-destructive">
+              Failed to load your saved privacy locations. Editing and saving
+              are disabled so the locations you already have are not
+              overwritten.
+            </p>
           ) : null}
-          <Button
-            variant="outline"
-            onClick={handleRegenerateOldStatusMaps}
-            disabled={
-              isLoading ||
-              isSaving ||
-              isRegeneratingMaps ||
-              isLocatingCurrentPosition
-            }
-          >
-            {isRegeneratingMaps
-              ? 'Queueing regeneration...'
-              : 'Regenerate maps for old statuses'}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          {message ? <p className="text-sm text-green-600">{message}</p> : null}
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={handleSave}
+              disabled={
+                isEditingDisabled ||
+                isRegeneratingMaps ||
+                isLocatingCurrentPosition
+              }
+            >
+              {isSaving ? 'Saving...' : 'Save privacy locations'}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleClear}
+              disabled={
+                isEditingDisabled ||
+                isRegeneratingMaps ||
+                isLocatingCurrentPosition
+              }
+            >
+              Clear all
+            </Button>
+            {!isLoading && !hasLoadedSettings ? (
+              <Button
+                variant="outline"
+                onClick={() => setSettingsReloadToken((token) => token + 1)}
+              >
+                Retry loading
+              </Button>
+            ) : null}
+            <Button
+              variant="outline"
+              onClick={handleRegenerateOldStatusMaps}
+              disabled={
+                isLoading ||
+                isSaving ||
+                isRegeneratingMaps ||
+                isLocatingCurrentPosition
+              }
+            >
+              {isRegeneratingMaps
+                ? 'Queueing regeneration...'
+                : 'Regenerate maps for old statuses'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Route Map Description</CardTitle>
+          <CardDescription>
+            Configure accessibility descriptions for your activity route maps.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0 space-y-0.5">
+              <Label
+                htmlFor="generate-route-description"
+                className="cursor-pointer"
+              >
+                Generate AI route description
+              </Label>
+              <p className="text-[0.8rem] text-muted-foreground">
+                Automatically generate an alt-text description of the route
+                using AI when activity maps are created or regenerated. Off by
+                default.
+              </p>
+            </div>
+            <Switch
+              id="generate-route-description"
+              checked={generateRouteDescription}
+              onCheckedChange={handleToggleRouteDescription}
+              disabled={isEditingDisabled || isSavingRouteDescription}
+            />
+          </div>
+
+          {routeDescriptionError ? (
+            <p className="text-sm text-destructive">{routeDescriptionError}</p>
+          ) : null}
+          {routeDescriptionMessage ? (
+            <p className="text-sm text-green-600">{routeDescriptionMessage}</p>
+          ) : null}
+        </CardContent>
+      </Card>
+    </div>
   )
 }

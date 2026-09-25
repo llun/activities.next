@@ -595,7 +595,8 @@ CREATE TABLE public.fitness_settings (
     "lastWebhookAt" timestamp with time zone,
     "lastImportAt" timestamp with time zone,
     "connectionError" text,
-    "credentialVersion" integer DEFAULT 0 NOT NULL
+    "credentialVersion" integer DEFAULT 0 NOT NULL,
+    "generateRouteDescription" boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE public.followed_tags (

@@ -6,6 +6,7 @@ import {
   SEND_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
 import { processFitnessFileJob } from '@/lib/jobs/processFitnessFileJob'
+import { generateRouteAltText } from '@/lib/services/altText/openai'
 import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import { FITNESS_FILE_ROUTE_SOURCE_VERSION } from '@/lib/services/fitness-files/fileRouteCache'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
@@ -61,6 +62,10 @@ const mockSendNotificationAlerts = vi.fn()
 vi.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
   sendNotificationAlerts: (...args: unknown[]) =>
     mockSendNotificationAlerts(...args)
+}))
+
+vi.mock('@/lib/services/altText/openai', () => ({
+  generateRouteAltText: vi.fn()
 }))
 
 const mockGetFitnessFileBuffer = getFitnessFileBuffer as jest.MockedFunction<
@@ -148,9 +153,10 @@ describe('processFitnessFileJob', () => {
   // entirely and makes any later test's map assertions pass vacuously.
   const setPrivacyZone = async (
     zone: {
-      privacyHomeLatitude: number | null
-      privacyHomeLongitude: number | null
-      privacyHideRadiusMeters: number | null
+      privacyHomeLatitude?: number | null
+      privacyHomeLongitude?: number | null
+      privacyHideRadiusMeters?: number | null
+      generateRouteDescription?: boolean
     },
     settingsId?: string
   ): Promise<string> => {
@@ -173,7 +179,8 @@ describe('processFitnessFileJob', () => {
       serviceType: 'general',
       privacyHomeLatitude: zone.privacyHomeLatitude ?? undefined,
       privacyHomeLongitude: zone.privacyHomeLongitude ?? undefined,
-      privacyHideRadiusMeters: zone.privacyHideRadiusMeters ?? undefined
+      privacyHideRadiusMeters: zone.privacyHideRadiusMeters ?? undefined,
+      generateRouteDescription: zone.generateRouteDescription ?? false
     })
     return created.id
   }
@@ -203,6 +210,7 @@ describe('processFitnessFileJob', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(generateRouteAltText).mockReset()
 
     // clearAllMocks resets call history but KEEPS implementations, and
     // publishSendNote defaults to true — so a test that makes this throw would
@@ -2228,6 +2236,158 @@ describe('processFitnessFileJob', () => {
       } finally {
         upsertSpy.mockRestore()
         warnSpy.mockRestore()
+      }
+    })
+  })
+
+  describe('route map description', () => {
+    it('generates route map description using LLM when altText is configured and user enabled it', async () => {
+      await setPrivacyZone({ generateRouteDescription: true })
+      try {
+        const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+          text: 'Morning run'
+        })
+
+        vi.mocked(generateRouteAltText).mockResolvedValueOnce(
+          'A scenic 5km loop around the waterfront.'
+        )
+
+        const config = getConfig()
+        vi.mocked(getConfig).mockReturnValue({
+          ...config,
+          altText: {
+            endpoint: 'https://api.openai.com/v1',
+            apiKey: 'test-key',
+            model: 'gpt-4o-mini'
+          }
+        } as unknown as ReturnType<typeof getConfig>)
+
+        try {
+          await processFitnessFileJob(database, {
+            id: 'job-route-alt-text-success',
+            name: PROCESS_FITNESS_FILE_JOB_NAME,
+            data: { actorId: actor.id, statusId, fitnessFileId }
+          })
+        } finally {
+          vi.mocked(getConfig).mockReturnValue(config)
+        }
+
+        expect(generateRouteAltText).toHaveBeenCalledTimes(1)
+        expect(generateRouteAltText).toHaveBeenCalledWith(
+          expect.objectContaining({ model: 'gpt-4o-mini' }),
+          expect.any(Buffer),
+          'image/png'
+        )
+
+        expect(mockSaveMedia).toHaveBeenCalledWith(
+          database,
+          expect.objectContaining({ id: actor.id }),
+          expect.objectContaining({
+            description: 'A scenic 5km loop around the waterfront.'
+          })
+        )
+
+        const attachments = await database.getAttachments({ statusId })
+        expect(
+          attachments.some(
+            (attachment) => attachment.name === ROUTE_MAP_ATTACHMENT_NAME
+          )
+        ).toBe(true)
+      } finally {
+        await setPrivacyZone({ generateRouteDescription: false })
+      }
+    })
+
+    it('stores route map without description when generateRouteDescription is disabled despite altText being configured', async () => {
+      await setPrivacyZone({ generateRouteDescription: false })
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: 'Morning run'
+      })
+
+      const config = getConfig()
+      vi.mocked(getConfig).mockReturnValue({
+        ...config,
+        altText: {
+          endpoint: 'https://api.openai.com/v1',
+          apiKey: 'test-key',
+          model: 'gpt-4o-mini'
+        }
+      } as unknown as ReturnType<typeof getConfig>)
+
+      try {
+        await processFitnessFileJob(database, {
+          id: 'job-route-alt-text-user-disabled',
+          name: PROCESS_FITNESS_FILE_JOB_NAME,
+          data: { actorId: actor.id, statusId, fitnessFileId }
+        })
+      } finally {
+        vi.mocked(getConfig).mockReturnValue(config)
+      }
+
+      expect(generateRouteAltText).not.toHaveBeenCalled()
+      const saveMediaCall = mockSaveMedia.mock.calls.find(
+        ([, , media]) => media.file.name === `${fitnessFileId}-route-map.png`
+      )
+      expect(saveMediaCall).toBeDefined()
+      expect(saveMediaCall?.[2]?.description).toBeUndefined()
+    })
+
+    it('stores route map without description when altText is not configured', async () => {
+      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+        text: 'Morning run'
+      })
+
+      await processFitnessFileJob(database, {
+        id: 'job-route-alt-text-no-config',
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: { actorId: actor.id, statusId, fitnessFileId }
+      })
+
+      expect(generateRouteAltText).not.toHaveBeenCalled()
+      const saveMediaCall = mockSaveMedia.mock.calls.find(
+        ([, , media]) => media.file.name === `${fitnessFileId}-route-map.png`
+      )
+      expect(saveMediaCall).toBeDefined()
+      expect(saveMediaCall?.[2]?.description).toBeUndefined()
+    })
+
+    it('stores route map without description when route alt text generation returns null', async () => {
+      await setPrivacyZone({ generateRouteDescription: true })
+      try {
+        const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+          text: 'Morning run'
+        })
+
+        vi.mocked(generateRouteAltText).mockResolvedValueOnce(null)
+
+        const config = getConfig()
+        vi.mocked(getConfig).mockReturnValue({
+          ...config,
+          altText: {
+            endpoint: 'https://api.openai.com/v1',
+            apiKey: 'test-key',
+            model: 'gpt-4o-mini'
+          }
+        } as unknown as ReturnType<typeof getConfig>)
+
+        try {
+          await processFitnessFileJob(database, {
+            id: 'job-route-alt-text-null',
+            name: PROCESS_FITNESS_FILE_JOB_NAME,
+            data: { actorId: actor.id, statusId, fitnessFileId }
+          })
+        } finally {
+          vi.mocked(getConfig).mockReturnValue(config)
+        }
+
+        expect(generateRouteAltText).toHaveBeenCalledTimes(1)
+        const saveMediaCall = mockSaveMedia.mock.calls.find(
+          ([, , media]) => media.file.name === `${fitnessFileId}-route-map.png`
+        )
+        expect(saveMediaCall).toBeDefined()
+        expect(saveMediaCall?.[2]?.description).toBeUndefined()
+      } finally {
+        await setPrivacyZone({ generateRouteDescription: false })
       }
     })
   })

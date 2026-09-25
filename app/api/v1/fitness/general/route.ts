@@ -13,6 +13,7 @@ import {
   apiErrorResponse,
   apiResponse
 } from '@/lib/utils/response'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const PrivacyRadiusSchema = z
@@ -40,10 +41,17 @@ const PrivacyLocationRadiusSchema = z
     }
   )
 
+const FitnessGeneralSettingsRouteDescriptionRequest = z
+  .object({
+    generateRouteDescription: z.boolean()
+  })
+  .strict()
+
 const FitnessGeneralSettingsLegacyRequest = z.object({
   privacyHomeLatitude: z.number().min(-90).max(90).nullable(),
   privacyHomeLongitude: z.number().min(-180).max(180).nullable(),
-  privacyHideRadiusMeters: PrivacyRadiusSchema
+  privacyHideRadiusMeters: PrivacyRadiusSchema,
+  generateRouteDescription: z.boolean().optional()
 })
 
 const FitnessGeneralSettingsListRequest = z.object({
@@ -55,17 +63,26 @@ const FitnessGeneralSettingsListRequest = z.object({
         hideRadiusMeters: PrivacyLocationRadiusSchema
       })
     )
-    .max(25)
+    .max(25),
+  generateRouteDescription: z.boolean().optional()
 })
 
 type FitnessGeneralSettingsRequest =
   | z.infer<typeof FitnessGeneralSettingsLegacyRequest>
   | z.infer<typeof FitnessGeneralSettingsListRequest>
+  | z.infer<typeof FitnessGeneralSettingsRouteDescriptionRequest>
 
 const hasPrivacyLocationsPayload = (body: unknown) =>
   body !== null &&
   typeof body === 'object' &&
   Object.prototype.hasOwnProperty.call(body, 'privacyLocations')
+
+const hasLegacyPrivacyPayload = (body: unknown) =>
+  body !== null &&
+  typeof body === 'object' &&
+  (Object.prototype.hasOwnProperty.call(body, 'privacyHomeLatitude') ||
+    Object.prototype.hasOwnProperty.call(body, 'privacyHomeLongitude') ||
+    Object.prototype.hasOwnProperty.call(body, 'privacyHideRadiusMeters'))
 
 const safeParseFitnessGeneralSettingsRequest = (
   body: unknown
@@ -77,8 +94,13 @@ const safeParseFitnessGeneralSettingsRequest = (
   if (hasPrivacyLocationsPayload(body)) return { success: false }
 
   const legacyResult = FitnessGeneralSettingsLegacyRequest.safeParse(body)
-  return legacyResult.success
-    ? { success: true, data: legacyResult.data }
+  if (legacyResult.success) return { success: true, data: legacyResult.data }
+  if (hasLegacyPrivacyPayload(body)) return { success: false }
+
+  const routeDescResult =
+    FitnessGeneralSettingsRouteDescriptionRequest.safeParse(body)
+  return routeDescResult.success
+    ? { success: true, data: routeDescResult.data }
     : { success: false }
 }
 
@@ -93,6 +115,7 @@ interface FitnessGeneralSettingsResponse {
   privacyHomeLatitude: number | null
   privacyHomeLongitude: number | null
   privacyHideRadiusMeters: number
+  generateRouteDescription: boolean
 }
 
 const toPrivacyLocationsResponse = (
@@ -102,6 +125,7 @@ const toPrivacyLocationsResponse = (
         privacyHomeLatitude?: number | null
         privacyHomeLongitude?: number | null
         privacyHideRadiusMeters?: number | null
+        generateRouteDescription?: boolean | null
       }
     | null
     | undefined
@@ -120,26 +144,30 @@ const toPrivacyLocationsResponse = (
     privacyHomeLongitude: firstLocation?.longitude ?? null,
     privacyHideRadiusMeters: sanitizePrivacyRadiusMeters(
       firstLocation?.hideRadiusMeters
-    )
+    ),
+    generateRouteDescription: settings?.generateRouteDescription ?? false
   }
 }
 
-const toSettingsPayload = (
-  parsed: FitnessGeneralSettingsRequest
-):
+type NormalizedSettingsPayload =
   | {
       error: string
     }
   | {
-      privacyLocations: Array<{
+      privacyLocations?: Array<{
         latitude: number
         longitude: number
         hideRadiusMeters: number
       }>
-      privacyHomeLatitude: number | null
-      privacyHomeLongitude: number | null
-      privacyHideRadiusMeters: number
-    } => {
+      privacyHomeLatitude?: number | null
+      privacyHomeLongitude?: number | null
+      privacyHideRadiusMeters?: number
+      generateRouteDescription?: boolean
+    }
+
+const toSettingsPayload = (
+  parsed: FitnessGeneralSettingsRequest
+): NormalizedSettingsPayload => {
   if ('privacyLocations' in parsed) {
     const privacyLocations = sanitizePrivacyLocationSettings(
       parsed.privacyLocations
@@ -152,45 +180,58 @@ const toSettingsPayload = (
       privacyHomeLongitude: firstLocation?.longitude ?? null,
       privacyHideRadiusMeters: sanitizePrivacyRadiusMeters(
         firstLocation?.hideRadiusMeters
-      )
+      ),
+      ...(parsed.generateRouteDescription !== undefined
+        ? { generateRouteDescription: parsed.generateRouteDescription }
+        : {})
     }
   }
 
-  const hasLatitude = parsed.privacyHomeLatitude !== null
-  const hasLongitude = parsed.privacyHomeLongitude !== null
+  if ('privacyHomeLatitude' in parsed) {
+    const hasLatitude = parsed.privacyHomeLatitude !== null
+    const hasLongitude = parsed.privacyHomeLongitude !== null
 
-  if (hasLatitude !== hasLongitude) {
+    if (hasLatitude !== hasLongitude) {
+      return {
+        error: 'Latitude and longitude must be provided together'
+      }
+    }
+
+    if (parsed.privacyHideRadiusMeters > 0 && !(hasLatitude && hasLongitude)) {
+      return {
+        error:
+          'A home location is required when privacy radius is greater than 0'
+      }
+    }
+
+    const privacyLocations =
+      hasLatitude &&
+      hasLongitude &&
+      parsed.privacyHomeLatitude !== null &&
+      parsed.privacyHomeLongitude !== null &&
+      parsed.privacyHideRadiusMeters > 0
+        ? [
+            {
+              latitude: parsed.privacyHomeLatitude,
+              longitude: parsed.privacyHomeLongitude,
+              hideRadiusMeters: parsed.privacyHideRadiusMeters
+            }
+          ]
+        : []
+
     return {
-      error: 'Latitude and longitude must be provided together'
+      privacyLocations,
+      privacyHomeLatitude: parsed.privacyHomeLatitude,
+      privacyHomeLongitude: parsed.privacyHomeLongitude,
+      privacyHideRadiusMeters: parsed.privacyHideRadiusMeters,
+      ...(parsed.generateRouteDescription !== undefined
+        ? { generateRouteDescription: parsed.generateRouteDescription }
+        : {})
     }
   }
-
-  if (parsed.privacyHideRadiusMeters > 0 && !(hasLatitude && hasLongitude)) {
-    return {
-      error: 'A home location is required when privacy radius is greater than 0'
-    }
-  }
-
-  const privacyLocations =
-    hasLatitude &&
-    hasLongitude &&
-    parsed.privacyHomeLatitude !== null &&
-    parsed.privacyHomeLongitude !== null &&
-    parsed.privacyHideRadiusMeters > 0
-      ? [
-          {
-            latitude: parsed.privacyHomeLatitude,
-            longitude: parsed.privacyHomeLongitude,
-            hideRadiusMeters: parsed.privacyHideRadiusMeters
-          }
-        ]
-      : []
 
   return {
-    privacyLocations,
-    privacyHomeLatitude: parsed.privacyHomeLatitude,
-    privacyHomeLongitude: parsed.privacyHomeLongitude,
-    privacyHideRadiusMeters: parsed.privacyHideRadiusMeters
+    generateRouteDescription: parsed.generateRouteDescription
   }
 }
 
@@ -249,19 +290,34 @@ export const POST = traceApiRoute(
       const saved = existing
         ? await database.updateFitnessSettings({
             id: existing.id,
-            privacyLocations: normalized.privacyLocations,
-            privacyHomeLatitude: normalized.privacyHomeLatitude,
-            privacyHomeLongitude: normalized.privacyHomeLongitude,
-            privacyHideRadiusMeters: normalized.privacyHideRadiusMeters
+            ...(normalized.privacyLocations !== undefined
+              ? {
+                  privacyLocations: normalized.privacyLocations,
+                  privacyHomeLatitude: normalized.privacyHomeLatitude,
+                  privacyHomeLongitude: normalized.privacyHomeLongitude,
+                  privacyHideRadiusMeters: normalized.privacyHideRadiusMeters
+                }
+              : {}),
+            ...(normalized.generateRouteDescription !== undefined
+              ? {
+                  generateRouteDescription: normalized.generateRouteDescription
+                }
+              : {})
           })
         : await database.createFitnessSettings({
             actorId: currentActor.id,
             serviceType: 'general',
-            privacyLocations: normalized.privacyLocations,
+            privacyLocations: normalized.privacyLocations ?? [],
             privacyHomeLatitude: normalized.privacyHomeLatitude ?? undefined,
             privacyHomeLongitude: normalized.privacyHomeLongitude ?? undefined,
-            privacyHideRadiusMeters: normalized.privacyHideRadiusMeters
+            privacyHideRadiusMeters: normalized.privacyHideRadiusMeters ?? 0,
+            generateRouteDescription:
+              normalized.generateRouteDescription ?? false
           })
+
+      if (!saved) {
+        return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+      }
 
       return apiResponse({
         req,
@@ -276,7 +332,7 @@ export const POST = traceApiRoute(
       logger.error({
         message: 'Failed to save fitness general settings',
         actorId: currentActor.id,
-        error
+        err: toLoggableError(error)
       })
       return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
     }

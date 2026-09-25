@@ -12,11 +12,24 @@ const REQUEST_TIMEOUT_MS = 30000
 const MAX_RESPONSE_BYTES = 1 * 1024 * 1024
 const MAX_VISION_IMAGE_DIMENSION = 1536
 
-const SYSTEM_PROMPT =
+export const SYSTEM_PROMPT =
   'You generate concise and accurate alt text descriptions for images and video preview frames for visually impaired users. Provide a clear 1-2 sentence description of the key visual elements and scene. Describe what is shown directly, without conversational filler or meta-preambles. Never start with phrases such as "This video shows", "This image depicts", "A photo of" or "Screenshot of".'
+
+export const ROUTE_SYSTEM_PROMPT =
+  'You generate concise and accurate alt text descriptions of route maps for fitness activities for visually impaired users. Provide a clear 1-2 sentence description of the route shown on the map, including terrain, landmarks, neighborhoods, and the general shape or direction of the route if visible. Describe what is shown directly, without conversational filler or meta-preambles. Never start with phrases such as "This map shows", "This route depicts", "A map of" or "Route of".'
+
+export const DEFAULT_IMAGE_PROMPT = 'Describe this image for alt text.'
+export const DEFAULT_ROUTE_PROMPT =
+  'Describe the route shown on this map for alt text.'
 
 interface OpenAIChatResponse {
   choices?: { message?: { content?: string } }[]
+}
+
+export interface GenerateAltTextOptions {
+  systemPrompt?: string
+  prompt?: string
+  logMessage?: string
 }
 
 /**
@@ -27,7 +40,8 @@ interface OpenAIChatResponse {
 export const generateAltText = async (
   config: AltTextConfig,
   imageBuffer: Buffer,
-  mimeType: string
+  mimeType: string,
+  options?: GenerateAltTextOptions
 ): Promise<string | null> => {
   try {
     let processedBuffer = imageBuffer
@@ -58,7 +72,7 @@ export const generateAltText = async (
         temperature: 0.2,
         max_tokens: 300,
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'system', content: options?.systemPrompt ?? SYSTEM_PROMPT },
           {
             role: 'user',
             content: [
@@ -68,7 +82,7 @@ export const generateAltText = async (
               },
               {
                 type: 'text',
-                text: 'Describe this image for alt text.'
+                text: options?.prompt ?? DEFAULT_IMAGE_PROMPT
               }
             ]
           }
@@ -93,9 +107,27 @@ export const generateAltText = async (
     return content.slice(0, MAX_MEDIA_DESCRIPTION_LENGTH)
   } catch (error) {
     logger.warn({
-      message: 'Failed to generate alt text for uploaded media',
+      message:
+        options?.logMessage ?? 'Failed to generate alt text for uploaded media',
       err: toLoggableError(error)
     })
     return null
   }
+}
+
+/**
+ * Generates an alt text description of a fitness route map image using an
+ * OpenAI-compatible vision chat-completions endpoint. Returns null if
+ * generation fails or is empty, ensuring fitness activity processing is not blocked.
+ */
+export const generateRouteAltText = async (
+  config: AltTextConfig,
+  imageBuffer: Buffer,
+  mimeType: string = 'image/png'
+): Promise<string | null> => {
+  return generateAltText(config, imageBuffer, mimeType, {
+    systemPrompt: ROUTE_SYSTEM_PROMPT,
+    prompt: DEFAULT_ROUTE_PROMPT,
+    logMessage: 'Failed to generate alt text for route map'
+  })
 }
