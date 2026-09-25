@@ -215,13 +215,16 @@ export const regenerateFitnessMapsJob = createJobHandle(
 
             const mapImageBytes = new Uint8Array(mapImageBuffer)
             const { altText } = getConfig()
-            const description = altText
-              ? ((await generateRouteAltText(
-                  altText,
-                  mapImageBuffer,
-                  'image/png'
-                )) ?? undefined)
-              : undefined
+            const isRouteDescriptionEnabled =
+              privacySettings?.generateRouteDescription ?? false
+            const description =
+              altText && isRouteDescriptionEnabled
+                ? ((await generateRouteAltText(
+                    altText,
+                    mapImageBuffer,
+                    'image/png'
+                  )) ?? undefined)
+                : undefined
 
             const storedMap = await saveMedia(database, actor, {
               file: new File(

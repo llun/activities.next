@@ -795,12 +795,83 @@ describe('regenerateFitnessMapsJob', () => {
   })
 
   describe('route map description', () => {
-    it('generates route map description using LLM when altText is configured', async () => {
-      const { fitnessFileId, statusId } = await setupStatusWithOldMap()
+    const setFitnessGeneralSettings = async (settings: {
+      generateRouteDescription?: boolean
+    }) => {
+      const existing = await database.getFitnessSettings({
+        actorId: actor.id,
+        serviceType: 'general'
+      })
+      if (existing) {
+        await database.updateFitnessSettings({ id: existing.id, ...settings })
+        return existing.id
+      }
+      const created = await database.createFitnessSettings({
+        actorId: actor.id,
+        serviceType: 'general',
+        generateRouteDescription: settings.generateRouteDescription ?? false
+      })
+      return created.id
+    }
 
-      vi.mocked(generateRouteAltText).mockResolvedValueOnce(
-        'A scenic 10km mountain loop.'
-      )
+    it('generates route map description using LLM when altText is configured and user enabled it', async () => {
+      await setFitnessGeneralSettings({ generateRouteDescription: true })
+      try {
+        const { fitnessFileId, statusId } = await setupStatusWithOldMap()
+
+        vi.mocked(generateRouteAltText).mockResolvedValueOnce(
+          'A scenic 10km mountain loop.'
+        )
+
+        const config = getConfig()
+        vi.mocked(getConfig).mockReturnValue({
+          ...config,
+          altText: {
+            endpoint: 'https://api.openai.com/v1',
+            apiKey: 'test-key',
+            model: 'gpt-4o-mini'
+          }
+        } as unknown as ReturnType<typeof getConfig>)
+
+        try {
+          await regenerateFitnessMapsJob(database, {
+            id: 'job-regen-alt-text-success',
+            name: REGENERATE_FITNESS_MAPS_JOB_NAME,
+            data: { actorId: actor.id, fitnessFileIds: [fitnessFileId] }
+          })
+        } finally {
+          vi.mocked(getConfig).mockReturnValue(config)
+        }
+
+        expect(generateRouteAltText).toHaveBeenCalledTimes(1)
+        expect(generateRouteAltText).toHaveBeenCalledWith(
+          expect.objectContaining({ model: 'gpt-4o-mini' }),
+          expect.any(Buffer),
+          'image/png'
+        )
+
+        expect(mockSaveMedia).toHaveBeenCalledWith(
+          database,
+          expect.objectContaining({ id: actor.id }),
+          expect.objectContaining({
+            description: 'A scenic 10km mountain loop.'
+          })
+        )
+
+        const attachments = await database.getAttachments({ statusId })
+        expect(
+          attachments.some(
+            (attachment) => attachment.name === 'Activity route map'
+          )
+        ).toBe(true)
+      } finally {
+        await setFitnessGeneralSettings({ generateRouteDescription: false })
+      }
+    })
+
+    it('stores route map without description when generateRouteDescription is disabled despite altText being configured', async () => {
+      await setFitnessGeneralSettings({ generateRouteDescription: false })
+      const { fitnessFileId } = await setupStatusWithOldMap()
 
       const config = getConfig()
       vi.mocked(getConfig).mockReturnValue({
@@ -814,7 +885,7 @@ describe('regenerateFitnessMapsJob', () => {
 
       try {
         await regenerateFitnessMapsJob(database, {
-          id: 'job-regen-alt-text-success',
+          id: 'job-regen-alt-text-user-disabled',
           name: REGENERATE_FITNESS_MAPS_JOB_NAME,
           data: { actorId: actor.id, fitnessFileIds: [fitnessFileId] }
         })
@@ -822,27 +893,12 @@ describe('regenerateFitnessMapsJob', () => {
         vi.mocked(getConfig).mockReturnValue(config)
       }
 
-      expect(generateRouteAltText).toHaveBeenCalledTimes(1)
-      expect(generateRouteAltText).toHaveBeenCalledWith(
-        expect.objectContaining({ model: 'gpt-4o-mini' }),
-        expect.any(Buffer),
-        'image/png'
+      expect(generateRouteAltText).not.toHaveBeenCalled()
+      const saveMediaCall = mockSaveMedia.mock.calls.find(
+        ([, , media]) => media.file.name === `${fitnessFileId}-route-map.png`
       )
-
-      expect(mockSaveMedia).toHaveBeenCalledWith(
-        database,
-        expect.objectContaining({ id: actor.id }),
-        expect.objectContaining({
-          description: 'A scenic 10km mountain loop.'
-        })
-      )
-
-      const attachments = await database.getAttachments({ statusId })
-      expect(
-        attachments.some(
-          (attachment) => attachment.name === 'Activity route map'
-        )
-      ).toBe(true)
+      expect(saveMediaCall).toBeDefined()
+      expect(saveMediaCall?.[2]?.description).toBeUndefined()
     })
 
     it('stores route map without description when altText is not configured', async () => {
@@ -863,36 +919,41 @@ describe('regenerateFitnessMapsJob', () => {
     })
 
     it('stores route map without description when route alt text generation returns null', async () => {
-      const { fitnessFileId } = await setupStatusWithOldMap()
-
-      vi.mocked(generateRouteAltText).mockResolvedValueOnce(null)
-
-      const config = getConfig()
-      vi.mocked(getConfig).mockReturnValue({
-        ...config,
-        altText: {
-          endpoint: 'https://api.openai.com/v1',
-          apiKey: 'test-key',
-          model: 'gpt-4o-mini'
-        }
-      } as unknown as ReturnType<typeof getConfig>)
-
+      await setFitnessGeneralSettings({ generateRouteDescription: true })
       try {
-        await regenerateFitnessMapsJob(database, {
-          id: 'job-regen-alt-text-null',
-          name: REGENERATE_FITNESS_MAPS_JOB_NAME,
-          data: { actorId: actor.id, fitnessFileIds: [fitnessFileId] }
-        })
-      } finally {
-        vi.mocked(getConfig).mockReturnValue(config)
-      }
+        const { fitnessFileId } = await setupStatusWithOldMap()
 
-      expect(generateRouteAltText).toHaveBeenCalledTimes(1)
-      const saveMediaCall = mockSaveMedia.mock.calls.find(
-        ([, , media]) => media.file.name === `${fitnessFileId}-route-map.png`
-      )
-      expect(saveMediaCall).toBeDefined()
-      expect(saveMediaCall?.[2]?.description).toBeUndefined()
+        vi.mocked(generateRouteAltText).mockResolvedValueOnce(null)
+
+        const config = getConfig()
+        vi.mocked(getConfig).mockReturnValue({
+          ...config,
+          altText: {
+            endpoint: 'https://api.openai.com/v1',
+            apiKey: 'test-key',
+            model: 'gpt-4o-mini'
+          }
+        } as unknown as ReturnType<typeof getConfig>)
+
+        try {
+          await regenerateFitnessMapsJob(database, {
+            id: 'job-regen-alt-text-null',
+            name: REGENERATE_FITNESS_MAPS_JOB_NAME,
+            data: { actorId: actor.id, fitnessFileIds: [fitnessFileId] }
+          })
+        } finally {
+          vi.mocked(getConfig).mockReturnValue(config)
+        }
+
+        expect(generateRouteAltText).toHaveBeenCalledTimes(1)
+        const saveMediaCall = mockSaveMedia.mock.calls.find(
+          ([, , media]) => media.file.name === `${fitnessFileId}-route-map.png`
+        )
+        expect(saveMediaCall).toBeDefined()
+        expect(saveMediaCall?.[2]?.description).toBeUndefined()
+      } finally {
+        await setFitnessGeneralSettings({ generateRouteDescription: false })
+      }
     })
   })
 })

@@ -591,6 +591,199 @@ describe('FitnessPrivacyLocationSettings', () => {
     ).toBe(true)
   })
 
+  describe('route map description toggle', () => {
+    it('renders the switch off by default and toggles it on', async () => {
+      const fetchMock = vi
+        .spyOn(global, 'fetch')
+        .mockImplementation(async (input, init) => {
+          const method = init?.method ?? 'GET'
+
+          if (
+            typeof input === 'string' &&
+            input === '/api/v1/fitness/general' &&
+            method === 'GET'
+          ) {
+            return {
+              ok: true,
+              json: async () => ({
+                privacyLocations: [],
+                generateRouteDescription: false
+              })
+            } as Response
+          }
+
+          if (
+            typeof input === 'string' &&
+            input === '/api/v1/fitness/general' &&
+            method === 'POST'
+          ) {
+            const requestBody = JSON.parse(String(init?.body)) as {
+              generateRouteDescription?: boolean
+            }
+
+            return {
+              ok: true,
+              json: async () => ({
+                success: true,
+                privacyLocations: [],
+                generateRouteDescription: requestBody.generateRouteDescription
+              })
+            } as Response
+          }
+
+          throw new Error('Unexpected fetch call')
+        })
+
+      render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
+
+      const toggle = await screen.findByRole('switch', {
+        name: 'Generate AI route description'
+      })
+      expect(toggle).toHaveAttribute('aria-checked', 'false')
+
+      fireEvent.click(toggle)
+
+      await waitFor(() => {
+        expect(toggle).toHaveAttribute('aria-checked', 'true')
+        expect(
+          screen.getByText(
+            'AI route description enabled for new and regenerated maps.'
+          )
+        ).toBeInTheDocument()
+      })
+
+      const postCall = fetchMock.mock.calls.find(([input, init]) => {
+        return (
+          input === '/api/v1/fitness/general' &&
+          (init?.method ?? 'GET') === 'POST'
+        )
+      })
+      expect(postCall).toBeDefined()
+      expect(JSON.parse(String(postCall?.[1]?.body))).toEqual({
+        generateRouteDescription: true
+      })
+    })
+
+    it('renders the switch on when enabled in initial settings and toggles it off', async () => {
+      const fetchMock = vi
+        .spyOn(global, 'fetch')
+        .mockImplementation(async (input, init) => {
+          const method = init?.method ?? 'GET'
+
+          if (
+            typeof input === 'string' &&
+            input === '/api/v1/fitness/general' &&
+            method === 'GET'
+          ) {
+            return {
+              ok: true,
+              json: async () => ({
+                privacyLocations: [],
+                generateRouteDescription: true
+              })
+            } as Response
+          }
+
+          if (
+            typeof input === 'string' &&
+            input === '/api/v1/fitness/general' &&
+            method === 'POST'
+          ) {
+            const requestBody = JSON.parse(String(init?.body)) as {
+              generateRouteDescription?: boolean
+            }
+
+            return {
+              ok: true,
+              json: async () => ({
+                success: true,
+                privacyLocations: [],
+                generateRouteDescription: requestBody.generateRouteDescription
+              })
+            } as Response
+          }
+
+          throw new Error('Unexpected fetch call')
+        })
+
+      render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
+
+      const toggle = await screen.findByRole('switch', {
+        name: 'Generate AI route description'
+      })
+      expect(toggle).toHaveAttribute('aria-checked', 'true')
+
+      fireEvent.click(toggle)
+
+      await waitFor(() => {
+        expect(toggle).toHaveAttribute('aria-checked', 'false')
+        expect(
+          screen.getByText('AI route description disabled.')
+        ).toBeInTheDocument()
+      })
+
+      const postCall = fetchMock.mock.calls.find(([input, init]) => {
+        return (
+          input === '/api/v1/fitness/general' &&
+          (init?.method ?? 'GET') === 'POST'
+        )
+      })
+      expect(postCall).toBeDefined()
+      expect(JSON.parse(String(postCall?.[1]?.body))).toEqual({
+        generateRouteDescription: false
+      })
+    })
+
+    it('reverts switch and displays error when updating setting fails', async () => {
+      vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
+        const method = init?.method ?? 'GET'
+
+        if (
+          typeof input === 'string' &&
+          input === '/api/v1/fitness/general' &&
+          method === 'GET'
+        ) {
+          return {
+            ok: true,
+            json: async () => ({
+              privacyLocations: [],
+              generateRouteDescription: false
+            })
+          } as Response
+        }
+
+        if (
+          typeof input === 'string' &&
+          input === '/api/v1/fitness/general' &&
+          method === 'POST'
+        ) {
+          return {
+            ok: false,
+            json: async () => ({
+              error: 'Failed to update setting'
+            })
+          } as Response
+        }
+
+        throw new Error('Unexpected fetch call')
+      })
+
+      render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
+
+      const toggle = await screen.findByRole('switch', {
+        name: 'Generate AI route description'
+      })
+      expect(toggle).toHaveAttribute('aria-checked', 'false')
+
+      fireEvent.click(toggle)
+
+      await waitFor(() => {
+        expect(toggle).toHaveAttribute('aria-checked', 'false')
+        expect(screen.getByText('Failed to update setting')).toBeInTheDocument()
+      })
+    })
+  })
+
   describe('when the settings fail to load', () => {
     const failingFetch = () =>
       vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
@@ -676,6 +869,9 @@ describe('FitnessPrivacyLocationSettings', () => {
       ).toBeDisabled()
       expect(screen.getByLabelText('Latitude')).toBeDisabled()
       expect(screen.getByLabelText('Hide Radius')).toBeDisabled()
+      expect(
+        screen.getByRole('switch', { name: 'Generate AI route description' })
+      ).toBeDisabled()
     })
 
     it('keeps explaining why saving is disabled after an unrelated action', async () => {

@@ -34,6 +34,19 @@ describe('fitnessGeneralSettings client module', () => {
       )
     })
 
+    it('returns generateRouteDescription on success', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          privacyLocations: [],
+          generateRouteDescription: true
+        }),
+        { status: 200 }
+      )
+
+      const result = await getFitnessGeneralSettings()
+      expect(result.generateRouteDescription).toBe(true)
+    })
+
     it('throws error when response is not ok', async () => {
       fetchMock.mockResponseOnce(JSON.stringify({ error: 'Server error' }), {
         status: 500
@@ -75,6 +88,29 @@ describe('fitnessGeneralSettings client module', () => {
         expect.objectContaining({
           method: 'POST',
           body: JSON.stringify({ privacyLocations: locations })
+        })
+      )
+    })
+
+    it('posts object payload with generateRouteDescription', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          privacyLocations: [],
+          generateRouteDescription: true
+        }),
+        { status: 200 }
+      )
+
+      const result = await updateFitnessGeneralSettings({
+        generateRouteDescription: true
+      })
+      expect(result.ok).toBe(true)
+      expect(result.data.generateRouteDescription).toBe(true)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/fitness/general',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ generateRouteDescription: true })
         })
       )
     })

@@ -72,7 +72,10 @@ describe('FitnessSettings database operations', () => {
       'default-visibility',
       'visibility-update',
       'privacy',
-      'privacy-update'
+      'privacy-update',
+      'route-description',
+      'route-description-update',
+      'route-description-preserve'
     ]
 
     for (const suffix of suffixes) {
@@ -755,6 +758,76 @@ describe('FitnessSettings database operations', () => {
       expect(final?.accessToken).toBe('ya29.access-token')
       expect(final?.refreshToken).toBe('refresh-token-abc')
       expect(final?.webhookToken).toBe('webhook-token-xyz')
+    })
+  })
+
+  describe('generateRouteDescription', () => {
+    it('defaults generateRouteDescription to false when not provided', async () => {
+      const actorId = `${testActorId}-route-description`
+      const settings = await database.createFitnessSettings({
+        actorId,
+        serviceType: 'general'
+      })
+
+      expect(settings.generateRouteDescription).toBe(false)
+
+      const fetched = await database.getFitnessSettings({
+        actorId,
+        serviceType: 'general'
+      })
+      expect(fetched?.generateRouteDescription).toBe(false)
+    })
+
+    it('stores and updates generateRouteDescription', async () => {
+      const actorId = `${testActorId}-route-description-update`
+      const settings = await database.createFitnessSettings({
+        actorId,
+        serviceType: 'general',
+        generateRouteDescription: true
+      })
+
+      expect(settings.generateRouteDescription).toBe(true)
+
+      const updated = await database.updateFitnessSettings({
+        id: settings.id,
+        generateRouteDescription: false
+      })
+      expect(updated?.generateRouteDescription).toBe(false)
+
+      const fetched = await database.getFitnessSettings({
+        actorId,
+        serviceType: 'general'
+      })
+      expect(fetched?.generateRouteDescription).toBe(false)
+    })
+
+    it('preserves generateRouteDescription when updating other fields', async () => {
+      const actorId = `${testActorId}-route-description-preserve`
+      const settings = await database.createFitnessSettings({
+        actorId,
+        serviceType: 'general',
+        generateRouteDescription: true
+      })
+
+      const updated = await database.updateFitnessSettings({
+        id: settings.id,
+        privacyLocations: [
+          {
+            latitude: 40.7128,
+            longitude: -74.006,
+            hideRadiusMeters: 50
+          }
+        ]
+      })
+
+      expect(updated?.generateRouteDescription).toBe(true)
+      expect(updated?.privacyLocations).toHaveLength(1)
+
+      const fetched = await database.getFitnessSettings({
+        actorId,
+        serviceType: 'general'
+      })
+      expect(fetched?.generateRouteDescription).toBe(true)
     })
   })
 })

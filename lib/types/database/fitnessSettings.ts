@@ -46,6 +46,9 @@ export interface SQLFitnessSettings {
   privacyHomeLongitude?: number | null
   privacyHideRadiusMeters?: number | null
 
+  // Route map description
+  generateRouteDescription?: boolean | null
+
   // Timestamps
   createdAt: number | Date
   updatedAt: number | Date
@@ -84,6 +87,9 @@ export interface FitnessSettings {
   privacyHomeLatitude?: number
   privacyHomeLongitude?: number
   privacyHideRadiusMeters?: number
+
+  // Route map description
+  generateRouteDescription?: boolean
 
   createdAt: number
   updatedAt: number

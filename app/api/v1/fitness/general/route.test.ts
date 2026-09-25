@@ -127,6 +127,7 @@ describe('Fitness General Settings API', () => {
       expect(data.privacyHomeLatitude).toBeNull()
       expect(data.privacyHomeLongitude).toBeNull()
       expect(data.privacyHideRadiusMeters).toBe(0)
+      expect(data.generateRouteDescription).toBe(false)
     })
 
     it('returns saved privacy settings when configured', async () => {
@@ -144,6 +145,7 @@ describe('Fitness General Settings API', () => {
         privacyHomeLatitude: 13.7563,
         privacyHomeLongitude: 100.5018,
         privacyHideRadiusMeters: 200,
+        generateRouteDescription: true,
         createdAt: Date.now(),
         updatedAt: Date.now()
       })
@@ -169,6 +171,7 @@ describe('Fitness General Settings API', () => {
       expect(data.privacyHomeLatitude).toBe(13.7563)
       expect(data.privacyHomeLongitude).toBe(100.5018)
       expect(data.privacyHideRadiusMeters).toBe(200)
+      expect(data.generateRouteDescription).toBe(true)
     })
 
     it('snaps a zone saved under the older option set up to 50m', async () => {
@@ -261,6 +264,179 @@ describe('Fitness General Settings API', () => {
           privacyHideRadiusMeters: 100
         })
       )
+    })
+
+    it('saves generateRouteDescription toggle', async () => {
+      mockDb.createFitnessSettings.mockResolvedValue({
+        id: 'general-settings-id',
+        actorId: ACTOR1_ID,
+        serviceType: 'general',
+        generateRouteDescription: true,
+        privacyLocations: [],
+        privacyHideRadiusMeters: 0,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      })
+
+      const request = new NextRequest(
+        'http://llun.test/api/v1/fitness/general',
+        {
+          method: 'POST',
+          headers: { Origin: 'https://llun.test' },
+          body: JSON.stringify({
+            generateRouteDescription: true
+          })
+        }
+      )
+
+      const response = await POST(request, { params: Promise.resolve({}) })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(data.generateRouteDescription).toBe(true)
+      expect(mockDb.createFitnessSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: ACTOR1_ID,
+          serviceType: 'general',
+          generateRouteDescription: true
+        })
+      )
+    })
+
+    it('updates existing settings with generateRouteDescription', async () => {
+      mockDb.getFitnessSettings.mockResolvedValue({
+        id: 'general-settings-id',
+        actorId: ACTOR1_ID,
+        serviceType: 'general',
+        privacyLocations: [],
+        privacyHideRadiusMeters: 0,
+        generateRouteDescription: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      })
+      mockDb.updateFitnessSettings.mockResolvedValue({
+        id: 'general-settings-id',
+        actorId: ACTOR1_ID,
+        serviceType: 'general',
+        privacyLocations: [],
+        privacyHideRadiusMeters: 0,
+        generateRouteDescription: true,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      })
+
+      const request = new NextRequest(
+        'http://llun.test/api/v1/fitness/general',
+        {
+          method: 'POST',
+          headers: { Origin: 'https://llun.test' },
+          body: JSON.stringify({
+            generateRouteDescription: true
+          })
+        }
+      )
+
+      const response = await POST(request, { params: Promise.resolve({}) })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(data.generateRouteDescription).toBe(true)
+      expect(mockDb.updateFitnessSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'general-settings-id',
+          generateRouteDescription: true
+        })
+      )
+    })
+
+    it('updates existing settings to disable generateRouteDescription', async () => {
+      mockDb.getFitnessSettings.mockResolvedValue({
+        id: 'general-settings-id',
+        actorId: ACTOR1_ID,
+        serviceType: 'general',
+        privacyLocations: [],
+        privacyHideRadiusMeters: 0,
+        generateRouteDescription: true,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      })
+      mockDb.updateFitnessSettings.mockResolvedValue({
+        id: 'general-settings-id',
+        actorId: ACTOR1_ID,
+        serviceType: 'general',
+        privacyLocations: [],
+        privacyHideRadiusMeters: 0,
+        generateRouteDescription: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      })
+
+      const request = new NextRequest(
+        'http://llun.test/api/v1/fitness/general',
+        {
+          method: 'POST',
+          headers: { Origin: 'https://llun.test' },
+          body: JSON.stringify({
+            generateRouteDescription: false
+          })
+        }
+      )
+
+      const response = await POST(request, { params: Promise.resolve({}) })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(data.generateRouteDescription).toBe(false)
+      expect(mockDb.updateFitnessSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'general-settings-id',
+          generateRouteDescription: false
+        })
+      )
+    })
+
+    it('rejects invalid generateRouteDescription type with 422', async () => {
+      const request = new NextRequest(
+        'http://llun.test/api/v1/fitness/general',
+        {
+          method: 'POST',
+          headers: { Origin: 'https://llun.test' },
+          body: JSON.stringify({
+            generateRouteDescription: 'true'
+          })
+        }
+      )
+
+      const response = await POST(request, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(422)
+      expect(mockDb.createFitnessSettings).not.toHaveBeenCalled()
+      expect(mockDb.updateFitnessSettings).not.toHaveBeenCalled()
+    })
+
+    it('rejects malformed legacy coordinates even when generateRouteDescription is present', async () => {
+      const request = new NextRequest(
+        'http://llun.test/api/v1/fitness/general',
+        {
+          method: 'POST',
+          headers: { Origin: 'https://llun.test' },
+          body: JSON.stringify({
+            privacyHomeLatitude: 999,
+            privacyHomeLongitude: 10,
+            privacyHideRadiusMeters: 50,
+            generateRouteDescription: true
+          })
+        }
+      )
+
+      const response = await POST(request, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(422)
+      expect(mockDb.createFitnessSettings).not.toHaveBeenCalled()
+      expect(mockDb.updateFitnessSettings).not.toHaveBeenCalled()
     })
 
     it('saves multiple privacy locations using the list payload', async () => {
