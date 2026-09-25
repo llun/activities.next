@@ -1,0 +1,33 @@
+.env.example
+  s_05598cebdd5503::t_da9bee70641577 289-290
+lib/jobs/processFitnessFileJob.test.ts
+  s_05598cebdd5503::t_86f54f316a032f 2285-2291
+lib/jobs/regenerateFitnessMapsJob.test.ts
+  s_0bf546b0579173::t_ba3d37a403f1c9 799,839-845
+lib/services/altText/openai.test.ts
+  s_05598cebdd5503::t_3ebe09bd5d23d0 2,124,136-140,283,295-299
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e5ec8d89be831201db37c9d7f3bec463d2cb2095",
+  "prompts": {},
+  "sessions": {
+    "s_05598cebdd5503": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d555-002c-7842-b513-99555c30c534",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_0bf546b0579173": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d560-7dda-79e1-9667-23b2a9b32b2a",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
