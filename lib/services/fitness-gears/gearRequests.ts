@@ -137,7 +137,8 @@ export const CreateGearComponentRequest = z
     model: optionalText(VARCHAR_MAX),
     addedAt: optionalEpochMilliseconds,
     removedAt: optionalEpochMilliseconds,
-    serviceDistanceMeters: optionalPositiveNumber(MAX_DISTANCE_METERS)
+    serviceDistanceMeters: optionalPositiveNumber(MAX_DISTANCE_METERS),
+    productUrl: optionalProductUrl
   })
   .refine(
     (body) => !body.addedAt || !body.removedAt || body.removedAt > body.addedAt,
@@ -151,7 +152,8 @@ export const UpdateGearComponentRequest = z
     model: optionalText(VARCHAR_MAX),
     addedAt: optionalEpochMilliseconds,
     removedAt: optionalEpochMilliseconds,
-    serviceDistanceMeters: optionalPositiveNumber(MAX_DISTANCE_METERS)
+    serviceDistanceMeters: optionalPositiveNumber(MAX_DISTANCE_METERS),
+    productUrl: optionalProductUrl
   })
   .refine(
     (body) => !body.addedAt || !body.removedAt || body.removedAt > body.addedAt,

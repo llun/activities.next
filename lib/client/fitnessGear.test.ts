@@ -297,7 +297,8 @@ describe('fitnessGear client module', () => {
         model: 'CN-M8100',
         addedAt: 1700000000000,
         removedAt: null,
-        serviceDistanceMeters: 500000
+        serviceDistanceMeters: 500000,
+        productUrl: 'https://bike.shimano.com/chain'
       }
       const mockComponent = { id: 'comp-1', ...payload }
       fetchMock.mockResponseOnce(JSON.stringify({ component: mockComponent }))
@@ -357,7 +358,8 @@ describe('fitnessGear client module', () => {
         model: null,
         addedAt: null,
         removedAt: null,
-        serviceDistanceMeters: null
+        serviceDistanceMeters: null,
+        productUrl: null
       }
       await updateFitnessGearComponent('gear-1', 'comp-1', clearingPayload)
 

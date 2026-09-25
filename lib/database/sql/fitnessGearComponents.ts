@@ -91,6 +91,7 @@ export const FitnessGearComponentsSQLDatabaseMixin = (
       model: params.model ?? null,
       serviceDistanceMeters: params.serviceDistanceMeters ?? null,
       lastAlertedDistanceMeters: null,
+      productUrl: params.productUrl ?? null,
       createdAt: currentTime,
       updatedAt: currentTime,
       deletedAt: null
@@ -180,6 +181,8 @@ export const FitnessGearComponentsSQLDatabaseMixin = (
         updateData.lastAlertedDistanceMeters = null
       }
     }
+    if ('productUrl' in params)
+      updateData.productUrl = params.productUrl ?? null
 
     await database.transaction(async (trx) => {
       await trx('fitness_gear_components')

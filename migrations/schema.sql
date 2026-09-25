@@ -471,7 +471,8 @@ CREATE TABLE public.fitness_gear_components (
     "lastAlertedDistanceMeters" real,
     "createdAt" timestamp with time zone NOT NULL,
     "updatedAt" timestamp with time zone NOT NULL,
-    "deletedAt" timestamp with time zone
+    "deletedAt" timestamp with time zone,
+    "productUrl" character varying(255)
 );
 
 CREATE TABLE public.fitness_gears (

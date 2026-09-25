@@ -55,6 +55,7 @@ const createComponent = (
     serviceDistanceMeters: null,
     distanceMeters: 2450000,
     activityCount: 82,
+    productUrl: 'https://bike.shimano.com/chain',
     ...overrides
   }
   return {
@@ -225,10 +226,19 @@ describe('GearComponentsCard', () => {
     expect(screen.getByText('Chain')).toBeInTheDocument()
     expect(screen.getByText('Shimano')).toBeInTheDocument()
     expect(screen.getByText('HG701')).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Product page: bike.shimano.com' })
+    ).toHaveAttribute('href', 'https://bike.shimano.com/chain')
     expect(screen.getByText('2,450.0 km')).toBeInTheDocument()
     expect(screen.getByText('Jan 15, 2024')).toBeInTheDocument()
     // No removal date on an installed component.
     expect(screen.getByText('—')).toBeInTheDocument()
+  })
+
+  it('renders an em dash when a component has no product page', () => {
+    renderCard([createComponent({ productUrl: null })])
+
+    expect(screen.getAllByText('—')).toHaveLength(2)
   })
 
   it('renders "Since beginning" when a component has no added date', () => {
@@ -716,9 +726,27 @@ describe('GearComponentsCard', () => {
       brand: 'SRAM',
       model: 'XG-1275',
       addedAt: undefined,
-      serviceDistanceMeters: null
+      serviceDistanceMeters: null,
+      productUrl: null
     })
     expect(onChanged).toHaveBeenCalled()
+  })
+
+  it('sends the product URL when provided', async () => {
+    renderCard([])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add component' }))
+    fireEvent.change(screen.getByLabelText('Product page'), {
+      target: { value: 'https://bike.shimano.com/product/cn-hg701.html' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save component' }))
+
+    await waitFor(() =>
+      expect(mockCreateFitnessGearComponent).toHaveBeenCalledTimes(1)
+    )
+    expect(mockCreateFitnessGearComponent.mock.calls[0][1]).toMatchObject({
+      productUrl: 'https://bike.shimano.com/product/cn-hg701.html'
+    })
   })
 
   it('sends the added date and the service interval in meters', async () => {

@@ -106,7 +106,8 @@ export const parseSQLFitnessGearComponent = (
   ),
   createdAt: getCompatibleTime(row.createdAt),
   updatedAt: getCompatibleTime(row.updatedAt),
-  deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined
+  deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined,
+  productUrl: row.productUrl ?? undefined
 })
 
 export const getOwnedGearRow = async (

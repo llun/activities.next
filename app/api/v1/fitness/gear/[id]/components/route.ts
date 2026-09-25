@@ -86,7 +86,8 @@ export const POST = traceApiRoute(
       model: parsed.data.model,
       addedAt: parsed.data.addedAt ? new Date(parsed.data.addedAt) : null,
       removedAt: parsed.data.removedAt ? new Date(parsed.data.removedAt) : null,
-      serviceDistanceMeters: parsed.data.serviceDistanceMeters
+      serviceDistanceMeters: parsed.data.serviceDistanceMeters,
+      productUrl: parsed.data.productUrl
     })
     if (!component) return apiErrorResponse(HTTP_STATUS.NOT_FOUND)
 

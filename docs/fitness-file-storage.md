@@ -243,7 +243,7 @@ An activity with no `activityStartTime` — a GPX carrying no timestamps — cou
 
 - **`productUrl` belongs to every kind.** A bike, a pair of shoes and a recording device all have a manufacturer's page worth linking to, and each one's page renders it the same way — through `GearProductLink`, which shows the hostname (`moots.com`, not the whole URL) and falls back to a "No product page — add one" prompt that opens the gear form. The API accepts it on create and update for every kind, and only http/https: the value becomes an `href`, so `javascript:`/`data:` there would be a script injection, and a bare `garmin.com` would render as a link back to this instance. `getProductUrlHostname` re-checks the protocol at render time, because rows written before that validation existed never passed through it. Only a device's is ever pre-filled — `resolveDeviceGear` seeds it from the brand map when the import creates the row.
 
-`fitness_gear_components` columns: `id`, `gearId`, `componentType` (named that way to avoid the MySQL reserved word `type`), `brand`, `model`, `serviceDistanceMeters`, `lastAlertedDistanceMeters`, timestamps and `deletedAt`.
+`fitness_gear_components` columns: `id`, `gearId`, `componentType` (named that way to avoid the MySQL reserved word `type`), `brand`, `model`, `productUrl`, `serviceDistanceMeters`, `lastAlertedDistanceMeters`, timestamps and `deletedAt`.
 
 `fitness_gear_component_periods` columns: `id`, `componentId`, `installSequence`, `addedAt`, `removedAt` and timestamps, with `UNIQUE (componentId, installSequence)`.
 
@@ -312,8 +312,8 @@ Every gear endpoint is owner-scoped, and answers `404` rather than `403` for any
 - `PATCH` and `DELETE /api/v1/fitness/gear/:id` — `kind` is immutable, and so is a device's `deviceKey`. `productUrl` is accepted for every kind — unlike `bikeType`/`weightKilograms`, which are bike-only, and `alertDistanceMeters`, which is shoes-only. Deleting soft-deletes the gear, nulls `gearId` and `deviceGearId` on its activities, and releases the device key — all in the same transaction.
 - `POST /api/v1/fitness/gear/:id/retire` — one idempotent toggle taking `{ "retired": true | false }`, rather than separate retire and unretire verbs. A device is a 422: retiring means "out of the pickers and out of auto-assign", and a device is in neither.
 - `GET /api/v1/fitness/gear/:id/activities` — a page of the activities attributed to this gear, newest first, **as the posts they were published as**, matching on `deviceGearId` for a device and `gearId` for everything else. Takes `limit` (default 20, clamped to 1–100) and `offset`, and answers `{ statuses, hasMore, nextOffset }`: `statuses` is the app-domain `Status` shape the timelines render, loaded in one batched read and hydrated for the caller. `hasMore` comes from fetching one row past the page rather than a second COUNT over a history that can run to five figures. `nextOffset` counts ACTIVITY ROWS, not the statuses returned — deleting a status only nulls `fitness_files.statusId`, so a row with no post left still occupies an offset, and paging from `statuses.length` would re-request everything in between.
-- `GET` and `POST /api/v1/fitness/gear/:id/components` — a device is a 422 on every component endpoint; it has no parts to service.
-- `PATCH` and `DELETE /api/v1/fitness/gear/:id/components/:componentId`
+- `GET` and `POST /api/v1/fitness/gear/:id/components` — a device is a 422 on every component endpoint; it has no parts to service. `POST` accepts `productUrl` alongside component type, brand, model, addedAt, and serviceDistanceMeters.
+- `PATCH` and `DELETE /api/v1/fitness/gear/:id/components/:componentId` — `PATCH` accepts `productUrl` to update or clear the manufacturer's link.
 - `POST /api/v1/fitness/gear/:id/components/:componentId/retire` — closes the fitted part at today's date; the successor is added explicitly through `POST .../components`.
 
 ### Map Provider Tokens
@@ -1160,12 +1160,12 @@ null }` remains the precise "this retirement never happened" — it reopens the
   since a menu with one entry is dead UI (the same rule that keeps the "No
   gear" picker off an empty shed). Do not write a third copy of this dropdown —
   the fitness activity detail's section nav is the other consumer.
-- **Every kind carries a product page, and one component renders it.**
-  `fitness_gears.productUrl` is the manufacturer's page for a bike, a pair of
-  shoes and a head unit alike, edited in the same "Product page" field of
-  `GearFormDialog` and rendered by the one `GearProductLink`
-  (`app/(timeline)/fitness/gear/`) everywhere it appears — every gear page and
-  the gear list's device table alike. Hostname only ("moots.com", not the whole
+- **Every kind and component carries a product page, and one component renders it.**
+  `fitness_gears.productUrl` and `fitness_gear_components.productUrl` are the manufacturer's page for a bike, a pair of
+  shoes, a head unit, or an individual component alike. It is edited in the "Product page" field of
+  `GearFormDialog` or the "Add component" form in `GearComponentsCard`, and rendered by the one `GearProductLink`
+  (`app/(timeline)/fitness/gear/`) everywhere it appears — every gear page header, the gear list's bikes/shoes/devices tables,
+  and the components table alike. Hostname only ("moots.com", not the whole
   URL), leading `ExternalLink`, `target="_blank"` with
   `rel="noopener noreferrer"`, and an `aria-label` because a bare domain is no
   accessible name. It was device-only and the API 422'd it for anything else;
@@ -1175,12 +1175,17 @@ null }` remains the precise "this retirement never happened" — it reopens the
   what stops a row written before the API validated the column from rendering a
   `javascript:` href. Two props are what let one component serve every surface:
   `onEdit` makes the empty state the prompt that opens the gear form, and
-  without it that state is an em dash (the list has no form to open); `onClick`
+  without it that state is an em dash (the list and component tables have no form to open from the cell); `onClick`
   is where a clickable row passes `stopPropagation`, without which the anchor
   opens the vendor's page and the row pushes the gear's route behind it. The
   hostname takes `text-primary-text` — `text-primary` is 3.37:1 on the card and
   fails AA for text. Only a device's is ever pre-filled: `resolveDeviceGear`
   seeds it from the brand map when the import creates the row.
+- **Gear list tables share aligned column widths.** In `app/(timeline)/fitness/gear/GearListView.tsx`, all tables
+  (Bikes, Shoes, Devices) use `table-fixed w-full min-w-[560px] text-sm` and define fixed column widths via `<colgroup>`.
+  Bikes and Shoes (4 columns) allocate `34%` (Name), `26%` (Product page), `24%` (Default sports), and `16%` (Distance / Service).
+  Devices (3 columns) allocates `34%` (Device), `26%` (Product page), and `40%` (Activities).
+  The shared first two columns (`34%` and `26%`) align vertically across every table on the page.
 - **A recording device is a third kind, and almost nothing above applies to it.**
   `kind: 'device'` rows have no components, no default sports, no distance
   total, no service reminder and cannot be retired; a device page reports an

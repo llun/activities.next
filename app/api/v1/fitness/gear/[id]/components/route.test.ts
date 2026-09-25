@@ -235,6 +235,35 @@ describe('Fitness gear components API', () => {
       )
     })
 
+    it('creates a component with productUrl', async () => {
+      mockDb.createFitnessGearComponent.mockResolvedValue(
+        component({ productUrl: 'https://example.com/chain' })
+      )
+
+      const response = await POST(
+        postRequest({
+          componentType: 'Chain',
+          productUrl: 'https://example.com/chain'
+        }),
+        params
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.component).toMatchObject({
+        componentType: 'Chain',
+        productUrl: 'https://example.com/chain'
+      })
+      expect(mockDb.createFitnessGearComponent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          gearId: 'gear-1',
+          actorId: ACTOR1_ID,
+          componentType: 'Chain',
+          productUrl: 'https://example.com/chain'
+        })
+      )
+    })
+
     it('treats a missing added date as "since beginning"', async () => {
       mockDb.createFitnessGearComponent.mockResolvedValue(component())
 

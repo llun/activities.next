@@ -72,6 +72,7 @@ export interface CreateFitnessGearComponentParams {
   addedAt?: Date | null
   removedAt?: Date | null
   serviceDistanceMeters?: number | null
+  productUrl?: string | null
 }
 
 // `addedAt` and `removedAt` no longer name columns on the component: `addedAt`
@@ -92,6 +93,7 @@ export interface UpdateFitnessGearComponentParams {
   addedAt?: Date | null
   removedAt?: Date | null
   serviceDistanceMeters?: number | null
+  productUrl?: string | null
 }
 
 export interface FitnessGearComponentsDatabase {
