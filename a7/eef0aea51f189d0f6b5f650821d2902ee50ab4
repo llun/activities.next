@@ -1,0 +1,81 @@
+app/(timeline)/fitness/gear/[id]/GearComponentsCard.tsx
+  s_725909a67e1914::t_1f32cad68bbe51 6,166,203,229-230,433-449,497-499,560-568
+migrations/schema.sql
+  s_725909a67e1914::t_cd1b5379c19890 474-475
+app/(timeline)/fitness/gear/GearListView.test.tsx
+  s_725909a67e1914::t_b3a588e177bd12 148-151,159-181
+app/(timeline)/fitness/gear/GearListView.tsx
+  s_05598cebdd5503::t_c4dd4855656f66 115-121,132,182-193,260-265,314
+app/(timeline)/fitness/gear/[id]/GearComponentsCard.test.tsx
+  s_05598cebdd5503::t_53afd98ea7c8ba 58,229-231,238-243,729-730,735-751
+app/(timeline)/fitness/gear/[id]/GearDetailView.test.tsx
+  s_d14ca01079411b::t_ad64fc038e35ef 99
+app/api/v1/fitness/gear/[id]/components/[componentId]/route.test.ts
+  s_725909a67e1914::t_f939eaff0e7555 276-304
+app/api/v1/fitness/gear/[id]/components/[componentId]/route.ts
+  s_d14ca01079411b::t_030084a47546a4 108-110
+app/api/v1/fitness/gear/[id]/components/route.test.ts
+  s_0bf546b0579173::t_a12217a4335c94 238-266
+docs/fitness-file-storage.md
+  s_d14ca01079411b::t_53d5569ab95e3f 244,313-314,1161-1166,1176,1182-1186
+lib/client/fitnessGear.test.ts
+  s_725909a67e1914::t_5f4ad2039ffbc7 300-301,361-362
+lib/client/fitnessGear.ts
+  s_725909a67e1914::t_9ede177921e63a 63
+lib/database/sql/fitnessGear.test.ts
+  s_05598cebdd5503::t_d058fc44f1b421 938-972
+lib/database/sql/fitnessGearComponents.ts
+  s_05598cebdd5503::t_52db7b674efdcd 94,184-185
+lib/database/sql/fitnessGearRows.ts
+  s_05598cebdd5503::t_de78d28ddeb058 109-110
+lib/database/sql/fitnessGearTypes.ts
+  s_05598cebdd5503::t_6c26606098720b 75,96
+lib/services/fitness-gears/gearRequests.test.ts
+  s_d14ca01079411b::t_2731e0557c3567 283-330
+lib/types/database/fitnessGear.ts
+  s_05598cebdd5503::t_fdff23ded8a3eb 69,132
+migrations/20260925210844_add_fitness_gear_components_product_url.js
+  s_05598cebdd5503::t_66e70756101323 1-34
+migrations/schema.sqlite.sql
+  s_d14ca01079411b::t_40a95d3a5c7ecd 277
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a7eef0aea51f189d0f6b5f650821d2902ee50ab4",
+  "prompts": {},
+  "sessions": {
+    "s_05598cebdd5503": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d555-002c-7842-b513-99555c30c534",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_0bf546b0579173": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d560-7dda-79e1-9667-23b2a9b32b2a",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_725909a67e1914": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d554-1283-7a03-aa63-f06a555f70ba",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_d14ca01079411b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d9d7-0e58-7040-8a9b-de72e5e8e886",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
