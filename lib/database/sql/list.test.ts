@@ -4,7 +4,10 @@ import {
   getTestSQLDatabase
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
-import { Timeline } from '@/lib/services/timelines/types'
+import {
+  LIST_OWNER_BACKFILL_MAX_POSTS,
+  Timeline
+} from '@/lib/services/timelines/types'
 import { EXTERNAL_ACTORS, TEST_DOMAIN } from '@/lib/stub/const'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { ListRepliesPolicy } from '@/lib/types/domain/list'
@@ -1406,6 +1409,229 @@ describe('ListDatabase', () => {
       expect(page.map((status) => status.id)).toEqual([m2000, m1000])
     })
   })
+
+  // Runs on every configured backend (TEST_DATABASE_TYPE=pg included): the
+  // list-eligibility filter is raw SQL the two backends must agree on. The
+  // database is shared across these tests, so each one uses its own actors.
+  describe.each(table)(
+    'owner membership and direct messages (%s)',
+    (_, database) => {
+      const localActor = async (username: string) => {
+        await createLocalAccount(database, username)
+        const actor = await database.getActorFromUsername({
+          username,
+          domain: TEST_DOMAIN
+        })
+        if (!actor) throw new Error(`${username} not created`)
+        return actor
+      }
+
+      const note = (
+        actorId: string,
+        localId: string,
+        to: string[],
+        createdAt?: number
+      ) =>
+        database.createNote({
+          id: `${actorId}/statuses/${localId}`,
+          url: `${actorId}/statuses/${localId}`,
+          actorId,
+          text: localId,
+          to,
+          cc: [],
+          ...(createdAt === undefined ? {} : { createdAt })
+        })
+
+      const listTimelineIds = async (
+        listId: string,
+        ownerId: string,
+        limit?: number
+      ) =>
+        (
+          await database.getListTimeline({
+            listId,
+            actorId: ownerId,
+            ...(limit === undefined ? {} : { limit })
+          })
+        ).map((status) => status.id)
+
+      it('shows the owner’s own posts once they join their own list, but never their direct messages', async () => {
+        const owner = await localActor('self-list-owner')
+        const stranger = await localActor('self-list-stranger')
+        const publicPost = await note(owner.id, 'public', [
+          ACTIVITY_STREAM_PUBLIC
+        ])
+        const followersOnlyPost = await note(owner.id, 'followers-only', [
+          `${owner.id}/followers`
+        ])
+        const directMessage = await note(owner.id, 'direct', [stranger.id])
+
+        const list = await database.createList({
+          actorId: owner.id,
+          title: 'Including me'
+        })
+        await database.addListAccounts({
+          listId: list.id,
+          actorId: owner.id,
+          targetActorIds: [owner.id]
+        })
+        expect(
+          (
+            await database.getListAccounts({
+              listId: list.id,
+              actorId: owner.id
+            })
+          ).accounts
+        ).toHaveLength(1)
+
+        // Posts written after joining fan in like any member's.
+        const laterPost = await note(owner.id, 'later-public', [
+          ACTIVITY_STREAM_PUBLIC
+        ])
+        await database.addStatusToListTimelines({ status: laterPost })
+        const laterDirectMessage = await note(owner.id, 'later-direct', [
+          stranger.id
+        ])
+        await database.addStatusToListTimelines({ status: laterDirectMessage })
+
+        const ids = await listTimelineIds(list.id, owner.id)
+        expect(ids).toEqual(
+          expect.arrayContaining([
+            publicPost.id,
+            followersOnlyPost.id,
+            laterPost.id
+          ])
+        )
+        expect(ids).not.toContain(directMessage.id)
+        expect(ids).not.toContain(laterDirectMessage.id)
+      })
+
+      it('keeps a member’s direct message to the owner out of the list', async () => {
+        const owner = await localActor('dm-list-owner')
+        const member = await localActor('dm-list-member')
+        await database.createFollow({
+          actorId: owner.id,
+          targetActorId: member.id,
+          status: FollowStatus.enum.Accepted,
+          inbox: `${member.id}/inbox`,
+          sharedInbox: `${member.id}/inbox`
+        })
+        const publicPost = await note(member.id, 'public', [
+          ACTIVITY_STREAM_PUBLIC
+        ])
+        // The owner is a recipient, so the visibility filter alone lets both DMs
+        // through; both are materialized (one by the add backfill, one by the
+        // fan-out), which is what makes this a read-time check.
+        const earlierDirectMessage = await note(member.id, 'dm-before-add', [
+          owner.id
+        ])
+
+        const list = await database.createList({
+          actorId: owner.id,
+          title: 'Friends'
+        })
+        await database.addListAccounts({
+          listId: list.id,
+          actorId: owner.id,
+          targetActorIds: [member.id]
+        })
+        const laterDirectMessage = await note(member.id, 'dm-after-add', [
+          owner.id
+        ])
+        await database.addStatusToListTimelines({ status: laterDirectMessage })
+
+        const ids = await listTimelineIds(list.id, owner.id)
+        expect(ids).toContain(publicPost.id)
+        expect(ids).not.toContain(earlierDirectMessage.id)
+        expect(ids).not.toContain(laterDirectMessage.id)
+      })
+
+      it('keeps followers-only posts whose followers collection lacks the /followers suffix', async () => {
+        // Friendica names its followers collection /followers/<nick>, so only
+        // the author's stored followers URL identifies the post as
+        // followers-only rather than direct.
+        const owner = await localActor('friendica-list-owner')
+        const friendId = 'https://friendica.test/profile/friend'
+        const followersUrl = 'https://friendica.test/followers/friend'
+        await database.createActor({
+          actorId: friendId,
+          username: 'friend',
+          domain: 'friendica.test',
+          inboxUrl: `${friendId}/inbox`,
+          sharedInboxUrl: 'https://friendica.test/inbox',
+          followersUrl,
+          publicKey: 'public-key',
+          createdAt: Date.now()
+        })
+        await database.createFollow({
+          actorId: owner.id,
+          targetActorId: friendId,
+          status: FollowStatus.enum.Accepted,
+          inbox: `${friendId}/inbox`,
+          sharedInbox: 'https://friendica.test/inbox'
+        })
+        const followersOnlyPost = await note(friendId, 'followers-only', [
+          followersUrl
+        ])
+
+        const list = await database.createList({
+          actorId: owner.id,
+          title: 'Friendica friends'
+        })
+        await database.addListAccounts({
+          listId: list.id,
+          actorId: owner.id,
+          targetActorIds: [friendId]
+        })
+
+        expect(await listTimelineIds(list.id, owner.id)).toContain(
+          followersOnlyPost.id
+        )
+      })
+
+      it('backfills only the owner’s most recent posts the list can show', async () => {
+        const owner = await localActor('capped-list-owner')
+        const stranger = await localActor('capped-list-stranger')
+        const startedAt = Date.UTC(2026, 0, 1)
+        const postIds: string[] = []
+        for (let index = 0; index <= LIST_OWNER_BACKFILL_MAX_POSTS; index++) {
+          const post = await note(
+            owner.id,
+            `post-${index}`,
+            [ACTIVITY_STREAM_PUBLIC],
+            startedAt + index * 1000
+          )
+          postIds.push(post.id)
+        }
+        // The newest post is a DM. It must not spend one of the capped slots.
+        await note(
+          owner.id,
+          'newest-dm',
+          [stranger.id],
+          startedAt + (LIST_OWNER_BACKFILL_MAX_POSTS + 1) * 1000
+        )
+
+        const list = await database.createList({
+          actorId: owner.id,
+          title: 'Capped'
+        })
+        await database.addListAccounts({
+          listId: list.id,
+          actorId: owner.id,
+          targetActorIds: [owner.id]
+        })
+
+        // Newest first: every post except the single oldest one.
+        expect(
+          await listTimelineIds(
+            list.id,
+            owner.id,
+            LIST_OWNER_BACKFILL_MAX_POSTS + 10
+          )
+        ).toEqual(postIds.slice(1).reverse())
+      })
+    }
+  )
 })
 
 describe('getListAccounts', () => {

@@ -761,6 +761,42 @@ describe('TimelineDatabase', () => {
           })
           expect(await homeIds()).toContain(toggleId)
         })
+
+        it("keeps the viewer's own posts at home when they are on their own exclusive list", async () => {
+          // A list owner may add themselves so the list shows their posts; an
+          // exclusive flag on that list must still leave their own posts in
+          // Home (Mastodon's filter_from_home never skips the receiver's own).
+          const ownList = await database.createList({
+            actorId: OWNER,
+            title: 'Including me',
+            exclusive: true
+          })
+          await database.addListAccounts({
+            listId: ownList.id,
+            actorId: OWNER,
+            targetActorIds: [OWNER, EXCL_MEMBER]
+          })
+          try {
+            const ownId = await seed(OWNER, 'home-own', Timeline.MAIN)
+            const memberId = await seed(
+              EXCL_MEMBER,
+              'home-excl-beside-owner',
+              Timeline.MAIN
+            )
+
+            const ids = (
+              await database.getTimeline({
+                timeline: Timeline.MAIN,
+                actorId: OWNER
+              })
+            ).map((status) => status.id)
+
+            expect(ids).toContain(ownId)
+            expect(ids).not.toContain(memberId)
+          } finally {
+            await database.deleteList({ id: ownList.id, actorId: OWNER })
+          }
+        })
       })
     })
 

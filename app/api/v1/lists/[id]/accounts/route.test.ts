@@ -152,6 +152,51 @@ describe('POST /api/v1/lists/:id/accounts', () => {
     })
   })
 
+  it('lets the list owner add themselves without following themselves', async () => {
+    mockDatabase.isCurrentActorFollowing.mockResolvedValue(false)
+    const ownPublicId = generatePublicId()
+    mockDatabase.getActorIdsByPublicIds.mockResolvedValueOnce(
+      new Map([[ownPublicId, mockCurrentActor.id]])
+    )
+    const request = new NextRequest(URL_BASE, {
+      method: 'POST',
+      body: JSON.stringify({ account_ids: [ownPublicId] }),
+      headers: { 'content-type': 'application/json' }
+    })
+
+    const response = await POST(request, params())
+
+    expect(response.status).toBe(200)
+    expect(mockDatabase.isCurrentActorFollowing).not.toHaveBeenCalled()
+    expect(mockDatabase.addListAccounts).toHaveBeenCalledWith({
+      listId: LIST_ID,
+      actorId: mockCurrentActor.id,
+      targetActorIds: [mockCurrentActor.id]
+    })
+  })
+
+  it('still requires a follow for anyone the owner adds alongside themselves', async () => {
+    mockDatabase.isCurrentActorFollowing.mockResolvedValue(false)
+    const ownPublicId = generatePublicId()
+    mockDatabase.getActorIdsByPublicIds.mockResolvedValueOnce(
+      new Map([[ownPublicId, mockCurrentActor.id]])
+    )
+    const request = new NextRequest(URL_BASE, {
+      method: 'POST',
+      body: JSON.stringify({ account_ids: [ownPublicId, 'acc1'] }),
+      headers: { 'content-type': 'application/json' }
+    })
+
+    const response = await POST(request, params())
+
+    expect(response.status).toBe(404)
+    expect(mockDatabase.isCurrentActorFollowing).toHaveBeenCalledWith({
+      currentActorId: mockCurrentActor.id,
+      followingActorId: idToUrl('acc1')
+    })
+    expect(mockDatabase.addListAccounts).not.toHaveBeenCalled()
+  })
+
   it('adds accounts from a urlencoded bracket-array body', async () => {
     const request = new NextRequest(URL_BASE, {
       method: 'POST',

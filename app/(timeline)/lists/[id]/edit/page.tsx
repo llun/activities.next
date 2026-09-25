@@ -80,9 +80,15 @@ const Page = async ({ params }: PageProps) => {
     actorId: actor.id,
     limit: FOLLOWING_SUGGESTIONS_LIMIT
   })
-  const followingAccounts = await database.getMastodonActorsFromIds({
-    ids: follows.map((follow) => follow.targetActorId)
-  })
+  const [followingAccounts, ownAccount] = await Promise.all([
+    database.getMastodonActorsFromIds({
+      ids: follows.map((follow) => follow.targetActorId)
+    }),
+    // The owner can add themselves so the list shows their own posts. Load it
+    // through the same serializer as the members so its `id` compares equal to
+    // their entry once added.
+    database.getMastodonActorFromId({ id: actor.id })
+  ])
 
   return (
     <ListEditor
@@ -94,6 +100,7 @@ const Page = async ({ params }: PageProps) => {
       followingSuggestions={followingAccounts.map((account) =>
         toListMember(account, host)
       )}
+      currentAccount={ownAccount ? toListMember(ownAccount, host) : undefined}
     />
   )
 }

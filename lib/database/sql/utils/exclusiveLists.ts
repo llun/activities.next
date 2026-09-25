@@ -31,5 +31,10 @@ export const applyExclusiveListFilter = ({
         'exclusive_list_accounts.targetActorId',
         'timelines.statusActorId'
       ])
+      // The viewer's own posts always stay in Home, even once they have added
+      // themselves to one of their exclusive lists: Mastodon's
+      // FeedManager#filter_from_home returns before its exclusive-list check
+      // when the receiver wrote the status.
+      .whereNot('exclusive_list_accounts.targetActorId', viewerActorId)
   })
 }

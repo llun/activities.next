@@ -924,6 +924,59 @@ describe('SearchDatabase foundation', () => {
     }
   })
 
+  it('counts the searcher among the accounts they follow', async () => {
+    const knexDatabase = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: {
+        filename: ':memory:'
+      }
+    })
+    const database = getSQLDatabase(knexDatabase)
+    const viewerId = 'https://remote.test/users/runner-viewer'
+    const followedId = 'https://remote.test/users/followed-runner'
+    const strangerId = 'https://remote.test/users/stranger-runner'
+
+    try {
+      await database.migrate()
+      for (const [id, username] of [
+        [viewerId, 'runner-viewer'],
+        [followedId, 'followed-runner'],
+        [strangerId, 'stranger-runner']
+      ]) {
+        await createSearchActor(database, { id, username, summary: 'Runner' })
+      }
+      await database.createFollow({
+        actorId: viewerId,
+        targetActorId: followedId,
+        status: FollowStatus.enum.Accepted,
+        inbox: `${followedId}/inbox`,
+        sharedInbox: 'https://remote.test/inbox'
+      })
+
+      // Mastodon's following filter includes the searcher, which is how a
+      // client picking list members offers the owner themselves.
+      expect(
+        (
+          await database.searchAccountIds({
+            q: 'runner',
+            limit: 10,
+            followingActorId: viewerId
+          })
+        ).sort()
+      ).toEqual([followedId, viewerId].sort())
+      await expect(
+        database.searchAccountIds({
+          q: '@runner-viewer@remote.test',
+          limit: 10,
+          followingActorId: viewerId
+        })
+      ).resolves.toEqual([viewerId])
+    } finally {
+      await database.destroy()
+    }
+  })
+
   it('only returns non-discoverable accounts for exact handle matches', async () => {
     const knexDatabase = knex({
       client: 'better-sqlite3',

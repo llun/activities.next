@@ -178,12 +178,19 @@ const applyFollowingFilter = ({
 }) => {
   if (!followingActorId) return
 
-  query.whereExists(function () {
-    this.select(database.raw('1'))
-      .from('follows')
-      .where('follows.actorId', followingActorId)
-      .whereRaw('?? = ??', ['follows.targetActorId', 'actors.id'])
-      .where('follows.status', FollowStatus.enum.Accepted)
+  // Mastodon counts the searcher among the accounts they follow
+  // (AccountSearchService#following_ids appends the account's own id), so a
+  // client picking list members with `following=true` can offer the owner
+  // themselves — the one member the list accounts route accepts without a
+  // follow.
+  query.where((builder) => {
+    builder.where('actors.id', followingActorId).orWhereExists(function () {
+      this.select(database.raw('1'))
+        .from('follows')
+        .where('follows.actorId', followingActorId)
+        .whereRaw('?? = ??', ['follows.targetActorId', 'actors.id'])
+        .where('follows.status', FollowStatus.enum.Accepted)
+    })
   })
 }
 

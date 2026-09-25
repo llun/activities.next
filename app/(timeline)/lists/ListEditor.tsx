@@ -13,6 +13,7 @@ import {
 } from '@/lib/client'
 import { PageHeader } from '@/lib/components/page-header'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
+import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
@@ -52,13 +53,17 @@ interface ListEditorProps {
   list?: ListEntity
   initialMembers?: ListMember[]
   followingSuggestions?: ListMember[]
+  // The list owner's own account. The owner may add themselves (no follow
+  // needed) so the list shows their posts alongside the members'.
+  currentAccount?: ListMember
 }
 
 export const ListEditor: FC<ListEditorProps> = ({
   mode,
   list,
   initialMembers = [],
-  followingSuggestions = []
+  followingSuggestions = [],
+  currentAccount
 }) => {
   const router = useRouter()
 
@@ -314,6 +319,35 @@ export const ListEditor: FC<ListEditorProps> = ({
             </p>
           </div>
 
+          {currentAccount && !memberIds.has(currentAccount.id) && (
+            <div className="flex items-center gap-3 rounded-lg border border-dashed p-3">
+              <Avatar className="h-10 w-10">
+                {currentAccount.avatar && (
+                  <AvatarImage src={currentAccount.avatar} />
+                )}
+                <AvatarFallback>
+                  {getInitials(currentAccount.name)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">Your posts</p>
+                <p className="text-sm text-muted-foreground">
+                  Show your own posts in this list.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                disabled={pendingMemberIds.has(currentAccount.id)}
+                onClick={() => addMember(currentAccount)}
+              >
+                <UserPlus className="h-4 w-4" />
+                Add yourself
+              </Button>
+            </div>
+          )}
+
           <div ref={wrapRef} className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -388,31 +422,44 @@ export const ListEditor: FC<ListEditorProps> = ({
                 In this list · {members.length}
               </p>
               <ul className="divide-y">
-                {members.map((member) => (
-                  <li key={member.id} className="flex items-center gap-3 py-3">
-                    <Avatar className="h-10 w-10">
-                      {member.avatar && <AvatarImage src={member.avatar} />}
-                      <AvatarFallback>
-                        {getInitials(member.name)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">{member.name}</p>
-                      <p className="truncate text-sm text-muted-foreground">
-                        @{member.handle}
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      aria-label={`Remove ${member.name}`}
-                      disabled={pendingMemberIds.has(member.id)}
-                      onClick={() => removeMember(member)}
+                {members.map((member) => {
+                  const isSelf = member.id === currentAccount?.id
+                  return (
+                    <li
+                      key={member.id}
+                      className="flex items-center gap-3 py-3"
                     >
-                      <UserMinus className="h-4 w-4 text-destructive-text" />
-                    </Button>
-                  </li>
-                ))}
+                      <Avatar className="h-10 w-10">
+                        {member.avatar && <AvatarImage src={member.avatar} />}
+                        <AvatarFallback>
+                          {getInitials(member.name)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <p className="flex items-center gap-2 font-medium">
+                          <span className="min-w-0 truncate">
+                            {member.name}
+                          </span>
+                          {isSelf && <Badge className="shrink-0">You</Badge>}
+                        </p>
+                        <p className="truncate text-sm text-muted-foreground">
+                          @{member.handle}
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        aria-label={
+                          isSelf ? 'Remove yourself' : `Remove ${member.name}`
+                        }
+                        disabled={pendingMemberIds.has(member.id)}
+                        onClick={() => removeMember(member)}
+                      >
+                        <UserMinus className="h-4 w-4 text-destructive-text" />
+                      </Button>
+                    </li>
+                  )
+                })}
               </ul>
             </div>
           )}

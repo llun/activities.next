@@ -9,9 +9,13 @@ import {
   getInsertBatchSize,
   getWhereInBatchSize
 } from '@/lib/database/sql/utils/knex'
+import { applyListEligibleStatusFilter } from '@/lib/database/sql/utils/listEligibleStatus'
 import { applyListRepliesPolicyFilter } from '@/lib/database/sql/utils/listRepliesPolicy'
 import { applyPotentiallyReadableStatusFilter } from '@/lib/database/sql/utils/statusVisibility'
-import { listTimelineKey } from '@/lib/services/timelines/types'
+import {
+  LIST_OWNER_BACKFILL_MAX_POSTS,
+  listTimelineKey
+} from '@/lib/services/timelines/types'
 import { Mastodon } from '@/lib/types/activitypub'
 import {
   AddListAccountsParams,
@@ -51,11 +55,19 @@ const fixListRow = (row: SQLList): List => ({
   updatedAt: getCompatibleTime(row.updatedAt)
 })
 
+type BackfillStatusRow = {
+  id: string
+  actorId: string
+  createdAt: number | Date
+}
+
 // Materialize the given members' existing posts into a list's `timelines`
 // partition. Used to backfill full history when members are added (and by the
 // one-time backfill migration via the same column shape). Inserts are idempotent
 // on the unique (actorId, timeline, statusId), so it can safely overlap with the
-// new-status fan-out and is a no-op for members already present.
+// new-status fan-out and is a no-op for members already present. The owner
+// adding themselves is the one exception to full history — see
+// LIST_OWNER_BACKFILL_MAX_POSTS.
 const backfillListTimelineForMembers = async ({
   database,
   listId,
@@ -70,21 +82,13 @@ const backfillListTimelineForMembers = async ({
   if (targetActorIds.length === 0) return
   const timeline = listTimelineKey(listId)
   const updatedAt = new Date()
-  // Fetch the added members' posts in chunked IN queries rather than one query
-  // per member (avoids an N+1 across the accounts being added). Each chunk's rows
-  // carry statusActorId from the status itself, so a single pass materializes the
-  // whole chunk.
-  const whereInBatchSize = getWhereInBatchSize(database, 0)
-  for (const idChunk of chunkArray(targetActorIds, whereInBatchSize)) {
-    const statuses = await database('statuses')
-      .whereIn('actorId', idChunk)
-      .select('id', 'actorId', 'createdAt')
-    if (statuses.length === 0) continue
+  const materialize = async (statuses: BackfillStatusRow[]) => {
+    if (statuses.length === 0) return
     const rows = statuses.map((statusRow) => ({
       actorId: ownerId,
       timeline,
-      statusId: statusRow.id as string,
-      statusActorId: statusRow.actorId as string,
+      statusId: statusRow.id,
+      statusActorId: statusRow.actorId,
       createdAt: new Date(getCompatibleTime(statusRow.createdAt)),
       updatedAt
     }))
@@ -95,6 +99,41 @@ const backfillListTimelineForMembers = async ({
         .onConflict(['actorId', 'timeline', 'statusId'])
         .ignore()
     }
+  }
+
+  if (targetActorIds.includes(ownerId)) {
+    // Only the owner's most recent posts the list can show: the eligibility
+    // filter runs before the LIMIT so DMs, which the list never shows, cannot
+    // spend the cap.
+    const ownStatuses = database('statuses').where('statuses.actorId', ownerId)
+    applyListEligibleStatusFilter({ database, query: ownStatuses })
+    await materialize(
+      await ownStatuses
+        .orderBy('statuses.createdAt', 'desc')
+        .orderBy('statuses.id', 'desc')
+        .limit(LIST_OWNER_BACKFILL_MAX_POSTS)
+        .select<BackfillStatusRow[]>(
+          'statuses.id',
+          'statuses.actorId',
+          'statuses.createdAt'
+        )
+    )
+  }
+
+  // Fetch the added members' posts in chunked IN queries rather than one query
+  // per member (avoids an N+1 across the accounts being added). Each chunk's rows
+  // carry statusActorId from the status itself, so a single pass materializes the
+  // whole chunk.
+  const memberIds = targetActorIds.filter(
+    (targetActorId) => targetActorId !== ownerId
+  )
+  const whereInBatchSize = getWhereInBatchSize(database, 0)
+  for (const idChunk of chunkArray(memberIds, whereInBatchSize)) {
+    await materialize(
+      await database('statuses')
+        .whereIn('actorId', idChunk)
+        .select<BackfillStatusRow[]>('id', 'actorId', 'createdAt')
+    )
   }
 }
 
@@ -312,9 +351,11 @@ export const ListSQLDatabaseMixin = (
 
       // Backfill the materialized list feed with each new member's existing posts
       // so the timeline shows full history immediately (matching the old live
-      // join), not just posts published after they were added. onConflict ignores
-      // any rows the new-status fan-out already wrote, so re-adding a member is a
-      // no-op rather than a duplicate.
+      // join), not just posts published after they were added — except the
+      // owner adding themselves, who gets only their most recent posts
+      // (LIST_OWNER_BACKFILL_MAX_POSTS). onConflict ignores any rows the
+      // new-status fan-out already wrote, so re-adding a member is a no-op rather
+      // than a duplicate.
       await backfillListTimelineForMembers({
         database: trx,
         listId,
@@ -410,6 +451,11 @@ export const ListSQLDatabaseMixin = (
       query,
       visibleToActorId: actorId
     })
+    // Keep direct messages out, the owner's own included (a list owner may be a
+    // member of their own list) — Mastodon never delivers a DM to a list. Read
+    // time like the filters around it, so DM rows materialized before this rule
+    // existed are hidden as well.
+    applyListEligibleStatusFilter({ database, query })
     // Honour the list's replies_policy on the same pre-LIMIT pass.
     applyListRepliesPolicyFilter({
       database,

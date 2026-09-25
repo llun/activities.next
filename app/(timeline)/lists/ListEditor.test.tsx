@@ -48,6 +48,12 @@ const suggestion: ListMember = {
   handle: 'ben@llun.social'
 }
 
+const owner: ListMember = {
+  id: 'https://activities.local/users/me',
+  name: 'Mai Owner',
+  handle: 'me@activities.local'
+}
+
 describe('ListEditor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -254,6 +260,58 @@ describe('ListEditor', () => {
     await waitFor(() =>
       expect(screen.queryByText('In this list · 1')).not.toBeInTheDocument()
     )
+  })
+
+  it('lets the owner add themselves so the list shows their own posts', async () => {
+    render(
+      <ListEditor
+        mode="edit"
+        list={list}
+        initialMembers={[]}
+        followingSuggestions={[suggestion]}
+        currentAccount={owner}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add yourself' }))
+
+    await waitFor(() =>
+      expect(addListAccounts).toHaveBeenCalledWith({
+        listId: 'list-1',
+        accountIds: [owner.id]
+      })
+    )
+    await waitFor(() =>
+      expect(screen.getByText('In this list · 1')).toBeInTheDocument()
+    )
+    expect(screen.getByText('You')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Remove yourself' })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Add yourself' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('does not offer to add the owner when they are already a member', () => {
+    render(
+      <ListEditor
+        mode="edit"
+        list={list}
+        initialMembers={[owner, member]}
+        currentAccount={owner}
+      />
+    )
+
+    expect(
+      screen.queryByRole('button', { name: 'Add yourself' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Remove yourself' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Remove Rin' })
+    ).toBeInTheDocument()
   })
 
   it('saves settings changes and routes back to the list', async () => {

@@ -19,6 +19,17 @@ export enum Timeline {
 // like the fixed feeds, by the owner's actorId).
 export const listTimelineKey = (listId: string): string => `list:${listId}`
 
+// A list owner may add themselves to their own list (Mastodon ≥ 3.1) so the
+// list shows their posts too. Only their most recent posts are backfilled when
+// they do; posts written afterwards fan in like any member's. Mastodon
+// backfills none of the owner's history (its merge only runs for follow-backed
+// memberships) and caps every other member's merge at FeedManager::MAX_ITEMS / 4
+// = 200. This takes that cap rather than copying the owner's whole history —
+// already on their profile and in Home — into every list they join. Other
+// members still backfill in full, so a deep scroll can show members' older
+// posts without the owner's.
+export const LIST_OWNER_BACKFILL_MAX_POSTS = 200
+
 // Collections do NOT share the `timelines` table; their feed lives in the
 // dedicated `collection_timeline` table (compact bigint keys). The materialized
 // feed is capped per collection so storage stays bounded regardless of how many
