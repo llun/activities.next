@@ -2282,6 +2282,13 @@ describe('processFitnessFileJob', () => {
           description: 'A scenic 5km loop around the waterfront.'
         })
       )
+
+      const attachments = await database.getAttachments({ statusId })
+      expect(
+        attachments.some(
+          (attachment) => attachment.name === ROUTE_MAP_ATTACHMENT_NAME
+        )
+      ).toBe(true)
     })
 
     it('stores route map without description when altText is not configured', async () => {

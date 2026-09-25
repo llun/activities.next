@@ -1,4 +1,5 @@
 import { MAX_MEDIA_DESCRIPTION_LENGTH } from '@/lib/services/medias/constants'
+import { logger } from '@/lib/utils/logger'
 import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 
 import { generateAltText, generateRouteAltText } from './openai'
@@ -120,6 +121,7 @@ describe('generateAltText', () => {
   })
 
   it('returns null and logs when backend returns non-200 status', async () => {
+    const warnSpy = vi.spyOn(logger, 'warn')
     vi.mocked(safeRemoteFetch).mockResolvedValue({
       statusCode: 500,
       body: JSON.stringify({ error: { message: 'Internal server error' } }),
@@ -131,6 +133,11 @@ describe('generateAltText', () => {
     const result = await generateAltText(config, sampleImageBuffer, mimeType)
 
     expect(result).toBeNull()
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Failed to generate alt text for uploaded media'
+      })
+    )
   })
 
   it('returns null when backend returns invalid JSON', async () => {
@@ -273,6 +280,7 @@ describe('generateRouteAltText', () => {
   })
 
   it('returns null and logs when backend returns non-200 status', async () => {
+    const warnSpy = vi.spyOn(logger, 'warn')
     vi.mocked(safeRemoteFetch).mockResolvedValue({
       statusCode: 500,
       body: JSON.stringify({ error: { message: 'Internal server error' } }),
@@ -284,6 +292,11 @@ describe('generateRouteAltText', () => {
     const result = await generateRouteAltText(config, sampleMapBuffer)
 
     expect(result).toBeNull()
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Failed to generate alt text for route map'
+      })
+    )
   })
 
   it('returns null when backend returns invalid JSON', async () => {

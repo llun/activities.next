@@ -796,7 +796,7 @@ describe('regenerateFitnessMapsJob', () => {
 
   describe('route map description', () => {
     it('generates route map description using LLM when altText is configured', async () => {
-      const { fitnessFileId } = await setupStatusWithOldMap()
+      const { fitnessFileId, statusId } = await setupStatusWithOldMap()
 
       vi.mocked(generateRouteAltText).mockResolvedValueOnce(
         'A scenic 10km mountain loop.'
@@ -836,6 +836,13 @@ describe('regenerateFitnessMapsJob', () => {
           description: 'A scenic 10km mountain loop.'
         })
       )
+
+      const attachments = await database.getAttachments({ statusId })
+      expect(
+        attachments.some(
+          (attachment) => attachment.name === 'Activity route map'
+        )
+      ).toBe(true)
     })
 
     it('stores route map without description when altText is not configured', async () => {
