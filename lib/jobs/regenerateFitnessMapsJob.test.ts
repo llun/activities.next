@@ -1,9 +1,11 @@
+import { getConfig } from '@/lib/config'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import {
   REGENERATE_FITNESS_MAPS_JOB_NAME,
   SEND_UPDATE_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
 import { regenerateFitnessMapsJob } from '@/lib/jobs/regenerateFitnessMapsJob'
+import { generateRouteAltText } from '@/lib/services/altText/openai'
 import { getFitnessFile } from '@/lib/services/fitness-files'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
 import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
@@ -45,6 +47,10 @@ vi.mock('@/lib/services/medias', async () => ({
   deleteMediaFile: vi.fn()
 }))
 
+vi.mock('@/lib/services/altText/openai', () => ({
+  generateRouteAltText: vi.fn()
+}))
+
 const mockGetFitnessFile = getFitnessFile as jest.MockedFunction<
   typeof getFitnessFile
 >
@@ -78,6 +84,7 @@ describe('regenerateFitnessMapsJob', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(generateRouteAltText).mockReset()
 
     mockGetFitnessFile.mockResolvedValue({
       type: 'buffer',
@@ -785,5 +792,100 @@ describe('regenerateFitnessMapsJob', () => {
         expect(oldMedia).toBeNull()
       })
     )
+  })
+
+  describe('route map description', () => {
+    it('generates route map description using LLM when altText is configured', async () => {
+      const { fitnessFileId } = await setupStatusWithOldMap()
+
+      vi.mocked(generateRouteAltText).mockResolvedValueOnce(
+        'A scenic 10km mountain loop.'
+      )
+
+      const config = getConfig()
+      vi.mocked(getConfig).mockReturnValue({
+        ...config,
+        altText: {
+          endpoint: 'https://api.openai.com/v1',
+          apiKey: 'test-key',
+          model: 'gpt-4o-mini'
+        }
+      } as unknown as ReturnType<typeof getConfig>)
+
+      try {
+        await regenerateFitnessMapsJob(database, {
+          id: 'job-regen-alt-text-success',
+          name: REGENERATE_FITNESS_MAPS_JOB_NAME,
+          data: { actorId: actor.id, fitnessFileIds: [fitnessFileId] }
+        })
+      } finally {
+        vi.mocked(getConfig).mockReturnValue(config)
+      }
+
+      expect(generateRouteAltText).toHaveBeenCalledTimes(1)
+      expect(generateRouteAltText).toHaveBeenCalledWith(
+        expect.objectContaining({ model: 'gpt-4o-mini' }),
+        expect.any(Buffer),
+        'image/png'
+      )
+
+      expect(mockSaveMedia).toHaveBeenCalledWith(
+        database,
+        expect.objectContaining({ id: actor.id }),
+        expect.objectContaining({
+          description: 'A scenic 10km mountain loop.'
+        })
+      )
+    })
+
+    it('stores route map without description when altText is not configured', async () => {
+      const { fitnessFileId } = await setupStatusWithOldMap()
+
+      await regenerateFitnessMapsJob(database, {
+        id: 'job-regen-alt-text-no-config',
+        name: REGENERATE_FITNESS_MAPS_JOB_NAME,
+        data: { actorId: actor.id, fitnessFileIds: [fitnessFileId] }
+      })
+
+      expect(generateRouteAltText).not.toHaveBeenCalled()
+      const saveMediaCall = mockSaveMedia.mock.calls.find(
+        ([, , media]) => media.file.name === `${fitnessFileId}-route-map.png`
+      )
+      expect(saveMediaCall).toBeDefined()
+      expect(saveMediaCall?.[2]?.description).toBeUndefined()
+    })
+
+    it('stores route map without description when route alt text generation returns null', async () => {
+      const { fitnessFileId } = await setupStatusWithOldMap()
+
+      vi.mocked(generateRouteAltText).mockResolvedValueOnce(null)
+
+      const config = getConfig()
+      vi.mocked(getConfig).mockReturnValue({
+        ...config,
+        altText: {
+          endpoint: 'https://api.openai.com/v1',
+          apiKey: 'test-key',
+          model: 'gpt-4o-mini'
+        }
+      } as unknown as ReturnType<typeof getConfig>)
+
+      try {
+        await regenerateFitnessMapsJob(database, {
+          id: 'job-regen-alt-text-null',
+          name: REGENERATE_FITNESS_MAPS_JOB_NAME,
+          data: { actorId: actor.id, fitnessFileIds: [fitnessFileId] }
+        })
+      } finally {
+        vi.mocked(getConfig).mockReturnValue(config)
+      }
+
+      expect(generateRouteAltText).toHaveBeenCalledTimes(1)
+      const saveMediaCall = mockSaveMedia.mock.calls.find(
+        ([, , media]) => media.file.name === `${fitnessFileId}-route-map.png`
+      )
+      expect(saveMediaCall).toBeDefined()
+      expect(saveMediaCall?.[2]?.description).toBeUndefined()
+    })
   })
 })

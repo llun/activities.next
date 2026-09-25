@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { generateRouteAltText } from '@/lib/services/altText/openai'
 import { buildActivityImportEmail } from '@/lib/services/email/templates/activityImport'
 import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import { getActivityPresentation } from '@/lib/services/fitness-files/activityPresentation'
@@ -658,9 +659,18 @@ const processFitnessFileJobUnlocked = createJobHandle(
               type: 'image/png'
             }
           )
+          const { altText } = getConfig()
+          const description = altText
+            ? ((await generateRouteAltText(
+                altText,
+                mapImageBuffer,
+                'image/png'
+              )) ?? undefined)
+            : undefined
+
           const storedMap = await saveMedia(database, actor, {
             file: mapImageFile,
-            description: `${fitnessFile.fileName} route map`
+            ...(description ? { description } : {})
           })
 
           if (!storedMap) {

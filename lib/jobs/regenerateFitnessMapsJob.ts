@@ -1,10 +1,12 @@
 import { z } from 'zod'
 
+import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import {
   REGENERATE_FITNESS_MAPS_JOB_NAME,
   SEND_UPDATE_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
+import { generateRouteAltText } from '@/lib/services/altText/openai'
 import { getFitnessFile } from '@/lib/services/fitness-files'
 import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
@@ -212,6 +214,15 @@ export const regenerateFitnessMapsJob = createJobHandle(
             }
 
             const mapImageBytes = new Uint8Array(mapImageBuffer)
+            const { altText } = getConfig()
+            const description = altText
+              ? ((await generateRouteAltText(
+                  altText,
+                  mapImageBuffer,
+                  'image/png'
+                )) ?? undefined)
+              : undefined
+
             const storedMap = await saveMedia(database, actor, {
               file: new File(
                 [mapImageBytes],
@@ -220,7 +231,7 @@ export const regenerateFitnessMapsJob = createJobHandle(
                   type: 'image/png'
                 }
               ),
-              description: `${fitnessFile.fileName} route map`
+              ...(description ? { description } : {})
             })
 
             if (!storedMap) {
