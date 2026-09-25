@@ -1,0 +1,31 @@
+lib/client/fitnessGeneralSettings.ts
+  s_05598cebdd5503::t_7e392bde77971d 12,21-25,68,70,76
+lib/database/sql/fitnessSettings.ts
+  s_05598cebdd5503::t_450bb465165817 36,61,176,215-216,264,292,319-320,386-387
+migrations/schema.sqlite.sql
+  s_d14ca01079411b::t_8de07d02be45fa 43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5c674c3d7afef9673e3ee72ce9a1281c3e3d4eee",
+  "prompts": {},
+  "sessions": {
+    "s_05598cebdd5503": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d555-002c-7842-b513-99555c30c534",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_d14ca01079411b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d9d7-0e58-7040-8a9b-de72e5e8e886",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
