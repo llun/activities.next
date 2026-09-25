@@ -773,7 +773,10 @@ describe('GearComponentsCard', () => {
     fireEvent.change(screen.getByLabelText('Added on'), {
       target: { value: 'date' }
     })
-    expect(screen.getByLabelText('Added date')).toBeInTheDocument()
+    const dateInput = screen.getByLabelText('Added date')
+    expect(dateInput).toBeInTheDocument()
+    expect(dateInput).toHaveAttribute('type', 'date')
+    expect(dateInput).toHaveClass('appearance-none')
   })
 
   it('closes the add form on cancel', () => {
