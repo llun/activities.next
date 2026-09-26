@@ -4,6 +4,7 @@ import {
   databaseBeforeAll,
   getTestDatabaseTable
 } from '@/lib/database/testUtils'
+import { LIST_ACCOUNT_NOT_FOLLOWED_ERROR } from '@/lib/services/mastodon/constants'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { generatePublicId, getClientActorId } from '@/lib/utils/publicId'
@@ -149,7 +150,7 @@ describe('POST /api/v1/lists/:id/accounts', () => {
         'answers 422 for an account the owner neither follows nor has requested to follow',
       storedActorIds: [idToUrl('acc1')],
       status: 422,
-      body: { error: 'Validation failed: Account must be a followed account' }
+      body: { error: LIST_ACCOUNT_NOT_FOLLOWED_ERROR }
     },
     {
       description: 'answers 404 for an id that names no account',
@@ -565,14 +566,14 @@ describe('POST /api/v1/lists/:id/accounts against the database', () => {
         listed: true
       },
       {
-        description: 'refuses an account whose follow request was withdrawn',
+        description: 'refuses an account after a withdrawn request',
         key: 'withdrawn',
         statuses: [FollowStatus.enum.Requested, FollowStatus.enum.Undo],
         status: 422,
         listed: false
       },
       {
-        description: 'refuses an account whose follow request was rejected',
+        description: 'refuses an account after a rejected request',
         key: 'rejected',
         statuses: [FollowStatus.enum.Requested, FollowStatus.enum.Rejected],
         status: 422,
