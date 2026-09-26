@@ -1,0 +1,21 @@
+vitest.config.ts
+  s_7a29c31259b0a0::t_244566d0a71af9 42
+CONTRIBUTING.md
+  s_7a29c31259b0a0::t_244566d0a71af9 711-712
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4618690038b32f054a71b0c7ca1cf36caa42691f",
+  "prompts": {},
+  "sessions": {
+    "s_7a29c31259b0a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e61da06e-432e-42f9-a063-cc85e354e701",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
