@@ -1,31 +1,27 @@
 'use client'
 
 import { Plus, Wrench } from 'lucide-react'
-import { FC, FormEvent, useState } from 'react'
+import { FC, useState } from 'react'
 
 import { GearProductLink } from '@/app/(timeline)/fitness/gear/GearProductLink'
 import {
-  COMPONENT_TYPE_OPTIONS,
   STICKY_COLUMN,
   formatGearDate,
   formatGearDistanceKm,
-  formatKmInt,
   getWearState
 } from '@/app/(timeline)/fitness/gear/gearUi'
 import { useGearTableColumns } from '@/app/(timeline)/fitness/gear/useGearTableColumns'
 import {
-  createFitnessGearComponent,
   deleteFitnessGearComponent,
   refitFitnessGearComponent,
   retireFitnessGearComponent
 } from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
 import { Card } from '@/lib/components/ui/card'
-import { Input } from '@/lib/components/ui/input'
-import { Label } from '@/lib/components/ui/label'
-import { Select } from '@/lib/components/ui/select'
 import type { GearComponentEntity } from '@/lib/services/fitness-gears/gearEntities'
 import { cn } from '@/lib/utils'
+
+import { GearComponentFormDialog } from './GearComponentFormDialog'
 
 interface Props {
   gearId: string
@@ -33,8 +29,6 @@ interface Props {
   /** Refetch the gear and its components — distances are derived server-side. */
   onChanged: () => void
 }
-
-const SERVICE_REMINDER_KM_OPTIONS = [1000, 3000, 5000, 8000, 12000]
 
 /**
  * Width of the pinned "Type" column. `STICKY_COLUMN` deliberately leaves this
@@ -61,6 +55,22 @@ const SERVICE_REMINDER_KM_OPTIONS = [1000, 3000, 5000, 8000, 12000]
 const TYPE_COLUMN_WIDTH = 120
 
 /**
+ * Width of the "Brand" column. At 96px with `px-3` (24px horizontal padding),
+ * the 72px content box caused "Continental" (~75px at text-sm) to wrap its
+ * trailing 'l' to a new line ("Continenta / l") under `wrap-anywhere`.
+ * 124px leaves 100px of content width, fitting "Continental" with over 20px
+ * of headroom for varied platform system fonts.
+ */
+const BRAND_COLUMN_WIDTH = 124
+
+/**
+ * Width of the actions column off-snap. Sized to fit "Edit" and "Retire"
+ * side-by-side horizontally with gap and padding. Retains `flex-wrap` so that
+ * snapped single-column views wrap cleanly instead of overflowing.
+ */
+const ACTIONS_COLUMN_WIDTH = 136
+
+/**
  * A long unbroken component type, brand or model would otherwise widen its
  * column past the width below — a `<td>`'s width is advisory — and under
  * `scroll-snap-type: x mandatory` a column wider than its snap interval has a
@@ -68,8 +78,6 @@ const TYPE_COLUMN_WIDTH = 120
  * characters (`gearRequests.ts`), so none of them can be trusted to be short.
  */
 const CELL_WRAP = 'wrap-anywhere'
-
-type AddedMode = 'beginning' | 'date'
 
 /**
  * One line per install period, so a part that came off and went back on shows
@@ -153,18 +161,10 @@ export const GearComponentsCard: FC<Props> = ({
   components,
   onChanged
 }) => {
-  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [isAddOpen, setIsAddOpen] = useState(false)
+  const [editingComponent, setEditingComponent] =
+    useState<GearComponentEntity | null>(null)
   const [showRetired, setShowRetired] = useState(false)
-  const [componentType, setComponentType] = useState<string>(
-    COMPONENT_TYPE_OPTIONS[0]
-  )
-  const [brand, setBrand] = useState('')
-  const [model, setModel] = useState('')
-  const [addedMode, setAddedMode] = useState<AddedMode>('beginning')
-  const [addedDate, setAddedDate] = useState('')
-  const [serviceKm, setServiceKm] = useState('')
-  const [productUrl, setProductUrl] = useState('')
-  const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pendingActionId, setPendingActionId] = useState<string | null>(null)
   // A second click on the same row's Retire or Delete confirms it — cheaper
@@ -192,55 +192,6 @@ export const GearComponentsCard: FC<Props> = ({
   const installed = components.filter((component) => !component.removedAt)
   const retired = components.filter((component) => component.removedAt)
   const visible = showRetired ? [...installed, ...retired] : installed
-
-  const resetForm = () => {
-    setComponentType(COMPONENT_TYPE_OPTIONS[0])
-    setBrand('')
-    setModel('')
-    setAddedMode('beginning')
-    setAddedDate('')
-    setServiceKm('')
-    setProductUrl('')
-    setError(null)
-  }
-
-  const closeForm = () => {
-    setIsFormOpen(false)
-    resetForm()
-  }
-
-  // A real form submit, so Enter in Brand or Model saves the component the way
-  // it does in `GearFormDialog`.
-  const handleSave = async (event: FormEvent) => {
-    event.preventDefault()
-    setError(null)
-    setIsSaving(true)
-    const addedAtMs =
-      addedMode === 'date' && addedDate
-        ? new Date(addedDate).getTime()
-        : undefined
-
-    try {
-      await createFitnessGearComponent(gearId, {
-        componentType,
-        brand: brand.trim() || null,
-        model: model.trim() || null,
-        addedAt: Number.isFinite(addedAtMs) ? addedAtMs : undefined,
-        serviceDistanceMeters: serviceKm ? Number(serviceKm) * 1000 : null,
-        productUrl: productUrl.trim() || null
-      })
-      closeForm()
-      onChanged()
-    } catch (saveError) {
-      setError(
-        saveError instanceof Error
-          ? saveError.message
-          : 'Failed to save component.'
-      )
-    } finally {
-      setIsSaving(false)
-    }
-  }
 
   const handleRetire = async (componentId: string) => {
     if (confirmingActionId !== componentId) {
@@ -331,7 +282,10 @@ export const GearComponentsCard: FC<Props> = ({
           variant="outline"
           size="sm"
           className="ml-auto"
-          onClick={() => setIsFormOpen(true)}
+          onClick={() => {
+            setConfirmingActionId(null)
+            setIsAddOpen(true)
+          }}
         >
           <Plus />
           Add component
@@ -340,129 +294,18 @@ export const GearComponentsCard: FC<Props> = ({
 
       {error && <p className="px-4 text-sm text-destructive">{error}</p>}
 
-      {isFormOpen && (
-        <form
-          onSubmit={handleSave}
-          aria-label="Add component"
-          className="mx-4 space-y-3 rounded-md border bg-muted/50 p-3"
-        >
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="component-type">Component type</Label>
-              <Select
-                id="component-type"
-                value={componentType}
-                onChange={(event) => setComponentType(event.target.value)}
-                disabled={isSaving}
-              >
-                {COMPONENT_TYPE_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="component-brand">Brand</Label>
-              <Input
-                id="component-brand"
-                value={brand}
-                onChange={(event) => setBrand(event.target.value)}
-                disabled={isSaving}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="component-model">Model</Label>
-              <Input
-                id="component-model"
-                value={model}
-                onChange={(event) => setModel(event.target.value)}
-                disabled={isSaving}
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="component-added">Added on</Label>
-              <Select
-                id="component-added"
-                value={addedMode}
-                onChange={(event) =>
-                  setAddedMode(event.target.value as AddedMode)
-                }
-                disabled={isSaving}
-              >
-                <option value="beginning">Since beginning</option>
-                <option value="date">Specify date</option>
-              </Select>
-              {addedMode === 'date' && (
-                <Input
-                  type="date"
-                  aria-label="Added date"
-                  value={addedDate}
-                  onChange={(event) => setAddedDate(event.target.value)}
-                  disabled={isSaving}
-                />
-              )}
-              <p className="text-xs text-muted-foreground">
-                Distance counts from this date.
-              </p>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="component-service">Service reminder</Label>
-              <Select
-                id="component-service"
-                value={serviceKm}
-                onChange={(event) => setServiceKm(event.target.value)}
-                disabled={isSaving}
-              >
-                <option value="">No reminder</option>
-                {SERVICE_REMINDER_KM_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {formatKmInt(option * 1000)}
-                  </option>
-                ))}
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Optional — notify at this distance.
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="component-product-url">Product page</Label>
-            <Input
-              id="component-product-url"
-              type="url"
-              inputMode="url"
-              placeholder="https://"
-              maxLength={255}
-              value={productUrl}
-              onChange={(event) => setProductUrl(event.target.value)}
-              disabled={isSaving}
-            />
-            <p className="text-xs text-muted-foreground">
-              Optional link to the manufacturer&apos;s product page.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" type="submit" disabled={isSaving}>
-              Save component
-            </Button>
-            <Button
-              size="sm"
-              type="button"
-              variant="outline"
-              onClick={closeForm}
-              disabled={isSaving}
-            >
-              Cancel
-            </Button>
-          </div>
-        </form>
-      )}
+      <GearComponentFormDialog
+        open={isAddOpen || Boolean(editingComponent)}
+        gearId={gearId}
+        component={editingComponent}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsAddOpen(false)
+            setEditingComponent(null)
+          }
+        }}
+        onSaved={onChanged}
+      />
 
       {visible.length === 0 ? (
         <p className="px-4 text-sm text-muted-foreground">
@@ -488,7 +331,10 @@ export const GearComponentsCard: FC<Props> = ({
                 >
                   Type
                 </th>
-                <th className="px-3 pb-2 font-medium" style={dataColumnStyle()}>
+                <th
+                  className="px-3 pb-2 font-medium"
+                  style={dataColumnStyle(BRAND_COLUMN_WIDTH)}
+                >
                   Brand
                 </th>
                 <th className="px-3 pb-2 font-medium" style={dataColumnStyle()}>
@@ -511,7 +357,7 @@ export const GearComponentsCard: FC<Props> = ({
                 </th>
                 <th
                   className="px-3 pr-4 pb-2 font-medium"
-                  style={dataColumnStyle()}
+                  style={dataColumnStyle(ACTIONS_COLUMN_WIDTH)}
                 />
               </tr>
             </thead>
@@ -543,7 +389,7 @@ export const GearComponentsCard: FC<Props> = ({
                         'px-3 py-2.5 align-top text-muted-foreground',
                         isRetired && 'opacity-60'
                       )}
-                      style={dataColumnStyle(96)}
+                      style={dataColumnStyle(BRAND_COLUMN_WIDTH)}
                     >
                       {component.brand || '—'}
                     </td>
@@ -598,11 +444,25 @@ export const GearComponentsCard: FC<Props> = ({
                     </td>
                     <td
                       className="px-3 py-2.5 pr-4 text-right align-top whitespace-nowrap"
-                      style={dataColumnStyle(84)}
+                      style={dataColumnStyle(ACTIONS_COLUMN_WIDTH)}
                     >
                       <div className="flex flex-wrap justify-end gap-1">
                         {isRetired ? (
                           <>
+                            <Button
+                              size="sm"
+                              type="button"
+                              variant="ghost"
+                              className="text-muted-foreground hover:text-foreground"
+                              aria-label={`Edit ${component.componentType}`}
+                              disabled={isPending}
+                              onClick={() => {
+                                setConfirmingActionId(null)
+                                setEditingComponent(component)
+                              }}
+                            >
+                              Edit
+                            </Button>
                             <Button
                               size="sm"
                               type="button"
@@ -636,31 +496,47 @@ export const GearComponentsCard: FC<Props> = ({
                             </Button>
                           </>
                         ) : (
-                          <Button
-                            size="sm"
-                            type="button"
-                            variant="ghost"
-                            className="text-primary-text"
-                            aria-label={
-                              confirmingActionId === component.id
-                                ? `Confirm retire ${component.componentType}`
-                                : `Retire ${component.componentType}`
-                            }
-                            disabled={isPending}
-                            onClick={() => handleRetire(component.id)}
-                            // Same disarm rule as Delete: an armed row left
-                            // armed closes the next visitor's install window on
-                            // one click.
-                            onBlur={() => {
-                              if (confirmingActionId === component.id) {
+                          <>
+                            <Button
+                              size="sm"
+                              type="button"
+                              variant="ghost"
+                              className="text-muted-foreground hover:text-foreground"
+                              aria-label={`Edit ${component.componentType}`}
+                              disabled={isPending}
+                              onClick={() => {
                                 setConfirmingActionId(null)
+                                setEditingComponent(component)
+                              }}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              type="button"
+                              variant="ghost"
+                              className="text-primary-text"
+                              aria-label={
+                                confirmingActionId === component.id
+                                  ? `Confirm retire ${component.componentType}`
+                                  : `Retire ${component.componentType}`
                               }
-                            }}
-                          >
-                            {confirmingActionId === component.id
-                              ? 'Confirm retire'
-                              : 'Retire'}
-                          </Button>
+                              disabled={isPending}
+                              onClick={() => handleRetire(component.id)}
+                              // Same disarm rule as Delete: an armed row left
+                              // armed closes the next visitor's install window on
+                              // one click.
+                              onBlur={() => {
+                                if (confirmingActionId === component.id) {
+                                  setConfirmingActionId(null)
+                                }
+                              }}
+                            >
+                              {confirmingActionId === component.id
+                                ? 'Confirm retire'
+                                : 'Retire'}
+                            </Button>
+                          </>
                         )}
                       </div>
                     </td>
