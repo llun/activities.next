@@ -431,10 +431,12 @@ export const ListSQLDatabaseMixin = (
     // sync by addStatusToListTimelines on new posts and by the addListAccounts
     // backfill) instead of a live statuses⋈list_accounts join. The partition is
     // seeked and ordered by the (actorId, timeline, createdAt) index, so this is
-    // the same fast indexed read the home feed uses. The candidate set is
-    // identical to the old join — every status whose author is a list member — so
-    // the visibility / replies-policy / block-mute filters below (still applied
-    // pre-LIMIT against the joined statuses row) produce the same result.
+    // the same fast indexed read the home feed uses. The candidate set is the
+    // old join's — every status whose author is a list member — except for the
+    // owner as a member of their own list, whose history is backfilled only up
+    // to LIST_OWNER_BACKFILL_MAX_POSTS. The visibility, list-eligibility,
+    // replies-policy and block/mute filters below still run pre-LIMIT against
+    // the joined statuses row.
     const timeline = listTimelineKey(listId)
     const query = database('timelines')
       .innerJoin('statuses', 'statuses.id', 'timelines.statusId')

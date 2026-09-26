@@ -20,13 +20,17 @@ const AUTHORS_ALIAS = 'list_eligible_authors'
 // `to`/`cc` recipients is the public collection or a followers collection;
 // otherwise it is addressed to specific people only, and a status with no
 // recipient rows is not eligible either. That is isDirectStatus
-// (lib/utils/directStatus.ts), which routing uses, with one widening: besides
-// getVisibility's `/followers` suffix, the author's STORED followers URL counts
-// too — the same pair applyPotentiallyReadableStatusFilter matches — because not
-// every server names the collection that way (Friendica's is `/followers/<nick>`)
-// and those followers-only posts showed in lists before this filter existed.
-// LIKE folds ASCII case on SQLite and under MySQL's default collations (not on
-// PostgreSQL), so there an upper-case `/FOLLOWERS` suffix also counts.
+// (lib/utils/directStatus.ts), which decides whether a status lands in Home or
+// Direct, with one widening. As in getVisibility, a recipient ending in
+// `/followers` counts whoever's collection it is, so a list keeps what Home
+// keeps; applyPotentiallyReadableStatusFilter accepts only the author's own
+// `/followers` URL, and narrowing this term to match would drop such posts.
+// The widening is the author's STORED followers URL, which that filter accepts
+// too, because not every server names the collection that way (Friendica's is
+// `/followers/<nick>`) and those followers-only posts showed in lists before
+// this filter existed. LIKE folds ASCII case on SQLite and under MySQL's
+// default collations (not on PostgreSQL), so there an upper-case `/FOLLOWERS`
+// suffix also counts.
 //
 // Pure WHERE/EXISTS on `statuses`, so it composes with the list timeline's
 // other filters and runs before LIMIT; the recipients lookup is served by

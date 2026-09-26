@@ -12,6 +12,7 @@ import { EXTERNAL_ACTORS, TEST_DOMAIN } from '@/lib/stub/const'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { ListRepliesPolicy } from '@/lib/types/domain/list'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { isDirectStatus } from '@/lib/utils/directStatus'
 
 const withFreshDatabase = async (
   test: (database: Database) => Promise<void>
@@ -1625,6 +1626,31 @@ describe('ListDatabase', () => {
           )
         }
       )
+
+      it('keeps posts addressed to someone else’s followers collection, as Home does', async () => {
+        const owner = await localActor('group-cc-list-owner')
+        const member = await localActor('group-cc-list-member')
+        // The owner is a direct recipient, so the visibility filter lets this
+        // through and only the eligibility filter's `/followers` suffix term
+        // decides: the collection is neither the author's own nor stored.
+        const groupPost = await note(member.id, 'group-cc', [owner.id], {
+          cc: ['https://groups.test/g/runners/followers']
+        })
+        // Home routing treats it as followers-only, not direct.
+        expect(isDirectStatus(groupPost)).toBe(false)
+
+        const list = await database.createList({
+          actorId: owner.id,
+          title: 'Group cc'
+        })
+        await database.addListAccounts({
+          listId: list.id,
+          actorId: owner.id,
+          targetActorIds: [member.id]
+        })
+
+        expect(await listTimelineIds(list.id, owner.id)).toContain(groupPost.id)
+      })
 
       it('keeps unlisted posts whose only public address is in cc', async () => {
         const owner = await localActor('unlisted-list-owner')
