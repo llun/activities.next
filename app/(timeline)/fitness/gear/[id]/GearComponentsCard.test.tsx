@@ -224,6 +224,15 @@ describe('GearComponentsCard', () => {
       expect((brandHeader as HTMLElement).style.minWidth).toBe('124px')
       expect((brandCell as HTMLElement).style.minWidth).toBe('124px')
     })
+
+    it('sets the actions column width to at least 136px off-snap', () => {
+      renderCard([createComponent()])
+      act(() => deliverWidth?.(900))
+
+      const [actionsHeader, actionsCell] = columnCells(7)
+      expect((actionsHeader as HTMLElement).style.minWidth).toBe('136px')
+      expect((actionsCell as HTMLElement).style.minWidth).toBe('136px')
+    })
   })
 
   it('shows the empty state when there is nothing installed', () => {

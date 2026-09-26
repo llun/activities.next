@@ -14,6 +14,7 @@ import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle
@@ -93,6 +94,12 @@ export const GearComponentFormDialog: FC<Props> = ({
     setError(null)
     setIsSaving(true)
 
+    if (addedMode === 'date' && !addedDate) {
+      setError('Please select an added date.')
+      setIsSaving(false)
+      return
+    }
+
     const addedAtMs =
       addedMode === 'date' && addedDate
         ? new Date(addedDate).getTime()
@@ -145,11 +152,29 @@ export const GearComponentFormDialog: FC<Props> = ({
       ? [componentType, ...COMPONENT_TYPE_OPTIONS]
       : COMPONENT_TYPE_OPTIONS
 
+  const serviceKmNum = serviceKm ? Number(serviceKm) : null
+  const serviceReminderOptions =
+    serviceKmNum && !SERVICE_REMINDER_KM_OPTIONS.includes(serviceKmNum)
+      ? [...SERVICE_REMINDER_KM_OPTIONS, serviceKmNum].sort((a, b) => a - b)
+      : SERVICE_REMINDER_KM_OPTIONS
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!isSaving) {
+          onOpenChange(nextOpen)
+        }
+      }}
+    >
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
+          <DialogDescription className="sr-only">
+            {isEditing
+              ? 'Edit component details such as brand, model, install date, and service reminders.'
+              : 'Add a new component with brand, model, install date, and service reminders.'}
+          </DialogDescription>
         </DialogHeader>
         <form
           onSubmit={handleSubmit}
@@ -177,6 +202,7 @@ export const GearComponentFormDialog: FC<Props> = ({
               <Label htmlFor="component-brand">Brand</Label>
               <Input
                 id="component-brand"
+                maxLength={255}
                 value={brand}
                 onChange={(event) => setBrand(event.target.value)}
                 disabled={isSaving}
@@ -186,6 +212,7 @@ export const GearComponentFormDialog: FC<Props> = ({
               <Label htmlFor="component-model">Model</Label>
               <Input
                 id="component-model"
+                maxLength={255}
                 value={model}
                 onChange={(event) => setModel(event.target.value)}
                 disabled={isSaving}
@@ -211,6 +238,7 @@ export const GearComponentFormDialog: FC<Props> = ({
                 <Input
                   type="date"
                   aria-label="Added date"
+                  required
                   value={addedDate}
                   onChange={(event) => setAddedDate(event.target.value)}
                   disabled={isSaving}
@@ -229,7 +257,7 @@ export const GearComponentFormDialog: FC<Props> = ({
                 disabled={isSaving}
               >
                 <option value="">No reminder</option>
-                {SERVICE_REMINDER_KM_OPTIONS.map((option) => (
+                {serviceReminderOptions.map((option) => (
                   <option key={option} value={option}>
                     {formatKmInt(option * 1000)}
                   </option>

@@ -190,18 +190,89 @@ describe('GearComponentFormDialog', () => {
     })
   })
 
-  it('surfaces an error message when saving fails', async () => {
+  it('updates a retired component without sending removedAt', async () => {
+    const onSaved = vi.fn()
+    render(
+      <GearComponentFormDialog
+        open={true}
+        gearId="gear-1"
+        component={createComponent({ removedAt: Date.UTC(2025, 5, 1) })}
+        onOpenChange={vi.fn()}
+        onSaved={onSaved}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('Brand'), {
+      target: { value: 'Michelin' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(mockUpdateFitnessGearComponent).toHaveBeenCalledWith(
+        'gear-1',
+        'component-1',
+        expect.not.objectContaining({ removedAt: expect.anything() })
+      )
+    })
+    expect(onSaved).toHaveBeenCalled()
+  })
+
+  it('preserves custom componentType and unlisted service reminder distance', () => {
+    render(
+      <GearComponentFormDialog
+        open={true}
+        gearId="gear-1"
+        component={createComponent({
+          componentType: 'Power meter',
+          serviceDistanceMeters: 2000000
+        })}
+        onOpenChange={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    )
+
+    expect(screen.getByLabelText('Component type')).toHaveValue('Power meter')
+    expect(screen.getByLabelText('Service reminder')).toHaveValue('2000')
+  })
+
+  it('validates that an added date is provided when Specify date is chosen', async () => {
+    render(
+      <GearComponentFormDialog
+        open={true}
+        gearId="gear-1"
+        onOpenChange={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('Added on'), {
+      target: { value: 'date' }
+    })
+    const dateInput = screen.getByLabelText('Added date')
+    expect(dateInput).toBeRequired()
+
+    fireEvent.submit(screen.getByRole('form', { name: 'Add component' }))
+
+    expect(
+      await screen.findByText('Please select an added date.')
+    ).toBeInTheDocument()
+    expect(mockCreateFitnessGearComponent).not.toHaveBeenCalled()
+  })
+
+  it('surfaces an error message when saving fails and does not close', async () => {
     mockUpdateFitnessGearComponent.mockRejectedValueOnce(
       new Error('removedAt must be after addedAt')
     )
+    const onOpenChange = vi.fn()
+    const onSaved = vi.fn()
 
     render(
       <GearComponentFormDialog
         open={true}
         gearId="gear-1"
         component={createComponent()}
-        onOpenChange={vi.fn()}
-        onSaved={vi.fn()}
+        onOpenChange={onOpenChange}
+        onSaved={onSaved}
       />
     )
 
@@ -210,6 +281,8 @@ describe('GearComponentFormDialog', () => {
     expect(
       await screen.findByText('removedAt must be after addedAt')
     ).toBeInTheDocument()
+    expect(onOpenChange).not.toHaveBeenCalled()
+    expect(onSaved).not.toHaveBeenCalled()
   })
 
   it('closes when Cancel is clicked', () => {
