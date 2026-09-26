@@ -20,6 +20,7 @@ import {
   getFederationSigningActorId,
   getFederationSigningActorUsername
 } from '@/lib/services/federation/instanceActor'
+import { listTimelineKey } from '@/lib/services/timelines/types'
 import {
   EXTERNAL_ACTORS,
   TEST_DOMAIN,
@@ -2638,6 +2639,90 @@ describe('ActorDatabase', () => {
           knexDatabase.off('query', handleQuery)
           await knexDatabase.destroy()
         }
+      })
+
+      it('removes list memberships of the deleted actor and the lists it owned', async () => {
+        await withFreshDatabaseAndInstance(async (freshDatabase, instance) => {
+          const deletedId = `https://${TEST_DOMAIN}/users/list-deleted`
+          const ownerId = `https://${TEST_DOMAIN}/users/list-owner`
+          const memberId = `https://${TEST_DOMAIN}/users/list-member`
+          for (const actorId of [deletedId, ownerId, memberId]) {
+            await createSigningAccount(
+              freshDatabase,
+              actorId.split('/').pop() as string
+            )
+          }
+          const memberStatusId = `${memberId}/statuses/list-member-post`
+          await freshDatabase.createNote({
+            id: memberStatusId,
+            url: memberStatusId,
+            actorId: memberId,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: 'Member post'
+          })
+
+          // Another owner's list holding the deleted actor and a member who
+          // stays, and a list the deleted actor owns with a backfilled feed.
+          const ownerList = await freshDatabase.createList({
+            actorId: ownerId,
+            title: 'Owner list'
+          })
+          await freshDatabase.addListAccounts({
+            listId: ownerList.id,
+            actorId: ownerId,
+            targetActorIds: [deletedId, memberId]
+          })
+          const deletedList = await freshDatabase.createList({
+            actorId: deletedId,
+            title: 'Deleted actor list'
+          })
+          await freshDatabase.addListAccounts({
+            listId: deletedList.id,
+            actorId: deletedId,
+            targetActorIds: [memberId]
+          })
+          await expect(
+            instance('timelines').where({
+              timeline: listTimelineKey(deletedList.id)
+            })
+          ).resolves.toHaveLength(1)
+
+          await freshDatabase.deleteActorData({ actorId: deletedId })
+
+          await expect(
+            instance('list_accounts')
+              .where('targetActorId', deletedId)
+              .orWhere('actorId', deletedId)
+              .orWhere('listId', deletedList.id)
+          ).resolves.toEqual([])
+          await expect(
+            instance('lists').where('actorId', deletedId)
+          ).resolves.toEqual([])
+          await expect(
+            instance('timelines').where({
+              timeline: listTimelineKey(deletedList.id)
+            })
+          ).resolves.toEqual([])
+          // The other owner's list, its surviving member and that member's
+          // feed rows are untouched.
+          await expect(
+            freshDatabase.getLists({ actorId: ownerId })
+          ).resolves.toEqual([expect.objectContaining({ id: ownerList.id })])
+          await expect(
+            instance('list_accounts')
+              .where('listId', ownerList.id)
+              .pluck('targetActorId')
+          ).resolves.toEqual([memberId])
+          await expect(
+            instance('timelines')
+              .where({
+                actorId: ownerId,
+                timeline: listTimelineKey(ownerList.id)
+              })
+              .pluck('statusId')
+          ).resolves.toEqual([memberStatusId])
+        })
       })
 
       it('deletes markers when actor is deleted', async () => {
