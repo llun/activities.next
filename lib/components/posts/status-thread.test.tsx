@@ -2,9 +2,9 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createNote } from '@/lib/client'
 import {
@@ -607,5 +607,98 @@ describe('StatusThread', () => {
       newReplyEl.compareDocumentPosition(oldReplyEl) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
+  })
+
+  describe('scrolling to a newly posted reply', () => {
+    const focused = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/scroll-focused',
+      actor: mockAlice,
+      actorId: mockAlice.id,
+      text: 'Scroll Focused',
+      createdAt: BASE_TIME
+    })
+    const newReply = createMockNote({
+      id: 'https://activities.local/users/carol/statuses/scroll-reply',
+      actor: mockCarol,
+      actorId: mockCarol.id,
+      reply: focused.id,
+      text: 'Scroll Reply',
+      createdAt: BASE_TIME + 5000
+    })
+    const scrollIntoView = vi.fn()
+
+    beforeEach(() => {
+      scrollIntoView.mockReset()
+      // jsdom does not implement scrollIntoView; the component feature-checks it.
+      Element.prototype.scrollIntoView = scrollIntoView
+      mockCreateNote.mockResolvedValueOnce({
+        status: newReply,
+        attachments: []
+      })
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+      Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
+    })
+
+    const postReply = async () => {
+      vi.useFakeTimers()
+      const view = render(
+        <StatusThread
+          host={host}
+          status={focused}
+          ancestors={[]}
+          descendants={[]}
+          currentActor={mockCarol}
+          currentTime={BASE_TIME + 60000}
+        />
+      )
+      fireEvent.click(screen.getAllByLabelText(/Reply/i)[0])
+      fireEvent.change(screen.getByPlaceholderText(/Reply to Alice/i), {
+        target: { value: 'Scroll Reply' }
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+      // Settle the mocked createNote without moving the clock, so the reply
+      // lands and the 50 ms scroll is armed but has not fired yet.
+      await act(() => vi.advanceTimersByTimeAsync(0))
+      expect(screen.getByText('Scroll Reply')).toBeInTheDocument()
+      return view
+    }
+
+    it('scrolls the new reply into view once the deferred tick fires', async () => {
+      await postReply()
+      expect(scrollIntoView).not.toHaveBeenCalled()
+
+      act(() => {
+        vi.advanceTimersByTime(50)
+      })
+
+      expect(scrollIntoView).toHaveBeenCalledTimes(1)
+      expect(scrollIntoView.mock.contexts[0]).toBe(
+        document.querySelector(`[data-node-id="${newReply.id}"]`) ??
+          document.querySelector(`[data-testid="status-${newReply.id}"]`)
+      )
+    })
+
+    it('cancels the pending scroll when the thread unmounts', async () => {
+      const { unmount } = await postReply()
+      unmount()
+      // After unmount the reply element is gone, so "scrollIntoView was not
+      // called" would hold even if the timer still fired. Watch the timer's own
+      // lookup instead: it must never run.
+      const querySelector = vi.spyOn(document, 'querySelector')
+
+      act(() => {
+        vi.advanceTimersByTime(50)
+      })
+
+      expect(
+        querySelector.mock.calls.filter(([selector]) =>
+          String(selector).includes(newReply.id)
+        )
+      ).toEqual([])
+      querySelector.mockRestore()
+    })
   })
 })
