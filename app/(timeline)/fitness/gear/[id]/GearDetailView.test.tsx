@@ -11,6 +11,7 @@ import {
 } from '@testing-library/react'
 
 import {
+  deleteFitnessGear,
   getFitnessGearComponents,
   getFitnessGearList,
   setFitnessGearRetired
@@ -25,6 +26,11 @@ import { ActorProfile } from '@/lib/types/domain/actor'
 import type { GearActivityFeedContext } from './GearActivitiesFeed'
 import { GearDetailView } from './GearDetailView'
 
+const mockPush = vi.fn()
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: mockPush })
+}))
+
 // The feed has its own test; here it stands in as a marker so this file stays
 // about the page's chrome and which view it shows.
 vi.mock('./GearActivitiesFeed', () => ({
@@ -38,6 +44,7 @@ vi.mock('./GearActivitiesFeed', () => ({
 vi.mock('@/lib/client', () => ({
   createFitnessGear: vi.fn(),
   createFitnessGearComponent: vi.fn(),
+  deleteFitnessGear: vi.fn(),
   deleteFitnessGearComponent: vi.fn(),
   getFitnessGearComponents: vi.fn(),
   getFitnessGearList: vi.fn(),
@@ -53,6 +60,9 @@ class ResizeObserverStub {
   disconnect() {}
 }
 
+const mockDeleteFitnessGear = deleteFitnessGear as jest.MockedFunction<
+  typeof deleteFitnessGear
+>
 const mockGetFitnessGearComponents =
   getFitnessGearComponents as jest.MockedFunction<
     typeof getFitnessGearComponents
@@ -143,6 +153,7 @@ describe('GearDetailView', () => {
     mockGetFitnessGearList.mockResolvedValue([createGear()])
     mockGetFitnessGearComponents.mockResolvedValue([])
     mockSetFitnessGearRetired.mockResolvedValue(createGear())
+    mockDeleteFitnessGear.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -529,5 +540,107 @@ describe('GearDetailView', () => {
     expect(
       screen.queryByRole('navigation', { name: 'Gear sections' })
     ).not.toBeInTheDocument()
+  })
+
+  describe('Gear deletion', () => {
+    it('does not display Delete button for active gear', async () => {
+      mockGetFitnessGearList.mockResolvedValue([
+        createGear({ retiredAt: null })
+      ])
+      render(<GearDetailView gearId="gear-1" feed={feed} />)
+
+      expect(
+        await screen.findByRole('button', { name: 'Retire' })
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Delete' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('displays Delete button for retired gear and opens confirmation dialog', async () => {
+      mockGetFitnessGearList.mockResolvedValue([
+        createGear({ retiredAt: Date.UTC(2026, 0, 1) })
+      ])
+      render(<GearDetailView gearId="gear-1" feed={feed} />)
+
+      const deleteBtn = await screen.findByRole('button', { name: 'Delete' })
+      expect(deleteBtn).toBeInTheDocument()
+
+      fireEvent.click(deleteBtn)
+
+      expect(
+        await screen.findByRole('heading', { name: 'Delete Rocket?' })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          /Are you sure you want to delete this bike\? All components will be removed\. Existing activities will remain in your log, but will no longer be linked to this gear\./
+        )
+      ).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Delete gear' })
+      ).toBeInTheDocument()
+    })
+
+    it('dismisses confirmation dialog on Cancel without deleting', async () => {
+      mockGetFitnessGearList.mockResolvedValue([
+        createGear({ retiredAt: Date.UTC(2026, 0, 1) })
+      ])
+      render(<GearDetailView gearId="gear-1" feed={feed} />)
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete' }))
+      expect(
+        await screen.findByRole('heading', { name: 'Delete Rocket?' })
+      ).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+      await waitFor(() => {
+        expect(
+          screen.queryByRole('heading', { name: 'Delete Rocket?' })
+        ).not.toBeInTheDocument()
+      })
+      expect(mockDeleteFitnessGear).not.toHaveBeenCalled()
+    })
+
+    it('calls deleteFitnessGear and navigates to /fitness/gear on confirmation', async () => {
+      mockGetFitnessGearList.mockResolvedValue([
+        createGear({ retiredAt: Date.UTC(2026, 0, 1) })
+      ])
+      mockDeleteFitnessGear.mockResolvedValue(undefined)
+      render(<GearDetailView gearId="gear-1" feed={feed} />)
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete' }))
+      expect(
+        await screen.findByRole('heading', { name: 'Delete Rocket?' })
+      ).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete gear' }))
+
+      await waitFor(() => {
+        expect(mockDeleteFitnessGear).toHaveBeenCalledWith('gear-1')
+        expect(mockPush).toHaveBeenCalledWith('/fitness/gear')
+      })
+    })
+
+    it('displays error in dialog if deletion fails', async () => {
+      mockGetFitnessGearList.mockResolvedValue([
+        createGear({ retiredAt: Date.UTC(2026, 0, 1) })
+      ])
+      mockDeleteFitnessGear.mockRejectedValue(
+        new Error('Failed to delete gear.')
+      )
+      render(<GearDetailView gearId="gear-1" feed={feed} />)
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete' }))
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Delete gear' })
+      )
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Failed to delete gear.'
+      )
+      expect(mockPush).not.toHaveBeenCalled()
+    })
   })
 })

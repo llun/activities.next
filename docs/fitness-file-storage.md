@@ -1005,6 +1005,9 @@ null }` remains the precise "this retirement never happened" — it reopens the
 - **Retiring is not deleting and not un-assignable.** Retired gear is out of the
   pickers and out of auto-assign, but stays explicitly assignable so old
   activities can still be attributed to a bike that has since been sold.
+  A retired gear's detail page provides a **Delete** action with a confirmation
+  modal, which soft-deletes the gear, detaches all past activities (clearing
+  their `gearId`), and navigates back to `/fitness/gear`.
 - **The activity page carries gear inline in the header's metadata line** —
   `date · visibility · gear`, the way `FAGearRow` does in the design system's
   `ui_kits/web/FitnessActivity.jsx`, not as a labelled field with a row of its

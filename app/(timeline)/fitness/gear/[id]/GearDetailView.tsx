@@ -6,9 +6,11 @@ import {
   ArrowLeft,
   History,
   Pencil,
+  Trash2,
   Wrench
 } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { FC, useEffect, useState } from 'react'
 
 import { GearFormDialog } from '@/app/(timeline)/fitness/gear/GearFormDialog'
@@ -20,6 +22,7 @@ import {
   getGearDisplayName
 } from '@/app/(timeline)/fitness/gear/gearUi'
 import {
+  deleteFitnessGear,
   getFitnessGearComponents,
   getFitnessGearList,
   setFitnessGearRetired
@@ -32,6 +35,14 @@ import {
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import { Card } from '@/lib/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/lib/components/ui/dialog'
 import { getSportLabel } from '@/lib/services/fitness-files/sportTypes'
 import type {
   GearComponentEntity,
@@ -91,6 +102,7 @@ const getMetaLine = (gear: GearEntity): string =>
     .join(' · ')
 
 export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
+  const router = useRouter()
   const [gear, setGear] = useState<GearEntity | null>(null)
   const [components, setComponents] = useState<GearComponentEntity[]>([])
   // Only the first load blanks the page. A refetch keeps the gear and its
@@ -103,6 +115,9 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
   const [reloadToken, setReloadToken] = useState(0)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isRetiring, setIsRetiring] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   // Components first, as the design opens the page: the service log is what a
   // bike's own page is for, and the same activities are one click away here
   // and on the fitness overview.
@@ -110,6 +125,21 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
   // Latched on the first switch to Activities and never unset, so the feed
   // survives a switch back to Components with its loaded pages intact.
   const [hasOpenedActivities, setHasOpenedActivities] = useState(false)
+
+  const handleDeleteGear = async () => {
+    if (!gear) return
+    setIsDeleting(true)
+    setDeleteError(null)
+    try {
+      await deleteFitnessGear(gear.id)
+      router.push('/fitness/gear')
+    } catch (err) {
+      setDeleteError(
+        err instanceof Error ? err.message : 'Failed to delete gear.'
+      )
+      setIsDeleting(false)
+    }
+  }
 
   const handleViewChange = (nextView: GearView) => {
     setView(nextView)
@@ -296,11 +326,26 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
               variant="outline"
               size="sm"
               onClick={handleToggleRetired}
-              disabled={isRetiring}
+              disabled={isRetiring || isDeleting}
             >
               {isRetired ? <History /> : <Archive />}
               {isRetired ? 'Unretire' : 'Retire'}
             </Button>
+            {isRetired && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => {
+                  setDeleteError(null)
+                  setIsDeleteDialogOpen(true)
+                }}
+                disabled={isRetiring || isDeleting}
+              >
+                <Trash2 />
+                Delete
+              </Button>
+            )}
           </div>
         }
       />
@@ -383,6 +428,42 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
           onSaved={reload}
         />
       )}
+
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {getGearDisplayName(gear)}?</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this{' '}
+              {gear.kind === 'shoes' ? 'pair of shoes' : 'bike'}? All components
+              will be removed. Existing activities will remain in your log, but
+              will no longer be linked to this gear. This action cannot be
+              undone.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteError && (
+            <p className="text-sm text-destructive" role="alert">
+              {deleteError}
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsDeleteDialogOpen(false)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteGear}
+              disabled={isDeleting}
+            >
+              {isDeleting ? 'Deleting...' : 'Delete gear'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
