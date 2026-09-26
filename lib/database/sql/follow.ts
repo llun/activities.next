@@ -18,7 +18,6 @@ import {
   FollowDatabase,
   GetAcceptedFollowTargetActorIdsParams,
   GetAcceptedOrRequestedFollowParams,
-  GetAcceptedOrRequestedFollowTargetActorIdsParams,
   GetAcceptedOrRequestedFollowsWithDomainParams,
   GetFollowFromIdParams,
   GetFollowRequestsCountParams,
@@ -350,16 +349,6 @@ export const FollowerSQLDatabaseMixin = (
   }: GetAcceptedFollowTargetActorIdsParams) {
     return selectFollowTargetActorIds(database, actorId, targetActorIds, [
       FollowStatus.enum.Accepted
-    ])
-  },
-
-  async getAcceptedOrRequestedFollowTargetActorIds({
-    actorId,
-    targetActorIds
-  }: GetAcceptedOrRequestedFollowTargetActorIdsParams) {
-    return selectFollowTargetActorIds(database, actorId, targetActorIds, [
-      FollowStatus.enum.Accepted,
-      FollowStatus.enum.Requested
     ])
   },
 

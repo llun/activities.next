@@ -16,7 +16,6 @@ const mockDatabase = {
   getListAccounts: vi.fn(),
   addListAccounts: vi.fn(),
   removeListAccounts: vi.fn(),
-  getAcceptedOrRequestedFollowTargetActorIds: vi.fn(),
   getActorsFromIds: vi.fn(),
   getActorIdsByPublicIds: vi.fn()
 }
@@ -130,16 +129,13 @@ describe('POST /api/v1/lists/:id/accounts', () => {
     // clearAllMocks keeps queued mockResolvedValueOnce values and
     // implementations; reset the lookups so no test inherits another's.
     mockDatabase.getActorIdsByPublicIds.mockReset()
-    mockDatabase.getAcceptedOrRequestedFollowTargetActorIds.mockReset()
+    mockDatabase.addListAccounts.mockReset()
     mockDatabase.getActorsFromIds.mockReset()
     mockDatabase.getList.mockResolvedValue({ id: LIST_ID, title: 'Friends' })
-    mockDatabase.addListAccounts.mockResolvedValue(undefined)
-    mockDatabase.removeListAccounts.mockResolvedValue(undefined)
     // Unless a test says otherwise, the owner follows or has requested to
-    // follow every account named.
-    mockDatabase.getAcceptedOrRequestedFollowTargetActorIds.mockImplementation(
-      async ({ targetActorIds }: { targetActorIds: string[] }) => targetActorIds
-    )
+    // follow every account named, so the add refuses nobody.
+    mockDatabase.addListAccounts.mockResolvedValue({ unrelatedActorIds: [] })
+    mockDatabase.removeListAccounts.mockResolvedValue(undefined)
     mockDatabase.getActorsFromIds.mockResolvedValue([])
   })
 
@@ -158,9 +154,9 @@ describe('POST /api/v1/lists/:id/accounts', () => {
       body: { error: 'Not Found' }
     }
   ])('$description', async ({ storedActorIds, status, body }) => {
-    mockDatabase.getAcceptedOrRequestedFollowTargetActorIds.mockResolvedValue(
-      []
-    )
+    mockDatabase.addListAccounts.mockResolvedValue({
+      unrelatedActorIds: [idToUrl('acc1')]
+    })
     mockDatabase.getActorsFromIds.mockResolvedValue(
       storedActorIds.map((id) => ({ id }))
     )
@@ -169,52 +165,47 @@ describe('POST /api/v1/lists/:id/accounts', () => {
 
     expect(response.status).toBe(status)
     expect(await response.json()).toEqual(body)
-    expect(mockDatabase.addListAccounts).not.toHaveBeenCalled()
+    expect(mockDatabase.getActorsFromIds).toHaveBeenCalledWith({
+      ids: [idToUrl('acc1')]
+    })
   })
 
   it('answers 404 when an unknown id comes with an account the owner does not follow', async () => {
     // Mastodon looks every account up before it validates any membership.
-    mockDatabase.getAcceptedOrRequestedFollowTargetActorIds.mockResolvedValue(
-      []
-    )
+    mockDatabase.addListAccounts.mockResolvedValue({
+      unrelatedActorIds: [idToUrl('acc1'), idToUrl('acc2')]
+    })
     mockDatabase.getActorsFromIds.mockResolvedValue([{ id: idToUrl('acc1') }])
 
     const response = await POST(jsonPost(['acc1', 'acc2']), params())
 
     expect(response.status).toBe(404)
-    expect(mockDatabase.addListAccounts).not.toHaveBeenCalled()
   })
 
-  it('checks every account but the owner in one relationship query', async () => {
+  it('leaves the relationship check to the transaction that adds', async () => {
     const ownPublicId = generatePublicId()
     mockDatabase.getActorIdsByPublicIds.mockResolvedValueOnce(
       new Map([[ownPublicId, mockCurrentActor.id]])
     )
 
-    const response = await POST(
-      jsonPost(['acc1', ownPublicId, 'acc2', 'acc1']),
-      params()
-    )
+    const response = await POST(jsonPost(['acc1', ownPublicId]), params())
 
     expect(response.status).toBe(200)
-    expect(
-      mockDatabase.getAcceptedOrRequestedFollowTargetActorIds.mock.calls
-    ).toEqual([
+    expect(mockDatabase.addListAccounts.mock.calls).toEqual([
       [
         {
+          listId: LIST_ID,
           actorId: mockCurrentActor.id,
-          targetActorIds: [idToUrl('acc1'), idToUrl('acc2')]
+          targetActorIds: [idToUrl('acc1'), mockCurrentActor.id],
+          requireFollowOrRequest: true
         }
       ]
     ])
-    // An account with a follow or a request behind it needs no lookup.
+    // An add that refused nobody needs no account lookup.
     expect(mockDatabase.getActorsFromIds).not.toHaveBeenCalled()
   })
 
   it('lets the list owner add themselves without following themselves', async () => {
-    mockDatabase.getAcceptedOrRequestedFollowTargetActorIds.mockResolvedValue(
-      []
-    )
     const ownPublicId = generatePublicId()
     mockDatabase.getActorIdsByPublicIds.mockResolvedValueOnce(
       new Map([[ownPublicId, mockCurrentActor.id]])
@@ -231,51 +222,24 @@ describe('POST /api/v1/lists/:id/accounts', () => {
     expect(mockDatabase.addListAccounts).toHaveBeenCalledWith({
       listId: LIST_ID,
       actorId: mockCurrentActor.id,
-      targetActorIds: [mockCurrentActor.id]
+      targetActorIds: [mockCurrentActor.id],
+      requireFollowOrRequest: true
     })
   })
 
-  it.each([
-    {
-      description: 'adds the owner alongside a followed account in one request',
-      relatedActorIds: [idToUrl('acc1')],
-      status: 200,
-      addCalls: [
-        [
-          {
-            listId: LIST_ID,
-            actorId: mockCurrentActor.id,
-            targetActorIds: [mockCurrentActor.id, idToUrl('acc1')]
-          }
-        ]
-      ]
-    },
-    {
-      description:
-        'still requires a follow or a request for anyone the owner adds alongside themselves',
-      relatedActorIds: [],
-      status: 422,
-      addCalls: []
-    }
-  ])('$description', async ({ relatedActorIds, status, addCalls }) => {
-    mockDatabase.getAcceptedOrRequestedFollowTargetActorIds.mockResolvedValue(
-      relatedActorIds
-    )
+  it('refuses the whole request when an account added alongside the owner is unrelated', async () => {
+    mockDatabase.addListAccounts.mockResolvedValue({
+      unrelatedActorIds: [idToUrl('acc1')]
+    })
     mockDatabase.getActorsFromIds.mockResolvedValue([{ id: idToUrl('acc1') }])
     const ownPublicId = generatePublicId()
     mockDatabase.getActorIdsByPublicIds.mockResolvedValueOnce(
       new Map([[ownPublicId, mockCurrentActor.id]])
     )
-    const request = new NextRequest(URL_BASE, {
-      method: 'POST',
-      body: JSON.stringify({ account_ids: [ownPublicId, 'acc1'] }),
-      headers: { 'content-type': 'application/json' }
-    })
 
-    const response = await POST(request, params())
+    const response = await POST(jsonPost([ownPublicId, 'acc1']), params())
 
-    expect(response.status).toBe(status)
-    expect(mockDatabase.addListAccounts.mock.calls).toEqual(addCalls)
+    expect(response.status).toBe(422)
   })
 
   it('adds accounts from a urlencoded bracket-array body', async () => {
@@ -291,7 +255,8 @@ describe('POST /api/v1/lists/:id/accounts', () => {
     expect(mockDatabase.addListAccounts).toHaveBeenCalledWith({
       listId: LIST_ID,
       actorId: mockCurrentActor.id,
-      targetActorIds: [idToUrl('acc1'), idToUrl('acc2')]
+      targetActorIds: [idToUrl('acc1'), idToUrl('acc2')],
+      requireFollowOrRequest: true
     })
   })
 
@@ -313,7 +278,8 @@ describe('POST /api/v1/lists/:id/accounts', () => {
     expect(mockDatabase.addListAccounts).toHaveBeenCalledWith({
       listId: LIST_ID,
       actorId: mockCurrentActor.id,
-      targetActorIds: [idToUrl('acc1'), idToUrl('acc2')]
+      targetActorIds: [idToUrl('acc1'), idToUrl('acc2')],
+      requireFollowOrRequest: true
     })
   })
 
@@ -330,7 +296,8 @@ describe('POST /api/v1/lists/:id/accounts', () => {
     expect(mockDatabase.addListAccounts).toHaveBeenCalledWith({
       listId: LIST_ID,
       actorId: mockCurrentActor.id,
-      targetActorIds: [idToUrl('acc1'), idToUrl('acc2')]
+      targetActorIds: [idToUrl('acc1'), idToUrl('acc2')],
+      requireFollowOrRequest: true
     })
   })
 
