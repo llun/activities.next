@@ -1,19 +1,29 @@
 import memoize from 'lodash/memoize'
-import { Resend } from 'resend'
+import type { Resend as ResendType } from 'resend'
 
 import type { Message, ResendConfig } from '@/lib/config/email'
+import { dynamicImport } from '@/lib/utils/dynamicImport'
 
 import { getAddressFromEmail } from './address'
 
-const getResend = memoize((config: ResendConfig) => {
-  return new Resend(config.token)
+const getResendClass = memoize(async () => {
+  const mod = await dynamicImport<{
+    Resend?: typeof ResendType
+    default?: typeof ResendType
+  }>('resend')
+  return mod.Resend ?? mod.default ?? (mod as unknown as typeof ResendType)
+})
+
+const getResend = memoize(async (config: ResendConfig) => {
+  const ResendClass = await getResendClass()
+  return new ResendClass(config.token)
 })
 
 export async function sendResendMail(
   message: Message,
   config: ResendConfig
 ): Promise<void> {
-  const resend = getResend(config)
+  const resend = await getResend(config)
   const result = await resend.emails.send({
     from: getAddressFromEmail(message.from),
     to: message.to.map((email) => getAddressFromEmail(email)),

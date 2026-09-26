@@ -1,0 +1,13 @@
+{
+  "name": "@activities/nodemailer",
+  "version": "1.159.0",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "nodemailer": "10.0.10"
+  },
+  "devDependencies": {
+    "@types/nodemailer": "^8.0.2"
+  }
+}

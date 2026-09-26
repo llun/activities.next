@@ -47,6 +47,9 @@ const nextConfig: NextConfig = {
       './node_modules/@img/**/*',
       './node_modules/@google-cloud/**/*',
       './node_modules/@google-cloud/tasks/**/*',
+      './node_modules/@aws-sdk/client-ses/**/*',
+      './node_modules/nodemailer/**/*',
+      './node_modules/resend/**/*',
       './node_modules/@grpc/**/*',
       './node_modules/@js-sdsl/**/*',
       './node_modules/@protobufjs/**/*',
@@ -84,6 +87,7 @@ const nextConfig: NextConfig = {
     process.env.NODE_ENV === 'development' ? ['activities.local'] : undefined,
   serverExternalPackages: [
     '@aws-sdk/client-s3',
+    '@aws-sdk/client-ses',
     '@google-cloud/firestore',
     '@google-cloud/tasks',
     '@keyv/redis',
