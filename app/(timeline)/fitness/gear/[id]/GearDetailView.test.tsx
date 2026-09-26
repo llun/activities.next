@@ -642,5 +642,115 @@ describe('GearDetailView', () => {
       )
       expect(mockPush).not.toHaveBeenCalled()
     })
+
+    it('displays Delete button for retired shoes and shows shoes-specific copy', async () => {
+      mockGetFitnessGearList.mockResolvedValue([
+        createGear({
+          id: 'shoes-1',
+          kind: 'shoes',
+          name: 'Speedcross',
+          brand: 'Salomon',
+          model: 'Speedcross 5',
+          retiredAt: Date.UTC(2026, 0, 1)
+        })
+      ])
+      render(<GearDetailView gearId="shoes-1" feed={feed} />)
+
+      const deleteBtn = await screen.findByRole('button', { name: 'Delete' })
+      expect(deleteBtn).toBeInTheDocument()
+
+      fireEvent.click(deleteBtn)
+
+      expect(
+        await screen.findByRole('heading', {
+          name: 'Delete Speedcross?'
+        })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          /Are you sure you want to delete this pair of shoes\? Existing activities will remain in your log, but will no longer be linked to this gear\. This action cannot be undone\./
+        )
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByText(/All components will be removed/)
+      ).not.toBeInTheDocument()
+    })
+
+    it('disables buttons and shows Deleting... while deletion is in flight', async () => {
+      const deferred = createDeferred<void>()
+      mockGetFitnessGearList.mockResolvedValue([
+        createGear({ retiredAt: Date.UTC(2026, 0, 1) })
+      ])
+      mockDeleteFitnessGear.mockImplementation(() => deferred.promise)
+      render(<GearDetailView gearId="gear-1" feed={feed} />)
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete' }))
+      const confirmBtn = screen.getByRole('button', { name: 'Delete gear' })
+      const cancelBtn = screen.getByRole('button', { name: 'Cancel' })
+
+      fireEvent.click(confirmBtn)
+
+      expect(confirmBtn).toHaveTextContent('Deleting...')
+      expect(confirmBtn).toBeDisabled()
+      expect(cancelBtn).toBeDisabled()
+
+      deferred.resolve()
+      await waitFor(() => {
+        expect(mockPush).toHaveBeenCalledWith('/fitness/gear')
+      })
+    })
+
+    it('allows retry after deletion fails', async () => {
+      mockGetFitnessGearList.mockResolvedValue([
+        createGear({ retiredAt: Date.UTC(2026, 0, 1) })
+      ])
+      mockDeleteFitnessGear
+        .mockRejectedValueOnce(new Error('Network error.'))
+        .mockResolvedValueOnce(undefined)
+      render(<GearDetailView gearId="gear-1" feed={feed} />)
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Delete gear' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Network error.'
+      )
+
+      // Retry succeeds
+      fireEvent.click(screen.getByRole('button', { name: 'Delete gear' }))
+      await waitFor(() => {
+        expect(mockDeleteFitnessGear).toHaveBeenCalledTimes(2)
+        expect(mockPush).toHaveBeenCalledWith('/fitness/gear')
+      })
+    })
+
+    it('clears error on Cancel', async () => {
+      mockGetFitnessGearList.mockResolvedValue([
+        createGear({ retiredAt: Date.UTC(2026, 0, 1) })
+      ])
+      mockDeleteFitnessGear.mockRejectedValueOnce(new Error('Network error.'))
+      render(<GearDetailView gearId="gear-1" feed={feed} />)
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Delete gear' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Network error.'
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+      await waitFor(() => {
+        expect(
+          screen.queryByRole('heading', { name: 'Delete Rocket?' })
+        ).not.toBeInTheDocument()
+      })
+
+      // Re-opening the dialog does not have the old alert
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+      expect(
+        await screen.findByRole('heading', { name: 'Delete Rocket?' })
+      ).toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
   })
 })

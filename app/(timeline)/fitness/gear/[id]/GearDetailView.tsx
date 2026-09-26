@@ -126,6 +126,14 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
   // survives a switch back to Components with its loaded pages intact.
   const [hasOpenedActivities, setHasOpenedActivities] = useState(false)
 
+  const handleDeleteDialogOpenChange = (open: boolean) => {
+    if (isDeleting) return
+    setIsDeleteDialogOpen(open)
+    if (!open) {
+      setDeleteError(null)
+    }
+  }
+
   const handleDeleteGear = async () => {
     if (!gear) return
     setIsDeleting(true)
@@ -429,16 +437,19 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
         />
       )}
 
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent>
+      <Dialog
+        open={isDeleteDialogOpen}
+        onOpenChange={handleDeleteDialogOpenChange}
+      >
+        <DialogContent showCloseButton={!isDeleting}>
           <DialogHeader>
             <DialogTitle>Delete {getGearDisplayName(gear)}?</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete this{' '}
-              {gear.kind === 'shoes' ? 'pair of shoes' : 'bike'}? All components
-              will be removed. Existing activities will remain in your log, but
-              will no longer be linked to this gear. This action cannot be
-              undone.
+              {gear.kind === 'shoes' ? 'pair of shoes' : 'bike'}?
+              {gear.kind === 'bike' && ' All components will be removed.'}{' '}
+              Existing activities will remain in your log, but will no longer be
+              linked to this gear. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           {deleteError && (
@@ -449,7 +460,7 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setIsDeleteDialogOpen(false)}
+              onClick={() => handleDeleteDialogOpenChange(false)}
               disabled={isDeleting}
             >
               Cancel
