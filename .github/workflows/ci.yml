@@ -153,7 +153,7 @@ jobs:
 
   # Bounded PostgreSQL integration test job covering database access layers:
   # media, fitness files, gear, component periods, heatmap tiles, queue jobs,
-  # and status deletion queue transactions.
+  # status deletion queue transactions, and list membership row locking.
   # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
   # database connections or overloading disposable service containers.
   test-pg:
@@ -199,7 +199,8 @@ jobs:
             lib/database/sql/fitnessGearComponentPeriods.test.ts \
             lib/database/sql/fitnessRouteHeatmapTile.test.ts \
             lib/database/sql/queueJob.test.ts \
-            lib/database/sql/statusDeletionQueue.test.ts
+            lib/database/sql/statusDeletionQueue.test.ts \
+            lib/database/sql/list.test.ts
         env:
           TEST_DATABASE_TYPE: pg
           TEST_DATABASE_HOST: 127.0.0.1

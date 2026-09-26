@@ -1289,8 +1289,6 @@ export type GetAcceptedFollowTargetActorIdsParams = {
   actorId: string
   targetActorIds: string[]
 }
-export type GetAcceptedOrRequestedFollowTargetActorIdsParams =
-  GetAcceptedFollowTargetActorIdsParams
 export type GetFollowersInboxParams = { targetActorId: string }
 export type UpdateFollowStatusParams = {
   followId: string
@@ -1352,9 +1350,6 @@ export interface FollowDatabase {
   ): Promise<Follow[]>
   getAcceptedFollowTargetActorIds(
     params: GetAcceptedFollowTargetActorIdsParams
-  ): Promise<string[]>
-  getAcceptedOrRequestedFollowTargetActorIds(
-    params: GetAcceptedOrRequestedFollowTargetActorIdsParams
   ): Promise<string[]>
   getFollowersInbox(params: GetFollowersInboxParams): Promise<string[]>
   updateFollowStatus(params: UpdateFollowStatusParams): Promise<void>
@@ -1638,6 +1633,15 @@ export type AddListAccountsParams = {
   listId: string
   actorId: string
   targetActorIds: string[]
+  // Admit only the owner and accounts the owner follows or has asked to
+  // follow, checked in the same transaction as the insert (see
+  // addListAccounts). Without it the members are inserted unconditionally.
+  requireFollowOrRequest?: boolean
+}
+export type AddListAccountsResult = {
+  // Accounts refused by requireFollowOrRequest: neither followed nor requested.
+  // When any are refused, nothing is added.
+  unrelatedActorIds: string[]
 }
 export type RemoveListAccountsParams = {
   listId: string
@@ -1676,7 +1680,7 @@ export interface ListDatabase {
   getListAccountCounts(
     params: GetListAccountCountsParams
   ): Promise<Record<string, number>>
-  addListAccounts(params: AddListAccountsParams): Promise<void>
+  addListAccounts(params: AddListAccountsParams): Promise<AddListAccountsResult>
   removeListAccounts(params: RemoveListAccountsParams): Promise<void>
   getListsWithAccount(params: GetListsWithAccountParams): Promise<List[]>
   getListTimeline(params: GetListTimelineParams): Promise<Status[]>
