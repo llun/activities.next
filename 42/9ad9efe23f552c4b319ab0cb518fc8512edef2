@@ -1,0 +1,21 @@
+package.json
+  s_05598cebdd5503::t_626834937c30bf 89
+yarn.lock
+  s_05598cebdd5503::t_6b839684db38d2 3783,8544-8547
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "429ad9efe23f552c4b319ab0cb518fc8512edef2",
+  "prompts": {},
+  "sessions": {
+    "s_05598cebdd5503": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d555-002c-7842-b513-99555c30c534",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
