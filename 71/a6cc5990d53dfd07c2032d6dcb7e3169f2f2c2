@@ -1,0 +1,19 @@
+AGENTS.md
+  s_d14ca01079411b::t_14adc77c1e0b85 24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "71a6cc5990d53dfd07c2032d6dcb7e3169f2f2c2",
+  "prompts": {},
+  "sessions": {
+    "s_d14ca01079411b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d9d7-0e58-7040-8a9b-de72e5e8e886",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
