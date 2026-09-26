@@ -1783,11 +1783,9 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
       // Delete list memberships holding the actor and the lists it owns, as
       // removeListAccounts / deleteList do (their `list:<id>` feed rows went
-      // with the actorId/statusActorId timelines sweep above). This comes after
-      // the follows delete to keep the follows → list_accounts order
-      // updateFollowStatus uses, so a membership insert that checks the owner's
-      // follow under a row lock either waits for this delete and then finds the
-      // follow gone, or commits first and is swept here.
+      // with the actorId/statusActorId timelines sweep above). Kept after the
+      // follows delete, the same follows → list_accounts order
+      // updateFollowStatus writes in.
       await trx('list_accounts').where('targetActorId', actorId).delete()
       const ownedListIds: string[] = await trx('lists')
         .where('actorId', actorId)
