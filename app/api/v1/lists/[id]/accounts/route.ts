@@ -200,30 +200,22 @@ export const POST = traceApiRoute(
       // neither (≥ 3.1), which is how a list can show its owner's own posts. A
       // pending member joins the list at once, but its posts only reach the
       // list once the request is accepted (addStatusToListTimelines,
-      // updateFollowStatus). One query checks every other id.
-      const otherActorIds = [
-        ...new Set(
-          targetActorIds.filter(
-            (targetActorId) => targetActorId !== currentActor.id
-          )
-        )
-      ]
-      const relatedActorIds = new Set(
-        await database.getAcceptedOrRequestedFollowTargetActorIds({
-          actorId: currentActor.id,
-          targetActorIds: otherActorIds
-        })
-      )
-      const unrelatedActorIds = otherActorIds.filter(
-        (actorId) => !relatedActorIds.has(actorId)
-      )
+      // updateFollowStatus). addListAccounts checks the relationship in the
+      // transaction that inserts, so a follow ending in between cannot leave a
+      // membership with nothing behind it.
+      const { unrelatedActorIds } = await database.addListAccounts({
+        listId: id,
+        actorId: currentActor.id,
+        targetActorIds,
+        requireFollowOrRequest: true
+      })
       if (unrelatedActorIds.length > 0) {
-        // Nothing is added, and the error is Mastodon's: it looks every account
-        // up before it validates any membership, so an id that names no account
-        // is a 404 whatever else the request holds, and an account with neither
-        // a follow nor a request is a 422. Only the ids without either need the
-        // lookup, since the rest name accounts the requester already follows or
-        // asked to follow.
+        // Nothing was added, and the error is Mastodon's: it looks every
+        // account up before it validates any membership, so an id that names
+        // no account is a 404 whatever else the request holds, and an account
+        // with neither a follow nor a request is a 422. Only the refused ids
+        // need the lookup, since the rest name accounts the requester already
+        // follows or asked to follow.
         const storedActorIds = new Set(
           (await database.getActorsFromIds({ ids: unrelatedActorIds })).map(
             (actor) => actor.id
@@ -242,11 +234,6 @@ export const POST = traceApiRoute(
         })
       }
 
-      await database.addListAccounts({
-        listId: id,
-        actorId: currentActor.id,
-        targetActorIds
-      })
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })
     }
   )

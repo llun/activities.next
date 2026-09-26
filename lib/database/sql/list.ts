@@ -20,6 +20,7 @@ import {
 import { Mastodon } from '@/lib/types/activitypub'
 import {
   AddListAccountsParams,
+  AddListAccountsResult,
   AddStatusToListTimelinesParams,
   CreateListParams,
   DeleteListParams,
@@ -338,9 +339,10 @@ export const ListSQLDatabaseMixin = (
   async addListAccounts({
     listId,
     actorId,
-    targetActorIds
-  }: AddListAccountsParams) {
-    if (targetActorIds.length === 0) return
+    targetActorIds,
+    requireFollowOrRequest = false
+  }: AddListAccountsParams): Promise<AddListAccountsResult> {
+    if (targetActorIds.length === 0) return { unrelatedActorIds: [] }
 
     const currentTime = new Date()
     const rows = targetActorIds.map((targetActorId) => ({
@@ -354,7 +356,37 @@ export const ListSQLDatabaseMixin = (
     // so a crash can't leave members on the list without their feed rows (or, on
     // re-add, partially backfilled). Targets already on the list are ignored so
     // repeated adds stay idempotent (matching Mastodon).
-    await database.transaction(async (trx) => {
+    return database.transaction(async (trx) => {
+      if (requireFollowOrRequest) {
+        // Mastodon's ListAccount admits the owner, and anyone else only with a
+        // follow or a pending request behind them. updateFollowStatus removes
+        // the memberships a follow backed when it ends, so the check has to be
+        // atomic with the insert or a follow ending in between leaves a
+        // membership nothing backs (and nothing ever removes). On PostgreSQL
+        // the check locks the follow rows it reads, and under its default READ
+        // COMMITTED an ending that commits first is seen by the locked re-read,
+        // while one that comes later waits for this commit, so its cleanup
+        // deletes what was inserted here.
+        const otherActorIds = [
+          ...new Set(
+            targetActorIds.filter((targetActorId) => targetActorId !== actorId)
+          )
+        ]
+        const relatedActorIds = new Set(
+          await selectFollowTargetActorIds(
+            trx,
+            actorId,
+            otherActorIds,
+            [FollowStatus.enum.Accepted, FollowStatus.enum.Requested],
+            { forShare: true }
+          )
+        )
+        const unrelatedActorIds = otherActorIds.filter(
+          (targetActorId) => !relatedActorIds.has(targetActorId)
+        )
+        if (unrelatedActorIds.length > 0) return { unrelatedActorIds }
+      }
+
       // Batch insert, chunked to stay under SQLite's 999 bound-parameter limit
       // (the batch size is derived from the column count).
       const batchSize = getInsertBatchSize(trx, rows[0])
@@ -379,6 +411,7 @@ export const ListSQLDatabaseMixin = (
         ownerId: actorId,
         targetActorIds
       })
+      return { unrelatedActorIds: [] }
     })
   },
 

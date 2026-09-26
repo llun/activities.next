@@ -1,6 +1,10 @@
+import { decreaseCounterValue } from '@/lib/database/sql/utils/counter'
+import { selectFollowTargetActorIds } from '@/lib/database/sql/utils/followTargetActorIds'
+import { isSQLiteClient } from '@/lib/database/sql/utils/knex'
 import {
   databaseBeforeAll,
   getTestDatabaseTable,
+  getTestDatabaseWithInstance,
   getTestSQLDatabase
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
@@ -9,10 +13,32 @@ import {
   Timeline
 } from '@/lib/services/timelines/types'
 import { EXTERNAL_ACTORS, TEST_DOMAIN } from '@/lib/stub/const'
+import { createDeferred } from '@/lib/testing/deferred'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { ListRepliesPolicy } from '@/lib/types/domain/list'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { isDirectStatus } from '@/lib/utils/directStatus'
+
+// Pass-throughs, so a race test can hold one side of a race at a known point
+// (mockImplementationOnce) while every other call runs the real helper.
+vi.mock(
+  '@/lib/database/sql/utils/followTargetActorIds',
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import('@/lib/database/sql/utils/followTargetActorIds')
+      >()
+    return {
+      ...actual,
+      selectFollowTargetActorIds: vi.fn(actual.selectFollowTargetActorIds)
+    }
+  }
+)
+vi.mock('@/lib/database/sql/utils/counter', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/database/sql/utils/counter')>()
+  return { ...actual, decreaseCounterValue: vi.fn(actual.decreaseCounterValue) }
+})
 
 const withFreshDatabase = async (
   test: (database: Database) => Promise<void>
@@ -2154,5 +2180,286 @@ describe('getListAccounts', () => {
       })
       expect(all.accounts).toHaveLength(3)
     })
+  })
+})
+
+describe('addListAccounts with requireFollowOrRequest', () => {
+  // The raw Knex instance is what lets a race test see that one side is
+  // blocked, so this suite uses getTestDatabaseWithInstance (which honours
+  // TEST_DATABASE_TYPE like getTestDatabaseTable) on a database of its own.
+  const { database, instance, prepare } = getTestDatabaseWithInstance(true)
+
+  beforeAll(async () => {
+    await prepare()
+    await database.migrate()
+  })
+
+  afterAll(async () => {
+    await database.destroy()
+  })
+
+  beforeEach(() => {
+    // mockReset restores each pass-through's real implementation and drops
+    // any Once a failed test left unconsumed.
+    vi.mocked(selectFollowTargetActorIds).mockReset()
+    vi.mocked(decreaseCounterValue).mockReset()
+  })
+
+  const localActor = async (username: string) => {
+    await createLocalAccount(database, username)
+    const actor = await database.getActorFromUsername({
+      username,
+      domain: TEST_DOMAIN
+    })
+    if (!actor) throw new Error(`${username} not created`)
+    return actor
+  }
+  const follow = (
+    actorId: string,
+    targetActorId: string,
+    status: FollowStatus
+  ) =>
+    database.createFollow({
+      actorId,
+      targetActorId,
+      status,
+      inbox: `${targetActorId}/inbox`,
+      sharedInbox: `${targetActorId}/inbox`
+    })
+  const publicNote = (actorId: string, localId: string) =>
+    database.createNote({
+      id: `${actorId}/statuses/${localId}`,
+      url: `${actorId}/statuses/${localId}`,
+      actorId,
+      text: localId,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+  const listIdsHolding = async (ownerId: string, memberId: string) =>
+    (
+      await database.getListsWithAccount({
+        actorId: ownerId,
+        targetActorId: memberId
+      })
+    ).map((list) => list.id)
+  const listTimelineIds = async (listId: string, ownerId: string) =>
+    (await database.getListTimeline({ listId, actorId: ownerId })).map(
+      (status) => status.id
+    )
+
+  // True once another connection is stuck: on PostgreSQL a backend waiting on
+  // a row lock, on SQLite a caller queued for its single connection.
+  const isAnotherConnectionWaiting = async () => {
+    if (isSQLiteClient(instance)) {
+      return instance.client.pool.numPendingAcquires() > 0
+    }
+    const { rows } = await instance.raw<{ rows: { waiting: number }[] }>(
+      `select count(*)::int as waiting from pg_stat_activity
+       where datname = current_database() and wait_event_type = 'Lock'`
+    )
+    return rows[0].waiting > 0
+  }
+  // Resolves when `operation` settles or is seen blocked, whichever is first.
+  const settledOrBlocked = async (operation: Promise<unknown>) => {
+    let settled = false
+    const done = operation.then(
+      () => {
+        settled = true
+      },
+      () => {
+        settled = true
+      }
+    )
+    const blocked = (async () => {
+      while (!settled) {
+        if (await isAnotherConnectionWaiting()) return
+        await new Promise((resolve) => setTimeout(resolve, 5))
+      }
+    })()
+    await Promise.race([done, blocked])
+    settled = true
+  }
+
+  it('adds the owner and accounts they follow or asked to follow', async () => {
+    const owner = await localActor('require-owner')
+    const followed = await localActor('require-followed')
+    const requested = await localActor('require-requested')
+    await follow(owner.id, followed.id, FollowStatus.enum.Accepted)
+    await follow(owner.id, requested.id, FollowStatus.enum.Requested)
+    const list = await database.createList({ actorId: owner.id, title: 'Ok' })
+
+    const result = await database.addListAccounts({
+      listId: list.id,
+      actorId: owner.id,
+      targetActorIds: [owner.id, followed.id, requested.id],
+      requireFollowOrRequest: true
+    })
+
+    expect(result).toEqual({ unrelatedActorIds: [] })
+    for (const memberId of [owner.id, followed.id, requested.id]) {
+      expect(await listIdsHolding(owner.id, memberId)).toEqual([list.id])
+    }
+  })
+
+  it.each([
+    { description: 'was never followed', key: 'never', ended: undefined },
+    {
+      description: 'had its request withdrawn',
+      key: 'undone',
+      ended: FollowStatus.enum.Undo
+    },
+    {
+      description: 'rejected the request',
+      key: 'rejected',
+      ended: FollowStatus.enum.Rejected
+    }
+  ])('adds nobody when one account $description', async ({ key, ended }) => {
+    const owner = await localActor(`${key}-unrelated-owner`)
+    const other = await localActor(`${key}-unrelated-other`)
+    const followed = await localActor(`${key}-unrelated-followed`)
+    const unrelated = await localActor(`${key}-unrelated-member`)
+    await follow(owner.id, followed.id, FollowStatus.enum.Accepted)
+    // Someone else's follow of the account says nothing about the owner's.
+    await follow(other.id, unrelated.id, FollowStatus.enum.Accepted)
+    if (ended) {
+      const relationship = await follow(
+        owner.id,
+        unrelated.id,
+        FollowStatus.enum.Requested
+      )
+      await database.updateFollowStatus({
+        followId: relationship.id,
+        status: ended
+      })
+    }
+    const list = await database.createList({
+      actorId: owner.id,
+      title: 'Unrelated'
+    })
+
+    const result = await database.addListAccounts({
+      listId: list.id,
+      actorId: owner.id,
+      targetActorIds: [followed.id, unrelated.id, unrelated.id],
+      requireFollowOrRequest: true
+    })
+
+    expect(result).toEqual({ unrelatedActorIds: [unrelated.id] })
+    expect(await listIdsHolding(owner.id, followed.id)).toEqual([])
+    expect(await listIdsHolding(owner.id, unrelated.id)).toEqual([])
+  })
+
+  // The check runs first and the follow ends before the insert: the ending
+  // must wait for the insert and then remove the membership it made.
+  it.each([
+    {
+      description: 'the member rejects the request',
+      key: 'race-reject',
+      from: FollowStatus.enum.Requested,
+      to: FollowStatus.enum.Rejected
+    },
+    {
+      description: 'the owner withdraws the request',
+      key: 'race-withdraw',
+      from: FollowStatus.enum.Requested,
+      to: FollowStatus.enum.Undo
+    },
+    {
+      description: 'the owner unfollows',
+      key: 'race-unfollow',
+      from: FollowStatus.enum.Accepted,
+      to: FollowStatus.enum.Undo
+    }
+  ])(
+    'leaves no membership behind when $description between the check and the insert',
+    async ({ key, from, to }) => {
+      const owner = await localActor(`${key}-owner`)
+      const member = await localActor(`${key}-member`)
+      const relationship = await follow(owner.id, member.id, from)
+      await publicNote(member.id, 'post')
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Race'
+      })
+
+      // Hold the add right after its relationship check has run.
+      const { selectFollowTargetActorIds: realSelect } = await vi.importActual<
+        typeof import('@/lib/database/sql/utils/followTargetActorIds')
+      >('@/lib/database/sql/utils/followTargetActorIds')
+      const checked = createDeferred<void>()
+      const resume = createDeferred<void>()
+      vi.mocked(selectFollowTargetActorIds).mockImplementationOnce(
+        async (...args) => {
+          const actorIds = await realSelect(...args)
+          checked.resolve()
+          await resume.promise
+          return actorIds
+        }
+      )
+
+      const adding = database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id],
+        requireFollowOrRequest: true
+      })
+      await checked.promise
+      const ending = database.updateFollowStatus({
+        followId: relationship.id,
+        status: to
+      })
+      await settledOrBlocked(ending)
+      resume.resolve()
+      await Promise.all([adding, ending])
+
+      expect(await listIdsHolding(owner.id, member.id)).toEqual([])
+      expect(await listTimelineIds(list.id, owner.id)).toEqual([])
+    }
+  )
+
+  // The follow is already ending when the check runs: the check must wait for
+  // it and then refuse the account instead of reading the old status.
+  it('refuses an account whose follow is being undone while it checks', async () => {
+    const owner = await localActor('race-undoing-owner')
+    const member = await localActor('race-undoing-member')
+    const relationship = await follow(
+      owner.id,
+      member.id,
+      FollowStatus.enum.Accepted
+    )
+    const list = await database.createList({
+      actorId: owner.id,
+      title: 'Undoing'
+    })
+
+    // Hold the undo after it has updated the follow row, before it commits.
+    const { decreaseCounterValue: realDecrease } = await vi.importActual<
+      typeof import('@/lib/database/sql/utils/counter')
+    >('@/lib/database/sql/utils/counter')
+    const updated = createDeferred<void>()
+    const resume = createDeferred<void>()
+    vi.mocked(decreaseCounterValue).mockImplementationOnce(async (...args) => {
+      updated.resolve()
+      await resume.promise
+      return realDecrease(...args)
+    })
+
+    const ending = database.updateFollowStatus({
+      followId: relationship.id,
+      status: FollowStatus.enum.Undo
+    })
+    await updated.promise
+    const adding = database.addListAccounts({
+      listId: list.id,
+      actorId: owner.id,
+      targetActorIds: [member.id],
+      requireFollowOrRequest: true
+    })
+    await settledOrBlocked(adding)
+    resume.resolve()
+    const [result] = await Promise.all([adding, ending])
+
+    expect(result).toEqual({ unrelatedActorIds: [member.id] })
+    expect(await listIdsHolding(owner.id, member.id)).toEqual([])
   })
 })
