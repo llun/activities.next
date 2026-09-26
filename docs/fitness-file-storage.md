@@ -1175,7 +1175,7 @@ null }` remains the precise "this retirement never happened" — it reopens the
   what stops a row written before the API validated the column from rendering a
   `javascript:` href. Two props are what let one component serve every surface:
   `onEdit` makes the empty state the prompt that opens the gear form, and
-  without it that state is an em dash (the list and component tables have no form to open from the cell); `onClick`
+  without it that state is an em dash (the component table has no form to open from the cell); `onClick`
   is where a clickable row passes `stopPropagation`, without which the anchor
   opens the vendor's page and the row pushes the gear's route behind it. The
   hostname takes `text-primary-text` — `text-primary` is 3.37:1 on the card and
@@ -1183,9 +1183,9 @@ null }` remains the precise "this retirement never happened" — it reopens the
   seeds it from the brand map when the import creates the row.
 - **Gear list tables share aligned column widths.** In `app/(timeline)/fitness/gear/GearListView.tsx`, all tables
   (Bikes, Shoes, Devices) use `table-fixed w-full min-w-[560px] text-sm` and define fixed column widths via `<colgroup>`.
-  Bikes and Shoes (4 columns) allocate `34%` (Name), `26%` (Product page), `24%` (Default sports), and `16%` (Distance / Service).
-  Devices (3 columns) allocates `34%` (Device), `26%` (Product page), and `40%` (Activities).
-  The shared first two columns (`34%` and `26%`) align vertically across every table on the page.
+  Bikes and Shoes (5 columns) allocate `34%` (Name), `26%` (Product page), `18%` (Default sports), `12%` (Distance / Service), and `10%` (Actions).
+  Devices (4 columns) allocates `34%` (Device), `26%` (Product page), `30%` (Activities), and `10%` (Actions).
+  The shared first two columns (`34%` and `26%`) and the Actions column (`10%`) align vertically across every table on the page.
 - **A recording device is a third kind, and almost nothing above applies to it.**
   `kind: 'device'` rows have no components, no default sports, no distance
   total, no service reminder and cannot be retired; a device page reports an

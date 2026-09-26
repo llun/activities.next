@@ -10,7 +10,11 @@ import {
   within
 } from '@testing-library/react'
 
-import { createFitnessGear, getFitnessGearList } from '@/lib/client'
+import {
+  createFitnessGear,
+  getFitnessGearList,
+  updateFitnessGear
+} from '@/lib/client'
 import type { GearEntity } from '@/lib/services/fitness-gears/gearEntities'
 import { createDeferred } from '@/lib/testing/deferred'
 
@@ -41,6 +45,9 @@ const mockCreateFitnessGear = createFitnessGear as jest.MockedFunction<
 >
 const mockGetFitnessGearList = getFitnessGearList as jest.MockedFunction<
   typeof getFitnessGearList
+>
+const mockUpdateFitnessGear = updateFitnessGear as jest.MockedFunction<
+  typeof updateFitnessGear
 >
 
 const createGear = (overrides: Partial<GearEntity> = {}): GearEntity => ({
@@ -369,14 +376,16 @@ describe('GearListView', () => {
       expect(productLink).toHaveAttribute('target', '_blank')
     })
 
-    it('renders an em dash when a device has no product page', async () => {
+    it('offers to add a product page when a device has none', async () => {
       mockGetFitnessGearList.mockResolvedValue([
         createDevice({ productUrl: null })
       ])
       render(<GearListView />)
 
       const section = await getSection('Devices')
-      expect(section.getByText('—')).toBeInTheDocument()
+      expect(
+        section.getByRole('button', { name: 'No product page — add one' })
+      ).toBeInTheDocument()
     })
 
     it('hides the card entirely when the actor has no devices', async () => {
@@ -396,7 +405,12 @@ describe('GearListView', () => {
       render(<GearListView />)
 
       const section = await getSection('Devices')
-      expect(section.queryByRole('button')).not.toBeInTheDocument()
+      expect(
+        section.queryByRole('button', { name: /Add/ })
+      ).not.toBeInTheDocument()
+      expect(
+        section.queryByRole('button', { name: /retired/i })
+      ).not.toBeInTheDocument()
     })
 
     it('navigates to the device page when a row is clicked', async () => {
@@ -508,6 +522,147 @@ describe('GearListView', () => {
       expect(cell?.closest('tr')).not.toHaveClass('opacity-60')
       expect(cell).not.toHaveClass('opacity-60')
       expect(cell?.querySelector('.opacity-60')).not.toBeNull()
+    })
+  })
+
+  describe('editing gear', () => {
+    it('opens the edit dialog seeded with the gear when Edit is clicked on an active bike', async () => {
+      mockGetFitnessGearList.mockResolvedValue([createGear()])
+      render(<GearListView />)
+
+      const section = await getSection('Bikes')
+      fireEvent.click(section.getByRole('button', { name: 'Edit Rocket' }))
+
+      expect(
+        await screen.findByRole('heading', { name: 'Edit bike' })
+      ).toBeInTheDocument()
+      expect(screen.getByLabelText('Brand')).toHaveValue('Canyon')
+      expect(screen.getByLabelText('Model')).toHaveValue('Endurace')
+      expect(screen.getByLabelText('Nickname')).toHaveValue('Rocket')
+    })
+
+    it('updates gear nickname and product URL and refetches the list when saved', async () => {
+      mockGetFitnessGearList.mockResolvedValue([createGear()])
+      mockUpdateFitnessGear.mockResolvedValue(
+        createGear({
+          name: 'Speedster',
+          productUrl: 'https://canyon.com/speed'
+        })
+      )
+      render(<GearListView />)
+
+      const section = await getSection('Bikes')
+      fireEvent.click(section.getByRole('button', { name: 'Edit Rocket' }))
+
+      const nicknameInput = await screen.findByLabelText('Nickname')
+      fireEvent.change(nicknameInput, { target: { value: 'Speedster' } })
+
+      const urlInput = screen.getByLabelText('Product page')
+      fireEvent.change(urlInput, {
+        target: { value: 'https://canyon.com/speed' }
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+      await waitFor(() =>
+        expect(mockUpdateFitnessGear).toHaveBeenCalledTimes(1)
+      )
+      expect(mockUpdateFitnessGear).toHaveBeenCalledWith('gear-1', {
+        alertDistanceMeters: null,
+        bikeType: 'Road bike',
+        brand: 'Canyon',
+        defaultSports: ['ride'],
+        model: 'Endurace',
+        name: 'Speedster',
+        notes: null,
+        productUrl: 'https://canyon.com/speed',
+        weightKilograms: 8.1
+      })
+      await waitFor(() =>
+        expect(mockGetFitnessGearList).toHaveBeenCalledTimes(2)
+      )
+    })
+
+    it('opens the edit dialog when Edit is clicked on a retired bike', async () => {
+      mockGetFitnessGearList.mockResolvedValue([
+        createGear({
+          id: 'gear-retired',
+          name: 'Old racer',
+          retiredAt: Date.UTC(2023, 4, 1)
+        })
+      ])
+      render(<GearListView />)
+
+      const section = await getSection('Bikes')
+      fireEvent.click(
+        section.getByRole('button', { name: 'Show 1 retired bike' })
+      )
+      fireEvent.click(section.getByRole('button', { name: 'Edit Old racer' }))
+
+      expect(
+        await screen.findByRole('heading', { name: 'Edit bike' })
+      ).toBeInTheDocument()
+      expect(screen.getByLabelText('Nickname')).toHaveValue('Old racer')
+    })
+
+    it('opens the edit dialog when Edit is clicked on a device and saves updates', async () => {
+      mockGetFitnessGearList.mockResolvedValue([createDevice()])
+      mockUpdateFitnessGear.mockResolvedValue(
+        createDevice({
+          name: 'My Garmin',
+          productUrl: 'https://garmin.com/custom'
+        })
+      )
+      render(<GearListView />)
+
+      const section = await getSection('Devices')
+      fireEvent.click(
+        section.getByRole('button', { name: 'Edit Garmin Edge 840' })
+      )
+
+      expect(
+        await screen.findByRole('heading', { name: 'Edit device' })
+      ).toBeInTheDocument()
+
+      const nicknameInput = screen.getByLabelText('Nickname')
+      fireEvent.change(nicknameInput, { target: { value: 'My Garmin' } })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+      await waitFor(() =>
+        expect(mockUpdateFitnessGear).toHaveBeenCalledTimes(1)
+      )
+      expect(mockUpdateFitnessGear).toHaveBeenCalledWith('device-1', {
+        brand: 'Garmin',
+        model: 'Edge 840',
+        name: 'My Garmin',
+        productUrl: 'https://www.garmin.com'
+      })
+      await waitFor(() =>
+        expect(mockGetFitnessGearList).toHaveBeenCalledTimes(2)
+      )
+    })
+
+    it('does not navigate the row when Edit or No product page is clicked', async () => {
+      mockGetFitnessGearList.mockResolvedValue([
+        createGear({ productUrl: null })
+      ])
+      render(<GearListView />)
+
+      const section = await getSection('Bikes')
+
+      fireEvent.click(
+        section.getByRole('button', { name: 'No product page — add one' })
+      )
+      expect(mockPush).not.toHaveBeenCalled()
+      expect(
+        await screen.findByRole('heading', { name: 'Edit bike' })
+      ).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+      fireEvent.click(section.getByRole('button', { name: 'Edit Rocket' }))
+      expect(mockPush).not.toHaveBeenCalled()
     })
   })
 })
