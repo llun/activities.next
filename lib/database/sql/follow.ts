@@ -8,6 +8,7 @@ import {
   getCounterValues,
   increaseCounterValue
 } from '@/lib/database/sql/utils/counter'
+import { selectFollowTargetActorIds } from '@/lib/database/sql/utils/followTargetActorIds'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import { chunkArray, getWhereInBatchSize } from '@/lib/database/sql/utils/knex'
 import { whereLocalActor } from '@/lib/database/sql/utils/localActor'
@@ -72,26 +73,6 @@ const applyFollowCursor = (
           .andWhere('id', operator, cursor.id)
       })
   })
-}
-
-// The subset of targetActorIds that actorId has a follow in one of `statuses`
-// for, each id once. Backs both batch lookups below, which differ only in the
-// statuses they admit.
-const selectFollowTargetActorIds = async (
-  database: Knex,
-  actorId: string,
-  targetActorIds: string[],
-  statuses: FollowStatus[]
-): Promise<string[]> => {
-  const uniqueTargetActorIds = [...new Set(targetActorIds)]
-  if (uniqueTargetActorIds.length === 0) return []
-
-  const follows = await database<Follow>('follows')
-    .select('targetActorId')
-    .where('actorId', actorId)
-    .whereIn('status', statuses)
-    .whereIn('targetActorId', uniqueTargetActorIds)
-  return [...new Set(follows.map((follow) => follow.targetActorId))]
 }
 
 const fixFollowDataDate = (data: Follow): Follow => ({
@@ -450,12 +431,11 @@ export const FollowerSQLDatabaseMixin = (
       }
 
       // A list member the owner had only requested to follow joined the list
-      // without its posts: backfillListTimelineForMembers skipped it and the
-      // new-status fan-out held its posts back. Now that the request is
-      // accepted, bring its stored posts into each of the owner's lists that
-      // hold it, as Mastodon's FollowRequest#authorize! merges the account into
-      // those lists. The owner is existingFollow.actorId (the follower) and the
-      // member existingFollow.targetActorId. A follow of oneself is skipped: the
+      // without its posts. Now that the request is accepted, bring its stored
+      // posts into each of the owner's lists that hold it, as Mastodon's
+      // FollowRequest#authorize! merges the account into those lists. The owner
+      // is existingFollow.actorId (the follower) and the member
+      // existingFollow.targetActorId. A follow of oneself is skipped: the
       // owner's membership of their own list never waited on it.
       if (
         !wasAccepted &&

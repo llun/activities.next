@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { applyBlockMuteFilter } from '@/lib/database/sql/utils/blockMuteFilter'
+import { selectFollowTargetActorIds } from '@/lib/database/sql/utils/followTargetActorIds'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   chunkArray,
@@ -136,12 +137,9 @@ export const backfillListTimelineForMembers = async ({
   const whereInBatchSize = getWhereInBatchSize(database, 2)
   for (const idChunk of chunkArray(memberIds, whereInBatchSize)) {
     const pendingMemberIds = new Set(
-      (
-        await database('follows')
-          .where({ actorId: ownerId, status: FollowStatus.enum.Requested })
-          .whereIn('targetActorId', idChunk)
-          .select<{ targetActorId: string }[]>('targetActorId')
-      ).map((row) => row.targetActorId)
+      await selectFollowTargetActorIds(database, ownerId, idChunk, [
+        FollowStatus.enum.Requested
+      ])
     )
     const backfillMemberIds = idChunk.filter(
       (memberId) => !pendingMemberIds.has(memberId)
