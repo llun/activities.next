@@ -1,6 +1,6 @@
 'use client'
 
-import { formatDistance } from 'date-fns'
+import { formatDistance } from 'date-fns/formatDistance'
 import _ from 'lodash'
 import { Activity, ExternalLink, Repeat2 } from 'lucide-react'
 import Link from 'next/link'

@@ -1,6 +1,6 @@
 'use client'
 
-import { formatDistance } from 'date-fns'
+import { formatDistance } from 'date-fns/formatDistance'
 import { Check } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 

@@ -318,23 +318,41 @@ describe('databaseRunner', () => {
   })
 
   it('starts and stops the queue runner loop', async () => {
-    let callCount = 0
-    const handleJob = async () => {
-      callCount++
+    // A due job on each side of stop(): the first proves the loop really ran,
+    // the second that nothing claims work once it has stopped. With no job the
+    // handler is never called and "no calls after stop" holds vacuously.
+    await database.createQueueJob({
+      id: 'job-loop-1',
+      name: 'deliverActivity',
+      payload: { ...sampleMessage, id: 'loop-msg-1' },
+      nextRunAt: new Date(Date.now() - 1000)
+    })
+    const executed: string[] = []
+    const handleJob = async (message: JobMessage) => {
+      executed.push(message.id)
     }
 
     const runner = startDatabaseQueueRunner(database, {
-      pollIntervalMs: 50,
+      pollIntervalMs: 20,
       handleJob
     })
 
-    // Let it tick once
-    await new Promise((resolve) => setTimeout(resolve, 60))
+    await vi.waitFor(() => expect(executed).toEqual(['loop-msg-1']))
     await runner.stop()
 
-    const countAfterStop = callCount
+    await database.createQueueJob({
+      id: 'job-loop-2',
+      name: 'deliverActivity',
+      payload: { ...sampleMessage, id: 'loop-msg-2' },
+      nextRunAt: new Date(Date.now() - 1000)
+    })
+    // Five poll intervals: a loop still running would have claimed it.
     await new Promise((resolve) => setTimeout(resolve, 100))
-    expect(callCount).toBe(countAfterStop)
+
+    expect(executed).toEqual(['loop-msg-1'])
+    expect((await database.getQueueJobById('job-loop-2'))?.status).toBe(
+      'pending'
+    )
   })
 
   it('awaits currently running job and avoids claiming subsequent jobs on shutdown drain', async () => {

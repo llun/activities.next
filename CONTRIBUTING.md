@@ -685,6 +685,32 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   prompted it — an `<input type="date">` value (parsed as UTC midnight) read
   back through a local-time `Intl.DateTimeFormat` — rendered a day early in
   `America/Los_Angeles` and a day late in `Asia/Tokyo`.
+- **The suite also runs with `LOG_LEVEL=silent`** (`vitest.config.ts` →
+  `test.env`). Failure-path tests log hundreds of expected warn/error lines,
+  and printed they buried the real failures. Assert logging by spying on
+  `logger.*` (a spy records the call whatever the level), never by reading
+  output; a test of the logger's own level handling sets or deletes
+  `LOG_LEVEL` itself, as `lib/utils/logger.test.ts` does.
+- **Never wait out a timer in real time.** A test that sleeps
+  `setTimeout(resolve, 4100)` to watch a 4000 ms timer fire spends four
+  seconds per run, has 100 ms of margin on a loaded CI runner, and still
+  passes if the timer is shortened. Install `vi.useFakeTimers()` just before
+  the action that arms the timer (after any `waitFor` setup, which needs real
+  timers), import the component's own timeout constant, and pin both sides of
+  the boundary: advance to `TIMEOUT - 1` and assert nothing happened, then by
+  one more and assert it did. Restore with `vi.useRealTimers()` in `afterEach`.
+- **Import `date-fns` functions from their sub-path**
+  (`import { format } from 'date-fns/format'`), never the barrel. The barrel
+  evaluates every date-fns function — about half a second — in every test
+  file that transitively reaches it, and because Vitest isolates each file
+  that cost is paid hundreds of times per run; moving 13 imports off it took
+  the suite from ~100 s to ~70 s. Oxlint's `no-restricted-imports` rejects the
+  bare `'date-fns'` import in `app/` and `lib/`.
+- **Seed password fixtures with `bcrypt.hash(password, 4)`**, the lowest cost
+  bcrypt accepts. `bcrypt.compare` reads the cost from the stored hash, so a
+  fixture's cost changes nothing a test asserts, while cost 10 (production's,
+  in `lib/services/auth/auth.ts`) costs tens of milliseconds per hash and per
+  sign-in verify.
 - The Vitest default environment is `node`. Any test that renders React or
   touches the DOM must start with a `/** @vitest-environment jsdom */` docblock
   (Vitest 4 removed `environmentMatchGlobs`, so there is no glob-based opt-in);

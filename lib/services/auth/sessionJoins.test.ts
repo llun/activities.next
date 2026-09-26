@@ -91,7 +91,7 @@ describe('session resolution with database joins', () => {
       // Better Auth 1.7.3 keys credentials by provider + provider-side account
       // id. The historical issuer column is intentionally absent here.
       providerId: ACCOUNT_ID,
-      password: await bcrypt.hash(PASSWORD, 10)
+      password: await bcrypt.hash(PASSWORD, 4)
     })
   })
 

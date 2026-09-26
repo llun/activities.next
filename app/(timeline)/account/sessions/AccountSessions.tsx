@@ -1,6 +1,7 @@
 'use client'
 
-import { formatDistance, formatRelative } from 'date-fns'
+import { formatDistance } from 'date-fns/formatDistance'
+import { formatRelative } from 'date-fns/formatRelative'
 import { Clock, Monitor, Trash2 } from 'lucide-react'
 import { FC, useMemo, useRef, useState } from 'react'
 

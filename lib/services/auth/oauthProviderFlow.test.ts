@@ -129,7 +129,7 @@ describe('OAuth provider token grants', () => {
       domain: HOST,
       email: EMAIL,
       username: 'oauthflow',
-      passwordHash: await bcrypt.hash(PASSWORD, 10),
+      passwordHash: await bcrypt.hash(PASSWORD, 4),
       publicKey: 'test-public-key',
       privateKey: 'test-private-key'
     })

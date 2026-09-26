@@ -1,5 +1,5 @@
 import crypto from 'crypto'
-import { format } from 'date-fns'
+import { format } from 'date-fns/format'
 import { createWriteStream } from 'fs'
 import fs from 'fs/promises'
 import mime from 'mime-types'

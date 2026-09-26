@@ -22,7 +22,12 @@ export default defineConfig({
     // in `America/Los_Angeles` and a day late in `Asia/Tokyo`. Formatters that
     // must be zone-independent say so themselves (`timeZone: 'UTC'`); this
     // only stops the runner's zone from deciding whether the suite is green.
-    env: { TZ: 'UTC' },
+    //
+    // LOG_LEVEL=silent keeps the server logger's JSON lines out of the run
+    // output, where hundreds of expected warn/error entries from failure-path
+    // tests buried the real failures. Tests that assert logging spy on
+    // `logger.*`, which records calls whatever the level.
+    env: { TZ: 'UTC', LOG_LEVEL: 'silent' },
     // Default environment is node; component tests opt into jsdom per file via
     // a `@vitest-environment jsdom` docblock (vitest 4 removed
     // `environmentMatchGlobs`). `environmentOptions` still applies to whichever

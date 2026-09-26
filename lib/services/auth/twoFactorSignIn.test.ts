@@ -163,7 +163,7 @@ describe('two-factor sign-in flow', () => {
       domain: HOST,
       email: EMAIL,
       username: 'twofactor',
-      passwordHash: await bcrypt.hash(PASSWORD, 10),
+      passwordHash: await bcrypt.hash(PASSWORD, 4),
       publicKey: 'test-public-key',
       privateKey: 'test-private-key'
     })

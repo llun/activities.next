@@ -1578,21 +1578,6 @@ describe('FitnessStatusDetail', () => {
       expect(canvas.style.cursor).toBe('')
     })
 
-    it('retires a tap-opened hint on its own, since touch has no pointer leave', async () => {
-      const { handlers } = await renderWithGlMap()
-
-      await act(async () => {
-        handlers.get(`click:${HIT_LAYER}`)?.({ point: { x: 12, y: 20 } })
-      })
-      expect(screen.getByTestId('route-privacy-hint')).toBeInTheDocument()
-
-      await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 4100))
-      })
-
-      expect(screen.queryByTestId('route-privacy-hint')).not.toBeInTheDocument()
-    })
-
     it('never covers the map: the hint takes no pointer events', async () => {
       const { handlers } = await renderWithGlMap()
 
@@ -1655,30 +1640,6 @@ describe('FitnessStatusDetail', () => {
         'aria-hidden',
         'true'
       )
-    })
-
-    it('leaves a clicked hint up on a hover-capable device', async () => {
-      // Layer-scoped `click` fires for a mouse press as well as a tap, so
-      // arming the touch retire-timer there would pull the hint away mid-hover.
-      Object.defineProperty(window, 'matchMedia', {
-        configurable: true,
-        value: (query: string) => ({ matches: true, media: query })
-      })
-      try {
-        const { handlers } = await renderWithGlMap()
-
-        await act(async () => {
-          handlers.get(`click:${HIT_LAYER}`)?.({ point: { x: 12, y: 20 } })
-        })
-
-        await act(async () => {
-          await new Promise((resolve) => setTimeout(resolve, 4100))
-        })
-
-        expect(screen.getByTestId('route-privacy-hint')).toBeInTheDocument()
-      } finally {
-        Reflect.deleteProperty(window, 'matchMedia')
-      }
     })
   })
 

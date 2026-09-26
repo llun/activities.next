@@ -1,4 +1,5 @@
-import { format, formatDistance } from 'date-fns'
+import { format } from 'date-fns/format'
+import { formatDistance } from 'date-fns/formatDistance'
 
 import type { FilterContext } from '@/lib/types/domain/filter'
 

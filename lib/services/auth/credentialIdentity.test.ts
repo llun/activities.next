@@ -151,7 +151,7 @@ describe('credential identity', () => {
 
     await database().createCredentialProvider({
       accountId,
-      passwordHash: await bcrypt.hash(PASSWORD, 10)
+      passwordHash: await bcrypt.hash(PASSWORD, 4)
     })
 
     expect(await credentialRow(accountId)).toMatchObject({
@@ -174,7 +174,7 @@ describe('credential identity', () => {
 
     await database().createCredentialProvider({
       accountId,
-      passwordHash: await bcrypt.hash('different-password', 10)
+      passwordHash: await bcrypt.hash('different-password', 4)
     })
 
     const unchanged = await credentialRow(accountId)
@@ -190,7 +190,7 @@ describe('credential identity', () => {
 
     await database().resetPasswordWithCode({
       passwordResetCode,
-      newPasswordHash: await bcrypt.hash(NEW_PASSWORD, 10)
+      newPasswordHash: await bcrypt.hash(NEW_PASSWORD, 4)
     })
 
     expect(await credentialRow(accountId)).toMatchObject({
@@ -213,7 +213,7 @@ describe('credential identity', () => {
 
     await database().resetPasswordWithCode({
       passwordResetCode,
-      newPasswordHash: await bcrypt.hash(NEW_PASSWORD, 10)
+      newPasswordHash: await bcrypt.hash(NEW_PASSWORD, 4)
     })
 
     expect(await credentialRow(accountId)).toMatchObject({
@@ -231,7 +231,7 @@ describe('credential identity', () => {
 
     await database().changePassword({
       accountId,
-      newPasswordHash: await bcrypt.hash(NEW_PASSWORD, 10)
+      newPasswordHash: await bcrypt.hash(NEW_PASSWORD, 4)
     })
 
     expect(await credentialRow(accountId)).toMatchObject({
@@ -252,7 +252,7 @@ describe('credential identity', () => {
 
     await database().changePassword({
       accountId,
-      newPasswordHash: await bcrypt.hash(NEW_PASSWORD, 10)
+      newPasswordHash: await bcrypt.hash(NEW_PASSWORD, 4)
     })
 
     expect(await credentialRow(accountId)).toMatchObject({
