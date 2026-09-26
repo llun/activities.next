@@ -1,6 +1,7 @@
 import { Knex } from 'knex'
 
 import { SQLActorDatabase } from '@/lib/database/sql/actor'
+import { backfillListTimelineForMembers } from '@/lib/database/sql/list'
 import {
   CounterKey,
   decreaseCounterValue,
@@ -16,6 +17,7 @@ import {
   FollowDatabase,
   GetAcceptedFollowTargetActorIdsParams,
   GetAcceptedOrRequestedFollowParams,
+  GetAcceptedOrRequestedFollowTargetActorIdsParams,
   GetAcceptedOrRequestedFollowsWithDomainParams,
   GetFollowFromIdParams,
   GetFollowRequestsCountParams,
@@ -70,6 +72,26 @@ const applyFollowCursor = (
           .andWhere('id', operator, cursor.id)
       })
   })
+}
+
+// The subset of targetActorIds that actorId has a follow in one of `statuses`
+// for, each id once. Backs both batch lookups below, which differ only in the
+// statuses they admit.
+const selectFollowTargetActorIds = async (
+  database: Knex,
+  actorId: string,
+  targetActorIds: string[],
+  statuses: FollowStatus[]
+): Promise<string[]> => {
+  const uniqueTargetActorIds = [...new Set(targetActorIds)]
+  if (uniqueTargetActorIds.length === 0) return []
+
+  const follows = await database<Follow>('follows')
+    .select('targetActorId')
+    .where('actorId', actorId)
+    .whereIn('status', statuses)
+    .whereIn('targetActorId', uniqueTargetActorIds)
+  return [...new Set(follows.map((follow) => follow.targetActorId))]
 }
 
 const fixFollowDataDate = (data: Follow): Follow => ({
@@ -345,17 +367,19 @@ export const FollowerSQLDatabaseMixin = (
     actorId,
     targetActorIds
   }: GetAcceptedFollowTargetActorIdsParams) {
-    const uniqueTargetActorIds = [...new Set(targetActorIds)]
-    if (uniqueTargetActorIds.length === 0) return []
+    return selectFollowTargetActorIds(database, actorId, targetActorIds, [
+      FollowStatus.enum.Accepted
+    ])
+  },
 
-    const follows = await database<Follow>('follows')
-      .select('targetActorId')
-      .where({
-        actorId,
-        status: FollowStatus.enum.Accepted
-      })
-      .whereIn('targetActorId', uniqueTargetActorIds)
-    return [...new Set(follows.map((follow) => follow.targetActorId))]
+  async getAcceptedOrRequestedFollowTargetActorIds({
+    actorId,
+    targetActorIds
+  }: GetAcceptedOrRequestedFollowTargetActorIdsParams) {
+    return selectFollowTargetActorIds(database, actorId, targetActorIds, [
+      FollowStatus.enum.Accepted,
+      FollowStatus.enum.Requested
+    ])
   },
 
   async getFollowersInbox({ targetActorId }: GetFollowersInboxParams) {
@@ -425,17 +449,58 @@ export const FollowerSQLDatabaseMixin = (
         ])
       }
 
-      // Mastodon ties list membership to the follow: unfollowing an account
-      // removes it from all of the unfollower's lists. List membership is the
-      // source of truth for the list timeline, so dropping the membership (and
-      // the materialized list-feed rows it produced) is all that's needed — the
-      // owner is existingFollow.actorId (the follower) and the member is
-      // existingFollow.targetActorId (the followed). A user has few lists, so
-      // this is a small indexed delete on a rare action. The one membership no
-      // follow backs is the owner's own (a list owner may add themselves), so
-      // undoing a self-follow leaves it alone.
+      // A list member the owner had only requested to follow joined the list
+      // without its posts: backfillListTimelineForMembers skipped it and the
+      // new-status fan-out held its posts back. Now that the request is
+      // accepted, bring its stored posts into each of the owner's lists that
+      // hold it, as Mastodon's FollowRequest#authorize! merges the account into
+      // those lists. The owner is existingFollow.actorId (the follower) and the
+      // member existingFollow.targetActorId. A follow of oneself is skipped: the
+      // owner's membership of their own list never waited on it.
       if (
-        status === FollowStatus.enum.Undo &&
+        !wasAccepted &&
+        isAccepted &&
+        existingFollow.actorId !== existingFollow.targetActorId
+      ) {
+        const memberships = await trx('list_accounts')
+          .where({
+            actorId: existingFollow.actorId,
+            targetActorId: existingFollow.targetActorId
+          })
+          .select('listId')
+        for (const membership of memberships) {
+          await backfillListTimelineForMembers({
+            database: trx,
+            listId: membership.listId as string,
+            ownerId: existingFollow.actorId,
+            targetActorIds: [existingFollow.targetActorId]
+          })
+        }
+      }
+
+      // Mastodon ties list membership to the follow, or to the request while it
+      // is pending (a ListAccount cascades with its Follow or FollowRequest), so
+      // either one ending — undone, withdrawn or rejected, a Reject also being
+      // how a remote account removes a follower — removes the account from all
+      // of the owner's lists. List membership is the source of truth for the
+      // list timeline, so dropping the membership (and the materialized
+      // list-feed rows it produced) is all that's needed. This keys on the
+      // transition out of a live status rather than on the new status alone:
+      // the inbox resolves a Reject to its follow row by id whatever that row's
+      // status, so a late Reject of a request the owner already withdrew must
+      // not remove a membership a newer request now backs. A user has few
+      // lists, so this is a small indexed delete on a rare action. The one
+      // membership no follow backs is the owner's own (a list owner may add
+      // themselves), so ending a self-follow leaves it alone.
+      const wasLive =
+        existingFollow.status === FollowStatus.enum.Accepted ||
+        existingFollow.status === FollowStatus.enum.Requested
+      const endsFollow =
+        status === FollowStatus.enum.Undo ||
+        status === FollowStatus.enum.Rejected
+      if (
+        wasLive &&
+        endsFollow &&
         existingFollow.actorId !== existingFollow.targetActorId
       ) {
         const ownerId = existingFollow.actorId

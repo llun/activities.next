@@ -1,6 +1,12 @@
 import { NextRequest } from 'next/server'
 
-import { generatePublicId } from '@/lib/utils/publicId'
+import {
+  databaseBeforeAll,
+  getTestDatabaseTable
+} from '@/lib/database/testUtils'
+import { TEST_DOMAIN } from '@/lib/stub/const'
+import { FollowStatus } from '@/lib/types/domain/follow'
+import { generatePublicId, getClientActorId } from '@/lib/utils/publicId'
 import { idToUrl } from '@/lib/utils/urlToId'
 
 import { DELETE, GET, MAX_LIST_ACCOUNT_IDS, POST } from './route'
@@ -10,7 +16,8 @@ const mockDatabase = {
   getListAccounts: vi.fn(),
   addListAccounts: vi.fn(),
   removeListAccounts: vi.fn(),
-  isCurrentActorFollowing: vi.fn(),
+  getAcceptedOrRequestedFollowTargetActorIds: vi.fn(),
+  getActorsFromIds: vi.fn(),
   getActorIdsByPublicIds: vi.fn()
 }
 
@@ -21,25 +28,26 @@ const mockCurrentActor = {
   domain: 'local.test'
 }
 
+// What the bypassed guard hands the route: these mocks, unless the suite that
+// runs against a real database swaps in that database and one of its actors.
+let mockRouteContext: {
+  database: unknown
+  currentActor: { id: string; domain: string }
+} = { database: mockDatabase, currentActor: mockCurrentActor }
+
 vi.mock('@/lib/services/guards/OAuthGuard', () => {
   const bypass =
     (
       _scopes: unknown,
       handle: (
         req: NextRequest,
-        context: {
-          database: typeof mockDatabase
-          currentActor: typeof mockCurrentActor
+        context: typeof mockRouteContext & {
           params: Promise<{ id: string }>
         }
       ) => Promise<Response> | Response
     ) =>
     (req: NextRequest, context: { params: Promise<{ id: string }> }) =>
-      handle(req, {
-        database: mockDatabase,
-        currentActor: mockCurrentActor,
-        params: context.params
-      })
+      handle(req, { ...mockRouteContext, params: context.params })
   return {
     OAuthGuard: bypass,
     OAuthGuardAnyScope: bypass
@@ -50,6 +58,13 @@ const LIST_ID = 'list-1'
 const URL_BASE = `https://local.test/api/v1/lists/${LIST_ID}/accounts`
 
 const params = () => ({ params: Promise.resolve({ id: LIST_ID }) })
+
+const jsonPost = (accountIds: string[]) =>
+  new NextRequest(URL_BASE, {
+    method: 'POST',
+    body: JSON.stringify({ account_ids: accountIds }),
+    headers: { 'content-type': 'application/json' }
+  })
 
 describe('GET /api/v1/lists/:id/accounts', () => {
   beforeEach(() => {
@@ -112,51 +127,94 @@ describe('GET /api/v1/lists/:id/accounts', () => {
 describe('POST /api/v1/lists/:id/accounts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    // clearAllMocks keeps queued mockResolvedValueOnce values; drop them so a
-    // test that returns before its lookup can't hand its Map to the next one.
+    // clearAllMocks keeps queued mockResolvedValueOnce values and
+    // implementations; reset the lookups so no test inherits another's.
     mockDatabase.getActorIdsByPublicIds.mockReset()
+    mockDatabase.getAcceptedOrRequestedFollowTargetActorIds.mockReset()
+    mockDatabase.getActorsFromIds.mockReset()
     mockDatabase.getList.mockResolvedValue({ id: LIST_ID, title: 'Friends' })
     mockDatabase.addListAccounts.mockResolvedValue(undefined)
     mockDatabase.removeListAccounts.mockResolvedValue(undefined)
-    mockDatabase.isCurrentActorFollowing.mockResolvedValue(true)
+    // Unless a test says otherwise, the owner follows or has requested to
+    // follow every account named.
+    mockDatabase.getAcceptedOrRequestedFollowTargetActorIds.mockImplementation(
+      async ({ targetActorIds }: { targetActorIds: string[] }) => targetActorIds
+    )
+    mockDatabase.getActorsFromIds.mockResolvedValue([])
   })
 
-  it('requires an accepted follow before adding an account', async () => {
-    mockDatabase.isCurrentActorFollowing.mockResolvedValue(false)
-    const request = new NextRequest(URL_BASE, {
-      method: 'POST',
-      body: JSON.stringify({ account_ids: ['acc1'] }),
-      headers: { 'content-type': 'application/json' }
-    })
+  it.each([
+    {
+      description:
+        'answers 422 for an account the owner neither follows nor has requested to follow',
+      storedActorIds: [idToUrl('acc1')],
+      status: 422,
+      body: { error: 'Validation failed: Account must be a followed account' }
+    },
+    {
+      description: 'answers 404 for an id that names no account',
+      storedActorIds: [],
+      status: 404,
+      body: { error: 'Not Found' }
+    }
+  ])('$description', async ({ storedActorIds, status, body }) => {
+    mockDatabase.getAcceptedOrRequestedFollowTargetActorIds.mockResolvedValue(
+      []
+    )
+    mockDatabase.getActorsFromIds.mockResolvedValue(
+      storedActorIds.map((id) => ({ id }))
+    )
 
-    const response = await POST(request, params())
+    const response = await POST(jsonPost(['acc1']), params())
+
+    expect(response.status).toBe(status)
+    expect(await response.json()).toEqual(body)
+    expect(mockDatabase.addListAccounts).not.toHaveBeenCalled()
+  })
+
+  it('answers 404 when an unknown id comes with an account the owner does not follow', async () => {
+    // Mastodon looks every account up before it validates any membership.
+    mockDatabase.getAcceptedOrRequestedFollowTargetActorIds.mockResolvedValue(
+      []
+    )
+    mockDatabase.getActorsFromIds.mockResolvedValue([{ id: idToUrl('acc1') }])
+
+    const response = await POST(jsonPost(['acc1', 'acc2']), params())
 
     expect(response.status).toBe(404)
     expect(mockDatabase.addListAccounts).not.toHaveBeenCalled()
   })
 
-  it('checks the follow relationship for every target account', async () => {
-    const request = new NextRequest(URL_BASE, {
-      method: 'POST',
-      body: JSON.stringify({ account_ids: ['acc1', 'acc2'] }),
-      headers: { 'content-type': 'application/json' }
-    })
+  it('checks every account but the owner in one relationship query', async () => {
+    const ownPublicId = generatePublicId()
+    mockDatabase.getActorIdsByPublicIds.mockResolvedValueOnce(
+      new Map([[ownPublicId, mockCurrentActor.id]])
+    )
 
-    const response = await POST(request, params())
+    const response = await POST(
+      jsonPost(['acc1', ownPublicId, 'acc2', 'acc1']),
+      params()
+    )
 
     expect(response.status).toBe(200)
-    expect(mockDatabase.isCurrentActorFollowing).toHaveBeenCalledWith({
-      currentActorId: mockCurrentActor.id,
-      followingActorId: idToUrl('acc1')
-    })
-    expect(mockDatabase.isCurrentActorFollowing).toHaveBeenCalledWith({
-      currentActorId: mockCurrentActor.id,
-      followingActorId: idToUrl('acc2')
-    })
+    expect(
+      mockDatabase.getAcceptedOrRequestedFollowTargetActorIds.mock.calls
+    ).toEqual([
+      [
+        {
+          actorId: mockCurrentActor.id,
+          targetActorIds: [idToUrl('acc1'), idToUrl('acc2')]
+        }
+      ]
+    ])
+    // An account with a follow or a request behind it needs no lookup.
+    expect(mockDatabase.getActorsFromIds).not.toHaveBeenCalled()
   })
 
   it('lets the list owner add themselves without following themselves', async () => {
-    mockDatabase.isCurrentActorFollowing.mockResolvedValue(false)
+    mockDatabase.getAcceptedOrRequestedFollowTargetActorIds.mockResolvedValue(
+      []
+    )
     const ownPublicId = generatePublicId()
     mockDatabase.getActorIdsByPublicIds.mockResolvedValueOnce(
       new Map([[ownPublicId, mockCurrentActor.id]])
@@ -170,7 +228,6 @@ describe('POST /api/v1/lists/:id/accounts', () => {
     const response = await POST(request, params())
 
     expect(response.status).toBe(200)
-    expect(mockDatabase.isCurrentActorFollowing).not.toHaveBeenCalled()
     expect(mockDatabase.addListAccounts).toHaveBeenCalledWith({
       listId: LIST_ID,
       actorId: mockCurrentActor.id,
@@ -181,7 +238,7 @@ describe('POST /api/v1/lists/:id/accounts', () => {
   it.each([
     {
       description: 'adds the owner alongside a followed account in one request',
-      isFollowing: true,
+      relatedActorIds: [idToUrl('acc1')],
       status: 200,
       addCalls: [
         [
@@ -195,13 +252,16 @@ describe('POST /api/v1/lists/:id/accounts', () => {
     },
     {
       description:
-        'still requires a follow for anyone the owner adds alongside themselves',
-      isFollowing: false,
-      status: 404,
+        'still requires a follow or a request for anyone the owner adds alongside themselves',
+      relatedActorIds: [],
+      status: 422,
       addCalls: []
     }
-  ])('$description', async ({ isFollowing, status, addCalls }) => {
-    mockDatabase.isCurrentActorFollowing.mockResolvedValue(isFollowing)
+  ])('$description', async ({ relatedActorIds, status, addCalls }) => {
+    mockDatabase.getAcceptedOrRequestedFollowTargetActorIds.mockResolvedValue(
+      relatedActorIds
+    )
+    mockDatabase.getActorsFromIds.mockResolvedValue([{ id: idToUrl('acc1') }])
     const ownPublicId = generatePublicId()
     mockDatabase.getActorIdsByPublicIds.mockResolvedValueOnce(
       new Map([[ownPublicId, mockCurrentActor.id]])
@@ -215,15 +275,6 @@ describe('POST /api/v1/lists/:id/accounts', () => {
     const response = await POST(request, params())
 
     expect(response.status).toBe(status)
-    // Only the other account's follow is checked, never the owner's own id.
-    expect(mockDatabase.isCurrentActorFollowing.mock.calls).toEqual([
-      [
-        {
-          currentActorId: mockCurrentActor.id,
-          followingActorId: idToUrl('acc1')
-        }
-      ]
-    ])
     expect(mockDatabase.addListAccounts.mock.calls).toEqual(addCalls)
   })
 
@@ -427,5 +478,148 @@ describe('DELETE /api/v1/lists/:id/accounts', () => {
 
     expect(response.status).toBe(422)
     expect(mockDatabase.removeListAccounts).not.toHaveBeenCalled()
+  })
+})
+
+describe('POST /api/v1/lists/:id/accounts against the database', () => {
+  const table = getTestDatabaseTable()
+
+  beforeAll(async () => {
+    await databaseBeforeAll(table)
+  })
+
+  afterEach(() => {
+    mockRouteContext = {
+      database: mockDatabase,
+      currentActor: mockCurrentActor
+    }
+  })
+
+  afterAll(async () => {
+    await Promise.all(table.map(([, database]) => database.destroy()))
+  })
+
+  describe.each(table)('%s', (_, database) => {
+    const localActor = async (username: string) => {
+      await database.createAccount({
+        email: `${username}@${TEST_DOMAIN}`,
+        username,
+        passwordHash: 'hash',
+        domain: TEST_DOMAIN,
+        privateKey: `privateKey-${username}`,
+        publicKey: `publicKey-${username}`
+      })
+      const actor = await database.getActorFromUsername({
+        username,
+        domain: TEST_DOMAIN
+      })
+      if (!actor) throw new Error(`${username} not created`)
+      return actor
+    }
+
+    // Posts to a fresh list of the owner's the way a client would, then reads
+    // back who is on it.
+    const addToNewList = async (
+      owner: { id: string; domain: string },
+      accountId: string
+    ) => {
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Route'
+      })
+      mockRouteContext = { database, currentActor: owner }
+      const response = await POST(
+        new NextRequest(
+          `https://${TEST_DOMAIN}/api/v1/lists/${list.id}/accounts`,
+          {
+            method: 'POST',
+            body: JSON.stringify({ account_ids: [accountId] }),
+            headers: { 'content-type': 'application/json' }
+          }
+        ),
+        { params: Promise.resolve({ id: list.id }) }
+      )
+      const { accounts } = await database.getListAccounts({
+        listId: list.id,
+        actorId: owner.id
+      })
+      return {
+        status: response.status,
+        members: accounts.map((account) => account.username)
+      }
+    }
+
+    it.each([
+      {
+        description: 'adds an account the owner has only requested to follow',
+        key: 'requested',
+        statuses: [FollowStatus.enum.Requested],
+        status: 200,
+        listed: true
+      },
+      {
+        description: 'adds an account the owner follows',
+        key: 'accepted',
+        statuses: [FollowStatus.enum.Accepted],
+        status: 200,
+        listed: true
+      },
+      {
+        description: 'refuses an account whose follow request was withdrawn',
+        key: 'withdrawn',
+        statuses: [FollowStatus.enum.Requested, FollowStatus.enum.Undo],
+        status: 422,
+        listed: false
+      },
+      {
+        description: 'refuses an account whose follow request was rejected',
+        key: 'rejected',
+        statuses: [FollowStatus.enum.Requested, FollowStatus.enum.Rejected],
+        status: 422,
+        listed: false
+      },
+      {
+        description: 'refuses an account the owner never asked to follow',
+        key: 'unrelated',
+        statuses: [],
+        status: 422,
+        listed: false
+      }
+    ])('$description', async ({ key, statuses, status, listed }) => {
+      const owner = await localActor(`route-${key}-owner`)
+      const account = await localActor(`route-${key}-account`)
+      const [createdAs, ...transitions] = statuses
+      if (createdAs) {
+        const follow = await database.createFollow({
+          actorId: owner.id,
+          targetActorId: account.id,
+          status: createdAs,
+          inbox: `${account.id}/inbox`,
+          sharedInbox: `${account.id}/inbox`
+        })
+        for (const next of transitions) {
+          await database.updateFollowStatus({
+            followId: follow.id,
+            status: next
+          })
+        }
+      }
+
+      const result = await addToNewList(owner, getClientActorId(account))
+
+      expect(result).toEqual({
+        status,
+        members: listed ? [account.username] : []
+      })
+    })
+
+    it('answers 404 for an id that names no account', async () => {
+      const owner = await localActor('route-unknown-owner')
+
+      expect(await addToNewList(owner, generatePublicId())).toEqual({
+        status: 404,
+        members: []
+      })
+    })
   })
 })

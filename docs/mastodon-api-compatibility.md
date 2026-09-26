@@ -296,9 +296,11 @@ product or security decision, not a gap to be closed.
   appear if the policy is loosened later.
 
 - **Adding any other member backfills their full history.** Adding an account
-  you follow to a list brings all of its stored posts into the list. Mastodon
-  ≥ 4.4 merges at most 200 of a followed member's recent posts, and earlier
-  versions backfill nothing.
+  you follow to a list brings all of its stored posts into the list. An account
+  you have only requested to follow can join a list too (Mastodon ≥ 4.2), and
+  its stored posts are brought in the same way once it accepts the request.
+  Mastodon ≥ 4.4 merges at most 200 of a member's recent posts in both cases,
+  and earlier versions backfill nothing.
 
 ## Not planned
 

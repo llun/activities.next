@@ -88,7 +88,8 @@ export const addStatusToTimelines = async (
         )
       // Fan the post into the materialized feed of every list that includes its
       // author (independent of the recipient fan-out below, since list ownership
-      // — not delivery — decides list membership). Visibility/replies-policy are
+      // — not delivery — decides list membership), unless the list's owner is
+      // still waiting on a follow request to them. Visibility/replies-policy are
       // enforced at read time, so this materializes the same candidate set the
       // old live list query scanned. Best-effort: see materializeAuxiliaryFeed.
       await materializeAuxiliaryFeed('list timelines', status, () =>
