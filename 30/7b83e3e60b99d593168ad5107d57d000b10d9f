@@ -1,0 +1,19 @@
+docs/fitness-file-storage.md
+  s_725909a67e1914::t_c9a9d941437f15 1008-1010
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "307b83e3e60b99d593168ad5107d57d000b10d9f",
+  "prompts": {},
+  "sessions": {
+    "s_725909a67e1914": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d554-1283-7a03-aa63-f06a555f70ba",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
