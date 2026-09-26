@@ -145,12 +145,38 @@ describe('GearListView', () => {
 
   it('renders an em dash when a gear has no default sports', async () => {
     mockGetFitnessGearList.mockResolvedValue([
-      createGear({ defaultSports: [] })
+      createGear({
+        defaultSports: [],
+        productUrl: 'https://www.canyon.com'
+      })
     ])
     render(<GearListView />)
 
     const bikes = await getSection('Bikes')
     expect(bikes.getByText('—')).toBeInTheDocument()
+  })
+
+  it('renders product page link for bikes and shoes', async () => {
+    mockGetFitnessGearList.mockResolvedValue([
+      createGear({ productUrl: 'https://www.canyon.com/endurace' }),
+      createGear({
+        id: 'gear-2',
+        kind: 'shoes',
+        name: 'Cloudmonster',
+        productUrl: 'https://www.on.com/cloudmonster'
+      })
+    ])
+    render(<GearListView />)
+
+    const bikes = await getSection('Bikes')
+    expect(
+      bikes.getByRole('link', { name: 'Product page: canyon.com' })
+    ).toHaveAttribute('href', 'https://www.canyon.com/endurace')
+
+    const shoes = await getSection('Shoes')
+    expect(
+      shoes.getByRole('link', { name: 'Product page: on.com' })
+    ).toHaveAttribute('href', 'https://www.on.com/cloudmonster')
   })
 
   it('separates shoes from bikes', async () => {

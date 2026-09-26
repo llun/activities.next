@@ -273,6 +273,35 @@ describe('Fitness gear component item API', () => {
       expect(mockDb.updateFitnessGearComponent).toHaveBeenCalled()
     })
 
+    it('updates productUrl and returns the updated component', async () => {
+      mockDb.updateFitnessGearComponent.mockResolvedValue(
+        component({ productUrl: 'https://example.com/updated' })
+      )
+
+      const response = await PATCH(
+        new NextRequest(url, {
+          method: 'PATCH',
+          headers: { Origin: 'https://llun.test' },
+          body: JSON.stringify({ productUrl: 'https://example.com/updated' })
+        }),
+        params
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.component).toMatchObject({
+        productUrl: 'https://example.com/updated'
+      })
+      expect(mockDb.updateFitnessGearComponent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'component-1',
+          gearId: 'gear-1',
+          actorId: ACTOR1_ID,
+          productUrl: 'https://example.com/updated'
+        })
+      )
+    })
+
     // A refitted component, whose derived pair comes from two DIFFERENT periods:
     // `addedAt` is P1's start and `removedAt` is P2's end. Validating a request
     // against that pair compares bounds that do not belong together — which is

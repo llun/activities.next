@@ -3,6 +3,7 @@
 import { Plus, Wrench } from 'lucide-react'
 import { FC, FormEvent, useState } from 'react'
 
+import { GearProductLink } from '@/app/(timeline)/fitness/gear/GearProductLink'
 import {
   COMPONENT_TYPE_OPTIONS,
   STICKY_COLUMN,
@@ -162,6 +163,7 @@ export const GearComponentsCard: FC<Props> = ({
   const [addedMode, setAddedMode] = useState<AddedMode>('beginning')
   const [addedDate, setAddedDate] = useState('')
   const [serviceKm, setServiceKm] = useState('')
+  const [productUrl, setProductUrl] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pendingActionId, setPendingActionId] = useState<string | null>(null)
@@ -198,6 +200,7 @@ export const GearComponentsCard: FC<Props> = ({
     setAddedMode('beginning')
     setAddedDate('')
     setServiceKm('')
+    setProductUrl('')
     setError(null)
   }
 
@@ -223,7 +226,8 @@ export const GearComponentsCard: FC<Props> = ({
         brand: brand.trim() || null,
         model: model.trim() || null,
         addedAt: Number.isFinite(addedAtMs) ? addedAtMs : undefined,
-        serviceDistanceMeters: serviceKm ? Number(serviceKm) * 1000 : null
+        serviceDistanceMeters: serviceKm ? Number(serviceKm) * 1000 : null,
+        productUrl: productUrl.trim() || null
       })
       closeForm()
       onChanged()
@@ -426,6 +430,23 @@ export const GearComponentsCard: FC<Props> = ({
             </div>
           </div>
 
+          <div className="space-y-1.5">
+            <Label htmlFor="component-product-url">Product page</Label>
+            <Input
+              id="component-product-url"
+              type="url"
+              inputMode="url"
+              placeholder="https://"
+              maxLength={255}
+              value={productUrl}
+              onChange={(event) => setProductUrl(event.target.value)}
+              disabled={isSaving}
+            />
+            <p className="text-xs text-muted-foreground">
+              Optional link to the manufacturer&apos;s product page.
+            </p>
+          </div>
+
           <div className="flex flex-wrap gap-2">
             <Button size="sm" type="submit" disabled={isSaving}>
               Save component
@@ -472,6 +493,9 @@ export const GearComponentsCard: FC<Props> = ({
                 </th>
                 <th className="px-3 pb-2 font-medium" style={dataColumnStyle()}>
                   Model
+                </th>
+                <th className="px-3 pb-2 font-medium" style={dataColumnStyle()}>
+                  Product page
                 </th>
                 <th
                   className="px-3 pb-2 text-right font-medium"
@@ -532,6 +556,15 @@ export const GearComponentsCard: FC<Props> = ({
                       style={dataColumnStyle(132)}
                     >
                       {component.model || '—'}
+                    </td>
+                    <td
+                      className={cn(
+                        'px-3 py-2.5 align-top text-xs text-muted-foreground truncate',
+                        isRetired && 'opacity-60'
+                      )}
+                      style={dataColumnStyle(100)}
+                    >
+                      <GearProductLink productUrl={component.productUrl} />
                     </td>
                     <td
                       className={cn(

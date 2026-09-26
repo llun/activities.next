@@ -66,6 +66,7 @@ export interface SQLFitnessGearComponent {
   createdAt: number | Date
   updatedAt: number | Date
   deletedAt?: number | Date | string | null
+  productUrl?: string | null
 }
 
 /**
@@ -128,6 +129,7 @@ export interface FitnessGearComponent {
   createdAt: number
   updatedAt: number
   deletedAt?: number
+  productUrl?: string
 }
 
 /**

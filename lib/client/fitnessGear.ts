@@ -60,6 +60,7 @@ export interface CreateFitnessGearComponentInput {
   addedAt?: number | null
   removedAt?: number | null
   serviceDistanceMeters?: number | null
+  productUrl?: string | null
 }
 
 export const getFitnessGearList = async (): Promise<GearEntity[]> => {

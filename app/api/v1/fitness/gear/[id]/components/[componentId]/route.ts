@@ -105,6 +105,9 @@ export const PATCH = traceApiRoute(
         : {}),
       ...('serviceDistanceMeters' in parsed.data
         ? { serviceDistanceMeters: parsed.data.serviceDistanceMeters }
+        : {}),
+      ...('productUrl' in parsed.data
+        ? { productUrl: parsed.data.productUrl }
         : {})
     })
     if (!component) return apiErrorResponse(HTTP_STATUS.NOT_FOUND)

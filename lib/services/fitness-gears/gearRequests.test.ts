@@ -280,6 +280,54 @@ describe('CreateGearComponentRequest', () => {
     expect(parsed.success).toBe(true)
     expect(parsed.data?.addedAt).toBeUndefined()
   })
+
+  it('accepts and trims a valid productUrl', () => {
+    const parsed = CreateGearComponentRequest.safeParse({
+      componentType: 'Chain',
+      productUrl: '  https://www.shimano.com/chain  '
+    })
+    expect(parsed.success).toBe(true)
+    expect(parsed.data?.productUrl).toBe('https://www.shimano.com/chain')
+  })
+
+  it('rejects an invalid productUrl', () => {
+    expect(
+      CreateGearComponentRequest.safeParse({
+        componentType: 'Chain',
+        productUrl: 'javascript:alert(1)'
+      }).success
+    ).toBe(false)
+  })
+})
+
+describe('UpdateGearComponentRequest', () => {
+  it('leaves an unmentioned productUrl absent', () => {
+    const parsed = UpdateGearComponentRequest.safeParse({ brand: 'Shimano' })
+    expect(parsed.success).toBe(true)
+    expect('productUrl' in (parsed.data ?? {})).toBe(false)
+  })
+
+  it('accepts null to clear productUrl', () => {
+    const parsed = UpdateGearComponentRequest.safeParse({ productUrl: null })
+    expect(parsed.success).toBe(true)
+    expect(parsed.data?.productUrl).toBeNull()
+  })
+
+  it('accepts a valid productUrl', () => {
+    const parsed = UpdateGearComponentRequest.safeParse({
+      productUrl: 'https://example.com/component'
+    })
+    expect(parsed.success).toBe(true)
+    expect(parsed.data?.productUrl).toBe('https://example.com/component')
+  })
+
+  it('rejects an invalid productUrl', () => {
+    expect(
+      UpdateGearComponentRequest.safeParse({
+        productUrl: 'ftp://example.com'
+      }).success
+    ).toBe(false)
+  })
 })
 
 describe('getGearKindFieldError', () => {

@@ -112,7 +112,13 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd }) => {
         <p className="px-4 text-sm text-muted-foreground">{copy.emptyState}</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[520px] text-sm">
+          <table className="w-full min-w-[560px] table-fixed text-sm">
+            <colgroup>
+              <col className="w-[34%]" />
+              <col className="w-[26%]" />
+              <col className="w-[24%]" />
+              <col className="w-[16%]" />
+            </colgroup>
             <thead>
               <tr className="text-left text-xs font-medium text-muted-foreground">
                 <th
@@ -123,6 +129,7 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd }) => {
                 >
                   {copy.columnHeader}
                 </th>
+                <th className="px-3 pb-2 font-medium">Product page</th>
                 <th className="px-3 pb-2 font-medium">Default sports</th>
                 <th className="px-3 pr-4 pb-2 text-right font-medium">
                   Distance
@@ -172,7 +179,18 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd }) => {
                     </td>
                     <td
                       className={cn(
-                        'px-3 py-3 align-middle text-xs text-muted-foreground',
+                        'px-3 py-3 align-middle text-xs text-muted-foreground truncate',
+                        gear.retiredAt && 'opacity-60'
+                      )}
+                    >
+                      <GearProductLink
+                        productUrl={gear.productUrl}
+                        onClick={(event) => event.stopPropagation()}
+                      />
+                    </td>
+                    <td
+                      className={cn(
+                        'px-3 py-3 align-middle text-xs text-muted-foreground truncate',
                         gear.retiredAt && 'opacity-60'
                       )}
                     >
@@ -239,7 +257,12 @@ const DeviceSection: FC<{ gears: GearEntity[] }> = ({ gears }) => {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[520px] text-sm">
+        <table className="w-full min-w-[560px] table-fixed text-sm">
+          <colgroup>
+            <col className="w-[34%]" />
+            <col className="w-[26%]" />
+            <col className="w-[40%]" />
+          </colgroup>
           <thead>
             <tr className="text-left text-xs font-medium text-muted-foreground">
               <th
@@ -288,7 +311,7 @@ const DeviceSection: FC<{ gears: GearEntity[] }> = ({ gears }) => {
                       </div>
                     )}
                   </td>
-                  <td className="px-3 py-3 align-middle text-xs text-muted-foreground">
+                  <td className="px-3 py-3 align-middle text-xs text-muted-foreground truncate">
                     {/* No `onEdit`: the list has no form to open, so a device
                         with no product page gets the em dash. */}
                     <GearProductLink

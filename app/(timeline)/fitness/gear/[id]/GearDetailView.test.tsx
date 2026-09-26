@@ -96,6 +96,7 @@ const createComponent = (
     componentType: 'Chain',
     brand: 'Shimano',
     model: 'HG701',
+    productUrl: null,
     addedAt: Date.UTC(2024, 0, 15),
     removedAt: null,
     serviceDistanceMeters: null,

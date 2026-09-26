@@ -74,6 +74,7 @@ export interface GearComponentEntity {
   serviceDistanceMeters: number | null
   distanceMeters: number
   activityCount: number
+  productUrl: string | null
 }
 
 /**
@@ -126,5 +127,6 @@ export const toGearComponentEntity = (
   })),
   serviceDistanceMeters: component.serviceDistanceMeters ?? null,
   distanceMeters: rollup.distanceMeters,
-  activityCount: rollup.activityCount
+  activityCount: rollup.activityCount,
+  productUrl: component.productUrl ?? null
 })

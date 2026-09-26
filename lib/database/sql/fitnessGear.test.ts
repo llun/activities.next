@@ -935,6 +935,41 @@ describe('FitnessGearDatabase', () => {
         })
         expect(components.some((item) => item.id === component!.id)).toBe(false)
       })
+
+      it('creates and updates component with productUrl', async () => {
+        const gear = await database.createFitnessGear({
+          actorId: actors.primary.id,
+          kind: 'bike',
+          name: 'Component product url'
+        })
+        const component = await database.createFitnessGearComponent({
+          gearId: gear.id,
+          actorId: actors.primary.id,
+          componentType: 'Chain',
+          brand: 'Shimano',
+          model: 'CN-M9100',
+          productUrl: 'https://bike.shimano.com/product/cn-m9100.html'
+        })
+        expect(component?.productUrl).toBe(
+          'https://bike.shimano.com/product/cn-m9100.html'
+        )
+
+        const updated = await database.updateFitnessGearComponent({
+          id: component!.id,
+          gearId: gear.id,
+          actorId: actors.primary.id,
+          productUrl: 'https://bike.shimano.com/updated'
+        })
+        expect(updated?.productUrl).toBe('https://bike.shimano.com/updated')
+
+        const cleared = await database.updateFitnessGearComponent({
+          id: component!.id,
+          gearId: gear.id,
+          actorId: actors.primary.id,
+          productUrl: null
+        })
+        expect(cleared?.productUrl).toBeUndefined()
+      })
     })
 
     describe('retireFitnessGearComponent', () => {
