@@ -1,0 +1,43 @@
+app/(timeline)/fitness/gear/[id]/GearComponentFormDialog.test.tsx
+  s_725909a67e1914::t_de0ee3524d1029 1-229
+app/(timeline)/fitness/gear/[id]/GearComponentFormDialog.tsx
+  s_0bf546b0579173::t_da9f8a7ddbbf81 1-280
+app/(timeline)/fitness/gear/[id]/GearComponentsCard.test.tsx
+  s_0bf546b0579173::t_43d83f342e25db 11-12,22-23,30-33,130,218-226,553,560-562,569-626
+app/(timeline)/fitness/gear/[id]/GearComponentsCard.tsx
+  s_d14ca01079411b::t_3823f814f36bec 4,24-25,57-72,164-166,285-288,297-308,334-337,360,392,447,452-465,499-507,509-522,524-539
+docs/fitness-file-storage.md
+  s_0bf546b0579173::t_b1b996542d6fad 1122,1125-1134,1172-1173
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bcc44266979194ebd548104baa5fdb4e2ab030f7",
+  "prompts": {},
+  "sessions": {
+    "s_0bf546b0579173": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d560-7dda-79e1-9667-23b2a9b32b2a",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_725909a67e1914": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d554-1283-7a03-aa63-f06a555f70ba",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_d14ca01079411b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d9d7-0e58-7040-8a9b-de72e5e8e886",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
