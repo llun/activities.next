@@ -1,0 +1,25 @@
+lib/database/sql/utils/followTargetActorIds.ts
+  s_b87e31a2061ef9::t_5037a2e01db3f8 1-22
+lib/database/sql/list.ts
+  s_b87e31a2061ef9::t_d54a9544266012 6
+  s_b87e31a2061ef9::t_279f05c586d29b 140-142
+lib/database/sql/follow.ts
+  s_b87e31a2061ef9::t_43959b50094369 434-438
+  s_b87e31a2061ef9::t_f0333de776cfc1 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e6a442b7cda0ed863dc331b4d51e9d9a95506f3b",
+  "prompts": {},
+  "sessions": {
+    "s_b87e31a2061ef9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1e1c7f30-c9e8-4ed9-b019-a0042fc2e1e5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
