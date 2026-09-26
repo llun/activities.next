@@ -24,12 +24,13 @@ describe('Fitness Layout', () => {
   // deeper tab — see the /fitness/heatmap and /fitness/files cases.
   it.each([
     ['/fitness', 'Overview'],
+    ['/fitness/gear', 'Gear'],
     ['/fitness/heatmap', 'Heatmaps'],
     ['/fitness/files', 'Files'],
     ['/fitness/privacy', 'Privacy'],
-    ['/fitness/strava', 'Strava'],
-    ['/fitness/wahoo', 'Wahoo'],
-    ['/fitness/gear', 'Gear'],
+    ['/fitness/connections', 'Connections'],
+    ['/fitness/connections/strava', 'Connections'],
+    ['/fitness/connections/wahoo', 'Connections'],
     ['/fitness/files/abc123', 'Files'],
     ['/fitness/gear/abc123', 'Gear']
   ])('reflects the active tab in the dropdown trigger on %s', (path, label) => {
@@ -71,12 +72,11 @@ describe('Fitness Layout', () => {
     const menu = await screen.findByRole('menu')
     for (const label of [
       'Overview',
+      'Gear',
       'Heatmaps',
       'Files',
       'Privacy',
-      'Strava',
-      'Wahoo',
-      'Gear'
+      'Connections'
     ]) {
       expect(
         within(menu).getByRole('menuitem', { name: label })
@@ -85,16 +85,16 @@ describe('Fitness Layout', () => {
   })
 
   it('marks the active section as current in the opened dropdown', async () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/fitness/strava')
+    ;(usePathname as jest.Mock).mockReturnValue('/fitness/connections')
     renderLayout()
 
     const nav = screen.getByRole('navigation', { name: 'Fitness' })
     fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
 
     const menu = await screen.findByRole('menu')
-    const active = within(menu).getByRole('menuitem', { name: 'Strava' })
+    const active = within(menu).getByRole('menuitem', { name: 'Connections' })
     expect(active).toHaveAttribute('aria-current', 'page')
-    expect(active).toHaveAttribute('href', '/fitness/strava')
+    expect(active).toHaveAttribute('href', '/fitness/connections')
     expect(
       within(menu).getByRole('menuitem', { name: 'Overview' })
     ).not.toHaveAttribute('aria-current')

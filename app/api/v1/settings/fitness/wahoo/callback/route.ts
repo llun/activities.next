@@ -17,7 +17,7 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 const redirectToSettings = (error?: string) => {
   const host = getConfig().host
   const protocol = host.startsWith('localhost') ? 'http' : 'https'
-  const url = new URL(`${protocol}://${host}/fitness/wahoo`)
+  const url = new URL(`${protocol}://${host}/fitness/connections/wahoo`)
   url.searchParams.set(error ? 'error' : 'success', error ?? 'true')
   return NextResponse.redirect(url)
 }

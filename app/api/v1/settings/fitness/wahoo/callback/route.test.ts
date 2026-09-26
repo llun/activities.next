@@ -77,7 +77,7 @@ describe('Wahoo OAuth callback', () => {
 
     expect(response.status).toBe(307)
     expect(response.headers.get('location')).toBe(
-      'https://test.llun.dev/fitness/wahoo?error=wahoo_account_already_connected'
+      'https://test.llun.dev/fitness/connections/wahoo?error=wahoo_account_already_connected'
     )
     expect(mockDb.updateFitnessSettings).toHaveBeenCalledTimes(1)
   })

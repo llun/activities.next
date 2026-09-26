@@ -79,7 +79,7 @@ const PALETTE_CALLOUTS: {
   darkBackground: string
 }[] = [
   {
-    file: 'app/(timeline)/fitness/strava/StravaSettingsForm.tsx',
+    file: 'app/(timeline)/fitness/connections/strava/StravaSettingsForm.tsx',
     lightForeground: 'yellow-800',
     lightBackground: 'yellow-50',
     darkForeground: 'yellow-200',

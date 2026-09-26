@@ -2,8 +2,6 @@ import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 
-const Page = () => {
-  redirect('/fitness/connections/wahoo')
+export default function ConnectionsPage() {
+  redirect('/fitness/connections/strava')
 }
-
-export default Page
