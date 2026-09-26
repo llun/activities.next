@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { applyBlockMuteFilter } from '@/lib/database/sql/utils/blockMuteFilter'
+import { selectFollowTargetActorIds } from '@/lib/database/sql/utils/followTargetActorIds'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   chunkArray,
@@ -32,6 +33,7 @@ import {
   RemoveListAccountsParams,
   UpdateListParams
 } from '@/lib/types/database/operations'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { List, ListRepliesPolicy } from '@/lib/types/domain/list'
 import { Status } from '@/lib/types/domain/status'
 
@@ -62,13 +64,15 @@ type BackfillStatusRow = {
 }
 
 // Materialize the given members' existing posts into a list's `timelines`
-// partition. Used to backfill full history when members are added (and by the
-// one-time backfill migration via the same column shape). Inserts are idempotent
-// on the unique (actorId, timeline, statusId), so it can safely overlap with the
-// new-status fan-out and is a no-op for members already present. The owner
-// adding themselves is the one exception to full history — see
-// LIST_OWNER_BACKFILL_MAX_POSTS.
-const backfillListTimelineForMembers = async ({
+// partition. Used to backfill full history when members are added, and again
+// when the owner's follow request to a member is accepted (updateFollowStatus),
+// and by the one-time backfill migration via the same column shape. Inserts are
+// idempotent on the unique (actorId, timeline, statusId), so it can safely
+// overlap with the new-status fan-out and is a no-op for members already
+// present. The owner adding themselves is the one exception to full history —
+// see LIST_OWNER_BACKFILL_MAX_POSTS. A member the owner has only requested to
+// follow gets nothing yet, as in addStatusToListTimelines.
+export const backfillListTimelineForMembers = async ({
   database,
   listId,
   ownerId,
@@ -125,15 +129,25 @@ const backfillListTimelineForMembers = async ({
   // Fetch the added members' posts in chunked IN queries rather than one query
   // per member (avoids an N+1 across the accounts being added). Each chunk's rows
   // carry statusActorId from the status itself, so a single pass materializes the
-  // whole chunk.
+  // whole chunk. The chunk size reserves the two bindings the pending-request
+  // lookup adds to its IN list.
   const memberIds = targetActorIds.filter(
     (targetActorId) => targetActorId !== ownerId
   )
-  const whereInBatchSize = getWhereInBatchSize(database, 0)
+  const whereInBatchSize = getWhereInBatchSize(database, 2)
   for (const idChunk of chunkArray(memberIds, whereInBatchSize)) {
+    const pendingMemberIds = new Set(
+      await selectFollowTargetActorIds(database, ownerId, idChunk, [
+        FollowStatus.enum.Requested
+      ])
+    )
+    const backfillMemberIds = idChunk.filter(
+      (memberId) => !pendingMemberIds.has(memberId)
+    )
+    if (backfillMemberIds.length === 0) continue
     await materialize(
       await database('statuses')
-        .whereIn('actorId', idChunk)
+        .whereIn('actorId', backfillMemberIds)
         .select<BackfillStatusRow[]>('id', 'actorId', 'createdAt')
     )
   }
@@ -355,9 +369,10 @@ export const ListSQLDatabaseMixin = (
       // so the timeline shows full history immediately (matching the old live
       // join), not just posts published after they were added — except the
       // owner adding themselves, who gets only their most recent posts
-      // (LIST_OWNER_BACKFILL_MAX_POSTS). onConflict ignores any rows the
-      // new-status fan-out already wrote, so re-adding a member is a no-op rather
-      // than a duplicate.
+      // (LIST_OWNER_BACKFILL_MAX_POSTS), and a member the owner has only
+      // requested to follow, whose posts wait for the request to be accepted.
+      // onConflict ignores any rows the new-status fan-out already wrote, so
+      // re-adding a member is a no-op rather than a duplicate.
       await backfillListTimelineForMembers({
         database: trx,
         listId,
@@ -434,9 +449,10 @@ export const ListSQLDatabaseMixin = (
     // the same fast indexed read the home feed uses. The candidate set is the
     // old join's — every status whose author is a list member — except for the
     // owner as a member of their own list, whose history is backfilled only up
-    // to LIST_OWNER_BACKFILL_MAX_POSTS. The visibility, list-eligibility,
-    // replies-policy and block/mute filters below still run pre-LIMIT against
-    // the joined statuses row.
+    // to LIST_OWNER_BACKFILL_MAX_POSTS, and a member the owner has only
+    // requested to follow, who has none until the request is accepted. The
+    // visibility, list-eligibility, replies-policy and block/mute filters below
+    // still run pre-LIMIT against the joined statuses row.
     const timeline = listTimelineKey(listId)
     const query = database('timelines')
       .innerJoin('statuses', 'statuses.id', 'timelines.statusId')
@@ -564,9 +580,27 @@ export const ListSQLDatabaseMixin = (
     // Find every list whose membership includes this status's author. Each
     // list_accounts row already carries the owner (actorId) and listId, so no
     // join to `lists` is needed; targetActorId is indexed for this lookup.
+    // A membership still waiting on the owner's follow request gets nothing:
+    // Mastodon (≥ 4.2) lets a pending request join a list, but its
+    // lists_for_local_distribution reaches only a membership backed by a follow
+    // or the owner's own, and updateFollowStatus backfills the member once the
+    // request is accepted. The owner's own posts always pass — their membership
+    // of their own list never rides on a follow, even a pending one of
+    // themselves.
     const memberships = await database('list_accounts')
-      .where('targetActorId', status.actorId)
-      .select('listId', 'actorId')
+      .where('list_accounts.targetActorId', status.actorId)
+      .where((builder) => {
+        builder
+          .where('list_accounts.actorId', status.actorId)
+          .orWhereNotExists(function () {
+            this.select(database.raw('1'))
+              .from('follows')
+              .whereRaw('?? = ??', ['follows.actorId', 'list_accounts.actorId'])
+              .where('follows.targetActorId', status.actorId)
+              .where('follows.status', FollowStatus.enum.Requested)
+          })
+      })
+      .select('list_accounts.listId', 'list_accounts.actorId')
     if (memberships.length === 0) return
 
     const createdAt = new Date(status.createdAt)

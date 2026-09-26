@@ -5,6 +5,7 @@ import {
   OAuthGuardAnyScope
 } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import { LIST_ACCOUNT_NOT_FOLLOWED_ERROR } from '@/lib/services/mastodon/constants'
 import { resolveActorIdParams } from '@/lib/services/mastodon/resolveClientId'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -26,10 +27,11 @@ const MAX_LIMIT = 80
 const DEFAULT_LIMIT = 40
 // Upper bound on how many accounts a single add/remove may name. Mastodon does
 // not document a cap; this matches the other batch ceilings in the API surface
-// (MAX_COLLECTION_ACCOUNT_IDS, MAX_BATCH_STATUSES). Every id costs a follow
-// check on add, so an unbounded list is unbounded work. Over-cap requests are
-// rejected with the route's existing 422. Exported so the route test can
-// exercise the cap.
+// (MAX_COLLECTION_ACCOUNT_IDS, MAX_BATCH_STATUSES). Every id joins the follow
+// check and the feed backfill on add, so an unbounded list is unbounded work —
+// and the cap is also what keeps those lookups' IN lists inside SQLite's
+// bound-parameter limit. Over-cap requests are rejected with the route's
+// existing 422. Exported so the route test can exercise the cap.
 export const MAX_LIST_ACCOUNT_IDS = 100
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
@@ -193,29 +195,50 @@ export const POST = traceApiRoute(
 
       // One batched publicId lookup for the whole list, not one per id.
       const targetActorIds = await resolveActorIdParams(database, accountIds)
-      // Mastodon only allows adding accounts the requester follows (≥ 4.2 also
-      // accepts a pending follow request; this route requires an accepted
-      // follow), plus the requester themselves — ListAccount skips its follow
-      // requirement when the account is the list's owner (Mastodon ≥ 3.1),
-      // which is how a list can show its owner's own posts. Anything else
-      // (including bogus ids) is a 404 so no dangling membership rows are
-      // created for actors that don't resolve.
-      const followChecks = await Promise.all(
-        targetActorIds.map((targetActorId) =>
-          targetActorId === currentActor.id
-            ? true
-            : database.isCurrentActorFollowing({
-                currentActorId: currentActor.id,
-                followingActorId: targetActorId
-              })
+      // Mastodon's ListAccount admits an account the requester follows or, from
+      // 4.2, has only requested to follow, plus the requester themselves with
+      // neither (≥ 3.1), which is how a list can show its owner's own posts. A
+      // pending member joins the list at once, but its posts only reach the
+      // list once the request is accepted (addStatusToListTimelines,
+      // updateFollowStatus). One query checks every other id.
+      const otherActorIds = [
+        ...new Set(
+          targetActorIds.filter(
+            (targetActorId) => targetActorId !== currentActor.id
+          )
         )
+      ]
+      const relatedActorIds = new Set(
+        await database.getAcceptedOrRequestedFollowTargetActorIds({
+          actorId: currentActor.id,
+          targetActorIds: otherActorIds
+        })
       )
-      if (followChecks.some((isFollowing) => !isFollowing)) {
+      const unrelatedActorIds = otherActorIds.filter(
+        (actorId) => !relatedActorIds.has(actorId)
+      )
+      if (unrelatedActorIds.length > 0) {
+        // Nothing is added, and the error is Mastodon's: it looks every account
+        // up before it validates any membership, so an id that names no account
+        // is a 404 whatever else the request holds, and an account with neither
+        // a follow nor a request is a 422. Only the ids without either need the
+        // lookup, since the rest name accounts the requester already follows or
+        // asked to follow.
+        const storedActorIds = new Set(
+          (await database.getActorsFromIds({ ids: unrelatedActorIds })).map(
+            (actor) => actor.id
+          )
+        )
+        const namesNoAccount = unrelatedActorIds.some(
+          (actorId) => !storedActorIds.has(actorId)
+        )
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
+          data: namesNoAccount
+            ? ERROR_404
+            : { error: LIST_ACCOUNT_NOT_FOLLOWED_ERROR },
+          responseStatusCode: namesNoAccount ? 404 : 422
         })
       }
 

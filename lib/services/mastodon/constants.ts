@@ -40,6 +40,11 @@ export const MIN_SCHEDULED_STATUS_AHEAD_MS = 5 * 60 * 1000
 export const SCHEDULED_AT_TOO_SOON_ERROR =
   'Validation failed: Scheduled at must be at least 5 minutes in the future'
 
+// Mastodon's ListAccount :must_be_following error: a list member other than
+// the owner needs a follow or a pending follow request.
+export const LIST_ACCOUNT_NOT_FOLLOWED_ERROR =
+  'Validation failed: Account must be a followed account'
+
 // Advertised in the v2 instance entity (api_versions.mastodon). Mastodon exposes
 // this as a single monotonic integer bumped per release (4.3 → 2, 4.4 → 6,
 // 4.5 → 7, 4.6 → 10). Mastodon 4.5 introduced quote posts and its client guide

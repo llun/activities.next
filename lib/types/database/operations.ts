@@ -1289,6 +1289,8 @@ export type GetAcceptedFollowTargetActorIdsParams = {
   actorId: string
   targetActorIds: string[]
 }
+export type GetAcceptedOrRequestedFollowTargetActorIdsParams =
+  GetAcceptedFollowTargetActorIdsParams
 export type GetFollowersInboxParams = { targetActorId: string }
 export type UpdateFollowStatusParams = {
   followId: string
@@ -1350,6 +1352,9 @@ export interface FollowDatabase {
   ): Promise<Follow[]>
   getAcceptedFollowTargetActorIds(
     params: GetAcceptedFollowTargetActorIdsParams
+  ): Promise<string[]>
+  getAcceptedOrRequestedFollowTargetActorIds(
+    params: GetAcceptedOrRequestedFollowTargetActorIdsParams
   ): Promise<string[]>
   getFollowersInbox(params: GetFollowersInboxParams): Promise<string[]>
   updateFollowStatus(params: UpdateFollowStatusParams): Promise<void>
@@ -1676,7 +1681,8 @@ export interface ListDatabase {
   getListsWithAccount(params: GetListsWithAccountParams): Promise<List[]>
   getListTimeline(params: GetListTimelineParams): Promise<Status[]>
   // Fan a newly created status into every list (in the `timelines` table) whose
-  // membership includes the status author. Called from addStatusToTimelines.
+  // membership includes the status author, except one whose owner is still
+  // waiting on a follow request to them. Called from addStatusToTimelines.
   addStatusToListTimelines(
     params: AddStatusToListTimelinesParams
   ): Promise<void>

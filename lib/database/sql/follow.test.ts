@@ -167,6 +167,60 @@ describe('FollowDatabase', () => {
       })
     })
 
+    describe('getAcceptedOrRequestedFollowTargetActorIds', () => {
+      it('returns the targets the actor follows or has requested to follow, once each', async () => {
+        const actorId = await createLocalActor()
+        const otherActorId = await createLocalActor()
+        const [accepted, requested, withdrawn, rejected, unrelated] =
+          await Promise.all(Array.from({ length: 5 }, createLocalActor))
+        const follow = (
+          followerId: string,
+          targetActorId: string,
+          status: FollowStatus
+        ) =>
+          database.createFollow({
+            actorId: followerId,
+            targetActorId,
+            status,
+            inbox: `${followerId}/inbox`,
+            sharedInbox: `${followerId}/inbox`
+          })
+        await follow(actorId, accepted, FollowStatus.enum.Accepted)
+        await follow(actorId, requested, FollowStatus.enum.Requested)
+        for (const [targetActorId, endedStatus] of [
+          [withdrawn, FollowStatus.enum.Undo],
+          [rejected, FollowStatus.enum.Rejected]
+        ] as const) {
+          const ended = await follow(
+            actorId,
+            targetActorId,
+            FollowStatus.enum.Requested
+          )
+          await database.updateFollowStatus({
+            followId: ended.id,
+            status: endedStatus
+          })
+        }
+        // Someone else's follow of a target says nothing about this actor.
+        await follow(otherActorId, unrelated, FollowStatus.enum.Accepted)
+
+        const targetActorIds =
+          await database.getAcceptedOrRequestedFollowTargetActorIds({
+            actorId,
+            targetActorIds: [
+              accepted,
+              requested,
+              withdrawn,
+              rejected,
+              unrelated,
+              requested
+            ]
+          })
+
+        expect([...targetActorIds].sort()).toEqual([accepted, requested].sort())
+      })
+    })
+
     describe('getFollowFromId', () => {
       it('returns follow by id', async () => {
         const pendingFollow = await database.getAcceptedOrRequestedFollow({
