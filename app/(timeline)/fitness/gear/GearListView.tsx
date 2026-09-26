@@ -1,6 +1,6 @@
 'use client'
 
-import { Bike, Footprints, Plus, Watch } from 'lucide-react'
+import { Bike, Footprints, Pencil, Plus, Watch } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { FC, useEffect, useState } from 'react'
@@ -77,9 +77,10 @@ interface SectionProps {
   kind: UserCreatableGearKind
   gears: GearEntity[]
   onAdd: (kind: UserCreatableGearKind) => void
+  onEdit: (gear: GearEntity) => void
 }
 
-const GearSection: FC<SectionProps> = ({ kind, gears, onAdd }) => {
+const GearSection: FC<SectionProps> = ({ kind, gears, onAdd, onEdit }) => {
   const router = useRouter()
   const [showRetired, setShowRetired] = useState(false)
 
@@ -116,8 +117,9 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd }) => {
             <colgroup>
               <col className="w-[34%]" />
               <col className="w-[26%]" />
-              <col className="w-[24%]" />
-              <col className="w-[16%]" />
+              <col className="w-[18%]" />
+              <col className="w-[12%]" />
+              <col className="w-[10%]" />
             </colgroup>
             <thead>
               <tr className="text-left text-xs font-medium text-muted-foreground">
@@ -131,8 +133,9 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd }) => {
                 </th>
                 <th className="px-3 pb-2 font-medium">Product page</th>
                 <th className="px-3 pb-2 font-medium">Default sports</th>
+                <th className="px-3 pb-2 text-right font-medium">Distance</th>
                 <th className="px-3 pr-4 pb-2 text-right font-medium">
-                  Distance
+                  <span className="sr-only">Actions</span>
                 </th>
               </tr>
             </thead>
@@ -185,6 +188,7 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd }) => {
                     >
                       <GearProductLink
                         productUrl={gear.productUrl}
+                        onEdit={() => onEdit(gear)}
                         onClick={(event) => event.stopPropagation()}
                       />
                     </td>
@@ -200,11 +204,31 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd }) => {
                     </td>
                     <td
                       className={cn(
-                        'px-3 py-3 pr-4 text-right align-middle font-semibold tabular-nums',
+                        'px-3 py-3 text-right align-middle font-semibold tabular-nums',
                         gear.retiredAt && 'opacity-60'
                       )}
                     >
                       {formatGearDistanceKm(gear.distanceMeters)}
+                    </td>
+                    <td
+                      className={cn(
+                        'px-3 py-3 pr-4 text-right align-middle',
+                        gear.retiredAt && 'opacity-60'
+                      )}
+                    >
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          onEdit(gear)
+                        }}
+                        aria-label={`Edit ${getGearDisplayName(gear)}`}
+                      >
+                        <Pencil className="size-3.5" />
+                        <span className="sr-only sm:not-sr-only">Edit</span>
+                      </Button>
                     </td>
                   </tr>
                 )
@@ -238,7 +262,10 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd }) => {
  * distance total to put in a column. What is left — a name, where to read about
  * it, and how much it has recorded — is a different table.
  */
-const DeviceSection: FC<{ gears: GearEntity[] }> = ({ gears }) => {
+const DeviceSection: FC<{
+  gears: GearEntity[]
+  onEdit: (gear: GearEntity) => void
+}> = ({ gears, onEdit }) => {
   const router = useRouter()
 
   // Nothing to explain and nothing to add: an actor whose activities carry no
@@ -261,7 +288,8 @@ const DeviceSection: FC<{ gears: GearEntity[] }> = ({ gears }) => {
           <colgroup>
             <col className="w-[34%]" />
             <col className="w-[26%]" />
-            <col className="w-[40%]" />
+            <col className="w-[30%]" />
+            <col className="w-[10%]" />
           </colgroup>
           <thead>
             <tr className="text-left text-xs font-medium text-muted-foreground">
@@ -274,8 +302,9 @@ const DeviceSection: FC<{ gears: GearEntity[] }> = ({ gears }) => {
                 Device
               </th>
               <th className="px-3 pb-2 font-medium">Product page</th>
+              <th className="px-3 pb-2 text-right font-medium">Activities</th>
               <th className="px-3 pr-4 pb-2 text-right font-medium">
-                Activities
+                <span className="sr-only">Actions</span>
               </th>
             </tr>
           </thead>
@@ -312,15 +341,29 @@ const DeviceSection: FC<{ gears: GearEntity[] }> = ({ gears }) => {
                     )}
                   </td>
                   <td className="px-3 py-3 align-middle text-xs text-muted-foreground truncate">
-                    {/* No `onEdit`: the list has no form to open, so a device
-                        with no product page gets the em dash. */}
                     <GearProductLink
                       productUrl={gear.productUrl}
+                      onEdit={() => onEdit(gear)}
                       onClick={(event) => event.stopPropagation()}
                     />
                   </td>
-                  <td className="px-3 py-3 pr-4 text-right align-middle font-semibold tabular-nums">
+                  <td className="px-3 py-3 text-right align-middle font-semibold tabular-nums">
                     {gear.activityCount}
+                  </td>
+                  <td className="px-3 py-3 pr-4 text-right align-middle">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onEdit(gear)
+                      }}
+                      aria-label={`Edit ${getGearDisplayName(gear)}`}
+                    >
+                      <Pencil className="size-3.5" />
+                      <span className="sr-only sm:not-sr-only">Edit</span>
+                    </Button>
                   </td>
                 </tr>
               )
@@ -344,6 +387,7 @@ export const GearListView: FC = () => {
   const [dialogKind, setDialogKind] = useState<UserCreatableGearKind | null>(
     null
   )
+  const [editingGear, setEditingGear] = useState<GearEntity | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -395,14 +439,17 @@ export const GearListView: FC = () => {
             kind="bike"
             gears={gears.filter((gear) => gear.kind === 'bike')}
             onAdd={setDialogKind}
+            onEdit={setEditingGear}
           />
           <GearSection
             kind="shoes"
             gears={gears.filter((gear) => gear.kind === 'shoes')}
             onAdd={setDialogKind}
+            onEdit={setEditingGear}
           />
           <DeviceSection
             gears={gears.filter((gear) => gear.kind === 'device')}
+            onEdit={setEditingGear}
           />
         </div>
       )}
@@ -413,6 +460,17 @@ export const GearListView: FC = () => {
           kind={dialogKind}
           onOpenChange={(open) => {
             if (!open) setDialogKind(null)
+          }}
+          onSaved={reload}
+        />
+      )}
+      {editingGear && (
+        <GearFormDialog
+          open
+          kind={editingGear.kind}
+          gear={editingGear}
+          onOpenChange={(open) => {
+            if (!open) setEditingGear(null)
           }}
           onSaved={reload}
         />

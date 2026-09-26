@@ -49,7 +49,10 @@ export const GearProductLink: FC<Props> = ({ productUrl, onEdit, onClick }) => {
       <button
         type="button"
         className="cursor-pointer hover:text-foreground hover:underline"
-        onClick={onEdit}
+        onClick={(event) => {
+          event.stopPropagation()
+          onEdit()
+        }}
       >
         No product page — add one
       </button>
