@@ -11,6 +11,9 @@ const HOST = 'test.example.com'
 const BASE_URL = `https://${HOST}`
 const PASSWORD = 'testpassword123'
 const NEW_PASSWORD = 'newtestpassword456'
+// The lowest cost bcrypt accepts: fixtures only need a valid hash, and
+// bcrypt.compare reads the cost from it (production hashes at 10).
+const TEST_BCRYPT_COST = 4
 
 const holder = vi.hoisted(() => ({
   knex: null as Knex | null,
@@ -151,7 +154,7 @@ describe('credential identity', () => {
 
     await database().createCredentialProvider({
       accountId,
-      passwordHash: await bcrypt.hash(PASSWORD, 4)
+      passwordHash: await bcrypt.hash(PASSWORD, TEST_BCRYPT_COST)
     })
 
     expect(await credentialRow(accountId)).toMatchObject({
@@ -174,7 +177,7 @@ describe('credential identity', () => {
 
     await database().createCredentialProvider({
       accountId,
-      passwordHash: await bcrypt.hash('different-password', 4)
+      passwordHash: await bcrypt.hash('different-password', TEST_BCRYPT_COST)
     })
 
     const unchanged = await credentialRow(accountId)
@@ -190,7 +193,7 @@ describe('credential identity', () => {
 
     await database().resetPasswordWithCode({
       passwordResetCode,
-      newPasswordHash: await bcrypt.hash(NEW_PASSWORD, 4)
+      newPasswordHash: await bcrypt.hash(NEW_PASSWORD, TEST_BCRYPT_COST)
     })
 
     expect(await credentialRow(accountId)).toMatchObject({
@@ -213,7 +216,7 @@ describe('credential identity', () => {
 
     await database().resetPasswordWithCode({
       passwordResetCode,
-      newPasswordHash: await bcrypt.hash(NEW_PASSWORD, 4)
+      newPasswordHash: await bcrypt.hash(NEW_PASSWORD, TEST_BCRYPT_COST)
     })
 
     expect(await credentialRow(accountId)).toMatchObject({
@@ -231,7 +234,7 @@ describe('credential identity', () => {
 
     await database().changePassword({
       accountId,
-      newPasswordHash: await bcrypt.hash(NEW_PASSWORD, 4)
+      newPasswordHash: await bcrypt.hash(NEW_PASSWORD, TEST_BCRYPT_COST)
     })
 
     expect(await credentialRow(accountId)).toMatchObject({
@@ -252,7 +255,7 @@ describe('credential identity', () => {
 
     await database().changePassword({
       accountId,
-      newPasswordHash: await bcrypt.hash(NEW_PASSWORD, 4)
+      newPasswordHash: await bcrypt.hash(NEW_PASSWORD, TEST_BCRYPT_COST)
     })
 
     expect(await credentialRow(accountId)).toMatchObject({
