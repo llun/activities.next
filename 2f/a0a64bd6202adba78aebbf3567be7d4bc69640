@@ -1,0 +1,65 @@
+lib/utils/logger.test.ts
+  s_7a29c31259b0a0::t_c38a9e38e9f329 12-14
+lib/components/posts/post.tsx
+  s_7a29c31259b0a0::t_cfd0663fb63c0b 3
+lib/components/posts/quote-card.tsx
+  s_7a29c31259b0a0::t_cfd0663fb63c0b 3
+vitest.config.ts
+  s_7a29c31259b0a0::t_c38a9e38e9f329 25-30
+lib/services/fitness-files/S3StorageFile.ts
+  s_7a29c31259b0a0::t_cfd0663fb63c0b 10
+app/(timeline)/[actor]/[status]/ActivityMapPanel.test.tsx
+  s_7a29c31259b0a0::t_8677c1c47a2540 9,217,481,491-492,494,496-498,524,532-533
+app/(timeline)/notifications/NotificationItem.tsx
+  s_7a29c31259b0a0::t_cfd0663fb63c0b 3
+lib/components/profile/profile.tsx
+  s_7a29c31259b0a0::t_cfd0663fb63c0b 1
+lib/services/fitness-files/localFile.ts
+  s_7a29c31259b0a0::t_cfd0663fb63c0b 2
+lib/services/medias/S3StorageFile.ts
+  s_7a29c31259b0a0::t_cfd0663fb63c0b 10
+lib/services/auth/oauthProviderFlow.test.ts
+  s_7a29c31259b0a0::t_dd7219cb2ea759 132
+lib/components/filters/filterConstants.ts
+  s_7a29c31259b0a0::t_cfd0663fb63c0b 1-2
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_7a29c31259b0a0::t_cfd0663fb63c0b 4
+lib/components/posts/actions/edit-history-button.tsx
+  s_7a29c31259b0a0::t_cfd0663fb63c0b 1
+CONTRIBUTING.md
+  s_7a29c31259b0a0::t_3d99b82143800e 688-713
+lib/services/queue/databaseRunner.test.ts
+  s_7a29c31259b0a0::t_d1a4016408d49a 321-332,336,340,343-349,351-355
+app/(timeline)/account/sessions/AccountSessions.tsx
+  s_7a29c31259b0a0::t_cfd0663fb63c0b 3-4
+lib/components/fitness/ActivityRouteMapKit.test.tsx
+  s_7a29c31259b0a0::t_e0aacf37bc4ae7 8,46,387,394-395,397,399-401,419,425-426
+.oxlintrc.json
+  s_7a29c31259b0a0::t_363b0cc42db9f8 171-176
+lib/services/auth/credentialIdentity.test.ts
+  s_7a29c31259b0a0::t_dd7219cb2ea759 154,177,193,216,234,255
+lib/services/auth/sessionJoins.test.ts
+  s_7a29c31259b0a0::t_dd7219cb2ea759 94
+lib/services/auth/twoFactorSignIn.test.ts
+  s_7a29c31259b0a0::t_dd7219cb2ea759 166
+lib/utils/getISOTimeUTC.ts
+  s_7a29c31259b0a0::t_cfd0663fb63c0b 2
+lib/components/posts/poll.tsx
+  s_7a29c31259b0a0::t_cfd0663fb63c0b 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2fa0a64bd6202adba78aebbf3567be7d4bc69640",
+  "prompts": {},
+  "sessions": {
+    "s_7a29c31259b0a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e61da06e-432e-42f9-a063-cc85e354e701",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
