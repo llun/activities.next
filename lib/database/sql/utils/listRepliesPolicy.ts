@@ -16,6 +16,13 @@ import { ListRepliesPolicy } from '@/lib/types/domain/list'
 // A reply whose parent is not stored locally (e.g. a reply to a remote post we
 // never fetched) has no resolvable parent author, so it is treated as neither a
 // member nor followed and is filtered out under every policy.
+//
+// The list owner's own posts (an owner may be a member of their own list) obey
+// the same rules under 'none' and 'list', but under 'followed' every one of
+// them passes, a reply to a stranger or to an unstored parent included.
+// Mastodon's list filter is filter_from_list? OR filter_from_home: under
+// show_followed? the first never filters, and the second returns early for the
+// receiver's own statuses.
 export const applyListRepliesPolicyFilter = ({
   database,
   query,
@@ -94,17 +101,19 @@ export const applyListRepliesPolicyFilter = ({
 
   return query.where((qb) => {
     // Non-replies always pass.
-    qb.where('statuses.reply', '')
-      .orWhereNull('statuses.reply')
-      .orWhereExists(function () {
-        applyPermittedReplyExists(this, 'reply_policy_parent.id')
-      })
-      .orWhereExists(function () {
-        applyPermittedReplyExists(
-          this,
-          'reply_policy_parent.url',
-          'reply_policy_parent.urlHash'
-        )
-      })
+    qb.where('statuses.reply', '').orWhereNull('statuses.reply')
+    // Under 'followed', so does anything the owner wrote (see above).
+    if (repliesPolicy === 'followed') {
+      qb.orWhere('statuses.actorId', ownerId)
+    }
+    qb.orWhereExists(function () {
+      applyPermittedReplyExists(this, 'reply_policy_parent.id')
+    }).orWhereExists(function () {
+      applyPermittedReplyExists(
+        this,
+        'reply_policy_parent.url',
+        'reply_policy_parent.urlHash'
+      )
+    })
   })
 }

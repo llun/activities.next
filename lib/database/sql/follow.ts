@@ -431,8 +431,13 @@ export const FollowerSQLDatabaseMixin = (
       // the materialized list-feed rows it produced) is all that's needed — the
       // owner is existingFollow.actorId (the follower) and the member is
       // existingFollow.targetActorId (the followed). A user has few lists, so
-      // this is a small indexed delete on a rare action.
-      if (status === FollowStatus.enum.Undo) {
+      // this is a small indexed delete on a rare action. The one membership no
+      // follow backs is the owner's own (a list owner may add themselves), so
+      // undoing a self-follow leaves it alone.
+      if (
+        status === FollowStatus.enum.Undo &&
+        existingFollow.actorId !== existingFollow.targetActorId
+      ) {
         const ownerId = existingFollow.actorId
         const memberId = existingFollow.targetActorId
         const memberships = await trx('list_accounts')

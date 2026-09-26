@@ -1062,6 +1062,28 @@ describe('GET /api/v2/search', () => {
     expect(data.accounts).toEqual([])
   })
 
+  it('counts the searcher as followed when resolving their own URL', async () => {
+    // Mastodon's following filter includes the searcher; the indexed search
+    // already does (applyFollowingFilter), and the URL-resolve path agrees.
+    mockIsCurrentActorFollowing.mockResolvedValue(false)
+    mockSearchAccountIds.mockResolvedValue([])
+
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v2/search?q=${encodeURIComponent(oauthActor.id)}&type=accounts&resolve=true&following=true`,
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(mockIsCurrentActorFollowing).not.toHaveBeenCalled()
+    expect(
+      data.accounts.map((account: { uri: string }) => account.uri)
+    ).toEqual([oauthActor.id])
+  })
+
   it('resolves remote account handles with WebFinger', async () => {
     mockSearchAccountIds.mockResolvedValue([])
     mockGetWebfingerSelf.mockResolvedValue('https://remote.test/users/charlie')

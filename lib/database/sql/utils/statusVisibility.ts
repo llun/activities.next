@@ -12,15 +12,20 @@ export const PUBLIC_ACTIVITY_RECIPIENTS = [
   ACTIVITY_STREAM_PUBLIC_COMPACT
 ]
 
-const statusActorFollowersUrlExpression = (database: Knex) => {
+// The stored followers-collection URL of the actor joined as `actorsAlias`. The
+// alias is interpolated into raw SQL, so pass only a fixed identifier.
+export const statusActorFollowersUrlExpression = (
+  database: Knex,
+  actorsAlias = 'status_actors'
+) => {
   const clientName = String(database.client.config.client)
   if (clientName.includes('pg')) {
-    return "status_actors.settings::jsonb ->> 'followersUrl'"
+    return `${actorsAlias}.settings::jsonb ->> 'followersUrl'`
   }
   if (clientName.includes('mysql')) {
-    return "JSON_UNQUOTE(JSON_EXTRACT(status_actors.settings, '$.followersUrl'))"
+    return `JSON_UNQUOTE(JSON_EXTRACT(${actorsAlias}.settings, '$.followersUrl'))`
   }
-  return "json_extract(status_actors.settings, '$.followersUrl')"
+  return `json_extract(${actorsAlias}.settings, '$.followersUrl')`
 }
 
 export const applyPotentiallyReadableStatusFilter = ({
