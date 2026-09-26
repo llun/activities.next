@@ -83,3 +83,60 @@ declare module '@google-cloud/tasks' {
     getProjectId(): Promise<string>
   }
 }
+
+declare module 'nodemailer' {
+  export interface Transporter {
+    sendMail(mailOptions: unknown): Promise<unknown>
+  }
+  export function createTransport(options?: unknown): Transporter
+  const nodemailer: {
+    createTransport(options?: unknown): Transporter
+  }
+  export default nodemailer
+}
+
+declare module 'nodemailer/lib/smtp-transport' {
+  namespace SMTPTransport {
+    export interface Options {
+      host?: string
+      port?: number
+      secure?: boolean
+      auth?: {
+        user?: string
+        pass?: string
+      }
+      [key: string]: unknown
+    }
+  }
+  export = SMTPTransport
+}
+
+declare module 'resend' {
+  export class Resend {
+    constructor(key?: string)
+    emails: {
+      send(payload: {
+        from: string
+        to: string | string[]
+        subject: string
+        html?: string
+        text?: string
+        replyTo?: string | string[]
+        [key: string]: unknown
+      }): Promise<{
+        data: unknown
+        error: Error | { message: string; name?: string } | null
+      }>
+    }
+  }
+}
+
+declare module '@aws-sdk/client-ses' {
+  export class SESClient {
+    constructor(config?: { region?: string; [key: string]: unknown })
+    send(command: unknown): Promise<unknown>
+  }
+  export class SendEmailCommand {
+    constructor(input: unknown)
+  }
+}

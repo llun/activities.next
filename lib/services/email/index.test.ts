@@ -80,4 +80,29 @@ describe('sendMail', () => {
       'Unsupported email type "lambda"'
     )
   })
+
+  it('disables delivery and logs a warning when provider package is not installed', async () => {
+    const missingModuleError = new Error(
+      "Cannot find package 'nodemailer'"
+    ) as Error & { code: string }
+    missingModuleError.code = 'ERR_MODULE_NOT_FOUND'
+    adapterMocks.sendSMTPMail.mockRejectedValueOnce(missingModuleError)
+
+    mockGetConfig.mockReturnValue(
+      configWithEmail({ type: TYPE_SMTP, host: 'smtp.example.com' })
+    )
+
+    await expect(sendMail(message)).resolves.toBeUndefined()
+  })
+
+  it('rethrows unexpected provider delivery errors', async () => {
+    const deliveryError = new Error('Connection timeout')
+    adapterMocks.sendSMTPMail.mockRejectedValueOnce(deliveryError)
+
+    mockGetConfig.mockReturnValue(
+      configWithEmail({ type: TYPE_SMTP, host: 'smtp.example.com' })
+    )
+
+    await expect(sendMail(message)).rejects.toThrow('Connection timeout')
+  })
 })

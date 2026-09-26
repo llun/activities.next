@@ -235,7 +235,7 @@ Wahoo cloud synchronization requires an asynchronous durable backend. The authen
 
 Wahoo OAuth callback and token-refresh writes are fenced by the saved credential revision. Changing application credentials invalidates outstanding authorization state, and disconnect clears credentials; an in-flight callback or refresh cannot restore tokens after either change.
 
-External queue clients (`@upstash/qstash` and `@google-cloud/tasks`) and the PostgreSQL driver (`pg`) are isolated into dedicated Yarn workspaces under `packages/` (`@activities/qstash`, `@activities/cloudtasks`, `@activities/pg`). They are loaded on demand dynamically (via `dynamicImport` with type stubs for queue clients, or Knex dynamic driver loading for PostgreSQL), preventing optional SDKs from being unconditionally bundled into the minimal standalone application.
+External queue clients (`@upstash/qstash` and `@google-cloud/tasks`), the PostgreSQL driver (`pg`), and optional email providers (`nodemailer`, `resend`, `@aws-sdk/client-ses`) are isolated into dedicated Yarn workspaces under `packages/` (`@activities/qstash`, `@activities/cloudtasks`, `@activities/pg`, `@activities/nodemailer`, `@activities/resend`, `@activities/ses`). They are loaded on demand dynamically (via `dynamicImport` with type stubs for queue and email clients, or Knex dynamic driver loading for PostgreSQL), preventing optional SDKs from being unconditionally bundled into the minimal standalone application. The Dockerfile includes `@activities/nodemailer` by default; builds omitting email workspaces gracefully disable email delivery.
 
 #### Queues & Dead Letter Queue (DLQ) Management
 
@@ -1273,11 +1273,12 @@ legacy shape left to copy.
 - A build must succeed with `ACTIVITIES_*` missing or set to placeholder values.
   Changes to runtime-config handling should ship a regression test asserting the
   build config does not consume those values.
-- Optional external SDKs and database drivers (`@google-cloud/tasks`,
-  `@upstash/qstash`, `pg`) must reside in dedicated workspace packages under
+- Optional external SDKs, email providers, and database drivers
+  (`@google-cloud/tasks`, `@upstash/qstash`, `nodemailer`, `resend`,
+  `@aws-sdk/client-ses`, `pg`) must reside in dedicated workspace packages under
   `packages/*` and be imported dynamically (via `dynamicImport` with type stubs
-  in `lib/types/optional-modules.d.ts` for queue SDKs, or Knex dynamic driver
-  loading for database clients), never through static top-level imports in
+  in `lib/types/optional-modules.d.ts` for queue and email SDKs, or Knex dynamic
+  driver loading for database clients), never through static top-level imports in
   core `app/` or `lib/` modules, so minimal standalone builds run without them.
 
 <a id="review-client-components-data-flow"></a>

@@ -28,7 +28,7 @@ WORKDIR /opt/activities.next
 USER app
 
 FROM base AS build
-ARG WORKSPACES="activities.next"
+ARG WORKSPACES="activities.next @activities/nodemailer"
 ADD --chown=app:app . /opt/activities.next/
 RUN yarn config set -H enableGlobalCache true
 RUN yarn config set -H enableImmutableInstalls true

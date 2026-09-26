@@ -8,7 +8,8 @@ const smtpMocks = vi.hoisted(() => ({
 }))
 
 vi.mock('nodemailer', () => ({
-  default: { createTransport: smtpMocks.createTransport }
+  default: { createTransport: smtpMocks.createTransport },
+  createTransport: smtpMocks.createTransport
 }))
 
 const message: Message = {

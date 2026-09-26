@@ -240,20 +240,25 @@ docker run -p 3000:3000 \
 
 #### Custom Docker Builds with Optional Workspaces
 
-Optional dependencies (such as PostgreSQL, Cloud Tasks, and QStash) are isolated in Yarn workspaces under `packages/`:
+Optional dependencies (such as PostgreSQL, Cloud Tasks, QStash, and optional email providers) are isolated in Yarn workspaces under `packages/`:
 
 - `@activities/pg` — PostgreSQL driver (`pg`)
 - `@activities/cloudtasks` — Google Cloud Tasks client (`@google-cloud/tasks`)
 - `@activities/qstash` — Upstash QStash client (`@upstash/qstash`)
+- `@activities/nodemailer` — SMTP transport (`nodemailer`, included by default in Docker builds)
+- `@activities/resend` — Resend client (`resend`)
+- `@activities/ses` — AWS SES client (`@aws-sdk/client-ses`)
 
-To include optional workspaces when building a Docker container, pass the `WORKSPACES` build argument:
+The Dockerfile includes `@activities/nodemailer` by default (`ARG WORKSPACES="activities.next @activities/nodemailer"`). If no email provider workspace is included in a custom build, email delivery is gracefully disabled.
+
+To customize optional workspaces when building a Docker container, pass the `WORKSPACES` build argument:
 
 ```bash
-# Example: Build with PostgreSQL and QStash support
-docker build --build-arg WORKSPACES="activities.next @activities/pg @activities/qstash" -t activities.next:custom .
+# Example: Build with PostgreSQL, QStash, and default Nodemailer support
+docker build --build-arg WORKSPACES="activities.next @activities/nodemailer @activities/pg @activities/qstash" -t activities.next:custom .
 
 # Example: Build with all optional workspaces
-docker build --build-arg WORKSPACES="activities.next @activities/pg @activities/cloudtasks @activities/qstash" -t activities.next:full .
+docker build --build-arg WORKSPACES="activities.next @activities/nodemailer @activities/resend @activities/ses @activities/pg @activities/cloudtasks @activities/qstash" -t activities.next:full .
 ```
 
 To verify built Docker images locally:
@@ -286,7 +291,7 @@ Read the applicable rules and review checks below before changing this subsystem
 
 - **Agents:** MUST use Node.js version 24 for running any node commands in this project.
 - **Always use `yarn` for all package management.** Never use `npm install`, `npm ci`, or any other `npm` commands to install or manage packages.
-- **Optional dependencies are modularized into Yarn workspaces (`packages/*`).** External database drivers and queue SDKs (`pg`, `@google-cloud/tasks`, `@upstash/qstash`) live in isolated packages (`@activities/pg`, `@activities/cloudtasks`, `@activities/qstash`). `yarn install` at the repo root installs all workspaces by default for development and test execution. The Dockerfile builds minimal images using `yarn workspaces focus ${WORKSPACES}` (defaulting to `activities.next`), and core code imports optional modules dynamically (`dynamicImport` / dynamic `import()`) with type stubs in `lib/types/optional-modules.d.ts` so the application runs without optional packages installed when those features are unconfigured.
+- **Optional dependencies are modularized into Yarn workspaces (`packages/*`).** External database drivers, queue SDKs, and email providers (`pg`, `@google-cloud/tasks`, `@upstash/qstash`, `nodemailer`, `resend`, `@aws-sdk/client-ses`) live in isolated packages (`@activities/pg`, `@activities/cloudtasks`, `@activities/qstash`, `@activities/nodemailer`, `@activities/resend`, `@activities/ses`). `yarn install` at the repo root installs all workspaces by default for development and test execution. The Dockerfile builds minimal images using `yarn workspaces focus ${WORKSPACES}` (defaulting to `activities.next @activities/nodemailer`), and core code imports optional modules dynamically (`dynamicImport` / dynamic `import()`) with type stubs in `lib/types/optional-modules.d.ts` so the application runs without optional packages installed when those features are unconfigured.
 - `yarn dev` runs the local Next.js development server. The package script binds Next.js to `0.0.0.0`, so the dev server is reachable from the local network — only run it on trusted networks.
 - `yarn build` builds the production app; `yarn start` serves it.
 - `yarn lint` runs **Oxlint** over the app and lib code, then a **second** pass, `oxlint -c .oxlintrc.scripts.json scripts`. `.oxlintrc.json` ignores `scripts/**`, `migrations/**`, `plans/**`, and `*.config.*` files; the second pass exists because exactly one rule has to reach the otherwise-unlinted scripts tree (see **A stored path is confined to the storage root**), and keeping it to one rule is what avoids putting the whole rule set onto files that have never satisfied it. Several AGENTS.md conventions are **lint-enforced**: no `console.*`, no `../` imports, no `Response.json()`/`NextResponse.json()` or Zod `.parse()` in `app/api` routes (`agents/api-response-helpers`, `agents/zod-safe-parse`), no direct `fetch()` in component files (`agents/no-component-fetch`, whose `allowFiles` option in `.oxlintrc.json` is a frozen legacy-offender list — never add a file to it; shrink it by migrating callers to `lib/client.ts`), no `path.resolve`/`path.join` in a local storage driver (`agents/no-storage-path-builder`), and no `startsWith` against a resolved path anywhere (`agents/no-resolved-path-prefix-check`). Those five `agents/*` rules are a local Oxlint JS plugin, `lint/agentsRules.mjs`, because Oxlint has no `no-restricted-syntax`; `lint/agentsRules.test.ts` runs the linter against fixtures so an Oxlint upgrade that stopped loading the plugin fails `yarn test` instead of silently un-enforcing them, and also runs the repo's own configs over fixtures so a rule that stopped being pointed at anything fails too. Reach for a rule there rather than a raw-text Vitest scan whenever the convention depends on what a NAME refers to — aliases, destructuring, renamed imports — which a text scan decides wrongly in both directions. Suppress one line with `// oxlint-disable-next-line <rule>` (the `eslint-disable-next-line` spelling still works), but note Oxlint does **not** honor `/* global … */` block directives — declare globals in `.oxlintrc.json` instead, as the `public/sw.js` override does. That override carries more weight than it looks: the service worker is a static asset in **no** tsconfig and imported by nothing, so lint is the only thing that reads it at all — and `no-undef` is its only check for an undeclared global, which is what a typo there looks like. The no-env-reads-outside-`lib/config/` rule is enforced by `lib/config/envAccess.test.ts`; every `ACTIVITIES_*`/`OTEL_*` variable read in `lib/config/` must have a row in `docs/environment-variables.md` (`lib/config/envDocumentation.test.ts` fails otherwise); and server-only trees must not import a runtime value from a `'use client'` module (`lib/clientModuleBoundary.test.ts` — see **Server/Client Module Boundary**). Three more repo-wide guards live as tests: `next.config.test.ts` (the build config must not consume runtime deployment values), `app/globals.contrast.test.ts` (the WCAG contrast floor), and `lib/components/tailwindCssVariableSyntax.test.ts` (see **Tailwind CSS variables** below). The remaining conventions in this file are review-enforced.

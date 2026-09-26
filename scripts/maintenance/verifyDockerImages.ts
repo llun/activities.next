@@ -109,7 +109,13 @@ export async function verifyMinimalImage(
       'node',
       '-e',
       `
-      const forbidden = ['@google-cloud/tasks', '@upstash/qstash', 'pg'];
+      const forbidden = [
+        '@google-cloud/tasks',
+        '@upstash/qstash',
+        'pg',
+        'resend',
+        '@aws-sdk/client-ses'
+      ];
       for (const pkg of forbidden) {
         try {
           require.resolve(pkg);
@@ -280,6 +286,17 @@ export async function verifyFullImage(imageTag: string): Promise<void> {
       const { Client: PgClient } = require('pg');
       new PgClient();
       console.log('PASS: PgClient initialized.');
+
+      const nodemailer = require('nodemailer');
+      console.log('PASS: nodemailer loaded.');
+
+      const { Resend } = require('resend');
+      new Resend('smoke-test-token');
+      console.log('PASS: Resend initialized.');
+
+      const { SESClient } = require('@aws-sdk/client-ses');
+      new SESClient({ region: 'eu-west-1' });
+      console.log('PASS: SESClient initialized.');
     `
     ],
     { capture: true }
@@ -464,7 +481,7 @@ Options:
     buildDockerImage(options.minimalImage)
     buildDockerImage(options.fullImage, {
       WORKSPACES:
-        'activities.next @activities/pg @activities/cloudtasks @activities/qstash'
+        'activities.next @activities/nodemailer @activities/resend @activities/ses @activities/pg @activities/cloudtasks @activities/qstash'
     })
   }
 

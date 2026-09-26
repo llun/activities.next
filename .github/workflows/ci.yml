@@ -357,7 +357,7 @@ jobs:
       - name: Build full Docker image with optional workspaces
         run: |
           docker build -t activities:test-full \
-            --build-arg WORKSPACES="activities.next @activities/pg @activities/cloudtasks @activities/qstash" \
+            --build-arg WORKSPACES="activities.next @activities/nodemailer @activities/resend @activities/ses @activities/pg @activities/cloudtasks @activities/qstash" \
             .
       - name: Verify minimal and full Docker images
         run: |

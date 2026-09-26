@@ -1,19 +1,34 @@
-import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses'
+import type {
+  SESClient as SESClientType,
+  SendEmailCommand as SendEmailCommandType
+} from '@aws-sdk/client-ses'
 import memoize from 'lodash/memoize'
 
 import type { Message, SESConfig } from '@/lib/config/email'
+import { dynamicImport } from '@/lib/utils/dynamicImport'
 
 import { getAddressFromEmail } from './address'
 
-const getSESClient = memoize(
-  (region: string | undefined) => new SESClient(region ? { region } : {})
-)
+const getSESModule = memoize(async () => {
+  return await dynamicImport<{
+    SESClient: typeof SESClientType
+    SendEmailCommand: typeof SendEmailCommandType
+  }>('@aws-sdk/client-ses')
+})
+
+const getSESClient = memoize(async (region: string | undefined) => {
+  const { SESClient } = await getSESModule()
+  return new SESClient(region ? { region } : {})
+})
 
 export async function sendSESMail(
   message: Message,
   config: SESConfig
 ): Promise<void> {
-  const client = getSESClient(config.region)
+  const [{ SendEmailCommand }, client] = await Promise.all([
+    getSESModule(),
+    getSESClient(config.region)
+  ])
   const command = new SendEmailCommand({
     Source: getAddressFromEmail(message.from),
     Destination: {
