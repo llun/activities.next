@@ -1,0 +1,23 @@
+app/(timeline)/fitness/gear/GearProductLink.test.tsx
+  s_725909a67e1914::t_79913238d0b419 47-48
+app/(timeline)/fitness/gear/GearProductLink.tsx
+  s_725909a67e1914::t_6c1e7c73e3e645 13-14,27-29
+docs/fitness-file-storage.md
+  s_725909a67e1914::t_6f4c7a50c49100 1178
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5b78557b6f90c1e70773fe5250dcd80964ca3a4f",
+  "prompts": {},
+  "sessions": {
+    "s_725909a67e1914": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d554-1283-7a03-aa63-f06a555f70ba",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
