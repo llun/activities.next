@@ -39,7 +39,7 @@ export default defineConfig({
       { find: /^@\/app\/(.*)$/, replacement: `${resolvePath('./app')}/$1` },
       { find: /^@\/lib\/(.*)$/, replacement: `${resolvePath('./lib')}/$1` },
       { find: /^@\/pages\/(.*)$/, replacement: `${resolvePath('./pages')}/$1` },
-      { find: /^@\/(.*)$/, replacement: `${resolvePath('.')}/$1` }
+      { find: /^@\/(.*)$/, replacement: `${ROOT}/$1` }
     ]
   },
   test: {

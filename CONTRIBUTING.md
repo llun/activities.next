@@ -708,8 +708,8 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   `process.chdir(`, so a new such file needs no list edit, and one the scan
   misses fails with that error rather than passing. Threads start faster than
   a process per file: the split cut a full run by about a fifth on a 14-core
-  machine, though on CI's 4-core runners the gain is within run-to-run noise.
-  Two faster options were measured and declined:
+  machine, and by about 7% on CI's 4-core runners (fewer workers, so less
+  per-file start-up to save). Two faster options were measured and declined:
   `isolate: false` failed 163 files on leaked cross-file state, and running the
   jsdom files on `vmThreads` breaks any test that redefines `window.location`
   (unforgeable in a VM context) and carries Vitest's documented VM-pool memory
