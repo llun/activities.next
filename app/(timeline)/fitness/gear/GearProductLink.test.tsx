@@ -44,8 +44,8 @@ describe('GearProductLink', () => {
   })
 
   it('falls back to an em dash where there is no form to open', () => {
-    // The gear list renders it without `onEdit`: there is no dialog on that
-    // surface to prompt toward, so the prompt would lead nowhere.
+    // A surface with no edit dialog to prompt toward (such as
+    // GearComponentsCard) renders it without `onEdit`.
     render(<GearProductLink productUrl={null} />)
 
     expect(screen.getByText('—')).toBeInTheDocument()

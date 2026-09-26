@@ -10,7 +10,8 @@ interface Props {
   productUrl: string | null
   /**
    * Opens the gear form so a missing link can be filled in. A surface with no
-   * form to open — the gear list — omits it and gets the em dash instead.
+   * form to open — such as the components table — omits it and gets the em
+   * dash instead.
    */
   onEdit?: () => void
   /**
@@ -23,9 +24,9 @@ interface Props {
 
 /**
  * The manufacturer's page a gear links out to. Shared by every surface that
- * shows one — a bike's page, a pair of shoes', a device's, and the gear list's
- * device table — because a reader who learns what the link looks like on one
- * should not have to learn it again on another.
+ * shows one — a bike's page, a pair of shoes', a device's, and the gear list
+ * tables — because a reader who learns what the link looks like on one should
+ * not have to learn it again on another.
  *
  * The anchor is gated on `getProductUrlHostname`, not on the string being
  * non-empty: it returns null for anything that is not an http(s) URL, so a row

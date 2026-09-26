@@ -1175,7 +1175,7 @@ null }` remains the precise "this retirement never happened" — it reopens the
   what stops a row written before the API validated the column from rendering a
   `javascript:` href. Two props are what let one component serve every surface:
   `onEdit` makes the empty state the prompt that opens the gear form, and
-  without it that state is an em dash (the list and component tables have no form to open from the cell); `onClick`
+  without it that state is an em dash (the component table has no form to open from the cell); `onClick`
   is where a clickable row passes `stopPropagation`, without which the anchor
   opens the vendor's page and the row pushes the gear's route behind it. The
   hostname takes `text-primary-text` — `text-primary` is 3.37:1 on the card and
