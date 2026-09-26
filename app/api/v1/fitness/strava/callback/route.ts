@@ -16,6 +16,22 @@ interface StravaTokenResponse {
   }
 }
 
+const redirectToStravaSettings = (params: {
+  error?: string
+  success?: boolean
+}) => {
+  const host = getConfig().host
+  const protocol = host.startsWith('localhost') ? 'http' : 'https'
+  const url = new URL(`${protocol}://${host}/fitness/connections/strava`)
+  if (params.error) {
+    url.searchParams.set('error', params.error)
+  }
+  if (params.success) {
+    url.searchParams.set('success', 'true')
+  }
+  return Response.redirect(url.toString())
+}
+
 export const GET = traceApiRoute(
   'stravaCallback',
   AuthenticatedGuard(async (req: NextRequest, context) => {
@@ -29,15 +45,11 @@ export const GET = traceApiRoute(
 
     if (error) {
       logger.error({ message: 'Strava OAuth error', error })
-      return Response.redirect(
-        `https://${config.host}/fitness/connections/strava?error=authorization_failed`
-      )
+      return redirectToStravaSettings({ error: 'authorization_failed' })
     }
 
     if (!code) {
-      return Response.redirect(
-        `https://${config.host}/fitness/connections/strava?error=no_code`
-      )
+      return redirectToStravaSettings({ error: 'no_code' })
     }
 
     const fitnessSettings = await database.getFitnessSettings({
@@ -46,9 +58,7 @@ export const GET = traceApiRoute(
     })
 
     if (!fitnessSettings?.clientId || !fitnessSettings?.clientSecret) {
-      return Response.redirect(
-        `https://${config.host}/fitness/connections/strava?error=not_configured`
-      )
+      return redirectToStravaSettings({ error: 'not_configured' })
     }
 
     // Validate OAuth state for CSRF protection
@@ -63,9 +73,7 @@ export const GET = traceApiRoute(
         message: 'OAuth state mismatch - potential CSRF attack',
         actorId: currentActor.id
       })
-      return Response.redirect(
-        `https://${config.host}/fitness/connections/strava?error=invalid_state`
-      )
+      return redirectToStravaSettings({ error: 'invalid_state' })
     }
 
     // Check state expiry
@@ -77,9 +85,7 @@ export const GET = traceApiRoute(
         message: 'OAuth state expired',
         actorId: currentActor.id
       })
-      return Response.redirect(
-        `https://${config.host}/fitness/connections/strava?error=state_expired`
-      )
+      return redirectToStravaSettings({ error: 'state_expired' })
     }
 
     try {
@@ -103,9 +109,7 @@ export const GET = traceApiRoute(
           status: tokenResponse.status,
           error: errorData
         })
-        return Response.redirect(
-          `https://${config.host}/fitness/connections/strava?error=token_exchange_failed`
-        )
+        return redirectToStravaSettings({ error: 'token_exchange_failed' })
       }
 
       const tokenData: StravaTokenResponse = await tokenResponse.json()
@@ -129,9 +133,9 @@ export const GET = traceApiRoute(
           actorId: currentActor.id,
           serviceType: 'strava'
         })
-        return Response.redirect(
-          `https://${config.host}/fitness/connections/strava?error=webhook_subscription_failed`
-        )
+        return redirectToStravaSettings({
+          error: 'webhook_subscription_failed'
+        })
       }
 
       await database.updateFitnessSettings({
@@ -148,14 +152,10 @@ export const GET = traceApiRoute(
         actorId: currentActor.id
       })
 
-      return Response.redirect(
-        `https://${config.host}/fitness/connections/strava?success=true`
-      )
+      return redirectToStravaSettings({ success: true })
     } catch (error) {
       logger.error({ message: 'Strava callback error', error })
-      return Response.redirect(
-        `https://${config.host}/fitness/connections/strava?error=unexpected_error`
-      )
+      return redirectToStravaSettings({ error: 'unexpected_error' })
     }
   })
 )

@@ -1,13 +1,14 @@
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { StravaGearDefaultsSection } from '@/app/(timeline)/fitness/strava/StravaGearDefaultsSection'
-import { StravaSettingsForm } from '@/app/(timeline)/fitness/strava/StravaSettingsForm'
 import { Card } from '@/lib/components/ui/card'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorProfile, getMention } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+
+import { StravaGearDefaultsSection } from './StravaGearDefaultsSection'
+import { StravaSettingsForm } from './StravaSettingsForm'
 
 export const dynamic = 'force-dynamic'
 

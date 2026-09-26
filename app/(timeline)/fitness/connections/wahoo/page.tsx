@@ -1,11 +1,12 @@
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { WahooSettingsForm } from '@/app/(timeline)/fitness/wahoo/WahooSettingsForm'
 import { Card } from '@/lib/components/ui/card'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+
+import { WahooSettingsForm } from './WahooSettingsForm'
 
 export const dynamic = 'force-dynamic'
 
