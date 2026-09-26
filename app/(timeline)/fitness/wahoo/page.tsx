@@ -1,39 +1,24 @@
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { PageHeader } from '@/lib/components/page-header'
-import { Card } from '@/lib/components/ui/card'
-import { getDatabase } from '@/lib/database'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
-import { getActorFromSession } from '@/lib/utils/getActorFromSession'
-
-import { WahooSettingsForm } from './WahooSettingsForm'
-
 export const dynamic = 'force-dynamic'
 
-const WahooPage: FC = async () => {
-  const database = getDatabase()
-  if (!database) {
-    throw new Error('Fail to load database')
-  }
+interface Props {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}
 
-  const session = await getServerAuthSession()
-  const actor = await getActorFromSession(database, session)
-  if (!actor || !actor.account) {
-    return redirect('/auth/signin')
+const WahooPage: FC<Props> = async ({ searchParams }) => {
+  const params = await searchParams
+  const query = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value === 'string') {
+      query.set(key, value)
+    } else if (Array.isArray(value)) {
+      for (const v of value) query.append(key, v)
+    }
   }
-
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Wahoo"
-        description="Connect your Wahoo account to import workouts and keep new activities in sync."
-      />
-      <Card className="p-6">
-        <WahooSettingsForm />
-      </Card>
-    </div>
-  )
+  const queryString = query.toString()
+  redirect(`/fitness/connections/wahoo${queryString ? `?${queryString}` : ''}`)
 }
 
 export default WahooPage

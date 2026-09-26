@@ -1,0 +1,58 @@
+import { redirect } from 'next/navigation'
+import { FC } from 'react'
+
+import { StravaGearDefaultsSection } from '@/app/(timeline)/fitness/strava/StravaGearDefaultsSection'
+import { StravaSettingsForm } from '@/app/(timeline)/fitness/strava/StravaSettingsForm'
+import { Card } from '@/lib/components/ui/card'
+import { getDatabase } from '@/lib/database'
+import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getActorProfile, getMention } from '@/lib/types/domain/actor'
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+
+export const dynamic = 'force-dynamic'
+
+const StravaPage: FC = async () => {
+  const database = getDatabase()
+  if (!database) {
+    throw new Error('Fail to load database')
+  }
+
+  const session = await getServerAuthSession()
+  const actor = await getActorFromSession(database, session)
+  if (!actor || !actor.account) {
+    return redirect('/auth/signin')
+  }
+
+  const actorHandle = getMention(getActorProfile(actor), true)
+
+  return (
+    <div className="space-y-6">
+      <Card className="p-6">
+        <div className="mb-6 space-y-1">
+          <h2 className="text-lg font-semibold">Strava settings</h2>
+          <p className="text-sm text-muted-foreground">
+            Connect your Strava account to sync fitness activities. You&apos;ll
+            need to create an application in the{' '}
+            <a
+              href="https://www.strava.com/settings/api"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline"
+            >
+              Strava API settings
+            </a>
+            . You can also import historical activities from a Strava export
+            archive.
+          </p>
+        </div>
+        <StravaSettingsForm serverActorHandle={actorHandle} />
+      </Card>
+
+      <Card className="p-6">
+        <StravaGearDefaultsSection />
+      </Card>
+    </div>
+  )
+}
+
+export default StravaPage

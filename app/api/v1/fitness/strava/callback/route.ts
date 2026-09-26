@@ -30,13 +30,13 @@ export const GET = traceApiRoute(
     if (error) {
       logger.error({ message: 'Strava OAuth error', error })
       return Response.redirect(
-        `https://${config.host}/fitness/strava?error=authorization_failed`
+        `https://${config.host}/fitness/connections/strava?error=authorization_failed`
       )
     }
 
     if (!code) {
       return Response.redirect(
-        `https://${config.host}/fitness/strava?error=no_code`
+        `https://${config.host}/fitness/connections/strava?error=no_code`
       )
     }
 
@@ -47,7 +47,7 @@ export const GET = traceApiRoute(
 
     if (!fitnessSettings?.clientId || !fitnessSettings?.clientSecret) {
       return Response.redirect(
-        `https://${config.host}/fitness/strava?error=not_configured`
+        `https://${config.host}/fitness/connections/strava?error=not_configured`
       )
     }
 
@@ -64,7 +64,7 @@ export const GET = traceApiRoute(
         actorId: currentActor.id
       })
       return Response.redirect(
-        `https://${config.host}/fitness/strava?error=invalid_state`
+        `https://${config.host}/fitness/connections/strava?error=invalid_state`
       )
     }
 
@@ -78,7 +78,7 @@ export const GET = traceApiRoute(
         actorId: currentActor.id
       })
       return Response.redirect(
-        `https://${config.host}/fitness/strava?error=state_expired`
+        `https://${config.host}/fitness/connections/strava?error=state_expired`
       )
     }
 
@@ -104,7 +104,7 @@ export const GET = traceApiRoute(
           error: errorData
         })
         return Response.redirect(
-          `https://${config.host}/fitness/strava?error=token_exchange_failed`
+          `https://${config.host}/fitness/connections/strava?error=token_exchange_failed`
         )
       }
 
@@ -130,7 +130,7 @@ export const GET = traceApiRoute(
           serviceType: 'strava'
         })
         return Response.redirect(
-          `https://${config.host}/fitness/strava?error=webhook_subscription_failed`
+          `https://${config.host}/fitness/connections/strava?error=webhook_subscription_failed`
         )
       }
 
@@ -149,12 +149,12 @@ export const GET = traceApiRoute(
       })
 
       return Response.redirect(
-        `https://${config.host}/fitness/strava?success=true`
+        `https://${config.host}/fitness/connections/strava?success=true`
       )
     } catch (error) {
       logger.error({ message: 'Strava callback error', error })
       return Response.redirect(
-        `https://${config.host}/fitness/strava?error=unexpected_error`
+        `https://${config.host}/fitness/connections/strava?error=unexpected_error`
       )
     }
   })
