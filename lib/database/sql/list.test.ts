@@ -1430,7 +1430,11 @@ describe('ListDatabase', () => {
         actorId: string,
         localId: string,
         to: string[],
-        createdAt?: number
+        {
+          cc = [],
+          createdAt,
+          reply
+        }: { cc?: string[]; createdAt?: number; reply?: string } = {}
       ) =>
         database.createNote({
           id: `${actorId}/statuses/${localId}`,
@@ -1438,8 +1442,9 @@ describe('ListDatabase', () => {
           actorId,
           text: localId,
           to,
-          cc: [],
-          ...(createdAt === undefined ? {} : { createdAt })
+          cc,
+          ...(createdAt === undefined ? {} : { createdAt }),
+          ...(reply === undefined ? {} : { reply })
         })
 
       const listTimelineIds = async (
@@ -1546,89 +1551,189 @@ describe('ListDatabase', () => {
         expect(ids).not.toContain(laterDirectMessage.id)
       })
 
-      it('keeps followers-only posts whose followers collection lacks the /followers suffix', async () => {
-        // Friendica names its followers collection /followers/<nick>, so only
-        // the author's stored followers URL identifies the post as
-        // followers-only rather than direct.
-        const owner = await localActor('friendica-list-owner')
-        const friendId = 'https://friendica.test/profile/friend'
-        const followersUrl = 'https://friendica.test/followers/friend'
-        await database.createActor({
-          actorId: friendId,
-          username: 'friend',
-          domain: 'friendica.test',
-          inboxUrl: `${friendId}/inbox`,
-          sharedInboxUrl: 'https://friendica.test/inbox',
-          followersUrl,
-          publicKey: 'public-key',
-          createdAt: Date.now()
+      it.each([
+        {
+          // Friendica names its followers collection /followers/<nick>, so
+          // only the author's stored followers URL marks the post as
+          // followers-only rather than direct.
+          description:
+            'keeps followers-only posts whose followers collection lacks the /followers suffix',
+          ownerUsername: 'friendica-list-owner',
+          authorId: 'https://friendica.test/profile/friend',
+          authorUsername: 'friend',
+          authorDomain: 'friendica.test',
+          storedFollowersUrl: 'https://friendica.test/followers/friend',
+          addressedTo: 'https://friendica.test/followers/friend'
+        },
+        {
+          // The stored URL differs from the address, so only getVisibility's
+          // own `/followers` suffix test marks the post as followers-only.
+          description:
+            'keeps followers-only posts addressed to a /followers collection that is not the stored one',
+          ownerUsername: 'suffix-list-owner',
+          authorId: 'https://suffix.test/users/author',
+          authorUsername: 'author',
+          authorDomain: 'suffix.test',
+          storedFollowersUrl:
+            'https://suffix.test/collections/author-followers',
+          addressedTo: 'https://suffix.test/users/author/followers'
+        }
+      ])(
+        '$description',
+        async ({
+          ownerUsername,
+          authorId,
+          authorUsername,
+          authorDomain,
+          storedFollowersUrl,
+          addressedTo
+        }) => {
+          const owner = await localActor(ownerUsername)
+          await database.createActor({
+            actorId: authorId,
+            username: authorUsername,
+            domain: authorDomain,
+            inboxUrl: `${authorId}/inbox`,
+            sharedInboxUrl: `https://${authorDomain}/inbox`,
+            followersUrl: storedFollowersUrl,
+            publicKey: 'public-key',
+            createdAt: Date.now()
+          })
+          await database.createFollow({
+            actorId: owner.id,
+            targetActorId: authorId,
+            status: FollowStatus.enum.Accepted,
+            inbox: `${authorId}/inbox`,
+            sharedInbox: `https://${authorDomain}/inbox`
+          })
+          const followersOnlyPost = await note(authorId, 'followers-only', [
+            addressedTo
+          ])
+
+          const list = await database.createList({
+            actorId: owner.id,
+            title: 'Followers-only'
+          })
+          await database.addListAccounts({
+            listId: list.id,
+            actorId: owner.id,
+            targetActorIds: [authorId]
+          })
+
+          expect(await listTimelineIds(list.id, owner.id)).toContain(
+            followersOnlyPost.id
+          )
+        }
+      )
+
+      it('keeps unlisted posts whose only public address is in cc', async () => {
+        const owner = await localActor('unlisted-list-owner')
+        const member = await localActor('unlisted-list-member')
+        const stranger = await localActor('unlisted-list-stranger')
+        // No followers collection in `to`, so only the `cc` recipient row can
+        // make this post list-eligible.
+        const unlistedPost = await note(member.id, 'unlisted', [stranger.id], {
+          cc: [ACTIVITY_STREAM_PUBLIC]
         })
-        await database.createFollow({
-          actorId: owner.id,
-          targetActorId: friendId,
-          status: FollowStatus.enum.Accepted,
-          inbox: `${friendId}/inbox`,
-          sharedInbox: 'https://friendica.test/inbox'
-        })
-        const followersOnlyPost = await note(friendId, 'followers-only', [
-          followersUrl
-        ])
 
         const list = await database.createList({
           actorId: owner.id,
-          title: 'Friendica friends'
+          title: 'Unlisted'
         })
         await database.addListAccounts({
           listId: list.id,
           actorId: owner.id,
-          targetActorIds: [friendId]
+          targetActorIds: [member.id]
         })
 
         expect(await listTimelineIds(list.id, owner.id)).toContain(
-          followersOnlyPost.id
+          unlistedPost.id
         )
       })
 
-      it('keeps followers-only posts addressed to a /followers collection that is not the stored one', async () => {
-        // The author's stored followers URL differs from the address, so only
-        // getVisibility's own `/followers` suffix test marks it followers-only.
-        const owner = await localActor('suffix-list-owner')
-        const authorId = 'https://suffix.test/users/author'
-        await database.createActor({
-          actorId: authorId,
-          username: 'author',
-          domain: 'suffix.test',
-          inboxUrl: `${authorId}/inbox`,
-          sharedInboxUrl: 'https://suffix.test/inbox',
-          followersUrl: 'https://suffix.test/collections/author-followers',
-          publicKey: 'public-key',
-          createdAt: Date.now()
-        })
-        await database.createFollow({
-          actorId: owner.id,
-          targetActorId: authorId,
-          status: FollowStatus.enum.Accepted,
-          inbox: `${authorId}/inbox`,
-          sharedInbox: 'https://suffix.test/inbox'
-        })
-        const followersOnlyPost = await note(authorId, 'followers-only', [
-          `${authorId}/followers`
-        ])
+      it.each([
+        ['none', ['own-post', 'self-reply']],
+        ['list', ['own-post', 'self-reply', 'reply-to-member']],
+        [
+          'followed',
+          [
+            'own-post',
+            'self-reply',
+            'reply-to-member',
+            'reply-to-followed',
+            'reply-to-stranger',
+            'reply-to-absent'
+          ]
+        ]
+      ] as [ListRepliesPolicy, string[]][])(
+        'applies repliesPolicy=%s to the owner’s own replies as Mastodon does',
+        async (repliesPolicy, visibleNames) => {
+          // Mastodon hides the owner's replies to non-members under 'list' and
+          // 'none' (filter_from_list?), but under 'followed' filter_from_home's
+          // early return for the receiver's own statuses lets every one of
+          // them through, a reply to an unstored parent included.
+          const prefix = `own-replies-${repliesPolicy}`
+          const owner = await localActor(`${prefix}-owner`)
+          const member = await localActor(`${prefix}-member`)
+          const followed = await localActor(`${prefix}-followed`)
+          const stranger = await localActor(`${prefix}-stranger`)
+          for (const target of [member, followed]) {
+            await database.createFollow({
+              actorId: owner.id,
+              targetActorId: target.id,
+              status: FollowStatus.enum.Accepted,
+              inbox: `${target.id}/inbox`,
+              sharedInbox: `${target.id}/inbox`
+            })
+          }
+          const publicAudience = [ACTIVITY_STREAM_PUBLIC]
+          const ownPost = await note(owner.id, 'own-post', publicAudience)
+          const parentOf = async (authorId: string) =>
+            (await note(authorId, 'parent', publicAudience)).id
+          const replyTo = async (localId: string, parentId: string) =>
+            (await note(owner.id, localId, publicAudience, { reply: parentId }))
+              .id
+          const ownIds: Record<string, string> = {
+            'own-post': ownPost.id,
+            'self-reply': await replyTo('self-reply', ownPost.id),
+            'reply-to-member': await replyTo(
+              'reply-to-member',
+              await parentOf(member.id)
+            ),
+            'reply-to-followed': await replyTo(
+              'reply-to-followed',
+              await parentOf(followed.id)
+            ),
+            'reply-to-stranger': await replyTo(
+              'reply-to-stranger',
+              await parentOf(stranger.id)
+            ),
+            'reply-to-absent': await replyTo(
+              'reply-to-absent',
+              'https://absent.test/statuses/gone'
+            )
+          }
 
-        const list = await database.createList({
-          actorId: owner.id,
-          title: 'Suffix'
-        })
-        await database.addListAccounts({
-          listId: list.id,
-          actorId: owner.id,
-          targetActorIds: [authorId]
-        })
+          const list = await database.createList({
+            actorId: owner.id,
+            title: `Own replies (${repliesPolicy})`,
+            repliesPolicy
+          })
+          await database.addListAccounts({
+            listId: list.id,
+            actorId: owner.id,
+            targetActorIds: [owner.id, member.id]
+          })
 
-        expect(await listTimelineIds(list.id, owner.id)).toContain(
-          followersOnlyPost.id
-        )
-      })
+          const listed = new Set(await listTimelineIds(list.id, owner.id, 50))
+          expect(
+            Object.entries(ownIds)
+              .filter(([, id]) => listed.has(id))
+              .map(([name]) => name)
+              .sort()
+          ).toEqual([...visibleNames].sort())
+        }
+      )
 
       it('never treats a boost as a direct message', async () => {
         const owner = await localActor('boost-list-owner')
@@ -1739,17 +1844,14 @@ describe('ListDatabase', () => {
             owner.id,
             `post-${index}`,
             [ACTIVITY_STREAM_PUBLIC],
-            startedAt + index * 1000
+            { createdAt: startedAt + index * 1000 }
           )
           postIds.push(post.id)
         }
         // The newest post is a DM. It must not spend one of the capped slots.
-        await note(
-          owner.id,
-          'newest-dm',
-          [stranger.id],
-          startedAt + (LIST_OWNER_BACKFILL_MAX_POSTS + 1) * 1000
-        )
+        await note(owner.id, 'newest-dm', [stranger.id], {
+          createdAt: startedAt + (LIST_OWNER_BACKFILL_MAX_POSTS + 1) * 1000
+        })
 
         const list = await database.createList({
           actorId: owner.id,

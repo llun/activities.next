@@ -299,7 +299,8 @@ export const ListEditor: FC<ListEditorProps> = ({
             <Label htmlFor="list-exclusive">Hide members from Home</Label>
             <p className="text-sm text-muted-foreground">
               If someone is on this list, hide their posts from your Home
-              timeline to avoid seeing them twice.
+              timeline to avoid seeing them twice. Your own posts always stay in
+              Home.
             </p>
           </div>
           <Switch

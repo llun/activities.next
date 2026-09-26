@@ -285,6 +285,17 @@ product or security decision, not a gap to be closed.
   `lib/services/quotes/`, `lib/actions/*Quote*`, and
   `app/api/v1/statuses/[id]/quotes|interaction_policy`.
 
+- **Adding yourself to your own list backfills your recent posts.** As in
+  Mastodon (≥ 3.1), a list owner may add their own account to a list without a
+  follow, and their posts then fan into it. Mastodon backfills none of the
+  owner's history, so only posts written afterwards appear. Activity.next
+  backfills the owner's 200 most recent posts that the list can show
+  (`LIST_OWNER_BACKFILL_MAX_POSTS`), so the list shows their side of recent
+  conversations at once. Other members backfill their full history, where
+  Mastodon merges at most 200 of a followed member's recent posts. Every other
+  member still needs an accepted follow, whereas Mastodon ≥ 4.2 also accepts an
+  account you have only requested to follow.
+
 ## Not planned
 
 These endpoints are not implemented and are not currently on the roadmap. They

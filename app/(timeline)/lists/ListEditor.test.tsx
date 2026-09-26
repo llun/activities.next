@@ -286,9 +286,11 @@ describe('ListEditor', () => {
       expect(screen.getByText('In this list · 1')).toBeInTheDocument()
     )
     expect(screen.getByText('You')).toBeInTheDocument()
+    // Enabled, not merely present: the owner's controls share one pending id,
+    // so a pending flag left set would leave the swapped-in control dead.
     expect(
       screen.getByRole('button', { name: 'Remove yourself' })
-    ).toBeInTheDocument()
+    ).toBeEnabled()
     expect(
       screen.queryByRole('button', { name: 'Add yourself' })
     ).not.toBeInTheDocument()
@@ -365,7 +367,7 @@ describe('ListEditor', () => {
     )
     expect(
       await screen.findByRole('button', { name: 'Add yourself' })
-    ).toBeInTheDocument()
+    ).toBeEnabled()
     expect(screen.queryByText('You')).not.toBeInTheDocument()
   })
 

@@ -25,13 +25,13 @@ const AUTHORS_ALIAS = 'list_eligible_authors'
 // too — the same pair applyPotentiallyReadableStatusFilter matches — because not
 // every server names the collection that way (Friendica's is `/followers/<nick>`)
 // and those followers-only posts showed in lists before this filter existed.
-// LIKE folds ASCII case on SQLite (not on PostgreSQL), so there an upper-case
-// `/FOLLOWERS` suffix also counts.
+// LIKE folds ASCII case on SQLite and under MySQL's default collations (not on
+// PostgreSQL), so there an upper-case `/FOLLOWERS` suffix also counts.
 //
 // Pure WHERE/EXISTS on `statuses`, so it composes with the list timeline's
 // other filters and runs before LIMIT; the recipients lookup is served by
 // recipients_status_type_actor_idx (statusId leading) and the author by the
-// actors primary key.
+// actors_id_unique index.
 export const applyListEligibleStatusFilter = ({
   database,
   query
