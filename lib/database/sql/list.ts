@@ -102,9 +102,11 @@ const backfillListTimelineForMembers = async ({
   }
 
   if (targetActorIds.includes(ownerId)) {
-    // Only the owner's most recent posts the list can show: the eligibility
-    // filter runs before the LIMIT so DMs, which the list never shows, cannot
-    // spend the cap.
+    // Only the owner's most recent posts other than DMs: the eligibility filter
+    // runs before the LIMIT so DMs, which the list never shows, cannot spend
+    // the cap. The replies policy stays a read-time filter, as for every
+    // member, so loosening it later shows the replies it hid — which also means
+    // those replies count toward the cap.
     const ownStatuses = database('statuses').where('statuses.actorId', ownerId)
     applyListEligibleStatusFilter({ database, query: ownStatuses })
     await materialize(

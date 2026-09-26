@@ -1668,10 +1668,11 @@ describe('ListDatabase', () => {
       ] as [ListRepliesPolicy, string[]][])(
         'applies repliesPolicy=%s to the owner’s own replies as Mastodon does',
         async (repliesPolicy, visibleNames) => {
-          // Mastodon hides the owner's replies to non-members under 'list' and
-          // 'none' (filter_from_list?), but under 'followed' filter_from_home's
-          // early return for the receiver's own statuses lets every one of
-          // them through, a reply to an unstored parent included.
+          // Mastodon's filter_from_list? hides the owner's replies to anyone
+          // but themselves under 'none' and to non-members under 'list'. Under
+          // 'followed' it never filters, and filter_from_home returns early for
+          // the receiver's own statuses, so every one of them passes, a reply
+          // to an unstored parent included.
           const prefix = `own-replies-${repliesPolicy}`
           const owner = await localActor(`${prefix}-owner`)
           const member = await localActor(`${prefix}-member`)
@@ -1834,7 +1835,7 @@ describe('ListDatabase', () => {
         expect(await listTimelineIds(list.id, owner.id)).toContain(ownPost.id)
       })
 
-      it('backfills only the owner’s most recent posts the list can show', async () => {
+      it('backfills only the owner’s most recent posts other than direct messages', async () => {
         const owner = await localActor('capped-list-owner')
         const stranger = await localActor('capped-list-stranger')
         const startedAt = Date.UTC(2026, 0, 1)
