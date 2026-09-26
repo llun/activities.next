@@ -8,7 +8,8 @@ import {
   createFitnessGearComponent,
   deleteFitnessGearComponent,
   refitFitnessGearComponent,
-  retireFitnessGearComponent
+  retireFitnessGearComponent,
+  updateFitnessGearComponent
 } from '@/lib/client'
 import type { GearComponentEntity } from '@/lib/services/fitness-gears/gearEntities'
 
@@ -18,12 +19,17 @@ vi.mock('@/lib/client', () => ({
   createFitnessGearComponent: vi.fn(),
   deleteFitnessGearComponent: vi.fn(),
   refitFitnessGearComponent: vi.fn(),
-  retireFitnessGearComponent: vi.fn()
+  retireFitnessGearComponent: vi.fn(),
+  updateFitnessGearComponent: vi.fn()
 }))
 
 const mockCreateFitnessGearComponent =
   createFitnessGearComponent as jest.MockedFunction<
     typeof createFitnessGearComponent
+  >
+const mockUpdateFitnessGearComponent =
+  updateFitnessGearComponent as jest.MockedFunction<
+    typeof updateFitnessGearComponent
   >
 const mockDeleteFitnessGearComponent =
   deleteFitnessGearComponent as jest.MockedFunction<
@@ -121,6 +127,7 @@ describe('GearComponentsCard', () => {
     mockRefitFitnessGearComponent.mockResolvedValue(
       createComponent({ removedAt: null })
     )
+    mockUpdateFitnessGearComponent.mockResolvedValue(createComponent())
   })
 
   it('renders the header with the installed count', () => {
@@ -207,6 +214,24 @@ describe('GearComponentsCard', () => {
       expect(screen.getByRole('table').parentElement).not.toHaveStyle({
         scrollSnapType: 'x mandatory'
       })
+    })
+
+    it('sets the brand column width to at least 124px to fit Continental', () => {
+      renderCard([createComponent({ brand: 'Continental' })])
+      act(() => deliverWidth?.(900))
+
+      const [brandHeader, brandCell] = columnCells(1)
+      expect((brandHeader as HTMLElement).style.minWidth).toBe('124px')
+      expect((brandCell as HTMLElement).style.minWidth).toBe('124px')
+    })
+
+    it('sets the actions column width to at least 136px off-snap', () => {
+      renderCard([createComponent()])
+      act(() => deliverWidth?.(900))
+
+      const [actionsHeader, actionsCell] = columnCells(7)
+      expect((actionsHeader as HTMLElement).style.minWidth).toBe('136px')
+      expect((actionsCell as HTMLElement).style.minWidth).toBe('136px')
     })
   })
 
@@ -534,7 +559,7 @@ describe('GearComponentsCard', () => {
     expect(actions).toHaveClass('flex', 'flex-wrap')
   })
 
-  it('offers both refit and delete on a retired row', () => {
+  it('offers edit, refit and delete on a retired row', () => {
     renderCard([createComponent({ removedAt: Date.UTC(2025, 5, 1) })])
 
     fireEvent.click(
@@ -542,9 +567,70 @@ describe('GearComponentsCard', () => {
     )
 
     expect(
+      screen.getByRole('button', { name: 'Edit Chain' })
+    ).toBeInTheDocument()
+    expect(
       screen.getByRole('button', { name: 'Refit Chain' })
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+  })
+
+  it('opens the edit dialog when Edit is clicked on an active component and updates', async () => {
+    const onChanged = vi.fn()
+    renderCard(
+      [
+        createComponent({
+          componentType: 'Front tire',
+          brand: 'Continental',
+          model: '5000 AS TR'
+        })
+      ],
+      onChanged
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Front tire' }))
+
+    expect(
+      screen.getByRole('heading', { name: 'Edit component' })
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Brand')).toHaveValue('Continental')
+    expect(screen.getByLabelText('Model')).toHaveValue('5000 AS TR')
+
+    fireEvent.change(screen.getByLabelText('Model'), {
+      target: { value: 'Grand Prix 5000' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(mockUpdateFitnessGearComponent).toHaveBeenCalledWith(
+        'gear-1',
+        'component-1',
+        expect.objectContaining({
+          model: 'Grand Prix 5000'
+        })
+      )
+    })
+    expect(onChanged).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens the edit dialog when Edit is clicked on a retired component', async () => {
+    renderCard([
+      createComponent({
+        componentType: 'Rear tire',
+        brand: 'Continental',
+        removedAt: Date.UTC(2025, 5, 1)
+      })
+    ])
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show 1 retired component' })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Rear tire' }))
+
+    expect(
+      screen.getByRole('heading', { name: 'Edit component' })
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Brand')).toHaveValue('Continental')
   })
 
   it('scopes the retire button accessible name to the component type', () => {

@@ -1119,13 +1119,19 @@ null }` remains the precise "this retirement never happened" — it reopens the
   and the components table takes **120px** rather than that 104px because our
   pinned cell is `px-4` where the design runs a flat `px-3`: at 104px the content
   box was 72px and "Handlebar" (72.6px at `text-sm font-medium`) broke mid-word,
-  which is what `wrap-anywhere` does to a word that does not fit. 120px leaves
-  88px, clear of "Chainrings" at 74.7px, the widest single word in
+  which is what `wrap-anywhere` does to a word that does not fit. 120px leaves 88px, clear of "Chainrings" at 74.7px, the widest single word in
   `COMPONENT_TYPE_OPTIONS`; multi-word values still wrap at their spaces, and
   fitting "Front brake pads" on one line would take a 149px pin, 38% of a 390px
-  phone. Widen the width, never drop the wrap —
-  and `STICKY_CLICKABLE_COLUMN` belongs only on a row that has its own `hover:`
-  and the `group` class — a row carrying `group` without a `hover:` lights the
+  phone. Similarly, the Brand column takes **124px** rather than 96px: at 96px
+  with `px-3` (24px horizontal padding), the 72px content box caused
+  "Continental" (~75px at `text-sm font-normal`) to wrap its trailing 'l' to a
+  new line under `wrap-anywhere`. 124px leaves 100px of content width, fitting
+  "Continental" with over 20px of slack across platform system fonts. The
+  actions column takes **136px** so "Edit" and "Retire" sit side-by-side
+  off-snap, while preserving `flex-wrap` so snapped single-column views wrap
+  rather than overhang. Widen the width, never drop the wrap — and
+  `STICKY_CLICKABLE_COLUMN` belongs only on a row that has its own `hover:` and
+  the `group` class — a row carrying `group` without a `hover:` lights the
   first column alone, and a row with neither never matches the variant at all.
 - **A gear's activities are the POSTS they were published as, rendered through
   the shared `Posts` feed.** `GearActivitiesFeed`
@@ -1163,7 +1169,8 @@ null }` remains the precise "this retirement never happened" — it reopens the
 - **Every kind and component carries a product page, and one component renders it.**
   `fitness_gears.productUrl` and `fitness_gear_components.productUrl` are the manufacturer's page for a bike, a pair of
   shoes, a head unit, or an individual component alike. It is edited in the "Product page" field of
-  `GearFormDialog` or the "Add component" form in `GearComponentsCard`, and rendered by the one `GearProductLink`
+  `GearFormDialog` or `GearComponentFormDialog` (`app/(timeline)/fitness/gear/[id]/GearComponentFormDialog.tsx`)
+  used for creating and editing components in `GearComponentsCard`, and rendered by the one `GearProductLink`
   (`app/(timeline)/fitness/gear/`) everywhere it appears — every gear page header, the gear list's bikes/shoes/devices tables,
   and the components table alike. Hostname only ("moots.com", not the whole
   URL), leading `ExternalLink`, `target="_blank"` with
