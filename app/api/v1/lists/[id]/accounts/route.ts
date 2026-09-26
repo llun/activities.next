@@ -193,12 +193,13 @@ export const POST = traceApiRoute(
 
       // One batched publicId lookup for the whole list, not one per id.
       const targetActorIds = await resolveActorIdParams(database, accountIds)
-      // Mastodon only allows adding accounts the requester follows, plus the
-      // requester themselves — ListAccount skips its follow requirement when
-      // the account is the list's owner (Mastodon ≥ 3.1), which is how a list
-      // can show its owner's own posts. Anything else (including bogus ids) is
-      // a 404 so no dangling membership rows are created for actors that don't
-      // resolve.
+      // Mastodon only allows adding accounts the requester follows (≥ 4.2 also
+      // accepts a pending follow request; this route requires an accepted
+      // follow), plus the requester themselves — ListAccount skips its follow
+      // requirement when the account is the list's owner (Mastodon ≥ 3.1),
+      // which is how a list can show its owner's own posts. Anything else
+      // (including bogus ids) is a 404 so no dangling membership rows are
+      // created for actors that don't resolve.
       const followChecks = await Promise.all(
         targetActorIds.map((targetActorId) =>
           targetActorId === currentActor.id

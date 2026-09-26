@@ -765,7 +765,11 @@ describe('TimelineDatabase', () => {
         it("keeps the viewer's own posts at home when they are on their own exclusive list", async () => {
           // A list owner may add themselves so the list shows their posts; an
           // exclusive flag on that list must still leave their own posts in
-          // Home (Mastodon's filter_from_home never skips the receiver's own).
+          // Home (Mastodon's filter_from_home never skips the receiver's own),
+          // while still hiding the list's other members. BESIDE_OWNER is on no
+          // other list, so only ownList can hide it.
+          const BESIDE_OWNER = `https://${TEST_DOMAIN}/users/excl-beside-owner`
+          await account('excl-beside-owner')
           const ownList = await database.createList({
             actorId: OWNER,
             title: 'Including me',
@@ -774,13 +778,13 @@ describe('TimelineDatabase', () => {
           await database.addListAccounts({
             listId: ownList.id,
             actorId: OWNER,
-            targetActorIds: [OWNER, EXCL_MEMBER]
+            targetActorIds: [OWNER, BESIDE_OWNER]
           })
           try {
             const ownId = await seed(OWNER, 'home-own', Timeline.MAIN)
             const memberId = await seed(
-              EXCL_MEMBER,
-              'home-excl-beside-owner',
+              BESIDE_OWNER,
+              'home-beside-owner',
               Timeline.MAIN
             )
 

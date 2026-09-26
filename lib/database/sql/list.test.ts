@@ -1589,6 +1589,146 @@ describe('ListDatabase', () => {
         )
       })
 
+      it('keeps followers-only posts addressed to a /followers collection that is not the stored one', async () => {
+        // The author's stored followers URL differs from the address, so only
+        // getVisibility's own `/followers` suffix test marks it followers-only.
+        const owner = await localActor('suffix-list-owner')
+        const authorId = 'https://suffix.test/users/author'
+        await database.createActor({
+          actorId: authorId,
+          username: 'author',
+          domain: 'suffix.test',
+          inboxUrl: `${authorId}/inbox`,
+          sharedInboxUrl: 'https://suffix.test/inbox',
+          followersUrl: 'https://suffix.test/collections/author-followers',
+          publicKey: 'public-key',
+          createdAt: Date.now()
+        })
+        await database.createFollow({
+          actorId: owner.id,
+          targetActorId: authorId,
+          status: FollowStatus.enum.Accepted,
+          inbox: `${authorId}/inbox`,
+          sharedInbox: 'https://suffix.test/inbox'
+        })
+        const followersOnlyPost = await note(authorId, 'followers-only', [
+          `${authorId}/followers`
+        ])
+
+        const list = await database.createList({
+          actorId: owner.id,
+          title: 'Suffix'
+        })
+        await database.addListAccounts({
+          listId: list.id,
+          actorId: owner.id,
+          targetActorIds: [authorId]
+        })
+
+        expect(await listTimelineIds(list.id, owner.id)).toContain(
+          followersOnlyPost.id
+        )
+      })
+
+      it('never treats a boost as a direct message', async () => {
+        const owner = await localActor('boost-list-owner')
+        const member = await localActor('boost-list-member')
+        const original = await note(member.id, 'original', [
+          ACTIVITY_STREAM_PUBLIC
+        ])
+        // Addressed to one person, a boost has neither a public nor a
+        // followers recipient; isDirectStatus still never calls a boost direct,
+        // so the list must not either.
+        const boost = await database.createAnnounce({
+          id: `${member.id}/statuses/boost`,
+          actorId: member.id,
+          to: [owner.id],
+          cc: [],
+          originalStatusId: original.id
+        })
+        if (!boost) throw new Error('boost not created')
+
+        const list = await database.createList({
+          actorId: owner.id,
+          title: 'Boosts'
+        })
+        await database.addListAccounts({
+          listId: list.id,
+          actorId: owner.id,
+          targetActorIds: [member.id]
+        })
+
+        expect(await listTimelineIds(list.id, owner.id)).toContain(boost.id)
+      })
+
+      it('backfills the owner and another member added in the same call', async () => {
+        const owner = await localActor('batch-list-owner')
+        const member = await localActor('batch-list-member')
+        const memberPost = await note(member.id, 'member-post', [
+          ACTIVITY_STREAM_PUBLIC
+        ])
+        const ownPost = await note(owner.id, 'own-post', [
+          ACTIVITY_STREAM_PUBLIC
+        ])
+
+        const list = await database.createList({
+          actorId: owner.id,
+          title: 'Batch'
+        })
+        await database.addListAccounts({
+          listId: list.id,
+          actorId: owner.id,
+          targetActorIds: [owner.id, member.id]
+        })
+
+        expect(await listTimelineIds(list.id, owner.id)).toEqual(
+          expect.arrayContaining([memberPost.id, ownPost.id])
+        )
+      })
+
+      it('keeps the owner on their own list when a self-follow is undone', async () => {
+        // No follow backs the owner's own membership, so undoing a follow of
+        // themselves must not trigger the unfollow cleanup for it.
+        const owner = await localActor('self-follow-owner')
+        await database.createFollow({
+          actorId: owner.id,
+          targetActorId: owner.id,
+          status: FollowStatus.enum.Accepted,
+          inbox: `${owner.id}/inbox`,
+          sharedInbox: `${owner.id}/inbox`
+        })
+        const ownPost = await note(owner.id, 'public', [ACTIVITY_STREAM_PUBLIC])
+        const list = await database.createList({
+          actorId: owner.id,
+          title: 'Self follow'
+        })
+        await database.addListAccounts({
+          listId: list.id,
+          actorId: owner.id,
+          targetActorIds: [owner.id]
+        })
+
+        const follow = await database.getAcceptedOrRequestedFollow({
+          actorId: owner.id,
+          targetActorId: owner.id
+        })
+        if (!follow) throw new Error('self-follow not created')
+        await database.updateFollowStatus({
+          followId: follow.id,
+          status: FollowStatus.enum.Undo
+        })
+
+        expect(
+          (
+            await database.getListAccounts({
+              listId: list.id,
+              actorId: owner.id
+            })
+          ).accounts
+        ).toHaveLength(1)
+        expect(await listTimelineIds(list.id, owner.id)).toContain(ownPost.id)
+      })
+
       it('backfills only the owner’s most recent posts the list can show', async () => {
         const owner = await localActor('capped-list-owner')
         const stranger = await localActor('capped-list-stranger')

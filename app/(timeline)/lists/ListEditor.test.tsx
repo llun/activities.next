@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import {
   addListAccounts,
@@ -11,6 +11,7 @@ import {
   removeListAccounts,
   updateList
 } from '@/lib/client'
+import { createDeferred } from '@/lib/testing/deferred'
 import { ListEntity } from '@/lib/types/mastodon/list'
 
 import { ListEditor, ListMember } from './ListEditor'
@@ -294,11 +295,13 @@ describe('ListEditor', () => {
   })
 
   it('does not offer to add the owner when they are already a member', () => {
+    // The page builds the owner and each member entry separately, so the
+    // editor has to match the owner by id, never by object identity.
     render(
       <ListEditor
         mode="edit"
         list={list}
-        initialMembers={[owner, member]}
+        initialMembers={[{ ...owner }, member]}
         currentAccount={owner}
       />
     )
@@ -306,12 +309,64 @@ describe('ListEditor', () => {
     expect(
       screen.queryByRole('button', { name: 'Add yourself' })
     ).not.toBeInTheDocument()
+    expect(screen.getAllByText('You')).toHaveLength(1)
     expect(
       screen.getByRole('button', { name: 'Remove yourself' })
     ).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'Remove Rin' })
     ).toBeInTheDocument()
+  })
+
+  it('disables Add yourself while the request is in flight', async () => {
+    const request = createDeferred<boolean>()
+    ;(addListAccounts as jest.Mock).mockReturnValue(request.promise)
+    render(
+      <ListEditor
+        mode="edit"
+        list={list}
+        initialMembers={[]}
+        currentAccount={owner}
+      />
+    )
+
+    const addYourself = screen.getByRole('button', { name: 'Add yourself' })
+    fireEvent.click(addYourself)
+    expect(addYourself).toBeDisabled()
+    fireEvent.click(addYourself)
+    expect(addListAccounts).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      request.resolve(true)
+    })
+    expect(screen.getByText('In this list · 1')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Add yourself' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('offers Add yourself again after the owner removes themselves', async () => {
+    render(
+      <ListEditor
+        mode="edit"
+        list={list}
+        initialMembers={[{ ...owner }]}
+        currentAccount={owner}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove yourself' }))
+
+    await waitFor(() =>
+      expect(removeListAccounts).toHaveBeenCalledWith({
+        listId: 'list-1',
+        accountIds: [owner.id]
+      })
+    )
+    expect(
+      await screen.findByRole('button', { name: 'Add yourself' })
+    ).toBeInTheDocument()
+    expect(screen.queryByText('You')).not.toBeInTheDocument()
   })
 
   it('saves settings changes and routes back to the list', async () => {

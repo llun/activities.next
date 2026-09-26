@@ -320,16 +320,18 @@ export const ListEditor: FC<ListEditorProps> = ({
           </div>
 
           {currentAccount && !memberIds.has(currentAccount.id) && (
-            <div className="flex items-center gap-3 rounded-lg border border-dashed p-3">
+            // flex-wrap + the text's basis let the button drop below the text
+            // on a narrow row instead of squeezing it to a word per line.
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-dashed p-3">
               <Avatar className="h-10 w-10">
                 {currentAccount.avatar && (
-                  <AvatarImage src={currentAccount.avatar} />
+                  <AvatarImage src={currentAccount.avatar} alt="" />
                 )}
                 <AvatarFallback>
                   {getInitials(currentAccount.name)}
                 </AvatarFallback>
               </Avatar>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 basis-40">
                 <p className="font-medium">Your posts</p>
                 <p className="text-sm text-muted-foreground">
                   Show your own posts in this list.
@@ -338,7 +340,7 @@ export const ListEditor: FC<ListEditorProps> = ({
               <Button
                 variant="outline"
                 size="sm"
-                className="shrink-0"
+                className="ml-auto shrink-0"
                 disabled={pendingMemberIds.has(currentAccount.id)}
                 onClick={() => addMember(currentAccount)}
               >

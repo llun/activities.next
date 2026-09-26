@@ -112,6 +112,9 @@ describe('GET /api/v1/lists/:id/accounts', () => {
 describe('POST /api/v1/lists/:id/accounts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // clearAllMocks keeps queued mockResolvedValueOnce values; drop them so a
+    // test that returns before its lookup can't hand its Map to the next one.
+    mockDatabase.getActorIdsByPublicIds.mockReset()
     mockDatabase.getList.mockResolvedValue({ id: LIST_ID, title: 'Friends' })
     mockDatabase.addListAccounts.mockResolvedValue(undefined)
     mockDatabase.removeListAccounts.mockResolvedValue(undefined)
@@ -175,8 +178,30 @@ describe('POST /api/v1/lists/:id/accounts', () => {
     })
   })
 
-  it('still requires a follow for anyone the owner adds alongside themselves', async () => {
-    mockDatabase.isCurrentActorFollowing.mockResolvedValue(false)
+  it.each([
+    {
+      description: 'adds the owner alongside a followed account in one request',
+      isFollowing: true,
+      status: 200,
+      addCalls: [
+        [
+          {
+            listId: LIST_ID,
+            actorId: mockCurrentActor.id,
+            targetActorIds: [mockCurrentActor.id, idToUrl('acc1')]
+          }
+        ]
+      ]
+    },
+    {
+      description:
+        'still requires a follow for anyone the owner adds alongside themselves',
+      isFollowing: false,
+      status: 404,
+      addCalls: []
+    }
+  ])('$description', async ({ isFollowing, status, addCalls }) => {
+    mockDatabase.isCurrentActorFollowing.mockResolvedValue(isFollowing)
     const ownPublicId = generatePublicId()
     mockDatabase.getActorIdsByPublicIds.mockResolvedValueOnce(
       new Map([[ownPublicId, mockCurrentActor.id]])
@@ -189,12 +214,17 @@ describe('POST /api/v1/lists/:id/accounts', () => {
 
     const response = await POST(request, params())
 
-    expect(response.status).toBe(404)
-    expect(mockDatabase.isCurrentActorFollowing).toHaveBeenCalledWith({
-      currentActorId: mockCurrentActor.id,
-      followingActorId: idToUrl('acc1')
-    })
-    expect(mockDatabase.addListAccounts).not.toHaveBeenCalled()
+    expect(response.status).toBe(status)
+    // Only the other account's follow is checked, never the owner's own id.
+    expect(mockDatabase.isCurrentActorFollowing.mock.calls).toEqual([
+      [
+        {
+          currentActorId: mockCurrentActor.id,
+          followingActorId: idToUrl('acc1')
+        }
+      ]
+    ])
+    expect(mockDatabase.addListAccounts.mock.calls).toEqual(addCalls)
   })
 
   it('adds accounts from a urlencoded bracket-array body', async () => {
@@ -316,6 +346,7 @@ describe('POST /api/v1/lists/:id/accounts', () => {
 describe('DELETE /api/v1/lists/:id/accounts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockDatabase.getActorIdsByPublicIds.mockReset()
     mockDatabase.getList.mockResolvedValue({ id: LIST_ID, title: 'Friends' })
     mockDatabase.addListAccounts.mockResolvedValue(undefined)
     mockDatabase.removeListAccounts.mockResolvedValue(undefined)

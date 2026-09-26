@@ -256,6 +256,10 @@ const canIncludeAccount = async ({
 }) => {
   if (!following) return true
   if (!currentActor) return false
+  // Mastodon counts the searcher among the accounts they follow (see
+  // applyFollowingFilter), so a following-filtered lookup of your own URL
+  // still finds you, as the indexed search does.
+  if (actorId === currentActor.id) return true
 
   return database.isCurrentActorFollowing({
     currentActorId: currentActor.id,
