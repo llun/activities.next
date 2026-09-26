@@ -30,6 +30,9 @@ const HOST = 'test.example.com'
 const BASE_URL = `https://${HOST}`
 const EMAIL = 'oauth-flow@example.com'
 const PASSWORD = 'testpassword123'
+// The lowest cost bcrypt accepts: fixtures only need a valid hash, and
+// bcrypt.compare reads the cost from it (production hashes at 10).
+const TEST_BCRYPT_COST = 4
 const CLIENT_ID = 'flow-test-client'
 const CLIENT_SECRET = 'flow-test-secret'
 const REDIRECT_URI = 'https://client.example.com/callback'
@@ -129,7 +132,7 @@ describe('OAuth provider token grants', () => {
       domain: HOST,
       email: EMAIL,
       username: 'oauthflow',
-      passwordHash: await bcrypt.hash(PASSWORD, 10),
+      passwordHash: await bcrypt.hash(PASSWORD, TEST_BCRYPT_COST),
       publicKey: 'test-public-key',
       privateKey: 'test-private-key'
     })

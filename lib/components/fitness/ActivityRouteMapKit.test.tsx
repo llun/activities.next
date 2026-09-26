@@ -5,6 +5,7 @@ import '@testing-library/jest-dom'
 import { act, render, screen, waitFor } from '@testing-library/react'
 
 import type { FitnessRouteSegment } from '@/lib/client'
+import { ROUTE_PRIVACY_HINT_TAP_TIMEOUT_MS } from '@/lib/components/fitness/RoutePrivacyHint'
 import { createMapKitTestDouble } from '@/lib/components/fitness/mapkitTestDouble'
 import { loadMapKitModule } from '@/lib/utils/mapkit'
 
@@ -42,6 +43,7 @@ describe('ActivityRouteMapKit', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.clearAllMocks()
   })
 
@@ -382,16 +384,21 @@ describe('ActivityRouteMapKit', () => {
       })
       try {
         const { map } = await renderWithMapKit()
+        vi.useFakeTimers()
 
         await act(async () => {
           map.emit('single-tap', { pointOnPage: { x: 5.6, y: 52 } })
         })
         expect(screen.getByTestId('route-privacy-hint')).toBeInTheDocument()
 
-        await act(async () => {
-          await new Promise((resolve) => setTimeout(resolve, 4100))
+        act(() => {
+          vi.advanceTimersByTime(ROUTE_PRIVACY_HINT_TAP_TIMEOUT_MS - 1)
         })
+        expect(screen.getByTestId('route-privacy-hint')).toBeInTheDocument()
 
+        act(() => {
+          vi.advanceTimersByTime(1)
+        })
         expect(
           screen.queryByTestId('route-privacy-hint')
         ).not.toBeInTheDocument()
@@ -409,13 +416,14 @@ describe('ActivityRouteMapKit', () => {
       })
       try {
         const { map } = await renderWithMapKit()
+        vi.useFakeTimers()
 
         await act(async () => {
           map.emit('single-tap', { pointOnPage: { x: 5.6, y: 52 } })
         })
 
-        await act(async () => {
-          await new Promise((resolve) => setTimeout(resolve, 4100))
+        act(() => {
+          vi.advanceTimersByTime(ROUTE_PRIVACY_HINT_TAP_TIMEOUT_MS * 2)
         })
 
         expect(screen.getByTestId('route-privacy-hint')).toBeInTheDocument()

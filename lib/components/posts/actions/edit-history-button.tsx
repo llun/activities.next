@@ -1,4 +1,4 @@
-import { formatDistance } from 'date-fns'
+import { formatDistance } from 'date-fns/formatDistance'
 import { History, X } from 'lucide-react'
 import { FC, useId, useRef, useState } from 'react'
 

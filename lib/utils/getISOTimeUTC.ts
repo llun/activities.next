@@ -1,5 +1,5 @@
 import { UTCDate } from '@date-fns/utc'
-import { format } from 'date-fns'
+import { format } from 'date-fns/format'
 
 // Single UTC datetime formatter used for both ActivityPub `published` and REST
 // API datetime fields. It always emits millisecond precision (e.g.

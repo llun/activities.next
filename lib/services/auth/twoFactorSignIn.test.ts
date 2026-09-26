@@ -23,6 +23,9 @@ const HOST = 'test.example.com'
 const BASE_URL = `https://${HOST}`
 const EMAIL = 'twofactor@example.com'
 const PASSWORD = 'testpassword123'
+// The lowest cost bcrypt accepts: fixtures only need a valid hash, and
+// bcrypt.compare reads the cost from it (production hashes at 10).
+const TEST_BCRYPT_COST = 4
 
 const holder = vi.hoisted(() => ({
   knex: null as Knex | null,
@@ -163,7 +166,7 @@ describe('two-factor sign-in flow', () => {
       domain: HOST,
       email: EMAIL,
       username: 'twofactor',
-      passwordHash: await bcrypt.hash(PASSWORD, 10),
+      passwordHash: await bcrypt.hash(PASSWORD, TEST_BCRYPT_COST),
       publicKey: 'test-public-key',
       privateKey: 'test-private-key'
     })

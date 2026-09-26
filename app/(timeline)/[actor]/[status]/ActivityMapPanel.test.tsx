@@ -6,6 +6,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { FitnessRouteSample, FitnessRouteSegment } from '@/lib/client'
+import { ROUTE_PRIVACY_HINT_TAP_TIMEOUT_MS } from '@/lib/components/fitness/RoutePrivacyHint'
 import type { Attachment } from '@/lib/types/domain/attachment'
 import { loadMapboxModule } from '@/lib/utils/mapbox'
 import { loadMaplibreModule } from '@/lib/utils/maplibre'
@@ -213,6 +214,7 @@ describe('ActivityMapPanel', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.restoreAllMocks()
   })
 
@@ -476,6 +478,7 @@ describe('ActivityMapPanel', () => {
           true
         )
       })
+      vi.useFakeTimers()
 
       await act(async () => {
         handlers.get(`click:${MAP_ROUTE_HIDDEN_HIT_LAYER_ID}`)?.({
@@ -485,10 +488,14 @@ describe('ActivityMapPanel', () => {
 
       expect(screen.getByTestId('route-privacy-hint')).toBeInTheDocument()
 
-      await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 4100))
+      act(() => {
+        vi.advanceTimersByTime(ROUTE_PRIVACY_HINT_TAP_TIMEOUT_MS - 1)
       })
+      expect(screen.getByTestId('route-privacy-hint')).toBeInTheDocument()
 
+      act(() => {
+        vi.advanceTimersByTime(1)
+      })
       expect(screen.queryByTestId('route-privacy-hint')).not.toBeInTheDocument()
     })
 
@@ -514,6 +521,7 @@ describe('ActivityMapPanel', () => {
             true
           )
         })
+        vi.useFakeTimers()
 
         await act(async () => {
           handlers.get(`click:${MAP_ROUTE_HIDDEN_HIT_LAYER_ID}`)?.({
@@ -521,8 +529,8 @@ describe('ActivityMapPanel', () => {
           })
         })
 
-        await act(async () => {
-          await new Promise((resolve) => setTimeout(resolve, 4100))
+        act(() => {
+          vi.advanceTimersByTime(ROUTE_PRIVACY_HINT_TAP_TIMEOUT_MS * 2)
         })
 
         expect(screen.getByTestId('route-privacy-hint')).toBeInTheDocument()

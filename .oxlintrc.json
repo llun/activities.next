@@ -168,6 +168,12 @@
         "no-restricted-imports": [
           "error",
           {
+            "paths": [
+              {
+                "name": "date-fns",
+                "message": "Import the function from its sub-path (import { format } from 'date-fns/format'). The date-fns barrel evaluates every function (~0.5s) in each test file that pulls it in (CONTRIBUTING.md → Testing Guidelines)."
+              }
+            ],
             "patterns": [
               {
                 "group": ["..", "../**"],

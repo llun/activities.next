@@ -1,6 +1,6 @@
 'use client'
 
-import { formatDistance } from 'date-fns'
+import { formatDistance } from 'date-fns/formatDistance'
 import { Quote } from 'lucide-react'
 import Link from 'next/link'
 import { FC, useEffect, useState } from 'react'

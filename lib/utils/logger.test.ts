@@ -9,6 +9,9 @@ describe('logger configuration and GCP formatters', () => {
   beforeEach(() => {
     vi.resetModules()
     process.env = { ...originalEnv }
+    // The suite runs with LOG_LEVEL=silent (vitest.config.ts) and a developer
+    // shell may set its own; these tests assert the logger's default level.
+    delete process.env.LOG_LEVEL
   })
 
   afterEach(() => {

@@ -1,7 +1,7 @@
 'use client'
 
 import { UTCDate } from '@date-fns/utc'
-import { format } from 'date-fns'
+import { format } from 'date-fns/format'
 import {
   Activity,
   AlertCircle,

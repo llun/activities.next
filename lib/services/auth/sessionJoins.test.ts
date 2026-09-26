@@ -44,6 +44,9 @@ const SQLITE_SCHEMA_PATH = fileURLToPath(
 const ACCOUNT_ID = 'account-1'
 const EMAIL = 'session-joins@test.example.com'
 const PASSWORD = 'test-password-123'
+// The lowest cost bcrypt accepts: fixtures only need a valid hash, and
+// bcrypt.compare reads the cost from it (production hashes at 10).
+const TEST_BCRYPT_COST = 4
 
 const buildInMemoryKnex = async (): Promise<Knex> => {
   const instance = knex({
@@ -91,7 +94,7 @@ describe('session resolution with database joins', () => {
       // Better Auth 1.7.3 keys credentials by provider + provider-side account
       // id. The historical issuer column is intentionally absent here.
       providerId: ACCOUNT_ID,
-      password: await bcrypt.hash(PASSWORD, 10)
+      password: await bcrypt.hash(PASSWORD, TEST_BCRYPT_COST)
     })
   })
 

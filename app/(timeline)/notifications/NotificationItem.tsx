@@ -1,6 +1,6 @@
 'use client'
 
-import { formatDistance } from 'date-fns'
+import { formatDistance } from 'date-fns/formatDistance'
 import Link from 'next/link'
 import { ReactNode, useEffect, useRef } from 'react'
 
