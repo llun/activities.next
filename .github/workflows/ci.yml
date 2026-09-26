@@ -103,6 +103,9 @@ jobs:
   # synchronous-focus recursion piling up thrown errors until the worker died
   # (fixed by the focus-depth guard in vitest.setup.ts). The sharding + heap
   # headroom are kept as defence in depth and for wall-clock parallelism.
+  # Test files now run on worker threads (vitest.config.ts `projects`), with a
+  # fresh thread per file; only the few files that call process.chdir() still
+  # run in forked processes.
   test-shards:
     name: Test Shard ${{ matrix.shard }} of 4
     runs-on: ubuntu-latest

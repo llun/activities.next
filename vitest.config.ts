@@ -1,8 +1,28 @@
+import { globSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 
 const resolvePath = (relativePath: string) =>
   fileURLToPath(new URL(relativePath, import.meta.url))
+
+const TEST_FILES = ['**/*.test.{ts,tsx}']
+const EXCLUDED = [
+  '**/node_modules/**',
+  '**/.next/**',
+  '**/.claude/**',
+  '**/.claire/**',
+  '**/coverage/**'
+]
+
+// Test files that call `process.chdir()`, which Node refuses inside a worker
+// thread ("process.chdir() is not supported in workers"). They run in the
+// forked-process project; everything else runs on worker threads, which start
+// much faster than a process per file. A file this scan misses fails loudly
+// with that error rather than passing wrongly.
+const PROCESS_CHDIR_FILES = globSync(TEST_FILES, {
+  cwd: resolvePath('.'),
+  exclude: (name) => name === 'node_modules' || name.startsWith('.')
+}).filter((file) => readFileSync(file, 'utf8').includes('process.chdir('))
 
 export default defineConfig({
   resolve: {
@@ -39,14 +59,10 @@ export default defineConfig({
     // jest-global.ts must run first: it installs the minimal global `jest`
     // shim that jest-fetch-mock (imported by vitest.setup.ts) relies on.
     setupFiles: ['./vitest-shims/jest-global.ts', './vitest.setup.ts'],
-    include: ['**/*.test.{ts,tsx}'],
-    exclude: [
-      '**/node_modules/**',
-      '**/.next/**',
-      '**/.claude/**',
-      '**/.claire/**',
-      '**/coverage/**'
-    ],
+    // `include` is set per project below: with `extends: true` a project's
+    // arrays are appended to the root's, so a root `include` would pull every
+    // test file into the forks project too.
+    exclude: EXCLUDED,
     testTimeout: 30000,
     // Match testTimeout. Vitest's 10s default is too tight for the
     // `TEST_DATABASE_TYPE=pg` harness: every test file's `beforeAll` drops and
@@ -61,6 +77,25 @@ export default defineConfig({
         // These ship ESM that should be transformed/inlined by Vitest.
         inline: ['better-auth', '@better-auth', 'html-react-parser', 'uuid']
       }
-    }
+    },
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'threads',
+          pool: 'threads',
+          include: TEST_FILES,
+          exclude: PROCESS_CHDIR_FILES
+        }
+      },
+      {
+        extends: true,
+        test: {
+          name: 'forks',
+          pool: 'forks',
+          include: PROCESS_CHDIR_FILES
+        }
+      }
+    ]
   }
 })

@@ -699,6 +699,21 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   timers), import the component's own timeout constant, and pin both sides of
   the boundary: advance to `TIMEOUT - 1` and assert nothing happened, then by
   one more and assert it did. Restore with `vi.useRealTimers()` in `afterEach`.
+- **Test files run on worker threads, except those that call
+  `process.chdir()`.** `vitest.config.ts` defines two projects: `threads`
+  (every test file, one fresh worker thread per file) and `forks` (the handful
+  of files that `chdir` into a temp directory to exercise config-file
+  discovery — Node rejects `process.chdir()` inside a worker thread with
+  "process.chdir() is not supported in workers"). The config finds them by
+  scanning test files for `process.chdir(`, so a new such file needs no list
+  edit, and one the scan misses fails with that error rather than passing.
+  Threads start far faster than a process per file (the split cut a full local
+  run by about a fifth). Two faster options were measured and declined:
+  `isolate: false` failed 163 files on leaked cross-file state, and running the
+  jsdom files on `vmThreads` breaks any test that redefines `window.location`
+  (unforgeable in a VM context) and carries Vitest's documented VM-pool memory
+  caveat. Each worker thread still gets its own `VITEST_POOL_ID`, so the
+  `TEST_DATABASE_TYPE=pg` harness keeps one database per worker.
 - **Import `date-fns` functions from their sub-path**
   (`import { format } from 'date-fns/format'`), never the barrel. The barrel
   evaluates every date-fns function — about half a second, against roughly
