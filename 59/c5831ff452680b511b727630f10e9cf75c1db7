@@ -1,0 +1,29 @@
+app/(timeline)/fitness/gear/[id]/GearDetailView.test.tsx
+  s_d3d6b50ae58a3f::t_c53954caf55b17 645-754
+app/(timeline)/fitness/gear/[id]/GearDetailView.tsx
+  s_4276127a19bb33::t_88332f35290dee 129-136,440-444,449-452,463
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "59c5831ff452680b511b727630f10e9cf75c1db7",
+  "prompts": {},
+  "sessions": {
+    "s_4276127a19bb33": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d555-1697-71a0-9df2-837eb2f94710",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_d3d6b50ae58a3f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d910-9654-7ce3-90ba-6e89c4015825",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
