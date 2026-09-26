@@ -1,4 +1,5 @@
 import { globSync, readFileSync } from 'node:fs'
+import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 
@@ -19,12 +20,20 @@ const EXCLUDED = [
 // forked-process project; everything else runs on worker threads, which start
 // much faster than a process per file. A file this scan misses fails loudly
 // with that error rather than passing wrongly.
+const ROOT = resolvePath('.')
 const PROCESS_CHDIR_FILES = globSync(TEST_FILES, {
-  cwd: resolvePath('.'),
+  cwd: ROOT,
   exclude: (name) => name === 'node_modules' || name.startsWith('.')
-}).filter((file) => readFileSync(file, 'utf8').includes('process.chdir('))
+}).filter((file) =>
+  // globSync returns paths relative to ROOT; read them from there too, not
+  // from process.cwd(), so Vitest can be launched from any directory.
+  readFileSync(path.join(ROOT, file), 'utf8').includes('process.chdir(')
+)
 
 export default defineConfig({
+  // Resolve setupFiles and the project file lists against this directory even
+  // when Vitest is launched from elsewhere (e.g. `--config ../vitest.config.ts`).
+  root: ROOT,
   resolve: {
     alias: [
       { find: /^@\/app\/(.*)$/, replacement: `${resolvePath('./app')}/$1` },

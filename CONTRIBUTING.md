@@ -702,13 +702,14 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
 - **Test files run on worker threads, except those that call
   `process.chdir()`.** `vitest.config.ts` defines two projects: `threads`
   (every test file, one fresh worker thread per file) and `forks` (the handful
-  of files that `chdir` into a temp directory to exercise config-file
-  discovery — Node rejects `process.chdir()` inside a worker thread with
-  "process.chdir() is not supported in workers"). The config finds them by
-  scanning test files for `process.chdir(`, so a new such file needs no list
-  edit, and one the scan misses fails with that error rather than passing.
-  Threads start far faster than a process per file (the split cut a full local
-  run by about a fifth). Two faster options were measured and declined:
+  of files that `process.chdir()` into a temp directory — Node rejects that
+  call inside a worker thread with "process.chdir() is not supported in
+  workers"). The config finds them by scanning test files for
+  `process.chdir(`, so a new such file needs no list edit, and one the scan
+  misses fails with that error rather than passing. Threads start faster than
+  a process per file: the split cut a full run by about a fifth on a 14-core
+  machine, though on CI's 4-core runners the gain is within run-to-run noise.
+  Two faster options were measured and declined:
   `isolate: false` failed 163 files on leaked cross-file state, and running the
   jsdom files on `vmThreads` breaks any test that redefines `window.location`
   (unforgeable in a VM context) and carries Vitest's documented VM-pool memory
