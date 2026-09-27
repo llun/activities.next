@@ -637,13 +637,19 @@ describe('QueueJobDatabase', () => {
   })
 
   it('counts and deletes jobs', async () => {
+    await database.createQueueJob({
+      id: 'custom-id-delete',
+      name: 'deliverActivity',
+      payload: samplePayload
+    })
+
     const pendingBefore = await database.countQueueJobs({ status: 'pending' })
     expect(pendingBefore).toBeGreaterThan(0)
 
-    const deleted = await database.deleteQueueJob('custom-id-1')
+    const deleted = await database.deleteQueueJob('custom-id-delete')
     expect(deleted).toBe(true)
 
-    const notFound = await database.getQueueJobById('custom-id-1')
+    const notFound = await database.getQueueJobById('custom-id-delete')
     expect(notFound).toBeNull()
   })
 

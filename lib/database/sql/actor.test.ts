@@ -1418,11 +1418,9 @@ describe('ActorDatabase', () => {
     })
 
     describe('notification policy', () => {
-      const policyActorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
-
       it('returns the all-accept default when unset', async () => {
         const policy = await database.getNotificationPolicy({
-          actorId: policyActorId
+          actorId: `https://${TEST_DOMAIN}/users/policy-unset`
         })
         expect(policy).toEqual({
           for_not_following: 'accept',
@@ -1434,6 +1432,10 @@ describe('ActorDatabase', () => {
       })
 
       it('merges partial updates over the existing policy', async () => {
+        const username = `policy-${crypto.randomUUID().slice(0, 8)}`
+        const policyActorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+
         await database.updateNotificationPolicy({
           actorId: policyActorId,
           for_not_following: 'filter'
@@ -1458,8 +1460,12 @@ describe('ActorDatabase', () => {
 
     describe('updateActor', () => {
       it('updates actor information and returns it in mastodon actor', async () => {
+        const username = `update-mastodon-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+
         await database.updateActor({
-          actorId: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
+          actorId,
           name: 'name',
           summary: 'summary',
           iconUrl: 'iconUrl',
@@ -1468,17 +1474,15 @@ describe('ActorDatabase', () => {
         })
 
         const actor = await database.getMastodonActorFromUsername({
-          username: TEST_USERNAME3,
+          username,
           domain: TEST_DOMAIN
         })
 
         expect(actor).toMatchObject({
-          id: await getActorPublicId(
-            `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
-          ),
-          username: TEST_USERNAME3,
-          acct: TEST_USERNAME3,
-          url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
+          id: await getActorPublicId(actorId),
+          username,
+          acct: username,
+          url: actorId,
           display_name: 'name',
           note: 'summary',
           avatar: 'iconUrl',
@@ -1501,14 +1505,18 @@ describe('ActorDatabase', () => {
       })
 
       it('surfaces avatar/header alt text as the Mastodon 4.6 description fields', async () => {
+        const username = `alt-desc-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+
         await database.updateActor({
-          actorId: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
+          actorId,
           avatarDescription: 'A close-up of a coffee cup',
           headerDescription: 'Mountains at dawn'
         })
 
         const actor = await database.getMastodonActorFromUsername({
-          username: TEST_USERNAME3,
+          username,
           domain: TEST_DOMAIN
         })
 
@@ -1536,8 +1544,12 @@ describe('ActorDatabase', () => {
       })
 
       it('updates actor information and returns it in actor', async () => {
+        const username = `update-actor-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+
         await database.updateActor({
-          actorId: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
+          actorId,
           name: 'name2',
           summary: 'summary2',
           iconUrl: 'iconUrl2',
@@ -1546,19 +1558,19 @@ describe('ActorDatabase', () => {
         })
 
         const actor = await database.getActorFromUsername({
-          username: TEST_USERNAME3,
+          username,
           domain: TEST_DOMAIN
         })
 
         expect(actor).toMatchObject({
-          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
-          username: TEST_USERNAME3,
+          id: actorId,
+          username,
           domain: TEST_DOMAIN,
           account: {
             id: expect.toBeString(),
-            email: TEST_EMAIL
+            email: `${username}@${TEST_DOMAIN}`
           },
-          followersUrl: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}/followers`,
+          followersUrl: `${actorId}/followers`,
           publicKey: 'publicKey2',
           privateKey: expect.toBeString()
         })
@@ -1624,7 +1636,10 @@ describe('ActorDatabase', () => {
       })
 
       it('preserves other settings updates passed alongside an append', async () => {
-        const actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+        const username = `append-settings-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+
         await database.updateActor({
           actorId,
           notificationAcceptedSenders: ['existing-sender']
@@ -1647,7 +1662,10 @@ describe('ActorDatabase', () => {
       })
 
       it('persists profile appearance settings including explicit false flags', async () => {
-        const actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+        const username = `profile-app-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+
         await database.updateActor({
           actorId,
           avatarDescription: 'Coffee cup close-up',
@@ -1670,7 +1688,10 @@ describe('ActorDatabase', () => {
       })
 
       it('persists and returns reading preferences', async () => {
-        const actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+        const username = `reading-pref-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+
         await database.updateActor({
           actorId,
           readingExpandMedia: 'show_all',
@@ -1685,7 +1706,10 @@ describe('ActorDatabase', () => {
       })
 
       it('round-trips false reading preference values', async () => {
-        const actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+        const username = `reading-false-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+
         await database.updateActor({
           actorId,
           readingExpandSpoilers: false,
@@ -1698,7 +1722,10 @@ describe('ActorDatabase', () => {
       })
 
       it('preserves existing settings when updating reading preferences', async () => {
-        const actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+        const username = `reading-preserve-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+
         await database.updateActor({ actorId, defaultPrivacy: 'unlisted' })
 
         await database.updateActor({ actorId, readingExpandMedia: 'hide_all' })
@@ -1709,7 +1736,10 @@ describe('ActorDatabase', () => {
       })
 
       it('persists and returns navigation preferences', async () => {
-        const actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+        const username = `nav-pref-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+
         await database.updateActor({
           actorId,
           navOrder: ['settings', 'timeline'],
@@ -1722,7 +1752,10 @@ describe('ActorDatabase', () => {
       })
 
       it('round-trips an empty navigation preference as a reset', async () => {
-        const actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+        const username = `nav-reset-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+
         await database.updateActor({ actorId, navHidden: ['favorites'] })
 
         await database.updateActor({ actorId, navOrder: [], navHidden: [] })
@@ -1733,7 +1766,10 @@ describe('ActorDatabase', () => {
       })
 
       it('preserves navigation preferences when other settings change', async () => {
-        const actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+        const username = `nav-other-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+
         await database.updateActor({ actorId, navHidden: ['bookmarks'] })
 
         await database.updateActor({ actorId, defaultPrivacy: 'private' })
@@ -1756,7 +1792,10 @@ describe('ActorDatabase', () => {
       })
 
       it('returns updated actor settings', async () => {
-        const actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+        const username = `settings-update-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+
         await database.updateActor({
           actorId,
           manuallyApprovesFollowers: false,
@@ -1771,7 +1810,9 @@ describe('ActorDatabase', () => {
       })
 
       it('persists and returns postLineLimit setting', async () => {
-        const actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+        const username = `settings-limit-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
 
         await database.updateActor({ actorId, postLineLimit: 10 })
         let settings = await database.getActorSettings({ actorId })

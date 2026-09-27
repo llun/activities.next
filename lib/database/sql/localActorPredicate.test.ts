@@ -219,33 +219,43 @@ describe('local actor predicate', () => {
     // all) AND must follow the author (so mainTimelineRule returns MAIN).
     // Without the follow this test passes against the unfixed code, having
     // exercised nothing.
-    for (const followerId of [EMPTY_KEY_ACTOR_ID, NULL_KEY_ACTOR_ID]) {
-      await database.createFollow({
-        actorId: followerId,
-        targetActorId: LOCAL_ACTOR_ID,
-        status: FollowStatus.enum.Accepted,
-        inbox: `${followerId}/inbox`,
-        sharedInbox: `https://${REMOTE_DOMAIN}/inbox`
+    try {
+      for (const followerId of [EMPTY_KEY_ACTOR_ID, NULL_KEY_ACTOR_ID]) {
+        await database.createFollow({
+          actorId: followerId,
+          targetActorId: LOCAL_ACTOR_ID,
+          status: FollowStatus.enum.Accepted,
+          inbox: `${followerId}/inbox`,
+          sharedInbox: `https://${REMOTE_DOMAIN}/inbox`
+        })
+      }
+
+      const status = await database.createNote({
+        actorId: LOCAL_ACTOR_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [EMPTY_KEY_ACTOR_ID, NULL_KEY_ACTOR_ID],
+        id: `${LOCAL_ACTOR_ID}/statuses/fanout-1`,
+        text: 'Mentioning remote actors',
+        url: `${LOCAL_ACTOR_ID}/statuses/fanout-1`,
+        reply: '',
+        createdAt: Date.now()
       })
+      await addStatusToTimelines(database, status)
+
+      const fannedOutActorIds = await instance('timelines')
+        .where('statusId', `${LOCAL_ACTOR_ID}/statuses/fanout-1`)
+        .pluck<string[]>('actorId')
+
+      expect(fannedOutActorIds).not.toContain(EMPTY_KEY_ACTOR_ID)
+      expect(fannedOutActorIds).not.toContain(NULL_KEY_ACTOR_ID)
+    } finally {
+      await database.deleteStatus({
+        statusId: `${LOCAL_ACTOR_ID}/statuses/fanout-1`
+      })
+      await instance('follows')
+        .where('targetActorId', LOCAL_ACTOR_ID)
+        .whereIn('actorId', [EMPTY_KEY_ACTOR_ID, NULL_KEY_ACTOR_ID])
+        .delete()
     }
-
-    const status = await database.createNote({
-      actorId: LOCAL_ACTOR_ID,
-      to: [ACTIVITY_STREAM_PUBLIC],
-      cc: [EMPTY_KEY_ACTOR_ID, NULL_KEY_ACTOR_ID],
-      id: `${LOCAL_ACTOR_ID}/statuses/fanout-1`,
-      text: 'Mentioning remote actors',
-      url: `${LOCAL_ACTOR_ID}/statuses/fanout-1`,
-      reply: '',
-      createdAt: Date.now()
-    })
-    await addStatusToTimelines(database, status)
-
-    const fannedOutActorIds = await instance('timelines')
-      .where('statusId', `${LOCAL_ACTOR_ID}/statuses/fanout-1`)
-      .pluck<string[]>('actorId')
-
-    expect(fannedOutActorIds).not.toContain(EMPTY_KEY_ACTOR_ID)
-    expect(fannedOutActorIds).not.toContain(NULL_KEY_ACTOR_ID)
   })
 })
