@@ -5,7 +5,6 @@ import { TEST_SHARED_INBOX, seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
-import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -130,13 +129,5 @@ describe('GET /api/v1/accounts/familiar_followers', () => {
     })
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual([])
-  })
-
-  it('requires authentication', async () => {
-    mockGetServerSession.mockResolvedValue(null)
-    const response = await GET(createRequest(`id=${urlToId(ACTOR4_ID)}`), {
-      params: Promise.resolve({})
-    })
-    expect(response.status).toBe(401)
   })
 })

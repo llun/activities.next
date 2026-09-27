@@ -105,21 +105,6 @@ describe('POST /api/v1/media', () => {
     invalidateServerSettingsCache(database)
   })
 
-  it('rejects a token that lacks write:media (401)', async () => {
-    mockStoredToken.mockResolvedValue({
-      expiresAt: new Date(Date.now() + 60_000),
-      referenceId: ACTOR1_ID,
-      scopes: 'read'
-    })
-
-    const response = await POST(postRequest('read-only-token'), {
-      params: Promise.resolve({})
-    })
-
-    expect(response.status).toBe(401)
-    expect(mockSaveMedia).not.toHaveBeenCalled()
-  })
-
   it('returns 200 with a fully-processed attachment for write:media tokens', async () => {
     mockStoredToken.mockResolvedValue({
       expiresAt: new Date(Date.now() + 60_000),

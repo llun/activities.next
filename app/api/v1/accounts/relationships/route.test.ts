@@ -152,14 +152,6 @@ describe('GET /api/v1/accounts/relationships', () => {
     expect(data[0].following).toBe(false)
   })
 
-  it('requires authentication', async () => {
-    mockGetServerSession.mockResolvedValue(null)
-    const response = await GET(createRequest(`id=${urlToId(ACTOR2_ID)}`), {
-      params: Promise.resolve({})
-    })
-    expect(response.status).toBe(401)
-  })
-
   // An id that resolves to something that is not an actor URI is dropped by the
   // isResolvedActorUri filter on the resolver OUTPUT, rather than reaching
   // getRelationship with a non-id. A publicId-shaped value with no row resolves

@@ -76,16 +76,6 @@ describe('GET /api/v1/bookmarks', () => {
     return statusId
   }
 
-  it('requires authentication', async () => {
-    mockGetServerSession.mockResolvedValue(null)
-
-    const response = await GET(createRequest(), {
-      params: Promise.resolve({})
-    })
-
-    expect(response.status).toBe(401)
-  })
-
   it('returns bookmarked statuses with bookmarked=true', async () => {
     const statusId = await createBookmarkedStatus('list-one')
 

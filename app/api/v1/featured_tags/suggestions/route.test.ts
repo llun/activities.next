@@ -87,10 +87,4 @@ describe('GET /api/v1/featured_tags/suggestions', () => {
       history: []
     })
   })
-
-  it('requires authentication', async () => {
-    mockGetServerSession.mockResolvedValue(null)
-    const response = await GET(createRequest(), { params: Promise.resolve({}) })
-    expect(response.status).toBe(401)
-  })
 })

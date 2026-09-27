@@ -84,14 +84,6 @@ describe('/api/v1/suggestions', () => {
   const createRequest = (query = '') =>
     new NextRequest(`https://llun.test/api/v1/suggestions${query}`)
 
-  it('requires authentication', async () => {
-    mockGetServerSession.mockResolvedValue(null)
-    const response = await GET(createRequest(), {
-      params: Promise.resolve({})
-    })
-    expect(response.status).toBe(401)
-  })
-
   it('returns plain ranked accounts without suggestion wrappers', async () => {
     const response = await GET(createRequest(), {
       params: Promise.resolve({})

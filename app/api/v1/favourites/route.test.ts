@@ -76,16 +76,6 @@ describe('GET /api/v1/favourites', () => {
     return statusId
   }
 
-  it('requires authentication', async () => {
-    mockGetServerSession.mockResolvedValue(null)
-
-    const response = await GET(createRequest(), {
-      params: Promise.resolve({})
-    })
-
-    expect(response.status).toBe(401)
-  })
-
   it('returns favourited statuses with favourited=true', async () => {
     const statusId = await createFavouritedStatus('list-one')
 

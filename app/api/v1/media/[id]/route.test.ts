@@ -129,17 +129,6 @@ describe('/api/v1/media/[id]', () => {
   const getRequest = (id: string) =>
     new NextRequest(`https://llun.test/api/v1/media/${id}`)
 
-  it('requires authentication', async () => {
-    mockGetServerSession.mockResolvedValue(null)
-    const id = await createMediaFor(ACTOR1_ID, 'auth')
-
-    const response = await GET(getRequest(id), {
-      params: Promise.resolve({ id })
-    })
-
-    expect(response.status).toBe(401)
-  })
-
   it('GET returns the media attachment for the owner', async () => {
     const id = await createMediaFor(ACTOR1_ID, 'get-owner')
 

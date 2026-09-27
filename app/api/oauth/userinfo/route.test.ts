@@ -8,7 +8,10 @@ import { Actor } from '@/lib/types/domain/actor'
 // the getUserInfo unit tests cannot reach (getUserInfo now requires an account).
 const guardState = vi.hoisted(() => ({
   currentActor: null as Actor | null,
-  grantedScopes: undefined as string[] | undefined
+  grantedScopes: undefined as string[] | undefined,
+  // The Authorization header the guard was handed, so POST's form-body token
+  // hand-off can be asserted without re-testing the guard itself.
+  authorization: undefined as string | null | undefined
 }))
 
 vi.mock('@/lib/services/guards/OAuthGuard', () => ({
@@ -20,11 +23,13 @@ vi.mock('@/lib/services/guards/OAuthGuard', () => ({
         context: { currentActor: Actor | null; grantedScopes?: string[] }
       ) => Promise<Response> | Response
     ) =>
-    (req: NextRequest) =>
-      handle(req, {
+    (req: NextRequest) => {
+      guardState.authorization = req.headers.get('authorization')
+      return handle(req, {
         currentActor: guardState.currentActor,
         grantedScopes: guardState.grantedScopes
       })
+    }
 }))
 
 vi.mock('@/lib/config', () => ({
@@ -38,7 +43,7 @@ vi.mock('@/lib/services/auth/requestOrigin', () => ({
   resolveAuthBaseURL: () => 'https://example.com'
 }))
 
-const { GET } = await import('./route')
+const { GET, POST } = await import('./route')
 
 const makeAccount = (overrides: Partial<Account> = {}): Account => {
   const now = Date.now()
@@ -86,6 +91,7 @@ describe('GET /oauth/userinfo', () => {
   beforeEach(() => {
     guardState.currentActor = null
     guardState.grantedScopes = undefined
+    guardState.authorization = undefined
   })
 
   it('fails closed with 401 invalid_token when the actor has no account', async () => {
@@ -129,5 +135,60 @@ describe('GET /oauth/userinfo', () => {
     expect(body.iss).toBe('https://example.com/api/auth')
     expect(body).not.toHaveProperty('preferred_username')
     expect(body).not.toHaveProperty('email')
+  })
+})
+
+// POST is not the guard's handler itself: it moves an access token sent in the
+// form body into the Authorization header, then delegates to the guarded GET
+// handler. These pin that hand-off; the guard's own behaviour (401 without a
+// token, scope checks) is covered in OAuthGuard.test.ts.
+describe('POST /oauth/userinfo', () => {
+  beforeEach(() => {
+    guardState.currentActor = makeActor(makeAccount({ id: 'account-post' }))
+    guardState.grantedScopes = ['openid']
+    guardState.authorization = undefined
+  })
+
+  const callPost = (init: { headers?: HeadersInit; body?: string }) =>
+    POST(
+      new NextRequest('https://example.com/oauth/userinfo', {
+        method: 'POST',
+        ...init
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+  it('hands a form-body access_token to the guard as a bearer token (OIDC Core 5.3.1)', async () => {
+    const response = await callPost({
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: 'access_token=form-token'
+    })
+
+    expect(guardState.authorization).toBe('Bearer form-token')
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      sub: 'account-post'
+    })
+  })
+
+  it('keeps an existing Authorization header and ignores a form-body token', async () => {
+    await callPost({
+      headers: {
+        authorization: 'Bearer header-token',
+        'content-type': 'application/x-www-form-urlencoded'
+      },
+      body: 'access_token=form-token'
+    })
+
+    expect(guardState.authorization).toBe('Bearer header-token')
+  })
+
+  it('passes a request with no token to the guard unchanged', async () => {
+    await callPost({
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: 'unrelated=1'
+    })
+
+    expect(guardState.authorization).toBeNull()
   })
 })

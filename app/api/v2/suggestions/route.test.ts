@@ -86,14 +86,6 @@ describe('/api/v2/suggestions', () => {
   const createRequest = (query = '') =>
     new NextRequest(`https://llun.test/api/v2/suggestions${query}`)
 
-  it('requires authentication', async () => {
-    mockGetServerSession.mockResolvedValue(null)
-    const response = await GET(createRequest(), {
-      params: Promise.resolve({})
-    })
-    expect(response.status).toBe(401)
-  })
-
   it('returns friends-of-friends suggestions ranked by mutual count', async () => {
     const response = await GET(createRequest(), {
       params: Promise.resolve({})

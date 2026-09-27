@@ -771,6 +771,80 @@ describe('OAuthGuard', () => {
       expect(mockHandler).toHaveBeenCalled()
     })
 
+    // Most Mastodon routes use OAuthGuardAnyScope (aggregate OR granular scope)
+    // and routeScopeWiring.test.ts leans on this file for what it does with a
+    // wrong or missing token, so its rejections are pinned here, not per route.
+    test('any-scope guard returns 401 when no auth header provided and no session', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const guard = OAuthGuardAnyScope(
+        [Scope.enum.read, Scope.enum['read:bookmarks']],
+        mockHandler
+      )
+      const response = await guard(createRequest(), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(401)
+      expect(mockHandler).not.toHaveBeenCalled()
+    })
+
+    test('any-scope guard returns 401 when an opaque token holds none of the listed scopes', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      mockStoredTokens.set(hashToken('unrelated-scope-opaque'), {
+        token: hashToken('unrelated-scope-opaque'),
+        referenceId: primaryActor?.id,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read:statuses'])
+      })
+
+      const guard = OAuthGuardAnyScope(
+        [Scope.enum.read, Scope.enum['read:bookmarks']],
+        mockHandler
+      )
+      const req = createRequest({
+        Authorization: 'Bearer unrelated-scope-opaque'
+      })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(401)
+      expect(mockHandler).not.toHaveBeenCalled()
+    })
+
+    test('any-scope guard returns 401 when a JWT holds none of the listed scopes', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+      const token = 'eyJ.unrelated-scope.sig'
+
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      mockVerifyBearerToken.mockResolvedValue({
+        sub: 'user-id',
+        scope: 'read:statuses',
+        actorId: primaryActor?.id
+      })
+      mockStoredTokens.set(hashToken(token), {
+        token: hashToken(token),
+        referenceId: primaryActor?.id,
+        expiresAt: new Date(Date.now() + 3600000),
+        scopes: JSON.stringify(['read:statuses'])
+      })
+
+      const guard = OAuthGuardAnyScope(
+        [Scope.enum.read, Scope.enum['read:bookmarks']],
+        mockHandler
+      )
+      const req = createRequest({ Authorization: `Bearer ${token}` })
+      const response = await guard(req, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(401)
+      expect(mockHandler).not.toHaveBeenCalled()
+    })
+
     test('allows parent read scope to satisfy read:conversations', async () => {
       mockGetServerSession.mockResolvedValue(null)
 

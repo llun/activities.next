@@ -1,47 +1,80 @@
-// Catches an OAuth-scope-guarded route hard-coding the WRONG (but valid) scope
-// literal. TypeScript accepts any Scope.enum member, so e.g. block listing
-// write:mutes, or suggestions accepting read+write, compiles and passes every
-// other test. This imports each converted route module with the guard factories
-// mocked to record the scope array they receive, then asserts the recorded
-// scopes match the expected set for that route.
+import { globSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 
-const guardCalls: string[][] = []
+// Pins how each OAuth-guarded route is guarded, so a route's own tests need
+// not re-prove it. TypeScript accepts any Scope.enum member and any of the four
+// guard factories, so a wrong scope literal (block listing with write:mutes),
+// an all-of guard where clients hold only a granular scope, or an optional
+// guard that serves anonymous callers all compile and pass every other test.
+// Each route module is imported with the guard factories mocked to tag the
+// handler they return; the assertions read those tags off the exported methods.
+
+type GuardKind =
+  | 'OAuthGuard' // requires every listed scope
+  | 'OAuthGuardAnyScope' // requires one listed scope
+  | 'OptionalOAuthGuard:any'
+  | 'OptionalOAuthGuard:all'
+  | 'OAuthAppGuard:any'
+  | 'OAuthAppGuard:all'
+
+type TaggedHandler = {
+  __scopes?: string[]
+  __guard?: GuardKind
+  __unconfirmedAccount?: unknown
+}
+
 vi.mock('@/lib/services/guards/OAuthGuard', () => {
-  // Record the scope array and tag the returned handler with it so the
-  // per-method assertions below can read each exported method's own scopes.
-  const wrap = (scopes: string[], ..._rest: unknown[]) =>
-    Object.assign(() => new Response(null), { __scopes: scopes })
-  const record = (scopes: string[], ...rest: unknown[]) => {
-    guardCalls.push(scopes)
-    return wrap(scopes, ...rest)
-  }
+  // OAuthGuard and OAuthGuardAnyScope fix their match mode; the optional and
+  // app guards take it from `options.matchMode` and default to all-of.
+  const tag =
+    (factory: string, fixedMatch?: 'any' | 'all') =>
+    (
+      scopes: string[],
+      _handle: unknown,
+      options: { matchMode?: 'any' | 'all'; unconfirmedAccount?: unknown } = {}
+    ) =>
+      Object.assign(() => new Response(null), {
+        __scopes: scopes,
+        __guard: fixedMatch
+          ? factory
+          : `${factory}:${options.matchMode ?? 'all'}`,
+        __unconfirmedAccount: options.unconfirmedAccount
+      })
   return {
-    OAuthGuard: record,
-    OAuthGuardAnyScope: record,
-    OptionalOAuthGuard: record,
-    OAuthAppGuard: record,
+    OAuthGuard: tag('OAuthGuard', 'all'),
+    OAuthGuardAnyScope: tag('OAuthGuardAnyScope', 'any'),
+    OptionalOAuthGuard: tag('OptionalOAuthGuard'),
+    OAuthAppGuard: tag('OAuthAppGuard'),
     corsErrorResponse: () => () => new Response(null)
   }
 })
 
-// Pass traceApiRoute through so each exported method IS the tagged guard handler,
-// letting the per-method assertions read `mod[METHOD].__scopes`.
+// Pass traceApiRoute through so each exported method IS the tagged guard handler.
 vi.mock('@/lib/utils/traceApiRoute', () => ({
   traceApiRoute: (_name: string, handler: unknown) => handler
 }))
 
 // Route module -> the exact set of scope strings it should pass across all its
-// guarded methods (deduped). Kept independent of the route source so a wrong
-// literal is caught.
-const EXPECTED: Array<{ module: string; scopes: string[] }> = [
+// guarded methods (deduped), and the guard it uses. `guard` defaults to
+// OAuthGuardAnyScope, which most Mastodon routes use (the aggregate scope or the
+// granular one); give it per method when a route mixes guards. Kept independent
+// of the route source so a wrong literal or guard is caught.
+const DEFAULT_GUARD: GuardKind = 'OAuthGuardAnyScope'
+const EXPECTED: Array<{
+  module: string
+  scopes: string[]
+  guard?: GuardKind | Partial<Record<string, GuardKind>>
+}> = [
   // status emoji reactions (ecosystem dialects, one store)
   {
     module: '@/app/api/v1/pleroma/statuses/[id]/reactions/[emoji]/route',
-    scopes: ['read', 'read:statuses', 'write', 'write:favourites']
+    scopes: ['read', 'read:statuses', 'write', 'write:favourites'],
+    guard: { GET: 'OptionalOAuthGuard:any' }
   },
   {
     module: '@/app/api/v1/pleroma/statuses/[id]/reactions/route',
-    scopes: ['read', 'read:statuses']
+    scopes: ['read', 'read:statuses'],
+    guard: 'OptionalOAuthGuard:any'
   },
   {
     module: '@/app/api/v1/statuses/[id]/react/[name]/route',
@@ -99,16 +132,19 @@ const EXPECTED: Array<{ module: string; scopes: string[] }> = [
   },
   {
     module: '@/app/api/v1/statuses/[id]/reblogged_by/route',
-    scopes: ['read', 'read:accounts']
+    scopes: ['read', 'read:accounts'],
+    guard: 'OptionalOAuthGuard:any'
   },
   {
     module: '@/app/api/v1/statuses/[id]/favourited_by/route',
-    scopes: ['read', 'read:accounts']
+    scopes: ['read', 'read:accounts'],
+    guard: 'OptionalOAuthGuard:any'
   },
   // polls
   {
     module: '@/app/api/v1/polls/[id]/route',
-    scopes: ['read', 'read:statuses']
+    scopes: ['read', 'read:statuses'],
+    guard: 'OptionalOAuthGuard:any'
   },
   {
     module: '@/app/api/v1/polls/[id]/votes/route',
@@ -225,33 +261,171 @@ const EXPECTED: Array<{ module: string; scopes: string[] }> = [
   {
     module: '@/app/api/v1/follow_requests/[id]/reject/route',
     scopes: ['write', 'write:follows']
+  },
+  // account lists and relationships
+  {
+    module: '@/app/api/v1/accounts/familiar_followers/route',
+    scopes: ['read', 'read:follows']
+  },
+  {
+    module: '@/app/api/v1/accounts/relationships/route',
+    scopes: ['read', 'read:follows']
+  },
+  { module: '@/app/api/v1/blocks/route', scopes: ['read', 'read:blocks'] },
+  { module: '@/app/api/v1/mutes/route', scopes: ['read', 'read:mutes'] },
+  {
+    module: '@/app/api/v1/follow_requests/route',
+    scopes: ['read', 'read:follows']
+  },
+  {
+    module: '@/app/api/v1/domain_blocks/route',
+    scopes: ['read', 'read:blocks', 'write', 'write:blocks']
+  },
+  {
+    module: '@/app/api/v1/endorsements/route',
+    scopes: ['read', 'read:accounts']
+  },
+  {
+    module: '@/app/api/v1/bookmarks/route',
+    scopes: ['read', 'read:bookmarks']
+  },
+  {
+    module: '@/app/api/v1/favourites/route',
+    scopes: ['read', 'read:favourites']
+  },
+  {
+    module: '@/app/api/v1/markers/route',
+    scopes: ['read', 'read:statuses', 'write', 'write:statuses']
+  },
+  // featured tags
+  {
+    module: '@/app/api/v1/featured_tags/route',
+    scopes: ['read', 'read:accounts', 'write', 'write:accounts']
+  },
+  {
+    module: '@/app/api/v1/featured_tags/suggestions/route',
+    scopes: ['read', 'read:accounts']
+  },
+  {
+    module: '@/app/api/v1/tags/[tag]/feature/route',
+    scopes: ['write', 'write:accounts']
+  },
+  {
+    module: '@/app/api/v1/tags/[tag]/unfeature/route',
+    scopes: ['write', 'write:accounts']
+  },
+  // media
+  { module: '@/app/api/v1/media/route', scopes: ['write', 'write:media'] },
+  { module: '@/app/api/v1/media/[id]/route', scopes: ['write', 'write:media'] },
+  { module: '@/app/api/v2/media/route', scopes: ['write', 'write:media'] },
+  // announcements and suggestions lists
+  {
+    module: '@/app/api/v1/announcements/route',
+    scopes: ['read'],
+    guard: 'OAuthGuard'
+  },
+  {
+    module: '@/app/api/v1/suggestions/route',
+    scopes: ['read'],
+    guard: 'OAuthGuard'
+  },
+  {
+    module: '@/app/api/v2/suggestions/route',
+    scopes: ['read'],
+    guard: 'OAuthGuard'
   }
 ]
 
 const unique = (scopes: string[]) => [...new Set(scopes)].sort()
 
-describe('OAuth scope guard wiring', () => {
-  beforeEach(() => {
-    guardCalls.length = 0
-  })
+const HTTP_METHODS = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'] as const
 
+// Methods that reach a guard through their own code rather than being the
+// guard's handler, so the per-method checks below cannot see it. Each is
+// covered by its route's own tests instead.
+const GUARDED_INDIRECTLY: Record<string, string[]> = {
+  // OIDC Core 5.3.1: moves a form-body access_token into the Authorization
+  // header, then delegates to the guarded GET handler.
+  '@/app/api/oauth/userinfo/route': ['POST']
+}
+
+const expectedGuard = (
+  guard: (typeof EXPECTED)[number]['guard'],
+  method: string
+): GuardKind =>
+  (typeof guard === 'string' ? guard : guard?.[method]) ?? DEFAULT_GUARD
+
+describe('OAuth scope guard wiring', () => {
+  // Every exported method must be a guard's handler (a guarded GET beside an
+  // unguarded POST would otherwise pass), with the expected guard, and none may
+  // opt into `unconfirmedAccount`. Together with the scope literals, that lets
+  // a route's own tests skip re-proving "401 without a session" and scope
+  // acceptance, which OAuthGuard.test.ts covers once per guard kind (see
+  // CONTRIBUTING.md -> Testing Guidelines).
   it.each(EXPECTED)(
-    '$module guards with the expected scopes',
-    async ({ module, scopes }) => {
-      await import(module)
-      expect(unique(guardCalls.flat())).toEqual(unique(scopes))
+    '$module guards every method with the expected guard and scopes',
+    async ({ module, scopes, guard }) => {
+      const mod = (await import(module)) as Record<string, TaggedHandler>
+      const guarded = HTTP_METHODS.filter(
+        (method) =>
+          method in mod && !GUARDED_INDIRECTLY[module]?.includes(method)
+      )
+      expect(guarded.length).toBeGreaterThan(0)
+
+      expect(
+        guarded.filter((method) => !Array.isArray(mod[method]?.__scopes))
+      ).toEqual([])
+      expect(
+        unique(guarded.flatMap((method) => mod[method]?.__scopes ?? []))
+      ).toEqual(unique(scopes))
+      expect(
+        Object.fromEntries(
+          guarded.map((method) => [method, mod[method]?.__guard])
+        )
+      ).toEqual(
+        Object.fromEntries(
+          guarded.map((method) => [method, expectedGuard(guard, method)])
+        )
+      )
+      expect(
+        guarded.filter(
+          (method) => mod[method]?.__unconfirmedAccount !== undefined
+        )
+      ).toEqual([])
     }
   )
 })
 
 // The union assertion above cannot tell a GET<->mutation scope swap apart on
 // multi-method routes (the flattened set is identical). Assert those routes
-// per exported method.
-type ScopedHandler = { __scopes?: string[] }
+// per exported method. Both describes read tags off the exported handlers, so
+// neither depends on which one imports a module first.
 const MULTI_METHOD: Array<{
   module: string
   methods: Record<string, string[]>
 }> = [
+  {
+    module: '@/app/api/v1/domain_blocks/route',
+    methods: {
+      GET: ['read', 'read:blocks'],
+      POST: ['write', 'write:blocks'],
+      DELETE: ['write', 'write:blocks']
+    }
+  },
+  {
+    module: '@/app/api/v1/featured_tags/route',
+    methods: {
+      GET: ['read', 'read:accounts'],
+      POST: ['write', 'write:accounts']
+    }
+  },
+  {
+    module: '@/app/api/v1/markers/route',
+    methods: {
+      GET: ['read', 'read:statuses'],
+      POST: ['write', 'write:statuses']
+    }
+  },
   {
     // Reads and writes on one reaction URL: a GET<->mutation scope swap here
     // would pass the flattened EXPECTED assertion above.
@@ -280,6 +454,7 @@ const MULTI_METHOD: Array<{
     module: '@/app/api/v2/notifications/policy/route',
     methods: {
       GET: ['read', 'read:notifications'],
+      PUT: ['write', 'write:notifications'],
       PATCH: ['write', 'write:notifications']
     }
   },
@@ -295,9 +470,130 @@ const MULTI_METHOD: Array<{
 
 describe('multi-method route scopes are wired per method', () => {
   it.each(MULTI_METHOD)('$module', async ({ module, methods }) => {
-    const mod = (await import(module)) as Record<string, ScopedHandler>
+    const mod = (await import(module)) as Record<string, TaggedHandler>
+    // Every guarded export must be pinned here: an unlisted PUT beside a
+    // listed PATCH could carry read scopes without changing the union above.
+    expect(Object.keys(methods).sort()).toEqual(
+      HTTP_METHODS.filter(
+        (method) =>
+          method in mod && !GUARDED_INDIRECTLY[module]?.includes(method)
+      ).sort()
+    )
     for (const [method, scopes] of Object.entries(methods)) {
       expect(unique(mod[method]?.__scopes ?? [])).toEqual(unique(scopes))
     }
+  })
+})
+
+// A route only gets the guarantees above if it is in EXPECTED, so find every
+// route whose exported handlers carry a guard tag and require it to be listed.
+// Detection imports the modules rather than scanning their text, because some
+// routes get their guarded handler from a lib/ helper (the endorsement
+// handlers) and never import the guard module themselves.
+//
+// Routes guarded before this check existed and not yet listed. The list may
+// only shrink: a new guarded route must be added to EXPECTED, and a route moved
+// into EXPECTED must be removed from here. Until then, these routes rely on
+// their own tests for their scopes and guard kind.
+const UNLISTED_BASELINE: string[] = [
+  '@/app/api/v1/accounts/[id]/collections/route',
+  '@/app/api/v1/accounts/[id]/endorse/route',
+  '@/app/api/v1/accounts/[id]/endorsements/route',
+  '@/app/api/v1/accounts/[id]/featured_tags/route',
+  '@/app/api/v1/accounts/[id]/followers/route',
+  '@/app/api/v1/accounts/[id]/following/route',
+  '@/app/api/v1/accounts/[id]/in_collections/route',
+  '@/app/api/v1/accounts/[id]/lists/route',
+  '@/app/api/v1/accounts/[id]/media/route',
+  '@/app/api/v1/accounts/[id]/pin/route',
+  '@/app/api/v1/accounts/[id]/remote-statuses/route',
+  '@/app/api/v1/accounts/[id]/remove_from_followers/route',
+  '@/app/api/v1/accounts/[id]/route',
+  '@/app/api/v1/accounts/[id]/statuses/route',
+  '@/app/api/v1/accounts/[id]/unendorse/route',
+  '@/app/api/v1/accounts/[id]/unpin/route',
+  '@/app/api/v1/accounts/search/route',
+  '@/app/api/v1/accounts/update_credentials/route',
+  '@/app/api/v1/accounts/verify_credentials/route',
+  '@/app/api/v1/apps/verify_credentials/route',
+  '@/app/api/v1/collections/[id]/feed/route',
+  '@/app/api/v1/collections/[id]/items/[item_id]/approve/route',
+  '@/app/api/v1/collections/[id]/items/[item_id]/revoke/route',
+  '@/app/api/v1/collections/[id]/items/[item_id]/route',
+  '@/app/api/v1/collections/[id]/items/route',
+  '@/app/api/v1/collections/[id]/route',
+  '@/app/api/v1/collections/route',
+  '@/app/api/v1/conversations/[id]/read/route',
+  '@/app/api/v1/conversations/[id]/route',
+  '@/app/api/v1/conversations/[id]/statuses/route',
+  '@/app/api/v1/conversations/route',
+  '@/app/api/v1/directory/route',
+  '@/app/api/v1/emails/confirmations/route',
+  '@/app/api/v1/featured_tags/[id]/route',
+  '@/app/api/v1/filters/[id]/route',
+  '@/app/api/v1/filters/route',
+  '@/app/api/v1/follow_requests/count/route',
+  '@/app/api/v1/followed_tags/route',
+  '@/app/api/v1/lists/[id]/accounts/route',
+  '@/app/api/v1/lists/[id]/route',
+  '@/app/api/v1/lists/route',
+  '@/app/api/v1/profile/avatar/route',
+  '@/app/api/v1/profile/header/route',
+  '@/app/api/v1/profile/route',
+  '@/app/api/v1/push/subscribe/route',
+  '@/app/api/v1/push/subscription/route',
+  '@/app/api/v1/reports/route',
+  '@/app/api/v1/scheduled_statuses/[id]/route',
+  '@/app/api/v1/scheduled_statuses/route',
+  '@/app/api/v1/statuses/[id]/bookmark/route',
+  '@/app/api/v1/statuses/[id]/context/route',
+  '@/app/api/v1/statuses/[id]/history/route',
+  '@/app/api/v1/statuses/[id]/interaction_policy/route',
+  '@/app/api/v1/statuses/[id]/mute/route',
+  '@/app/api/v1/statuses/[id]/pin/route',
+  '@/app/api/v1/statuses/[id]/quotes/[quoting_status_id]/revoke/route',
+  '@/app/api/v1/statuses/[id]/quotes/route',
+  '@/app/api/v1/statuses/[id]/retry-fitness/route',
+  '@/app/api/v1/statuses/[id]/route',
+  '@/app/api/v1/statuses/[id]/source/route',
+  '@/app/api/v1/statuses/[id]/translate/route',
+  '@/app/api/v1/statuses/[id]/unbookmark/route',
+  '@/app/api/v1/statuses/[id]/unmute/route',
+  '@/app/api/v1/statuses/[id]/unpin/route',
+  '@/app/api/v1/statuses/route',
+  '@/app/api/v1/tags/[tag]/follow/route',
+  '@/app/api/v1/tags/[tag]/route',
+  '@/app/api/v1/tags/[tag]/unfollow/route',
+  '@/app/api/v1/timelines/[timeline]/route',
+  '@/app/api/v1/timelines/collection/[id]/route',
+  '@/app/api/v1/timelines/list/[list_id]/route',
+  '@/app/api/v1/timelines/public/route',
+  '@/app/api/v1/timelines/tag/[hashtag]/route',
+  '@/app/api/v1/trends/links/route',
+  '@/app/api/v1/trends/route',
+  '@/app/api/v1/trends/statuses/route',
+  '@/app/api/v1/trends/tags/route',
+  '@/app/api/v2/filters/[id]/keywords/route',
+  '@/app/api/v2/filters/[id]/route',
+  '@/app/api/v2/filters/[id]/statuses/route',
+  '@/app/api/v2/filters/keywords/[id]/route',
+  '@/app/api/v2/filters/route',
+  '@/app/api/v2/filters/statuses/[id]/route',
+  '@/app/api/v2/search/route'
+]
+
+const ROOT = fileURLToPath(new URL('../../..', import.meta.url))
+
+describe('every OAuth-guarded route is in EXPECTED', () => {
+  it('matches the unlisted baseline exactly', async () => {
+    const listed = new Set(EXPECTED.map(({ module }) => module))
+    const unlisted: string[] = []
+    for (const file of globSync('app/**/route.ts', { cwd: ROOT })) {
+      const module = `@/${file.replace(/\.ts$/, '')}`
+      const mod = (await import(module)) as Record<string, TaggedHandler>
+      const guarded = HTTP_METHODS.some((method) => mod[method]?.__guard)
+      if (guarded && !listed.has(module)) unlisted.push(module)
+    }
+    expect(unlisted.sort()).toEqual([...UNLISTED_BASELINE].sort())
   })
 })

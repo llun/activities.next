@@ -92,12 +92,6 @@ describe('GET /api/v1/endorsements', () => {
     expect(link).toContain('max_id=')
   })
 
-  it('requires authentication', async () => {
-    mockGetServerSession.mockResolvedValue(null)
-    const response = await GET(createRequest(), { params: Promise.resolve({}) })
-    expect(response.status).toBe(401)
-  })
-
   it.each([
     { query: '?limit=100', expected: 80 },
     { query: '?limit=0', expected: 1 }

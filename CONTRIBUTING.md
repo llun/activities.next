@@ -856,6 +856,39 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   the worked example: it asserts one follow query across a whole profile render,
   on the local and remote branches alike, and that a second scope re-reads.
 - Prefer unit tests near `lib/` and route tests near `app/`.
+- **Test a behaviour once, at the layer that owns it.** A parent component's
+  test checks that it wires a child in, not the child's behaviour again. For
+  example, the route privacy hint's tap timer is tested in
+  `ActivityRouteMapKit` and `ActivityMapPanel`, which each own a timer, and not
+  again through `FitnessStatusDetail`, which only renders `ActivityMapPanel`.
+  Copies at several layers fail together on one change and slow the suite.
+- **Don't re-test OAuth scope or "401 without a session" in each route's own
+  test file.** For a route guarded by `OAuthGuard`, `OAuthGuardAnyScope`,
+  `OptionalOAuthGuard` or `OAuthAppGuard`, add it to `EXPECTED` in
+  `app/api/v1/routeScopeWiring.test.ts` (and to `MULTI_METHOD` if its methods
+  use different scopes, and with `guard` if it is not `OAuthGuardAnyScope`).
+  That test pins the scope literals (per method for `MULTI_METHOD` routes, as
+  a set for the rest) and, for each exported method, which guard it is behind,
+  so an any-of → all-of or required → optional switch fails; it also asserts
+  that no listed route opts into `unconfirmedAccount`. It fails if a route
+  whose handlers carry an OAuth guard is in neither `EXPECTED` nor
+  `UNLISTED_BASELINE`. That baseline lists routes guarded before the check
+  existed, still relying on their own tests, and it may only shrink. `MULTI_METHOD`
+  entries must name every guarded method the route exports.
+  `lib/services/guards/OAuthGuard.test.ts` covers what each guard then does
+  (no session, wrong scope, a parent scope, unconfirmed accounts) once, for
+  every route. Two routes keep an end-to-end check against the real guard, as
+  a canary that guard and route still fit together:
+  `app/api/v1/preferences/route.test.ts` for a read and
+  `app/api/v1/notifications/clear/route.scopes.test.ts` for a write. This
+  applies only to that guard family: routes behind `AuthenticatedGuard` or
+  their own session check have no wiring table, so their own 401/403 tests are
+  the only proof and must stay.
+- **Assert what the user or caller sees.** Query by role, label or text rather
+  than `toHaveClass`/`querySelector`, unless the class is the contract (a
+  design-system token such as `.skeleton`). Use `toHaveBeenCalledTimes` only
+  when the count itself is the behaviour. Both break on refactors that change
+  nothing a user can observe.
 - All tests run in parallel using isolated SQLite in-memory databases. The
   schema is loaded from the committed reference dumps (`migrations/schema*.sql`)
   via `lib/database/testUtils.ts` rather than by running the Knex migration
@@ -1122,6 +1155,10 @@ A full sub-agent review round yields no new actionable comments, or you have run
 
 - TypeScript + React, 2-space indent; Prettier (no semicolons, single quotes,
   import sorting) is clean. Unused vars are `_`-prefixed.
+- Each test checks one behaviour at the layer that owns it (see
+  [Testing Guidelines](#agents-testing-guidelines)). Watch for a parent
+  re-testing its child's behaviour, a real-time sleep, and a route test re-proving
+  OAuth scope or 401 when the route belongs in `routeScopeWiring.test.ts`.
 - Absolute imports (`@/lib/...`) for anything outside the current directory;
   same-directory `./` only, no `../`. The same rule applies to `vi.mock(...)`
   paths.
