@@ -1,3 +1,6 @@
+import { globSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+
 // Pins how each OAuth-guarded route is guarded, so a route's own tests need
 // not re-prove it. TypeScript accepts any Scope.enum member and any of the four
 // guard factories, so a wrong scope literal (block listing with write:mutes),
@@ -451,6 +454,7 @@ const MULTI_METHOD: Array<{
     module: '@/app/api/v2/notifications/policy/route',
     methods: {
       GET: ['read', 'read:notifications'],
+      PUT: ['write', 'write:notifications'],
       PATCH: ['write', 'write:notifications']
     }
   },
@@ -467,8 +471,129 @@ const MULTI_METHOD: Array<{
 describe('multi-method route scopes are wired per method', () => {
   it.each(MULTI_METHOD)('$module', async ({ module, methods }) => {
     const mod = (await import(module)) as Record<string, TaggedHandler>
+    // Every guarded export must be pinned here: an unlisted PUT beside a
+    // listed PATCH could carry read scopes without changing the union above.
+    expect(Object.keys(methods).sort()).toEqual(
+      HTTP_METHODS.filter(
+        (method) =>
+          method in mod && !GUARDED_INDIRECTLY[module]?.includes(method)
+      ).sort()
+    )
     for (const [method, scopes] of Object.entries(methods)) {
       expect(unique(mod[method]?.__scopes ?? [])).toEqual(unique(scopes))
     }
+  })
+})
+
+// A route only gets the guarantees above if it is in EXPECTED, so find every
+// route whose exported handlers carry a guard tag and require it to be listed.
+// Detection imports the modules rather than scanning their text, because some
+// routes get their guarded handler from a lib/ helper (the endorsement
+// handlers) and never import the guard module themselves.
+//
+// Routes guarded before this check existed and not yet listed. The list may
+// only shrink: a new guarded route must be added to EXPECTED, and a route moved
+// into EXPECTED must be removed from here. Until then, these routes rely on
+// their own tests for their scopes and guard kind.
+const UNLISTED_BASELINE: string[] = [
+  '@/app/api/v1/accounts/[id]/collections/route',
+  '@/app/api/v1/accounts/[id]/endorse/route',
+  '@/app/api/v1/accounts/[id]/endorsements/route',
+  '@/app/api/v1/accounts/[id]/featured_tags/route',
+  '@/app/api/v1/accounts/[id]/followers/route',
+  '@/app/api/v1/accounts/[id]/following/route',
+  '@/app/api/v1/accounts/[id]/in_collections/route',
+  '@/app/api/v1/accounts/[id]/lists/route',
+  '@/app/api/v1/accounts/[id]/media/route',
+  '@/app/api/v1/accounts/[id]/pin/route',
+  '@/app/api/v1/accounts/[id]/remote-statuses/route',
+  '@/app/api/v1/accounts/[id]/remove_from_followers/route',
+  '@/app/api/v1/accounts/[id]/route',
+  '@/app/api/v1/accounts/[id]/statuses/route',
+  '@/app/api/v1/accounts/[id]/unendorse/route',
+  '@/app/api/v1/accounts/[id]/unpin/route',
+  '@/app/api/v1/accounts/search/route',
+  '@/app/api/v1/accounts/update_credentials/route',
+  '@/app/api/v1/accounts/verify_credentials/route',
+  '@/app/api/v1/apps/verify_credentials/route',
+  '@/app/api/v1/collections/[id]/feed/route',
+  '@/app/api/v1/collections/[id]/items/[item_id]/approve/route',
+  '@/app/api/v1/collections/[id]/items/[item_id]/revoke/route',
+  '@/app/api/v1/collections/[id]/items/[item_id]/route',
+  '@/app/api/v1/collections/[id]/items/route',
+  '@/app/api/v1/collections/[id]/route',
+  '@/app/api/v1/collections/route',
+  '@/app/api/v1/conversations/[id]/read/route',
+  '@/app/api/v1/conversations/[id]/route',
+  '@/app/api/v1/conversations/[id]/statuses/route',
+  '@/app/api/v1/conversations/route',
+  '@/app/api/v1/directory/route',
+  '@/app/api/v1/emails/confirmations/route',
+  '@/app/api/v1/featured_tags/[id]/route',
+  '@/app/api/v1/filters/[id]/route',
+  '@/app/api/v1/filters/route',
+  '@/app/api/v1/follow_requests/count/route',
+  '@/app/api/v1/followed_tags/route',
+  '@/app/api/v1/lists/[id]/accounts/route',
+  '@/app/api/v1/lists/[id]/route',
+  '@/app/api/v1/lists/route',
+  '@/app/api/v1/profile/avatar/route',
+  '@/app/api/v1/profile/header/route',
+  '@/app/api/v1/profile/route',
+  '@/app/api/v1/push/subscribe/route',
+  '@/app/api/v1/push/subscription/route',
+  '@/app/api/v1/reports/route',
+  '@/app/api/v1/scheduled_statuses/[id]/route',
+  '@/app/api/v1/scheduled_statuses/route',
+  '@/app/api/v1/statuses/[id]/bookmark/route',
+  '@/app/api/v1/statuses/[id]/context/route',
+  '@/app/api/v1/statuses/[id]/history/route',
+  '@/app/api/v1/statuses/[id]/interaction_policy/route',
+  '@/app/api/v1/statuses/[id]/mute/route',
+  '@/app/api/v1/statuses/[id]/pin/route',
+  '@/app/api/v1/statuses/[id]/quotes/[quoting_status_id]/revoke/route',
+  '@/app/api/v1/statuses/[id]/quotes/route',
+  '@/app/api/v1/statuses/[id]/retry-fitness/route',
+  '@/app/api/v1/statuses/[id]/route',
+  '@/app/api/v1/statuses/[id]/source/route',
+  '@/app/api/v1/statuses/[id]/translate/route',
+  '@/app/api/v1/statuses/[id]/unbookmark/route',
+  '@/app/api/v1/statuses/[id]/unmute/route',
+  '@/app/api/v1/statuses/[id]/unpin/route',
+  '@/app/api/v1/statuses/route',
+  '@/app/api/v1/tags/[tag]/follow/route',
+  '@/app/api/v1/tags/[tag]/route',
+  '@/app/api/v1/tags/[tag]/unfollow/route',
+  '@/app/api/v1/timelines/[timeline]/route',
+  '@/app/api/v1/timelines/collection/[id]/route',
+  '@/app/api/v1/timelines/list/[list_id]/route',
+  '@/app/api/v1/timelines/public/route',
+  '@/app/api/v1/timelines/tag/[hashtag]/route',
+  '@/app/api/v1/trends/links/route',
+  '@/app/api/v1/trends/route',
+  '@/app/api/v1/trends/statuses/route',
+  '@/app/api/v1/trends/tags/route',
+  '@/app/api/v2/filters/[id]/keywords/route',
+  '@/app/api/v2/filters/[id]/route',
+  '@/app/api/v2/filters/[id]/statuses/route',
+  '@/app/api/v2/filters/keywords/[id]/route',
+  '@/app/api/v2/filters/route',
+  '@/app/api/v2/filters/statuses/[id]/route',
+  '@/app/api/v2/search/route'
+]
+
+const ROOT = fileURLToPath(new URL('../../..', import.meta.url))
+
+describe('every OAuth-guarded route is in EXPECTED', () => {
+  it('matches the unlisted baseline exactly', async () => {
+    const listed = new Set(EXPECTED.map(({ module }) => module))
+    const unlisted: string[] = []
+    for (const file of globSync('app/**/route.ts', { cwd: ROOT })) {
+      const module = `@/${file.replace(/\.ts$/, '')}`
+      const mod = (await import(module)) as Record<string, TaggedHandler>
+      const guarded = HTTP_METHODS.some((method) => mod[method]?.__guard)
+      if (guarded && !listed.has(module)) unlisted.push(module)
+    }
+    expect(unlisted.sort()).toEqual([...UNLISTED_BASELINE].sort())
   })
 })
