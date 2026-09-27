@@ -1,0 +1,23 @@
+CONTRIBUTING.md
+  s_7a29c31259b0a0::t_c57e4d4d392f4f 873-877
+app/api/v1/routeScopeWiring.test.ts
+  s_7a29c31259b0a0::t_a517c196675c0c 592
+  s_7a29c31259b0a0::t_1d87dbdb955da5 1-3,457,474-481,487-591,593-597
+  s_7a29c31259b0a0::t_82059b4115081a 598-599
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "33c63c382f02ad42dc513c27f9b23df28245e002",
+  "prompts": {},
+  "sessions": {
+    "s_7a29c31259b0a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e61da06e-432e-42f9-a063-cc85e354e701",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
