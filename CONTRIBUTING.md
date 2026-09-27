@@ -867,9 +867,10 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   `OptionalOAuthGuard` or `OAuthAppGuard`, add it to `EXPECTED` in
   `app/api/v1/routeScopeWiring.test.ts` (and to `MULTI_METHOD` if its methods
   use different scopes, and with `guard` if it is not `OAuthGuardAnyScope`).
-  For each exported method that test pins the scope literals and which guard
-  it is behind, so an any-of → all-of or required → optional switch fails, and
-  asserts that no listed route opts into `unconfirmedAccount`.
+  That test pins the scope literals (per method for `MULTI_METHOD` routes, as
+  a set for the rest) and, for each exported method, which guard it is behind,
+  so an any-of → all-of or required → optional switch fails; it also asserts
+  that no listed route opts into `unconfirmedAccount`.
   `lib/services/guards/OAuthGuard.test.ts` covers what each guard then does
   (no session, wrong scope, a parent scope, unconfirmed accounts) once, for
   every route. Two routes keep an end-to-end check against the real guard, as
