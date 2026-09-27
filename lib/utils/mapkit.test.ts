@@ -3,6 +3,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { getAppleMapsToken } from '@/lib/client'
+
 vi.mock('@/lib/client', () => ({
   getAppleMapsToken: vi.fn()
 }))
@@ -34,8 +36,7 @@ const cleanup = () => {
 const currentScript = () =>
   document.querySelector<HTMLScriptElement>(MAPKIT_SCRIPT_SELECTOR)
 
-const clientMock = () =>
-  vi.importMock<typeof import('@/lib/client')>('@/lib/client')
+const clientMock = async () => ({ getAppleMapsToken })
 
 const authorizationCallbackOf = (init: ReturnType<typeof vi.fn>) =>
   (init.mock.calls[0][0] as { authorizationCallback: AuthorizationCallback })
@@ -116,6 +117,7 @@ describe('loadMapKitModule', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     cleanup()
   })
 
@@ -310,9 +312,9 @@ describe('loadMapKitModule', () => {
   })
 
   it('authorizes after a transient token fetch failure', async () => {
+    const { getAppleMapsToken } = await clientMock()
     vi.useFakeTimers()
     try {
-      const { getAppleMapsToken } = await clientMock()
       vi.mocked(getAppleMapsToken)
         .mockResolvedValueOnce(null)
         .mockResolvedValue('apple-token')
