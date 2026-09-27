@@ -4,6 +4,8 @@ app/api/v1/accounts/route.test.ts
 app/api/v1/routeScopeWiring.test.ts
   s_7a29c31259b0a0::t_4a7ba22c173b41 1077-1082,1106-1115
   s_7a29c31259b0a0::t_2310c2cb060fab 1,1044-1045,1049-1076,1083-1085,1091-1093,1095-1097,1100-1104
+CONTRIBUTING.md
+  s_7a29c31259b0a0::t_82b4b7e8c532f6 876-879
 ---
 {
   "schema_version": "authorship/3.0.0",
