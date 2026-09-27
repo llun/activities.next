@@ -1,0 +1,19 @@
+CONTRIBUTING.md
+  s_7a29c31259b0a0::t_13fe59898dc227 870-873
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c91188bb49bed9169f0f9bd2ff69041dde7a8dc9",
+  "prompts": {},
+  "sessions": {
+    "s_7a29c31259b0a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e61da06e-432e-42f9-a063-cc85e354e701",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
