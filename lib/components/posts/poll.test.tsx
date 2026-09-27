@@ -7,7 +7,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { votePoll } from '@/lib/client'
 import { StatusPoll, StatusType } from '@/lib/types/domain/status'
 
-import { Poll } from './poll'
+import { MAX_TIMER_DELAY_MS, Poll } from './poll'
 
 vi.mock('@/lib/client', () => ({
   votePoll: vi.fn()
@@ -242,5 +242,62 @@ describe('Poll', () => {
     expect(img).toBeInTheDocument()
     expect(img).toHaveAttribute('src', 'https://example.com/blobcat.png')
     expect(screen.getByText(/Option/)).toBeInTheDocument()
+  })
+
+  it('handles poll durations exceeding 32-bit signed integer timer limit (~24.8 days)', () => {
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000
+    const longPollStatus: StatusPoll = {
+      ...pollStatus,
+      endAt: currentTime + thirtyDaysMs
+    }
+
+    render(
+      <Poll
+        status={longPollStatus}
+        currentTime={currentTime}
+        currentActorId="https://activities.local/actors/llun"
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Vote' })).toBeInTheDocument()
+    expect(vi.getTimerCount()).toBe(1)
+
+    act(() => {
+      vi.advanceTimersByTime(MAX_TIMER_DELAY_MS + 1000)
+    })
+
+    expect(screen.getByRole('button', { name: 'Vote' })).toBeInTheDocument()
+    expect(screen.queryByText('Poll closed')).not.toBeInTheDocument()
+    expect(vi.getTimerCount()).toBe(1)
+
+    act(() => {
+      vi.advanceTimersByTime(thirtyDaysMs - (MAX_TIMER_DELAY_MS + 1000))
+    })
+
+    expect(screen.getByText('Poll closed')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Vote' })
+    ).not.toBeInTheDocument()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('clears scheduled timer on unmount for long polls', () => {
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000
+    const longPollStatus: StatusPoll = {
+      ...pollStatus,
+      endAt: currentTime + thirtyDaysMs
+    }
+
+    const { unmount } = render(
+      <Poll
+        status={longPollStatus}
+        currentTime={currentTime}
+        currentActorId="https://activities.local/actors/llun"
+      />
+    )
+
+    expect(vi.getTimerCount()).toBe(1)
+    unmount()
+    expect(vi.getTimerCount()).toBe(0)
   })
 })
