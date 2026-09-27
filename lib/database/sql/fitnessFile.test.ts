@@ -470,11 +470,9 @@ describe('FitnessFileDatabase', () => {
         expect(first).toBeDefined()
         expect(second).toBeDefined()
 
-        await database.updateFitnessFileStatus(first!.id, statuses.primary.post)
-        await database.updateFitnessFileStatus(
-          second!.id,
-          statuses.primary.post
-        )
+        const testStatusId = statuses.primary.secondPost
+        await database.updateFitnessFileStatus(first!.id, testStatusId)
+        await database.updateFitnessFileStatus(second!.id, testStatusId)
         await database.updateFitnessFilePrimary(first!.id, false)
         await database.updateFitnessFilePrimary(second!.id, true)
         await database.updateFitnessFileActivityData(second!.id, {
@@ -485,12 +483,12 @@ describe('FitnessFileDatabase', () => {
         })
 
         const primary = await database.getFitnessFileByStatus({
-          statusId: statuses.primary.post
+          statusId: testStatusId
         })
         expect(primary?.id).toBe(second!.id)
 
         const files = await database.getFitnessFilesByStatus({
-          statusId: statuses.primary.post
+          statusId: testStatusId
         })
         const ids = files
           .filter((file) => file.id === first!.id || file.id === second!.id)
@@ -1120,6 +1118,10 @@ describe('FitnessFileDatabase', () => {
         })
         expect(created).toBeDefined()
 
+        await database.updateFitnessFileActivityData(created!.id, {
+          activityType: 'running',
+          activityStartTime: new Date()
+        })
         await database.updateFitnessFileProcessingStatus(
           created!.id,
           'completed'
@@ -1168,7 +1170,7 @@ describe('FitnessFileDatabase', () => {
     })
 
     describe('getFitnessActivityCalendarData', () => {
-      it('returns per-day aggregates grouped by date', async () => {
+      beforeAll(async () => {
         const day1a = await database.createFitnessFile({
           actorId: actors.extra.id,
           path: 'fitness/cal-day1a.fit',
@@ -1217,7 +1219,9 @@ describe('FitnessFileDatabase', () => {
           totalDurationSeconds: 2400
         })
         await database.updateFitnessFileProcessingStatus(day2!.id, 'completed')
+      })
 
+      it('returns per-day aggregates grouped by date', async () => {
         const result = await database.getFitnessActivityCalendarData({
           actorId: actors.extra.id,
           startDate: new Date('2027-03-01T00:00:00.000Z').getTime(),

@@ -13,6 +13,8 @@ import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
+import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
+import { ACTOR5_ID } from '@/lib/stub/seed/actor5'
 import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import {
   DirectConversation,
@@ -169,16 +171,16 @@ describe('ConversationDatabase', () => {
     test('syncs direct statuses into local actor conversation memberships', async () => {
       const status = await createDirectStatus({
         database,
-        actorId: ACTOR1_ID,
-        recipientActorIds: [ACTOR2_ID],
+        actorId: ACTOR4_ID,
+        recipientActorIds: [ACTOR5_ID],
         text: 'private hello'
       })
 
       const actor1Conversations = await database.getDirectConversations({
-        actorId: ACTOR1_ID
+        actorId: ACTOR4_ID
       })
       const actor2Conversations = await database.getDirectConversations({
-        actorId: ACTOR2_ID
+        actorId: ACTOR5_ID
       })
 
       expect(actor1Conversations).toHaveLength(1)
@@ -192,8 +194,8 @@ describe('ConversationDatabase', () => {
       expect(actor1Conversations[0].unread).toBe(false)
       expect(actor2Conversations[0].unread).toBe(true)
       expect(actor1Conversations[0].participantActorIds.sort()).toEqual([
-        ACTOR1_ID,
-        ACTOR2_ID
+        ACTOR4_ID,
+        ACTOR5_ID
       ])
     })
 

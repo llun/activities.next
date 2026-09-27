@@ -1,6 +1,5 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
-import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 
 describe('MarkerSQLDatabaseMixin', () => {
