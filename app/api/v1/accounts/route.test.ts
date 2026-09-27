@@ -358,6 +358,8 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
   const USER_TOKEN = 'user-token-value'
   const ACTORLESS_USER_TOKEN = 'actorless-user-token-value'
   const READ_ONLY_APP_TOKEN = 'read-only-app-token-value'
+  const WRONG_WRITE_APP_TOKEN = 'wrong-write-app-token-value'
+  const GRANULAR_WRITE_APP_TOKEN = 'granular-write-app-token-value'
   const NEW_USERNAME = 'newbie'
   const PENDING_USERNAME = 'pendingnewbie'
   const ACTORLESS_USERNAME = 'actorlessuser'
@@ -462,6 +464,18 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
       token: READ_ONLY_APP_TOKEN,
       referenceId: null,
       scopes: [Scope.enum.read]
+    })
+    // An app token with an unrelated write scope (neither write:accounts nor parent write).
+    await insertToken({
+      token: WRONG_WRITE_APP_TOKEN,
+      referenceId: null,
+      scopes: [Scope.enum['write:statuses']]
+    })
+    // An app token with only the granular write:accounts scope (no parent write).
+    await insertToken({
+      token: GRANULAR_WRITE_APP_TOKEN,
+      referenceId: null,
+      scopes: [Scope.enum['write:accounts']]
     })
     // User-bound token: delegates the newly created actor.
     await insertToken({ token: USER_TOKEN, referenceId: actorId })
@@ -634,6 +648,37 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
     )
     expect(res.status).toBe(401)
     expect(vi.mocked(registerAccount)).not.toHaveBeenCalled()
+  })
+
+  it('returns 401 for an app token with an unrelated write scope', async () => {
+    const res = await postRegister(
+      WRONG_WRITE_APP_TOKEN,
+      `username=${NEW_USERNAME}&email=newbie@llun.test&password=password123&agreement=true`
+    )
+    expect(res.status).toBe(401)
+    expect(vi.mocked(registerAccount)).not.toHaveBeenCalled()
+  })
+
+  it('allows registration with an app token having only granular write:accounts scope', async () => {
+    vi.mocked(registerAccount).mockResolvedValueOnce({
+      type: 'success',
+      accountId,
+      username: NEW_USERNAME,
+      actorId
+    })
+    const res = await postRegister(
+      GRANULAR_WRITE_APP_TOKEN,
+      `username=${NEW_USERNAME}&email=newbie@llun.test&password=password123&agreement=true`
+    )
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.scope).toBe('write:accounts')
+    expect(registerAccount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        username: NEW_USERNAME,
+        email: 'newbie@llun.test'
+      })
+    )
   })
 
   it('returns 403 for a user-bound (non-app) token', async () => {

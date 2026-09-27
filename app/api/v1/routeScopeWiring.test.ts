@@ -1,4 +1,4 @@
-import { globSync, readFileSync } from 'node:fs'
+import { globSync, readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -1061,7 +1061,7 @@ const UNLISTED_BASELINE: string[] = []
 const GUARDED_BY_OWN_CODE: Record<string, string> = {
   // POST builds an OAuthAppGuard(['write:accounts']) for bearer registration.
   '@/app/api/v1/accounts/route':
-    'app/api/v1/accounts/route.test.ts ("an app token without write:accounts")',
+    'app/api/v1/accounts/route.test.ts ("an app token without write:accounts", "an unrelated write scope", and "only granular write:accounts")',
   // GET builds an OptionalOAuthGuard([read, read:accounts], { matchMode: 'any' })
   // for remote lookups.
   '@/app/api/v1/accounts/lookup/route':
@@ -1072,7 +1072,8 @@ const GUARD_MODULE = '@/lib/services/guards/OAuthGuard'
 const GUARD_FACTORY =
   /\b(OAuthGuard|OAuthGuardAnyScope|OptionalOAuthGuard|OAuthAppGuard)\b/
 const buildsGuard = (source: string) =>
-  source.includes(GUARD_MODULE) && GUARD_FACTORY.test(source)
+  source.includes(GUARD_MODULE) &&
+  GUARD_FACTORY.test(source.replaceAll(GUARD_MODULE, ''))
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url))
 
@@ -1092,12 +1093,12 @@ describe('every OAuth-guarded route is in EXPECTED', () => {
       if (guarded) {
         if (!listed.has(module)) unlisted.push(module)
       } else {
-        const sources = [
-          file,
-          ...globSync(`${path.dirname(file)}/*.{ts,tsx,js,jsx}`, { cwd: ROOT })
-        ]
-          .filter((source) => !/\.test\.[jt]sx?$/.test(source))
-          .map((source) => readFileSync(path.join(ROOT, source), 'utf8'))
+        const dir = path.join(ROOT, path.dirname(file))
+        const sources = readdirSync(dir)
+          .filter(
+            (name) => /\.[jt]sx?$/.test(name) && !/\.test\.[jt]sx?$/.test(name)
+          )
+          .map((name) => readFileSync(path.join(dir, name), 'utf8'))
         if (sources.some(buildsGuard)) {
           guardedByOwnCode.push(module)
           if (sources.some((source) => source.includes('unconfirmedAccount'))) {
