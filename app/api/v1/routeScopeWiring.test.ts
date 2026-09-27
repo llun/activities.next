@@ -113,6 +113,108 @@ const EXPECTED: Array<{
     module: '@/app/api/v1/accounts/[id]/note/route',
     scopes: ['write', 'write:accounts']
   },
+  {
+    module: '@/app/api/v1/accounts/[id]/collections/route',
+    scopes: ['read', 'read:collections'],
+    guard: 'OptionalOAuthGuard:any'
+  },
+  {
+    module: '@/app/api/v1/accounts/[id]/endorse/route',
+    scopes: ['write', 'write:accounts']
+  },
+  {
+    module: '@/app/api/v1/accounts/[id]/endorsements/route',
+    scopes: ['read', 'read:accounts'],
+    guard: 'OptionalOAuthGuard:any'
+  },
+  {
+    module: '@/app/api/v1/accounts/[id]/featured_tags/route',
+    scopes: ['read', 'read:accounts'],
+    guard: 'OptionalOAuthGuard:any'
+  },
+  {
+    module: '@/app/api/v1/accounts/[id]/followers/route',
+    scopes: ['read', 'read:follows'],
+    guard: 'OptionalOAuthGuard:any'
+  },
+  {
+    module: '@/app/api/v1/accounts/[id]/following/route',
+    scopes: ['read', 'read:follows'],
+    guard: 'OptionalOAuthGuard:any'
+  },
+  {
+    module: '@/app/api/v1/accounts/[id]/in_collections/route',
+    scopes: ['read', 'read:collections']
+  },
+  {
+    module: '@/app/api/v1/accounts/[id]/lists/route',
+    scopes: ['read', 'read:lists']
+  },
+  {
+    module: '@/app/api/v1/accounts/[id]/media/route',
+    scopes: ['read', 'read:statuses'],
+    guard: 'OptionalOAuthGuard:any'
+  },
+  {
+    module: '@/app/api/v1/accounts/[id]/pin/route',
+    scopes: ['write', 'write:accounts']
+  },
+  {
+    module: '@/app/api/v1/accounts/[id]/remote-statuses/route',
+    scopes: ['read'],
+    guard: 'OAuthGuard'
+  },
+  {
+    module: '@/app/api/v1/accounts/[id]/remove_from_followers/route',
+    scopes: ['write', 'write:follows']
+  },
+  {
+    module: '@/app/api/v1/accounts/[id]/route',
+    scopes: ['read', 'read:accounts'],
+    guard: 'OptionalOAuthGuard:any'
+  },
+  {
+    module: '@/app/api/v1/accounts/[id]/statuses/route',
+    scopes: ['read', 'read:statuses'],
+    guard: 'OptionalOAuthGuard:any'
+  },
+  {
+    module: '@/app/api/v1/accounts/[id]/unendorse/route',
+    scopes: ['write', 'write:accounts']
+  },
+  {
+    module: '@/app/api/v1/accounts/[id]/unpin/route',
+    scopes: ['write', 'write:accounts']
+  },
+  {
+    module: '@/app/api/v1/accounts/search/route',
+    scopes: ['read', 'read:accounts', 'read:search']
+  },
+  {
+    module: '@/app/api/v1/accounts/update_credentials/route',
+    scopes: ['write', 'write:accounts']
+  },
+  {
+    module: '@/app/api/v1/accounts/verify_credentials/route',
+    scopes: ['profile', 'read', 'read:accounts']
+  },
+  {
+    module: '@/app/api/v1/follow_requests/count/route',
+    scopes: ['read'],
+    guard: 'OAuthGuard'
+  },
+  {
+    module: '@/app/api/v1/profile/avatar/route',
+    scopes: ['write', 'write:accounts']
+  },
+  {
+    module: '@/app/api/v1/profile/header/route',
+    scopes: ['write', 'write:accounts']
+  },
+  {
+    module: '@/app/api/v1/profile/route',
+    scopes: ['profile', 'read', 'read:accounts', 'write', 'write:accounts']
+  },
   // status actions
   {
     module: '@/app/api/v1/statuses/[id]/favourite/route',
@@ -568,6 +670,13 @@ const MULTI_METHOD: Array<{
       PUT: ['write', 'write:statuses'],
       DELETE: ['write', 'write:statuses']
     }
+  },
+  {
+    module: '@/app/api/v1/profile/route',
+    methods: {
+      GET: ['profile', 'read', 'read:accounts'],
+      PATCH: ['write', 'write:accounts']
+    }
   }
 ]
 
@@ -599,25 +708,6 @@ describe('multi-method route scopes are wired per method', () => {
 // into EXPECTED must be removed from here. Until then, these routes rely on
 // their own tests for their scopes and guard kind.
 const UNLISTED_BASELINE: string[] = [
-  '@/app/api/v1/accounts/[id]/collections/route',
-  '@/app/api/v1/accounts/[id]/endorse/route',
-  '@/app/api/v1/accounts/[id]/endorsements/route',
-  '@/app/api/v1/accounts/[id]/featured_tags/route',
-  '@/app/api/v1/accounts/[id]/followers/route',
-  '@/app/api/v1/accounts/[id]/following/route',
-  '@/app/api/v1/accounts/[id]/in_collections/route',
-  '@/app/api/v1/accounts/[id]/lists/route',
-  '@/app/api/v1/accounts/[id]/media/route',
-  '@/app/api/v1/accounts/[id]/pin/route',
-  '@/app/api/v1/accounts/[id]/remote-statuses/route',
-  '@/app/api/v1/accounts/[id]/remove_from_followers/route',
-  '@/app/api/v1/accounts/[id]/route',
-  '@/app/api/v1/accounts/[id]/statuses/route',
-  '@/app/api/v1/accounts/[id]/unendorse/route',
-  '@/app/api/v1/accounts/[id]/unpin/route',
-  '@/app/api/v1/accounts/search/route',
-  '@/app/api/v1/accounts/update_credentials/route',
-  '@/app/api/v1/accounts/verify_credentials/route',
   '@/app/api/v1/apps/verify_credentials/route',
   '@/app/api/v1/collections/[id]/feed/route',
   '@/app/api/v1/collections/[id]/items/[item_id]/approve/route',
@@ -635,14 +725,10 @@ const UNLISTED_BASELINE: string[] = [
   '@/app/api/v1/featured_tags/[id]/route',
   '@/app/api/v1/filters/[id]/route',
   '@/app/api/v1/filters/route',
-  '@/app/api/v1/follow_requests/count/route',
   '@/app/api/v1/followed_tags/route',
   '@/app/api/v1/lists/[id]/accounts/route',
   '@/app/api/v1/lists/[id]/route',
   '@/app/api/v1/lists/route',
-  '@/app/api/v1/profile/avatar/route',
-  '@/app/api/v1/profile/header/route',
-  '@/app/api/v1/profile/route',
   '@/app/api/v1/push/subscribe/route',
   '@/app/api/v1/push/subscription/route',
   '@/app/api/v1/reports/route',
