@@ -1,4 +1,5 @@
 import { globSync, readFileSync } from 'node:fs'
+import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { UsableScopes } from '@/lib/types/database/operations'
@@ -1049,39 +1050,29 @@ const UNLISTED_BASELINE: string[] = []
 // Routes that build an OAuth guard inside their own exported function (at
 // import time or per request), so no exported method carries the tag and the
 // checks above cannot see the guard's scopes or kind. Each is pinned by the
-// test named beside it instead. Found by a source scan for guard-factory
-// imports, which cannot see a lib/ helper that builds a guard per request.
+// tests named beside it instead, and none may opt into `unconfirmedAccount`.
+//
+// They are found by source, not by import: a route counts when it, or a
+// non-test module in its own directory, both references the guard module (by
+// named, namespace or dynamic import, or a re-export) and names a guard
+// factory. Lint forbids `../` imports, so that path always appears literally.
+// Still invisible: a guard built per request by a module outside the route's
+// directory (a lib/ helper that is not called at import time).
 const GUARDED_BY_OWN_CODE: Record<string, string> = {
   // POST builds an OAuthAppGuard(['write:accounts']) for bearer registration.
   '@/app/api/v1/accounts/route':
     'app/api/v1/accounts/route.test.ts ("an app token without write:accounts")',
-  // GET builds an OptionalOAuthGuard([read, read:accounts]) for remote lookups.
+  // GET builds an OptionalOAuthGuard([read, read:accounts], { matchMode: 'any' })
+  // for remote lookups.
   '@/app/api/v1/accounts/lookup/route':
-    'app/api/v1/accounts/lookup/route.test.ts ("insufficient scope")'
+    'app/api/v1/accounts/lookup/route.test.ts ("read:accounts scope to remotely resolve" and "insufficient scope")'
 }
 
-const GUARD_FACTORIES = [
-  'OAuthGuard',
-  'OAuthGuardAnyScope',
-  'OptionalOAuthGuard',
-  'OAuthAppGuard'
-]
-const importsGuardFactory = (source: string) =>
-  [
-    ...source.matchAll(
-      /import\s*\{([^}]*)\}\s*from\s*'@\/lib\/services\/guards\/OAuthGuard'/g
-    )
-  ].some(([, names]) =>
-    names
-      .split(',')
-      .map((name) =>
-        name
-          .replace(/^\s*type\s+/, '')
-          .split(' as ')[0]
-          .trim()
-      )
-      .some((name) => GUARD_FACTORIES.includes(name))
-  )
+const GUARD_MODULE = '@/lib/services/guards/OAuthGuard'
+const GUARD_FACTORY =
+  /\b(OAuthGuard|OAuthGuardAnyScope|OptionalOAuthGuard|OAuthAppGuard)\b/
+const buildsGuard = (source: string) =>
+  source.includes(GUARD_MODULE) && GUARD_FACTORY.test(source)
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url))
 
@@ -1093,14 +1084,26 @@ describe('every OAuth-guarded route is in EXPECTED', () => {
 
     const unlisted: string[] = []
     const guardedByOwnCode: string[] = []
+    const ownCodeOptingIntoUnconfirmed: string[] = []
     for (const file of files) {
       const module = `@/${file.replace(/\.[jt]sx?$/, '')}`
       const mod = (await import(module)) as Record<string, TaggedHandler>
       const guarded = HTTP_METHODS.some((method) => mod[method]?.__guard)
       if (guarded) {
         if (!listed.has(module)) unlisted.push(module)
-      } else if (importsGuardFactory(readFileSync(`${ROOT}${file}`, 'utf8'))) {
-        guardedByOwnCode.push(module)
+      } else {
+        const sources = [
+          file,
+          ...globSync(`${path.dirname(file)}/*.{ts,tsx,js,jsx}`, { cwd: ROOT })
+        ]
+          .filter((source) => !/\.test\.[jt]sx?$/.test(source))
+          .map((source) => readFileSync(path.join(ROOT, source), 'utf8'))
+        if (sources.some(buildsGuard)) {
+          guardedByOwnCode.push(module)
+          if (sources.some((source) => source.includes('unconfirmedAccount'))) {
+            ownCodeOptingIntoUnconfirmed.push(module)
+          }
+        }
       }
     }
     expect(
@@ -1110,8 +1113,12 @@ describe('every OAuth-guarded route is in EXPECTED', () => {
     ).toEqual([...UNLISTED_BASELINE].sort())
     expect(
       guardedByOwnCode.sort(),
-      'A route that imports a guard factory but exports no guarded handler ' +
+      'A route that builds an OAuth guard but exports no guarded handler ' +
         'must be in GUARDED_BY_OWN_CODE with the test that pins its scopes'
     ).toEqual(Object.keys(GUARDED_BY_OWN_CODE).sort())
+    expect(
+      ownCodeOptingIntoUnconfirmed,
+      'A route that builds its own guard may not opt into unconfirmedAccount'
+    ).toEqual([])
   })
 })
