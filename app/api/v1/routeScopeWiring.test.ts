@@ -515,6 +515,48 @@ const EXPECTED: Array<{
     module: '@/app/api/v2/suggestions/route',
     scopes: ['read'],
     guard: 'OAuthGuard'
+  },
+  // filters v1
+  {
+    module: '@/app/api/v1/filters/route',
+    scopes: ['read', 'read:filters', 'write:filters'],
+    guard: { POST: 'OAuthGuard' }
+  },
+  {
+    module: '@/app/api/v1/filters/[id]/route',
+    scopes: ['read', 'read:filters', 'write:filters'],
+    guard: { PUT: 'OAuthGuard', PATCH: 'OAuthGuard', DELETE: 'OAuthGuard' }
+  },
+  // filters v2
+  {
+    module: '@/app/api/v2/filters/route',
+    scopes: ['read', 'read:filters', 'write:filters'],
+    guard: { POST: 'OAuthGuard' }
+  },
+  {
+    module: '@/app/api/v2/filters/[id]/route',
+    scopes: ['read', 'read:filters', 'write:filters'],
+    guard: { PUT: 'OAuthGuard', PATCH: 'OAuthGuard', DELETE: 'OAuthGuard' }
+  },
+  {
+    module: '@/app/api/v2/filters/[id]/keywords/route',
+    scopes: ['read', 'read:filters', 'write:filters'],
+    guard: { POST: 'OAuthGuard' }
+  },
+  {
+    module: '@/app/api/v2/filters/keywords/[id]/route',
+    scopes: ['read', 'read:filters', 'write:filters'],
+    guard: { PUT: 'OAuthGuard', PATCH: 'OAuthGuard', DELETE: 'OAuthGuard' }
+  },
+  {
+    module: '@/app/api/v2/filters/[id]/statuses/route',
+    scopes: ['read', 'read:filters', 'write:filters'],
+    guard: { POST: 'OAuthGuard' }
+  },
+  {
+    module: '@/app/api/v2/filters/statuses/[id]/route',
+    scopes: ['read', 'read:filters', 'write:filters'],
+    guard: { DELETE: 'OAuthGuard' }
   }
 ]
 
@@ -677,6 +719,68 @@ const MULTI_METHOD: Array<{
       GET: ['profile', 'read', 'read:accounts'],
       PATCH: ['write', 'write:accounts']
     }
+  },
+  {
+    module: '@/app/api/v1/filters/route',
+    methods: {
+      GET: ['read', 'read:filters'],
+      POST: ['write:filters']
+    }
+  },
+  {
+    module: '@/app/api/v1/filters/[id]/route',
+    methods: {
+      GET: ['read', 'read:filters'],
+      PUT: ['write:filters'],
+      PATCH: ['write:filters'],
+      DELETE: ['write:filters']
+    }
+  },
+  {
+    module: '@/app/api/v2/filters/route',
+    methods: {
+      GET: ['read', 'read:filters'],
+      POST: ['write:filters']
+    }
+  },
+  {
+    module: '@/app/api/v2/filters/[id]/route',
+    methods: {
+      GET: ['read', 'read:filters'],
+      PUT: ['write:filters'],
+      PATCH: ['write:filters'],
+      DELETE: ['write:filters']
+    }
+  },
+  {
+    module: '@/app/api/v2/filters/[id]/keywords/route',
+    methods: {
+      GET: ['read', 'read:filters'],
+      POST: ['write:filters']
+    }
+  },
+  {
+    module: '@/app/api/v2/filters/keywords/[id]/route',
+    methods: {
+      GET: ['read', 'read:filters'],
+      PUT: ['write:filters'],
+      PATCH: ['write:filters'],
+      DELETE: ['write:filters']
+    }
+  },
+  {
+    module: '@/app/api/v2/filters/[id]/statuses/route',
+    methods: {
+      GET: ['read', 'read:filters'],
+      POST: ['write:filters']
+    }
+  },
+  {
+    module: '@/app/api/v2/filters/statuses/[id]/route',
+    methods: {
+      GET: ['read', 'read:filters'],
+      DELETE: ['write:filters']
+    }
   }
 ]
 
@@ -723,8 +827,6 @@ const UNLISTED_BASELINE: string[] = [
   '@/app/api/v1/directory/route',
   '@/app/api/v1/emails/confirmations/route',
   '@/app/api/v1/featured_tags/[id]/route',
-  '@/app/api/v1/filters/[id]/route',
-  '@/app/api/v1/filters/route',
   '@/app/api/v1/followed_tags/route',
   '@/app/api/v1/lists/[id]/accounts/route',
   '@/app/api/v1/lists/[id]/route',
@@ -744,12 +846,6 @@ const UNLISTED_BASELINE: string[] = [
   '@/app/api/v1/trends/route',
   '@/app/api/v1/trends/statuses/route',
   '@/app/api/v1/trends/tags/route',
-  '@/app/api/v2/filters/[id]/keywords/route',
-  '@/app/api/v2/filters/[id]/route',
-  '@/app/api/v2/filters/[id]/statuses/route',
-  '@/app/api/v2/filters/keywords/[id]/route',
-  '@/app/api/v2/filters/route',
-  '@/app/api/v2/filters/statuses/[id]/route',
   '@/app/api/v2/search/route'
 ]
 
