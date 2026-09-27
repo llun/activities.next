@@ -253,15 +253,25 @@ describe('/api/v1/collections/[id]', () => {
       mockGetServerSession.mockResolvedValue({
         user: { email: seedActor1.email }
       })
-      const response = await PATCH(
-        patchRequest(publicCollectionId, body),
-        context(publicCollectionId)
-      )
-      expect(response.status).toBe(200)
-      const data = await response.json()
-      expect(data.collection.name).toBe('Renamed')
-      expect(data.collection.title).toBe('Renamed')
-      expect(data.collection.topic).toBe('birds')
+      try {
+        const response = await PATCH(
+          patchRequest(publicCollectionId, body),
+          context(publicCollectionId)
+        )
+        expect(response.status).toBe(200)
+        const data = await response.json()
+        expect(data.collection.name).toBe('Renamed')
+        expect(data.collection.title).toBe('Renamed')
+        expect(data.collection.topic).toBe('birds')
+      } finally {
+        await PATCH(
+          patchRequest(publicCollectionId, {
+            name: 'Nice accounts',
+            topic: 'accounts'
+          }),
+          context(publicCollectionId)
+        )
+      }
     }
   )
 
@@ -269,18 +279,21 @@ describe('/api/v1/collections/[id]', () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
-    const response = await PATCH(
-      patchRequest(publicCollectionId, { discoverable: false }),
-      context(publicCollectionId)
-    )
-    expect(response.status).toBe(200)
-    const data = await response.json()
-    expect(data.collection.discoverable).toBe(false)
-    expect(data.collection.visibility).toBe('unlisted')
-    // Restore for other tests.
-    await PATCH(
-      patchRequest(publicCollectionId, { discoverable: true }),
-      context(publicCollectionId)
-    )
+    try {
+      const response = await PATCH(
+        patchRequest(publicCollectionId, { discoverable: false }),
+        context(publicCollectionId)
+      )
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.collection.discoverable).toBe(false)
+      expect(data.collection.visibility).toBe('unlisted')
+    } finally {
+      // Restore for other tests.
+      await PATCH(
+        patchRequest(publicCollectionId, { discoverable: true }),
+        context(publicCollectionId)
+      )
+    }
   })
 })

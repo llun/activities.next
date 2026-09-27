@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { DELETE } from '@/app/api/v1/suggestions/[account_id]/route'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { actorPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -19,7 +19,8 @@ vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+let mockDatabase:
+  ReturnType<typeof getTestSQLDatabaseWithInstance>['database'] | null = null
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
@@ -44,7 +45,7 @@ vi.mock('@/lib/config', () => ({
 }))
 
 describe('/api/v2/suggestions', () => {
-  const database = getTestSQLDatabase()
+  const { database, instance } = getTestSQLDatabaseWithInstance()
 
   beforeAll(async () => {
     await database.migrate()
@@ -76,11 +77,12 @@ describe('/api/v2/suggestions', () => {
     await database.destroy()
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
+    await instance('suggestion_dismissals').delete()
   })
 
   const createRequest = (query = '') =>
@@ -205,24 +207,33 @@ describe('/api/v2/suggestions', () => {
   })
 
   it('removes a candidate dismissed through the v1 endpoint from later responses', async () => {
-    const accountId = urlToId(ACTOR4_ID)
-    const deleteResponse = await DELETE(
-      new NextRequest(`https://llun.test/api/v1/suggestions/${accountId}`, {
-        method: 'DELETE',
-        headers: { origin: 'https://llun.test' }
-      }),
-      { params: Promise.resolve({ account_id: accountId }) }
-    )
-    expect(deleteResponse.status).toBe(200)
-    await expect(deleteResponse.json()).resolves.toEqual({})
+    try {
+      const accountId = urlToId(ACTOR4_ID)
+      const deleteResponse = await DELETE(
+        new NextRequest(`https://llun.test/api/v1/suggestions/${accountId}`, {
+          method: 'DELETE',
+          headers: { origin: 'https://llun.test' }
+        }),
+        { params: Promise.resolve({ account_id: accountId }) }
+      )
+      expect(deleteResponse.status).toBe(200)
+      await expect(deleteResponse.json()).resolves.toEqual({})
 
-    const response = await GET(createRequest(), {
-      params: Promise.resolve({})
-    })
-    expect(response.status).toBe(200)
-    const data = await response.json()
-    expect(
-      data.map((item: { account: { id: string } }) => item.account.id)
-    ).toEqual([await actorPublicId(database, ACTOR5_ID)])
+      const response = await GET(createRequest(), {
+        params: Promise.resolve({})
+      })
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(
+        data.map((item: { account: { id: string } }) => item.account.id)
+      ).toEqual([await actorPublicId(database, ACTOR5_ID)])
+    } finally {
+      await instance('suggestion_dismissals')
+        .where({
+          actorId: ACTOR1_ID,
+          targetActorId: ACTOR4_ID
+        })
+        .delete()
+    }
   })
 })

@@ -57,7 +57,15 @@ describe('Update note action', () => {
   describe('updateNoteFromUserInput', () => {
     it('update status to new text', async () => {
       if (!actor1) fail('Actor1 is required')
-      const statusId = `${actor1.id}/statuses/post-1`
+      const statusId = `${actor1.id}/statuses/post-update-single-edit`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: actor1.id,
+        text: '<p>Initial text</p>',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
 
       const status = (await updateNoteFromUserInput({
         statusId,

@@ -8,6 +8,8 @@ import { statusPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { seedActor3 } from '@/lib/stub/seed/actor3'
+import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
+import { ACTOR5_ID } from '@/lib/stub/seed/actor5'
 import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { type Status, StatusType } from '@/lib/types/domain/status'
@@ -68,6 +70,24 @@ const createRequest = (
 
 describe('GET /api/v1/accounts/[id]/statuses', () => {
   const database = getTestSQLDatabase()
+
+  let localActorCounter = 0
+  const createLocalActor = async (prefix = 'account') => {
+    localActorCounter += 1
+    const username = `${prefix}${localActorCounter}`
+    const actorId = `https://${TEST_DOMAIN}/users/${username}`
+    await database.createActor({
+      actorId,
+      username,
+      domain: TEST_DOMAIN,
+      followersUrl: `${actorId}/followers`,
+      inboxUrl: `${actorId}/inbox`,
+      sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`,
+      publicKey: 'publicKey',
+      createdAt: Date.now()
+    })
+    return actorId
+  }
 
   beforeAll(async () => {
     await database.migrate()
@@ -219,27 +239,30 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
       user: { email: seedActor3.email }
     })
 
-    const publicStatusId = `${ACTOR1_ID}/statuses/account-visible-before-limit`
-    const privateStatusId = `${ACTOR1_ID}/statuses/account-hidden-before-limit`
+    const now = Date.now()
+    const publicStatusId = `${ACTOR5_ID}/statuses/account-visible-before-limit`
+    const privateStatusId = `${ACTOR5_ID}/statuses/account-hidden-before-limit`
     await database.createNote({
       id: publicStatusId,
       url: publicStatusId,
-      actorId: ACTOR1_ID,
+      actorId: ACTOR5_ID,
       text: 'Account visible before limit',
       to: [ACTIVITY_STREAM_PUBLIC],
-      cc: []
+      cc: [],
+      createdAt: now
     })
     await database.createNote({
       id: privateStatusId,
       url: privateStatusId,
-      actorId: ACTOR1_ID,
+      actorId: ACTOR5_ID,
       text: 'Account hidden before limit',
-      to: [`${ACTOR1_ID}/followers`],
-      cc: []
+      to: [`${ACTOR5_ID}/followers`],
+      cc: [],
+      createdAt: now + 1
     })
 
     const response = await GET(createRequest('?limit=1'), {
-      params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
+      params: Promise.resolve({ id: urlToId(ACTOR5_ID) })
     })
 
     expect(response.status).toBe(200)
@@ -252,15 +275,16 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
   })
 
   it('continues scanning when a public announce wraps a non-public original', async () => {
-    const now = Date.now() + 10_000
-    const publicStatusId = `${ACTOR1_ID}/statuses/account-public-after-unreadable-announce`
+    const actorId = await createLocalActor('scan')
+    const now = Date.now()
+    const publicStatusId = `${actorId}/statuses/account-public-after-unreadable-announce`
     const privateOriginalStatusId = `${ACTOR2_ID}/statuses/account-private-original-for-announce`
-    const unreadableAnnounceId = `${ACTOR1_ID}/statuses/account-unreadable-announce`
+    const unreadableAnnounceId = `${actorId}/statuses/account-unreadable-announce`
 
     await database.createNote({
       id: publicStatusId,
       url: publicStatusId,
-      actorId: ACTOR1_ID,
+      actorId,
       text: 'Account public after unreadable announce',
       to: [ACTIVITY_STREAM_PUBLIC],
       cc: [],
@@ -277,16 +301,21 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
     })
     await database.createAnnounce({
       id: unreadableAnnounceId,
-      actorId: ACTOR1_ID,
+      actorId,
       to: [ACTIVITY_STREAM_PUBLIC],
       cc: [],
       originalStatusId: privateOriginalStatusId,
       createdAt: now + 2
     })
 
-    const response = await GET(createRequest('?limit=1'), {
-      params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
-    })
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v1/accounts/${urlToId(actorId)}/statuses?limit=1`
+      ),
+      {
+        params: Promise.resolve({ id: urlToId(actorId) })
+      }
+    )
 
     expect(response.status).toBe(200)
 
@@ -530,10 +559,11 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
   })
 
   it('excludes reblogs from account statuses', async () => {
-    const now = Date.now() + 50_000
+    const actorId = await createLocalActor('noreblog')
+    const now = Date.now()
     const originalStatusId = `${ACTOR2_ID}/statuses/account-exclude-reblog-original`
-    const announceStatusId = `${ACTOR1_ID}/statuses/account-exclude-reblog-announce`
-    const noteStatusId = `${ACTOR1_ID}/statuses/account-exclude-reblog-note`
+    const announceStatusId = `${actorId}/statuses/account-exclude-reblog-announce`
+    const noteStatusId = `${actorId}/statuses/account-exclude-reblog-note`
 
     await database.createNote({
       id: originalStatusId,
@@ -547,7 +577,7 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
     await database.createNote({
       id: noteStatusId,
       url: noteStatusId,
-      actorId: ACTOR1_ID,
+      actorId,
       text: 'Account exclude reblog note',
       to: [ACTIVITY_STREAM_PUBLIC],
       cc: [],
@@ -555,16 +585,21 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
     })
     await database.createAnnounce({
       id: announceStatusId,
-      actorId: ACTOR1_ID,
+      actorId,
       originalStatusId,
       to: [ACTIVITY_STREAM_PUBLIC],
       cc: [],
       createdAt: now + 2
     })
 
-    const response = await GET(createRequest('?exclude_reblogs=true&limit=1'), {
-      params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
-    })
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v1/accounts/${urlToId(actorId)}/statuses?exclude_reblogs=true&limit=1`
+      ),
+      {
+        params: Promise.resolve({ id: urlToId(actorId) })
+      }
+    )
 
     expect(response.status).toBe(200)
     const data = (await response.json()) as Array<{ uri: string }>
@@ -647,39 +682,46 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
       createdAt: now + 1
     })
 
-    const pinResponse = await pinStatus(
-      new NextRequest(
-        `https://llun.test/api/v1/statuses/${urlToId(pinnedStatusId)}/pin`,
-        {
-          method: 'POST',
-          headers: { Origin: 'https://llun.test' }
-        }
-      ),
-      { params: Promise.resolve({ id: urlToId(pinnedStatusId) }) }
-    )
+    try {
+      const pinResponse = await pinStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(pinnedStatusId)}/pin`,
+          {
+            method: 'POST',
+            headers: { Origin: 'https://llun.test' }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(pinnedStatusId) }) }
+      )
 
-    expect(pinResponse.status).toBe(200)
-    await expect(pinResponse.json()).resolves.toMatchObject({
-      id: await statusPublicId(database, pinnedStatusId),
-      pinned: true
-    })
-    getPinnedStatusIds.mockClear()
+      expect(pinResponse.status).toBe(200)
+      await expect(pinResponse.json()).resolves.toMatchObject({
+        id: await statusPublicId(database, pinnedStatusId),
+        pinned: true
+      })
+      getPinnedStatusIds.mockClear()
 
-    const response = await GET(createRequest('?pinned=true&limit=40'), {
-      params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
-    })
+      const response = await GET(createRequest('?pinned=true&limit=40'), {
+        params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
+      })
 
-    expect(response.status).toBe(200)
-    const data = (await response.json()) as Array<{
-      uri: string
-      pinned?: boolean
-    }>
+      expect(response.status).toBe(200)
+      const data = (await response.json()) as Array<{
+        uri: string
+        pinned?: boolean
+      }>
 
-    expect(data.map((status) => status.uri)).toEqual([pinnedStatusId])
-    expect(data[0]?.pinned).toBe(true)
-    expect(data.map((status) => status.uri)).not.toContain(unpinnedStatusId)
-    expect(getPinnedStatusIds).not.toHaveBeenCalled()
-    getPinnedStatusIds.mockRestore()
+      expect(data.map((status) => status.uri)).toEqual([pinnedStatusId])
+      expect(data[0]?.pinned).toBe(true)
+      expect(data.map((status) => status.uri)).not.toContain(unpinnedStatusId)
+      expect(getPinnedStatusIds).not.toHaveBeenCalled()
+    } finally {
+      getPinnedStatusIds.mockRestore()
+      await database.unpinStatus({
+        actorId: ACTOR1_ID,
+        statusId: pinnedStatusId
+      })
+    }
   })
 
   it('does not expose profile owner pin state as viewer pin state', async () => {
@@ -699,35 +741,44 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
       createdAt: now
     })
 
-    const pinResponse = await pinStatus(
-      new NextRequest(
-        `https://llun.test/api/v1/statuses/${urlToId(pinnedStatusId)}/pin`,
-        {
-          method: 'POST',
-          headers: { Origin: 'https://llun.test' }
-        }
-      ),
-      { params: Promise.resolve({ id: urlToId(pinnedStatusId) }) }
-    )
-    expect(pinResponse.status).toBe(200)
+    try {
+      const pinResponse = await pinStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(pinnedStatusId)}/pin`,
+          {
+            method: 'POST',
+            headers: { Origin: 'https://llun.test' }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(pinnedStatusId) }) }
+      )
+      expect(pinResponse.status).toBe(200)
 
-    mockGetServerSession.mockResolvedValue({
-      user: { email: seedActor2.email }
-    })
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
 
-    const response = await GET(createRequest('?pinned=true&limit=40'), {
-      params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
-    })
+      const response = await GET(createRequest('?pinned=true&limit=40'), {
+        params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
+      })
 
-    expect(response.status).toBe(200)
-    const data = (await response.json()) as Array<{
-      uri: string
-      pinned?: boolean
-    }>
+      expect(response.status).toBe(200)
+      const data = (await response.json()) as Array<{
+        uri: string
+        pinned?: boolean
+      }>
 
-    const returnedStatus = data.find((status) => status.uri === pinnedStatusId)
-    expect(returnedStatus).toBeDefined()
-    expect(returnedStatus).not.toHaveProperty('pinned')
+      const returnedStatus = data.find(
+        (status) => status.uri === pinnedStatusId
+      )
+      expect(returnedStatus).toBeDefined()
+      expect(returnedStatus).not.toHaveProperty('pinned')
+    } finally {
+      await database.unpinStatus({
+        actorId: ACTOR1_ID,
+        statusId: pinnedStatusId
+      })
+    }
   })
 
   describe('remote actor live outbox fallback', () => {
@@ -766,14 +817,28 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
       mockGetServerSession.mockResolvedValue({
         user: { email: seedActor1.email }
       })
-      const liveStatusId = `${EXTERNAL_ACTOR1}/statuses/live-1`
+      const remoteActorId = 'https://llun.dev/users/empty-outbox'
+      await database.createActor({
+        actorId: remoteActorId,
+        username: 'empty-outbox',
+        domain: 'llun.dev',
+        followersUrl: `${remoteActorId}/followers`,
+        inboxUrl: `${remoteActorId}/inbox`,
+        sharedInboxUrl: `${remoteActorId}/inbox`,
+        publicKey: 'publicKey',
+        createdAt: Date.now()
+      })
+      const liveStatusId = `${remoteActorId}/statuses/live-1`
       mockGetRemoteActorStatuses.mockResolvedValue([
         buildRemoteStatus(liveStatusId)
       ])
 
-      const response = await GET(createRemoteRequest('?exclude_replies=true'), {
-        params: Promise.resolve({ id: urlToId(EXTERNAL_ACTOR1) })
-      })
+      const response = await GET(
+        new NextRequest(
+          `https://llun.test/api/v1/accounts/${urlToId(remoteActorId)}/statuses?exclude_replies=true`
+        ),
+        { params: Promise.resolve({ id: urlToId(remoteActorId) }) }
+      )
 
       expect(response.status).toBe(200)
       const data = (await response.json()) as Array<{ uri: string }>
@@ -783,7 +848,7 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
       expect(response.headers.get('Link')).toBeNull()
       expect(mockGetRemoteActorStatuses).toHaveBeenCalledWith({
         database,
-        actorId: EXTERNAL_ACTOR1,
+        actorId: remoteActorId,
         limit: 20,
         excludeReplies: true,
         excludeReblogs: false,
@@ -992,8 +1057,8 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
 
   it('preserves compatible filter params in pagination links', async () => {
     const now = Date.now() + 80_000
-    const olderStatusId = `${ACTOR1_ID}/statuses/account-link-older`
-    const newerStatusId = `${ACTOR1_ID}/statuses/account-link-newer`
+    const olderStatusId = `${ACTOR4_ID}/statuses/account-link-older`
+    const newerStatusId = `${ACTOR4_ID}/statuses/account-link-newer`
 
     for (const [statusId, createdAt] of [
       [olderStatusId, now],
@@ -1002,14 +1067,14 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
       await database.createNote({
         id: statusId,
         url: statusId,
-        actorId: ACTOR1_ID,
+        actorId: ACTOR4_ID,
         text: 'Account pagination link #linktag',
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [],
         createdAt
       })
       await database.createAttachment({
-        actorId: ACTOR1_ID,
+        actorId: ACTOR4_ID,
         statusId,
         mediaType: 'image/png',
         url: `${statusId}/image.png`
@@ -1026,7 +1091,7 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
       createRequest(
         '?limit=1&only_media=true&exclude_reblogs=true&tagged=linktag'
       ),
-      { params: Promise.resolve({ id: urlToId(ACTOR1_ID) }) }
+      { params: Promise.resolve({ id: urlToId(ACTOR4_ID) }) }
     )
 
     expect(response.status).toBe(200)
@@ -1041,8 +1106,8 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
 
   it('pages past an encoded max_id cursor instead of repeating the first page', async () => {
     const now = Date.now() + 90_000
-    const olderStatusId = `${ACTOR1_ID}/statuses/account-cursor-older`
-    const newerStatusId = `${ACTOR1_ID}/statuses/account-cursor-newer`
+    const olderStatusId = `${ACTOR4_ID}/statuses/account-cursor-older`
+    const newerStatusId = `${ACTOR4_ID}/statuses/account-cursor-newer`
 
     for (const [statusId, createdAt] of [
       [olderStatusId, now],
@@ -1051,7 +1116,7 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
       await database.createNote({
         id: statusId,
         url: statusId,
-        actorId: ACTOR1_ID,
+        actorId: ACTOR4_ID,
         text: 'Account cursor paging',
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [],
@@ -1060,7 +1125,7 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
     }
 
     const firstPage = await GET(createRequest('?limit=1'), {
-      params: Promise.resolve({ id: urlToId(ACTOR1_ID) })
+      params: Promise.resolve({ id: urlToId(ACTOR4_ID) })
     })
     expect(firstPage.status).toBe(200)
     const firstData = (await firstPage.json()) as Array<{ uri: string }>
@@ -1069,7 +1134,7 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
     // Clients echo the opaque encoded id from the response/Link header.
     const secondPage = await GET(
       createRequest(`?limit=1&max_id=${urlToId(newerStatusId)}`),
-      { params: Promise.resolve({ id: urlToId(ACTOR1_ID) }) }
+      { params: Promise.resolve({ id: urlToId(ACTOR4_ID) }) }
     )
     expect(secondPage.status).toBe(200)
     const secondData = (await secondPage.json()) as Array<{ uri: string }>

@@ -64,7 +64,7 @@ describe('createFollower', () => {
     })
     expect(followingActor).toBeDefined()
     expect(acceptFollow).toHaveBeenCalledWith(
-      actor,
+      expect.objectContaining({ id: actor.id }),
       'https://another.network/users/friend/inbox',
       request
     )
