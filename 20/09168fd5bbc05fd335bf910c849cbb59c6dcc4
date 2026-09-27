@@ -1,0 +1,14 @@
+app/api/v1/routeScopeWiring.test.ts
+  h_580a04e334fef4 518-559,722-783
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2009168fd5bbc05fd335bf910c849cbb59c6dcc4",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
