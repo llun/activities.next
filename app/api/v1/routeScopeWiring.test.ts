@@ -140,6 +140,86 @@ const EXPECTED: Array<{
     scopes: ['read', 'read:accounts'],
     guard: 'OptionalOAuthGuard:any'
   },
+  {
+    module: '@/app/api/v1/statuses/[id]/bookmark/route',
+    scopes: ['write', 'write:bookmarks']
+  },
+  {
+    module: '@/app/api/v1/statuses/[id]/unbookmark/route',
+    scopes: ['write', 'write:bookmarks']
+  },
+  {
+    module: '@/app/api/v1/statuses/[id]/mute/route',
+    scopes: ['write', 'write:mutes']
+  },
+  {
+    module: '@/app/api/v1/statuses/[id]/unmute/route',
+    scopes: ['write', 'write:mutes']
+  },
+  {
+    module: '@/app/api/v1/statuses/[id]/pin/route',
+    scopes: ['write', 'write:accounts']
+  },
+  {
+    module: '@/app/api/v1/statuses/[id]/unpin/route',
+    scopes: ['write', 'write:accounts']
+  },
+  {
+    module:
+      '@/app/api/v1/statuses/[id]/quotes/[quoting_status_id]/revoke/route',
+    scopes: ['write', 'write:statuses']
+  },
+  {
+    module: '@/app/api/v1/statuses/[id]/quotes/route',
+    scopes: ['read', 'read:statuses'],
+    guard: 'OptionalOAuthGuard:any'
+  },
+  {
+    module: '@/app/api/v1/statuses/[id]/interaction_policy/route',
+    scopes: ['write', 'write:statuses']
+  },
+  {
+    module: '@/app/api/v1/statuses/[id]/source/route',
+    scopes: ['read', 'read:statuses']
+  },
+  {
+    module: '@/app/api/v1/statuses/[id]/translate/route',
+    scopes: ['read', 'read:statuses']
+  },
+  {
+    module: '@/app/api/v1/statuses/[id]/context/route',
+    scopes: ['read', 'read:statuses'],
+    guard: 'OptionalOAuthGuard:any'
+  },
+  {
+    module: '@/app/api/v1/statuses/[id]/history/route',
+    scopes: ['read', 'read:statuses'],
+    guard: 'OptionalOAuthGuard:any'
+  },
+  {
+    module: '@/app/api/v1/statuses/[id]/route',
+    scopes: ['read', 'read:statuses', 'write', 'write:statuses'],
+    guard: { GET: 'OptionalOAuthGuard:any' }
+  },
+  {
+    module: '@/app/api/v1/statuses/route',
+    scopes: ['read', 'read:statuses', 'write', 'write:statuses'],
+    guard: { GET: 'OptionalOAuthGuard:any' }
+  },
+  {
+    module: '@/app/api/v1/statuses/[id]/retry-fitness/route',
+    scopes: ['write'],
+    guard: 'OAuthGuard'
+  },
+  // scheduled statuses
+  {
+    module: '@/app/api/v1/scheduled_statuses/route',
+    scopes: ['read', 'read:statuses']
+  },
+  {
+    module: '@/app/api/v1/scheduled_statuses/[id]/route',
+    scopes: ['read', 'read:statuses', 'write', 'write:statuses']
+  },
   // polls
   {
     module: '@/app/api/v1/polls/[id]/route',
@@ -465,6 +545,29 @@ const MULTI_METHOD: Array<{
       PUT: ['write', 'write:notifications'],
       PATCH: ['write', 'write:notifications']
     }
+  },
+  {
+    module: '@/app/api/v1/statuses/[id]/route',
+    methods: {
+      GET: ['read', 'read:statuses'],
+      PUT: ['write', 'write:statuses'],
+      DELETE: ['write', 'write:statuses']
+    }
+  },
+  {
+    module: '@/app/api/v1/statuses/route',
+    methods: {
+      GET: ['read', 'read:statuses'],
+      POST: ['write', 'write:statuses']
+    }
+  },
+  {
+    module: '@/app/api/v1/scheduled_statuses/[id]/route',
+    methods: {
+      GET: ['read', 'read:statuses'],
+      PUT: ['write', 'write:statuses'],
+      DELETE: ['write', 'write:statuses']
+    }
   }
 ]
 
@@ -543,24 +646,6 @@ const UNLISTED_BASELINE: string[] = [
   '@/app/api/v1/push/subscribe/route',
   '@/app/api/v1/push/subscription/route',
   '@/app/api/v1/reports/route',
-  '@/app/api/v1/scheduled_statuses/[id]/route',
-  '@/app/api/v1/scheduled_statuses/route',
-  '@/app/api/v1/statuses/[id]/bookmark/route',
-  '@/app/api/v1/statuses/[id]/context/route',
-  '@/app/api/v1/statuses/[id]/history/route',
-  '@/app/api/v1/statuses/[id]/interaction_policy/route',
-  '@/app/api/v1/statuses/[id]/mute/route',
-  '@/app/api/v1/statuses/[id]/pin/route',
-  '@/app/api/v1/statuses/[id]/quotes/[quoting_status_id]/revoke/route',
-  '@/app/api/v1/statuses/[id]/quotes/route',
-  '@/app/api/v1/statuses/[id]/retry-fitness/route',
-  '@/app/api/v1/statuses/[id]/route',
-  '@/app/api/v1/statuses/[id]/source/route',
-  '@/app/api/v1/statuses/[id]/translate/route',
-  '@/app/api/v1/statuses/[id]/unbookmark/route',
-  '@/app/api/v1/statuses/[id]/unmute/route',
-  '@/app/api/v1/statuses/[id]/unpin/route',
-  '@/app/api/v1/statuses/route',
   '@/app/api/v1/tags/[tag]/follow/route',
   '@/app/api/v1/tags/[tag]/route',
   '@/app/api/v1/tags/[tag]/unfollow/route',

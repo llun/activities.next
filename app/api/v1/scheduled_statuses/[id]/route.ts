@@ -2,10 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
-import {
-  OAuthGuard,
-  OAuthGuardAnyScope
-} from '@/lib/services/guards/OAuthGuard'
+import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import {
   MIN_SCHEDULED_STATUS_AHEAD_MS,
   SCHEDULED_AT_TOO_SOON_ERROR
@@ -105,8 +102,8 @@ export const GET = traceApiRoute(
 // Mastodon's PUT only reschedules; it updates scheduled_at and nothing else.
 export const PUT = traceApiRoute(
   'updateScheduledStatus',
-  OAuthGuard<Params>(
-    [Scope.enum['write:statuses']],
+  OAuthGuardAnyScope<Params>(
+    [Scope.enum.write, Scope.enum['write:statuses']],
     async (req, { database, currentActor, params }) => {
       const { id } = (await params) ?? { id: undefined }
       if (!id) return notFound(req)
@@ -218,8 +215,8 @@ export const PUT = traceApiRoute(
 
 export const DELETE = traceApiRoute(
   'deleteScheduledStatus',
-  OAuthGuard<Params>(
-    [Scope.enum['write:statuses']],
+  OAuthGuardAnyScope<Params>(
+    [Scope.enum.write, Scope.enum['write:statuses']],
     async (req, { database, currentActor, params }) => {
       const { id } = (await params) ?? { id: undefined }
       if (!id) return notFound(req)
