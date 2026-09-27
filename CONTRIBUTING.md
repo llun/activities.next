@@ -870,10 +870,10 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   That test pins the scope literals (per method for `MULTI_METHOD` routes, as
   a set for the rest) and, for each exported method, which guard it is behind,
   so an any-of → all-of or required → optional switch fails; it also asserts
-  that no listed route opts into `unconfirmedAccount`. It fails if a route
-  whose handlers carry an OAuth guard is in neither `EXPECTED` nor
-  `UNLISTED_BASELINE`. That baseline lists routes guarded before the check
-  existed, still relying on their own tests, and it may only shrink. `MULTI_METHOD`
+  that no listed route opts into `unconfirmedAccount` (except
+  `emails/confirmations`, its single documented recovery carve-out). It fails
+  if a route whose handlers carry an OAuth guard is in neither `EXPECTED` nor
+  `UNLISTED_BASELINE` (now empty, with all routes pinned). `MULTI_METHOD`
   entries must name every guarded method the route exports.
   `lib/services/guards/OAuthGuard.test.ts` covers what each guard then does
   (no session, wrong scope, a parent scope, unconfirmed accounts) once, for
