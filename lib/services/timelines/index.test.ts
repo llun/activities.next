@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -17,7 +17,7 @@ import { addStatusToTimelines } from '.'
 import { Timeline } from './types'
 
 describe('addStatusToTimelines', () => {
-  const database = getTestSQLDatabase()
+  const { database, instance } = getTestSQLDatabaseWithInstance()
 
   beforeAll(async () => {
     await database.migrate()
@@ -29,9 +29,11 @@ describe('addStatusToTimelines', () => {
     await database.destroy()
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
+    await instance('timelines').delete()
+    await instance('blocks').delete()
   })
 
   test('it adds status to local users main timeline', async () => {
@@ -154,23 +156,30 @@ describe('addStatusToTimelines', () => {
       targetActorId: ACTOR2_ID,
       uri: `${ACTOR3_ID}#blocks/${randomBytes(8).toString('hex')}`
     })
-    const id = randomBytes(16).toString('hex')
-    const status = await database.createNote({
-      id: `${ACTOR2_ID}/statuses/${id}`,
-      url: `${ACTOR2_ID}/statuses/${id}`,
-      actorId: ACTOR2_ID,
-      to: [ACTIVITY_STREAM_PUBLIC],
-      cc: [ACTOR2_FOLLOWER_URL],
-      text: 'blocked message'
-    })
+    try {
+      const id = randomBytes(16).toString('hex')
+      const status = await database.createNote({
+        id: `${ACTOR2_ID}/statuses/${id}`,
+        url: `${ACTOR2_ID}/statuses/${id}`,
+        actorId: ACTOR2_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [ACTOR2_FOLLOWER_URL],
+        text: 'blocked message'
+      })
 
-    await addStatusToTimelines(database, status)
+      await addStatusToTimelines(database, status)
 
-    const mainTimeline = await database.getTimeline({
-      timeline: Timeline.MAIN,
-      actorId: ACTOR3_ID
-    })
-    expect(mainTimeline.some((s) => s.id === status.id)).toBe(false)
+      const mainTimeline = await database.getTimeline({
+        timeline: Timeline.MAIN,
+        actorId: ACTOR3_ID
+      })
+      expect(mainTimeline.some((s) => s.id === status.id)).toBe(false)
+    } finally {
+      await database.deleteBlock({
+        actorId: ACTOR3_ID,
+        targetActorId: ACTOR2_ID
+      })
+    }
   })
 
   test('it skips direct conversation memberships when recipient blocks the sender', async () => {
@@ -179,37 +188,44 @@ describe('addStatusToTimelines', () => {
       targetActorId: ACTOR2_ID,
       uri: `${ACTOR1_ID}#blocks/${randomBytes(8).toString('hex')}`
     })
-    const id = randomBytes(16).toString('hex')
-    const status = await database.createNote({
-      id: `${ACTOR2_ID}/statuses/blocked-direct-${id}`,
-      url: `${ACTOR2_ID}/statuses/blocked-direct-${id}`,
-      actorId: ACTOR2_ID,
-      to: [ACTOR1_ID],
-      cc: [],
-      text: 'direct to blocker @test1@llun.test'
-    })
-    await database.createTag({
-      statusId: status.id,
-      name: '@test1',
-      value: ACTOR1_ID,
-      type: 'mention'
-    })
+    try {
+      const id = randomBytes(16).toString('hex')
+      const status = await database.createNote({
+        id: `${ACTOR2_ID}/statuses/blocked-direct-${id}`,
+        url: `${ACTOR2_ID}/statuses/blocked-direct-${id}`,
+        actorId: ACTOR2_ID,
+        to: [ACTOR1_ID],
+        cc: [],
+        text: 'direct to blocker @test1@llun.test'
+      })
+      await database.createTag({
+        statusId: status.id,
+        name: '@test1',
+        value: ACTOR1_ID,
+        type: 'mention'
+      })
 
-    await addStatusToTimelines(database, status)
+      await addStatusToTimelines(database, status)
 
-    const recipientConversations = await database.getDirectConversations({
-      actorId: ACTOR1_ID
-    })
-    expect(
-      recipientConversations.some(
-        (conversation) => conversation.lastStatus.id === status.id
-      )
-    ).toBe(false)
-    const directTimeline = await database.getTimeline({
-      timeline: Timeline.DIRECT,
-      actorId: ACTOR1_ID
-    })
-    expect(directTimeline.some((s) => s.id === status.id)).toBe(false)
+      const recipientConversations = await database.getDirectConversations({
+        actorId: ACTOR1_ID
+      })
+      expect(
+        recipientConversations.some(
+          (conversation) => conversation.lastStatus.id === status.id
+        )
+      ).toBe(false)
+      const directTimeline = await database.getTimeline({
+        timeline: Timeline.DIRECT,
+        actorId: ACTOR1_ID
+      })
+      expect(directTimeline.some((s) => s.id === status.id)).toBe(false)
+    } finally {
+      await database.deleteBlock({
+        actorId: ACTOR1_ID,
+        targetActorId: ACTOR2_ID
+      })
+    }
   })
 
   test('it still records the main timeline when the collection fan-out fails', async () => {
@@ -275,30 +291,42 @@ describe('addStatusToTimelines', () => {
   })
 
   test('it skips timelines when a followed actor announces a blocked author', async () => {
-    const id = randomBytes(16).toString('hex')
-    const originalStatus = await database.createNote({
-      id: `${ACTOR2_ID}/statuses/original-${id}`,
-      url: `${ACTOR2_ID}/statuses/original-${id}`,
-      actorId: ACTOR2_ID,
-      to: [ACTIVITY_STREAM_PUBLIC],
-      cc: [ACTOR2_FOLLOWER_URL],
-      text: 'blocked original'
+    await database.createBlock({
+      actorId: ACTOR3_ID,
+      targetActorId: ACTOR2_ID,
+      uri: `${ACTOR3_ID}#blocks/${randomBytes(8).toString('hex')}`
     })
-    const announce = await database.createAnnounce({
-      id: `${ACTOR4_ID}/statuses/announce-${id}`,
-      actorId: ACTOR4_ID,
-      to: [ACTIVITY_STREAM_PUBLIC],
-      cc: [`${ACTOR4_ID}/followers`],
-      originalStatusId: originalStatus.id
-    })
-    if (!announce) fail('Announce must be defined')
+    try {
+      const id = randomBytes(16).toString('hex')
+      const originalStatus = await database.createNote({
+        id: `${ACTOR2_ID}/statuses/original-${id}`,
+        url: `${ACTOR2_ID}/statuses/original-${id}`,
+        actorId: ACTOR2_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [ACTOR2_FOLLOWER_URL],
+        text: 'blocked original'
+      })
+      const announce = await database.createAnnounce({
+        id: `${ACTOR4_ID}/statuses/announce-${id}`,
+        actorId: ACTOR4_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [`${ACTOR4_ID}/followers`],
+        originalStatusId: originalStatus.id
+      })
+      if (!announce) fail('Announce must be defined')
 
-    await addStatusToTimelines(database, announce)
+      await addStatusToTimelines(database, announce)
 
-    const mainTimeline = await database.getTimeline({
-      timeline: Timeline.MAIN,
-      actorId: ACTOR3_ID
-    })
-    expect(mainTimeline.some((s) => s.id === announce.id)).toBe(false)
+      const mainTimeline = await database.getTimeline({
+        timeline: Timeline.MAIN,
+        actorId: ACTOR3_ID
+      })
+      expect(mainTimeline.some((s) => s.id === announce.id)).toBe(false)
+    } finally {
+      await database.deleteBlock({
+        actorId: ACTOR3_ID,
+        targetActorId: ACTOR2_ID
+      })
+    }
   })
 })

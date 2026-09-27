@@ -2,7 +2,10 @@ import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { follow } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import {
+  getTestSQLDatabase,
+  getTestSQLDatabaseWithInstance
+} from '@/lib/database/testUtils'
 import { ingestCollectionMemberJob } from '@/lib/jobs/ingestCollectionMemberJob'
 import { INGEST_COLLECTION_MEMBER_JOB_NAME } from '@/lib/jobs/names'
 import { getFederationSigningActorId } from '@/lib/services/federation/instanceActor'
@@ -68,7 +71,7 @@ const noteStatus = (overrides: Partial<Status>): Status =>
   }) as Status
 
 describe('ingestCollectionMemberJob', () => {
-  const database = getTestSQLDatabase()
+  const { database, instance } = getTestSQLDatabaseWithInstance()
   let signingActorId: string
 
   const runJob = (memberActorId: string) =>
@@ -91,7 +94,12 @@ describe('ingestCollectionMemberJob', () => {
     await database.destroy()
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    if (signingActorId) {
+      await instance('follows')
+        .where({ actorId: signingActorId, targetActorId: EXTERNAL_ACTOR1 })
+        .delete()
+    }
     mockFollow.mockReset().mockResolvedValue(true)
     mockGetActorPerson
       .mockReset()
@@ -116,21 +124,28 @@ describe('ingestCollectionMemberJob', () => {
       prevPageUrl: null
     })
 
-    await runJob(EXTERNAL_ACTOR1)
+    try {
+      await runJob(EXTERNAL_ACTOR1)
 
-    expect(mockFollow).toHaveBeenCalledTimes(1)
-    const createdFollow = await database.getAcceptedOrRequestedFollow({
-      actorId: signingActorId,
-      targetActorId: EXTERNAL_ACTOR1
-    })
-    expect(createdFollow).toMatchObject({
-      actorId: signingActorId,
-      targetActorId: EXTERNAL_ACTOR1,
-      status: FollowStatus.enum.Requested
-    })
+      expect(mockFollow).toHaveBeenCalledTimes(1)
+      const createdFollow = await database.getAcceptedOrRequestedFollow({
+        actorId: signingActorId,
+        targetActorId: EXTERNAL_ACTOR1
+      })
+      expect(createdFollow).toMatchObject({
+        actorId: signingActorId,
+        targetActorId: EXTERNAL_ACTOR1,
+        status: FollowStatus.enum.Requested
+      })
 
-    const backfilled = await database.getStatus({ statusId })
-    expect(backfilled).toMatchObject({ id: statusId, text: 'hello world' })
+      const backfilled = await database.getStatus({ statusId })
+      expect(backfilled).toMatchObject({ id: statusId, text: 'hello world' })
+    } finally {
+      await instance('follows')
+        .where({ actorId: signingActorId, targetActorId: EXTERNAL_ACTOR1 })
+        .delete()
+      await instance('statuses').where({ id: statusId }).delete()
+    }
   })
 
   it('is a no-op for a local member (no follow, no backfill)', async () => {
@@ -235,9 +250,18 @@ describe('ingestCollectionMemberJob', () => {
       sharedInbox: `https://${TEST_DOMAIN}/inbox`
     })
 
-    await runJob(EXTERNAL_ACTOR1)
+    try {
+      await runJob(EXTERNAL_ACTOR1)
 
-    expect(mockFollow).not.toHaveBeenCalled()
-    expect(mockGetActorPosts).not.toHaveBeenCalled()
+      expect(mockFollow).not.toHaveBeenCalled()
+      expect(mockGetActorPosts).not.toHaveBeenCalled()
+    } finally {
+      await instance('follows')
+        .where({
+          actorId: signingActorId,
+          targetActorId: EXTERNAL_ACTOR1
+        })
+        .delete()
+    }
   })
 })

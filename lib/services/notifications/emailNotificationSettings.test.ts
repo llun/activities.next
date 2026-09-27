@@ -39,6 +39,13 @@ describe('emailNotificationSettings', () => {
     })
 
     describe('shouldSendEmailForNotification', () => {
+      beforeEach(async () => {
+        await database.updateActor({
+          actorId,
+          emailNotifications: null
+        })
+      })
+
       it('returns true when no email notification settings are configured', async () => {
         const result = await shouldSendEmailForNotification(
           database,

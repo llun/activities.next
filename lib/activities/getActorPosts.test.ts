@@ -1,6 +1,7 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { clearServerSoftwareCache } from '@/lib/services/federation/serverSoftware'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { MockMastodonActivityPubNote } from '@/lib/stub/note'
@@ -32,6 +33,7 @@ describe('getActorPosts', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
+    clearServerSoftwareCache()
   })
 
   it('returns posts with total posts actor have', async () => {

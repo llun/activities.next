@@ -28,6 +28,17 @@ describe('getStatusContext', () => {
     await database.destroy()
   })
 
+  beforeEach(async () => {
+    await database.deleteBlock({
+      actorId: ACTOR1_ID,
+      targetActorId: ACTOR2_ID
+    })
+    await database.deleteMute({
+      actorId: ACTOR1_ID,
+      targetActorId: ACTOR3_ID
+    })
+  })
+
   it('resolves focus status by ID, URL, or publicId', async () => {
     const statusId = `${ACTOR1_ID}/statuses/ctx-resolve-test`
     await database.createNote({
@@ -280,120 +291,131 @@ describe('getStatusContext', () => {
   })
 
   it('strictly excludes blocked and muted ancestors and descendant replies', async () => {
-    // ACTOR1_ID blocks ACTOR2_ID and mutes ACTOR3_ID
-    await database.createBlock({
-      actorId: ACTOR1_ID,
-      targetActorId: ACTOR2_ID,
-      uri: `${ACTOR1_ID}#blocks/status-context-test`
-    })
-    await database.createMute({
-      actorId: ACTOR1_ID,
-      targetActorId: ACTOR3_ID,
-      notifications: false,
-      endsAt: null
-    })
+    try {
+      // ACTOR1_ID blocks ACTOR2_ID and mutes ACTOR3_ID
+      await database.createBlock({
+        actorId: ACTOR1_ID,
+        targetActorId: ACTOR2_ID,
+        uri: `${ACTOR1_ID}#blocks/status-context-test`
+      })
+      await database.createMute({
+        actorId: ACTOR1_ID,
+        targetActorId: ACTOR3_ID,
+        notifications: false,
+        endsAt: null
+      })
 
-    const modRootId = `${ACTOR1_ID}/statuses/ctx-mod-root`
-    const blockedParentId = `${ACTOR2_ID}/statuses/ctx-mod-blocked-parent`
-    const mutedParentId = `${ACTOR3_ID}/statuses/ctx-mod-muted-parent`
-    const modLeafId = `${ACTOR1_ID}/statuses/ctx-mod-leaf`
+      const modRootId = `${ACTOR1_ID}/statuses/ctx-mod-root`
+      const blockedParentId = `${ACTOR2_ID}/statuses/ctx-mod-blocked-parent`
+      const mutedParentId = `${ACTOR3_ID}/statuses/ctx-mod-muted-parent`
+      const modLeafId = `${ACTOR1_ID}/statuses/ctx-mod-leaf`
 
-    await database.createNote({
-      id: modRootId,
-      url: modRootId,
-      actorId: ACTOR1_ID,
-      text: 'Moderation Root',
-      to: [ACTIVITY_STREAM_PUBLIC],
-      cc: []
-    })
+      await database.createNote({
+        id: modRootId,
+        url: modRootId,
+        actorId: ACTOR1_ID,
+        text: 'Moderation Root',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
 
-    await database.createNote({
-      id: blockedParentId,
-      url: blockedParentId,
-      actorId: ACTOR2_ID,
-      text: 'Blocked Parent',
-      reply: modRootId,
-      to: [ACTIVITY_STREAM_PUBLIC],
-      cc: []
-    })
+      await database.createNote({
+        id: blockedParentId,
+        url: blockedParentId,
+        actorId: ACTOR2_ID,
+        text: 'Blocked Parent',
+        reply: modRootId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
 
-    await database.createNote({
-      id: mutedParentId,
-      url: mutedParentId,
-      actorId: ACTOR3_ID,
-      text: 'Muted Parent',
-      reply: blockedParentId,
-      to: [ACTIVITY_STREAM_PUBLIC],
-      cc: []
-    })
+      await database.createNote({
+        id: mutedParentId,
+        url: mutedParentId,
+        actorId: ACTOR3_ID,
+        text: 'Muted Parent',
+        reply: blockedParentId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
 
-    await database.createNote({
-      id: modLeafId,
-      url: modLeafId,
-      actorId: ACTOR1_ID,
-      text: 'Leaf Note',
-      reply: mutedParentId,
-      to: [ACTIVITY_STREAM_PUBLIC],
-      cc: []
-    })
+      await database.createNote({
+        id: modLeafId,
+        url: modLeafId,
+        actorId: ACTOR1_ID,
+        text: 'Leaf Note',
+        reply: mutedParentId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
 
-    // Descendants on modRootId
-    const blockedReplyId = `${ACTOR2_ID}/statuses/ctx-mod-blocked-reply`
-    const mutedReplyId = `${ACTOR3_ID}/statuses/ctx-mod-muted-reply`
-    const allowedReplyId = `${ACTOR1_ID}/statuses/ctx-mod-allowed-reply`
+      // Descendants on modRootId
+      const blockedReplyId = `${ACTOR2_ID}/statuses/ctx-mod-blocked-reply`
+      const mutedReplyId = `${ACTOR3_ID}/statuses/ctx-mod-muted-reply`
+      const allowedReplyId = `${ACTOR1_ID}/statuses/ctx-mod-allowed-reply`
 
-    await database.createNote({
-      id: blockedReplyId,
-      url: blockedReplyId,
-      actorId: ACTOR2_ID,
-      text: 'Blocked Reply',
-      reply: modRootId,
-      to: [ACTIVITY_STREAM_PUBLIC],
-      cc: []
-    })
+      await database.createNote({
+        id: blockedReplyId,
+        url: blockedReplyId,
+        actorId: ACTOR2_ID,
+        text: 'Blocked Reply',
+        reply: modRootId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
 
-    await database.createNote({
-      id: mutedReplyId,
-      url: mutedReplyId,
-      actorId: ACTOR3_ID,
-      text: 'Muted Reply',
-      reply: modRootId,
-      to: [ACTIVITY_STREAM_PUBLIC],
-      cc: []
-    })
+      await database.createNote({
+        id: mutedReplyId,
+        url: mutedReplyId,
+        actorId: ACTOR3_ID,
+        text: 'Muted Reply',
+        reply: modRootId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
 
-    await database.createNote({
-      id: allowedReplyId,
-      url: allowedReplyId,
-      actorId: ACTOR1_ID,
-      text: 'Allowed Reply',
-      reply: modRootId,
-      to: [ACTIVITY_STREAM_PUBLIC],
-      cc: []
-    })
+      await database.createNote({
+        id: allowedReplyId,
+        url: allowedReplyId,
+        actorId: ACTOR1_ID,
+        text: 'Allowed Reply',
+        reply: modRootId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
 
-    // When viewed by actor1:
-    // Ancestors of modLeafId should exclude blockedParentId and mutedParentId, but include modRootId
-    const leafContext = await getStatusContext({
-      database,
-      statusId: modLeafId,
-      currentActor: actor1
-    })
-    const ancestorIds = leafContext.ancestors.map((s) => s.id)
-    expect(ancestorIds).toContain(modRootId)
-    expect(ancestorIds).not.toContain(blockedParentId)
-    expect(ancestorIds).not.toContain(mutedParentId)
+      // When viewed by actor1:
+      // Ancestors of modLeafId should exclude blockedParentId and mutedParentId, but include modRootId
+      const leafContext = await getStatusContext({
+        database,
+        statusId: modLeafId,
+        currentActor: actor1
+      })
+      const ancestorIds = leafContext.ancestors.map((s) => s.id)
+      expect(ancestorIds).toContain(modRootId)
+      expect(ancestorIds).not.toContain(blockedParentId)
+      expect(ancestorIds).not.toContain(mutedParentId)
 
-    // Descendants of modRootId should exclude blockedReplyId and mutedReplyId, but include allowedReplyId
-    const rootContext = await getStatusContext({
-      database,
-      statusId: modRootId,
-      currentActor: actor1
-    })
-    const descendantIds = rootContext.descendants.map((s) => s.id)
-    expect(descendantIds).toContain(allowedReplyId)
-    expect(descendantIds).not.toContain(blockedReplyId)
-    expect(descendantIds).not.toContain(mutedReplyId)
+      // Descendants of modRootId should exclude blockedReplyId and mutedReplyId, but include allowedReplyId
+      const rootContext = await getStatusContext({
+        database,
+        statusId: modRootId,
+        currentActor: actor1
+      })
+      const descendantIds = rootContext.descendants.map((s) => s.id)
+      expect(descendantIds).toContain(allowedReplyId)
+      expect(descendantIds).not.toContain(blockedReplyId)
+      expect(descendantIds).not.toContain(mutedReplyId)
+    } finally {
+      await database.deleteBlock({
+        actorId: ACTOR1_ID,
+        targetActorId: ACTOR2_ID
+      })
+      await database.deleteMute({
+        actorId: ACTOR1_ID,
+        targetActorId: ACTOR3_ID
+      })
+    }
   })
 
   it('normalizes timestamp sorting and handles invalid dates gracefully', async () => {

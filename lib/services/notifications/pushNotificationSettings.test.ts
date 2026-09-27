@@ -39,6 +39,13 @@ describe('pushNotificationSettings', () => {
     })
 
     describe('shouldSendPushForNotification', () => {
+      beforeEach(async () => {
+        await database.updateActor({
+          actorId,
+          pushNotifications: null
+        })
+      })
+
       it('returns true when no push notification settings are configured', async () => {
         const result = await shouldSendPushForNotification(
           database,
