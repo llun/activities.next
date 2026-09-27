@@ -873,7 +873,10 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   that no listed route opts into `unconfirmedAccount` (except
   `emails/confirmations`, its single documented recovery carve-out). It fails
   if a route whose handlers carry an OAuth guard is in neither `EXPECTED` nor
-  `UNLISTED_BASELINE` (now empty, with all routes pinned). `MULTI_METHOD`
+  `UNLISTED_BASELINE` (now empty, with all routes pinned). A route that builds
+  its guard inside its own handler, so that no exported method is the guard's
+  handler, cannot be pinned by the table; it goes in `GUARDED_BY_OWN_CODE` with
+  the test that pins its scopes. `MULTI_METHOD`
   entries must name every guarded method the route exports.
   `lib/services/guards/OAuthGuard.test.ts` covers what each guard then does
   (no session, wrong scope, a parent scope, unconfirmed accounts) once, for

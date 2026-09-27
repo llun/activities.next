@@ -1,4 +1,4 @@
-import { globSync } from 'node:fs'
+import { globSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 import { UsableScopes } from '@/lib/types/database/operations'
@@ -1041,23 +1041,77 @@ describe('multi-method route scopes are wired per method', () => {
 // handlers) and never import the guard module themselves.
 //
 // Routes guarded before this check existed and not yet listed. The list may
-// only shrink: a new guarded route must be added to EXPECTED, and a route moved
-// into EXPECTED must be removed from here. Until then, these routes rely on
+// only shrink: add a new guarded route to EXPECTED, never here, and remove a
+// route from here when it moves into EXPECTED. Until then, these routes rely on
 // their own tests for their scopes and guard kind.
 const UNLISTED_BASELINE: string[] = []
+
+// Routes that build an OAuth guard inside their own exported function (at
+// import time or per request), so no exported method carries the tag and the
+// checks above cannot see the guard's scopes or kind. Each is pinned by the
+// test named beside it instead. Found by a source scan for guard-factory
+// imports, which cannot see a lib/ helper that builds a guard per request.
+const GUARDED_BY_OWN_CODE: Record<string, string> = {
+  // POST builds an OAuthAppGuard(['write:accounts']) for bearer registration.
+  '@/app/api/v1/accounts/route':
+    'app/api/v1/accounts/route.test.ts ("an app token without write:accounts")',
+  // GET builds an OptionalOAuthGuard([read, read:accounts]) for remote lookups.
+  '@/app/api/v1/accounts/lookup/route':
+    'app/api/v1/accounts/lookup/route.test.ts ("insufficient scope")'
+}
+
+const GUARD_FACTORIES = [
+  'OAuthGuard',
+  'OAuthGuardAnyScope',
+  'OptionalOAuthGuard',
+  'OAuthAppGuard'
+]
+const importsGuardFactory = (source: string) =>
+  [
+    ...source.matchAll(
+      /import\s*\{([^}]*)\}\s*from\s*'@\/lib\/services\/guards\/OAuthGuard'/g
+    )
+  ].some(([, names]) =>
+    names
+      .split(',')
+      .map((name) =>
+        name
+          .replace(/^\s*type\s+/, '')
+          .split(' as ')[0]
+          .trim()
+      )
+      .some((name) => GUARD_FACTORIES.includes(name))
+  )
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url))
 
 describe('every OAuth-guarded route is in EXPECTED', () => {
   it('matches the unlisted baseline exactly', async () => {
     const listed = new Set(EXPECTED.map(({ module }) => module))
+    const files = globSync('app/**/route.{ts,tsx,js,jsx}', { cwd: ROOT })
+    expect(files.length).toBeGreaterThan(0)
+
     const unlisted: string[] = []
-    for (const file of globSync('app/**/route.ts', { cwd: ROOT })) {
-      const module = `@/${file.replace(/\.ts$/, '')}`
+    const guardedByOwnCode: string[] = []
+    for (const file of files) {
+      const module = `@/${file.replace(/\.[jt]sx?$/, '')}`
       const mod = (await import(module)) as Record<string, TaggedHandler>
       const guarded = HTTP_METHODS.some((method) => mod[method]?.__guard)
-      if (guarded && !listed.has(module)) unlisted.push(module)
+      if (guarded) {
+        if (!listed.has(module)) unlisted.push(module)
+      } else if (importsGuardFactory(readFileSync(`${ROOT}${file}`, 'utf8'))) {
+        guardedByOwnCode.push(module)
+      }
     }
-    expect(unlisted.sort()).toEqual([...UNLISTED_BASELINE].sort())
+    expect(
+      unlisted.sort(),
+      'An OAuth-guarded route missing here belongs in EXPECTED (never the ' +
+        'baseline); one listed here but no longer unlisted must leave the baseline'
+    ).toEqual([...UNLISTED_BASELINE].sort())
+    expect(
+      guardedByOwnCode.sort(),
+      'A route that imports a guard factory but exports no guarded handler ' +
+        'must be in GUARDED_BY_OWN_CODE with the test that pins its scopes'
+    ).toEqual(Object.keys(GUARDED_BY_OWN_CODE).sort())
   })
 })

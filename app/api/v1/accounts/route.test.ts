@@ -357,6 +357,7 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
   const APP_TOKEN = 'app-token-value'
   const USER_TOKEN = 'user-token-value'
   const ACTORLESS_USER_TOKEN = 'actorless-user-token-value'
+  const READ_ONLY_APP_TOKEN = 'read-only-app-token-value'
   const NEW_USERNAME = 'newbie'
   const PENDING_USERNAME = 'pendingnewbie'
   const ACTORLESS_USERNAME = 'actorlessuser'
@@ -376,10 +377,12 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
 
   const insertToken = async ({
     token,
-    referenceId
+    referenceId,
+    scopes = [Scope.enum.read, Scope.enum.write]
   }: {
     token: string
     referenceId: string | null
+    scopes?: string[]
   }) => {
     await apiKnex('oauthAccessToken').insert({
       id: `token-${token}`,
@@ -387,7 +390,7 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
       clientId: CLIENT_ID,
       userId: referenceId ? accountId : null,
       referenceId,
-      scopes: JSON.stringify([Scope.enum.read, Scope.enum.write]),
+      scopes: JSON.stringify(scopes),
       expiresAt: new Date(Date.now() + 3_600_000),
       createdAt: new Date()
     })
@@ -454,6 +457,12 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
 
     // App (client_credentials) token: no bound actor.
     await insertToken({ token: APP_TOKEN, referenceId: null })
+    // An app token without write:accounts (or its parent write).
+    await insertToken({
+      token: READ_ONLY_APP_TOKEN,
+      referenceId: null,
+      scopes: [Scope.enum.read]
+    })
     // User-bound token: delegates the newly created actor.
     await insertToken({ token: USER_TOKEN, referenceId: actorId })
     // A user-delegated token whose grant recorded no actor reference AND whose
@@ -614,6 +623,17 @@ describe('POST /api/v1/accounts with a Bearer app token', () => {
       `username=${NEW_USERNAME}&email=newbie@llun.test&password=password123&agreement=true`
     )
     expect(res.status).toBe(401)
+  })
+
+  // Registration builds its OAuthAppGuard inside POST's own code, so
+  // routeScopeWiring.test.ts cannot see its scope; this pins it.
+  it('returns 401 for an app token without write:accounts', async () => {
+    const res = await postRegister(
+      READ_ONLY_APP_TOKEN,
+      `username=${NEW_USERNAME}&email=newbie@llun.test&password=password123&agreement=true`
+    )
+    expect(res.status).toBe(401)
+    expect(vi.mocked(registerAccount)).not.toHaveBeenCalled()
   })
 
   it('returns 403 for a user-bound (non-app) token', async () => {
