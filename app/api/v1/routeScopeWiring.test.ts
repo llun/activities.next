@@ -1,6 +1,8 @@
 import { globSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
+import { UsableScopes } from '@/lib/types/database/operations'
+
 // Pins how each OAuth-guarded route is guarded, so a route's own tests need
 // not re-prove it. TypeScript accepts any Scope.enum member and any of the four
 // guard factories, so a wrong scope literal (block listing with write:mutes),
@@ -64,6 +66,7 @@ const EXPECTED: Array<{
   module: string
   scopes: string[]
   guard?: GuardKind | Partial<Record<string, GuardKind>>
+  unconfirmedAccount?: 'allow'
 }> = [
   // status emoji reactions (ecosystem dialects, one store)
   {
@@ -613,6 +616,134 @@ const EXPECTED: Array<{
     module: '@/app/api/v1/lists/[id]/accounts/route',
     scopes: ['read', 'read:lists', 'write:lists'],
     guard: { POST: 'OAuthGuard', DELETE: 'OAuthGuard' }
+  },
+  // apps
+  {
+    module: '@/app/api/v1/apps/verify_credentials/route',
+    scopes: [...UsableScopes],
+    guard: 'OAuthAppGuard:any'
+  },
+  // conversations
+  {
+    module: '@/app/api/v1/conversations/route',
+    scopes: ['read', 'read:conversations', 'read:statuses']
+  },
+  {
+    module: '@/app/api/v1/conversations/[id]/route',
+    scopes: ['write', 'write:conversations']
+  },
+  {
+    module: '@/app/api/v1/conversations/[id]/read/route',
+    scopes: ['write', 'write:conversations']
+  },
+  {
+    module: '@/app/api/v1/conversations/[id]/statuses/route',
+    scopes: ['read', 'read:conversations', 'read:statuses']
+  },
+  // directory
+  {
+    module: '@/app/api/v1/directory/route',
+    scopes: ['read'],
+    guard: 'OptionalOAuthGuard:all'
+  },
+  // email confirmations (only route that opts into unconfirmedAccount)
+  {
+    module: '@/app/api/v1/emails/confirmations/route',
+    scopes: ['write', 'write:accounts'],
+    unconfirmedAccount: 'allow'
+  },
+  // featured tags
+  {
+    module: '@/app/api/v1/featured_tags/[id]/route',
+    scopes: ['write', 'write:accounts']
+  },
+  // followed tags
+  {
+    module: '@/app/api/v1/followed_tags/route',
+    scopes: ['read', 'read:follows']
+  },
+  // web push
+  {
+    module: '@/app/api/v1/push/subscribe/route',
+    scopes: ['push'],
+    guard: 'OAuthGuard'
+  },
+  {
+    module: '@/app/api/v1/push/subscription/route',
+    scopes: ['push'],
+    guard: 'OAuthGuard'
+  },
+  // reports
+  {
+    module: '@/app/api/v1/reports/route',
+    scopes: ['write:reports'],
+    guard: 'OAuthGuard'
+  },
+  // tags
+  {
+    module: '@/app/api/v1/tags/[tag]/route',
+    scopes: ['read'],
+    guard: 'OptionalOAuthGuard:all'
+  },
+  {
+    module: '@/app/api/v1/tags/[tag]/follow/route',
+    scopes: ['write:follows'],
+    guard: 'OAuthGuard'
+  },
+  {
+    module: '@/app/api/v1/tags/[tag]/unfollow/route',
+    scopes: ['write:follows'],
+    guard: 'OAuthGuard'
+  },
+  // timelines
+  {
+    module: '@/app/api/v1/timelines/[timeline]/route',
+    scopes: ['read', 'read:statuses']
+  },
+  {
+    module: '@/app/api/v1/timelines/collection/[id]/route',
+    scopes: ['read', 'read:collections']
+  },
+  {
+    module: '@/app/api/v1/timelines/list/[list_id]/route',
+    scopes: ['read', 'read:lists']
+  },
+  {
+    module: '@/app/api/v1/timelines/public/route',
+    scopes: ['read'],
+    guard: 'OptionalOAuthGuard:all'
+  },
+  {
+    module: '@/app/api/v1/timelines/tag/[hashtag]/route',
+    scopes: ['read'],
+    guard: 'OptionalOAuthGuard:all'
+  },
+  // trends
+  {
+    module: '@/app/api/v1/trends/route',
+    scopes: ['read'],
+    guard: 'OptionalOAuthGuard:all'
+  },
+  {
+    module: '@/app/api/v1/trends/links/route',
+    scopes: ['read'],
+    guard: 'OptionalOAuthGuard:all'
+  },
+  {
+    module: '@/app/api/v1/trends/statuses/route',
+    scopes: ['read'],
+    guard: 'OptionalOAuthGuard:all'
+  },
+  {
+    module: '@/app/api/v1/trends/tags/route',
+    scopes: ['read'],
+    guard: 'OptionalOAuthGuard:all'
+  },
+  // search v2
+  {
+    module: '@/app/api/v2/search/route',
+    scopes: ['read:search'],
+    guard: 'OptionalOAuthGuard:all'
   }
 ]
 
@@ -644,7 +775,7 @@ describe('OAuth scope guard wiring', () => {
   // CONTRIBUTING.md -> Testing Guidelines).
   it.each(EXPECTED)(
     '$module guards every method with the expected guard and scopes',
-    async ({ module, scopes, guard }) => {
+    async ({ module, scopes, guard, unconfirmedAccount }) => {
       const mod = (await import(module)) as Record<string, TaggedHandler>
       const guarded = HTTP_METHODS.filter(
         (method) =>
@@ -669,7 +800,7 @@ describe('OAuth scope guard wiring', () => {
       )
       expect(
         guarded.filter(
-          (method) => mod[method]?.__unconfirmedAccount !== undefined
+          (method) => mod[method]?.__unconfirmedAccount !== unconfirmedAccount
         )
       ).toEqual([])
     }
@@ -913,33 +1044,7 @@ describe('multi-method route scopes are wired per method', () => {
 // only shrink: a new guarded route must be added to EXPECTED, and a route moved
 // into EXPECTED must be removed from here. Until then, these routes rely on
 // their own tests for their scopes and guard kind.
-const UNLISTED_BASELINE: string[] = [
-  '@/app/api/v1/apps/verify_credentials/route',
-  '@/app/api/v1/conversations/[id]/read/route',
-  '@/app/api/v1/conversations/[id]/route',
-  '@/app/api/v1/conversations/[id]/statuses/route',
-  '@/app/api/v1/conversations/route',
-  '@/app/api/v1/directory/route',
-  '@/app/api/v1/emails/confirmations/route',
-  '@/app/api/v1/featured_tags/[id]/route',
-  '@/app/api/v1/followed_tags/route',
-  '@/app/api/v1/push/subscribe/route',
-  '@/app/api/v1/push/subscription/route',
-  '@/app/api/v1/reports/route',
-  '@/app/api/v1/tags/[tag]/follow/route',
-  '@/app/api/v1/tags/[tag]/route',
-  '@/app/api/v1/tags/[tag]/unfollow/route',
-  '@/app/api/v1/timelines/[timeline]/route',
-  '@/app/api/v1/timelines/collection/[id]/route',
-  '@/app/api/v1/timelines/list/[list_id]/route',
-  '@/app/api/v1/timelines/public/route',
-  '@/app/api/v1/timelines/tag/[hashtag]/route',
-  '@/app/api/v1/trends/links/route',
-  '@/app/api/v1/trends/route',
-  '@/app/api/v1/trends/statuses/route',
-  '@/app/api/v1/trends/tags/route',
-  '@/app/api/v2/search/route'
-]
+const UNLISTED_BASELINE: string[] = []
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url))
 
