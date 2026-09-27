@@ -109,6 +109,7 @@ describe('POST /api/v1/fitness/retry-failed', () => {
     db.updateFitnessFilesProcessingStatus.mockResolvedValue(1)
     db.updateFitnessFileImportStatus.mockResolvedValue(true)
     db.updateFitnessFileProcessingStatus.mockResolvedValue(true)
+    vi.mocked(getQueue().publish).mockReset().mockResolvedValue(undefined)
     mockDatabase = db
   })
 

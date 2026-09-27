@@ -135,6 +135,12 @@ describe('getProfileData', () => {
     ;(mockDatabase.getAcceptedOrRequestedFollow as jest.Mock).mockResolvedValue(
       null
     )
+    ;(mockDatabase.createActor as jest.Mock)
+      .mockReset()
+      .mockResolvedValue(mockRemoteActor)
+    ;(mockDatabase.updateActor as jest.Mock)
+      .mockReset()
+      .mockResolvedValue(mockRemoteActor)
     ;(getPersonFromActor as jest.Mock).mockReturnValue(mockPerson)
     vi.mocked(getServerSoftwareInfo).mockResolvedValue(null)
     vi.mocked(isPixelfedActor).mockResolvedValue(false)

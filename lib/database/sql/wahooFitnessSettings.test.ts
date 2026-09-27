@@ -10,10 +10,22 @@ import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 describe('Wahoo fitness settings database operations', () => {
   let database: Database
   let instance: Knex
-  const actorId = DatabaseSeed.actors.primary.id
-  const disconnectActorId = DatabaseSeed.actors.replyAuthor.id
   const webhookToken = 'wahoo-webhook-secret'
   const providerUserId = 'wahoo-user-123'
+
+  const createLocalActor = async (suffix: string) => {
+    const unique = `${suffix}-${crypto.randomUUID().slice(0, 8)}`
+    const username = `wahoo-${unique}`
+    await database.createAccount({
+      email: `${username}@${DatabaseSeed.actors.primary.domain}`,
+      username,
+      passwordHash: 'password_hash',
+      domain: DatabaseSeed.actors.primary.domain,
+      privateKey: `privateKey-${unique}`,
+      publicKey: `publicKey-${unique}`
+    })
+    return `https://${DatabaseSeed.actors.primary.domain}/users/${username}`
+  }
 
   beforeAll(async () => {
     const testDatabase = getTestSQLDatabaseWithInstance()
@@ -28,6 +40,7 @@ describe('Wahoo fitness settings database operations', () => {
   })
 
   it('stores an encrypted webhook token and resolves it by hash and provider user', async () => {
+    const actorId = await createLocalActor('store-token')
     const settings = await database.createFitnessSettings({
       actorId,
       serviceType: 'wahoo',
@@ -72,30 +85,34 @@ describe('Wahoo fitness settings database operations', () => {
   })
 
   it('consumes a matching unexpired OAuth state exactly once', async () => {
-    const settings = await database.getFitnessSettings({
+    const actorId = await createLocalActor('consume-state')
+    const settings = await database.createFitnessSettings({
       actorId,
-      serviceType: 'wahoo'
+      serviceType: 'wahoo',
+      providerUserId: 'wahoo-consume-user',
+      webhookToken: 'wahoo-consume-token',
+      oauthState: 'wahoo-state',
+      oauthStateExpiry: Date.now() + 60_000
     })
-    expect(settings).not.toBeNull()
 
     const now = Date.now()
     await expect(
       database.consumeFitnessOauthState({
-        id: settings!.id,
+        id: settings.id,
         state: 'wrong-state',
         now
       })
     ).resolves.toBe(false)
     await expect(
       database.consumeFitnessOauthState({
-        id: settings!.id,
+        id: settings.id,
         state: 'wahoo-state',
         now
       })
     ).resolves.toBe(true)
     await expect(
       database.consumeFitnessOauthState({
-        id: settings!.id,
+        id: settings.id,
         state: 'wahoo-state',
         now
       })
@@ -110,6 +127,7 @@ describe('Wahoo fitness settings database operations', () => {
   })
 
   it('clears Wahoo credentials on disconnect while retaining import history', async () => {
+    const disconnectActorId = await createLocalActor('disconnect')
     const settings = await database.createFitnessSettings({
       actorId: disconnectActorId,
       serviceType: 'wahoo',
@@ -155,6 +173,7 @@ describe('Wahoo fitness settings database operations', () => {
   })
 
   it('does not restore credentials when updating a disconnected settings row', async () => {
+    const disconnectActorId = await createLocalActor('disconnected-row')
     const settings = await database.createFitnessSettings({
       actorId: disconnectActorId,
       serviceType: 'wahoo',
@@ -194,6 +213,7 @@ describe('Wahoo fitness settings database operations', () => {
   })
 
   it('rejects token refresh writes after the client credentials change', async () => {
+    const disconnectActorId = await createLocalActor('token-refresh')
     const settings = await database.createFitnessSettings({
       actorId: disconnectActorId,
       serviceType: 'wahoo',
@@ -238,8 +258,10 @@ describe('Wahoo fitness settings database operations', () => {
     const oldToken = 'old-rotation-token'
     const rotatedToken = 'new-rotation-token'
     const provider = 'shared-webhook-provider-user'
+    const pollAuthorId = await createLocalActor('rotate-poll')
+    const extraActorId = await createLocalActor('rotate-extra')
     const rotatedSettings = await database.createFitnessSettings({
-      actorId: DatabaseSeed.actors.pollAuthor.id,
+      actorId: pollAuthorId,
       serviceType: 'wahoo',
       webhookToken: oldToken,
       providerUserId: provider
@@ -266,7 +288,7 @@ describe('Wahoo fitness settings database operations', () => {
 
     await expect(
       database.createFitnessSettings({
-        actorId: DatabaseSeed.actors.extra.id,
+        actorId: extraActorId,
         serviceType: 'wahoo',
         webhookToken: rotatedToken,
         providerUserId: provider
@@ -277,7 +299,7 @@ describe('Wahoo fitness settings database operations', () => {
     ).resolves.toMatchObject({ id: rotatedSettings.id })
 
     await database.deleteFitnessSettings({
-      actorId: DatabaseSeed.actors.pollAuthor.id,
+      actorId: pollAuthorId,
       serviceType: 'wahoo'
     })
   })
@@ -286,8 +308,8 @@ describe('Wahoo fitness settings database operations', () => {
     const webhookToken = 'concurrent-webhook-token'
     const providerUserId = 'concurrent-provider-user'
     const candidates = [
-      DatabaseSeed.actors.pollAuthor.id,
-      DatabaseSeed.actors.extra.id
+      await createLocalActor('concurrent-1'),
+      await createLocalActor('concurrent-2')
     ]
     const results = await Promise.allSettled(
       candidates.map((candidateActorId) =>

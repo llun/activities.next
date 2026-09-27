@@ -572,6 +572,25 @@ describe('StatusDatabase', () => {
   })
 
   describe.each(table)('%s', (_, database) => {
+    const createIsolatedActor = async (
+      suffix: string,
+      { local = true }: { local?: boolean } = {}
+    ) => {
+      const actorId = `https://${local ? actors.primary.domain : 'remote.test'}/users/${suffix}`
+      await database.createActor({
+        actorId,
+        username: suffix,
+        domain: local ? actors.primary.domain : 'remote.test',
+        followersUrl: `${actorId}/followers`,
+        inboxUrl: `${actorId}/inbox`,
+        sharedInboxUrl: `https://${local ? actors.primary.domain : 'remote.test'}/inbox`,
+        publicKey: `public-key-${suffix}`,
+        ...(local ? { privateKey: `private-key-${suffix}` } : {}),
+        createdAt: Date.now()
+      })
+      return actorId
+    }
+
     beforeAll(async () => {
       await seedDatabase(database as Database)
     })
@@ -2822,20 +2841,23 @@ describe('StatusDatabase', () => {
 
     describe('getActorStatuses followers audience fallback', () => {
       it('includes fallback actor followers audience for followers-only reads', async () => {
-        const statusId = `${primaryActorId}/statuses/fallback-followers-${Date.now()}`
+        const actorId = await createIsolatedActor(
+          `fallback-followers-${Date.now()}`
+        )
+        const statusId = `${actorId}/statuses/fallback-followers-${Date.now()}`
         await database.createNote({
           id: statusId,
           url: statusId,
-          actorId: primaryActorId,
-          to: [`${primaryActorId}/followers`],
+          actorId,
+          to: [`${actorId}/followers`],
           cc: [],
           text: 'Fallback followers audience'
         })
 
         const statuses = await database.getActorStatuses({
-          actorId: primaryActorId,
+          actorId,
           includeFollowersOnly: true,
-          followersAudience: `${primaryActorId}/followers-updated`,
+          followersAudience: `${actorId}/followers-updated`,
           limit: 50
         })
 
@@ -2860,13 +2882,16 @@ describe('StatusDatabase', () => {
 
       it('batch-hydrates detected language for replies', async () => {
         const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`
-        const parentId = `${primaryActorId}/statuses/detected-reply-parent-${suffix}`
+        const parentActorId = await createIsolatedActor(
+          `detected-reply-parent-${suffix}`
+        )
+        const parentId = `${parentActorId}/statuses/detected-reply-parent-${suffix}`
         const replyId = `${replyAuthorId}/statuses/detected-reply-${suffix}`
 
         await database.createNote({
           id: parentId,
           url: parentId,
-          actorId: primaryActorId,
+          actorId: parentActorId,
           to: [ACTIVITY_STREAM_PUBLIC],
           cc: [],
           text: 'Detected language reply parent'
@@ -2895,7 +2920,10 @@ describe('StatusDatabase', () => {
 
       it('filters replies to statuses potentially visible to the current actor', async () => {
         const suffix = `${Date.now()}-${Math.random()}`
-        const parentStatusId = `${primaryActorId}/statuses/context-parent-${suffix}`
+        const parentActorId = await createIsolatedActor(
+          `context-parent-${suffix}`
+        )
+        const parentStatusId = `${parentActorId}/statuses/context-parent-${suffix}`
         const publicReplyId = `${replyAuthorId}/statuses/context-public-${suffix}`
         const directReplyId = `${replyAuthorId}/statuses/context-direct-${suffix}`
         const hiddenReplyId = `${replyAuthorId}/statuses/context-hidden-${suffix}`
@@ -2904,7 +2932,7 @@ describe('StatusDatabase', () => {
         await database.createNote({
           id: parentStatusId,
           url: parentStatusId,
-          actorId: primaryActorId,
+          actorId: parentActorId,
           to: [ACTIVITY_STREAM_PUBLIC],
           cc: [],
           text: 'Context parent',
@@ -2956,7 +2984,10 @@ describe('StatusDatabase', () => {
         const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`
         const customActorId = `https://remote.test/users/context-author-${suffix}`
         const customFollowersUrl = `https://remote.test/collections/context-author-${suffix}/followers`
-        const parentStatusId = `${primaryActorId}/statuses/context-custom-followers-parent-${suffix}`
+        const parentActorId = await createIsolatedActor(
+          `context-custom-parent-${suffix}`
+        )
+        const parentStatusId = `${parentActorId}/statuses/context-custom-followers-parent-${suffix}`
         const replyStatusId = `${customActorId}/statuses/context-custom-followers-reply`
 
         await database.createActor({
@@ -2979,7 +3010,7 @@ describe('StatusDatabase', () => {
         await database.createNote({
           id: parentStatusId,
           url: parentStatusId,
-          actorId: primaryActorId,
+          actorId: parentActorId,
           to: [ACTIVITY_STREAM_PUBLIC],
           cc: [],
           text: 'Context parent for custom followers reply'
@@ -3178,7 +3209,18 @@ describe('StatusDatabase', () => {
       })
 
       it('supports id-cursor pagination via max_id', async () => {
-        const statusId = statuses.primary.post
+        const actorId = await createIsolatedActor(
+          `fav-max-id-${crypto.randomUUID().slice(0, 8)}`
+        )
+        const statusId = `${actorId}/statuses/1`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId,
+          text: 'Favourited post',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
         await database.createLike({ actorId: primaryActorId, statusId })
         await database.createLike({ actorId: replyAuthorId, statusId })
         await database.createLike({ actorId: pollAuthorId, statusId })
@@ -3219,7 +3261,18 @@ describe('StatusDatabase', () => {
       })
 
       it('pages newer favourites with min_id, distinct from max_id direction', async () => {
-        const statusId = statuses.primary.post
+        const actorId = await createIsolatedActor(
+          `fav-min-id-${crypto.randomUUID().slice(0, 8)}`
+        )
+        const statusId = `${actorId}/statuses/1`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId,
+          text: 'Favourited post',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
         await database.createLike({ actorId: primaryActorId, statusId })
         await database.createLike({ actorId: replyAuthorId, statusId })
         await database.createLike({ actorId: pollAuthorId, statusId })
@@ -3247,6 +3300,9 @@ describe('StatusDatabase', () => {
 
     describe('createNote', () => {
       it('creates a new note', async () => {
+        const beforeCount = await database.getActorStatusesCount({
+          actorId: extraActorId
+        })
         const status = (await database.createNote({
           id: `${extraActorId}/statuses/new-post`,
           url: `${extraActorId}/statuses/new-post`,
@@ -3258,7 +3314,7 @@ describe('StatusDatabase', () => {
         expect(status.text).toBe('This is a new post')
         expect(
           await database.getActorStatusesCount({ actorId: extraActorId })
-        ).toBe(1)
+        ).toBe(beforeCount + 1)
       })
 
       it('creates a new note with attachments', async () => {
@@ -4545,12 +4601,20 @@ describe('StatusDatabase', () => {
     })
 
     describe('getStatusesByHashtag', () => {
+      let hashtagActorId: string
+
+      beforeAll(async () => {
+        hashtagActorId = await createIsolatedActor(
+          `hashtag-statuses-${Date.now()}`
+        )
+      })
+
       it('returns statuses with a given hashtag', async () => {
-        const statusId = `${primaryActorId}/statuses/hashtag-test-${Date.now()}`
+        const statusId = `${hashtagActorId}/statuses/hashtag-test-${Date.now()}`
         await database.createNote({
           id: statusId,
           url: statusId,
-          actorId: primaryActorId,
+          actorId: hashtagActorId,
           to: [ACTIVITY_STREAM_PUBLIC],
           cc: [],
           text: 'Hello #testing'
@@ -4572,11 +4636,11 @@ describe('StatusDatabase', () => {
       it.each([{ cursor: 'maxStatusId' }, { cursor: 'minStatusId' }])(
         'returns [] when the $cursor cursor status does not exist',
         async ({ cursor }) => {
-          const statusId = `${primaryActorId}/statuses/hashtag-cursor-${cursor}-${Date.now()}`
+          const statusId = `${hashtagActorId}/statuses/hashtag-cursor-${cursor}-${Date.now()}`
           await database.createNote({
             id: statusId,
             url: statusId,
-            actorId: primaryActorId,
+            actorId: hashtagActorId,
             to: [ACTIVITY_STREAM_PUBLIC],
             cc: [],
             text: 'Hello #cursortag'
@@ -4592,18 +4656,18 @@ describe('StatusDatabase', () => {
           // rather than silently falling back to the first page.
           const results = await database.getStatusesByHashtag({
             hashtag: 'cursortag',
-            [cursor]: `${primaryActorId}/statuses/does-not-exist`
+            [cursor]: `${hashtagActorId}/statuses/does-not-exist`
           })
           expect(results).toEqual([])
         }
       )
 
       it('returns compact public statuses with a given hashtag', async () => {
-        const statusId = `${primaryActorId}/statuses/compact-hashtag-test-${Date.now()}`
+        const statusId = `${hashtagActorId}/statuses/compact-hashtag-test-${Date.now()}`
         await database.createNote({
           id: statusId,
           url: statusId,
-          actorId: primaryActorId,
+          actorId: hashtagActorId,
           to: [ACTIVITY_STREAM_PUBLIC_COMPACT],
           cc: [],
           text: 'Hello #compacttesting'
@@ -4632,7 +4696,7 @@ describe('StatusDatabase', () => {
       const createTaggedNote = async ({
         statusId,
         tags,
-        actorId = primaryActorId
+        actorId = hashtagActorId
       }: {
         statusId: string
         tags: string[]
@@ -4659,12 +4723,12 @@ describe('StatusDatabase', () => {
       it('filters to statuses with attachments when onlyMedia is set', async () => {
         const suffix = Date.now()
         const tag = `mediaonly${suffix}`
-        const mediaStatusId = `${primaryActorId}/statuses/hashtag-media-${suffix}`
-        const textStatusId = `${primaryActorId}/statuses/hashtag-text-${suffix}`
+        const mediaStatusId = `${hashtagActorId}/statuses/hashtag-media-${suffix}`
+        const textStatusId = `${hashtagActorId}/statuses/hashtag-text-${suffix}`
         await createTaggedNote({ statusId: mediaStatusId, tags: [tag] })
         await createTaggedNote({ statusId: textStatusId, tags: [tag] })
         await database.createAttachment({
-          actorId: primaryActorId,
+          actorId: hashtagActorId,
           statusId: mediaStatusId,
           mediaType: 'image/png',
           url: `${mediaStatusId}/image.png`
@@ -4681,8 +4745,8 @@ describe('StatusDatabase', () => {
         const suffix = Date.now()
         const primaryTag = `anybase${suffix}`
         const extraTag = `anyextra${suffix}`
-        const baseStatusId = `${primaryActorId}/statuses/hashtag-any-base-${suffix}`
-        const extraStatusId = `${primaryActorId}/statuses/hashtag-any-extra-${suffix}`
+        const baseStatusId = `${hashtagActorId}/statuses/hashtag-any-base-${suffix}`
+        const extraStatusId = `${hashtagActorId}/statuses/hashtag-any-extra-${suffix}`
         await createTaggedNote({ statusId: baseStatusId, tags: [primaryTag] })
         await createTaggedNote({ statusId: extraStatusId, tags: [extraTag] })
 
@@ -4699,8 +4763,8 @@ describe('StatusDatabase', () => {
         const suffix = Date.now()
         const baseTag = `constraint${suffix}`
         const extraTag = `extra${suffix}`
-        const bothStatusId = `${primaryActorId}/statuses/hashtag-both-${suffix}`
-        const baseOnlyStatusId = `${primaryActorId}/statuses/hashtag-base-${suffix}`
+        const bothStatusId = `${hashtagActorId}/statuses/hashtag-both-${suffix}`
+        const baseOnlyStatusId = `${hashtagActorId}/statuses/hashtag-base-${suffix}`
         await createTaggedNote({
           statusId: bothStatusId,
           tags: [baseTag, extraTag]
@@ -4725,8 +4789,8 @@ describe('StatusDatabase', () => {
         const baseTag = `allbase${suffix}`
         const tagA = `alla${suffix}`
         const tagB = `allb${suffix}`
-        const bothStatusId = `${primaryActorId}/statuses/hashtag-all-both-${suffix}`
-        const partialStatusId = `${primaryActorId}/statuses/hashtag-all-partial-${suffix}`
+        const bothStatusId = `${hashtagActorId}/statuses/hashtag-all-both-${suffix}`
+        const partialStatusId = `${hashtagActorId}/statuses/hashtag-all-partial-${suffix}`
         await createTaggedNote({
           statusId: bothStatusId,
           tags: [baseTag, tagA, tagB]
@@ -4749,7 +4813,7 @@ describe('StatusDatabase', () => {
       it('scopes results to local or remote authors', async () => {
         const suffix = Date.now()
         const tag = `scope${suffix}`
-        const localStatusId = `${primaryActorId}/statuses/hashtag-local-${suffix}`
+        const localStatusId = `${hashtagActorId}/statuses/hashtag-local-${suffix}`
         const remoteActorId = DatabaseSeed.externalActors.primary.id
         const remoteStatusId = `${remoteActorId}/statuses/hashtag-remote-${suffix}`
         await createTaggedNote({ statusId: localStatusId, tags: [tag] })
@@ -4777,7 +4841,7 @@ describe('StatusDatabase', () => {
         const tag = `mincursor${suffix}`
         const ids: string[] = []
         for (let n = 1; n <= 3; n++) {
-          const statusId = `${primaryActorId}/statuses/hashtag-min-${suffix}-${n}`
+          const statusId = `${hashtagActorId}/statuses/hashtag-min-${suffix}-${n}`
           await createTaggedNote({ statusId, tags: [tag] })
           ids.push(statusId)
           await waitFor(5)
@@ -4833,13 +4897,16 @@ describe('StatusDatabase', () => {
       })
 
       it('decreases hashtag counter when status with hashtag is deleted', async () => {
+        const actorId = await createIsolatedActor(
+          `hashtag-delete-${Date.now()}`
+        )
         const tag = `delete_counter_test_${Date.now()}`
-        const statusId = `${primaryActorId}/statuses/hashtag-delete-${Date.now()}`
+        const statusId = `${actorId}/statuses/hashtag-delete-${Date.now()}`
 
         await database.createNote({
           id: statusId,
           url: statusId,
-          actorId: primaryActorId,
+          actorId,
           to: [ACTIVITY_STREAM_PUBLIC],
           cc: [],
           text: `Hello #${tag}`
@@ -4864,18 +4931,28 @@ describe('StatusDatabase', () => {
 
     describe('deleteStatus', () => {
       it('deletes a status', async () => {
+        const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const statusId = `${primaryActorId}/statuses/delete-status-${suffix}`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: primaryActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Status to delete'
+        })
         const beforeDeleteCount = await database.getActorStatusesCount({
           actorId: primaryActorId
         })
         await database.deleteStatus({
-          statusId: statuses.primary.secondPost
+          statusId
         })
         const afterDeleteCount = await database.getActorStatusesCount({
           actorId: primaryActorId
         })
         expect(
           await database.getStatus({
-            statusId: statuses.primary.secondPost
+            statusId
           })
         ).toBeNull()
         expect(afterDeleteCount).toBe(beforeDeleteCount - 1)
@@ -4930,23 +5007,42 @@ describe('StatusDatabase', () => {
       })
 
       it('deletes a status and attachments', async () => {
+        const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const statusId = `${primaryActorId}/statuses/delete-attachments-${suffix}`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: primaryActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Status with attachments to delete'
+        })
+        await database.createAttachment({
+          actorId: primaryActorId,
+          statusId,
+          mediaType: 'image/png',
+          url: 'https://llun.test/images/test.png',
+          width: 100,
+          height: 100,
+          name: 'test'
+        })
         const beforeDeleteCount = await database.getActorStatusesCount({
           actorId: primaryActorId
         })
         await database.deleteStatus({
-          statusId: statuses.primary.postWithAttachments
+          statusId
         })
         const afterDeleteCount = await database.getActorStatusesCount({
           actorId: primaryActorId
         })
         expect(
           await database.getStatus({
-            statusId: statuses.primary.postWithAttachments
+            statusId
           })
         ).toBeNull()
         expect(
           await database.getAttachments({
-            statusId: statuses.primary.postWithAttachments
+            statusId
           })
         ).toBeArrayOfSize(0)
         expect(afterDeleteCount).toBe(beforeDeleteCount - 1)
@@ -5863,15 +5959,17 @@ describe('StatusDatabase', () => {
 
     describe('getHashtagStatusesPage', () => {
       const tag = `pagetag_${Date.now()}`
+      let hashtagActorId: string
 
       beforeAll(async () => {
+        hashtagActorId = await createIsolatedActor(`hashtag-page-${Date.now()}`)
         // Create 3 public posts with the tag and 1 non-public post
         for (let i = 1; i <= 3; i++) {
-          const id = `${primaryActorId}/statuses/page-hashtag-${tag}-${i}`
+          const id = `${hashtagActorId}/statuses/page-hashtag-${tag}-${i}`
           await database.createNote({
             id,
             url: id,
-            actorId: primaryActorId,
+            actorId: hashtagActorId,
             to: [ACTIVITY_STREAM_PUBLIC],
             cc: [],
             text: `Post #${tag} number ${i}`
@@ -5884,12 +5982,12 @@ describe('StatusDatabase', () => {
           })
         }
         // Non-public post (followers-only) — should not appear
-        const privateId = `${primaryActorId}/statuses/page-hashtag-${tag}-private`
+        const privateId = `${hashtagActorId}/statuses/page-hashtag-${tag}-private`
         await database.createNote({
           id: privateId,
           url: privateId,
-          actorId: primaryActorId,
-          to: [`${primaryActorId}/followers`],
+          actorId: hashtagActorId,
+          to: [`${hashtagActorId}/followers`],
           cc: [],
           text: `Private post #${tag}`
         })
@@ -5953,11 +6051,11 @@ describe('StatusDatabase', () => {
 
       it('includes compact public posts in results and total', async () => {
         const compactTag = `compact_pagetag_${Date.now()}`
-        const compactId = `${primaryActorId}/statuses/page-hashtag-${compactTag}`
+        const compactId = `${hashtagActorId}/statuses/page-hashtag-${compactTag}`
         await database.createNote({
           id: compactId,
           url: compactId,
-          actorId: primaryActorId,
+          actorId: hashtagActorId,
           to: [ACTIVITY_STREAM_PUBLIC_COMPACT],
           cc: [],
           text: `Compact public post #${compactTag}`

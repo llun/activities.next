@@ -525,6 +525,13 @@ describe('PushSubscription Database', () => {
 
     describe('getPushSubscriptionsForActor', () => {
       it('returns subscriptions for an actor', async () => {
+        await database.createPushSubscription({
+          actorId: actor1Id,
+          endpoint: 'https://push.example.com/endpoint/get-all',
+          p256dh: 'key',
+          auth: 'auth'
+        })
+
         const subs = await database.getPushSubscriptionsForActor({
           actorId: actor1Id
         })

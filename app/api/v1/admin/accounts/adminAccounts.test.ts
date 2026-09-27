@@ -155,22 +155,22 @@ describe('admin accounts API', () => {
   })
 
   it('applies a suspend action, records the audit row, and 422s disabling a remote account', async () => {
-    const id = urlToId(TARGET_ACTOR_ID)
+    const target = await makeLocalAccount()
     const suspend = await actionRoute.POST(
-      adminRequest(`/api/v1/admin/accounts/${id}/action`, {
+      adminRequest(`/api/v1/admin/accounts/${target.id}/action`, {
         method: 'POST',
         body: { type: 'suspend', text: 'spam' }
       }),
-      { params: Promise.resolve({ id }) }
+      { params: Promise.resolve({ id: target.id }) }
     )
     expect(suspend.status).toBe(200)
 
     const refreshed = await database.getAdminAccount({
-      actorId: TARGET_ACTOR_ID
+      actorId: target.actorId
     })
     expect(refreshed?.actor.suspendedAt).toBeTruthy()
     const audit = await instance('moderation_actions')
-      .where('targetActorId', TARGET_ACTOR_ID)
+      .where('targetActorId', target.actorId)
       .first()
     expect(audit.action).toBe('suspend')
     expect(audit.moderatorAccountId).toBe(adminAccountId)
@@ -188,13 +188,16 @@ describe('admin accounts API', () => {
   })
 
   it('unsuspends a suspended account and 422s unsuspending an active one', async () => {
-    const id = urlToId(TARGET_ACTOR_ID)
-    // Target is suspended from the previous test.
+    const target = await makeLocalAccount()
+    await database.setActorSuspended({
+      actorId: target.actorId,
+      suspended: true
+    })
     const unsuspend = await unsuspendRoute.POST(
-      adminRequest(`/api/v1/admin/accounts/${id}/unsuspend`, {
+      adminRequest(`/api/v1/admin/accounts/${target.id}/unsuspend`, {
         method: 'POST'
       }),
-      { params: Promise.resolve({ id }) }
+      { params: Promise.resolve({ id: target.id }) }
     )
     expect(unsuspend.status).toBe(200)
     const entity = await unsuspend.json()
@@ -202,10 +205,10 @@ describe('admin accounts API', () => {
 
     // Now it is active — a second unsuspend 422s.
     const again = await unsuspendRoute.POST(
-      adminRequest(`/api/v1/admin/accounts/${id}/unsuspend`, {
+      adminRequest(`/api/v1/admin/accounts/${target.id}/unsuspend`, {
         method: 'POST'
       }),
-      { params: Promise.resolve({ id }) }
+      { params: Promise.resolve({ id: target.id }) }
     )
     expect(again.status).toBe(422)
   })
@@ -380,22 +383,22 @@ describe('admin accounts API', () => {
   })
 
   it('requires suspension before DELETE and then schedules the purge job', async () => {
-    const id = urlToId(TARGET_ACTOR_ID)
+    const target = await makeLocalAccount()
 
     const tooEarly = await idRoute.DELETE(
-      adminRequest(`/api/v1/admin/accounts/${id}`, { method: 'DELETE' }),
-      { params: Promise.resolve({ id }) }
+      adminRequest(`/api/v1/admin/accounts/${target.id}`, { method: 'DELETE' }),
+      { params: Promise.resolve({ id: target.id }) }
     )
     expect(tooEarly.status).toBe(422)
     expect(mockPublish).not.toHaveBeenCalled()
 
     await database.setActorSuspended({
-      actorId: TARGET_ACTOR_ID,
+      actorId: target.actorId,
       suspended: true
     })
     const deleted = await idRoute.DELETE(
-      adminRequest(`/api/v1/admin/accounts/${id}`, { method: 'DELETE' }),
-      { params: Promise.resolve({ id }) }
+      adminRequest(`/api/v1/admin/accounts/${target.id}`, { method: 'DELETE' }),
+      { params: Promise.resolve({ id: target.id }) }
     )
     expect(deleted.status).toBe(200)
     expect(mockPublish).toHaveBeenCalledWith(

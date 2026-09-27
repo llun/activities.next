@@ -1,15 +1,17 @@
 import { undoFollowRequest } from '@/lib/actions/undoFollowRequest'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
+import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
+import { ACTOR5_ID } from '@/lib/stub/seed/actor5'
 import { MockUndoFollowRequest } from '@/lib/stub/undoRequest'
 import { FollowStatus } from '@/lib/types/domain/follow'
 
 vi.mock('@/lib/activities')
 
 describe('undoFollowRequest', () => {
-  const database = getTestSQLDatabase()
+  const { database, instance } = getTestSQLDatabaseWithInstance()
 
   beforeAll(async () => {
     await database.migrate()
@@ -17,7 +19,29 @@ describe('undoFollowRequest', () => {
   })
 
   afterAll(async () => {
+    if (!database) return
     await database.destroy()
+  })
+
+  beforeEach(async () => {
+    const existing = await database.getAcceptedOrRequestedFollow({
+      actorId: ACTOR3_ID,
+      targetActorId: ACTOR2_ID
+    })
+    if (!existing) {
+      const follow = await instance('follows')
+        .where({
+          actorId: ACTOR3_ID,
+          targetActorId: ACTOR2_ID
+        })
+        .first()
+      if (follow) {
+        await database.updateFollowStatus({
+          followId: follow.id,
+          status: FollowStatus.enum.Accepted
+        })
+      }
+    }
   })
 
   it('updates follow status to undo and return true', async () => {
@@ -60,16 +84,16 @@ describe('undoFollowRequest', () => {
 
   it('handles idempotent retries when follow was already undone', async () => {
     const follow = await database.createFollow({
-      actorId: ACTOR3_ID,
-      targetActorId: ACTOR2_ID,
+      actorId: ACTOR4_ID,
+      targetActorId: ACTOR5_ID,
       status: FollowStatus.enum.Accepted,
-      inbox: 'https://llun.test/users/test3/inbox',
+      inbox: 'https://llun.test/users/test4/inbox',
       sharedInbox: 'https://llun.test/inbox'
     })
 
     const request = MockUndoFollowRequest({
-      actorId: ACTOR3_ID,
-      targetActorId: ACTOR2_ID,
+      actorId: ACTOR4_ID,
+      targetActorId: ACTOR5_ID,
       followId: `https://llun.test/${follow.id}`
     })
 
@@ -81,16 +105,16 @@ describe('undoFollowRequest', () => {
 
   it('handles trailing slashes in actor or targetActor URIs', async () => {
     await database.createFollow({
-      actorId: ACTOR3_ID,
-      targetActorId: ACTOR2_ID,
+      actorId: ACTOR5_ID,
+      targetActorId: ACTOR4_ID,
       status: FollowStatus.enum.Accepted,
-      inbox: 'https://llun.test/users/test3/inbox',
+      inbox: 'https://llun.test/users/test5/inbox',
       sharedInbox: 'https://llun.test/inbox'
     })
 
     const request = MockUndoFollowRequest({
-      actorId: `${ACTOR3_ID}/`,
-      targetActorId: `${ACTOR2_ID}/`
+      actorId: `${ACTOR5_ID}/`,
+      targetActorId: `${ACTOR4_ID}/`
     })
 
     expect(await undoFollowRequest({ database, request })).toBeTrue()

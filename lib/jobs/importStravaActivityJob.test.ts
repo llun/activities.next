@@ -185,7 +185,7 @@ describe('importStravaActivityJob', () => {
       createdAt: Date.now(),
       updatedAt: Date.now()
     })
-    database.getFitnessFilesByBatchId.mockResolvedValue([])
+    database.getFitnessFilesByBatchId.mockReset().mockResolvedValue([])
     database.getFitnessFilesByActor.mockResolvedValue([
       {
         id: 'overlap-file',
@@ -195,6 +195,7 @@ describe('importStravaActivityJob', () => {
         totalDurationSeconds: 1_200
       }
     ] as never)
+    database.getFitnessFile.mockReset()
     database.getFitnessFile
       .mockResolvedValueOnce({
         id: 'new-file',
@@ -206,6 +207,7 @@ describe('importStravaActivityJob', () => {
         actorId: 'actor-1',
         statusId: 'status-1'
       } as never)
+    database.getStatus.mockReset()
     database.getStatus.mockImplementation(async ({ statusId }) => {
       if (statusId === 'status-1') {
         return {
@@ -250,6 +252,7 @@ describe('importStravaActivityJob', () => {
 
     database.createFitnessGear.mockResolvedValue({ id: 'gear-new' } as never)
     database.assignFitnessFileGearIfUnset.mockResolvedValue(true)
+    database.findFitnessGearByDeviceKey.mockReset().mockResolvedValue(null)
 
     mockGetValidStravaAccessToken.mockResolvedValue('access-token')
     mockBuildTcxFromStravaStreams.mockReturnValue(null)
@@ -289,7 +292,7 @@ describe('importStravaActivityJob', () => {
     })
     mockImportFitnessFiles.mockResolvedValue([])
     mockGetStravaActivityPhotos.mockResolvedValue([])
-    mockGetQueue.mockReturnValue({
+    mockGetQueue.mockReset().mockReturnValue({
       publish: vi.fn().mockResolvedValue(undefined)
     } as never)
   })
@@ -1180,9 +1183,6 @@ describe('importStravaActivityJob', () => {
     // Publishing a regenerate-map job here too would race that job and, for a
     // file merged in as non-primary, attach a second map — the duplicate-image
     // bug. The fallback must stay quiet on fresh imports.
-    const publishMock = vi.fn().mockResolvedValue(undefined)
-    mockGetQueue.mockReturnValue({ publish: publishMock } as never)
-
     await importStravaActivityJob(database as unknown as Database, {
       id: 'job-fresh-no-regen',
       name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
@@ -1192,7 +1192,7 @@ describe('importStravaActivityJob', () => {
       }
     })
 
-    expect(publishMock).not.toHaveBeenCalledWith(
+    expect(mockGetQueue().publish).not.toHaveBeenCalledWith(
       expect.objectContaining({ name: REGENERATE_FITNESS_MAPS_JOB_NAME })
     )
   })
@@ -1221,9 +1221,6 @@ describe('importStravaActivityJob', () => {
       text: 'Already imported'
     } as never)
 
-    const publishMock = vi.fn().mockResolvedValue(undefined)
-    mockGetQueue.mockReturnValue({ publish: publishMock } as never)
-
     await importStravaActivityJob(database as unknown as Database, {
       id: 'job-reimport-non-primary',
       name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
@@ -1233,7 +1230,7 @@ describe('importStravaActivityJob', () => {
       }
     })
 
-    expect(publishMock).not.toHaveBeenCalledWith(
+    expect(mockGetQueue().publish).not.toHaveBeenCalledWith(
       expect.objectContaining({ name: REGENERATE_FITNESS_MAPS_JOB_NAME })
     )
   })
@@ -2104,9 +2101,6 @@ describe('importStravaActivityJob', () => {
       text: 'Already imported'
     } as never)
 
-    const publishMock = vi.fn().mockResolvedValue(undefined)
-    mockGetQueue.mockReturnValueOnce({ publish: publishMock } as never)
-
     await importStravaActivityJob(database as unknown as Database, {
       id: 'job-skip-regen-map',
       name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
@@ -2116,7 +2110,7 @@ describe('importStravaActivityJob', () => {
       }
     })
 
-    expect(publishMock).not.toHaveBeenCalledWith(
+    expect(mockGetQueue().publish).not.toHaveBeenCalledWith(
       expect.objectContaining({ name: REGENERATE_FITNESS_MAPS_JOB_NAME })
     )
   })

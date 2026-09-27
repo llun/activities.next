@@ -24,8 +24,16 @@ describe('verifyDockerImages parseArgs', () => {
       expect(opts.minimalImage).toBe('custom:min')
       expect(opts.fullImage).toBe('custom:full')
     } finally {
-      process.env.MINIMAL_IMAGE = originalMin
-      process.env.FULL_IMAGE = originalFull
+      if (originalMin === undefined) {
+        delete process.env.MINIMAL_IMAGE
+      } else {
+        process.env.MINIMAL_IMAGE = originalMin
+      }
+      if (originalFull === undefined) {
+        delete process.env.FULL_IMAGE
+      } else {
+        process.env.FULL_IMAGE = originalFull
+      }
     }
   })
 

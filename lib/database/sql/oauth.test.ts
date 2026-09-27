@@ -182,6 +182,24 @@ describe('OAuthDatabase', () => {
         }
       ])
 
+      // A different account's grant for the same client must never leak.
+      await knexDatabase('oauthConsent').insert({
+        id: crypto.randomUUID(),
+        clientId: 'ice-cubes',
+        userId: OTHER_ACCOUNT,
+        referenceId: 'other-actor',
+        scopes: JSON.stringify(['read']),
+        createdAt: now,
+        updatedAt: now
+      })
+    })
+
+    beforeEach(async () => {
+      await knexDatabase('oauthAccessToken').where('userId', ACCOUNT).delete()
+      await knexDatabase('oauthRefreshToken').where('userId', ACCOUNT).delete()
+      await knexDatabase('oauthConsent').where('userId', ACCOUNT).delete()
+
+      const now = new Date()
       // Consents for the account under test. The API client was authorized
       // first (scopes stored as a JSON array); the SSO grant later (scopes
       // stored space-separated, the OAuth wire form) so it sorts newest-first.
@@ -203,16 +221,6 @@ describe('OAuthDatabase', () => {
           scopes: 'openid read:accounts',
           createdAt: new Date('2026-06-10T00:00:00.000Z'),
           updatedAt: new Date('2026-06-10T00:00:00.000Z')
-        },
-        // A different account's grant for the same client must never leak.
-        {
-          id: crypto.randomUUID(),
-          clientId: 'ice-cubes',
-          userId: OTHER_ACCOUNT,
-          referenceId: 'other-actor',
-          scopes: JSON.stringify(['read']),
-          createdAt: now,
-          updatedAt: now
         }
       ])
 

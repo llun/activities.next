@@ -101,22 +101,32 @@ describe('StatusReactionDatabase', () => {
           { length: MAX_REACTIONS_PER_ACTOR + 3 },
           (_unused, index) => `cap-${index}`
         )
-        for (const name of names) {
-          await database.createStatusReaction({
-            statusId,
-            actorId: extraActorId,
-            name
-          })
-        }
+        try {
+          for (const name of names) {
+            await database.createStatusReaction({
+              statusId,
+              actorId: extraActorId,
+              name
+            })
+          }
 
-        const rollups = await database.getStatusReactionRollups({
-          statusIds: [statusId]
-        })
-        expect(rollups).toHaveLength(MAX_REACTIONS_PER_ACTOR)
-        // The cap drops the overflow rather than evicting earlier reactions.
-        expect(rollups.map((rollup) => rollup.name).sort()).toEqual(
-          names.slice(0, MAX_REACTIONS_PER_ACTOR).sort()
-        )
+          const rollups = await database.getStatusReactionRollups({
+            statusIds: [statusId]
+          })
+          expect(rollups).toHaveLength(MAX_REACTIONS_PER_ACTOR)
+          // The cap drops the overflow rather than evicting earlier reactions.
+          expect(rollups.map((rollup) => rollup.name).sort()).toEqual(
+            names.slice(0, MAX_REACTIONS_PER_ACTOR).sort()
+          )
+        } finally {
+          for (const name of names) {
+            await database.deleteStatusReaction({
+              statusId,
+              actorId: extraActorId,
+              name
+            })
+          }
+        }
       })
 
       it.each([
@@ -160,27 +170,74 @@ describe('StatusReactionDatabase', () => {
         ).toBeFalse()
 
         const statusId = statuses.primary.postWithAttachments
-        expect(
-          await database.createStatusReaction({
-            statusId,
-            actorId: extraActorId,
-            name: 'over-the-cap'
-          })
-        ).toBeFalse()
+        const capNames = Array.from(
+          { length: MAX_REACTIONS_PER_ACTOR },
+          (_unused, i) => `precap-${i}`
+        )
+        try {
+          for (const name of capNames) {
+            await database.createStatusReaction({
+              statusId,
+              actorId: extraActorId,
+              name
+            })
+          }
+          expect(
+            await database.createStatusReaction({
+              statusId,
+              actorId: extraActorId,
+              name: 'over-the-cap'
+            })
+          ).toBeFalse()
+        } finally {
+          for (const name of capNames) {
+            await database.deleteStatusReaction({
+              statusId,
+              actorId: extraActorId,
+              name
+            })
+          }
+        }
       })
 
       it('counts the cap per actor, not per status', async () => {
         const statusId = statuses.primary.postWithAttachments
-        await database.createStatusReaction({
-          statusId,
-          actorId: replyAuthorId,
-          name: '🙌'
-        })
+        const capNames = Array.from(
+          { length: MAX_REACTIONS_PER_ACTOR },
+          (_unused, i) => `cap-per-actor-${i}`
+        )
+        try {
+          for (const name of capNames) {
+            await database.createStatusReaction({
+              statusId,
+              actorId: extraActorId,
+              name
+            })
+          }
+          await database.createStatusReaction({
+            statusId,
+            actorId: replyAuthorId,
+            name: '🙌'
+          })
 
-        const rollups = await database.getStatusReactionRollups({
-          statusIds: [statusId]
-        })
-        expect(rollups.map((rollup) => rollup.name)).toContain('🙌')
+          const rollups = await database.getStatusReactionRollups({
+            statusIds: [statusId]
+          })
+          expect(rollups.map((rollup) => rollup.name)).toContain('🙌')
+        } finally {
+          for (const name of capNames) {
+            await database.deleteStatusReaction({
+              statusId,
+              actorId: extraActorId,
+              name
+            })
+          }
+          await database.deleteStatusReaction({
+            statusId,
+            actorId: replyAuthorId,
+            name: '🙌'
+          })
+        }
       })
     })
 

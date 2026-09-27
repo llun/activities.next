@@ -1,6 +1,5 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
-import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 
 describe('MarkerSQLDatabaseMixin', () => {
@@ -17,7 +16,7 @@ describe('MarkerSQLDatabaseMixin', () => {
 
   it('returns no markers when none are set', async () => {
     const markers = await database.getMarkers({
-      actorId: ACTOR1_ID,
+      actorId: 'https://llun.test/users/marker-empty',
       timelines: ['home', 'notifications']
     })
     expect(markers).toEqual([])
@@ -25,7 +24,7 @@ describe('MarkerSQLDatabaseMixin', () => {
 
   it('upserts a marker and starts at version 1', async () => {
     const marker = await database.upsertMarker({
-      actorId: ACTOR1_ID,
+      actorId: 'https://llun.test/users/marker-v1',
       timeline: 'home',
       lastReadId: '100'
     })
@@ -39,13 +38,14 @@ describe('MarkerSQLDatabaseMixin', () => {
   })
 
   it('increments version on subsequent upserts', async () => {
+    const INC_ACTOR_ID = 'https://llun.test/users/marker-inc'
     await database.upsertMarker({
-      actorId: ACTOR1_ID,
+      actorId: INC_ACTOR_ID,
       timeline: 'notifications',
       lastReadId: '5'
     })
     const updated = await database.upsertMarker({
-      actorId: ACTOR1_ID,
+      actorId: INC_ACTOR_ID,
       timeline: 'notifications',
       lastReadId: '9'
     })

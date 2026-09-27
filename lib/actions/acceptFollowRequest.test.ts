@@ -41,11 +41,33 @@ describe('Accept follow action', () => {
     await database.destroy()
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
     vi.clearAllMocks()
     vi.mocked(getQueue().publish).mockReset().mockResolvedValue(undefined)
+
+    const targetActorId = 'https://somewhere.test/actors/request-following'
+    const follow1 = await database.getAcceptedOrRequestedFollow({
+      actorId: ACTOR1_ID,
+      targetActorId
+    })
+    if (follow1 && follow1.status !== FollowStatus.enum.Requested) {
+      await database.updateFollowStatus({
+        followId: follow1.id,
+        status: FollowStatus.enum.Requested
+      })
+    }
+    const follow5 = await database.getAcceptedOrRequestedFollow({
+      actorId: ACTOR5_ID,
+      targetActorId: ACTOR1_ID
+    })
+    if (follow5 && follow5.status !== FollowStatus.enum.Requested) {
+      await database.updateFollowStatus({
+        followId: follow5.id,
+        status: FollowStatus.enum.Requested
+      })
+    }
   })
 
   describe('acceptFollowRequest', () => {

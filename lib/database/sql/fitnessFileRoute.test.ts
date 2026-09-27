@@ -385,24 +385,28 @@ describe('FitnessFileRouteDatabase', () => {
           actorId,
           pathSuffix: 'intersect-straddle'
         })
-        // Starts inside Singapore and runs north past the region's edge, so
-        // its box overlaps without being contained.
-        await database.upsertFitnessFileRoute({
-          fitnessFileId: straddling,
-          actorId,
-          points: [
-            [1.45, 103.9],
-            [2.5, 104.5]
-          ],
-          sourceVersion: 1
-        })
-
-        expect(
-          await database.countFitnessFileRoutesIntersecting({
+        try {
+          // Starts inside Singapore and runs north past the region's edge, so
+          // its box overlaps without being contained.
+          await database.upsertFitnessFileRoute({
+            fitnessFileId: straddling,
             actorId,
-            bounds: singapore
+            points: [
+              [1.45, 103.9],
+              [2.5, 104.5]
+            ],
+            sourceVersion: 1
           })
-        ).toBe(2)
+
+          expect(
+            await database.countFitnessFileRoutesIntersecting({
+              actorId,
+              bounds: singapore
+            })
+          ).toBe(2)
+        } finally {
+          await database.deleteFitnessFileRoute({ fitnessFileId: straddling })
+        }
       })
 
       it.each([

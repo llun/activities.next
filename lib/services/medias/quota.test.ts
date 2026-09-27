@@ -155,27 +155,40 @@ describe('Quota Service', () => {
           database.getFitnessStorageUsageForAccount({ accountId })
         ])
 
-        await database.createMedia({
-          actorId: actor.id,
-          original: {
-            path: '/test/shared-quota-image.jpg',
-            bytes: 700,
-            mimeType: 'image/jpeg',
-            metaData: { width: 400, height: 300 }
+        let mediaId: string | undefined
+        let fileId: string | undefined
+        try {
+          const media = await database.createMedia({
+            actorId: actor.id,
+            original: {
+              path: '/test/shared-quota-image.jpg',
+              bytes: 700,
+              mimeType: 'image/jpeg',
+              metaData: { width: 400, height: 300 }
+            }
+          })
+          mediaId = media?.id
+          const file = await database.createFitnessFile({
+            actorId: actor.id,
+            path: 'fitness/shared-quota.fit',
+            fileName: 'shared-quota.fit',
+            fileType: 'fit',
+            mimeType: 'application/vnd.ant.fit',
+            bytes: 300
+          })
+          fileId = file?.id
+
+          const result = await checkQuotaAvailable(database, actor, 0)
+
+          expect(result.used).toBe(beforeMedia + beforeFitness + 1000)
+        } finally {
+          if (mediaId) {
+            await database.deleteMedia({ mediaId })
           }
-        })
-        await database.createFitnessFile({
-          actorId: actor.id,
-          path: 'fitness/shared-quota.fit',
-          fileName: 'shared-quota.fit',
-          fileType: 'fit',
-          mimeType: 'application/vnd.ant.fit',
-          bytes: 300
-        })
-
-        const result = await checkQuotaAvailable(database, actor, 0)
-
-        expect(result.used).toBe(beforeMedia + beforeFitness + 1000)
+          if (fileId) {
+            await database.deleteFitnessFile({ id: fileId })
+          }
+        }
       })
     })
   })

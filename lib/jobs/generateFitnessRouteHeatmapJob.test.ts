@@ -98,7 +98,7 @@ describe('generateFitnessRouteHeatmapJob', () => {
     await database.destroy()
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
     mockPublish.mockResolvedValue(undefined)
     mockIsParseableFitnessFileType.mockReturnValue(true)
@@ -122,6 +122,11 @@ describe('generateFitnessRouteHeatmapJob', () => {
       activityType: 'running',
       startTime: new Date('2026-04-15T07:00:00.000Z')
     })
+    if (actor?.id) {
+      await instance('fitness_route_heatmaps')
+        .where('actorId', actor.id)
+        .delete()
+    }
   })
 
   const createCompletedFitnessFile = async (

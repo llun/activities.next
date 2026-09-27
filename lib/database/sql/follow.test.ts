@@ -599,122 +599,131 @@ describe('FollowDatabase', () => {
 
     describe('createFollow', () => {
       it('creates follow with requested status does not increase following and follower count', async () => {
+        const actorId = await createLocalActor()
+        const targetActorId = await createLocalActor()
         await database.createFollow({
-          actorId: replyAuthorId,
-          targetActorId: primaryActorId,
-          inbox: `${replyAuthorId}/inbox`,
+          actorId,
+          targetActorId,
+          inbox: `${actorId}/inbox`,
           sharedInbox: TEST_SHARED_INBOX,
           status: FollowStatus.enum.Requested
         })
         expect(
-          await database.getMastodonActorFromId({ id: primaryActorId })
+          await database.getMastodonActorFromId({ id: targetActorId })
         ).toMatchObject({
-          followers_count: 1
+          followers_count: 0
         })
         expect(
-          await database.getActorFollowersCount({ actorId: primaryActorId })
-        ).toEqual(1)
+          await database.getActorFollowersCount({ actorId: targetActorId })
+        ).toEqual(0)
         expect(
-          await database.getMastodonActorFromId({ id: replyAuthorId })
+          await database.getMastodonActorFromId({ id: actorId })
         ).toMatchObject({
-          following_count: 1
+          following_count: 0
         })
-        expect(
-          await database.getActorFollowingCount({ actorId: replyAuthorId })
-        ).toEqual(1)
+        expect(await database.getActorFollowingCount({ actorId })).toEqual(0)
       })
 
       it('creates follow with accepted status and increase following and follower count', async () => {
+        const actorId = await createLocalActor()
+        const targetActorId = await createLocalActor()
         await database.createFollow({
-          actorId: pollAuthorId,
-          targetActorId: primaryActorId,
-          inbox: `${pollAuthorId}/inbox`,
+          actorId,
+          targetActorId,
+          inbox: `${actorId}/inbox`,
           sharedInbox: TEST_SHARED_INBOX,
           status: FollowStatus.enum.Accepted
         })
         expect(
-          await database.getMastodonActorFromId({ id: primaryActorId })
+          await database.getMastodonActorFromId({ id: targetActorId })
         ).toMatchObject({
-          followers_count: 2
+          followers_count: 1
         })
         expect(
-          await database.getActorFollowersCount({ actorId: primaryActorId })
-        ).toEqual(2)
+          await database.getActorFollowersCount({ actorId: targetActorId })
+        ).toEqual(1)
         expect(
-          await database.getMastodonActorFromId({ id: pollAuthorId })
+          await database.getMastodonActorFromId({ id: actorId })
         ).toMatchObject({
-          following_count: 3
+          following_count: 1
         })
-        expect(
-          await database.getActorFollowingCount({ actorId: pollAuthorId })
-        ).toEqual(3)
+        expect(await database.getActorFollowingCount({ actorId })).toEqual(1)
       })
     })
 
     describe('updateFollow', () => {
       it('reduce following and follower when actor undo', async () => {
-        const beforeUndoActorFollowingCount =
-          await database.getActorFollowingCount({ actorId: pollAuthorId })
-        const beforeUndoTargetActorFollowersCount =
-          await database.getActorFollowersCount({ actorId: replyAuthorId })
-
-        const acceptedFollow = await database.getAcceptedOrRequestedFollow({
-          actorId: pollAuthorId,
-          targetActorId: replyAuthorId
+        const actorId = await createLocalActor()
+        const targetActorId = await createLocalActor()
+        const follow = await database.createFollow({
+          actorId,
+          targetActorId,
+          inbox: `${actorId}/inbox`,
+          sharedInbox: TEST_SHARED_INBOX,
+          status: FollowStatus.enum.Accepted
         })
+
+        expect(await database.getActorFollowingCount({ actorId })).toEqual(1)
+        expect(
+          await database.getActorFollowersCount({ actorId: targetActorId })
+        ).toEqual(1)
+
         await database.updateFollowStatus({
-          followId: (acceptedFollow as Follow).id,
+          followId: follow.id,
           status: FollowStatus.enum.Undo
         })
         expect(
-          await database.getMastodonActorFromId({ id: replyAuthorId })
+          await database.getMastodonActorFromId({ id: targetActorId })
         ).toMatchObject({
-          followers_count: beforeUndoTargetActorFollowersCount - 1
+          followers_count: 0
         })
         expect(
-          await database.getActorFollowersCount({ actorId: replyAuthorId })
-        ).toEqual(beforeUndoTargetActorFollowersCount - 1)
+          await database.getActorFollowersCount({ actorId: targetActorId })
+        ).toEqual(0)
 
         expect(
-          await database.getMastodonActorFromId({ id: pollAuthorId })
+          await database.getMastodonActorFromId({ id: actorId })
         ).toMatchObject({
-          following_count: beforeUndoActorFollowingCount - 1
+          following_count: 0
         })
-        expect(
-          await database.getActorFollowingCount({ actorId: pollAuthorId })
-        ).toEqual(beforeUndoActorFollowingCount - 1)
+        expect(await database.getActorFollowingCount({ actorId })).toEqual(0)
       })
 
       it('increase following and follower when actor accepted', async () => {
-        const beforeUndoActorFollowingCount =
-          await database.getActorFollowingCount({ actorId: followRequesterId })
-        const beforeUndoTargetActorFollowersCount =
-          await database.getActorFollowersCount({ actorId: primaryActorId })
-        const acceptedFollow = await database.getAcceptedOrRequestedFollow({
-          actorId: followRequesterId,
-          targetActorId: primaryActorId
+        const actorId = await createLocalActor()
+        const targetActorId = await createLocalActor()
+        const follow = await database.createFollow({
+          actorId,
+          targetActorId,
+          inbox: `${actorId}/inbox`,
+          sharedInbox: TEST_SHARED_INBOX,
+          status: FollowStatus.enum.Requested
         })
+
+        expect(await database.getActorFollowingCount({ actorId })).toEqual(0)
+        expect(
+          await database.getActorFollowersCount({ actorId: targetActorId })
+        ).toEqual(0)
+
         await database.updateFollowStatus({
-          followId: (acceptedFollow as Follow).id,
+          followId: follow.id,
           status: FollowStatus.enum.Accepted
         })
         expect(
-          await database.getMastodonActorFromId({ id: primaryActorId })
+          await database.getMastodonActorFromId({ id: targetActorId })
         ).toMatchObject({
-          followers_count: beforeUndoTargetActorFollowersCount + 1
+          followers_count: 1
         })
         expect(
-          await database.getActorFollowersCount({ actorId: primaryActorId })
-        ).toEqual(beforeUndoTargetActorFollowersCount + 1)
+          await database.getActorFollowersCount({ actorId: targetActorId })
+        ).toEqual(1)
 
         expect(
-          await database.getMastodonActorFromId({ id: followRequesterId })
+          await database.getMastodonActorFromId({ id: actorId })
         ).toMatchObject({
-          following_count: beforeUndoActorFollowingCount + 1
+          following_count: 1
         })
-        expect(
-          await database.getActorFollowingCount({ actorId: followRequesterId })
-        ).toEqual(beforeUndoActorFollowingCount + 1)
+        expect(await database.getActorFollowingCount({ actorId })).toEqual(1)
       })
     })
 

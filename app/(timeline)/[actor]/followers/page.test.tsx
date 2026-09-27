@@ -85,6 +85,9 @@ describe('[actor] followers page', () => {
     mockGetActorFromSession.mockResolvedValue(null)
     mockIsLocalFederationDomain.mockResolvedValue(false)
     mockGetProfileData.mockResolvedValue(null)
+    mockDatabase.getFollowers.mockReset().mockResolvedValue([])
+    mockDatabase.getActorsFromIds.mockReset().mockResolvedValue([])
+    mockDatabase.getActorFromId.mockReset().mockResolvedValue(null)
   })
 
   it('renders ActorRedirectCard for non-local actor when logged out', async () => {

@@ -15,6 +15,19 @@ import { logger } from '@/lib/utils/logger'
 
 enableFetchMocks()
 
+vi.mock('@/lib/services/serverSettings', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/services/serverSettings')>()
+  const { DEFAULT_SERVER_SETTINGS } =
+    await import('@/lib/config/serverSettings')
+  return {
+    ...actual,
+    getResolvedServerSettings: vi
+      .fn()
+      .mockResolvedValue(DEFAULT_SERVER_SETTINGS)
+  }
+})
+
 describe('Send update note job', () => {
   const database = getTestSQLDatabase()
   let actor1: Actor | null | undefined

@@ -1,7 +1,7 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
 import { DELIVER_ACTIVITY_JOB_NAME, SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import {
   MAX_CONCURRENT_DELIVERY_PUBLICATIONS,
@@ -67,7 +67,7 @@ vi.mock('@/lib/services/queue', () => ({
 }))
 
 describe('sendNoteJob', () => {
-  const database = getTestSQLDatabase()
+  const { database, instance } = getTestSQLDatabaseWithInstance()
   let actor1: Actor | null | undefined
 
   beforeAll(async () => {
@@ -85,9 +85,18 @@ describe('sendNoteJob', () => {
     await database.destroy()
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
+    await instance('domain_federation_rules')
+      .where({ domain: 'somewhere.test' })
+      .delete()
+    if (actor1?.id) {
+      await instance('follows')
+        .where('targetActorId', actor1.id)
+        .whereNot('actorId', 'https://somewhere.test/actors/friend')
+        .delete()
+    }
     hoisted.publishSpy.mockClear()
     hoisted.failInbox = null
     hoisted.failInboxes = []
@@ -207,36 +216,46 @@ describe('sendNoteJob', () => {
   it('does not send notes to suspended domains', async () => {
     if (!actor1) fail('Actor1 is required')
 
-    await database.createDomainBlock({
+    const block = await database.createDomainBlock({
       domain: 'somewhere.test',
       severity: 'suspend'
     })
 
-    const statusId = `${actor1.id}/statuses/blocked-note-${Date.now()}`
-    await database.createNote({
-      id: statusId,
-      url: statusId,
-      actorId: actor1.id,
-      to: ['https://www.w3.org/ns/activitystreams#Public'],
-      cc: [`${actor1.id}/followers`],
-      text: 'Blocked domain should not receive this',
-      createdAt: Date.now()
-    })
-
-    await sendNoteJob(database, {
-      id: 'job-blocked',
-      name: SEND_NOTE_JOB_NAME,
-      data: {
+    try {
+      const statusId = `${actor1.id}/statuses/blocked-note-${Date.now()}`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
         actorId: actor1.id,
-        statusId
-      }
-    })
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: [`${actor1.id}/followers`],
+        text: 'Blocked domain should not receive this',
+        createdAt: Date.now()
+      })
 
-    expect(
-      fetchMock.mock.calls.some(
-        (call) => call[0] === 'https://somewhere.test/inbox'
-      )
-    ).toBe(false)
+      await sendNoteJob(database, {
+        id: 'job-blocked',
+        name: SEND_NOTE_JOB_NAME,
+        data: {
+          actorId: actor1.id,
+          statusId
+        }
+      })
+
+      expect(
+        fetchMock.mock.calls.some(
+          (call) => call[0] === 'https://somewhere.test/inbox'
+        )
+      ).toBe(false)
+    } finally {
+      if (block?.id) {
+        await database.deleteDomainBlock(block.id)
+      } else {
+        await instance('domain_federation_rules')
+          .where({ domain: 'somewhere.test' })
+          .delete()
+      }
+    }
   })
 
   it('handles note with mentions', async () => {
@@ -341,22 +360,25 @@ describe('sendNoteJob', () => {
       }
     })
 
-    const expectedId = getDeliveryJobId(parentId, 'https://friend2.test/inbox')
+    const expectedId = getDeliveryJobId(
+      parentId,
+      'https://somewhere.test/inbox'
+    )
     expect(hoisted.publishSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         id: expectedId,
         name: DELIVER_ACTIVITY_JOB_NAME,
         data: expect.objectContaining({
-          inbox: 'https://friend2.test/inbox',
+          inbox: 'https://somewhere.test/inbox',
           actorId: actor1.id
         })
       })
     )
 
     // Structured tuple hashing must avoid delimiter collision across fields
-    expect(getDeliveryJobId('parent:1', 'https://friend2.test/inbox')).not.toBe(
-      getDeliveryJobId('parent', '1:https://friend2.test/inbox')
-    )
+    expect(
+      getDeliveryJobId('parent:1', 'https://somewhere.test/inbox')
+    ).not.toBe(getDeliveryJobId('parent', '1:https://somewhere.test/inbox'))
   })
 
   it('produces stable child delivery IDs on parent retry and distinct IDs across parent generations', async () => {

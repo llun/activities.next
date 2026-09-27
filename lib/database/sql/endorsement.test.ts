@@ -43,12 +43,16 @@ describe('EndorsementSQLDatabaseMixin', () => {
   it('returns null for a non-existent endorsement', async () => {
     const fetched = await database.getEndorsement({
       actorId: ACTOR1_ID,
-      targetActorId: ACTOR3_ID
+      targetActorId: 'https://llun.test/users/unendorsed-target'
     })
     expect(fetched).toBeNull()
   })
 
   it('lists endorsements newest-first and paginates by id cursor', async () => {
+    await database.createEndorsement({
+      actorId: ACTOR1_ID,
+      targetActorId: ACTOR2_ID
+    })
     await database.createEndorsement({
       actorId: ACTOR1_ID,
       targetActorId: ACTOR3_ID
@@ -147,17 +151,19 @@ describe('EndorsementSQLDatabaseMixin', () => {
   })
 
   it('deletes an endorsement', async () => {
+    const DELETE_ACTOR = 'https://llun.test/users/del-actor'
+    const DELETE_TARGET = 'https://llun.test/users/del-target'
     await database.createEndorsement({
-      actorId: ACTOR2_ID,
-      targetActorId: ACTOR1_ID
+      actorId: DELETE_ACTOR,
+      targetActorId: DELETE_TARGET
     })
     await database.deleteEndorsement({
-      actorId: ACTOR2_ID,
-      targetActorId: ACTOR1_ID
+      actorId: DELETE_ACTOR,
+      targetActorId: DELETE_TARGET
     })
     const fetched = await database.getEndorsement({
-      actorId: ACTOR2_ID,
-      targetActorId: ACTOR1_ID
+      actorId: DELETE_ACTOR,
+      targetActorId: DELETE_TARGET
     })
     expect(fetched).toBeNull()
   })

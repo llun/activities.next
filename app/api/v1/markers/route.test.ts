@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'
@@ -12,7 +12,8 @@ vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+let mockDatabase:
+  ReturnType<typeof getTestSQLDatabaseWithInstance>['database'] | null = null
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
@@ -37,7 +38,7 @@ vi.mock('@/lib/config', () => ({
 }))
 
 describe('/api/v1/markers', () => {
-  const database = getTestSQLDatabase()
+  const { database, instance } = getTestSQLDatabaseWithInstance()
 
   beforeAll(async () => {
     await database.migrate()
@@ -50,11 +51,12 @@ describe('/api/v1/markers', () => {
     await database.destroy()
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
+    await instance('markers').delete()
   })
 
   it('GET returns an empty object when nothing is set', async () => {

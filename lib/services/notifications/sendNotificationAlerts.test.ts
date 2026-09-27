@@ -78,6 +78,8 @@ describe('sendNotificationAlerts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     getConfig.mockReturnValue(emailConfig)
+    mockShouldSendPush.mockReset().mockResolvedValue(true)
+    mockShouldSendEmail.mockReset().mockResolvedValue(true)
   })
 
   it('does nothing when events array is empty', async () => {

@@ -80,63 +80,77 @@ describe('LikeDatabase', () => {
 
     describe('createLike', () => {
       it('creates a new like for a status', async () => {
-        // Check initial state
-        const beforeLikeCount = await database.getLikeCount({
-          statusId: statuses.primary.post
-        })
-        const beforeIsLiked = await database.isActorLikedStatus({
-          actorId: extraActorId,
-          statusId: statuses.primary.post
-        })
-        expect(beforeLikeCount).toBe(0)
-        expect(beforeIsLiked).toBeFalse()
+        try {
+          // Check initial state
+          const beforeLikeCount = await database.getLikeCount({
+            statusId: statuses.primary.post
+          })
+          const beforeIsLiked = await database.isActorLikedStatus({
+            actorId: extraActorId,
+            statusId: statuses.primary.post
+          })
+          expect(beforeLikeCount).toBe(0)
+          expect(beforeIsLiked).toBeFalse()
 
-        // Create the like
-        await database.createLike({
-          actorId: extraActorId,
-          statusId: statuses.primary.post
-        })
+          // Create the like
+          await database.createLike({
+            actorId: extraActorId,
+            statusId: statuses.primary.post
+          })
 
-        // Verify like was created
-        const afterLikeCount = await database.getLikeCount({
-          statusId: statuses.primary.post
-        })
-        const afterIsLiked = await database.isActorLikedStatus({
-          actorId: extraActorId,
-          statusId: statuses.primary.post
-        })
-        expect(afterLikeCount).toBe(1)
-        expect(afterIsLiked).toBeTrue()
+          // Verify like was created
+          const afterLikeCount = await database.getLikeCount({
+            statusId: statuses.primary.post
+          })
+          const afterIsLiked = await database.isActorLikedStatus({
+            actorId: extraActorId,
+            statusId: statuses.primary.post
+          })
+          expect(afterLikeCount).toBe(1)
+          expect(afterIsLiked).toBeTrue()
 
-        // Verify reflected in status object
-        const status = await database.getStatus({
-          statusId: statuses.primary.post,
-          currentActorId: extraActorId
-        })
-        expect(status).toMatchObject({
-          isActorLiked: true,
-          totalLikes: 1
-        })
+          // Verify reflected in status object
+          const status = await database.getStatus({
+            statusId: statuses.primary.post,
+            currentActorId: extraActorId
+          })
+          expect(status).toMatchObject({
+            isActorLiked: true,
+            totalLikes: 1
+          })
+        } finally {
+          await database.deleteLike({
+            actorId: extraActorId,
+            statusId: statuses.primary.post
+          })
+        }
       })
 
       it('does not create duplicate likes for the same actor and status', async () => {
-        // Create the like
-        await database.createLike({
-          actorId: extraActorId,
-          statusId: statuses.primary.post
-        })
+        try {
+          // Create the like
+          await database.createLike({
+            actorId: extraActorId,
+            statusId: statuses.primary.post
+          })
 
-        // Create the same like again
-        await database.createLike({
-          actorId: extraActorId,
-          statusId: statuses.primary.post
-        })
+          // Create the same like again
+          await database.createLike({
+            actorId: extraActorId,
+            statusId: statuses.primary.post
+          })
 
-        // Verify count is still 1
-        const likeCount = await database.getLikeCount({
-          statusId: statuses.primary.post
-        })
-        expect(likeCount).toBe(1)
+          // Verify count is still 1
+          const likeCount = await database.getLikeCount({
+            statusId: statuses.primary.post
+          })
+          expect(likeCount).toBe(1)
+        } finally {
+          await database.deleteLike({
+            actorId: extraActorId,
+            statusId: statuses.primary.post
+          })
+        }
       })
 
       it('does nothing when status does not exist', async () => {
@@ -234,7 +248,7 @@ describe('LikeDatabase', () => {
       // mutations performed by the create/delete suites above.
       const favouriteActorId = actors.empty.id
       const likedStatuses = [
-        statuses.primary.post,
+        statuses.replyAuthor.announcePrimary,
         statuses.primary.secondPost,
         statuses.primary.postWithAttachments,
         statuses.replyAuthor.replyToPrimary

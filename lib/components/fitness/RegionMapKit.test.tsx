@@ -101,7 +101,7 @@ describe('RegionMapKit', () => {
     const map = double.getMap()
     if (!map) throw new Error('map was never created')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Draw' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Draw' }))
     onChange.mockClear()
 
     // The test double maps page space onto coordinates: x → longitude, y → latitude.
@@ -142,7 +142,7 @@ describe('RegionMapKit', () => {
     const map = double.getMap()
     if (!map) throw new Error('map was never created')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Draw' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Draw' }))
     map.element.dispatchEvent(pointerEvent('pointerdown', 5, 10))
     expect(map.isScrollEnabled).toBe(false)
 
@@ -166,7 +166,7 @@ describe('RegionMapKit', () => {
 
     // The rectangle is drawn from raw pointer events, so the browser must not
     // claim a touch drag for scrolling while drawing.
-    fireEvent.click(screen.getByRole('button', { name: 'Draw' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Draw' }))
     expect(map.element.style.touchAction).toBe('none')
     expect(map.element.style.cursor).toBe('crosshair')
 
@@ -185,7 +185,7 @@ describe('RegionMapKit', () => {
     const map = double.getMap()
     if (!map) throw new Error('map was never created')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Draw' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Draw' }))
     map.element.dispatchEvent(pointerEvent('pointerdown', 5, 10))
     expect(map.isScrollEnabled).toBe(false)
 

@@ -17,6 +17,7 @@ import {
 } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
+import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { logger } from '@/lib/utils/logger'
 import { isPublicId } from '@/lib/utils/publicId'
 
@@ -57,10 +58,14 @@ describe('AccountDatabase', () => {
     })
 
     it('returns false when account is not created yet', async () => {
-      expect(await database.isAccountExists({ email: TEST_EMAIL2 })).toBeFalse()
+      const uncreatedEmail = `not-created-${crypto.randomUUID()}@${TEST_DOMAIN}`
+      const uncreatedUsername = `not-created-${crypto.randomUUID().slice(0, 8)}`
+      expect(
+        await database.isAccountExists({ email: uncreatedEmail })
+      ).toBeFalse()
       expect(
         await database.isUsernameExists({
-          username: TEST_USERNAME2,
+          username: uncreatedUsername,
           domain: TEST_DOMAIN
         })
       ).toBeFalse()
@@ -118,14 +123,16 @@ describe('AccountDatabase', () => {
     })
 
     it('returns actor from getActor methods', async () => {
-      const actor = await database.getActorFromEmail({ email: TEST_EMAIL2 })
+      const actor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
       expect(actor).toMatchObject({
         id: expect.toBeString(),
-        username: TEST_USERNAME2,
-        domain: TEST_DOMAIN,
+        username: seedActor1.username,
+        domain: seedActor1.domain,
         account: {
           id: expect.toBeString(),
-          email: TEST_EMAIL2
+          email: seedActor1.email
         },
         followersUrl: expect.toBeString(),
         publicKey: expect.toBeString(),
