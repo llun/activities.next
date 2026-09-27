@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
@@ -8,19 +7,6 @@ import { FollowStatus } from '@/lib/types/domain/follow'
 
 import { DELETE, GET, POST } from './route'
 
-const hashToken = (token: string) =>
-  crypto
-    .createHash('sha256')
-    .update(token)
-    .digest()
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '')
-
-// Token store consulted by the guard's getKnex() lookup.
-const mockStoredTokens = new Map<string, Record<string, unknown>>()
-
 const mockGetServerSession = vi.fn()
 vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
@@ -28,12 +14,7 @@ vi.mock('@/lib/services/auth/getSession', () => ({
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase,
-  getKnex: () => (_table: string) => ({
-    where: (_field: string, value: string) => ({
-      first: () => Promise.resolve(mockStoredTokens.get(value) ?? null)
-    })
-  })
+  getDatabase: () => mockDatabase
 }))
 
 vi.mock('next/headers', () => ({
@@ -78,7 +59,6 @@ describe('/api/v1/domain_blocks', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
-    mockStoredTokens.clear()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
@@ -93,16 +73,6 @@ describe('/api/v1/domain_blocks', () => {
       })
     }
   })
-
-  const setToken = (token: string, scopes: string[]) => {
-    mockStoredTokens.set(hashToken(token), {
-      token: hashToken(token),
-      referenceId: ACTOR1_ID,
-      clientId: 'client-app-1',
-      expiresAt: new Date(Date.now() + 3600000),
-      scopes: JSON.stringify(scopes)
-    })
-  }
 
   const getRequest = (query = '', headers: Record<string, string> = {}) =>
     new NextRequest(`https://llun.test/api/v1/domain_blocks${query}`, {
@@ -127,41 +97,6 @@ describe('/api/v1/domain_blocks', () => {
   const params = { params: Promise.resolve({}) }
 
   describe('GET /api/v1/domain_blocks', () => {
-    it('requires authentication', async () => {
-      mockGetServerSession.mockResolvedValue(null)
-
-      const response = await GET(getRequest(), params)
-
-      expect(response.status).toBe(401)
-    })
-
-    it.each(['read', 'read:blocks'])(
-      'accepts a token holding the %s scope',
-      async (scope) => {
-        mockGetServerSession.mockResolvedValue(null)
-        setToken('domain-blocks-read', [scope])
-
-        const response = await GET(
-          getRequest('', { Authorization: 'Bearer domain-blocks-read' }),
-          params
-        )
-
-        expect(response.status).toBe(200)
-      }
-    )
-
-    it('rejects a token holding only an unrelated read scope', async () => {
-      mockGetServerSession.mockResolvedValue(null)
-      setToken('statuses-token', ['read:statuses'])
-
-      const response = await GET(
-        getRequest('', { Authorization: 'Bearer statuses-token' }),
-        params
-      )
-
-      expect(response.status).toBe(401)
-    })
-
     it('returns the blocked domains as an array of strings', async () => {
       await database.createActorDomainBlock({
         actorId: ACTOR1_ID,
@@ -267,39 +202,6 @@ describe('/api/v1/domain_blocks', () => {
       )
 
       expect(response.status).toBe(422)
-    })
-
-    it.each(['write', 'write:blocks'])(
-      'accepts a token holding the %s scope',
-      async (scope) => {
-        mockGetServerSession.mockResolvedValue(null)
-        setToken('domain-blocks-write', [scope])
-
-        const response = await POST(
-          formRequest(
-            'POST',
-            new URLSearchParams({ domain: `scope-${scope.length}.test` }),
-            { Authorization: 'Bearer domain-blocks-write' }
-          ),
-          params
-        )
-
-        expect(response.status).toBe(200)
-      }
-    )
-
-    it('rejects a token holding only an unrelated write scope', async () => {
-      mockGetServerSession.mockResolvedValue(null)
-      setToken('write-statuses-token', ['write:statuses'])
-
-      const response = await POST(
-        formRequest('POST', new URLSearchParams({ domain: 'nope.test' }), {
-          Authorization: 'Bearer write-statuses-token'
-        }),
-        params
-      )
-
-      expect(response.status).toBe(401)
     })
 
     it.each([

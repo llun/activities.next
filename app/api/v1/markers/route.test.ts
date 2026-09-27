@@ -57,15 +57,6 @@ describe('/api/v1/markers', () => {
     })
   })
 
-  it('GET requires authentication', async () => {
-    mockGetServerSession.mockResolvedValue(null)
-    const response = await GET(
-      new NextRequest('https://llun.test/api/v1/markers'),
-      { params: Promise.resolve({}) }
-    )
-    expect(response.status).toBe(401)
-  })
-
   it('GET returns an empty object when nothing is set', async () => {
     const response = await GET(
       new NextRequest(
@@ -120,22 +111,6 @@ describe('/api/v1/markers', () => {
     )
     const fetched = await getResponse.json()
     expect(fetched.home.last_read_id).toBe('4321')
-  })
-
-  it('POST requires authentication', async () => {
-    mockGetServerSession.mockResolvedValue(null)
-    const response = await POST(
-      new NextRequest('https://llun.test/api/v1/markers', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          origin: 'https://llun.test'
-        },
-        body: JSON.stringify({ home: { last_read_id: 'A1' } })
-      }),
-      { params: Promise.resolve({}) }
-    )
-    expect(response.status).toBe(401)
   })
 
   it('POST writes both home and notifications in one call', async () => {

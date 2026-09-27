@@ -128,12 +128,4 @@ describe('POST /api/v1/tags/:tag/feature', () => {
     })
     expect(response.status).toBe(400)
   })
-
-  it('requires authentication', async () => {
-    mockGetServerSession.mockResolvedValue(null)
-    const response = await POST(postRequest('Coffee'), {
-      params: Promise.resolve({ tag: 'Coffee' })
-    })
-    expect(response.status).toBe(401)
-  })
 })

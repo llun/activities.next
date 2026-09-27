@@ -72,12 +72,6 @@ describe('/api/v1/announcements', () => {
       headers: { origin: 'https://llun.test' }
     })
 
-  it('GET requires authentication', async () => {
-    mockGetServerSession.mockResolvedValue(null)
-    const response = await GET(getRequest(), { params: Promise.resolve({}) })
-    expect(response.status).toBe(401)
-  })
-
   it('GET returns an active announcement with read false', async () => {
     const created = await database.createAnnouncement({
       text: 'active announcement',

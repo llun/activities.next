@@ -168,10 +168,4 @@ describe('featured_tags collection endpoints', () => {
     })
     expect(response.status).toBe(422)
   })
-
-  it('requires authentication', async () => {
-    mockGetServerSession.mockResolvedValue(null)
-    const response = await GET(getRequest(), { params: Promise.resolve({}) })
-    expect(response.status).toBe(401)
-  })
 })

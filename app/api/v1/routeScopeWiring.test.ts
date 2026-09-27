@@ -225,21 +225,109 @@ const EXPECTED: Array<{ module: string; scopes: string[] }> = [
   {
     module: '@/app/api/v1/follow_requests/[id]/reject/route',
     scopes: ['write', 'write:follows']
-  }
+  },
+  // account lists and relationships (these entries replace per-route 401/scope tests)
+  {
+    module: '@/app/api/v1/accounts/familiar_followers/route',
+    scopes: ['read', 'read:follows']
+  },
+  {
+    module: '@/app/api/v1/accounts/relationships/route',
+    scopes: ['read', 'read:follows']
+  },
+  { module: '@/app/api/v1/blocks/route', scopes: ['read', 'read:blocks'] },
+  { module: '@/app/api/v1/mutes/route', scopes: ['read', 'read:mutes'] },
+  {
+    module: '@/app/api/v1/follow_requests/route',
+    scopes: ['read', 'read:follows']
+  },
+  {
+    module: '@/app/api/v1/domain_blocks/route',
+    scopes: ['read', 'read:blocks', 'write', 'write:blocks']
+  },
+  {
+    module: '@/app/api/v1/endorsements/route',
+    scopes: ['read', 'read:accounts']
+  },
+  {
+    module: '@/app/api/v1/bookmarks/route',
+    scopes: ['read', 'read:bookmarks']
+  },
+  {
+    module: '@/app/api/v1/favourites/route',
+    scopes: ['read', 'read:favourites']
+  },
+  {
+    module: '@/app/api/v1/markers/route',
+    scopes: ['read', 'read:statuses', 'write', 'write:statuses']
+  },
+  // featured tags
+  {
+    module: '@/app/api/v1/featured_tags/route',
+    scopes: ['read', 'read:accounts', 'write', 'write:accounts']
+  },
+  {
+    module: '@/app/api/v1/featured_tags/suggestions/route',
+    scopes: ['read', 'read:accounts']
+  },
+  {
+    module: '@/app/api/v1/tags/[tag]/feature/route',
+    scopes: ['write', 'write:accounts']
+  },
+  {
+    module: '@/app/api/v1/tags/[tag]/unfeature/route',
+    scopes: ['write', 'write:accounts']
+  },
+  // media
+  { module: '@/app/api/v1/media/route', scopes: ['write', 'write:media'] },
+  { module: '@/app/api/v1/media/[id]/route', scopes: ['write', 'write:media'] },
+  { module: '@/app/api/v2/media/route', scopes: ['write', 'write:media'] },
+  // announcements and suggestions lists
+  { module: '@/app/api/v1/announcements/route', scopes: ['read'] },
+  { module: '@/app/api/v1/suggestions/route', scopes: ['read'] },
+  { module: '@/app/api/v2/suggestions/route', scopes: ['read'] }
 ]
 
 const unique = (scopes: string[]) => [...new Set(scopes)].sort()
+
+type ScopedHandler = { __scopes?: string[] }
+const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const
+
+// Methods that reach a guard through their own code rather than being the
+// guard's handler, so the per-method check below cannot see it. Each is covered
+// by its route's own tests instead.
+const GUARDED_INDIRECTLY: Record<string, string[]> = {
+  // OIDC Core 5.3.1: moves a form-body access_token into the Authorization
+  // header, then delegates to the guarded GET handler.
+  '@/app/api/oauth/userinfo/route': ['POST']
+}
 
 describe('OAuth scope guard wiring', () => {
   beforeEach(() => {
     guardCalls.length = 0
   })
 
+  // The scopes a module hands its guards cannot show that every exported
+  // method is behind one: a guarded GET beside an unguarded POST passes that
+  // check. So each exported method must also be a guard's handler. Together
+  // these let a route's own tests skip re-proving "401 without a session" and
+  // scope acceptance, which OAuthGuard.test.ts covers once for every route (see
+  // CONTRIBUTING.md -> Testing Guidelines).
   it.each(EXPECTED)(
-    '$module guards with the expected scopes',
+    '$module guards every method with the expected scopes',
     async ({ module, scopes }) => {
-      await import(module)
+      const mod = (await import(module)) as Record<string, ScopedHandler>
       expect(unique(guardCalls.flat())).toEqual(unique(scopes))
+
+      const exported = HTTP_METHODS.filter((method) => method in mod)
+      expect(exported.length).toBeGreaterThan(0)
+      expect(
+        exported.filter(
+          (method) =>
+            !Array.isArray(mod[method]?.__scopes) &&
+            !GUARDED_INDIRECTLY[module]?.includes(method)
+        )
+      ).toEqual([])
     }
   )
 })
@@ -247,11 +335,32 @@ describe('OAuth scope guard wiring', () => {
 // The union assertion above cannot tell a GET<->mutation scope swap apart on
 // multi-method routes (the flattened set is identical). Assert those routes
 // per exported method.
-type ScopedHandler = { __scopes?: string[] }
 const MULTI_METHOD: Array<{
   module: string
   methods: Record<string, string[]>
 }> = [
+  {
+    module: '@/app/api/v1/domain_blocks/route',
+    methods: {
+      GET: ['read', 'read:blocks'],
+      POST: ['write', 'write:blocks'],
+      DELETE: ['write', 'write:blocks']
+    }
+  },
+  {
+    module: '@/app/api/v1/featured_tags/route',
+    methods: {
+      GET: ['read', 'read:accounts'],
+      POST: ['write', 'write:accounts']
+    }
+  },
+  {
+    module: '@/app/api/v1/markers/route',
+    methods: {
+      GET: ['read', 'read:statuses'],
+      POST: ['write', 'write:statuses']
+    }
+  },
   {
     // Reads and writes on one reaction URL: a GET<->mutation scope swap here
     // would pass the flattened EXPECTED assertion above.
