@@ -2,7 +2,7 @@
 
 import { AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { FC, ReactNode, useMemo, useState } from 'react'
+import { FC, ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 
 import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
 import { InlineStatusComposer } from '@/lib/components/posts/inline-status-composer'
@@ -74,6 +74,19 @@ export const StatusThread: FC<StatusThreadProps> = ({
     []
   )
   const [replyToastStatus, setReplyToastStatus] = useState<Status | null>(null)
+  // The scroll to a just-posted reply is deferred a tick; clear it if the
+  // thread unmounts first so it never touches a torn-down document.
+  const replyScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  )
+  useEffect(
+    () => () => {
+      if (replyScrollTimeoutRef.current) {
+        clearTimeout(replyScrollTimeoutRef.current)
+      }
+    },
+    []
+  )
 
   // Map of nodeId -> boolean override for expansion
   const [expandedBranchOverrides, setExpandedBranchOverrides] = useState<
@@ -176,7 +189,11 @@ export const StatusThread: FC<StatusThreadProps> = ({
 
     setReplyToastStatus(newReply)
 
-    setTimeout(() => {
+    if (replyScrollTimeoutRef.current) {
+      clearTimeout(replyScrollTimeoutRef.current)
+    }
+    replyScrollTimeoutRef.current = setTimeout(() => {
+      replyScrollTimeoutRef.current = null
       const el = document.querySelector(
         `[data-node-id="${newReply.id}"], [data-testid="status-${newReply.id}"]`
       )

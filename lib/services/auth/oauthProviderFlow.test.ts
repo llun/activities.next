@@ -243,7 +243,12 @@ describe('OAuth provider token grants', () => {
     expect(tokenBody.token_type).toBe('Bearer')
     expect(tokenBody.scope).toBe('read write')
 
-    const stored = await database('oauthAccessToken').first()
+    // Scoped to this client: the app-token test shares the table, and an
+    // unscoped first() returns its client_credentials row (userId null) when
+    // that test happens to run first.
+    const stored = await database('oauthAccessToken')
+      .where('clientId', CLIENT_ID)
+      .first()
     expect(stored).toBeDefined()
     expect(stored?.userId).toBe(accountId)
     expect(stored?.referenceId).toBe(actorId)
