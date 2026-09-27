@@ -2,12 +2,7 @@ import {
   databaseBeforeAll,
   getTestDatabaseTable
 } from '@/lib/database/testUtils'
-import {
-  TEST_DOMAIN,
-  TEST_EMAIL,
-  TEST_PASSWORD_HASH,
-  TEST_USERNAME3
-} from '@/lib/stub/const'
+import { TEST_DOMAIN } from '@/lib/stub/const'
 
 import { shouldSendEmailForNotification } from './emailNotificationSettings'
 
@@ -25,27 +20,22 @@ describe('emailNotificationSettings', () => {
   describe.each(table)('%s', (_, database) => {
     let actorId: string
 
-    beforeAll(async () => {
-      await database.createAccount({
-        email: TEST_EMAIL,
-        username: TEST_USERNAME3,
-        passwordHash: TEST_PASSWORD_HASH,
+    beforeEach(async () => {
+      const username = `email-${crypto.randomUUID().slice(0, 8)}`
+      actorId = `https://${TEST_DOMAIN}/users/${username}`
+      await database.createActor({
+        actorId,
+        username,
         domain: TEST_DOMAIN,
-        privateKey: 'privateKey1',
-        publicKey: 'publicKey1'
+        followersUrl: `${actorId}/followers`,
+        inboxUrl: `${actorId}/inbox`,
+        sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`,
+        publicKey: 'publicKey1',
+        createdAt: Date.now()
       })
-
-      actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
     })
 
     describe('shouldSendEmailForNotification', () => {
-      beforeEach(async () => {
-        await database.updateActor({
-          actorId,
-          emailNotifications: null
-        })
-      })
-
       it('returns true when no email notification settings are configured', async () => {
         const result = await shouldSendEmailForNotification(
           database,

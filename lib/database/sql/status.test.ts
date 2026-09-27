@@ -585,7 +585,7 @@ describe('StatusDatabase', () => {
         inboxUrl: `${actorId}/inbox`,
         sharedInboxUrl: `https://${local ? actors.primary.domain : 'remote.test'}/inbox`,
         publicKey: `public-key-${suffix}`,
-        privateKey: local ? `private-key-${suffix}` : null,
+        ...(local ? { privateKey: `private-key-${suffix}` } : {}),
         createdAt: Date.now()
       })
       return actorId

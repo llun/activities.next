@@ -2,12 +2,7 @@ import {
   databaseBeforeAll,
   getTestDatabaseTable
 } from '@/lib/database/testUtils'
-import {
-  TEST_DOMAIN,
-  TEST_EMAIL2,
-  TEST_PASSWORD_HASH,
-  TEST_USERNAME2
-} from '@/lib/stub/const'
+import { TEST_DOMAIN } from '@/lib/stub/const'
 
 import { shouldSendPushForNotification } from './pushNotificationSettings'
 
@@ -25,27 +20,22 @@ describe('pushNotificationSettings', () => {
   describe.each(table)('%s', (_, database) => {
     let actorId: string
 
-    beforeAll(async () => {
-      await database.createAccount({
-        email: TEST_EMAIL2,
-        username: TEST_USERNAME2,
-        passwordHash: TEST_PASSWORD_HASH,
+    beforeEach(async () => {
+      const username = `push-${crypto.randomUUID().slice(0, 8)}`
+      actorId = `https://${TEST_DOMAIN}/users/${username}`
+      await database.createActor({
+        actorId,
+        username,
         domain: TEST_DOMAIN,
-        privateKey: 'privateKey1',
-        publicKey: 'publicKey1'
+        followersUrl: `${actorId}/followers`,
+        inboxUrl: `${actorId}/inbox`,
+        sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`,
+        publicKey: 'publicKey1',
+        createdAt: Date.now()
       })
-
-      actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME2}`
     })
 
     describe('shouldSendPushForNotification', () => {
-      beforeEach(async () => {
-        await database.updateActor({
-          actorId,
-          pushNotifications: null
-        })
-      })
-
       it('returns true when no push notification settings are configured', async () => {
         const result = await shouldSendPushForNotification(
           database,
