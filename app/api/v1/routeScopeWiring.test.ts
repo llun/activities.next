@@ -557,6 +557,62 @@ const EXPECTED: Array<{
     module: '@/app/api/v2/filters/statuses/[id]/route',
     scopes: ['read', 'read:filters', 'write:filters'],
     guard: { DELETE: 'OAuthGuard' }
+  },
+  // collections
+  {
+    module: '@/app/api/v1/collections/route',
+    scopes: ['read', 'read:collections', 'write:collections'],
+    guard: { POST: 'OAuthGuard' }
+  },
+  {
+    module: '@/app/api/v1/collections/[id]/route',
+    scopes: ['read', 'read:collections', 'write:collections'],
+    guard: {
+      GET: 'OptionalOAuthGuard:any',
+      PATCH: 'OAuthGuard',
+      DELETE: 'OAuthGuard'
+    }
+  },
+  {
+    module: '@/app/api/v1/collections/[id]/feed/route',
+    scopes: ['read'],
+    guard: 'OptionalOAuthGuard:all'
+  },
+  {
+    module: '@/app/api/v1/collections/[id]/items/route',
+    scopes: ['read', 'read:collections', 'write:collections'],
+    guard: { POST: 'OAuthGuard', DELETE: 'OAuthGuard' }
+  },
+  {
+    module: '@/app/api/v1/collections/[id]/items/[item_id]/route',
+    scopes: ['write:collections'],
+    guard: 'OAuthGuard'
+  },
+  {
+    module: '@/app/api/v1/collections/[id]/items/[item_id]/approve/route',
+    scopes: ['write:collections'],
+    guard: 'OAuthGuard'
+  },
+  {
+    module: '@/app/api/v1/collections/[id]/items/[item_id]/revoke/route',
+    scopes: ['write:collections'],
+    guard: 'OAuthGuard'
+  },
+  // lists
+  {
+    module: '@/app/api/v1/lists/route',
+    scopes: ['read', 'read:lists', 'write:lists'],
+    guard: { POST: 'OAuthGuard' }
+  },
+  {
+    module: '@/app/api/v1/lists/[id]/route',
+    scopes: ['read', 'read:lists', 'write:lists'],
+    guard: { PUT: 'OAuthGuard', DELETE: 'OAuthGuard' }
+  },
+  {
+    module: '@/app/api/v1/lists/[id]/accounts/route',
+    scopes: ['read', 'read:lists', 'write:lists'],
+    guard: { POST: 'OAuthGuard', DELETE: 'OAuthGuard' }
   }
 ]
 
@@ -781,6 +837,52 @@ const MULTI_METHOD: Array<{
       GET: ['read', 'read:filters'],
       DELETE: ['write:filters']
     }
+  },
+  {
+    module: '@/app/api/v1/collections/route',
+    methods: {
+      GET: ['read', 'read:collections'],
+      POST: ['write:collections']
+    }
+  },
+  {
+    module: '@/app/api/v1/collections/[id]/route',
+    methods: {
+      GET: ['read', 'read:collections'],
+      PATCH: ['write:collections'],
+      DELETE: ['write:collections']
+    }
+  },
+  {
+    module: '@/app/api/v1/collections/[id]/items/route',
+    methods: {
+      GET: ['read', 'read:collections'],
+      POST: ['write:collections'],
+      DELETE: ['write:collections']
+    }
+  },
+  {
+    module: '@/app/api/v1/lists/route',
+    methods: {
+      GET: ['read', 'read:lists'],
+      POST: ['write:lists']
+    }
+  },
+  {
+    module: '@/app/api/v1/lists/[id]/route',
+    methods: {
+      GET: ['read', 'read:lists'],
+      PUT: ['write:lists'],
+      DELETE: ['write:lists']
+    }
+  },
+  {
+    module: '@/app/api/v1/lists/[id]/accounts/route',
+    methods: {
+      GET: ['read', 'read:lists'],
+      POST: ['write:lists'],
+      DELETE: ['write:lists']
+    }
   }
 ]
 
@@ -813,13 +915,6 @@ describe('multi-method route scopes are wired per method', () => {
 // their own tests for their scopes and guard kind.
 const UNLISTED_BASELINE: string[] = [
   '@/app/api/v1/apps/verify_credentials/route',
-  '@/app/api/v1/collections/[id]/feed/route',
-  '@/app/api/v1/collections/[id]/items/[item_id]/approve/route',
-  '@/app/api/v1/collections/[id]/items/[item_id]/revoke/route',
-  '@/app/api/v1/collections/[id]/items/[item_id]/route',
-  '@/app/api/v1/collections/[id]/items/route',
-  '@/app/api/v1/collections/[id]/route',
-  '@/app/api/v1/collections/route',
   '@/app/api/v1/conversations/[id]/read/route',
   '@/app/api/v1/conversations/[id]/route',
   '@/app/api/v1/conversations/[id]/statuses/route',
@@ -828,9 +923,6 @@ const UNLISTED_BASELINE: string[] = [
   '@/app/api/v1/emails/confirmations/route',
   '@/app/api/v1/featured_tags/[id]/route',
   '@/app/api/v1/followed_tags/route',
-  '@/app/api/v1/lists/[id]/accounts/route',
-  '@/app/api/v1/lists/[id]/route',
-  '@/app/api/v1/lists/route',
   '@/app/api/v1/push/subscribe/route',
   '@/app/api/v1/push/subscription/route',
   '@/app/api/v1/reports/route',
