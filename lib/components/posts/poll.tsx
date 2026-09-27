@@ -17,6 +17,8 @@ interface Props {
   currentActorId?: string
 }
 
+export const MAX_TIMER_DELAY_MS = 2_147_483_647
+
 export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
   // When the surrounding status is translated, flip the option titles together
   // with the body. Mastodon's translate response returns `poll.options[]` in
@@ -57,12 +59,24 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
     setNow(nextNow)
     if (nextNow >= pollEndAt) return
 
-    const timeout = setTimeout(() => {
-      setNow(Date.now())
-    }, pollEndAt - nextNow)
+    let timeout: ReturnType<typeof setTimeout> | undefined
+
+    const wait = () => {
+      const remaining = pollEndAt - Date.now()
+      if (remaining <= 0) {
+        setNow(Date.now())
+        return
+      }
+
+      timeout = setTimeout(wait, Math.min(remaining, MAX_TIMER_DELAY_MS))
+    }
+
+    wait()
 
     return () => {
-      clearTimeout(timeout)
+      if (timeout !== undefined) {
+        clearTimeout(timeout)
+      }
     }
   }, [pollEndAt, status.id])
 
