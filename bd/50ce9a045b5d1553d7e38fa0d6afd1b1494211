@@ -1,0 +1,19 @@
+lib/database/sql/conversation.test.ts
+  s_ad3d51a9ca1561::t_dc3dcd0a11786f 16-17,174-175,180,183,197-198
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bd50ce9a045b5d1553d7e38fa0d6afd1b1494211",
+  "prompts": {},
+  "sessions": {
+    "s_ad3d51a9ca1561": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dfc4-8b9c-72c2-8e2f-01992cdf11d1",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

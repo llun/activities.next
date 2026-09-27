@@ -1,0 +1,23 @@
+lib/database/sql/status.test.ts
+  s_ad3d51a9ca1561::t_a3e066e2103aff 588
+lib/services/notifications/emailNotificationSettings.test.ts
+  s_ad3d51a9ca1561::t_72b7acdc9471de 5,23-28,30-34
+lib/services/notifications/pushNotificationSettings.test.ts
+  s_ad3d51a9ca1561::t_146c213c54cfa6 5,23-28,30-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8c425f71e90edc6aa0cf5a628650c58a5058f52b",
+  "prompts": {},
+  "sessions": {
+    "s_ad3d51a9ca1561": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dfc4-8b9c-72c2-8e2f-01992cdf11d1",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
