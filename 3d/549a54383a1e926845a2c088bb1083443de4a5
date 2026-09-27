@@ -1,0 +1,37 @@
+lib/jobs/generateFitnessRouteHeatmapJob.test.ts
+  s_7a29c31259b0a0::t_bb73b3608b673f 101,125-129
+lib/services/notifications/emailNotificationSettings.test.ts
+  s_7a29c31259b0a0::t_5de05a4f484b05 42-48
+lib/services/notifications/pushNotificationSettings.test.ts
+  s_7a29c31259b0a0::t_fb0d7f3aa6ab36 42-48
+lib/services/statuses/getStatusContext.test.ts
+  s_7a29c31259b0a0::t_73f10215fc7fc9 31-41,294-418
+lib/services/medias/quota.test.ts
+  s_7a29c31259b0a0::t_b1f22544f929c7 158-186,188-191
+lib/services/timelines/index.test.ts
+  s_826b7fa406567e::t_1dabb9e4c053e5 3,20,32,35-36,159-182,191-228,294-297,299-330
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3d549a54383a1e926845a2c088bb1083443de4a5",
+  "prompts": {},
+  "sessions": {
+    "s_7a29c31259b0a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e61da06e-432e-42f9-a063-cc85e354e701",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_826b7fa406567e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-aac8c19c8f4511590",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
