@@ -1490,7 +1490,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                   onChange={(event) =>
                     setSelectedFitnessFileId(event.target.value)
                   }
-                  className="h-9 rounded-lg border bg-background px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="h-9 w-full max-w-full rounded-lg border bg-background px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary truncate"
                 >
                   {fitnessFiles.map((item) => (
                     <option key={item.id} value={item.id}>
