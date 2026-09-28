@@ -1,0 +1,21 @@
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_a50700a117f969::t_bdeff7d67c51a5 1452
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_a50700a117f969::t_cd947ec109839e 1493
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "60d12049de4cffcb5dbe263d7fb7c19607fa4ade",
+  "prompts": {},
+  "sessions": {
+    "s_a50700a117f969": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e940-1dba-7172-8c54-d851c0b2b1b9",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
