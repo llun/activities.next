@@ -43,7 +43,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@activities/resend@workspace:packages/resend"
   dependencies:
-    resend: "npm:^6.29.0"
+    resend: "npm:^6.30.0"
   languageName: unknown
   linkType: soft
 
@@ -7180,9 +7180,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"resend@npm:^6.29.0":
-  version: 6.29.0
-  resolution: "resend@npm:6.29.0"
+"resend@npm:^6.30.0":
+  version: 6.30.0
+  resolution: "resend@npm:6.30.0"
   dependencies:
     postal-mime: "npm:2.7.6"
     standardwebhooks: "npm:1.1.1"
@@ -7191,7 +7191,7 @@ __metadata:
   peerDependenciesMeta:
     "@react-email/render":
       optional: true
-  checksum: 10c0/b4966346d327a6cacae483e4a298789e1730bda0e05f4b70b869c15c8560b6b00fabb508d15e42d890b24e1e09c3213868e65c9c065dddb4964fce17cf2cb2b6
+  checksum: 10c0/32a32d7a5e2f6418d0b8a94430c07c79a9f3e15d1ff66fd272c5cf44d284ca56bf9384f3cdd7b5ffa83536e1edc4b682e084692398a363196986905a0f966bb8
   languageName: node
   linkType: hard
 
