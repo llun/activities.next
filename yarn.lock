@@ -51,7 +51,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@activities/ses@workspace:packages/ses"
   dependencies:
-    "@aws-sdk/client-ses": "npm:3.1140.0"
+    "@aws-sdk/client-ses": "npm:3.1141.0"
   languageName: unknown
   linkType: soft
 
@@ -126,9 +126,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/client-ses@npm:3.1140.0":
-  version: 3.1140.0
-  resolution: "@aws-sdk/client-ses@npm:3.1140.0"
+"@aws-sdk/client-ses@npm:3.1141.0":
+  version: 3.1141.0
+  resolution: "@aws-sdk/client-ses@npm:3.1141.0"
   dependencies:
     "@aws-sdk/core": "npm:^3.978.1"
     "@aws-sdk/credential-provider-node": "npm:^3.972.84"
@@ -138,7 +138,7 @@ __metadata:
     "@smithy/node-http-handler": "npm:^4.12.1"
     "@smithy/types": "npm:^4.19.0"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/a805a93773b8cfbb4b0965fe6e9bb24bb3b9383432996aca659715aeea55c0bcb464a506860a609c8cbdb7f7e32acf89f78870a264bea7989e88a3ea39615f64
+  checksum: 10c0/0ae657ae103057ab6c3c1a07a11f203b24035f59a4f0a75e0c7d4357c924a4b85fea3814357814e6b3d7e491b3fad01f059217baf935345de1d3881bdf7e9e19
   languageName: node
   linkType: hard
 
