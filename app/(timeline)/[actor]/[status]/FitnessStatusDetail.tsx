@@ -76,7 +76,8 @@ import { cn } from '@/lib/utils'
 import {
   getFitnessPaceOrSpeed,
   getFitnessSourceLabel,
-  normalizeFitnessSourceUrl
+  normalizeFitnessSourceUrl,
+  sortStatusFitnessFiles
 } from '@/lib/utils/fitness'
 import { getDeviceDisplayLabel } from '@/lib/utils/fitnessDeviceBrands'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
@@ -119,6 +120,7 @@ interface Props {
   status: StatusNote
   replies?: Status[]
   isMediaUploadEnabled?: boolean
+  initialFitnessFiles?: StatusFitnessFileItem[]
   onShowAttachment: (allMedias: Attachment[], selectedIndex: number) => void
 }
 
@@ -431,6 +433,7 @@ export const FitnessStatusDetail: FC<Props> = ({
   status,
   replies = [],
   isMediaUploadEnabled,
+  initialFitnessFiles,
   onShowAttachment
 }) => {
   const router = useRouter()
@@ -661,7 +664,13 @@ export const FitnessStatusDetail: FC<Props> = ({
         gearId: status.fitness.gearId ?? null,
         gearName: status.fitness.gearName ?? null,
         deviceGearId: status.fitness.deviceGearId ?? null,
-        deviceGearName: status.fitness.deviceGearName ?? null
+        deviceGearName: status.fitness.deviceGearName ?? null,
+        avgPower: status.fitness.avgPower ?? null,
+        maxPower: status.fitness.maxPower ?? null,
+        avgHeartRate: status.fitness.avgHeartRate ?? null,
+        maxHeartRate: status.fitness.maxHeartRate ?? null,
+        totalWorkKj: status.fitness.totalWorkKj ?? null,
+        elevationSeries: status.fitness.elevationSeries ?? null
       }
     ]
   }, [
@@ -684,13 +693,33 @@ export const FitnessStatusDetail: FC<Props> = ({
     status.fitness?.deviceName,
     status.fitness?.sourceUrl,
     status.fitness?.gearId,
-    status.fitness?.gearName
+    status.fitness?.gearName,
+    status.fitness?.deviceGearId,
+    status.fitness?.deviceGearName,
+    status.fitness?.avgPower,
+    status.fitness?.maxPower,
+    status.fitness?.avgHeartRate,
+    status.fitness?.maxHeartRate,
+    status.fitness?.totalWorkKj,
+    status.fitness?.elevationSeries
   ])
+
+  const initialFiles = useMemo(() => {
+    const source =
+      initialFitnessFiles && initialFitnessFiles.length > 0
+        ? initialFitnessFiles
+        : defaultFitnessFiles
+    return sortStatusFitnessFiles(source)
+  }, [initialFitnessFiles, defaultFitnessFiles])
+
   const [fitnessFiles, setFitnessFiles] =
-    useState<StatusFitnessFileItem[]>(defaultFitnessFiles)
+    useState<StatusFitnessFileItem[]>(initialFiles)
   const [selectedFitnessFileId, setSelectedFitnessFileId] = useState<
     string | null
-  >(defaultFitnessFiles[0]?.id ?? null)
+  >(() => {
+    const primary = initialFiles.find((item) => item.isPrimary)
+    return primary?.id ?? initialFiles[0]?.id ?? null
+  })
   const [hoveredBucketIndex, setHoveredBucketIndex] = useState<number | null>(
     null
   )
@@ -719,11 +748,22 @@ export const FitnessStatusDetail: FC<Props> = ({
   >(null)
 
   useEffect(() => {
-    setFitnessFiles(defaultFitnessFiles)
-    setSelectedFitnessFileId(defaultFitnessFiles[0]?.id ?? null)
-  }, [defaultFitnessFiles])
+    setFitnessFiles(initialFiles)
+    setSelectedFitnessFileId((current) => {
+      if (current && initialFiles.some((item) => item.id === current)) {
+        return current
+      }
+      return (
+        initialFiles.find((item) => item.isPrimary)?.id ??
+        initialFiles[0]?.id ??
+        null
+      )
+    })
+  }, [initialFiles])
 
   useEffect(() => {
+    if (initialFitnessFiles && initialFitnessFiles.length > 0) return
+
     let cancelled = false
 
     const loadFitnessFiles = async () => {
@@ -731,21 +771,7 @@ export const FitnessStatusDetail: FC<Props> = ({
         const files = await getFitnessFilesByStatus(status.id)
         if (cancelled || !files || files.length === 0) return
 
-        const ordered = [...files].sort((first, second) => {
-          const firstStart = first.activityStartTime ?? Number.MAX_SAFE_INTEGER
-          const secondStart =
-            second.activityStartTime ?? Number.MAX_SAFE_INTEGER
-
-          if (firstStart !== secondStart) {
-            return firstStart - secondStart
-          }
-
-          if (first.fileName !== second.fileName) {
-            return first.fileName.localeCompare(second.fileName)
-          }
-
-          return first.id.localeCompare(second.id)
-        })
+        const ordered = sortStatusFitnessFiles(files)
 
         setFitnessFiles(ordered)
         setSelectedFitnessFileId((current) => {
@@ -764,7 +790,7 @@ export const FitnessStatusDetail: FC<Props> = ({
     return () => {
       cancelled = true
     }
-  }, [status.id])
+  }, [status.id, initialFitnessFiles])
 
   // Owner only — /api/v1/fitness/gear is the owner's shed, and a viewer has no
   // use for it. A failure leaves the list empty, which degrades the picker to
@@ -1044,6 +1070,22 @@ export const FitnessStatusDetail: FC<Props> = ({
     [mapAttachmentIndex, status.attachments]
   )
 
+  const hasSummaryMetrics =
+    typeof fitness?.avgPower === 'number' ||
+    typeof fitness?.avgHeartRate === 'number' ||
+    (Array.isArray(fitness?.elevationSeries) &&
+      fitness.elevationSeries.length > 0)
+
+  const needsRouteData =
+    !hasSummaryMetrics ||
+    activeSection === 'analysis' ||
+    activeSection === 'heart-rate-zones' ||
+    activeSection === '25w-distribution'
+
+  const [loadedRouteDataFileId, setLoadedRouteDataFileId] = useState<
+    string | null
+  >(null)
+
   useEffect(() => {
     setRouteSamples([])
     setRouteSegments([])
@@ -1052,11 +1094,16 @@ export const FitnessStatusDetail: FC<Props> = ({
     setAltitudeSeries([])
     setSpeedSeries([])
     setRouteDataError(null)
+    setLoadedRouteDataFileId(null)
+  }, [fitness?.id])
 
+  useEffect(() => {
+    if (!needsRouteData) return
     if (!fitness?.id) {
       setIsRouteDataLoading(false)
       return
     }
+    if (loadedRouteDataFileId === fitness.id) return
 
     let cancelled = false
 
@@ -1074,6 +1121,7 @@ export const FitnessStatusDetail: FC<Props> = ({
         setHeartRateSeries(data.heartRateSeries ?? [])
         setAltitudeSeries(data.altitudeSeries ?? [])
         setSpeedSeries(data.speedSeries ?? [])
+        setLoadedRouteDataFileId(fitness.id)
       } catch (_error) {
         if (cancelled) return
         setRouteSamples([])
@@ -1097,7 +1145,7 @@ export const FitnessStatusDetail: FC<Props> = ({
     return () => {
       cancelled = true
     }
-  }, [fitness?.id])
+  }, [fitness?.id, needsRouteData, loadedRouteDataFileId])
 
   // Both Overview (its elevation profile) and Analysis (its graph stack) scrub
   // the same instant onto the same map, so leaving a section always drops the
@@ -1115,23 +1163,32 @@ export const FitnessStatusDetail: FC<Props> = ({
     distanceKm >= 10 ? distanceKm.toFixed(1) : distanceKm.toFixed(2)
 
   const avgPower = useMemo(() => {
+    if (typeof fitness?.avgPower === 'number') {
+      return fitness.avgPower
+    }
     if (powerSeries.length === 0) return null
     return Math.round(
       powerSeries.reduce((a, b) => a + b, 0) / powerSeries.length
     )
-  }, [powerSeries])
+  }, [fitness?.avgPower, powerSeries])
 
   const maxPower = useMemo(() => {
+    if (typeof fitness?.maxPower === 'number') {
+      return fitness.maxPower
+    }
     if (powerSeries.length === 0) return null
     return Math.round(getSeriesMinMax(powerSeries).maxValue)
-  }, [powerSeries])
+  }, [fitness?.maxPower, powerSeries])
 
   const totalWorkKj = useMemo(() => {
+    if (typeof fitness?.totalWorkKj === 'number') {
+      return fitness.totalWorkKj
+    }
     // 0 W is a valid average (e.g. a fully-coasting segment), so only treat a
     // genuinely-absent power series (null) as "no total work".
     if (avgPower === null || durationSeconds <= 0) return null
     return Math.round((avgPower * durationSeconds) / 1000)
-  }, [avgPower, durationSeconds])
+  }, [fitness?.totalWorkKj, avgPower, durationSeconds])
 
   // Heart-rate monitors report 0 bpm during sensor dropouts; exclude those from
   // the avg/max and the zone buckets, which are order-free tallies (unlike
@@ -1154,10 +1211,21 @@ export const FitnessStatusDetail: FC<Props> = ({
     [heartRateSeries]
   )
 
-  const heartRateStats = useMemo(
-    () => computeHeartRateStats(positiveHeartRateSeries),
-    [positiveHeartRateSeries]
-  )
+  const heartRateStats = useMemo(() => {
+    if (positiveHeartRateSeries.length > 0) {
+      return computeHeartRateStats(positiveHeartRateSeries)
+    }
+    if (typeof fitness?.avgHeartRate === 'number') {
+      return {
+        avg: fitness.avgHeartRate,
+        max:
+          typeof fitness.maxHeartRate === 'number'
+            ? fitness.maxHeartRate
+            : fitness.avgHeartRate
+      }
+    }
+    return null
+  }, [positiveHeartRateSeries, fitness?.avgHeartRate, fitness?.maxHeartRate])
 
   const heartRateZones = useMemo(
     () => computeHeartRateZones(positiveHeartRateSeries, durationSeconds),
@@ -1172,6 +1240,17 @@ export const FitnessStatusDetail: FC<Props> = ({
       elevation: plotAtStravaDensity(altitudeSeries)
     }
   }, [heartRateChartSeries, powerSeries, speedSeries, altitudeSeries])
+
+  const elevationChartValues = useMemo(() => {
+    if (activitySeries.elevation.length > 0) {
+      return activitySeries.elevation
+    }
+    if (fitness?.elevationSeries && fitness.elevationSeries.length > 0) {
+      return fitness.elevationSeries
+    }
+    return []
+  }, [activitySeries.elevation, fitness?.elevationSeries])
+
   const highlightedElapsedLabel =
     typeof highlightedElapsedSeconds === 'number'
       ? formatDuration(Math.round(highlightedElapsedSeconds))
@@ -1239,8 +1318,11 @@ export const FitnessStatusDetail: FC<Props> = ({
     return `rgb(${r}, ${g}, ${b})`
   }
 
-  const hasHeartRate = positiveHeartRateSeries.length > 0
-  const hasPower = powerSeries.length > 0
+  const hasHeartRate =
+    positiveHeartRateSeries.length > 0 ||
+    typeof fitness?.avgHeartRate === 'number'
+  const hasPower =
+    powerSeries.length > 0 || typeof fitness?.avgPower === 'number'
   const hasPhotos = mediaWithoutMap.length > 0
   const hasComments = replies.length > 0 || Boolean(currentActor)
 
@@ -1697,6 +1779,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                 mapProvider={mapProvider}
                 routeDataError={routeDataError}
                 isRouteDataLoading={isRouteDataLoading}
+                interactive={false}
                 onOpenMap={() => {
                   if (mapAttachmentIndex >= 0) {
                     onShowAttachment(status.attachments, mapAttachmentIndex)
@@ -1724,7 +1807,7 @@ export const FitnessStatusDetail: FC<Props> = ({
               </FitnessStatGrid>
             )}
 
-            {activitySeries.elevation.length > 0 && (
+            {elevationChartValues.length > 0 && (
               <Card>
                 <SectionTitle
                   icon={Mountain}
@@ -1748,7 +1831,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                   Elevation
                 </SectionTitle>
                 <ElevationProfileChart
-                  values={activitySeries.elevation}
+                  values={elevationChartValues}
                   durationSeconds={durationSeconds}
                   highlightedElapsedSeconds={highlightedElapsedSeconds}
                   onHighlightElapsedSeconds={setHighlightedElapsedSeconds}
@@ -1772,6 +1855,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                 mapProvider={mapProvider}
                 routeDataError={routeDataError}
                 isRouteDataLoading={isRouteDataLoading}
+                interactive
                 onOpenMap={() => {
                   if (mapAttachmentIndex >= 0) {
                     onShowAttachment(status.attachments, mapAttachmentIndex)

@@ -210,6 +210,7 @@ export interface ActivityMapPanelProps {
   mapProvider: PublicMapProvider
   routeDataError?: string | null
   isRouteDataLoading?: boolean
+  interactive?: boolean
   onOpenMap?: () => void
 }
 
@@ -224,6 +225,7 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
   mapProvider,
   routeDataError = null,
   isRouteDataLoading = false,
+  interactive = true,
   onOpenMap
 }) => {
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
@@ -283,7 +285,10 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
   // Every provider now renders a real, interactive map — the pre-generated
   // static image stays as the fallback for a map that fails to load.
   const shouldRenderInteractiveMap =
-    drawableRouteSegments.length > 0 && !routeDataError && !mapLoadError
+    interactive &&
+    drawableRouteSegments.length > 0 &&
+    !routeDataError &&
+    !mapLoadError
 
   const routeFeatureCollection = useMemo(
     (): MapFeatureCollection<MapLineStringGeometry, RouteLineProperties> => ({
@@ -698,13 +703,15 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
         </button>
       ) : null}
 
-      {!shouldRenderInteractiveMap && isRouteDataLoading ? (
+      {interactive && !shouldRenderInteractiveMap && isRouteDataLoading ? (
         <div className="absolute left-1/2 top-3 -translate-x-1/2 rounded-md border bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
           Loading interactive route...
         </div>
       ) : null}
 
-      {!shouldRenderInteractiveMap && (routeDataError || mapLoadError) ? (
+      {interactive &&
+      !shouldRenderInteractiveMap &&
+      (routeDataError || mapLoadError) ? (
         <div className="absolute inset-x-3 top-3 rounded-md border border-amber-300 bg-amber-50/95 px-3 py-2 text-xs text-amber-900 shadow-sm dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
           {routeDataError || mapLoadError}
         </div>

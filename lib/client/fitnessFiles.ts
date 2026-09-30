@@ -13,7 +13,7 @@ export interface StatusFitnessFileItem {
   id: string
   actorId: string
   fileName: string
-  fileType: 'fit' | 'gpx' | 'tcx'
+  fileType: 'fit' | 'gpx' | 'tcx' | 'zip'
   statusId: string | null
   isPrimary: boolean
   processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
@@ -32,6 +32,12 @@ export interface StatusFitnessFileItem {
   gearName: string | null
   deviceGearId: string | null
   deviceGearName: string | null
+  avgPower?: number | null
+  maxPower?: number | null
+  avgHeartRate?: number | null
+  maxHeartRate?: number | null
+  totalWorkKj?: number | null
+  elevationSeries?: number[] | null
 }
 
 export const getFitnessImportBatch = async (

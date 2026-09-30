@@ -163,3 +163,28 @@ export const getFitnessSourceLabel = (sourceUrl?: string | null): string => {
     return 'View source'
   }
 }
+
+export const sortStatusFitnessFiles = <
+  T extends {
+    activityStartTime?: number | null
+    fileName: string
+    id: string
+  }
+>(
+  files: T[]
+): T[] => {
+  return [...files].sort((first, second) => {
+    const firstStart = first.activityStartTime ?? Number.MAX_SAFE_INTEGER
+    const secondStart = second.activityStartTime ?? Number.MAX_SAFE_INTEGER
+
+    if (firstStart !== secondStart) {
+      return firstStart - secondStart
+    }
+
+    if (first.fileName !== second.fileName) {
+      return first.fileName.localeCompare(second.fileName)
+    }
+
+    return first.id.localeCompare(second.id)
+  })
+}
