@@ -1,0 +1,26 @@
+app/api/v1/webhooks/wahoo/route.test.ts
+  h_580a04e334fef4 37-38,55-56,58,111-148,153,166-194
+app/api/v1/webhooks/wahoo/route.ts
+  h_580a04e334fef4 125-144,147-159
+docs/fitness-file-storage.md
+  h_580a04e334fef4 20
+lib/database/sql/wahooImport.test.ts
+  h_580a04e334fef4 46-47,51
+lib/database/sql/wahooImport.ts
+  h_580a04e334fef4 22,181-184
+lib/jobs/importWahooActivityJob.test.ts
+  h_580a04e334fef4 5-8,16-17,59,169-171,294-384
+lib/jobs/importWahooActivityJob.ts
+  h_580a04e334fef4 9-12,152,162-184,206-228
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "534681f43e376f97198b3a97d78c2146909150b7",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
