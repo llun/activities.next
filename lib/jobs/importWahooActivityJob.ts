@@ -149,7 +149,7 @@ const processImport = async (
         attempts: latest.attempts + 1,
         lastError: null
       })
-      const batchId = `wahoo:${record.id}`
+      const batchId = `wahoo:${record.id}:${summaryId}:${summaryUpdatedAt ?? 0}`
       const reuseFile =
         latest.fitnessFileId &&
         latest.summaryId === summaryId &&
@@ -204,7 +204,7 @@ const processImport = async (
         fitnessFileId = saved.id
       }
       const fileUnchanged = fitnessFileId === latest.fitnessFileId
-      if (fileUnchanged && latest.status === 'completed' && latest.statusId) {
+      if (fileUnchanged && latest.statusId) {
         await database.updateWahooImport(record.id, {
           fitnessFileId,
           summaryId,

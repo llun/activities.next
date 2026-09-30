@@ -155,7 +155,19 @@ export const POST = traceApiRoute('wahooWebhook', async (req) => {
             data: { success: true }
           })
         }
-        await database.updateWahooImport(record.id, { status: 'pending' })
+        await database.updateWahooImport(record.id, {
+          status: 'pending',
+          summaryId,
+          summaryUpdatedAt
+        })
+      } else if (
+        record.status === 'failed' ||
+        record.status === 'unsupported'
+      ) {
+        await database.updateWahooImport(record.id, {
+          status: 'pending',
+          ...(isNewer ? { summaryId, summaryUpdatedAt } : {})
+        })
       }
     }
     await queue.publish({

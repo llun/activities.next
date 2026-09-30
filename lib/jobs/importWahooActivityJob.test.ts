@@ -295,7 +295,7 @@ describe('importWahooActivityJob', () => {
   it('reuses existing fitness file and does not re-import when a newer summary revision carries identical FIT file bytes', async () => {
     database.getWahooImport.mockResolvedValue(
       record({
-        status: 'completed',
+        status: 'pending',
         hadStatus: true,
         statusId: 'existing-status',
         fitnessFileId: 'existing-file',
@@ -338,7 +338,7 @@ describe('importWahooActivityJob', () => {
   it('replaces primary fitness file when a newer summary revision carries modified FIT file bytes', async () => {
     database.getWahooImport.mockResolvedValue(
       record({
-        status: 'completed',
+        status: 'pending',
         hadStatus: true,
         statusId: 'existing-status',
         fitnessFileId: 'existing-file',
@@ -348,6 +348,18 @@ describe('importWahooActivityJob', () => {
     )
     mockGetFitnessFileBuffer.mockResolvedValue(
       Buffer.from([9, 9, 9, 9, 0, 0, 0, 0, 46, 70, 73, 84, 0, 0, 0, 0])
+    )
+    database.getFitnessFilesByBatchId.mockImplementation(
+      async ({ batchId }) => {
+        // Old batch ID from initial import should not be returned for the new revision's batchId
+        if (
+          batchId ===
+          `wahoo:${importId}:summary-1:${Date.parse('2026-09-20T12:00:00.000Z')}`
+        ) {
+          return [{ id: 'existing-file', actorId: 'actor-1' }] as never
+        }
+        return []
+      }
     )
     database.getFitnessFile.mockImplementation(async ({ id }) => {
       if (id === 'existing-file') {

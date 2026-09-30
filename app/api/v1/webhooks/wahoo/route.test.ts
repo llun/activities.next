@@ -179,13 +179,44 @@ describe('Wahoo webhook', () => {
 
     expect(response.status).toBe(200)
     expect(mockDb.updateWahooImport).toHaveBeenCalledWith('completed-import', {
-      status: 'pending'
+      status: 'pending',
+      summaryId: '99',
+      summaryUpdatedAt: Date.parse('2026-09-20T12:30:00.000Z')
     })
     expect(mockQueue.publish).toHaveBeenCalledWith(
       expect.objectContaining({
         name: 'ImportWahooActivityJob',
         data: {
           importId: 'completed-import',
+          notifyOnComplete: true,
+          ignoreHistoryCancellation: true
+        }
+      })
+    )
+  })
+
+  it('retries a failed import when a webhook arrives and marks it pending', async () => {
+    mockDb.upsertWahooImport.mockResolvedValue({
+      id: 'failed-import',
+      status: 'failed',
+      created: false,
+      summaryId: '99',
+      summaryUpdatedAt: Date.parse('2026-09-20T12:00:00.000Z')
+    })
+
+    const response = await POST(webhook(), { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    expect(mockDb.updateWahooImport).toHaveBeenCalledWith('failed-import', {
+      status: 'pending',
+      summaryId: '99',
+      summaryUpdatedAt: Date.parse('2026-09-20T12:30:00.000Z')
+    })
+    expect(mockQueue.publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'ImportWahooActivityJob',
+        data: {
+          importId: 'failed-import',
           notifyOnComplete: true,
           ignoreHistoryCancellation: true
         }
