@@ -47,6 +47,12 @@ export interface UpdateFitnessFileActivityData {
   deviceName?: string | null
   sourceUrl?: string | null
   deviceGearId?: string | null
+  avgPower?: number | null
+  maxPower?: number | null
+  avgHeartRate?: number | null
+  maxHeartRate?: number | null
+  totalWorkKj?: number | null
+  elevationSeries?: string | number[] | null
 }
 
 export interface GetFitnessFileParams {
@@ -330,6 +336,21 @@ const normalizeOptionalNumber = (value: unknown): number | undefined => {
   return undefined
 }
 
+const parseElevationSeries = (
+  value: string | null | undefined
+): number[] | undefined => {
+  if (!value) return undefined
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value
+    if (Array.isArray(parsed)) {
+      return parsed.map(Number).filter(Number.isFinite)
+    }
+  } catch {
+    return undefined
+  }
+  return undefined
+}
+
 const parseSQLFitnessFile = (row: SQLFitnessFile): FitnessFile => ({
   id: row.id,
   actorId: row.actorId,
@@ -356,6 +377,12 @@ const parseSQLFitnessFile = (row: SQLFitnessFile): FitnessFile => ({
   totalDurationSeconds: normalizeOptionalNumber(row.totalDurationSeconds),
   movingTimeSeconds: normalizeOptionalNumber(row.movingTimeSeconds),
   elevationGainMeters: normalizeOptionalNumber(row.elevationGainMeters),
+  avgPower: normalizeOptionalNumber(row.avgPower),
+  maxPower: normalizeOptionalNumber(row.maxPower),
+  avgHeartRate: normalizeOptionalNumber(row.avgHeartRate),
+  maxHeartRate: normalizeOptionalNumber(row.maxHeartRate),
+  totalWorkKj: normalizeOptionalNumber(row.totalWorkKj),
+  elevationSeries: parseElevationSeries(row.elevationSeries),
   activityType: row.activityType ?? undefined,
   deviceManufacturer: row.deviceManufacturer ?? undefined,
   deviceName: row.deviceName ?? undefined,
@@ -855,18 +882,35 @@ export const FitnessFileSQLDatabaseMixin = (
         | 'totalDurationSeconds'
         | 'movingTimeSeconds'
         | 'elevationGainMeters'
+        | 'avgPower'
+        | 'maxPower'
+        | 'avgHeartRate'
+        | 'maxHeartRate'
+        | 'totalWorkKj'
       >
     > = [
       'totalDistanceMeters',
       'totalDurationSeconds',
       'movingTimeSeconds',
-      'elevationGainMeters'
+      'elevationGainMeters',
+      'avgPower',
+      'maxPower',
+      'avgHeartRate',
+      'maxHeartRate',
+      'totalWorkKj'
     ]
 
     for (const field of numberFields) {
       if (!(field in data)) continue
       const value = data[field]
       updateData[field] = typeof value === 'number' ? value : null
+    }
+    if ('elevationSeries' in data) {
+      if (Array.isArray(data.elevationSeries)) {
+        updateData.elevationSeries = JSON.stringify(data.elevationSeries)
+      } else {
+        updateData.elevationSeries = data.elevationSeries ?? null
+      }
     }
     if ('activityType' in data) {
       updateData.activityType = data.activityType ?? null

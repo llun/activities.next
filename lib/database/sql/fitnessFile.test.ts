@@ -546,6 +546,40 @@ describe('FitnessFileDatabase', () => {
         expect(fetched?.activityStartTime).toBeDefined()
       })
 
+      it('persists and retrieves fitness summary metrics and elevation series', async () => {
+        const created = await database.createFitnessFile({
+          actorId: actors.primary.id,
+          path: 'fitness/summary-metrics.fit',
+          fileName: 'summary-metrics.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 4096
+        })
+
+        const metadataUpdated = await database.updateFitnessFileActivityData(
+          created!.id,
+          {
+            avgPower: 215,
+            maxPower: 620,
+            avgHeartRate: 142,
+            maxHeartRate: 175,
+            totalWorkKj: 530,
+            elevationSeries: [10, 15, 20, 25, 30]
+          }
+        )
+        expect(metadataUpdated).toBe(true)
+
+        const fetched = await database.getFitnessFile({ id: created!.id })
+        expect(fetched).toMatchObject({
+          avgPower: 215,
+          maxPower: 620,
+          avgHeartRate: 142,
+          maxHeartRate: 175,
+          totalWorkKj: 530,
+          elevationSeries: [10, 15, 20, 25, 30]
+        })
+      })
+
       it('keeps the map failure reason independent of the processing status', async () => {
         const created = await database.createFitnessFile({
           actorId: actors.primary.id,

@@ -49,6 +49,12 @@ export interface SQLFitnessFile {
   // activity, resolved from `deviceName`/`deviceManufacturer` on import. Those
   // two stay the immutable recorded facts; this points at the editable row.
   deviceGearId?: string | null
+  avgPower?: number | null
+  maxPower?: number | null
+  avgHeartRate?: number | null
+  maxHeartRate?: number | null
+  totalWorkKj?: number | null
+  elevationSeries?: string | null
 
   // Timestamps
   createdAt: number | Date
@@ -89,6 +95,12 @@ export interface FitnessFile {
   sourceUrl?: string
   gearId?: string
   deviceGearId?: string
+  avgPower?: number
+  maxPower?: number
+  avgHeartRate?: number
+  maxHeartRate?: number
+  totalWorkKj?: number
+  elevationSeries?: number[]
 
   createdAt: number
   updatedAt: number
