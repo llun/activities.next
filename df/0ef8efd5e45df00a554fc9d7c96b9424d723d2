@@ -1,0 +1,22 @@
+docs/fitness-file-storage.md
+  h_580a04e334fef4 78-81
+lib/services/fitness-files/backfillSummaryMetrics.test.ts
+  h_580a04e334fef4 1-188
+lib/services/fitness-files/backfillSummaryMetrics.ts
+  h_580a04e334fef4 1-118
+scripts/fitness/backfillFitnessSummaryMetrics.test.ts
+  h_580a04e334fef4 1-35
+scripts/fitness/backfillFitnessSummaryMetrics.ts
+  h_580a04e334fef4 1-190
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "df0ef8efd5e45df00a554fc9d7c96b9424d723d2",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
