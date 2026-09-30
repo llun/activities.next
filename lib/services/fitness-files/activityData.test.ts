@@ -293,5 +293,21 @@ describe('activityData', () => {
       expect(result.maxHeartRate).toBe(172)
       expect(result.totalWorkKj).toBe(480)
     })
+
+    it('ignores 0 bpm session heart rate values and falls back to samples', () => {
+      const points: FitnessTrackPoint[] = [
+        { lat: 0, lng: 0, heartRate: 140 },
+        { lat: 0, lng: 0, heartRate: 160 }
+      ]
+
+      const result = toActivityData({
+        points,
+        avgHeartRate: 0,
+        maxHeartRate: 0
+      })
+
+      expect(result.avgHeartRate).toBe(150)
+      expect(result.maxHeartRate).toBe(160)
+    })
   })
 })

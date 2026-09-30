@@ -75,7 +75,7 @@ Important columns include:
 - `deviceManufacturer`, `deviceName`
 - `gearId` — the bike or pair of shoes this activity is attributed to, or null. See Gear Tracking below. Deliberately a plain indexed column with no database-level foreign key: adding one through `alterTable` needs a table rebuild on SQLite, so the relationship is enforced in `lib/database/sql/fitnessGear.ts` instead, and deleting gear nulls the column in the same transaction.
 - `deviceGearId` — the `kind: 'device'` gear row for the head unit or watch that recorded this activity, or null. Resolved from `deviceName`/`deviceManufacturer` on import; those two stay the immutable recorded facts while the gear row carries the owner's editable name, brand, model and product page. Same plain-indexed-column-with-no-FK treatment as `gearId`, and deleting the device detaches it the same way.
-- `avgPower`, `maxPower` — average and maximum power in watts, computed across positive power samples. Nullable.
+- `avgPower`, `maxPower` — average and maximum power in watts, computed across recorded non-negative power samples (including 0 W coasting). Nullable.
 - `avgHeartRate`, `maxHeartRate` — average and maximum heart rate in bpm, excluding 0 bpm sensor dropouts. Nullable.
 - `totalWorkKj` — total work done in kilojoules (`round(avgPower * totalDurationSeconds / 1000)`). Nullable.
 - `elevationSeries` — downsampled elevation profile series (up to 120 points) stored as a JSON array string. Enables rendering the Overview tab elevation profile chart immediately in SSR without client-side route data fetching or layout shifts. Historical files can be backfilled with `scripts/fitness/backfillFitnessSummaryMetrics.ts`.

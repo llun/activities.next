@@ -328,7 +328,9 @@ export const toActivityData = ({
         )
       : undefined
   const resolvedAvgHeartRate =
-    typeof avgHeartRate === 'number' && Number.isFinite(avgHeartRate)
+    typeof avgHeartRate === 'number' &&
+    Number.isFinite(avgHeartRate) &&
+    avgHeartRate > 0
       ? Math.round(avgHeartRate)
       : computedAvgHeartRate
 
@@ -337,7 +339,9 @@ export const toActivityData = ({
       ? Math.round(Math.max(...positiveHeartRate))
       : undefined
   const resolvedMaxHeartRate =
-    typeof maxHeartRate === 'number' && Number.isFinite(maxHeartRate)
+    typeof maxHeartRate === 'number' &&
+    Number.isFinite(maxHeartRate) &&
+    maxHeartRate > 0
       ? Math.round(maxHeartRate)
       : computedMaxHeartRate
 
