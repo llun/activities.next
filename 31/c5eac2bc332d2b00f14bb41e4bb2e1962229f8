@@ -1,0 +1,14 @@
+scripts/mock/createMockFitnessData.ts
+  h_580a04e334fef4 179-188
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "31c5eac2bc332d2b00f14bb41e4bb2e1962229f8",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
