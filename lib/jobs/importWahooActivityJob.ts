@@ -6,7 +6,10 @@ import { Database } from '@/lib/database/types'
 import { getOverlapContextFitnessFileIds } from '@/lib/jobs/fitnessImportOverlap'
 import { importFitnessFiles } from '@/lib/jobs/importFitnessFilesJob'
 import { IMPORT_WAHOO_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
-import { saveFitnessFile } from '@/lib/services/fitness-files'
+import {
+  getFitnessFileBuffer,
+  saveFitnessFile
+} from '@/lib/services/fitness-files'
 import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
 import { withImportLock } from '@/lib/services/fitness-files/importLock'
 import { parseFitnessFile } from '@/lib/services/fitness-files/parseFitnessFile'
@@ -156,6 +159,29 @@ const processImport = async (
         const persisted = await database.getFitnessFile({ id: fitnessFileId })
         if (!persisted) fitnessFileId = undefined
       }
+      if (!fitnessFileId && latest.fitnessFileId && bytes) {
+        const persisted = await database.getFitnessFile({
+          id: latest.fitnessFileId
+        })
+        if (persisted && persisted.bytes === bytes.length) {
+          try {
+            const existingBuffer = await getFitnessFileBuffer(
+              database,
+              persisted.id,
+              persisted
+            )
+            if (existingBuffer.equals(bytes)) {
+              fitnessFileId = persisted.id
+            }
+          } catch (error) {
+            logger.warn({
+              message: 'Failed to read existing fitness file for deduplication',
+              fitnessFileId: persisted.id,
+              err: toLoggableError(error)
+            })
+          }
+        }
+      }
       if (!fitnessFileId) {
         const batchFiles = await database.getFitnessFilesByBatchId({ batchId })
         fitnessFileId = batchFiles.find(
@@ -177,6 +203,29 @@ const processImport = async (
         if (!saved) throw new Error('Failed to save Wahoo FIT file')
         fitnessFileId = saved.id
       }
+      const fileUnchanged = fitnessFileId === latest.fitnessFileId
+      if (fileUnchanged && latest.statusId) {
+        await database.updateWahooImport(record.id, {
+          fitnessFileId,
+          summaryId,
+          ...(summaryUpdatedAt ? { summaryUpdatedAt } : {}),
+          status: 'completed',
+          lastError: null
+        })
+        if (startTime || duration > 0) {
+          await database.updateFitnessFileActivityData(fitnessFileId, {
+            ...(startTime ? { activityStartTime: new Date(startTime) } : {}),
+            ...(duration > 0 ? { totalDurationSeconds: duration } : {})
+          })
+        }
+        await database.updateFitnessSettings({
+          id: settings.id,
+          lastImportAt: Date.now(),
+          connectionError: null
+        })
+        return
+      }
+
       await database.updateWahooImport(record.id, {
         fitnessFileId,
         summaryId,

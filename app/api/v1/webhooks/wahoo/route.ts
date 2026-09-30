@@ -122,18 +122,53 @@ export const POST = traceApiRoute('wahooWebhook', async (req) => {
     if (record.hadStatus && !record.statusId) {
       return apiResponse({ req, allowedMethods: [], data: { success: true } })
     }
-    if (record.status === 'completed') {
-      // A completed record is a tombstone too: local deletion must never be
-      // undone by a delayed or duplicate Wahoo webhook.
-      const isNewer =
-        record.summaryId !== summaryId ||
-        (summaryUpdatedAt !== undefined &&
-          (record.summaryUpdatedAt === undefined ||
-            summaryUpdatedAt > record.summaryUpdatedAt))
-      if (!isNewer) {
+
+    const isNewer =
+      record.summaryId !== summaryId ||
+      (summaryUpdatedAt !== undefined &&
+        (record.summaryUpdatedAt === undefined ||
+          summaryUpdatedAt > record.summaryUpdatedAt))
+
+    const isExisting =
+      record.created === false ||
+      (record.created === undefined &&
+        (record.status === 'running' || record.status === 'completed'))
+
+    if (isExisting) {
+      if (record.status === 'pending' || record.status === 'running') {
+        if (isNewer) {
+          await database.updateWahooImport(record.id, {
+            summaryId,
+            summaryUpdatedAt
+          })
+        }
         return apiResponse({ req, allowedMethods: [], data: { success: true } })
       }
-      await database.updateWahooImport(record.id, { status: 'pending' })
+
+      if (record.status === 'completed') {
+        // A completed record is a tombstone too: local deletion must never be
+        // undone by a delayed or duplicate Wahoo webhook.
+        if (!isNewer) {
+          return apiResponse({
+            req,
+            allowedMethods: [],
+            data: { success: true }
+          })
+        }
+        await database.updateWahooImport(record.id, {
+          status: 'pending',
+          summaryId,
+          summaryUpdatedAt
+        })
+      } else if (
+        record.status === 'failed' ||
+        record.status === 'unsupported'
+      ) {
+        await database.updateWahooImport(record.id, {
+          status: 'pending',
+          ...(isNewer ? { summaryId, summaryUpdatedAt } : {})
+        })
+      }
     }
     await queue.publish({
       id: crypto.randomUUID(),

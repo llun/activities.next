@@ -43,9 +43,12 @@ describe('Wahoo import database operations', () => {
       workoutId: 'workout-1'
     })
 
+    expect(first.created).toBe(true)
+    expect(duplicate.created).toBe(false)
     expect(duplicate.id).toBe(first.id)
     expect(duplicate.summaryId).toBe('summary-1')
     expect(otherProviderUser.id).not.toBe(first.id)
+    expect(otherProviderUser.created).toBe(true)
 
     await database.updateWahooImport(first.id, {
       status: 'running',
