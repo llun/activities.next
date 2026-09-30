@@ -19,6 +19,7 @@ export interface WahooImport {
   hadStatus?: boolean
   attempts: number
   lastError?: string
+  created?: boolean
 }
 
 export type WahooHistoryStatus =
@@ -177,7 +178,10 @@ export const WahooImportSQLDatabaseMixin = (
         .update({ historyImportId, updatedAt: new Date() })
       row.historyImportId = historyImportId
     }
-    return toImport(row)
+    return {
+      ...toImport(row),
+      created: row.id === id
+    }
   },
 
   async getWahooImport(id) {

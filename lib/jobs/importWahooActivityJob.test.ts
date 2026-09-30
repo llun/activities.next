@@ -2,7 +2,10 @@ import { Database } from '@/lib/database/types'
 import { importFitnessFiles } from '@/lib/jobs/importFitnessFilesJob'
 import { importWahooActivityJob } from '@/lib/jobs/importWahooActivityJob'
 import { IMPORT_WAHOO_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
-import { saveFitnessFile } from '@/lib/services/fitness-files'
+import {
+  getFitnessFileBuffer,
+  saveFitnessFile
+} from '@/lib/services/fitness-files'
 import { getQueue } from '@/lib/services/queue'
 import {
   getWahooWorkout,
@@ -10,7 +13,8 @@ import {
 } from '@/lib/services/wahoo/api'
 
 vi.mock('@/lib/services/fitness-files', () => ({
-  saveFitnessFile: vi.fn()
+  saveFitnessFile: vi.fn(),
+  getFitnessFileBuffer: vi.fn()
 }))
 
 vi.mock('@/lib/jobs/importFitnessFilesJob', () => ({
@@ -52,6 +56,7 @@ vi.mock('@/lib/services/fitness-files/parseFitnessFile', () => ({
 
 const mockImportFitnessFiles = vi.mocked(importFitnessFiles)
 const mockSaveFitnessFile = vi.mocked(saveFitnessFile)
+const mockGetFitnessFileBuffer = vi.mocked(getFitnessFileBuffer)
 const mockGetWahooWorkout = vi.mocked(getWahooWorkout)
 const mockGetWahooWorkoutSummary = vi.mocked(getWahooWorkoutSummary)
 const mockGetQueue = vi.mocked(getQueue)
@@ -161,6 +166,9 @@ describe('importWahooActivityJob', () => {
       id: 'summary-1',
       file: { url: 'https://files.example.test/ride.fit' }
     } as never)
+    mockGetFitnessFileBuffer.mockResolvedValue(
+      Buffer.from([0, 0, 0, 0, 0, 0, 0, 0, 46, 70, 73, 84, 0, 0, 0, 0])
+    )
   })
 
   it('records missing FIT files as unsupported so history retry can pick them up', async () => {
@@ -279,6 +287,97 @@ describe('importWahooActivityJob', () => {
         notifyOnComplete: true,
         postAtImportTime: true,
         preferRicherPrimary: true
+      }),
+      { deferProcessJobPublishes: true }
+    )
+  })
+
+  it('reuses existing fitness file and does not re-import when a newer summary revision carries identical FIT file bytes', async () => {
+    database.getWahooImport.mockResolvedValue(
+      record({
+        status: 'completed',
+        hadStatus: true,
+        statusId: 'existing-status',
+        fitnessFileId: 'existing-file',
+        summaryId: 'summary-1',
+        summaryUpdatedAt: Date.parse('2026-09-20T12:00:00.000Z')
+      }) as never
+    )
+    database.getFitnessFile.mockResolvedValue({
+      id: 'existing-file',
+      actorId: 'actor-1',
+      statusId: 'existing-status',
+      bytes: 16
+    } as never)
+
+    await importWahooActivityJob(database as unknown as Database, {
+      id: 'job-duplicate-fit',
+      name: IMPORT_WAHOO_ACTIVITY_JOB_NAME,
+      data: { importId, notifyOnComplete: true }
+    })
+
+    expect(mockSaveFitnessFile).not.toHaveBeenCalled()
+    expect(mockImportFitnessFiles).not.toHaveBeenCalled()
+    expect(database.updateWahooImport).toHaveBeenCalledWith(
+      importId,
+      expect.objectContaining({
+        fitnessFileId: 'existing-file',
+        summaryId: 'summary-1',
+        summaryUpdatedAt: Date.parse('2026-09-20T12:30:00.000Z'),
+        status: 'completed'
+      })
+    )
+    expect(database.updateFitnessSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'settings-1',
+        lastImportAt: expect.any(Number)
+      })
+    )
+  })
+
+  it('replaces primary fitness file when a newer summary revision carries modified FIT file bytes', async () => {
+    database.getWahooImport.mockResolvedValue(
+      record({
+        status: 'completed',
+        hadStatus: true,
+        statusId: 'existing-status',
+        fitnessFileId: 'existing-file',
+        summaryId: 'summary-1',
+        summaryUpdatedAt: Date.parse('2026-09-20T12:00:00.000Z')
+      }) as never
+    )
+    mockGetFitnessFileBuffer.mockResolvedValue(
+      Buffer.from([9, 9, 9, 9, 0, 0, 0, 0, 46, 70, 73, 84, 0, 0, 0, 0])
+    )
+    database.getFitnessFile.mockImplementation(async ({ id }) => {
+      if (id === 'existing-file') {
+        return {
+          id: 'existing-file',
+          actorId: 'actor-1',
+          statusId: 'existing-status',
+          bytes: 16
+        } as never
+      }
+      return {
+        id: 'new-file',
+        actorId: 'actor-1',
+        statusId: 'existing-status'
+      } as never
+    })
+
+    await importWahooActivityJob(database as unknown as Database, {
+      id: 'job-modified-fit',
+      name: IMPORT_WAHOO_ACTIVITY_JOB_NAME,
+      data: { importId, notifyOnComplete: false }
+    })
+
+    expect(mockSaveFitnessFile).toHaveBeenCalledOnce()
+    expect(mockImportFitnessFiles).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({
+        fitnessFileIds: ['new-file'],
+        replacePrimaryFileId: 'existing-file',
+        expectedExistingStatusId: 'existing-status'
       }),
       { deferProcessJobPublishes: true }
     )

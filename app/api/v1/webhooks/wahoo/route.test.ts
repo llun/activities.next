@@ -34,7 +34,8 @@ describe('Wahoo webhook', () => {
   const mockDb = {
     getWahooSettingsByWebhookToken: vi.fn(),
     updateFitnessSettings: vi.fn(),
-    upsertWahooImport: vi.fn()
+    upsertWahooImport: vi.fn(),
+    updateWahooImport: vi.fn()
   }
 
   beforeEach(() => {
@@ -51,8 +52,10 @@ describe('Wahoo webhook', () => {
     mockDb.updateFitnessSettings.mockResolvedValue(undefined)
     mockDb.upsertWahooImport.mockResolvedValue({
       id: 'import-1',
-      status: 'pending'
+      status: 'pending',
+      created: true
     })
+    mockDb.updateWahooImport.mockResolvedValue(undefined)
     mockQueue.publish.mockResolvedValue(undefined)
   })
 
@@ -105,10 +108,49 @@ describe('Wahoo webhook', () => {
     )
   })
 
+  it('does not queue a duplicate job when a webhook arrives while import is pending', async () => {
+    mockDb.upsertWahooImport.mockResolvedValue({
+      id: 'import-1',
+      status: 'pending',
+      created: false,
+      summaryId: '99',
+      summaryUpdatedAt: Date.parse('2026-09-20T12:00:00.000Z')
+    })
+
+    const response = await POST(webhook(), { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    expect(mockQueue.publish).not.toHaveBeenCalled()
+    expect(mockDb.updateWahooImport).toHaveBeenCalledWith('import-1', {
+      summaryId: '99',
+      summaryUpdatedAt: Date.parse('2026-09-20T12:30:00.000Z')
+    })
+  })
+
+  it('does not queue a duplicate job when a webhook arrives while import is running', async () => {
+    mockDb.upsertWahooImport.mockResolvedValue({
+      id: 'import-1',
+      status: 'running',
+      created: false,
+      summaryId: '99',
+      summaryUpdatedAt: Date.parse('2026-09-20T12:00:00.000Z')
+    })
+
+    const response = await POST(webhook(), { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    expect(mockQueue.publish).not.toHaveBeenCalled()
+    expect(mockDb.updateWahooImport).toHaveBeenCalledWith('import-1', {
+      summaryId: '99',
+      summaryUpdatedAt: Date.parse('2026-09-20T12:30:00.000Z')
+    })
+  })
+
   it('does not queue a completed import when a duplicate webhook arrives', async () => {
     mockDb.upsertWahooImport.mockResolvedValue({
       id: 'completed-import',
       status: 'completed',
+      created: false,
       hadStatus: true,
       statusId: 'status-1',
       summaryId: '99',
@@ -120,5 +162,34 @@ describe('Wahoo webhook', () => {
     expect(response.status).toBe(200)
     expect(mockDb.upsertWahooImport).toHaveBeenCalledOnce()
     expect(mockQueue.publish).not.toHaveBeenCalled()
+  })
+
+  it('queues a completed import when a newer summary revision arrives', async () => {
+    mockDb.upsertWahooImport.mockResolvedValue({
+      id: 'completed-import',
+      status: 'completed',
+      created: false,
+      hadStatus: true,
+      statusId: 'status-1',
+      summaryId: '99',
+      summaryUpdatedAt: Date.parse('2026-09-20T12:00:00.000Z')
+    })
+
+    const response = await POST(webhook(), { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    expect(mockDb.updateWahooImport).toHaveBeenCalledWith('completed-import', {
+      status: 'pending'
+    })
+    expect(mockQueue.publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'ImportWahooActivityJob',
+        data: {
+          importId: 'completed-import',
+          notifyOnComplete: true,
+          ignoreHistoryCancellation: true
+        }
+      })
+    )
   })
 })
