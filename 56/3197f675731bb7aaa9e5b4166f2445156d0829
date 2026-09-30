@@ -1,0 +1,34 @@
+app/(timeline)/[actor]/[status]/ActivityMapPanel.test.tsx
+  h_580a04e334fef4 728-756
+app/(timeline)/[actor]/[status]/ActivityMapPanel.tsx
+  h_580a04e334fef4 213,228,288-291,706,712-714
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  h_580a04e334fef4 516-568,589-596,855-858,1379-1401,1580-1581,1709-1711,1713-1714
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  h_580a04e334fef4 79-80,123,436,667-673,696-704,706-714,716,719-722,751-762,765-766,774,793,1073-1088,1097-1098,1100-1101,1106,1124,1148,1166-1168,1173,1176-1178,1181,1184-1186,1191,1214-1228,1243-1253,1321-1325,1782,1810,1834,1858
+app/(timeline)/[actor]/[status]/StatusBox.tsx
+  h_580a04e334fef4 6,38,49-50,81
+app/(timeline)/[actor]/[status]/page.tsx
+  h_580a04e334fef4 14,234-239,308
+app/api/v1/fitness-files/by-status/route.ts
+  h_580a04e334fef4 5,100,106
+lib/client/fitnessFiles.ts
+  h_580a04e334fef4 16,35-40
+lib/services/fitness-files/statusFitnessFiles.test.ts
+  h_580a04e334fef4 1-90
+lib/services/fitness-files/statusFitnessFiles.ts
+  h_580a04e334fef4 1-67
+lib/utils/fitness.ts
+  h_580a04e334fef4 166-190
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "563197f675731bb7aaa9e5b4166f2445156d0829",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
