@@ -101,7 +101,13 @@ describe('processFitnessFileJob', () => {
     totalDurationSeconds: 1_695,
     elevationGainMeters: 130,
     activityType: 'running',
-    startTime: new Date('2026-01-05T06:00:00.000Z')
+    startTime: new Date('2026-01-05T06:00:00.000Z'),
+    avgPower: 210,
+    maxPower: 450,
+    avgHeartRate: 145,
+    maxHeartRate: 172,
+    totalWorkKj: 350,
+    elevationSeries: [10, 20, 30]
   }
 
   const createStatusWithFitnessFile = async ({
@@ -287,7 +293,13 @@ describe('processFitnessFileJob', () => {
       elevationGainMeters: 130,
       activityType: 'running',
       hasMapData: true,
-      mapImagePath: 'medias/route-map.webp'
+      mapImagePath: 'medias/route-map.webp',
+      avgPower: 210,
+      maxPower: 450,
+      avgHeartRate: 145,
+      maxHeartRate: 172,
+      totalWorkKj: 350,
+      elevationSeries: [10, 20, 30]
     })
 
     const status = await database.getStatus({ statusId, withReplies: false })
