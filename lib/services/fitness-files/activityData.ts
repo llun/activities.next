@@ -43,6 +43,34 @@ export interface FitnessActivityData {
   speedSeries?: number[]
   deviceManufacturer?: string
   deviceName?: string
+  avgPower?: number
+  maxPower?: number
+  avgHeartRate?: number
+  maxHeartRate?: number
+  totalWorkKj?: number
+  elevationSeries?: number[]
+}
+
+export const DEFAULT_ELEVATION_SERIES_POINTS = 120
+
+export const downsampleSeries = (
+  series: number[],
+  targetCount: number
+): number[] => {
+  if (series.length <= targetCount) return series
+  if (targetCount <= 0) return []
+  const ratio = series.length / targetCount
+  const result: number[] = []
+  for (let i = 0; i < targetCount; i++) {
+    const start = Math.floor(i * ratio)
+    const end = Math.floor((i + 1) * ratio)
+    const chunk = series.slice(start, end)
+    const sum = chunk.reduce((a, b) => a + b, 0)
+    result.push(
+      chunk.length > 0 ? Math.round((sum / chunk.length) * 10) / 10 : 0
+    )
+  }
+  return result
 }
 
 export const EARTH_RADIUS_METERS = 6_371_000
@@ -198,6 +226,15 @@ export interface ToActivityDataParams {
   elevationGainMeters?: number
   activityType?: string
   startTime?: Date
+  powerSeries?: number[]
+  heartRateSeries?: number[]
+  altitudeSeries?: number[]
+  speedSeries?: number[]
+  avgPower?: number
+  maxPower?: number
+  avgHeartRate?: number
+  maxHeartRate?: number
+  totalWorkKj?: number
 }
 
 export const toActivityData = ({
@@ -206,7 +243,16 @@ export const toActivityData = ({
   totalDurationSeconds,
   elevationGainMeters,
   activityType,
-  startTime
+  startTime,
+  powerSeries: inputPowerSeries,
+  heartRateSeries: inputHeartRateSeries,
+  altitudeSeries: inputAltitudeSeries,
+  speedSeries: inputSpeedSeries,
+  avgPower,
+  maxPower,
+  avgHeartRate,
+  maxHeartRate,
+  totalWorkKj
 }: ToActivityDataParams): FitnessActivityData => {
   const coordinates = points.map(({ lat, lng }) => ({ lat, lng }))
   const trackPoints = points.map((point) => ({ ...point }))
@@ -233,21 +279,81 @@ export const toActivityData = ({
     points.map((point) => point.altitudeMeters)
   )
 
-  const powerSeries = points
-    .map((point) => point.power)
-    .filter((value): value is number => typeof value === 'number')
+  const powerSeries =
+    inputPowerSeries ??
+    points
+      .map((point) => point.power)
+      .filter((value): value is number => typeof value === 'number')
 
-  const heartRateSeries = points
-    .map((point) => point.heartRate)
-    .filter((value): value is number => typeof value === 'number')
+  const heartRateSeries =
+    inputHeartRateSeries ??
+    points
+      .map((point) => point.heartRate)
+      .filter((value): value is number => typeof value === 'number')
 
-  const altitudeSeries = points
-    .map((point) => point.altitude ?? point.altitudeMeters)
-    .filter((value): value is number => typeof value === 'number')
+  const altitudeSeries =
+    inputAltitudeSeries ??
+    points
+      .map((point) => point.altitude ?? point.altitudeMeters)
+      .filter((value): value is number => typeof value === 'number')
 
-  const speedSeries = points
-    .map((point) => point.speed)
-    .filter((value): value is number => typeof value === 'number')
+  const speedSeries =
+    inputSpeedSeries ??
+    points
+      .map((point) => point.speed)
+      .filter((value): value is number => typeof value === 'number')
+
+  const computedAvgPower =
+    powerSeries.length > 0
+      ? Math.round(powerSeries.reduce((a, b) => a + b, 0) / powerSeries.length)
+      : undefined
+  const resolvedAvgPower =
+    typeof avgPower === 'number' && Number.isFinite(avgPower)
+      ? Math.round(avgPower)
+      : computedAvgPower
+
+  const computedMaxPower =
+    powerSeries.length > 0 ? Math.round(Math.max(...powerSeries)) : undefined
+  const resolvedMaxPower =
+    typeof maxPower === 'number' && Number.isFinite(maxPower)
+      ? Math.round(maxPower)
+      : computedMaxPower
+
+  const positiveHeartRate = heartRateSeries.filter((bpm) => bpm > 0)
+  const computedAvgHeartRate =
+    positiveHeartRate.length > 0
+      ? Math.round(
+          positiveHeartRate.reduce((a, b) => a + b, 0) /
+            positiveHeartRate.length
+        )
+      : undefined
+  const resolvedAvgHeartRate =
+    typeof avgHeartRate === 'number' && Number.isFinite(avgHeartRate)
+      ? Math.round(avgHeartRate)
+      : computedAvgHeartRate
+
+  const computedMaxHeartRate =
+    positiveHeartRate.length > 0
+      ? Math.round(Math.max(...positiveHeartRate))
+      : undefined
+  const resolvedMaxHeartRate =
+    typeof maxHeartRate === 'number' && Number.isFinite(maxHeartRate)
+      ? Math.round(maxHeartRate)
+      : computedMaxHeartRate
+
+  const computedTotalWorkKj =
+    typeof resolvedAvgPower === 'number' && duration > 0
+      ? Math.round((resolvedAvgPower * duration) / 1000)
+      : undefined
+  const resolvedTotalWorkKj =
+    typeof totalWorkKj === 'number' && Number.isFinite(totalWorkKj)
+      ? Math.round(totalWorkKj)
+      : computedTotalWorkKj
+
+  const elevationSeries =
+    altitudeSeries.length > 0
+      ? downsampleSeries(altitudeSeries, DEFAULT_ELEVATION_SERIES_POINTS)
+      : undefined
 
   // Stored in the canonical form, never as the raw string the file carried:
   // the same ride reaches here as `cycling` from a FIT file, `Biking` from a
@@ -289,6 +395,18 @@ export const toActivityData = ({
     powerSeries,
     heartRateSeries,
     altitudeSeries,
-    speedSeries
+    speedSeries,
+    ...(resolvedAvgPower !== undefined ? { avgPower: resolvedAvgPower } : null),
+    ...(resolvedMaxPower !== undefined ? { maxPower: resolvedMaxPower } : null),
+    ...(resolvedAvgHeartRate !== undefined
+      ? { avgHeartRate: resolvedAvgHeartRate }
+      : null),
+    ...(resolvedMaxHeartRate !== undefined
+      ? { maxHeartRate: resolvedMaxHeartRate }
+      : null),
+    ...(resolvedTotalWorkKj !== undefined
+      ? { totalWorkKj: resolvedTotalWorkKj }
+      : null),
+    ...(elevationSeries !== undefined ? { elevationSeries } : null)
   }
 }
