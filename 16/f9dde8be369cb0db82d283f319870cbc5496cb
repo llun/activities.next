@@ -1,0 +1,23 @@
+app/api/v1/webhooks/wahoo/route.test.ts
+  s_d1aa4fe9443c5e::t_fdb729d9cde592 182-184,197-225
+app/api/v1/webhooks/wahoo/route.ts
+  s_d1aa4fe9443c5e::t_e0fafa2cdc0526 158-170
+lib/jobs/importWahooActivityJob.ts
+  s_d1aa4fe9443c5e::t_e1e53244309635 152,207
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "16f9dde8be369cb0db82d283f319870cbc5496cb",
+  "prompts": {},
+  "sessions": {
+    "s_d1aa4fe9443c5e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "90c166c9-9f62-428b-ba7f-30a3790a9508",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
