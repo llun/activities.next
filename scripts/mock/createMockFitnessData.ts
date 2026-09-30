@@ -176,6 +176,16 @@ async function createMockFitnessData() {
       totalDistanceMeters: distanceMeters,
       totalDurationSeconds: durationSeconds,
       elevationGainMeters,
+      avgPower: template.activityType === 'ride' ? jitter(210, 0.1) : null,
+      maxPower: template.activityType === 'ride' ? jitter(450, 0.15) : null,
+      avgHeartRate: jitter(148, 0.08),
+      maxHeartRate: jitter(176, 0.05),
+      totalWorkKj: template.activityType === 'ride' ? jitter(750, 0.2) : null,
+      elevationSeries: JSON.stringify(
+        Array.from({ length: 60 }, (_, i) =>
+          Math.round(100 + 40 * Math.sin(i / 5))
+        )
+      ),
       activityType: template.activityType,
       activityStartTime: startedAt,
       createdAt: startedAt,
