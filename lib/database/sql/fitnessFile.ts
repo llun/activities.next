@@ -336,7 +336,7 @@ const normalizeOptionalNumber = (value: unknown): number | undefined => {
   return undefined
 }
 
-const parseElevationSeries = (
+export const parseElevationSeries = (
   value: string | null | undefined
 ): number[] | undefined => {
   if (!value) return undefined

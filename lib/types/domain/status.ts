@@ -86,7 +86,13 @@ export const StatusFitnessFile = z.object({
   // the device page. A viewer who is not the owner gets no page to open, so the
   // id is inert for them.
   deviceGearId: z.string().nullable().optional(),
-  deviceGearName: z.string().nullable().optional()
+  deviceGearName: z.string().nullable().optional(),
+  avgPower: z.number().nullable().optional(),
+  maxPower: z.number().nullable().optional(),
+  avgHeartRate: z.number().nullable().optional(),
+  maxHeartRate: z.number().nullable().optional(),
+  totalWorkKj: z.number().nullable().optional(),
+  elevationSeries: z.array(z.number()).nullable().optional()
 })
 export type StatusFitnessFile = z.infer<typeof StatusFitnessFile>
 

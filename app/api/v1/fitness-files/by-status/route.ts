@@ -150,7 +150,13 @@ export const GET = traceApiRoute(
             deviceGearId: file.deviceGearId ?? null,
             deviceGearName: file.deviceGearId
               ? (gearNames[file.deviceGearId] ?? null)
-              : null
+              : null,
+            avgPower: file.avgPower ?? null,
+            maxPower: file.maxPower ?? null,
+            avgHeartRate: file.avgHeartRate ?? null,
+            maxHeartRate: file.maxHeartRate ?? null,
+            totalWorkKj: file.totalWorkKj ?? null,
+            elevationSeries: file.elevationSeries ?? null
           }))
         }
       })

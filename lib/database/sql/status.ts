@@ -1,6 +1,7 @@
 import { Knex } from 'knex'
 
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
+import { parseElevationSeries } from '@/lib/database/sql/fitnessFile'
 import { incrementLocalStatusBucket } from '@/lib/database/sql/instanceActivity'
 import { QueueJobSQLDatabaseMixin } from '@/lib/database/sql/queueJob'
 import { coercePollEndAt } from '@/lib/database/sql/utils/coercePollEndAt'
@@ -3599,7 +3600,29 @@ export const StatusSQLDatabaseMixin = (
               gearId: fitnessFile.gearId ?? null,
               gearName: fitnessFile.gearName ?? null,
               deviceGearId: fitnessFile.deviceGearId ?? null,
-              deviceGearName: fitnessFile.deviceGearName ?? null
+              deviceGearName: fitnessFile.deviceGearName ?? null,
+              ...(typeof fitnessFile.avgPower === 'number'
+                ? { avgPower: fitnessFile.avgPower }
+                : null),
+              ...(typeof fitnessFile.maxPower === 'number'
+                ? { maxPower: fitnessFile.maxPower }
+                : null),
+              ...(typeof fitnessFile.avgHeartRate === 'number'
+                ? { avgHeartRate: fitnessFile.avgHeartRate }
+                : null),
+              ...(typeof fitnessFile.maxHeartRate === 'number'
+                ? { maxHeartRate: fitnessFile.maxHeartRate }
+                : null),
+              ...(typeof fitnessFile.totalWorkKj === 'number'
+                ? { totalWorkKj: fitnessFile.totalWorkKj }
+                : null),
+              ...(fitnessFile.elevationSeries
+                ? {
+                    elevationSeries: parseElevationSeries(
+                      fitnessFile.elevationSeries
+                    )
+                  }
+                : null)
             }
           }
         : null),
