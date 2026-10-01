@@ -625,6 +625,71 @@ describe('FitnessStatusDetail', () => {
     }
   })
 
+  it('activates the interactive map on Overview when the Play button is clicked', async () => {
+    const statusWithMap = buildStatus({
+      fitness: {
+        id: 'fit-1',
+        fileName: 'ride.fit',
+        fileType: 'fit',
+        mimeType: 'application/octet-stream',
+        bytes: 2048,
+        url: 'https://activities.local/fit/ride.fit',
+        processingStatus: 'completed',
+        totalDistanceMeters: 5000,
+        totalDurationSeconds: 1800,
+        elevationGainMeters: 120,
+        activityType: 'ride',
+        activityStartTime: Date.parse('2026-05-27T10:42:00Z'),
+        hasMapData: true,
+        avgPower: 210,
+        maxPower: 450,
+        avgHeartRate: 145,
+        maxHeartRate: 172,
+        totalWorkKj: 387,
+        elevationSeries: [10, 25, 45, 60, 50, 30]
+      } as never
+    })
+    const map = {
+      addControl: vi.fn(),
+      addLayer: vi.fn(),
+      addSource: vi.fn(),
+      fitBounds: vi.fn(),
+      getCanvas: vi.fn(() => document.createElement('canvas')),
+      getSource: vi.fn(() => null),
+      on: vi.fn(),
+      once: vi.fn((event, handler) => {
+        if (event === 'load') handler()
+      }),
+      project: vi.fn(() => ({ x: 0, y: 0 })),
+      remove: vi.fn(),
+      resize: vi.fn(),
+      setFeatureState: vi.fn()
+    }
+    const MapConstructor = vi.fn(function MapStub() {
+      return map
+    })
+    vi.mocked(loadMaplibreModule).mockResolvedValue({
+      Map: MapConstructor
+    } as never)
+
+    renderDetail({ status: statusWithMap })
+
+    // Overview starts in static mode with the Play button visible
+    const playButton = screen.getByRole('button', {
+      name: 'Load interactive route map'
+    })
+    expect(playButton).toBeInTheDocument()
+    expect(MapConstructor).not.toHaveBeenCalled()
+
+    // Click the Play button
+    fireEvent.click(playButton)
+
+    // The map is constructed on Overview without needing to switch to Analysis
+    await waitFor(() => {
+      expect(MapConstructor).toHaveBeenCalledTimes(1)
+    })
+  })
+
   it('renders the activity header with the type badge and primary stats', async () => {
     renderDetail()
 

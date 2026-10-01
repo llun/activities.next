@@ -22,6 +22,7 @@ import { PickerRegion } from '@/lib/components/fitness/HeatmapRegionPicker'
 import { HeatmapShareEmbed } from '@/lib/components/fitness/HeatmapShareEmbed'
 import { RouteHeatmapMap } from '@/lib/components/fitness/RouteHeatmapMap'
 import type { HeatmapTileFetcher } from '@/lib/components/fitness/useHeatmapTiles'
+import { ResizableMapContainer } from '@/lib/components/map/ResizableMapContainer'
 import { Button } from '@/lib/components/ui/button'
 import { formatRectRegion } from '@/lib/fitness/regions'
 import { formatRelativeTime } from '@/lib/fitness/relativeTime'
@@ -543,13 +544,21 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
               Partial route cache capped at 1M files.
             </div>
           )}
-          <div className="overflow-hidden rounded-xl border">
+          <ResizableMapContainer
+            defaultHeight={420}
+            expandedHeight={700}
+            minHeight={240}
+            maxHeight={900}
+            showQuickToggle
+            className="overflow-hidden rounded-xl border"
+          >
             <RouteHeatmapMap
               heatmap={heatmap}
               mapProvider={mapProvider}
               fetchTiles={fetchTiles}
+              heightClassName="h-full w-full"
             />
-          </div>
+          </ResizableMapContainer>
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <Check className="size-3.5 text-green-600 dark:text-green-500" />

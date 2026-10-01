@@ -1,4 +1,4 @@
-import { Play, Plus } from 'lucide-react'
+import { Loader2, Play, Plus } from 'lucide-react'
 import { type FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { FitnessRouteSample, FitnessRouteSegment } from '@/lib/client'
@@ -19,6 +19,7 @@ import {
   ROUTE_HIGHLIGHT_HALO_RADIUS_PX,
   ROUTE_HIGHLIGHT_HIDDEN_CORE_COLOR
 } from '@/lib/components/fitness/routeHighlightMarker'
+import { ResizableMapContainer } from '@/lib/components/map/ResizableMapContainer'
 import { Media } from '@/lib/components/posts/media'
 import type { Attachment } from '@/lib/types/domain/attachment'
 import {
@@ -102,6 +103,7 @@ interface MapboxMap {
   setMaxBounds: (bounds: MapboxLngLatBounds) => void
   zoomIn: (options?: { duration?: number }) => void
   zoomOut: (options?: { duration?: number }) => void
+  resize: () => void
   remove: () => void
 }
 
@@ -211,6 +213,7 @@ export interface ActivityMapPanelProps {
   routeDataError?: string | null
   isRouteDataLoading?: boolean
   interactive?: boolean
+  onRequestInteractive?: () => void
   onOpenMap?: () => void
 }
 
@@ -226,6 +229,7 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
   routeDataError = null,
   isRouteDataLoading = false,
   interactive = true,
+  onRequestInteractive,
   onOpenMap
 }) => {
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
@@ -333,6 +337,7 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
 
     let cancelled = false
     let loadWatchdog: number | undefined
+    let resizeObserver: ResizeObserver | undefined
 
     const clearLoadWatchdog = () => {
       if (loadWatchdog === undefined) return
@@ -343,6 +348,8 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
     const failToStaticPreview = () => {
       if (cancelled) return
       clearLoadWatchdog()
+      resizeObserver?.disconnect()
+      resizeObserver = undefined
       mapRef.current?.remove()
       mapRef.current = null
       setMapLoadError('Interactive map unavailable. Using static preview.')
@@ -363,6 +370,13 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
         })
 
         mapRef.current = map
+
+        if (typeof ResizeObserver !== 'undefined' && mapContainerRef.current) {
+          resizeObserver = new ResizeObserver(() => {
+            mapRef.current?.resize()
+          })
+          resizeObserver.observe(mapContainerRef.current)
+        }
 
         // A style/tile failure never fires `load`; fall back rather than leave an
         // empty container behind. Deliberately watchdog-only, matching
@@ -546,6 +560,8 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
     return () => {
       cancelled = true
       clearLoadWatchdog()
+      resizeObserver?.disconnect()
+      resizeObserver = undefined
       mapRef.current?.remove()
       mapRef.current = null
       // `remove()` takes the map's listeners with it, but not React state: the
@@ -609,7 +625,14 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
   }, [])
 
   return (
-    <div className="relative h-72 overflow-hidden rounded-lg border bg-muted">
+    <ResizableMapContainer
+      defaultHeight={288}
+      expandedHeight={560}
+      minHeight={200}
+      maxHeight={800}
+      showQuickToggle
+      className="relative overflow-hidden rounded-lg border bg-muted"
+    >
       {shouldRenderInteractiveMap && !glProvider ? (
         <ActivityRouteMapKit
           routeSegments={drawableRouteSegments}
@@ -692,6 +715,26 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
             hasHiddenSegments={hasHiddenPrivacySegments}
           />
         </>
+      ) : onRequestInteractive ? (
+        <button
+          type="button"
+          onClick={onRequestInteractive}
+          disabled={isRouteDataLoading}
+          className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground shadow-md transition-all hover:opacity-90 active:scale-95 disabled:opacity-60"
+          aria-label="Load interactive route map"
+        >
+          {isRouteDataLoading ? (
+            <>
+              <Loader2 className="size-4 animate-spin" />
+              <span>Loading route…</span>
+            </>
+          ) : (
+            <>
+              <Play className="size-4 fill-current" />
+              <span>Interactive map</span>
+            </>
+          )}
+        </button>
       ) : onOpenMap && mapAttachment ? (
         <button
           type="button"
@@ -716,6 +759,6 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
           {routeDataError || mapLoadError}
         </div>
       ) : null}
-    </div>
+    </ResizableMapContainer>
   )
 }

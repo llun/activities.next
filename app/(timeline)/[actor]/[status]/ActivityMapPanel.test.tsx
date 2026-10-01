@@ -754,5 +754,49 @@ describe('ActivityMapPanel', () => {
         screen.queryByText('Loading interactive route...')
       ).not.toBeInTheDocument()
     })
+
+    it('renders Play button to request interactive map and triggers onRequestInteractive on click', () => {
+      const onRequestInteractive = vi.fn()
+
+      render(
+        <ActivityMapPanel
+          mapAttachment={sampleAttachment}
+          routeSamples={sampleRoute}
+          mapProvider={{ type: 'osm' }}
+          interactive={false}
+          onRequestInteractive={onRequestInteractive}
+        />
+      )
+
+      const playButton = screen.getByRole('button', {
+        name: 'Load interactive route map'
+      })
+      expect(playButton).toBeInTheDocument()
+      expect(screen.getByText('Interactive map')).toBeInTheDocument()
+
+      fireEvent.click(playButton)
+      expect(onRequestInteractive).toHaveBeenCalledTimes(1)
+    })
+
+    it('displays loading state on Play button when isRouteDataLoading is true', () => {
+      const onRequestInteractive = vi.fn()
+
+      render(
+        <ActivityMapPanel
+          mapAttachment={sampleAttachment}
+          routeSamples={sampleRoute}
+          mapProvider={{ type: 'osm' }}
+          interactive={false}
+          isRouteDataLoading
+          onRequestInteractive={onRequestInteractive}
+        />
+      )
+
+      const playButton = screen.getByRole('button', {
+        name: 'Load interactive route map'
+      })
+      expect(playButton).toBeDisabled()
+      expect(screen.getByText('Loading route…')).toBeInTheDocument()
+    })
   })
 })
