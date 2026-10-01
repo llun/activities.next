@@ -11,14 +11,25 @@ import { useGearTableColumns } from './useGearTableColumns'
 // is the width under test rather than jsdom's (which lays nothing out and
 // reports 0 for everything).
 let deliver: ((width: number) => void) | null = null
+// The hook also observes the scroller's content, so the scroll cues follow a
+// table that changes width inside a scroller that does not.
+let resizeContent: (() => void) | null = null
 let disconnected = 0
 
 class ResizeObserverStub {
+  private observing = false
+
   constructor(
     private readonly callback: (entries: ResizeObserverEntry[]) => void
   ) {}
 
   observe(target: Element) {
+    if (this.observing) {
+      resizeContent = () =>
+        this.callback([{ target } as unknown as ResizeObserverEntry])
+      return
+    }
+    this.observing = true
     // The hook reads the observed element's own `clientWidth` rather than the
     // entry's `contentRect`, so that is what a delivery has to set. jsdom lays
     // nothing out and reports 0 for it, hence the override.
@@ -75,6 +86,7 @@ const Probe: FC<{
     canScrollLeft,
     canScrollRight,
     scrollByColumn,
+    isRightPinned,
     pinnedColumnStyle,
     pinnedRightStyle,
     dataColumnStyle,
@@ -90,6 +102,7 @@ const Probe: FC<{
       <span data-testid="mode">{isSnapping ? 'snapping' : 'wide'}</span>
       <span data-testid="can-left">{String(canScrollLeft)}</span>
       <span data-testid="can-right">{String(canScrollRight)}</span>
+      <span data-testid="right-pinned">{String(isRightPinned)}</span>
       <button data-testid="step-left" onClick={() => scrollByColumn('left')} />
       <button
         data-testid="step-right"
@@ -107,6 +120,7 @@ const styleOf = (testId: string) => screen.getByTestId(testId).style
 describe('useGearTableColumns', () => {
   beforeEach(() => {
     deliver = null
+    resizeContent = null
     disconnected = 0
     vi.stubGlobal('ResizeObserver', ResizeObserverStub)
   })
@@ -341,6 +355,131 @@ describe('useGearTableColumns', () => {
       fireEvent.scroll(scroller)
     })
     expect(screen.getByTestId('can-left')).toHaveTextContent('true')
+    expect(screen.getByTestId('can-right')).toHaveTextContent('false')
+  })
+
+  // A phone fits the left pin and one snapped column; pinning the right
+  // column as well would leave the data a sliver, so it snaps instead.
+  it.each([
+    {
+      description: 'snaps the right column as the last data column below 480px',
+      width: 479,
+      expected: {
+        pinned: false,
+        data: '359px',
+        paddingRight: '',
+        textAlign: 'right'
+      }
+    },
+    {
+      description: 'pins the right column from 480px',
+      width: 480,
+      expected: {
+        pinned: true,
+        data: '220px',
+        paddingRight: '140px',
+        textAlign: 'right'
+      }
+    },
+    {
+      description: 'pins the right column on a tablet',
+      width: 600,
+      expected: {
+        pinned: true,
+        data: '170px',
+        paddingRight: '140px',
+        textAlign: ''
+      }
+    }
+  ])('$description', ({ width, expected }) => {
+    render(
+      <Probe
+        pinnedWidth={120}
+        pinnedRightWidth={140}
+        totalColumns={6}
+        targetColumnWidth={150}
+      />
+    )
+    act(() => deliver?.(width))
+
+    expect(screen.getByTestId('mode')).toHaveTextContent('snapping')
+    expect(screen.getByTestId('right-pinned')).toHaveTextContent(
+      String(expected.pinned)
+    )
+    expect(styleOf('data').width).toBe(expected.data)
+    expect(styleOf('data').textAlign).toBe(expected.textAlign)
+    expect(styleOf('scroller').scrollPaddingLeft).toBe('120px')
+    expect(styleOf('scroller').scrollPaddingRight).toBe(expected.paddingRight)
+  })
+
+  it('keeps the right column pinned before anything has been measured', () => {
+    render(<Probe pinnedWidth={120} pinnedRightWidth={140} />)
+
+    expect(screen.getByTestId('right-pinned')).toHaveTextContent('true')
+    expect(styleOf('pinned-right').minWidth).toBe('140px')
+  })
+
+  it('reports no right pin when none was asked for', () => {
+    render(<Probe />)
+    act(() => deliver?.(908))
+
+    expect(screen.getByTestId('right-pinned')).toHaveTextContent('false')
+  })
+
+  describe('under reduced motion', () => {
+    beforeEach(() => {
+      vi.stubGlobal(
+        'matchMedia',
+        vi.fn((query: string) => ({
+          matches: query === '(prefers-reduced-motion: reduce)'
+        }))
+      )
+    })
+
+    it('neither animates the columns nor smooth-scrolls a step', () => {
+      render(
+        <Probe
+          pinnedWidth={120}
+          pinnedRightWidth={140}
+          totalColumns={6}
+          targetColumnWidth={150}
+        />
+      )
+      act(() => deliver?.(908))
+
+      expect(styleOf('data').transition).toBe('')
+
+      const scroller = screen.getByTestId('scroller')
+      const scrollBySpy = vi.fn()
+      scroller.scrollBy = scrollBySpy
+      screen.getByTestId('step-right').click()
+      expect(scrollBySpy).toHaveBeenCalledWith({ left: 162, behavior: 'auto' })
+    })
+  })
+
+  // Re-snapping, a width animation or a wider value all change what overflows
+  // without resizing the scroller itself.
+  it('re-reads the scroll cues when the content resizes', () => {
+    render(
+      <Probe
+        pinnedWidth={120}
+        pinnedRightWidth={140}
+        totalColumns={6}
+        targetColumnWidth={150}
+      />
+    )
+    act(() => deliver?.(908))
+    expect(screen.getByTestId('can-right')).toHaveTextContent('true')
+
+    const scroller = screen.getByTestId('scroller')
+    act(() => {
+      Object.defineProperty(scroller, 'scrollWidth', {
+        configurable: true,
+        value: 908
+      })
+      resizeContent?.()
+    })
+
     expect(screen.getByTestId('can-right')).toHaveTextContent('false')
   })
 

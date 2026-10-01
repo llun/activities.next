@@ -83,11 +83,18 @@ const createComponent = (
 let deliverWidth: ((width: number) => void) | null = null
 
 class ResizeObserverStub {
+  private observing = false
+
   constructor(
     private readonly callback: (entries: ResizeObserverEntry[]) => void
   ) {}
 
+  // The hook observes the scroller first and then the table inside it (for
+  // the scroll cues); deliveries drive the scroller, so only the first target
+  // is wired up.
   observe(target: Element) {
+    if (this.observing) return
+    this.observing = true
     deliverWidth = (width: number) => {
       Object.defineProperty(target, 'clientWidth', {
         configurable: true,
@@ -129,6 +136,11 @@ describe('GearComponentsCard', () => {
     mockRetireFitnessGearComponent.mockResolvedValue(
       createComponent({ removedAt: Date.UTC(2025, 5, 1) })
     )
+    // Without this default the refit tests pass only on a neighbour's
+    // leaked implementation: `vi.clearAllMocks()` resets call history and
+    // leaves implementations in place, so whichever test last set one on this
+    // mock decides what the next test sees — including the rejection from
+    // "surfaces a refit failure". Remove it and `--sequence.shuffle` fails.
     mockRefitFitnessGearComponent.mockResolvedValue(
       createComponent({ removedAt: null })
     )
@@ -178,31 +190,78 @@ describe('GearComponentsCard', () => {
       expect(width - 32).toBeGreaterThanOrEqual(75)
     })
 
-    it('gives a column the same width in its header and its body', () => {
-      renderCard([createComponent(), createComponent({ id: 'c2' })])
-      act(() => deliverWidth?.(390))
-
-      // A header and body that disagree is how a pinned column ends up
-      // straddling the boundary it is meant to hold.
-      for (const index of [0, 1, 2, 7]) {
-        const widths = columnCells(index).map(
-          (cell) => (cell as HTMLElement).style.width
-        )
-        expect(new Set(widths).size).toBe(1)
-        if (index === 0) expect(widths[0]).toBe('120px')
-        else if (index === 7) expect(widths[0]).toBe('140px')
-        else expect(widths[0]).toBe('142px')
+    // A header and body that disagree is how a pinned column ends up
+    // straddling the boundary it is meant to hold.
+    it.each([
+      {
+        layout: 'a phone, actions snapped',
+        width: 390,
+        expected: { type: '120px', middle: '270px', actions: '270px' }
+      },
+      {
+        layout: 'a tablet, actions pinned',
+        width: 600,
+        expected: { type: '120px', middle: '170px', actions: '140px' }
       }
-    })
+    ])(
+      'gives a column the same width in its header and its body on $layout',
+      ({ width, expected }) => {
+        renderCard([createComponent(), createComponent({ id: 'c2' })])
+        act(() => deliverWidth?.(width))
 
-    it('pins the type and actions columns and snaps the middle below the threshold', () => {
+        for (const index of [0, 1, 2, 7]) {
+          const widths = columnCells(index).map(
+            (cell) => (cell as HTMLElement).style.width
+          )
+          expect(new Set(widths).size).toBe(1)
+          expect(widths[0]).toBe(
+            index === 0
+              ? expected.type
+              : index === 7
+                ? expected.actions
+                : expected.middle
+          )
+        }
+      }
+    )
+
+    // A phone has room for the pinned type column and one more; pinning the
+    // actions as well squeezed the data into a sliver between them, so there
+    // the actions snap as the last data column, as they did before.
+    it('snaps the actions as the last data column on a phone', () => {
       renderCard([createComponent()])
       act(() => deliverWidth?.(390))
 
       const [typeHeader] = columnCells(0)
       expect(typeHeader).toHaveClass('sticky')
-      const [actionsHeader] = columnCells(7)
-      expect(actionsHeader).toHaveClass('sticky')
+      for (const cell of columnCells(7)) {
+        expect(cell).not.toHaveClass('sticky')
+        expect((cell as HTMLElement).style.scrollSnapAlign).toBe('start')
+      }
+      expect(
+        screen.getByRole('button', { name: 'Edit Chain' }).closest('div')
+      ).toHaveClass('justify-end')
+      const scroller = screen.getByRole('table').parentElement as HTMLElement
+      expect(scroller).toHaveStyle({
+        scrollSnapType: 'x mandatory',
+        scrollPaddingLeft: '120px'
+      })
+      expect(scroller.style.scrollPaddingRight).toBe('')
+    })
+
+    it('pins the type and actions columns and snaps the middle above a phone', () => {
+      renderCard([createComponent()])
+      act(() => deliverWidth?.(600))
+
+      const [typeHeader] = columnCells(0)
+      expect(typeHeader).toHaveClass('sticky')
+      for (const cell of columnCells(7)) {
+        expect(cell).toHaveClass('sticky', 'right-0')
+        expect((cell as HTMLElement).style.scrollSnapAlign).toBe('')
+      }
+      expect(
+        screen.getByRole('button', { name: 'Edit Chain' }).closest('div')
+      ).toHaveClass('justify-center')
       const [, brandHeader] = screen.getAllByRole('columnheader')
       expect((brandHeader as HTMLElement).style.scrollSnapAlign).toBe('start')
       expect(screen.getByRole('table').parentElement).toHaveStyle({

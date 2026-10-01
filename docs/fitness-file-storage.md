@@ -914,9 +914,23 @@ null }` remains the precise "this retirement never happened" — it reopens the
   On the standard timeline desktop content width (`max-w-content` 940px, leaving ~648px
   available middle width), this fits **exactly 4 whole middle columns** side-by-side
   (displaying 6 of 8 total columns simultaneously).
+  **On a phone the actions column is not pinned.** Below a 480px scroller (the
+  120px left pin plus two columns at the 180px `DEFAULT_TARGET_COLUMN_WIDTH`),
+  where only `Type` and one more column fit, a second pin would squeeze the data
+  into a ~130px sliver between the two. There `useGearTableColumns` reports
+  `isRightPinned: false` and the actions column becomes the 7th snapped data
+  column again, exactly as before it was pinned: one whole column per swipe
+  beside `Type`, sized $\max(1, \lfloor (W - 120) / 180 \rfloor)$ = 1 with the
+  floor and overhang rules below, buttons right-aligned (`justify-end`), and no
+  `scroll-padding-right`. The right pin holds before the first measurement (the
+  server-rendered wide layout), and the first client layout corrects it before
+  paint.
   As container width changes, middle columns transition their widths smoothly
   (`transition: width 250ms cubic-bezier(0.4, 0, 0.2, 1)`) so column reduction
-  animates fluidly without reflow jumps. Left and right scroll cues (edge shadows on
+  animates fluidly without reflow jumps; under `prefers-reduced-motion` the
+  columns resize instantly and the chevrons step without smooth scrolling. The
+  hook observes the table as well as its scroller, so the scroll cues follow
+  content that re-snaps, animates or grows without the scroller resizing. Left and right scroll cues (edge shadows on
   the sticky column borders via `STICKY_LEFT_SHADOW` and `STICKY_RIGHT_SHADOW`, plus
   interactive `<` and `>` chevrons in the card header) indicate scrollable overflow.
   Retired components toggle smoothly with an expansion animation (`animate-in fade-in-0 duration-300`

@@ -85,12 +85,16 @@ const ADDED_COLUMN_WIDTH = 130
 const RETIRED_COLUMN_WIDTH = 110
 
 /**
- * Width of the actions column off-snap. Sized to fit action buttons
- * ("Edit", "Retire", "Delete") side-by-side horizontally without wrapping.
+ * Width of the actions column, pinned or off-snap. Sized to fit a row's two
+ * action buttons ("Edit" and "Retire", or "Refit" and "Delete") side-by-side
+ * horizontally without wrapping.
  */
 const ACTIONS_COLUMN_WIDTH = 140
 
-/** Total number of middle data columns in the components table. */
+/**
+ * Data columns between the pinned Type and Actions columns. On a phone the
+ * actions column unpins and snaps as one more (`isRightPinned`).
+ */
 const TOTAL_MIDDLE_COLUMNS = 6
 
 /** Target minimum column width used to compute integer visible columns. */
@@ -214,7 +218,8 @@ export const GearComponentsCard: FC<Props> = ({
     canScrollLeft,
     canScrollRight,
     scrollByColumn,
-    pinnedLeftStyle,
+    isRightPinned,
+    pinnedColumnStyle,
     pinnedRightStyle,
     dataColumnStyle,
     scrollerStyle
@@ -372,11 +377,14 @@ export const GearComponentsCard: FC<Props> = ({
           accrues distance from its added date.
         </p>
       ) : (
-        // Below the full-width threshold (1160px: 120px Type + 140px Actions + 6x150px middle)
-        // this snaps whole columns per swipe with dual-pinned bookends ("Type" left,
-        // "Actions" right), fitting an exact integer number of middle columns edge-to-edge
-        // so no half column is cut off. Above it all columns fit side-by-side. The old
-        // `min-w-[720px]` is gone because per-cell minimums already size columns cleanly.
+        // Below the full-width threshold (1160px: 120px Type + 140px Actions +
+        // 6x150px middle) this snaps whole columns per swipe with dual-pinned
+        // bookends ("Type" left, "Actions" right), fitting an exact integer
+        // number of middle columns edge-to-edge so no half column is cut off.
+        // Below 480px (a phone) "Actions" unpins and snaps as the last column,
+        // one column per swipe beside "Type". Above the threshold all columns
+        // fit side-by-side. The old `min-w-[720px]` is gone because per-cell
+        // minimums already size columns cleanly.
         <div
           ref={scrollerRef}
           className="overflow-x-auto"
@@ -391,7 +399,7 @@ export const GearComponentsCard: FC<Props> = ({
                     'px-4 pb-2 font-medium transition-shadow duration-200',
                     canScrollLeft && STICKY_LEFT_SHADOW
                   )}
-                  style={pinnedLeftStyle}
+                  style={pinnedColumnStyle}
                 >
                   Type
                 </th>
@@ -432,12 +440,20 @@ export const GearComponentsCard: FC<Props> = ({
                   Retired
                 </th>
                 <th
-                  className={cn(
-                    STICKY_RIGHT_COLUMN,
-                    'px-2 pb-2 font-medium transition-shadow duration-200',
-                    canScrollRight && STICKY_RIGHT_SHADOW
-                  )}
-                  style={pinnedRightStyle}
+                  className={
+                    isRightPinned
+                      ? cn(
+                          STICKY_RIGHT_COLUMN,
+                          'px-2 pb-2 font-medium transition-shadow duration-200',
+                          canScrollRight && STICKY_RIGHT_SHADOW
+                        )
+                      : 'px-3 pr-4 pb-2 font-medium'
+                  }
+                  style={
+                    isRightPinned
+                      ? pinnedRightStyle
+                      : dataColumnStyle(ACTIONS_COLUMN_WIDTH)
+                  }
                 >
                   <span className="sr-only">Actions</span>
                 </th>
@@ -466,13 +482,12 @@ export const GearComponentsCard: FC<Props> = ({
                         'px-4 py-2.5 align-top font-medium transition-shadow duration-200',
                         canScrollLeft && STICKY_LEFT_SHADOW
                       )}
-                      style={pinnedLeftStyle}
+                      style={pinnedColumnStyle}
                     >
                       <div className={cn(isRetired && 'opacity-60')}>
                         {component.componentType}
                       </div>
                     </td>
-
                     <td
                       className={cn(
                         CELL_WRAP,
@@ -532,15 +547,34 @@ export const GearComponentsCard: FC<Props> = ({
                     >
                       <PeriodDates component={component} bound="removedAt" />
                     </td>
+                    {/* Pinned, the buttons sit centred between symmetric
+                        padding; unpinned on a phone, the column is a snapped
+                        data column again and they keep to its right edge, as
+                        they did before the column was pinned. */}
                     <td
-                      className={cn(
-                        STICKY_RIGHT_COLUMN,
-                        'px-2 py-2.5 align-top whitespace-nowrap transition-shadow duration-200',
-                        canScrollRight && STICKY_RIGHT_SHADOW
-                      )}
-                      style={pinnedRightStyle}
+                      className={
+                        isRightPinned
+                          ? cn(
+                              STICKY_RIGHT_COLUMN,
+                              'px-2 py-2.5 align-top whitespace-nowrap transition-shadow duration-200',
+                              canScrollRight && STICKY_RIGHT_SHADOW
+                            )
+                          : 'px-3 py-2.5 pr-4 text-right align-top whitespace-nowrap'
+                      }
+                      style={
+                        isRightPinned
+                          ? pinnedRightStyle
+                          : dataColumnStyle(ACTIONS_COLUMN_WIDTH)
+                      }
                     >
-                      <div className="flex w-full flex-nowrap items-center justify-center gap-1">
+                      <div
+                        className={cn(
+                          'flex flex-nowrap items-center gap-1',
+                          isRightPinned
+                            ? 'w-full justify-center'
+                            : 'justify-end'
+                        )}
+                      >
                         {isRetired ? (
                           <>
                             <Button
