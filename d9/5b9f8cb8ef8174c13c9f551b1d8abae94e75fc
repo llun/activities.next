@@ -1,0 +1,21 @@
+app/u/heatmaps/[token]/SharedHeatmapPage.tsx
+  s_d1aa4fe9443c5e::t_9ae2685a79c260 7,121-125,130,132
+lib/components/fitness/RegionHeatmapDetail.tsx
+  s_d1aa4fe9443c5e::t_ee6d4659992fed 25,547-551,556,558
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d95b9f8cb8ef8174c13c9f551b1d8abae94e75fc",
+  "prompts": {},
+  "sessions": {
+    "s_d1aa4fe9443c5e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "90c166c9-9f62-428b-ba7f-30a3790a9508",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
