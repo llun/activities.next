@@ -780,6 +780,16 @@ legacy shape left to copy.
   `/api/v1/files/:path` is **not** an option: with object storage behind a public
   hostname that route answers `Response.redirect(url, 308)`, so there are no
   bytes to convert.
+- **The quoted-actor avatar is a fixed-size table nested in the row's cell, and
+  it shows the actor's image.** `toQuoteAuthor` carries `actor.iconUrl` into
+  `QuoteAuthor`, and `quote()` renders it as a 24px `<img>` with `width`/`height`
+  attributes and a 50% radius; only an actor with no usable (http/https) icon
+  gets the monogram. The monogram colour is also the cell's `bgcolor`, so it
+  shows while an image loads. Never make the avatar the row's own `<td>`: a
+  cell stretches to the row height when the handle wraps and shrinks to its
+  text when the card is wider than the screen, which rendered the circle as a
+  narrow tall pill in Apple Mail. Keep flexbox out of it and keep `min-width`
+  beside the explicit width and height.
 - A browser is a lower bar than a mail client. For a change to the shared layout,
   also send one to a real inbox and check Gmail, Apple Mail and Outlook —
   Outlook's Word engine is the one that needs `mso-` properties and the ghost

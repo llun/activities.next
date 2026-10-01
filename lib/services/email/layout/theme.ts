@@ -47,6 +47,9 @@ export const RADIUS_INSET = '8px'
 export const RADIUS_BUTTON = '6px'
 export const RADIUS_FULL = '9999px'
 
+/** Side of the quoted-actor avatar, in px — one number for width and height. */
+export const AVATAR_SIZE = 24
+
 // Monogram fills for the quoted-actor avatar. Picked deterministically from the
 // actor's handle so the same person is always the same colour across emails.
 export const MONOGRAM_PALETTE = [

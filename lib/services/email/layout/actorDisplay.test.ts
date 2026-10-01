@@ -158,4 +158,15 @@ describe('toQuoteAuthor', () => {
       handle: '@ben@remote.example.com'
     })
   })
+
+  it('carries the avatar URL when the actor has one', () => {
+    expect(
+      toQuoteAuthor(actor({ iconUrl: 'https://remote.example.com/ben.png' }))
+        .iconUrl
+    ).toBe('https://remote.example.com/ben.png')
+  })
+
+  it('leaves the avatar URL out when the actor has none', () => {
+    expect(toQuoteAuthor(actor())).not.toHaveProperty('iconUrl')
+  })
 })

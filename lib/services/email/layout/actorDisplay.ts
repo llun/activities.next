@@ -7,6 +7,11 @@ import { MONOGRAM_PALETTE } from './theme'
 export interface QuoteAuthor {
   readonly displayName: string
   readonly handle: string
+  /**
+   * The actor's avatar URL, when they have one. The avatar slot shows this
+   * image; without it the slot falls back to the monogram.
+   */
+  readonly iconUrl?: string
 }
 
 type NamedActor = Pick<ActorProfile, 'name' | 'username'>
@@ -32,8 +37,9 @@ export const getShortName = (actor: NamedActor): string => {
  * ("Maythee" -> "MA").
  *
  * This deliberately differs from the web `Avatar` component, which emits a
- * single letter for a one-word name. The email circle is a fixed 24px with no
- * image fallback, and one letter reads as a typo at that size.
+ * single letter for a one-word name. The email circle is a fixed 24px, and one
+ * letter reads as a typo at that size. It is shown only for an actor with no
+ * avatar image.
  *
  * Iterates with `Array.from` so an astral-plane first character (emoji, many
  * CJK extensions) is taken whole instead of being split at a surrogate pair.
@@ -65,5 +71,6 @@ export const getMonogramColor = (handle: string): string => {
 
 export const toQuoteAuthor = (actor: ActorProfile): QuoteAuthor => ({
   displayName: getDisplayName(actor),
-  handle: getMention(actor, true)
+  handle: getMention(actor, true),
+  ...(actor.iconUrl ? { iconUrl: actor.iconUrl } : null)
 })
