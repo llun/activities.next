@@ -59,6 +59,17 @@ const SNAP_OVERHANG_ALLOWANCE = 12
 const useIsomorphicLayoutEffect =
   typeof window === 'undefined' ? useEffect : useLayoutEffect
 
+export interface GearTableColumnsOptions {
+  totalColumns?: number
+  targetColumnWidth?: number
+}
+
+/** Default target column width used to compute how many whole columns fit. */
+export const DEFAULT_TARGET_COLUMN_WIDTH = 180
+
+/** Default count of data columns in the components table. */
+export const DEFAULT_TOTAL_DATA_COLUMNS = 7
+
 export interface GearTableColumns {
   /**
    * Attach to the scrolling wrapper — it is what gets measured. A callback ref
@@ -82,9 +93,12 @@ export interface GearTableColumns {
 }
 
 /**
- * Responsive column behavior shared by every gear table: the first column is
- * pinned to the left edge so a row always says what it is about, and below
- * `GEAR_TABLE_SNAP_WIDTH` the data columns become one-per-swipe snap panels.
+ * Responsive column behavior for gear tables: the first column is pinned to
+ * the left edge so a row always identifies what it is about. Whenever not all
+ * data columns can fit without overflowing, the table enables whole-column
+ * scroll snapping and dynamically divides available space among an exact
+ * integer number of visible columns ($N_{\text{fit}}$), ensuring whole columns
+ * fit edge-to-edge without cutting off a half column at the right boundary.
  *
  * It measures the table's own scroll container rather than the viewport, for
  * the same reason `useCompactActionBar` does — a table can sit in a narrow
@@ -95,8 +109,13 @@ export interface GearTableColumns {
  * corrects it.
  */
 export const useGearTableColumns = (
-  pinnedColumnWidth: number
+  pinnedColumnWidth: number,
+  options?: GearTableColumnsOptions
 ): GearTableColumns => {
+  const totalColumns = options?.totalColumns ?? DEFAULT_TOTAL_DATA_COLUMNS
+  const targetColumnWidth =
+    options?.targetColumnWidth ?? DEFAULT_TARGET_COLUMN_WIDTH
+
   const [element, setElement] = useState<HTMLDivElement | null>(null)
   const [width, setWidth] = useState(0)
 
@@ -130,12 +149,23 @@ export const useGearTableColumns = (
     return () => observer.disconnect()
   }, [element])
 
-  const isSnapping = width > 0 && width < GEAR_TABLE_SNAP_WIDTH
   const availableWidth = width - pinnedColumnWidth
-  const columnWidth = Math.max(
-    availableWidth,
-    Math.min(MIN_SNAP_COLUMN_WIDTH, availableWidth + SNAP_OVERHANG_ALLOWANCE)
+  const visibleColumnsCount = Math.max(
+    1,
+    Math.min(totalColumns, Math.floor(availableWidth / targetColumnWidth))
   )
+  const isSnapping = width > 0 && visibleColumnsCount < totalColumns
+
+  const columnWidth =
+    visibleColumnsCount === 1
+      ? Math.max(
+          availableWidth,
+          Math.min(
+            MIN_SNAP_COLUMN_WIDTH,
+            availableWidth + SNAP_OVERHANG_ALLOWANCE
+          )
+        )
+      : Math.floor(availableWidth / visibleColumnsCount)
 
   return {
     ref: setElement,
@@ -153,9 +183,7 @@ export const useGearTableColumns = (
             minWidth: columnWidth,
             maxWidth: columnWidth,
             scrollSnapAlign: 'start',
-            // A snapped column fills the row, so its value belongs on the edge
-            // the swipe brings it to rather than floating in the middle.
-            textAlign: 'right'
+            ...(visibleColumnsCount === 1 ? { textAlign: 'right' } : null)
           }
         : { minWidth },
     // `scrollPaddingLeft` keeps the snap position clear of the pinned column,

@@ -5,10 +5,7 @@ import '@testing-library/jest-dom'
 import { act, render, screen } from '@testing-library/react'
 import { FC } from 'react'
 
-import {
-  GEAR_TABLE_SNAP_WIDTH,
-  useGearTableColumns
-} from './useGearTableColumns'
+import { useGearTableColumns } from './useGearTableColumns'
 
 // A ResizeObserver whose deliveries the test drives, so the width the hook sees
 // is the width under test rather than jsdom's (which lays nothing out and
@@ -55,12 +52,19 @@ const PINNED_WIDTH = 104
 // the pin explicitly rather than inheriting the default.
 const COMPONENTS_PINNED_WIDTH = 120
 
-const Probe: FC<{ hasTable?: boolean; pinnedWidth?: number }> = ({
+const Probe: FC<{
+  hasTable?: boolean
+  pinnedWidth?: number
+  totalColumns?: number
+  targetColumnWidth?: number
+}> = ({
   hasTable = true,
-  pinnedWidth = PINNED_WIDTH
+  pinnedWidth = PINNED_WIDTH,
+  totalColumns,
+  targetColumnWidth
 }) => {
   const { ref, isSnapping, pinnedColumnStyle, dataColumnStyle, scrollerStyle } =
-    useGearTableColumns(pinnedWidth)
+    useGearTableColumns(pinnedWidth, { totalColumns, targetColumnWidth })
   if (!hasTable) return <p>No components yet.</p>
   return (
     <div ref={ref} data-testid="scroller" style={scrollerStyle}>
@@ -95,12 +99,12 @@ describe('useGearTableColumns', () => {
 
   it.each([
     {
-      description: 'stays wide at the threshold',
-      width: GEAR_TABLE_SNAP_WIDTH
+      description: 'stays wide at the threshold where all columns fit',
+      width: PINNED_WIDTH + 7 * 180
     },
     {
-      description: 'stays wide above the threshold',
-      width: GEAR_TABLE_SNAP_WIDTH + 200
+      description: 'stays wide above the threshold where all columns fit',
+      width: PINNED_WIDTH + 7 * 180 + 200
     }
   ])('$description', ({ width }) => {
     render(<Probe />)
@@ -110,7 +114,7 @@ describe('useGearTableColumns', () => {
     expect(styleOf('data').width).toBe('')
   })
 
-  it('snaps one data column per swipe below the threshold', () => {
+  it('snaps one data column per swipe on narrow viewports', () => {
     render(<Probe />)
     act(() => deliver?.(390))
 
@@ -123,6 +127,19 @@ describe('useGearTableColumns', () => {
     expect(styleOf('scroller').scrollSnapType).toBe('x mandatory')
     expect(styleOf('scroller').scrollPaddingLeft).toBe(`${PINNED_WIDTH}px`)
     expect(styleOf('pinned').width).toBe(`${PINNED_WIDTH}px`)
+  })
+
+  it('snaps multiple whole columns on wider viewports without half columns', () => {
+    render(<Probe />)
+    // 104 pinned + 450 available = 554 total; fits floor(450 / 180) = 2 columns of 225px.
+    act(() => deliver?.(554))
+
+    expect(screen.getByTestId('mode')).toHaveTextContent('snapping')
+    expect(styleOf('data').width).toBe('225px')
+    expect(styleOf('data').maxWidth).toBe('225px')
+    expect(styleOf('data').textAlign).toBe('')
+    expect(styleOf('scroller').scrollSnapType).toBe('x mandatory')
+    expect(styleOf('scroller').scrollPaddingLeft).toBe(`${PINNED_WIDTH}px`)
   })
 
   it('floors a snapped column so the distance and its wear line still fit', () => {
