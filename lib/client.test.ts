@@ -80,7 +80,6 @@ import {
   likeStatus,
   markNotificationsRead,
   performAdminAccountAction,
-  refitFitnessGearComponent,
   regenerateFitnessMaps,
   removeCollectionAccounts,
   requestEmailChange,
@@ -2525,9 +2524,6 @@ describe('client facade exports', () => {
     )
     expect(retireFitnessGearComponent).toBe(
       fitnessGearModule.retireFitnessGearComponent
-    )
-    expect(refitFitnessGearComponent).toBe(
-      fitnessGearModule.refitFitnessGearComponent
     )
     expect(updateFitnessFileGear).toBe(fitnessGearModule.updateFitnessFileGear)
   })

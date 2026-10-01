@@ -13,7 +13,6 @@ import {
 import {
   createFitnessGearComponent,
   deleteFitnessGearComponent,
-  refitFitnessGearComponent,
   retireFitnessGearComponent,
   updateFitnessGearComponent
 } from '@/lib/client'
@@ -24,7 +23,6 @@ import { GearComponentsCard } from './GearComponentsCard'
 vi.mock('@/lib/client', () => ({
   createFitnessGearComponent: vi.fn(),
   deleteFitnessGearComponent: vi.fn(),
-  refitFitnessGearComponent: vi.fn(),
   retireFitnessGearComponent: vi.fn(),
   updateFitnessGearComponent: vi.fn()
 }))
@@ -44,10 +42,6 @@ const mockDeleteFitnessGearComponent =
 const mockRetireFitnessGearComponent =
   retireFitnessGearComponent as jest.MockedFunction<
     typeof retireFitnessGearComponent
-  >
-const mockRefitFitnessGearComponent =
-  refitFitnessGearComponent as jest.MockedFunction<
-    typeof refitFitnessGearComponent
   >
 
 // `periods` defaults to the single period the derived `addedAt`/`removedAt`
@@ -128,14 +122,6 @@ describe('GearComponentsCard', () => {
     mockDeleteFitnessGearComponent.mockResolvedValue(undefined)
     mockRetireFitnessGearComponent.mockResolvedValue(
       createComponent({ removedAt: Date.UTC(2025, 5, 1) })
-    )
-    // Without this default the refit tests pass only on a neighbour's
-    // leaked implementation: `vi.clearAllMocks()` resets call history and
-    // leaves implementations in place, so whichever test last set one on this
-    // mock decides what the next test sees — including the rejection from
-    // "surfaces a refit failure". Remove it and `--sequence.shuffle` fails.
-    mockRefitFitnessGearComponent.mockResolvedValue(
-      createComponent({ removedAt: null })
     )
     mockUpdateFitnessGearComponent.mockResolvedValue(createComponent())
   })
@@ -572,86 +558,6 @@ describe('GearComponentsCard', () => {
     ).toBeInTheDocument()
   })
 
-  // Two confirm ids let an arm survive the flip: a row armed for Delete, then
-  // refitted, came back with Delete already armed — a one-click delete.
-  it('does not carry an arm across refitting a row', async () => {
-    mockRefitFitnessGearComponent.mockResolvedValue(
-      createComponent({ removedAt: null })
-    )
-    renderCard([createComponent({ removedAt: Date.UTC(2025, 5, 1) })])
-
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Show 1 retired component' })
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
-    expect(
-      screen.getByRole('button', { name: 'Confirm delete' })
-    ).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Refit Chain' }))
-
-    await waitFor(() =>
-      expect(mockRefitFitnessGearComponent).toHaveBeenCalled()
-    )
-    // Nothing is armed once the row changes which action it offers.
-    expect(screen.queryByRole('button', { name: 'Confirm delete' })).toBeNull()
-  })
-
-  // Refit posts to its own endpoint rather than clearing `removedAt` through
-  // the generic PATCH: clearing it reopened the closed period, which credited
-  // the part every activity ridden while it was off the bike.
-  it('refits a retired component and refetches', async () => {
-    const onChanged = renderCard([
-      createComponent({ removedAt: Date.UTC(2025, 5, 1) })
-    ])
-
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Show 1 retired component' })
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Refit Chain' }))
-
-    await waitFor(() =>
-      expect(mockRefitFitnessGearComponent).toHaveBeenCalledWith(
-        'gear-1',
-        'component-1'
-      )
-    )
-    expect(onChanged).toHaveBeenCalled()
-  })
-
-  // Refit is not armed: it opens a new install period at today and leaves the
-  // closed one alone, so a stray click costs nothing an immediate Retire does
-  // not undo. Arming it would only add friction to the misclick recovery.
-  it('refits on a single click', async () => {
-    renderCard([createComponent({ removedAt: Date.UTC(2025, 5, 1) })])
-
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Show 1 retired component' })
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Refit Chain' }))
-
-    await waitFor(() =>
-      expect(mockRefitFitnessGearComponent).toHaveBeenCalled()
-    )
-  })
-
-  it('surfaces a refit failure', async () => {
-    mockRefitFitnessGearComponent.mockRejectedValue(
-      new Error('Component not found')
-    )
-    const onChanged = renderCard([
-      createComponent({ removedAt: Date.UTC(2025, 5, 1) })
-    ])
-
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Show 1 retired component' })
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Refit Chain' }))
-
-    expect(await screen.findByText('Component not found')).toBeInTheDocument()
-    expect(onChanged).not.toHaveBeenCalled()
-  })
-
   // Action buttons stay on a single line via flex-nowrap and centered alignment
   it('keeps the retired row actions on a single line with flex-nowrap and centered', () => {
     renderCard([createComponent({ removedAt: Date.UTC(2025, 5, 1) })])
@@ -661,12 +567,12 @@ describe('GearComponentsCard', () => {
     )
 
     const actions = screen
-      .getByRole('button', { name: 'Refit Chain' })
+      .getByRole('button', { name: 'Edit Chain' })
       .closest('div')
     expect(actions).toHaveClass('flex', 'flex-nowrap', 'justify-center')
   })
 
-  it('offers edit, refit and delete on a retired row', () => {
+  it('offers edit and delete on a retired row', () => {
     renderCard([createComponent({ removedAt: Date.UTC(2025, 5, 1) })])
 
     fireEvent.click(
@@ -676,9 +582,7 @@ describe('GearComponentsCard', () => {
     expect(
       screen.getByRole('button', { name: 'Edit Chain' })
     ).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'Refit Chain' })
-    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Refit Chain' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
   })
 

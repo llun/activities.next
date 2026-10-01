@@ -256,30 +256,30 @@ describe('useGearTableColumns', () => {
     render(
       <Probe
         pinnedWidth={120}
-        pinnedRightWidth={160}
+        pinnedRightWidth={140}
         totalColumns={6}
         targetColumnWidth={150}
       />
     )
-    // 908 container width - 120 left - 160 right = 628 available.
-    // floor(628 / 150) = 4 columns of floor(628 / 4) = 157px.
+    // 908 container width - 120 left - 140 right = 648 available.
+    // floor(648 / 150) = 4 columns of floor(648 / 4) = 162px.
     act(() => deliver?.(908))
 
     expect(screen.getByTestId('mode')).toHaveTextContent('snapping')
-    expect(styleOf('data').width).toBe('157px')
+    expect(styleOf('data').width).toBe('162px')
     expect(styleOf('data').transition).toContain('width 250ms')
     expect(styleOf('pinned').width).toBe('120px')
-    expect(styleOf('pinned-right').width).toBe('160px')
+    expect(styleOf('pinned-right').width).toBe('140px')
     expect(styleOf('scroller').scrollSnapType).toBe('x mandatory')
     expect(styleOf('scroller').scrollPaddingLeft).toBe('120px')
-    expect(styleOf('scroller').scrollPaddingRight).toBe('160px')
+    expect(styleOf('scroller').scrollPaddingRight).toBe('140px')
   })
 
   it('steps by column with scrollByColumn', () => {
     render(
       <Probe
         pinnedWidth={120}
-        pinnedRightWidth={160}
+        pinnedRightWidth={140}
         totalColumns={6}
         targetColumnWidth={150}
       />
@@ -292,13 +292,13 @@ describe('useGearTableColumns', () => {
 
     screen.getByTestId('step-right').click()
     expect(scrollBySpy).toHaveBeenCalledWith({
-      left: 157,
+      left: 162,
       behavior: 'smooth'
     })
 
     screen.getByTestId('step-left').click()
     expect(scrollBySpy).toHaveBeenCalledWith({
-      left: -157,
+      left: -162,
       behavior: 'smooth'
     })
   })
@@ -307,7 +307,7 @@ describe('useGearTableColumns', () => {
     render(
       <Probe
         pinnedWidth={120}
-        pinnedRightWidth={160}
+        pinnedRightWidth={140}
         totalColumns={6}
         targetColumnWidth={150}
       />
