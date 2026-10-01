@@ -119,8 +119,11 @@ export const SharedHeatmapPage: FC<SharedHeatmapPageProps> = ({
         {/* the heat map */}
         <div className="mt-5">
           <ResizableMapContainer
-            storageKey="shared-fitness-heatmap-height"
             defaultHeight={440}
+            expandedHeight={700}
+            minHeight={240}
+            maxHeight={900}
+            showQuickToggle
             className="overflow-hidden rounded-xl border"
           >
             <PublicRouteHeatmapMap

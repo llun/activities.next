@@ -1078,9 +1078,14 @@ export const FitnessStatusDetail: FC<Props> = ({
 
   const hasMapToRender = Boolean(fitness?.hasMapData || mapAttachment)
 
+  const [isOverviewInteractiveRequested, setIsOverviewInteractiveRequested] =
+    useState(false)
+
   const needsRouteData =
     !hasSummaryMetrics ||
-    (activeSection === 'overview' && hasMapToRender) ||
+    (activeSection === 'overview' &&
+      isOverviewInteractiveRequested &&
+      hasMapToRender) ||
     activeSection === 'analysis' ||
     activeSection === 'heart-rate-zones' ||
     activeSection === '25w-distribution'
@@ -1098,6 +1103,7 @@ export const FitnessStatusDetail: FC<Props> = ({
     setSpeedSeries([])
     setRouteDataError(null)
     setLoadedRouteDataFileId(null)
+    setIsOverviewInteractiveRequested(false)
   }, [fitness?.id])
 
   useEffect(() => {
@@ -1782,6 +1788,10 @@ export const FitnessStatusDetail: FC<Props> = ({
                 mapProvider={mapProvider}
                 routeDataError={routeDataError}
                 isRouteDataLoading={isRouteDataLoading}
+                interactive={isOverviewInteractiveRequested}
+                onRequestInteractive={() =>
+                  setIsOverviewInteractiveRequested(true)
+                }
                 onOpenMap={() => {
                   if (mapAttachmentIndex >= 0) {
                     onShowAttachment(status.attachments, mapAttachmentIndex)

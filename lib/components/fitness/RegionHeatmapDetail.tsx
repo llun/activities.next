@@ -545,8 +545,11 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
             </div>
           )}
           <ResizableMapContainer
-            storageKey="fitness-heatmap-height"
             defaultHeight={420}
+            expandedHeight={700}
+            minHeight={240}
+            maxHeight={900}
+            showQuickToggle
             className="overflow-hidden rounded-xl border"
           >
             <RouteHeatmapMap
