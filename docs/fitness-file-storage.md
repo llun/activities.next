@@ -938,8 +938,8 @@ null }` remains the precise "this retirement never happened" — it reopens the
   `max-width` (250ms, `cubic-bezier(0.4, 0, 0.2, 1)`) as the scroller resizes,
   so a change in the visible column count does not jump; crossing into the wide
   layout is not animated. Scroll cues show which way content is hidden: an edge
-  shadow on a pinned column (`STICKY_LEFT_SHADOW`, `STICKY_RIGHT_SHADOW`) while
-  content sits past it, and `<`/`>` chevrons in the card header that step one
+  shadow on a pinned column (`STICKY_LEFT_SHADOW`, `STICKY_RIGHT_SHADOW`),
+  fading in over 200ms (`EDGE_SHADOW_TRANSITION`) while content sits past it, and `<`/`>` chevrons in the card header that step one
   column at a time. The chevrons are `aria-disabled` at either end, never
   `disabled`, so keyboard focus survives reaching the edge (the same rule as the
   post media strip). The hook observes the table as well as its scroller, so the
@@ -949,7 +949,8 @@ null }` remains the precise "this retirement never happened" — it reopens the
   pinned cells' content, never the pinned cells — for the dimming rule's reason
   below, and the toggle's chevron rotates. Under `prefers-reduced-motion` none
   of it animates: the columns resize instantly, the chevrons step without smooth
-  scrolling, and the fade and rotation are off.
+  scrolling, the edge shadows switch without fading, and the row fade and
+  chevron rotation are off.
   An armed action reads **"Confirm"**, with what it confirms kept in its
   accessible name ("Confirm retire Chain", "Confirm delete Chain"): "Refit" beside
   "Confirm delete" measured 152px against the 124px inside the pinned column's

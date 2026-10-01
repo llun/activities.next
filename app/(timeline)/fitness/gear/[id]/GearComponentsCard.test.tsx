@@ -423,6 +423,14 @@ describe('GearComponentsCard', () => {
       expect(typeHeader.className).toContain(STICKY_COLUMN)
       expect(typeHeader.className).not.toContain(STICKY_LEFT_SHADOW)
       expect(actionsHeader.className).toContain(STICKY_RIGHT_SHADOW)
+      // The shadows fade, so reduced motion has to opt them out; nothing
+      // global in the stylesheet does.
+      for (const header of [typeHeader, actionsHeader]) {
+        expect(header).toHaveClass(
+          'transition-shadow',
+          'motion-reduce:transition-none'
+        )
+      }
 
       const scroller = screen.getByRole('table').parentElement as HTMLElement
       act(() => {
@@ -804,6 +812,13 @@ describe('GearComponentsCard', () => {
     const actionsCell = row.lastElementChild as HTMLElement
     expect(actionsCell).not.toHaveClass('animate-in')
     expect(actionsCell.firstElementChild).toHaveClass('animate-in')
+    // tw-animate-css has no reduced-motion handling of its own.
+    expect(brandCell).toHaveClass('motion-reduce:animate-none')
+    expect(
+      screen
+        .getByRole('button', { name: 'Hide retired components' })
+        .querySelector('svg')
+    ).toHaveClass('motion-reduce:transition-none')
   })
 
   it('offers refit and delete on a retired row, but not edit', () => {
