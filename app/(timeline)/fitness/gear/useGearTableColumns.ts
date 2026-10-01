@@ -57,6 +57,7 @@ const useIsomorphicLayoutEffect =
   typeof window === 'undefined' ? useEffect : useLayoutEffect
 
 export interface GearTableColumnsOptions {
+  pinnedRightWidth?: number
   totalColumns?: number
   targetColumnWidth?: number
 }
@@ -64,8 +65,14 @@ export interface GearTableColumnsOptions {
 /** Default target column width used to compute how many whole columns fit. */
 export const DEFAULT_TARGET_COLUMN_WIDTH = 180
 
+/** Target column width when middle section is dual-pinned, calibrated to fit 4 middle columns on desktop. */
+export const DEFAULT_TARGET_MIDDLE_COLUMN_WIDTH = 150
+
 /** Default count of data columns in the components table. */
 export const DEFAULT_TOTAL_DATA_COLUMNS = 7
+
+/** Count of middle data columns between pinned Type and Actions. */
+export const DEFAULT_TOTAL_MIDDLE_COLUMNS = 6
 
 export interface GearTableColumns {
   /**
@@ -77,8 +84,18 @@ export interface GearTableColumns {
    */
   ref: RefCallback<HTMLDivElement>
   isSnapping: boolean
+  /** Whether the middle section has overflowed to the left and can be scrolled back left. */
+  canScrollLeft: boolean
+  /** Whether the middle section has more overflow to the right and can be scrolled right. */
+  canScrollRight: boolean
+  /** Programmatically step by one column left or right with smooth scrolling. */
+  scrollByColumn: (direction: 'left' | 'right') => void
   /** Widths for the pinned first column's `th`/`td`. */
   pinnedColumnStyle: CSSProperties
+  /** Alias for pinnedColumnStyle for dual-pinned tables. */
+  pinnedLeftStyle: CSSProperties
+  /** Widths for the pinned right column's `th`/`td`. */
+  pinnedRightStyle: CSSProperties
   /**
    * Widths for one data column. `minWidth` only applies off the snap path,
    * where the columns share the row; pass the width the cell's longest
@@ -90,34 +107,63 @@ export interface GearTableColumns {
 }
 
 /**
- * Responsive column behavior for gear tables: the first column is pinned to
- * the left edge so a row always identifies what it is about. Whenever not all
- * data columns can fit without overflowing, the table enables whole-column
- * scroll snapping and dynamically divides available space among an exact
- * integer number of visible columns ($N_{\text{fit}}$), ensuring whole columns
- * fit edge-to-edge without cutting off a half column at the right boundary.
+ * Responsive column behavior for gear tables: pins the subject column to
+ * the left (and optionally the action column to the right) while the middle
+ * data columns scroll with whole-column scroll snapping.
  *
- * It measures the table's own scroll container rather than the viewport, for
- * the same reason `useCompactActionBar` does — a table can sit in a narrow
- * column on a wide window, and a viewport breakpoint would snap the wrong ones.
- *
- * Reports "not snapping" wherever `ResizeObserver` is missing (server render,
- * jsdom): the full table is the honest default, and the first client layout
- * corrects it.
+ * It dynamically divides available space among an exact integer number of visible
+ * columns ($N_{\text{fit}}$), ensuring whole columns fit edge-to-edge without
+ * cutting off a half column at the right boundary, and animates width transitions
+ * smoothly when shrinking or expanding.
  */
 export const useGearTableColumns = (
   pinnedColumnWidth: number,
   options?: GearTableColumnsOptions
 ): GearTableColumns => {
-  const totalColumns = options?.totalColumns ?? DEFAULT_TOTAL_DATA_COLUMNS
+  const pinnedRightWidth = options?.pinnedRightWidth ?? 0
+  const totalColumns =
+    options?.totalColumns ??
+    (pinnedRightWidth > 0
+      ? DEFAULT_TOTAL_MIDDLE_COLUMNS
+      : DEFAULT_TOTAL_DATA_COLUMNS)
   const targetColumnWidth =
-    options?.targetColumnWidth ?? DEFAULT_TARGET_COLUMN_WIDTH
+    options?.targetColumnWidth ??
+    (pinnedRightWidth > 0
+      ? DEFAULT_TARGET_MIDDLE_COLUMN_WIDTH
+      : DEFAULT_TARGET_COLUMN_WIDTH)
 
   const [element, setElement] = useState<HTMLDivElement | null>(null)
   const [width, setWidth] = useState(0)
+  const [scrollState, setScrollState] = useState({
+    canScrollLeft: false,
+    canScrollRight: false
+  })
 
   useIsomorphicLayoutEffect(() => {
-    if (!element || typeof ResizeObserver === 'undefined') return
+    if (!element) return
+
+    const updateScrollState = () => {
+      const { scrollLeft, scrollWidth, clientWidth } = element
+      const maxScrollLeft = scrollWidth - clientWidth
+      const canLeft = scrollLeft > 2
+      const canRight = maxScrollLeft > 2 && scrollLeft < maxScrollLeft - 2
+      setScrollState((prev) => {
+        if (
+          prev.canScrollLeft === canLeft &&
+          prev.canScrollRight === canRight
+        ) {
+          return prev
+        }
+        return { canScrollLeft: canLeft, canScrollRight: canRight }
+      })
+    }
+
+    updateScrollState()
+    element.addEventListener('scroll', updateScrollState, { passive: true })
+
+    if (typeof ResizeObserver === 'undefined') {
+      return () => element.removeEventListener('scroll', updateScrollState)
+    }
 
     // A zero width means the table was never laid out — a `display: none`
     // ancestor, a detached subtree, jsdom — not that it is narrow, so the last
@@ -127,6 +173,7 @@ export const useGearTableColumns = (
     const measure = (measured: number) => {
       if (measured === 0) return
       setWidth(measured)
+      updateScrollState()
     }
 
     // Measure here rather than leaving it to the observer's first delivery,
@@ -134,19 +181,17 @@ export const useGearTableColumns = (
     // every phone.
     measure(element.clientWidth)
 
-    // Both paths read `clientWidth` rather than the entry's `contentRect`:
-    // that is the scrollport the columns are snapped against, and mixing the
-    // two measures (integer padding box vs fractional content box) makes a
-    // table sitting a fraction either side of the threshold render wide for a
-    // frame and then reflow.
     const observer = new ResizeObserver(() => {
       measure(element.clientWidth)
     })
     observer.observe(element)
-    return () => observer.disconnect()
+    return () => {
+      element.removeEventListener('scroll', updateScrollState)
+      observer.disconnect()
+    }
   }, [element])
 
-  const availableWidth = width - pinnedColumnWidth
+  const availableWidth = width - pinnedColumnWidth - pinnedRightWidth
   const visibleColumnsCount = Math.max(
     1,
     Math.min(totalColumns, Math.floor(availableWidth / targetColumnWidth))
@@ -164,15 +209,35 @@ export const useGearTableColumns = (
         )
       : Math.floor(availableWidth / visibleColumnsCount)
 
+  const scrollByColumn = (direction: 'left' | 'right') => {
+    if (!element) return
+    const scrollAmount = direction === 'left' ? -columnWidth : columnWidth
+    element.scrollBy({ left: scrollAmount, behavior: 'smooth' })
+  }
+
+  const pinnedLeftStyle: CSSProperties = {
+    minWidth: pinnedColumnWidth,
+    ...(isSnapping
+      ? { width: pinnedColumnWidth, maxWidth: pinnedColumnWidth }
+      : null)
+  }
+
+  const pinnedRightStyle: CSSProperties = {
+    minWidth: pinnedRightWidth,
+    ...(isSnapping
+      ? { width: pinnedRightWidth, maxWidth: pinnedRightWidth }
+      : null)
+  }
+
   return {
     ref: setElement,
     isSnapping,
-    pinnedColumnStyle: {
-      minWidth: pinnedColumnWidth,
-      ...(isSnapping
-        ? { width: pinnedColumnWidth, maxWidth: pinnedColumnWidth }
-        : null)
-    },
+    canScrollLeft: isSnapping && scrollState.canScrollLeft,
+    canScrollRight: isSnapping && scrollState.canScrollRight,
+    scrollByColumn,
+    pinnedColumnStyle: pinnedLeftStyle,
+    pinnedLeftStyle,
+    pinnedRightStyle,
     dataColumnStyle: (minWidth?: number) =>
       isSnapping
         ? {
@@ -180,13 +245,20 @@ export const useGearTableColumns = (
             minWidth: columnWidth,
             maxWidth: columnWidth,
             scrollSnapAlign: 'start',
+            transition:
+              'width 250ms cubic-bezier(0.4, 0, 0.2, 1), min-width 250ms cubic-bezier(0.4, 0, 0.2, 1), max-width 250ms cubic-bezier(0.4, 0, 0.2, 1)',
             ...(visibleColumnsCount === 1 ? { textAlign: 'right' } : null)
           }
         : { minWidth },
-    // `scrollPaddingLeft` keeps the snap position clear of the pinned column,
-    // which would otherwise cover the left edge of whatever just snapped in.
+    // `scrollPaddingLeft` keeps the snap position clear of the pinned left column,
+    // and `scrollPaddingRight` prevents the last column from sliding under the pinned right column.
     scrollerStyle: isSnapping
-      ? { scrollSnapType: 'x mandatory', scrollPaddingLeft: pinnedColumnWidth }
+      ? {
+          scrollSnapType: 'x mandatory',
+          scrollPaddingLeft: pinnedColumnWidth,
+          scrollPaddingRight:
+            pinnedRightWidth > 0 ? pinnedRightWidth : undefined
+        }
       : undefined
   }
 }

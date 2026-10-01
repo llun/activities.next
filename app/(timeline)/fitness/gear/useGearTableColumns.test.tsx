@@ -55,21 +55,44 @@ const COMPONENTS_PINNED_WIDTH = 120
 const Probe: FC<{
   hasTable?: boolean
   pinnedWidth?: number
+  pinnedRightWidth?: number
   totalColumns?: number
   targetColumnWidth?: number
 }> = ({
   hasTable = true,
   pinnedWidth = PINNED_WIDTH,
+  pinnedRightWidth,
   totalColumns,
   targetColumnWidth
 }) => {
-  const { ref, isSnapping, pinnedColumnStyle, dataColumnStyle, scrollerStyle } =
-    useGearTableColumns(pinnedWidth, { totalColumns, targetColumnWidth })
+  const {
+    ref,
+    isSnapping,
+    canScrollLeft,
+    canScrollRight,
+    scrollByColumn,
+    pinnedColumnStyle,
+    pinnedRightStyle,
+    dataColumnStyle,
+    scrollerStyle
+  } = useGearTableColumns(pinnedWidth, {
+    pinnedRightWidth,
+    totalColumns,
+    targetColumnWidth
+  })
   if (!hasTable) return <p>No components yet.</p>
   return (
     <div ref={ref} data-testid="scroller" style={scrollerStyle}>
       <span data-testid="mode">{isSnapping ? 'snapping' : 'wide'}</span>
+      <span data-testid="can-left">{String(canScrollLeft)}</span>
+      <span data-testid="can-right">{String(canScrollRight)}</span>
+      <button data-testid="step-left" onClick={() => scrollByColumn('left')} />
+      <button
+        data-testid="step-right"
+        onClick={() => scrollByColumn('right')}
+      />
       <span data-testid="pinned" style={pinnedColumnStyle} />
+      <span data-testid="pinned-right" style={pinnedRightStyle} />
       <span data-testid="data" style={dataColumnStyle(96)} />
     </div>
   )
@@ -223,6 +246,57 @@ describe('useGearTableColumns', () => {
     rerender(<Probe hasTable={false} />)
 
     expect(disconnected).toBe(1)
+  })
+
+  it('fits 4 middle columns on widest desktop when dual-pinned', () => {
+    render(
+      <Probe
+        pinnedWidth={120}
+        pinnedRightWidth={160}
+        totalColumns={6}
+        targetColumnWidth={150}
+      />
+    )
+    // 908 container width - 120 left - 160 right = 628 available.
+    // floor(628 / 150) = 4 columns of floor(628 / 4) = 157px.
+    act(() => deliver?.(908))
+
+    expect(screen.getByTestId('mode')).toHaveTextContent('snapping')
+    expect(styleOf('data').width).toBe('157px')
+    expect(styleOf('data').transition).toContain('width 250ms')
+    expect(styleOf('pinned').width).toBe('120px')
+    expect(styleOf('pinned-right').width).toBe('160px')
+    expect(styleOf('scroller').scrollSnapType).toBe('x mandatory')
+    expect(styleOf('scroller').scrollPaddingLeft).toBe('120px')
+    expect(styleOf('scroller').scrollPaddingRight).toBe('160px')
+  })
+
+  it('steps by column with scrollByColumn', () => {
+    render(
+      <Probe
+        pinnedWidth={120}
+        pinnedRightWidth={160}
+        totalColumns={6}
+        targetColumnWidth={150}
+      />
+    )
+    act(() => deliver?.(908))
+
+    const scroller = screen.getByTestId('scroller')
+    const scrollBySpy = vi.fn()
+    scroller.scrollBy = scrollBySpy
+
+    screen.getByTestId('step-right').click()
+    expect(scrollBySpy).toHaveBeenCalledWith({
+      left: 157,
+      behavior: 'smooth'
+    })
+
+    screen.getByTestId('step-left').click()
+    expect(scrollBySpy).toHaveBeenCalledWith({
+      left: -157,
+      behavior: 'smooth'
+    })
   })
 
   it('disconnects its observer on unmount', () => {

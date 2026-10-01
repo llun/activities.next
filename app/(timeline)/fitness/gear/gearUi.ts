@@ -246,6 +246,24 @@ export const STICKY_COLUMN =
   'sticky left-0 z-1 bg-card shadow-[inset_-1px_0_0_var(--border)]'
 
 /**
+ * Pinned last cell of a row (such as the Actions column on the components
+ * table). Pinned to the right edge with a left-edge hairline separator.
+ */
+export const STICKY_RIGHT_COLUMN =
+  'sticky right-0 z-1 bg-card shadow-[inset_1px_0_0_var(--border)]'
+
+/**
+ * Elevation shadows indicating scrollable content slipping under pinned columns.
+ * Applied when the middle content is scrollable to the left (on the left pinned column)
+ * or to the right (on the right pinned column).
+ */
+export const STICKY_LEFT_SHADOW =
+  'shadow-[inset_-1px_0_0_var(--border),4px_0_8px_-2px_rgba(0,0,0,0.12)] dark:shadow-[inset_-1px_0_0_var(--border),4px_0_8px_-2px_rgba(0,0,0,0.4)]'
+
+export const STICKY_RIGHT_SHADOW =
+  'shadow-[inset_1px_0_0_var(--border),-4px_0_8px_-2px_rgba(0,0,0,0.12)] dark:shadow-[inset_1px_0_0_var(--border),-4px_0_8px_-2px_rgba(0,0,0,0.4)]'
+
+/**
  * Pinned first cell of a row that is itself clickable. The row's hover colour
  * has to be repeated here because this cell paints its own background over the
  * row's — without it the pinned column stays unlit while the rest of the row

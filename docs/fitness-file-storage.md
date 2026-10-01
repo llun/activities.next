@@ -895,39 +895,42 @@ null }` remains the precise "this retirement never happened" — it reopens the
   component with a period open on that side, since it cannot be placed inside
   `[addedAt, removedAt)`. A gear total may therefore exceed the sum of its
   components.
-- **The components table snaps to whole data columns whenever not all columns fit** —
+- **The components table pins both bookends (`Type` left, `Actions` right) and snaps whole middle columns whenever not all columns fit** —
   `useGearTableColumns` (`@/app/(timeline)/fitness/gear/useGearTableColumns`),
-  which is the design system's `useGKSnapCols`. It layers on top of the pinned
-  first column described above, and only the components table uses it so far:
-  the gear list's bikes/shoes/devices tables pin but do not snap, and still
-  carry a `min-w-[520px]`. That is a **known gap against the design**, not a
-  decision — `GearKit.jsx` runs all four tables through `useGKSnapCols` (150px
-  for the three gear tables, 104px for the components one), so on a phone the
-  gear list scrolls as one block where the design snaps it, which is the same
-  failure `min-w-[720px]` used to cause on the components table. Whenever the
-  available scroll area cannot fit all data columns without overflowing
-  (< 1380px for the 120px pin + 7 data columns at 180px target width),
-  `useGearTableColumns` enables whole-column scroll snapping
-  (`scroll-snap-type: x mandatory`, `scroll-padding-left` clear of the pin, and
-  `scroll-snap-align: start` on data columns) and dynamically sizes the visible
-  data columns across an exact integer number of columns ($N_{\text{fit}} = \max(1, \lfloor W_{\text{avail}} / 180 \rfloor)$).
-  Each visible column spans $W_{\text{col}} = \lfloor W_{\text{avail}} / N_{\text{fit}} \rfloor$,
-  ensuring columns fit edge-to-edge without cutting off an awkward half column at
-  the right edge. On narrow mobile viewports (< 360px available width),
-  $N_{\text{fit}} = 1$ and each swipe moves exactly one column; on mid-width
-  viewports (tablets and narrow desktop containers), $N_{\text{fit}} = 2..6$ whole
-  columns display and snap per swipe. Under the single-column threshold ($N_{\text{fit}} = 1$),
+  which is the design system's `useGKSnapCols`. It pins the first column (`Type`, 120px)
+  to the left edge (`STICKY_COLUMN`) and the last column (`Actions`, 160px) to the right
+  edge (`STICKY_RIGHT_COLUMN`), keeping action buttons ("Edit", "Retire", "Refit", "Delete")
+  always accessible without scrolling. Whenever the available middle scroll area
+  ($W_{\text{avail}} = \text{width} - 120 - 160$) cannot fit all 6 middle data columns
+  without overflowing (< 1180px for the 120px left pin + 160px right pin + 6 middle
+  columns at 150px target width), `useGearTableColumns` enables whole-column scroll snapping
+  (`scroll-snap-type: x mandatory`, `scroll-padding-left: 120px`, `scroll-padding-right: 160px`,
+  and `scroll-snap-align: start` on middle columns). It dynamically sizes the visible middle
+  columns across an exact integer number of columns ($N_{\text{fit}} = \max(1, \min(6, \lfloor W_{\text{avail}} / 150 \rfloor))$),
+  scaling each visible middle column to $W_{\text{col}} = \lfloor W_{\text{avail}} / N_{\text{fit}} \rfloor$,
+  ensuring columns fit edge-to-edge without cutting off an awkward half column.
+  On the standard timeline desktop content width (`max-w-content` 940px, leaving ~628px
+  available middle width), this fits **exactly 4 whole middle columns** side-by-side
+  (displaying 6 of 8 total columns simultaneously).
+  As container width changes, middle columns transition their widths smoothly
+  (`transition: width 250ms cubic-bezier(0.4, 0, 0.2, 1)`) so column reduction
+  animates fluidly without reflow jumps. Left and right scroll cues (edge shadows on
+  the sticky column borders via `STICKY_LEFT_SHADOW` and `STICKY_RIGHT_SHADOW`, plus
+  interactive `<` and `>` chevrons in the card header) indicate scrollable overflow.
+  Retired components toggle smoothly with an expansion animation (`animate-in fade-in-0 duration-300`
+  and rotating chevron). Under the single-column threshold ($N_{\text{fit}} = 1$),
   the column width is floored at 184px so the distance cell's wear line still fits,
   subject to a 12px overhang allowance (the cell's own right padding) to prevent
   clipping on small viewports (such as 320px). The hook measures the table's
   **own scroll container** with a `ResizeObserver`, attaching through a
   **callback** ref so it reliably binds when components mount.
 - **Do not put `min-w-[720px]` back on the components table.** The per-cell
-  minimums (120 pin + 140 Brand + 160 Model + 130 Product page + 140 Distance +
-  130 Added + 110 Retired + 180 Actions = 1110px) already provide generous room
+  minimums (120 Type + 140 Brand + 160 Model + 130 Product page + 140 Distance +
+  130 Added + 110 Retired + 160 Actions = 990px) already provide generous room
   for values and keep action buttons on a single line, and dynamic whole-column
-  snapping automatically adapts the visible column count to any container width
-  without stranding cut-off columns.
+  snapping with dual-pinned bookends automatically adapts the visible column count
+  to any container width without stranding cut-off columns.
+
 - **Every cell in the components table carries `wrap-anywhere`.** A `<td>`'s
   width is advisory, and the component type, brand and model are all free text
   to 255 characters (`gearRequests.ts`) — a long unbroken value widens its

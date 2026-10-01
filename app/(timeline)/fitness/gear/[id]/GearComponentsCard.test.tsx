@@ -87,6 +87,10 @@ class ResizeObserverStub {
         configurable: true,
         value: width
       })
+      Object.defineProperty(target, 'scrollWidth', {
+        configurable: true,
+        value: 1200
+      })
       this.callback([
         {
           target,
@@ -179,26 +183,31 @@ describe('GearComponentsCard', () => {
 
       // A header and body that disagree is how a pinned column ends up
       // straddling the boundary it is meant to hold.
-      for (const index of [0, 1, 2]) {
+      for (const index of [0, 1, 2, 7]) {
         const widths = columnCells(index).map(
           (cell) => (cell as HTMLElement).style.width
         )
         expect(new Set(widths).size).toBe(1)
-        expect(widths[0]).toBe(index === 0 ? '120px' : '270px')
+        if (index === 0) expect(widths[0]).toBe('120px')
+        else if (index === 7) expect(widths[0]).toBe('160px')
+        else expect(widths[0]).toBe('122px')
       }
     })
 
-    it('pins the type column and snaps the rest below the threshold', () => {
+    it('pins the type and actions columns and snaps the middle below the threshold', () => {
       renderCard([createComponent()])
       act(() => deliverWidth?.(390))
 
       const [typeHeader] = columnCells(0)
       expect(typeHeader).toHaveClass('sticky')
+      const [actionsHeader] = columnCells(7)
+      expect(actionsHeader).toHaveClass('sticky')
       const [, brandHeader] = screen.getAllByRole('columnheader')
       expect((brandHeader as HTMLElement).style.scrollSnapAlign).toBe('start')
       expect(screen.getByRole('table').parentElement).toHaveStyle({
         scrollSnapType: 'x mandatory',
-        scrollPaddingLeft: '120px'
+        scrollPaddingLeft: '120px',
+        scrollPaddingRight: '160px'
       })
     })
 
@@ -218,18 +227,22 @@ describe('GearComponentsCard', () => {
 
     it('snaps multiple whole columns on mid-width viewports without half columns', () => {
       renderCard([createComponent()])
-      // 120 pinned + 780 available = 900 total; fits floor(780 / 180) = 4 columns of 195px.
+      // 120 pinned left + 160 pinned right + 620 available = 900 total; fits floor(620 / 150) = 4 middle columns of 155px.
       act(() => deliverWidth?.(900))
 
       const [typeHeader] = columnCells(0)
       expect(typeHeader).toHaveClass('sticky')
       expect((typeHeader as HTMLElement).style.width).toBe('120px')
+      const [actionsHeader] = columnCells(7)
+      expect(actionsHeader).toHaveClass('sticky')
+      expect((actionsHeader as HTMLElement).style.width).toBe('160px')
       const [, brandHeader] = screen.getAllByRole('columnheader')
       expect((brandHeader as HTMLElement).style.scrollSnapAlign).toBe('start')
-      expect((brandHeader as HTMLElement).style.width).toBe('195px')
+      expect((brandHeader as HTMLElement).style.width).toBe('155px')
       expect(screen.getByRole('table').parentElement).toHaveStyle({
         scrollSnapType: 'x mandatory',
-        scrollPaddingLeft: '120px'
+        scrollPaddingLeft: '120px',
+        scrollPaddingRight: '160px'
       })
     })
 
@@ -242,13 +255,39 @@ describe('GearComponentsCard', () => {
       expect((brandCell as HTMLElement).style.minWidth).toBe('140px')
     })
 
-    it('sets the actions column width to at least 180px off-snap', () => {
+    it('sets the actions column width to at least 160px off-snap', () => {
       renderCard([createComponent()])
       act(() => deliverWidth?.(1400))
 
       const [actionsHeader, actionsCell] = columnCells(7)
-      expect((actionsHeader as HTMLElement).style.minWidth).toBe('180px')
-      expect((actionsCell as HTMLElement).style.minWidth).toBe('180px')
+      expect((actionsHeader as HTMLElement).style.minWidth).toBe('160px')
+      expect((actionsCell as HTMLElement).style.minWidth).toBe('160px')
+    })
+
+    it('renders scroll chevrons when snapping is active and scrolls on click', () => {
+      renderCard([createComponent()])
+      act(() => deliverWidth?.(900))
+
+      const leftButton = screen.getByRole('button', {
+        name: 'Scroll components table left'
+      })
+      const rightButton = screen.getByRole('button', {
+        name: 'Scroll components table right'
+      })
+      expect(leftButton).toBeDisabled()
+      expect(rightButton).toBeInTheDocument()
+
+      const tableWrapper = screen.getByRole('table').parentElement
+      const scrollBySpy = vi.fn()
+      if (tableWrapper) {
+        tableWrapper.scrollBy = scrollBySpy
+      }
+
+      fireEvent.click(rightButton)
+      expect(scrollBySpy).toHaveBeenCalledWith({
+        left: 155,
+        behavior: 'smooth'
+      })
     })
   })
 
