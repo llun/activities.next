@@ -832,8 +832,14 @@ Read the applicable rules and review checks below before changing this subsystem
   reintroduce the columns as a denormalised copy of the latest period, for the
   reason the totals are derived: a second source of truth for the same fact
   drifts and nothing downstream can tell.
-- **Retiring closes the open period.**
-  Reopening the closed period is retroactive credit; `PATCH { removedAt:
+- **Retiring closes the open period; refitting opens the NEXT one at today.**
+  `POST /api/v1/fitness/gear/:id/components/:componentId/refit` is its own
+  endpoint precisely because it is NOT the mirror of `/retire` — reopening the
+  closed period is the retroactive credit above. A new period costs at most the
+  gap between the retirement and the refit: seconds for a misclick (so the
+  card's one-click, unarmed Refit still reads as an undo), and the truth for a
+  wheelset that really did spend a winter on the shelf. Retired components offer
+  Refit and Delete (Edit is reserved for active components). `PATCH { removedAt:
 null }` remains the precise "this retirement never happened" — it reopens the
   LAST period — and PATCH's `addedAt`/`removedAt` reach only the outermost
   bounds (first period's start, last period's end), which is what keeps an edit
@@ -894,7 +900,7 @@ null }` remains the precise "this retirement never happened" — it reopens the
   `useGearTableColumns` (`@/app/(timeline)/fitness/gear/useGearTableColumns`),
   which is the design system's `useGKSnapCols`. It pins the first column (`Type`, 120px)
   to the left edge (`STICKY_COLUMN`) and the last column (`Actions`, 140px) to the right
-  edge (`STICKY_RIGHT_COLUMN`), keeping action buttons ("Edit", "Retire", "Delete")
+  edge (`STICKY_RIGHT_COLUMN`), keeping action buttons ("Edit" and "Retire" on active rows, "Refit" and "Delete" on retired rows)
   always accessible without scrolling with equal spacing in front and back (`justify-center`
   with symmetric `px-2` padding). Whenever the available middle scroll area
   ($W_{\text{avail}} = \text{width} - 120 - 140$) cannot fit all 6 middle data columns

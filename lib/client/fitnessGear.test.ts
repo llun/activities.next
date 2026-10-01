@@ -9,6 +9,7 @@ import {
   getFitnessGearActivities,
   getFitnessGearComponents,
   getFitnessGearList,
+  refitFitnessGearComponent,
   retireFitnessGearComponent,
   setFitnessGearRetired,
   updateFitnessFileGear,
@@ -422,6 +423,29 @@ describe('fitnessGear client module', () => {
       await expect(
         retireFitnessGearComponent('gear-1', 'comp-1')
       ).rejects.toThrow('Failed to retire component.')
+    })
+  })
+
+  describe('refitFitnessGearComponent', () => {
+    it('sends POST to /api/v1/fitness/gear/:id/components/:componentId/refit', async () => {
+      const mockComponent = { id: 'comp-1', addedAt: 1700000000000 }
+      fetchMock.mockResponseOnce(JSON.stringify({ component: mockComponent }))
+
+      const result = await refitFitnessGearComponent('gear-1', 'comp-1')
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/fitness/gear/gear-1/components/comp-1/refit',
+        { method: 'POST' }
+      )
+      expect(result).toEqual(mockComponent)
+    })
+
+    it('throws error on failure', async () => {
+      fetchMock.mockResponseOnce('', { status: 500 })
+
+      await expect(
+        refitFitnessGearComponent('gear-1', 'comp-1')
+      ).rejects.toThrow('Failed to refit component.')
     })
   })
 

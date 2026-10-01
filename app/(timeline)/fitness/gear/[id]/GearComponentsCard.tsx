@@ -22,6 +22,7 @@ import {
 import { useGearTableColumns } from '@/app/(timeline)/fitness/gear/useGearTableColumns'
 import {
   deleteFitnessGearComponent,
+  refitFitnessGearComponent,
   retireFitnessGearComponent
 } from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
@@ -244,6 +245,37 @@ export const GearComponentsCard: FC<Props> = ({
         retireError instanceof Error
           ? retireError.message
           : 'Failed to retire component.'
+      )
+    } finally {
+      setPendingActionId(null)
+    }
+  }
+
+  // Refit, not Unretire: it opens a NEW install period starting today and
+  // leaves the closed one alone. This used to clear `removedAt`, which reopened
+  // the ORIGINAL window — undoing a retire from last season then credited the
+  // part every activity ridden while it sat off the bike, and re-retiring could
+  // not take that back, because it only closed the window at the new today.
+  // A new period costs the gap instead: seconds for a misclick, and the truth
+  // for a part that really did spend a season on the shelf.
+  //
+  // Still unarmed, for the reason it always was: arming it would add friction
+  // to the misclick this exists to recover from. What has changed is that a
+  // stray click is now cheap in BOTH directions.
+  const handleRefit = async (componentId: string) => {
+    setError(null)
+    // The row is about to offer Retire instead of Delete; carrying an arm
+    // across that flip is what the single id exists to prevent.
+    setConfirmingActionId(null)
+    setPendingActionId(componentId)
+    try {
+      await refitFitnessGearComponent(gearId, componentId)
+      onChanged()
+    } catch (refitError) {
+      setError(
+        refitError instanceof Error
+          ? refitError.message
+          : 'Failed to refit component.'
       )
     } finally {
       setPendingActionId(null)
@@ -515,15 +547,12 @@ export const GearComponentsCard: FC<Props> = ({
                               size="sm"
                               type="button"
                               variant="ghost"
-                              className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                              aria-label={`Edit ${component.componentType}`}
+                              className="h-7 px-2 text-xs text-primary-text"
+                              aria-label={`Refit ${component.componentType}`}
                               disabled={isPending}
-                              onClick={() => {
-                                setConfirmingActionId(null)
-                                setEditingComponent(component)
-                              }}
+                              onClick={() => handleRefit(component.id)}
                             >
-                              Edit
+                              Refit
                             </Button>
                             <Button
                               size="sm"
