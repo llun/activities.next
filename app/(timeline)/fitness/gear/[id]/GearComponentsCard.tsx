@@ -55,20 +55,37 @@ interface Props {
 const TYPE_COLUMN_WIDTH = 120
 
 /**
- * Width of the "Brand" column. At 96px with `px-3` (24px horizontal padding),
- * the 72px content box caused "Continental" (~75px at text-sm) to wrap its
- * trailing 'l' to a new line ("Continenta / l") under `wrap-anywhere`.
- * 124px leaves 100px of content width, fitting "Continental" with over 20px
- * of headroom for varied platform system fonts.
+ * Width of the "Brand" column off-snap. Sized to fit brand names with
+ * generous headroom for system font variations across platforms.
  */
-const BRAND_COLUMN_WIDTH = 124
+const BRAND_COLUMN_WIDTH = 140
+
+/** Width of the "Model" column off-snap. */
+const MODEL_COLUMN_WIDTH = 160
+
+/** Width of the "Product page" column off-snap. */
+const PRODUCT_PAGE_COLUMN_WIDTH = 130
+
+/** Width of the "Distance" column off-snap. */
+const DISTANCE_COLUMN_WIDTH = 140
+
+/** Width of the "Added" column off-snap. */
+const ADDED_COLUMN_WIDTH = 130
+
+/** Width of the "Retired" column off-snap. */
+const RETIRED_COLUMN_WIDTH = 110
 
 /**
- * Width of the actions column off-snap. Sized to fit "Edit" and "Retire"
- * side-by-side horizontally with gap and padding. Retains `flex-wrap` so that
- * snapped single-column views wrap cleanly instead of overflowing.
+ * Width of the actions column off-snap. Sized to fit action buttons
+ * ("Edit", "Retire", "Refit", "Delete") side-by-side horizontally without wrapping.
  */
-const ACTIONS_COLUMN_WIDTH = 136
+const ACTIONS_COLUMN_WIDTH = 180
+
+/** Total number of data columns in the components table. */
+const TOTAL_DATA_COLUMNS = 7
+
+/** Target minimum column width used to compute integer visible columns. */
+const TARGET_COLUMN_WIDTH = 180
 
 /**
  * A long unbroken component type, brand or model would otherwise widen its
@@ -187,7 +204,10 @@ export const GearComponentsCard: FC<Props> = ({
     pinnedColumnStyle,
     dataColumnStyle,
     scrollerStyle
-  } = useGearTableColumns(TYPE_COLUMN_WIDTH)
+  } = useGearTableColumns(TYPE_COLUMN_WIDTH, {
+    totalColumns: TOTAL_DATA_COLUMNS,
+    targetColumnWidth: TARGET_COLUMN_WIDTH
+  })
 
   const installed = components.filter((component) => !component.removedAt)
   const retired = components.filter((component) => component.removedAt)
@@ -313,10 +333,11 @@ export const GearComponentsCard: FC<Props> = ({
           accrues distance from its added date.
         </p>
       ) : (
-        // Below `GEAR_TABLE_SNAP_WIDTH` this scrolls one column per swipe with
-        // "Type" pinned; above it the columns share the row as before. The old
-        // `min-w-[720px]` is gone because the per-cell minimums below already
-        // add up to it — it only ever forced the wide layout onto phones.
+        // Below the full-width threshold (1380px) this snaps whole columns per
+        // swipe with "Type" pinned, fitting an exact integer number of columns
+        // edge-to-edge so no half column is cut off. Above it all columns fit
+        // side-by-side. The old `min-w-[720px]` is gone because per-cell minimums
+        // already size columns cleanly.
         <div
           ref={scrollerRef}
           className="overflow-x-auto"
@@ -337,22 +358,34 @@ export const GearComponentsCard: FC<Props> = ({
                 >
                   Brand
                 </th>
-                <th className="px-3 pb-2 font-medium" style={dataColumnStyle()}>
+                <th
+                  className="px-3 pb-2 font-medium"
+                  style={dataColumnStyle(MODEL_COLUMN_WIDTH)}
+                >
                   Model
                 </th>
-                <th className="px-3 pb-2 font-medium" style={dataColumnStyle()}>
+                <th
+                  className="px-3 pb-2 font-medium"
+                  style={dataColumnStyle(PRODUCT_PAGE_COLUMN_WIDTH)}
+                >
                   Product page
                 </th>
                 <th
                   className="px-3 pb-2 text-right font-medium"
-                  style={dataColumnStyle()}
+                  style={dataColumnStyle(DISTANCE_COLUMN_WIDTH)}
                 >
                   Distance
                 </th>
-                <th className="px-3 pb-2 font-medium" style={dataColumnStyle()}>
+                <th
+                  className="px-3 pb-2 font-medium"
+                  style={dataColumnStyle(ADDED_COLUMN_WIDTH)}
+                >
                   Added
                 </th>
-                <th className="px-3 pb-2 font-medium" style={dataColumnStyle()}>
+                <th
+                  className="px-3 pb-2 font-medium"
+                  style={dataColumnStyle(RETIRED_COLUMN_WIDTH)}
+                >
                   Retired
                 </th>
                 <th
@@ -399,7 +432,7 @@ export const GearComponentsCard: FC<Props> = ({
                         'px-3 py-2.5 align-top text-muted-foreground',
                         isRetired && 'opacity-60'
                       )}
-                      style={dataColumnStyle(132)}
+                      style={dataColumnStyle(MODEL_COLUMN_WIDTH)}
                     >
                       {component.model || '—'}
                     </td>
@@ -408,7 +441,7 @@ export const GearComponentsCard: FC<Props> = ({
                         'px-3 py-2.5 align-top text-xs text-muted-foreground truncate',
                         isRetired && 'opacity-60'
                       )}
-                      style={dataColumnStyle(100)}
+                      style={dataColumnStyle(PRODUCT_PAGE_COLUMN_WIDTH)}
                     >
                       <GearProductLink productUrl={component.productUrl} />
                     </td>
@@ -417,7 +450,7 @@ export const GearComponentsCard: FC<Props> = ({
                         'px-3 py-2.5 text-right align-top whitespace-nowrap',
                         isRetired && 'opacity-60'
                       )}
-                      style={dataColumnStyle(108)}
+                      style={dataColumnStyle(DISTANCE_COLUMN_WIDTH)}
                     >
                       <span className="font-semibold tabular-nums">
                         {formatGearDistanceKm(component.distanceMeters)}
@@ -429,7 +462,7 @@ export const GearComponentsCard: FC<Props> = ({
                         'px-3 py-2.5 align-top whitespace-nowrap text-muted-foreground',
                         isRetired && 'opacity-60'
                       )}
-                      style={dataColumnStyle(112)}
+                      style={dataColumnStyle(ADDED_COLUMN_WIDTH)}
                     >
                       <PeriodDates component={component} bound="addedAt" />
                     </td>
@@ -438,7 +471,7 @@ export const GearComponentsCard: FC<Props> = ({
                         'px-3 py-2.5 align-top whitespace-nowrap text-muted-foreground',
                         isRetired && 'opacity-60'
                       )}
-                      style={dataColumnStyle(88)}
+                      style={dataColumnStyle(RETIRED_COLUMN_WIDTH)}
                     >
                       <PeriodDates component={component} bound="removedAt" />
                     </td>
@@ -446,14 +479,14 @@ export const GearComponentsCard: FC<Props> = ({
                       className="px-3 py-2.5 pr-4 text-right align-top whitespace-nowrap"
                       style={dataColumnStyle(ACTIONS_COLUMN_WIDTH)}
                     >
-                      <div className="flex flex-wrap justify-end gap-1">
+                      <div className="flex flex-nowrap items-center justify-end gap-1">
                         {isRetired ? (
                           <>
                             <Button
                               size="sm"
                               type="button"
                               variant="ghost"
-                              className="text-muted-foreground hover:text-foreground"
+                              className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
                               aria-label={`Edit ${component.componentType}`}
                               disabled={isPending}
                               onClick={() => {
@@ -467,7 +500,7 @@ export const GearComponentsCard: FC<Props> = ({
                               size="sm"
                               type="button"
                               variant="ghost"
-                              className="text-primary-text"
+                              className="h-7 px-2 text-xs text-primary-text"
                               aria-label={`Refit ${component.componentType}`}
                               disabled={isPending}
                               onClick={() => handleRefit(component.id)}
@@ -478,7 +511,7 @@ export const GearComponentsCard: FC<Props> = ({
                               size="sm"
                               type="button"
                               variant="ghost"
-                              className="text-destructive"
+                              className="h-7 px-2 text-xs text-destructive"
                               disabled={isPending}
                               onClick={() => handleDelete(component.id)}
                               // Leaving the button disarms it: an armed row that
@@ -501,7 +534,7 @@ export const GearComponentsCard: FC<Props> = ({
                               size="sm"
                               type="button"
                               variant="ghost"
-                              className="text-muted-foreground hover:text-foreground"
+                              className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
                               aria-label={`Edit ${component.componentType}`}
                               disabled={isPending}
                               onClick={() => {
@@ -515,7 +548,7 @@ export const GearComponentsCard: FC<Props> = ({
                               size="sm"
                               type="button"
                               variant="ghost"
-                              className="text-primary-text"
+                              className="h-7 px-2 text-xs text-primary-text"
                               aria-label={
                                 confirmingActionId === component.id
                                   ? `Confirm retire ${component.componentType}`

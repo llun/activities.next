@@ -204,7 +204,7 @@ describe('GearComponentsCard', () => {
 
     it('leaves a wide table unsnapped, with the type column still pinned', () => {
       renderCard([createComponent()])
-      act(() => deliverWidth?.(900))
+      act(() => deliverWidth?.(1400))
 
       const [typeHeader] = columnCells(0)
       expect(typeHeader).toHaveClass('sticky')
@@ -216,22 +216,39 @@ describe('GearComponentsCard', () => {
       })
     })
 
-    it('sets the brand column width to at least 124px to fit Continental', () => {
-      renderCard([createComponent({ brand: 'Continental' })])
+    it('snaps multiple whole columns on mid-width viewports without half columns', () => {
+      renderCard([createComponent()])
+      // 120 pinned + 780 available = 900 total; fits floor(780 / 180) = 4 columns of 195px.
       act(() => deliverWidth?.(900))
 
-      const [brandHeader, brandCell] = columnCells(1)
-      expect((brandHeader as HTMLElement).style.minWidth).toBe('124px')
-      expect((brandCell as HTMLElement).style.minWidth).toBe('124px')
+      const [typeHeader] = columnCells(0)
+      expect(typeHeader).toHaveClass('sticky')
+      expect((typeHeader as HTMLElement).style.width).toBe('120px')
+      const [, brandHeader] = screen.getAllByRole('columnheader')
+      expect((brandHeader as HTMLElement).style.scrollSnapAlign).toBe('start')
+      expect((brandHeader as HTMLElement).style.width).toBe('195px')
+      expect(screen.getByRole('table').parentElement).toHaveStyle({
+        scrollSnapType: 'x mandatory',
+        scrollPaddingLeft: '120px'
+      })
     })
 
-    it('sets the actions column width to at least 136px off-snap', () => {
+    it('sets the brand column width to at least 140px off-snap', () => {
+      renderCard([createComponent({ brand: 'Continental' })])
+      act(() => deliverWidth?.(1400))
+
+      const [brandHeader, brandCell] = columnCells(1)
+      expect((brandHeader as HTMLElement).style.minWidth).toBe('140px')
+      expect((brandCell as HTMLElement).style.minWidth).toBe('140px')
+    })
+
+    it('sets the actions column width to at least 180px off-snap', () => {
       renderCard([createComponent()])
-      act(() => deliverWidth?.(900))
+      act(() => deliverWidth?.(1400))
 
       const [actionsHeader, actionsCell] = columnCells(7)
-      expect((actionsHeader as HTMLElement).style.minWidth).toBe('136px')
-      expect((actionsCell as HTMLElement).style.minWidth).toBe('136px')
+      expect((actionsHeader as HTMLElement).style.minWidth).toBe('180px')
+      expect((actionsCell as HTMLElement).style.minWidth).toBe('180px')
     })
   })
 
@@ -538,12 +555,8 @@ describe('GearComponentsCard', () => {
     expect(onChanged).not.toHaveBeenCalled()
   })
 
-  // jsdom does no layout, so the wrap can only be asserted as the class that
-  // produces it. Below GEAR_TABLE_SNAP_WIDTH `dataColumnStyle` returns a FIXED
-  // panel, and an overhang there eats the value from the right and cannot be
-  // scrolled to under `x mandatory` — so a retired row's two actions must be
-  // able to wrap rather than spill.
-  it('lets the retired row actions wrap instead of overflowing', () => {
+  // Action buttons stay on a single line via flex-nowrap and generous column sizing
+  it('keeps the retired row actions on a single line with flex-nowrap', () => {
     renderCard([createComponent({ removedAt: Date.UTC(2025, 5, 1) })])
 
     fireEvent.click(
@@ -553,10 +566,7 @@ describe('GearComponentsCard', () => {
     const actions = screen
       .getByRole('button', { name: 'Refit Chain' })
       .closest('div')
-    // Both tokens: `flex-wrap` does nothing without `display: flex`, and the
-    // enclosing `<td>` carries `whitespace-nowrap`, so a block container puts
-    // the two buttons on one line and overhangs the panel instead of wrapping.
-    expect(actions).toHaveClass('flex', 'flex-wrap')
+    expect(actions).toHaveClass('flex', 'flex-nowrap')
   })
 
   it('offers edit, refit and delete on a retired row', () => {
