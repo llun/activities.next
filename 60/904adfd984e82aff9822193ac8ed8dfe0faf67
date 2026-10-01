@@ -1,0 +1,37 @@
+app/(timeline)/fitness/gear/[id]/GearComponentsCard.test.tsx
+  s_d1aa4fe9443c5e::t_2ec200239f07d1 90-93,186,191-193,197,203-204,209-210,230,236-238,241,244-245,258,263-290
+app/(timeline)/fitness/gear/[id]/GearComponentsCard.tsx
+  s_d1aa4fe9443c5e::t_09474d6bd2eba7 3-9,15-17,91,93-94,97,213-218,222-223,316-339,389-394,435-440,449-455,464-465,467,473,534-539,647,656-661
+app/(timeline)/fitness/gear/gearUi.ts
+  s_d1aa4fe9443c5e::t_9f44e118d7d0cb 248-265
+app/(timeline)/fitness/gear/useGearTableColumns.test.tsx
+  s_d1aa4fe9443c5e::t_ece80f46c07c39 58,64,68-82,87-93,95,251-301
+app/(timeline)/fitness/gear/useGearTableColumns.ts
+  s_d1aa4fe9443c5e::t_c6b53fd73e483a 60,68-70,74-76,87-92,95-98,110-112,114-117,123-128,130-133,137-140,143-166,176,188-191,194,212-231,235-240,248-249,253-254,256-261
+docs/fitness-file-storage.md
+  s_3d6a9ee1cf549f::t_f010f522ab45a9 898,900-921,928-929,931-933
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "60904adfd984e82aff9822193ac8ed8dfe0faf67",
+  "prompts": {},
+  "sessions": {
+    "s_3d6a9ee1cf549f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a5ca65f5e2607fcc8",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_d1aa4fe9443c5e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "90c166c9-9f62-428b-ba7f-30a3790a9508",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
