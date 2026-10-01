@@ -9,11 +9,8 @@ import {
 } from 'react'
 
 /**
- * Below this the gear tables stop laying their data columns out side by side.
- * Each one instead takes the whole width the pinned first column leaves over
- * and becomes a scroll-snap panel, so a swipe moves exactly one column into
- * view — the alternative on a phone is a table wide enough that every column is
- * half-legible and the row it belongs to has scrolled off the left edge.
+ * @deprecated Prefer dynamic whole-column snapping via `useGearTableColumns(pinnedWidth, options)`.
+ * Kept as a reference constant for narrow mobile viewports (< 480px) where single-column swipe applies.
  */
 export const GEAR_TABLE_SNAP_WIDTH = 480
 

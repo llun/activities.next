@@ -895,7 +895,7 @@ null }` remains the precise "this retirement never happened" — it reopens the
   component with a period open on that side, since it cannot be placed inside
   `[addedAt, removedAt)`. A gear total may therefore exceed the sum of its
   components.
-- **Below 480px the components table snaps one data column per swipe** —
+- **The components table snaps to whole data columns whenever not all columns fit** —
   `useGearTableColumns` (`@/app/(timeline)/fitness/gear/useGearTableColumns`),
   which is the design system's `useGKSnapCols`. It layers on top of the pinned
   first column described above, and only the components table uses it so far:
@@ -904,31 +904,30 @@ null }` remains the precise "this retirement never happened" — it reopens the
   decision — `GearKit.jsx` runs all four tables through `useGKSnapCols` (150px
   for the three gear tables, 104px for the components one), so on a phone the
   gear list scrolls as one block where the design snaps it, which is the same
-  failure `min-w-[720px]` used to cause on the components table. Under the
-  threshold each data
-  column is sized to the width the pinned column leaves over — floored at 184px
-  so the distance cell's wear line still fits, but that floor may only overhang
-  the scrollport by the cell's own 12px of right padding, because the column's
-  content is right-aligned and `x mandatory` means nothing that hangs off can be
-  scrolled to (at a 320px viewport the floor was hiding 6px of the distance) —
-  with `scroll-snap-type: x mandatory` and a `scroll-padding-left` clear of the pin,
-  so a swipe lands on one whole column instead of stranding a row's values
-  halfway across the viewport. The rule measures the table's **own scroll
-  container** with a `ResizeObserver`, not the viewport, for the same reason
-  `useCompactActionBar` and `FitnessStatGrid` do: a gear table can sit in a
-  narrow column on a wide window. It attaches through a **callback** ref, not a
-  ref object: the table is conditional (an empty bike renders the empty state
-  instead), and a ref object assigned later re-runs no effect, so the observer
-  would never reach the table that appears when the first component is added.
+  failure `min-w-[720px]` used to cause on the components table. Whenever the
+  available scroll area cannot fit all data columns without overflowing
+  (< 1380px for the 120px pin + 7 data columns at 180px target width),
+  `useGearTableColumns` enables whole-column scroll snapping
+  (`scroll-snap-type: x mandatory`, `scroll-padding-left` clear of the pin, and
+  `scroll-snap-align: start` on data columns) and dynamically sizes the visible
+  data columns across an exact integer number of columns ($N_{\text{fit}} = \max(1, \lfloor W_{\text{avail}} / 180 \rfloor)$).
+  Each visible column spans $W_{\text{col}} = \lfloor W_{\text{avail}} / N_{\text{fit}} \rfloor$,
+  ensuring columns fit edge-to-edge without cutting off an awkward half column at
+  the right edge. On narrow mobile viewports (< 360px available width),
+  $N_{\text{fit}} = 1$ and each swipe moves exactly one column; on mid-width
+  viewports (tablets and narrow desktop containers), $N_{\text{fit}} = 2..6$ whole
+  columns display and snap per swipe. Under the single-column threshold ($N_{\text{fit}} = 1$),
+  the column width is floored at 184px so the distance cell's wear line still fits,
+  subject to a 12px overhang allowance (the cell's own right padding) to prevent
+  clipping on small viewports (such as 320px). The hook measures the table's
+  **own scroll container** with a `ResizeObserver`, attaching through a
+  **callback** ref so it reliably binds when components mount.
 - **Do not put `min-w-[720px]` back on the components table.** The per-cell
-  minimums already add up to about that, so the class only ever forced the wide
-  layout onto phones, where the type column had scrolled away by the third
-  column. Note what the threshold does and does not promise, though: between
-  480px and ~740px (the seven minimums: 120 + 96 + 132 + 108 + 112 + 88 + 84,
-  which moved with the pin when it went to 120px) the table still scrolls as one
-  block, exactly as before — the
-  difference is that the type column is pinned through it, which is the half
-  that was broken. Only below 480px does a swipe move one column.
+  minimums (120 pin + 140 Brand + 160 Model + 130 Product page + 140 Distance +
+  130 Added + 110 Retired + 180 Actions = 1110px) already provide generous room
+  for values and keep action buttons on a single line, and dynamic whole-column
+  snapping automatically adapts the visible column count to any container width
+  without stranding cut-off columns.
 - **Every cell in the components table carries `wrap-anywhere`.** A `<td>`'s
   width is advisory, and the component type, brand and model are all free text
   to 255 characters (`gearRequests.ts`) — a long unbroken value widens its

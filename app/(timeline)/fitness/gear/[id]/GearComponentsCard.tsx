@@ -333,10 +333,11 @@ export const GearComponentsCard: FC<Props> = ({
           accrues distance from its added date.
         </p>
       ) : (
-        // Below `GEAR_TABLE_SNAP_WIDTH` this scrolls one column per swipe with
-        // "Type" pinned; above it the columns share the row as before. The old
-        // `min-w-[720px]` is gone because the per-cell minimums below already
-        // add up to it — it only ever forced the wide layout onto phones.
+        // Below the full-width threshold (1380px) this snaps whole columns per
+        // swipe with "Type" pinned, fitting an exact integer number of columns
+        // edge-to-edge so no half column is cut off. Above it all columns fit
+        // side-by-side. The old `min-w-[720px]` is gone because per-cell minimums
+        // already size columns cleanly.
         <div
           ref={scrollerRef}
           className="overflow-x-auto"
