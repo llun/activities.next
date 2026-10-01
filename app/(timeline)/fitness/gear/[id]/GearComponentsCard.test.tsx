@@ -195,8 +195,8 @@ describe('GearComponentsCard', () => {
         )
         expect(new Set(widths).size).toBe(1)
         if (index === 0) expect(widths[0]).toBe('120px')
-        else if (index === 7) expect(widths[0]).toBe('160px')
-        else expect(widths[0]).toBe('122px')
+        else if (index === 7) expect(widths[0]).toBe('140px')
+        else expect(widths[0]).toBe('142px')
       }
     })
 
@@ -213,7 +213,7 @@ describe('GearComponentsCard', () => {
       expect(screen.getByRole('table').parentElement).toHaveStyle({
         scrollSnapType: 'x mandatory',
         scrollPaddingLeft: '120px',
-        scrollPaddingRight: '160px'
+        scrollPaddingRight: '140px'
       })
     })
 
@@ -233,7 +233,7 @@ describe('GearComponentsCard', () => {
 
     it('snaps multiple whole columns on mid-width viewports without half columns', () => {
       renderCard([createComponent()])
-      // 120 pinned left + 160 pinned right + 620 available = 900 total; fits floor(620 / 150) = 4 middle columns of 155px.
+      // 120 pinned left + 140 pinned right + 640 available = 900 total; fits floor(640 / 150) = 4 middle columns of 160px.
       act(() => deliverWidth?.(900))
 
       const [typeHeader] = columnCells(0)
@@ -241,14 +241,14 @@ describe('GearComponentsCard', () => {
       expect((typeHeader as HTMLElement).style.width).toBe('120px')
       const [actionsHeader] = columnCells(7)
       expect(actionsHeader).toHaveClass('sticky')
-      expect((actionsHeader as HTMLElement).style.width).toBe('160px')
+      expect((actionsHeader as HTMLElement).style.width).toBe('140px')
       const [, brandHeader] = screen.getAllByRole('columnheader')
       expect((brandHeader as HTMLElement).style.scrollSnapAlign).toBe('start')
-      expect((brandHeader as HTMLElement).style.width).toBe('155px')
+      expect((brandHeader as HTMLElement).style.width).toBe('160px')
       expect(screen.getByRole('table').parentElement).toHaveStyle({
         scrollSnapType: 'x mandatory',
         scrollPaddingLeft: '120px',
-        scrollPaddingRight: '160px'
+        scrollPaddingRight: '140px'
       })
     })
 
@@ -261,13 +261,13 @@ describe('GearComponentsCard', () => {
       expect((brandCell as HTMLElement).style.minWidth).toBe('140px')
     })
 
-    it('sets the actions column width to at least 160px off-snap', () => {
+    it('sets the actions column width to at least 140px off-snap', () => {
       renderCard([createComponent()])
       act(() => deliverWidth?.(1400))
 
       const [actionsHeader, actionsCell] = columnCells(7)
-      expect((actionsHeader as HTMLElement).style.minWidth).toBe('160px')
-      expect((actionsCell as HTMLElement).style.minWidth).toBe('160px')
+      expect((actionsHeader as HTMLElement).style.minWidth).toBe('140px')
+      expect((actionsCell as HTMLElement).style.minWidth).toBe('140px')
     })
 
     it('renders scroll chevrons when snapping is active, shows shadows, and scrolls bidirectionally', () => {
@@ -302,7 +302,7 @@ describe('GearComponentsCard', () => {
 
       fireEvent.click(rightButton)
       expect(scrollBySpy).toHaveBeenCalledWith({
-        left: 155,
+        left: 160,
         behavior: 'smooth'
       })
 
@@ -325,7 +325,7 @@ describe('GearComponentsCard', () => {
 
       fireEvent.click(leftButton)
       expect(scrollBySpy).toHaveBeenCalledWith({
-        left: -155,
+        left: -160,
         behavior: 'smooth'
       })
 
@@ -652,8 +652,8 @@ describe('GearComponentsCard', () => {
     expect(onChanged).not.toHaveBeenCalled()
   })
 
-  // Action buttons stay on a single line via flex-nowrap and generous column sizing
-  it('keeps the retired row actions on a single line with flex-nowrap', () => {
+  // Action buttons stay on a single line via flex-nowrap and centered alignment
+  it('keeps the retired row actions on a single line with flex-nowrap and centered', () => {
     renderCard([createComponent({ removedAt: Date.UTC(2025, 5, 1) })])
 
     fireEvent.click(
@@ -663,7 +663,7 @@ describe('GearComponentsCard', () => {
     const actions = screen
       .getByRole('button', { name: 'Refit Chain' })
       .closest('div')
-    expect(actions).toHaveClass('flex', 'flex-nowrap')
+    expect(actions).toHaveClass('flex', 'flex-nowrap', 'justify-center')
   })
 
   it('offers edit, refit and delete on a retired row', () => {

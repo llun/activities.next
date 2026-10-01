@@ -88,7 +88,7 @@ const RETIRED_COLUMN_WIDTH = 110
  * Width of the actions column off-snap. Sized to fit action buttons
  * ("Edit", "Retire", "Refit", "Delete") side-by-side horizontally without wrapping.
  */
-const ACTIONS_COLUMN_WIDTH = 160
+const ACTIONS_COLUMN_WIDTH = 140
 
 /** Total number of middle data columns in the components table. */
 const TOTAL_MIDDLE_COLUMNS = 6
@@ -372,7 +372,7 @@ export const GearComponentsCard: FC<Props> = ({
           accrues distance from its added date.
         </p>
       ) : (
-        // Below the full-width threshold (1180px: 120px Type + 160px Actions + 6x150px middle)
+        // Below the full-width threshold (1160px: 120px Type + 140px Actions + 6x150px middle)
         // this snaps whole columns per swipe with dual-pinned bookends ("Type" left,
         // "Actions" right), fitting an exact integer number of middle columns edge-to-edge
         // so no half column is cut off. Above it all columns fit side-by-side. The old
@@ -434,7 +434,7 @@ export const GearComponentsCard: FC<Props> = ({
                 <th
                   className={cn(
                     STICKY_RIGHT_COLUMN,
-                    'px-3 pr-4 pb-2 font-medium transition-shadow duration-200',
+                    'px-2 pb-2 font-medium transition-shadow duration-200',
                     canScrollRight && STICKY_RIGHT_SHADOW
                   )}
                   style={pinnedRightStyle}
@@ -535,19 +535,19 @@ export const GearComponentsCard: FC<Props> = ({
                     <td
                       className={cn(
                         STICKY_RIGHT_COLUMN,
-                        'px-3 py-2.5 pr-4 text-right align-top whitespace-nowrap transition-shadow duration-200',
+                        'px-2 py-2.5 align-top whitespace-nowrap transition-shadow duration-200',
                         canScrollRight && STICKY_RIGHT_SHADOW
                       )}
                       style={pinnedRightStyle}
                     >
-                      <div className="flex flex-nowrap items-center justify-end gap-1">
+                      <div className="flex flex-nowrap items-center justify-center gap-1">
                         {isRetired ? (
                           <>
                             <Button
                               size="sm"
                               type="button"
                               variant="ghost"
-                              className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                              className="h-7 px-1.5 text-xs text-muted-foreground hover:text-foreground"
                               aria-label={`Edit ${component.componentType}`}
                               disabled={isPending}
                               onClick={() => {
@@ -561,7 +561,7 @@ export const GearComponentsCard: FC<Props> = ({
                               size="sm"
                               type="button"
                               variant="ghost"
-                              className="h-7 px-2 text-xs text-primary-text"
+                              className="h-7 px-1.5 text-xs text-primary-text"
                               aria-label={`Refit ${component.componentType}`}
                               disabled={isPending}
                               onClick={() => handleRefit(component.id)}
@@ -572,7 +572,7 @@ export const GearComponentsCard: FC<Props> = ({
                               size="sm"
                               type="button"
                               variant="ghost"
-                              className="h-7 px-2 text-xs text-destructive"
+                              className="h-7 px-1.5 text-xs text-destructive"
                               disabled={isPending}
                               onClick={() => handleDelete(component.id)}
                               // Leaving the button disarms it: an armed row that
@@ -595,7 +595,7 @@ export const GearComponentsCard: FC<Props> = ({
                               size="sm"
                               type="button"
                               variant="ghost"
-                              className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                              className="h-7 px-1.5 text-xs text-muted-foreground hover:text-foreground"
                               aria-label={`Edit ${component.componentType}`}
                               disabled={isPending}
                               onClick={() => {
@@ -609,7 +609,7 @@ export const GearComponentsCard: FC<Props> = ({
                               size="sm"
                               type="button"
                               variant="ghost"
-                              className="h-7 px-2 text-xs text-primary-text"
+                              className="h-7 px-1.5 text-xs text-primary-text"
                               aria-label={
                                 confirmingActionId === component.id
                                   ? `Confirm retire ${component.componentType}`

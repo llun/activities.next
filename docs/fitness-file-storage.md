@@ -898,18 +898,19 @@ null }` remains the precise "this retirement never happened" — it reopens the
 - **The components table pins both bookends (`Type` left, `Actions` right) and snaps whole middle columns whenever not all columns fit** —
   `useGearTableColumns` (`@/app/(timeline)/fitness/gear/useGearTableColumns`),
   which is the design system's `useGKSnapCols`. It pins the first column (`Type`, 120px)
-  to the left edge (`STICKY_COLUMN`) and the last column (`Actions`, 160px) to the right
+  to the left edge (`STICKY_COLUMN`) and the last column (`Actions`, 140px) to the right
   edge (`STICKY_RIGHT_COLUMN`), keeping action buttons ("Edit", "Retire", "Refit", "Delete")
-  always accessible without scrolling. Whenever the available middle scroll area
-  ($W_{\text{avail}} = \text{width} - 120 - 160$) cannot fit all 6 middle data columns
-  without overflowing (< 1180px for the 120px left pin + 160px right pin + 6 middle
+  always accessible without scrolling with equal spacing in front and back (`justify-center`
+  with symmetric `px-2` padding). Whenever the available middle scroll area
+  ($W_{\text{avail}} = \text{width} - 120 - 140$) cannot fit all 6 middle data columns
+  without overflowing (< 1160px for the 120px left pin + 140px right pin + 6 middle
   columns at 150px target width), `useGearTableColumns` enables whole-column scroll snapping
-  (`scroll-snap-type: x mandatory`, `scroll-padding-left: 120px`, `scroll-padding-right: 160px`,
+  (`scroll-snap-type: x mandatory`, `scroll-padding-left: 120px`, `scroll-padding-right: 140px`,
   and `scroll-snap-align: start` on middle columns). It dynamically sizes the visible middle
   columns across an exact integer number of columns ($N_{\text{fit}} = \max(1, \min(6, \lfloor W_{\text{avail}} / 150 \rfloor))$),
   scaling each visible middle column to $W_{\text{col}} = \lfloor W_{\text{avail}} / N_{\text{fit}} \rfloor$,
   ensuring columns fit edge-to-edge without cutting off an awkward half column.
-  On the standard timeline desktop content width (`max-w-content` 940px, leaving ~628px
+  On the standard timeline desktop content width (`max-w-content` 940px, leaving ~648px
   available middle width), this fits **exactly 4 whole middle columns** side-by-side
   (displaying 6 of 8 total columns simultaneously).
   As container width changes, middle columns transition their widths smoothly
@@ -926,7 +927,7 @@ null }` remains the precise "this retirement never happened" — it reopens the
   **callback** ref so it reliably binds when components mount.
 - **Do not put `min-w-[720px]` back on the components table.** The per-cell
   minimums (120 Type + 140 Brand + 160 Model + 130 Product page + 140 Distance +
-  130 Added + 110 Retired + 160 Actions = 990px) already provide generous room
+  130 Added + 110 Retired + 140 Actions = 970px) already provide generous room
   for values and keep action buttons on a single line, and dynamic whole-column
   snapping with dual-pinned bookends automatically adapts the visible column count
   to any container width without stranding cut-off columns.
