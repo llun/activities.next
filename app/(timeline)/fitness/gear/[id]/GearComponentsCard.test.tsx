@@ -5,6 +5,12 @@ import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import {
+  STICKY_COLUMN,
+  STICKY_LEFT_SHADOW,
+  STICKY_RIGHT_COLUMN,
+  STICKY_RIGHT_SHADOW
+} from '@/app/(timeline)/fitness/gear/gearUi'
+import {
   createFitnessGearComponent,
   deleteFitnessGearComponent,
   refitFitnessGearComponent,
@@ -77,15 +83,26 @@ const createComponent = (
 let deliverWidth: ((width: number) => void) | null = null
 
 class ResizeObserverStub {
+  private observing = false
+
   constructor(
     private readonly callback: (entries: ResizeObserverEntry[]) => void
   ) {}
 
+  // The hook observes the scroller first and then the table inside it (for
+  // the scroll cues); deliveries drive the scroller, so only the first target
+  // is wired up.
   observe(target: Element) {
+    if (this.observing) return
+    this.observing = true
     deliverWidth = (width: number) => {
       Object.defineProperty(target, 'clientWidth', {
         configurable: true,
         value: width
+      })
+      Object.defineProperty(target, 'scrollWidth', {
+        configurable: true,
+        value: 1200
       })
       this.callback([
         {
@@ -173,32 +190,84 @@ describe('GearComponentsCard', () => {
       expect(width - 32).toBeGreaterThanOrEqual(75)
     })
 
-    it('gives a column the same width in its header and its body', () => {
-      renderCard([createComponent(), createComponent({ id: 'c2' })])
-      act(() => deliverWidth?.(390))
-
-      // A header and body that disagree is how a pinned column ends up
-      // straddling the boundary it is meant to hold.
-      for (const index of [0, 1, 2]) {
-        const widths = columnCells(index).map(
-          (cell) => (cell as HTMLElement).style.width
-        )
-        expect(new Set(widths).size).toBe(1)
-        expect(widths[0]).toBe(index === 0 ? '120px' : '270px')
+    // A header and body that disagree is how a pinned column ends up
+    // straddling the boundary it is meant to hold.
+    it.each([
+      {
+        description: 'a phone, actions snapped',
+        width: 390,
+        expected: { type: '120px', middle: '270px', actions: '270px' }
+      },
+      {
+        description: 'a tablet, actions pinned',
+        width: 600,
+        expected: { type: '120px', middle: '170px', actions: '140px' }
       }
-    })
+    ])(
+      'gives a column the same width in its header and its body on $description',
+      ({ width, expected }) => {
+        renderCard([createComponent(), createComponent({ id: 'c2' })])
+        act(() => deliverWidth?.(width))
 
-    it('pins the type column and snaps the rest below the threshold', () => {
+        for (const index of [0, 1, 2, 7]) {
+          const widths = columnCells(index).map(
+            (cell) => (cell as HTMLElement).style.width
+          )
+          expect(new Set(widths).size).toBe(1)
+          expect(widths[0]).toBe(
+            index === 0
+              ? expected.type
+              : index === 7
+                ? expected.actions
+                : expected.middle
+          )
+        }
+      }
+    )
+
+    // A phone has room for the pinned type column and one more; pinning the
+    // actions as well squeezed the data into a sliver between them, so there
+    // the actions snap as the last data column, as they did before.
+    it('snaps the actions as the last data column on a phone', () => {
       renderCard([createComponent()])
       act(() => deliverWidth?.(390))
 
       const [typeHeader] = columnCells(0)
       expect(typeHeader).toHaveClass('sticky')
+      for (const cell of columnCells(7)) {
+        expect(cell).not.toHaveClass('sticky')
+        expect((cell as HTMLElement).style.scrollSnapAlign).toBe('start')
+      }
+      expect(
+        screen.getByRole('button', { name: 'Edit Chain' }).closest('div')
+      ).toHaveClass('justify-end')
+      const scroller = screen.getByRole('table').parentElement as HTMLElement
+      expect(scroller).toHaveStyle({
+        scrollSnapType: 'x mandatory',
+        scrollPaddingLeft: '120px'
+      })
+      expect(scroller.style.scrollPaddingRight).toBe('')
+    })
+
+    it('pins the type and actions columns and snaps the middle above a phone', () => {
+      renderCard([createComponent()])
+      act(() => deliverWidth?.(600))
+
+      const [typeHeader] = columnCells(0)
+      expect(typeHeader).toHaveClass('sticky')
+      for (const cell of columnCells(7)) {
+        expect(cell).toHaveClass('sticky', 'right-0')
+        expect((cell as HTMLElement).style.scrollSnapAlign).toBe('')
+      }
+      expect(
+        screen.getByRole('button', { name: 'Edit Chain' }).closest('div')
+      ).toHaveClass('justify-center')
       const [, brandHeader] = screen.getAllByRole('columnheader')
       expect((brandHeader as HTMLElement).style.scrollSnapAlign).toBe('start')
       expect(screen.getByRole('table').parentElement).toHaveStyle({
         scrollSnapType: 'x mandatory',
-        scrollPaddingLeft: '120px'
+        scrollPaddingLeft: '120px',
+        scrollPaddingRight: '140px'
       })
     })
 
@@ -218,18 +287,22 @@ describe('GearComponentsCard', () => {
 
     it('snaps multiple whole columns on mid-width viewports without half columns', () => {
       renderCard([createComponent()])
-      // 120 pinned + 780 available = 900 total; fits floor(780 / 180) = 4 columns of 195px.
+      // 120 pinned left + 140 pinned right + 640 available = 900 total; fits floor(640 / 150) = 4 middle columns of 160px.
       act(() => deliverWidth?.(900))
 
       const [typeHeader] = columnCells(0)
       expect(typeHeader).toHaveClass('sticky')
       expect((typeHeader as HTMLElement).style.width).toBe('120px')
+      const [actionsHeader] = columnCells(7)
+      expect(actionsHeader).toHaveClass('sticky')
+      expect((actionsHeader as HTMLElement).style.width).toBe('140px')
       const [, brandHeader] = screen.getAllByRole('columnheader')
       expect((brandHeader as HTMLElement).style.scrollSnapAlign).toBe('start')
-      expect((brandHeader as HTMLElement).style.width).toBe('195px')
+      expect((brandHeader as HTMLElement).style.width).toBe('160px')
       expect(screen.getByRole('table').parentElement).toHaveStyle({
         scrollSnapType: 'x mandatory',
-        scrollPaddingLeft: '120px'
+        scrollPaddingLeft: '120px',
+        scrollPaddingRight: '140px'
       })
     })
 
@@ -242,13 +315,141 @@ describe('GearComponentsCard', () => {
       expect((brandCell as HTMLElement).style.minWidth).toBe('140px')
     })
 
-    it('sets the actions column width to at least 180px off-snap', () => {
+    it('sets the actions column width to at least 140px off-snap', () => {
       renderCard([createComponent()])
       act(() => deliverWidth?.(1400))
 
       const [actionsHeader, actionsCell] = columnCells(7)
-      expect((actionsHeader as HTMLElement).style.minWidth).toBe('180px')
-      expect((actionsCell as HTMLElement).style.minWidth).toBe('180px')
+      expect((actionsHeader as HTMLElement).style.minWidth).toBe('140px')
+      expect((actionsCell as HTMLElement).style.minWidth).toBe('140px')
+    })
+
+    it.each([
+      { description: 'before the table is measured', width: null },
+      { description: 'while every column fits', width: 1400 }
+    ])('offers no scroll chevrons $description', ({ width }) => {
+      renderCard([createComponent()])
+      if (width !== null) act(() => deliverWidth?.(width))
+
+      expect(
+        screen.queryByRole('button', { name: 'Scroll components table left' })
+      ).toBeNull()
+      expect(
+        screen.queryByRole('button', { name: 'Scroll components table right' })
+      ).toBeNull()
+    })
+
+    it('drops the scroll chevrons when the table gives way to the empty state', () => {
+      const component = createComponent()
+      const { rerender } = render(
+        <GearComponentsCard
+          gearId="gear-1"
+          components={[component]}
+          onChanged={vi.fn()}
+        />
+      )
+      act(() => deliverWidth?.(390))
+      expect(
+        screen.getByRole('button', { name: 'Scroll components table right' })
+      ).toBeInTheDocument()
+
+      // Retiring the only installed part hides its row, and with retired
+      // rows collapsed the card shows its empty state instead of a table.
+      rerender(
+        <GearComponentsCard
+          gearId="gear-1"
+          components={[{ ...component, removedAt: Date.UTC(2025, 5, 1) }]}
+          onChanged={vi.fn()}
+        />
+      )
+
+      expect(screen.queryByRole('table')).toBeNull()
+      expect(
+        screen.queryByRole('button', { name: 'Scroll components table right' })
+      ).toBeNull()
+    })
+
+    // The step size and the cue thresholds belong to `useGearTableColumns`
+    // and are tested there; this covers the card's wiring of them.
+    it('steps the table with chevrons that stay focusable at either end', () => {
+      renderCard([createComponent()])
+      act(() => deliverWidth?.(900))
+
+      const leftButton = screen.getByRole('button', {
+        name: 'Scroll components table left'
+      })
+      const rightButton = screen.getByRole('button', {
+        name: 'Scroll components table right'
+      })
+      const scroller = screen.getByRole('table').parentElement as HTMLElement
+      const scrollBySpy = vi.fn()
+      scroller.scrollBy = scrollBySpy
+
+      // At the start only the right one acts — and the left one is
+      // `aria-disabled` rather than `disabled`, so a keyboard user who
+      // stepped back to the start keeps focus on it.
+      expect(leftButton).toHaveAttribute('aria-disabled', 'true')
+      expect(leftButton).toBeEnabled()
+      expect(rightButton).toHaveAttribute('aria-disabled', 'false')
+      fireEvent.click(leftButton)
+      expect(scrollBySpy).not.toHaveBeenCalled()
+      fireEvent.click(rightButton)
+      expect(scrollBySpy).toHaveBeenCalledTimes(1)
+
+      act(() => {
+        Object.defineProperty(scroller, 'scrollLeft', {
+          configurable: true,
+          value: 300
+        })
+        fireEvent.scroll(scroller)
+      })
+
+      expect(leftButton).toHaveAttribute('aria-disabled', 'false')
+      expect(rightButton).toHaveAttribute('aria-disabled', 'true')
+      fireEvent.click(rightButton)
+      expect(scrollBySpy).toHaveBeenCalledTimes(1)
+      fireEvent.click(leftButton)
+      expect(scrollBySpy).toHaveBeenCalledTimes(2)
+    })
+
+    it('shadows a pinned edge only while content is hidden past it', () => {
+      renderCard([createComponent()])
+      act(() => deliverWidth?.(900))
+
+      const typeHeader = screen.getByRole('columnheader', { name: 'Type' })
+      const actionsHeader = screen.getByRole('columnheader', {
+        name: 'Actions'
+      })
+      expect(typeHeader.className).toContain(STICKY_COLUMN)
+      expect(typeHeader.className).not.toContain(STICKY_LEFT_SHADOW)
+      expect(actionsHeader.className).toContain(STICKY_RIGHT_SHADOW)
+      // The shadows fade, so reduced motion has to opt them out; nothing
+      // global in the stylesheet does.
+      for (const header of [typeHeader, actionsHeader]) {
+        expect(header).toHaveClass(
+          'transition-shadow',
+          'motion-reduce:transition-none'
+        )
+      }
+
+      const scroller = screen.getByRole('table').parentElement as HTMLElement
+      act(() => {
+        Object.defineProperty(scroller, 'scrollLeft', {
+          configurable: true,
+          value: 300
+        })
+        fireEvent.scroll(scroller)
+      })
+
+      expect(typeHeader.className).toContain(STICKY_LEFT_SHADOW)
+      // The shadow only paints because `cn` drops the pinned column's own
+      // hairline shadow for it: with both present, the hairline rule comes
+      // later in the stylesheet and wins.
+      expect(typeHeader.className.split(' ')).not.toContain(
+        'shadow-[inset_-1px_0_0_var(--border)]'
+      )
+      expect(actionsHeader.className).toContain(STICKY_RIGHT_COLUMN)
+      expect(actionsHeader.className).not.toContain(STICKY_RIGHT_SHADOW)
     })
   })
 
@@ -486,9 +687,9 @@ describe('GearComponentsCard', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Show 1 retired component' })
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Chain' }))
     expect(
-      screen.getByRole('button', { name: 'Confirm delete' })
+      screen.getByRole('button', { name: 'Confirm delete Chain' })
     ).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Refit Chain' }))
@@ -497,7 +698,9 @@ describe('GearComponentsCard', () => {
       expect(mockRefitFitnessGearComponent).toHaveBeenCalled()
     )
     // Nothing is armed once the row changes which action it offers.
-    expect(screen.queryByRole('button', { name: 'Confirm delete' })).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: 'Confirm delete Chain' })
+    ).toBeNull()
   })
 
   // Refit posts to its own endpoint rather than clearing `removedAt` through
@@ -569,20 +772,69 @@ describe('GearComponentsCard', () => {
     expect(actions).toHaveClass('flex', 'flex-nowrap')
   })
 
-  it('offers edit, refit and delete on a retired row', () => {
+  // The pinned actions column fits two buttons, and "Confirm delete" beside
+  // "Refit" did not: it spilled across the divider and off the card. The
+  // accessible names still say what is being confirmed.
+  it('labels an armed button "Confirm" and names what it confirms', () => {
+    renderCard([
+      createComponent(),
+      createComponent({ id: 'c2', removedAt: Date.UTC(2025, 5, 1) })
+    ])
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show 1 retired component' })
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retire Chain' }))
+    expect(
+      screen.getByRole('button', { name: 'Confirm retire Chain' })
+    ).toHaveTextContent(/^Confirm$/)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Chain' }))
+    expect(
+      screen.getByRole('button', { name: 'Confirm delete Chain' })
+    ).toHaveTextContent(/^Confirm$/)
+  })
+
+  // Fading the `<tr>` or a pinned `<td>` fades the pinned cell's opaque
+  // surface with it, and the data columns would show through mid-fade.
+  it('fades a revealed retired row in through its cells, never the row or a pinned cell', () => {
+    renderCard([createComponent({ removedAt: Date.UTC(2025, 5, 1) })])
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show 1 retired component' })
+    )
+
+    const row = screen.getAllByRole('row')[1]
+    expect(row).not.toHaveClass('animate-in')
+    const [typeCell, brandCell] = Array.from(row.children)
+    expect(typeCell).not.toHaveClass('animate-in')
+    expect(typeCell.firstElementChild).toHaveClass('animate-in', 'fade-in-0')
+    expect(brandCell).toHaveClass('animate-in', 'fade-in-0')
+    const actionsCell = row.lastElementChild as HTMLElement
+    expect(actionsCell).not.toHaveClass('animate-in')
+    expect(actionsCell.firstElementChild).toHaveClass('animate-in')
+    // tw-animate-css has no reduced-motion handling of its own.
+    expect(brandCell).toHaveClass('motion-reduce:animate-none')
+    expect(
+      screen
+        .getByRole('button', { name: 'Hide retired components' })
+        .querySelector('svg')
+    ).toHaveClass('motion-reduce:transition-none')
+  })
+
+  it('offers refit and delete on a retired row, but not edit', () => {
     renderCard([createComponent({ removedAt: Date.UTC(2025, 5, 1) })])
 
     fireEvent.click(
       screen.getByRole('button', { name: 'Show 1 retired component' })
     )
 
-    expect(
-      screen.getByRole('button', { name: 'Edit Chain' })
-    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit Chain' })).toBeNull()
     expect(
       screen.getByRole('button', { name: 'Refit Chain' })
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Delete Chain' })
+    ).toBeInTheDocument()
   })
 
   it('opens the edit dialog when Edit is clicked on an active component and updates', async () => {
@@ -621,26 +873,6 @@ describe('GearComponentsCard', () => {
       )
     })
     expect(onChanged).toHaveBeenCalledTimes(1)
-  })
-
-  it('opens the edit dialog when Edit is clicked on a retired component', async () => {
-    renderCard([
-      createComponent({
-        componentType: 'Rear tire',
-        brand: 'Continental',
-        removedAt: Date.UTC(2025, 5, 1)
-      })
-    ])
-
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Show 1 retired component' })
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Edit Rear tire' }))
-
-    expect(
-      screen.getByRole('heading', { name: 'Edit component' })
-    ).toBeInTheDocument()
-    expect(screen.getByLabelText('Brand')).toHaveValue('Continental')
   })
 
   it('scopes the retire button accessible name to the component type', () => {
@@ -692,11 +924,13 @@ describe('GearComponentsCard', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Show 1 retired component' })
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Chain' }))
 
     expect(mockDeleteFitnessGearComponent).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm delete' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Confirm delete Chain' })
+    )
 
     await waitFor(() =>
       expect(mockDeleteFitnessGearComponent).toHaveBeenCalledWith(
@@ -713,9 +947,9 @@ describe('GearComponentsCard', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Show 1 retired component' })
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Chain' }))
     expect(
-      screen.getByRole('button', { name: 'Confirm delete' })
+      screen.getByRole('button', { name: 'Confirm delete Chain' })
     ).toBeInTheDocument()
 
     fireEvent.click(
@@ -726,8 +960,10 @@ describe('GearComponentsCard', () => {
     )
 
     // The row comes back unarmed, so the next click confirms nothing.
-    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(
+      screen.getByRole('button', { name: 'Delete Chain' })
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Chain' }))
     expect(mockDeleteFitnessGearComponent).not.toHaveBeenCalled()
   })
 
@@ -744,17 +980,18 @@ describe('GearComponentsCard', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Show 2 retired components' })
     )
-    const [rowA, rowB] = screen.getAllByRole('button', { name: 'Delete' })
+    const rowA = screen.getByRole('button', { name: 'Delete Chain' })
+    const rowB = screen.getByRole('button', { name: 'Delete Cassette' })
 
     fireEvent.click(rowA)
-    expect(
-      screen.getAllByRole('button', { name: 'Confirm delete' })
-    ).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: /^Confirm delete/ })).toEqual([
+      rowA
+    ])
 
     fireEvent.click(rowB)
-    const confirming = screen.getAllByRole('button', { name: 'Confirm delete' })
-    expect(confirming).toHaveLength(1)
-    expect(confirming[0]).toBe(rowB)
+    expect(screen.getAllByRole('button', { name: /^Confirm delete/ })).toEqual([
+      rowB
+    ])
     expect(mockDeleteFitnessGearComponent).not.toHaveBeenCalled()
   })
 
@@ -792,8 +1029,10 @@ describe('GearComponentsCard', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Show 1 retired component' })
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Chain' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Confirm delete Chain' })
+    )
 
     expect(await screen.findByText('Component not found')).toBeInTheDocument()
     expect(onChanged).not.toHaveBeenCalled()

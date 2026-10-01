@@ -838,7 +838,8 @@ Read the applicable rules and review checks below before changing this subsystem
   closed period is the retroactive credit above. A new period costs at most the
   gap between the retirement and the refit: seconds for a misclick (so the
   card's one-click, unarmed Refit still reads as an undo), and the truth for a
-  wheelset that really did spend a winter on the shelf. `PATCH { removedAt:
+  wheelset that really did spend a winter on the shelf. Retired components offer
+  Refit and Delete (Edit is reserved for active components). `PATCH { removedAt:
 null }` remains the precise "this retirement never happened" — it reopens the
   LAST period — and PATCH's `addedAt`/`removedAt` reach only the outermost
   bounds (first period's start, last period's end), which is what keeps an edit
@@ -895,39 +896,79 @@ null }` remains the precise "this retirement never happened" — it reopens the
   component with a period open on that side, since it cannot be placed inside
   `[addedAt, removedAt)`. A gear total may therefore exceed the sum of its
   components.
-- **The components table snaps to whole data columns whenever not all columns fit** —
-  `useGearTableColumns` (`@/app/(timeline)/fitness/gear/useGearTableColumns`),
-  which is the design system's `useGKSnapCols`. It layers on top of the pinned
-  first column described above, and only the components table uses it so far:
-  the gear list's bikes/shoes/devices tables pin but do not snap, and still
-  carry a `min-w-[520px]`. That is a **known gap against the design**, not a
-  decision — `GearKit.jsx` runs all four tables through `useGKSnapCols` (150px
-  for the three gear tables, 104px for the components one), so on a phone the
-  gear list scrolls as one block where the design snaps it, which is the same
-  failure `min-w-[720px]` used to cause on the components table. Whenever the
-  available scroll area cannot fit all data columns without overflowing
-  (< 1380px for the 120px pin + 7 data columns at 180px target width),
+- **The components table pins both bookends (`Type` left, `Actions` right) on
+  a scroller of at least 480px, and snaps whole middle columns whenever not all
+  columns fit** — `useGearTableColumns`
+  (`@/app/(timeline)/fitness/gear/useGearTableColumns`), which is the design
+  system's `useGKSnapCols`. It pins the first column (`Type`, 120px) to the left
+  edge (`STICKY_COLUMN`) and the last column (`Actions`, 140px) to the right edge
+  (`STICKY_RIGHT_COLUMN`), so the action buttons ("Edit" and "Retire" on active
+  rows, "Refit" and "Delete" on retired rows) stay in reach without scrolling,
+  centred between symmetric `px-2` padding. Only the components table uses the
+  hook so far: the gear list's bikes/shoes/devices tables pin but do not snap,
+  and still carry a `min-w-[560px]`. That is a **known gap against the design**,
+  not a decision — `GearKit.jsx` runs all four tables through `useGKSnapCols`
+  (150px for the three gear tables, 104px for the components one), so on a phone
+  the gear list scrolls as one block where the design snaps it, which is the same
+  failure `min-w-[720px]` used to cause on the components table.
+  Whenever the middle scroll area ($W_{\text{avail}} = W - 120 - 140$) cannot fit
+  all 6 middle data columns at the 150px target width (a scroller under 1160px),
   `useGearTableColumns` enables whole-column scroll snapping
-  (`scroll-snap-type: x mandatory`, `scroll-padding-left` clear of the pin, and
-  `scroll-snap-align: start` on data columns) and dynamically sizes the visible
-  data columns across an exact integer number of columns ($N_{\text{fit}} = \max(1, \lfloor W_{\text{avail}} / 180 \rfloor)$).
-  Each visible column spans $W_{\text{col}} = \lfloor W_{\text{avail}} / N_{\text{fit}} \rfloor$,
-  ensuring columns fit edge-to-edge without cutting off an awkward half column at
-  the right edge. On narrow mobile viewports (< 360px available width),
-  $N_{\text{fit}} = 1$ and each swipe moves exactly one column; on mid-width
-  viewports (tablets and narrow desktop containers), $N_{\text{fit}} = 2..6$ whole
-  columns display and snap per swipe. Under the single-column threshold ($N_{\text{fit}} = 1$),
-  the column width is floored at 184px so the distance cell's wear line still fits,
-  subject to a 12px overhang allowance (the cell's own right padding) to prevent
-  clipping on small viewports (such as 320px). The hook measures the table's
-  **own scroll container** with a `ResizeObserver`, attaching through a
-  **callback** ref so it reliably binds when components mount.
+  (`scroll-snap-type: x mandatory`, `scroll-padding-left: 120px`,
+  `scroll-padding-right: 140px`, and `scroll-snap-align: start` on the middle
+  columns). It divides the middle area among an exact integer number of columns,
+  $N_{\text{fit}} = \max(1, \min(6, \lfloor W_{\text{avail}} / 150 \rfloor))$,
+  each $W_{\text{col}} = \lfloor W_{\text{avail}} / N_{\text{fit}} \rfloor$ wide,
+  so columns fit edge-to-edge without cutting off a half column. On the standard
+  timeline desktop content width (`max-w-content` 940px, a ~906px scroller
+  inside the card's padding and border, leaving ~646px between the pins) that is
+  **exactly 4 whole middle columns** (6 of the 8 columns on screen at once).
+  **On a phone the actions column is not pinned.** Below a 480px scroller (the
+  120px left pin plus two columns at the 180px `DEFAULT_TARGET_COLUMN_WIDTH`),
+  where only `Type` and one more column fit, a second pin would squeeze the data
+  into a ~130px sliver between the two. There `useGearTableColumns` reports
+  `isRightPinned: false` and the actions column becomes the 7th snapped data
+  column again, exactly as before it was pinned: one whole column per swipe
+  beside `Type`, $\max(1, \lfloor (W - 120) / 180 \rfloor) = 1$ with the floor
+  and overhang rules below, buttons right-aligned (`justify-end`), and no
+  `scroll-padding-right`. The right pin holds before the first measurement (the
+  server-rendered wide layout), and the first client layout corrects it before
+  paint.
+  While snapping, the snapped columns animate their `width`, `min-width` and
+  `max-width` (250ms, `cubic-bezier(0.4, 0, 0.2, 1)`) as the scroller resizes,
+  so a change in the visible column count does not jump; crossing into the wide
+  layout is not animated. Scroll cues show which way content is hidden: an edge
+  shadow on a pinned column (`STICKY_LEFT_SHADOW`, `STICKY_RIGHT_SHADOW`),
+  fading in over 200ms (`EDGE_SHADOW_TRANSITION`) while content sits past it, and `<`/`>` chevrons in the card header that step one
+  column at a time. The chevrons are `aria-disabled` at either end, never
+  `disabled`, so keyboard focus survives reaching the edge (the same rule as the
+  post media strip). The hook observes the table as well as its scroller, so the
+  cues follow content that re-snaps, animates or grows without the scroller
+  resizing. Revealing retired components fades each revealed row in
+  (`animate-in fade-in-0 duration-300`) through its **cells** — and through the
+  pinned cells' content, never the pinned cells — for the dimming rule's reason
+  below, and the toggle's chevron rotates. Under `prefers-reduced-motion` none
+  of it animates: the columns resize instantly, the chevrons step without smooth
+  scrolling, the edge shadows switch without fading, and the row fade and
+  chevron rotation are off.
+  An armed action reads **"Confirm"**, with what it confirms kept in its
+  accessible name ("Confirm retire Chain", "Confirm delete Chain"): "Refit" beside
+  "Confirm delete" measured 152px against the 124px inside the pinned column's
+  padding and spilled across its divider and off the card. Widen the column, or
+  keep armed labels to one word — never let a pinned cell's content overflow.
+  Under the single-column threshold ($N_{\text{fit}} = 1$), the column width is
+  floored at 184px so the distance cell's wear line still fits, subject to a
+  12px overhang allowance (the cell's own right padding) to prevent clipping on
+  small viewports (such as 320px). The hook measures the table's **own scroll
+  container** with a `ResizeObserver`, attaching through a **callback** ref so
+  it reliably binds when components mount.
 - **Do not put `min-w-[720px]` back on the components table.** The per-cell
-  minimums (120 pin + 140 Brand + 160 Model + 130 Product page + 140 Distance +
-  130 Added + 110 Retired + 180 Actions = 1110px) already provide generous room
+  minimums (120 Type + 140 Brand + 160 Model + 130 Product page + 140 Distance +
+  130 Added + 110 Retired + 140 Actions = 1070px) already provide generous room
   for values and keep action buttons on a single line, and dynamic whole-column
-  snapping automatically adapts the visible column count to any container width
-  without stranding cut-off columns.
+  snapping with dual-pinned bookends automatically adapts the visible column count
+  to any container width without stranding cut-off columns.
+
 - **Every cell in the components table carries `wrap-anywhere`.** A `<td>`'s
   width is advisory, and the component type, brand and model are all free text
   to 255 characters (`gearRequests.ts`) — a long unbroken value widens its
@@ -1128,14 +1169,15 @@ null }` remains the precise "this retirement never happened" — it reopens the
   which is what `wrap-anywhere` does to a word that does not fit. 120px leaves 88px, clear of "Chainrings" at 74.7px, the widest single word in
   `COMPONENT_TYPE_OPTIONS`; multi-word values still wrap at their spaces, and
   fitting "Front brake pads" on one line would take a 149px pin, 38% of a 390px
-  phone. Similarly, the Brand column takes **124px** rather than 96px: at 96px
-  with `px-3` (24px horizontal padding), the 72px content box caused
-  "Continental" (~75px at `text-sm font-normal`) to wrap its trailing 'l' to a
-  new line under `wrap-anywhere`. 124px leaves 100px of content width, fitting
-  "Continental" with over 20px of slack across platform system fonts. The
-  actions column takes **136px** so "Edit" and "Retire" sit side-by-side
-  off-snap, while preserving `flex-wrap` so snapped single-column views wrap
-  rather than overhang. Widen the width, never drop the wrap — and
+  phone. Similarly, the Brand column takes at least **140px** off-snap rather
+  than 96px: at 96px with `px-3` (24px horizontal padding), the 72px content box
+  caused "Continental" (~75px at `text-sm font-normal`) to wrap its trailing 'l'
+  to a new line under `wrap-anywhere`. 140px leaves 116px of content width,
+  fitting "Continental" with ample slack across platform system fonts. The
+  actions column takes **140px** and keeps its two buttons on one line
+  (`flex-nowrap`): pinned, a wrapped pair would double the row's height for
+  every row, and unpinned on a phone the snapped column is wider than that
+  anyway (see the components table bullet above for the armed-label budget).
   `STICKY_CLICKABLE_COLUMN` belongs only on a row that has its own `hover:` and
   the `group` class — a row carrying `group` without a `hover:` lights the
   first column alone, and a row with neither never matches the variant at all.
