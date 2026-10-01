@@ -71,14 +71,8 @@ export interface GearTableColumnsOptions {
 /** Default target column width used to compute how many whole columns fit. */
 export const DEFAULT_TARGET_COLUMN_WIDTH = 180
 
-/** Target column width when middle section is dual-pinned, calibrated to fit 4 middle columns on desktop. */
-export const DEFAULT_TARGET_MIDDLE_COLUMN_WIDTH = 150
-
 /** Default count of data columns in the components table. */
 export const DEFAULT_TOTAL_DATA_COLUMNS = 7
-
-/** Count of middle data columns between pinned Type and Actions. */
-export const DEFAULT_TOTAL_MIDDLE_COLUMNS = 6
 
 export interface GearTableColumns {
   /**
@@ -159,16 +153,10 @@ export const useGearTableColumns = (
   options?: GearTableColumnsOptions
 ): GearTableColumns => {
   const requestedRightWidth = options?.pinnedRightWidth ?? 0
-  const middleColumns =
-    options?.totalColumns ??
-    (requestedRightWidth > 0
-      ? DEFAULT_TOTAL_MIDDLE_COLUMNS
-      : DEFAULT_TOTAL_DATA_COLUMNS)
+  // With a right pin these count and size the columns BETWEEN the two pins.
+  const middleColumns = options?.totalColumns ?? DEFAULT_TOTAL_DATA_COLUMNS
   const middleTargetWidth =
-    options?.targetColumnWidth ??
-    (requestedRightWidth > 0
-      ? DEFAULT_TARGET_MIDDLE_COLUMN_WIDTH
-      : DEFAULT_TARGET_COLUMN_WIDTH)
+    options?.targetColumnWidth ?? DEFAULT_TARGET_COLUMN_WIDTH
 
   const [element, setElement] = useState<HTMLDivElement | null>(null)
   const [width, setWidth] = useState(0)

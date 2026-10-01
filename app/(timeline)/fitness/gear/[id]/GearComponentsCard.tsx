@@ -87,7 +87,11 @@ const RETIRED_COLUMN_WIDTH = 110
 /**
  * Width of the actions column, pinned or off-snap. Sized to fit a row's two
  * action buttons ("Edit" and "Retire", or "Refit" and "Delete") side-by-side
- * horizontally without wrapping.
+ * horizontally without wrapping — armed ones included, which is why an armed
+ * button reads "Confirm" and keeps what it confirms in its accessible name:
+ * "Refit" beside "Confirm delete" measured 152px against the 124px between
+ * this column's padding, and a pinned cell's content that overflows spills
+ * across the divider and off the card's edge.
  */
 const ACTIONS_COLUMN_WIDTH = 140
 
@@ -108,6 +112,19 @@ const TARGET_COLUMN_WIDTH = 150
  * characters (`gearRequests.ts`), so none of them can be trusted to be short.
  */
 const CELL_WRAP = 'wrap-anywhere'
+
+const SCROLL_STEP_BUTTON =
+  'size-7 text-muted-foreground hover:text-foreground aria-disabled:cursor-default aria-disabled:opacity-50 aria-disabled:hover:bg-transparent aria-disabled:hover:text-muted-foreground'
+
+/**
+ * Fades a retired row in when "Show retired" reveals it (or a row is retired
+ * while they are shown). It goes on the CELLS — and on the pinned cells'
+ * content, never the pinned cells — for the same reason a retired row dims its
+ * cells: `opacity` on the `<tr>` or a pinned `<td>` fades that cell's opaque
+ * surface too, and the data columns would scroll through it mid-fade.
+ */
+const RETIRED_ROW_ENTER =
+  'animate-in fade-in-0 duration-300 motion-reduce:animate-none'
 
 /**
  * One line per install period, so a part that came off and went back on shows
@@ -318,27 +335,36 @@ export const GearComponentsCard: FC<Props> = ({
         <span className="text-sm text-muted-foreground">
           {installed.length} installed
         </span>
+        {/* `aria-disabled`, not `disabled`, at either end — as on the post
+            media strip: a disabled button drops keyboard focus to the page the
+            moment the last step reaches the edge. */}
         {isSnapping && (
-          <div className="flex items-center gap-0.5 ml-1">
+          <div className="ml-1 flex items-center gap-0.5">
             <Button
               variant="ghost"
               size="icon"
-              className="size-7 text-muted-foreground hover:text-foreground"
-              disabled={!canScrollLeft}
-              onClick={() => scrollByColumn('left')}
+              className={SCROLL_STEP_BUTTON}
+              aria-disabled={!canScrollLeft}
+              onClick={() => {
+                if (!canScrollLeft) return
+                scrollByColumn('left')
+              }}
               aria-label="Scroll components table left"
             >
-              <ChevronLeft className="size-4" />
+              <ChevronLeft className="size-4" aria-hidden="true" />
             </Button>
             <Button
               variant="ghost"
               size="icon"
-              className="size-7 text-muted-foreground hover:text-foreground"
-              disabled={!canScrollRight}
-              onClick={() => scrollByColumn('right')}
+              className={SCROLL_STEP_BUTTON}
+              aria-disabled={!canScrollRight}
+              onClick={() => {
+                if (!canScrollRight) return
+                scrollByColumn('right')
+              }}
               aria-label="Scroll components table right"
             >
-              <ChevronRight className="size-4" />
+              <ChevronRight className="size-4" aria-hidden="true" />
             </Button>
           </div>
         )}
@@ -464,13 +490,7 @@ export const GearComponentsCard: FC<Props> = ({
                 const isRetired = Boolean(component.removedAt)
                 const isPending = pendingActionId === component.id
                 return (
-                  <tr
-                    key={component.id}
-                    className={cn(
-                      'border-t',
-                      isRetired && 'animate-in fade-in-0 duration-300'
-                    )}
-                  >
+                  <tr key={component.id} className="border-t">
                     {/* A retired component dims its contents rather than the
                         row: fading the row would take the pinned column's own
                         background down with it and let the data columns scroll
@@ -484,7 +504,11 @@ export const GearComponentsCard: FC<Props> = ({
                       )}
                       style={pinnedColumnStyle}
                     >
-                      <div className={cn(isRetired && 'opacity-60')}>
+                      <div
+                        className={cn(
+                          isRetired && ['opacity-60', RETIRED_ROW_ENTER]
+                        )}
+                      >
                         {component.componentType}
                       </div>
                     </td>
@@ -492,7 +516,7 @@ export const GearComponentsCard: FC<Props> = ({
                       className={cn(
                         CELL_WRAP,
                         'px-3 py-2.5 align-top text-muted-foreground',
-                        isRetired && 'opacity-60'
+                        isRetired && ['opacity-60', RETIRED_ROW_ENTER]
                       )}
                       style={dataColumnStyle(BRAND_COLUMN_WIDTH)}
                     >
@@ -502,7 +526,7 @@ export const GearComponentsCard: FC<Props> = ({
                       className={cn(
                         CELL_WRAP,
                         'px-3 py-2.5 align-top text-muted-foreground',
-                        isRetired && 'opacity-60'
+                        isRetired && ['opacity-60', RETIRED_ROW_ENTER]
                       )}
                       style={dataColumnStyle(MODEL_COLUMN_WIDTH)}
                     >
@@ -511,7 +535,7 @@ export const GearComponentsCard: FC<Props> = ({
                     <td
                       className={cn(
                         'px-3 py-2.5 align-top text-xs text-muted-foreground truncate',
-                        isRetired && 'opacity-60'
+                        isRetired && ['opacity-60', RETIRED_ROW_ENTER]
                       )}
                       style={dataColumnStyle(PRODUCT_PAGE_COLUMN_WIDTH)}
                     >
@@ -520,7 +544,7 @@ export const GearComponentsCard: FC<Props> = ({
                     <td
                       className={cn(
                         'px-3 py-2.5 text-right align-top whitespace-nowrap',
-                        isRetired && 'opacity-60'
+                        isRetired && ['opacity-60', RETIRED_ROW_ENTER]
                       )}
                       style={dataColumnStyle(DISTANCE_COLUMN_WIDTH)}
                     >
@@ -532,7 +556,7 @@ export const GearComponentsCard: FC<Props> = ({
                     <td
                       className={cn(
                         'px-3 py-2.5 align-top whitespace-nowrap text-muted-foreground',
-                        isRetired && 'opacity-60'
+                        isRetired && ['opacity-60', RETIRED_ROW_ENTER]
                       )}
                       style={dataColumnStyle(ADDED_COLUMN_WIDTH)}
                     >
@@ -541,7 +565,7 @@ export const GearComponentsCard: FC<Props> = ({
                     <td
                       className={cn(
                         'px-3 py-2.5 align-top whitespace-nowrap text-muted-foreground',
-                        isRetired && 'opacity-60'
+                        isRetired && ['opacity-60', RETIRED_ROW_ENTER]
                       )}
                       style={dataColumnStyle(RETIRED_COLUMN_WIDTH)}
                     >
@@ -572,7 +596,8 @@ export const GearComponentsCard: FC<Props> = ({
                           'flex flex-nowrap items-center gap-1',
                           isRightPinned
                             ? 'w-full justify-center'
-                            : 'justify-end'
+                            : 'justify-end',
+                          isRetired && RETIRED_ROW_ENTER
                         )}
                       >
                         {isRetired ? (
@@ -593,6 +618,11 @@ export const GearComponentsCard: FC<Props> = ({
                               type="button"
                               variant="ghost"
                               className="h-7 px-2 text-xs text-destructive"
+                              aria-label={
+                                confirmingActionId === component.id
+                                  ? 'Confirm delete'
+                                  : undefined
+                              }
                               disabled={isPending}
                               onClick={() => handleDelete(component.id)}
                               // Leaving the button disarms it: an armed row that
@@ -605,7 +635,7 @@ export const GearComponentsCard: FC<Props> = ({
                               }}
                             >
                               {confirmingActionId === component.id
-                                ? 'Confirm delete'
+                                ? 'Confirm'
                                 : 'Delete'}
                             </Button>
                           </>
@@ -647,7 +677,7 @@ export const GearComponentsCard: FC<Props> = ({
                               }}
                             >
                               {confirmingActionId === component.id
-                                ? 'Confirm retire'
+                                ? 'Confirm'
                                 : 'Retire'}
                             </Button>
                           </>
@@ -677,7 +707,7 @@ export const GearComponentsCard: FC<Props> = ({
           >
             <ChevronDown
               className={cn(
-                'size-3.5 transition-transform duration-300',
+                'size-3.5 transition-transform duration-300 motion-reduce:transition-none',
                 showRetired && 'rotate-180'
               )}
             />

@@ -194,17 +194,17 @@ describe('GearComponentsCard', () => {
     // straddling the boundary it is meant to hold.
     it.each([
       {
-        layout: 'a phone, actions snapped',
+        description: 'a phone, actions snapped',
         width: 390,
         expected: { type: '120px', middle: '270px', actions: '270px' }
       },
       {
-        layout: 'a tablet, actions pinned',
+        description: 'a tablet, actions pinned',
         width: 600,
         expected: { type: '120px', middle: '170px', actions: '140px' }
       }
     ])(
-      'gives a column the same width in its header and its body on $layout',
+      'gives a column the same width in its header and its body on $description',
       ({ width, expected }) => {
         renderCard([createComponent(), createComponent({ id: 'c2' })])
         act(() => deliverWidth?.(width))
@@ -324,7 +324,24 @@ describe('GearComponentsCard', () => {
       expect((actionsCell as HTMLElement).style.minWidth).toBe('140px')
     })
 
-    it('renders scroll chevrons when snapping is active, shows shadows, and scrolls bidirectionally', () => {
+    it.each([
+      { description: 'before the table is measured', width: null },
+      { description: 'while every column fits', width: 1400 }
+    ])('offers no scroll chevrons $description', ({ width }) => {
+      renderCard([createComponent()])
+      if (width !== null) act(() => deliverWidth?.(width))
+
+      expect(
+        screen.queryByRole('button', { name: 'Scroll components table left' })
+      ).toBeNull()
+      expect(
+        screen.queryByRole('button', { name: 'Scroll components table right' })
+      ).toBeNull()
+    })
+
+    // The step size and the cue thresholds belong to `useGearTableColumns`
+    // and are tested there; this covers the card's wiring of them.
+    it('steps the table with chevrons that stay focusable at either end', () => {
       renderCard([createComponent()])
       act(() => deliverWidth?.(900))
 
@@ -334,69 +351,58 @@ describe('GearComponentsCard', () => {
       const rightButton = screen.getByRole('button', {
         name: 'Scroll components table right'
       })
-      expect(leftButton).toBeDisabled()
-      expect(rightButton).not.toBeDisabled()
+      const scroller = screen.getByRole('table').parentElement as HTMLElement
+      const scrollBySpy = vi.fn()
+      scroller.scrollBy = scrollBySpy
 
-      // At scrollLeft = 0, Type has STICKY_COLUMN but no STICKY_LEFT_SHADOW; Actions has STICKY_RIGHT_SHADOW
+      // At the start only the right one acts — and the left one is
+      // `aria-disabled` rather than `disabled`, so a keyboard user who
+      // stepped back to the start keeps focus on it.
+      expect(leftButton).toHaveAttribute('aria-disabled', 'true')
+      expect(leftButton).toBeEnabled()
+      expect(rightButton).toHaveAttribute('aria-disabled', 'false')
+      fireEvent.click(leftButton)
+      expect(scrollBySpy).not.toHaveBeenCalled()
+      fireEvent.click(rightButton)
+      expect(scrollBySpy).toHaveBeenCalledTimes(1)
+
+      act(() => {
+        Object.defineProperty(scroller, 'scrollLeft', {
+          configurable: true,
+          value: 300
+        })
+        fireEvent.scroll(scroller)
+      })
+
+      expect(leftButton).toHaveAttribute('aria-disabled', 'false')
+      expect(rightButton).toHaveAttribute('aria-disabled', 'true')
+      fireEvent.click(rightButton)
+      expect(scrollBySpy).toHaveBeenCalledTimes(1)
+      fireEvent.click(leftButton)
+      expect(scrollBySpy).toHaveBeenCalledTimes(2)
+    })
+
+    it('shadows a pinned edge only while content is hidden past it', () => {
+      renderCard([createComponent()])
+      act(() => deliverWidth?.(900))
+
       const typeHeader = screen.getByRole('columnheader', { name: 'Type' })
-      expect(typeHeader.className).toContain(STICKY_COLUMN)
-      expect(typeHeader.className).not.toContain(STICKY_LEFT_SHADOW)
-
       const actionsHeader = screen.getByRole('columnheader', {
         name: 'Actions'
       })
-      expect(actionsHeader.className).toContain('sticky right-0')
+      expect(typeHeader.className).toContain(STICKY_COLUMN)
+      expect(typeHeader.className).not.toContain(STICKY_LEFT_SHADOW)
       expect(actionsHeader.className).toContain(STICKY_RIGHT_SHADOW)
 
-      const tableWrapper = screen.getByRole('table').parentElement
-      const scrollBySpy = vi.fn()
-      if (tableWrapper) {
-        tableWrapper.scrollBy = scrollBySpy
-      }
-
-      fireEvent.click(rightButton)
-      expect(scrollBySpy).toHaveBeenCalledWith({
-        left: 160,
-        behavior: 'smooth'
+      const scroller = screen.getByRole('table').parentElement as HTMLElement
+      act(() => {
+        Object.defineProperty(scroller, 'scrollLeft', {
+          configurable: true,
+          value: 300
+        })
+        fireEvent.scroll(scroller)
       })
 
-      // Simulate scrolling to middle (scrollLeft = 100)
-      if (tableWrapper) {
-        act(() => {
-          Object.defineProperty(tableWrapper, 'scrollLeft', {
-            configurable: true,
-            writable: true,
-            value: 100
-          })
-          fireEvent.scroll(tableWrapper)
-        })
-      }
-
-      expect(leftButton).not.toBeDisabled()
-      expect(rightButton).not.toBeDisabled()
-      expect(typeHeader.className).toContain(STICKY_LEFT_SHADOW)
-      expect(actionsHeader.className).toContain(STICKY_RIGHT_SHADOW)
-
-      fireEvent.click(leftButton)
-      expect(scrollBySpy).toHaveBeenCalledWith({
-        left: -160,
-        behavior: 'smooth'
-      })
-
-      // Simulate scrolling to end (scrollLeft = 300)
-      if (tableWrapper) {
-        act(() => {
-          Object.defineProperty(tableWrapper, 'scrollLeft', {
-            configurable: true,
-            writable: true,
-            value: 300
-          })
-          fireEvent.scroll(tableWrapper)
-        })
-      }
-
-      expect(leftButton).not.toBeDisabled()
-      expect(rightButton).toBeDisabled()
       expect(typeHeader.className).toContain(STICKY_LEFT_SHADOW)
       expect(actionsHeader.className).toContain(STICKY_RIGHT_COLUMN)
       expect(actionsHeader.className).not.toContain(STICKY_RIGHT_SHADOW)
@@ -706,8 +712,8 @@ describe('GearComponentsCard', () => {
     expect(onChanged).not.toHaveBeenCalled()
   })
 
-  // Action buttons stay on a single line via flex-nowrap and centered alignment
-  it('keeps the retired row actions on a single line with flex-nowrap and centered', () => {
+  // Action buttons stay on a single line via flex-nowrap and generous column sizing
+  it('keeps the retired row actions on a single line with flex-nowrap', () => {
     renderCard([createComponent({ removedAt: Date.UTC(2025, 5, 1) })])
 
     fireEvent.click(
@@ -717,7 +723,49 @@ describe('GearComponentsCard', () => {
     const actions = screen
       .getByRole('button', { name: 'Refit Chain' })
       .closest('div')
-    expect(actions).toHaveClass('flex', 'flex-nowrap', 'justify-center')
+    expect(actions).toHaveClass('flex', 'flex-nowrap')
+  })
+
+  // The pinned actions column fits two buttons, and "Confirm delete" beside
+  // "Refit" did not: it spilled across the divider and off the card. The
+  // accessible names still say what is being confirmed.
+  it('labels an armed button "Confirm" and names what it confirms', () => {
+    renderCard([
+      createComponent(),
+      createComponent({ id: 'c2', removedAt: Date.UTC(2025, 5, 1) })
+    ])
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show 1 retired component' })
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retire Chain' }))
+    expect(
+      screen.getByRole('button', { name: 'Confirm retire Chain' })
+    ).toHaveTextContent(/^Confirm$/)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(
+      screen.getByRole('button', { name: 'Confirm delete' })
+    ).toHaveTextContent(/^Confirm$/)
+  })
+
+  // Fading the `<tr>` or a pinned `<td>` fades the pinned cell's opaque
+  // surface with it, and the data columns would show through mid-fade.
+  it('fades a revealed retired row in through its cells, never the row or a pinned cell', () => {
+    renderCard([createComponent({ removedAt: Date.UTC(2025, 5, 1) })])
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show 1 retired component' })
+    )
+
+    const row = screen.getAllByRole('row')[1]
+    expect(row).not.toHaveClass('animate-in')
+    const [typeCell, brandCell] = Array.from(row.children)
+    expect(typeCell).not.toHaveClass('animate-in')
+    expect(typeCell.firstElementChild).toHaveClass('animate-in', 'fade-in-0')
+    expect(brandCell).toHaveClass('animate-in', 'fade-in-0')
+    const actionsCell = row.lastElementChild as HTMLElement
+    expect(actionsCell).not.toHaveClass('animate-in')
+    expect(actionsCell.firstElementChild).toHaveClass('animate-in')
   })
 
   it('offers refit and delete on a retired row, but not edit', () => {
