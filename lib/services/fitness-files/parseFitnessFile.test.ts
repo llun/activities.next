@@ -388,6 +388,112 @@ describe('parseFitnessFile', () => {
     expect(parsed.startTime?.toISOString()).toBe('2026-01-03T06:00:00.000Z')
   })
 
+  it('extracts summary metrics from FIT primary session', async () => {
+    FitParserMock.mockImplementation(function () {
+      return {
+        parse: (
+          _buffer: Buffer,
+          callback: (error: Error | null, data?: unknown) => void
+        ) =>
+          callback(null, {
+            sessions: [
+              {
+                total_distance: 10_000,
+                total_elapsed_time: 1_200,
+                sport: 'cycling',
+                start_time: '2026-01-03T06:00:00Z',
+                avg_power: 215,
+                max_power: 620,
+                avg_heart_rate: 142,
+                max_heart_rate: 175,
+                total_work: 530_000 // 530 kJ in Joules
+              }
+            ],
+            records: [
+              {
+                position_lat: 37.78,
+                position_long: -122.42,
+                power: 210,
+                heart_rate: 140,
+                altitude: 10,
+                timestamp: '2026-01-03T06:00:00Z'
+              },
+              {
+                position_lat: 37.79,
+                position_long: -122.41,
+                power: 220,
+                heart_rate: 144,
+                altitude: 20,
+                timestamp: '2026-01-03T06:20:00Z'
+              }
+            ]
+          })
+      }
+    })
+
+    const parsed = await parseFitnessFile({
+      fileType: 'fit',
+      buffer: Buffer.from('binary-fit-content')
+    })
+
+    expect(parsed.avgPower).toBe(215)
+    expect(parsed.maxPower).toBe(620)
+    expect(parsed.avgHeartRate).toBe(142)
+    expect(parsed.maxHeartRate).toBe(175)
+    expect(parsed.totalWorkKj).toBe(530)
+    expect(parsed.elevationSeries).toEqual([10, 20])
+  })
+
+  it('preserves power and heart rate for indoor FIT workouts without GPS coordinates', async () => {
+    FitParserMock.mockImplementation(function () {
+      return {
+        parse: (
+          _buffer: Buffer,
+          callback: (error: Error | null, data?: unknown) => void
+        ) =>
+          callback(null, {
+            sessions: [
+              {
+                total_distance: 8_000,
+                total_elapsed_time: 900,
+                sport: 'training',
+                start_time: '2026-01-04T08:00:00Z'
+              }
+            ],
+            // Indoor trainer records: NO position_lat or position_long
+            records: [
+              {
+                power: 180,
+                heart_rate: 135,
+                speed: 30,
+                timestamp: '2026-01-04T08:00:00Z'
+              },
+              {
+                power: 220,
+                heart_rate: 155,
+                speed: 32,
+                timestamp: '2026-01-04T08:15:00Z'
+              }
+            ]
+          })
+      }
+    })
+
+    const parsed = await parseFitnessFile({
+      fileType: 'fit',
+      buffer: Buffer.from('binary-fit-content')
+    })
+
+    expect(parsed.coordinates).toHaveLength(0)
+    expect(parsed.powerSeries).toEqual([180, 220])
+    expect(parsed.heartRateSeries).toEqual([135, 155])
+    expect(parsed.avgPower).toBe(200)
+    expect(parsed.maxPower).toBe(220)
+    expect(parsed.avgHeartRate).toBe(145)
+    expect(parsed.maxHeartRate).toBe(155)
+    expect(parsed.totalWorkKj).toBe(180) // (200 * 900) / 1000 = 180 kJ
+  })
+
   it('throws when FIT parser reports an error', async () => {
     FitParserMock.mockImplementation(function () {
       return {

@@ -513,6 +513,59 @@ describe('FitnessStatusDetail', () => {
     expect(screen.queryByText('2:05 PM, May 27, 2026')).not.toBeInTheDocument()
   })
 
+  it('renders summary metrics and elevation chart on overview without fetching route data, and defers route data to analysis', async () => {
+    mockGetFitnessRouteData.mockClear()
+    const statusWithMetrics = buildStatus({
+      fitness: {
+        id: 'fit-1',
+        fileName: 'ride.fit',
+        fileType: 'fit',
+        mimeType: 'application/octet-stream',
+        bytes: 2048,
+        url: 'https://activities.local/fit/ride.fit',
+        processingStatus: 'completed',
+        totalDistanceMeters: 5000,
+        totalDurationSeconds: 1800,
+        elevationGainMeters: 120,
+        activityType: 'ride',
+        hasMapData: false,
+        avgPower: 215,
+        maxPower: 580,
+        avgHeartRate: 148,
+        maxHeartRate: 172,
+        totalWorkKj: 387,
+        elevationSeries: [10, 25, 45, 60, 50, 30]
+      }
+    })
+
+    renderDetail({ status: statusWithMetrics })
+
+    // Summary metrics appear immediately without waiting for route data
+    expect(screen.getByText('Avg HR')).toBeInTheDocument()
+    expect(screen.getByText('148')).toBeInTheDocument()
+    expect(screen.getByText('max 172 bpm')).toBeInTheDocument()
+    expect(screen.getByText('Total work')).toBeInTheDocument()
+    expect(screen.getByText('387')).toBeInTheDocument()
+    expect(screen.getByText('kJ')).toBeInTheDocument()
+    expect(screen.getByText('Avg power')).toBeInTheDocument()
+    expect(screen.getByText('215')).toBeInTheDocument()
+    expect(screen.getAllByText('watts')).toHaveLength(2)
+    expect(screen.getByText('Max power')).toBeInTheDocument()
+    expect(screen.getByText('580')).toBeInTheDocument()
+    expect(screen.getByTestId('overview-elevation-profile')).toBeInTheDocument()
+
+    // Route data was NOT fetched on overview
+    expect(mockGetFitnessRouteData).not.toHaveBeenCalled()
+
+    // Switching to analysis fetches route data
+    const menu = await openSectionMenu()
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Analysis' }))
+
+    await waitFor(() => {
+      expect(mockGetFitnessRouteData).toHaveBeenCalledWith('fit-1')
+    })
+  })
+
   it('falls back to the static preview when the interactive map never finishes loading', async () => {
     mockGetFitnessFilesByStatus.mockResolvedValue([
       buildFitnessFile({ hasMapData: true })
@@ -533,6 +586,14 @@ describe('FitnessStatusDetail', () => {
     vi.useFakeTimers()
     try {
       renderDetail()
+      fireEvent.keyDown(screen.getByRole('button', { name: /Overview/ }), {
+        key: 'ArrowDown'
+      })
+      fireEvent.click(
+        within(screen.getByRole('menu')).getByRole('menuitem', {
+          name: 'Analysis'
+        })
+      )
       // Flush the chained fitness-file -> route-data fetches (each resolves a
       // promise and commits state) so the map effect runs and arms the watchdog.
       for (let flush = 0; flush < 6; flush += 1) {
@@ -791,11 +852,10 @@ describe('FitnessStatusDetail', () => {
   })
 
   describe('analysis graphs', () => {
-    const openAnalysis = async () => {
-      renderDetail()
-      await waitFor(() =>
-        expect(screen.getByText('Avg HR')).toBeInTheDocument()
-      )
+    const openAnalysis = async (
+      props: Partial<Parameters<typeof FitnessStatusDetail>[0]> = {}
+    ) => {
+      renderDetail(props)
       const menu = await openSectionMenu()
       fireEvent.click(within(menu).getByRole('menuitem', { name: 'Analysis' }))
       return screen.findByTestId('analysis-graphs')
@@ -1316,6 +1376,29 @@ describe('FitnessStatusDetail', () => {
         (elevationPath.getAttribute('d') ?? '').match(/[LM]/g)
       ).toHaveLength(routeData.altitudeSeries?.length ?? 0)
     })
+
+    it('follows the scrubbed instant on the map above it', async () => {
+      mockGetFitnessFilesByStatus.mockResolvedValue([
+        buildFitnessFile({ hasMapData: true })
+      ])
+      const panel = await openAnalysis({ mapProvider: { type: 'apple' } })
+      await waitFor(() =>
+        expect(screen.getByTestId('route-map')).toBeInTheDocument()
+      )
+
+      expect(screen.getByTestId('route-map')).toHaveAttribute(
+        'data-highlighted-elapsed-seconds',
+        ''
+      )
+
+      hoverChart(panel, 200)
+
+      // A quarter of the way across a 1800s ride.
+      expect(screen.getByTestId('route-map')).toHaveAttribute(
+        'data-highlighted-elapsed-seconds',
+        '450'
+      )
+    })
   })
 
   describe('overview elevation profile', () => {
@@ -1394,30 +1477,6 @@ describe('FitnessStatusDetail', () => {
 
       fireEvent.touchEnd(plot)
       expect(screen.queryAllByTestId('chart-hover-value')).toHaveLength(0)
-    })
-
-    // The whole point of the scrub is the map, and the map only follows a
-    // highlight the Overview's own panel is given — the prop used to be passed
-    // on the Analysis section's panel alone, so the profile could report a
-    // value with nothing moving beside it.
-    it('follows the scrubbed instant on the map above it', async () => {
-      renderDetail({ mapProvider: { type: 'apple' } })
-      await waitFor(() =>
-        expect(screen.getByTestId('route-map')).toBeInTheDocument()
-      )
-
-      expect(screen.getByTestId('route-map')).toHaveAttribute(
-        'data-highlighted-elapsed-seconds',
-        ''
-      )
-
-      hoverElevation(200)
-
-      // A quarter of the way across a 1800s ride.
-      expect(screen.getByTestId('route-map')).toHaveAttribute(
-        'data-highlighted-elapsed-seconds',
-        '450'
-      )
     })
 
     it('drops the highlight when the section changes', async () => {
@@ -1518,6 +1577,8 @@ describe('FitnessStatusDetail', () => {
       mockGetFitnessRouteData.mockResolvedValue(routeData)
 
       renderDetail()
+      const menu = await openSectionMenu()
+      fireEvent.click(within(menu).getByRole('menuitem', { name: 'Analysis' }))
       await waitFor(() => expect(MapConstructor).toHaveBeenCalled())
       await act(async () => {})
 
@@ -1645,7 +1706,12 @@ describe('FitnessStatusDetail', () => {
   })
 
   it('renders the route map without a GPS trace badge', async () => {
+    mockGetFitnessFilesByStatus.mockResolvedValue([
+      buildFitnessFile({ hasMapData: true })
+    ])
     renderDetail()
+    const menu = await openSectionMenu()
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Analysis' }))
 
     // Positive anchor first: the zoom control lives in the same overlay
     // fragment the badge used to, so its presence proves the overlay really

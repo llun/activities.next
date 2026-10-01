@@ -496,6 +496,12 @@ const processFitnessFileJobUnlocked = createJobHandle(
         elevationGainMeters: activityData.elevationGainMeters,
         activityType: activityData.activityType,
         activityStartTime: activityData.startTime ?? null,
+        avgPower: activityData.avgPower ?? null,
+        maxPower: activityData.maxPower ?? null,
+        avgHeartRate: activityData.avgHeartRate ?? null,
+        maxHeartRate: activityData.maxHeartRate ?? null,
+        totalWorkKj: activityData.totalWorkKj ?? null,
+        elevationSeries: activityData.elevationSeries ?? null,
         // Cleared up front so a re-run never shows the previous run's map
         // failure while it is busy producing a map. The map columns themselves
         // are NOT reset here: until a replacement exists, the map this file

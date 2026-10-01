@@ -452,6 +452,12 @@ export const importFitnessFiles = async (
         elevationGainMeters: activityData.elevationGainMeters,
         activityType: activityData.activityType,
         activityStartTime: activityData.startTime ?? null,
+        avgPower: activityData.avgPower ?? null,
+        maxPower: activityData.maxPower ?? null,
+        avgHeartRate: activityData.avgHeartRate ?? null,
+        maxHeartRate: activityData.maxHeartRate ?? null,
+        totalWorkKj: activityData.totalWorkKj ?? null,
+        elevationSeries: activityData.elevationSeries ?? null,
         ...(keepPreviousMap
           ? {}
           : {

@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
-import { isFitnessProcessingStuck } from '@/lib/services/fitness-files/processingState'
+import { getStatusFitnessFiles } from '@/lib/services/fitness-files/statusFitnessFiles'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { getVisibility } from '@/lib/utils/getVisibility'
@@ -97,61 +97,13 @@ export const GET = traceApiRoute(
         })
       }
 
-      const files = await database.getFitnessFilesByStatus({ statusId })
-      const now = Date.now()
-
-      // One lookup for the whole page of files, not one per file. Only the gear
-      // NAME is exposed here — it is what the activity's meta row renders to
-      // every viewer; default sports, service thresholds and notes stay owner
-      // only, behind /api/v1/fitness/gear.
-      // Both gear links resolve in the SAME batch: `getFitnessGearNamesByIds`
-      // filters by id and `deletedAt` only, never by kind, so a device id looks
-      // up exactly like a bike id and a second round trip would buy nothing.
-      const gearNames = await database.getFitnessGearNamesByIds({
-        ids: files
-          .flatMap((file) => [file.gearId, file.deviceGearId])
-          .filter((gearId): gearId is string => Boolean(gearId))
-      })
+      const files = await getStatusFitnessFiles(database, statusId)
 
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
         data: {
-          files: files.map((file) => ({
-            id: file.id,
-            actorId: file.actorId,
-            fileName: file.fileName,
-            fileType: file.fileType,
-            isPrimary: file.isPrimary ?? true,
-            statusId: file.statusId ?? null,
-            processingStatus: file.processingStatus ?? 'pending',
-            // Computed server-side (no client time math) so a poller can switch
-            // from a spinner to a retry once a `processing` file is stranded.
-            processingStuck: isFitnessProcessingStuck(
-              {
-                processingStatus: file.processingStatus,
-                updatedAt: file.updatedAt
-              },
-              now
-            ),
-            totalDistanceMeters: file.totalDistanceMeters ?? null,
-            totalDurationSeconds: file.totalDurationSeconds ?? null,
-            movingTimeSeconds: file.movingTimeSeconds ?? null,
-            elevationGainMeters: file.elevationGainMeters ?? null,
-            activityType: file.activityType ?? null,
-            activityStartTime: file.activityStartTime ?? null,
-            hasMapData: file.hasMapData ?? false,
-            description: file.description ?? null,
-            deviceManufacturer: file.deviceManufacturer ?? null,
-            deviceName: file.deviceName ?? null,
-            sourceUrl: file.sourceUrl ?? null,
-            gearId: file.gearId ?? null,
-            gearName: file.gearId ? (gearNames[file.gearId] ?? null) : null,
-            deviceGearId: file.deviceGearId ?? null,
-            deviceGearName: file.deviceGearId
-              ? (gearNames[file.deviceGearId] ?? null)
-              : null
-          }))
+          files
         }
       })
     } catch (error) {

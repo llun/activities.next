@@ -345,4 +345,54 @@ describe('GET /api/v1/fitness-files/by-status', () => {
 
     expect(response.status).toBe(200)
   })
+
+  it('returns summary metrics and elevation series', async () => {
+    mockGetServerSession.mockResolvedValue(null)
+
+    const status = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/summary-metrics-status-files`,
+      url: `${ACTOR1_ID}/statuses/summary-metrics-status-files`,
+      actorId: ACTOR1_ID,
+      text: 'Status with summary metrics',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+
+    const file = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      statusId: status.id,
+      path: 'fitness/summary-test.fit',
+      fileName: 'summary-test.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024
+    })
+
+    await database.updateFitnessFileActivityData(file!.id, {
+      avgPower: 210,
+      maxPower: 720,
+      avgHeartRate: 155,
+      maxHeartRate: 180,
+      totalWorkKj: 630,
+      elevationSeries: [50, 60, 70]
+    })
+
+    const request = new NextRequest(
+      `https://llun.test/api/v1/fitness-files/by-status?statusId=${encodeURIComponent(status.id)}`
+    )
+    const response = await GET(request, routeContext)
+    const json = (await response.json()) as {
+      files: Array<Record<string, unknown>>
+    }
+
+    expect(response.status).toBe(200)
+    expect(json.files[0]).toMatchObject({
+      avgPower: 210,
+      maxPower: 720,
+      avgHeartRate: 155,
+      maxHeartRate: 180,
+      totalWorkKj: 630,
+      elevationSeries: [50, 60, 70]
+    })
+  })
 })

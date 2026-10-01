@@ -224,5 +224,90 @@ describe('activityData', () => {
       expect(result.totalDurationSeconds).toBe(150)
       expect(result.movingTimeSeconds).toBe(150)
     })
+
+    it('computes summary metrics and downsamples elevation series', () => {
+      const t1 = new Date('2025-01-01T10:00:00Z')
+      const t2 = new Date('2025-01-01T10:05:00Z')
+      const points: FitnessTrackPoint[] = [
+        {
+          lat: 37.77,
+          lng: -122.41,
+          timestamp: t1,
+          altitudeMeters: 50,
+          heartRate: 140,
+          power: 200
+        },
+        {
+          lat: 37.78,
+          lng: -122.42,
+          timestamp: t2,
+          altitudeMeters: 100,
+          heartRate: 160,
+          power: 300
+        }
+      ]
+
+      const result = toActivityData({
+        points,
+        totalDurationSeconds: 300
+      })
+
+      expect(result.avgPower).toBe(250)
+      expect(result.maxPower).toBe(300)
+      expect(result.avgHeartRate).toBe(150)
+      expect(result.maxHeartRate).toBe(160)
+      // totalWorkKj = Math.round((250 * 300) / 1000) = 75 kJ
+      expect(result.totalWorkKj).toBe(75)
+      expect(result.elevationSeries).toEqual([50, 100])
+    })
+
+    it('downsamples long elevation series to 120 points', () => {
+      const altitudes = Array.from({ length: 360 }, (_, i) => i)
+      const points: FitnessTrackPoint[] = altitudes.map((alt) => ({
+        lat: 0,
+        lng: 0,
+        altitudeMeters: alt
+      }))
+
+      const result = toActivityData({ points })
+      expect(result.elevationSeries).toHaveLength(120)
+    })
+
+    it('prefers explicit summary metrics passed in params', () => {
+      const points: FitnessTrackPoint[] = [
+        { lat: 0, lng: 0, power: 150, heartRate: 130 }
+      ]
+
+      const result = toActivityData({
+        points,
+        avgPower: 210,
+        maxPower: 580,
+        avgHeartRate: 145,
+        maxHeartRate: 172,
+        totalWorkKj: 480
+      })
+
+      expect(result.avgPower).toBe(210)
+      expect(result.maxPower).toBe(580)
+      expect(result.avgHeartRate).toBe(145)
+      expect(result.maxHeartRate).toBe(172)
+      expect(result.totalWorkKj).toBe(480)
+    })
+
+    it('ignores 0 bpm session heart rate values and falls back to samples', () => {
+      const points: FitnessTrackPoint[] = [
+        { lat: 0, lng: 0, heartRate: 140 },
+        { lat: 0, lng: 0, heartRate: 160 }
+      ]
+
+      const result = toActivityData({
+        points,
+        avgHeartRate: 0,
+        maxHeartRate: 0
+      })
+
+      expect(result.avgHeartRate).toBe(150)
+      expect(result.maxHeartRate).toBe(160)
+    })
   })
 })

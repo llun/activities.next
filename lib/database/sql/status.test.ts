@@ -918,6 +918,48 @@ describe('StatusDatabase', () => {
         })
       })
 
+      it('returns summary metrics and elevation series on status.fitness', async () => {
+        const statusId = `${emptyActorId}/statuses/fitness-summary-status`
+
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Post with fitness summary metrics'
+        })
+
+        const fitnessFile = await database.createFitnessFile({
+          actorId: emptyActorId,
+          statusId,
+          path: `fitness/${Date.now()}-summary.fit`,
+          fileName: 'summary.fit',
+          fileType: 'fit',
+          mimeType: 'application/octet-stream',
+          bytes: 4096
+        })
+
+        await database.updateFitnessFileActivityData(fitnessFile!.id, {
+          avgPower: 220,
+          maxPower: 650,
+          avgHeartRate: 148,
+          maxHeartRate: 177,
+          totalWorkKj: 520,
+          elevationSeries: [100, 110, 120]
+        })
+
+        const status = (await database.getStatus({ statusId })) as StatusNote
+        expect(status.fitness).toMatchObject({
+          avgPower: 220,
+          maxPower: 650,
+          avgHeartRate: 148,
+          maxHeartRate: 177,
+          totalWorkKj: 520,
+          elevationSeries: [100, 110, 120]
+        })
+      })
+
       it('returns the recorded activity start time on the fitness file', async () => {
         // The post's own createdAt is not a stand-in for it: a Strava webhook
         // import is stamped when it published, not when the ride began, so

@@ -79,9 +79,11 @@ const TEMPLATES: ActivityTemplate[] = [
   }
 ]
 
+const randomFloat = () => crypto.randomBytes(4).readUInt32LE(0) / 0xffffffff
+
 const jitter = (base: number, spreadFraction: number) => {
   const spread = base * spreadFraction
-  return Math.round(base - spread + Math.random() * spread * 2)
+  return Math.round(base - spread + randomFloat() * spread * 2)
 }
 
 async function createMockFitnessData() {
@@ -117,7 +119,7 @@ async function createMockFitnessData() {
     const template = TEMPLATES[index % TEMPLATES.length]
     // Most recent activities first: index 0 ≈ ~12 minutes ago, then stepping
     // back a few days at a time with a little jitter.
-    const daysAgo = index === 0 ? 0 : index * 4 + Math.floor(Math.random() * 3)
+    const daysAgo = index === 0 ? 0 : index * 4 + Math.floor(randomFloat() * 3)
     const startedAtMs =
       index === 0 ? now - 12 * 60 * 1000 : now - daysAgo * DAY_MS
     const startedAt = new Date(startedAtMs)
@@ -176,6 +178,16 @@ async function createMockFitnessData() {
       totalDistanceMeters: distanceMeters,
       totalDurationSeconds: durationSeconds,
       elevationGainMeters,
+      avgPower: template.activityType === 'ride' ? jitter(210, 0.1) : null,
+      maxPower: template.activityType === 'ride' ? jitter(450, 0.15) : null,
+      avgHeartRate: jitter(148, 0.08),
+      maxHeartRate: jitter(176, 0.05),
+      totalWorkKj: template.activityType === 'ride' ? jitter(750, 0.2) : null,
+      elevationSeries: JSON.stringify(
+        Array.from({ length: 60 }, (_, i) =>
+          Math.round(100 + 40 * Math.sin(i / 5))
+        )
+      ),
       activityType: template.activityType,
       activityStartTime: startedAt,
       createdAt: startedAt,

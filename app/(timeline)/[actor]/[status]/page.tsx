@@ -11,6 +11,7 @@ import { getDatabase } from '@/lib/database'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
+import { getStatusFitnessFiles } from '@/lib/services/fitness-files/statusFitnessFiles'
 import { enrichStatusAttachments } from '@/lib/services/medias/animationMetadata'
 import { getQueue } from '@/lib/services/queue'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
@@ -230,6 +231,12 @@ const Page: FC<Props> = async ({ params }) => {
     statusForLayout.fitness?.processingStatus === 'completed'
 
   if (isFitnessDashboard) {
+    const fitnessFiles = await getStatusFitnessFiles(
+      database,
+      statusForLayout.id,
+      currentTime
+    )
+
     return (
       <div
         className={cn(
@@ -298,6 +305,7 @@ const Page: FC<Props> = async ({ params }) => {
             variant="detail"
             isMediaUploadEnabled={Boolean(mediaStorage)}
             replies={replies.map((reply) => cleanJson(reply))}
+            fitnessFiles={fitnessFiles}
           />
           {!currentActorProfile ? (
             <div className="px-4 pb-4">

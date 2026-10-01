@@ -725,5 +725,34 @@ describe('ActivityMapPanel', () => {
         })
       })
     })
+
+    it('renders static preview attachment when interactive is false', () => {
+      const attachment = {
+        id: 'map-attachment-1',
+        type: 'Document' as const,
+        mediaType: 'image/webp',
+        name: 'Route map',
+        url: 'https://activities.local/map.webp',
+        width: 800,
+        height: 600
+      } as Attachment
+
+      render(
+        <ActivityMapPanel
+          mapAttachment={attachment}
+          routeSamples={sampleRoute}
+          mapProvider={{ type: 'osm' }}
+          interactive={false}
+        />
+      )
+
+      expect(screen.getByTestId('media-attachment')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('img', { name: 'Activity route map' })
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByText('Loading interactive route...')
+      ).not.toBeInTheDocument()
+    })
   })
 })

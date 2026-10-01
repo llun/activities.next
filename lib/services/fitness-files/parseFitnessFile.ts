@@ -307,8 +307,40 @@ const parseFit = async (buffer: Buffer): Promise<FitnessActivityData> => {
       ? Math.max(...recordDistanceSamples)
       : undefined
 
+  const powerSeries = records
+    .map((record) => toNumber(record.power))
+    .filter((v): v is number => typeof v === 'number')
+  const heartRateSeries = records
+    .map((record) => toNumber(record.heart_rate))
+    .filter((v): v is number => typeof v === 'number')
+  const altitudeSeries = records
+    .map((record) => toNumber(record.altitude))
+    .filter((v): v is number => typeof v === 'number')
+  const speedSeries = records
+    .map((record) => toNumber(record.speed))
+    .filter((v): v is number => typeof v === 'number')
+
+  const sessionAvgPower = toNumber(primarySession?.avg_power)
+  const sessionMaxPower = toNumber(primarySession?.max_power)
+  const sessionAvgHeartRate = toNumber(primarySession?.avg_heart_rate)
+  const sessionMaxHeartRate = toNumber(primarySession?.max_heart_rate)
+  const sessionTotalWork = toNumber(primarySession?.total_work)
+  const sessionTotalWorkKj =
+    typeof sessionTotalWork === 'number'
+      ? Math.round(sessionTotalWork / 1000)
+      : undefined
+
   const base = toActivityData({
     points,
+    powerSeries: powerSeries.length > 0 ? powerSeries : undefined,
+    heartRateSeries: heartRateSeries.length > 0 ? heartRateSeries : undefined,
+    altitudeSeries: altitudeSeries.length > 0 ? altitudeSeries : undefined,
+    speedSeries: speedSeries.length > 0 ? speedSeries : undefined,
+    avgPower: sessionAvgPower,
+    maxPower: sessionMaxPower,
+    avgHeartRate: sessionAvgHeartRate,
+    maxHeartRate: sessionMaxHeartRate,
+    totalWorkKj: sessionTotalWorkKj,
     totalDistanceMeters:
       toNumber(primarySession?.total_distance) ?? distanceFromRecords,
     totalDurationSeconds:
@@ -449,6 +481,10 @@ const parseTcx = (buffer: Buffer): FitnessActivityData => {
 
   const base = toActivityData({
     points: gpsPoints,
+    powerSeries: powerSeries.length > 0 ? powerSeries : undefined,
+    heartRateSeries: heartRateSeries.length > 0 ? heartRateSeries : undefined,
+    speedSeries: speedSeries.length > 0 ? speedSeries : undefined,
+    altitudeSeries: altitudeSeries.length > 0 ? altitudeSeries : undefined,
     totalDistanceMeters: lapDistanceMeters > 0 ? lapDistanceMeters : undefined,
     totalDurationSeconds:
       lapDurationSeconds > 0 ? lapDurationSeconds : undefined,
@@ -456,15 +492,7 @@ const parseTcx = (buffer: Buffer): FitnessActivityData => {
     startTime: toDate(activity?.Id)
   })
 
-  return {
-    ...base,
-    powerSeries: powerSeries.length > 0 ? powerSeries : base.powerSeries,
-    heartRateSeries:
-      heartRateSeries.length > 0 ? heartRateSeries : base.heartRateSeries,
-    speedSeries: speedSeries.length > 0 ? speedSeries : base.speedSeries,
-    altitudeSeries:
-      altitudeSeries.length > 0 ? altitudeSeries : base.altitudeSeries
-  }
+  return base
 }
 
 export const parseFitnessFile = async ({

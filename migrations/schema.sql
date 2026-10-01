@@ -448,7 +448,13 @@ CREATE TABLE public.fitness_files (
     "mapImageEmailPath" character varying(255),
     "mapError" text,
     "gearId" character varying(255),
-    "deviceGearId" character varying(255)
+    "deviceGearId" character varying(255),
+    "avgPower" integer,
+    "maxPower" integer,
+    "avgHeartRate" integer,
+    "maxHeartRate" integer,
+    "totalWorkKj" integer,
+    "elevationSeries" text
 );
 
 CREATE TABLE public.fitness_gear_component_periods (

@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { FC, useState } from 'react'
 
+import type { StatusFitnessFileItem } from '@/lib/client'
 import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
 import { InlineStatusComposer } from '@/lib/components/posts/inline-status-composer'
 import { Post } from '@/lib/components/posts/post'
@@ -34,6 +35,7 @@ interface Props {
   // Replies passed through to the fitness activity detail, which renders them
   // in its Comments section instead of the standalone reply list below.
   replies?: Status[]
+  fitnessFiles?: StatusFitnessFileItem[]
 }
 
 export const StatusBox: FC<Props> = ({
@@ -44,7 +46,8 @@ export const StatusBox: FC<Props> = ({
   status,
   variant = 'comment',
   isMediaUploadEnabled,
-  replies
+  replies,
+  fitnessFiles
 }) => {
   const router = useRouter()
   const [modalMedias, setModalMedias] = useState<{
@@ -75,6 +78,7 @@ export const StatusBox: FC<Props> = ({
           status={actualStatus as StatusNote}
           replies={replies}
           isMediaUploadEnabled={isMediaUploadEnabled}
+          initialFitnessFiles={fitnessFiles}
           onShowAttachment={(allMedias, index) => {
             setModalMedias({
               medias: allMedias,
