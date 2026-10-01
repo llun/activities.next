@@ -19,6 +19,7 @@ import {
   ROUTE_HIGHLIGHT_HALO_RADIUS_PX,
   ROUTE_HIGHLIGHT_HIDDEN_CORE_COLOR
 } from '@/lib/components/fitness/routeHighlightMarker'
+import { ResizableMapContainer } from '@/lib/components/map/ResizableMapContainer'
 import { Media } from '@/lib/components/posts/media'
 import type { Attachment } from '@/lib/types/domain/attachment'
 import {
@@ -609,7 +610,11 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
   }, [])
 
   return (
-    <div className="relative h-72 overflow-hidden rounded-lg border bg-muted">
+    <ResizableMapContainer
+      storageKey="activities.fitness-map-height"
+      defaultHeight={288}
+      className="relative overflow-hidden rounded-lg border bg-muted"
+    >
       {shouldRenderInteractiveMap && !glProvider ? (
         <ActivityRouteMapKit
           routeSegments={drawableRouteSegments}
@@ -716,6 +721,6 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
           {routeDataError || mapLoadError}
         </div>
       ) : null}
-    </div>
+    </ResizableMapContainer>
   )
 }

@@ -4,6 +4,7 @@ import { FC } from 'react'
 
 import { PublicRouteHeatmapMap } from '@/lib/components/fitness/PublicRouteHeatmapMap'
 import { Logo } from '@/lib/components/layout/logo'
+import { ResizableMapContainer } from '@/lib/components/map/ResizableMapContainer'
 import { Button } from '@/lib/components/ui/button'
 import type { PublicMapProvider } from '@/lib/utils/mapProvider'
 
@@ -117,14 +118,18 @@ export const SharedHeatmapPage: FC<SharedHeatmapPageProps> = ({
 
         {/* the heat map */}
         <div className="mt-5">
-          <div className="overflow-hidden rounded-xl border">
+          <ResizableMapContainer
+            storageKey="shared-fitness-heatmap-height"
+            defaultHeight={440}
+            className="overflow-hidden rounded-xl border"
+          >
             <PublicRouteHeatmapMap
               heatmap={view.heatmap}
               token={token}
               mapProvider={mapProvider}
-              heightClassName="h-[440px]"
+              heightClassName="h-full w-full"
             />
-          </div>
+          </ResizableMapContainer>
           <p className="mt-2 text-xs text-muted-foreground">
             A live, pannable density map — brighter areas are ridden or run more
             often. Drag to explore.
