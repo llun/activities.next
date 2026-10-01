@@ -1573,7 +1573,16 @@ describe('FitnessStatusDetail', () => {
     const select = (await screen.findByLabelText(
       'Activity file'
     )) as HTMLSelectElement
-    expect(select).toHaveClass('w-full', 'max-w-full', 'truncate')
+    expect(select).toHaveClass(
+      'w-full',
+      'max-w-full',
+      'truncate',
+      'appearance-none',
+      'pr-10'
+    )
+    expect(select.parentElement?.querySelector('svg')).toHaveClass(
+      'pointer-events-none'
+    )
     expect(within(select).getAllByRole('option')).toHaveLength(2)
     expect(screen.getByText('file 1 of 2')).toBeInTheDocument()
 
