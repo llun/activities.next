@@ -113,6 +113,10 @@ const TARGET_COLUMN_WIDTH = 150
  */
 const CELL_WRAP = 'wrap-anywhere'
 
+/** Fades a pinned column's edge shadow in and out as the scroll cues change. */
+const EDGE_SHADOW_TRANSITION =
+  'transition-shadow duration-200 motion-reduce:transition-none'
+
 const SCROLL_STEP_BUTTON =
   'size-7 text-muted-foreground hover:text-foreground aria-disabled:pointer-events-none aria-disabled:opacity-50'
 
@@ -422,7 +426,8 @@ export const GearComponentsCard: FC<Props> = ({
                 <th
                   className={cn(
                     STICKY_COLUMN,
-                    'px-4 pb-2 font-medium transition-shadow duration-200',
+                    'px-4 pb-2 font-medium',
+                    EDGE_SHADOW_TRANSITION,
                     canScrollLeft && STICKY_LEFT_SHADOW
                   )}
                   style={pinnedColumnStyle}
@@ -470,7 +475,8 @@ export const GearComponentsCard: FC<Props> = ({
                     isRightPinned
                       ? cn(
                           STICKY_RIGHT_COLUMN,
-                          'px-2 pb-2 font-medium transition-shadow duration-200',
+                          'px-2 pb-2 font-medium',
+                          EDGE_SHADOW_TRANSITION,
                           canScrollRight && STICKY_RIGHT_SHADOW
                         )
                       : 'px-3 pr-4 pb-2 font-medium'
@@ -499,7 +505,8 @@ export const GearComponentsCard: FC<Props> = ({
                       className={cn(
                         STICKY_COLUMN,
                         CELL_WRAP,
-                        'px-4 py-2.5 align-top font-medium transition-shadow duration-200',
+                        'px-4 py-2.5 align-top font-medium',
+                        EDGE_SHADOW_TRANSITION,
                         canScrollLeft && STICKY_LEFT_SHADOW
                       )}
                       style={pinnedColumnStyle}
@@ -580,7 +587,8 @@ export const GearComponentsCard: FC<Props> = ({
                         isRightPinned
                           ? cn(
                               STICKY_RIGHT_COLUMN,
-                              'px-2 py-2.5 align-top whitespace-nowrap transition-shadow duration-200',
+                              'px-2 py-2.5 align-top whitespace-nowrap',
+                              EDGE_SHADOW_TRANSITION,
                               canScrollRight && STICKY_RIGHT_SHADOW
                             )
                           : 'px-3 py-2.5 pr-4 text-right align-top whitespace-nowrap'
