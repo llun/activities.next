@@ -1571,7 +1571,7 @@ export const FitnessStatusDetail: FC<Props> = ({
               >
                 Activity file
               </label>
-              <div className="mt-1.5">
+              <div className="relative mt-1.5">
                 <select
                   id="activity-file-select"
                   value={selectedFitnessFileId ?? ''}
@@ -1581,14 +1581,15 @@ export const FitnessStatusDetail: FC<Props> = ({
                   onChange={(event) =>
                     setSelectedFitnessFileId(event.target.value)
                   }
-                  className="h-9 w-full max-w-full rounded-lg border bg-background px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary truncate"
+                  className="h-9 w-full max-w-full appearance-none rounded-lg border bg-background px-3 py-1.5 pr-10 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary truncate"
                 >
                   {fitnessFiles.map((item) => (
-                    <option key={item.id} value={item.id}>
+                    <option key={item.id} value={item.id} className="py-1 px-2">
                       {item.fileName}
                     </option>
                   ))}
                 </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               </div>
             </div>
           )}
