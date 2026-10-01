@@ -372,11 +372,11 @@ export const GearComponentsCard: FC<Props> = ({
           accrues distance from its added date.
         </p>
       ) : (
-        // Below the full-width threshold (1380px) this snaps whole columns per
-        // swipe with "Type" pinned, fitting an exact integer number of columns
-        // edge-to-edge so no half column is cut off. Above it all columns fit
-        // side-by-side. The old `min-w-[720px]` is gone because per-cell minimums
-        // already size columns cleanly.
+        // Below the full-width threshold (1180px: 120px Type + 160px Actions + 6x150px middle)
+        // this snaps whole columns per swipe with dual-pinned bookends ("Type" left,
+        // "Actions" right), fitting an exact integer number of middle columns edge-to-edge
+        // so no half column is cut off. Above it all columns fit side-by-side. The old
+        // `min-w-[720px]` is gone because per-cell minimums already size columns cleanly.
         <div
           ref={scrollerRef}
           className="overflow-x-auto"
@@ -438,7 +438,9 @@ export const GearComponentsCard: FC<Props> = ({
                     canScrollRight && STICKY_RIGHT_SHADOW
                   )}
                   style={pinnedRightStyle}
-                />
+                >
+                  <span className="sr-only">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody>

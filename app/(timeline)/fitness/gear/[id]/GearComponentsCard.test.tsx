@@ -5,6 +5,12 @@ import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import {
+  STICKY_COLUMN,
+  STICKY_LEFT_SHADOW,
+  STICKY_RIGHT_COLUMN,
+  STICKY_RIGHT_SHADOW
+} from '@/app/(timeline)/fitness/gear/gearUi'
+import {
   createFitnessGearComponent,
   deleteFitnessGearComponent,
   refitFitnessGearComponent,
@@ -264,7 +270,7 @@ describe('GearComponentsCard', () => {
       expect((actionsCell as HTMLElement).style.minWidth).toBe('160px')
     })
 
-    it('renders scroll chevrons when snapping is active and scrolls on click', () => {
+    it('renders scroll chevrons when snapping is active, shows shadows, and scrolls bidirectionally', () => {
       renderCard([createComponent()])
       act(() => deliverWidth?.(900))
 
@@ -275,7 +281,18 @@ describe('GearComponentsCard', () => {
         name: 'Scroll components table right'
       })
       expect(leftButton).toBeDisabled()
-      expect(rightButton).toBeInTheDocument()
+      expect(rightButton).not.toBeDisabled()
+
+      // At scrollLeft = 0, Type has STICKY_COLUMN but no STICKY_LEFT_SHADOW; Actions has STICKY_RIGHT_SHADOW
+      const typeHeader = screen.getByRole('columnheader', { name: 'Type' })
+      expect(typeHeader.className).toContain(STICKY_COLUMN)
+      expect(typeHeader.className).not.toContain(STICKY_LEFT_SHADOW)
+
+      const actionsHeader = screen.getByRole('columnheader', {
+        name: 'Actions'
+      })
+      expect(actionsHeader.className).toContain('sticky right-0')
+      expect(actionsHeader.className).toContain(STICKY_RIGHT_SHADOW)
 
       const tableWrapper = screen.getByRole('table').parentElement
       const scrollBySpy = vi.fn()
@@ -288,6 +305,47 @@ describe('GearComponentsCard', () => {
         left: 155,
         behavior: 'smooth'
       })
+
+      // Simulate scrolling to middle (scrollLeft = 100)
+      if (tableWrapper) {
+        act(() => {
+          Object.defineProperty(tableWrapper, 'scrollLeft', {
+            configurable: true,
+            writable: true,
+            value: 100
+          })
+          fireEvent.scroll(tableWrapper)
+        })
+      }
+
+      expect(leftButton).not.toBeDisabled()
+      expect(rightButton).not.toBeDisabled()
+      expect(typeHeader.className).toContain(STICKY_LEFT_SHADOW)
+      expect(actionsHeader.className).toContain(STICKY_RIGHT_SHADOW)
+
+      fireEvent.click(leftButton)
+      expect(scrollBySpy).toHaveBeenCalledWith({
+        left: -155,
+        behavior: 'smooth'
+      })
+
+      // Simulate scrolling to end (scrollLeft = 300)
+      if (tableWrapper) {
+        act(() => {
+          Object.defineProperty(tableWrapper, 'scrollLeft', {
+            configurable: true,
+            writable: true,
+            value: 300
+          })
+          fireEvent.scroll(tableWrapper)
+        })
+      }
+
+      expect(leftButton).not.toBeDisabled()
+      expect(rightButton).toBeDisabled()
+      expect(typeHeader.className).toContain(STICKY_LEFT_SHADOW)
+      expect(actionsHeader.className).toContain(STICKY_RIGHT_COLUMN)
+      expect(actionsHeader.className).not.toContain(STICKY_RIGHT_SHADOW)
     })
   })
 

@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { FC } from 'react'
 
 import { useGearTableColumns } from './useGearTableColumns'
@@ -26,6 +26,10 @@ class ResizeObserverStub {
       Object.defineProperty(target, 'clientWidth', {
         configurable: true,
         value: width
+      })
+      Object.defineProperty(target, 'scrollWidth', {
+        configurable: true,
+        value: 1200
       })
       this.callback([
         {
@@ -297,6 +301,47 @@ describe('useGearTableColumns', () => {
       left: -157,
       behavior: 'smooth'
     })
+  })
+
+  it('tracks canScrollLeft and canScrollRight across scroll range', () => {
+    render(
+      <Probe
+        pinnedWidth={120}
+        pinnedRightWidth={160}
+        totalColumns={6}
+        targetColumnWidth={150}
+      />
+    )
+    act(() => deliver?.(908))
+
+    const scroller = screen.getByTestId('scroller')
+    // Initially at scrollLeft = 0: cannot scroll left, can scroll right
+    expect(screen.getByTestId('can-left')).toHaveTextContent('false')
+    expect(screen.getByTestId('can-right')).toHaveTextContent('true')
+
+    // Scrolled into the middle
+    act(() => {
+      Object.defineProperty(scroller, 'scrollLeft', {
+        configurable: true,
+        writable: true,
+        value: 100
+      })
+      fireEvent.scroll(scroller)
+    })
+    expect(screen.getByTestId('can-left')).toHaveTextContent('true')
+    expect(screen.getByTestId('can-right')).toHaveTextContent('true')
+
+    // Scrolled to the end (scrollWidth 1200 - clientWidth 908 = 292 maxScroll)
+    act(() => {
+      Object.defineProperty(scroller, 'scrollLeft', {
+        configurable: true,
+        writable: true,
+        value: 292
+      })
+      fireEvent.scroll(scroller)
+    })
+    expect(screen.getByTestId('can-left')).toHaveTextContent('true')
+    expect(screen.getByTestId('can-right')).toHaveTextContent('false')
   })
 
   it('disconnects its observer on unmount', () => {
