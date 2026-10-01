@@ -194,12 +194,107 @@ describe('quote', () => {
     expect(html).toContain('>@ben@example.com</td>')
   })
 
-  it('gives the monogram a colour from the palette', () => {
-    const { html } = quote({ author })
-    const bgcolor = html.match(
-      /bgcolor="(#[0-9a-f]{6})" style="width:24px/
-    )?.[1]
-    expect(MONOGRAM_PALETTE).toContain(bgcolor)
+  describe('avatar', () => {
+    const iconUrl = 'https://files.mastodon.social/accounts/avatars/ben.jpg'
+    const avatarCell = (html: string) =>
+      html.match(/<td [^>]*width="24" height="24"[^>]*>[\s\S]*?<\/td>/)?.[0]
+
+    it.each([
+      { description: 'initials', iconUrl: undefined },
+      { description: 'image', iconUrl }
+    ])(
+      'gives the avatar cell a palette colour ($description)',
+      ({ iconUrl }) => {
+        const cell = avatarCell(quote({ author: { ...author, iconUrl } }).html)
+        const bgcolor = cell?.match(/bgcolor="(#[0-9a-f]{6})"/)?.[1]
+        expect(MONOGRAM_PALETTE).toContain(bgcolor)
+        expect(cell).toContain(`background-color:${bgcolor}`)
+      }
+    )
+
+    it('uses the initials as the alt text and keeps the cell font readable', () => {
+      const cell = avatarCell(quote({ author: { ...author, iconUrl } }).html)
+      expect(cell).toContain('alt="BC"')
+      expect(cell).toContain('font-size:10px')
+      expect(cell).not.toContain('font-size:0')
+    })
+
+    it('renders the actor image when the actor has an icon', () => {
+      const { html } = quote({ author: { ...author, iconUrl } })
+      expect(html).toContain(`<img src="${iconUrl}"`)
+      expect(html).not.toContain('>BC</td>')
+    })
+
+    it('falls back to the initials when the actor has no icon', () => {
+      const { html } = quote({ author })
+      expect(html).not.toContain('<img')
+      expect(html).toContain('>BC</td>')
+    })
+
+    it.each([
+      'javascript:alert(1)',
+      'mailto:ben@example.com',
+      'data:image/png;base64,AAAA',
+      'not a url'
+    ])(
+      'falls back to the initials when the icon is not an http(s) URL (%s)',
+      (badUrl) => {
+        const { html } = quote({ author: { ...author, iconUrl: badUrl } })
+        expect(html).not.toContain('<img')
+        expect(html).not.toContain(badUrl)
+        expect(html).toContain('>BC</td>')
+      }
+    )
+
+    it('escapes the icon URL and still renders the image', () => {
+      const { html } = quote({
+        author: { ...author, iconUrl: 'https://example.com/a.png?x="><b>' }
+      })
+      expect(html).toContain(
+        '<img src="https://example.com/a.png?x=&quot;&gt;&lt;b&gt;"'
+      )
+      expect(html).not.toContain('"><b>')
+    })
+
+    it.each([
+      { description: 'image', iconUrl },
+      { description: 'initials', iconUrl: undefined }
+    ])(
+      'is a fixed 24px square with a 50% radius ($description)',
+      ({ iconUrl }) => {
+        const { html } = quote({ author: { ...author, iconUrl } })
+        const cell = avatarCell(html)
+        expect(cell).toBeDefined()
+        expect(cell).toContain('width:24px')
+        expect(cell).toContain('height:24px')
+        expect(cell).toContain('min-width:24px')
+        expect(cell).toContain('border-radius:50%')
+        expect(cell).toContain('overflow:hidden')
+      }
+    )
+
+    it('gives the image width and height attributes and a 50% radius', () => {
+      const { html } = quote({ author: { ...author, iconUrl } })
+      const img = html.match(/<img [^>]*>/)?.[0]
+      expect(img).toContain('width="24"')
+      expect(img).toContain('height="24"')
+      expect(img).toContain('border-radius:50%')
+    })
+
+    it('centres the initials with a line-height equal to the height', () => {
+      const cell = avatarCell(quote({ author }).html)
+      expect(cell).toContain('line-height:24px')
+      expect(cell).toContain('text-align:center')
+    })
+
+    it('keeps the avatar out of the row-stretched cell so a wrapped handle cannot squash it', () => {
+      const { html } = quote({ author })
+      // The cell that sits in the actor row holds a fixed-size table rather
+      // than being the coloured box itself.
+      expect(html).toMatch(
+        /<td width="24" valign="middle" style="width:24px;min-width:24px;padding:0;"><table [^>]*width="24" height="24"/
+      )
+    })
   })
 
   it('renders the actor row alone when there is no body', () => {

@@ -2,6 +2,7 @@ import { escapeHtml } from '@/lib/utils/text/escapeHtml'
 
 import { QuoteAuthor, getInitials, getMonogramColor } from './actorDisplay'
 import {
+  AVATAR_SIZE,
   BORDER,
   BORDER_SUBTLE,
   BUTTON_BACKGROUND,
@@ -10,7 +11,6 @@ import {
   INSET_BACKGROUND,
   MAP_BACKGROUND,
   RADIUS_BUTTON,
-  RADIUS_FULL,
   RADIUS_INSET,
   TEXT,
   TEXT_BODY,
@@ -51,6 +51,20 @@ const SAFE_PROTOCOLS = new Set(['http:', 'https:', 'mailto:'])
 const safeUrl = (url: string): string | null => {
   try {
     return SAFE_PROTOCOLS.has(new URL(url).protocol) ? url : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * An image `src` is stricter than a link `href`: only http(s) can load, and a
+ * `mailto:` or `data:` source is inert at best, so it is refused rather than
+ * emitted.
+ */
+const safeImageUrl = (url: string): string | null => {
+  try {
+    const { protocol } = new URL(url)
+    return protocol === 'http:' || protocol === 'https:' ? url : null
   } catch {
     return null
   }
@@ -208,6 +222,24 @@ export const quote = (options: {
   const { author, body } = options
   const initials = getInitials(author.displayName)
   const monogram = getMonogramColor(author.handle)
+  const iconUrl = author.iconUrl ? safeImageUrl(author.iconUrl) : null
+
+  // A fixed-size table holding one fixed-size cell. The cell carries `bgcolor`
+  // as well as the CSS background because Outlook ignores the latter, and the
+  // monogram colour also shows through while an avatar image is loading.
+  // line-height equal to the height is what centres the initials vertically in
+  // Outlook, which ignores flex and vertical-align on a coloured box.
+  //
+  // The cell keeps a READABLE font (never `font-size:0`) and the image gets the
+  // initials as its `alt`. A client that blocks images, or cannot decode the
+  // format (Outlook has no WebP decoder), is left with the monogram-coloured
+  // disc, and the initials wherever the client renders alt text.
+  const avatarFont = `color:${BUTTON_TEXT};font-family:${FONT_STACK};font-size:10px;font-weight:600;line-height:${AVATAR_SIZE}px;text-align:center;`
+  const avatarCell = `width="${AVATAR_SIZE}" height="${AVATAR_SIZE}" align="center" valign="middle" bgcolor="${monogram}" style="width:${AVATAR_SIZE}px;height:${AVATAR_SIZE}px;min-width:${AVATAR_SIZE}px;border-radius:50%;overflow:hidden;background-color:${monogram};${avatarFont}`
+  const avatarContent = iconUrl
+    ? `<td ${avatarCell}"><img src="${escapeHtml(iconUrl)}" width="${AVATAR_SIZE}" height="${AVATAR_SIZE}" alt="${escapeHtml(initials)}" style="display:block;width:${AVATAR_SIZE}px;height:${AVATAR_SIZE}px;min-width:${AVATAR_SIZE}px;border:0;border-radius:50%;${avatarFont}"></td>`
+    : `<td ${avatarCell}white-space:nowrap;">${escapeHtml(initials)}</td>`
+  const avatarHtml = `<table role="presentation" width="${AVATAR_SIZE}" height="${AVATAR_SIZE}" cellpadding="0" cellspacing="0" border="0" style="width:${AVATAR_SIZE}px;height:${AVATAR_SIZE}px;min-width:${AVATAR_SIZE}px;"><tr>${avatarContent}</tr></table>`
 
   const bodyHtml = body
     ? `<div style="margin-top:8px;font-family:${FONT_STACK};font-size:14px;line-height:1.6;color:${TEXT_BODY};word-wrap:break-word;">${body.html}</div>`
@@ -218,9 +250,12 @@ export const quote = (options: {
       `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px;"><tr>` +
       `<td bgcolor="${INSET_BACKGROUND}" style="background-color:${INSET_BACKGROUND};border:1px solid ${BORDER};border-radius:${RADIUS_INSET};padding:14px 16px;">` +
       `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>` +
-      // line-height equal to the height is what centres the initials vertically
-      // in Outlook, which ignores flex and vertical-align on a coloured box.
-      `<td width="24" height="24" align="center" bgcolor="${monogram}" style="width:24px;height:24px;border-radius:${RADIUS_FULL};color:${BUTTON_TEXT};font-family:${FONT_STACK};font-size:10px;font-weight:600;line-height:24px;">${escapeHtml(initials)}</td>` +
+      // The avatar is a fixed-size table NESTED in this cell, never this cell
+      // itself. A coloured `<td>` stretches to the height of its row, so as
+      // soon as the handle wraps on a narrow screen a cell-sized avatar turns
+      // into a tall pill (Apple Mail did exactly that). This cell only reserves
+      // the width; `min-width` stops the name cell squeezing it.
+      `<td width="${AVATAR_SIZE}" valign="middle" style="width:${AVATAR_SIZE}px;min-width:${AVATAR_SIZE}px;padding:0;">${avatarHtml}</td>` +
       `<td style="padding-left:8px;font-family:${FONT_STACK};font-size:14px;font-weight:600;color:${TEXT_STRONG};white-space:nowrap;">${escapeHtml(author.displayName)}</td>` +
       `<td style="padding-left:6px;font-family:${FONT_STACK};font-size:13px;color:${TEXT_CHROME};">${escapeHtml(author.handle)}</td>` +
       `</tr></table>${bodyHtml}` +

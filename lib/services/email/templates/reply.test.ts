@@ -60,6 +60,23 @@ const build = () =>
   buildReplyEmail({ recipient, actor: sender, status: replyStatus })
 
 describe('buildReplyEmail', () => {
+  it('shows the replying actor avatar image when they have one', () => {
+    const iconUrl = 'https://files.mastodon.social/avatars/ben.jpg'
+    const withIcon = profile({ iconUrl })
+    const { html } = buildReplyEmail({
+      recipient,
+      actor: withIcon,
+      status: status({ actor: withIcon, actorId: withIcon.id, text: 'Hi' })
+    })
+    expect(html).toContain(`<img src="${iconUrl}" width="24" height="24"`)
+  })
+
+  it('falls back to initials when the replying actor has no avatar', () => {
+    const { html } = build()
+    expect(html).toContain('>BC</td>')
+    expect(html).not.toContain('<img src="https://files.')
+  })
+
   it('keeps the subject the codebase already used', () => {
     expect(build().subject).toBe(`@ben replied to your post in ${HOST}`)
   })
