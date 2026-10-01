@@ -1,0 +1,28 @@
+app/(timeline)/fitness/gear/[id]/GearComponentsCard.test.tsx
+  h_580a04e334fef4 16,27,48-51,132-134,570-649,659,664,671,673
+app/(timeline)/fitness/gear/[id]/GearComponentsCard.tsx
+  h_580a04e334fef4 25,254-284,550-551,553,555
+app/api/v1/fitness/gear/[id]/components/[componentId]/refit/route.test.ts
+  h_580a04e334fef4 1-249
+app/api/v1/fitness/gear/[id]/components/[componentId]/refit/route.ts
+  h_580a04e334fef4 1-81
+docs/fitness-file-storage.md
+  h_580a04e334fef4 835-842,903
+lib/client.test.ts
+  h_580a04e334fef4 83,2529-2531
+lib/client/fitnessGear.test.ts
+  h_580a04e334fef4 12,429-451
+lib/client/fitnessGear.ts
+  h_580a04e334fef4 252-273
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6ad66c26fd1816f5de5397fe0b2296f7ce284f54",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
