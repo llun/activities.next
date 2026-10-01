@@ -339,6 +339,36 @@ describe('GearComponentsCard', () => {
       ).toBeNull()
     })
 
+    it('drops the scroll chevrons when the table gives way to the empty state', () => {
+      const component = createComponent()
+      const { rerender } = render(
+        <GearComponentsCard
+          gearId="gear-1"
+          components={[component]}
+          onChanged={vi.fn()}
+        />
+      )
+      act(() => deliverWidth?.(390))
+      expect(
+        screen.getByRole('button', { name: 'Scroll components table right' })
+      ).toBeInTheDocument()
+
+      // Retiring the only installed part hides its row, and with retired
+      // rows collapsed the card shows its empty state instead of a table.
+      rerender(
+        <GearComponentsCard
+          gearId="gear-1"
+          components={[{ ...component, removedAt: Date.UTC(2025, 5, 1) }]}
+          onChanged={vi.fn()}
+        />
+      )
+
+      expect(screen.queryByRole('table')).toBeNull()
+      expect(
+        screen.queryByRole('button', { name: 'Scroll components table right' })
+      ).toBeNull()
+    })
+
     // The step size and the cue thresholds belong to `useGearTableColumns`
     // and are tested there; this covers the card's wiring of them.
     it('steps the table with chevrons that stay focusable at either end', () => {
@@ -404,6 +434,12 @@ describe('GearComponentsCard', () => {
       })
 
       expect(typeHeader.className).toContain(STICKY_LEFT_SHADOW)
+      // The shadow only paints because `cn` drops the pinned column's own
+      // hairline shadow for it: with both present, the hairline rule comes
+      // later in the stylesheet and wins.
+      expect(typeHeader.className.split(' ')).not.toContain(
+        'shadow-[inset_-1px_0_0_var(--border)]'
+      )
       expect(actionsHeader.className).toContain(STICKY_RIGHT_COLUMN)
       expect(actionsHeader.className).not.toContain(STICKY_RIGHT_SHADOW)
     })
@@ -643,9 +679,9 @@ describe('GearComponentsCard', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Show 1 retired component' })
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Chain' }))
     expect(
-      screen.getByRole('button', { name: 'Confirm delete' })
+      screen.getByRole('button', { name: 'Confirm delete Chain' })
     ).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Refit Chain' }))
@@ -654,7 +690,9 @@ describe('GearComponentsCard', () => {
       expect(mockRefitFitnessGearComponent).toHaveBeenCalled()
     )
     // Nothing is armed once the row changes which action it offers.
-    expect(screen.queryByRole('button', { name: 'Confirm delete' })).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: 'Confirm delete Chain' })
+    ).toBeNull()
   })
 
   // Refit posts to its own endpoint rather than clearing `removedAt` through
@@ -743,9 +781,9 @@ describe('GearComponentsCard', () => {
       screen.getByRole('button', { name: 'Confirm retire Chain' })
     ).toHaveTextContent(/^Confirm$/)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Chain' }))
     expect(
-      screen.getByRole('button', { name: 'Confirm delete' })
+      screen.getByRole('button', { name: 'Confirm delete Chain' })
     ).toHaveTextContent(/^Confirm$/)
   })
 
@@ -779,7 +817,9 @@ describe('GearComponentsCard', () => {
     expect(
       screen.getByRole('button', { name: 'Refit Chain' })
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Delete Chain' })
+    ).toBeInTheDocument()
   })
 
   it('opens the edit dialog when Edit is clicked on an active component and updates', async () => {
@@ -869,11 +909,13 @@ describe('GearComponentsCard', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Show 1 retired component' })
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Chain' }))
 
     expect(mockDeleteFitnessGearComponent).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm delete' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Confirm delete Chain' })
+    )
 
     await waitFor(() =>
       expect(mockDeleteFitnessGearComponent).toHaveBeenCalledWith(
@@ -890,9 +932,9 @@ describe('GearComponentsCard', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Show 1 retired component' })
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Chain' }))
     expect(
-      screen.getByRole('button', { name: 'Confirm delete' })
+      screen.getByRole('button', { name: 'Confirm delete Chain' })
     ).toBeInTheDocument()
 
     fireEvent.click(
@@ -903,8 +945,10 @@ describe('GearComponentsCard', () => {
     )
 
     // The row comes back unarmed, so the next click confirms nothing.
-    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(
+      screen.getByRole('button', { name: 'Delete Chain' })
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Chain' }))
     expect(mockDeleteFitnessGearComponent).not.toHaveBeenCalled()
   })
 
@@ -921,17 +965,18 @@ describe('GearComponentsCard', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Show 2 retired components' })
     )
-    const [rowA, rowB] = screen.getAllByRole('button', { name: 'Delete' })
+    const rowA = screen.getByRole('button', { name: 'Delete Chain' })
+    const rowB = screen.getByRole('button', { name: 'Delete Cassette' })
 
     fireEvent.click(rowA)
-    expect(
-      screen.getAllByRole('button', { name: 'Confirm delete' })
-    ).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: /^Confirm delete/ })).toEqual([
+      rowA
+    ])
 
     fireEvent.click(rowB)
-    const confirming = screen.getAllByRole('button', { name: 'Confirm delete' })
-    expect(confirming).toHaveLength(1)
-    expect(confirming[0]).toBe(rowB)
+    expect(screen.getAllByRole('button', { name: /^Confirm delete/ })).toEqual([
+      rowB
+    ])
     expect(mockDeleteFitnessGearComponent).not.toHaveBeenCalled()
   })
 
@@ -969,8 +1014,10 @@ describe('GearComponentsCard', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Show 1 retired component' })
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Chain' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Confirm delete Chain' })
+    )
 
     expect(await screen.findByText('Component not found')).toBeInTheDocument()
     expect(onChanged).not.toHaveBeenCalled()

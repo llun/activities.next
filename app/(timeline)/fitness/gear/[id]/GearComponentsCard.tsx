@@ -114,7 +114,7 @@ const TARGET_COLUMN_WIDTH = 150
 const CELL_WRAP = 'wrap-anywhere'
 
 const SCROLL_STEP_BUTTON =
-  'size-7 text-muted-foreground hover:text-foreground aria-disabled:cursor-default aria-disabled:opacity-50 aria-disabled:hover:bg-transparent aria-disabled:hover:text-muted-foreground'
+  'size-7 text-muted-foreground hover:text-foreground aria-disabled:pointer-events-none aria-disabled:opacity-50'
 
 /**
  * Fades a retired row in when "Show retired" reveals it (or a row is retired
@@ -620,8 +620,8 @@ export const GearComponentsCard: FC<Props> = ({
                               className="h-7 px-2 text-xs text-destructive"
                               aria-label={
                                 confirmingActionId === component.id
-                                  ? 'Confirm delete'
-                                  : undefined
+                                  ? `Confirm delete ${component.componentType}`
+                                  : `Delete ${component.componentType}`
                               }
                               disabled={isPending}
                               onClick={() => handleDelete(component.id)}

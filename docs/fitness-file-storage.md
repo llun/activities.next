@@ -951,7 +951,7 @@ null }` remains the precise "this retirement never happened" — it reopens the
   of it animates: the columns resize instantly, the chevrons step without smooth
   scrolling, and the fade and rotation are off.
   An armed action reads **"Confirm"**, with what it confirms kept in its
-  accessible name ("Confirm retire Chain", "Confirm delete"): "Refit" beside
+  accessible name ("Confirm retire Chain", "Confirm delete Chain"): "Refit" beside
   "Confirm delete" measured 152px against the 124px inside the pinned column's
   padding and spilled across its divider and off the card. Widen the column, or
   keep armed labels to one word — never let a pinned cell's content overflow.

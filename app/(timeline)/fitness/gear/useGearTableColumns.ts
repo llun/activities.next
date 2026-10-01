@@ -251,7 +251,11 @@ export const useGearTableColumns = (
     1,
     Math.min(totalColumns, Math.floor(availableWidth / targetColumnWidth))
   )
-  const isSnapping = width > 0 && visibleColumnsCount < totalColumns
+  // `width` outlives the table: it keeps its last value when the scroller
+  // unmounts (the card swaps in its empty state when the last visible row goes),
+  // and a table that is not there is not snapping.
+  const isSnapping =
+    element !== null && width > 0 && visibleColumnsCount < totalColumns
 
   const columnWidth =
     visibleColumnsCount === 1
