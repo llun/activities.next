@@ -1,0 +1,14 @@
+lib/components/map/ResizableMapContainer.tsx
+  h_580a04e334fef4 60-71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3c25a44ab9873d5ac84daaee3aff75bd2eef7b53",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
