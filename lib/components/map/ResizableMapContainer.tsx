@@ -57,7 +57,18 @@ export const ResizableMapContainer: FC<ResizableMapContainerProps> = ({
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDragging) return
-    e.currentTarget.releasePointerCapture(e.pointerId)
+    try {
+      if (
+        typeof e.currentTarget.hasPointerCapture === 'function' &&
+        e.currentTarget.hasPointerCapture(e.pointerId)
+      ) {
+        e.currentTarget.releasePointerCapture(e.pointerId)
+      } else {
+        e.currentTarget.releasePointerCapture?.(e.pointerId)
+      }
+    } catch {
+      // ignore DOMException if pointer capture was already lost
+    }
     setIsDragging(false)
   }
 
