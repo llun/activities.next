@@ -1,0 +1,49 @@
+app/(timeline)/[actor]/[status]/ActivityMapPanel.test.tsx
+  s_d1aa4fe9443c5e::t_421bcad1081b2b 757-800
+app/(timeline)/[actor]/[status]/ActivityMapPanel.tsx
+  s_d1aa4fe9443c5e::t_c2ce1b0333f4cc 1,106,216,232,340,351-352,374-380,563-564,630-633,718-737
+app/u/heatmaps/[token]/SharedHeatmapPage.tsx
+  s_d1aa4fe9443c5e::t_5fa314fa4ecc24 123-126
+lib/components/fitness/RegionHeatmapDetail.tsx
+  s_d1aa4fe9443c5e::t_0f5112d5502f2c 549-552
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_b7fd9c8949c3ae::t_eb99d2dcd65b8c 628-692
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_ee4f6bd2f374f7::t_7ee0afb65054db 1081-1083,1086-1088,1106,1791-1794
+lib/components/map/ResizableMapContainer.test.tsx
+  s_b7fd9c8949c3ae::t_f9614327fc50ae 1-147
+lib/components/map/ResizableMapContainer.tsx
+  s_b7fd9c8949c3ae::t_f99573059de745 3-4,8,11,14,20-21,24,28,32,34-38,43,49,59,61,68,71,74,77,80,85,90,92-107,114-117,125-126,128-129
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d044baa1e8d78c534adb3b3c43601ae0d871243c",
+  "prompts": {},
+  "sessions": {
+    "s_b7fd9c8949c3ae": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-ad396ba16a8cf54f2",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_d1aa4fe9443c5e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "90c166c9-9f62-428b-ba7f-30a3790a9508",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_ee4f6bd2f374f7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-ad5ac1272808f714b",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
