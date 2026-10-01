@@ -733,7 +733,7 @@ legacy shape left to copy.
   land they will need to pass an already-sanitized post body through; that must
   go through the existing `convertMarkdownText`/`sanitizeText` pipeline and be
   the single, explicitly-typed exception — never markup assembled by hand.
-- **Every `href`/`src` is absolute and built from `getBaseURL()`.** A
+- **Every `href`/`src` is absolute and built from `getBaseURL()`, except the quoted-actor avatar (see below).** A
   root-relative URL is unresolvable in a mail client (note `convertMarkdownText`
   emits `/tags/x` for hashtags), and a hardcoded `https://${config.host}` is
   wrong under `ACTIVITIES_INSECURE_AUTH=true`. URLs are protocol-checked to
@@ -783,13 +783,33 @@ legacy shape left to copy.
 - **The quoted-actor avatar is a fixed-size table nested in the row's cell, and
   it shows the actor's image.** `toQuoteAuthor` carries `actor.iconUrl` into
   `QuoteAuthor`, and `quote()` renders it as a 24px `<img>` with `width`/`height`
-  attributes and a 50% radius; only an actor with no usable (http/https) icon
-  gets the monogram. The monogram colour is also the cell's `bgcolor`, so it
-  shows while an image loads. Never make the avatar the row's own `<td>`: a
-  cell stretches to the row height when the handle wraps and shrinks to its
-  text when the card is wider than the screen, which rendered the circle as a
+  attributes and a 50% radius; only an actor with no usable icon gets the
+  monogram. "Usable" means `http:`/`https:` — `quote()` checks it with its own
+  image-only helper, not the link check, so `mailto:` and `data:` sources are
+  dropped. The cell carries the monogram colour as `bgcolor`, a readable 10px
+  white font, and the image carries the initials as its `alt`, so a blocked or
+  undecodable image leaves a coloured disc rather than nothing, and clients that
+  render `alt` show the initials on it. (Checked only in Chromium, which shows
+  its broken-image glyph on the disc at this size; Apple Mail, Gmail and Outlook
+  were not checked.) Never make the avatar the row's own
+  `<td>`: a cell stretches to the row height when the handle wraps and shrinks to
+  its text when the card is wider than the screen, which rendered the circle as a
   narrow tall pill in Apple Mail. Keep flexbox out of it and keep `min-width`
   beside the explicit width and height.
+- **The avatar is the one email image that is not on `getBaseURL()` and not a
+  JPEG copy, and that is an accepted trade-off.** `iconUrl` is used as stored: a
+  remote actor's own host, or this instance's media storage for a local actor
+  (WebP by default). Two consequences follow. (1) Opening the email makes the
+  recipient's client fetch from a host the actor controls, which can see the
+  open time, IP and user agent — the same exposure as a remote avatar in the web
+  UI, which also loads `iconUrl` directly; there is no image proxy in this repo
+  to route it through. (2) A client that cannot decode the format (Outlook
+  desktop and Windows Mail have no WebP decoder) or blocks images shows the
+  monogram-coloured disc, not the picture. The alternative — a
+  stored JPEG rendition per actor — needs a column, a backfill and the lifecycle
+  the route-map bullet above spells out, and a remote actor's avatar is not
+  stored here at all, so it was not built for a 24px badge. If that changes,
+  carry the rendition on the actor and make `iconUrl` the live fallback.
 - A browser is a lower bar than a mail client. For a change to the shared layout,
   also send one to a real inbox and check Gmail, Apple Mail and Outlook —
   Outlook's Word engine is the one that needs `mso-` properties and the ghost

@@ -194,16 +194,30 @@ describe('quote', () => {
     expect(html).toContain('>@ben@example.com</td>')
   })
 
-  it('gives the monogram a colour from the palette', () => {
-    const { html } = quote({ author })
-    const bgcolor = html.match(/bgcolor="(#[0-9a-f]{6})"/g)?.[1]?.slice(9, 16)
-    expect(MONOGRAM_PALETTE).toContain(bgcolor)
-  })
-
   describe('avatar', () => {
     const iconUrl = 'https://files.mastodon.social/accounts/avatars/ben.jpg'
     const avatarCell = (html: string) =>
       html.match(/<td [^>]*width="24" height="24"[^>]*>[\s\S]*?<\/td>/)?.[0]
+
+    it.each([
+      { description: 'initials', iconUrl: undefined },
+      { description: 'image', iconUrl }
+    ])(
+      'gives the avatar cell a palette colour ($description)',
+      ({ iconUrl }) => {
+        const cell = avatarCell(quote({ author: { ...author, iconUrl } }).html)
+        const bgcolor = cell?.match(/bgcolor="(#[0-9a-f]{6})"/)?.[1]
+        expect(MONOGRAM_PALETTE).toContain(bgcolor)
+        expect(cell).toContain(`background-color:${bgcolor}`)
+      }
+    )
+
+    it('uses the initials as the alt text and keeps the cell font readable', () => {
+      const cell = avatarCell(quote({ author: { ...author, iconUrl } }).html)
+      expect(cell).toContain('alt="BC"')
+      expect(cell).toContain('font-size:10px')
+      expect(cell).not.toContain('font-size:0')
+    })
 
     it('renders the actor image when the actor has an icon', () => {
       const { html } = quote({ author: { ...author, iconUrl } })
@@ -217,19 +231,28 @@ describe('quote', () => {
       expect(html).toContain('>BC</td>')
     })
 
-    it('falls back to the initials when the icon is not an http(s) URL', () => {
-      const { html } = quote({
-        author: { ...author, iconUrl: 'javascript:alert(1)' }
-      })
-      expect(html).not.toContain('<img')
-      expect(html).not.toContain('javascript:')
-      expect(html).toContain('>BC</td>')
-    })
+    it.each([
+      'javascript:alert(1)',
+      'mailto:ben@example.com',
+      'data:image/png;base64,AAAA',
+      'not a url'
+    ])(
+      'falls back to the initials when the icon is not an http(s) URL (%s)',
+      (badUrl) => {
+        const { html } = quote({ author: { ...author, iconUrl: badUrl } })
+        expect(html).not.toContain('<img')
+        expect(html).not.toContain(badUrl)
+        expect(html).toContain('>BC</td>')
+      }
+    )
 
-    it('escapes the icon URL', () => {
+    it('escapes the icon URL and still renders the image', () => {
       const { html } = quote({
         author: { ...author, iconUrl: 'https://example.com/a.png?x="><b>' }
       })
+      expect(html).toContain(
+        '<img src="https://example.com/a.png?x=&quot;&gt;&lt;b&gt;"'
+      )
       expect(html).not.toContain('"><b>')
     })
 

@@ -59,12 +59,14 @@ const FIXTURE_CODE = 'Yk3nQ8xR2vL7pT1wZ0aB5cD9eF4gH6jK8mN2qS5tU7x'
 const fixtureActor = (
   username: string,
   domain: string,
-  name?: string
+  name?: string,
+  iconUrl?: string
 ): ActorProfile => ({
   id: `https://${domain}/users/${username}`,
   username,
   domain,
   name,
+  ...(iconUrl ? { iconUrl } : null),
   followersUrl: `https://${domain}/users/${username}/followers`,
   inboxUrl: `https://${domain}/users/${username}/inbox`,
   sharedInboxUrl: `https://${domain}/inbox`,
@@ -77,7 +79,15 @@ const fixtureActor = (
 
 const anna = fixtureActor('anna', 'llun.social', 'Anna')
 const maythee = fixtureActor('maythee', 'mastodon.social', 'Maythee')
-const ben = fixtureActor('ben', 'llun.social', 'Ben Carter')
+// Ben is the one fixture with an avatar, so the preview shows both the image
+// path and (for the other actors) the monogram fallback. A generic identicon
+// rather than a real person's avatar.
+const ben = fixtureActor(
+  'ben',
+  'llun.social',
+  'Ben Carter',
+  'https://www.gravatar.com/avatar/00000000000000000000000000000000?s=96&d=identicon'
+)
 const rin = fixtureActor('rin', 'pixelfed.social', 'Rin')
 
 // Only the fields the templates actually read are populated — a full

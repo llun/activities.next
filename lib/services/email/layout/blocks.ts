@@ -56,6 +56,20 @@ const safeUrl = (url: string): string | null => {
   }
 }
 
+/**
+ * An image `src` is stricter than a link `href`: only http(s) can load, and a
+ * `mailto:` or `data:` source is inert at best, so it is refused rather than
+ * emitted.
+ */
+const safeImageUrl = (url: string): string | null => {
+  try {
+    const { protocol } = new URL(url)
+    return protocol === 'http:' || protocol === 'https:' ? url : null
+  } catch {
+    return null
+  }
+}
+
 const toInlines = (content: InlineContent): readonly Inline[] =>
   typeof content === 'string' ? [content] : content
 
@@ -208,17 +222,23 @@ export const quote = (options: {
   const { author, body } = options
   const initials = getInitials(author.displayName)
   const monogram = getMonogramColor(author.handle)
-  const iconUrl = author.iconUrl ? safeUrl(author.iconUrl) : null
+  const iconUrl = author.iconUrl ? safeImageUrl(author.iconUrl) : null
 
   // A fixed-size table holding one fixed-size cell. The cell carries `bgcolor`
   // as well as the CSS background because Outlook ignores the latter, and the
   // monogram colour also shows through while an avatar image is loading.
   // line-height equal to the height is what centres the initials vertically in
   // Outlook, which ignores flex and vertical-align on a coloured box.
-  const avatarCell = `width="${AVATAR_SIZE}" height="${AVATAR_SIZE}" align="center" valign="middle" bgcolor="${monogram}" style="width:${AVATAR_SIZE}px;height:${AVATAR_SIZE}px;min-width:${AVATAR_SIZE}px;border-radius:50%;overflow:hidden;background-color:${monogram};`
+  //
+  // The cell keeps a READABLE font (never `font-size:0`) and the image gets the
+  // initials as its `alt`. A client that blocks images, or cannot decode the
+  // format (Outlook has no WebP decoder), is left with the monogram-coloured
+  // disc, and the initials wherever the client renders alt text.
+  const avatarFont = `color:${BUTTON_TEXT};font-family:${FONT_STACK};font-size:10px;font-weight:600;line-height:${AVATAR_SIZE}px;text-align:center;`
+  const avatarCell = `width="${AVATAR_SIZE}" height="${AVATAR_SIZE}" align="center" valign="middle" bgcolor="${monogram}" style="width:${AVATAR_SIZE}px;height:${AVATAR_SIZE}px;min-width:${AVATAR_SIZE}px;border-radius:50%;overflow:hidden;background-color:${monogram};${avatarFont}`
   const avatarContent = iconUrl
-    ? `<td ${avatarCell}line-height:0;font-size:0;"><img src="${escapeHtml(iconUrl)}" width="${AVATAR_SIZE}" height="${AVATAR_SIZE}" alt="" style="display:block;width:${AVATAR_SIZE}px;height:${AVATAR_SIZE}px;min-width:${AVATAR_SIZE}px;border:0;border-radius:50%;"></td>`
-    : `<td ${avatarCell}color:${BUTTON_TEXT};font-family:${FONT_STACK};font-size:10px;font-weight:600;line-height:${AVATAR_SIZE}px;text-align:center;white-space:nowrap;">${escapeHtml(initials)}</td>`
+    ? `<td ${avatarCell}"><img src="${escapeHtml(iconUrl)}" width="${AVATAR_SIZE}" height="${AVATAR_SIZE}" alt="${escapeHtml(initials)}" style="display:block;width:${AVATAR_SIZE}px;height:${AVATAR_SIZE}px;min-width:${AVATAR_SIZE}px;border:0;border-radius:50%;${avatarFont}"></td>`
+    : `<td ${avatarCell}white-space:nowrap;">${escapeHtml(initials)}</td>`
   const avatarHtml = `<table role="presentation" width="${AVATAR_SIZE}" height="${AVATAR_SIZE}" cellpadding="0" cellspacing="0" border="0" style="width:${AVATAR_SIZE}px;height:${AVATAR_SIZE}px;min-width:${AVATAR_SIZE}px;"><tr>${avatarContent}</tr></table>`
 
   const bodyHtml = body
