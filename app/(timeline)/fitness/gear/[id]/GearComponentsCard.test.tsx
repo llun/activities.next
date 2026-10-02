@@ -2,7 +2,14 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 
 import {
   STICKY_COLUMN,
@@ -247,6 +254,26 @@ describe('GearComponentsCard', () => {
         scrollPaddingLeft: '120px'
       })
       expect(scroller.style.scrollPaddingRight).toBe('')
+    })
+
+    // jsdom lays nothing out, so this guards the containing block instead of
+    // the page width. Unpinned on a phone, the actions header is not
+    // positioned, and its `sr-only` label (`position: absolute`) resolved
+    // against the page rather than the scroller — escaping the overflow clip at
+    // its unscrolled x and widening a 390px document to ~1,770px.
+    it('keeps the actions label inside a positioned scroller on a phone', () => {
+      renderCard([createComponent()])
+      act(() => deliverWidth?.(390))
+
+      const [actionsHeader] = columnCells(7)
+      expect(actionsHeader).not.toHaveClass('sticky')
+      expect(
+        within(actionsHeader as HTMLElement).getByText('Actions')
+      ).toHaveClass('sr-only')
+      expect(screen.getByRole('table').parentElement).toHaveClass(
+        'relative',
+        'overflow-x-auto'
+      )
     })
 
     it('pins the type and actions columns and snaps the middle above a phone', () => {

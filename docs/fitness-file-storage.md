@@ -1178,6 +1178,17 @@ null }` remains the precise "this retirement never happened" — it reopens the
   (`flex-nowrap`): pinned, a wrapped pair would double the row's height for
   every row, and unpinned on a phone the snapped column is wider than that
   anyway (see the components table bullet above for the armed-label budget).
+- **Every gear table's horizontal scroller is `GEAR_TABLE_SCROLLER`
+  (`relative overflow-x-auto`), and the `relative` is load-bearing.** The
+  tables carry `sr-only` spans — `position: absolute` — in cells that are not
+  positioned: the "Actions" header, a phone's hidden "Edit" button text, and on
+  the components table the whole actions column once it unpins on a phone.
+  `overflow` clips an absolutely positioned descendant only when its containing
+  block is the scroller or inside it, so with no positioned scroller those
+  spans resolved against the page, escaped the clip at their unscrolled x and
+  widened the document: a 390px phone scrolled sideways into ~1,400px of blank
+  page beside the components card, and ~170px beside the gear list. Never wrap
+  a gear table in a bare `overflow-x-auto`.
   `STICKY_CLICKABLE_COLUMN` belongs only on a row that has its own `hover:` and
   the `group` class — a row carrying `group` without a `hover:` lights the
   first column alone, and a row with neither never matches the variant at all.
