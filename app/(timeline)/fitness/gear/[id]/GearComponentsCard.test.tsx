@@ -293,7 +293,9 @@ describe('GearComponentsCard', () => {
 
       const scroller = screen.getByRole('table').parentElement as HTMLElement
       expect(scroller).toHaveClass('relative', 'overflow-x-auto')
-      for (const label of screen.getAllByText('Install 1:', { exact: false })) {
+      const labels = screen.getAllByText(/^Install \d+:$/)
+      expect(labels).toHaveLength(4)
+      for (const label of labels) {
         expect(label).toHaveClass('sr-only')
         expect(label.closest('.sticky')).toBeNull()
         expect(scroller).toContainElement(label)
