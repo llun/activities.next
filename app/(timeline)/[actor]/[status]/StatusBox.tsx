@@ -116,6 +116,7 @@ export const StatusBox: FC<Props> = ({
           currentActor={currentActor ?? undefined}
           currentTime={currentTime}
           status={status}
+          focused={variant === 'detail'}
           showActions={variant === 'detail'}
           editable={canCompose && currentActor?.id === actualStatus.actorId}
           collapsible={variant === 'comment'}

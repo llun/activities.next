@@ -115,6 +115,31 @@ describe('CollectionEditor', () => {
     )
   })
 
+  it("highlights the selected visibility option through the radio's data-state", () => {
+    render(<CollectionEditor mode="create" />)
+
+    const publicRadio = screen.getByRole('radio', { name: /^Public/ })
+    const unlistedRadio = screen.getByRole('radio', { name: /^Unlisted/ })
+    expect(publicRadio).toHaveAttribute('data-state', 'checked')
+
+    // The radio is a Radix <button role="radio">, not a native input, so the
+    // option's orange border and tint must key off `data-state`: a `:checked`
+    // selector never matches it, which left the selected option unmarked.
+    const option = publicRadio.closest('label')
+    expect(option).toHaveClass(
+      'has-data-[state=checked]:border-primary',
+      'has-data-[state=checked]:bg-primary/[0.06]'
+    )
+    expect(option?.className).not.toContain(':checked')
+
+    fireEvent.click(unlistedRadio)
+    expect(unlistedRadio).toHaveAttribute('data-state', 'checked')
+    expect(publicRadio).toHaveAttribute('data-state', 'unchecked')
+    expect(unlistedRadio.closest('label')).toHaveClass(
+      'has-data-[state=checked]:border-primary'
+    )
+  })
+
   it('does not render the people section in create mode', () => {
     render(<CollectionEditor mode="create" />)
     expect(screen.queryByText('People')).not.toBeInTheDocument()

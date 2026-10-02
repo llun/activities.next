@@ -1342,6 +1342,13 @@ legacy shape left to copy.
 - Client Components that render relative timestamps (or fan out to `Posts`/`Post`)
   never call `Date.now()` / `new Date()` during render — they receive and forward
   `currentTime` from the server to avoid hydration mismatches.
+  A post header shows the compact form from `formatCompactRelativeTime`
+  (`lib/components/posts/compactRelativeTime.ts`: `now`, `35m`, `2h`, `3d`, `2w`,
+  `4mo`, `1y`) — a pure difference, so no time zone or locale can make the server
+  and the browser disagree — while the timestamp button's accessible name keeps
+  the spelled-out `posted 5 minutes ago`. Every other surface (notifications,
+  sessions, the edit-history panel, quote cards) still prints date-fns'
+  `formatDistance`.
 - Status posts render through the shared `Posts`/`Post` components with the same
   action set on every surface. A page turns actions on with `currentActor` +
   `showActions`; it must not pass per-status action callbacks (`onReply`/`onQuote`/
@@ -1907,6 +1914,17 @@ legacy shape left to copy.
   array gives `MediasModal` a blank slide and a wrong "n of m". Anything asking
   "do I have media to show" asks `isRenderableAttachment`, never
   `attachments.length` (`post.tsx`'s link-preview suppression does).
+- **An ordinary video is a player, not a picture button.** `Attachments` renders
+  it — lone or in the strip — as a tile with a picture's size, corners and
+  caption holding `<video controls>`, and that tile is a `div`, never a `button`,
+  because the controls are interactive content. Pressing it plays the video in
+  the post and does not open the lightbox, so `Media` leaves a click on a
+  controlled video un-prevented (a default-prevented click does not toggle
+  playback in Chromium). A looping gifv and a GIF keep the animation card with
+  its own play/pause chip and zoom button. The lightbox is still handed every
+  visual attachment, videos included. The sensitive-content gate is unchanged:
+  `ContentWarning` mounts nothing while collapsed, so no `<video>` exists, and no
+  request is made, until it is expanded.
 - **A stored dimension of `0` means "unknown", not "zero pixels"** — several
   media-storage paths persist `metaData.width ?? 0` — so every read goes through
   `getMediaGeometry`, which also clamps pathological shapes and falls back to a

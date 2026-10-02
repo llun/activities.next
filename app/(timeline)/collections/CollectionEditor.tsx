@@ -354,7 +354,10 @@ export const CollectionEditor: FC<CollectionEditorProps> = ({
                 <Label
                   key={option.value}
                   htmlFor={id}
-                  className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 has-[:checked]:border-primary has-[:checked]:bg-primary/[0.06]"
+                  // The radio is a Radix `<button role="radio">`, never a native
+                  // input outside a <form>, so `:checked` can not see it —
+                  // `data-state` is what marks the selected option.
+                  className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/[0.06]"
                 >
                   <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
                     <Icon className="h-4 w-4" />

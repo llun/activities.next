@@ -202,7 +202,7 @@ describe('ExplorePageClient', () => {
     expect(await screen.findByText('Gravel season is here')).toBeInTheDocument()
     // Relative time is derived from the server-provided currentTime, not
     // Date.now(), so SSR and hydration agree.
-    expect(screen.getByText('5 minutes')).toBeInTheDocument()
+    expect(screen.getByText('5m')).toBeInTheDocument()
     expect(mockGetTrendingStatuses).toHaveBeenCalledWith(20)
 
     // The trending posts now carry the same action row as the timeline.

@@ -495,6 +495,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
             currentActor={currentActor ?? undefined}
             currentTime={currentTime}
             status={status}
+            focused
             showActions={canComposeFocused}
             showReadOnlyStats={!canComposeFocused}
             editable={

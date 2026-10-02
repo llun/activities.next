@@ -31,7 +31,7 @@ export const MessagesLoading: FC = () => {
               >
                 <div className="skeleton mt-0.5 size-9 shrink-0 rounded-full md:size-11" />
                 <div className="min-w-0 flex-1">
-                  <div className="skeleton h-4 w-28 rounded md:h-5 md:w-36" />
+                  <div className="skeleton h-4 w-28 rounded md:w-36" />
                   <div className="skeleton mt-1 h-3.5 w-4/5 rounded" />
                   <div className="skeleton mt-1 h-3 w-16 rounded md:mt-1.5" />
                 </div>

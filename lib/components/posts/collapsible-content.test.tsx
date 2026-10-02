@@ -99,6 +99,31 @@ describe('CollapsibleContent', () => {
     expect(content?.style.maxHeight).toBe('')
   })
 
+  it('fades the clipped text with a mask instead of painting a background colour over it', async () => {
+    render(
+      <CollapsibleContent maxLines={5}>
+        Long status content that exceeds the timeline line limit.
+      </CollapsibleContent>
+    )
+
+    const button = await screen.findByRole('button', {
+      name: 'Show more content'
+    })
+    const content = document.getElementById(
+      button.getAttribute('aria-controls')!
+    )
+    const overlay = button.parentElement
+
+    // The post sits on the feed card in a feed and on the page background in a
+    // thread; an overlay painted in either colour shows as a band on the other,
+    // so the text itself fades and the overlay only carries the pill.
+    expect(content?.className).toContain('[mask-image:linear-gradient(')
+    expect(overlay?.className).not.toMatch(/bg-|from-|to-/)
+
+    fireEvent.click(button)
+    expect(content?.className).not.toContain('[mask-image')
+  })
+
   it('observes natural content size while the collapsed container has fixed height', async () => {
     render(
       <CollapsibleContent maxLines={5}>

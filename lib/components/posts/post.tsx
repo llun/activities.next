@@ -21,6 +21,7 @@ import {
 } from '@/lib/types/domain/status'
 import { TimelineParentPreview } from '@/lib/types/domain/timeline'
 import type { StatusReaction } from '@/lib/types/mastodon/statusReaction'
+import { cn } from '@/lib/utils'
 import {
   formatFitnessDistance,
   formatFitnessDuration,
@@ -47,6 +48,7 @@ import {
 } from './actor'
 import { Attachments, OnMediaSelectedHandle } from './attachments'
 import { CollapsibleContent } from './collapsible-content'
+import { formatCompactRelativeTime } from './compactRelativeTime'
 import { ContentWarning } from './content-warning'
 import { FitnessProcessingProgress } from './fitness-processing-progress'
 import { LinkPreviewCard } from './link-preview-card'
@@ -97,6 +99,13 @@ export interface PostProps {
   postLineLimit?: PostLineLimit
   parentPreview?: TimelineParentPreview | null
   showReplyContext?: boolean
+  /**
+   * The post a page is about (the status detail), rather than a row in a feed
+   * or a thread. Its header row is centred on the avatar, as the design
+   * system's Status detail board draws it, where a feed row aligns the header
+   * to the avatar's top edge.
+   */
+  focused?: boolean
 }
 
 interface BoostStatusProps {
@@ -169,7 +178,14 @@ export const Post: FC<PostProps> = (props) => {
   const externalStatusUrl = actualStatus.url || actualStatus.id
   const showExternalLink =
     !actualStatus.isLocalActor && Boolean(externalStatusUrl)
+  // The header shows the compact form ("35m", "2h", "3d"); the accessible name
+  // of the timestamp button keeps the spelled-out distance, which a screen
+  // reader says better than "35m".
   const relativeCreatedAt = formatDistance(actualStatus.createdAt, currentTime)
+  const compactCreatedAt = formatCompactRelativeTime(
+    actualStatus.createdAt,
+    currentTime
+  )
   const actorName = actualStatus.actor
     ? actualStatus.actor.name || actualStatus.actor.username
     : null
@@ -476,7 +492,14 @@ export const Post: FC<PostProps> = (props) => {
             />
           </div>
           <div className="flex-1 min-h-0 min-w-0">
-            <div className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5 text-sm">
+            <div
+              className={cn(
+                'flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5 text-sm',
+                // 10px = half of the 40px avatar minus half of this 20px row,
+                // so the name line sits on the avatar's centre.
+                props.focused && 'mt-2.5'
+              )}
+            >
               <ActorInfo
                 actor={actualStatus.actor}
                 actorId={actualStatus.actorId}
@@ -486,16 +509,28 @@ export const Post: FC<PostProps> = (props) => {
               {props.onOpenStatus ? (
                 <button
                   type="button"
-                  className={`${timestampClassName} -mx-1 inline-flex min-h-8 items-center rounded-sm px-1 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50`}
+                  // `min-h-8` keeps the 32px tap target; the `-my-2` cancels what
+                  // that adds to the layout (32 - 16 of text, split over the two
+                  // sides), so the button no longer stretches the 20px header
+                  // row and the body text starts where the design draws it.
+                  className={`${timestampClassName} -mx-1 -my-2 inline-flex min-h-8 items-center rounded-sm px-1 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50`}
                   aria-label={openStatusLabel}
                   onClick={() => {
                     props.onOpenStatus?.(status)
                   }}
                 >
-                  {relativeCreatedAt}
+                  {compactCreatedAt}
                 </button>
               ) : (
-                <span className={timestampClassName}>{relativeCreatedAt}</span>
+                // No button name to carry the long form here, so it rides along
+                // as visually hidden text and the compact form is hidden from
+                // assistive tech: a reader says "35 minutes ago", not "35m".
+                // Both come from the same `currentTime`, so the server and the
+                // browser render the same text.
+                <span className={timestampClassName}>
+                  <span aria-hidden="true">{compactCreatedAt}</span>
+                  <span className="sr-only">{`${relativeCreatedAt} ago`}</span>
+                </span>
               )}
               {showExternalLink && (
                 <a

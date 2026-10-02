@@ -112,7 +112,9 @@ describe('[actor] page header handle link', () => {
     })
     render(element)
 
-    const link = screen.getByRole('link', { name: '@clairenony' })
+    const link = screen.getByRole('link', {
+      name: '@clairenony@pouet.chapril.org'
+    })
     expect(link).toBeInTheDocument()
     expect(link).toHaveAttribute(
       'href',
@@ -152,7 +154,7 @@ describe('[actor] page header handle link', () => {
     })
     render(element)
 
-    const link = screen.getByRole('link', { name: '@bob' })
+    const link = screen.getByRole('link', { name: '@bob@mastodon.social' })
     expect(link).toHaveAttribute('href', 'https://mastodon.social/@bob')
     expect(link).toHaveAttribute('target', '_blank')
   })
@@ -182,7 +184,7 @@ describe('[actor] page header handle link', () => {
     })
     render(element)
 
-    const link = screen.getByRole('link', { name: '@alice' })
+    const link = screen.getByRole('link', { name: '@alice@remote.example' })
     expect(link).toHaveAttribute('href', 'https://remote.example/users/alice')
     expect(link).toHaveAttribute('target', '_blank')
   })
@@ -214,7 +216,7 @@ describe('[actor] page header handle link', () => {
     })
     render(element)
 
-    const link = screen.getByRole('link', { name: '@localuser' })
+    const link = screen.getByRole('link', { name: '@localuser@llun.social' })
     expect(link).toBeInTheDocument()
     expect(link).toHaveAttribute('href', 'https://llun.social/@localuser')
     expect(link).toHaveAttribute('target', '_blank')
@@ -222,6 +224,115 @@ describe('[actor] page header handle link', () => {
     expect(mockActorTimelines).toHaveBeenCalledWith(
       expect.objectContaining({ isInternalAccount: true })
     )
+  })
+
+  it('qualifies the handle with the domain the profile was resolved under, not the actor id host', async () => {
+    // A multi-domain instance (or a remote actor whose WebFinger domain is not
+    // its actor id's host) is addressed as @user@<url domain>; building the
+    // handle from `person.id` would print `social.example.org` here.
+    mockGetProfileData.mockResolvedValue({
+      person: {
+        id: 'https://social.example.org/users/anna',
+        type: 'Person',
+        preferredUsername: 'anna',
+        name: 'Anna Nowak',
+        summary: '',
+        url: 'https://social.example.org/@anna'
+      } as unknown as Actor,
+      statuses: [],
+      statusesCount: 1,
+      statusPagination: { nextPageUrl: null, prevPageUrl: null },
+      attachments: [],
+      followingCount: 0,
+      followersCount: 0,
+      isInternalAccount: false,
+      hasFitnessData: false,
+      isPixelfed: false
+    })
+
+    const element = await Page({
+      params: Promise.resolve({ actor: '@anna@example.com' })
+    })
+    render(element)
+
+    const link = screen.getByRole('link', { name: '@anna@example.com' })
+    expect(link).toHaveTextContent('@anna@example.com')
+    expect(screen.queryByText('@anna@social.example.org')).toBeNull()
+  })
+
+  it('lets a long handle ellipsize while the external-link icon stays visible', async () => {
+    mockGetProfileData.mockResolvedValue({
+      person: {
+        id: 'https://mastodon.social/users/bob',
+        type: 'Person',
+        preferredUsername: 'bob',
+        name: 'Bob',
+        summary: '',
+        url: 'https://mastodon.social/@bob'
+      } as unknown as Actor,
+      statuses: [],
+      statusesCount: 1,
+      statusPagination: { nextPageUrl: null, prevPageUrl: null },
+      attachments: [],
+      followingCount: 0,
+      followersCount: 0,
+      isInternalAccount: false,
+      hasFitnessData: false,
+      isPixelfed: false
+    })
+
+    const element = await Page({
+      params: Promise.resolve({
+        actor: '@bob@a-very-long-subdomain.example-federation-domain.social'
+      })
+    })
+    render(element)
+
+    // jsdom has no layout: pin the classes that do it. The link is as wide as
+    // the card at most, the handle inside it shrinks and ellipsizes, and the
+    // icon keeps its size, so a handle wider than the card cannot push the icon
+    // out of view (a `truncate` on the paragraph cannot ellipsize an
+    // inline-flex link).
+    const link = screen.getByRole('link', {
+      name: '@bob@a-very-long-subdomain.example-federation-domain.social'
+    })
+    expect(link).toHaveClass('inline-flex', 'max-w-full')
+    const handle = screen.getByText(
+      '@bob@a-very-long-subdomain.example-federation-domain.social'
+    )
+    expect(handle).toHaveClass('min-w-0', 'truncate')
+    expect(link.querySelector('svg')).toHaveClass('shrink-0')
+  })
+
+  it('draws the profile card on the Card surface, without a shadow', async () => {
+    mockGetProfileData.mockResolvedValue({
+      person: {
+        id: 'https://mastodon.social/users/bob',
+        type: 'Person',
+        preferredUsername: 'bob',
+        name: 'Bob',
+        summary: '',
+        url: 'https://mastodon.social/@bob'
+      } as unknown as Actor,
+      statuses: [],
+      statusesCount: 1,
+      statusPagination: { nextPageUrl: null, prevPageUrl: null },
+      attachments: [],
+      followingCount: 2,
+      followersCount: 3,
+      isInternalAccount: false,
+      hasFitnessData: false,
+      isPixelfed: false
+    })
+
+    const element = await Page({
+      params: Promise.resolve({ actor: '@bob@mastodon.social' })
+    })
+    const { container } = render(element)
+
+    const card = container.querySelector('section')
+    expect(card).toHaveClass('bg-card', 'border', 'rounded-2xl')
+    expect(card?.className).not.toMatch(/shadow|bg-background/)
   })
 
   it('renders software name and version under the counts block', async () => {
@@ -380,7 +491,9 @@ describe('[actor] page header handle link', () => {
     })
     render(element)
 
-    expect(screen.queryByText(/mastodon/i)).not.toBeInTheDocument()
+    // The handle itself contains `mastodon.social`; the software line is
+    // `Mastodon/<version>`.
+    expect(screen.queryByText(/mastodon\//i)).not.toBeInTheDocument()
   })
 
   it('renders mobile navigation header when wrapped in MobileNavigationProvider', async () => {

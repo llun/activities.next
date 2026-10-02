@@ -2468,6 +2468,158 @@ describe('Post', () => {
     })
   })
 
+  describe('header timestamp', () => {
+    const MINUTE = 60 * 1000
+    const HOUR = 60 * MINUTE
+
+    it('shows the compact time and keeps the spelled-out distance in the button name', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{
+            ...status,
+            summary: null,
+            createdAt: currentTime - 35 * MINUTE
+          }}
+          onOpenStatus={vi.fn()}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      const button = screen.getByRole('button', {
+        name: 'Open status by Llun, posted 35 minutes ago'
+      })
+      expect(button).toHaveTextContent('35m')
+    })
+
+    it.each([
+      ['less than a minute', 20 * 1000, 'now'],
+      ['hours', 2 * HOUR, '2h'],
+      ['days', 3 * 24 * HOUR, '3d']
+    ])(
+      'formats %s ago as %s when the timestamp is not a button',
+      (_label, ago, expected) => {
+        render(
+          <Post
+            host="activities.local"
+            currentTime={currentTime}
+            status={{ ...status, summary: null, createdAt: currentTime - ago }}
+            onShowAttachment={vi.fn()}
+          />
+        )
+
+        expect(screen.getByText(expected)).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: /Open status/ })).toBeNull()
+      }
+    )
+
+    it('gives the timestamp that is not a button the spelled-out distance for assistive tech', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{
+            ...status,
+            summary: null,
+            createdAt: currentTime - 35 * MINUTE
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      // The compact text is what is drawn, and is hidden from the
+      // accessibility tree; the long form is visually hidden text.
+      const compact = screen.getByText('35m')
+      expect(compact).toHaveAttribute('aria-hidden', 'true')
+      const long = screen.getByText('35 minutes ago')
+      expect(long).toHaveClass('sr-only')
+      expect(long.parentElement).toBe(compact.parentElement)
+      expect(compact.parentElement).toHaveTextContent('35m35 minutes ago')
+    })
+
+    it('spells out "less than a minute" for a post that reads "now"', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{
+            ...status,
+            summary: null,
+            createdAt: currentTime - 20 * 1000
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(screen.getByText('now')).toHaveAttribute('aria-hidden', 'true')
+      expect(screen.getByText('less than a minute ago')).toHaveClass('sr-only')
+    })
+
+    it('keeps the 32px tap target without stretching the 20px header row', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{ ...status, summary: null }}
+          onOpenStatus={vi.fn()}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      // jsdom has no layout: pin the two classes whose combination does it. The
+      // button is 32px tall (`min-h-8`) and cancels that height out of the row
+      // with equal negative vertical margins.
+      const button = screen.getByRole('button', { name: /Open status/ })
+      expect(button).toHaveClass('min-h-8', '-my-2')
+    })
+
+    it('opens the status when the timestamp is pressed', () => {
+      const handleOpenStatus = vi.fn()
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{ ...status, summary: null }}
+          onOpenStatus={handleOpenStatus}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: /Open status/ }))
+      expect(handleOpenStatus).toHaveBeenCalledWith(
+        expect.objectContaining({ id: status.id })
+      )
+    })
+
+    it('centres the header row on the avatar only for the focused post', () => {
+      const { container, rerender } = render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{ ...status, summary: null }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+      const headerRow = () =>
+        container.querySelector('.flex-1 > .flex.flex-wrap')
+
+      expect(headerRow()).not.toBeNull()
+      expect(headerRow()).not.toHaveClass('mt-2.5')
+
+      rerender(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{ ...status, summary: null }}
+          focused
+          onShowAttachment={vi.fn()}
+        />
+      )
+      expect(headerRow()).toHaveClass('mt-2.5')
+    })
+  })
+
   describe('user profile links in status text', () => {
     it('renders mention links in status text with local profile href', () => {
       const statusWithMention: StatusNote = {

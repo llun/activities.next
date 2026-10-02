@@ -168,6 +168,11 @@ const Page: FC<Props> = async ({ params }) => {
       : null
 
   const initials = getInitials(person.name || '', person.preferredUsername)
+  // The full `@user@domain`, qualified with the domain this profile was
+  // resolved under — the one in the URL, which is the actor's own domain on a
+  // multi-domain instance — and spelled the way the follower and following
+  // links below and the relationship actions' `targetHandle` already are.
+  const profileHandle = `@${person.preferredUsername}@${actorDomain}`
 
   // Surface the account's featured hashtags inside the profile card. Only local
   // actors have stored featured tags; remote profiles resolve to an empty list,
@@ -251,7 +256,7 @@ const Page: FC<Props> = async ({ params }) => {
   return (
     <div className={cn('flex flex-col gap-6', isLoggedIn && 'pt-6 sm:pt-8')}>
       <MobileNavigationHeader className="-mt-6" />
-      <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
+      <section className="overflow-hidden rounded-2xl border bg-card">
         <ProfileHeaderImage
           actorId={person.id}
           imageUrl={headerImageUrl}
@@ -272,16 +277,20 @@ const Page: FC<Props> = async ({ params }) => {
                   tags={getActorEmojiTags(person)}
                 />
               </h1>
-              <p className="truncate text-muted-foreground">
+              <p className="text-muted-foreground">
+                {/* `max-w-full` + a truncating, shrinkable handle: a handle
+                  longer than the card ellipsizes and the icon stays in view,
+                  where a plain `truncate` on the paragraph clips the whole
+                  inline-flex link (icon included). */}
                 <a
                   href={profileUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 hover:underline hover:text-foreground"
+                  className="inline-flex max-w-full items-center gap-1 hover:underline hover:text-foreground"
                   title="Open profile page"
                 >
-                  <span>@{person.preferredUsername}</span>
-                  <ExternalLink className="size-3.5" />
+                  <span className="min-w-0 truncate">{profileHandle}</span>
+                  <ExternalLink className="size-3.5 shrink-0" />
                 </a>
               </p>
             </div>

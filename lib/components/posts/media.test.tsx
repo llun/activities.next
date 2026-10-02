@@ -295,6 +295,50 @@ describe('Media', () => {
     )
   })
 
+  describe("an ordinary video's click", () => {
+    const videoAttachment: Attachment = {
+      ...baseAttachment,
+      mediaType: 'video/mp4',
+      url: 'https://example.com/video.mp4'
+    }
+
+    it('is handed to the caller and kept from the player when the controls are off', () => {
+      const onClick = vi.fn()
+      const { container } = render(
+        <Media attachment={videoAttachment} onClick={onClick} />
+      )
+      const video = container.querySelector('video')
+      expect(video).not.toHaveAttribute('controls')
+
+      const click = new MouseEvent('click', { bubbles: true, cancelable: true })
+      video?.dispatchEvent(click)
+
+      expect(click.defaultPrevented).toBe(true)
+      expect(onClick).toHaveBeenCalledTimes(1)
+    })
+
+    it('is left to the player when the controls are on', () => {
+      const onClick = vi.fn()
+      const { container } = render(
+        <Media
+          attachment={videoAttachment}
+          showVideoControl
+          onClick={onClick}
+        />
+      )
+      const video = container.querySelector('video')
+      expect(video).toHaveAttribute('controls')
+
+      // A default-prevented click on the picture does not toggle playback in
+      // Chromium, which is what an inline player's surface press relies on.
+      const click = new MouseEvent('click', { bubbles: true, cancelable: true })
+      video?.dispatchEvent(click)
+
+      expect(click.defaultPrevented).toBe(false)
+      expect(onClick).not.toHaveBeenCalled()
+    })
+  })
+
   describe('animation playback (GIFV and GIF)', () => {
     beforeEach(() => {
       vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})

@@ -413,6 +413,11 @@ export const Media: FC<Props> = ({
         controls={showVideoControl}
         aria-label={caption ?? name ?? undefined}
         onClick={(event) => {
+          // With the player's controls on, a click on the picture is the
+          // player's: a default-prevented click does not toggle playback (the
+          // inline player in a post depends on this). Without controls the
+          // video is just a picture, and the click belongs to the caller.
+          if (showVideoControl) return
           event.preventDefault()
           onClick?.(event)
         }}

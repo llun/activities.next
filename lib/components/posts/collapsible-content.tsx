@@ -24,6 +24,15 @@ interface CollapsibleContentProps {
 
 const LINE_HEIGHT_REM = 1.4375 // ~line height for text-sm leading-relaxed
 
+// The collapsed text fades out over the height of the overlay that carries the
+// pill (its `pt-8` plus the 36px `h-9` button = 4.25rem). The fade is a mask on
+// the clipped text, not a gradient of some background colour laid over it: this
+// block is rendered on the feed card (`bg-card`), on the page background in a
+// thread, and inside other frames, and any one colour painted over the text
+// shows as a band on all the others. A mask fades to whatever is behind it.
+const COLLAPSED_FADE_CLASS =
+  '[mask-image:linear-gradient(to_bottom,#000_calc(100%_-_4.25rem),transparent)]'
+
 export const CollapsibleContent: FC<CollapsibleContentProps> = ({
   children,
   className,
@@ -72,7 +81,11 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
     <div className={cn('relative min-h-0', shouldClamp && 'overflow-hidden')}>
       <div
         id={contentId}
-        className={cn(className, shouldClamp && 'overflow-hidden min-h-0')}
+        className={cn(
+          className,
+          shouldClamp && 'overflow-hidden min-h-0',
+          needsCollapse && COLLAPSED_FADE_CLASS
+        )}
         style={
           needsCollapse
             ? { height: `${maxHeightRem}rem` }
@@ -86,7 +99,7 @@ export const CollapsibleContent: FC<CollapsibleContentProps> = ({
         </div>
       </div>
       {needsCollapse && (
-        <div className="absolute bottom-0 left-0 right-0 flex items-end justify-center bg-gradient-to-t from-background to-transparent pt-8 pb-0">
+        <div className="absolute bottom-0 left-0 right-0 flex items-end justify-center pt-8 pb-0">
           {onReadMore ? (
             <Button
               type="button"

@@ -994,6 +994,33 @@ describe('MessagesPage', () => {
     expect(sendButton.parentElement).toHaveClass('items-end')
   })
 
+  it("gives the Send button the design's 16px side padding despite its leading icon", () => {
+    renderMessagesPage([], null)
+
+    // `Button`'s default size drops to 12px (`has-[>svg]:px-3`) when the icon is
+    // a direct child, which is what the Send button has. The override has to
+    // be the same variant, or the merge keeps both and the 12px wins.
+    const sendButton = screen.getByRole('button', { name: 'Send message' })
+    expect(sendButton).toHaveClass('has-[>svg]:px-4')
+    expect(sendButton).not.toHaveClass('has-[>svg]:px-3')
+  })
+
+  it('sets the conversation name at 14px at every breakpoint', async () => {
+    ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+      statuses: [],
+      nextMaxStatusId: null
+    })
+    renderMessagesPage([conversation({ id: 'first', participantName: 'Ada' })])
+
+    const name = within(screen.getByRole('button', { name: /Ada/i })).getByText(
+      'Ada'
+    )
+    expect(name).toHaveClass('text-sm')
+    expect(name).not.toHaveClass('md:text-base')
+
+    await waitFor(() => expect(getConversationStatuses).toHaveBeenCalled())
+  })
+
   it('renders sent and received messages as aligned chat bubbles', async () => {
     const receivedStatus: Status = {
       ...status('them-1', 'Theirs'),

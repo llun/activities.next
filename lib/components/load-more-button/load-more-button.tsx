@@ -52,6 +52,13 @@ export const LoadMoreButton: FC<LoadMoreButtonProps> = ({
       disabled={disabled || isLoading}
       aria-busy={isLoading || undefined}
       className={cn(
+        // The design's 36px pill is 110px wide. "Load more" alone is about
+        // 106px with the default size's padding, so the floor makes up the
+        // rest — and keeps the pill from changing width when it swaps to
+        // "Loading...". A longer caller-provided label is wider than the floor
+        // and unaffected, and so is a `size="sm"` pill, which the design does
+        // not draw.
+        (props.size ?? 'default') === 'default' && 'min-w-[110px]',
         isOverlayWithItems &&
           'max-md:pointer-events-auto max-md:-translate-y-12',
         className

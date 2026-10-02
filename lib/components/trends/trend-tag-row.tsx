@@ -41,8 +41,8 @@ export const TrendTagRow = ({ tag, compact = false }: TrendTagRowProps) => {
       </div>
       <Sparkline
         values={history}
-        width={compact ? 52 : 62}
-        height={compact ? 24 : 27}
+        width={compact ? 52 : 60}
+        height={compact ? 24 : 22}
       />
     </Link>
   )

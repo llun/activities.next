@@ -832,8 +832,8 @@ system's `Attachments` component.
   image-only attribute, so `Media` turns it into `preload="none"` for a video —
   but **only one carrying a `poster`**. A posterless video's sole pre-playback
   frame comes from the `#t=0.01` source fragment, which needs metadata to
-  decode, and the strip hides its controls, so deferring one leaves a bare empty
-  box. Federated video always lands there: `thumbnailUrl` is written on the
+  decode, so deferring one leaves a blank frame behind the player's controls.
+  Federated video always lands there: `thumbnailUrl` is written on the
   local-upload path alone.
 - **There are no edge fades or overlaid arrows.** The paired arrows sit below
   captions so they never obscure a card or interfere with touch.

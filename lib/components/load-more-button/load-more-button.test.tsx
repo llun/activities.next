@@ -20,6 +20,25 @@ describe('LoadMoreButton', () => {
     expect(button).toBeEnabled()
   })
 
+  it("is at least the design's 110px wide, in both its idle and loading states", () => {
+    const { rerender } = render(<LoadMoreButton onClick={() => {}} />)
+    expect(screen.getByRole('button', { name: 'Load more' })).toHaveClass(
+      'min-w-[110px]'
+    )
+
+    rerender(<LoadMoreButton isLoading onClick={() => {}} />)
+    expect(screen.getByRole('button', { name: 'Loading...' })).toHaveClass(
+      'min-w-[110px]'
+    )
+  })
+
+  it('leaves the small size at its own width', () => {
+    render(<LoadMoreButton size="sm" onClick={() => {}} />)
+    expect(screen.getByRole('button', { name: 'Load more' })).not.toHaveClass(
+      'min-w-[110px]'
+    )
+  })
+
   it('renders disabled button with loading text and aria-busy when isLoading is true', () => {
     render(<LoadMoreButton isLoading onClick={() => {}} />)
     const button = screen.getByRole('button', { name: 'Loading...' })
