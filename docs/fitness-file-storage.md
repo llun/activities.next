@@ -1251,10 +1251,10 @@ null }` remains the precise "this retirement never happened" — it reopens the
   seeds it from the brand map when the import creates the row.
 - **Gear list tables use fixed column widths, and only the Actions column is shared.** In `app/(timeline)/fitness/gear/GearListView.tsx`, all tables
   (Bikes, Shoes, Devices) use `table-fixed w-full min-w-[560px] text-sm` and define fixed column widths via `<colgroup>`.
-  Bikes and Shoes (5 columns) allocate `33.5%` (Name), `22.5%` (Product page), `14.5%` (Default sports), `19.5%` (Distance / Service), and `10%` (Actions);
-  they are sized from the widest content of each column (the comment above that `<colgroup>` has the arithmetic).
+  Bikes and Shoes (5 columns) allocate `33.5%` (Name), `22.5%` (Product page), `14.5%` (Default sports), `19.5%` (Distance), and `10%` (Actions);
+  Name, Product page and Distance are sized from their widest content and Default sports is the column that gives, truncating its cells (the comment above that `<colgroup>` has the arithmetic).
   Devices (4 columns) allocates `34%` (Device), `26%` (Product page), `30%` (Activities), and `10%` (Actions).
-  Only the Actions column (`10%`) is shared across the tables, so it is the only column that aligns vertically; the Name and Product page edges differ between Bikes / Shoes and Devices.
+  Only the Actions column's width (`10%`) is shared across the tables, so every table's data columns end at `90%`: the Actions column and the right-aligned Distance (Bikes / Shoes) and Activities (Devices) values align vertically, while the Name and Product page edges differ between Bikes / Shoes and Devices.
 - **A recording device is a third kind, and almost nothing above applies to it.**
   `kind: 'device'` rows have no components, no default sports, no distance
   total, no service reminder and cannot be retired; a device page reports an
