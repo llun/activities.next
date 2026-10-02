@@ -491,9 +491,9 @@ describe('[actor] page header handle link', () => {
     })
     render(element)
 
-    // The handle itself contains `mastodon.social`; the software line is
-    // `Mastodon/<version>`.
-    expect(screen.queryByText(/mastodon\//i)).not.toBeInTheDocument()
+    // The handle itself contains `mastodon.social`; the software line is the
+    // whole text `Mastodon` or `Mastodon/<version>`.
+    expect(screen.queryByText(/^mastodon(\/.*)?$/i)).not.toBeInTheDocument()
   })
 
   it('renders mobile navigation header when wrapped in MobileNavigationProvider', async () => {

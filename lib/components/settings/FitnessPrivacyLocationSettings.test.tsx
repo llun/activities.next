@@ -1032,10 +1032,50 @@ describe('FitnessPrivacyLocationSettings', () => {
       )
       expect(
         layers.find((layer) => layer.id === 'fitness-privacy-zone-fill')
-      ).toMatchObject({ type: 'fill', source: 'fitness-privacy-zones' })
+      ).toMatchObject({
+        type: 'fill',
+        source: 'fitness-privacy-zones',
+        paint: { 'fill-color': '#16a34a', 'fill-opacity': 0.2 }
+      })
       expect(
         layers.find((layer) => layer.id === 'fitness-privacy-zone-outline')
-      ).toMatchObject({ type: 'line', source: 'fitness-privacy-zones' })
+      ).toMatchObject({
+        type: 'line',
+        source: 'fitness-privacy-zones',
+        paint: { 'line-color': '#16a34a', 'line-width': 2 }
+      })
+    })
+
+    it('counts a stored value with extra digits as the same circle as the draft', async () => {
+      vi.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          privacyLocations: [
+            {
+              latitude: 13.75630004,
+              longitude: 100.50180004,
+              hideRadiusMeters: 200
+            }
+          ]
+        })
+      } as Response)
+      const { sources } = mountGlMap()
+
+      render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
+
+      await screen.findByText('13.756300, 100.501800')
+      await waitFor(() =>
+        expect(sources.has('fitness-privacy-zones')).toBe(true)
+      )
+      await waitFor(() =>
+        expect(
+          sources.get('fitness-privacy-zones')?.setData
+        ).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            features: [expect.objectContaining({ type: 'Feature' })]
+          })
+        )
+      )
     })
 
     it('draws a saved zone once, even though the draft marker is prefilled from it', async () => {

@@ -1346,9 +1346,10 @@ legacy shape left to copy.
   (`lib/components/posts/compactRelativeTime.ts`: `now`, `35m`, `2h`, `3d`, `2w`,
   `4mo`, `1y`) — a pure difference, so no time zone or locale can make the server
   and the browser disagree — while the timestamp button's accessible name keeps
-  the spelled-out `posted 5 minutes ago`. Every other surface (notifications,
-  sessions, the edit-history panel, quote cards) still prints date-fns'
-  `formatDistance`.
+  the spelled-out `posted 5 minutes ago`. Notifications, sessions, the
+  edit-history panel and quote cards print date-fns' `formatDistance`, and the
+  fitness heatmap chrome prints `formatRelativeTime`
+  (`lib/fitness/relativeTime.ts`).
 - Status posts render through the shared `Posts`/`Post` components with the same
   action set on every surface. A page turns actions on with `currentActor` +
   `showActions`; it must not pass per-status action callbacks (`onReply`/`onQuote`/
@@ -1590,6 +1591,10 @@ legacy shape left to copy.
   scope chips use the same `#383838` fill). Do not hand-roll badge colours with
   fixed `hsl()` values — a pill that has no `dark:` variant renders as a light
   chip on the dark surface.
+- A native `<select>` is the shared `Select`. One that needs its own size or
+  focus ring keeps its classes and appends `selectChevronClassName` (from
+  `@/lib/components/ui/select`), which hides the OS arrow and paints the
+  design's muted chevron; a bare `<select>` shows the platform arrow.
 - The unread-count pill (`NotificationBadge`) is filled `#B7282E` in light — the
   design's count-badge red, darker than the `#EF4444` `--destructive` token that
   white text only reaches 3.8:1 on — and `--destructive` (`#7F1D1D`) in dark.
@@ -1600,9 +1605,9 @@ legacy shape left to copy.
   backdrop on `body` is `#492812` top-left and `#193543` top-right at 60 %.
   `app/globals.contrast.test.ts` guards the values.
 - Dropdown menu rows highlight with `--accent` in light and `--muted` (#2B2B2B)
-  in dark, and a radio item's indicator is a 6 px dot. Loading placeholders
-  (Explore's rows included) use the shared `.skeleton` utility rather than
-  `bg-muted`, which sits almost on the card and is near-invisible.
+  in dark, and a radio item's indicator is a 6 px dot. Loading placeholders use
+  the shared `.skeleton` utility rather than `bg-muted`, which sits almost on
+  the card and is near-invisible.
 - The shared `Dialog` is 440 px wide by default (a dialog that needs more sets
   its own `sm:max-w-*`, as the gear forms do at `sm:max-w-lg`), has a 16 px
   radius, and sits on `bg-card` in dark mode (`bg-background` in light) so it

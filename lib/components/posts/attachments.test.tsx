@@ -780,6 +780,38 @@ describe('Attachments', () => {
       expect(onMediaSelected).not.toHaveBeenCalled()
     })
 
+    // `Media` leaves a click on a controlled video alone, so the card's own
+    // `stopPropagation` is the only thing keeping a play / pause press from
+    // reaching whatever surface embeds the post (a timeline row that opens the
+    // status, say).
+    it.each([1, 2])(
+      'keeps a press on the player of %i video(s) from reaching the surface embedding the post',
+      (count) => {
+        const surfaceClick = vi.fn()
+        const { container } = render(
+          <div onClick={surfaceClick}>
+            <Attachments
+              status={buildNoteStatus(
+                Array.from({ length: count }, () =>
+                  buildAttachment({
+                    mediaType: 'video/mp4',
+                    width: 800,
+                    height: 600
+                  })
+                )
+              )}
+              onMediaSelected={vi.fn()}
+            />
+          </div>
+        )
+
+        const videos = container.querySelectorAll('video')
+        expect(videos).toHaveLength(count)
+        videos.forEach((video) => fireEvent.click(video))
+        expect(surfaceClick).not.toHaveBeenCalled()
+      }
+    )
+
     it('plays every video of a strip inline and keeps the pictures opening the lightbox', () => {
       const onMediaSelected = vi.fn()
       const attachments = [

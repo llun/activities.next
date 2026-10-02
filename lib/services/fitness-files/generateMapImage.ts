@@ -1,6 +1,7 @@
 import sharp from 'sharp'
 
 import { getMapProviderConfig } from '@/lib/config/mapProvider'
+import { ROUTE_COLOR } from '@/lib/fitness/routeColor'
 import { fetchAppleSnapshot } from '@/lib/services/fitness-files/appleMapsSnapshot'
 import { downsamplePrivacySegments } from '@/lib/services/fitness-files/privacy'
 import type { PrivacySegment } from '@/lib/services/fitness-files/privacy'
@@ -29,10 +30,6 @@ const DEFAULT_HEIGHT = 600
 const APPLE_SNAPSHOT_WIDTH = 640
 const APPLE_SNAPSHOT_HEIGHT = 480
 const APPLE_SNAPSHOT_SCALE = 2
-
-// The route is drawn in the brand orange (the design's Brand/Primary) on every
-// map this module draws itself: the Mapbox static request and the OSM overlay.
-const ROUTE_COLOR = '#E55F06'
 
 const flattenRouteSegments = (routeSegments: FitnessCoordinate[][]) => {
   return routeSegments.flat()

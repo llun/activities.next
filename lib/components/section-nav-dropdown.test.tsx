@@ -99,6 +99,12 @@ describe('SectionNavDropdown', () => {
     const active = within(menu).getByRole('menuitem', { name: 'Strava' })
     expect(active.className).toMatch(/focus:bg-primary\/10/)
     expect(active.className).toMatch(/focus:ring-2/)
+    // The shared item carries `dark:focus:bg-muted`, and tailwind-merge only
+    // drops it for a `dark:focus:` class of the same family. Without that dark
+    // twin the hovered current row turns grey in dark instead of holding its
+    // wash.
+    expect(active.className).toMatch(/dark:focus:bg-primary\/10/)
+    expect(active.className).not.toMatch(/dark:focus:bg-muted/)
     // `text-primary-text`, never `text-primary`: `--primary` is the icon
     // orange and is under the AA floor as a foreground. This assertion and the
     // identical one in `section-nav-select.test.tsx` are the only two things in

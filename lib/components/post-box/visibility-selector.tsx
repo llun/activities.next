@@ -149,7 +149,7 @@ export const VisibilitySelector: FC<Props> = ({
                 className={cn(
                   'flex cursor-pointer items-start gap-2.5',
                   active &&
-                    'bg-primary/10 text-primary-text focus:bg-primary/15 focus:text-primary-text'
+                    'bg-primary/10 text-primary-text focus:bg-primary/15 focus:text-primary-text dark:focus:bg-primary/15'
                 )}
               >
                 <Icon
@@ -201,7 +201,7 @@ export const VisibilitySelector: FC<Props> = ({
                     className={cn(
                       'flex cursor-pointer items-center gap-2.5',
                       active &&
-                        'bg-primary/10 text-primary-text focus:bg-primary/15 focus:text-primary-text'
+                        'bg-primary/10 text-primary-text focus:bg-primary/15 focus:text-primary-text dark:focus:bg-primary/15'
                     )}
                   >
                     <Icon

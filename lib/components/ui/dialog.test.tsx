@@ -27,7 +27,10 @@ describe('DialogContent', () => {
       'rounded-2xl',
       'sm:max-w-[440px]'
     )
-    expect(content).not.toHaveClass('rounded-lg', 'sm:max-w-lg')
+    // One call per class: `.not.toHaveClass(a, b)` passes when EITHER is
+    // absent, so a stale default left beside the new one would go unnoticed.
+    expect(content).not.toHaveClass('rounded-lg')
+    expect(content).not.toHaveClass('sm:max-w-lg')
   })
 
   it('lets a dialog that sets its own width keep it', () => {

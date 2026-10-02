@@ -18,6 +18,10 @@ vi.mock('@/lib/client', () => ({
 }))
 
 describe('Notification settings', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   const notificationTypes = [
     {
       key: 'mention',
@@ -79,6 +83,9 @@ describe('Notification settings', () => {
   })
 
   it('draws the channel titles on a 14/20 line and leaves other labels alone', async () => {
+    // Push is only listed once the server has a VAPID key.
+    mockGetVapidKey.mockResolvedValue('test-vapid-key')
+    vi.stubGlobal('Notification', { permission: 'default' })
     render(
       <NotificationSettings
         actorId="actor-1"
@@ -90,9 +97,11 @@ describe('Notification settings', () => {
 
     // The Channels card's switch-row titles are 20 high on the board; the
     // shared Label's `leading-none` is the default everywhere else.
-    const email = await screen.findByText('Email (alice@llun.test)')
-    expect(email).toHaveClass('leading-5')
-    expect(email).not.toHaveClass('leading-none')
+    for (const title of ['Email (alice@llun.test)', 'Push Notifications']) {
+      const label = await screen.findByText(title)
+      expect(label).toHaveClass('leading-5')
+      expect(label).not.toHaveClass('leading-none')
+    }
   })
 
   it('sets the helper text under each channel and event row at 12/16', async () => {

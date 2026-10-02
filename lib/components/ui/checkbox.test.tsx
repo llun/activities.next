@@ -65,7 +65,10 @@ describe('Checkbox', () => {
     )
     const box = screen.getByRole('checkbox')
     expect(box).toHaveClass('size-[18px]', 'bg-[length:14px_14px]')
-    expect(box).not.toHaveClass('size-4', 'bg-[length:12px_12px]')
+    // One call per class: `.not.toHaveClass(a, b)` passes when EITHER is
+    // absent, so a stale default left beside the override would go unnoticed.
+    expect(box).not.toHaveClass('size-4')
+    expect(box).not.toHaveClass('bg-[length:12px_12px]')
   })
 
   it('stays a real form control: it posts its name and value only when checked', () => {

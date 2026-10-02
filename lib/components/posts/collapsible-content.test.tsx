@@ -119,6 +119,10 @@ describe('CollapsibleContent', () => {
     // so the text itself fades and the overlay only carries the pill.
     expect(content?.className).toContain('[mask-image:linear-gradient(')
     expect(overlay?.className).not.toMatch(/bg-|from-|to-/)
+    // The fade spans the overlay (its `pt-8` plus the 36px button = 4.25rem), so
+    // the pill never sits on undimmed text.
+    expect(content?.className).toContain('#000_calc(100%_-_4.25rem)')
+    expect(overlay?.className).toContain('pt-8')
 
     fireEvent.click(button)
     expect(content?.className).not.toContain('[mask-image')

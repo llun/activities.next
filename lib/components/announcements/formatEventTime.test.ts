@@ -120,6 +120,16 @@ describe('formatEventTime', () => {
     ).toBe('Sat Jun 13')
   })
 
+  it('shows an all-day event with no end once', () => {
+    expect(
+      formatEventTime({
+        startsAt: '2026-06-13T00:00:00.000Z',
+        endsAt: null,
+        allDay: true
+      })
+    ).toBe('Sat Jun 13')
+  })
+
   it('returns null without a usable start', () => {
     expect(
       formatEventTime({ startsAt: null, endsAt: null, allDay: false })

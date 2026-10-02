@@ -504,6 +504,12 @@ export const Post: FC<PostProps> = (props) => {
                 actor={actualStatus.actor}
                 actorId={actualStatus.actorId}
                 statusUrl={actualStatus.url}
+                // When the header wraps, the timestamp button's 32px box
+                // reaches 6px up over the author link and, being later in the
+                // DOM, would win the hit test there. A positioned element
+                // paints above an unpositioned one without creating a stacking
+                // context, so the whole link stays clickable.
+                className="relative"
               />
               <span className="text-muted-foreground">·</span>
               {props.onOpenStatus ? (

@@ -43,9 +43,7 @@ export const MiniChart: FC<Props> = ({
   height = 40
 }) => {
   const width = 200
-  // Colons in a React id are not valid inside a url(#…) reference in every
-  // browser, so strip them from the gradient id.
-  const gradientId = `mini-chart-fill-${useId().replace(/:/g, '')}`
+  const gradientId = `mini-chart-fill-${useId()}`
   const linePath = useMemo(() => buildPath(data, width, height), [data, height])
   const areaPath = useMemo(
     () => buildAreaPath(data, width, height),

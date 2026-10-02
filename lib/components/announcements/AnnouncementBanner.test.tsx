@@ -98,7 +98,10 @@ describe('AnnouncementBanner', () => {
     mockGetAnnouncements.mockResolvedValue([
       buildAnnouncement({
         starts_at: '2026-06-13T12:00:00.000Z',
-        ends_at: '2026-06-13T13:00:00.000Z'
+        // A ten-minute window: unlike a longer one, it cannot cross local
+        // midnight in any zone (that needs an offset within ten minutes of
+        // +12:00, and none exists), so the range always keeps a single date.
+        ends_at: '2026-06-13T12:10:00.000Z'
       })
     ])
 

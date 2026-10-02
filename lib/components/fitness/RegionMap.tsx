@@ -43,11 +43,6 @@ type GlMap = {
 
 export type GlModule = {
   Map: new (options: Record<string, unknown>) => GlMap
-  // Only read for its default options (see the attribution note in the create
-  // effect), never added to a map.
-  AttributionControl?: new () => {
-    options?: { customAttribution?: string | string[] }
-  }
 }
 
 const BOX_SOURCE_ID = 'region-box'
@@ -171,23 +166,13 @@ export const RegionMap: FC<RegionMapProps> = ({
       .then((gl) => {
         if (cancelled || !containerRef.current) return
 
-        // An options object REPLACES the library's default attribution
-        // options instead of merging into them, and MapLibre's default carries
-        // its own "MapLibre" credit as a `customAttribution`. Read it from a
-        // throwaway default control so the credit stays what the library draws
-        // by itself. Mapbox GL has no such default, so it gets none.
-        const defaultCredit = gl.AttributionControl
-          ? new gl.AttributionControl().options?.customAttribution
-          : undefined
-
         const map = new gl.Map({
           container: containerRef.current,
-          // Compact: an "i" button that opens the credit, instead of a wide
-          // white bar. The bar sat on top of the hint pill and hid it.
-          attributionControl: {
-            compact: true,
-            ...(defaultCredit ? { customAttribution: defaultCredit } : {})
-          },
+          // The library's own control, which is already compact: it shows the
+          // credit until the first pan and then folds into an "i" button. The
+          // corner lift on the map container (below) is what keeps it clear of
+          // the hint pill.
+          attributionControl: true,
           center: [0, 20],
           zoom: 1.4,
           ...mapOptionsRef.current

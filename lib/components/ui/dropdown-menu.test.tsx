@@ -56,6 +56,17 @@ describe('DropdownMenu', () => {
     }
   )
 
+  // The row that opened a submenu keeps the same fill as a hovered one, so the
+  // two never differ by a step in dark.
+  it('keeps the sub trigger on --muted in dark while its submenu is open', () => {
+    renderMenu()
+    const row = screen.getByText('Translate to').closest('[role="menuitem"]')
+    expect(row).toHaveClass(
+      'data-[state=open]:bg-accent',
+      'dark:data-[state=open]:bg-muted'
+    )
+  })
+
   it('draws the radio indicator as a 6 px dot', () => {
     renderMenu()
     const row = screen

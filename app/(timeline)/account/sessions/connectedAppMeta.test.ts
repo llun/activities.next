@@ -16,6 +16,12 @@ describe('formatAppWebsite', () => {
     expect(formatAppWebsite('https://strava.com')).toBe('strava.com')
   })
 
+  it('trims whitespace, reads the scheme in any case and drops every trailing slash', () => {
+    expect(formatAppWebsite('  HTTPS://example.com/app//  ')).toBe(
+      'example.com/app'
+    )
+  })
+
   it('leaves a website that has no scheme alone', () => {
     expect(formatAppWebsite('icecubesapp.com')).toBe('icecubesapp.com')
   })

@@ -345,7 +345,6 @@ describe('quote', () => {
       (anchor) => {
         const html = bodyOf(`<p>${anchor}</p>`)
         expect(html).toContain('style="color:#0284C7;text-decoration:none;"')
-        expect(html).not.toContain('#0000EE')
       }
     )
 

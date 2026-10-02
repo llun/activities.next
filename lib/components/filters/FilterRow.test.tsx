@@ -51,11 +51,24 @@ describe('FilterRow', () => {
     expect(screen.queryByText('Home')).not.toBeInTheDocument()
   })
 
-  it('renders the action badge through the shared Badge tones', () => {
-    renderRow(filterFor(['home'], 'hide'))
+  // The row only chooses the tone; the Badge's own fills are pinned in
+  // badge.test.tsx.
+  it.each([
+    {
+      description: 'hide completely in the destructive tone',
+      action: 'hide',
+      label: 'Hide completely',
+      token: 'text-destructive-text'
+    },
+    {
+      description: 'hide with warning in the primary tone',
+      action: 'warn',
+      label: 'Hide with warning',
+      token: 'text-primary-text'
+    }
+  ])('draws $description', ({ action, label, token }) => {
+    renderRow(filterFor(['home'], action))
 
-    const badge = screen.getByText('Hide completely')
-    expect(badge).toHaveClass('text-destructive-text')
-    expect(badge.className).toContain('dark:bg-[#DF3A3A]/16')
+    expect(screen.getByText(label)).toHaveClass(token)
   })
 })

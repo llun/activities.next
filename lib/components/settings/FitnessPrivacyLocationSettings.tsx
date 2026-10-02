@@ -8,7 +8,12 @@ import {
   regenerateFitnessMaps,
   updateFitnessGeneralSettings
 } from '@/lib/client'
-import { PrivacyZoneMapKit } from '@/lib/components/fitness/PrivacyZoneMapKit'
+import {
+  PrivacyZoneMapKit,
+  ZONE_COLOR,
+  ZONE_FILL_OPACITY,
+  ZONE_OUTLINE_WIDTH_PX
+} from '@/lib/components/fitness/PrivacyZoneMapKit'
 import { circleToPolygon } from '@/lib/components/fitness/mapGeometry'
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -107,11 +112,6 @@ interface MapboxModule {
 
 const MAPBOX_MARKER_SOURCE_ID = 'fitness-privacy-home-marker'
 const MAPBOX_ZONE_SOURCE_ID = 'fitness-privacy-zones'
-// The privacy circle's green, shared with `PrivacyZoneMapKit`: a 20% fill under
-// a 2px outline, as the design draws "Privacy Zone Circle".
-const ZONE_COLOR = '#16a34a'
-const ZONE_FILL_OPACITY = 0.2
-const ZONE_OUTLINE_WIDTH_PX = 2
 const DEFAULT_MAP_CENTER: [number, number] = [5.2913, 52.1326]
 const DEFAULT_MAP_ZOOM = 6
 const CURRENT_LOCATION_ZOOM = 13

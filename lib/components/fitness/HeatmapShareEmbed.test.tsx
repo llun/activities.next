@@ -246,6 +246,149 @@ describe('HeatmapShareEmbed', () => {
       }
     })
 
+    describe('fitting the snippet box', () => {
+      // jsdom lays nothing out: drive the measurements the hook reads.
+      const layout = {
+        scrollHeight: 0,
+        offsetWidth: 0,
+        offsetHeight: 0,
+        clientHeight: 0
+      }
+      let notifyResize: () => void
+      let observers: number
+      let disconnected: number
+
+      beforeEach(() => {
+        Object.assign(layout, {
+          scrollHeight: 0,
+          offsetWidth: 0,
+          offsetHeight: 0,
+          clientHeight: 0
+        })
+        observers = 0
+        disconnected = 0
+        notifyResize = () => {}
+        vi.spyOn(
+          HTMLTextAreaElement.prototype,
+          'scrollHeight',
+          'get'
+        ).mockImplementation(() => layout.scrollHeight)
+        vi.spyOn(
+          HTMLElement.prototype,
+          'offsetWidth',
+          'get'
+        ).mockImplementation(() => layout.offsetWidth)
+        vi.spyOn(
+          HTMLElement.prototype,
+          'offsetHeight',
+          'get'
+        ).mockImplementation(() => layout.offsetHeight)
+        vi.spyOn(Element.prototype, 'clientHeight', 'get').mockImplementation(
+          () => layout.clientHeight
+        )
+        class FakeResizeObserver {
+          constructor(callback: ResizeObserverCallback) {
+            observers += 1
+            notifyResize = () => callback([], this as never)
+          }
+          observe = vi.fn()
+          unobserve = vi.fn()
+          disconnect = () => {
+            disconnected += 1
+          }
+        }
+        vi.stubGlobal('ResizeObserver', FakeResizeObserver)
+      })
+
+      afterEach(() => {
+        vi.restoreAllMocks()
+        vi.unstubAllGlobals()
+      })
+
+      const snippet = () =>
+        screen.getByRole('textbox', {
+          name: 'Copy embed code'
+        }) as HTMLTextAreaElement
+
+      it('keeps the rows height while nothing is laid out, instead of collapsing to 0px', () => {
+        render(
+          <HeatmapShareEmbed
+            {...defaultProps}
+            shareToken="tok123"
+            defaultOpen
+          />
+        )
+
+        expect(snippet().style.height).toBe('auto')
+      })
+
+      it('adds the borders to the measured content height', () => {
+        layout.scrollHeight = 80
+        layout.offsetHeight = 84
+        layout.clientHeight = 82
+
+        render(
+          <HeatmapShareEmbed
+            {...defaultProps}
+            shareToken="tok123"
+            defaultOpen
+          />
+        )
+
+        expect(snippet().style.height).toBe('82px')
+      })
+
+      it('re-fits only when the width changes, and stops observing on unmount', () => {
+        layout.scrollHeight = 80
+        layout.offsetWidth = 500
+        const { unmount } = render(
+          <HeatmapShareEmbed
+            {...defaultProps}
+            shareToken="tok123"
+            defaultOpen
+          />
+        )
+        expect(observers).toBe(1)
+        expect(snippet().style.height).toBe('80px')
+
+        // Our own height write fires the observer with the width unchanged.
+        layout.scrollHeight = 120
+        notifyResize()
+        expect(snippet().style.height).toBe('80px')
+
+        // A narrower box wraps to more lines.
+        layout.offsetWidth = 300
+        notifyResize()
+        expect(snippet().style.height).toBe('120px')
+
+        unmount()
+        expect(disconnected).toBeGreaterThan(0)
+      })
+
+      it('re-fits when the snippet text changes', () => {
+        layout.scrollHeight = 80
+        const { rerender } = render(
+          <HeatmapShareEmbed
+            {...defaultProps}
+            shareToken="tok123"
+            defaultOpen
+          />
+        )
+        expect(snippet().style.height).toBe('80px')
+
+        layout.scrollHeight = 100
+        rerender(
+          <HeatmapShareEmbed
+            {...defaultProps}
+            shareToken="tok-with-a-much-longer-value"
+            defaultOpen
+          />
+        )
+
+        expect(snippet().style.height).toBe('100px')
+      })
+    })
+
     it('keep the iframe title attribute while showing the whole snippet', () => {
       render(
         <HeatmapShareEmbed {...defaultProps} shareToken="tok123" defaultOpen />

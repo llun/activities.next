@@ -2574,6 +2574,25 @@ describe('Post', () => {
       expect(button).toHaveClass('min-h-8', '-my-2')
     })
 
+    it('keeps the author link above the timestamp button it can overlap', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{ ...status, summary: null }}
+          onOpenStatus={vi.fn()}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      // jsdom has no layout or hit testing: pin the class that does it. In a
+      // wrapped header the button's 32px box reaches 6px up over the author
+      // link and, later in the DOM, would win the click there. `relative` on
+      // the link's wrapper paints it above the unpositioned button.
+      const authorLink = screen.getByRole('link', { name: 'Llun' })
+      expect(authorLink.parentElement).toHaveClass('relative')
+    })
+
     it('opens the status when the timestamp is pressed', () => {
       const handleOpenStatus = vi.fn()
       render(

@@ -47,14 +47,54 @@ describe('LanguagesPicker', () => {
     expect(glyph).toHaveClass('h-3.5', 'w-3.5', 'shrink-0')
   })
 
-  it('adds a picked language and closes', () => {
+  it('adds a language through the searchable picker and closes', () => {
     const { onChange } = openPicker()
 
+    fireEvent.change(
+      screen.getByRole('textbox', { name: 'Search languages' }),
+      {
+        target: { value: 'deutsch' }
+      }
+    )
     fireEvent.click(screen.getByRole('button', { name: /Deutsch/ }))
 
     expect(onChange).toHaveBeenCalledWith(['en', 'de'])
     expect(
       screen.queryByRole('textbox', { name: 'Search languages' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('renders a chip per selected language', () => {
+    render(<LanguagesPicker value={['en', 'th']} onChange={vi.fn()} />)
+    expect(screen.getByText('English')).toBeInTheDocument()
+    expect(screen.getByText('ไทย')).toBeInTheDocument()
+  })
+
+  it('keeps the chip label on Primary Text and the remove glyph on the brand orange', () => {
+    render(<LanguagesPicker value={['en']} onChange={vi.fn()} />)
+    const chip = screen.getByText('English')
+    expect(chip).toHaveClass('text-primary-text')
+    const glyph = screen
+      .getByRole('button', { name: 'Remove English' })
+      .querySelector('svg')
+    expect(glyph).toHaveClass('text-primary')
+  })
+
+  it('removes a language via its chip button', () => {
+    const onChange = vi.fn()
+    render(<LanguagesPicker value={['en', 'th']} onChange={onChange} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Remove English' }))
+    expect(onChange).toHaveBeenCalledWith(['th'])
+  })
+
+  it('hides the add and remove controls when disabled', () => {
+    render(<LanguagesPicker value={['en']} onChange={vi.fn()} disabled />)
+    expect(screen.getByText('English')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /add language/i })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Remove English' })
     ).not.toBeInTheDocument()
   })
 })

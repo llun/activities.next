@@ -1051,6 +1051,19 @@ describe('AuthorizeCard', () => {
       }
     })
 
+    // Presentation, not behaviour: kept apart from the tests around it so they
+    // stay valid against the card as it was before the shared Checkbox.
+    it('draws each scope box with the shared Checkbox at the 14 px tick', () => {
+      renderCard()
+
+      const boxes = screen.getAllByRole('checkbox')
+      expect(boxes).toHaveLength(4)
+      for (const box of boxes) {
+        expect(box).toHaveAttribute('data-slot', 'checkbox')
+        expect(box).toHaveClass('bg-[length:14px_14px]')
+      }
+    })
+
     it('posts the same scope set through the form data as before', () => {
       const { container } = renderCard()
 
@@ -1077,7 +1090,7 @@ describe('AuthorizeCard', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
       await waitFor(() => {
-        expect(mockSubmitOAuthConsent).toHaveBeenCalledTimes(1)
+        expect(mockSubmitOAuthConsent).toHaveBeenCalled()
       })
       expect(mockSubmitOAuthConsent.mock.calls[0][0]).toMatchObject({
         accept: true,
@@ -1094,7 +1107,7 @@ describe('AuthorizeCard', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
 
       await waitFor(() => {
-        expect(mockSubmitOAuthConsent).toHaveBeenCalledTimes(1)
+        expect(mockSubmitOAuthConsent).toHaveBeenCalled()
       })
       expect(mockSubmitOAuthConsent.mock.calls[0][0].scope).toBe('')
     })

@@ -1,5 +1,6 @@
 import crypto from 'node:crypto'
 
+import { ROUTE_COLOR } from '@/lib/fitness/routeColor'
 import { simplifySegmentsToBudget } from '@/lib/services/fitness-files/simplifyRoute'
 import { encodePolyline } from '@/lib/utils/polyline'
 
@@ -39,13 +40,11 @@ const OVERLAY_MAX_POINTS = 120
 // map agree. Kept as a local literal rather than imported: this module is
 // server-only and must not reach into the client component tree.
 const SNAPSHOT_MAP_TYPE = 'mutedStandard'
-// The brand orange (the design's Brand/Primary), as the 6-digit hex Apple's
-// `strokeColor` takes (no `#`): the same `#E55F06` the Mapbox and OSM renderers
-// draw routes in (ROUTE_COLOR in generateMapImage.ts), so a route reads the same
-// in the activity-import email whichever map provider the instance uses. Kept as
-// its own literal: generateMapImage.ts imports this module, so importing its
-// constant back would be a circular dependency.
-const ROUTE_COLOR_HEX = 'e55f06'
+// The route colour as the 6-digit hex Apple's `strokeColor` takes (no `#`):
+// the same orange the Mapbox and OSM renderers and the interactive maps draw
+// routes in, so a route reads the same in the activity-import email whichever
+// map provider the instance uses.
+const ROUTE_COLOR_HEX = ROUTE_COLOR.slice(1).toLowerCase()
 const ROUTE_STROKE_OPACITY = 0.9
 const ROUTE_LINE_WIDTH = 4
 // Longest team/key identifier we budget for (Apple issues 10-character ids).

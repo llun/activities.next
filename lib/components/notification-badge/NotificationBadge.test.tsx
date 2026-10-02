@@ -7,14 +7,19 @@ import { render, screen } from '@testing-library/react'
 import { NotificationBadge } from './NotificationBadge'
 
 describe('NotificationBadge', () => {
-  it('renders nothing for a zero or negative count', () => {
-    const { container } = render(<NotificationBadge count={0} />)
+  it.each([0, -1])('renders nothing for a count of %i', (count) => {
+    const { container } = render(<NotificationBadge count={count} />)
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('caps the label at 99+', () => {
-    render(<NotificationBadge count={142} />)
-    expect(screen.getByText('99+')).toBeInTheDocument()
+  it.each([
+    [1, '1'],
+    [99, '99'],
+    [100, '99+'],
+    [142, '99+']
+  ])('labels a count of %i as %s', (count, label) => {
+    render(<NotificationBadge count={count} />)
+    expect(screen.getByText(label)).toBeInTheDocument()
   })
 
   it('fills with the design count-badge red: #B7282E in light, --destructive in dark', () => {

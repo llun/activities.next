@@ -116,7 +116,7 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
                     // paints the identical row, and the pair now sits on one
                     // screen on a gear's page, where two shades of orange
                     // would read as a mistake.
-                    'bg-primary/10 text-primary-text focus:bg-primary/10 focus:text-primary-text',
+                    'bg-primary/10 text-primary-text focus:bg-primary/10 focus:text-primary-text dark:focus:bg-primary/10',
                     // …but "held on focus" would otherwise make the focused
                     // current row pixel-identical to its resting state, so a
                     // keyboard user watching the highlight move down the list

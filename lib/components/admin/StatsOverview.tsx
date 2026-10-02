@@ -246,25 +246,23 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
       >
         <div className="rounded-2xl border bg-background/80 p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
-            <div>
-              <select
-                value={selectedCounter}
-                onChange={(e) =>
-                  setSelectedCounter(e.target.value as ServiceStatCounterType)
-                }
-                aria-label="Select statistic type"
-                className={cn(
-                  'rounded-md border bg-background py-1.5 pl-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary',
-                  selectChevronClassName
-                )}
-              >
-                {statCards.map((card) => (
-                  <option key={card.counterType} value={card.counterType}>
-                    {card.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <select
+              value={selectedCounter}
+              onChange={(e) =>
+                setSelectedCounter(e.target.value as ServiceStatCounterType)
+              }
+              aria-label="Select statistic type"
+              className={cn(
+                'rounded-md border bg-background py-1.5 pl-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary',
+                selectChevronClassName
+              )}
+            >
+              {statCards.map((card) => (
+                <option key={card.counterType} value={card.counterType}>
+                  {card.label}
+                </option>
+              ))}
+            </select>
             {selectedTrend !== undefined && (
               <span
                 className={`rounded-full px-2 py-0.5 text-xs font-medium ${

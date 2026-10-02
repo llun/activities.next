@@ -9,9 +9,10 @@
  * 6 wide at 90% under a #E55F06 (Brand/Primary) line 3.3 wide, which keeps the
  * trace readable on any basemap tile without tinting it.
  */
+import { ROUTE_COLOR } from '@/lib/fitness/routeColor'
 
 /** The shared trace. Fully opaque: any transparency would tint #E55F06. */
-export const ROUTE_LINE_COLOR = '#E55F06'
+export const ROUTE_LINE_COLOR = ROUTE_COLOR
 export const ROUTE_LINE_WIDTH_PX = 3.3
 
 /** The halo under every drawn stretch, visible and hidden alike. */

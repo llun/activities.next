@@ -222,7 +222,7 @@ describe('destructive-text contrast (WCAG 2.1 AA SC 1.4.3)', () => {
     }
   )
 
-  it('keeps the light destructive FILL brighter than the light destructive text', () => {
+  it('pins the light destructive text (#B7282E) and fill (#EF4444)', () => {
     expect(rgbOf(themes.light, '--destructive-text')).toEqual([183, 40, 46])
     expect(rgbOf(themes.light, '--destructive')).toEqual([239, 68, 68])
   })
@@ -278,15 +278,6 @@ describe('like-text contrast (WCAG 2.1 AA SC 1.4.3)', () => {
 })
 
 describe('surface-chrome token', () => {
-  it.each(['light', 'dark'] as const)(
-    'defines --surface-chrome in %s',
-    (theme) => {
-      expect(themes[theme]['--surface-chrome']).toMatch(
-        /^hsl\(.+\/\s*[\d.]+\)$/
-      )
-    }
-  )
-
   it('is white at 72 % in light and #141414 at 80 % in dark', () => {
     expect(themes.light['--surface-chrome']).toBe('hsl(0 0% 100% / 0.72)')
     expect(themes.dark['--surface-chrome']).toBe('hsl(0 0% 7.8% / 0.8)')
@@ -322,5 +313,20 @@ describe('design palette tokens', () => {
     // Orange #492812 top-left, sky #193543 top-right.
     expect(darkBody).toContain('rgb(73 40 18 / 0.6)')
     expect(darkBody).toContain('rgb(25 53 67 / 0.6)')
+  })
+})
+
+describe('@theme utility mappings', () => {
+  // Tailwind v4 emits a `bg-<name>` / `text-<name>` utility only for a
+  // `--color-<name>` in @theme; without it the class compiles to no rule at all.
+  it.each(['control-off', 'like-text', 'surface-chrome', 'surface-accent'])(
+    'maps --color-%s to its token',
+    (name) => {
+      expect(css).toMatch(new RegExp(`--color-${name}:\\s*var\\(--${name}\\)`))
+    }
+  )
+
+  it('draws text-lg on a 24px line (1.5 / 1.125)', () => {
+    expect(css).toContain('--text-lg--line-height: calc(1.5 / 1.125)')
   })
 })

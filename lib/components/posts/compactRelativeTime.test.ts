@@ -65,12 +65,14 @@ describe('formatCompactRelativeTime', () => {
     it.each([
       [7 * DAY, '1w'],
       [15 * DAY, '2w'],
+      [27 * DAY, '3w'],
       [30 * DAY - SECOND, '4w'],
       [30 * DAY, '1mo'],
       [59 * DAY, '1mo'],
       [60 * DAY, '2mo'],
       [364 * DAY, '11mo'],
       [365 * DAY, '1y'],
+      [600 * DAY, '1y'],
       [800 * DAY, '2y']
     ])('formats %i ms as %s', (ms, expected) => {
       expect(ago(ms)).toBe(expected)

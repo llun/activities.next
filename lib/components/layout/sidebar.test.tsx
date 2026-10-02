@@ -460,6 +460,68 @@ describe('Sidebar', () => {
       ).not.toHaveAttribute('aria-current')
     })
 
+    // `text-primary-text`, never `text-primary`: `--primary` is the icon orange
+    // and is under the AA floor as a label (globals.contrast.test.ts guards the
+    // token values, not their usage). The icon alone keeps the brand orange.
+    it('draws the current row label in the text token and its icon in the brand orange', () => {
+      mockPathname.mockReturnValue('/search')
+      renderSidebar(<Sidebar lists={[]} />)
+
+      const nav = screen.getAllByRole('navigation')[0]
+      const active = within(nav).getByRole('link', { name: 'Search' })
+      expect(active).toHaveClass('text-primary-text')
+      expect(active.querySelector('svg')).toHaveClass('text-primary')
+
+      const inactive = within(nav).getByRole('link', { name: 'Timeline' })
+      expect(inactive).not.toHaveClass('text-primary-text')
+      expect(inactive.querySelector('svg')).not.toHaveClass('text-primary')
+    })
+
+    it('draws the Lists section and the open list in the same split', () => {
+      mockPathname.mockReturnValue('/lists/a')
+      renderSidebar(<Sidebar lists={lists} />)
+
+      const nav = screen.getAllByRole('navigation')[0]
+      const section = within(nav).getByRole('link', { name: 'Lists' })
+      expect(section.parentElement).toHaveClass('text-primary-text')
+      expect(section.querySelector('svg')).toHaveClass('text-primary')
+      expect(
+        within(nav).getByRole('link', { name: 'Running club' })
+      ).toHaveClass('text-primary-text')
+    })
+
+    it('draws the More group and its current row in the same split', () => {
+      mockPathname.mockReturnValue('/favorites')
+      renderSidebar(<Sidebar lists={[]} />, { hidden: ['favorites'] })
+
+      // The group opens on its own when the route is inside it.
+      const nav = screen.getAllByRole('navigation')[0]
+      const row = within(nav).getByRole('link', { name: 'Favorites' })
+      expect(row).toHaveClass('text-primary-text')
+      expect(row.querySelector('svg')).toHaveClass('text-primary')
+
+      // Collapsed, the group's own row carries the current-page colour.
+      const more = within(nav).getByRole('button', { name: /^More/ })
+      fireEvent.click(more)
+      expect(more).toHaveClass('text-primary-text')
+      expect(more.querySelector('svg')).toHaveClass('text-primary')
+    })
+
+    it('draws the current row of the rail flyout in the same split', async () => {
+      mockPathname.mockReturnValue('/favorites')
+      renderSidebar(<Sidebar lists={[]} />, { hidden: ['favorites'] })
+
+      const rail = screen.getAllByRole('navigation')[1]
+      fireEvent.keyDown(
+        within(rail).getByRole('button', { name: 'More navigation' }),
+        { key: 'ArrowDown' }
+      )
+
+      const row = await screen.findByRole('menuitem', { name: 'Favorites' })
+      expect(row).toHaveClass('text-primary-text')
+      expect(row.querySelector('svg')).toHaveClass('text-primary')
+    })
+
     it('cannot move the first row up or the last row down', () => {
       renderSidebar(<Sidebar lists={[]} />)
 
