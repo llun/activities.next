@@ -1,6 +1,7 @@
 import type { JoinConfig } from 'better-auth/adapters'
 import knex, { Knex } from 'knex'
 
+import { withTimeZone } from '@/lib/testing/withTimeZone'
 import { logger } from '@/lib/utils/logger'
 
 import { knexAdapter } from './knexAdapter'
@@ -496,10 +497,7 @@ describe('knexAdapter', () => {
     })
 
     it('records session timestamp strings without timezone as UTC', async () => {
-      const originalTimeZone = process.env.TZ
-      process.env.TZ = 'Europe/Amsterdam'
-
-      try {
+      await withTimeZone('Europe/Amsterdam', async () => {
         await db('users').insert({
           id: 'u-sqlite-time',
           email: 'sqlite-time@test.com'
@@ -526,13 +524,7 @@ describe('knexAdapter', () => {
             value: Math.floor(Date.UTC(2026, 4, 25) / 1000)
           }
         ])
-      } finally {
-        if (originalTimeZone === undefined) {
-          delete process.env.TZ
-        } else {
-          process.env.TZ = originalTimeZone
-        }
-      }
+      })
     })
   })
 

@@ -676,15 +676,33 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   must not be relied on in first-party tests.) The `jest.Mock` /
   `jest.MockedFunction` / `jest.Mocked` **type** names still work via a
   compatibility shim in `vitest.d.ts`.
-- **The suite's clock is pinned to `TZ=UTC`** (`vitest.config.ts` → `test.env`).
-  CI already runs in UTC, so before the pin a date assertion that only held
-  there passed review and then failed on the first developer machine set to
-  anything else. The pin is a backstop, not a licence: a formatter whose output
-  must not depend on the viewer's zone still has to say `timeZone: 'UTC'`
-  itself, because production is not running under the pin. The bug that
-  prompted it — an `<input type="date">` value (parsed as UTC midnight) read
-  back through a local-time `Intl.DateTimeFormat` — rendered a day early in
-  `America/Los_Angeles` and a day late in `Asia/Tokyo`.
+- **The suite's clock is pinned to `TZ=UTC`** (`vitest.config.ts` assigns
+  `process.env.TZ` at the top of the file). CI already runs in UTC, so before
+  the pin a date assertion that only held there passed review and then failed
+  on the first developer machine set to anything else. The pin is a backstop,
+  not a licence: a formatter whose output must not depend on the viewer's zone
+  still has to say `timeZone: 'UTC'` itself, because production is not running
+  under the pin. The bug that prompted it — an `<input type="date">` value
+  (parsed as UTC midnight) read back through a local-time
+  `Intl.DateTimeFormat` — rendered a day early in `America/Los_Angeles` and a
+  day late in `Asia/Tokyo`.
+  - **The pin is set in Vitest's main process, not in `test.env`.** `test.env`
+    is applied inside each worker, and on a worker thread an assignment to
+    `process.env.TZ` changes the variable without changing the zone `Date` and
+    `Intl` use — Node re-reads the zone only for the main thread. With the pin
+    in `test.env`, `process.env.TZ` read `UTC` while every test on the
+    `threads` project ran in the machine's own zone. `vitest.config.test.ts`
+    runs in both projects and fails if either pool is not in UTC.
+  - **An external `TZ` does not override it**: `TZ=Pacific/Noumea yarn test`
+    still runs in UTC. The pin is the suite's zone, not a default.
+  - **A test that needs another zone wraps the code in `withTimeZone`** from
+    `@/lib/testing/withTimeZone` — for example to show that a timestamp
+    without an offset is parsed as UTC, which a UTC process cannot tell apart
+    from a local-time parse. For the same reason a bare
+    `process.env.TZ = '…'` inside a test does nothing on a worker thread and
+    leaves the test passing without testing anything; the helper throws when
+    the zone did not move, and `vitest.config.ts` routes every file that calls
+    it to the `forks` project (see the worker-threads rule below).
 - **The suite also runs with `LOG_LEVEL=silent`** (`vitest.config.ts` →
   `test.env`). Failure-path tests log hundreds of expected warn/error lines,
   and printed they buried the real failures. Assert logging by spying on
@@ -700,13 +718,16 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   the boundary: advance to `TIMEOUT - 1` and assert nothing happened, then by
   one more and assert it did. Restore with `vi.useRealTimers()` in `afterEach`.
 - **Test files run on worker threads, except those that call
-  `process.chdir()`.** `vitest.config.ts` defines two projects: `threads`
-  (every test file, one fresh worker thread per file) and `forks` (the handful
-  of files that `process.chdir()` into a temp directory — Node rejects that
-  call inside a worker thread with "process.chdir() is not supported in
-  workers"). The config finds them by scanning test files for
-  `process.chdir(`, so a new such file needs no list edit, and one the scan
-  misses fails with that error rather than passing. Threads start faster than
+  `process.chdir()` or `withTimeZone()`.** `vitest.config.ts` defines two
+  projects: `threads` (every test file, one fresh worker thread per file) and
+  `forks` (the handful of files that need the main thread of a process of
+  their own: those that `process.chdir()` into a temp directory — Node rejects
+  that call inside a worker thread with "process.chdir() is not supported in
+  workers" — and those that move the time zone with `withTimeZone()`, which a
+  worker thread silently ignores). The config finds them by scanning test
+  files for `process.chdir(` and `withTimeZone(`, so a new such file needs no
+  list edit, and one the scan misses fails — with that Node error, or with
+  `withTimeZone`'s own — rather than passing. Threads start faster than
   a process per file: the split cut a full run by about a fifth on a 14-core
   machine, and by about 7% on CI's 4-core runners (fewer workers, so less
   per-file start-up to save). Two faster options were measured and declined:

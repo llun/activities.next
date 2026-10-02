@@ -1,5 +1,6 @@
 import knex, { Knex } from 'knex'
 
+import { withTimeZone } from '@/lib/testing/withTimeZone'
 import * as migration from '@/migrations/20260526112702_backfill_instance_activity_counters'
 
 const sumCounterRows = (rows: { value: number | string | null }[]) =>
@@ -311,10 +312,7 @@ describe('instance activity counter migration', () => {
   })
 
   it('backfills SQLite timestamp strings without timezone as UTC', async () => {
-    const originalTimeZone = process.env.TZ
-    process.env.TZ = 'Europe/Amsterdam'
-
-    try {
+    await withTimeZone('Europe/Amsterdam', async () => {
       await database('accounts').insert({
         id: 'account-sqlite-time',
         createdAt: '2026-05-25 00:30:00.000',
@@ -356,13 +354,7 @@ describe('instance activity counter migration', () => {
       expect(statusBucket?.value).toBe(1)
       expect(loginBucket?.value).toBe(1)
       expect(marker?.value).toBe(Math.floor(Date.UTC(2026, 4, 25) / 1000))
-    } finally {
-      if (originalTimeZone === undefined) {
-        delete process.env.TZ
-      } else {
-        process.env.TZ = originalTimeZone
-      }
-    }
+    })
   })
 
   it.each(['userId', 'user_id'])(

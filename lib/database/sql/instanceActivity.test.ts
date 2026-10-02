@@ -6,6 +6,7 @@ import {
   recordWeeklyLogin,
   recordWeeklyLoginSafely
 } from '@/lib/database/sql/instanceActivity'
+import { withTimeZone } from '@/lib/testing/withTimeZone'
 import { logger } from '@/lib/utils/logger'
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
@@ -120,10 +121,7 @@ describe('instance activity counters', () => {
   })
 
   it('groups SQLite timestamp strings without timezone as UTC', async () => {
-    const originalTimeZone = process.env.TZ
-    process.env.TZ = 'Europe/Amsterdam'
-
-    try {
+    await withTimeZone('Europe/Amsterdam', async () => {
       await database('counters').insert({
         id: 'bucket:local-statuses:2026052500',
         value: 1,
@@ -144,13 +142,7 @@ describe('instance activity counters', () => {
         week: String(toUnixSeconds(new Date('2026-05-18T00:00:00.000Z'))),
         statuses: '0'
       })
-    } finally {
-      if (originalTimeZone === undefined) {
-        delete process.env.TZ
-      } else {
-        process.env.TZ = originalTimeZone
-      }
-    }
+    })
   })
 
   it('filters bucket rows by sortable counter id range in the database query', async () => {
