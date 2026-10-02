@@ -1,0 +1,130 @@
+lib/components/posts/status-thread.tsx
+  s_82468012d96a9d::t_2bbd0f57194720 498
+lib/components/posts/actions/edit-history-button.tsx
+  s_82468012d96a9d::t_8dab30d30f1909 158-161
+  s_82468012d96a9d::t_c0e2771a806cbc 157
+docs/mastodon-api-compatibility.md
+  s_82468012d96a9d::t_c3594818ea01dc 835-836
+lib/components/posts/compactRelativeTime.test.ts
+  s_82468012d96a9d::t_2bbd0f57194720 82
+  s_82468012d96a9d::t_3afc80af3e19db 1-81,83-93
+app/(timeline)/messages/MessagesPage.test.tsx
+  s_82468012d96a9d::t_39b4a5dfdf988e 997-1012,1014-1017,1019-1023
+  s_82468012d96a9d::t_facdbc4e564785 1013,1018
+lib/components/posts/collapsible-content.test.tsx
+  s_82468012d96a9d::t_7b8c19f4916744 102-126
+lib/components/posts/attachments.test.tsx
+  s_82468012d96a9d::t_063278eab230e8 752-823,825,827-850,1801-1803,1807,1888-1893
+  s_82468012d96a9d::t_142014d4329d7a 824,826
+lib/components/posts/compactRelativeTime.ts
+  s_82468012d96a9d::t_18b8798b4f998d 1-39
+lib/components/posts/post.tsx
+  s_82468012d96a9d::t_c6fec628311e73 525-531,533
+  s_82468012d96a9d::t_40ed8866261e85 51,102-108,181-183,185-188,495-502,512-516,522
+  s_82468012d96a9d::t_2bbd0f57194720 24
+  s_82468012d96a9d::t_e5d4f4531d4e76 532
+app/(timeline)/[actor]/page.test.tsx
+  s_82468012d96a9d::t_94e99cec4bcd09 263-306,336
+  s_82468012d96a9d::t_d27d6b082f5b19 115-117,157,187,219,229-262,307-335
+  s_82468012d96a9d::t_d138c10cff1001 337,494-496
+lib/components/trends/trend-tag-row.test.tsx
+  s_82468012d96a9d::t_f590b07bc297e9 41-56
+docs/architecture.md
+  s_82468012d96a9d::t_8d65610bc833dc 1345-1351
+  s_82468012d96a9d::t_799e4b2b9c3f83 1917-1927
+app/(timeline)/[actor]/page.tsx
+  s_82468012d96a9d::t_cef51ee0da3ad0 171-175,259
+  s_82468012d96a9d::t_423ab18d9d7aed 280-284,289,292-293
+app/(timeline)/[actor]/ActorTimelines.test.tsx
+  s_82468012d96a9d::t_7b05de463b16b8 132,136,138-142,621-647
+  s_82468012d96a9d::t_152deb860252ca 648-649
+app/(timeline)/messages/MessagesPage.tsx
+  s_82468012d96a9d::t_06059b053f7700 761,1022-1024
+lib/components/posts/actions/edit-history-button.test.tsx
+  s_82468012d96a9d::t_c0e2771a806cbc 80-92
+lib/components/trends/trend-tag-row.tsx
+  s_82468012d96a9d::t_f590b07bc297e9 44-45
+app/(timeline)/messages/loading.tsx
+  s_82468012d96a9d::t_eb89aeababad68 34
+lib/components/posts/attachments.tsx
+  s_82468012d96a9d::t_b5b1a545bc1cc7 196-197,205-209
+  s_82468012d96a9d::t_d5e0954a7c4586 179-195,198-204,210-218,368-374,447-453
+  s_82468012d96a9d::t_17116af76b3dfb 454-457
+app/(timeline)/collections/CollectionEditor.tsx
+  s_82468012d96a9d::t_eccab2b037954a 357-360
+app/(timeline)/[actor]/ActorTimelines.tsx
+  s_82468012d96a9d::t_3a7a93fae7151e 100-105,484,488,493,498
+lib/components/posts/status-thread.test.tsx
+  s_82468012d96a9d::t_39fe4eac3f716c 102-147
+lib/components/posts/post.test.tsx
+  s_82468012d96a9d::t_f90fe4e4602b72 2476-2484,2486-2488,2494,2517-2558,2560-2563,2566-2568,2575,2579-2582,2585-2587,2592-2593,2597-2599,2601-2603,2611-2613,2616-2618,2620
+  s_82468012d96a9d::t_b7a3f4066346c9 2473-2475
+  s_82468012d96a9d::t_125d0204cdf32c 2485
+  s_82468012d96a9d::t_5c2e3497185258 2489-2493
+  s_82468012d96a9d::t_502ef699a9ff69 2495-2497,2514-2516
+  s_82468012d96a9d::t_5b4cf1806abe81 2559
+  s_82468012d96a9d::t_204d26f9e3fdfa 2564-2565
+  s_82468012d96a9d::t_29fdcca82f2d6f 2569-2574
+  s_82468012d96a9d::t_4145e32551c953 2576-2578
+  s_82468012d96a9d::t_d95bf2a81eeefa 2583-2584
+  s_82468012d96a9d::t_c2ae0595d9e244 2588-2591
+  s_82468012d96a9d::t_88755ec28ace01 2594-2596
+  s_82468012d96a9d::t_648de38b6c38c8 2600
+  s_82468012d96a9d::t_d79d83a85109ae 2604-2606,2608-2610
+  s_82468012d96a9d::t_04d63ce9e03d57 2614-2615
+  s_82468012d96a9d::t_5b9dde9d99736a 2619
+  s_82468012d96a9d::t_08c1d07c3c7b1e 2621-2622
+  s_108ba46890a3e6::t_66e79141792e03 2471-2472,2498-2513,2607
+lib/components/posts/collapsible-content.tsx
+  s_82468012d96a9d::t_9424970da91e74 27-35,84-88,102
+lib/components/posts/translate-content.test.tsx
+  s_82468012d96a9d::t_66d73b7233b310 12,120-136
+  s_82468012d96a9d::t_d4a4ed476c15bf 137-138
+lib/components/posts/media.tsx
+  s_82468012d96a9d::t_d5e0954a7c4586 416-420
+app/(timeline)/[actor]/[status]/StatusBox.tsx
+  s_82468012d96a9d::t_2bbd0f57194720 119
+lib/components/posts/media.test.tsx
+  s_82468012d96a9d::t_b424e13d765c45 298-341
+app/(timeline)/explore/ExplorePageClient.test.tsx
+  s_82468012d96a9d::t_217273d6b482f7 205
+app/(timeline)/[actor]/[status]/StatusBox.test.tsx
+  s_82468012d96a9d::t_39fe4eac3f716c 95-123
+lib/components/posts/content-warning.test.tsx
+  s_82468012d96a9d::t_4fa51c57bf4153 20
+  s_82468012d96a9d::t_3b89a69c5d7291 43-60,80
+app/(timeline)/collections/CollectionEditor.test.tsx
+  s_82468012d96a9d::t_cffe7e98516623 118-142
+lib/components/load-more-button/load-more-button.test.tsx
+  s_82468012d96a9d::t_bb02c5a45f56b2 23-41
+lib/components/load-more-button/load-more-button.tsx
+  s_82468012d96a9d::t_20f487e78e1ca2 55-61
+lib/components/posts/content-warning.tsx
+  s_82468012d96a9d::t_98738e0ab69c0c 48
+lib/components/posts/translate-content.tsx
+  s_82468012d96a9d::t_a0b5381122eb2b 3,117-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8f1662f5bde58c9df028f50b9dbfca24a8a88430",
+  "prompts": {},
+  "sessions": {
+    "s_108ba46890a3e6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a7f41503eb0a98771",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_82468012d96a9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c1772d3-df89-4813-8d33-4cbceee3810d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

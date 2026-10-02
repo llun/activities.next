@@ -1,0 +1,191 @@
+app/(timeline)/admin/reports/AdminReportsList.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 90
+lib/components/ui/dialog.tsx
+  s_c5025a55acb7b5::t_535c0b5df3d2b0 63
+lib/components/posts/actions/like-button.test.tsx
+  s_c5025a55acb7b5::t_c3714023df6e64 72-99
+app/globals.css
+  s_c5025a55acb7b5::t_26eaf3ad7487a4 33-34,109-111,113-130,217-220,306-309
+  s_82468012d96a9d::t_eb53e16c456d0d 286-289,294,299
+  s_c5025a55acb7b5::t_723ee3a6bb748e 112
+  s_82468012d96a9d::t_3fb6f73537532b 35,131-135,221-222
+  s_82468012d96a9d::t_6aada5fddf0abf 62-66,144-146,231-233
+  s_82468012d96a9d::t_00e5b57fbffa46 234
+lib/components/posts/status-reply-box.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 353
+app/(timeline)/notifications/components/ActivityImportNotification.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 43
+docs/fitness-file-storage.md
+  s_c5025a55acb7b5::t_cf3519041b7b56 1127-1128
+lib/components/posts/status-thread.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 341,345,350,385,574
+lib/components/fitness/HeatmapShareEmbed.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 313,389
+  s_c5025a55acb7b5::t_0ad0499f426e31 391-392
+lib/components/post-box/poll-choices.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 141,144
+lib/components/ui/dropdown-menu.tsx
+  s_82468012d96a9d::t_d2ad60efb85894 77,95,131,138,221
+  s_82468012d96a9d::t_9afac6ff15e308 4
+lib/components/posts/poll.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 231
+lib/components/notification-badge/NotificationBadge.tsx
+  s_82468012d96a9d::t_3b4bdae92d43e7 24-27
+app/(nosidebar)/auth/signin/CredentialForm.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 103
+lib/components/filters/FilterEditor.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 321
+lib/components/posts/actions/reaction-button.tsx
+  s_c5025a55acb7b5::t_b8c352c6d6b0f2 87-88,97-102
+app/(timeline)/account/sessions/AccountSessions.tsx
+  s_82468012d96a9d::t_4be906d9da7a9e 105
+app/(timeline)/PublicTopBar.tsx
+  s_82468012d96a9d::t_54e0bd70e825d9 20
+lib/components/settings/FitnessFileManagement.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 318
+lib/components/filters/FilterRow.test.tsx
+  s_82468012d96a9d::t_eace9a9f47cf4e 1-61
+app/(timeline)/collections/[id]/CollectionDetail.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 319-320
+lib/components/posts/reaction-row.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 69
+app/(timeline)/explore/ExplorePageClient.test.tsx
+  s_82468012d96a9d::t_0187e1787611da 165-181,183-186
+  s_82468012d96a9d::t_d82d0a521abf98 182
+app/u/heatmaps/[token]/SharedHeatmapPage.tsx
+  s_82468012d96a9d::t_54e0bd70e825d9 59
+app/(timeline)/admin/accounts/page.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 62
+lib/components/posts/actions/visibility-button.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 114
+lib/components/trends/trending-now-block.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 47
+lib/components/posts/actions/like-button.tsx
+  s_c5025a55acb7b5::t_b8c352c6d6b0f2 61,98-102
+lib/components/surfaceChromeUsage.test.ts
+  s_82468012d96a9d::t_d82d0a521abf98 27-34
+  s_82468012d96a9d::t_7c7c3783a4c637 1-26,35
+lib/components/admin-rules/RulesPanel.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 34
+docs/architecture.md
+  s_82468012d96a9d::t_a73717d0aa4ec2 1572-1577,1582-1598
+  s_82468012d96a9d::t_c0f2359125ff60 1604-1605
+  s_c5025a55acb7b5::t_cf3519041b7b56 1541-1551,1553,1557-1561,1568-1571,1578-1581,1599-1603
+lib/components/ui/switch.test.tsx
+  s_82468012d96a9d::t_3e1dfa2d627825 1-24
+app/(nosidebar)/auth/forgot-password/page.tsx
+  s_c5025a55acb7b5::t_0ad0499f426e31 47-50
+lib/components/profile/FeaturedTagsBlock.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 31
+lib/components/settings/FitnessImport.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 266
+lib/components/filters/FilterRow.tsx
+  s_c5025a55acb7b5::t_4b32444ceb1dc5 20-21
+  s_c5025a55acb7b5::t_b2b758a4d7b990 7,22,27-34
+  s_82468012d96a9d::t_2ab0e86af7dc16 46
+lib/components/admin/StatsOverview.tsx
+  s_82468012d96a9d::t_3fb6f73537532b 279,325
+app/globals.contrast.test.ts
+  s_82468012d96a9d::t_3c51ab012a4383 293-318,322,325-326
+  s_c5025a55acb7b5::t_0ad0499f426e31 208-229,250-292
+  s_82468012d96a9d::t_253a32da09a9b2 319-321,323-324
+app/(timeline)/[actor]/[status]/Header.tsx
+  s_82468012d96a9d::t_54e0bd70e825d9 18
+app/(timeline)/explore/ExplorePageClient.tsx
+  s_82468012d96a9d::t_a76651ec1c7de5 52-53,55,69,71-73
+app/(timeline)/account/sessions/AccountSessions.test.tsx
+  s_82468012d96a9d::t_eace9a9f47cf4e 190-199
+lib/components/admin/settings/LanguagesPicker.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 70
+  s_82468012d96a9d::t_a749f95e8fc37e 80
+app/(nosidebar)/auth/reset-password/page.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 43
+lib/components/layout/sidebar.tsx
+  s_c5025a55acb7b5::t_a22fd65f6c7b74 312,338-343,361-366,368-373,391,417,421-423,463,467-472,498,502-507,656,659-664
+  s_c5025a55acb7b5::t_33ea339210e715 287,573
+lib/components/ui/badge.test.tsx
+  s_c5025a55acb7b5::t_c3714023df6e64 1-40,49
+  s_82468012d96a9d::t_eace9a9f47cf4e 41-48
+lib/components/announcements/AnnouncementBanner.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 90,126,484-485
+lib/components/settings/MediaManagement.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 227
+lib/components/post-box/visibility-selector.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 152,165,204,216
+lib/components/ui/button.test.tsx
+  s_c5025a55acb7b5::t_c3714023df6e64 54-67
+app/(timeline)/[actor]/[status]/FitnessAnalysisCharts.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 957
+lib/components/page-header.tsx
+  s_c5025a55acb7b5::t_33ea339210e715 123
+lib/components/ui/dialog.test.tsx
+  s_c5025a55acb7b5::t_42ef7a21a82ff7 1-39
+app/(timeline)/admin/reports/[id]/AdminReportDetail.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 124,190
+lib/components/ui/badge.tsx
+  s_82468012d96a9d::t_4be906d9da7a9e 11-13
+  s_c5025a55acb7b5::t_4b32444ceb1dc5 14-23
+app/(timeline)/[actor]/[status]/loading.tsx
+  s_82468012d96a9d::t_54e0bd70e825d9 12
+lib/components/notification-badge/NotificationBadge.test.tsx
+  s_82468012d96a9d::t_3e1dfa2d627825 1-23,29-42
+  s_82468012d96a9d::t_d82d0a521abf98 24-28
+lib/components/posts/reply-toast.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 39
+app/(nosidebar)/auth/signin/page.tsx
+  s_c5025a55acb7b5::t_0ad0499f426e31 119-122
+lib/components/ui/switch.tsx
+  s_82468012d96a9d::t_6aada5fddf0abf 16
+lib/components/scroll-to-top-button/scroll-to-top-button.tsx
+  s_c5025a55acb7b5::t_ffc00bd5472779 69
+app/(timeline)/fitness/connections/strava/StravaGearDefaultsSection.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 418
+app/(timeline)/settings/featured-hashtags/FeaturedTagsEditor.tsx
+  s_c5025a55acb7b5::t_0ad0499f426e31 365-367
+app/(timeline)/fitness/gear/[id]/GearDetailView.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 346
+app/(timeline)/MainPageTimeline.tsx
+  s_c5025a55acb7b5::t_ffc00bd5472779 405-407
+lib/components/ui/dropdown-menu.test.tsx
+  s_82468012d96a9d::t_d82d0a521abf98 26-28,50-57
+  s_82468012d96a9d::t_3e1dfa2d627825 1-25,29-49,58-68
+app/(timeline)/admin/accounts/[id]/page.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 50
+app/(nosidebar)/auth/two-factor/TwoFactorForm.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 133
+app/(nosidebar)/auth/signup/page.tsx
+  s_c5025a55acb7b5::t_0ad0499f426e31 79-82
+lib/components/admin/settings/settings.test.tsx
+  s_82468012d96a9d::t_3a2c76ea89af6b 57-66
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 247,590,594,599,1488-1489
+lib/components/layout/mobile-navigation-header.tsx
+  s_c5025a55acb7b5::t_33ea339210e715 21
+lib/components/ui/button.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 21
+  s_c5025a55acb7b5::t_ffc00bd5472779 16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9647f9bbfb604fb2b444c340d9e1961b6714cafe",
+  "prompts": {},
+  "sessions": {
+    "s_82468012d96a9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c1772d3-df89-4813-8d33-4cbceee3810d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_c5025a55acb7b5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "799d8f19-87d3-4594-af45-8223890a7107",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
