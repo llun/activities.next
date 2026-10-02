@@ -3,6 +3,22 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 
+// Pin the suite's clock to UTC. CI runners default to UTC, so a date assertion
+// that only holds there passes review and then fails on the first developer
+// machine set to anything else — a component rendering a UTC-midnight
+// timestamp through a local-time formatter read a day early in
+// `America/Los_Angeles` and a day late in `Asia/Tokyo`. Formatters that must
+// be zone-independent say so themselves (`timeZone: 'UTC'`); this only stops
+// the runner's zone from deciding whether the suite is green.
+//
+// It is assigned here, in Vitest's main process and before any worker exists,
+// because that is the only place it reaches every pool. `test.env` is applied
+// inside each worker, and on a worker thread assigning `process.env.TZ`
+// changes the variable but not the zone `Date` and `Intl` use: Node re-reads
+// the zone only for the main thread. An externally supplied `TZ` is replaced
+// too — the pin is not a default. `vitest.config.test.ts` guards it.
+process.env.TZ = 'UTC'
+
 const resolvePath = (relativePath: string) =>
   fileURLToPath(new URL(relativePath, import.meta.url))
 
@@ -15,19 +31,32 @@ const EXCLUDED = [
   '**/coverage/**'
 ]
 
-// Test files that call `process.chdir()`, which Node refuses inside a worker
-// thread ("process.chdir() is not supported in workers"). They run in the
-// forked-process project; everything else runs on worker threads, which start
-// much faster than a process per file. A file this scan misses fails loudly
-// with that error rather than passing wrongly.
+// Runs in both projects, so the UTC pin is checked on a worker thread and in a
+// forked process.
+const TIME_ZONE_PIN_GUARD = 'vitest.config.test.ts'
+
+// Test files that need a process of their own, because Node only honours the
+// call on the main thread: `process.chdir()` ("process.chdir() is not
+// supported in workers") and the `lib/testing/withTimeZone` helper, which
+// moves the process's zone for one test. The helper is matched by its import
+// specifier, so a generic, aliased or namespace call is found as well. They
+// run in the forked-process project; everything else runs on worker threads,
+// which start much faster than a process per file. A file this scan misses
+// fails loudly rather than passing wrongly: `process.chdir()` throws that
+// error, and the helper throws when the zone did not move.
+const FORKED_PROCESS_MARKER = /process\.chdir\(|['"][^'"]*\/withTimeZone['"]/
 const ROOT = resolvePath('.')
-const PROCESS_CHDIR_FILES = globSync(TEST_FILES, {
+const FORKED_PROCESS_FILES = globSync(TEST_FILES, {
   cwd: ROOT,
   exclude: (name) => name === 'node_modules' || name.startsWith('.')
-}).filter((file) =>
-  // globSync returns paths relative to ROOT; read them from there too, not
-  // from process.cwd(), so Vitest can be launched from any directory.
-  readFileSync(path.join(ROOT, file), 'utf8').includes('process.chdir(')
+}).filter(
+  (file) =>
+    // The guard is listed in both projects already; a comment that happens to
+    // contain a marker must not drop it from `threads`.
+    file !== TIME_ZONE_PIN_GUARD &&
+    // globSync returns paths relative to ROOT; read them from there too, not
+    // from process.cwd(), so Vitest can be launched from any directory.
+    FORKED_PROCESS_MARKER.test(readFileSync(path.join(ROOT, file), 'utf8'))
 )
 
 export default defineConfig({
@@ -44,19 +73,11 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    // Pin the suite's clock to UTC. CI already runs in UTC, so a date
-    // assertion that only holds there passes review and then fails on the
-    // first developer machine set to anything else — a component rendering a
-    // UTC-midnight timestamp through a local-time formatter read a day early
-    // in `America/Los_Angeles` and a day late in `Asia/Tokyo`. Formatters that
-    // must be zone-independent say so themselves (`timeZone: 'UTC'`); this
-    // only stops the runner's zone from deciding whether the suite is green.
-    //
     // LOG_LEVEL=silent keeps the server logger's JSON lines out of the run
     // output, where hundreds of expected warn/error entries from failure-path
     // tests buried the real failures. Tests that assert logging spy on
     // `logger.*`, which records calls whatever the level.
-    env: { TZ: 'UTC', LOG_LEVEL: 'silent' },
+    env: { LOG_LEVEL: 'silent' },
     // Default environment is node; component tests opt into jsdom per file via
     // a `@vitest-environment jsdom` docblock (vitest 4 removed
     // `environmentMatchGlobs`). `environmentOptions` still applies to whichever
@@ -94,7 +115,7 @@ export default defineConfig({
           name: 'threads',
           pool: 'threads',
           include: TEST_FILES,
-          exclude: PROCESS_CHDIR_FILES
+          exclude: FORKED_PROCESS_FILES
         }
       },
       {
@@ -102,7 +123,7 @@ export default defineConfig({
         test: {
           name: 'forks',
           pool: 'forks',
-          include: PROCESS_CHDIR_FILES
+          include: [...FORKED_PROCESS_FILES, TIME_ZONE_PIN_GUARD]
         }
       }
     ]

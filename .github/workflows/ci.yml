@@ -104,8 +104,8 @@ jobs:
   # (fixed by the focus-depth guard in vitest.setup.ts). The sharding + heap
   # headroom are kept as defence in depth and for wall-clock parallelism.
   # Test files now run on worker threads (vitest.config.ts `projects`), with a
-  # fresh thread per file; only the few files that call process.chdir() still
-  # run in forked processes.
+  # fresh thread per file; only the few files that call process.chdir() or
+  # import the withTimeZone helper still run in forked processes.
   test-shards:
     name: Test Shard ${{ matrix.shard }} of 4
     runs-on: ubuntu-latest
@@ -131,6 +131,11 @@ jobs:
         env:
           TEST_DATABASE_TYPE: sqlite
           NODE_OPTIONS: --max-old-space-size=8192
+          # Deliberately NOT UTC. vitest.config.ts pins the suite to UTC itself;
+          # a non-UTC runner zone is what lets vitest.config.test.ts fail here
+          # if that pin is deleted, moved back to `test.env`, or weakened to a
+          # default (`??=`). On a UTC runner (the default) it could not fail.
+          TZ: Pacific/Noumea
 
   # Aggregate gate that keeps the required "All Tests" status check name stable
   # while the work fans out across the shard matrix above. `if: always()` plus
