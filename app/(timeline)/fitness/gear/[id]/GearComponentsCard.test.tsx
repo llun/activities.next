@@ -276,6 +276,30 @@ describe('GearComponentsCard', () => {
       )
     })
 
+    // The Added/Retired cells are never positioned, so a refitted component's
+    // `sr-only` "Install N:" labels leaked at every width the table scrolls,
+    // not only on a phone — here the actions are pinned and the labels still
+    // have nothing positioned between them and the scroller.
+    it('keeps the install labels inside a positioned scroller with the actions pinned', () => {
+      renderCard([
+        createComponent({
+          periods: [
+            { addedAt: Date.UTC(2024, 0, 15), removedAt: Date.UTC(2024, 5, 1) },
+            { addedAt: Date.UTC(2024, 10, 20), removedAt: null }
+          ]
+        })
+      ])
+      act(() => deliverWidth?.(600))
+
+      const scroller = screen.getByRole('table').parentElement as HTMLElement
+      expect(scroller).toHaveClass('relative', 'overflow-x-auto')
+      for (const label of screen.getAllByText('Install 1:', { exact: false })) {
+        expect(label).toHaveClass('sr-only')
+        expect(label.closest('.sticky')).toBeNull()
+        expect(scroller).toContainElement(label)
+      }
+    })
+
     it('pins the type and actions columns and snaps the middle above a phone', () => {
       renderCard([createComponent()])
       act(() => deliverWidth?.(600))
