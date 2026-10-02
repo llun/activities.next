@@ -308,14 +308,16 @@ export const RegionMap: FC<RegionMapProps> = ({
       style={{ height }}
     >
       {/* The corner the attribution lives in is lifted by the hint pill's
-          height (pill: `bottom-2` + ~25px), so the credit sits just above the
-          hint instead of on top of it — as the design draws it. The `!` is
+          height (pill: `bottom-2` + 25px, or 41px once the hint wraps to a
+          second line below ~390px; the control adds its own 10px margin), so
+          the credit sits just above the hint instead of on top of it — as the
+          design draws it. The `!` is
           needed: the GL stylesheet is injected unlayered, which beats every
           Tailwind utility (they live in `@layer utilities`) whatever the
           specificity. */}
       <div
         ref={containerRef}
-        className="h-full w-full [&_.maplibregl-ctrl-bottom-right]:bottom-9! [&_.mapboxgl-ctrl-bottom-right]:bottom-9!"
+        className="h-full w-full [&_.maplibregl-ctrl-bottom-right]:bottom-11! [&_.mapboxgl-ctrl-bottom-right]:bottom-11!"
       />
 
       {!isReady && (

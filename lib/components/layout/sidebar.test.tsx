@@ -488,6 +488,19 @@ describe('Sidebar', () => {
       expect(
         within(nav).getByRole('link', { name: 'Running club' })
       ).toHaveClass('text-primary-text')
+
+      // The expand / collapse chevron is an icon too: it keeps the brand
+      // orange in both states instead of inheriting the row's label colour.
+      const collapse = within(nav).getByRole('button', {
+        name: 'Collapse lists'
+      })
+      expect(collapse.querySelector('svg')).toHaveClass('text-primary')
+      fireEvent.click(collapse)
+      expect(
+        within(nav)
+          .getByRole('button', { name: 'Expand lists' })
+          .querySelector('svg')
+      ).toHaveClass('text-primary')
     })
 
     it('draws the More group and its current row in the same split', () => {

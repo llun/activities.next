@@ -106,10 +106,10 @@ describe('RegionMap', () => {
     // utility.
     const mapContainer = container.querySelector('.h-full.w-full')
     expect(mapContainer?.className).toContain(
-      '[&_.maplibregl-ctrl-bottom-right]:bottom-9!'
+      '[&_.maplibregl-ctrl-bottom-right]:bottom-11!'
     )
     expect(mapContainer?.className).toContain(
-      '[&_.mapboxgl-ctrl-bottom-right]:bottom-9!'
+      '[&_.mapboxgl-ctrl-bottom-right]:bottom-11!'
     )
   })
 
