@@ -111,7 +111,7 @@ export const VisibilityButton: FC<Props> = ({ status }) => {
               </div>
             </div>
             {option.value === visibility && (
-              <div className="text-primary">✓</div>
+              <div className="text-primary-text">✓</div>
             )}
           </DropdownMenuItem>
         ))}

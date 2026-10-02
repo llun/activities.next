@@ -9,7 +9,7 @@ export const StatusLoading: FC = () => {
       aria-label="Loading post"
       className={`md:mt-4 overflow-hidden rounded-2xl border bg-background/80 shadow-sm group-data-[shell=public]/shell:mt-0 group-data-[shell=public]/shell:max-md:-mt-6 ${MOBILE_FEED_SURFACE_CLASS}`}
     >
-      <div className="flex items-center gap-3 border-b bg-background/90 px-5 py-3 group-data-[shell=public]/shell:hidden">
+      <div className="flex items-center gap-3 border-b bg-surface-chrome px-5 py-3 group-data-[shell=public]/shell:hidden">
         <div className="skeleton h-11 w-11 -ml-2 shrink-0 rounded-lg md:hidden" />
         <div className="skeleton h-8 w-8 rounded-md" />
         <div className="space-y-1">

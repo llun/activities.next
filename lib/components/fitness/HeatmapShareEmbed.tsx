@@ -310,7 +310,7 @@ export const HeatmapShareEmbed: FC<HeatmapShareEmbedProps> = ({
                     className={cn(
                       'rounded px-2.5 py-1 text-[11px] font-medium transition-colors',
                       sizeId === entry.id
-                        ? 'bg-primary/10 text-primary'
+                        ? 'bg-primary/10 text-primary-text'
                         : 'text-muted-foreground hover:text-foreground'
                     )}
                   >
@@ -386,9 +386,10 @@ export const HeatmapShareEmbed: FC<HeatmapShareEmbedProps> = ({
                 href={linkUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-primary-text hover:underline"
               >
-                <ExternalLink className="size-3.5" /> Open the public page
+                <ExternalLink className="size-3.5 text-primary" /> Open the
+                public page
               </a>
               <p className="text-[11px] text-muted-foreground">
                 Anyone with the link can view this heatmap on its own public

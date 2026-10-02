@@ -66,7 +66,7 @@ const chipClass = (mine: boolean, interactive = true, busy = false) =>
     // tech while keeping focus where the user put it.
     busy && 'cursor-not-allowed opacity-50',
     mine
-      ? 'border-primary/45 bg-primary/10 text-primary'
+      ? 'border-primary/45 bg-primary/10 text-primary-text'
       : 'border-border bg-background text-foreground',
     // No hover affordance on a chip that cannot be clicked.
     !mine && interactive && 'hover:bg-muted'

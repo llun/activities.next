@@ -84,7 +84,8 @@ export const ReactionButton: FC<Props> = ({ state, hideTrigger }) => {
             aria-expanded={isPicking}
             className={cn(
               ACTION_BUTTON_CLASS,
-              mine ? 'text-primary' : 'hover:text-primary',
+              'group/react',
+              mine ? 'text-primary-text' : 'hover:text-primary-text',
               isBusy && 'cursor-not-allowed opacity-50'
             )}
             onClick={(event) => {
@@ -93,7 +94,12 @@ export const ReactionButton: FC<Props> = ({ state, hideTrigger }) => {
               setIsPicking((value) => !value)
             }}
           >
-            <SmilePlus className="h-4 w-4" />
+            <SmilePlus
+              className={cn(
+                'h-4 w-4',
+                mine ? 'text-primary' : 'group-hover/react:text-primary'
+              )}
+            />
             {total > 0 && <span>{formatReactionCount(total)}</span>}
           </button>
           {error}

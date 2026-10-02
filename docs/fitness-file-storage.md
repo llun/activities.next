@@ -1124,8 +1124,8 @@ null }` remains the precise "this retirement never happened" — it reopens the
   product-page link, and the components card's retired toggle and per-row
   Retire action;
   `app/globals.contrast.test.ts` recomputes both ratios from the live token
-  values, so collapsing the two tokens back together fails the suite. Other
-  orange text in the app still predates this and should move over when touched.
+  values, so collapsing the two tokens back together fails the suite. All orange
+  text in the app now follows this (see the rule in `docs/architecture.md`).
 - **Every gear table pins its first column, through the shared constants in
   `app/(timeline)/fitness/gear/gearUi.ts`** — `STICKY_COLUMN` and
   `STICKY_CLICKABLE_COLUMN`, used by the gear list's bikes/shoes/devices tables

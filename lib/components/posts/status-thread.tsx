@@ -338,16 +338,16 @@ export const StatusThread: FC<StatusThreadProps> = ({
                 data-testid={`toggle-replies-${node.status.id}`}
                 onClick={() => toggleBranch(node.status.id)}
                 aria-expanded={isExpanded}
-                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline focus:outline-none"
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary-text hover:underline focus:outline-none"
               >
                 {isExpanded ? (
                   <>
-                    <ChevronUp className="size-3.5" />
+                    <ChevronUp className="size-3.5 text-primary" />
                     <span>Hide replies</span>
                   </>
                 ) : (
                   <>
-                    <ChevronDown className="size-3.5" />
+                    <ChevronDown className="size-3.5 text-primary" />
                     <span>
                       Show {node.totalDescendantCount} more{' '}
                       {node.totalDescendantCount === 1 ? 'reply' : 'replies'}
@@ -382,7 +382,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
           <button
             type="button"
             onClick={onLoadMoreAncestors}
-            className="text-xs font-medium text-primary hover:underline"
+            className="text-xs font-medium text-primary-text hover:underline"
           >
             Load earlier replies
           </button>
@@ -571,7 +571,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
               <button
                 type="button"
                 onClick={onLoadMoreDescendants}
-                className="text-xs font-medium text-primary hover:underline"
+                className="text-xs font-medium text-primary-text hover:underline"
               >
                 Load more replies
               </button>

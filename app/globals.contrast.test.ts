@@ -205,6 +205,28 @@ describe('destructive-text contrast (WCAG 2.1 AA SC 1.4.3)', () => {
     }
   )
 
+  // Light --destructive-text is the design's Control/Destructive Text #B7282E,
+  // darker than the #EF4444 fill token (--destructive), which is only 3.76:1 on
+  // white. The fill must NOT be used as the text colour in light mode.
+  it.each(surfaceTokens)(
+    'light --destructive-text on %s meets 4.5:1',
+    (surface) => {
+      const tokens = themes.light
+      const fg = rgbOf(tokens, '--destructive-text')
+      const bg = rgbOf(tokens, surface)
+      const ratio = contrastRatio(fg, bg)
+      expect(
+        ratio,
+        `light destructive-text ${JSON.stringify(fg)} on ${surface} ${JSON.stringify(bg)} = ${ratio.toFixed(3)}:1`
+      ).toBeGreaterThanOrEqual(AA_NORMAL)
+    }
+  )
+
+  it('keeps the light destructive FILL brighter than the light destructive text', () => {
+    expect(rgbOf(themes.light, '--destructive-text')).toEqual([183, 40, 46])
+    expect(rgbOf(themes.light, '--destructive')).toEqual([239, 68, 68])
+  })
+
   it('keeps dark destructive-text recognisably red', () => {
     const [hue, saturation, lightness] = parseHsl(
       themes.dark['--destructive-text']
@@ -223,5 +245,82 @@ describe('destructive-text contrast (WCAG 2.1 AA SC 1.4.3)', () => {
       ratio,
       `dark destructive fill ${JSON.stringify(bg)} with foreground ${JSON.stringify(fg)} = ${ratio.toFixed(3)}:1`
     ).toBeGreaterThanOrEqual(9.0)
+  })
+})
+
+describe('like-text contrast (WCAG 2.1 AA SC 1.4.3)', () => {
+  // The count beside a liked heart. The heart icon stays red-500; the count uses
+  // this token, which the design names separately from the destructive text
+  // even though the values match.
+  it.each(cases)(
+    '$theme --like-text on $surface meets 4.5:1',
+    ({ theme, surface }) => {
+      const tokens = themes[theme]
+      expect(tokens['--like-text']).toBeDefined()
+      const fg = rgbOf(tokens, '--like-text')
+      const bg = rgbOf(tokens, surface)
+      const ratio = contrastRatio(fg, bg)
+      expect(
+        ratio,
+        `${theme} like-text ${JSON.stringify(fg)} on ${surface} ${JSON.stringify(bg)} = ${ratio.toFixed(3)}:1`
+      ).toBeGreaterThanOrEqual(AA_NORMAL)
+    }
+  )
+
+  it.each(['light', 'dark'] as const)(
+    'matches the destructive text value in %s (Like Text = #B7282E / #F87171)',
+    (theme) => {
+      expect(rgbOf(themes[theme], '--like-text')).toEqual(
+        rgbOf(themes[theme], '--destructive-text')
+      )
+    }
+  )
+})
+
+describe('surface-chrome token', () => {
+  it.each(['light', 'dark'] as const)(
+    'defines --surface-chrome in %s',
+    (theme) => {
+      expect(themes[theme]['--surface-chrome']).toMatch(
+        /^hsl\(.+\/\s*[\d.]+\)$/
+      )
+    }
+  )
+
+  it('is white at 72 % in light and #141414 at 80 % in dark', () => {
+    expect(themes.light['--surface-chrome']).toBe('hsl(0 0% 100% / 0.72)')
+    expect(themes.dark['--surface-chrome']).toBe('hsl(0 0% 7.8% / 0.8)')
+  })
+})
+
+describe('design palette tokens', () => {
+  const hex = ([r, g, b]: Rgb) =>
+    `#${[r, g, b].map((c) => c.toString(16).padStart(2, '0')).join('')}`
+
+  // Control Off is the Switch track when off. It sits well above the --input
+  // hairline (#E5E5E5 light) so an off switch reads as a control.
+  it.each([
+    ['light', '#cccccc'],
+    ['dark', '#545454']
+  ] as const)('--control-off is %s %s', (theme, expected) => {
+    expect(hex(rgbOf(themes[theme], '--control-off'))).toBe(expected)
+  })
+
+  // Surface Accent is the pale brand tile behind an accent icon (admin stat
+  // cards). It is opaque, unlike `bg-primary/10`, which is #FCEFE6 on white.
+  it.each([
+    ['light', '#fff6f0'],
+    ['dark', '#271a11']
+  ] as const)('--surface-accent is %s %s', (theme, expected) => {
+    expect(hex(rgbOf(themes[theme], '--surface-accent'))).toBe(expected)
+  })
+
+  it('draws the dark brand backdrop with the design tints at 60 %', () => {
+    const start = css.indexOf('.dark body')
+    expect(start).toBeGreaterThan(-1)
+    const darkBody = css.slice(start, css.indexOf('@layer utilities', start))
+    // Orange #492812 top-left, sky #193543 top-right.
+    expect(darkBody).toContain('rgb(73 40 18 / 0.6)')
+    expect(darkBody).toContain('rgb(25 53 67 / 0.6)')
   })
 })

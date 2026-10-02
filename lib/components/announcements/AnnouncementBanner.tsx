@@ -87,7 +87,7 @@ export const AnnouncementBadge: FC<BadgeProps> = ({
   children
 }) => {
   const tones: Record<NonNullable<BadgeProps['tone']>, string> = {
-    orange: 'border-primary/30 bg-primary/10 text-primary',
+    orange: 'border-primary/30 bg-primary/10 text-primary-text',
     green:
       'border-green-600/30 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
     gray: 'border-border bg-muted text-muted-foreground'
@@ -123,7 +123,7 @@ const ReactionChip: FC<ReactionChipProps> = ({ reaction, onToggle }) => (
     className={cn(
       'flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[13px] transition-colors',
       reaction.me
-        ? 'border-primary/45 bg-primary/10 text-primary'
+        ? 'border-primary/45 bg-primary/10 text-primary-text'
         : 'border-border bg-background text-foreground hover:bg-muted'
     )}
   >
@@ -481,8 +481,8 @@ export const AnnouncementBanner: FC<AnnouncementBannerProps> = () => {
               {formatPublishedDate(current.published_at)}
             </span>
             {eventStart && (
-              <span className="text-primary flex items-center gap-1 font-medium">
-                <Clock className="size-3" />
+              <span className="text-primary-text flex items-center gap-1 font-medium">
+                <Clock className="size-3 text-primary" />
                 <span suppressHydrationWarning>
                   {eventStart}
                   {eventEnd ? ` – ${eventEnd}` : ''}

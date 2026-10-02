@@ -28,7 +28,7 @@ export const FeaturedTagsBlock: FC<Props> = ({ tags }) => {
         {tags.map((tag) => {
           const label = (
             <>
-              <span className="font-medium text-primary">#{tag.name}</span>
+              <span className="font-medium text-primary-text">#{tag.name}</span>
               <span className="text-xs tabular-nums text-muted-foreground">
                 {tag.statuses_count}
               </span>

@@ -244,7 +244,7 @@ const StatTile: FC<{
       className={cn(
         'mt-1.5 font-semibold leading-none tracking-tight tabular-nums',
         big ? 'text-[28px]' : 'text-[21px]',
-        accent && 'text-primary'
+        accent && 'text-primary-text'
       )}
     >
       {value}
@@ -587,16 +587,16 @@ export const FitnessStatusDetail: FC<Props> = ({
                 type="button"
                 onClick={() => toggleCommentBranch(node.status.id)}
                 aria-expanded={isExpanded}
-                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline focus:outline-none"
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary-text hover:underline focus:outline-none"
               >
                 {isExpanded ? (
                   <>
-                    <ChevronUp className="size-3.5" />
+                    <ChevronUp className="size-3.5 text-primary" />
                     <span>Hide replies</span>
                   </>
                 ) : (
                   <>
-                    <ChevronDown className="size-3.5" />
+                    <ChevronDown className="size-3.5 text-primary" />
                     <span>
                       Show {node.totalDescendantCount} more{' '}
                       {node.totalDescendantCount === 1 ? 'reply' : 'replies'}
@@ -1485,8 +1485,8 @@ export const FitnessStatusDetail: FC<Props> = ({
                 </div>
               ) : null}
             </div>
-            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
-              <Activity className="size-3.5" /> {activityLabel}
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary-text">
+              <Activity className="size-3.5 text-primary" /> {activityLabel}
             </span>
           </div>
 

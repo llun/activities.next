@@ -121,7 +121,7 @@ export const AdminReportDetail = ({ reportId }: { reportId: string }) => {
               <li key={status.id} className="truncate">
                 <Link
                   href={status.url ?? '#'}
-                  className="text-primary hover:underline"
+                  className="text-primary-text hover:underline"
                 >
                   {status.url ?? status.id}
                 </Link>
@@ -187,7 +187,7 @@ export const AdminReportDetail = ({ reportId }: { reportId: string }) => {
             type="button"
             disabled={busy}
             onClick={() => run(() => resolveAdminReport(reportId))}
-            className="rounded-lg border border-primary/40 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10 disabled:opacity-50"
+            className="rounded-lg border border-primary/40 px-3 py-1.5 text-sm font-medium text-primary-text hover:bg-primary/10 disabled:opacity-50"
           >
             Resolve
           </button>

@@ -343,7 +343,7 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
               <Button
                 variant="outline"
                 size="sm"
-                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                className="text-destructive hover:bg-destructive/10 hover:text-destructive-text"
                 onClick={() => {
                   setDeleteError(null)
                   setIsDeleteDialogOpen(true)

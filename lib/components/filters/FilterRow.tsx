@@ -4,9 +4,9 @@ import { Filter as FilterIcon, Pencil, Trash2 } from 'lucide-react'
 import { FC } from 'react'
 
 import type { ClientFilter } from '@/lib/client'
+import { Badge as SharedBadge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import type { FilterContext } from '@/lib/types/domain/filter'
-import { cn } from '@/lib/utils'
 
 import {
   CONTEXT_SHORT,
@@ -17,25 +17,21 @@ import {
 
 type BadgeTone = 'orange' | 'red' | 'gray'
 
-const BADGE_TONE_CLASSES: Record<BadgeTone, string> = {
-  orange: 'bg-[hsl(24_95%_46%/0.12)] text-[hsl(24_95%_40%)]',
-  red: 'bg-[hsl(0_84.2%_60.2%/0.12)] text-[hsl(0_72%_45%)]',
-  gray: 'bg-[hsl(0_0%_94%)] text-[hsl(0_0%_35%)]'
-}
+// The two action badges are the shared Badge tones (token labels, dark fills);
+// only the neutral "Expired" pill still carries its own colours.
+const SHARED_TONE = { orange: 'primary', red: 'destructive' } as const
 
 const Badge: FC<{ tone: BadgeTone; children: string }> = ({
   tone,
   children
-}) => (
-  <span
-    className={cn(
-      'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium',
-      BADGE_TONE_CLASSES[tone]
-    )}
-  >
-    {children}
-  </span>
-)
+}) =>
+  tone === 'gray' ? (
+    <span className="inline-flex items-center rounded-full bg-[hsl(0_0%_94%)] px-2.5 py-0.5 text-xs font-medium text-[hsl(0_0%_35%)]">
+      {children}
+    </span>
+  ) : (
+    <SharedBadge tone={SHARED_TONE[tone]}>{children}</SharedBadge>
+  )
 
 const ContextChips: FC<{ context: FilterContext[] }> = ({ context }) => {
   const showsEverywhere = context.length === FILTER_CONTEXTS.length
@@ -47,7 +43,7 @@ const ContextChips: FC<{ context: FilterContext[] }> = ({ context }) => {
       {labels.map((label) => (
         <span
           key={label}
-          className="inline-flex items-center rounded-full bg-[hsl(0_0%_94%)] px-2 py-0.5 text-[11px] font-medium text-[hsl(0_0%_35%)]"
+          className="inline-flex items-center rounded-full bg-[hsl(0_0%_94%)] px-2 py-0.5 text-[11px] font-medium text-[#6E6E6E] dark:text-[hsl(0_0%_35%)]"
         >
           {label}
         </span>

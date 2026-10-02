@@ -17,7 +17,7 @@ export const PublicTopBar = async () => {
   // even when this page is served on a CDN alias domain, matching PublicFooter.
   const logoSrc = new URL('/logo-nav.png', getBaseURL()).toString()
   return (
-    <header className="sticky top-0 z-30 border-b bg-background/90 backdrop-blur">
+    <header className="sticky top-0 z-30 border-b bg-surface-chrome backdrop-blur">
       {/* Full width below `md` to stay aligned with PublicShell's content
           column, which drops the same 680px cap while mobile feeds span the
           viewport. From `md` up both keep the narrow reading width. */}

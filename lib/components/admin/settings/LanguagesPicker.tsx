@@ -67,7 +67,7 @@ export const LanguagesPicker: FC<LanguagesPickerProps> = ({
       {value.map((code) => (
         <span
           key={code}
-          className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 py-1 pl-3 pr-1.5 text-sm font-medium text-primary"
+          className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 py-1 pl-3 pr-1.5 text-sm font-medium text-primary-text"
         >
           {labelForCode(code)}
           {!disabled && (
@@ -77,7 +77,7 @@ export const LanguagesPicker: FC<LanguagesPickerProps> = ({
               onClick={() => onChange(value.filter((c) => c !== code))}
               className="flex h-4 w-4 items-center justify-center rounded-full transition-colors hover:bg-primary/20"
             >
-              <X className="h-3 w-3" />
+              <X className="h-3 w-3 text-primary" />
             </button>
           )}
         </span>

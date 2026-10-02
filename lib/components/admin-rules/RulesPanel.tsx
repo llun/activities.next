@@ -31,7 +31,7 @@ const normalize = (rules: ServerRule[]): ServerRule[] =>
 
 // The orange numbered chip that fronts every rule, matching the design system.
 const RuleNumber: FC<{ n: number }> = ({ n }) => (
-  <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold tabular-nums text-primary">
+  <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold tabular-nums text-primary-text">
     {n}
   </span>
 )

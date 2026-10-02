@@ -1538,21 +1538,71 @@ legacy shape left to copy.
   the accent orange for icons and fills and is only 3.37:1 on the card, below the
   WCAG AA floor for body text; `--primary-text` is tuned per theme to clear 4.5:1
   on every surface, including the `--muted` row hover. Applies to links, link-ish
-  buttons and any orange text node — icons keep `text-primary`. Move stale
-  `text-primary` text over when you touch it; `app/globals.contrast.test.ts`
+  buttons and any orange text node — icons keep `text-primary`. This holds
+  everywhere in `app/` and `lib/`: the `link` Button variant, the `primary`
+  Badge tone, active nav labels, chips, "Hide replies"-style toggles, the
+  highlighted stat value and text-bearing tiles (a rule number, a count) all use
+  `text-primary-text` (and its `hover:`, `focus:` and `data-[state=…]:`
+  variants). Icons, fills, borders and rings keep `primary`, so when one element
+  colours both an icon and a label, put `text-primary-text` on the element and
+  `text-primary` on the icon (the sidebar's active rows do this). Two things stay
+  `text-primary` on purpose: icon-only controls (a toggle button holding just an
+  icon or glyph, the collapsed rail) and the large display numeral on the 404/500
+  card, which the design draws in the brand orange. `app/globals.contrast.test.ts`
   guards the tokens.
-- Destructive **text** and link labels in dark mode use `text-destructive-text`
+- Destructive **text** and link labels use `text-destructive-text`
   (or `text-destructive`, which maps to it in `@layer utilities`; note that
   variant modifiers such as `hover:text-destructive-text` and
   `focus:text-destructive-text` must use the `-text` suffix explicitly, as
-  Tailwind v4 variant compilation targets theme tokens), not raw dark
-  `--destructive`. Dark `--destructive` is `hsl(0 62.8% 30.6%)` (#7F1D1D) to
+  Tailwind v4 variant compilation targets theme tokens), not raw `--destructive`.
+  Light `--destructive-text` is `hsl(357.5 64.1% 43.7%)` (#B7282E, the design's
+  Destructive Text, 6.26:1 on white); light `--destructive` stays #EF4444 for
+  fills and is only 3.76:1 as a foreground, so never use it as a text colour.
+  Dark `--destructive` is `hsl(0 62.8% 30.6%)` (#7F1D1D) to
   preserve 9:1 white-on-destructive contrast for button and badge backgrounds
   (`bg-destructive`), but only reaches ~1.8:1 on dark surfaces. `--destructive-text`
   is lightened to `hsl(0 91% 71%)` (#F87171, Tailwind `red-400`) in dark mode
   to meet WCAG 2.1 AA (4.5:1) on every dark surface (6.44:1 on card/popover,
   7.3:1 on background). Fills and button backgrounds keep `bg-destructive`.
   `app/globals.contrast.test.ts` guards the token.
+- The count beside a **liked** heart uses `text-like-text` (`--like-text`:
+  #B7282E light, #F87171 dark — the design's "Like Text", equal to the
+  destructive text values but named separately so the like button never reads as
+  a destructive action). The heart icon itself stays `text-red-500` (#FB2C36).
+- Translucent chrome — the sticky page header, the sidebar, the icon rail, the
+  mobile header, and the sticky bars of the public shell (`PublicTopBar`), the
+  shared heatmap page and the status page header — uses `bg-surface-chrome`
+  (`--surface-chrome`: white at 72 % light, #141414 at 80 % dark) with
+  `backdrop-blur`, not `bg-background/NN`. `lib/components/surfaceChromeUsage.test.ts`
+  lists the bars.
+- The shared `Badge` carries the design's per-theme tones. `primary` and
+  `destructive` use the text tokens for the label and a lighter hue at 16 % for
+  the dark fill (`#FA802E` / `#DF3A3A`); `success` is `#163B24` / `#69D390` in
+  dark; `blue` (the "Sign-in" badge) is `#00BCFF` at 16 % with foreground text in
+  dark; `gray` is `#383838` with a `#C2C2C2` label in dark (the connected-app
+  scope chips use the same `#383838` fill). Do not hand-roll badge colours with
+  fixed `hsl()` values — a pill that has no `dark:` variant renders as a light
+  chip on the dark surface.
+- The unread-count pill (`NotificationBadge`) is filled `#B7282E` in light — the
+  design's count-badge red, darker than the `#EF4444` `--destructive` token that
+  white text only reaches 3.8:1 on — and `--destructive` (`#7F1D1D`) in dark.
+- Palette tokens beyond the shadcn set: `--control-off` (`bg-control-off`, the
+  Switch track when off: `#CCCCCC` light, `#545454` dark) and `--surface-accent`
+  (`bg-surface-accent`, the pale orange tile behind an accent icon: `#FFF6F0`
+  light, `#271A11` dark; a selected tile keeps `bg-primary/20`). The dark brand
+  backdrop on `body` is `#492812` top-left and `#193543` top-right at 60 %.
+  `app/globals.contrast.test.ts` guards the values.
+- Dropdown menu rows highlight with `--accent` in light and `--muted` (#2B2B2B)
+  in dark, and a radio item's indicator is a 6 px dot. Loading placeholders
+  (Explore's rows included) use the shared `.skeleton` utility rather than
+  `bg-muted`, which sits almost on the card and is near-invisible.
+- The shared `Dialog` is 440 px wide by default (a dialog that needs more sets
+  its own `sm:max-w-*`, as the gear forms do at `sm:max-w-lg`), has a 16 px
+  radius, and sits on `bg-card` in dark mode (`bg-background` in light) so it
+  reads lighter than the dimmed page. The light `outline` Button is filled with
+  `bg-card` (#FAFAFA); dark stays the translucent `bg-input/30`, except the
+  scroll-to-top pill (`bg-popover`) and the timeline refresh button (`bg-card`),
+  which are solid `#171717` with the `--border` hairline in dark.
 - When pairing a visible count with `sr-only` text, put only the noun (e.g.
   "boosts") in the `sr-only` span, not the number — the visible digit is already
   announced, so including it double-reads (see `posts/read-only-stats.tsx`).

@@ -276,7 +276,7 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
             )}
           </div>
           <div className="mb-4 flex items-center gap-3">
-            <div className="rounded-lg bg-primary/10 p-2">
+            <div className="rounded-lg bg-surface-accent p-2">
               <SelectedIcon className="h-5 w-5 text-primary" />
             </div>
             <div>
@@ -322,7 +322,7 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
               >
                 <div className="mb-2 flex items-center gap-2">
                   <div
-                    className={`rounded-md p-1.5 ${isSelected ? 'bg-primary/20' : 'bg-primary/10'}`}
+                    className={`rounded-md p-1.5 ${isSelected ? 'bg-primary/20' : 'bg-surface-accent'}`}
                   >
                     <CardIcon className="h-4 w-4 text-primary" />
                   </div>

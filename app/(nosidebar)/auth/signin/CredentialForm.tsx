@@ -100,7 +100,7 @@ export const CredentialForm: FC<Props> = ({ providerName }) => {
       <div className="text-right">
         <Link
           href="/auth/forgot-password"
-          className="text-sm text-primary hover:underline"
+          className="text-sm text-primary-text hover:underline"
         >
           Forgot password?
         </Link>

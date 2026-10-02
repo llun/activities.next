@@ -56,7 +56,7 @@ export const SharedHeatmapPage: FC<SharedHeatmapPageProps> = ({
       />
 
       {/* public top bar */}
-      <header className="sticky top-0 z-30 border-b bg-background/90 backdrop-blur">
+      <header className="sticky top-0 z-30 border-b bg-surface-chrome backdrop-blur">
         <div className="mx-auto flex h-14 max-w-[840px] items-center gap-3 px-4 sm:px-6">
           <Logo size="md" />
           <div className="ml-auto flex items-center gap-2">

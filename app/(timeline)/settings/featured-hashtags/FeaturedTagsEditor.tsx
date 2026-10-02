@@ -362,7 +362,9 @@ export const FeaturedTagsEditor: FC = () => {
           <span
             className={cn(
               'ml-auto shrink-0 text-xs tabular-nums',
-              atLimit ? 'font-medium text-primary' : 'text-muted-foreground'
+              atLimit
+                ? 'font-medium text-primary-text'
+                : 'text-muted-foreground'
             )}
           >
             {tags.length} of {FEATURED_TAGS_LIMIT} featured

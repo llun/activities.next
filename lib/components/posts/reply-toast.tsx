@@ -36,7 +36,7 @@ export const ReplyToast: FC<ReplyToastProps> = ({
       <button
         type="button"
         onClick={() => onViewReply(status)}
-        className="font-semibold text-primary hover:underline focus:outline-none"
+        className="font-semibold text-primary-text hover:underline focus:outline-none"
       >
         View reply
       </button>

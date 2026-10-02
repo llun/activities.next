@@ -318,7 +318,7 @@ export const FilterEditor: FC<FilterEditorProps> = ({
               <span className="text-sm text-muted-foreground">
                 Filtered: {title.trim() || 'Untitled filter'}
               </span>
-              <span className="text-sm font-medium text-primary">
+              <span className="text-sm font-medium text-primary-text">
                 Show anyway
               </span>
             </div>

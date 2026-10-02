@@ -224,7 +224,7 @@ export function MediaManagement({
                           <div className="pt-1">
                             <Link
                               href={postLink}
-                              className="text-xs text-primary hover:underline"
+                              className="text-xs text-primary-text hover:underline"
                             >
                               View in post →
                             </Link>

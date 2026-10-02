@@ -130,7 +130,7 @@ export const TwoFactorForm: FC<Props> = ({ redirectBack }) => {
       </Button>
 
       <p className="text-center text-sm text-muted-foreground">
-        <Link href="/auth/signin" className="text-primary hover:underline">
+        <Link href="/auth/signin" className="text-primary-text hover:underline">
           Back to sign in
         </Link>
       </p>

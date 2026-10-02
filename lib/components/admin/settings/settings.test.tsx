@@ -54,6 +54,16 @@ describe('LanguagesPicker', () => {
     expect(screen.getByText('ไทย')).toBeInTheDocument()
   })
 
+  it('keeps the chip label on Primary Text and the remove glyph on the brand orange', () => {
+    render(<LanguagesPicker value={['en']} onChange={vi.fn()} />)
+    const chip = screen.getByText('English')
+    expect(chip).toHaveClass('text-primary-text')
+    const glyph = screen
+      .getByRole('button', { name: 'Remove English' })
+      .querySelector('svg')
+    expect(glyph).toHaveClass('text-primary')
+  })
+
   it('removes a language via its chip button', () => {
     const onChange = vi.fn()
     render(<LanguagesPicker value={['en', 'th']} onChange={onChange} />)
