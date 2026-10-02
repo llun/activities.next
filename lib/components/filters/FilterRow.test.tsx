@@ -8,21 +8,25 @@ import { ClientFilter } from '@/lib/client'
 
 import { FilterRow } from './FilterRow'
 
-const filterFor = (context: string[], filterAction = 'warn') =>
+const filterFor = (
+  context: string[],
+  filterAction = 'warn',
+  expiresAt: string | null = null
+) =>
   ({
     id: 'f-1',
     title: 'Spoilers',
     context,
     filter_action: filterAction,
-    expires_at: null,
+    expires_at: expiresAt,
     keywords: []
   }) as unknown as ClientFilter
 
-const renderRow = (filter: ClientFilter) =>
+const renderRow = (filter: ClientFilter, currentTime = 0) =>
   render(
     <FilterRow
       filter={filter}
-      currentTime={0}
+      currentTime={currentTime}
       onEdit={() => {}}
       onDelete={() => {}}
     />
@@ -71,4 +75,30 @@ describe('FilterRow', () => {
 
     expect(screen.getByText(label)).toHaveClass(token)
   })
+
+  // The meta line reads "Expired <date>", so an exact-text query for
+  // "Expired" can only match the pill.
+  it('shows the Expired pill once the expiry has passed', () => {
+    renderRow(
+      filterFor(['home'], 'warn', '2026-01-01T00:00:00.000Z'),
+      Date.parse('2026-06-01T00:00:00.000Z')
+    )
+
+    expect(screen.getByText('Expired')).toBeInTheDocument()
+  })
+
+  it.each([
+    { description: 'never expires', expiresAt: null },
+    { description: 'expires later', expiresAt: '2026-12-01T00:00:00.000Z' }
+  ])(
+    'omits the Expired pill for a filter that $description',
+    ({ expiresAt }) => {
+      renderRow(
+        filterFor(['home'], 'warn', expiresAt),
+        Date.parse('2026-06-01T00:00:00.000Z')
+      )
+
+      expect(screen.queryByText('Expired')).not.toBeInTheDocument()
+    }
+  )
 })

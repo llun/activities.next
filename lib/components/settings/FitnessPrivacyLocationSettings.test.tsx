@@ -998,13 +998,14 @@ describe('FitnessPrivacyLocationSettings', () => {
       return { layers, sources, addedSources }
     }
 
-    const mockSavedZone = (hideRadiusMeters: number) =>
+    const mockSavedZone = (
+      hideRadiusMeters: number,
+      { latitude, longitude } = { latitude: 13.7563, longitude: 100.5018 }
+    ) =>
       vi.spyOn(global, 'fetch').mockResolvedValue({
         ok: true,
         json: async () => ({
-          privacyLocations: [
-            { latitude: 13.7563, longitude: 100.5018, hideRadiusMeters }
-          ]
+          privacyLocations: [{ latitude, longitude, hideRadiusMeters }]
         })
       } as Response)
 
@@ -1046,61 +1047,35 @@ describe('FitnessPrivacyLocationSettings', () => {
       })
     })
 
-    it('counts a stored value with extra digits as the same circle as the draft', async () => {
-      vi.spyOn(global, 'fetch').mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          privacyLocations: [
-            {
-              latitude: 13.75630004,
-              longitude: 100.50180004,
-              hideRadiusMeters: 200
-            }
-          ]
-        })
-      } as Response)
-      const { sources } = mountGlMap()
+    it.each([
+      ['exactly', { latitude: 13.7563, longitude: 100.5018 }],
+      ['to extra digits', { latitude: 13.75630004, longitude: 100.50180004 }]
+    ])(
+      'draws a saved zone once, even though the draft marker is prefilled from it (stored %s)',
+      async (_label, coordinates) => {
+        mockSavedZone(200, coordinates)
+        const { sources } = mountGlMap()
 
-      render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
+        render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
 
-      await screen.findByText('13.756300, 100.501800')
-      await waitFor(() =>
-        expect(sources.has('fitness-privacy-zones')).toBe(true)
-      )
-      await waitFor(() =>
-        expect(
-          sources.get('fitness-privacy-zones')?.setData
-        ).toHaveBeenLastCalledWith(
-          expect.objectContaining({
-            features: [expect.objectContaining({ type: 'Feature' })]
-          })
+        await screen.findByText('13.756300, 100.501800')
+        await waitFor(() =>
+          expect(sources.has('fitness-privacy-zones')).toBe(true)
         )
-      )
-    })
 
-    it('draws a saved zone once, even though the draft marker is prefilled from it', async () => {
-      mockSavedZone(200)
-      const { sources } = mountGlMap()
-
-      render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
-
-      await screen.findByText('13.756300, 100.501800')
-      await waitFor(() =>
-        expect(sources.has('fitness-privacy-zones')).toBe(true)
-      )
-
-      // The draft (13.7563, 100.5018 at 200m) IS the saved zone; drawing both
-      // would stack two 20% fills into a darker one.
-      await waitFor(() =>
-        expect(
-          sources.get('fitness-privacy-zones')?.setData
-        ).toHaveBeenLastCalledWith(
-          expect.objectContaining({
-            features: [expect.objectContaining({ type: 'Feature' })]
-          })
+        // The draft (13.7563, 100.5018 at 200m) IS the saved zone; drawing both
+        // would stack two 20% fills into a darker one.
+        await waitFor(() =>
+          expect(
+            sources.get('fitness-privacy-zones')?.setData
+          ).toHaveBeenLastCalledWith(
+            expect.objectContaining({
+              features: [expect.objectContaining({ type: 'Feature' })]
+            })
+          )
         )
-      )
-    })
+      }
+    )
 
     it('resizes the draft circle when the hide radius changes', async () => {
       mockSavedZone(200)

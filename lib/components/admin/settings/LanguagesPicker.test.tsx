@@ -40,7 +40,7 @@ describe('LanguagesPicker', () => {
 
     // Panel border 1 + padding 8 + px-2.5 10 + glyph 14 + gap 16 puts the
     // placeholder 49 px from the panel's left edge, as the board draws it.
-    const field = screen.getByRole('textbox', { name: 'Search languages' })
+    const field = screen.getByPlaceholderText('Search languages')
       .parentElement as HTMLElement
     expect(field).toHaveClass('gap-4', 'px-2.5')
     const glyph = field.querySelector('svg') as SVGElement

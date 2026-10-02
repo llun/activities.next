@@ -1594,7 +1594,9 @@ legacy shape left to copy.
 - A native `<select>` is the shared `Select`. One that needs its own size or
   focus ring keeps its classes and appends `selectChevronClassName` (from
   `@/lib/components/ui/select`), which hides the OS arrow and paints the
-  design's muted chevron; a bare `<select>` shows the platform arrow.
+  design's muted chevron; a bare `<select>` shows the platform arrow. The
+  activity-file switcher in `FitnessStatusDetail` is the one exception: it
+  overlays its own foreground-coloured `ChevronDown`, as the design draws it.
 - The unread-count pill (`NotificationBadge`) is filled `#B7282E` in light — the
   design's count-badge red, darker than the `#EF4444` `--destructive` token that
   white text only reaches 3.8:1 on — and `--destructive` (`#7F1D1D`) in dark.
@@ -1605,9 +1607,13 @@ legacy shape left to copy.
   backdrop on `body` is `#492812` top-left and `#193543` top-right at 60 %.
   `app/globals.contrast.test.ts` guards the values.
 - Dropdown menu rows highlight with `--accent` in light and `--muted` (#2B2B2B)
-  in dark, and a radio item's indicator is a 6 px dot. Loading placeholders use
-  the shared `.skeleton` utility rather than `bg-muted`, which sits almost on
-  the card and is near-invisible.
+  in dark, and a radio item's indicator is a 6 px dot. A row that paints its own
+  `focus:` wash (the current row of `SectionNavDropdown` / `SectionNavSelect`,
+  the visibility selector, the Strava gear menu) repeats it as `dark:focus:`:
+  the shared item's `dark:focus:bg-muted` survives tailwind-merge unless the row
+  names its own `dark:focus:` background, so the hovered row would turn grey in
+  dark. Loading placeholders use the shared `.skeleton` utility rather than
+  `bg-muted`, which sits almost on the card and is near-invisible.
 - The shared `Dialog` is 440 px wide by default (a dialog that needs more sets
   its own `sm:max-w-*`, as the gear forms do at `sm:max-w-lg`), has a 16 px
   radius, and sits on `bg-card` in dark mode (`bg-background` in light) so it

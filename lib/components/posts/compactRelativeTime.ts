@@ -7,10 +7,9 @@ const YEAR = 365 * DAY
 
 /**
  * The compact relative time a post header shows next to the author ("35m",
- * "2h", "3d"), as drawn on the design system's Post card board. Every other
- * surface that prints a relative time (notifications, sessions, the edit
- * history panel, quote cards) keeps date-fns' `formatDistance` and is not
- * affected.
+ * "2h", "3d"), as drawn on the design system's Post card board. Other
+ * surfaces keep their own formatters (see "Review: Client components & data
+ * flow" in docs/architecture.md) and are not affected.
  *
  * Both arguments are explicit, so a caller can pass the server-provided
  * `currentTime` and render the same text on the server and in the browser (see

@@ -257,6 +257,7 @@ describe('HeatmapShareEmbed', () => {
       let notifyResize: () => void
       let observers: number
       let disconnected: number
+      const observeSpy = vi.fn()
 
       beforeEach(() => {
         Object.assign(layout, {
@@ -291,7 +292,7 @@ describe('HeatmapShareEmbed', () => {
             observers += 1
             notifyResize = () => callback([], this as never)
           }
-          observe = vi.fn()
+          observe = observeSpy
           unobserve = vi.fn()
           disconnect = () => {
             disconnected += 1
@@ -349,6 +350,7 @@ describe('HeatmapShareEmbed', () => {
           />
         )
         expect(observers).toBe(1)
+        expect(observeSpy).toHaveBeenCalledWith(snippet())
         expect(snippet().style.height).toBe('80px')
 
         // Our own height write fires the observer with the width unchanged.
