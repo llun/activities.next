@@ -7,6 +7,7 @@ import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigat
 import { NavPreferencesProvider } from '@/lib/components/layout/nav-preferences-context'
 import { Sidebar } from '@/lib/components/layout/sidebar'
 import { PlaybackPreferencesProvider } from '@/lib/components/preferences/PlaybackPreferencesContext'
+import { SessionKeepAlive } from '@/lib/components/session-keep-alive'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
@@ -166,6 +167,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
                 </div>
               </main>
               <Modal />
+              <SessionKeepAlive />
             </div>
           </MobileNavigationProvider>
         </NavPreferencesProvider>

@@ -89,6 +89,9 @@ vi.mock('@/lib/components/layout/sidebar', () => ({
     <div data-testid="sidebar" data-fitness={fitnessUrl ?? ''} />
   )
 }))
+vi.mock('@/lib/components/session-keep-alive', () => ({
+  SessionKeepAlive: () => <div data-testid="session-keep-alive" />
+}))
 vi.mock('@/lib/components/layout/mobile-nav', () => ({
   MobileNav: () => <div data-testid="mobile-nav" />
 }))
@@ -149,6 +152,7 @@ describe('(timeline) Layout', () => {
     expect(screen.getByTestId('child')).toBeInTheDocument()
     expect(screen.queryByTestId('sidebar')).not.toBeInTheDocument()
     expect(screen.queryByTestId('mobile-nav')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('session-keep-alive')).not.toBeInTheDocument()
   })
 
   it('renders the nav chrome for signed-in users', async () => {
@@ -159,6 +163,14 @@ describe('(timeline) Layout', () => {
     expect(screen.getByTestId('sidebar')).toBeInTheDocument()
     expect(screen.getByTestId('mobile-nav')).toBeInTheDocument()
     expect(screen.getByTestId('child')).toBeInTheDocument()
+  })
+
+  it('mounts SessionKeepAlive for signed-in users', async () => {
+    mockGetActorFromSession.mockResolvedValue(signedInActor as never)
+
+    await renderLayout()
+
+    expect(screen.getByTestId('session-keep-alive')).toBeInTheDocument()
   })
 
   it('seeds the navigation store from the actor settings', async () => {

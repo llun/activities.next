@@ -250,6 +250,10 @@ The durable rule source moved to [docs/architecture.md](docs/architecture.md#age
 
 The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-better-auth-database-joins); read it before changing this subsystem.
 
+## Better-auth Session Refresh
+
+The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-better-auth-session-refresh); read it before changing this subsystem.
+
 ## OAuth Client Registrations
 
 The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-oauth-client-registrations); read it before changing this subsystem.

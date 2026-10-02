@@ -175,7 +175,7 @@ Authentication is handled by [better-auth](https://www.better-auth.com/), which 
 - Local email/password authentication
 - Passkey authentication
 - Two-factor authentication
-- Session management stored in the database
+- Session management stored in the database, slid forward only inside better-auth's own `/api/auth/*` handler, where its `Set-Cookie` reaches the browser (see [Better-auth Session Refresh](#agents-better-auth-session-refresh))
 - OAuth 2.0 access tokens (JWT and opaque) for API access
 
 The application also acts as an **OAuth 2.0 provider** (using better-auth's OAuth provider plugin), allowing third-party applications to authenticate users and access the API.
@@ -511,6 +511,7 @@ Read the applicable rules and review checks below before changing this subsystem
 - [Status Delete & Unboost Federation](#agents-status-delete-unboost-federation)
 - [Better-auth Plugin Guidelines](#agents-better-auth-plugin-guidelines)
 - [Better-auth Database Joins](#agents-better-auth-database-joins)
+- [Better-auth Session Refresh](#agents-better-auth-session-refresh)
 - [OAuth Client Registrations](#agents-oauth-client-registrations)
 - [Auth Error Page](#agents-auth-error-page)
 - [OAuth Grants Must Resolve an Actor](#agents-oauth-grants-must-resolve-an-actor)
@@ -520,6 +521,7 @@ Read the applicable rules and review checks below before changing this subsystem
 - [Review: Page chrome, layout & accessibility](#review-page-chrome-layout-accessibility)
 - [Review: Logging](#review-logging)
 - [Review: Auth error page](#review-auth-error-page)
+- [Review: Better-auth session refresh](#review-better-auth-session-refresh)
 - [Review: Unconfirmed accounts & app tokens](#review-unconfirmed-accounts-app-tokens)
 - [Review: Emails](#review-emails)
 - [Review: Post media layout](#review-post-media-layout)
@@ -1233,6 +1235,15 @@ legacy shape left to copy.
 - **Session lookups run `WHERE token = ?` on every authenticated request** — `sessions.token` is indexed (`sessions_token_idx`) for exactly that reason. The older `(accountId, token)` composite cannot serve it: a B-tree led by `accountId` leaves a bare-`token` predicate to a sequential scan. Don't drop the single-column index on the grounds that the composite already mentions `token`.
 - **`experimental.joins` was removed in 1.7 in favor of `advanced.database.joins` — it is not a compatible alias for the new key.** better-auth's options type accepts unknown keys, so a stale `experimental: { joins: true }` neither fails to compile nor warns; it just stops requesting joins, and every authenticated request quietly costs a second statement again. Check the option's location against the installed version's `advanced.database` on any better-auth upgrade.
 
+<a id="agents-better-auth-session-refresh"></a>
+
+### Better-auth Session Refresh
+
+- **A session may only slide forward where its cookie can be written.** A better-auth refresh does two writes together: it extends the `sessions.expireAt` row and re-issues the session cookie with a fresh `Max-Age` (`session.expiresIn`, 7 days by default). Server Components cannot set cookies, and route handlers that call `auth.api.*` directly drop the `Set-Cookie` the call produced, so a refresh in either place lands only the database write.
+- **That is why `getServerAuthSession` passes `query: { disableRefresh: true }`.** Before it did, every page render could refresh the row behind the cookie's back: the database kept extending, the browser cookie kept the `Max-Age` it got at sign-in, and every user was signed out seven days after signing in however active they were — and because the row had just been refreshed, nothing re-issued the cookie before it lapsed. With releases going out several times a day, it looked as though each deploy logged people out.
+- **Refreshes happen only inside better-auth's own `/api/auth/*` handler** (`app/api/auth/[...all]/route.ts`), which returns the cookie with the refreshed row so the two stay in step. Any endpoint there that resolves a session can do it (`/get-session`, authorize/consent, passkey, two-factor, …); the one the app relies on is `/get-session`, called by `SessionKeepAlive` (`lib/components/session-keep-alive.tsx`, via `refreshAuthSession` in `lib/client/session.ts`). It is mounted in the signed-in branch of `app/(timeline)/layout.tsx` and refreshes on mount, then at most once per `SESSION_REFRESH_INTERVAL_MS` while the tab is visible — on a timer, because the layout stays mounted across client-side navigation and a window that is never hidden fires no `visibilitychange`, and when the tab becomes visible again.
+- Don't add a server-side session read that refreshes. That covers every `auth.api.*` call that resolves a session — not only `getSession`, but any endpoint behind better-auth's `sessionMiddleware` / `getSessionFromCtx` (e.g. `auth.api.getOAuthConsent`, `auth.api.listPasskeys`), which refreshes a due session the same way. Called outside better-auth's handler, such a call passes `disableRefresh: true` where the endpoint accepts it, or runs in a route handler that returns better-auth's `Set-Cookie` to the browser (`asResponse` / `returnHeaders`); a Server Component can do neither, so it must use `getServerAuthSession`. `lib/services/auth/sessionRefresh.test.ts` drives the real instance and checks both halves: a server-render read leaves a due session untouched, and `/get-session` extends it and re-issues the cookie.
+
 <a id="agents-oauth-client-registrations"></a>
 
 ### OAuth Client Registrations
@@ -1600,6 +1611,25 @@ legacy shape left to copy.
 - If `socialProviders`, `sso()` or `genericOAuth()` are added, pass
   `errorCallbackURL` per flow as well — `onAPIError.errorURL` is only the default
   for provider-callback failures.
+
+<a id="review-better-auth-session-refresh"></a>
+
+### Review: Better-auth session refresh
+
+- A server-side session read never slides the session. `getServerAuthSession`
+  keeps `query: { disableRefresh: true }`, and a new `auth.api.*` call that
+  resolves a session (anything behind `sessionMiddleware` /
+  `getSessionFromCtx`, not only `getSession`) either disables the refresh or
+  runs in a route handler that returns better-auth's `Set-Cookie`. A Server
+  Component can do neither, so it goes through `getServerAuthSession`.
+- Refreshes happen only inside better-auth's own `/api/auth/*` handler, where
+  the row and the cookie move together. `SessionKeepAlive` stays mounted in the
+  signed-in layout and keeps its timer, because the layout survives client-side
+  navigation and a window that is never hidden fires no `visibilitychange`.
+- `lib/services/auth/sessionRefresh.test.ts` keeps driving the real better-auth
+  instance: a server-render read leaves a due session untouched, and
+  `/get-session` extends it and re-issues the cookie. See
+  [Better-auth Session Refresh](#agents-better-auth-session-refresh).
 
 <a id="review-unconfirmed-accounts-app-tokens"></a>
 

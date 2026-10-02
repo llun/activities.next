@@ -18,7 +18,20 @@ export const getServerAuthSession = cache(async () => {
   // unauthenticated. Only better-auth's session lookup is guarded below.
   const requestHeaders = await headers()
   try {
-    return await auth.api.getSession({ headers: requestHeaders })
+    // `disableRefresh`: never slide the session from here. When a session is
+    // due (`updateAge`), better-auth extends its database `expireAt` AND
+    // re-issues the cookie with a fresh Max-Age — but this runs in Server
+    // Components and route handlers that drop the `Set-Cookie` it produces.
+    // Refreshing here moved the database row forward while the browser cookie
+    // kept the 7-day Max-Age from sign-in, so it lapsed 7 days after sign-in
+    // however active the user was, and since the row had just been refreshed,
+    // nothing else would re-issue the cookie before it did. The refresh happens
+    // instead in better-auth's own `/get-session` handler, which
+    // `SessionKeepAlive` calls from the signed-in layout, where both writes land.
+    return await auth.api.getSession({
+      headers: requestHeaders,
+      query: { disableRefresh: true }
+    })
   } catch (error) {
     // better-auth resolves the session and THEN, via the jwt plugin's
     // `/get-session` after-hook, signs a short-lived JWT for the `set-auth-jwt`

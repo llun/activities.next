@@ -50,6 +50,8 @@ Review the diff against the linked canonical rule source. Check every applicable
 
 - [ ] **Fitness route heatmap pyramid** — Preserve privacy filtering, tile geometry, shared-image behavior, and renderer fallback limits. [Detailed checks](docs/fitness-file-storage.md#review-fitness-route-heatmap-pyramid).
 
+- [ ] **Better-auth session refresh** — Server-side session reads never slide a session; refreshes happen only inside better-auth's `/api/auth/*` handler, where the cookie is re-issued with the row. [Detailed checks](docs/architecture.md#review-better-auth-session-refresh).
+
 - [ ] **Auth error page** — Preserve documented error codes and user-visible recovery behavior. [Detailed checks](docs/architecture.md#review-auth-error-page).
 
 - [ ] **Unconfirmed accounts & app tokens** — Keep confirmation/moderation predicates and narrowly scoped guard exceptions intact. [Detailed checks](docs/architecture.md#review-unconfirmed-accounts-app-tokens).
