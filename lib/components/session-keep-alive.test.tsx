@@ -82,7 +82,7 @@ describe('SessionKeepAlive', () => {
     changeVisibility('visible')
     expect(refreshAuthSession).toHaveBeenCalledTimes(2)
 
-    // That refresh restarts the interval, so returning to the tab again
+    // That refresh resets the refresh window, so returning to the tab again
     // inside it does not refresh a second time.
     vi.advanceTimersByTime(SESSION_REFRESH_INTERVAL_MS - 2)
     changeVisibility('hidden')

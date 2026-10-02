@@ -141,7 +141,6 @@ describe('session refresh', () => {
   it('extends a due session and re-issues its cookie through the get-session endpoint', async () => {
     const { auth, cookie } = await signIn()
     await ageSessions()
-    const expiryBefore = await readSessionExpiry()
 
     const response = await auth.handler(
       new Request(`${BASE_URL}/api/auth/get-session`, {
@@ -153,7 +152,11 @@ describe('session refresh', () => {
     const setCookie = response.headers.get('set-cookie') ?? ''
     expect(setCookie).toContain(cookie.split('=')[0])
     expect(setCookie).toContain(`Max-Age=${SESSION_EXPIRES_IN_SECONDS}`)
-    // The row moved by the same amount the cookie's Max-Age was reset to.
-    expect(await readSessionExpiry()).toBeGreaterThan(expiryBefore + DAY_MS)
+    // The row now expires at the instant the re-issued cookie does: a full
+    // `expiresIn` from now, not the five days the aged row had left.
+    const cookieExpiresAt = Date.now() + SESSION_EXPIRES_IN_SECONDS * 1000
+    expect(
+      Math.abs((await readSessionExpiry()) - cookieExpiresAt)
+    ).toBeLessThan(60_000)
   })
 })

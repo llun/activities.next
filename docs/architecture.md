@@ -521,6 +521,7 @@ Read the applicable rules and review checks below before changing this subsystem
 - [Review: Page chrome, layout & accessibility](#review-page-chrome-layout-accessibility)
 - [Review: Logging](#review-logging)
 - [Review: Auth error page](#review-auth-error-page)
+- [Review: Better-auth session refresh](#review-better-auth-session-refresh)
 - [Review: Unconfirmed accounts & app tokens](#review-unconfirmed-accounts-app-tokens)
 - [Review: Emails](#review-emails)
 - [Review: Post media layout](#review-post-media-layout)
@@ -1610,6 +1611,25 @@ legacy shape left to copy.
 - If `socialProviders`, `sso()` or `genericOAuth()` are added, pass
   `errorCallbackURL` per flow as well — `onAPIError.errorURL` is only the default
   for provider-callback failures.
+
+<a id="review-better-auth-session-refresh"></a>
+
+### Review: Better-auth session refresh
+
+- A server-side session read never slides the session. `getServerAuthSession`
+  keeps `query: { disableRefresh: true }`, and a new `auth.api.*` call that
+  resolves a session (anything behind `sessionMiddleware` /
+  `getSessionFromCtx`, not only `getSession`) either disables the refresh or
+  runs in a route handler that returns better-auth's `Set-Cookie`. A Server
+  Component can do neither, so it goes through `getServerAuthSession`.
+- Refreshes happen only inside better-auth's own `/api/auth/*` handler, where
+  the row and the cookie move together. `SessionKeepAlive` stays mounted in the
+  signed-in layout and keeps its timer, because the layout survives client-side
+  navigation and a window that is never hidden fires no `visibilitychange`.
+- `lib/services/auth/sessionRefresh.test.ts` keeps driving the real better-auth
+  instance: a server-render read leaves a due session untouched, and
+  `/get-session` extends it and re-issues the cookie. See
+  [Better-auth Session Refresh](#agents-better-auth-session-refresh).
 
 <a id="review-unconfirmed-accounts-app-tokens"></a>
 
