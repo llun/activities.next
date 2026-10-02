@@ -16,9 +16,7 @@ import { defineConfig } from 'vitest/config'
 // inside each worker, and on a worker thread assigning `process.env.TZ`
 // changes the variable but not the zone `Date` and `Intl` use: Node re-reads
 // the zone only for the main thread. An externally supplied `TZ` is replaced
-// too — the pin is not a default. `vitest.config.test.ts` guards it, and the
-// CI test-shards job starts Vitest in a non-UTC `TZ` on purpose so that the
-// guard can fail there (a UTC runner would hide a missing pin).
+// too — the pin is not a default. `vitest.config.test.ts` guards it.
 process.env.TZ = 'UTC'
 
 const resolvePath = (relativePath: string) =>

@@ -1,4 +1,4 @@
-import { isMainThread } from 'node:worker_threads'
+import { Worker, isMainThread } from 'node:worker_threads'
 
 import { withTimeZone } from './withTimeZone'
 
@@ -55,7 +55,7 @@ describe('withTimeZone', () => {
     const callback = vi.fn()
 
     await expect(withTimeZone('Not/AZone', callback)).rejects.toThrow(
-      'withTimeZone: "Not/AZone" is not a time zone Intl recognises.'
+      RangeError
     )
 
     expect(callback).not.toHaveBeenCalled()
@@ -85,5 +85,45 @@ describe('withTimeZone', () => {
     } finally {
       process.env.TZ = pinned
     }
+  })
+
+  it('throws on a worker thread, where Node ignores TZ, instead of running the callback', async () => {
+    // A bare worker, not a Vitest one: it loads the helper through Node's own
+    // type stripping, so withTimeZone.ts has to stay free of project imports.
+    const source = `
+      const { parentPort, workerData } = require('node:worker_threads')
+      import(workerData.helperUrl).then(async ({ withTimeZone }) => {
+        let callbackRan = false
+        const error = await withTimeZone('Asia/Tokyo', () => {
+          callbackRan = true
+        }).then(
+          () => null,
+          (err) => err.message
+        )
+        parentPort.postMessage({ callbackRan, error })
+      })
+    `
+    const outcome = await new Promise<{
+      callbackRan: boolean
+      error: string | null
+    }>((resolve, reject) => {
+      const worker = new Worker(source, {
+        eval: true,
+        workerData: {
+          helperUrl: new URL('./withTimeZone.ts', import.meta.url).href
+        }
+      })
+      worker.once('message', resolve)
+      worker.once('error', reject)
+      worker.once('exit', (code) =>
+        reject(new Error(`the worker exited (${code}) without reporting`))
+      )
+    })
+
+    expect(outcome.callbackRan).toBe(false)
+    expect(outcome.error).toContain(
+      'could not move the time zone to "Asia/Tokyo"'
+    )
+    expect(outcome.error).toContain('worker thread')
   })
 })

@@ -1,3 +1,5 @@
+import { isMainThread } from 'node:worker_threads'
+
 /**
  * Runs `callback` with the process's time zone moved to `timeZone`, then puts
  * the previous zone back. For the rare test whose subject must not depend on
@@ -11,28 +13,21 @@
  * project, and the helper throws if the zone did not move rather than run the
  * callback in the wrong one.
  *
- * Aliases work (`Asia/Kolkata`): the zone Intl reports back is compared with
- * the canonical form of the request, not the request itself. The one known
- * exception is the bare name `GMT`, which Node applies as `+00:00`.
+ * Pass an exact-case IANA name. An alias (`Asia/Kolkata`) works because the
+ * applied zone is compared with the canonical form of the request; case
+ * variants, offsets and the bare `GMT` are not read by Node's `TZ` and are
+ * rejected. The helper imports nothing from the project (only `node:`
+ * builtins), so a bare worker can load it through Node's type stripping.
  */
 export const withTimeZone = async <T>(
   timeZone: string,
   callback: () => T | Promise<T>
 ): Promise<T> => {
-  // Resolved before TZ is touched, and an unrecognised name is rejected here:
-  // Node reports an invalid TZ as `undefined`, so a request swallowed into
-  // `undefined` would pass the comparison below.
-  let canonicalTimeZone: string
-  try {
-    canonicalTimeZone = new Intl.DateTimeFormat('en-US', {
-      timeZone
-    }).resolvedOptions().timeZone
-  } catch (err) {
-    throw new Error(
-      `withTimeZone: "${timeZone}" is not a time zone Intl recognises.`,
-      { cause: err }
-    )
-  }
+  // Throws a RangeError for a name Intl does not recognise. It has to run
+  // before TZ is assigned, so a bad name leaves the process's zone alone.
+  const canonicalTimeZone = new Intl.DateTimeFormat('en-US', {
+    timeZone
+  }).resolvedOptions().timeZone
 
   const originalTimeZone = process.env.TZ
   process.env.TZ = timeZone
@@ -42,9 +37,13 @@ export const withTimeZone = async <T>(
     if (appliedTimeZone !== canonicalTimeZone) {
       throw new Error(
         `withTimeZone could not move the time zone to "${timeZone}" (it is "${appliedTimeZone}"). ` +
-          'This file is running on a worker thread, where Node ignores process.env.TZ: ' +
-          'vitest.config.ts routes a test file to the forked-process project when it ' +
-          'imports lib/testing/withTimeZone.'
+          (isMainThread
+            ? 'Node reads process.env.TZ only as an exact-case IANA name ' +
+              '(Europe/Amsterdam, not europe/amsterdam; UTC, not GMT) and ' +
+              'ignores an offset such as +05:30.'
+            : 'This file is running on a worker thread, where Node ignores process.env.TZ: ' +
+              'vitest.config.ts routes a test file to the forked-process project when it ' +
+              'imports lib/testing/withTimeZone.')
       )
     }
     return await callback()
