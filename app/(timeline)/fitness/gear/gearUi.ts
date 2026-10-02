@@ -246,6 +246,21 @@ export const STICKY_COLUMN =
   'sticky left-0 z-1 bg-card shadow-[inset_-1px_0_0_var(--border)]'
 
 /**
+ * The horizontal scroller around every gear table. `relative` is load-bearing:
+ * `overflow` only clips an absolutely positioned descendant whose containing
+ * block is the scroller or inside it, and the tables carry `sr-only` spans
+ * (`position: absolute`) in cells that are not themselves positioned: the
+ * "Actions" headers (always on the gear and device tables; on the components
+ * table once its actions column unpins on a phone), the gear list's
+ * phone-hidden "Edit" text, and the "Install N:" labels in a refitted
+ * component's Added/Retired cells. Without a positioned
+ * scroller those spans resolve against the page instead, escape the clip at
+ * their unscrolled x, and widen the document: a 390px phone grew to ~1,770px
+ * wide on a gear's page and ~560px on the gear list.
+ */
+export const GEAR_TABLE_SCROLLER = 'relative overflow-x-auto'
+
+/**
  * Pinned last cell of a row (such as the Actions column on the components
  * table). Pinned to the right edge with a left-edge hairline separator.
  */

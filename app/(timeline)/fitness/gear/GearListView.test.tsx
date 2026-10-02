@@ -118,6 +118,23 @@ describe('GearListView', () => {
     ).toBeInTheDocument()
   })
 
+  // jsdom lays nothing out, so this guards the containing block instead of
+  // the page width: the "Actions" header and a phone's hidden "Edit" text are
+  // `sr-only` (`position: absolute`) in cells that are not positioned, and
+  // without a positioned scroller they escaped its overflow clip and widened
+  // a 390px document to ~560px.
+  it('keeps every table in a positioned scroller', async () => {
+    mockGetFitnessGearList.mockResolvedValue([createGear(), createDevice()])
+    render(<GearListView />)
+
+    await screen.findByText('Rocket')
+    const tables = screen.getAllByRole('table')
+    expect(tables).toHaveLength(2)
+    for (const table of tables) {
+      expect(table.parentElement).toHaveClass('relative', 'overflow-x-auto')
+    }
+  })
+
   it('shows the per-kind empty state when there is no gear', async () => {
     render(<GearListView />)
 

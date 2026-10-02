@@ -1181,6 +1181,19 @@ null }` remains the precise "this retirement never happened" — it reopens the
   `STICKY_CLICKABLE_COLUMN` belongs only on a row that has its own `hover:` and
   the `group` class — a row carrying `group` without a `hover:` lights the
   first column alone, and a row with neither never matches the variant at all.
+- **Every gear table's horizontal scroller is `GEAR_TABLE_SCROLLER`
+  (`relative overflow-x-auto`), and the `relative` is load-bearing.** The
+  tables carry `sr-only` spans — `position: absolute` — in cells that are not
+  positioned: the "Actions" headers (always on the gear and device tables; on
+  the components table once its actions column unpins on a phone), the gear
+  list's phone-hidden "Edit" button text,
+  and the "Install N:" labels in a refitted component's Added/Retired cells.
+  `overflow` clips an absolutely positioned descendant only when its containing
+  block is the scroller or inside it, so with no positioned scroller those
+  spans resolved against the page, escaped the clip at their unscrolled x and
+  widened the document: a 390px phone grew to ~1,770px wide on a gear's page
+  and ~560px on the gear list, scrolling sideways into blank space. Never wrap
+  a gear table in a bare `overflow-x-auto`.
 - **A gear's activities are the POSTS they were published as, rendered through
   the shared `Posts` feed.** `GearActivitiesFeed`
   (`app/(timeline)/fitness/gear/[id]/GearActivitiesFeed.tsx`) is the single

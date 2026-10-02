@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils'
 import { GearFormDialog } from './GearFormDialog'
 import { GearProductLink } from './GearProductLink'
 import {
+  GEAR_TABLE_SCROLLER,
   STICKY_CLICKABLE_COLUMN,
   STICKY_COLUMN,
   formatGearDistanceKm,
@@ -112,7 +113,7 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd, onEdit }) => {
       {visible.length === 0 ? (
         <p className="px-4 text-sm text-muted-foreground">{copy.emptyState}</p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className={GEAR_TABLE_SCROLLER}>
           <table className="w-full min-w-[560px] table-fixed text-sm">
             <colgroup>
               <col className="w-[34%]" />
@@ -283,7 +284,7 @@ const DeviceSection: FC<{
         </span>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className={GEAR_TABLE_SCROLLER}>
         <table className="w-full min-w-[560px] table-fixed text-sm">
           <colgroup>
             <col className="w-[34%]" />

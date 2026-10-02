@@ -11,6 +11,7 @@ import { FC, useState } from 'react'
 
 import { GearProductLink } from '@/app/(timeline)/fitness/gear/GearProductLink'
 import {
+  GEAR_TABLE_SCROLLER,
   STICKY_COLUMN,
   STICKY_LEFT_SHADOW,
   STICKY_RIGHT_COLUMN,
@@ -417,7 +418,7 @@ export const GearComponentsCard: FC<Props> = ({
         // minimums already size columns cleanly.
         <div
           ref={scrollerRef}
-          className="overflow-x-auto"
+          className={GEAR_TABLE_SCROLLER}
           style={scrollerStyle}
         >
           <table className="w-full text-sm">

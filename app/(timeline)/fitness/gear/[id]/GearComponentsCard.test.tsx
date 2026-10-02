@@ -2,7 +2,14 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 
 import {
   STICKY_COLUMN,
@@ -247,6 +254,52 @@ describe('GearComponentsCard', () => {
         scrollPaddingLeft: '120px'
       })
       expect(scroller.style.scrollPaddingRight).toBe('')
+    })
+
+    // jsdom lays nothing out, so this guards the containing block instead of
+    // the page width. Unpinned on a phone, the actions header is not
+    // positioned, and its `sr-only` label (`position: absolute`) resolved
+    // against the page rather than the scroller — escaping the overflow clip at
+    // its unscrolled x and widening a 390px document to ~1,770px.
+    it('keeps the actions label inside a positioned scroller on a phone', () => {
+      renderCard([createComponent()])
+      act(() => deliverWidth?.(390))
+
+      const [actionsHeader] = columnCells(7)
+      expect(actionsHeader).not.toHaveClass('sticky')
+      expect(
+        within(actionsHeader as HTMLElement).getByText('Actions')
+      ).toHaveClass('sr-only')
+      expect(screen.getByRole('table').parentElement).toHaveClass(
+        'relative',
+        'overflow-x-auto'
+      )
+    })
+
+    // The Added/Retired cells are never positioned, so a refitted component's
+    // `sr-only` "Install N:" labels leaked at every width the table scrolls,
+    // not only on a phone — here the actions are pinned and the labels still
+    // have nothing positioned between them and the scroller.
+    it('keeps the install labels inside a positioned scroller with the actions pinned', () => {
+      renderCard([
+        createComponent({
+          periods: [
+            { addedAt: Date.UTC(2024, 0, 15), removedAt: Date.UTC(2024, 5, 1) },
+            { addedAt: Date.UTC(2024, 10, 20), removedAt: null }
+          ]
+        })
+      ])
+      act(() => deliverWidth?.(600))
+
+      const scroller = screen.getByRole('table').parentElement as HTMLElement
+      expect(scroller).toHaveClass('relative', 'overflow-x-auto')
+      const labels = screen.getAllByText(/^Install \d+:$/)
+      expect(labels).toHaveLength(4)
+      for (const label of labels) {
+        expect(label).toHaveClass('sr-only')
+        expect(label.closest('.sticky')).toBeNull()
+        expect(scroller).toContainElement(label)
+      }
     })
 
     it('pins the type and actions columns and snaps the middle above a phone', () => {
