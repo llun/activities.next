@@ -87,6 +87,21 @@ describe('withTimeZone', () => {
     }
   })
 
+  it('throws on the main thread when Node does not read the zone name', async () => {
+    const callback = vi.fn()
+    // An offset, because it can never be applied: Intl accepts it, but ICU does
+    // not read one from TZ and falls back to a real zone name. A lower-case
+    // name or `GMT` mismatches too, but only by a V8 quirk.
+    const error = await withTimeZone('+05:30', callback).catch((err) => err)
+
+    expect(error).toBeInstanceOf(Error)
+    expect(error.message).toContain('could not move the time zone to "+05:30"')
+    expect(error.message).toContain('exact-case IANA name')
+    expect(callback).not.toHaveBeenCalled()
+    expect(process.env.TZ).toBe('UTC')
+    expect(currentTimeZone()).toBe('UTC')
+  })
+
   it('throws on a worker thread, where Node ignores TZ, instead of running the callback', async () => {
     // A bare worker, not a Vitest one: it loads the helper through Node's own
     // type stripping, so withTimeZone.ts has to stay free of project imports.
