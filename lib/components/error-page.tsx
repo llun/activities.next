@@ -192,7 +192,7 @@ export const ErrorPage: FC<ErrorPageProps> = ({ code = '404', meta }) => {
 
           {/* Technical detail */}
           <div className="mt-[22px] w-full border-t pt-4 sm:mt-7">
-            <code className="text-muted-foreground font-mono text-xs">
+            <code className="text-muted-foreground block font-mono text-xs leading-4">
               {technicalDetail}
             </code>
           </div>

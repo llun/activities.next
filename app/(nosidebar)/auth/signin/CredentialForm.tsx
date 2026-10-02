@@ -90,11 +90,18 @@ export const CredentialForm: FC<Props> = ({ providerName }) => {
     // credentials in the request body in every case.
     <form onSubmit={handleSubmit} method="post" className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="inputEmail">Email</Label>
+        {/* The sign-in board draws its field labels 14/20 (20 high), taller
+            than the shared Label's 14 px line box, which the sign-up board
+            matches, so only this card asks for the roomier one. */}
+        <Label htmlFor="inputEmail" className="leading-5">
+          Email
+        </Label>
         <Input name="email" type="email" id="inputEmail" />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="inputPassword">Password</Label>
+        <Label htmlFor="inputPassword" className="leading-5">
+          Password
+        </Label>
         <Input name="password" type="password" id="inputPassword" />
       </div>
       <div className="text-right">

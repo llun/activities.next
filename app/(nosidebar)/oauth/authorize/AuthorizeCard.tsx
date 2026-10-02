@@ -20,6 +20,7 @@ import {
   CardHeader,
   CardTitle
 } from '@/lib/components/ui/card'
+import { Checkbox } from '@/lib/components/ui/checkbox'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -359,13 +360,14 @@ export const AuthorizeCard: FC<Props> = ({
                 const lockedOidcScope = isOidc && scope === 'openid'
                 return (
                   <div key={scope} className="flex items-center space-x-2">
-                    <input
-                      className="peer size-4 rounded border-input text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                    <Checkbox
+                      // `peer` lets the label below dim for a locked scope;
+                      // the 14 px tick is the consent card's own check size.
+                      className="peer bg-[length:14px_14px]"
                       // A disabled control is omitted from form submission, but
                       // also drop the name so a non-standard serializer can't
                       // double-submit `openid` alongside the hidden field.
                       name={lockedOidcScope ? undefined : 'scope'}
-                      type="checkbox"
                       value={scope}
                       id={`scope-${scope}`}
                       defaultChecked

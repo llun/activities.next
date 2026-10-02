@@ -53,8 +53,9 @@ describe('search loading', () => {
     // Search form skeleton
     const formSection = screen.getByLabelText('Search form')
     expect(formSection).toBeInTheDocument()
-    expect(formSection.querySelector('.flex-1.skeleton')).toHaveClass('h-11')
-    expect(formSection.querySelector('.shrink-0.skeleton')).toHaveClass('h-11')
+    // The field and the button are the standard 36 high, like the loaded form.
+    expect(formSection.querySelector('.flex-1.skeleton')).toHaveClass('h-9')
+    expect(formSection.querySelector('.shrink-0.skeleton')).toHaveClass('h-9')
 
     // Search tabs skeleton (4 tabs: all, accounts, statuses, hashtags)
     const tabsSection = screen.getByLabelText('Search tabs')

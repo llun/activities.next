@@ -1013,4 +1013,111 @@ describe('AuthorizeCard', () => {
     })
     expect(mockNavigate).not.toHaveBeenCalled()
   })
+
+  describe('scope checkboxes', () => {
+    const renderCard = (searchParams: SearchParams = signedSearchParams) =>
+      render(
+        <AuthorizeCard
+          client={client}
+          searchParams={searchParams}
+          actors={actors}
+          currentActorId="https://activities.local/users/llun"
+          account={account}
+          navigate={mockNavigate}
+        />
+      )
+
+    // The consent form's scopes come from the form's own data, so the shared
+    // Checkbox must post exactly what the bare <input> it replaced did: the
+    // `scope` name, the scope as the value, checked by default, and omitted
+    // from the form data once unchecked.
+    it('renders each requested scope as a checked checkbox named scope', () => {
+      const { container } = renderCard()
+
+      const boxes = Array.from(
+        container.querySelectorAll<HTMLInputElement>('input[name="scope"]')
+      )
+      expect(boxes.map((box) => box.value)).toEqual([
+        'read',
+        'write',
+        'follow',
+        'push'
+      ])
+      for (const box of boxes) {
+        expect(box).toHaveAttribute('type', 'checkbox')
+        expect(box).toHaveAttribute('id', `scope-${box.value}`)
+        expect(box).toBeChecked()
+        expect(box).toBeEnabled()
+      }
+    })
+
+    it('posts the same scope set through the form data as before', () => {
+      const { container } = renderCard()
+
+      const form = container.querySelector('form') as HTMLFormElement
+      expect(new FormData(form).getAll('scope')).toEqual([
+        'read',
+        'write',
+        'follow',
+        'push'
+      ])
+    })
+
+    it('leaves an unchecked scope out of the consent', async () => {
+      const { container } = renderCard()
+
+      fireEvent.click(screen.getByLabelText('write'))
+      expect(screen.getByLabelText('write')).not.toBeChecked()
+      const form = container.querySelector('form') as HTMLFormElement
+      expect(new FormData(form).getAll('scope')).toEqual([
+        'read',
+        'follow',
+        'push'
+      ])
+
+      fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+      await waitFor(() => {
+        expect(mockSubmitOAuthConsent).toHaveBeenCalledTimes(1)
+      })
+      expect(mockSubmitOAuthConsent.mock.calls[0][0]).toMatchObject({
+        accept: true,
+        scope: 'read follow push'
+      })
+    })
+
+    it('submits an empty scope when every box is unchecked', async () => {
+      renderCard()
+
+      for (const scope of ['read', 'write', 'follow', 'push']) {
+        fireEvent.click(screen.getByLabelText(scope))
+      }
+      fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+
+      await waitFor(() => {
+        expect(mockSubmitOAuthConsent).toHaveBeenCalledTimes(1)
+      })
+      expect(mockSubmitOAuthConsent.mock.calls[0][0].scope).toBe('')
+    })
+
+    it('posts a locked openid scope once, from the hidden field, not the disabled box', () => {
+      const { container } = renderCard(oidcSearchParams)
+
+      const locked = screen.getByLabelText('openid') as HTMLInputElement
+      expect(locked).toBeDisabled()
+      expect(locked).toBeChecked()
+      expect(locked).not.toHaveAttribute('name')
+
+      const hidden = container.querySelector<HTMLInputElement>(
+        'input[type="hidden"][name="scope"]'
+      )
+      expect(hidden).toHaveValue('openid')
+
+      const form = container.querySelector('form') as HTMLFormElement
+      expect(new FormData(form).getAll('scope')).toEqual([
+        'openid',
+        'profile',
+        'email'
+      ])
+    })
+  })
 })

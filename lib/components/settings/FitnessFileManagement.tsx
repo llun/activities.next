@@ -218,18 +218,19 @@ export function FitnessFileManagement({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Used</span>
-              <span className="font-medium">
+          <div className="space-y-1.5">
+            <Progress
+              value={percentUsed}
+              aria-label="Storage quota used by fitness files"
+            />
+            {/* Mono caption under the bar: what is used of the quota on the
+                left, the share of it on the right. */}
+            <div className="text-muted-foreground flex justify-between font-mono text-xs">
+              <span>
                 {formatFileSize(currentUsed)} / {formatFileSize(limit)}
               </span>
+              <span>{percentUsed.toFixed(1)}%</span>
             </div>
-            <Progress value={percentUsed} />
-            <p className="text-xs text-muted-foreground">
-              {percentUsed.toFixed(1)}% of your storage quota used by fitness
-              files
-            </p>
           </div>
         </CardContent>
       </Card>

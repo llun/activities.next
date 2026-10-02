@@ -29,4 +29,27 @@ describe('Input', () => {
     expect(input).toHaveClass('appearance-none')
     expect(input).toHaveClass('text-center')
   })
+  it('draws the invalid ring at rest, not only on focus', () => {
+    render(<Input aria-label="Name" aria-invalid="true" />)
+    const input = screen.getByLabelText('Name')
+    // Colour and 3 px width both sit on aria-invalid, so the ring shows
+    // without the focus-visible ring supplying its width.
+    expect(input).toHaveClass(
+      'aria-invalid:border-destructive',
+      'aria-invalid:ring-destructive/20',
+      'dark:aria-invalid:ring-destructive/40',
+      'aria-invalid:ring-[3px]'
+    )
+  })
+
+  it('fills a disabled input in light and keeps the translucent fill in dark', () => {
+    render(<Input aria-label="Handle" disabled />)
+    const input = screen.getByLabelText('Handle')
+    expect(input).toBeDisabled()
+    expect(input).toHaveClass(
+      'disabled:bg-muted',
+      'dark:disabled:bg-input/30',
+      'disabled:opacity-50'
+    )
+  })
 })

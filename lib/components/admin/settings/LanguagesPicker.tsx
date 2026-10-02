@@ -97,7 +97,7 @@ export const LanguagesPicker: FC<LanguagesPickerProps> = ({
               setOpen((current) => !current)
               setQuery('')
             }}
-            className="inline-flex items-center gap-1.5 rounded-full border border-dashed px-3 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60"
+            className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-input px-3 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60"
           >
             <Plus className="h-3.5 w-3.5" /> Add language
           </button>
@@ -109,10 +109,10 @@ export const LanguagesPicker: FC<LanguagesPickerProps> = ({
                 aria-hidden
                 onClick={() => setOpen(false)}
               />
-              <div className="absolute left-0 top-9 z-40 w-60 rounded-xl border bg-background shadow-lg">
+              <div className="absolute left-0 top-[34px] z-40 w-60 rounded-xl border bg-background shadow-lg">
                 <div className="border-b p-2">
-                  <div className="flex items-center gap-2 rounded-md bg-muted px-2.5 py-1.5">
-                    <Search className="h-3.5 w-3.5 text-muted-foreground" />
+                  <div className="flex items-center gap-4 rounded-md bg-muted px-2.5 py-1.5">
+                    <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                     <input
                       ref={inputRef}
                       value={query}

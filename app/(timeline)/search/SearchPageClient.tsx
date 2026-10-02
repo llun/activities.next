@@ -528,10 +528,10 @@ export const SearchPageClient = ({
             value={inputValue}
             onChange={onInputChange}
             placeholder="Search"
-            className="h-11 pl-9"
+            className="pl-9"
           />
         </div>
-        <Button type="submit" className="h-11 shrink-0">
+        <Button type="submit" className="shrink-0">
           Search
         </Button>
       </form>

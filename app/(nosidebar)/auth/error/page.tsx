@@ -80,7 +80,7 @@ const Page: FC<Props> = async ({ searchParams }) => {
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">{content.title}</CardTitle>
+        <CardTitle className="text-2xl leading-6">{content.title}</CardTitle>
         <CardDescription>{content.body}</CardDescription>
       </CardHeader>
       {/* Only an allow-listed code, never merely a token-shaped one: see

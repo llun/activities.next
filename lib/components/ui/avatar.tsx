@@ -13,7 +13,9 @@ function Avatar({
     <AvatarPrimitive.Root
       data-slot="avatar"
       className={cn(
-        'relative flex size-8 shrink-0 overflow-hidden rounded-full',
+        // A size container, so the fallback initials can scale with the
+        // diameter (`cqw`) instead of staying at the inherited 16 px.
+        '@container relative flex size-8 shrink-0 overflow-hidden rounded-full',
         className
       )}
       {...props}
@@ -42,7 +44,10 @@ function AvatarFallback({
     <AvatarPrimitive.Fallback
       data-slot="avatar-fallback"
       className={cn(
-        'bg-muted flex size-full items-center justify-center rounded-full',
+        // Initials are about 0.42 x the avatar's diameter (24 -> 10, 32 -> 13,
+        // 40 -> 16, 64 -> 27, 80 -> 34 px), as the design's Avatar masters draw
+        // them. A call site that sets its own `text-*` size still wins.
+        'bg-muted flex size-full items-center justify-center rounded-full text-[42cqw] leading-none',
         className
       )}
       {...props}

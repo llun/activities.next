@@ -12,8 +12,8 @@ export const SearchLoading: FC = () => {
       />
 
       <section aria-label="Search form" className="flex gap-2">
-        <div className="skeleton h-11 flex-1 rounded-md" />
-        <div className="skeleton h-11 w-20 shrink-0 rounded-md" />
+        <div className="skeleton h-9 flex-1 rounded-md" />
+        <div className="skeleton h-9 w-20 shrink-0 rounded-md" />
       </section>
 
       <section

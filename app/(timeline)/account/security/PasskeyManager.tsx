@@ -303,7 +303,9 @@ export const PasskeyManager: FC<PasskeyManagerProps> = ({
               <Fingerprint className="size-5" />
             </span>
             <div className="min-w-0 flex-1">
-              <DialogTitle className="text-base">Add a passkey</DialogTitle>
+              <DialogTitle className="text-base leading-none">
+                Add a passkey
+              </DialogTitle>
               <DialogDescription>
                 {multiDomain
                   ? 'Choose the domain this passkey will sign you in to, then follow your browser’s prompt.'

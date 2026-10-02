@@ -69,6 +69,12 @@
      single width, so the column stays aligned as you switch tabs. Exposed as
      the `max-w-content` utility via Tailwind's `--container-*` namespace. */
   --container-content: 940px;
+
+  /* The design's type scale draws 18 px text on a 24 px line (Heading/lg 18/24),
+     where Tailwind's default `text-lg` is 18/28. Every `text-lg` element (the
+     settings and admin card headings above all) takes its line height from this
+     one value. */
+  --text-lg--line-height: calc(1.5 / 1.125);
 }
 
 :root {

@@ -45,4 +45,17 @@ describe('CredentialForm', () => {
     expect(form).not.toBeNull()
     expect(form).toHaveAttribute('method', 'post')
   })
+
+  it('draws the Email and Password labels on a 14/20 line, not the shared 14 px one', () => {
+    render(<CredentialForm providerName="credentials" />)
+
+    // The sign-in board draws its labels 20 high, so the input sits 26 pt
+    // below the label's top; the shared Label's `leading-none` would put it
+    // closer. Only this form opts in: the sign-up card keeps the shared one.
+    for (const name of ['Email', 'Password']) {
+      const label = screen.getByText(name)
+      expect(label).toHaveClass('leading-5')
+      expect(label).not.toHaveClass('leading-none')
+    }
+  })
 })

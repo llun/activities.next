@@ -251,6 +251,19 @@ describe('SearchPageClient', () => {
     )
   })
 
+  it('sizes the search field and button at the shared 36 px height, not an override', () => {
+    renderSearchPage()
+
+    // The design's search row is the default control height (36): the input
+    // and the button used to force `h-11` (44) between them.
+    const input = screen.getByRole('searchbox', { name: 'Search' })
+    const button = screen.getByRole('button', { name: 'Search' })
+    expect(input).toHaveClass('h-9')
+    expect(input).not.toHaveClass('h-11')
+    expect(button).toHaveClass('h-9')
+    expect(button).not.toHaveClass('h-11')
+  })
+
   it('renders hashtags without history counts', async () => {
     mockSearch.mockResolvedValueOnce({
       ...emptySearchResult(),

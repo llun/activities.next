@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { Activity, Files, Globe, Lock } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 
@@ -104,6 +110,26 @@ describe('SectionNavDropdown', () => {
     // Inactive rows keep the shared grey focus wash, so they need no ring.
     const inactive = within(menu).getByRole('menuitem', { name: 'Overview' })
     expect(inactive.className).not.toMatch(/focus:ring-2/)
+  })
+
+  // The Settings navigation board opens the menu 6 pt below its trigger; the
+  // shared menu's own default is 4. jsdom lays nothing out (every rect is 0),
+  // so Radix's popper wrapper is translated by exactly the side offset, which
+  // makes the transform a faithful readout of it.
+  it('opens the menu 6 px below the trigger, not the shared default of 4', async () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/fitness')
+    renderDropdown()
+
+    const nav = screen.getByRole('navigation', { name: 'Fitness' })
+    fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
+
+    const menu = await screen.findByRole('menu')
+    const wrapper = menu.closest(
+      '[data-radix-popper-content-wrapper]'
+    ) as HTMLElement
+    await waitFor(() => {
+      expect(wrapper.style.transform).toMatch(/translate\(0px, 6px\)/)
+    })
   })
 
   // The design system's sub-nav is one flat run of links. A `group` field once
