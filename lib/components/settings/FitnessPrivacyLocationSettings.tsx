@@ -1,6 +1,5 @@
 'use client'
 
-import { ChevronDown } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
@@ -10,6 +9,7 @@ import {
   updateFitnessGeneralSettings
 } from '@/lib/client'
 import { PrivacyZoneMapKit } from '@/lib/components/fitness/PrivacyZoneMapKit'
+import { circleToPolygon } from '@/lib/components/fitness/mapGeometry'
 import { Button } from '@/lib/components/ui/button'
 import {
   Card,
@@ -20,6 +20,7 @@ import {
 } from '@/lib/components/ui/card'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
+import { selectChevronClassName } from '@/lib/components/ui/select'
 import { Switch } from '@/lib/components/ui/switch'
 import {
   FITNESS_PRIVACY_RADIUS_OPTIONS,
@@ -27,6 +28,7 @@ import {
   sanitizePrivacyLocationSettings,
   sanitizePrivacyRadiusMeters
 } from '@/lib/services/fitness-files/privacy'
+import { cn } from '@/lib/utils'
 import {
   type PublicMapProvider,
   buildGlProviderOptions
@@ -57,8 +59,22 @@ interface MapFeatureCollection {
   }>
 }
 
+interface MapPolygonGeometry {
+  type: 'Polygon'
+  coordinates: [number, number][][]
+}
+
+interface MapZoneFeatureCollection {
+  type: 'FeatureCollection'
+  features: Array<{
+    type: 'Feature'
+    geometry: MapPolygonGeometry
+    properties: Record<string, never>
+  }>
+}
+
 interface MapboxGeoJSONSource {
-  setData: (data: MapFeatureCollection) => void
+  setData: (data: MapFeatureCollection | MapZoneFeatureCollection) => void
 }
 
 interface MapboxMap {
@@ -90,6 +106,12 @@ interface MapboxModule {
 }
 
 const MAPBOX_MARKER_SOURCE_ID = 'fitness-privacy-home-marker'
+const MAPBOX_ZONE_SOURCE_ID = 'fitness-privacy-zones'
+// The privacy circle's green, shared with `PrivacyZoneMapKit`: a 20% fill under
+// a 2px outline, as the design draws "Privacy Zone Circle".
+const ZONE_COLOR = '#16a34a'
+const ZONE_FILL_OPACITY = 0.2
+const ZONE_OUTLINE_WIDTH_PX = 2
 const DEFAULT_MAP_CENTER: [number, number] = [5.2913, 52.1326]
 const DEFAULT_MAP_ZOOM = 6
 const CURRENT_LOCATION_ZOOM = 13
@@ -142,6 +164,57 @@ const toMarkerFeatureCollection = (
         }
       }
     ]
+  }
+}
+
+// A saved zone and the draft marker are the same circle when the draft was
+// prefilled from it (or just added it to the list); drawing both would stack two
+// 20% fills into a visibly darker one. Coordinates compare to the 6 decimals the
+// fields carry, so a stored value with extra digits still counts as the same.
+const COORDINATE_TOLERANCE_DEG = 1e-6
+
+/**
+ * Every hide radius the picker should show, as polygons the GL engine can fill:
+ * one circle per saved zone, plus one at the draft marker at the radius
+ * currently selected — so the radius select visibly resizes what the click will
+ * hide, instead of the marker staying a fixed-size dot whatever is chosen.
+ */
+const toZoneFeatureCollection = (
+  draftCoordinates: [number, number] | null,
+  draftRadiusMeters: number,
+  savedZones: PrivacyLocationInput[]
+): MapZoneFeatureCollection => {
+  const zones: Array<{
+    center: { lat: number; lng: number }
+    radiusMeters: number
+  }> = savedZones.map((zone) => ({
+    center: { lat: zone.latitude, lng: zone.longitude },
+    radiusMeters: zone.hideRadiusMeters
+  }))
+
+  if (draftCoordinates && draftRadiusMeters > 0) {
+    const [draftLongitude, draftLatitude] = draftCoordinates
+    const isSavedAlready = savedZones.some(
+      (zone) =>
+        zone.hideRadiusMeters === draftRadiusMeters &&
+        Math.abs(zone.latitude - draftLatitude) < COORDINATE_TOLERANCE_DEG &&
+        Math.abs(zone.longitude - draftLongitude) < COORDINATE_TOLERANCE_DEG
+    )
+    if (!isSavedAlready) {
+      zones.push({
+        center: { lat: draftLatitude, lng: draftLongitude },
+        radiusMeters: draftRadiusMeters
+      })
+    }
+  }
+
+  return {
+    type: 'FeatureCollection',
+    features: zones.map((zone) => ({
+      type: 'Feature',
+      properties: {},
+      geometry: circleToPolygon(zone.center, zone.radiusMeters)
+    }))
   }
 }
 
@@ -384,6 +457,18 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
   }, [latitudeInput, longitudeInput])
   markerCoordinatesRef.current = markerCoordinates
 
+  const zoneFeatureCollection = useMemo(
+    () =>
+      toZoneFeatureCollection(
+        markerCoordinates,
+        draftRadiusMeters,
+        privacyLocations
+      ),
+    [markerCoordinates, draftRadiusMeters, privacyLocations]
+  )
+  const zoneFeatureCollectionRef = useRef(zoneFeatureCollection)
+  zoneFeatureCollectionRef.current = zoneFeatureCollection
+
   const flyToMarker = useCallback(() => {
     const map = mapRef.current
     if (!map) {
@@ -556,26 +641,43 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
             data: toMarkerFeatureCollection(markerCoordinatesRef.current)
           })
 
+          // The hide radius, drawn at its real size on the ground: a polygon per
+          // zone, because a GL `circle` layer is sized in pixels, not metres.
+          // Added before the marker so the point you clicked sits on top.
+          map.addSource(MAPBOX_ZONE_SOURCE_ID, {
+            type: 'geojson',
+            data: zoneFeatureCollectionRef.current
+          })
+
+          map.addLayer({
+            id: 'fitness-privacy-zone-fill',
+            type: 'fill',
+            source: MAPBOX_ZONE_SOURCE_ID,
+            paint: {
+              'fill-color': ZONE_COLOR,
+              'fill-opacity': ZONE_FILL_OPACITY
+            }
+          })
+
+          map.addLayer({
+            id: 'fitness-privacy-zone-outline',
+            type: 'line',
+            source: MAPBOX_ZONE_SOURCE_ID,
+            paint: {
+              'line-color': ZONE_COLOR,
+              'line-width': ZONE_OUTLINE_WIDTH_PX
+            }
+          })
+
           map.addLayer({
             id: 'fitness-privacy-home-marker-core',
             type: 'circle',
             source: MAPBOX_MARKER_SOURCE_ID,
             paint: {
               'circle-radius': 7,
-              'circle-color': '#16a34a',
+              'circle-color': ZONE_COLOR,
               'circle-stroke-color': '#ffffff',
               'circle-stroke-width': 2
-            }
-          })
-
-          map.addLayer({
-            id: 'fitness-privacy-home-marker-ring',
-            type: 'circle',
-            source: MAPBOX_MARKER_SOURCE_ID,
-            paint: {
-              'circle-radius': 14,
-              'circle-color': '#16a34a',
-              'circle-opacity': 0.2
             }
           })
 
@@ -653,6 +755,15 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
       flyToMarker()
     }
   }, [flyToMarker, markerCoordinates])
+
+  useEffect(() => {
+    // `isMapReady` re-runs this once the source exists; before that the load
+    // handler seeds it from the ref.
+    const source = mapRef.current?.getSource(MAPBOX_ZONE_SOURCE_ID) as
+      MapboxGeoJSONSource | undefined
+
+    source?.setData(zoneFeatureCollection)
+  }, [isMapReady, zoneFeatureCollection])
 
   const buildDraftLocation = (): {
     location: PrivacyLocationInput | null
@@ -1017,26 +1128,26 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
 
           <div className="space-y-2">
             <Label htmlFor="privacyHideRadiusMeters">Hide Radius</Label>
-            <div className="relative">
-              <select
-                id="privacyHideRadiusMeters"
-                value={String(draftRadiusMeters)}
-                onChange={(event) => {
-                  setDraftRadiusMeters(
-                    sanitizeDraftRadius(Number(event.target.value))
-                  )
-                }}
-                disabled={isEditingDisabled}
-                className="flex h-10 w-full appearance-none rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {NON_ZERO_RADIUS_OPTIONS.map((radius) => (
-                  <option key={radius} value={radius}>
-                    {formatRadiusLabel(radius)}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            </div>
+            <select
+              id="privacyHideRadiusMeters"
+              value={String(draftRadiusMeters)}
+              onChange={(event) => {
+                setDraftRadiusMeters(
+                  sanitizeDraftRadius(Number(event.target.value))
+                )
+              }}
+              disabled={isEditingDisabled}
+              className={cn(
+                'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+                selectChevronClassName
+              )}
+            >
+              {NON_ZERO_RADIUS_OPTIONS.map((radius) => (
+                <option key={radius} value={radius}>
+                  {formatRadiusLabel(radius)}
+                </option>
+              ))}
+            </select>
             <p className="text-xs text-muted-foreground">
               When a route starts or finishes here, that end is hidden from
               other viewers until it leaves the area and has covered this

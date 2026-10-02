@@ -77,7 +77,7 @@ describe('FitnessAnalysisCharts', () => {
             width={800}
             height={250}
             value={150}
-            unit="w"
+            unit="W"
             fractionDigits={0}
           />
         </div>
@@ -269,7 +269,7 @@ describe('FitnessAnalysisCharts', () => {
       {
         key: 'power' as AnalysisGraphKey,
         label: 'Power',
-        unit: 'w',
+        unit: 'W',
         values: [100, 200, 300],
         fractionDigits: 0
       }
@@ -304,7 +304,7 @@ describe('FitnessAnalysisCharts', () => {
       expect(within(readout).getByText('25.0')).toBeInTheDocument()
       expect(within(readout).getByText('km/h')).toBeInTheDocument()
       expect(within(readout).getByText('200')).toBeInTheDocument()
-      expect(within(readout).getByText('w')).toBeInTheDocument()
+      expect(within(readout).getByText('W')).toBeInTheDocument()
 
       const svg = container.querySelector('svg')!
       mockSvgBoundingBox(svg, 100, 400)

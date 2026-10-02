@@ -63,6 +63,10 @@ describe('FitnessPrivacyLocationSettings', () => {
 
     const radiusSelect = screen.getByLabelText('Hide Radius')
     expect(radiusSelect).toBeInTheDocument()
+    // The shared closed-select look: OS arrow hidden, one painted chevron (not
+    // a second icon laid over it).
+    expect(radiusSelect).toHaveClass('appearance-none', 'pr-8')
+    expect(radiusSelect.parentElement?.querySelector('svg')).toBeNull()
     expect(screen.queryByRole('option', { name: '0m' })).not.toBeInTheDocument()
     expect(screen.getByRole('option', { name: '50m' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: '100m' })).toBeInTheDocument()
@@ -962,6 +966,134 @@ describe('FitnessPrivacyLocationSettings', () => {
           screen.getByRole('button', { name: 'Save privacy locations' })
         ).not.toBeDisabled()
       )
+    })
+  })
+  describe('hide radius on the GL map', () => {
+    // A recording stand-in for the GL `Map`: the sources it was given (with a
+    // `setData` spy each) and the layers added, in order.
+    const mountGlMap = () => {
+      const layers: Array<{ id: string; type: string; source: string }> = []
+      const sources = new Map<string, { setData: ReturnType<typeof vi.fn> }>()
+      const addedSources: Array<{ id: string; data: unknown }> = []
+      vi.mocked(loadMaplibreModule).mockResolvedValue({
+        Map: vi.fn(function MapStub() {
+          return {
+            addSource: vi.fn((id: string, source: { data: unknown }) => {
+              addedSources.push({ id, data: source.data })
+              sources.set(id, { setData: vi.fn() })
+            }),
+            addLayer: vi.fn(
+              (layer: { id: string; type: string; source: string }) => {
+                layers.push(layer)
+              }
+            ),
+            getSource: vi.fn((id: string) => sources.get(id)),
+            once: (_event: 'load', listener: () => void) => listener(),
+            on: vi.fn(),
+            flyTo: vi.fn(),
+            remove: vi.fn()
+          }
+        })
+      } as never)
+      return { layers, sources, addedSources }
+    }
+
+    const mockSavedZone = (hideRadiusMeters: number) =>
+      vi.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          privacyLocations: [
+            { latitude: 13.7563, longitude: 100.5018, hideRadiusMeters }
+          ]
+        })
+      } as Response)
+
+    it('draws the radius as a 20% fill under a 2px outline, beneath the marker, with no fixed-size ring', async () => {
+      mockSavedZone(200)
+      const { layers } = mountGlMap()
+
+      render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
+
+      await waitFor(() =>
+        expect(layers.map((layer) => layer.id)).toContain(
+          'fitness-privacy-home-marker-core'
+        )
+      )
+      const ids = layers.map((layer) => layer.id)
+      // A GL `circle` layer is sized in pixels, so the old 14px ring was the
+      // same size whatever radius was chosen.
+      expect(ids).not.toContain('fitness-privacy-home-marker-ring')
+      expect(ids.indexOf('fitness-privacy-zone-fill')).toBeLessThan(
+        ids.indexOf('fitness-privacy-zone-outline')
+      )
+      // Added before the marker, so the clicked point sits on top of it.
+      expect(ids.indexOf('fitness-privacy-zone-outline')).toBeLessThan(
+        ids.indexOf('fitness-privacy-home-marker-core')
+      )
+      expect(
+        layers.find((layer) => layer.id === 'fitness-privacy-zone-fill')
+      ).toMatchObject({ type: 'fill', source: 'fitness-privacy-zones' })
+      expect(
+        layers.find((layer) => layer.id === 'fitness-privacy-zone-outline')
+      ).toMatchObject({ type: 'line', source: 'fitness-privacy-zones' })
+    })
+
+    it('draws a saved zone once, even though the draft marker is prefilled from it', async () => {
+      mockSavedZone(200)
+      const { sources } = mountGlMap()
+
+      render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
+
+      await screen.findByText('13.756300, 100.501800')
+      await waitFor(() =>
+        expect(sources.has('fitness-privacy-zones')).toBe(true)
+      )
+
+      // The draft (13.7563, 100.5018 at 200m) IS the saved zone; drawing both
+      // would stack two 20% fills into a darker one.
+      await waitFor(() =>
+        expect(
+          sources.get('fitness-privacy-zones')?.setData
+        ).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            features: [expect.objectContaining({ type: 'Feature' })]
+          })
+        )
+      )
+    })
+
+    it('resizes the draft circle when the hide radius changes', async () => {
+      mockSavedZone(200)
+      const { sources } = mountGlMap()
+
+      render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
+
+      await screen.findByText('13.756300, 100.501800')
+      await waitFor(() =>
+        expect(sources.has('fitness-privacy-zones')).toBe(true)
+      )
+
+      fireEvent.change(screen.getByLabelText('Hide Radius'), {
+        target: { value: '500' }
+      })
+
+      // The saved 200m zone plus the 500m draft, whose ring reaches further.
+      await waitFor(() => {
+        const calls = sources.get('fitness-privacy-zones')!.setData.mock.calls
+        const data = calls[calls.length - 1][0] as {
+          features: Array<{
+            geometry: { coordinates: [number, number][][] }
+          }>
+        }
+        expect(data.features).toHaveLength(2)
+        const spread = (ring: [number, number][]) =>
+          Math.max(...ring.map(([lng]) => lng)) -
+          Math.min(...ring.map(([lng]) => lng))
+        const [saved, draft] = data.features.map(
+          (feature) => feature.geometry.coordinates[0]
+        )
+        expect(spread(draft)).toBeGreaterThan(spread(saved) * 2)
+      })
     })
   })
 })

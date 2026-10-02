@@ -43,6 +43,11 @@ type GlMap = {
 
 export type GlModule = {
   Map: new (options: Record<string, unknown>) => GlMap
+  // Only read for its default options (see the attribution note in the create
+  // effect), never added to a map.
+  AttributionControl?: new () => {
+    options?: { customAttribution?: string | string[] }
+  }
 }
 
 const BOX_SOURCE_ID = 'region-box'
@@ -166,9 +171,23 @@ export const RegionMap: FC<RegionMapProps> = ({
       .then((gl) => {
         if (cancelled || !containerRef.current) return
 
+        // An options object REPLACES the library's default attribution
+        // options instead of merging into them, and MapLibre's default carries
+        // its own "MapLibre" credit as a `customAttribution`. Read it from a
+        // throwaway default control so the credit stays what the library draws
+        // by itself. Mapbox GL has no such default, so it gets none.
+        const defaultCredit = gl.AttributionControl
+          ? new gl.AttributionControl().options?.customAttribution
+          : undefined
+
         const map = new gl.Map({
           container: containerRef.current,
-          attributionControl: true,
+          // Compact: an "i" button that opens the credit, instead of a wide
+          // white bar. The bar sat on top of the hint pill and hid it.
+          attributionControl: {
+            compact: true,
+            ...(defaultCredit ? { customAttribution: defaultCredit } : {})
+          },
           center: [0, 20],
           zoom: 1.4,
           ...mapOptionsRef.current
@@ -303,7 +322,16 @@ export const RegionMap: FC<RegionMapProps> = ({
       className="relative w-full overflow-hidden rounded-lg border"
       style={{ height }}
     >
-      <div ref={containerRef} className="h-full w-full" />
+      {/* The corner the attribution lives in is lifted by the hint pill's
+          height (pill: `bottom-2` + ~25px), so the credit sits just above the
+          hint instead of on top of it — as the design draws it. The `!` is
+          needed: the GL stylesheet is injected unlayered, which beats every
+          Tailwind utility (they live in `@layer utilities`) whatever the
+          specificity. */}
+      <div
+        ref={containerRef}
+        className="h-full w-full [&_.maplibregl-ctrl-bottom-right]:bottom-9! [&_.mapboxgl-ctrl-bottom-right]:bottom-9!"
+      />
 
       {!isReady && (
         <div

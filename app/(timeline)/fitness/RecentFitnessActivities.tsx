@@ -73,7 +73,7 @@ export const RecentFitnessActivities: FC<Props> = ({
       {hasNothingToShow ? null : (
         <>
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-base font-medium">Recent activities</h2>
+            <h2 className="text-base font-semibold">Recent activities</h2>
             {label && (
               <Link
                 href={CLEAR_ACTIVITY_FILTER_HREF}

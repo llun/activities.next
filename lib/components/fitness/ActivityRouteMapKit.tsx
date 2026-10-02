@@ -31,18 +31,34 @@ import {
   pageToCoordinate
 } from '@/lib/components/fitness/mapkitSurface'
 import { createRouteHighlightElement } from '@/lib/components/fitness/routeHighlightMarker'
+import {
+  ROUTE_CASING_COLOR,
+  ROUTE_CASING_OPACITY,
+  ROUTE_CASING_WIDTH_PX,
+  ROUTE_HIDDEN_COLOR,
+  ROUTE_HIDDEN_OPACITY,
+  ROUTE_HIDDEN_WIDTH_PX,
+  ROUTE_LINE_COLOR,
+  ROUTE_LINE_WIDTH_PX
+} from '@/lib/components/fitness/routeLineStyle'
 
-// Mirrors the GL activity route paint: orange for the shared trace, green for the
-// segments hidden from other viewers by a privacy location.
+// Mirrors the GL activity route paint (both read `routeLineStyle`): orange for
+// the shared trace over a white casing, green for the segments hidden from other
+// viewers by a privacy location.
+const CASING_ROUTE_STYLE = {
+  strokeColor: ROUTE_CASING_COLOR,
+  lineWidth: ROUTE_CASING_WIDTH_PX,
+  strokeOpacity: ROUTE_CASING_OPACITY
+}
 const VISIBLE_ROUTE_STYLE = {
-  strokeColor: '#f97316',
-  lineWidth: 4,
-  strokeOpacity: 0.9
+  strokeColor: ROUTE_LINE_COLOR,
+  lineWidth: ROUTE_LINE_WIDTH_PX,
+  strokeOpacity: 1
 }
 const HIDDEN_ROUTE_STYLE = {
-  strokeColor: '#16a34a',
-  lineWidth: 4,
-  strokeOpacity: 0.95
+  strokeColor: ROUTE_HIDDEN_COLOR,
+  lineWidth: ROUTE_HIDDEN_WIDTH_PX,
+  strokeOpacity: ROUTE_HIDDEN_OPACITY
 }
 // MapKit zooms by shrinking/growing the region span; these mirror the GL buttons.
 const ZOOM_IN_FACTOR = 0.5
@@ -338,17 +354,29 @@ export const ActivityRouteMapKit: FC<ActivityRouteMapKitProps> = ({
     const boundsSamples = boundsSamplesRef.current
     if (boundsSamples.length === 0) return
 
+    const casingStyle = new mapkit.Style(CASING_ROUTE_STYLE)
     const visibleStyle = new mapkit.Style(VISIBLE_ROUTE_STYLE)
     const hiddenStyle = new mapkit.Style(HIDDEN_ROUTE_STYLE)
-    const overlays = segmentsRef.current.map(
-      (segment) =>
-        new mapkit.PolylineOverlay(
-          segment.samples.map(
-            (sample) => new mapkit.Coordinate(sample.lat, sample.lng)
-          ),
-          { style: segment.isHiddenByPrivacy ? hiddenStyle : visibleStyle }
-        )
-    )
+    const toCoordinates = (segment: FitnessRouteSegment) =>
+      segment.samples.map(
+        (sample) => new mapkit.Coordinate(sample.lat, sample.lng)
+      )
+    // MapKit draws overlays in the order they are added, so every casing goes in
+    // ahead of every line: the white halo sits under the whole trace.
+    const overlays = [
+      ...segmentsRef.current.map(
+        (segment) =>
+          new mapkit.PolylineOverlay(toCoordinates(segment), {
+            style: casingStyle
+          })
+      ),
+      ...segmentsRef.current.map(
+        (segment) =>
+          new mapkit.PolylineOverlay(toCoordinates(segment), {
+            style: segment.isHiddenByPrivacy ? hiddenStyle : visibleStyle
+          })
+      )
+    ]
     if (overlays.length > 0) {
       map.addOverlays(overlays)
       overlaysRef.current = overlays

@@ -46,6 +46,27 @@ describe('FitnessCalendarHeatmap', () => {
     expect(screen.getByText('Fri')).toBeInTheDocument()
   })
 
+  it('draws day cells as 12px squares with 2px corners, as the design does', () => {
+    const { container } = render(
+      <FitnessCalendarHeatmap
+        days={[day('2026-01-15')]}
+        metric="count"
+        periodType="all_time"
+        periodKey="all"
+        startDate={Date.UTC(2026, 0, 1)}
+        endDate={Date.UTC(2026, 1, 28)}
+      />
+    )
+
+    const cells = container.querySelectorAll('div[title]')
+    expect(cells.length).toBeGreaterThan(0)
+    for (const cell of Array.from(cells)) {
+      // `rounded-sm` is the theme's 4px; the design's heatmap cell is r2.
+      expect(cell).toHaveClass('h-3', 'w-3', 'rounded-xs')
+      expect(cell).not.toHaveClass('rounded-sm')
+    }
+  })
+
   it('shows month labels (and no year markers) for a short span', () => {
     render(
       <FitnessCalendarHeatmap

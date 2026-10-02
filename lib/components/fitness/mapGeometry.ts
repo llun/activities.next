@@ -333,3 +333,53 @@ export const boxToPolygon = (box: Box) => ({
     ]
   }
 })
+
+const EARTH_RADIUS_METERS = 6_371_008.8
+const CIRCLE_POLYGON_STEPS = 64
+
+/**
+ * A GeoJSON polygon approximating the circle of `radiusMeters` around `center`.
+ *
+ * GL engines have no circle-with-a-radius-in-metres primitive — a `circle` layer
+ * is sized in pixels — so the privacy-zone picker draws each hide radius as a
+ * fill + outline of this ring instead, which stays the right size at every zoom
+ * (Apple MapKit gets that for free from `CircleOverlay`). Each vertex is the
+ * great-circle destination from the centre along an evenly spaced bearing, so
+ * the ring is a true circle on the ground rather than an ellipse at high
+ * latitudes. The ring is closed (first vertex repeated), as GeoJSON requires.
+ */
+export const circleToPolygon = (
+  center: LatLng,
+  radiusMeters: number,
+  steps: number = CIRCLE_POLYGON_STEPS
+) => {
+  const latitude = (center.lat * Math.PI) / 180
+  const longitude = (center.lng * Math.PI) / 180
+  const angularDistance = radiusMeters / EARTH_RADIUS_METERS
+
+  const ring: [number, number][] = []
+  for (let step = 0; step < steps; step += 1) {
+    const bearing = (step / steps) * 2 * Math.PI
+    const vertexLatitude = Math.asin(
+      Math.sin(latitude) * Math.cos(angularDistance) +
+        Math.cos(latitude) * Math.sin(angularDistance) * Math.cos(bearing)
+    )
+    const vertexLongitude =
+      longitude +
+      Math.atan2(
+        Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(latitude),
+        Math.cos(angularDistance) -
+          Math.sin(latitude) * Math.sin(vertexLatitude)
+      )
+    ring.push([
+      (vertexLongitude * 180) / Math.PI,
+      (vertexLatitude * 180) / Math.PI
+    ])
+  }
+  ring.push(ring[0])
+
+  return {
+    type: 'Polygon' as const,
+    coordinates: [ring]
+  }
+}

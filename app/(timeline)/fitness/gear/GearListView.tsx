@@ -115,11 +115,21 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd, onEdit }) => {
       ) : (
         <div className={GEAR_TABLE_SCROLLER}>
           <table className="w-full min-w-[560px] table-fixed text-sm">
+            {/* 33.5/22.5/14.5/19.5/10, sized from the widest content of each
+                column at the design's 590pt card: Distance needs ~112pt for a
+                five-digit lifetime total ("35,670.2 km"), a product host needs
+                ~125pt, and the first column ~195pt for a default "brand model"
+                name. "Default sports" is the one that gives: its header stays on
+                one line by overflowing its own padding, and its cells truncate
+                ("Ride, Grav…") as the design draws them. That puts Default sports
+                at 342pt and Distance's right edge at 518pt from the card's left,
+                as the design does. The design's 30% first column was not used: it
+                wraps those names and turns a 65pt row into 97. */}
             <colgroup>
-              <col className="w-[34%]" />
-              <col className="w-[26%]" />
-              <col className="w-[18%]" />
-              <col className="w-[12%]" />
+              <col className="w-[33.5%]" />
+              <col className="w-[22.5%]" />
+              <col className="w-[14.5%]" />
+              <col className="w-[19.5%]" />
               <col className="w-[10%]" />
             </colgroup>
             <thead>
@@ -133,7 +143,9 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd, onEdit }) => {
                   {copy.columnHeader}
                 </th>
                 <th className="px-3 pb-2 font-medium">Product page</th>
-                <th className="px-3 pb-2 font-medium">Default sports</th>
+                <th className="px-3 pb-2 font-medium whitespace-nowrap">
+                  Default sports
+                </th>
                 <th className="px-3 pb-2 text-right font-medium">Distance</th>
                 <th className="px-3 pr-4 pb-2 text-right font-medium">
                   <span className="sr-only">Actions</span>
@@ -205,7 +217,7 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd, onEdit }) => {
                     </td>
                     <td
                       className={cn(
-                        'px-3 py-3 text-right align-middle font-semibold tabular-nums',
+                        'px-3 py-3 text-right align-middle font-semibold whitespace-nowrap tabular-nums',
                         gear.retiredAt && 'opacity-60'
                       )}
                     >

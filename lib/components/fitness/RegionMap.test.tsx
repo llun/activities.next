@@ -89,6 +89,56 @@ describe('RegionMap', () => {
     expect(map.addLayer).toHaveBeenCalledTimes(2)
   })
 
+  it('keeps the credit compact and lifted clear of the hint pill', async () => {
+    const { gl } = createFakeGl()
+    const { container } = renderRegionMap(gl)
+
+    await screen.findByText('TestMaps')
+    // A compact control ("i" button) rather than the wide bar that sat on top of
+    // the hint and hid it.
+    expect(gl.Map).toHaveBeenCalledWith(
+      expect.objectContaining({ attributionControl: { compact: true } })
+    )
+    // The corner the control lives in is lifted above the hint pill. Not
+    // observable in jsdom as a layout, so pin the class that does it — and its
+    // `!`, without which the unlayered GL stylesheet beats the utility.
+    const mapContainer = container.querySelector('.h-full.w-full')
+    expect(mapContainer?.className).toContain(
+      '[&_.maplibregl-ctrl-bottom-right]:bottom-9!'
+    )
+  })
+
+  it("keeps the library's own credit (MapLibre) when the credit goes compact", async () => {
+    // An options object replaces the library's default attribution options, so
+    // the default's custom credit has to be carried over by hand.
+    const credit = '<a href="https://maplibre.org/">MapLibre</a>'
+    const { gl } = createFakeGl()
+    gl.AttributionControl = vi.fn(function AttributionControlCtor() {
+      return { options: { compact: true, customAttribution: credit } }
+    }) as unknown as NonNullable<GlModule['AttributionControl']>
+    renderRegionMap(gl)
+
+    await screen.findByText('TestMaps')
+    expect(gl.Map).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attributionControl: { compact: true, customAttribution: credit }
+      })
+    )
+  })
+
+  it('adds no custom credit when the library has no default one (Mapbox GL)', async () => {
+    const { gl } = createFakeGl()
+    gl.AttributionControl = vi.fn(function AttributionControlCtor() {
+      return { options: {} }
+    }) as unknown as NonNullable<GlModule['AttributionControl']>
+    renderRegionMap(gl)
+
+    await screen.findByText('TestMaps')
+    const [options] = vi.mocked(gl.Map).mock.calls[0]
+    expect(options.attributionControl).toEqual({ compact: true })
+    expect(options.attributionControl).not.toHaveProperty('customAttribution')
+  })
+
   it('disables panning while in draw mode', async () => {
     const { gl, map } = createFakeGl()
     renderRegionMap(gl)

@@ -19,6 +19,16 @@ import {
   ROUTE_HIGHLIGHT_HALO_RADIUS_PX,
   ROUTE_HIGHLIGHT_HIDDEN_CORE_COLOR
 } from '@/lib/components/fitness/routeHighlightMarker'
+import {
+  ROUTE_CASING_COLOR,
+  ROUTE_CASING_OPACITY,
+  ROUTE_CASING_WIDTH_PX,
+  ROUTE_HIDDEN_COLOR,
+  ROUTE_HIDDEN_OPACITY,
+  ROUTE_HIDDEN_WIDTH_PX,
+  ROUTE_LINE_COLOR,
+  ROUTE_LINE_WIDTH_PX
+} from '@/lib/components/fitness/routeLineStyle'
 import { ResizableMapContainer } from '@/lib/components/map/ResizableMapContainer'
 import { Media } from '@/lib/components/posts/media'
 import type { Attachment } from '@/lib/types/domain/attachment'
@@ -118,6 +128,7 @@ interface MapboxModule {
 }
 
 export const MAP_ROUTE_SOURCE_ID = 'activity-route'
+export const MAP_ROUTE_CASING_LAYER_ID = 'activity-route-line-casing'
 export const MAP_ROUTE_HIDDEN_HIT_LAYER_ID = 'activity-route-line-hidden-hit'
 export const MAP_ACTIVE_POINT_SOURCE_ID = 'activity-active-point'
 // The interactive map now renders for every provider, so a style/tile failure
@@ -398,15 +409,27 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
             data: routeFeatureCollection
           })
 
+          // The casing goes in first so it sits under both lines: one white
+          // halo under the whole trace, visible and hidden stretches alike.
+          map.addLayer({
+            id: MAP_ROUTE_CASING_LAYER_ID,
+            type: 'line',
+            source: MAP_ROUTE_SOURCE_ID,
+            paint: {
+              'line-color': ROUTE_CASING_COLOR,
+              'line-width': ROUTE_CASING_WIDTH_PX,
+              'line-opacity': ROUTE_CASING_OPACITY
+            }
+          })
+
           map.addLayer({
             id: 'activity-route-line-visible',
             type: 'line',
             source: MAP_ROUTE_SOURCE_ID,
             filter: ['==', ['get', 'isHiddenByPrivacy'], false],
             paint: {
-              'line-color': '#f97316',
-              'line-width': 4,
-              'line-opacity': 0.9
+              'line-color': ROUTE_LINE_COLOR,
+              'line-width': ROUTE_LINE_WIDTH_PX
             }
           })
 
@@ -416,9 +439,9 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
             source: MAP_ROUTE_SOURCE_ID,
             filter: ['==', ['get', 'isHiddenByPrivacy'], true],
             paint: {
-              'line-color': '#16a34a',
-              'line-width': 4,
-              'line-opacity': 0.95
+              'line-color': ROUTE_HIDDEN_COLOR,
+              'line-width': ROUTE_HIDDEN_WIDTH_PX,
+              'line-opacity': ROUTE_HIDDEN_OPACITY
             }
           })
 

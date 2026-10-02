@@ -43,6 +43,18 @@ describe('WahooSettingsForm', () => {
     vi.mocked(client.saveWahooSettings).mockResolvedValue({ success: true })
   })
 
+  it('draws the environment select with the shared closed-select chevron', async () => {
+    render(<WahooSettingsForm />)
+
+    await screen.findByDisplayValue('client-example')
+    // The OS arrow is hidden and the shared chevron is painted at the right
+    // edge, with `pr-8` keeping the value clear of it.
+    expect(screen.getByLabelText('Environment')).toHaveClass(
+      'appearance-none',
+      'pr-8'
+    )
+  })
+
   it('keeps saved secrets out of the page and omits blank replacements on save', async () => {
     render(<WahooSettingsForm />)
 

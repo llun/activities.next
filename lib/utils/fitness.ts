@@ -58,6 +58,36 @@ export const formatFitnessElevation = (
   return `${Math.round(elevationGainMeters)} m`
 }
 
+/**
+ * The ONE place a running/walking pace is turned into text: `m:ss /km` (the
+ * design system's "5:09 /km" — no space after the slash). The activity page's
+ * stat tile, the timeline chip and the activity-import email all reach it
+ * through {@link getFitnessPaceOrSpeed}; do not hand-format a pace beside it.
+ *
+ * Rounds the TOTAL seconds before splitting, so 5:59.5 reads "6:00 /km" rather
+ * than "5:60 /km". A missing, non-finite or zero pace has no honest rendering,
+ * so it yields `options.fallback` (default `null`) and the caller drops the
+ * stat. The app is kilometre-only — there is no imperial setting to branch on.
+ */
+export const formatFitnessPace = (
+  secondsPerKm?: number,
+  options?: FormatMetricOptions
+): string | null => {
+  if (typeof secondsPerKm !== 'number' || !Number.isFinite(secondsPerKm)) {
+    return options?.fallback ?? null
+  }
+
+  const totalSeconds = Math.round(secondsPerKm)
+  if (totalSeconds <= 0) {
+    return options?.fallback ?? null
+  }
+
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+
+  return `${minutes}:${seconds.toString().padStart(2, '0')} /km`
+}
+
 export const getFitnessPaceOrSpeed = ({
   distanceMeters,
   durationSeconds,
@@ -99,16 +129,10 @@ export const getFitnessPaceOrSpeed = ({
     normalizedType.includes('swim')
 
   if (usesPace) {
-    const paceSeconds = Math.round(effectiveDurationSeconds / distanceKm)
-    const paceMinutes = Math.floor(paceSeconds / 60)
-    const paceRemainderSeconds = paceSeconds % 60
+    const pace = formatFitnessPace(effectiveDurationSeconds / distanceKm)
+    if (!pace) return null
 
-    return {
-      label: 'Pace',
-      value: `${paceMinutes}:${paceRemainderSeconds
-        .toString()
-        .padStart(2, '0')} / km`
-    }
+    return { label: 'Pace', value: pace }
   }
 
   const speedKmh = distanceKm / (effectiveDurationSeconds / 3600)

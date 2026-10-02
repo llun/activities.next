@@ -11,11 +11,20 @@ import {
   Share2,
   X
 } from 'lucide-react'
-import { FC, useState } from 'react'
+import {
+  FC,
+  RefObject,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState
+} from 'react'
 
 import { FitnessRouteHeatmapData } from '@/lib/client'
 import { PublicRouteHeatmapMap } from '@/lib/components/fitness/PublicRouteHeatmapMap'
 import { Button } from '@/lib/components/ui/button'
+import { Input } from '@/lib/components/ui/input'
+import { Textarea } from '@/lib/components/ui/textarea'
 import { buildHeatmapEmbedImageUrl } from '@/lib/fitness/heatmapEmbedImageUrl'
 import { useCopyToClipboard } from '@/lib/hooks/useCopyToClipboard'
 import { cn } from '@/lib/utils'
@@ -63,38 +72,90 @@ interface CopyFieldProps {
   copyLabel: string
 }
 
+// A measurement has to land before paint or the snippet flashes at its 3-row
+// height and then jumps. `useLayoutEffect` warns during server rendering, where
+// there is nothing to measure.
+const useIsomorphicLayoutEffect =
+  typeof window === 'undefined' ? useEffect : useLayoutEffect
+
+/**
+ * Grows a read-only textarea to show ALL of its text. `rows` cannot do it: the
+ * snippet's long `src` line soft-wraps, so a 3-row box scrolled the closing line
+ * out of view, and the number of wrapped lines depends on the box's width. Three
+ * rows is the floor (the design's snippet box), never the cap. Re-fits when the
+ * width changes, since that is what changes the wrapping.
+ */
+const useFitTextareaHeight = (
+  ref: RefObject<HTMLTextAreaElement | null>,
+  value: string
+) => {
+  useIsomorphicLayoutEffect(() => {
+    const textarea = ref.current
+    if (!textarea) return
+
+    const fit = () => {
+      textarea.style.height = 'auto'
+      // Nothing laid out (jsdom, a hidden ancestor): keep the `rows` height.
+      if (textarea.scrollHeight === 0) return
+      const borders = textarea.offsetHeight - textarea.clientHeight
+      textarea.style.height = `${textarea.scrollHeight + borders}px`
+    }
+    fit()
+
+    if (typeof ResizeObserver === 'undefined') return
+    // Our own height writes also fire the observer; only a WIDTH change alters
+    // the wrapping, so that is all it reacts to.
+    let lastWidth = textarea.offsetWidth
+    const observer = new ResizeObserver(() => {
+      if (textarea.offsetWidth === lastWidth) return
+      lastWidth = textarea.offsetWidth
+      fit()
+    })
+    observer.observe(textarea)
+    return () => observer.disconnect()
+  }, [ref, value])
+}
+
 /**
  * A read-only, selectable value with a copy-to-clipboard button. Used for the
  * iframe/img snippets and the public link.
+ *
+ * The field is the shared `Input` / `Textarea` — the design's "Copy field" is a
+ * normal input (border, fill and focus ring from `--input`, `shadow-xs`) with a
+ * Primary/sm button stretched to its height — only re-sized to the 12px / 11px
+ * mono text and 10px inset the kit draws it with.
  */
 const CopyField: FC<CopyFieldProps> = ({ value, mono, copyLabel }) => {
   const { copied, copy } = useCopyToClipboard()
+  const snippetRef = useRef<HTMLTextAreaElement>(null)
+  useFitTextareaHeight(snippetRef, value)
 
   return (
     <div className="flex items-stretch gap-2">
       {mono ? (
-        <textarea
+        <Textarea
+          ref={snippetRef}
           readOnly
           rows={3}
           value={value}
           aria-label={copyLabel}
           onFocus={(event) => event.currentTarget.select()}
-          className="min-w-0 flex-1 resize-none rounded-md border bg-muted/40 px-2.5 py-1.5 font-mono text-[11px] leading-relaxed text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="field-sizing-fixed min-h-0 min-w-0 flex-1 resize-none px-2.5 py-1.5 font-mono text-[11px] leading-relaxed md:text-[11px]"
         />
       ) : (
-        <input
+        <Input
           readOnly
           type="text"
           value={value}
           aria-label={copyLabel}
           onFocus={(event) => event.currentTarget.select()}
-          className="min-w-0 flex-1 rounded-md border bg-muted/40 px-2.5 py-1.5 text-[12px] leading-relaxed text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-auto flex-1 px-2.5 py-1.5 text-[12px] leading-relaxed md:text-[12px]"
         />
       )}
       <Button
         type="button"
         size="sm"
-        className="h-auto shrink-0 self-stretch px-3"
+        className="h-auto shrink-0 self-stretch"
         onClick={() => copy(value)}
         aria-label={copyLabel}
       >

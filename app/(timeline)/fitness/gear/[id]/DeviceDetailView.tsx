@@ -25,8 +25,10 @@ interface Props {
   feed: GearActivityFeedContext
 }
 
+// `rounded-lg shadow-none` override the Card's own `rounded-xl shadow-sm`: the
+// design's gear stat tiles are radius 8 and flat.
 const StatTile: FC<{ label: string; value: string }> = ({ label, value }) => (
-  <Card className="flex min-w-0 flex-col gap-2 p-4">
+  <Card className="flex min-w-0 flex-col gap-2 rounded-lg p-4 shadow-none">
     <div className="text-xs text-muted-foreground">{label}</div>
     <div className="text-xl font-semibold tabular-nums">{value}</div>
   </Card>

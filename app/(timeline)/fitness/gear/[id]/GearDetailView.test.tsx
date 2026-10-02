@@ -185,6 +185,70 @@ describe('GearDetailView', () => {
     ).toBeInTheDocument()
   })
 
+  it('does not repeat the brand and model under a title that already reads them', async () => {
+    mockGetFitnessGearList.mockResolvedValue([
+      createGear({ name: 'Canyon Endurace' })
+    ])
+    render(<GearDetailView gearId="gear-1" feed={feed} />)
+
+    expect(
+      await screen.findByRole('heading', { name: 'Canyon Endurace' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Road bike · 8.1 kg · added Nov 27, 2018')
+    ).toBeInTheDocument()
+  })
+
+  it('runs the facts, the default sports and the product page together on one line', async () => {
+    mockGetFitnessGearList.mockResolvedValue([
+      createGear({ productUrl: 'https://moots.com/pages/vamoots-rsl' })
+    ])
+    render(<GearDetailView gearId="gear-1" feed={feed} />)
+
+    const link = await screen.findByRole('link', { name: /moots\.com/ })
+    const line = link.parentElement
+    expect(line).toHaveTextContent(
+      'Canyon Endurace · Road bike · 8.1 kg · added Nov 27, 2018 · Default for Ride, Gravel ride · moots.com'
+    )
+    expect(line).toContainElement(
+      screen.getByText('Default for Ride, Gravel ride')
+    )
+  })
+
+  it('keeps the meta line items apart for a screen reader', async () => {
+    mockGetFitnessGearList.mockResolvedValue([
+      createGear({ productUrl: 'https://moots.com/pages/vamoots-rsl' })
+    ])
+    render(<GearDetailView gearId="gear-1" feed={feed} />)
+
+    const link = await screen.findByRole('link', { name: /moots\.com/ })
+    // What a screen reader gets: the two dots between the facts, the default
+    // sports and the product page are `aria-hidden`, so they drop out — and the
+    // items must still not run into one another ("2018Default for…").
+    const clone = link.parentElement!.cloneNode(true) as HTMLElement
+    clone.querySelectorAll('[aria-hidden="true"]').forEach((el) => el.remove())
+    const readAloud = clone.textContent!.replace(/\s+/g, ' ').trim()
+
+    expect(readAloud).toBe(
+      'Canyon Endurace · Road bike · 8.1 kg · added Nov 27, 2018 Default for Ride, Gravel ride moots.com'
+    )
+  })
+
+  it('puts Edit and Retire in a row under the stat tiles, not beside the title', async () => {
+    render(<GearDetailView gearId="gear-1" feed={feed} />)
+
+    const heading = await screen.findByRole('heading', { name: 'Rocket' })
+    const edit = screen.getByRole('button', { name: 'Edit' })
+    const retire = screen.getByRole('button', { name: 'Retire' })
+    const lastTile = screen.getByText('Components installed')
+
+    expect(edit.parentElement).toBe(retire.parentElement)
+    expect(
+      lastTile.compareDocumentPosition(edit) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(heading.parentElement).not.toContainElement(edit)
+  })
+
   it('omits the missing parts of the meta line', async () => {
     mockGetFitnessGearList.mockResolvedValue([
       createGear({
@@ -242,6 +306,22 @@ describe('GearDetailView', () => {
     expect(screen.getByText('2 installed')).toBeInTheDocument()
     // "Distance" is both a stat tile and the components table's column header.
     expect(screen.getAllByText('Distance')).toHaveLength(2)
+  })
+
+  it('draws the stat tiles radius 8 and flat, not as the Card default', async () => {
+    render(<GearDetailView gearId="gear-1" feed={feed} />)
+
+    await screen.findByText('Components installed')
+    for (const label of ['Distance', 'Activities', 'Components installed']) {
+      const tile = screen
+        .getAllByText(label)
+        .map((el) => el.closest('[data-slot="card"]'))
+        .find((card) => card?.className.includes('p-4'))
+      expect(tile).toBeDefined()
+      expect(tile).toHaveClass('rounded-lg', 'shadow-none')
+      expect(tile).not.toHaveClass('rounded-xl')
+      expect(tile).not.toHaveClass('shadow-sm')
+    }
   })
 
   it('renders two stat tiles and the activities feed for shoes', async () => {

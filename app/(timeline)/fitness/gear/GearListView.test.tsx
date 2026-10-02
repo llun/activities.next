@@ -167,6 +167,41 @@ describe('GearListView', () => {
     expect(bikes.getByText('1 active')).toBeInTheDocument()
   })
 
+  it('keeps the Default sports header and the distance on one line at a narrow card', async () => {
+    mockGetFitnessGearList.mockResolvedValue([createGear()])
+    render(<GearListView />)
+
+    const bikes = await getSection('Bikes')
+    // jsdom has no layout, so pin what keeps them on one line: at the design's
+    // 590pt card the 12% Distance column was 71pt wide, wrapping "0.0 km" and the
+    // two-word header into two lines each.
+    expect(
+      bikes.getByRole('columnheader', { name: 'Default sports' })
+    ).toHaveClass('whitespace-nowrap')
+    expect(bikes.getByText('35,253.7 km')).toHaveClass('whitespace-nowrap')
+  })
+
+  it('splits the bikes table into columns that add up to a full row, Distance wide enough for a lifetime total', async () => {
+    mockGetFitnessGearList.mockResolvedValue([createGear()])
+    render(<GearListView />)
+
+    const bikes = await getSection('Bikes')
+    const table = bikes.getByRole('table')
+    const widths = Array.from(table.querySelectorAll('col')).map((col) => {
+      const match = /w-\[([\d.]+)%\]/.exec(col.className)
+      return match ? Number(match[1]) : NaN
+    })
+
+    expect(widths).toHaveLength(5)
+    expect(widths.reduce((sum, width) => sum + width, 0)).toBeCloseTo(100)
+    // Bike, Product page, Default sports, Distance, actions. Distance (a
+    // five-digit total like "35,670.2 km") is the widest data cell after the
+    // name, so it must out-size the Default sports column it used to be
+    // smaller than.
+    const [, , defaultSports, distance] = widths
+    expect(distance).toBeGreaterThan(defaultSports)
+  })
+
   it('renders an em dash when a gear has no default sports', async () => {
     mockGetFitnessGearList.mockResolvedValue([
       createGear({

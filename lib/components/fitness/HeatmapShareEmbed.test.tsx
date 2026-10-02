@@ -189,4 +189,75 @@ describe('HeatmapShareEmbed', () => {
       )
     ).toBe(true)
   })
+
+  describe('copy fields', () => {
+    it('are the shared input styling: --input border, shadow-xs, focus ring, no bespoke muted fill', () => {
+      render(
+        <HeatmapShareEmbed {...defaultProps} shareToken="tok123" defaultOpen />
+      )
+      fireEvent.click(screen.getByRole('tab', { name: /Link/i }))
+
+      const field = screen.getByRole('textbox', { name: 'Copy public link' })
+      // The kit draws the copy field as a normal input (Surface/Input), which is
+      // what the `Input` primitive already is.
+      expect(field).toHaveAttribute('data-slot', 'input')
+      expect(field).toHaveClass('border-input', 'shadow-xs')
+      expect(field).toHaveClass('focus-visible:ring-[3px]')
+      expect(field).not.toHaveClass('bg-muted/40')
+      expect(field).toHaveClass('px-2.5', 'py-1.5', 'text-[12px]')
+    })
+
+    it('stretch a Primary/sm Copy button to the height of the field', () => {
+      render(
+        <HeatmapShareEmbed {...defaultProps} shareToken="tok123" defaultOpen />
+      )
+
+      const copy = screen.getByRole('button', { name: 'Copy embed code' })
+      // Primary/sm, whose icon-led padding (`has-[>svg]:px-2.5`) is what makes it
+      // 75 wide with a 14px icon, a 6px gap and the "Copy" label.
+      expect(copy).toHaveAttribute('data-size', 'sm')
+      expect(copy).toHaveAttribute('data-variant', 'default')
+      expect(copy).toHaveClass('self-stretch', 'h-auto')
+    })
+
+    it('grow the snippet box to its whole text instead of scrolling the last line away', () => {
+      // jsdom lays nothing out, so give the textarea a measured height: 4 wrapped
+      // lines of 17.875px plus 12px padding.
+      const scrollHeight = vi
+        .spyOn(HTMLTextAreaElement.prototype, 'scrollHeight', 'get')
+        .mockReturnValue(83.5)
+      try {
+        render(
+          <HeatmapShareEmbed
+            {...defaultProps}
+            shareToken="tok123"
+            defaultOpen
+          />
+        )
+
+        const snippet = screen.getByRole('textbox', {
+          name: 'Copy embed code'
+        }) as HTMLTextAreaElement
+        // Not capped at `rows`: it follows the content.
+        expect(snippet.style.height).toBe('83.5px')
+        expect(snippet).toHaveClass('field-sizing-fixed', 'resize-none')
+      } finally {
+        scrollHeight.mockRestore()
+      }
+    })
+
+    it('keep the iframe title attribute while showing the whole snippet', () => {
+      render(
+        <HeatmapShareEmbed {...defaultProps} shareToken="tok123" defaultOpen />
+      )
+
+      // An iframe needs a title for assistive tech; the fix for the clipped last
+      // line is a taller box, not dropping the line.
+      expect(
+        textboxValues().some((value) =>
+          value.includes('title="Route heatmap — Whole world"></iframe>')
+        )
+      ).toBe(true)
+    })
+  })
 })
