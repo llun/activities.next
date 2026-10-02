@@ -43,14 +43,47 @@ describe('withTimeZone', () => {
     expect(offsetInMay()).toBe(0)
   })
 
-  it('throws instead of running the callback when the zone name is not valid', async () => {
+  it('accepts an alias, which Intl reports under its canonical name', async () => {
+    // Intl names Asia/Kolkata `Asia/Calcutta`; comparing against the request
+    // as typed would reject it as a zone that did not move.
+    const seen = await withTimeZone('Asia/Kolkata', () => offsetInMay())
+
+    expect(seen).toBe(-330)
+  })
+
+  it('throws instead of running the callback when the zone name is not recognised', async () => {
     const callback = vi.fn()
 
     await expect(withTimeZone('Not/AZone', callback)).rejects.toThrow(
-      'could not move the time zone to "Not/AZone"'
+      'withTimeZone: "Not/AZone" is not a time zone Intl recognises.'
     )
 
     expect(callback).not.toHaveBeenCalled()
+    expect(process.env.TZ).toBe('UTC')
     expect(currentTimeZone()).toBe('UTC')
+  })
+
+  it('puts back the zone it found rather than the suite default', async () => {
+    const seen = await withTimeZone('Asia/Tokyo', async () => {
+      await withTimeZone('Europe/Amsterdam', () => undefined)
+      return currentTimeZone()
+    })
+
+    expect(seen).toBe('Asia/Tokyo')
+  })
+
+  it('puts back an unset TZ as unset, not as the string "undefined"', async () => {
+    const pinned = process.env.TZ
+    delete process.env.TZ
+    try {
+      const machineZone = currentTimeZone()
+
+      await withTimeZone('Asia/Tokyo', () => undefined)
+
+      expect(process.env.TZ).toBeUndefined()
+      expect(currentTimeZone()).toBe(machineZone)
+    } finally {
+      process.env.TZ = pinned
+    }
   })
 })
