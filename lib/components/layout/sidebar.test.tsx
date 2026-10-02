@@ -143,6 +143,43 @@ describe('Sidebar', () => {
     }
   })
 
+  describe('geometry', () => {
+    const user = {
+      handle: '@alice@activities.local',
+      username: 'alice',
+      name: 'Alice'
+    }
+
+    it('wraps every logo in a flex box so the nav starts 6px higher', () => {
+      // An inline-flex Logo link inside a block wrapper sits in a 38px line
+      // box instead of its own 32px, which pushed the nav down 6px in the
+      // sidebar, the rail and the drawer. The wrapper has to be a flex box.
+      const { container } = renderSidebar(<Sidebar lists={[]} user={user} />)
+      const logos = container.querySelectorAll(
+        'a[aria-label="Activities home"]'
+      )
+      expect(logos).toHaveLength(2)
+      for (const logo of logos) {
+        expect(logo.parentElement).toHaveClass('flex')
+      }
+
+      const drawer = renderSidebar(
+        <Sidebar variant="drawer" lists={[]} user={user} />
+      )
+      const drawerLogo = drawer.container.querySelector(
+        'a[aria-label="Activities home"]'
+      )
+      expect(drawerLogo?.parentElement).toHaveClass('flex')
+    })
+
+    it('spans the whole rail with the footer divider and keeps the avatar centred', () => {
+      const { container } = renderSidebar(<Sidebar lists={[]} user={user} />)
+      const rail = container.querySelectorAll('aside')[1]
+      const footer = rail.lastElementChild
+      expect(footer).toHaveClass('border-t', 'w-full', 'justify-center')
+    })
+  })
+
   describe('customization', () => {
     // jsdom has no pointer layout, so the Radix trigger opens from the
     // keyboard (same approach as the settings layout test).

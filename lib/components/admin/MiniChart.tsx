@@ -1,6 +1,6 @@
 'use client'
 
-import { FC, useMemo } from 'react'
+import { FC, useId, useMemo } from 'react'
 
 interface Props {
   data: number[]
@@ -43,6 +43,9 @@ export const MiniChart: FC<Props> = ({
   height = 40
 }) => {
   const width = 200
+  // Colons in a React id are not valid inside a url(#…) reference in every
+  // browser, so strip them from the gradient id.
+  const gradientId = `mini-chart-fill-${useId().replace(/:/g, '')}`
   const linePath = useMemo(() => buildPath(data, width, height), [data, height])
   const areaPath = useMemo(
     () => buildAreaPath(data, width, height),
@@ -65,7 +68,25 @@ export const MiniChart: FC<Props> = ({
       className="h-full w-full"
       preserveAspectRatio="none"
     >
-      <path d={areaPath} fill={color} fillOpacity={0.15} stroke="none" />
+      {/* The design's area fill: the line colour at 20% at the top of the
+          chart, fading to transparent at the baseline. */}
+      <defs>
+        <linearGradient
+          id={gradientId}
+          gradientUnits="userSpaceOnUse"
+          x1="0"
+          y1="0"
+          x2="0"
+          y2={height}
+        >
+          <stop offset="0" stopColor={color} stopOpacity={0.2} />
+          <stop offset="1" stopColor={color} stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <path d={areaPath} fill={`url(#${gradientId})`} stroke="none" />
+      {/* The SVG is stretched non-uniformly (preserveAspectRatio="none"), which
+          would thicken the stroke on steep segments; non-scaling-stroke keeps
+          it an even 1.5px everywhere. */}
       <path
         d={linePath}
         fill="none"
@@ -73,6 +94,7 @@ export const MiniChart: FC<Props> = ({
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
       />
     </svg>
   )

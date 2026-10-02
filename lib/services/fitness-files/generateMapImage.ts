@@ -30,6 +30,10 @@ const APPLE_SNAPSHOT_WIDTH = 640
 const APPLE_SNAPSHOT_HEIGHT = 480
 const APPLE_SNAPSHOT_SCALE = 2
 
+// The route is drawn in the brand orange (the design's Brand/Primary) on every
+// map this module draws itself: the Mapbox static request and the OSM overlay.
+const ROUTE_COLOR = '#E55F06'
+
 const flattenRouteSegments = (routeSegments: FitnessCoordinate[][]) => {
   return routeSegments.flat()
 }
@@ -116,7 +120,7 @@ const buildMapboxUrl = ({
   const geoJson = {
     type: 'Feature',
     properties: {
-      stroke: '#ff3b30',
+      stroke: ROUTE_COLOR,
       'stroke-width': 4,
       'stroke-opacity': 0.9
     },
@@ -199,7 +203,7 @@ const renderOsmMap = async ({
       const points = segment
         .map((point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`)
         .join(' ')
-      return `<polyline points="${points}" fill="none" stroke="#ff3b30" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`
+      return `<polyline points="${points}" fill="none" stroke="${ROUTE_COLOR}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`
     })
     .join('')
 

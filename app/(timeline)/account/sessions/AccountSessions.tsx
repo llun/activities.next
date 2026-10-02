@@ -6,6 +6,7 @@ import { Clock, Monitor, Trash2 } from 'lucide-react'
 import { FC, useMemo, useRef, useState } from 'react'
 
 import { LogoutButton } from '@/app/(timeline)/account/LogoutButton'
+import { formatConnectedAppMeta } from '@/app/(timeline)/account/sessions/connectedAppMeta'
 import {
   deleteSession,
   revokeConnectedApp,
@@ -41,9 +42,9 @@ export interface AccountAppRow {
   name: string | null
   website: string | null
   scopes: string[]
-  // Preformatted on the server so the absolute date can't cause an SSR/client
-  // timezone hydration mismatch.
-  authorizedLabel: string
+  // Epoch ms (never a Date, see "Date Serialization in Server Components");
+  // rendered relative to `currentTime`, so SSR and hydration agree.
+  authorizedAt: number
   signIn: boolean
 }
 
@@ -409,9 +410,12 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
                     </div>
                   )}
                   <div className="mt-1.5 truncate text-xs text-muted-foreground">
-                    {app.website ? `${app.website} · ` : ''}
-                    {app.signIn ? 'Signs you in' : 'Authorized'}{' '}
-                    {app.authorizedLabel}
+                    {formatConnectedAppMeta({
+                      website: app.website,
+                      signIn: app.signIn,
+                      authorizedAt: app.authorizedAt,
+                      currentTime
+                    })}
                   </div>
                 </div>
                 <Button

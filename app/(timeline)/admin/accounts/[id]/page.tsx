@@ -10,6 +10,7 @@ import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 import { getClientActorId } from '@/lib/utils/publicId'
 
 import { ActorModerationPanel } from './ActorModerationPanel'
+import { formatAccountCreatedAt, formatAccountRole } from './accountDetails'
 
 export const dynamic = 'force-dynamic'
 
@@ -71,12 +72,12 @@ const Page = async ({ params }: Props) => {
           <div>
             <dt className="text-sm text-muted-foreground">Created</dt>
             <dd className="font-medium">
-              {new Date(account.createdAt).toLocaleString()}
+              {formatAccountCreatedAt(account.createdAt)}
             </dd>
           </div>
           <div>
             <dt className="text-sm text-muted-foreground">Role</dt>
-            <dd className="font-medium">{account.role || 'User'}</dd>
+            <dd className="font-medium">{formatAccountRole(account.role)}</dd>
           </div>
         </dl>
       </div>

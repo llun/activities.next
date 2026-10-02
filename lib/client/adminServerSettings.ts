@@ -29,7 +29,7 @@ export const updateAdminServerSettings = async (
   })
   if (!response.ok) {
     const error = await response.json().catch(() => null)
-    throw new Error(error?.error ?? 'Failed to save server settings')
+    throw new Error(error?.error ?? 'Failed to save changes. Please try again.')
   }
   return (await response.json()) as AdminServerSettingsResponse
 }

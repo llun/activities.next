@@ -10,6 +10,7 @@ import {
   FONT_STACK,
   INSET_BACKGROUND,
   MAP_BACKGROUND,
+  QUOTE_LINK,
   RADIUS_BUTTON,
   RADIUS_INSET,
   TEXT,
@@ -208,6 +209,45 @@ export interface SanitizedBody {
   readonly text: string
 }
 
+// A paragraph keeps the mail client's default gap (1em at the body's 14px) from
+// the next one; only its outer edges are trimmed.
+const QUOTE_PARAGRAPH_GAP = '14px'
+
+const PARAGRAPH_OPEN_TAG = /<p(\s[^>]*)?>/g
+const ANCHOR_OPEN_TAG = /<a(\s[^>]*)?>/g
+const CONTENT_LINK_CLASS = /\sclass="[^"]*\b(?:mention|hashtag)\b[^"]*"/
+
+/**
+ * Inlines the two things the web stylesheet does for a post body, because an
+ * email has none:
+ *
+ * - A bare `<p>` keeps the client's 14px top and bottom margin, which sat on
+ *   top of the wrapper's own 8px and under the last line, so a quoted post
+ *   started 14px below the actor row and ended 14px above the card edge. The
+ *   first paragraph loses its top margin and the last its bottom one; the gap
+ *   between paragraphs stays.
+ * - A hashtag or mention anchor is drawn mid blue without an underline instead
+ *   of the client's default blue underline. An ordinary link keeps its
+ *   underline: it has no `#` or `@` to mark it as a link.
+ *
+ * Only literal `style` attributes are added to tags the sanitizer already
+ * emitted (`p` and `a` allow no `style` of their own), so this cannot widen
+ * what a remote post may contain.
+ */
+const styleQuotedBody = (html: string): string => {
+  let remaining = html.match(PARAGRAPH_OPEN_TAG)?.length ?? 0
+  return html
+    .replace(PARAGRAPH_OPEN_TAG, (_tag, attributes: string | undefined) => {
+      remaining -= 1
+      const margin = remaining > 0 ? `0 0 ${QUOTE_PARAGRAPH_GAP}` : '0'
+      return `<p${attributes ?? ''} style="margin:${margin};">`
+    })
+    .replace(ANCHOR_OPEN_TAG, (tag, attributes: string | undefined) => {
+      if (!attributes || !CONTENT_LINK_CLASS.test(attributes)) return tag
+      return `<a${attributes} style="color:${QUOTE_LINK};text-decoration:none;">`
+    })
+}
+
 /**
  * The muted inset card quoting an actor — their monogram, display name and
  * handle, optionally over the post body.
@@ -242,7 +282,7 @@ export const quote = (options: {
   const avatarHtml = `<table role="presentation" width="${AVATAR_SIZE}" height="${AVATAR_SIZE}" cellpadding="0" cellspacing="0" border="0" style="width:${AVATAR_SIZE}px;height:${AVATAR_SIZE}px;min-width:${AVATAR_SIZE}px;"><tr>${avatarContent}</tr></table>`
 
   const bodyHtml = body
-    ? `<div style="margin-top:8px;font-family:${FONT_STACK};font-size:14px;line-height:1.6;color:${TEXT_BODY};word-wrap:break-word;">${body.html}</div>`
+    ? `<div style="margin-top:8px;font-family:${FONT_STACK};font-size:14px;line-height:1.6;color:${TEXT_BODY};word-wrap:break-word;">${styleQuotedBody(body.html)}</div>`
     : ''
 
   return {

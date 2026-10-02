@@ -2,7 +2,6 @@
 
 import {
   Activity,
-  ChevronDown,
   Database as DatabaseIcon,
   HardDrive,
   Image,
@@ -20,12 +19,14 @@ import {
 
 import { getAllStatsBuckets } from '@/app/(timeline)/admin/actions'
 import { PageHeader } from '@/lib/components/page-header'
+import { selectChevronClassName } from '@/lib/components/ui/select'
 import {
   ALL_COUNTER_TYPES,
   ServiceStatCounterType,
   ServiceStats,
   ServiceStatsBucket
 } from '@/lib/types/database/operations'
+import { cn } from '@/lib/utils'
 import { formatFileSize } from '@/lib/utils/formatFileSize'
 
 import { MiniChart } from './MiniChart'
@@ -245,14 +246,17 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
       >
         <div className="rounded-2xl border bg-background/80 p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
-            <div className="relative">
+            <div>
               <select
                 value={selectedCounter}
                 onChange={(e) =>
                   setSelectedCounter(e.target.value as ServiceStatCounterType)
                 }
                 aria-label="Select statistic type"
-                className="appearance-none rounded-lg border bg-background py-1.5 pl-3 pr-8 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary"
+                className={cn(
+                  'rounded-md border bg-background py-1.5 pl-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary',
+                  selectChevronClassName
+                )}
               >
                 {statCards.map((card) => (
                   <option key={card.counterType} value={card.counterType}>
@@ -260,7 +264,6 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
                   </option>
                 ))}
               </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             </div>
             {selectedTrend !== undefined && (
               <span

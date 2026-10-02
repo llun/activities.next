@@ -32,14 +32,20 @@ const BASE_TOLERANCE_METERS = 2
 const OVERLAY_MAX_POINTS = 120
 // Basemap the snapshot is drawn on, as the `t` query parameter. `mutedStandard`
 // is the standard road map with its land/water/POI colours de-saturated, so the
-// red route line stays the most prominent thing in the thumbnail — and it is the
+// orange route line stays the most prominent thing in the thumbnail — and it is the
 // same basemap the interactive MapKit maps select through
 // `mapType` (MAPKIT_MUTED_STANDARD_MAP_TYPE in
 // lib/components/fitness/mapkitSurface.ts), so a stored route image and its live
 // map agree. Kept as a local literal rather than imported: this module is
 // server-only and must not reach into the client component tree.
 const SNAPSHOT_MAP_TYPE = 'mutedStandard'
-const ROUTE_COLOR_HEX = 'ef4444'
+// The brand orange (the design's Brand/Primary), as the 6-digit hex Apple's
+// `strokeColor` takes (no `#`): the same `#E55F06` the Mapbox and OSM renderers
+// draw routes in (ROUTE_COLOR in generateMapImage.ts), so a route reads the same
+// in the activity-import email whichever map provider the instance uses. Kept as
+// its own literal: generateMapImage.ts imports this module, so importing its
+// constant back would be a circular dependency.
+const ROUTE_COLOR_HEX = 'e55f06'
 const ROUTE_STROKE_OPACITY = 0.9
 const ROUTE_LINE_WIDTH = 4
 // Longest team/key identifier we budget for (Apple issues 10-character ids).

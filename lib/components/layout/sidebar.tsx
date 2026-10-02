@@ -287,7 +287,10 @@ export function Sidebar({
             : 'fixed left-0 top-0 z-40 h-screen w-[280px] border-r bg-surface-chrome backdrop-blur hidden xl:flex flex-col'
         )}
       >
-        <div className={cn('p-6', isDrawer && 'pr-14')}>
+        {/* flex, not block: the Logo link is inline-flex, and as an inline
+            box in a block wrapper it sits in a 38px line box instead of its own
+            32px, pushing the whole nav 6px down. */}
+        <div className={cn('flex p-6', isDrawer && 'pr-14')}>
           <Logo size="md" onNavigate={onNavigate} />
         </div>
 
@@ -552,7 +555,7 @@ export function Sidebar({
               >
                 <Avatar className="h-10 w-10">
                   {user.avatarUrl && <AvatarImage src={user.avatarUrl} />}
-                  <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                  <AvatarFallback className="bg-(--skeleton) font-semibold text-muted-foreground dark:bg-input">
                     {getAvatarInitial(user.username)}
                   </AvatarFallback>
                 </Avatar>
@@ -571,7 +574,8 @@ export function Sidebar({
       {/* Collapsed sidebar - Tablet */}
       {variant === 'responsive' && (
         <aside className="fixed left-0 top-0 z-40 h-screen w-[72px] border-r bg-surface-chrome backdrop-blur hidden md:flex xl:hidden flex-col items-center">
-          <div className="p-4">
+          {/* flex for the same reason as the full sidebar's logo wrapper. */}
+          <div className="flex p-4">
             <Logo showText={false} size="md" />
           </div>
 
@@ -708,7 +712,10 @@ export function Sidebar({
           </nav>
 
           {user && (
-            <div className="border-t p-3">
+            // w-full so the divider spans the whole rail (the aside is an
+            // items-center column, which would shrink it to its content);
+            // justify-center keeps the avatar where it was.
+            <div className="flex w-full justify-center border-t p-3">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Link
@@ -718,7 +725,7 @@ export function Sidebar({
                   >
                     <Avatar className="h-10 w-10">
                       {user.avatarUrl && <AvatarImage src={user.avatarUrl} />}
-                      <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                      <AvatarFallback className="bg-(--skeleton) font-semibold text-muted-foreground dark:bg-input">
                         {getAvatarInitial(user.username)}
                       </AvatarFallback>
                     </Avatar>

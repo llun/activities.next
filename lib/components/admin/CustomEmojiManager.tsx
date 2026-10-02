@@ -134,7 +134,7 @@ export const CustomEmojiManager: FC<Props> = ({ initialEmojis }) => {
               type="button"
               onClick={() => fileInputRef.current?.click()}
               aria-label="Choose emoji image"
-              className="flex size-24 items-center justify-center overflow-hidden rounded-xl border-2 border-dashed text-muted-foreground transition-colors hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex size-24 items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-muted-foreground text-muted-foreground transition-colors hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <Upload className="size-6" />
             </button>

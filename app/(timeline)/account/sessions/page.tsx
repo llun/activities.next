@@ -14,17 +14,6 @@ import { isRealAvatar } from '@/lib/utils/isRealAvatar'
 
 export const dynamic = 'force-dynamic'
 
-// Format the app "Authorized" date deterministically in UTC so the
-// server-rendered label can't shift by a day with the server's timezone, and
-// is identical on every render. Pinned to en-US to match the design
-// ("Jun 2, 2026").
-const AUTHORIZED_DATE_FORMAT = new Intl.DateTimeFormat('en-US', {
-  month: 'short',
-  day: 'numeric',
-  year: 'numeric',
-  timeZone: 'UTC'
-})
-
 export const metadata: Metadata = {
   title: 'Activities.next: Account Sessions'
 }
@@ -87,7 +76,7 @@ const Page = async () => {
     name: app.name,
     website: app.website,
     scopes: app.scopes,
-    authorizedLabel: AUTHORIZED_DATE_FORMAT.format(new Date(app.authorizedAt)),
+    authorizedAt: app.authorizedAt,
     signIn: app.signIn
   }))
 
