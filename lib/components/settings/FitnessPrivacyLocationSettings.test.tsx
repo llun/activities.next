@@ -1077,6 +1077,32 @@ describe('FitnessPrivacyLocationSettings', () => {
       }
     )
 
+    it.each([
+      { description: 'latitude', field: 'Latitude', value: '13.8' },
+      { description: 'longitude', field: 'Longitude', value: '100.6' }
+    ])(
+      'still draws the draft as its own circle when only its $description differs from a saved zone of the same radius',
+      async ({ field, value }) => {
+        mockSavedZone(200)
+        const { sources } = mountGlMap()
+
+        render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
+
+        await screen.findByText('13.756300, 100.501800')
+        await waitFor(() =>
+          expect(sources.has('fitness-privacy-zones')).toBe(true)
+        )
+
+        fireEvent.change(screen.getByLabelText(field), { target: { value } })
+
+        await waitFor(() => {
+          const calls = sources.get('fitness-privacy-zones')!.setData.mock.calls
+          const data = calls[calls.length - 1][0] as { features: unknown[] }
+          expect(data.features).toHaveLength(2)
+        })
+      }
+    )
+
     it('resizes the draft circle when the hide radius changes', async () => {
       mockSavedZone(200)
       const { sources } = mountGlMap()
