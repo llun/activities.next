@@ -165,7 +165,7 @@ describe('(timeline) Layout', () => {
     expect(screen.getByTestId('child')).toBeInTheDocument()
   })
 
-  it('keeps the session cookie alive for signed-in users', async () => {
+  it('mounts SessionKeepAlive for signed-in users', async () => {
     mockGetActorFromSession.mockResolvedValue(signedInActor as never)
 
     await renderLayout()
