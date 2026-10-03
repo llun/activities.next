@@ -248,7 +248,7 @@ describe('HeatmapShareEmbed', () => {
       expect(copy.parentElement).toHaveClass('items-start')
     })
 
-    it('grow the snippet box to its whole text instead of scrolling the last line away', () => {
+    it('grow the snippet box to its whole text, and re-fit when the text changes', () => {
       // A browser without `field-sizing: content` (Safari, Firefox): the shared
       // hook measures. jsdom reports the property as supported, so say it is not.
       vi.stubGlobal('CSS', { supports: () => false })
@@ -258,7 +258,7 @@ describe('HeatmapShareEmbed', () => {
         .spyOn(HTMLTextAreaElement.prototype, 'scrollHeight', 'get')
         .mockReturnValue(83.5)
       try {
-        render(
+        const { rerender } = render(
           <HeatmapShareEmbed
             {...defaultProps}
             shareToken="tok123"
@@ -277,6 +277,17 @@ describe('HeatmapShareEmbed', () => {
         // local hook measured everywhere and did).
         expect(snippet).not.toHaveClass('field-sizing-fixed')
         expect(snippet).toHaveClass('field-sizing-content')
+
+        // The embed hands the hook the snippet text, so a new token re-fits.
+        scrollHeight.mockReturnValue(100)
+        rerender(
+          <HeatmapShareEmbed
+            {...defaultProps}
+            shareToken="tok-with-a-much-longer-value"
+            defaultOpen
+          />
+        )
+        expect(snippet.style.height).toBe('100px')
       } finally {
         scrollHeight.mockRestore()
         vi.unstubAllGlobals()
@@ -312,55 +323,6 @@ describe('HeatmapShareEmbed', () => {
         scrollHeight.mockRestore()
         vi.unstubAllGlobals()
       }
-    })
-
-    describe('fitting the snippet box', () => {
-      // jsdom lays nothing out: drive the one measurement the hook reads, in a
-      // browser without `field-sizing: content` (jsdom reports it as supported).
-      const layout = { scrollHeight: 0 }
-
-      beforeEach(() => {
-        layout.scrollHeight = 0
-        vi.spyOn(
-          HTMLTextAreaElement.prototype,
-          'scrollHeight',
-          'get'
-        ).mockImplementation(() => layout.scrollHeight)
-        vi.stubGlobal('CSS', { supports: () => false })
-      })
-
-      afterEach(() => {
-        vi.restoreAllMocks()
-        vi.unstubAllGlobals()
-      })
-
-      const snippet = () =>
-        screen.getByRole('textbox', {
-          name: 'Copy embed code'
-        }) as HTMLTextAreaElement
-
-      it('re-fits when the snippet text changes', () => {
-        layout.scrollHeight = 80
-        const { rerender } = render(
-          <HeatmapShareEmbed
-            {...defaultProps}
-            shareToken="tok123"
-            defaultOpen
-          />
-        )
-        expect(snippet().style.height).toBe('80px')
-
-        layout.scrollHeight = 100
-        rerender(
-          <HeatmapShareEmbed
-            {...defaultProps}
-            shareToken="tok-with-a-much-longer-value"
-            defaultOpen
-          />
-        )
-
-        expect(snippet().style.height).toBe('100px')
-      })
     })
 
     it('keep the iframe title attribute while showing the whole snippet', () => {

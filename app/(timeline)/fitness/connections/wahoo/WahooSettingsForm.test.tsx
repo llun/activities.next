@@ -5,6 +5,7 @@ import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import * as client from '@/lib/client'
+import { createDeferred } from '@/lib/testing/deferred'
 
 import { WahooSettingsForm } from './WahooSettingsForm'
 
@@ -92,12 +93,8 @@ describe('WahooSettingsForm', () => {
   })
 
   it('locks the environment select while settings are saving', async () => {
-    let finishSave: (value: { success: true }) => void = () => {}
-    vi.mocked(client.saveWahooSettings).mockReturnValue(
-      new Promise((resolve) => {
-        finishSave = resolve
-      })
-    )
+    const save = createDeferred<{ success: true }>()
+    vi.mocked(client.saveWahooSettings).mockReturnValue(save.promise)
     render(<WahooSettingsForm />)
 
     await screen.findByDisplayValue('client-example')
@@ -108,7 +105,7 @@ describe('WahooSettingsForm', () => {
       expect(screen.getByLabelText('Environment')).toBeDisabled()
     )
 
-    finishSave({ success: true })
+    save.resolve({ success: true })
     await waitFor(() =>
       expect(screen.getByLabelText('Environment')).toBeEnabled()
     )

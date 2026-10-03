@@ -12,6 +12,7 @@ import {
   unassignAdminReport,
   updateAdminReport
 } from '@/lib/client'
+import { createDeferred } from '@/lib/testing/deferred'
 import { AdminReport } from '@/lib/types/mastodon/admin/report'
 
 import { AdminReportDetail } from './AdminReportDetail'
@@ -52,6 +53,9 @@ const report = (overrides: Partial<AdminReport>): AdminReport =>
 describe('AdminReportDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // clearAllMocks keeps implementations: drop the pending promise the
+    // category-lock test leaves on the mock so it cannot reach a later test.
+    mockUpdate.mockReset()
   })
 
   it('renders the report and drives assign/resolve', async () => {
@@ -147,12 +151,8 @@ describe('AdminReportDetail', () => {
 
   it('locks the category select while an action is in flight', async () => {
     mockGetAdminReport.mockResolvedValue(report({}))
-    let finishUpdate: (value: AdminReport) => void = () => {}
-    mockUpdate.mockReturnValue(
-      new Promise<AdminReport>((resolve) => {
-        finishUpdate = resolve
-      })
-    )
+    const update = createDeferred<AdminReport>()
+    mockUpdate.mockReturnValue(update.promise)
 
     render(<AdminReportDetail reportId="report-1" />)
     await waitFor(() =>
@@ -165,7 +165,7 @@ describe('AdminReportDetail', () => {
     })
     await waitFor(() => expect(screen.getByRole('combobox')).toBeDisabled())
 
-    finishUpdate(report({ category: 'legal' }))
+    update.resolve(report({ category: 'legal' }))
     await waitFor(() => expect(screen.getByRole('combobox')).toBeEnabled())
   })
 })
