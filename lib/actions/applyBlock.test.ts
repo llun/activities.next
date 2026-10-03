@@ -17,9 +17,8 @@ vi.mock('@/lib/services/queue', () => ({
 }))
 
 describe('applyBlock', () => {
-  // A fresh seeded database per test, and the unblock test blocks first itself:
-  // it used to remove the block the test above left behind, so whenever it ran
-  // first there was nothing to unblock.
+  // A fresh seeded database per test, so the unblock test blocks first itself
+  // instead of relying on a block another test left behind.
   let database: Database
 
   beforeEach(async () => {

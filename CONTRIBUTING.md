@@ -846,15 +846,18 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   `vi.clearAllMocks()` empties call history but keeps queued `mock…Once`
   values, so a `mockResolvedValueOnce` a test queues for a call its path never
   makes answers the next test's first call instead of that test's own default —
-  `mockReset()` the module-level `vi.fn()` handles in `beforeEach`. And a test
-  that announces, blocks, deletes or likes hands those rows to whichever test
-  runs next — build the database in `beforeEach` and destroy it in `afterEach`,
-  or, on the PostgreSQL harness where `prepare` recreates a whole database,
-  have each test seed the rows it asserts on under ids of its own. CI runs tests
-  in declaration order and cannot see either leak, and in that order one had
-  left a route test passing without ever reaching the filter it tests. Check
-  with `yarn vitest run --sequence.shuffle --sequence.seed=<n>` over a few
-  seeds.
+  reset those module-level `vi.fn()` handles in `beforeEach` and set their
+  defaults again straight after, because `mockReset()` also drops a default
+  given at creation (`vi.fn().mockReturnValue(x)`), while `vi.fn(impl)` keeps
+  `impl`. And a test that announces, blocks, deletes or likes hands those rows
+  to whichever test runs next — build the database in `beforeEach` and destroy
+  it in `afterEach`, or, on the PostgreSQL harness where `prepare` recreates a
+  whole database, have each test seed the rows it asserts on under ids of its
+  own. CI runs tests in declaration order and cannot see either leak, and in
+  that order one had left a route test (`regenerate-maps/route.test.ts`,
+  'returns zero when there are no eligible old statuses') passing without ever
+  reaching the filter it tests. Check with
+  `yarn test --sequence.shuffle --sequence.seed=<n>` over a few seeds.
 - **`toHaveBeenCalledWith` asks whether a call ever happened, never whether it
   was the only one.** A once-per-run summary asserted that way is equally
   satisfied by one logged per row, because the last row carries the correct

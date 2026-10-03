@@ -1197,9 +1197,9 @@ describe('createOrderedCollectionWriter', () => {
 
 describe('database-backed collectors', () => {
   const domain = 'actor-archive-test.llun.test'
-  // A fresh database per test: forEachLike creates statuses for the same actor,
-  // so on a shared database forEachActorStatus counted them too whenever it ran
-  // after it.
+  // A fresh database per test: the forEachActorStatus test asserts an exact
+  // count, so it must not inherit the statuses the forEachLike test creates for
+  // the same actor.
   let database: ReturnType<typeof getTestSQLDatabase>
   let actorId: string
   let followersUrl: string

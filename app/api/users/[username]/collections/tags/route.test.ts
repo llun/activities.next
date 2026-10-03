@@ -49,8 +49,8 @@ const createRequest = () =>
   })
 
 describe('GET /api/users/[username]/collections/tags', () => {
-  // A fresh database per test: the featured tag one test creates would
-  // otherwise show up in the empty-collection test whenever it ran first.
+  // A fresh database per test, so the empty-collection test never sees the
+  // featured tag the other test creates, whichever of them runs first.
   let database: ReturnType<typeof getTestSQLDatabase>
 
   beforeEach(async () => {
