@@ -1,0 +1,23 @@
+app/(timeline)/admin/reports/[id]/AdminReportDetail.test.tsx
+  s_82468012d96a9d::t_646ebdd07e5efd 15,56-58,154-155,168
+app/(timeline)/fitness/connections/wahoo/WahooSettingsForm.test.tsx
+  s_82468012d96a9d::t_8b4576b4cc86c8 8,96-97,108
+lib/components/fitness/HeatmapShareEmbed.test.tsx
+  s_82468012d96a9d::t_65fa0323b0b56a 251,261,280-290
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8c3be67231d8e13cad5f8d129f72cfe3b46ed780",
+  "prompts": {},
+  "sessions": {
+    "s_82468012d96a9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c1772d3-df89-4813-8d33-4cbceee3810d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
