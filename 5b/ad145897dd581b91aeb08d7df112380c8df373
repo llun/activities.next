@@ -1,0 +1,23 @@
+lib/actions/applyBlock.test.ts
+  s_bb92ee938bf6dc::t_28dfc810aaa7ee 20-21
+CONTRIBUTING.md
+  s_bb92ee938bf6dc::t_b33d748e5099e2 857-859
+app/api/v1/fitness/general/regenerate-maps/route.test.ts
+  s_bb92ee938bf6dc::t_2c9b979ec8bd73 71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5bad145897dd581b91aeb08d7df112380c8df373",
+  "prompts": {},
+  "sessions": {
+    "s_bb92ee938bf6dc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e42ed834-8d66-48e4-81fb-7bba86cad7f1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
