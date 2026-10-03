@@ -5,10 +5,15 @@ import {
   getTestSQLDatabase,
   getTestSQLDatabaseWithInstance
 } from '@/lib/database/testUtils'
+import {
+  OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
+  OAUTH_ACCESS_TOKEN_SLIDE_INTERVAL_SECONDS
+} from '@/lib/services/auth/constants'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Scope } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
+import { logger } from '@/lib/utils/logger'
 
 import {
   OAuthAppGuard,
@@ -1005,6 +1010,307 @@ describe('OAuthGuard', () => {
       const response = await guard(req, { params: Promise.resolve({}) })
 
       expect(response.status).toBe(401)
+    })
+  })
+
+  describe('sliding opaque token expiry', () => {
+    const NOW = Date.UTC(2026, 9, 3, 12, 0, 0)
+    const HOUR_MS = 60 * 60 * 1000
+    const WINDOW_MS = OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS * 1000
+    const INTERVAL_MS = OAUTH_ACCESS_TOKEN_SLIDE_INTERVAL_SECONDS * 1000
+
+    let extendSpy: ReturnType<typeof vi.spyOn>
+
+    beforeEach(() => {
+      // Only `Date` is faked: the SQLite driver relies on real timers.
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(NOW)
+      mockGetServerSession.mockResolvedValue(null)
+      extendSpy = vi.spyOn(database, 'extendOAuthAccessToken')
+    })
+
+    afterEach(() => {
+      extendSpy.mockRestore()
+      vi.useRealTimers()
+    })
+
+    const storeToken = async (
+      token: string,
+      fields: Record<string, unknown>
+    ) => {
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      if (!primaryActor?.account) throw new Error('Primary actor not found')
+      mockStoredTokens.set(hashToken(token), {
+        token: hashToken(token),
+        referenceId: primaryActor.id,
+        userId: primaryActor.account.id,
+        scopes: JSON.stringify(['read']),
+        ...fields
+      })
+      return primaryActor
+    }
+
+    const callWith = (token: string, scopes: Scope[] = [Scope.enum.read]) =>
+      OAuthGuard(scopes, mockHandler)(
+        createRequest({ Authorization: `Bearer ${token}` }),
+        { params: Promise.resolve({}) }
+      )
+
+    // `expiresAt` is issue (or last slide) time + WINDOW_MS, so a token last
+    // touched `age` ago has `NOW - age + WINDOW_MS`.
+    const expiringAfterAge = (age: number) => new Date(NOW - age + WINDOW_MS)
+
+    test.each([
+      {
+        description: 'exactly one slide interval after it was issued',
+        expiresAt: expiringAfterAge(INTERVAL_MS)
+      },
+      {
+        description: 'in its last hour, the case that used to sign clients out',
+        expiresAt: new Date(NOW + HOUR_MS)
+      },
+      {
+        description:
+          'that better-auth soft-revoked when its web session ended, as Mastodon keeps apps signed in across a web sign-out',
+        expiresAt: new Date(NOW + HOUR_MS),
+        revoked: new Date(NOW - HOUR_MS)
+      }
+    ])('slides a token used $description', async ({ expiresAt, revoked }) => {
+      await storeToken('due-token', { expiresAt, revoked })
+
+      const response = await callWith('due-token')
+
+      expect(response.status).toBe(200)
+      expect(extendSpy).toHaveBeenCalledWith({
+        hashedToken: hashToken('due-token'),
+        expiresAt: NOW + WINDOW_MS
+      })
+    })
+
+    test.each([
+      {
+        description: 'a token used one millisecond short of a slide interval',
+        fields: { expiresAt: expiringAfterAge(INTERVAL_MS - 1) },
+        scopes: [Scope.enum.read],
+        status: 200
+      },
+      {
+        description: 'an app (client_credentials) token, which has no user',
+        fields: { userId: null, expiresAt: new Date(NOW + 30 * 60 * 1000) },
+        scopes: [Scope.enum.read],
+        status: 200
+      },
+      {
+        description: 'an expired token',
+        fields: { expiresAt: new Date(NOW - 1000) },
+        scopes: [Scope.enum.read],
+        status: 401
+      },
+      {
+        description: 'a token presented without the scope the route needs',
+        fields: { expiresAt: new Date(NOW + HOUR_MS) },
+        scopes: [Scope.enum.write],
+        status: 401
+      },
+      {
+        description: 'a token whose actor no longer exists',
+        fields: {
+          referenceId: 'https://llun.test/users/deleted',
+          expiresAt: new Date(NOW + HOUR_MS)
+        },
+        scopes: [Scope.enum.read],
+        status: 401
+      }
+    ])('does not slide $description', async ({ fields, scopes, status }) => {
+      await storeToken('not-due-token', fields)
+
+      const response = await callWith('not-due-token', scopes)
+
+      expect(response.status).toBe(status)
+      expect(extendSpy).not.toHaveBeenCalled()
+    })
+
+    describe('an account awaiting confirmation', () => {
+      const PENDING_USERNAME = 'pendingslide'
+      const PENDING_ACTOR_ID = `https://llun.test/users/${PENDING_USERNAME}`
+      let pendingAccountId: string
+
+      beforeAll(async () => {
+        pendingAccountId = await database.createAccount({
+          domain: 'llun.test',
+          email: 'pending-slide@llun.test',
+          username: PENDING_USERNAME,
+          passwordHash: 'pending-password-hash',
+          privateKey: 'pending-private-key',
+          publicKey: 'pending-public-key',
+          verificationCode: 'pending-confirmation-code'
+        })
+      })
+
+      const storePendingToken = (token: string) =>
+        storeToken(token, {
+          referenceId: PENDING_ACTOR_ID,
+          userId: pendingAccountId,
+          expiresAt: new Date(NOW + HOUR_MS)
+        })
+
+      test('is refused by OAuthGuard without sliding its token', async () => {
+        await storePendingToken('pending-guard-token')
+
+        const response = await callWith('pending-guard-token')
+
+        expect(response.status).toBe(403)
+        expect(extendSpy).not.toHaveBeenCalled()
+      })
+
+      test('is served anonymously by OptionalOAuthGuard without sliding its token', async () => {
+        await storePendingToken('pending-optional-token')
+        const handler = vi
+          .fn()
+          .mockImplementation((_req, context) =>
+            NextResponse.json(
+              { actor: context.currentActor?.id ?? null },
+              { status: 200 }
+            )
+          )
+
+        const response = await OptionalOAuthGuard([Scope.enum.read], handler)(
+          createRequest({ Authorization: 'Bearer pending-optional-token' }),
+          { params: Promise.resolve({}) }
+        )
+
+        expect(response.status).toBe(200)
+        expect(await response.json()).toEqual({ actor: null })
+        expect(extendSpy).not.toHaveBeenCalled()
+      })
+
+      test('is refused by OAuthAppGuard without sliding its token', async () => {
+        await storePendingToken('pending-app-guard-token')
+
+        const response = await OAuthAppGuard([Scope.enum.read], mockHandler)(
+          createRequest({ Authorization: 'Bearer pending-app-guard-token' }),
+          { params: Promise.resolve({}) }
+        )
+
+        expect(response.status).toBe(403)
+        expect(extendSpy).not.toHaveBeenCalled()
+      })
+    })
+
+    test('slides a due token accepted by OptionalOAuthGuard', async () => {
+      await storeToken('optional-guard-token', {
+        expiresAt: new Date(NOW + HOUR_MS)
+      })
+
+      const response = await OptionalOAuthGuard([Scope.enum.read], mockHandler)(
+        createRequest({ Authorization: 'Bearer optional-guard-token' }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(200)
+      expect(extendSpy).toHaveBeenCalledWith({
+        hashedToken: hashToken('optional-guard-token'),
+        expiresAt: NOW + WINDOW_MS
+      })
+    })
+
+    test('does not slide the token of a suspended actor polling OAuthAppGuard', async () => {
+      const actor = await storeToken('suspended-app-guard-token', {
+        expiresAt: new Date(NOW + HOUR_MS)
+      })
+      await database.setActorSuspended({ actorId: actor.id, suspended: true })
+
+      try {
+        const response = await OAuthAppGuard([Scope.enum.read], mockHandler)(
+          createRequest({ Authorization: 'Bearer suspended-app-guard-token' }),
+          { params: Promise.resolve({}) }
+        )
+
+        expect(response.status).toBe(403)
+        expect(extendSpy).not.toHaveBeenCalled()
+      } finally {
+        await database.setActorSuspended({
+          actorId: actor.id,
+          suspended: false
+        })
+      }
+    })
+
+    test('does not slide the token of a suspended actor still polling', async () => {
+      const actor = await storeToken('suspended-token', {
+        expiresAt: new Date(NOW + HOUR_MS)
+      })
+      await database.setActorSuspended({ actorId: actor.id, suspended: true })
+
+      try {
+        const response = await callWith('suspended-token')
+
+        expect(response.status).toBe(403)
+        expect(extendSpy).not.toHaveBeenCalled()
+      } finally {
+        await database.setActorSuspended({
+          actorId: actor.id,
+          suspended: false
+        })
+      }
+    })
+
+    test('does not slide a JWT access token, whose exp is signed in', async () => {
+      const actor = await storeToken('eyJ.due-jwt.sig', {
+        expiresAt: new Date(NOW + HOUR_MS)
+      })
+      mockVerifyBearerToken.mockResolvedValue({
+        sub: 'user-id',
+        scope: 'read',
+        actorId: actor.id
+      })
+
+      const response = await callWith('eyJ.due-jwt.sig')
+
+      expect(response.status).toBe(200)
+      expect(mockVerifyBearerToken).toHaveBeenCalled()
+      expect(extendSpy).not.toHaveBeenCalled()
+    })
+
+    test('slides a user token accepted by OAuthAppGuard', async () => {
+      await storeToken('app-guard-user-token', {
+        expiresAt: new Date(NOW + HOUR_MS)
+      })
+
+      const response = await OAuthAppGuard([Scope.enum.read], mockHandler)(
+        createRequest({ Authorization: 'Bearer app-guard-user-token' }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(200)
+      expect(extendSpy).toHaveBeenCalledWith({
+        hashedToken: hashToken('app-guard-user-token'),
+        expiresAt: NOW + WINDOW_MS
+      })
+    })
+
+    test('still authenticates the request and logs when the slide fails to write', async () => {
+      const failure = new Error('database is locked')
+      extendSpy.mockRejectedValueOnce(failure)
+      const warnSpy = vi.spyOn(logger, 'warn')
+      await storeToken('write-fails-token', {
+        expiresAt: new Date(NOW + HOUR_MS)
+      })
+
+      try {
+        const response = await callWith('write-fails-token')
+
+        expect(response.status).toBe(200)
+        expect(mockHandler).toHaveBeenCalled()
+        expect(warnSpy).toHaveBeenCalledWith({
+          message: 'Failed to extend OAuth access token expiry',
+          err: failure
+        })
+      } finally {
+        warnSpy.mockRestore()
+      }
     })
   })
 

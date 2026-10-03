@@ -4,6 +4,11 @@ import { NextRequest } from 'next/server'
 
 import { getBaseURL } from '@/lib/config'
 import { getDatabase, getKnex } from '@/lib/database'
+import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import {
+  OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
+  OAUTH_ACCESS_TOKEN_SLIDE_INTERVAL_SECONDS
+} from '@/lib/services/auth/constants'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { oauthLogger } from '@/lib/services/oauth/logging'
 import { Scope } from '@/lib/types/database/operations'
@@ -20,6 +25,7 @@ import {
   codeMap
 } from '@/lib/utils/response'
 import { selectAccountActor } from '@/lib/utils/selectAccountActor'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import {
   isActorConfirmationPending,
@@ -149,6 +155,15 @@ type TokenAuthContext = {
   // The account the token was issued for. App (client_credentials) tokens have
   // none; a user token always does, even when the grant recorded no actor.
   userId: string | null
+  // What `extendAccessTokenIfDue` needs, for a token that may slide: a user's
+  // opaque token. Null for app tokens and JWTs. The guards apply it only once
+  // they have accepted the request.
+  slide: TokenSlide | null
+}
+
+type TokenSlide = {
+  hashedToken: string
+  storedExpiresAt: Date
 }
 
 // The actor an account acts as when a token carries no actor reference of its
@@ -165,6 +180,50 @@ const resolveAccountActorId = async (
     database.getActorsForAccount({ accountId })
   ])
   return selectAccountActor(actors, account?.defaultActorId)?.id ?? null
+}
+
+// Slides a user's opaque access token forward while its client keeps using it,
+// so the token lapses a full OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS after its
+// last slide — up to one slide interval less after its last accepted request,
+// since a request inside the interval does not write. This server cannot issue
+// refresh tokens (`offline_access` is not in its scope vocabulary), so without
+// the slide every client was signed out on the seventh day after authorizing,
+// however active it was. An earlier sliding session on the pre-better-auth
+// `tokens` table did this; the move to `oauthAccessToken` dropped it.
+//
+// Every guard calls this only after it has accepted the request — past the
+// expiry, scope, actor, moderation and confirmation checks — so a suspended
+// account's client polling into 403s does not keep its token alive.
+//
+// Writes only once the token has been in use for a slide interval since it was
+// issued or last extended, so a busy client costs one UPDATE a day. A failed
+// write is not fatal and not lost: the request is already authenticated, and
+// the row is still due, so the client's next request tries again.
+const extendAccessTokenIfDue = async (
+  database: GuardDatabase,
+  slide: TokenSlide | null
+): Promise<void> => {
+  if (!slide) return
+
+  const expiresAt = Date.now() + OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS * 1000
+  if (
+    expiresAt - slide.storedExpiresAt.getTime() <
+    OAUTH_ACCESS_TOKEN_SLIDE_INTERVAL_SECONDS * 1000
+  ) {
+    return
+  }
+
+  try {
+    await database.extendOAuthAccessToken({
+      hashedToken: slide.hashedToken,
+      expiresAt
+    })
+  } catch (e) {
+    logger.warn({
+      message: 'Failed to extend OAuth access token expiry',
+      err: toLoggableError(e)
+    })
+  }
 }
 
 // Validates a bearer token (JWT or opaque): jwks verification, DB existence
@@ -203,6 +262,7 @@ const resolveTokenContext = async ({
   // dot-separated segments. This prevents tampered/expired JWTs from
   // falling through to the opaque DB lookup path.
   let jwtPayload: Record<string, unknown> | null = null
+  let slide: TokenSlide | null = null
   let grantedScopes: string[] = []
 
   try {
@@ -254,8 +314,9 @@ const resolveTokenContext = async ({
     // oauthAccessToken.token column.
     // See: @better-auth/oauth-provider/dist/utils-DgozotLg.mjs storeToken()
     const db = getKnex()
+    const hashedToken = hashToken(token)
     const storedToken = await db('oauthAccessToken')
-      .where('token', hashToken(token))
+      .where('token', hashedToken)
       .first()
     if (!storedToken) {
       return { valid: false, response: rejectBearer('token_not_found', 401) }
@@ -264,7 +325,12 @@ const resolveTokenContext = async ({
     // For opaque tokens, check expiration and scopes manually
     // (JWT verification already handles these for JWT tokens)
     if (!jwtPayload) {
-      if (new Date(storedToken.expiresAt) < new Date()) {
+      // Read the way `knexAdapter` hydrates it, so a SQLite
+      // `YYYY-MM-DD HH:MM:SS` value is UTC rather than local time.
+      const storedExpiresAt = new Date(
+        getCompatibleTime(storedToken.expiresAt as string | number | Date)
+      )
+      if (storedExpiresAt < new Date()) {
         return { valid: false, response: rejectBearer('token_expired', 401) }
       }
       // Fall back to an empty scope string if the column is null/undefined so
@@ -286,6 +352,13 @@ const resolveTokenContext = async ({
           })
         }
       }
+
+      // Only a user's token slides. An app (client_credentials) token has no
+      // user and keeps its one-hour lifetime; a JWT's `exp` is signed into the
+      // token and cannot be moved, which is why this sits on the opaque branch.
+      if (storedToken.userId) {
+        slide = { hashedToken, storedExpiresAt }
+      }
     }
 
     // Extract actorId: from JWT claims or from stored referenceId (opaque).
@@ -306,7 +379,8 @@ const resolveTokenContext = async ({
         grantedScopes,
         actorId,
         clientId,
-        userId: (storedToken.userId as string | null) || null
+        userId: (storedToken.userId as string | null) || null,
+        slide
       },
       database
     }
@@ -365,7 +439,8 @@ const resolveAuthenticatedContext = async <P>({
       return { authenticated: false, response: tokenResult.response }
     }
 
-    const { actorId, clientId, grantedScopes, userId } = tokenResult.context
+    const { actorId, clientId, grantedScopes, userId, slide } =
+      tokenResult.context
 
     try {
       // A grant that resolved no actor reference (see
@@ -415,6 +490,8 @@ const resolveAuthenticatedContext = async <P>({
           }
         }
       }
+
+      await extendAccessTokenIfDue(database, slide)
 
       annotateAuthSuccess({
         authType: 'bearer',
@@ -582,7 +659,8 @@ export const OAuthAppGuard =
     }
 
     const { database } = tokenResult
-    const { actorId, clientId, grantedScopes, userId } = tokenResult.context
+    const { actorId, clientId, grantedScopes, userId, slide } =
+      tokenResult.context
 
     let currentActor: Actor | null = null
     let client: Client | null = null
@@ -626,6 +704,8 @@ export const OAuthAppGuard =
       logger.error(e as Error)
       return fail(apiErrorResponse(500))
     }
+
+    await extendAccessTokenIfDue(database, slide)
 
     annotateAuthSuccess({
       authType: 'bearer',

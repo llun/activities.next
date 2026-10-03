@@ -11,7 +11,11 @@ import { logger } from '@/lib/utils/logger'
 
 import { canCreateSessionForAccount } from './canCreateSessionForAccount'
 import { ConsentSession, resolveConsentReferenceId } from './consentReferenceId'
-import { AUTH_BASE_PATH, AUTH_ERROR_PATH } from './constants'
+import {
+  AUTH_BASE_PATH,
+  AUTH_ERROR_PATH,
+  OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS
+} from './constants'
 import { knexAdapter } from './knexAdapter'
 import { buildTrustedOrigins } from './trustedOrigins'
 
@@ -142,7 +146,12 @@ const buildAuth = (baseURL: string) => {
         // accepts exactly the scopes registration validates and metadata
         // advertises. better-auth rejects any requested scope not in this list.
         scopes: [...UsableScopes],
-        accessTokenExpiresIn: 7 * 24 * 60 * 60,
+        // The idle window, not a hard lifetime: the bearer guards slide a user
+        // token forward when they accept it (at most once a day), because this
+        // server issues no refresh tokens. See OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS. App
+        // (client_credentials) tokens read `m2mAccessTokenExpiresIn` instead,
+        // which stays at better-auth's one-hour default and does not slide.
+        accessTokenExpiresIn: OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
         refreshTokenExpiresIn: 30 * 24 * 60 * 60,
         codeExpiresIn: 10 * 60,
         grantTypes: [

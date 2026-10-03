@@ -258,6 +258,10 @@ The durable rule source moved to [docs/architecture.md](docs/architecture.md#age
 
 The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-oauth-client-registrations); read it before changing this subsystem.
 
+## OAuth Access Token Sliding Expiry
+
+The durable rule source lives in [docs/architecture.md](docs/architecture.md#agents-oauth-access-token-sliding-expiry); read it before changing this subsystem.
+
 ## Auth Error Page
 
 The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-auth-error-page); read it before changing this subsystem.

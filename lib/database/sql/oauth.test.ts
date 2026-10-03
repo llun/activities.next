@@ -134,6 +134,59 @@ describe('OAuthDatabase', () => {
     })
   })
 
+  describe('extendOAuthAccessToken', () => {
+    const NOW = Date.UTC(2026, 9, 3, 12, 0, 0)
+    const ORIGINAL_EXPIRES_AT = NOW + 60 * 60 * 1000
+
+    beforeAll(async () => {
+      await knexDatabase('oauthAccessToken').insert(
+        ['extend-target', 'extend-neighbour'].map((token) => ({
+          id: crypto.randomUUID(),
+          token,
+          clientId: 'test-client-1',
+          scopes: JSON.stringify([Scope.enum.read]),
+          expiresAt: new Date(ORIGINAL_EXPIRES_AT),
+          createdAt: new Date(NOW)
+        }))
+      )
+    })
+
+    const readExpiresAt = async (token: string) => {
+      const row = await knexDatabase('oauthAccessToken')
+        .where('token', token)
+        .first('expiresAt')
+      return row ? new Date(row.expiresAt).getTime() : null
+    }
+
+    it('moves only the matching token to the new expiry', async () => {
+      const expiresAt = NOW + 7 * 24 * 60 * 60 * 1000
+
+      await database.extendOAuthAccessToken({
+        hashedToken: 'extend-target',
+        expiresAt
+      })
+
+      expect(await readExpiresAt('extend-target')).toBe(expiresAt)
+      expect(await readExpiresAt('extend-neighbour')).toBe(ORIGINAL_EXPIRES_AT)
+    })
+
+    it('does nothing for a token that is not stored, so a deleted token stays deleted', async () => {
+      const before = await knexDatabase('oauthAccessToken').count({
+        count: '*'
+      })
+
+      await database.extendOAuthAccessToken({
+        hashedToken: 'deleted-token',
+        expiresAt: NOW + 7 * 24 * 60 * 60 * 1000
+      })
+
+      expect(await readExpiresAt('deleted-token')).toBeNull()
+      expect(
+        await knexDatabase('oauthAccessToken').count({ count: '*' })
+      ).toEqual(before)
+    })
+  })
+
   describe('connected apps', () => {
     let ACCOUNT = ''
     let OTHER_ACCOUNT = ''

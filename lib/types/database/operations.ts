@@ -3900,6 +3900,9 @@ export interface OAuthDatabase {
     params: GetClientFromAccessTokenParams
   ): Promise<Client | null>
   createOAuthAccessToken(params: CreateOAuthAccessTokenParams): Promise<void>
+  // Move an access token's expiry to `expiresAt`. OAuthGuard calls it to slide a
+  // token that is still in use; see OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS.
+  extendOAuthAccessToken(params: ExtendOAuthAccessTokenParams): Promise<void>
   // List the third-party OAuth grants (API clients + SSO sign-ins) the account
   // has authorized, newest first.
   getAccountConnectedApps(
@@ -3918,6 +3921,14 @@ export const GetClientFromAccessTokenParams = z.object({
 export type GetClientFromAccessTokenParams = z.infer<
   typeof GetClientFromAccessTokenParams
 >
+
+export type ExtendOAuthAccessTokenParams = {
+  // SHA-256 base64url hash of the bearer token, the same value OAuthGuard looks
+  // it up by.
+  hashedToken: string
+  // Epoch milliseconds.
+  expiresAt: number
+}
 
 export type CreateOAuthAccessTokenParams = {
   // SHA-256 base64url hash of the issued bearer token, matching how

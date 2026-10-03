@@ -30,3 +30,31 @@ export const AUTH_BASE_PATH = '/api/auth'
 // visitor on the home timeline so a failed sign-in looks like it silently did
 // nothing.
 export const AUTH_ERROR_PATH = '/auth/error'
+
+// How long an access token issued for a user lives from its last slide: the
+// bearer guards move `expiresAt` to now + this window when they accept a
+// request (see `extendAccessTokenIfDue` in `OAuthGuard`), writing at most once
+// per OAUTH_ACCESS_TOKEN_SLIDE_INTERVAL_SECONDS. A token therefore lasts as long
+// as its client keeps using it, and lapses between this window minus one slide
+// interval (6 days) and this window (7 days) after its last accepted request.
+//
+// The sliding half is what keeps Mastodon clients signed in. This server cannot
+// issue a refresh token at all — better-auth only mints one for the
+// `offline_access` scope, which is not in this server's scope vocabulary — and
+// Mastodon clients would not use one anyway: Mastodon's access tokens never
+// expire, so Ivory, Ice Cubes, Tusky, Phanpy, Elk and the rest store the token
+// once. Without the slide every one of them was signed out on the seventh day
+// after authorizing, however active it was: the first request after
+// `expiresAt` 401s (`token_expired` in `OAuthGuard`) and the client reads that
+// as "this account is gone". With releases going out several times a day it
+// looked as though each deploy logged the apps out.
+//
+// Shared by `auth.ts` (better-auth's `accessTokenExpiresIn`), `issueAccessToken`
+// (tokens minted directly for an account registered over the API) and the slide
+// in `OAuthGuard`, so all three agree on the window.
+export const OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS = 7 * 24 * 60 * 60
+
+// How often `OAuthGuard` writes a slide: only once a token has been used this
+// long after it was issued or last extended, so a busy client costs one UPDATE
+// a day rather than one per request.
+export const OAUTH_ACCESS_TOKEN_SLIDE_INTERVAL_SECONDS = 24 * 60 * 60
