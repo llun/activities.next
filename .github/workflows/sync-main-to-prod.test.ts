@@ -84,35 +84,54 @@ describe('daily activities.prod sync commit selection', () => {
     })
   })
 
-  it.each([
+  const newestRunCases = [
     {
-      description: 'a newer successful run overrides an older failed one',
+      outcome: 'a newer successful run overrides an older failed one',
       older: 'failure',
       newer: 'success',
       expected: 'new'
     },
     {
-      description: 'a newer failed run overrides an older successful one',
+      outcome: 'a newer failed run overrides an older successful one',
       older: 'success',
       newer: 'failure',
       expected: null
     }
-  ])(
+  ]
+
+  it.each(
+    newestRunCases.flatMap((testCase) =>
+      ['newer first', 'older first'].map((order) => ({
+        ...testCase,
+        order,
+        description: `${testCase.outcome} (listed ${order})`
+      }))
+    )
+  )(
     'judges a commit by its newest run: $description',
-    ({ older, newer, expected }) => {
+    ({ older, newer, expected, order }) => {
+      // The older run carries the higher attempt, so ranking by attempt would
+      // pick it; both list orders run, so position does not decide either.
+      const newerRun = run({
+        id: 20,
+        workflow: 'CI',
+        head_sha: 'new',
+        conclusion: newer
+      })
+      const olderRun = run({
+        id: 10,
+        workflow: 'CI',
+        head_sha: 'new',
+        run_attempt: 3,
+        conclusion: older
+      })
+      const ciRuns =
+        order === 'newer first' ? [newerRun, olderRun] : [olderRun, newerRun]
+
       const result = selectSyncCommit({
         commits: ['new'],
-        // The newer run is listed first, as the API returns newest first, so
-        // the id decides rather than the order the runs arrive in.
         runs: [
-          run({ id: 20, workflow: 'CI', head_sha: 'new', conclusion: newer }),
-          run({
-            id: 10,
-            workflow: 'CI',
-            head_sha: 'new',
-            run_attempt: 3,
-            conclusion: older
-          }),
+          ...ciRuns,
           run({ workflow: 'Package', head_sha: 'new' }),
           run({ workflow: 'CodeQL', head_sha: 'new' })
         ]
