@@ -7,7 +7,36 @@ import {
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { generatePublicId } from '@/lib/utils/publicId'
 
-import { resolveStatusFromPath } from './resolveStatusFromPath'
+import {
+  parseActorPathParam,
+  resolveStatusFromPath
+} from './resolveStatusFromPath'
+
+// The Back to profile fallback on the status page is built from this parse,
+// so it is the boundary that keeps that link on this site.
+describe('parseActorPathParam', () => {
+  it.each([
+    {
+      actor: '@alice@example.com',
+      expected: { username: 'alice', domain: 'example.com' }
+    },
+    {
+      actor: '%40alice%40example.com',
+      expected: { username: 'alice', domain: 'example.com' }
+    },
+    { actor: '@a@b@c', expected: null },
+    { actor: 'plain', expected: null },
+    { actor: '@alice', expected: null },
+    // Anything before the first '@' is ignored, so an off-site prefix never
+    // reaches the parts a link is built from.
+    {
+      actor: '%2F%2Fx%40u%40evil.example',
+      expected: { username: 'u', domain: 'evil.example' }
+    }
+  ])('parses $actor', ({ actor, expected }) => {
+    expect(parseActorPathParam(actor)).toEqual(expected)
+  })
+})
 
 describe('resolveStatusFromPath', () => {
   const originalActorId = 'https://remote.example/users/original'
@@ -15,6 +44,7 @@ describe('resolveStatusFromPath', () => {
   const secondBoosterActorId = 'https://other.example/users/booster'
   const originalUrl = 'https://remote.example/@original/123'
   const statusHash = getHashFromString(originalUrl)
+  const ORIGINAL_PATH_ACTOR = { username: 'original', domain: 'remote.example' }
 
   const buildActor = (actorId: string, username: string): ActorProfile => ({
     id: actorId,
@@ -132,6 +162,7 @@ describe('resolveStatusFromPath', () => {
         statusParam: statusHash
       })
     ).resolves.toEqual({
+      pathActor: ORIGINAL_PATH_ACTOR,
       fullStatusId: '',
       isStatusHash: true,
       status: originalStatus,
@@ -160,6 +191,7 @@ describe('resolveStatusFromPath', () => {
         statusParam: statusHash
       })
     ).resolves.toEqual({
+      pathActor: ORIGINAL_PATH_ACTOR,
       fullStatusId: '',
       isStatusHash: true,
       status: originalStatus,
@@ -190,6 +222,7 @@ describe('resolveStatusFromPath', () => {
         statusParam: statusHash
       })
     ).resolves.toEqual({
+      pathActor: ORIGINAL_PATH_ACTOR,
       fullStatusId: '',
       isStatusHash: true,
       status: originalStatus,
@@ -213,6 +246,7 @@ describe('resolveStatusFromPath', () => {
         statusParam: statusHash
       })
     ).resolves.toEqual({
+      pathActor: ORIGINAL_PATH_ACTOR,
       fullStatusId: '',
       isStatusHash: true,
       status: null,
@@ -239,6 +273,7 @@ describe('resolveStatusFromPath', () => {
         statusParam: statusHash
       })
     ).resolves.toEqual({
+      pathActor: ORIGINAL_PATH_ACTOR,
       fullStatusId: '',
       isStatusHash: true,
       status: null,
@@ -291,6 +326,7 @@ describe('resolveStatusFromPath', () => {
         statusParam: '123'
       })
     ).resolves.toEqual({
+      pathActor: ORIGINAL_PATH_ACTOR,
       fullStatusId: 'https://remote.example/users/original/statuses/123',
       isStatusHash: false,
       status: originalStatus,
@@ -323,6 +359,7 @@ describe('resolveStatusFromPath', () => {
           currentActorId: viewerId
         })
       ).resolves.toEqual({
+        pathActor: ORIGINAL_PATH_ACTOR,
         // The synthesized URI is still returned so a miss can queue a remote
         // fetch; it just is not what resolved this status.
         fullStatusId: `https://remote.example/users/original/statuses/${publicId}`,
@@ -371,6 +408,7 @@ describe('resolveStatusFromPath', () => {
           statusParam: publicId
         })
       ).resolves.toEqual({
+        pathActor: ORIGINAL_PATH_ACTOR,
         fullStatusId: `https://remote.example/users/original/statuses/${publicId}`,
         isStatusHash: false,
         status: null,
@@ -388,6 +426,7 @@ describe('resolveStatusFromPath', () => {
           statusParam: publicId
         })
       ).resolves.toEqual({
+        pathActor: ORIGINAL_PATH_ACTOR,
         fullStatusId: `https://remote.example/users/original/statuses/${publicId}`,
         isStatusHash: false,
         status: null,
@@ -432,6 +471,7 @@ describe('resolveStatusFromPath', () => {
         statusParam: originalStatus.id
       })
     ).resolves.toEqual({
+      pathActor: ORIGINAL_PATH_ACTOR,
       fullStatusId: originalStatus.id,
       isStatusHash: false,
       status: originalStatus,

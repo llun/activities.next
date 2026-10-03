@@ -89,6 +89,8 @@ vi.mock('./StatusLikes', async () => ({
 }))
 
 const mockResolveStatusFromPath = vi.mocked(resolveStatusFromPath)
+// The handle the mocked resolver reports for the `actor` segment.
+const PATH_ACTOR = { username: 'anna', domain: 'activities.local' }
 const mockGetServerAuthSession = vi.mocked(getServerAuthSession)
 const mockGetActorFromSession = vi.mocked(getActorFromSession)
 
@@ -193,6 +195,7 @@ describe('Page visibility for logged-out visitors', () => {
     })
 
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: focused,
       statusId: 'public-reply',
       fullStatusId: focused.url,
@@ -218,6 +221,7 @@ describe('Page visibility for logged-out visitors', () => {
     })
 
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: focused,
       statusId: 'public-reply',
       fullStatusId: focused.url,
@@ -247,6 +251,7 @@ describe('Page visibility for logged-out visitors', () => {
     })
 
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: focused,
       statusId: 'public-reply',
       fullStatusId: focused.url,
@@ -269,6 +274,7 @@ describe('Page visibility for logged-out visitors', () => {
     const focused = buildNote({ id: 'focused' })
 
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: focused,
       statusId: 'focused',
       fullStatusId: focused.url,
@@ -297,6 +303,7 @@ describe('Page visibility for logged-out visitors', () => {
     })
 
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: focused,
       statusId: 'focused',
       fullStatusId: focused.url,
@@ -325,6 +332,7 @@ describe('Page visibility for logged-out visitors', () => {
     })
 
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: announce,
       statusId: 'public-announce',
       fullStatusId:
@@ -343,6 +351,7 @@ describe('Page visibility for logged-out visitors', () => {
     })
 
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: focused,
       statusId: 'focused',
       fullStatusId: focused.url,
@@ -376,6 +385,7 @@ describe('Page visibility for logged-out visitors', () => {
     } as unknown as Partial<StatusNote>)
 
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: focused,
       statusId: 'fitness-status',
       fullStatusId: focused.url,
@@ -434,6 +444,7 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
     })
 
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: focused,
       statusId: 'public-reply',
       fullStatusId: focused.url,
@@ -466,6 +477,7 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
     })
 
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: focused,
       statusId: 'public-reply',
       fullStatusId: focused.url,
@@ -496,6 +508,7 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
     })
 
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: focused,
       statusId: 'public-reply',
       fullStatusId: focused.url,
@@ -520,6 +533,7 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
     const focused = buildNote({ id: 'focused' })
 
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: focused,
       statusId: 'focused',
       fullStatusId: focused.url,
@@ -550,6 +564,7 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
     })
 
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: focused,
       statusId: 'focused',
       fullStatusId: focused.url,
@@ -587,6 +602,7 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
     })
 
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: focused,
       statusId: 'remote-followers-only',
       fullStatusId: focused.url,
@@ -611,6 +627,7 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
     })
 
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: focused,
       statusId: 'focused-followers-only',
       fullStatusId: focused.url,
@@ -630,6 +647,7 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
     })
 
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: focused,
       statusId: 'focused-dm-to-viewer',
       fullStatusId: focused.url,
@@ -651,6 +669,7 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
     })
 
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: focused,
       statusId: 'focused-dm-to-bob',
       fullStatusId: focused.url,
@@ -669,6 +688,7 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
     const announce = buildAnnounce(privateOriginal)
 
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: announce,
       statusId: 'public-announce',
       fullStatusId: privateOriginal.url,
@@ -687,6 +707,7 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
     const announce = buildAnnounce(privateOriginal)
 
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: announce,
       statusId: 'public-announce',
       fullStatusId: privateOriginal.url,
@@ -713,6 +734,7 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
     const announce = buildAnnounce(dmOriginal)
 
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: announce,
       statusId: 'public-announce',
       fullStatusId: dmOriginal.url,
@@ -736,6 +758,7 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
     const announce = buildAnnounce(dmOriginal)
 
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: announce,
       statusId: 'public-announce',
       fullStatusId: dmOriginal.url,
@@ -781,6 +804,7 @@ describe('Page visibility for the focused-status author', () => {
     const focused = buildNote({ id, to, cc: [] })
 
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: focused,
       statusId: id,
       fullStatusId: focused.url,

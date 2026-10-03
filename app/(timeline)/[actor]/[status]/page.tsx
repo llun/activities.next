@@ -38,11 +38,7 @@ import { SignInCallout } from './SignInCallout'
 import { StatusBox } from './StatusBox'
 import { StatusLikes } from './StatusLikes'
 import { StatusStatStrip } from './StatusStatStrip'
-import {
-  decodePathParam,
-  parseActorPathParam,
-  resolveStatusFromPath
-} from './resolveStatusFromPath'
+import { decodePathParam, resolveStatusFromPath } from './resolveStatusFromPath'
 
 interface Props {
   params: Promise<{ actor: string; status: string }>
@@ -94,11 +90,8 @@ const Page: FC<Props> = async ({ params }) => {
     currentActorId: currentActor?.id
   })
   if (!resolvedStatus) return notFound()
-  // Parsed from the segment the resolver just accepted, so it always parses.
-  const pathActor = parseActorPathParam(actor)
-  if (!pathActor) return notFound()
 
-  const { fullStatusId, isStatusHash } = resolvedStatus
+  const { fullStatusId, isStatusHash, pathActor } = resolvedStatus
   let { status, statusId } = resolvedStatus
 
   if (!status && !isStatusHash && fullStatusId) {

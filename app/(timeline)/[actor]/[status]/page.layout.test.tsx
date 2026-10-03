@@ -86,6 +86,8 @@ vi.mock('./StatusLikes', async () => ({
 }))
 
 const mockResolveStatusFromPath = vi.mocked(resolveStatusFromPath)
+// The handle the mocked resolver reports for the `actor` segment.
+const PATH_ACTOR = { username: 'anna', domain: 'activities.local' }
 const mockGetServerAuthSession = vi.mocked(getServerAuthSession)
 const mockGetActorFromSession = vi.mocked(getActorFromSession)
 
@@ -209,6 +211,7 @@ describe('Mobile chrome', () => {
     'renders the compact bar titled $title above the card, and points Back at the author',
     async ({ note, title }) => {
       mockResolveStatusFromPath.mockResolvedValue({
+        pathActor: PATH_ACTOR,
         status: note,
         statusId: note.id,
         fullStatusId: note.url,
@@ -296,6 +299,7 @@ describe('Conversation card chrome', () => {
 
     const focused = buildNote({ id: 'focused' })
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: focused,
       statusId: 'focused',
       fullStatusId: focused.url,
@@ -374,6 +378,7 @@ describe('Conversation card chrome', () => {
   it('rounds the first ancestor row when logged out and the post is a reply', async () => {
     const focused = buildNote({ id: 'focused', reply: 'parent' })
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: focused,
       statusId: 'focused',
       fullStatusId: focused.url,
@@ -395,6 +400,7 @@ describe('Conversation card chrome', () => {
   it('rounds only the topmost ancestor when the chain is longer than one', async () => {
     const focused = buildNote({ id: 'focused', reply: 'parent' })
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: focused,
       statusId: 'focused',
       fullStatusId: focused.url,
@@ -422,6 +428,7 @@ describe('Conversation card chrome', () => {
     mockGetActorFromSession.mockResolvedValue(buildViewer())
     const focused = buildNote({ id: 'focused', reply: 'parent' })
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: focused,
       statusId: 'focused',
       fullStatusId: focused.url,
@@ -453,6 +460,7 @@ describe('Fitness activity card chrome', () => {
 
     const focused = buildFitnessNote()
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: focused,
       statusId: 'ride-1',
       fullStatusId: focused.url,
