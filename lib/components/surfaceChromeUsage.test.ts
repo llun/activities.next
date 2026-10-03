@@ -15,6 +15,8 @@ const CHROME_BARS: Array<[file: string, bars: number]> = [
   ['lib/components/page-header.tsx', 1],
   ['lib/components/layout/sidebar.tsx', 2],
   ['lib/components/layout/mobile-navigation-header.tsx', 1],
+  // The mobile compact page bar's class string (`MOBILE_COMPACT_HEADER_CLASS`).
+  ['lib/components/layout/chromeLayout.ts', 1],
   ['app/(timeline)/PublicTopBar.tsx', 1],
   ['app/(timeline)/landing/LandingPublicFeed.tsx', 1],
   ['app/u/heatmaps/[token]/SharedHeatmapPage.tsx', 1],

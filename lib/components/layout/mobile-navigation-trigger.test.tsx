@@ -21,52 +21,41 @@ describe('MobileNavigationTrigger', () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it('renders with "Open navigation" label when unreadCount is 0', () => {
+  it('renders a 44px bar button named "Open navigation" with no count', () => {
     render(
-      <MobileNavigationProvider unreadCount={0}>
+      <MobileNavigationProvider>
         <MobileNavigationTrigger />
       </MobileNavigationProvider>
     )
 
     const button = screen.getByRole('button', { name: 'Open navigation' })
-    expect(button).toBeInTheDocument()
-    expect(button).toHaveClass('md:hidden')
-    expect(button).toHaveClass('h-11', 'w-11')
-    expect(screen.queryByText(/^[0-9]+$/)).not.toBeInTheDocument()
+    expect(button).toHaveClass('md:hidden', 'h-11', 'w-11')
+    expect(button).not.toHaveAttribute('data-floating-nav-trigger')
+    expect(button.textContent).toBe('')
   })
 
-  it('renders with singular accessible label and hidden badge when unreadCount is 1', () => {
+  it('renders the floating variant as a fixed circular button with its own surface', () => {
     render(
-      <MobileNavigationProvider unreadCount={1}>
-        <MobileNavigationTrigger />
+      <MobileNavigationProvider>
+        <MobileNavigationTrigger variant="floating" />
       </MobileNavigationProvider>
     )
 
-    const button = screen.getByRole('button', {
-      name: 'Open navigation, 1 unread notification'
-    })
-    expect(button).toBeInTheDocument()
-
-    const badge = screen.getByText('1')
-    expect(badge).toBeInTheDocument()
-    expect(badge).toHaveAttribute('aria-hidden', 'true')
-  })
-
-  it('renders with plural accessible label and hidden badge when unreadCount is > 1', () => {
-    render(
-      <MobileNavigationProvider unreadCount={8}>
-        <MobileNavigationTrigger />
-      </MobileNavigationProvider>
+    const button = screen.getByRole('button', { name: 'Open navigation' })
+    expect(button).toHaveAttribute('data-floating-nav-trigger')
+    // The class list is the contract here: the design's 44px circle, fixed at
+    // the 16px inset, solid theme-aware surface with border and shadow, and a
+    // visible focus ring.
+    expect(button).toHaveClass(
+      'fixed',
+      'size-11',
+      'rounded-full',
+      'border',
+      'bg-popover',
+      'shadow-md',
+      'focus-visible:ring-2',
+      'md:hidden'
     )
-
-    const button = screen.getByRole('button', {
-      name: 'Open navigation, 8 unread notifications'
-    })
-    expect(button).toBeInTheDocument()
-
-    const badge = screen.getByText('8')
-    expect(badge).toBeInTheDocument()
-    expect(badge).toHaveAttribute('aria-hidden', 'true')
   })
 
   it('opens navigation drawer when clicked', () => {
