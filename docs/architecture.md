@@ -887,6 +887,12 @@ legacy shape left to copy.
   `position:absolute;width:1px;height:1px;clip-path:inset(50%)`, enough to
   publish a link into a post that no reader can see, which then wins the
   preview card on document order.
+  `cleanClassName` rewrites in-text profile links (`extractProfileHref`) to local
+  `/@handle` routes only when there is evidence of an actor mention: matching status
+  mention tags, explicit `mention` class token on the anchor, or a profile URL pointing
+  to this instance's own host. A bare `/@handle` URL shape on an external domain is NOT
+  treated as a Fediverse actor profile (services like YouTube, TikTok, and Medium share
+  that path shape) and remains an external `target="_blank"` link.
   Three things to keep right when touching it. It is an explicit list, **not**
   Mastodon's `h-*`/`p-*`/`u-*` prefix globs — those are unsafe here because
   `h-*` would admit `h-screen` and `p-*` would admit `p-0`. `hidden` is

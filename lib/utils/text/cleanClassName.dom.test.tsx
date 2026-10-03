@@ -46,6 +46,19 @@ describe('cleanClassName', () => {
       expect(parentClickHandler).not.toHaveBeenCalled()
     })
 
+    it('keeps YouTube @channel links external with target="_blank" and preserves rel', () => {
+      const html =
+        '<p><a href="https://youtube.com/@babylon5" rel="nofollow">https://youtube.com/@babylon5</a></p>'
+      const result = cleanClassName(html, { host: 'activities.local' })
+      const { container } = render(<div>{result}</div>)
+
+      const link = container.querySelector('a')
+      expect(link).toHaveAttribute('href', 'https://youtube.com/@babylon5')
+      expect(link).toHaveAttribute('target', '_blank')
+      expect(link).toHaveAttribute('rel', 'nofollow noopener noreferrer')
+      expect(link).not.toHaveAttribute('data-prefetch')
+    })
+
     it('adds target="_blank" to links', () => {
       const html = '<a href="https://test.local/page">Link</a>'
       const result = cleanClassName(html)

@@ -82,8 +82,13 @@ export const cleanClassName = (
           ? extractTagFromHref(replacingNode.attribs.href)
           : undefined
 
+        const isMention = hasToken(replacingNode.attribs.class, 'mention')
         const profileHref = !tagName
-          ? extractProfileHref(replacingNode.attribs.href, { host, tags })
+          ? extractProfileHref(replacingNode.attribs.href, {
+              host,
+              tags,
+              isMention
+            })
           : undefined
 
         if (tagName) {

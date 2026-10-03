@@ -5,6 +5,7 @@ import { isOpaqueActorUsernameValue } from '@/lib/utils/activitypubActor'
 export interface ExtractProfileHrefOptions {
   host?: string
   tags?: Tag[]
+  isMention?: boolean
 }
 
 const getDecodedPathParts = (pathname: string) => {
@@ -138,14 +139,19 @@ export const extractProfileHref = (
     }
   }
 
-  // 3. Resolve standard Fediverse URL shapes (/@user, /@user@domain, /users/user).
-  const account = parseAccountUrlHandle(href)
-  if (account) {
-    const { username, domain } = account
-    if (isHostMatch(domain, options?.host)) {
-      return `/@${username}`
+  // 3. Resolve standard Fediverse URL shapes (/@user, /@user@domain, /users/user)
+  // only when there is evidence the link is an actor profile (marked with mention
+  // class, or pointing to this instance's own host).
+  const isOwnHost = isHostMatch(parsedUrl.host, options?.host)
+  if (options?.isMention || isOwnHost) {
+    const account = parseAccountUrlHandle(href)
+    if (account) {
+      const { username, domain } = account
+      if (isHostMatch(domain, options?.host)) {
+        return `/@${username}`
+      }
+      return `/@${username}@${domain}`
     }
-    return `/@${username}@${domain}`
   }
 
   // 4. Resolve Bluesky bridge profile URLs.
