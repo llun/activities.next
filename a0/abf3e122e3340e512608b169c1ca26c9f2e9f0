@@ -1,0 +1,33 @@
+lib/components/fitness/RouteHeatmapMapKit.tsx
+  s_82468012d96a9d::t_2f7624a429cab0 369-373
+app/(timeline)/[actor]/[status]/fitnessChartData.ts
+  s_82468012d96a9d::t_2f7624a429cab0 490-494
+app/(timeline)/[actor]/[status]/FitnessAnalysisCharts.tsx
+  s_82468012d96a9d::t_2f7624a429cab0 110-116,316-323
+lib/components/fitness/RouteHeatmapMapKit.test.tsx
+  s_82468012d96a9d::t_473a67ee90fd75 468-473,476-478,494,509-517
+app/(timeline)/[actor]/[status]/ActivityMapPanel.test.tsx
+  s_82468012d96a9d::t_10a488969d5b05 255-264
+app/(timeline)/[actor]/[status]/FitnessAnalysisCharts.test.tsx
+  s_82468012d96a9d::t_4d27d2e2e2731c 84-88
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_82468012d96a9d::t_51e505af1049d4 728-736,738-740,1042-1046,1049-1051,1056-1058,1060
+docs/fitness-file-storage.md
+  s_82468012d96a9d::t_2f7624a429cab0 506-508
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a0abf3e122e3340e512608b169c1ca26c9f2e9f0",
+  "prompts": {},
+  "sessions": {
+    "s_82468012d96a9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c1772d3-df89-4813-8d33-4cbceee3810d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
