@@ -19,17 +19,28 @@ vi.mock('@/lib/client', () => ({
   getCollectionTimeline: vi.fn()
 }))
 
+// `back` and `compactTitle` surface as data attributes, so the mobile chrome
+// the page asks for is observable without rendering the real header.
 vi.mock('@/lib/components/page-header', () => ({
   PageHeader: ({
     title,
     description,
-    actions
+    actions,
+    back,
+    compactTitle
   }: {
     title: ReactNode
     description: ReactNode
     actions: ReactNode
+    back?: { href: string; label: string }
+    compactTitle?: string
   }) => (
-    <div>
+    <div
+      data-testid="page-header"
+      data-back-href={back?.href}
+      data-back-label={back?.label}
+      data-compact-title={compactTitle}
+    >
       <div>{title}</div>
       <div>{description}</div>
       <div>{actions}</div>
@@ -155,6 +166,14 @@ describe('CollectionDetail', () => {
     expect(screen.getByText('Ben')).toBeInTheDocument()
     expect(screen.getByText('Highlighted accounts · 2')).toBeInTheDocument()
     expect(posts()).toContain('owner-1')
+    // The owner came from /lists; the mobile bar names the section.
+    const header = screen.getByTestId('page-header')
+    expect(header).toHaveAttribute('data-back-href', '/lists')
+    expect(header).toHaveAttribute(
+      'data-back-label',
+      'Back to lists and collections'
+    )
+    expect(header).toHaveAttribute('data-compact-title', 'Collection')
   })
 
   it('draws the visibility and topic as the shared gray and primary Badges', () => {
@@ -279,6 +298,10 @@ describe('CollectionDetail', () => {
     // Public viewers see only the approved roster.
     expect(screen.getByText('Ben')).toBeInTheDocument()
     expect(screen.queryByText('Ada')).not.toBeInTheDocument()
+    // /lists is the owner's index, so a visitor gets no Back to it.
+    const header = screen.getByTestId('page-header')
+    expect(header).not.toHaveAttribute('data-back-href')
+    expect(header).toHaveAttribute('data-compact-title', 'Collection')
   })
 
   it.each([

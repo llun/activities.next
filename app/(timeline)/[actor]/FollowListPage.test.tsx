@@ -2,10 +2,11 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { notFound } from 'next/navigation'
 
 import { getProfileData } from '@/app/(timeline)/[actor]/getProfileData'
+import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { isLocalFederationDomain } from '@/lib/services/federation/domainPolicy'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -32,7 +33,8 @@ vi.mock('@/lib/database', () => ({
 }))
 
 vi.mock('next/navigation', () => ({
-  notFound: vi.fn()
+  notFound: vi.fn(),
+  usePathname: () => '/@someone@llun.social/followers'
 }))
 
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -189,6 +191,41 @@ describe('FollowListPage', () => {
         'data-empty-message',
         'No followers yet'
       )
+    })
+
+    // Inside PublicShell, which always provides the public drawer: the bar
+    // carries the title below md and the Back is the content's first row.
+    it('gives a logged-out visitor the compact bar and a labelled Back row below md', async () => {
+      mockIsLocalFederationDomain.mockResolvedValue(true)
+      mockGetProfileData.mockResolvedValue(mockProfile as never)
+      mockDatabase.getFollowers.mockResolvedValue([])
+      mockDatabase.getActorsFromIds.mockResolvedValue([])
+
+      const element = await FollowListPage({
+        params: Promise.resolve({ actor: '@someone@llun.social' }),
+        direction: 'followers'
+      })
+      const { container } = render(
+        <MobileNavigationProvider>{element}</MobileNavigationProvider>
+      )
+
+      const bar = container.querySelector(
+        '[data-mobile-compact-header]'
+      ) as HTMLElement
+      const barHeading = within(bar).getByRole('heading', {
+        level: 1,
+        name: 'Followers'
+      })
+      // Exactly one h1 is displayed per width: the bar's below md, the
+      // content's from md up.
+      const contentHeading = screen
+        .getAllByRole('heading', { level: 1, name: 'Followers' })
+        .find((heading) => heading !== barHeading)
+      expect(contentHeading).toHaveClass('max-md:hidden')
+
+      const back = screen.getByRole('link', { name: 'Back to profile' })
+      expect(back).toHaveAttribute('href', '/@someone@llun.social')
+      expect(back.parentElement).toHaveClass('max-md:flex-col', 'max-md:pt-2')
     })
 
     it('renders authenticated PageHeader shell for logged-in user', async () => {

@@ -2,9 +2,10 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { notFound } from 'next/navigation'
 
+import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { isLocalFederationDomain } from '@/lib/services/federation/domainPolicy'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -27,7 +28,8 @@ vi.mock('@/lib/database', () => ({
 }))
 
 vi.mock('next/navigation', () => ({
-  notFound: vi.fn()
+  notFound: vi.fn(),
+  usePathname: () => '/@clairenony@pouet.chapril.org'
 }))
 
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -106,6 +108,22 @@ describe('[actor] page redirects and non-local handles', () => {
     )
     expect(continueLink).toHaveAttribute('rel', 'noopener noreferrer')
     expect(mockNotFound).not.toHaveBeenCalled()
+  })
+
+  // The redirect card's own heading stays the page's h1, so below md the
+  // compact bar only names the page.
+  it('names the page "Profile" in the compact bar above the redirect card', async () => {
+    const element = await Page({
+      params: Promise.resolve({ actor: '@clairenony@pouet.chapril.org' })
+    })
+    const { container } = render(
+      <MobileNavigationProvider>{element}</MobileNavigationProvider>
+    )
+
+    const bar = container.querySelector(
+      '[data-mobile-compact-header]'
+    ) as HTMLElement
+    expect(within(bar).getByText('Profile').tagName).toBe('P')
   })
 
   it('calls notFound for an unknown local user when logged out', async () => {

@@ -2,7 +2,14 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { ReactNode } from 'react'
 
 import { getTimeline } from '@/lib/client'
@@ -30,18 +37,21 @@ vi.mock('@/lib/client', () => ({
 }))
 
 vi.mock('@/lib/components/announcements/AnnouncementBanner', () => ({
-  AnnouncementBanner: () => null
+  AnnouncementBanner: () => <div data-testid="announcement-banner" />
 }))
 
 vi.mock('@/lib/components/page-header', () => ({
   PageHeader: ({
     actions,
-    bottomSlot
+    bottomSlot,
+    banner
   }: {
     actions?: ReactNode
     bottomSlot?: ReactNode
+    banner?: ReactNode
   }) => (
-    <div>
+    <div data-testid="page-header">
+      {banner}
       {actions}
       {bottomSlot}
     </div>
@@ -426,6 +436,26 @@ describe('MainPageTimeline', () => {
     } finally {
       dateNowSpy.mockRestore()
     }
+  })
+
+  // PageHeader places the banner between the mobile bar and the header box;
+  // the page has to hand it over rather than render it on its own.
+  it('hands the announcement banner to the page header', () => {
+    render(
+      <MainPageTimeline
+        host="activities.local"
+        currentTime={FIXED_CURRENT_TIME}
+        profile={profile}
+        isMediaUploadEnabled={false}
+        statuses={[]}
+      />
+    )
+
+    expect(
+      within(screen.getByTestId('page-header')).getByTestId(
+        'announcement-banner'
+      )
+    ).toBeInTheDocument()
   })
 
   it('removes a direct post from the feed when delete callback is invoked', () => {

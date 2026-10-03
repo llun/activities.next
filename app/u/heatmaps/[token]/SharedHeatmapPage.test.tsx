@@ -93,6 +93,57 @@ describe('SharedHeatmapPage', () => {
     )
   })
 
+  // Below md the branded top bar steps aside for the public compact bar and
+  // drawer, which carry this page's own auth links and registration rule.
+  it('swaps the top bar for the compact bar and public drawer below md', () => {
+    const { container, rerender } = render(
+      <SharedHeatmapPage
+        {...defaultProps}
+        signinUrl="/auth/signin?callbackUrl=%2Fu%2Fheatmaps%2Ftok123"
+        signupUrl="/auth/signup?callbackUrl=%2Fu%2Fheatmaps%2Ftok123"
+      />
+    )
+
+    expect(screen.getByRole('banner')).toHaveClass('max-md:hidden')
+    const bar = container.querySelector(
+      '[data-mobile-compact-header]'
+    ) as HTMLElement
+    expect(within(bar).getByText('Shared heatmap')).toBeInTheDocument()
+
+    fireEvent.click(
+      within(bar).getByRole('button', { name: 'Open navigation' })
+    )
+    let drawer = screen.getByRole('dialog')
+    expect(
+      within(drawer).getByRole('link', { name: 'Sign in' })
+    ).toHaveAttribute(
+      'href',
+      '/auth/signin?callbackUrl=%2Fu%2Fheatmaps%2Ftok123'
+    )
+    expect(
+      within(drawer).getByRole('link', { name: 'Create account' })
+    ).toHaveAttribute(
+      'href',
+      '/auth/signup?callbackUrl=%2Fu%2Fheatmaps%2Ftok123'
+    )
+
+    rerender(
+      <SharedHeatmapPage
+        {...defaultProps}
+        signupOpen={false}
+        signinUrl="/auth/signin?callbackUrl=%2Fu%2Fheatmaps%2Ftok123"
+        signupUrl="/auth/signup?callbackUrl=%2Fu%2Fheatmaps%2Ftok123"
+      />
+    )
+    drawer = screen.getByRole('dialog')
+    expect(
+      within(drawer).getByRole('link', { name: 'Sign in' })
+    ).toBeInTheDocument()
+    expect(
+      within(drawer).queryByRole('link', { name: 'Create account' })
+    ).not.toBeInTheDocument()
+  })
+
   it('offers a copy-link control pointing at the public URL', () => {
     render(<SharedHeatmapPage {...defaultProps} />)
     expect(

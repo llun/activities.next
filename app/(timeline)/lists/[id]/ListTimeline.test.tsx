@@ -29,17 +29,28 @@ vi.mock('@/lib/components/scroll-to-top-button', () => ({
   ScrollToTopButton: () => null
 }))
 
+// `back` and `compactTitle` surface as data attributes, so the mobile chrome
+// the page asks for is observable without rendering the real header.
 vi.mock('@/lib/components/page-header', () => ({
   PageHeader: ({
     title,
     description,
-    actions
+    actions,
+    back,
+    compactTitle
   }: {
     title: ReactNode
     description: ReactNode
     actions: ReactNode
+    back?: { href: string; label: string }
+    compactTitle?: string
   }) => (
-    <div>
+    <div
+      data-testid="page-header"
+      data-back-href={back?.href}
+      data-back-label={back?.label}
+      data-compact-title={compactTitle}
+    >
       <div>{title}</div>
       <div>{description}</div>
       <div>{actions}</div>
@@ -285,6 +296,12 @@ describe('ListTimeline', () => {
       'href',
       '/lists/list-1/edit'
     )
+    // The bar names the section over the list's own heading, and Back returns
+    // to the lists index.
+    const header = screen.getByTestId('page-header')
+    expect(header).toHaveAttribute('data-compact-title', 'Lists')
+    expect(header).toHaveAttribute('data-back-href', '/lists')
+    expect(header).toHaveAttribute('data-back-label', 'Back to lists')
   })
 
   it('appends the next page of statuses on load more', async () => {
