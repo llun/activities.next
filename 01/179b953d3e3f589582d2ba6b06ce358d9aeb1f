@@ -1,0 +1,24 @@
+docs/maintenance.md
+  s_d3eed9d152eaf2::t_ffff78a66135fd 1169-1176
+  s_d3eed9d152eaf2::t_a4236177534f67 1163-1166
+lib/services/medias/thumbnailInput.test.ts
+  s_d3eed9d152eaf2::t_03d069a6ea1ae9 69-73,77-94
+lib/services/medias/storedImagePipeline.test.ts
+  s_d3eed9d152eaf2::t_03d069a6ea1ae9 5,8,16-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "01179b953d3e3f589582d2ba6b06ce358d9aeb1f",
+  "prompts": {},
+  "sessions": {
+    "s_d3eed9d152eaf2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bb31e680-ae7e-4184-8d7c-b971958e55e6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
