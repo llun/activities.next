@@ -135,6 +135,7 @@ const Page: FC<Props> = async ({ params }) => {
           targetUrl={targetUrl}
           domain={actorDomain}
           username={actorUsername}
+          pageTitle="Profile"
         />
       )
     }

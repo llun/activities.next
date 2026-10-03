@@ -300,10 +300,13 @@ describe('Conversation card chrome', () => {
     expect(card).not.toHaveClass('max-md:-mt-6')
   })
 
-  it('pulls flush under PublicTopBar with max-md:-mt-6 on mobile when logged out', async () => {
+  it('adds no top margin of its own when logged out, where PublicShell spaces it', async () => {
     const card = await renderPage()
 
-    expect(card).toHaveClass('max-md:-mt-6')
+    // The public shell keeps its column padding on desktop and drops it
+    // below md, where the card sits flush under the compact bar; an extra
+    // negative margin here would pull it under that bar.
+    expect(card).not.toHaveClass('max-md:-mt-6')
     expect(card).not.toHaveClass('md:mt-4')
     expect(card).not.toHaveClass('mt-4')
   })
@@ -450,10 +453,13 @@ describe('Fitness activity card chrome', () => {
     expect(card).not.toHaveClass('max-md:-mt-6')
   })
 
-  it('pulls flush under PublicTopBar with max-md:-mt-6 on mobile when logged out', async () => {
+  it('adds no top margin of its own when logged out, where PublicShell spaces it', async () => {
     const card = await renderPage()
 
-    expect(card).toHaveClass('max-md:-mt-6')
+    // The public shell keeps its column padding on desktop and drops it
+    // below md, where the card sits flush under the compact bar; an extra
+    // negative margin here would pull it under that bar.
+    expect(card).not.toHaveClass('max-md:-mt-6')
     expect(card).not.toHaveClass('md:mt-4')
     expect(card).not.toHaveClass('mt-4')
   })

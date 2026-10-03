@@ -256,10 +256,10 @@ const Page: FC<Props> = async ({ params }) => {
             // content wrapper has no top padding, so the card sits with a top
             // margin on desktop. On mobile it sits flush under the compact bar
             // rendered above it. Logged-out
-            // viewers go through `PublicShell`, which supplies its own top
-            // padding (`py-6`); on desktop that gap is kept, while on mobile
-            // `max-md:-mt-6` pulls the card flush beneath `PublicTopBar`.
-            currentActorProfile ? 'md:mt-4' : 'max-md:-mt-6',
+            // viewers go through `PublicShell`, whose column keeps its top
+            // padding (`py-6`) on desktop and drops it below `md`, where the
+            // card sits flush under the compact bar as well.
+            currentActorProfile && 'md:mt-4',
             // No `overflow-hidden`: this card wraps a post, and a post's
             // non-portalled overlays have to escape it. They all hang off the
             // action row inside `FitnessStatusDetail`'s own card — the
@@ -290,7 +290,8 @@ const Page: FC<Props> = async ({ params }) => {
           ) : (
             // Logged-out view has no back-button chrome (matching the web-public
             // design), but keep a top-level heading for the document outline.
-            <h1 className="sr-only">Activity</h1>
+            // Below `md` the compact bar's "Activity" is that heading.
+            <h1 className="sr-only max-md:hidden">Activity</h1>
           )}
 
           <div
@@ -351,10 +352,10 @@ const Page: FC<Props> = async ({ params }) => {
           // Signed-in viewers render inside the `(timeline)` layout, whose
           // content wrapper has no top padding on desktop; on mobile the card
           // sits flush under the compact bar rendered above it. Logged-out
-          // viewers go through `PublicShell`, which supplies
-          // its own top padding (`py-6`); on desktop that gap is kept, while on
-          // mobile `max-md:-mt-6` pulls the card flush beneath `PublicTopBar`.
-          currentActorProfile ? 'md:mt-4' : 'max-md:-mt-6',
+          // viewers go through `PublicShell`, whose column keeps its top
+          // padding (`py-6`) on desktop and drops it below `md`, where the
+          // card sits flush under the compact bar as well.
+          currentActorProfile && 'md:mt-4',
           // No `overflow-hidden`: this card contains posts, and a post's
           // non-portalled overlays would be clipped by it — the same reason
           // `Posts` dropped it. The one that reaches this card's edge is the
@@ -410,7 +411,8 @@ const Page: FC<Props> = async ({ params }) => {
         ) : (
           // Logged-out view has no back-button chrome (matching the web-public
           // design), but keep a top-level heading for the document outline.
-          <h1 className="sr-only">Post</h1>
+          // Below `md` the compact bar's "Post" is that heading.
+          <h1 className="sr-only max-md:hidden">Post</h1>
         )}
 
         <StatusThread

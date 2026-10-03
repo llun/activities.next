@@ -1,6 +1,4 @@
-import { ArrowLeft } from 'lucide-react'
 import { Metadata } from 'next'
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { FC } from 'react'
 
@@ -9,6 +7,8 @@ import { FollowList } from '@/app/(timeline)/[actor]/FollowList'
 import { getFollowListBlockedActorIds } from '@/app/(timeline)/[actor]/getFollowListBlockedActorIds'
 import { getProfileData } from '@/app/(timeline)/[actor]/getProfileData'
 import { getNonLocalActorRedirectTarget } from '@/app/(timeline)/[actor]/resolveActorRedirect'
+import { BackLink } from '@/lib/components/back-link'
+import { MobileCompactHeader } from '@/lib/components/layout/mobile-compact-header'
 import { PageHeader } from '@/lib/components/page-header'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
@@ -128,6 +128,7 @@ export const FollowListPage: FC<FollowListPageProps> = async ({
         targetUrl={targetUrl}
         domain={actorDomain}
         username={actorUsername}
+        pageTitle={config.label}
       />
     )
   }
@@ -175,26 +176,31 @@ export const FollowListPage: FC<FollowListPageProps> = async ({
           description={countDescription}
         />
       ) : (
-        <div className="flex items-start gap-2">
-          <Link
-            href={`/@${actorProfile.person.preferredUsername}@${actorDomain}`}
-            prefetch={false}
-            aria-label="Back to profile"
-            className="mt-0.5 text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight">
-              {config.label}
-            </h1>
-            {countDescription && (
-              <p className="text-sm text-muted-foreground">
-                {countDescription}
-              </p>
-            )}
+        // Logged out (inside PublicShell, which always provides the public
+        // drawer): the compact bar carries the title below md, and the Back
+        // becomes the content's first, labelled row.
+        <>
+          <MobileCompactHeader title={config.label} className="mb-0" />
+          <div className="flex items-start gap-2 max-md:flex-col max-md:gap-0 max-md:pt-2">
+            <BackLink
+              href={profileHref}
+              label="Back to profile"
+              prefetch={false}
+              iconOnlyFrom="md"
+              className="md:mt-0.5"
+            />
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight max-md:hidden">
+                {config.label}
+              </h1>
+              {countDescription && (
+                <p className="text-sm text-muted-foreground">
+                  {countDescription}
+                </p>
+              )}
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       <div className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">

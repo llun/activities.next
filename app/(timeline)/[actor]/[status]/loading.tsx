@@ -14,7 +14,7 @@ export const StatusLoading: FC = () => {
       <div
         aria-busy="true"
         aria-label="Loading post"
-        className={`md:mt-4 overflow-hidden rounded-2xl border bg-background/80 shadow-sm group-data-[shell=public]/shell:mt-0 group-data-[shell=public]/shell:max-md:-mt-6 ${MOBILE_FEED_SURFACE_CLASS}`}
+        className={`md:mt-4 overflow-hidden rounded-2xl border bg-background/80 shadow-sm group-data-[shell=public]/shell:mt-0 ${MOBILE_FEED_SURFACE_CLASS}`}
       >
         <div className="flex items-center gap-3 border-b bg-surface-chrome px-5 py-3 group-data-[shell=public]/shell:hidden max-md:bg-transparent max-md:px-3 max-md:py-0.5">
           <div className="skeleton h-8 w-8 rounded-md max-md:hidden" />
