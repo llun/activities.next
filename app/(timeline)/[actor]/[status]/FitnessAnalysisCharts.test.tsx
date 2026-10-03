@@ -86,6 +86,10 @@ describe('FitnessAnalysisCharts', () => {
     // `@container` no ancestor on the status page is one, the query never
     // matches, and that label stays hidden at every width.
     expect(labels[0].parentElement).toHaveClass('relative', '@container')
+    // Every label is `absolute`, so `h-4` is all that gives the row a height:
+    // without it the row is 0px tall and its labels (a 16px line) hang over
+    // whatever follows it, such as the combined chart's caption.
+    expect(labels[0].parentElement).toHaveClass('h-4')
     expect(labels[0].parentElement).not.toHaveClass('flex')
     expect(labels[0].parentElement).not.toHaveClass('justify-between')
   }

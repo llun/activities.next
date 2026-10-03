@@ -302,10 +302,8 @@ export const ElevationProfileChart: FC<ElevationProfileChartProps> = ({
   // Four ticks, not the helper's default six. This card is narrower than the
   // Analysis panel (a `p-5` Card inside the same column, so 212px of content at
   // the 320px reflow target against that panel's 220px), a label row has no way
-  // to wrap (each label is `whitespace-nowrap`), and a Card has no
-  // `overflow-hidden` to clip a row that outgrows it the way that panel does —
-  // so an over-wide row here lays its labels over each other and then crosses
-  // the card's own border.
+  // to wrap (each label is `whitespace-nowrap`), so a set of labels that does
+  // not fit lays them over each other.
   //
   // Worked at 11px tabular-nums, where "0:00" is ~24px and one "H:MM:SS" label
   // ~42px (a five-hour ride, the point at which every tick but the first has

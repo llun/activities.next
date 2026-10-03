@@ -25,6 +25,7 @@ import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusNote } from '@/lib/types/domain/status'
 import { loadMaplibreModule } from '@/lib/utils/maplibre'
 
+import { GRAPH_HEIGHT_CLASSNAME } from './FitnessAnalysisCharts'
 import { FitnessStatusDetail } from './FitnessStatusDetail'
 
 vi.mock('@/lib/client', () => ({
@@ -1058,6 +1059,10 @@ describe('FitnessStatusDetail', () => {
         expect(label.style.top).toMatch(/, (calc\()?100% - 8px\)+$/)
       }
       expect(labels[0].parentElement).toHaveClass('grid')
+      // `top: N%` is a share of this box, so it has to be as tall as the plot
+      // it labels: without the height the box is one 16px line and the five
+      // labels stack on the same spot.
+      expect(labels[0].parentElement).toHaveClass(GRAPH_HEIGHT_CLASSNAME)
     })
   })
 
