@@ -1,0 +1,501 @@
+app/(timeline)/admin/reports/AdminReportsList.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 90
+lib/components/ui/dialog.tsx
+  s_c5025a55acb7b5::t_535c0b5df3d2b0 63
+lib/components/posts/actions/like-button.test.tsx
+  s_c5025a55acb7b5::t_c3714023df6e64 72-99
+app/globals.css
+  s_c5025a55acb7b5::t_26eaf3ad7487a4 33-34,115-117,119-136,223-226,312-315
+  s_82468012d96a9d::t_eb53e16c456d0d 292-295,300,305
+  s_c5025a55acb7b5::t_723ee3a6bb748e 118
+  s_82468012d96a9d::t_3fb6f73537532b 35,137-141,227-228
+  s_82468012d96a9d::t_6aada5fddf0abf 62-66,150-152,237-239
+  s_82468012d96a9d::t_00e5b57fbffa46 240
+  s_82468012d96a9d::t_b368316d8860ec 72-73,77
+  s_82468012d96a9d::t_3ac811a7598a76 74-76
+lib/components/posts/status-reply-box.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 353
+app/(timeline)/notifications/components/ActivityImportNotification.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 43
+lib/components/posts/status-thread.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 341,345,350,385,575
+  s_82468012d96a9d::t_2bbd0f57194720 498
+lib/components/fitness/HeatmapShareEmbed.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 377,453
+  s_c5025a55acb7b5::t_0ad0499f426e31 455-456
+lib/components/post-box/poll-choices.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 141,144
+lib/components/ui/dropdown-menu.tsx
+  s_82468012d96a9d::t_d2ad60efb85894 77,95,131,138,221
+  s_82468012d96a9d::t_9afac6ff15e308 4
+lib/components/posts/poll.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 231
+lib/components/notification-badge/NotificationBadge.tsx
+  s_82468012d96a9d::t_3b4bdae92d43e7 24-27
+app/(nosidebar)/auth/signin/CredentialForm.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 103
+  s_82468012d96a9d::t_74786f6c4c254e 93,97
+lib/components/posts/actions/reaction-button.tsx
+  s_c5025a55acb7b5::t_b8c352c6d6b0f2 87-88,97-102
+app/(timeline)/account/sessions/AccountSessions.tsx
+  s_82468012d96a9d::t_4be906d9da7a9e 106
+app/(timeline)/PublicTopBar.tsx
+  s_82468012d96a9d::t_54e0bd70e825d9 20
+lib/components/settings/FitnessFileManagement.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 319
+  s_82468012d96a9d::t_4fe5e5240fefe0 221-229,232
+lib/components/filters/FilterRow.test.tsx
+  s_82468012d96a9d::t_eace9a9f47cf4e 1-7,9-11,17-21,23-25,27-29,31-36,42-45,48-51,77-81,83-85,114,116,132
+  s_82468012d96a9d::t_39db883e110625 86-102,104
+  s_82468012d96a9d::t_336c0c4e81f164 37-41,46-47,52,75-76,82
+  s_82468012d96a9d::t_c0eb50c57ca597 8,53-74
+app/(timeline)/collections/[id]/CollectionDetail.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 319-320
+lib/components/posts/reaction-row.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 69
+app/(timeline)/explore/ExplorePageClient.test.tsx
+  s_82468012d96a9d::t_0187e1787611da 165-181,183-186
+  s_82468012d96a9d::t_d82d0a521abf98 182
+  s_82468012d96a9d::t_217273d6b482f7 205
+app/u/heatmaps/[token]/SharedHeatmapPage.tsx
+  s_82468012d96a9d::t_54e0bd70e825d9 59
+app/(timeline)/admin/accounts/page.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 62
+lib/components/posts/actions/visibility-button.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 114
+lib/components/trends/trending-now-block.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 47
+lib/components/posts/actions/like-button.tsx
+  s_c5025a55acb7b5::t_b8c352c6d6b0f2 61,98-102
+lib/components/surfaceChromeUsage.test.ts
+  s_82468012d96a9d::t_d82d0a521abf98 27-34
+  s_82468012d96a9d::t_7c7c3783a4c637 1-26,35
+lib/components/admin-rules/RulesPanel.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 34
+docs/architecture.md
+  s_82468012d96a9d::t_a73717d0aa4ec2 1594-1599,1604-1607,1616-1625,1632
+  s_82468012d96a9d::t_c0f2359125ff60 1638-1639
+  s_c5025a55acb7b5::t_cf3519041b7b56 1563-1573,1575,1579-1583,1590-1593,1600-1603,1633-1637
+  s_82468012d96a9d::t_8d65610bc833dc 1359-1362
+  s_82468012d96a9d::t_799e4b2b9c3f83 1963-1973
+  s_82468012d96a9d::t_6b29a0d2c08f38 1363-1366,1608-1610
+lib/components/ui/switch.test.tsx
+  s_82468012d96a9d::t_3e1dfa2d627825 1-24
+app/(nosidebar)/auth/forgot-password/page.tsx
+  s_c5025a55acb7b5::t_0ad0499f426e31 47-50
+lib/components/profile/FeaturedTagsBlock.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 31
+lib/components/settings/FitnessImport.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 266
+lib/components/admin/StatsOverview.tsx
+  s_82468012d96a9d::t_3fb6f73537532b 280,326
+  s_82468012d96a9d::t_01cd40d20f252a 249-265
+app/globals.contrast.test.ts
+  s_82468012d96a9d::t_3c51ab012a4383 284-309,313,316-317
+  s_c5025a55acb7b5::t_0ad0499f426e31 208-224,226-229,250-280,281-283
+  s_82468012d96a9d::t_253a32da09a9b2 310-312,314-315
+  s_82468012d96a9d::t_554867a212204b 225,318-332
+app/(timeline)/[actor]/[status]/Header.tsx
+  s_82468012d96a9d::t_54e0bd70e825d9 18
+app/(timeline)/explore/ExplorePageClient.tsx
+  s_82468012d96a9d::t_a76651ec1c7de5 52-53,55,69,71-73
+app/(timeline)/account/sessions/AccountSessions.test.tsx
+  s_82468012d96a9d::t_eace9a9f47cf4e 193-202
+lib/components/admin/settings/LanguagesPicker.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 70
+  s_82468012d96a9d::t_a749f95e8fc37e 80
+  s_82468012d96a9d::t_bb7ac00672ebf1 114-115
+  s_82468012d96a9d::t_facdbc4e564785 100,112
+app/(nosidebar)/auth/reset-password/page.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 43
+lib/components/layout/sidebar.tsx
+  s_c5025a55acb7b5::t_a22fd65f6c7b74 315,341-346,364-369,371-376,394,420,424-426,466,470-475,511,515-520,672,675-680
+  s_c5025a55acb7b5::t_33ea339210e715 287,586
+  s_82468012d96a9d::t_84dca2b6c03111 480-485,487-492,587-590
+lib/components/ui/badge.test.tsx
+  s_c5025a55acb7b5::t_c3714023df6e64 1-40,49
+  s_82468012d96a9d::t_eace9a9f47cf4e 41-48
+lib/components/announcements/AnnouncementBanner.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 63,99,455-456
+lib/components/settings/MediaManagement.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 226
+  s_82468012d96a9d::t_4fe5e5240fefe0 123-128,131
+lib/components/post-box/visibility-selector.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 165,216
+  s_82468012d96a9d::t_4f27ee386803e2 152,204
+lib/components/ui/button.test.tsx
+  s_c5025a55acb7b5::t_c3714023df6e64 54-67
+app/(timeline)/[actor]/[status]/FitnessAnalysisCharts.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 957
+lib/components/page-header.tsx
+  s_c5025a55acb7b5::t_33ea339210e715 123
+lib/components/ui/dialog.test.tsx
+  s_c5025a55acb7b5::t_42ef7a21a82ff7 1-29,34-42
+  s_82468012d96a9d::t_303756494a106b 30-33
+app/(timeline)/admin/reports/[id]/AdminReportDetail.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 126,195
+  s_82468012d96a9d::t_91110e5d486b77 15,17,149-152
+lib/components/ui/badge.tsx
+  s_82468012d96a9d::t_4be906d9da7a9e 11-13
+  s_c5025a55acb7b5::t_4b32444ceb1dc5 14-23
+app/(timeline)/[actor]/[status]/loading.tsx
+  s_82468012d96a9d::t_54e0bd70e825d9 12
+lib/components/notification-badge/NotificationBadge.test.tsx
+  s_82468012d96a9d::t_3e1dfa2d627825 1-9,12-14,23-28,34-47
+  s_82468012d96a9d::t_d82d0a521abf98 29-33
+  s_82468012d96a9d::t_e3fe66bc1fa1eb 10-11,15-22
+lib/components/posts/reply-toast.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 39
+app/(nosidebar)/auth/signin/page.tsx
+  s_c5025a55acb7b5::t_0ad0499f426e31 119-122
+lib/components/ui/switch.tsx
+  s_82468012d96a9d::t_6aada5fddf0abf 16
+lib/components/scroll-to-top-button/scroll-to-top-button.tsx
+  s_c5025a55acb7b5::t_ffc00bd5472779 69
+app/(timeline)/settings/featured-hashtags/FeaturedTagsEditor.tsx
+  s_c5025a55acb7b5::t_0ad0499f426e31 365-367
+app/(timeline)/MainPageTimeline.tsx
+  s_c5025a55acb7b5::t_ffc00bd5472779 405-407
+lib/components/ui/dropdown-menu.test.tsx
+  s_82468012d96a9d::t_d82d0a521abf98 26-28,50-57
+  s_82468012d96a9d::t_3e1dfa2d627825 1-25,29-49,58,70-79
+  s_82468012d96a9d::t_170b03758ca4b2 59-69
+app/(timeline)/admin/accounts/[id]/page.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 51
+app/(nosidebar)/auth/two-factor/TwoFactorForm.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 133
+app/(nosidebar)/auth/signup/page.tsx
+  s_c5025a55acb7b5::t_0ad0499f426e31 79-82
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 252,595,599,604,1500-1501
+lib/components/layout/mobile-navigation-header.tsx
+  s_c5025a55acb7b5::t_33ea339210e715 21
+lib/components/ui/button.tsx
+  s_c5025a55acb7b5::t_cbb097618e841b 21
+  s_c5025a55acb7b5::t_ffc00bd5472779 16
+lib/components/filters/FilterEditor.test.tsx
+  s_82468012d96a9d::t_a3d806d0ecd27b 68-96,98-99
+  s_82468012d96a9d::t_fbb88c972a6738 97
+app/(timeline)/account/security/PasskeyManager.test.tsx
+  s_82468012d96a9d::t_a68d283dc58d0b 130-147
+lib/components/ui/textarea.tsx
+  s_82468012d96a9d::t_f50699f33b6950 10
+app/(timeline)/search/loading.test.tsx
+  s_82468012d96a9d::t_91deabd4ca1848 56-58
+lib/components/settings/ActorSelector.tsx
+  s_82468012d96a9d::t_91110e5d486b77 6-7,30-33
+lib/components/settings/NotificationSettings.test.tsx
+  s_82468012d96a9d::t_50bccdf8a58c75 84,85-103
+  s_82468012d96a9d::t_96e3d74863acf4 21-24
+lib/components/settings/MediaManagement.test.tsx
+  s_82468012d96a9d::t_57b07db59d555f 227-269
+lib/components/ui/input.test.tsx
+  s_82468012d96a9d::t_eb25683c1fe9b6 32-54
+lib/components/ui/checkbox.test.tsx
+  s_82468012d96a9d::t_54de9e5594dfc3 28-40
+  s_82468012d96a9d::t_3d5f4a995fd6ee 1-19,21-22,26,41-60,65-67,72-77,84-118
+  s_82468012d96a9d::t_eb25683c1fe9b6 61-64,78-83
+  s_82468012d96a9d::t_188418f48cd3de 20,23-25,27
+  s_82468012d96a9d::t_66be460e95c259 68-71
+lib/components/ui/tabs.test.tsx
+  s_82468012d96a9d::t_3d5f4a995fd6ee 1-24
+app/(nosidebar)/auth/error/page.test.tsx
+  s_82468012d96a9d::t_a68d283dc58d0b 151-161
+lib/components/filters/FilterEditor.tsx
+  s_82468012d96a9d::t_5d5435d6b5076c 313-321
+app/(timeline)/search/SearchPageClient.tsx
+  s_82468012d96a9d::t_286787623d3eeb 531
+  s_82468012d96a9d::t_10607bb8d1bd98 534
+lib/components/section-nav-dropdown.tsx
+  s_82468012d96a9d::t_ef60fe192e77af 88
+  s_82468012d96a9d::t_3fb9393eb63595 80-85
+  s_82468012d96a9d::t_0740da68ee8224 119
+lib/components/ui/select.tsx
+  s_82468012d96a9d::t_8b6e9bd0e5cd23 27-29
+  s_82468012d96a9d::t_01d7343808d925 5-20
+lib/components/ui/avatar.test.tsx
+  s_82468012d96a9d::t_3d5f4a995fd6ee 1-43
+lib/components/settings/FitnessFileManagement.test.tsx
+  s_82468012d96a9d::t_57b07db59d555f 622-646
+lib/components/admin/settings/LanguagesPicker.test.tsx
+  s_82468012d96a9d::t_a68d283dc58d0b 1-37,39-40,44,46,48-49,51-52,59-65,100
+  s_82468012d96a9d::t_5f1ed27c897778 38,41-42,45,47
+  s_82468012d96a9d::t_85c80e8388c06d 50,53-58,66-99
+lib/components/ui/select.test.tsx
+  s_82468012d96a9d::t_eb25683c1fe9b6 48-53
+  s_82468012d96a9d::t_3d5f4a995fd6ee 1-47,54-70
+lib/components/settings/PreferencesSettings.test.tsx
+  s_82468012d96a9d::t_a3d806d0ecd27b 148-191
+lib/components/ui/checkbox.tsx
+  s_82468012d96a9d::t_5d4b5c2a38def5 21-22
+  s_82468012d96a9d::t_7b17f73f258bc0 33
+  s_82468012d96a9d::t_95a1bdb47104a8 34
+  s_82468012d96a9d::t_0ddda3a62a578b 6,11-15
+  s_82468012d96a9d::t_4b7f02bafb43e3 5,7-10,16
+  s_82468012d96a9d::t_8d710da0ff7dff 23
+  s_82468012d96a9d::t_fab74a33030ff4 17-20
+lib/components/ui/textarea.test.tsx
+  s_82468012d96a9d::t_eb25683c1fe9b6 1-20
+lib/components/admin/settings/NumberField.tsx
+  s_82468012d96a9d::t_be84b54846a8e5 6,79-82,94,97-99
+app/(timeline)/account/security/PasskeyManager.tsx
+  s_82468012d96a9d::t_ba1303f67dcbb9 306-308
+lib/components/settings/PreferencesSettings.tsx
+  s_82468012d96a9d::t_8a099c3d53cc13 273-276,283,285-287,290,295
+app/(nosidebar)/auth/error/page.tsx
+  s_82468012d96a9d::t_286787623d3eeb 83
+app/(timeline)/settings/page.tsx
+  s_82468012d96a9d::t_0ace4e987df703 103
+  s_82468012d96a9d::t_91110e5d486b77 11,17,76-79
+lib/components/error-page.test.tsx
+  s_82468012d96a9d::t_a68d283dc58d0b 89-96
+lib/components/ui/input.tsx
+  s_82468012d96a9d::t_f50699f33b6950 11,13-16
+app/(nosidebar)/oauth/authorize/AuthorizeCard.tsx
+  s_82468012d96a9d::t_5cad80da2c5c52 23,363-366
+  s_82468012d96a9d::t_0cb0a1b75bf977 256,295,323
+lib/components/admin/settings/NumberField.test.tsx
+  s_82468012d96a9d::t_57b07db59d555f 59-82
+app/(nosidebar)/oauth/authorize/AuthorizeCard.test.tsx
+  s_82468012d96a9d::t_84d285ee4aff0d 1084-1101,1103-1121,1135-1160,1162-1177,1179-1203
+  s_82468012d96a9d::t_b441ea3fe84f57 1102
+  s_82468012d96a9d::t_aa145fd1ca33dc 1122-1134,1161,1178
+  s_82468012d96a9d::t_7cf55eb80273f4 5-11,542-603
+lib/components/error-page.tsx
+  s_82468012d96a9d::t_286787623d3eeb 195
+lib/components/settings/NotificationSettings.tsx
+  s_82468012d96a9d::t_286787623d3eeb 285,330,379
+  s_82468012d96a9d::t_2a69d2a2aa44fd 284,329
+app/(timeline)/admin/reports/[id]/AdminReportDetail.test.tsx
+  s_82468012d96a9d::t_50bccdf8a58c75 117-130
+app/(timeline)/search/SearchPageClient.test.tsx
+  s_82468012d96a9d::t_d74f031c6c0ae1 254-266
+app/(timeline)/search/loading.tsx
+  s_82468012d96a9d::t_4e96f6484027f3 15-16
+lib/components/section-nav-dropdown.test.tsx
+  s_82468012d96a9d::t_ac90d659db42d0 5-11,121-140
+  s_82468012d96a9d::t_16df7bd59d3418 102-107
+lib/components/ui/avatar.tsx
+  s_82468012d96a9d::t_0999703968e90b 16-18,47-50
+lib/components/ui/tabs.tsx
+  s_82468012d96a9d::t_5956d8de1161d2 45
+lib/components/posts/actions/edit-history-button.tsx
+  s_82468012d96a9d::t_8dab30d30f1909 158-161
+  s_82468012d96a9d::t_c0e2771a806cbc 157
+docs/mastodon-api-compatibility.md
+  s_82468012d96a9d::t_c3594818ea01dc 844-845
+lib/components/posts/compactRelativeTime.test.ts
+  s_82468012d96a9d::t_2bbd0f57194720 84
+  s_82468012d96a9d::t_3afc80af3e19db 1-67,69-74,76-83,85-95
+  s_82468012d96a9d::t_fd3c3dd56425b7 68,75
+app/(timeline)/messages/MessagesPage.test.tsx
+  s_82468012d96a9d::t_39b4a5dfdf988e 997-1012,1014-1017,1019-1023
+  s_82468012d96a9d::t_facdbc4e564785 1013,1018
+lib/components/posts/collapsible-content.test.tsx
+  s_82468012d96a9d::t_7b8c19f4916744 102-121,126-130
+  s_82468012d96a9d::t_223acd7357ab8c 122-125
+lib/components/posts/attachments.test.tsx
+  s_82468012d96a9d::t_063278eab230e8 752-782,815-855,857,859-882,1833-1835,1839,1920-1925
+  s_82468012d96a9d::t_142014d4329d7a 856,858
+  s_82468012d96a9d::t_3122245b0d64ed 783-814
+lib/components/posts/compactRelativeTime.ts
+  s_82468012d96a9d::t_18b8798b4f998d 1-9,13-38
+lib/components/posts/post.tsx
+  s_82468012d96a9d::t_c6fec628311e73 532-538,540
+  s_82468012d96a9d::t_40ed8866261e85 51,102-108,181-183,185-188,496-503,519-523,529
+  s_82468012d96a9d::t_2bbd0f57194720 24
+  s_82468012d96a9d::t_e5d4f4531d4e76 539
+  s_82468012d96a9d::t_d3a705cd9490c1 508-513
+app/(timeline)/[actor]/page.test.tsx
+  s_82468012d96a9d::t_94e99cec4bcd09 263-306,336
+  s_82468012d96a9d::t_d27d6b082f5b19 115-117,157,187,219,229-262,307-335
+  s_82468012d96a9d::t_d138c10cff1001 337
+  s_82468012d96a9d::t_f8d385a88c9823 531-533
+  s_82468012d96a9d::t_86f1ec6b71ece0 338-374
+lib/components/trends/trend-tag-row.test.tsx
+  s_82468012d96a9d::t_f590b07bc297e9 41-56
+app/(timeline)/[actor]/page.tsx
+  s_82468012d96a9d::t_cef51ee0da3ad0 171-175,259
+  s_82468012d96a9d::t_423ab18d9d7aed 283-287,292,295-296
+  s_82468012d96a9d::t_6facc8b7fb5984 269-272
+app/(timeline)/[actor]/ActorTimelines.test.tsx
+  s_82468012d96a9d::t_7b05de463b16b8 132,136,138-142,621-647
+  s_82468012d96a9d::t_152deb860252ca 648-649
+app/(timeline)/messages/MessagesPage.tsx
+  s_82468012d96a9d::t_06059b053f7700 761,1022-1024
+lib/components/posts/actions/edit-history-button.test.tsx
+  s_82468012d96a9d::t_c0e2771a806cbc 80-92
+lib/components/trends/trend-tag-row.tsx
+  s_82468012d96a9d::t_f590b07bc297e9 44-45
+app/(timeline)/messages/loading.tsx
+  s_82468012d96a9d::t_eb89aeababad68 34
+lib/components/posts/attachments.tsx
+  s_82468012d96a9d::t_b5b1a545bc1cc7 196-197,205-209
+  s_82468012d96a9d::t_d5e0954a7c4586 179-195,198-204,210-218,368-374,447-453
+  s_82468012d96a9d::t_17116af76b3dfb 454-457
+app/(timeline)/collections/CollectionEditor.tsx
+  s_82468012d96a9d::t_eccab2b037954a 357-360
+app/(timeline)/[actor]/ActorTimelines.tsx
+  s_82468012d96a9d::t_3a7a93fae7151e 100-105,484,488,493,498
+lib/components/posts/status-thread.test.tsx
+  s_82468012d96a9d::t_39fe4eac3f716c 102-147
+lib/components/posts/post.test.tsx
+  s_82468012d96a9d::t_f90fe4e4602b72 2476-2484,2486-2488,2494,2517-2558,2560-2563,2566-2568,2575,2598-2601,2604-2606,2611-2612,2616-2618,2620-2622,2630-2632,2635-2637,2639
+  s_82468012d96a9d::t_b7a3f4066346c9 2473-2475
+  s_82468012d96a9d::t_125d0204cdf32c 2485
+  s_82468012d96a9d::t_5c2e3497185258 2489-2493
+  s_82468012d96a9d::t_502ef699a9ff69 2495-2497,2514-2516
+  s_82468012d96a9d::t_5b4cf1806abe81 2559
+  s_82468012d96a9d::t_204d26f9e3fdfa 2564-2565
+  s_82468012d96a9d::t_29fdcca82f2d6f 2569-2574
+  s_82468012d96a9d::t_4145e32551c953 2576,2596-2597
+  s_82468012d96a9d::t_d95bf2a81eeefa 2602-2603
+  s_82468012d96a9d::t_c2ae0595d9e244 2607-2610
+  s_82468012d96a9d::t_88755ec28ace01 2613-2615
+  s_82468012d96a9d::t_648de38b6c38c8 2619
+  s_82468012d96a9d::t_d79d83a85109ae 2623-2625,2627-2629
+  s_82468012d96a9d::t_04d63ce9e03d57 2633-2634
+  s_82468012d96a9d::t_5b9dde9d99736a 2638
+  s_82468012d96a9d::t_08c1d07c3c7b1e 2640-2641
+  s_108ba46890a3e6::t_66e79141792e03 2471-2472,2498-2513,2626
+  s_82468012d96a9d::t_c2c2b08fa59077 2577-2595
+lib/components/posts/collapsible-content.tsx
+  s_82468012d96a9d::t_9424970da91e74 27-35,84-88,102
+lib/components/posts/translate-content.test.tsx
+  s_82468012d96a9d::t_66d73b7233b310 12,120-136
+  s_82468012d96a9d::t_d4a4ed476c15bf 137-138
+lib/components/posts/media.tsx
+  s_82468012d96a9d::t_d5e0954a7c4586 416-420
+app/(timeline)/[actor]/[status]/StatusBox.tsx
+  s_82468012d96a9d::t_2bbd0f57194720 119
+lib/components/posts/media.test.tsx
+  s_82468012d96a9d::t_b424e13d765c45 298-341
+app/(timeline)/[actor]/[status]/StatusBox.test.tsx
+  s_82468012d96a9d::t_39fe4eac3f716c 95-123
+lib/components/posts/content-warning.test.tsx
+  s_82468012d96a9d::t_4fa51c57bf4153 20
+  s_82468012d96a9d::t_3b89a69c5d7291 43-60,80
+app/(timeline)/collections/CollectionEditor.test.tsx
+  s_82468012d96a9d::t_cffe7e98516623 118-142
+lib/components/load-more-button/load-more-button.test.tsx
+  s_82468012d96a9d::t_bb02c5a45f56b2 23-41
+lib/components/load-more-button/load-more-button.tsx
+  s_82468012d96a9d::t_20f487e78e1ca2 55-61
+lib/components/posts/content-warning.tsx
+  s_82468012d96a9d::t_98738e0ab69c0c 48
+lib/components/posts/translate-content.tsx
+  s_82468012d96a9d::t_a0b5381122eb2b 3,117-119
+app/(timeline)/account/sessions/connectedAppMeta.test.ts
+  s_82468012d96a9d::t_c56a1b45e17c39 19-24
+app/(timeline)/fitness/connections/strava/StravaGearDefaultsSection.test.tsx
+  s_82468012d96a9d::t_93585fccf1c434 246-268
+app/(timeline)/fitness/connections/strava/StravaGearDefaultsSection.tsx
+  s_82468012d96a9d::t_941b1ee12e35fe 418
+docs/fitness-file-storage.md
+  s_82468012d96a9d::t_f3b9750cfdde04 1127-1128
+  s_82468012d96a9d::t_08792a015be2ce 1254-1255
+lib/components/admin/MiniChart.test.tsx
+  s_82468012d96a9d::t_46e91e7b05782c 10-12,16-20,23,25
+lib/components/admin/MiniChart.tsx
+  s_82468012d96a9d::t_abe0a057e0f4fc 46
+lib/components/admin/settings/settings.test.tsx
+  s_82468012d96a9d::t_5fb388ce91807f 5
+lib/components/announcements/AnnouncementBanner.test.tsx
+  s_82468012d96a9d::t_343e5cbb7b6149 101-104
+lib/components/announcements/formatEventTime.test.ts
+  s_82468012d96a9d::t_dd06e28b507614 123-132
+lib/components/filters/FilterRow.tsx
+  s_82468012d96a9d::t_68f01ec8e3ddb4 7,63-65,67,69-74
+  s_82468012d96a9d::t_f10a3625ff548e 28
+lib/components/fitness/HeatmapShareEmbed.test.tsx
+  s_82468012d96a9d::t_bc0eb6381c9143 277-287,289-322,324-380,382-421
+lib/components/fitness/PrivacyZoneMapKit.tsx
+  s_82468012d96a9d::t_1b8501edcd2216 25-30,226,228
+lib/components/fitness/routeLineStyle.ts
+  s_82468012d96a9d::t_14f6e1d544b8c4 12,15
+lib/components/layout/sidebar.test.tsx
+  s_82468012d96a9d::t_c97e218fec90d7 482-509,523-541,578-592
+  s_82468012d96a9d::t_429087f3251c14 510-522
+  s_82468012d96a9d::t_40b11101cde64d 175-193,542-577
+lib/components/post-box/visibility-selector.test.tsx
+  s_82468012d96a9d::t_dc812a34de58cb 110-141
+lib/components/section-nav-select.test.tsx
+  s_82468012d96a9d::t_9f191887378ffa 5-11,93-97,108-123
+lib/components/section-nav-select.tsx
+  s_82468012d96a9d::t_4e057eb37bc2d8 82-87,90,112
+lib/components/settings/FitnessPrivacyLocationSettings.test.tsx
+  s_82468012d96a9d::t_659149fc8dbc80 1036-1040,1043-1049,1058,1060,1064
+  s_82468012d96a9d::t_a0e3a8433087b9 1080-1105
+lib/components/settings/FitnessPrivacyLocationSettings.tsx
+  s_82468012d96a9d::t_169ff1dfc30c60 11-16
+lib/fitness/routeColor.test.ts
+  s_82468012d96a9d::t_87df8a681dd2c0 1-6,7
+lib/fitness/routeColor.ts
+  s_82468012d96a9d::t_b2c52ea20e4980 1-14
+lib/services/fitness-files/appleMapsSnapshot.ts
+  s_82468012d96a9d::t_cc31bbb46a97f0 3,43-47
+lib/services/fitness-files/generateMapImage.ts
+  s_82468012d96a9d::t_69ec05d98f79e6 4
+lib/components/ui/label.test.tsx
+  s_82468012d96a9d::t_31ad72b2f8d32c 1-29
+app/(nosidebar)/auth/select-actor/ActorSelectionList.test.tsx
+  s_82468012d96a9d::t_3d71262c0fcaa7 1-64
+app/(nosidebar)/auth/select-actor/ActorSelectionList.tsx
+  s_82468012d96a9d::t_45a77cde07887c 60
+app/(timeline)/account/AccountIdentityCard.test.tsx
+  s_82468012d96a9d::t_614be2268d36ae 61-83
+app/(timeline)/account/AccountIdentityCard.tsx
+  s_82468012d96a9d::t_c6c220f1826b3b 25
+lib/components/settings/ActorsSection.test.tsx
+  s_82468012d96a9d::t_065ca6d99618d7 5-11,428-464
+lib/components/settings/ActorsSection.tsx
+  s_82468012d96a9d::t_7c6d0e45041352 153,208
+lib/components/ui/label.tsx
+  s_82468012d96a9d::t_edf63637be9dcf 16
+lib/services/email/layout/blocks.test.ts
+  s_82468012d96a9d::t_32bbf38a7a9548 13,349,353,355-356,360-361
+  s_82468012d96a9d::t_444225ff4cf204 357-359
+  s_82468012d96a9d::t_c0eb50c57ca597 354
+  s_82468012d96a9d::t_9f1529fcb50e0d 1-2
+lib/services/email/layout/theme.ts
+  s_82468012d96a9d::t_a00e5fdd1d6edb 44-50,52
+lib/components/fitness/RegionMap.test.tsx
+  s_82468012d96a9d::t_17e0b201e8e4f3 202
+  s_82468012d96a9d::t_d20c4f83de356e 209-210
+lib/components/fitness/RegionMap.tsx
+  s_82468012d96a9d::t_d20c4f83de356e 227-231
+lib/testing/contrast.ts
+  s_82468012d96a9d::t_c0eb50c57ca597 1-10,17-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d6a2634e336dadd2bfdb6a19145a02249766ade6",
+  "prompts": {},
+  "sessions": {
+    "s_108ba46890a3e6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a7f41503eb0a98771",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_82468012d96a9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c1772d3-df89-4813-8d33-4cbceee3810d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_c5025a55acb7b5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "799d8f19-87d3-4594-af45-8223890a7107",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
