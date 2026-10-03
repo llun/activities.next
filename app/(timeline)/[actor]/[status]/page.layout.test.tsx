@@ -2,8 +2,9 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 
+import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { Actor } from '@/lib/types/domain/actor'
 import { StatusNote } from '@/lib/types/domain/status'
@@ -17,7 +18,8 @@ vi.mock('next/navigation', async () => ({
   notFound: vi.fn(() => {
     throw new Error('NEXT_NOT_FOUND')
   }),
-  useRouter: vi.fn(() => ({ back: vi.fn(), push: vi.fn(), refresh: vi.fn() }))
+  useRouter: vi.fn(() => ({ back: vi.fn(), push: vi.fn(), refresh: vi.fn() })),
+  usePathname: vi.fn(() => '/@alice@example.com/status-1')
 }))
 
 vi.mock('@/lib/config', async () => ({
@@ -186,6 +188,52 @@ const clipsBetween = (card: HTMLElement, statusId: string) => {
 // the assertion meaningful if a card gains another child.
 const rowFor = (statusId: string) =>
   screen.getByTestId(`status-${statusId}`).parentElement
+
+describe('Mobile chrome', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetStatus.mockReset()
+    mockGetServerAuthSession.mockResolvedValue(null)
+    mockGetActorFromSession.mockResolvedValue(buildViewer())
+    mockGetStatusReplies.mockResolvedValue([])
+  })
+
+  it.each([
+    { note: buildNote({ id: 'focused' }), title: 'Post' },
+    { note: buildFitnessNote(), title: 'Activity' }
+  ])(
+    'renders the compact bar titled $title above the card, and points Back at the author',
+    async ({ note, title }) => {
+      mockResolveStatusFromPath.mockResolvedValue({
+        status: note,
+        statusId: note.id,
+        fullStatusId: note.url,
+        isStatusHash: true
+      })
+      const element = await Page({
+        params: Promise.resolve({
+          actor: '%40anna%40activities.local',
+          status: 'hash'
+        })
+      })
+      const { container } = render(
+        <MobileNavigationProvider>{element}</MobileNavigationProvider>
+      )
+
+      const bar = container.firstElementChild as HTMLElement
+      expect(bar).toHaveAttribute('data-mobile-compact-header')
+      expect(
+        within(bar).getByRole('heading', { level: 1, name: title })
+      ).toBeInTheDocument()
+      expect(bar.nextElementSibling).toHaveClass('rounded-2xl')
+      // Direct entry: no in-app page precedes this one in the test, so the
+      // Back is the decoded author profile link.
+      expect(
+        screen.getByRole('link', { name: 'Back to profile' })
+      ).toHaveAttribute('href', '/@anna@activities.local')
+    }
+  )
+})
 
 describe('Conversation card chrome', () => {
   beforeEach(() => {
