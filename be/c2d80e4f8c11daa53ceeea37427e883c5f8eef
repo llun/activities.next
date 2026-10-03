@@ -1,0 +1,19 @@
+lib/actions/applyBlock.test.ts
+  s_bb92ee938bf6dc::t_0d22c097ec3a68 21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bec2d80e4f8c11daa53ceeea37427e883c5f8eef",
+  "prompts": {},
+  "sessions": {
+    "s_bb92ee938bf6dc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e42ed834-8d66-48e4-81fb-7bba86cad7f1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
