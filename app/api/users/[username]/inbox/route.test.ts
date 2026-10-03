@@ -232,8 +232,32 @@ describe('POST /api/users/[username]/inbox', () => {
   beforeEach(() => {
     harness = setupRecordingTracer()
     vi.clearAllMocks()
+    // clearAllMocks keeps queued mock…Once values, and a test can queue one for
+    // a call its path never makes — the untyped reference-object Undo never
+    // reaches applyRemoteUnblock — which then answered the next test that did.
+    // Reset every handle; the defaults below are set afresh each time.
+    for (const mock of [
+      mockPublish,
+      mockCanFederateWithDomain,
+      mockAcceptRelayRequest,
+      mockRejectRelayRequest,
+      mockCreateFollower,
+      mockDeleteLike,
+      mockApplyRemoteBlock,
+      mockApplyRemoteUnblock,
+      mockUndoFollowRequest,
+      mockLikeRequest,
+      mockEmojiReactionRequest,
+      mockUndoEmojiReactionRequest,
+      mockHandleQuoteResponse,
+      mockAcceptFollowRequest,
+      mockRejectFollowRequest,
+      mockVerifyAllows,
+      mockGetModerationStatesForActors
+    ]) {
+      mock.mockReset()
+    }
     mockForwarded = false
-    mockPublish.mockReset()
     mockActor = {
       id: 'https://activities.local/users/llun',
       username: 'llun',

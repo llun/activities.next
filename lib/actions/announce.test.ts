@@ -1,5 +1,6 @@
 import { userAnnounce } from '@/lib/actions/announce'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { Database } from '@/lib/database/types'
 import { SEND_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { JobData } from '@/lib/jobs/sendAnnounceJob'
 import { getQueue } from '@/lib/services/queue'
@@ -28,11 +29,16 @@ vi.mock('@/lib/services/email', () => ({
 }))
 
 describe('Announce action', () => {
-  const database = getTestSQLDatabase()
+  // A fresh seeded database per test: two tests announce actor2's post-2, and
+  // userAnnounce returns null for a status the actor has already announced, so
+  // on a shared database whichever of them ran second got null.
+  let database: Database
   let actor1: Actor
   let actor2: Actor
 
-  beforeAll(async () => {
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    database = getTestSQLDatabase()
     await database.migrate()
     await seedDatabase(database)
 
@@ -44,13 +50,8 @@ describe('Announce action', () => {
     })) as Actor
   })
 
-  afterAll(async () => {
-    if (!database) return
+  afterEach(async () => {
     await database.destroy()
-  })
-
-  beforeEach(() => {
-    vi.clearAllMocks()
   })
 
   describe('userAnnounce', () => {

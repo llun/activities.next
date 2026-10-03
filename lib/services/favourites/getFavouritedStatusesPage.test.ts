@@ -61,7 +61,9 @@ describe('getFavouritedStatusesPage', () => {
     (_, index) => `${ACTOR2_ID}/statuses/fav-page-${index + 1}`
   )
 
-  beforeAll(async () => {
+  // A fresh database per test: the backfill test deletes fav-page-2's status
+  // row, which a shared database carried into whichever test ran after it.
+  beforeEach(async () => {
     ;({ raw, database } = await newTestDatabase())
     viewer = (await database.getActorFromId({ id: ACTOR1_ID }))!
     for (let index = 0; index < statusIds.length; index++) {
@@ -70,7 +72,7 @@ describe('getFavouritedStatusesPage', () => {
     }
   })
 
-  afterAll(async () => {
+  afterEach(async () => {
     await raw.destroy()
   })
 
