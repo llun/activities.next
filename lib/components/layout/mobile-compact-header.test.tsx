@@ -45,7 +45,8 @@ describe('MobileCompactHeader', () => {
     expect(container.querySelector('[data-mobile-compact-header]')).toHaveClass(
       'sticky',
       'top-0',
-      'h-14',
+      'h-[55px]',
+      'border-b',
       'box-content',
       'bg-surface-chrome',
       'md:hidden'

@@ -20,13 +20,14 @@ export const breakoutStyle: CSSProperties = {
   marginRight: 'calc(-50vw + 50% + var(--sidebar-w, 0px) / 2)'
 }
 
-// The mobile "Compact B" bar: one 56px row (`h-14` on a content box, so the top
-// safe-area inset is added on top of it rather than taken out of it) holding the
+// The mobile "Compact B" bar: one 56px row — 55px of content box plus the 1px
+// bottom border (`box-content`, so the top safe-area padding is added on top of
+// it rather than taken out of it) — holding the
 // menu button and a single truncating title. Sticky over the page, on the
 // translucent Surface Chrome token, and gone from `md` up, where the sidebar
 // and the desktop `PageHeader` take over.
 export const MOBILE_COMPACT_HEADER_CLASS =
-  'sticky top-0 z-30 box-content flex h-14 items-center gap-2 border-b bg-surface-chrome pl-2 pr-4 safe-area-pt backdrop-blur md:hidden'
+  'sticky top-0 z-30 box-content flex h-[55px] items-center gap-2 border-b bg-surface-chrome pl-2 pr-4 safe-area-pt backdrop-blur md:hidden'
 
 // The labelled Back row that replaces the back arrow the old bars carried: a
 // 44px-tall target in the first row of the content. From `md` up a `BackLink`
