@@ -17,9 +17,10 @@ export interface PublicMobileNavProps {
    * Absolute logo URL on the canonical origin, built by the server caller from
    * `getBaseURL()` like `PublicTopBar` and `PublicFooter`: on a CDN alias
    * domain the root-relative default is redirected away, and below `md` this
-   * drawer carries the page's only logo.
+   * drawer carries the page's only logo. Required so a new caller cannot fall
+   * back to that default by omission.
    */
-  logoSrc?: string
+  logoSrc: string
   signinHref?: string
   signupHref?: string
 }

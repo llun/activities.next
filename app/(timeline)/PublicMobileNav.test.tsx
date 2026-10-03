@@ -30,7 +30,11 @@ const openDrawer = (
   render(
     <MobileNavigationProvider>
       <MobileNavigationTrigger variant="floating" />
-      <PublicMobileNav registrationOpen={registrationOpen} {...hrefs} />
+      <PublicMobileNav
+        registrationOpen={registrationOpen}
+        logoSrc="https://canonical.example/logo-nav.png"
+        {...hrefs}
+      />
     </MobileNavigationProvider>
   )
   fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
